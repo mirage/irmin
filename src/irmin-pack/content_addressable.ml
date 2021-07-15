@@ -19,11 +19,17 @@ open! Import
 
 (* FIXME: remove code duplication with irmin/content_addressable *)
 module Closeable (S : S) = struct
+  module Key = S.Key
+
   type 'a t = { closed : bool ref; t : 'a S.t }
-  type key = S.key
   type value = S.value
+  type hash = S.hash
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+
+  let index t =
+    check_not_closed t;
+    S.index t.t
 
   let mem t k =
     check_not_closed t;

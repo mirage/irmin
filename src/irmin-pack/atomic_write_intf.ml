@@ -35,12 +35,12 @@ module type Sigs = sig
       (_ : Version.S)
       (_ : Irmin.Hash.S)
       (K : Irmin.Type.S)
-      (V : Irmin.Hash.S) : Persistent with type key = K.t and type value = V.t
+      (V : Irmin.Hash.S) : Persistent with type Key.t = K.t and type value = V.t
 
   module Closeable (AW : S) : sig
     include
       S
-        with type key = AW.key
+        with type Key.t = AW.Key.t
          and type value = AW.value
          and type watch = AW.watch
 

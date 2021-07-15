@@ -254,9 +254,9 @@ module Make (M : Maker) = struct
             Lwt_list.filter_map_s
               (fun x ->
                 match Repr.of_string Store.Hash.t x with
-                | Ok x ->
+                | Ok _x ->
                     (* FIXME: metada? *)
-                    let key = Store.Private.Commit.Key.v x in
+                    let key = assert false (* Store.Private.Commit.Key.v x *) in
                     Store.Commit.of_key repo key
                 | _ -> Lwt.return None)
               heads

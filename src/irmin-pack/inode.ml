@@ -20,7 +20,7 @@ include Inode_intf
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (Node : Irmin.Node.S with type hash = H.t) =
+    (Node : Irmin.Node.S with type node_key = Pack_key.Make(H).t) =
 struct
   let () =
     if Conf.entries > Conf.stable_hash then
@@ -32,6 +32,8 @@ struct
 
     let hash = H.hash
   end
+
+  module Key = Pack_key.Make (H)
 
   module T = struct
     type hash = H.t [@@deriving irmin ~pp ~equal]
@@ -472,7 +474,7 @@ struct
 
     module Concrete = struct
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
-      type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+      type entry = { name : step; kind : kind; key : Key.t } [@@deriving irmin]
 
       type 'a pointer = { index : int; pointer : hash; tree : 'a }
       [@@deriving irmin]
@@ -484,18 +486,18 @@ struct
 
       let to_entry (name, v) =
         match v with
-        | `Contents (hash, m) ->
+        | `Contents (contents_key, m) ->
             if T.equal_metadata m Node.default then
-              { name; kind = Contents; hash }
-            else { name; kind = Contents_x m; hash }
-        | `Node hash -> { name; kind = Node; hash }
+              { name; kind = Contents; key = contents_key }
+            else { name; kind = Contents_x m; key = contents_key }
+        | `Node node_key -> { name; kind = Node; key = node_key }
 
       let of_entry e =
         ( e.name,
           match e.kind with
-          | Contents -> `Contents (e.hash, Node.default)
-          | Contents_x m -> `Contents (e.hash, m)
-          | Node -> `Node e.hash )
+          | Contents -> `Contents (e.key, Node.default)
+          | Contents_x m -> `Contents (e.key, m)
+          | Node -> `Node e.key )
 
       type error =
         [ `Invalid_hash of hash * hash * t

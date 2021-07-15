@@ -33,6 +33,7 @@ struct
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
   module IO = IO.Unix
+  module Key = K
 
   type key = K.t [@@deriving irmin ~pp ~to_bin_string ~of_bin_string]
   type value = V.t [@@deriving irmin ~equal ~decode_bin ~of_bin_string]
@@ -241,7 +242,9 @@ end
 (* FIXME: remove code duplication with irmin/atomic_write *)
 module Closeable (AW : S) = struct
   type t = { closed : bool ref; t : AW.t }
-  type key = AW.key
+
+  module Key = AW.Key
+
   type value = AW.value
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed

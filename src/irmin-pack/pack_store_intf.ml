@@ -2,12 +2,15 @@ open! Import
 
 (** A [Pack_store.S] is a closeable, persistent implementation of
     {!Content_addressable.S} that uses an append-only file of variable-length
-    data blocks. The data file is indexed by hash via {!Pack_index.S}
-    implementation. *)
+    data blocks.
+
+    Certain values in the data file are indexed by hash via a {!Pack_index.S}
+    implementation, but not all of them need be. *)
 module type S = sig
   include Content_addressable.S
 
   type index
+  type key
 
   val v :
     ?fresh:bool ->
@@ -37,14 +40,14 @@ module type S = sig
 end
 
 module type Maker = sig
-  type key
+  type hash
   type index
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
 
-  module Make (V : Pack_value.S with type hash := key) :
-    S with type key = key and type value = V.t and type index = index
+  module Make (V : Pack_value.S with type hash := hash) :
+    S with type hash = hash and type value = V.t and type index = index
 end
 
 module type Sigs = sig
@@ -54,6 +57,6 @@ module type Sigs = sig
   module Maker
       (V : Version.S)
       (Index : Pack_index.S)
-      (K : Irmin.Hash.S with type t = Index.key) :
-    Maker with type key = K.t and type index = Index.t
+      (Hash : Irmin.Hash.S with type t = Index.key) :
+    Maker with type hash = Hash.t and type index = Index.t
 end
