@@ -18,25 +18,27 @@ open! Import
 open Lwt.Infix
 include Content_addressable_intf
 
-module Make (AO : Append_only.Maker) (H : Hash.S) (V : Type.S) = struct
-  include AO (H) (V)
-  open Lwt.Infix
-  module H = Hash.Typed (K) (V)
+module type Schema = Append_only.Schema
 
-  type key = V.t Key.t [@@deriving irmin ~pp]
-  type hash = H.t [@@deriving irmin ~equal ~pp]
+module Make (Append_only_maker : Append_only.Maker) (Schema : Schema) = struct
+  include Append_only_maker (Schema)
+  module Hash = Hash.Typed (Schema.Hash) (Schema.Value)
 
-  let hash = H.hash
+  type nonrec key = Key.t [@@deriving irmin ~pp]
+  type nonrec hash = Schema.Hash.t [@@deriving irmin ~equal ~pp]
+
+  let hash = Hash.hash
 
   let find t k =
     find t k >>= function
     | None -> Lwt.return_none
     | Some v as r ->
         let h = hash v in
-        if equal_hash (Key.hash k) h then Lwt.return r
+        let h' = Key.hash k in
+        if equal_hash h h' then Lwt.return r
         else
           Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_hash h pp_hash k
+            pp_hash h pp_hash h'
 
   let unsafe_add t k v = add t k v
 
@@ -45,8 +47,9 @@ module Make (AO : Append_only.Maker) (H : Hash.S) (V : Type.S) = struct
     add t h v
 end
 
-module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
-  module S = CA.Make (K) (V)
+module Check_closed (CA : Maker) (Schema : Schema) = struct
+  module S = CA (Schema)
+  module Key = S.Key
 
   type 'a t = { closed : bool ref; t : 'a S.t }
   type key = S.key

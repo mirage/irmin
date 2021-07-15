@@ -31,6 +31,7 @@ module Make (S : Store.S) = struct
 
   type db = S.t
   type commit = S.commit
+  type commit_key = S.commit_key [@@deriving irmin ~pp]
   type info = S.info
 
   let conv dx dy =
@@ -81,7 +82,6 @@ module Make (S : Store.S) = struct
       [] l
 
   let pp_branch = Type.pp S.Branch.t
-  let pp_hash = Type.pp S.Hash.t
 
   type status = [ `Empty | `Head of commit ]
 
@@ -130,8 +130,8 @@ module Make (S : Store.S) = struct
             B.fetch g ?depth e br >>= function
             | Error _ as e -> Lwt.return e
             | Ok (Some c) -> (
-                Log.debug (fun l -> l "Fetched %a" pp_hash c);
-                let key = S.Private.Commit.Key.v c in
+                let key = (assert false : B.commit -> S.commit_key) c in
+                Log.debug (fun l -> l "Fetched %a" pp_commit_key key);
                 S.Commit.of_key (S.repo t) key >|= function
                 | None -> Ok `Empty
                 | Some x -> Ok (`Head x))

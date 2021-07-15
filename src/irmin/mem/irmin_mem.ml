@@ -20,17 +20,16 @@ let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Append_only (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
-  module Key = Key (K)
+module Append_only (Schema : Irmin.Append_only.Schema) = struct
+  open Schema
 
   module Hashes = Map.Make (struct
-    type t = K.t
-
-    let compare = Irmin.Type.(unstage (compare K.t))
+    type t = Hash.t [@@deriving irmin ~compare]
   end)
 
-  type key = V.t Key.t [@@deriving irmin]
-  type value = V.t
+  type key = Key.t [@@deriving irmin ~pp]
+  type value = Value.t
+  type hash = Hash.t [@@deriving irmin ~pp]
   type 'a t = { mutable t : (key * value) Hashes.t }
 
   let map = { t = Hashes.empty }
@@ -38,7 +37,7 @@ module Append_only (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
 
   let clear t =
     Log.debug (fun f -> f "clear");
-    Hashes.iter (fun _ (k, _) -> Key.clear k) t.t;
+    (* Hashes.iter (fun _ (k, _) -> Key.clear k) t.t; *)
     t.t <- Hashes.empty;
     Lwt.return_unit
 
@@ -48,21 +47,21 @@ module Append_only (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
 
   let cast t = (t :> read_write t)
   let batch t f = f (cast t)
-  let pp_key = Irmin.Type.pp key_t
-  let pp_hash = Irmin.Type.pp K.t
 
   let find_aux { t; _ } key =
-    match Key.value key with
-    | Some _ as v ->
-        Log.debug (fun l -> l "metadata found!");
-        v
-    | None -> (
-        match Hashes.find_opt (Key.hash key) t with
-        | None -> None
-        | Some (_, v) ->
-            Log.debug (fun l -> l "metadata set!");
-            Key.set key v;
-            Some v)
+    try Some (Hashes.find (Key.hash key) t) with Not_found -> None
+
+  (* match Key.value key with
+   * | Some _ as v ->
+   *     Log.debug (fun l -> l "metadata found!");
+   *     v
+   * | None -> (
+   *     match Hashes.find_opt (Key.hash key) t with
+   *     | None -> None
+   *     | Some (_, v) ->
+   *         Log.debug (fun l -> l "metadata set!");
+   *         Key.set key v;
+   *         Some v) *)
 
   let index { t; _ } h =
     Log.debug (fun f -> f "index %a" pp_hash h);
@@ -71,7 +70,7 @@ module Append_only (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
   let find t key =
     Log.debug (fun f -> f "find %a" pp_key key);
     let v = find_aux t key in
-    Lwt.return v
+    Lwt.return (Option.map snd v)
 
   let mem t key =
     Log.debug (fun f -> f "mem %a" pp_key key);
@@ -79,18 +78,17 @@ module Append_only (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
     | None -> Lwt.return false
     | Some _ -> Lwt.return true
 
-  let pp_hash = Irmin.Type.pp K.t
-
-  type hash = Key.hash
-
   let add t hash value =
     Log.debug (fun f -> f "add -> %a" pp_hash hash);
-    match Hashes.find_opt hash t.t with
-    | Some (k, _) -> Lwt.return k
-    | None ->
-        let key = Key.of_value value hash in
-        t.t <- Hashes.add hash (key, value) t.t;
-        Lwt.return key
+    t.t <- Hashes.add hash value t.t;
+    Lwt.return_unit
+
+  (* match Hashes.find_opt hash t.t with
+   * | Some (k, _) -> Lwt.return k
+   * | None ->
+   *     let key = Key.of_value value hash in
+   *     t.t <- Hashes.add hash (key, value) t.t;
+   *     Lwt.return key *)
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct

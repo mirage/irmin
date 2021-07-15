@@ -25,12 +25,16 @@ module type S = sig
 
   (** Private content store. *)
   module Contents :
-    Contents.Store with type key = Hash.t and type value = Schema.Contents.t
+    Contents.Store
+      with type key = Schema.Contents_key.t
+       and type hash = Hash.t
+       and type value = Schema.Contents.t
 
   (** Private node store. *)
   module Node :
     Node.Store
-      with type key = Hash.t
+      with type key = Schema.Node_key.t
+       and type hash = Hash.t
        and type Val.contents_key = Contents.key
        and module Path = Schema.Path
        and module Metadata = Schema.Metadata
@@ -38,7 +42,8 @@ module type S = sig
   (** Private commit store. *)
   module Commit :
     Commit.Store
-      with type key = Hash.t
+      with type key = Schema.Commit_key.t
+       and type hash = Hash.t
        and type Val.node_key = Node.key
        and type value = Schema.Commit.t
        and module Info = Schema.Info

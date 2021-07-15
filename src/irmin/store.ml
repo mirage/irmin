@@ -32,23 +32,8 @@ module Make (P : Private.S) = struct
   module Commits = Commit.History (P.Commit)
   module Private = P
   module Info = P.Commit.Info
-
-  type key = Key.t [@@deriving irmin]
-  type branch = Branch_store.key
-
   module H = Commit.History (P.Commit)
   module T = Tree.Make (P)
-
-  type contents_key = P.Contents.Key.t [@@deriving irmin]
-  type node_key = P.Node.Key.t [@@deriving irmin]
-  type commit_key = P.Commit.Key.t [@@deriving irmin]
-  type node = T.node [@@deriving irmin]
-  type contents = P.Contents.Val.t [@@deriving irmin]
-  type metadata = Metadata.t [@@deriving irmin]
-  type tree = T.t
-  type repo = P.Repo.t
-  type Remote.t += E of P.Remote.endpoint
-  type commit = { r : repo; key : commit_key; v : P.Commit.value }
 
   module Contents = struct
     include P.Contents.Val
@@ -65,17 +50,20 @@ module Make (P : Private.S) = struct
     let shallow r h = import_no_check r h
   end
 
-  type branch = P.Branch.Key.t [@@deriving irmin]
-  type hash = Hash.t [@@deriving irmin]
+  type branch = Branch_store.Key.t [@@deriving irmin ~equal ~pp]
+  type contents_key = P.Contents.Key.t [@@deriving irmin ~pp]
+  type node_key = P.Node.Key.t [@@deriving irmin ~pp]
+  type commit_key = P.Commit.Key.t [@@deriving irmin ~pp]
+  type repo = P.Repo.t
+  type commit = { r : repo; key : commit_key; v : P.Commit.value }
+  type hash = Hash.t [@@deriving irmin ~pp ~compare]
   type node = Tree.node [@@deriving irmin]
-  type contents = Contents.t [@@deriving irmin]
+  type contents = Contents.t [@@deriving irmin ~equal]
   type metadata = Metadata.t [@@deriving irmin]
-  type tree = Tree.t [@@deriving irmin]
-  type key = Key.t [@@deriving irmin]
+  type tree = Tree.t [@@deriving irmin ~pp]
+  type key = Key.t [@@deriving irmin ~pp]
   type step = Key.step [@@deriving irmin]
   type info = P.Commit.Info.t [@@deriving irmin]
-  type repo = P.Repo.t
-  type commit = { r : repo; h : Hash.t; v : P.Commit.value }
   type Remote.t += E of P.Remote.endpoint
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
   type ff_error = [ `Rejected | `No_change | lca_error ]
@@ -105,6 +93,9 @@ module Make (P : Private.S) = struct
         ("rejected", `Rejected);
       ]
 
+  let pp_int = Type.pp Type.int
+  let save_contents b c = P.Contents.add b c
+
   let save_tree ?(clear = true) r x y (tr : Tree.t) =
     match Tree.destruct tr with
     | `Contents (c, _) ->
@@ -115,26 +106,10 @@ module Make (P : Private.S) = struct
         let+ k = Tree.export ~clear r x y n in
         `Node k
 
-  let equal_contents = Type.(unstage (equal Contents.t))
-  let equal_branch = Type.(unstage (equal Branch_store.Key.t))
-  let pp_contents_key = Type.pp P.Contents.Key.t
-  let pp_node_key = Type.pp P.Node.Key.t
-  let pp_commit_key = Type.pp P.Commit.Key.t
-  let pp_key = Type.pp Key.t
-  let pp_hash = Type.pp Hash.t
-  let pp_branch = Type.pp Branch_store.Key.t
-  let pp_int = Type.pp Type.int
-  let pp_tree = Type.(pp Tree.t)
-  let compare_hash = Type.(unstage (compare P.Hash.t))
-  let save_contents b c = P.Contents.add b c
-
-  module Hashes = Set.Make (struct
-    type t = P.Hash.t
-
-    let compare = compare_hash
+  module Contents_keys = Set.Make (struct
+    type t = Schema.Contents_key.t [@@deriving irmin ~compare]
   end)
 
-  let pp_option = Type.pp (Type.option Type.int)
   let equal_contents_key = Type.(unstage (equal P.Contents.Key.t))
   let equal_node_key = Type.(unstage (equal P.Node.Key.t))
   let equal_commit_key = Type.(unstage (equal P.Commit.Key.t))
@@ -180,8 +155,8 @@ module Make (P : Private.S) = struct
     module H = Typed (P.Commit.Val)
 
     let of_private_commit r v =
-      (* FIXME: missing metadata *)
-      let key = P.Commit.Key.v (H.hash v) in
+      (* XXX: sort this out *)
+      let key = (assert false : P.Commit.value -> commit_key) v in
       { r; key; v }
 
     let equal_opt x y =
@@ -212,13 +187,6 @@ module Make (P : Private.S) = struct
 
   module Repo = struct
     type t = repo
-
-    type elt =
-      [ `Commit of Hash.t
-      | `Node of Hash.t
-      | `Contents of Hash.t
-      | `Branch of P.Branch.Key.t ]
-    [@@deriving irmin]
 
     let v = P.Repo.v
     let close = P.Repo.close
@@ -259,11 +227,11 @@ module Make (P : Private.S) = struct
             List.map (fun x -> `Commit x) parents
         | _ -> Lwt.return_nil
       in
-      let* g = Graph.closure ?depth ~pred ~min ~max () in
+      let* g = KGraph.closure ?depth ~pred ~min ~max () in
       let keys =
         List.fold_left
           (fun acc -> function `Commit c -> c :: acc | _ -> acc)
-          [] (Graph.vertex g)
+          [] (KGraph.vertex g)
       in
       let root_nodes = ref [] in
       let* () =
@@ -279,8 +247,8 @@ module Make (P : Private.S) = struct
       if not full then Lwt.return slice
       else
         (* XXX: we can compute a [min] if needed *)
-        let* nodes = Nodes.closure (node_t t) ~min:[] ~max:!root_nodes in
-        let contents = ref Hashes.empty in
+        let* nodes = Graph.closure (node_t t) ~min:[] ~max:!root_nodes in
+        let contents = ref Contents_keys.empty in
         let* () =
           Lwt_list.iter_p
             (fun k ->
@@ -290,7 +258,7 @@ module Make (P : Private.S) = struct
                   List.iter
                     (function
                       | _, `Contents (c, _) ->
-                          contents := Hashes.add c !contents
+                          contents := Contents_keys.add c !contents
                       | _ -> ())
                     (P.Node.Val.list v);
                   P.Slice.add slice (`Node (k, v)))
@@ -302,7 +270,7 @@ module Make (P : Private.S) = struct
               P.Contents.find (contents_t t) k >>= function
               | None -> Lwt.return_unit
               | Some m -> P.Slice.add slice (`Contents (k, m)))
-            (Hashes.elements !contents)
+            (Contents_keys.elements !contents)
         in
         slice
 
@@ -418,7 +386,7 @@ module Make (P : Private.S) = struct
         | `Contents x -> pred_contents t x
         | `Branch x -> pred_branch t x
       in
-      Graph.iter ?cache_size ~pred ~min ~max ~node ?edge ~skip ~rev ()
+      KGraph.iter ?cache_size ~pred ~min ~max ~node ?edge ~skip ~rev ()
   end
 
   type t = {
@@ -957,8 +925,6 @@ module Make (P : Private.S) = struct
     Commits.lcas (commit_store t) ?max_depth ?n h.key head.key
     >>= return_lcas t.repo
 
-  module Private = P
-
   type 'a merge =
     info:Info.f ->
     ?max_depth:int ->
@@ -1155,7 +1121,7 @@ module Make (P : Private.S) = struct
     let pp ppf = function
       | `Empty -> Fmt.string ppf "empty"
       | `Branch b -> pp_branch ppf b
-      | `Commit c -> pp_hash ppf c.h
+      | `Commit c -> pp_hash ppf (Schema.Commit_key.hash c.key)
   end
 
   let commit_t = Commit.t

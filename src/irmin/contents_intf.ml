@@ -30,10 +30,12 @@ module type S = sig
       key's value should be deleted. *)
 end
 
+module Irmin_key = Key
+
 module type Store = sig
   include Content_addressable.S
 
-  val merge : [> read_write ] t -> key option Merge.t
+  val merge : [> read_write ] t -> Key.t option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
       key. The merge function will: {e (i)} read the values associated with the
       given keys, {e (ii)} use the merge function defined on values and
@@ -41,9 +43,6 @@ module type Store = sig
       key. See {!Contents.S.merge}.
 
       If any of these operations fail, return [`Conflict]. *)
-
-  (** [Key] provides base functions for user-defined contents keys. *)
-  module Key : Key.S with type t = key and type hash = hash
 
   module Val : S with type t = value
   (** [Val] provides base functions for user-defined contents values. *)
@@ -87,7 +86,6 @@ module type Sigs = sig
   module Store
       (S : Content_addressable.S)
       (H : Hash.S with type t = S.hash)
-      (K : Key.S with type t = S.key and type hash = S.hash)
       (C : S with type t = S.value) :
     Store
       with type 'a t = 'a S.t

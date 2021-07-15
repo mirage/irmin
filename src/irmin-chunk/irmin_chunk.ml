@@ -273,14 +273,14 @@ let unsafe_add_buffer t key buf =
     let+ k = Lwt_list.map_s aux offs >>= Tree.add ~key t in
     Log.debug (fun l -> l "add -> %a (split)" pp_key k)
 
-  let add t v =
-    let buf = value_to_bin_string v in
-    let key = K.hash (pre_hash_value v) in
-    let+ () = unsafe_add_buffer t key buf in
-    key
+let add t v =
+  let buf = value_to_bin_string v in
+  let key = K.hash (pre_hash_value v) in
+  let+ () = unsafe_add_buffer t key buf in
+  key
 
-  let unsafe_add t key v =
-    let buf = value_to_bin_string v in
-    unsafe_add_buffer t key buf
+let unsafe_add t key v =
+  let buf = value_to_bin_string v in
+  unsafe_add_buffer t key buf
 
 let mem t key = CA.mem t.db key

@@ -50,11 +50,8 @@ module type Maker = sig
   module Make
       (H : Type.S)
       (N : Key.S with type hash = H.t)
-      (C : Key.Poly with type hash = H.t) :
-    S
-      with type node_key = N.t
-       and type commit_key = t C.t
-       and module Info = Info
+      (C : Key.S with type hash = H.t) :
+    S with type node_key = N.t and type commit_key = C.t and module Info = Info
 end
 
 module type Store = sig
@@ -64,9 +61,6 @@ module type Store = sig
 
   module Info : Info.S
   (** Commit info. *)
-
-  (** [Key] provides base functions for commit keys. *)
-  module Key : Key.S with type t = key and type hash = hash
 
   (** [Val] provides functions for commit values. *)
   module Val :
@@ -101,7 +95,7 @@ module type History = sig
 
   val v :
     [> write ] t ->
-    node:node ->
+    node:node_key ->
     parents:commit_key list ->
     info:info ->
     (commit_key * v) Lwt.t
@@ -183,15 +177,20 @@ module type Sigs = sig
   module Maker (I : Info.S) : Maker with module Info = I
 
   (** V1 serialisation. *)
-  module V1 (C : S) : sig
-    include
-      S
-        with module Info = Info
-         and type node_key = C.node
-         and type commit_key = C.commit
+  module V1 : sig
+    module Info : Info.S with type t = Info.Default.t
+    (** Serialisation format for V1 info. *)
 
-    val import : C.t -> t
-    val export : t -> C.t
+    module Make (C : S with module Info := Info) : sig
+      include
+        S
+          with module Info = Info
+           and type node_key = C.node_key
+           and type commit_key = C.commit_key
+
+      val import : C.t -> t
+      val export : t -> C.t
+    end
   end
 
   module type Store = Store

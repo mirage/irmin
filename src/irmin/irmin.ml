@@ -46,34 +46,46 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
     module X = struct
       module Schema = S
       module Hash = S.Hash
-      module K = CA.Key (Hash)
 
       module Contents = struct
-        module Key = Key.Mono (K) (C)
-        module CA = CA (S.Hash) (S.Contents)
-        include Contents.Store (CA) (S.Hash) (Key) (S.Contents)
+        module CA = CA (struct
+          module Hash = S.Hash
+
+          (* module Key = S.Contents_key *)
+          module Value = S.Contents
+        end)
+
+        include Contents.Store (CA) (S.Hash) (CA.Key) (S.Contents)
       end
 
       module Node = struct
-        module Val = N.Make (S.Hash) (Contents.Key) (K) (S.Path) (S.Metadata)
-        module Key = Key.Mono (K) (Val)
-        module CA = CA.Make (S.Hash) (Val)
+        module CA = CA (struct
+          module Hash = S.Hash
+
+          (* module Key = S.Node_key *)
+          module Value = S.Node
+        end)
 
         include
-          Node.Store (Contents) (CA) (S.Hash) (Key) (Val) (S.Metadata) (S.Path)
+          Node.Store (Contents) (CA) (S.Hash) (S.Node_key) (S.Node) (S.Metadata)
+            (S.Path)
       end
 
       module Commit = struct
-        module V = CT.Make (S.Hash) (Node.Key) (K)
-        module K = Key.Mono (S.Hash) (V)
-        module CA = CA.Make (S.Hash) (V)
-        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (K) (V)
+        module CA = CA (struct
+          module Hash = S.Hash
+          module Key = S.Commit_key
+          module Value = S.Commit
+        end)
+
+        include
+          Commit.Store (S.Info) (Node) (CA) (S.Hash) (S.Commit_key) (S.Commit)
       end
 
       module Branch = struct
         module Key = S.Branch
         module Val = Commit.Key
-        include AW.Make (Key) (Val)
+        include AW (Key) (Val)
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)

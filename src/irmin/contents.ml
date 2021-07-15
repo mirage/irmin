@@ -199,11 +199,9 @@ end
 module Store
     (S : Content_addressable.S)
     (H : Hash.S with type t = S.hash)
-    (K : Key.S with type t = S.key and type hash = S.hash)
     (C : S with type t = S.value) =
 struct
   module Val = C
-  module Key = K
   module Hash = Hash.Typed (H) (C)
   include S
 

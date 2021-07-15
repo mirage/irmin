@@ -26,17 +26,16 @@ module Maker (Info : Info.S) = struct
   module Info = Info
 
   module Make
-      (H : Hash.S)
+      (H : Type.S)
       (N : Key.S with type hash = H.t)
-      (C : Key.Poly with type hash = H.t) =
+      (C : Key.S with type hash = H.t) =
   struct
     module Info = Info
 
-    type key = N.t [@@deriving irmin ~compare]
+    type node_key = N.t [@@deriving irmin ~compare]
+    type commit_key = C.t [@@deriving irmin]
 
-    type commit_key = t C.t
-
-    and t = { node : node_key; parents : commit_key list; info : Info.t }
+    type t = { node : node_key; parents : commit_key list; info : Info.t }
     [@@deriving irmin]
 
     let parents t = t.parents
@@ -78,7 +77,8 @@ module Store
     (V : S
            with type node_key = N.key
             and type commit_key = S.key
-            and type t = S.value) =
+            and type t = S.value
+            and module Info := I) =
 struct
   module Node = N
   module Val = V
@@ -161,7 +161,7 @@ end
 
 module History (S : Store) = struct
   type commit_key = S.Key.t [@@deriving irmin]
-  type node_key = S.Node.key [@@deriving irmin]
+  type node_key = S.Val.node_key [@@deriving irmin]
   type v = S.Val.t [@@deriving irmin]
   type info = S.Info.t [@@deriving irmin]
   type 'a t = 'a S.t
@@ -543,10 +543,7 @@ module V1 = struct
       let h = Type.string_of `Int64
       let hash_to_bin_string = Type.(unstage (to_bin_string K.t))
       let hash_of_bin_string = Type.(unstage (of_bin_string K.t))
-
-      let size_of =
-        let size_of = Type.(unstage (size_of h)) in
-        Type.stage (fun x -> size_of (hash_to_bin_string x))
+      let size_of = Type.Size.using hash_to_bin_string (Type.Size.t h)
 
       let encode_bin =
         let encode_bin = Type.(unstage (encode_bin h)) in
@@ -566,20 +563,16 @@ module V1 = struct
       let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
     end
 
-    module Node = K (struct
-      type t = C.node
-
-      let t = C.node_t
+    module Node_key = K (struct
+      type t = C.node_key [@@deriving irmin]
     end)
 
-    module Commit = K (struct
-      type t = C.commit
-
-      let t = C.commit_t
+    module Commit_key = K (struct
+      type t = C.commit_key [@@deriving irmin]
     end)
 
-    type node_key = Node.t [@@deriving irmin]
-    type commit_key = Commit.t [@@deriving irmin]
+    type node_key = Node_key.t [@@deriving irmin]
+    type commit_key = Commit_key.t [@@deriving irmin]
     type t = { parents : commit_key list; c : C.t }
 
     module Info = Info
@@ -595,9 +588,9 @@ module V1 = struct
     let t : t Type.t =
       let open Type in
       record "commit" (fun node parents info -> make ~info ~node ~parents)
-      |+ field "node" Node.t node
-      |+ field "parents" (list ~len:`Int64 Commit.t) parents
-      |+ field "info" info_t info
+      |+ field "node" Node_key.t node
+      |+ field "parents" (list ~len:`Int64 Commit_key.t) parents
+      |+ field "info" Info.t info
       |> sealr
   end
 end

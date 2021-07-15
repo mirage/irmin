@@ -29,6 +29,8 @@ module type S = sig
   type hash
   (** The type for key hashes. *)
 
+  module Key : Key.S with type t = key and type hash = hash
+
   val index : [> read ] t -> hash -> key option Lwt.t
 
   val add : [> write ] t -> hash -> value -> key Lwt.t
@@ -44,9 +46,13 @@ module type S = sig
   (** @inline *)
 end
 
-module type Maker = functor (K : Type.S) (V : Type.S) -> sig
-  include
-    S with type key = V.t Key(H).t and type value = V.t and type hash = H.t
+module type Schema = sig
+  module Hash : Hash.S
+  module Value : Type.S
+end
+
+module type Maker = functor (Schema : Schema) -> sig
+  include S with type value = Schema.Value.t and type hash = Schema.Hash.t
 
   include Of_config with type 'a t := 'a t
   (** @inline *)
@@ -54,5 +60,6 @@ end
 
 module type Sigs = sig
   module type S = S
+  module type Schema = Schema
   module type Maker = Maker
 end

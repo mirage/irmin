@@ -122,17 +122,12 @@ module Make (P : Private.S) = struct
   type contents = P.Contents.Val.t [@@deriving irmin ~equal]
   type repo = P.Repo.t
 
-  let pp_step = Type.pp Path.step_t
-  let pp_path = Type.pp Path.t
-
   module Hashes = Hashtbl.Make (struct
     type t = P.Hash.t
 
     let hash x = P.Hash.short_hash x
     let equal = Type.(unstage (equal P.Hash.t))
   end)
-
-  let dummy_marks = Hashes.create 0
 
   type marks = unit Hashes.t
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
@@ -164,7 +159,12 @@ module Make (P : Private.S) = struct
   module Contents = struct
     type key = P.Contents.Key.t [@@deriving irmin]
     type v = Key of repo * key | Value of contents
-    type info = { mutable hash : hash option; mutable value : contents option }
+
+    type info = {
+      mutable hash : P.Contents.hash option;
+      mutable value : contents option;
+    }
+
     type t = { mutable v : v; mutable info : info }
 
     let info_is_empty i = i.hash = None && i.value = None
@@ -519,8 +519,8 @@ module Make (P : Private.S) = struct
                     match Contents.key c with
                     | Some key -> key
                     | None ->
-                        (* FIXME: metadata *)
-                        P.Contents.Key.v (Contents.hash c)
+                        (* XXX: sort this out *)
+                        (assert false : Contents.t -> Contents.key) c
                   in
                   let v = `Contents (key, m) in
                   (aux [@tailcall]) ((step, v) :: acc) rest
@@ -530,8 +530,8 @@ module Make (P : Private.S) = struct
                   | Some key -> return key
                   | None ->
                       hash n (fun h ->
-                          (* FIXME: metadata *)
-                          let key = P.Node.Key.v h in
+                          (* XXX: sort this out *)
+                          let key = (assert false : hash -> P.Node.key) h in
                           return key)))
         in
         aux [] alist
@@ -543,15 +543,15 @@ module Make (P : Private.S) = struct
           let key =
             match Contents.key c with
             | None ->
-                (* FIXME: metadata *)
-                P.Contents.Key.v (Contents.hash c)
+                (* XXX: sort this out *)
+                (assert false : Contents.t -> Contents.key) c
             | Some key -> key
           in
           k (`Contents (key, m))
       | `Node n ->
           hash n (fun h ->
               (* FIXME: metadata *)
-              let key = P.Node.Key.v h in
+              let key = (assert false : hash -> P.Node.key) h in
               k (`Node key))
 
     and value_of_updates : type r. t -> value -> _ -> (value, r) cont =
@@ -1009,7 +1009,7 @@ module Make (P : Private.S) = struct
   end
 
   type node = Node.t [@@deriving irmin]
-  type contents_key = Contents.key
+  type contents_key = Contents.key [@@deriving irmin]
 
   type kinded_key = [ `Contents of Contents.key * metadata | `Node of Node.key ]
   [@@deriving irmin]

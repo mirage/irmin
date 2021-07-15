@@ -1,48 +1,35 @@
-module type Poly = sig
-  type 'a t [@@deriving irmin]
+(* module type Poly = sig
+ *   type 'a t [@@deriving irmin]
+ *   (\** The type of keys.*\)
+ * 
+ *   type hash
+ *   (\** The type of hashes. *\)
+ * 
+ *   val hash : 'a t -> hash
+ *   (\** [hash t] is [t]'s hash. This function is assumed to be efficient and is
+ *       called frequently (e.g. for consistency checking of the store). *\)
+ * end *)
+
+module type S = sig
+  type t [@@deriving irmin]
   (** The type for keys.*)
 
   type hash
-  (** The type for hashes. *)
 
-  val hash : 'a t -> hash
-  (** [hash t] it [t]'s hash. *)
-
-  val v : hash -> 'a t
-  (** [v h] is the key which contains they hash [h]. *)
+  val hash : t -> hash
 end
 
-module type S = sig
-  type t
-  (** The type for keys.*)
+module type Hash_like = sig
+  include S
 
-  include Poly with type _ t := t
-  (** @inline *)
-
-  val t : t Type.t
+  val v : hash -> t
 end
-
-module type Maker = functor (H : Hash.S) -> Poly with type hash = H.t
 
 module type Sigs = sig
   module type S = S
-  module type Poly = Poly
-  module type Maker = Maker
+  module type Hash_like = Hash_like
 
-  module Make (H : Hash.S) : sig
-    include Poly with type hash = H.t
-
-    val of_value : 'a -> hash -> 'a t
-
-    val value : 'a t -> 'a option
-    (** [metadata t] is [t]'s metadata if it has been provided to [v]. *)
-
-    val set : 'a t -> 'a -> unit
-    val clear : 'a t -> unit
-  end
-
-  module Mono (P : Poly) (V : Type.S) :
-    S with type t = V.t P.t and type hash = P.hash
-
-  module Id (H : Hash.S) : S with type t = H.t and type hash = H.t
+  (** The simplest possible [Key] implementation is just a hash of the
+      corresponding value, attaching no additional metadata about the value. *)
+  module Of_hash (H : Hash.S) : Hash_like with type hash = H.t
 end

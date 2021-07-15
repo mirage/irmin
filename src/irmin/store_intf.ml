@@ -90,9 +90,9 @@ module type S = sig
     (** @inline *)
   end
 
-  type contents_key
-  type node_key
-  type commit_key
+  type contents_key = Schema.Contents_key.t [@@deriving irmin]
+  type node_key = Schema.Node_key.t [@@deriving irmin]
+  type commit_key = Schema.Commit_key.t [@@deriving irmin]
 
   (** Repositories. *)
   module Repo : sig

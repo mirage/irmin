@@ -71,7 +71,9 @@ module type S = sig
       otherwise. *)
 
   val merge :
-    contents:hash option Merge.t -> node:hash option Merge.t -> t Merge.t
+    contents:contents_key option Merge.t ->
+    node:node_key option Merge.t ->
+    t Merge.t
   (** [merge] is the merge function for nodes. *)
 
   (** {1 Default values} *)
@@ -91,20 +93,23 @@ module type Metadata = sig
   (** The default metadata to attach, for APIs that don't care about metadata. *)
 end
 
-module type Maker = functor
-  (H : Hash.S)
-  (C : Key.S with type hash = H.t)
-  (N : Key.Poly with type hash = H.t)
-  (P : sig
-     type step [@@deriving irmin]
-   end)
-  (M : Metadata.S)
-  ->
+module type Schema = sig
+  module Hash : Hash.S
+  module Contents_key : Key.S with type hash = Hash.t
+  module Node_key : Key.S with type hash = Hash.t
+  module Metadata : Metadata.S
+
+  module Path : sig
+    type step [@@deriving irmin]
+  end
+end
+
+module type Maker = functor (Schema : Schema) ->
   S
-    with type metadata = M.t
-     and type contents = C.t
-     and type node = t N.t
-     and type step = P.step
+    with type metadata = Schema.Metadata.t
+     and type contents_key = Schema.Contents_key.t
+     and type node_key = Schema.Node_key.t
+     and type step = Schema.Path.step
 
 module type Store = sig
   include Content_addressable.S
@@ -114,9 +119,6 @@ module type Store = sig
 
   val merge : [> read_write ] t -> key option Merge.t
   (** [merge] is the 3-way merge function for nodes keys. *)
-
-  (** [Key] provides base functions for node keys. *)
-  module Key : Key.S with type t = key and type hash = hash
 
   module Metadata : Metadata.S
   (** [Metadata] provides base functions for node metadata. *)
@@ -216,6 +218,7 @@ end
 
 module type Sigs = sig
   module type S = S
+  module type Schema = Schema
   module type Maker = Maker
 
   module Make : Maker
@@ -243,7 +246,7 @@ module type Sigs = sig
       (C : Contents.Store)
       (S : Content_addressable.S)
       (H : Hash.S with type t = S.hash)
-      (K : Key.S with type t = S.key and type hash = S.hash)
+      (K : Key.Hash_like with type t = S.key and type hash = S.hash)
       (V : S
              with type t = S.value
               and type contents_key = C.key
