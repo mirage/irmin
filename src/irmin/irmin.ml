@@ -61,24 +61,12 @@ struct
              and type Key.t = XKey.t =
           CA (S.Hash) (* XXX: Try putting this back to [Hash] *) (S.Contents)
 
-        include (
-          Contents.Store (CA) (S.Hash) (S.Contents) :
-              Contents.Store
-                with type 'a t = 'a CA.t
-                 and type Key.t = CA.Key.t
-                 and type value = CA.value
-                 and type hash = Hash.t)
+        include Contents.Store (CA) (S.Hash) (S.Contents)
       end
 
       module Node = struct
         module Value = S.Node (Contents.Key) (Node_key)
-
-        module CA :
-          Content_addressable.S'
-            with type value = Value.t
-             and type hash = S.Hash.t
-             and type Key.t = Key.Of_hash(S.Hash).t =
-          CA (S.Hash) (Value)
+        module CA = CA (S.Hash) (Value)
 
         include
           Node.Store (Contents) (CA) (S.Hash) (Value) (S.Metadata) (S.Path)

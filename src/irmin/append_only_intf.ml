@@ -51,17 +51,12 @@ end
 
 module Append_only_is_a_read_only (X : S) : Read_only.S = X
 
-module type Schema = sig
-  module Hash : Hash.S
-  module Value : Type.S
-end
-
-module type Maker = functor (Schema : Schema) -> sig
+module type Maker = functor (Hash : Hash.S) (Value : Type.S) -> sig
   include
     S
-      with type value = Schema.Value.t
-       and type hash = Schema.Hash.t
-       and module Key = Key.Of_hash(Schema.Hash)
+      with type value = Value.t
+       and type hash = Hash.t
+       and module Key = Key.Of_hash(Hash)
 
   include Of_config with type 'a t := 'a t
   (** @inline *)
@@ -69,6 +64,5 @@ end
 
 module type Sigs = sig
   module type S = S
-  module type Schema = Schema
   module type Maker = Maker
 end

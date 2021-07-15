@@ -18,14 +18,16 @@ open! Import
 open Lwt.Infix
 include Content_addressable_intf
 
-module type Schema = Append_only.Schema
-
-module Make (Append_only_maker : Append_only.Maker) (Schema : Schema) = struct
-  include Append_only_maker (Schema)
-  module Hash = Hash.Typed (Schema.Hash) (Schema.Value)
+module Make
+    (Append_only_maker : Append_only.Maker)
+    (Hash_untyped : Hash.S)
+    (Value : Type.S) =
+struct
+  include Append_only_maker (Hash_untyped) (Value)
+  module Hash = Hash.Typed (Hash_untyped) (Value)
 
   type nonrec key = Key.t [@@deriving irmin ~pp]
-  type nonrec hash = Schema.Hash.t [@@deriving irmin ~equal ~pp]
+  type nonrec hash = Hash_untyped.t [@@deriving irmin ~equal ~pp]
 
   let hash = Hash.hash
 
@@ -47,8 +49,8 @@ module Make (Append_only_maker : Append_only.Maker) (Schema : Schema) = struct
     add t h v
 end
 
-module Check_closed (CA : Maker) (Schema : Schema) = struct
-  module S = CA (Schema)
+module Check_closed (CA : Maker) (Hash : Hash.S) (Value : Type.S) = struct
+  module S = CA (Hash) (Value)
   module Key = S.Key
 
   type 'a t = { closed : bool ref; t : 'a S.t }

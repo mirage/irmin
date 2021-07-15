@@ -76,8 +76,8 @@ end
 
 module Irmin_key = Key
 
-module type Maker = functor (Schema : Append_only.Schema) -> sig
-  include S with type value = Schema.Value.t and type hash = Schema.Hash.t
+module type Maker = functor (Hash : Hash.S) (Value : Type.S) -> sig
+  include S with type value = Value.t and type hash = Hash.t
 
   include Of_config with type 'a t := 'a t
   (** @inline *)
@@ -121,14 +121,14 @@ module type Sigs = sig
 
   module Make
       (Append_only_maker : Append_only.Maker)
-      (Schema : Append_only.Schema) : sig
+      (Hash : Hash.S)
+      (Value : Type.S) : sig
     include
-      S
-        with type 'a t = 'a Append_only_maker(Schema).t
-         and type Key.t = Append_only_maker(Schema).Key.t
-        (* XXX: why need both? *)
-         and type value = Schema.Value.t
-         and type hash = Schema.Hash.t
+      S'
+        with type 'a t = 'a Append_only_maker(Hash)(Value).t
+         and type Key.t = Append_only_maker(Hash)(Value).Key.t
+         and type value = Value.t
+         and type hash = Hash.t
 
     include Of_config with type 'a t := 'a t
     (** @inline *)

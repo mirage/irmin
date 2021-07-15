@@ -20,14 +20,12 @@ let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Append_only (Schema : Irmin.Append_only.Schema) = struct
-  open Schema
-
+module Append_only (Hash : Irmin.Hash.S) (Value : Irmin.Type.S) = struct
   module Hashes = Map.Make (struct
     type t = Hash.t [@@deriving irmin ~compare]
   end)
 
-  module Key = Irmin.Key.Of_hash (Schema.Hash)
+  module Key = Irmin.Key.Of_hash (Hash)
 
   type key = Key.t [@@deriving irmin ~pp]
   type value = Value.t
@@ -94,16 +92,14 @@ module Append_only (Schema : Irmin.Append_only.Schema) = struct
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
+  module Key = K
   module W = Irmin.Private.Watch.Make (K) (V)
   module L = Irmin.Private.Lock.Make (K)
 
   module Keys = Map.Make (struct
-    type t = K.t
-
-    let compare = Irmin.Type.(unstage (compare K.t))
+    type t = K.t [@@deriving irmin ~compare]
   end)
 
-  type key = K.t
   type value = V.t
   type watch = W.watch
 
