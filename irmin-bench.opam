@@ -19,6 +19,7 @@ depends: [
   "cmdliner"
   "logs"
   "lwt"
+  "rusage"
   "ppx_deriving_yojson"
   "yojson"
   "memtrace"
