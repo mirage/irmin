@@ -18,11 +18,11 @@ depends: [
   "dune"       {>= "1.8.0"}
   "crunch"     {>= "2.2.0"}
   "webmachine" {>= "0.6.0"}
-  "irmin"      {>= "2.0.0"}
+  "irmin"      {= version}
   "cohttp-lwt" {>= "1.0.0"}
-  "irmin-git"  {with-test & >= "2.0.0"}
-  "irmin-mem"  {with-test & >= "2.0.0"}
-  "irmin-test" {with-test & >= "2.0.0"}
+  "irmin-git"  {with-test & = version}
+  "irmin-mem"  {with-test & = version}
+  "irmin-test" {with-test & = version}
   "git-unix"   {with-test}
   "digestif"   {with-test & >= "0.6.1"}
 ]

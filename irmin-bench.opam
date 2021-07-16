@@ -15,7 +15,6 @@ build: [
 depends: [
   "dune"         {>= "2.7.0"}
   "irmin-pack"   {= version}
-  "irmin-layers" {= version}
   "irmin-test"   {= version}
   "cmdliner"
   "logs"
@@ -29,7 +28,7 @@ depends: [
   "fmt"
   "bentov"
   "uuidm"
-  "progress"
+  "progress"    {= "0.1.1"}
   "mtime"
 ]
 

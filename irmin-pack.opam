@@ -15,10 +15,10 @@ build: [
 depends: [
   "ocaml"      {>= "4.02.3"}
   "dune"       {>= "1.8.0"}
-  "irmin"      {>= "2.0.0"}
-  "index"      {>= "1.2.1"}
+  "irmin"      {= version}
+  "index" {>= "1.2.1" & < "1.3.0"}
   "lwt"
-  "irmin-test" {with-test & >= "2.0.0"}
+  "irmin-test" {with-test & = version}
   "alcotest-lwt" {with-test}
 ]
 

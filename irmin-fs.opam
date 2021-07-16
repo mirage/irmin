@@ -16,8 +16,8 @@ build: [
 depends: [
   "ocaml"      {>= "4.03.0"}
   "dune"       {>= "1.8.0"}
-  "irmin"      {>= "2.0.0"}
-  "irmin-test" {with-test & >= "2.0.0"}
+  "irmin"      {= version}
+  "irmin-test" {with-test & = version}
 ]
 
 synopsis: "Generic file-system backend for Irmin"
