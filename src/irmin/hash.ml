@@ -20,7 +20,6 @@ module Make (H : Digestif.S) = struct
   external get_64 : string -> int -> int64 = "%caml_string_get64u"
 
   let short_hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
-
   let hash_size = H.digest_size
 
   let of_hex s =
@@ -42,10 +41,12 @@ module Make_BLAKE2B (D : sig
   val digest_size : int
 end) =
   Make (Digestif.Make_BLAKE2B (D))
+
 module Make_BLAKE2S (D : sig
   val digest_size : int
 end) =
   Make (Digestif.Make_BLAKE2S (D))
+
 module SHA1 = Make (Digestif.SHA1)
 module RMD160 = Make (Digestif.RMD160)
 module SHA224 = Make (Digestif.SHA224)
@@ -67,13 +68,9 @@ module V1 (K : S.HASH) : S.HASH with type t = K.t = struct
   type t = K.t
 
   let hash = K.hash
-
   let short_hash = K.short_hash
-
   let hash_size = K.hash_size
-
   let h = Type.string_of `Int64
-
   let size_of ?headers x = Type.size_of ?headers h (Type.to_bin_string K.t x)
 
   let encode_bin ?headers e k =

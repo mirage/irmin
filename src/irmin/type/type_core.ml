@@ -16,7 +16,8 @@
 
 let check_valid_utf8 str =
   Uutf.String.fold_utf_8
-    (fun _ _ -> function `Malformed _ -> invalid_arg "Malformed UTF-8"
+    (fun _ _ -> function
+      | `Malformed _ -> invalid_arg "Malformed UTF-8"
       | _ -> ())
     () str
 
@@ -30,9 +31,7 @@ module Json = struct
   type decoder = { mutable lexemes : Jsonm.lexeme list; d : Jsonm.decoder }
 
   let decoder ?encoding src = { lexemes = []; d = Jsonm.decoder ?encoding src }
-
   let decoder_of_lexemes lexemes = { lexemes; d = Jsonm.decoder (`String "") }
-
   let rewind e l = e.lexemes <- l :: e.lexemes
 
   let decode e =
@@ -44,29 +43,17 @@ module Json = struct
 end
 
 type len = [ `Int | `Int8 | `Int16 | `Int32 | `Int64 | `Fixed of int ]
-
 type 'a pp = 'a Fmt.t
-
 type 'a of_string = string -> ('a, [ `Msg of string ]) result
-
 type 'a to_string = 'a -> string
-
 type 'a encode_json = Jsonm.encoder -> 'a -> unit
-
 type 'a decode_json = Json.decoder -> ('a, [ `Msg of string ]) result
-
 type 'a bin_seq = 'a -> (string -> unit) -> unit
-
 type 'a encode_bin = ?headers:bool -> 'a bin_seq
-
 type 'a decode_bin = ?headers:bool -> string -> int -> int * 'a
-
 type 'a size_of = ?headers:bool -> 'a -> int option
-
 type 'a compare = 'a -> 'a -> int
-
 type 'a equal = 'a -> 'a -> bool
-
 type 'a short_hash = ?seed:int -> 'a -> int
 
 exception Unbound_type_variable of string
@@ -158,7 +145,6 @@ and ('a, 'b) case1 = {
 }
 
 type 'a ty = 'a t
-
 type _ a_field = Field : ('a, 'b) field -> 'a a_field
 
 let rec fields_aux : type a b. (a, b) fields -> a a_field list = function

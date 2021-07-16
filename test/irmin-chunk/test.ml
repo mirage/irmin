@@ -18,9 +18,7 @@
 open Lwt.Infix
 
 let () = Printexc.record_backtrace true
-
 let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
-
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
 
 let run f () =
@@ -36,9 +34,9 @@ let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
     let name = Printf.sprintf "size %d" size in
     let v = String.make size 'x' in
     AO.batch t (fun t -> AO.add t v) >>= fun k ->
-    ( if stable then
-      let str = Irmin.Type.to_bin_string Test_chunk.Value.t v in
-      Alcotest.(check key_t) (name ^ " is stable") k (hash str) );
+    (if stable then
+     let str = Irmin.Type.to_bin_string Test_chunk.Value.t v in
+     Alcotest.(check key_t) (name ^ " is stable") k (hash str));
     AO.find t k >|= fun v' ->
     Alcotest.(check @@ option value_t) name (Some v) v'
   in

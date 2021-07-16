@@ -18,7 +18,6 @@ open Lwt.Infix
 open S
 
 let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
-
 let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -29,7 +28,6 @@ module Make (S : Store.S) = struct
   module B = S.Private.Sync
 
   type db = S.t
-
   type commit = S.commit
 
   let conv dx dy x =
@@ -45,19 +43,19 @@ module Make (S : Store.S) = struct
           let v = conv RP.Contents.Val.t SP.Contents.Val.t v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
-          | _ -> Lwt.return_unit )
+          | _ -> Lwt.return_unit)
       | `Node (k, v) -> (
           let k = conv RP.Node.Key.t SP.Node.Key.t k in
           let v = conv RP.Node.Val.t SP.Node.Val.t v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
-          | _ -> Lwt.return_unit )
+          | _ -> Lwt.return_unit)
       | `Commit (k, v) -> (
           let k = conv RP.Commit.Key.t SP.Commit.Key.t k in
           let v = conv RP.Commit.Val.t SP.Commit.Val.t v in
           match (k, v) with
           | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
-          | _ -> Lwt.return_unit ))
+          | _ -> Lwt.return_unit))
     >>= fun () -> Lwt.return s
 
   let convs src dst l =
@@ -66,7 +64,6 @@ module Make (S : Store.S) = struct
       [] l
 
   let pp_branch = Type.pp S.Branch.t
-
   let pp_hash = Type.pp S.Hash.t
 
   type status = [ `Empty | `Head of commit ]
@@ -77,8 +74,8 @@ module Make (S : Store.S) = struct
 
   let status_t t =
     let open Type in
-    variant "status" (fun empty head ->
-      function `Empty -> empty | `Head c -> head c)
+    variant "status" (fun empty head -> function
+      | `Empty -> empty | `Head c -> head c)
     |~ case0 "empty" `Empty
     |~ case1 "head" S.(commit_t @@ repo t) (fun c -> `Head c)
     |> sealv
@@ -103,7 +100,7 @@ module Make (S : Store.S) = struct
             | Ok () -> (
                 match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
                 | Ok h -> Ok (`Head h)
-                | Error e -> Error e ) ) )
+                | Error e -> Error e)))
     | S.E e -> (
         match S.status t with
         | `Empty | `Commit _ -> Lwt.return_ok `Empty
@@ -116,11 +113,11 @@ module Make (S : Store.S) = struct
                 Log.debug (fun l -> l "Fetched %a" pp_hash c);
                 S.Commit.of_hash (S.repo t) c >|= function
                 | None -> Ok `Empty
-                | Some x -> Ok (`Head x) )
+                | Some x -> Ok (`Head x))
             | Ok None -> (
                 S.Head.find t >>= function
                 | Some h -> Lwt.return_ok (`Head h)
-                | None -> Lwt.return_ok `Empty ) ) )
+                | None -> Lwt.return_ok `Empty)))
     | _ -> Lwt.return_error (`Msg "fetch operation is not available")
 
   let fetch_exn t ?depth remote =
@@ -143,7 +140,7 @@ module Make (S : Store.S) = struct
         | `Merge info -> (
             S.Head.merge ~into:t ~info k >>= function
             | Ok () -> Lwt.return_ok (`Head k)
-            | Error e -> Lwt.return_error (e :> pull_error) ) )
+            | Error e -> Lwt.return_error (e :> pull_error)))
     | Ok `Empty -> Lwt.return_ok `Empty
 
   let pull_exn t ?depth remote kind =
@@ -179,7 +176,7 @@ module Make (S : Store.S) = struct
                 | Error e -> Lwt.return_error (e :> push_error)
                 | Ok h ->
                     R.Head.set r h >>= fun () ->
-                    S.Head.get t >|= fun head -> Ok (`Head head) ) ) )
+                    S.Head.get t >|= fun head -> Ok (`Head head))))
     | S.E e -> (
         match S.status t with
         | `Empty -> Lwt.return_ok `Empty
@@ -189,7 +186,7 @@ module Make (S : Store.S) = struct
             B.v (S.repo t) >>= fun g ->
             B.push g ?depth e br >>= function
             | Ok () -> Lwt.return_ok (`Head head)
-            | Error err -> Lwt.return_error (err :> push_error) ) )
+            | Error err -> Lwt.return_error (err :> push_error)))
     | _ -> Lwt.return_error (`Msg "push operation is not available")
 
   let push_exn t ?depth remote =

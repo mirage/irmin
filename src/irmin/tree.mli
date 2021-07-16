@@ -24,7 +24,6 @@ module Make (P : S.PRIVATE) : sig
        and type contents = P.Contents.value
 
   val import : P.Repo.t -> P.Node.key -> node option Lwt.t
-
   val import_no_check : P.Repo.t -> P.Node.key -> node
 
   val export :
@@ -36,16 +35,10 @@ module Make (P : S.PRIVATE) : sig
     P.Node.key Lwt.t
 
   val dump : tree Fmt.t
-
   val equal : tree -> tree -> bool
-
   val node_t : node Type.t
-
   val tree_t : tree Type.t
-
   val hash : tree -> [ `Contents of P.Hash.t * metadata | `Node of P.Hash.t ]
-
   val of_private_node : P.Repo.t -> P.Node.value -> node
-
   val to_private_node : node -> P.Node.value option Lwt.t
 end

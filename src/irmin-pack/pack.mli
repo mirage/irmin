@@ -20,7 +20,6 @@ module type ELT = sig
   type hash
 
   val hash : t -> hash
-
   val magic : t -> char
 
   val encode_bin :
@@ -49,13 +48,9 @@ module type S = sig
     [ `Read ] t Lwt.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
   val unsafe_append : 'a t -> key -> value -> unit
-
   val unsafe_mem : 'a t -> key -> bool
-
   val unsafe_find : 'a t -> key -> value option
-
   val sync : 'a t -> unit
 
   type integrity_error = [ `Wrong_hash | `Absent_value ]
@@ -68,7 +63,6 @@ end
 
 module type MAKER = sig
   type key
-
   type index
 
   (** Save multiple kind of values in the same pack file. Values will be

@@ -23,7 +23,6 @@ module Contents = struct
   include Contents
 
   module type S = S.CONTENTS
-
   module type STORE = S.CONTENTS_STORE
 end
 
@@ -33,7 +32,6 @@ module Branch = struct
   include Branch
 
   module type S = S.BRANCH
-
   module type STORE = S.BRANCH_STORE
 end
 
@@ -44,7 +42,6 @@ module Hash = struct
   include Hash
 
   module type S = S.HASH
-
   module type TYPED = S.TYPED_HASH
 end
 
@@ -66,9 +63,7 @@ functor
     module S = CA (K) (V)
 
     type 'a t = { closed : bool ref; t : 'a S.t }
-
     type key = S.key
-
     type value = S.value
 
     let check_not_closed t = if !(t.closed) then raise Closed
@@ -99,7 +94,7 @@ functor
       if !(t.closed) then Lwt.return_unit
       else (
         t.closed := true;
-        S.close t.t )
+        S.close t.t)
   end
 
 module AW_check_closed (AW : S.ATOMIC_WRITE_STORE_MAKER) :
@@ -112,9 +107,7 @@ functor
     module S = AW (K) (V)
 
     type t = { closed : bool ref; t : S.t }
-
     type key = S.key
-
     type value = S.value
 
     let check_not_closed t = if !(t.closed) then raise Closed
@@ -163,7 +156,7 @@ functor
       if !(t.closed) then Lwt.return_unit
       else (
         t.closed := true;
-        S.close t.t )
+        S.close t.t)
   end
 
 module Make_ext
@@ -235,11 +228,8 @@ struct
       }
 
       let contents_t t = t.contents
-
       let node_t t = t.nodes
-
       let commit_t t = t.commits
-
       let branch_t t = t.branch
 
       let batch t f =
@@ -287,25 +277,17 @@ end
 module Of_private = Store.Make
 
 module type CONTENT_ADDRESSABLE_STORE = S.CONTENT_ADDRESSABLE_STORE
-
 module type APPEND_ONLY_STORE = S.APPEND_ONLY_STORE
-
 module type ATOMIC_WRITE_STORE = S.ATOMIC_WRITE_STORE
-
 module type TREE = S.TREE
-
 module type S = Store.S
 
 type config = Conf.t
-
 type 'a diff = 'a Diff.t
 
 module type CONTENT_ADDRESSABLE_STORE_MAKER = S.CONTENT_ADDRESSABLE_STORE_MAKER
-
 module type APPEND_ONLY_STORE_MAKER = S.APPEND_ONLY_STORE_MAKER
-
 module type ATOMIC_WRITE_STORE_MAKER = S.ATOMIC_WRITE_STORE_MAKER
-
 module type S_MAKER = Store.MAKER
 
 module type KV =
@@ -320,9 +302,7 @@ module Private = struct
     include Node
 
     module type S = S.NODE
-
     module type GRAPH = S.NODE_GRAPH
-
     module type STORE = S.NODE_STORE
   end
 
@@ -330,9 +310,7 @@ module Private = struct
     include Commit
 
     module type S = S.COMMIT
-
     module type STORE = S.COMMIT_STORE
-
     module type HISTORY = S.COMMIT_HISTORY
   end
 

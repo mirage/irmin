@@ -14,11 +14,8 @@ open Lwt.Infix
 
 module Pack (S : Pack.S) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
-
   type key = S.key
-
   type value = S.value
-
   type index = S.index
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
@@ -51,7 +48,7 @@ module Pack (S : Pack.S) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t )
+      S.close t.t)
 
   let unsafe_append t k v =
     check_not_closed t;
@@ -78,9 +75,7 @@ end
 
 module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
   type t = { closed : bool ref; t : AW.t }
-
   type key = AW.key
-
   type value = AW.value
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
@@ -130,5 +125,5 @@ module Atomic_write (AW : S.ATOMIC_WRITE_STORE) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      AW.close t.t )
+      AW.close t.t)
 end

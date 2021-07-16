@@ -19,16 +19,13 @@ open Irmin_http_common
 module T = Irmin.Type
 
 let to_json = Irmin.Type.to_json_string
-
 let of_json = Irmin.Type.of_json_string
-
 let src = Logs.Src.create "irmin.http-srv" ~doc:"Irmin REST API server"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
   type repo
-
   type t
 
   val v : ?strict:bool -> repo -> t
@@ -98,35 +95,30 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class items repo =
       object
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `POST ] rd
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", fun _ -> assert false) ] rd
 
         method content_types_accepted rd = Wm.continue [] rd
-
         method! process_post rd = add rd repo
       end
 
     class unsafe_items repo =
       object
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `POST ] rd
 
         method content_types_provided rd =
           Wm.continue [ ("application/json", fun _ -> assert false) ] rd
 
         method content_types_accepted rd = Wm.continue [] rd
-
         method! process_post rd = with_key rd (unsafe_add rd repo)
       end
 
     class merge merge repo =
       object
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `POST ] rd
 
         method content_types_provided rd =
@@ -159,7 +151,6 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
               | None -> Wm.respond 404 rd)
 
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method! resource_exists rd =
@@ -179,9 +170,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class items db =
       object (self)
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method private to_json rd =
@@ -252,9 +241,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class watches db =
       object (self)
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD; `POST ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method private stream ?init () =
@@ -288,9 +275,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     class watch db =
       object (self)
         inherit resource
-
         method! allowed_methods rd = Wm.continue [ `GET; `HEAD; `POST ] rd
-
         method content_types_accepted rd = Wm.continue [] rd
 
         method private stream ?init key =
@@ -357,7 +342,6 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   module Branch = Atomic_write (P.Branch) (P.Branch.Key) (P.Branch.Val)
 
   type repo = S.Repo.t
-
   type t = HTTP.t
 
   let v ?strict:_ db =

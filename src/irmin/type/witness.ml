@@ -15,12 +15,10 @@
  *)
 
 type (_, _) eq = Refl : ('a, 'a) eq
-
 type _ equality = ..
 
 module type Inst = sig
   type t
-
   type _ equality += Eq : t equality
 end
 
@@ -30,7 +28,6 @@ let make : type a. unit -> a t =
  fun () ->
   let module Inst = struct
     type t = a
-
     type _ equality += Eq : t equality
   end in
   (module Inst)

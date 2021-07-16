@@ -22,9 +22,7 @@ end
 module Nobuiltin_operator = struct
   (* Define our own representation of [result]. *)
   let result_t a b = Irmin.Type.pair a b
-
   let int32_t = Irmin.Type.int
-
   let int64_t = Irmin.Type.bool
 
   type u = (((int32[@nobuiltin]), int64) result[@nobuiltin]) [@@deriving irmin]

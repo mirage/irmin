@@ -19,7 +19,6 @@ module Server = struct
       (Cohttp_lwt_unix.Server)
       (struct
         let info = Info.v
-
         let remote = Remote.remote
       end)
       (S)
@@ -33,7 +32,6 @@ module Server = struct
       (Cohttp_lwt_unix.Server)
       (struct
         let info = Info.v
-
         let remote = Remote.remote
       end)
       (S)

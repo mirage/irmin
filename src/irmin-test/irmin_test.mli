@@ -17,13 +17,9 @@ type t = {
 }
 
 val line : string -> unit
-
 val store : (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module S)
-
 val testable : 'a Irmin.Type.t -> 'a Alcotest.testable
-
 val check : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
-
 val checks : 'a Irmin.Type.t -> string -> 'a list -> 'a list -> unit
 
 module Store : sig

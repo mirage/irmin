@@ -1,7 +1,6 @@
 module Dict = Irmin_pack.Dict
 module H = Irmin.Hash.SHA1
 module I = Index
-
 module Index : Irmin_pack.Index.S with type key = H.t
 
 module Pack :
@@ -37,7 +36,5 @@ end) : sig
 end
 
 val get : 'a option -> 'a
-
 val sha1 : string -> H.t
-
 val rm_dir : string -> unit

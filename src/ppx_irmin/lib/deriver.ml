@@ -72,9 +72,7 @@ module Located (A : Ast_builder.S) : S = struct
   open Reader
 
   let unlabelled x = (Nolabel, x)
-
   let ( >|= ) x f = List.map f x
-
   let lambda fparam = pvar fparam |> pexp_fun Nolabel None
 
   let open_lib expr =
@@ -120,7 +118,7 @@ module Located (A : Ast_builder.S) : S = struct
                       rec_detected := true;
                       generic_name
                       (* If not a base type, assume a composite generic with the
-                         same naming convention *) )
+                         same naming convention *))
                     else
                       let nobuiltin =
                         match Attribute.get Attributes.nobuiltin typ with
@@ -140,7 +138,7 @@ module Located (A : Ast_builder.S) : S = struct
             let+ cons_args =
               args >|= derive_core |> sequence |> map (List.map unlabelled)
             in
-            pexp_apply (pexp_ident lident) cons_args )
+            pexp_apply (pexp_ident lident) cons_args)
     | Ptyp_variant (_, Open, _) -> Raise.Unsupported.type_open_polyvar ~loc typ
     | Ptyp_variant (rowfields, Closed, _labellist) ->
         derive_polyvariant type_name rowfields
@@ -232,7 +230,7 @@ module Located (A : Ast_builder.S) : S = struct
         | Ldot (lident, cons_name) ->
             pexp_ident
               (Located.mk @@ Ldot (lident, generic_name_of_type_name cons_name))
-        | Lapply _ -> invalid_arg "Lident.Lapply not supported" )
+        | Lapply _ -> invalid_arg "Lident.Lapply not supported")
 
   let derive_type_decl : type_declaration -> expression Reader.t =
    fun typ ->
@@ -248,7 +246,7 @@ module Located (A : Ast_builder.S) : S = struct
                 and nobuiltin = Attribute.get Attributes.nobuiltin c in
                 derive_lident ?generic ?nobuiltin txt
             (* Type constructor: list, tuple, etc. *)
-            | _ -> derive_core c >>= open_lib ) )
+            | _ -> derive_core c >>= open_lib))
     | Ptype_variant cs -> derive_variant cs >>= open_lib
     | Ptype_record ls -> derive_record ls >>= open_lib
     | Ptype_open -> Raise.Unsupported.type_open ~loc
@@ -278,9 +276,9 @@ module Located (A : Ast_builder.S) : S = struct
         let type_name = typ.ptype_name.txt in
         let name =
           Located.mk
-            ( match name with
+            (match name with
             | Some n -> n
-            | None -> generic_name_of_type_name type_name )
+            | None -> generic_name_of_type_name type_name)
         in
         let lib =
           match lib with Some l -> parse_lib l | None -> Some lib_default
@@ -292,7 +290,7 @@ module Located (A : Ast_builder.S) : S = struct
               (* This type decl may shadow the repr type ['a t] *)
               match name.txt with
               | "t" -> Located.lident "ty"
-              | _ -> Located.lident "t" )
+              | _ -> Located.lident "t")
         in
         let type_ =
           ptyp_constr ty_lident [ ptyp_constr (Located.lident type_name) [] ]

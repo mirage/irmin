@@ -20,11 +20,8 @@ module Make
     (Commit : S.COMMIT_STORE) =
 struct
   type contents = Contents.key * Contents.value
-
   type node = Node.key * Node.value
-
   type commit = Commit.key * Commit.value
-
   type value = [ `Contents of contents | `Node of node | `Commit of commit ]
 
   type t = {
@@ -67,15 +64,12 @@ struct
       ]
 
   let contents_t = Type.pair Contents.Key.t Contents.Val.t
-
   let node_t = Type.pair Node.Key.t Node.Val.t
-
   let commit_t = Type.pair Commit.Key.t Commit.Val.t
 
   let value_t =
     let open Type in
-    variant "slice" (fun contents node commit ->
-      function
+    variant "slice" (fun contents node commit -> function
       | `Contents x -> contents x | `Node x -> node x | `Commit x -> commit x)
     |~ case1 "contents" contents_t (fun x -> `Contents x)
     |~ case1 "node" node_t (fun x -> `Node x)

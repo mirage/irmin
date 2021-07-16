@@ -2,7 +2,6 @@ open Lwt.Infix
 open Common
 
 let root = Filename.concat "_build" "test-instances"
-
 let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -11,11 +10,11 @@ let index_log_size = Some 1_000
 
 module Conf = struct
   let entries = 32
-
   let stable_hash = 256
 end
 
 module Hash = Irmin.Hash.SHA1
+
 module S =
   Irmin_pack.Make (Conf) (Irmin.Metadata.None) (Irmin.Contents.String)
     (Irmin.Path.String_list)

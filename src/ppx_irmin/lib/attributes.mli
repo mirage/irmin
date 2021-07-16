@@ -17,9 +17,7 @@
 open Ppxlib
 
 val generic : (core_type, expression) Attribute.t
-
 val nobuiltin : (core_type, unit) Attribute.t
-
 val all : Attribute.packed list
 
 (* Boxed list of all of the attributes required by [ppx_irmin]. *)

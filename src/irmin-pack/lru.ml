@@ -30,11 +30,11 @@ module Make (H : Hashtbl.HashedType) = struct
 
     let detach t n =
       let np = n.prev and nn = n.next in
-      ( match np with
+      (match np with
       | None -> t.first <- nn
       | Some x ->
           x.next <- nn;
-          n.prev <- None );
+          n.prev <- None);
       match nn with
       | None -> t.last <- np
       | Some x ->
@@ -53,7 +53,6 @@ module Make (H : Hashtbl.HashedType) = struct
           t.last <- on
 
     let node x = { value = x; prev = None; next = None }
-
     let create () = { first = None; last = None }
   end
 
@@ -67,7 +66,6 @@ module Make (H : Hashtbl.HashedType) = struct
   }
 
   let weight t = t.w
-
   let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
 
   let drop_lru t =
@@ -94,7 +92,7 @@ module Make (H : Hashtbl.HashedType) = struct
       t.w <- t.w + 1;
       if weight t > t.cap then drop_lru t;
       HT.add t.ht k n;
-      Q.append t.q n )
+      Q.append t.q n)
 
   let promote t k =
     try

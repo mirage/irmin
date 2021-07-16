@@ -91,8 +91,7 @@ module Json_value = struct
   let t =
     let open Type in
     mu (fun ty ->
-        variant "json" (fun null bool string float obj arr ->
-          function
+        variant "json" (fun null bool string float obj arr -> function
           | `Null -> null
           | `Bool b -> bool b
           | `String s -> string s
@@ -115,14 +114,14 @@ module Json_value = struct
     | `Float a, `Float b -> Type.(equal float) a b
     | `A a, `A b -> (
         try List.for_all2 (fun a' b' -> equal a' b') a b
-        with Invalid_argument _ -> false )
+        with Invalid_argument _ -> false)
     | `O a, `O b -> (
         let compare_fst (a, _) (b, _) = compare a b in
         try
           List.for_all2
             (fun (k, v) (k', v') -> k = k' && equal v v')
             (List.sort compare_fst a) (List.sort compare_fst b)
-        with Invalid_argument _ -> false )
+        with Invalid_argument _ -> false)
     | _, _ -> false
 
   let t = Type.like ~equal ~cli:(pp, of_string) t
@@ -176,7 +175,6 @@ module Json_value = struct
     | _, _, _ -> Merge.conflict "Conflicting JSON datatypes"
 
   let merge_json = Merge.(v t merge_value)
-
   let merge = Merge.(option merge_json)
 end
 
@@ -199,9 +197,7 @@ module Json = struct
     | Error _ as err -> err
 
   let equal a b = Json_value.equal (`O a) (`O b)
-
   let t = Type.(list (pair string Json_value.t))
-
   let t = Type.like ~equal ~cli:(pp, of_string) t
 
   let merge =
@@ -218,7 +214,7 @@ module Json_tree (Store : Store.S with type contents = json) = struct
       | (k, v) :: l -> (
           match Type.of_string Store.Key.step_t k with
           | Ok key -> obj l ((key, node v []) :: acc)
-          | _ -> obj l acc )
+          | _ -> obj l acc)
     and node j acc =
       match j with
       | `O j -> obj j acc
@@ -258,7 +254,6 @@ module String = struct
   type t = string
 
   let t = Type.string
-
   let merge = Merge.idempotent Type.(option string)
 end
 
@@ -266,9 +261,7 @@ module type STORE = S.CONTENTS_STORE
 
 module Store (S : sig
   include S.CONTENT_ADDRESSABLE_STORE
-
   module Key : S.HASH with type t = key
-
   module Val : S.CONTENTS with type t = value
 end) =
 struct
@@ -276,19 +269,13 @@ struct
   module Val = S.Val
 
   type 'a t = 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let find = S.find
-
   let add = S.add
-
   let unsafe_add = S.unsafe_add
-
   let mem = S.mem
-
   let read_opt t = function None -> Lwt.return_none | Some k -> find t k
 
   let add_opt t = function
@@ -304,13 +291,9 @@ module V1 = struct
     include String
 
     let t = Type.string_of `Int64
-
     let size_of ?headers:_ = Type.size_of ~headers:true t
-
     let decode_bin ?headers:_ = Type.decode_bin ~headers:true t
-
     let encode_bin ?headers:_ = Type.encode_bin ~headers:true t
-
     let t = Type.like t ~bin:(encode_bin, decode_bin, size_of)
   end
 end

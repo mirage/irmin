@@ -1,9 +1,7 @@
 module Server = struct
   module type S = sig
     module Pclock : Mirage_clock.PCLOCK
-
     module Http : Cohttp_lwt.S.Server
-
     module Store : Irmin.S with type Private.Sync.endpoint = Git_mirage.endpoint
 
     val start : http:(Http.t -> unit Lwt.t) -> Store.repo -> unit Lwt.t
@@ -30,10 +28,10 @@ module Server = struct
               let e = Git_mirage.endpoint ?headers (Uri.of_string uri) in
               Store.E e)
       end in
-      ( module Irmin_graphql.Server.Make (Http) (Config) (Store)
+      (module Irmin_graphql.Server.Make (Http) (Config) (Store)
       : Irmin_graphql.Server.S
         with type server = Http.t
-         and type repo = Store.repo )
+         and type repo = Store.repo)
 
     let start ~http store =
       let (module G) = init () in

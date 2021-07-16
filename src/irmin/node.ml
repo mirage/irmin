@@ -25,9 +25,7 @@ module No_metadata = struct
   type t = unit
 
   let t = Type.unit
-
   let default = ()
-
   let merge = Merge.v t (fun ~old:_ () () -> Merge.ok ())
 end
 
@@ -40,19 +38,14 @@ module Make
     (M : S.METADATA) =
 struct
   type hash = K.t
-
   type step = P.step
-
   type metadata = M.t
-
   type kind = [ `Node | `Contents of M.t ]
-
   type entry = { kind : kind; name : P.step; node : K.t }
 
   let kind_t =
     let open Type in
-    variant "Tree.kind" (fun node contents contents_m ->
-      function
+    variant "Tree.kind" (fun node contents contents_m -> function
       | `Node -> node
       | `Contents m ->
           if Type.equal M.t m M.default then contents else contents_m m)
@@ -87,7 +80,6 @@ struct
   end)
 
   type value = [ `Contents of hash * metadata | `Node of hash ]
-
   type t = entry StepMap.t
 
   let v l =
@@ -104,7 +96,6 @@ struct
     with Not_found -> None
 
   let empty = StepMap.empty
-
   let is_empty e = list e = []
 
   let add t k v =
@@ -115,19 +106,14 @@ struct
       t
 
   let remove t k = StepMap.remove k t
-
   let step_t = P.step_t
-
   let hash_t = K.t
-
   let metadata_t = M.t
-
   let default = M.default
 
   let value_t =
     let open Type in
-    variant "value" (fun n c x ->
-      function
+    variant "value" (fun n c x -> function
       | `Node h -> n h
       | `Contents (h, m) -> if Type.equal M.t m M.default then c h else x (h, m))
     |~ case1 "node" K.t (fun k -> `Node k)
@@ -136,9 +122,7 @@ struct
     |> sealv
 
   let of_entries e = v (List.rev_map of_entry e)
-
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
-
   let t = Type.map Type.(list entry_t) of_entries entries
 end
 
@@ -147,7 +131,6 @@ module Store
     (P : S.PATH)
     (M : S.METADATA) (S : sig
       include S.CONTENT_ADDRESSABLE_STORE with type key = C.key
-
       module Key : S.HASH with type t = key
 
       module Val :
@@ -164,17 +147,12 @@ struct
   module Metadata = M
 
   type 'a t = 'a C.t * 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let mem (_, t) = S.mem t
-
   let find (_, t) = S.find t
-
   let add (_, t) = S.add t
-
   let unsafe_add (_, t) = S.unsafe_add t
 
   let all_contents t =
@@ -190,9 +168,7 @@ struct
       [] kvs
 
   let contents_t = C.Key.t
-
   let metadata_t = M.t
-
   let step_t = Path.step_t
 
   (* [Merge.alist] expects us to return an option. [C.merge] does
@@ -236,7 +212,7 @@ struct
     let merge = merge_value t merge_key in
     let read = function
       | None -> Lwt.return S.Val.empty
-      | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v )
+      | Some k -> ( find t k >|= function None -> S.Val.empty | Some v -> v)
     in
     let add v =
       if S.Val.is_empty v then Lwt.return_none
@@ -253,17 +229,11 @@ module Graph (S : S.NODE_STORE) = struct
   module Metadata = S.Metadata
 
   type step = Path.step
-
   type metadata = Metadata.t
-
   type contents = Contents.t
-
   type node = S.key
-
   type path = Path.t
-
   type 'a t = 'a S.t
-
   type value = [ `Contents of contents * metadata | `Node of node ]
 
   let empty t = S.add t S.Val.empty
@@ -286,13 +256,11 @@ module Graph (S : S.NODE_STORE) = struct
       (S.Val.list t)
 
   let pp_key = Type.pp S.Key.t
-
   let pp_keys = Fmt.(Dump.list pp_key)
-
   let pp_path = Type.pp S.Path.t
 
   let pred t = function
-    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v )
+    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v)
     | _ -> Lwt.return_nil
 
   let closure t ~min ~max =
@@ -335,7 +303,7 @@ module Graph (S : S.NODE_STORE) = struct
       | Some (h, tl) -> (
           find_step t node h >>= function
           | (None | Some (`Contents _)) as x -> Lwt.return x
-          | Some (`Node node) -> aux node tl )
+          | Some (`Node node) -> aux node tl)
     in
     aux node path
 
@@ -344,10 +312,10 @@ module Graph (S : S.NODE_STORE) = struct
   let map_one t node f label =
     Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
     let old_key = S.Val.find node label in
-    ( match old_key with
+    (match old_key with
     | None | Some (`Contents _) -> Lwt.return S.Val.empty
     | Some (`Node k) -> (
-        S.find t k >|= function None -> S.Val.empty | Some v -> v ) )
+        S.find t k >|= function None -> S.Val.empty | Some v -> v))
     >>= fun old_node ->
     f old_node >>= fun new_node ->
     if Type.equal S.Val.t old_node new_node then Lwt.return node
@@ -373,7 +341,7 @@ module Graph (S : S.NODE_STORE) = struct
     | None -> (
         match n with
         | `Node n -> Lwt.return n
-        | `Contents _ -> failwith "TODO: Node.add" )
+        | `Contents _ -> failwith "TODO: Node.add")
 
   let rdecons_exn path =
     match Path.rdecons path with
@@ -385,15 +353,10 @@ module Graph (S : S.NODE_STORE) = struct
     map t node path (fun node -> S.Val.remove node file)
 
   let path_t = Path.t
-
   let node_t = S.Key.t
-
   let metadata_t = Metadata.t
-
   let step_t = Path.step_t
-
   let contents_t = Contents.t
-
   let value_t = S.Val.value_t
 end
 
@@ -418,21 +381,16 @@ module V1 (N : S.NODE) = struct
   end
 
   type step = N.step
-
   type hash = N.hash
-
   type metadata = N.metadata
-
   type value = N.value
 
   let hash_t = N.hash_t
-
   let metadata_t = N.metadata_t
 
   type t = { n : N.t; entries : (step * value) list }
 
   let import n = { n; entries = N.list n }
-
   let export t = t.n
 
   let v entries =
@@ -440,13 +398,9 @@ module V1 (N : S.NODE) = struct
     { n; entries }
 
   let list t = t.entries
-
   let empty = { n = N.empty; entries = [] }
-
   let is_empty t = t.entries = []
-
   let default = N.default
-
   let find t k = N.find t.n k
 
   let add t k v =

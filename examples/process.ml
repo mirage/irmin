@@ -83,13 +83,11 @@ let mysql =
   }
 
 let branch image = String.map (function ':' -> '/' | c -> c) image.name
-
 let images = [| (*ubuntu; *) wordpress; mysql |]
 
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
 let head = Store.Git.Reference.of_string ("refs/heads/" ^ branch images.(0))
-
 let config = Irmin_git.config ~bare:true ~head Config.root
 
 let info image msg () =
@@ -109,7 +107,6 @@ let init () =
     (Array.to_list images)
 
 let random_array a = a.(Random.int (Array.length a))
-
 let random_list l = random_array (Array.of_list l)
 
 let rec process image =
@@ -125,20 +122,20 @@ let rec process image =
   Store.of_branch repo id >>= fun t ->
   Store.set_exn t ~info:(info image actions.message) key (value ())
   >>= fun () ->
-  ( if Random.int 3 = 0 then
-    let branch = branch (random_array images) in
-    if branch <> id then (
-      Printf.printf "Merging ...%!";
-      Store.merge_with_branch t
-        ~info:(info image @@ Fmt.strf "Merging with %s" branch)
-        branch
-      >>= function
-      | Ok () ->
-          Printf.printf "ok!\n%!";
-          Lwt.return_unit
-      | Error _ -> Lwt.fail_with "conflict!" )
-    else Lwt.return_unit
-  else Lwt.return_unit )
+  (if Random.int 3 = 0 then
+   let branch = branch (random_array images) in
+   if branch <> id then (
+     Printf.printf "Merging ...%!";
+     Store.merge_with_branch t
+       ~info:(info image @@ Fmt.strf "Merging with %s" branch)
+       branch
+     >>= function
+     | Ok () ->
+         Printf.printf "ok!\n%!";
+         Lwt.return_unit
+     | Error _ -> Lwt.fail_with "conflict!")
+   else Lwt.return_unit
+  else Lwt.return_unit)
   >>= fun () ->
   Lwt_unix.sleep (max 0.1 (Random.float 0.3)) >>= fun () -> process image
 
@@ -156,6 +153,7 @@ let rec watchdog () =
 let () =
   let aux () =
     init () >>= fun () ->
-    Lwt.choose (watchdog () :: List.map (protect process) (Array.to_list images))
+    Lwt.choose
+      (watchdog () :: List.map (protect process) (Array.to_list images))
   in
   Lwt_main.run (aux ())

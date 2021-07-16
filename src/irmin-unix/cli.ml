@@ -19,7 +19,6 @@ open Cmdliner
 open Resolver
 
 let () = Hook.init ()
-
 let info ?(author = "irmin") fmt = Info.v ~author fmt
 
 (* Help sections common to all commands *)
@@ -80,13 +79,12 @@ let depth =
   Arg.(value & opt (some int) None & doc)
 
 let print_exc exc =
-  ( match exc with
+  (match exc with
   | Failure f -> Fmt.epr "ERROR: %s\n%!" f
-  | e -> Fmt.epr "ERROR: %a\n%!" Fmt.exn e );
+  | e -> Fmt.epr "ERROR: %a\n%!" Fmt.exn e);
   exit 1
 
 let run t = Lwt_main.run (Lwt.catch (fun () -> t) print_exc)
-
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
@@ -144,7 +142,7 @@ let init =
                    Printf.printf "Server starting on port %d.\n%!" port;
                    Cohttp_lwt_unix.Server.create ~timeout:3600
                      ~mode:(`TCP (`Port port))
-                     spec )
+                     spec)
              else Lwt.return_unit )
        in
        Term.(mk init $ store $ daemon $ uri));
@@ -158,11 +156,8 @@ let get name f x =
   | Error (`Msg e) -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
 
 let key f x = get "key" f x
-
 let value f x = get "value" f x
-
 let branch f x = get "branch" f x
-
 let commit f x = get "commit" f x
 
 (* GET *)
@@ -576,11 +571,10 @@ let dot =
                         your system and be sure it is available in your $PATH.");
                let i =
                  Sys.command
-                   (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename
-                      basename)
+                   (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename)
                in
                if i <> 0 then
-                 Logs.err (fun f -> f "The %s.dot is corrupted" basename) );
+                 Logs.err (fun f -> f "The %s.dot is corrupted" basename));
              Lwt.return_unit )
        in
        Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full));
@@ -645,7 +639,7 @@ let help =
                  `Ok
                    (Cmdliner.Manpage.print man_format Format.std_formatter
                       config_man)
-             | `Ok t -> `Help (man_format, Some t) )
+             | `Ok t -> `Help (man_format, Some t))
        in
        Term.(ret (mk help $ Term.man_format $ Term.choice_names $ topic)));
   }

@@ -14,9 +14,7 @@ module type S = sig
   include Index.S with type value = int64 * int * char
 
   val find : t -> key -> value option
-
   val add : t -> key -> value -> unit
-
   val close : t -> unit
 end
 

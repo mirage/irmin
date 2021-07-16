@@ -17,5 +17,4 @@
 open Type_core
 
 val equal : 'a t -> 'a equal
-
 val compare : 'a t -> 'a compare

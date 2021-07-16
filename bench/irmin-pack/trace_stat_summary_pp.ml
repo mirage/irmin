@@ -406,11 +406,11 @@ let matrix_of_floor (where_is_better, scalar_type, floor_name, names_and_curves)
         `Shadow
       else `Yes
     in
+
     (* let pp_seconds ppf f =
      *   if Float.is_nan f then Format.fprintf ppf "n/a"
      *   else Mtime.Span.pp_float_s ppf f
      * in *)
-
     (match (scalar_type, show_percent) with
     | `R, `Yes -> Fmt.str "%a %a" pp_real v Utils.pp_percent ratio
     | `R, `Shadow -> Fmt.str "%a     " pp_real v

@@ -2,7 +2,6 @@ open Lwt.Infix
 module Dict = Irmin_pack.Dict
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
-
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 
 let rm_dir root =
@@ -10,7 +9,7 @@ let rm_dir root =
     let cmd = Printf.sprintf "rm -rf %s" root in
     Logs.info (fun l -> l "exec: %s\n%!" cmd);
     let _ = Sys.command cmd in
-    () )
+    ())
 
 module S = struct
   include Irmin.Contents.String

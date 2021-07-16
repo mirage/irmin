@@ -805,7 +805,6 @@ module type S = sig
   (** {2 Converters to private types} *)
 
   val to_private_node : node -> Private.Node.value option Lwt.t
-
   val of_private_node : repo -> Private.Node.value -> node
 
   val to_private_commit : commit -> Private.Commit.value
@@ -848,7 +847,6 @@ module type MAKER = functor
 
 module type Store = sig
   module type S = S
-
   module type MAKER = MAKER
 
   type Sigs.remote += Store : (module S with type t = 'a) * 'a -> Sigs.remote
@@ -877,9 +875,7 @@ module type Store = sig
          and type value = V.t
 
     val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
     val v : Conf.t -> [ `Read ] t Lwt.t
-
     val close : 'a t -> unit Lwt.t
   end
 end

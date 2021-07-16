@@ -30,7 +30,6 @@ exception RO_Not_Allowed
 
 module type CONFIG = sig
   val entries : int
-
   val stable_hash : int
 end
 
@@ -121,10 +120,7 @@ module Layout : sig
   (** A file in the top-level directory of a store *)
 
   val pack : path
-
   val branch : path
-
   val dict : path
-
   val stores : root:string -> string list
 end

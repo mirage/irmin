@@ -56,7 +56,6 @@ let config_path_key =
     "config" Irmin.Private.Conf.string "irmin.yml"
 
 let ( / ) = Filename.concat
-
 let global_config_path = ".irmin" / "config.yml"
 
 let add_opt k v config =
@@ -113,7 +112,6 @@ type contents = Contents.t
 
 module Hash = struct
   type t = (module Irmin.Hash.S)
-
   type hash_function = Fixed of t | Variable_size of (int option -> t)
 
   module type SIZEABLE = functor
@@ -126,11 +124,11 @@ module Hash = struct
     Variable_size
       (function
       | Some s ->
-          ( module struct
+          (module struct
             include Make (struct
               let digest_size = s
             end)
-          end : Irmin.Hash.S )
+          end : Irmin.Hash.S)
       | None -> (module Default))
 
   let all =
@@ -171,13 +169,13 @@ module Hash = struct
 
   let of_specifier hashname =
     let ( >>= ) x f = match x with Ok x -> f x | Error _ as e -> e in
-    ( match String.cut ~rev:true ~sep:"/" hashname with
+    (match String.cut ~rev:true ~sep:"/" hashname with
     | Some (hashname, size) -> (
         match int_of_string_opt size with
         | Some size -> Ok (hashname, Some size)
         | None -> Error (`Msg (Fmt.strf "Non-numeric hash size %s passed" size))
         )
-    | None -> Ok (hashname, None) )
+    | None -> Ok (hashname, None))
     >>= fun (hashname, size_opt) ->
     match (find_hashfn hashname, size_opt) with
     | Variable_size hashfn, size_opt -> Ok (hashfn size_opt)
@@ -247,7 +245,6 @@ type hash = Hash.t
 
 module Store = struct
   type remote_fn = ?headers:Cohttp.Header.t -> string -> Irmin.remote
-
   type t = T : (module Irmin.S) * remote_fn option -> t
 
   type store_functor =
@@ -261,7 +258,6 @@ module Store = struct
   end
 
   let v ?remote s = T (s, remote)
-
   let v_git (module S : G) = v (module S) ~remote:S.remote
 
   let create : (module Irmin.S_MAKER) -> hash -> contents -> t =
@@ -273,18 +269,13 @@ module Store = struct
     T ((module S), None)
 
   let mem = create (module Irmin_mem.Make)
-
   let irf = create (module Fs.Make)
-
   let http = function T ((module S), x) -> T ((module Http.Client (S)), x)
-
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
-
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
   module Inode_config = struct
     let entries = 32
-
     let stable_hash = 256
   end
 
@@ -407,7 +398,7 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
         | None, None -> s contents
         | _ ->
             Fmt.failwith
-              "Cannot customize the hash function for the given store" )
+              "Cannot customize the hash function for the given store")
   in
   let config =
     let root = assoc "root" (fun x -> x) in
@@ -441,11 +432,11 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
         | Some t -> (
             match of_string t with
             | Ok x -> Some x
-            | Error (`Msg e) -> failwith e )
+            | Error (`Msg e) -> failwith e)
       in
       match branch with
       | None -> S ((module S), mk_master (), remote)
-      | Some b -> S ((module S), mk_branch b, remote) )
+      | Some b -> S ((module S), mk_branch b, remote))
 
 let branch =
   let doc =

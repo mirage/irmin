@@ -20,5 +20,4 @@ module KV = Irmin_mem.KV (Irmin.Contents.String)
 module Bench = Irmin_bench.Make (KV)
 
 let size ~root:_ = 0
-
 let () = Bench.run ~config ~size

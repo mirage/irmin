@@ -1,9 +1,7 @@
 (* Tests of the signature deriver *)
 module SigTests : sig
   type t = string [@@deriving irmin]
-
   type foo = unit [@@deriving irmin { name = "foo_generic" }]
-
   type my_int = int32 * t [@@deriving irmin]
 
   type my_variant =
@@ -13,9 +11,7 @@ module SigTests : sig
   [@@deriving irmin]
 end = struct
   type t = string [@@deriving irmin]
-
   type foo = unit [@@deriving irmin { name = "foo_generic" }]
-
   type my_int = int32 * t [@@deriving irmin]
 
   type my_variant =

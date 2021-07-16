@@ -95,9 +95,7 @@ type t = {
 }
 
 let ( / ) = Filename.concat
-
 let testable t = Alcotest.testable (Irmin.Type.pp t) (Irmin.Type.equal t)
-
 let check t = Alcotest.check (testable t)
 
 let checks t =

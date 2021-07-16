@@ -1,3 +1,4 @@
-version = 0.14.2
+version = 0.18.0
 break-infix = fit-or-vertical
 parse-docstrings = true
+module-item-spacing = compact

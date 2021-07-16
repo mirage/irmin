@@ -20,7 +20,6 @@ open Common
 let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
-
 module T = Irmin.Type
 
 let merge_exn msg x =
@@ -34,9 +33,7 @@ let info msg =
   Irmin.Info.v ~date ~author msg
 
 let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
-
 let () = Random.self_init ()
-
 let random_char () = char_of_int (Random.int 256)
 
 let random_ascii () =
@@ -44,11 +41,8 @@ let random_ascii () =
   chars.[Random.int @@ String.length chars]
 
 let random_string n = String.init n (fun _i -> random_char ())
-
 let long_random_string = random_string (* 1024_000 *) 10
-
 let random_ascii_string n = String.init n (fun _i -> random_ascii ())
-
 let long_random_ascii_string = random_ascii_string 1024_000
 
 module Make (S : S) = struct
@@ -57,33 +51,19 @@ module Make (S : S) = struct
   module History = Irmin.Private.Commit.History (P.Commit)
 
   let v repo = P.Repo.contents_t repo
-
   let n repo = P.Repo.node_t repo
-
   let ct repo = P.Repo.commit_t repo
-
   let g repo = P.Repo.node_t repo
-
   let h repo = P.Repo.commit_t repo
-
   let v1 = long_random_string
-
   let v2 = ""
-
   let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
-
   let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
-
   let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
-
   let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
-
   let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
-
   let normal x = `Contents (x, S.Metadata.default)
-
   let b1 = "foo"
-
   let b2 = "bar/toto"
 
   let n1 ~repo =
@@ -203,7 +183,6 @@ module Make (S : S) = struct
     run x test
 
   let get = function None -> Alcotest.fail "get" | Some v -> v
-
   let get_node = function `Node n -> n | _ -> Alcotest.fail "get_node"
 
   module H_node = Irmin.Hash.Typed (P.Hash) (P.Node.Val)
@@ -619,7 +598,7 @@ module Make (S : S) = struct
               else (
                 Log.debug (fun f ->
                     f "check-worker: expected %a, got %a" pp_w exp pp_w got);
-                Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp ))
+                Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp))
     in
     let module State = struct
       type t = {
@@ -629,21 +608,13 @@ module Make (S : S) = struct
       }
 
       let empty () = { adds = 0; updates = 0; removes = 0 }
-
       let add t = t.adds <- t.adds + 1
-
       let update t = t.updates <- t.updates + 1
-
       let remove t = t.removes <- t.removes + 1
-
       let pretty ppf t = Fmt.pf ppf "%d/%d/%d" t.adds t.updates t.removes
-
       let xpp ppf (a, u, r) = Fmt.pf ppf "%d/%d/%d" a u r
-
       let xadd (a, u, r) = (a + 1, u, r)
-
       let xupdate (a, u, r) = (a, u + 1, r)
-
       let xremove (a, u, r) = (a, u, r + 1)
 
       let check ?sleep_t msg (p, w) a b =
@@ -659,9 +630,9 @@ module Make (S : S) = struct
 
       let process ?sleep_t t = function
         | head ->
-            ( match sleep_t with
+            (match sleep_t with
             | None -> Lwt.return_unit
-            | Some s -> Lwt_unix.sleep s )
+            | Some s -> Lwt_unix.sleep s)
             >>= fun () ->
             let () =
               match head with
@@ -1304,7 +1275,8 @@ module Make (S : S) = struct
 
   let inspect =
     Alcotest.testable
-      (fun ppf -> function `Contents -> Fmt.string ppf "contents"
+      (fun ppf -> function
+        | `Contents -> Fmt.string ppf "contents"
         | `Node `Hash -> Fmt.string ppf "hash"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value")
@@ -1460,7 +1432,9 @@ module Make (S : S) = struct
       (* Testing other tree operations. *)
       S.Tree.empty |> fun v0 ->
       S.Tree.to_concrete v0 >>= fun c ->
-      (match c with `Tree [] -> () | _ -> Alcotest.fail "Excpected empty tree");
+      (match c with
+      | `Tree [] -> ()
+      | _ -> Alcotest.fail "Excpected empty tree");
       S.Tree.add v0 [] foo1 >>= fun v0 ->
       S.Tree.find_all v0 [] >>= fun foo1' ->
       check_val "read /" (normal foo1) foo1';
@@ -1826,7 +1800,6 @@ module Make (S : S) = struct
     run x test
 
   let pp_write_error = Irmin.Type.pp S.write_error_t
-
   let tree_t = testable S.tree_t
 
   let test_with_tree x () =
@@ -2036,7 +2009,7 @@ module Make (S : S) = struct
             | None -> (
                 match P.Node.Val.find value "b" with
                 | Some k -> check_node "b" hash k1 k foo
-                | None -> Alcotest.fail "unexpected node" ) )
+                | None -> Alcotest.fail "unexpected node"))
       in
       let rev_order step =
         if !visited = [] && step <> "b" then
