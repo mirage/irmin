@@ -18,6 +18,11 @@ depends: [
   "irmin"    {= version}
   "alcotest" {>= "1.0.1"}
   "mtime"    {>= "1.0.0"}
+  "cmdliner"
+  "fmt"
+  "logs"
+  "lwt"
+  "metrics"
   "metrics-unix"
 ]
 

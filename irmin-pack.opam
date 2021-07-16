@@ -18,8 +18,11 @@ depends: [
   "irmin"      {= version}
   "index" {>= "1.2.1" & < "1.3.0"}
   "lwt"
-  "irmin-test" {with-test & = version}
+  "logs"
+  "irmin-test"   {with-test & = version}
   "alcotest-lwt" {with-test}
+  "checkseum"    {with-test}
+  "digestif"     {with-test}
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"

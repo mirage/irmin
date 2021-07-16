@@ -25,6 +25,7 @@ depends: [
   "irmin-test" {with-test & = version}
   "git-unix"   {with-test}
   "digestif"   {with-test & >= "0.6.1"}
+  "checkseum"  {with-test}
 ]
 
 synopsis: "HTTP client and server for Irmin"

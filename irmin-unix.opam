@@ -24,6 +24,10 @@ depends: [
   "irmin-pack"    {= version}
   "irmin-graphql" {= version}
   "git-unix"      {>= "1.11.4"}
+  "checkseum"
+  "cmdliner"
+  "fmt"
+  "logs"
   "digestif"      {>= "0.6.1"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}

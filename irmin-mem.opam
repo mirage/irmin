@@ -18,6 +18,7 @@ depends: [
   "dune"       {>= "1.8.0"}
   "irmin"      {= version}
   "irmin-test" {with-test & = version}
+  "digestif"   {with-test}
 ]
 
 

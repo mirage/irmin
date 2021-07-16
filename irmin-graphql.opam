@@ -22,7 +22,8 @@ depends: [
   "graphql-cohttp" {>= "0.13.0"}
   "cohttp-lwt"
   "graphql_parser" {>= "0.13.0"}
-  "alcotest-lwt" {>= "1.1.0" & with-test}
+  "alcotest" {with-test & >= "1.1.0" }
+  "alcotest-lwt" {with-test & >= "1.1.0"}
   "yojson" {with-test}
   "irmin-mem" {with-test & = version}
   "cohttp-lwt-unix" {with-test}
