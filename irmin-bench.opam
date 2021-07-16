@@ -27,10 +27,13 @@ depends: [
   "ppx_repr"
   "re"           {>= "1.9.0"}
   "fmt"
-  "bentov"
   "uuidm"
   "progress"    {= "0.1.1"}
-  "mtime"
+  "tezos-context-hash" {with-test}
+  "printbox"           {with-test}
+  "mtime"              {with-test}
+  "bentov"             {with-test}
+  "ppx_deriving"       {with-test}
 ]
 
 synopsis: "Irmin benchmarking suite"
