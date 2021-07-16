@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf : Irmin.Private.Conf.S
-
 val config :
   ?lower_root:string ->
   ?upper_root1:string ->

@@ -84,12 +84,13 @@ struct
     }
 
     let config c =
-      let root = Conf.get c Conf.Key.root in
-      let dot_git = Conf.get c Conf.Key.dot_git in
-      let level = Conf.get c Conf.Key.level in
-      let head = Conf.get c Conf.Key.head in
-      let bare = Conf.get c Conf.Key.bare in
-      let buffers = Conf.get c Conf.Key.buffers in
+      let module C = Irmin.Private.Conf in
+      let root = C.get c Conf.Key.root in
+      let dot_git = C.get c Conf.Key.dot_git in
+      let level = C.get c Conf.Key.level in
+      let head = C.get c Conf.Key.head in
+      let bare = C.get c Conf.Key.bare in
+      let buffers = C.get c Conf.Key.buffers in
       { root; dot_git; level; head; buffers; bare }
 
     let fopt f = function None -> None | Some x -> Some (f x)
@@ -115,5 +116,10 @@ struct
 
   let repo_of_git ?head ?(bare = true) ?lock g =
     let+ b = Branch.v ?lock ~head ~bare g in
-    { Repo.config = (Conf.empty :> Irmin.config); closed = ref false; g; b }
+    {
+      Repo.config = Irmin.Private.Conf.empty Conf.spec;
+      closed = ref false;
+      g;
+      b;
+    }
 end

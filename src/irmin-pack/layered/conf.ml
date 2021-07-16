@@ -23,47 +23,52 @@ module Default = struct
 end
 
 module Pack = Irmin_pack.Conf
-module Conf = Irmin.Private.Conf.Extend (Pack)
-include Conf
+open Irmin.Private.Conf
+
+let spec = Spec.v "layered"
 
 module Key = struct
   let lower_root =
-    Conf.key ~doc:"The root directory for the lower layer." "root_lower"
+    key ~spec ~doc:"The root directory for the lower layer." "root_lower"
       Irmin.Type.string Default.lower_root
 
   let upper_root1 =
-    Conf.key ~doc:"The root directory for the upper layer." "root_upper"
+    key ~spec ~doc:"The root directory for the upper layer." "root_upper"
       Irmin.Type.string Default.upper1_root
 
   let upper_root0 =
-    Conf.key ~doc:"The root directory for the secondary upper layer."
+    key ~spec ~doc:"The root directory for the secondary upper layer."
       "root_second" Irmin.Type.string Default.upper0_root
 
   let with_lower =
-    Conf.key ~doc:"Use a lower layer." "with-lower" Irmin.Type.bool
+    key ~spec ~doc:"Use a lower layer." "with-lower" Irmin.Type.bool
       Default.with_lower
 
   let blocking_copy_size =
-    Conf.key
+    key ~spec
       ~doc:
         "Specify the maximum size (in bytes) that can be copied in the \
          blocking portion of the freeze."
       "blocking-copy" Irmin.Type.int Default.blocking_copy_size
 end
 
-let lower_root conf = Conf.get conf Key.lower_root
-let upper_root1 conf = Conf.get conf Key.upper_root1
-let upper_root0 conf = Conf.get conf Key.upper_root0
-let with_lower conf = Conf.get conf Key.with_lower
-let blocking_copy_size conf = Conf.get conf Key.blocking_copy_size
+let spec = Spec.join spec [ Pack.spec ]
+let lower_root conf = get conf Key.lower_root
+let upper_root1 conf = get conf Key.upper_root1
+let upper_root0 conf = get conf Key.upper_root0
+let with_lower conf = get conf Key.with_lower
+let blocking_copy_size conf = get conf Key.blocking_copy_size
 
 let init ?(lower_root = Default.lower_root) ?(upper_root1 = Default.upper1_root)
     ?(upper_root0 = Default.upper0_root) ?(with_lower = Default.with_lower)
     ?(blocking_copy_size = Default.blocking_copy_size) config =
-  let with_binding k v c = Conf.add c k v in
-  config
-  |> with_binding Key.lower_root lower_root
-  |> with_binding Key.upper_root1 upper_root1
-  |> with_binding Key.upper_root0 upper_root0
-  |> with_binding Key.with_lower with_lower
-  |> with_binding Key.blocking_copy_size blocking_copy_size
+  let with_binding k v c = add c k v in
+  let cfg =
+    empty spec
+    |> with_binding Key.lower_root lower_root
+    |> with_binding Key.upper_root1 upper_root1
+    |> with_binding Key.upper_root0 upper_root0
+    |> with_binding Key.with_lower with_lower
+    |> with_binding Key.blocking_copy_size blocking_copy_size
+  in
+  union config cfg

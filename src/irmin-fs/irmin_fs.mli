@@ -17,7 +17,9 @@
 (** Disk persistence. *)
 
 module Conf : sig
-  include Irmin.Private.Conf.S
+  open Irmin.Private.Conf
+
+  val spec : Spec.t
 
   module Key : sig
     val root : string key

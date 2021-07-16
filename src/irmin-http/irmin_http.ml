@@ -24,18 +24,23 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module T = Irmin.Type
 
 module Conf = struct
-  include Irmin.Private.Conf.Make ()
+  include Irmin.Private.Conf
+
+  let spec = Spec.v "http"
 
   module Key = struct
     (* ~uri *)
     let uri =
-      key ~docv:"URI" ~doc:"Location of the remote store." "uri"
+      key ~spec ~docv:"URI" ~docs:"COMMON OPTIONS"
+        ~doc:"Location of the remote store." "uri"
         Irmin.Type.(option uri)
         None
   end
 end
 
-let config x config = Conf.(add config Key.uri (Some x))
+let config x config =
+  let a = Conf.empty Conf.spec in
+  Conf.(union (add a Key.uri (Some x)) config)
 
 let uri_append t path =
   match Uri.path t :: path with

@@ -28,7 +28,9 @@ module Default = struct
   let freeze_throttle = `Block_writes
 end
 
-include Irmin.Private.Conf.Make ()
+open Irmin.Private.Conf
+
+let spec = Spec.v "pack"
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
 
@@ -37,29 +39,31 @@ type freeze_throttle = [ `Block_writes | `Overcommit_memory | `Cancel_existing ]
 
 module Key = struct
   let fresh =
-    key ~doc:"Start with a fresh disk." "fresh" Irmin.Type.bool Default.fresh
+    key ~spec ~doc:"Start with a fresh disk." "fresh" Irmin.Type.bool
+      Default.fresh
 
   let lru_size =
-    key ~doc:"Size of the LRU cache for pack entries." "lru-size" Irmin.Type.int
-      Default.lru_size
+    key ~spec ~doc:"Size of the LRU cache for pack entries." "lru-size"
+      Irmin.Type.int Default.lru_size
 
   let index_log_size =
-    key ~doc:"Size of index logs." "index-log-size" Irmin.Type.int
+    key ~spec ~doc:"Size of index logs." "index-log-size" Irmin.Type.int
       Default.index_log_size
 
   let readonly =
-    key ~doc:"Start with a read-only disk." "readonly" Irmin.Type.bool
+    key ~spec ~doc:"Start with a read-only disk." "readonly" Irmin.Type.bool
       Default.readonly
 
   let merge_throttle =
-    key ~doc:"Strategy to use for large writes when index caches are full."
+    key ~spec
+      ~doc:"Strategy to use for large writes when index caches are full."
       "merge-throttle" merge_throttle_t Default.merge_throttle
 
   let freeze_throttle =
-    key ~doc:"Strategy to use for long-running freezes." "freeze-throttle"
+    key ~spec ~doc:"Strategy to use for long-running freezes." "freeze-throttle"
       freeze_throttle_t Default.freeze_throttle
 
-  let root = root ()
+  let root = root spec
 end
 
 let fresh config = get config Key.fresh
@@ -73,7 +77,7 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(freeze_throttle = Default.freeze_throttle) root =
-  let config = empty in
+  let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.fresh fresh in
   let config = add config Key.lru_size lru_size in

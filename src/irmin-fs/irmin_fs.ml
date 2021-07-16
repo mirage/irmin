@@ -56,14 +56,16 @@ end
 (* ~path *)
 
 module Conf = struct
-  include Irmin.Private.Conf.Make ()
+  include Irmin.Private.Conf
+
+  let spec = Spec.v "irf"
 
   module Key = struct
-    let root = root ()
+    let root = root spec
   end
 end
 
-let config root = Conf.(add empty Key.root) root
+let config root = Conf.(add (empty Conf.spec) Key.root) root
 
 module Read_only_ext
     (IO : IO)

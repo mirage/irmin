@@ -14,51 +14,48 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf = struct
-  include Irmin.Private.Conf.Make ()
+open Irmin.Private.Conf
 
-  module Key = struct
-    let root = root ()
+let spec = Spec.v "git"
 
-    let reference : Git.Reference.t Irmin.Type.t =
-      let of_string str = Git.Reference.of_string str |> Result.get_ok in
-      let to_string r = Git.Reference.to_string r in
-      Irmin.Type.(map string) of_string to_string
+module Key = struct
+  let root = root spec
 
-    let head =
-      key ~doc:"The main branch of the Git repository." "head"
-        Irmin.Type.(option reference)
-        None
+  let reference : Git.Reference.t Irmin.Type.t =
+    let of_string str = Git.Reference.of_string str |> Result.get_ok in
+    let to_string r = Git.Reference.to_string r in
+    Irmin.Type.(map string) of_string to_string
 
-    let bare =
-      key ~doc:"Do not expand the filesystem on the disk." "bare"
-        Irmin.Type.bool false
+  let head =
+    key ~spec ~doc:"The main branch of the Git repository." "head"
+      Irmin.Type.(option reference)
+      None
 
-    let level =
-      key ~doc:"The Zlib compression level." "level"
-        Irmin.Type.(option int)
-        None
+  let bare =
+    key ~spec ~doc:"Do not expand the filesystem on the disk." "bare"
+      Irmin.Type.bool false
 
-    let buffers =
-      key ~doc:"The number of 4K pre-allocated buffers." "buffers"
-        Irmin.Type.(option int)
-        None
+  let level =
+    key ~spec ~doc:"The Zlib compression level." "level"
+      Irmin.Type.(option int)
+      None
 
-    let dot_git =
-      key
-        ~doc:
-          "The location of the .git directory. By default set to [$root/.git]."
-        "dot-git"
-        Irmin.Type.(option string)
-        None
-  end
+  let buffers =
+    key ~spec ~doc:"The number of 4K pre-allocated buffers." "buffers"
+      Irmin.Type.(option int)
+      None
+
+  let dot_git =
+    key ~spec
+      ~doc:"The location of the .git directory. By default set to [$root/.git]."
+      "dot-git"
+      Irmin.Type.(option string)
+      None
 end
 
-include Conf
-
 let init ?head ?bare ?level ?dot_git ?buffers root =
-  let module C = Conf in
-  let config = C.empty in
+  let module C = Irmin.Private.Conf in
+  let config = C.empty spec in
   let config = C.add config Key.root root in
   let config =
     match bare with

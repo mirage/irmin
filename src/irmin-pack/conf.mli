@@ -19,7 +19,7 @@ module type S = sig
   val stable_hash : int
 end
 
-include Irmin.Private.Conf.S
+val spec : Irmin.Private.Conf.Spec.t
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
 type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]

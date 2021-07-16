@@ -22,17 +22,21 @@ let src = Logs.Src.create "irmin.chunk" ~doc:"Irmin chunks"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
-  include Irmin.Private.Conf.Make ()
+  include Irmin.Private.Conf
+
+  let spec = Spec.v "chunk"
 
   module Key = struct
-    let min_size = key ~doc:"Minimal chunk size" "min-size" Irmin.Type.int 4000
-    let chunk_size = key ~doc:"Size of chunk" "size" Irmin.Type.int 4096
+    let min_size =
+      key ~spec ~doc:"Minimal chunk size" "min-size" Irmin.Type.int 4000
+
+    let chunk_size = key ~spec ~doc:"Size of chunk" "size" Irmin.Type.int 4096
 
     let chunk_type_t =
       Irmin.Type.(enum "chunk_type" [ ("max", `Max); ("best-fit", `Best_fit) ])
 
     let chunking =
-      key ~doc:"Chunking algorithm" "chunking" chunk_type_t `Best_fit
+      key ~spec ~doc:"Chunking algorithm" "chunking" chunk_type_t `Best_fit
   end
 end
 
@@ -41,7 +45,7 @@ let err_too_small ~min size =
     "Chunks of %d bytes are too small. Size should at least be %d bytes." size
     min
 
-let config ?(config = Conf.empty) ?size ?min_size ?(chunking = `Best_fit) () =
+let config ?size ?min_size ?(chunking = `Best_fit) config =
   let min_size =
     match min_size with None -> Conf.default Conf.Key.min_size | Some v -> v
   in
@@ -51,10 +55,13 @@ let config ?(config = Conf.empty) ?size ?min_size ?(chunking = `Best_fit) () =
     | Some v -> if v < min_size then err_too_small ~min:min_size v else v
   in
   let add x y c = Conf.add c x y in
-  config
-  |> add Conf.Key.min_size min_size
-  |> add Conf.Key.chunk_size size
-  |> add Conf.Key.chunking chunking
+  let cfg =
+    Conf.empty Conf.spec
+    |> add Conf.Key.min_size min_size
+    |> add Conf.Key.chunk_size size
+    |> add Conf.Key.chunking chunking
+  in
+  Conf.union cfg config
 
 module Chunk (K : Irmin.Hash.S) = struct
   type v = Data of string | Index of K.t list
@@ -189,7 +196,7 @@ struct
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
           chunk_size K.hash_size max_data max_children);
-    let+ db = CA.v (config :> Irmin.config) in
+    let+ db = CA.v config in
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = Lwt.return_unit

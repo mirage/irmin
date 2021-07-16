@@ -109,7 +109,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
                       let commit : 'a Commit.t = (node, commit) in
                       f contents node commit)))
 
-        let root c = Conf.(get c Key.root)
+        let root c = Irmin.Private.Conf.get c Conf.Key.root
 
         let unsafe_v config =
           let root = root config in

@@ -17,7 +17,9 @@
 type config := Irmin.Private.Conf.t
 
 module Pack : module type of Irmin_pack.Conf
-include Irmin.Private.Conf.S
+open Irmin.Private.Conf
+
+val spec : Spec.t
 
 module Key : sig
   val lower_root : string key

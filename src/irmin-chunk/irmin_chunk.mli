@@ -51,7 +51,9 @@
     the root chunk node as is the case for {{!AO} AO}. *)
 
 module Conf : sig
-  include Irmin.Private.Conf.S
+  open Irmin.Private.Conf
+
+  val spec : Spec.t
 
   module Key : sig
     val chunk_size : int key
@@ -65,11 +67,10 @@ module Conf : sig
 end
 
 val config :
-  ?config:Irmin.config ->
   ?size:int ->
   ?min_size:int ->
   ?chunking:[ `Max | `Best_fit ] ->
-  unit ->
+  Irmin.config ->
   Irmin.config
 (** [config ?config ?size ?min_size ()] is the configuration value extending the
     optional [config] with bindings associating {{!chunk_size} chunk_size} to

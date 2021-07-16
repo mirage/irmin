@@ -14,7 +14,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-include Conf_intf
 
 module Univ = struct
   type t = exn
@@ -45,7 +44,56 @@ module M = Map.Make (struct
   let compare (Key a) (Key b) = String.compare a.name b.name
 end)
 
-type t = Univ.t M.t
+module Spec = struct
+  type t = { name : string; keys : (string, k) Hashtbl.t }
+
+  let all = Hashtbl.create 8
+
+  let v name =
+    let keys = Hashtbl.create 8 in
+    if Hashtbl.mem all name then
+      Fmt.failwith "Config spec already exists: %s" name;
+    let x = { name; keys } in
+    Hashtbl.replace all name x;
+    x
+
+  let name { name; _ } = name
+  let update { keys; _ } name k = Hashtbl.replace keys name k
+  let list () = Hashtbl.to_seq all
+  let find name = Hashtbl.find_opt all name
+  let find_key spec name = Hashtbl.find_opt spec.keys name
+  let keys spec = Hashtbl.to_seq_values spec.keys
+  let clone spec = { spec with keys = Hashtbl.copy spec.keys }
+
+  let join dest src =
+    let dest = clone dest in
+    let name = ref dest.name in
+    List.iter
+      (fun spec ->
+        if dest.name = spec.name then ()
+        else
+          let () = name := !name ^ "-" ^ spec.name in
+          Hashtbl.add_seq dest.keys (Hashtbl.to_seq spec.keys))
+      src;
+    { dest with name = !name }
+end
+
+type t = Spec.t * Univ.t M.t
+
+let spec = fst
+
+let key ?docs ?docv ?doc ~spec name ty default =
+  let () =
+    String.iter
+      (function
+        | '-' | '_' | 'a' .. 'z' | '0' .. '9' -> ()
+        | _ -> raise @@ Invalid_argument name)
+      name
+  in
+  let to_univ, of_univ = Univ.create () in
+  let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
+  Spec.update spec name (Key k);
+  k
 
 let name t = t.name
 let doc t = t.doc
@@ -53,79 +101,36 @@ let docv t = t.docv
 let docs t = t.docs
 let ty t = t.ty
 let default t = t.default
+let empty spec = (spec, M.empty)
+let singleton spec k v = (spec, M.singleton (Key k) (k.to_univ v))
+let is_empty (_, t) = M.is_empty t
+let mem (_, d) k = M.mem (Key k) d
 
-module Make () = struct
-  type t = Univ.t M.t
-  type nonrec 'a key = 'a key
-  type nonrec k = k
+let add (spec, d) k v =
+  if Spec.find_key spec k.name |> Option.is_none then
+    Fmt.failwith "invalid key, not found in spec: %s" k.name;
+  (spec, M.add (Key k) (k.to_univ v) d)
 
-  let all = Hashtbl.create 8
+let union (rs, r) (ss, s) =
+  let spec = Spec.join rs [ ss ] in
+  (spec, M.fold M.add r s)
 
-  let key ?docs ?docv ?doc name ty default =
-    let () =
-      String.iter
-        (function
-          | '-' | '_' | 'a' .. 'z' | '0' .. '9' -> ()
-          | _ -> raise @@ Invalid_argument name)
-        name
-    in
-    let to_univ, of_univ = Univ.create () in
-    let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
-    Hashtbl.replace all name (Key k);
-    k
+let rem (s, d) k = (s, M.remove (Key k) d)
+let find (_, d) k = try k.of_univ (M.find (Key k) d) with Not_found -> None
+let uri = Type.(map string) Uri.of_string Uri.to_string
 
-  let name t = t.name
-  let doc t = t.doc
-  let docv t = t.docv
-  let docs t = t.docs
-  let ty t = t.ty
-  let default t = t.default
-  let empty = M.empty
-  let singleton k v = M.singleton (Key k) (k.to_univ v)
-  let is_empty = M.is_empty
-  let mem d k = M.mem (Key k) d
-  let add d k v = M.add (Key k) (k.to_univ v) d
-  let union r s = M.fold M.add r s
-  let rem d k = M.remove (Key k) d
-  let find d k = try k.of_univ (M.find (Key k) d) with Not_found -> None
-  let uri = Type.(map string) Uri.of_string Uri.to_string
+let get (_, d) k =
+  try
+    match k.of_univ (M.find (Key k) d) with
+    | Some v -> v
+    | None -> raise Not_found
+  with Not_found -> k.default
 
-  let get d k =
-    try
-      match k.of_univ (M.find (Key k) d) with
-      | Some v -> v
-      | None -> raise Not_found
-    with Not_found -> k.default
+let keys (_, conf) = M.to_seq conf |> Seq.map (fun (k, _) -> k)
 
-  let find_key name = Hashtbl.find_opt all name
-  let keys conf = M.to_seq conf |> Seq.map (fun (k, _) -> k)
-  let all_keys () = Hashtbl.to_seq_values all
-
-  (* ~root *)
-  let root () =
-    key ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
-      ~docs:"COMMON OPTIONS" "root"
-      Type.(string)
-      "."
-end
-
-module type S = S with type t = t and type 'a key = 'a key and type k = k
-
-module Extend (S : S) = struct
-  include Make ()
-
-  let () =
-    let keys = S.all_keys () in
-    Seq.iter (fun (Key k) -> Hashtbl.replace all (name k) (Key k)) keys
-end
-
-module Join (A : S) (B : S) = struct
-  include Make ()
-
-  let () =
-    let a = A.all_keys () in
-    let b = B.all_keys () in
-    Seq.iter
-      (fun (Key k) -> Hashtbl.replace all (name k) (Key k))
-      (Seq.append a b)
-end
+(* ~root *)
+let root spec =
+  key ~spec ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
+    ~docs:"COMMON OPTIONS" "root"
+    Type.(string)
+    "."

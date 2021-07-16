@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin.Private.Conf.S
+open Irmin.Private.Conf
+
+val spec : Spec.t
 
 module Key : sig
   val root : string key
