@@ -194,6 +194,27 @@ module Make (M : Maker) = struct
       Cmdliner.Term.(term_internal $ setup_log, info ~doc "reconstruct-index")
   end
 
+  module Integrity_check_index = struct
+    let conf root = Conf.v ~readonly:true ~fresh:false root
+
+    let run ~root () =
+      let (module Store : Versioned_store) =
+        match Stat.detect_version ~root with
+        | `V1 -> (module Store_V1)
+        | `V2 -> (module Store_V2)
+      in
+      let conf = conf root in
+      Store.traverse_pack_file `Check_index conf
+
+    let term_internal =
+      Cmdliner.Term.(const (fun root () -> run ~root ()) $ path)
+
+    let term =
+      let doc = "Check index integrity." in
+      Cmdliner.Term.
+        (term_internal $ setup_log, info ~doc "integrity-check-index")
+  end
+
   module Integrity_check = struct
     let conf root = Conf.v ~readonly:false ~fresh:false root
 
@@ -292,6 +313,7 @@ module Make (M : Maker) = struct
             Reconstruct_index.term;
             Integrity_check.term;
             Integrity_check_inodes.term;
+            Integrity_check_index.term;
           ]) () : empty =
       let default =
         let default_info =

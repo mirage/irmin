@@ -6,14 +6,23 @@ module Stats : sig
 
   val empty : unit -> t
   val add : t -> Pack_value.Kind.t -> unit
+  val duplicate_entry : t -> unit
+  val missing_hash : t -> unit
   val pp : t Fmt.t
 end = struct
   open Pack_value.Kind
 
-  type t = int array
+  type t = {
+    pack_values : int array;
+    mutable duplicates : int;
+    mutable missing_hashes : int;
+  }
 
-  let empty () = Array.make 4 0
-  let incr t n = t.(n) <- t.(n) + 1
+  let empty () =
+    let pack_values = Array.make 4 0 in
+    { pack_values; duplicates = 0; missing_hashes = 0 }
+
+  let incr t n = t.pack_values.(n) <- t.pack_values.(n) + 1
 
   let add t = function
     | Contents -> incr t 0
@@ -21,14 +30,19 @@ end = struct
     | Node -> incr t 2
     | Inode -> incr t 3
 
+  let duplicate_entry t = t.duplicates <- t.duplicates + 1
+  let missing_hash t = t.missing_hashes <- t.missing_hashes + 1
+
   let pp =
     let open Fmt.Dump in
     record
       [
-        field "Contents" (fun t -> t.(0)) Fmt.int;
-        field "Commit" (fun t -> t.(1)) Fmt.int;
-        field "Node" (fun t -> t.(2)) Fmt.int;
-        field "Inode" (fun t -> t.(3)) Fmt.int;
+        field "Contents" (fun t -> t.pack_values.(0)) Fmt.int;
+        field "Commit" (fun t -> t.pack_values.(1)) Fmt.int;
+        field "Node" (fun t -> t.pack_values.(2)) Fmt.int;
+        field "Inode" (fun t -> t.pack_values.(3)) Fmt.int;
+        field "Duplicated entries" (fun t -> t.duplicates) Fmt.int;
+        field "Missing entries" (fun t -> t.missing_hashes) Fmt.int;
       ]
 end
 
@@ -63,6 +77,17 @@ end = struct
   [@@deriving irmin ~equal ~pp]
 
   type index_binding = { key : Hash.t; data : index_value }
+  type missing_hash = { idx_pack : int; binding : index_binding }
+
+  let pp_binding ppf x =
+    let off, len, kind = x.data in
+    Fmt.pf ppf "@[<v 0>%s with hash %a@,pack offset = %a, length = %d@]"
+      (match kind with
+      | Pack_value.Kind.Contents -> "Contents"
+      | Commit -> "Commit"
+      | Node -> "Node"
+      | Inode -> "Inode")
+      pp_key x.key Int63.pp off len
 
   module Index_reconstructor = struct
     let create ~dest config =
@@ -83,7 +108,9 @@ end = struct
       let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
       index
 
-    let iter_pack_entry index key data = Index.add index key data
+    let iter_pack_entry index key data =
+      Index.add index key data;
+      Ok ()
 
     let finalise index () =
       (* Ensure that the log file is empty, so that subsequent opens with a
@@ -108,18 +135,14 @@ end = struct
     let iter_pack_entry (index, idx_ref) key data =
       match Index.find index key with
       | None ->
-          Fmt.failwith
-            "Pack entry with idx=%#d containing %a is not bound in index"
-            !idx_ref pp_index_value data
+          Error (`Missing_hash { idx_pack = !idx_ref; binding = { key; data } })
       | Some data' when not @@ equal_index_value data data' ->
-          Fmt.failwith
-            "Pack entry with idx=%#d containing %a is bound to %a in index"
-            !idx_ref pp_index_value data pp_index_value data'
-      | Some _ -> incr idx_ref
+          Error `Inconsistent_entry
+      | Some _ ->
+          incr idx_ref;
+          Ok ()
 
-    let finalise (index, _) () =
-      Log.app (fun f -> f "Completed checking of pack entries.");
-      Index.close index
+    let finalise (index, _) () = Index.close index
   end
 
   let decode_entry_length = function
@@ -168,10 +191,10 @@ end = struct
         refill_buffer ~from)
     in
     let stats = Stats.empty () in
-    let rec loop_entries ~buffer_off off =
-      if off >= total then stats
+    let rec loop_entries ~buffer_off off missing_hash =
+      if off >= total then (stats, missing_hash)
       else
-        let buffer_off, off =
+        let buffer_off, off, missing_hash =
           match
             decode_entry_exn ~off
               ~buffer:(Bytes.unsafe_to_string !buffer)
@@ -185,9 +208,18 @@ end = struct
                   l "k = %a (off, len, kind) = (%a, %d, %a)" pp_key key Int63.pp
                     off entry_len Pack_value.Kind.pp kind);
               Stats.add stats kind;
-              iter_pack_entry key data;
+              let missing_hash =
+                match iter_pack_entry key data with
+                | Ok () -> Option.map Fun.id missing_hash
+                | Error `Inconsistent_entry ->
+                    Stats.duplicate_entry stats;
+                    Option.map Fun.id missing_hash
+                | Error (`Missing_hash x) ->
+                    Stats.missing_hash stats;
+                    Some x
+              in
               progress entry_lenL;
-              (buffer_off + entry_len, off ++ entry_lenL)
+              (buffer_off + entry_len, off ++ entry_lenL, missing_hash)
           | exception Not_enough_buffer ->
               let () =
                 if buffer_off > 0 then
@@ -197,24 +229,24 @@ end = struct
                   (* The entire buffer isn't enough to hold this value: expand it. *)
                   expand_and_refill_buffer ~from:off
               in
-              (0, off)
+              (0, off, missing_hash)
         in
-        loop_entries ~buffer_off off
+        loop_entries ~buffer_off off missing_hash
     in
     refill_buffer ~from:Int63.zero;
-    loop_entries ~buffer_off:0 Int63.zero
+    loop_entries ~buffer_off:0 Int63.zero None
 
   let run mode config =
-    let iter_pack_entry, finalise =
+    let iter_pack_entry, finalise, message =
       match mode with
       | `Reconstruct_index dest ->
           let open Index_reconstructor in
           let v = create ~dest config in
-          (iter_pack_entry v, finalise v)
+          (iter_pack_entry v, finalise v, "Reconstructing index")
       | `Check_index ->
           let open Index_checker in
           let v = create config in
-          (iter_pack_entry v, finalise v)
+          (iter_pack_entry v, finalise v, "Checking index")
     in
     let run_duration = Mtime_clock.counter () in
     let root = Conf.root config in
@@ -224,16 +256,34 @@ end = struct
     in
     let total = IO.offset pack in
     let bar, progress =
-      Utils.Progress.counter ~total ~sampling_interval:100
-        ~message:"Reconstructing index" ~pp_count:Utils.pp_bytes ()
+      Utils.Progress.counter ~total ~sampling_interval:100 ~message
+        ~pp_count:Utils.pp_bytes ()
     in
-    let stats = ingest_data_file ~progress ~total pack iter_pack_entry in
+    let stats, missing_hash =
+      ingest_data_file ~progress ~total pack iter_pack_entry
+    in
     Utils.Progress.finalise bar;
     finalise ();
     IO.close pack;
     let run_duration = Mtime_clock.count run_duration in
-    Log.app (fun f ->
-        f "%a in %a. Store statistics:@,  @[<v 0>%a@]"
-          Fmt.(styled `Green string)
-          "Success" Mtime.Span.pp run_duration Stats.pp stats)
+    let store_stats fmt =
+      Fmt.pf fmt "Store statistics:@,  @[<v 0>%a@]" Stats.pp stats
+    in
+    match missing_hash with
+    | None ->
+        Log.app (fun f ->
+            f "%a in %a. %t"
+              Fmt.(styled `Green string)
+              "Success" Mtime.Span.pp run_duration store_stats)
+    | Some x ->
+        Logs.err (fun f ->
+            f
+              "%a in %a.@,\
+               First pack entry missing from index is the %d entry of the \
+               pack:@,\
+              \  %a@,\
+               %t"
+              Fmt.(styled `Red string)
+              "Detected missing entries" Mtime.Span.pp run_duration x.idx_pack
+              pp_binding x.binding store_stats)
 end
