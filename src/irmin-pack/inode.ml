@@ -20,7 +20,9 @@ include Inode_intf
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (Node : Irmin.Node.S with type node_key = Pack_key.Make(H).t) =
+    (Node : Irmin.Node.S
+              with type node_key = Pack_key.Make(H).t
+               and type contents_key = Pack_key.Make(H).t) =
 struct
   let () =
     if Conf.entries > Conf.stable_hash then
