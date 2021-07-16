@@ -17,7 +17,6 @@
 (** JSON REST/CRUD interface. *)
 
 val config : ?config:Irmin.config -> Uri.t -> Irmin.config
-
 val uri : Uri.t option Irmin.Private.Conf.key
 
 module type HTTP_CLIENT = sig

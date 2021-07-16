@@ -16,9 +16,7 @@
 
 module Content_addressable (S : Irmin.CONTENT_ADDRESSABLE_STORE) = struct
   type 'a t = bool ref * 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let check_not_closed t = if !(fst t) then raise Irmin.Closed

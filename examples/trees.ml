@@ -6,9 +6,7 @@ module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 module Tree = Store.Tree
 
 type t1 = int
-
 type t2 = { x : string; y : t1 }
-
 type t = t2 list
 
 let tree_of_t t =

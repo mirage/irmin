@@ -23,13 +23,10 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (K : Type.S) = struct
   type hash = K.t
-
   type t = { node : hash; parents : hash list; info : Info.t }
 
   let parents t = t.parents
-
   let node t = t.node
-
   let info t = t.info
 
   let v ~info ~node ~parents =
@@ -50,30 +47,21 @@ end
 module Store
     (N : S.NODE_STORE) (S : sig
       include S.CONTENT_ADDRESSABLE_STORE with type key = N.key
-
       module Key : S.HASH with type t = key
-
       module Val : S.COMMIT with type t = value and type hash = key
     end) =
 struct
   module Node = N
 
   type 'a t = 'a N.t * 'a S.t
-
   type key = S.key
-
   type value = S.value
 
   let add (_, t) = S.add t
-
   let unsafe_add (_, t) = S.unsafe_add t
-
   let mem (_, t) = S.mem t
-
   let find (_, t) = S.find t
-
   let merge_node (t, _) = Merge.f (N.merge t)
-
   let pp_key = Type.pp S.Key.t
 
   let err_not_found k =
@@ -128,11 +116,8 @@ end
 
 module History (S : S.COMMIT_STORE) = struct
   type commit = S.key
-
   type node = S.Node.key
-
   type 'a t = 'a S.t
-
   type v = S.Val.t
 
   let commit_t = S.Key.t
@@ -173,8 +158,7 @@ module History (S : S.COMMIT_STORE) = struct
   let closure t ~min ~max =
     Log.debug (fun f -> f "closure");
     let pred = function
-      | `Commit k -> (
-          S.find t k >|= function Some r -> edges r | None -> [] )
+      | `Commit k -> ( S.find t k >|= function Some r -> edges r | None -> [])
       | _ -> Lwt.return_nil
     in
     let min = List.map (fun k -> `Commit k) min in
@@ -188,9 +172,7 @@ module History (S : S.COMMIT_STORE) = struct
     type t = S.Key.t
 
     let compare = Type.compare S.Key.t
-
     let hash = S.Key.short_hash
-
     let equal = Type.equal S.Key.t
   end
 
@@ -203,9 +185,7 @@ module History (S : S.COMMIT_STORE) = struct
     | Some c -> KSet.of_list (S.Val.parents c)
 
   let equal_keys = Type.equal S.Key.t
-
   let str_key k = String.sub (Type.to_string S.Key.t k) 0 4
-
   let pp_key = Fmt.of_to_string str_key
 
   let pp_keys ppf keys =
@@ -213,7 +193,6 @@ module History (S : S.COMMIT_STORE) = struct
     Fmt.pf ppf "[%a]" Fmt.(list ~sep:(unit " ") pp_key) keys
 
   let str_keys = Fmt.to_to_string pp_keys
-
   let lca_calls = ref 0
 
   let rec unqueue todo seen =
@@ -245,7 +224,7 @@ module History (S : S.COMMIT_STORE) = struct
               let () = f depth commit parents in
               let parents = KSet.diff parents seen in
               KSet.iter (add_todo (depth + 1)) parents;
-              aux seen )
+              aux seen)
     in
     aux KSet.empty
 
@@ -300,11 +279,8 @@ module History (S : S.COMMIT_STORE) = struct
                t.layers [])))
 
   let get_mark_exn t elt = KHashtbl.find t.marks elt
-
   let get_mark t elt = try Some (get_mark_exn t elt) with Not_found -> None
-
   let set_mark t elt mark = KHashtbl.replace t.marks elt mark
-
   let get_layer t d = try Hashtbl.find t.layers d with Not_found -> KSet.empty
 
   let add_to_layer t d k =
@@ -316,7 +292,6 @@ module History (S : S.COMMIT_STORE) = struct
     try KHashtbl.find t.parents c with Not_found -> KSet.empty
 
   let incr_lcas t = t.lcas <- t.lcas + 1
-
   let decr_lcas t = t.lcas <- t.lcas - 1
 
   let both_seen t k =
@@ -362,7 +337,7 @@ module History (S : S.COMMIT_STORE) = struct
     let is_shared () = new_mark = SeenBoth || new_mark = LCA in
     if is_shared () && is_init () then (
       Log.debug (fun f -> f "fast-forward");
-      t.complete <- true );
+      t.complete <- true);
     set_mark t commit new_mark;
     new_mark
 
@@ -399,7 +374,7 @@ module History (S : S.COMMIT_STORE) = struct
          by one node? *)
       let layer = get_layer t t.depth in
       let complete = KSet.for_all (both_seen t) layer in
-      if complete then t.complete <- true else t.depth <- depth );
+      if complete then t.complete <- true else t.depth <- depth);
     let mark = get_mark_exn t commit in
     KSet.iter (update_ancestors_marks t mark) parents
 
@@ -473,7 +448,7 @@ module History (S : S.COMMIT_STORE) = struct
             | c :: cs -> (
                 three_way_merge t ~info ?max_depth ?n acc c >>= function
                 | Error (`Conflict _) -> Merge.ok None
-                | Ok acc -> aux acc cs )
+                | Ok acc -> aux acc cs)
           in
           aux c cs
 
@@ -483,7 +458,7 @@ module History (S : S.COMMIT_STORE) = struct
     | c1 :: c2 :: cs -> (
         lca_aux t ~info ?max_depth ?n c1 c2 >>=* function
         | None -> Merge.ok None
-        | Some c -> lca t ~info ?max_depth ?n (c :: cs) )
+        | Some c -> lca t ~info ?max_depth ?n (c :: cs))
 end
 
 module V1 (C : S.COMMIT) = struct
@@ -513,17 +488,11 @@ module V1 (C : S.COMMIT) = struct
   type t = { parents : hash list; c : C.t }
 
   let import c = { c; parents = C.parents c }
-
   let export t = t.c
-
   let node t = C.node t.c
-
   let parents t = t.parents
-
   let info t = C.info t.c
-
   let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
-
   let make = v
 
   let info_t : Info.t Type.t =

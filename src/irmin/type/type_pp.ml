@@ -73,7 +73,7 @@ let ty : type a. a t Fmt.t =
         | Record { rname; _ } -> ty ppf (self_unroll (Var rname))
         | _ ->
             let var = Var (get_tvar ()) in
-            Fmt.pf ppf "@[(%a as %a)@]" ty (self_unroll var) ty var )
+            Fmt.pf ppf "@[(%a as %a)@]" ty (self_unroll var) ty var)
     | Custom c -> Fmt.pf ppf "@[Custom (%a)@]" custom c
     | Map m -> Fmt.pf ppf "@[Map (%a)@]" ty m.x
     | Prim p -> Fmt.pf ppf "@[%a@]" prim p
@@ -87,7 +87,7 @@ let ty : type a. a t Fmt.t =
     | Variant { vname; vcases; _ } -> (
         match Array.length vcases with
         | 0 -> Fmt.pf ppf "({} as %s)" vname (* empty type *)
-        | _ -> Fmt.pf ppf "(@[%a]@] as %s)" pp_cases vcases vname )
+        | _ -> Fmt.pf ppf "(@[%a]@] as %s)" pp_cases vcases vname)
     | Var v -> Fmt.string ppf v
   and pp_fields : type r b. (r, b) fields Fmt.t =
    fun ppf fields ->

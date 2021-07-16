@@ -76,8 +76,8 @@ module Chunk (K : Irmin.Hash.S) = struct
 
   let v =
     let open Irmin.Type in
-    variant "chunk" (fun d i ->
-      function Data data -> d data | Index index -> i index)
+    variant "chunk" (fun d i -> function
+      | Data data -> d data | Index index -> i index)
     |~ case1 "Data" string (fun d -> Data d)
     |~ case1 "Index" (list ~len:`Int16 K.t) (fun i -> Index i)
     |> sealv
@@ -90,7 +90,6 @@ module Chunk (K : Irmin.Hash.S) = struct
     | None -> String.length (Irmin.Type.to_bin_string v t)
 
   let size_of_data_header = size_of_v (Data "")
-
   let size_of_index_header = size_of_v (Index [])
 
   let of_string b =
@@ -187,7 +186,7 @@ struct
             in
             match list_partition n l with
             | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
-            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux )
+            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux)
       in
       aux l
   end
@@ -200,9 +199,9 @@ struct
       (chunk_size - Chunk.size_of_index_header) / K.hash_size
     in
     let chunking = C.get config Conf.chunking in
-    ( if max_children <= 1 then
-      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
-      err_too_small ~min chunk_size );
+    (if max_children <= 1 then
+     let min = Chunk.size_of_index_header + (K.hash_size * 2) in
+     err_too_small ~min chunk_size);
     Log.debug (fun l ->
         l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
           chunk_size K.hash_size max_data max_children);
@@ -210,7 +209,6 @@ struct
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = Lwt.return_unit
-
   let batch t f = CA.batch t.db (fun db -> f { t with db })
 
   let find_leaves t key =
@@ -233,7 +231,7 @@ struct
         check_hash key buf >|= fun () ->
         match Irmin.Type.of_bin_string V.t buf with
         | Ok va -> Some va
-        | Error _ -> None )
+        | Error _ -> None)
 
   let list_range ~init ~stop ~step =
     let rec aux acc n =

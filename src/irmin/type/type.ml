@@ -39,35 +39,20 @@ let short_hash t ?seed x =
 (* Combinators for Irmin types *)
 
 let unit = Prim Unit
-
 let bool = Prim Bool
-
 let char = Prim Char
-
 let int = Prim Int
-
 let int32 = Prim Int32
-
 let int64 = Prim Int64
-
 let float = Prim Float
-
 let string = Prim (String `Int)
-
 let bytes = Prim (Bytes `Int)
-
 let string_of n = Prim (String n)
-
 let bytes_of n = Prim (Bytes n)
-
 let list ?(len = `Int) v = List { v; len }
-
 let array ?(len = `Int) v = Array { v; len }
-
 let pair a b = Tuple (Pair (a, b))
-
 let triple a b c = Tuple (Triple (a, b, c))
-
 let option a = Option a
 
 let v ~cli ~json ~bin ~equal ~compare ~short_hash ~pre_hash =
@@ -147,7 +132,7 @@ let check_unique f =
     | x :: xs -> (
         match String_Set.find_opt x set with
         | None -> aux (String_Set.add x set) xs
-        | Some _ -> f x )
+        | Some _ -> f x)
   in
   aux String_Set.empty
 
@@ -172,7 +157,6 @@ let ( |+ ) = app
 (* variants *)
 
 type 'a case_p = 'a case_v
-
 type ('a, 'b) case = int -> 'a a_case * 'b
 
 let case0 cname0 c0 =
@@ -248,8 +232,8 @@ let enum vname l =
   Variant { vwit; vname; vcases; vget = (fun x -> List.assq x mk) }
 
 let result a b =
-  variant "result" (fun ok error ->
-    function Ok x -> ok x | Error x -> error x)
+  variant "result" (fun ok error -> function
+    | Ok x -> ok x | Error x -> error x)
   |~ case1 "ok" a (fun a -> Ok a)
   |~ case1 "error" b (fun b -> Error b)
   |> sealv
@@ -272,7 +256,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
             let ty = string in
             ( (fun ppf u -> Type_json.encode ty ppf (Fmt.to_to_string pp u)),
               fun buf -> Type_json.decode ty buf >|= of_string |> join )
-        | _ -> (Type_json.encode t, Type_json.decode t) )
+        | _ -> (Type_json.encode t, Type_json.decode t))
   in
   let pp, of_string =
     match cli with
@@ -290,7 +274,7 @@ let like ?cli ?json ?bin ?equal ?compare ?short_hash:h ?pre_hash:p t =
     | None -> (
         match compare with
         | Some f -> fun x y -> f x y = 0
-        | None -> Type_ordered.equal t )
+        | None -> Type_ordered.equal t)
   in
   let compare =
     match compare with Some x -> x | None -> Type_ordered.compare t
@@ -332,7 +316,6 @@ module type S = sig
 end
 
 let equal, compare = Type_ordered.(equal, compare)
-
 let pp, pp_ty, to_string, of_string = Type_pp.(t, ty, to_string, of_string)
 
 let ( to_json_string,

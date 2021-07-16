@@ -22,7 +22,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module IO = struct
   let mkdir_pool = Lwt_pool.create 1 (fun () -> Lwt.return_unit)
-
   let mmap_threshold = 4096
 
   (* Files smaller than this are loaded using [read].  Use of mmap is
@@ -46,7 +45,6 @@ module IO = struct
     | e -> Lwt.fail e
 
   let protect f x = Lwt.catch (fun () -> f x) protect_unix_exn
-
   let safe f x = Lwt.catch (fun () -> f x) ignore_enoent
 
   let mkdir dirname =
@@ -57,7 +55,7 @@ module IO = struct
           if Sys.file_exists dir then (
             Log.debug (fun l ->
                 l "%s already exists but is a file, removing." dir);
-            safe Lwt_unix.unlink dir )
+            safe Lwt_unix.unlink dir)
           else Lwt.return_unit
         in
         clear >>= fun () ->
@@ -94,7 +92,7 @@ module IO = struct
         is_stale max_age file >>= fun is_stale ->
         if is_stale then (
           Log.err (fun f -> f "%s is stale, removing it." file);
-          unlock file >>= fun () -> aux 1 )
+          unlock file >>= fun () -> aux 1)
         else
           let create () =
             let pid = Unix.getpid () in
@@ -131,7 +129,6 @@ module IO = struct
   type lock = path
 
   let lock_file x = x
-
   let file_exists = file_exists
 
   let list_files kind dir =
@@ -209,7 +206,7 @@ module IO = struct
                   else (
                     Log.debug (fun l ->
                         l "Got EACCES, retrying in %.1fs" delays.(i));
-                    Lwt_unix.sleep delays.(i) >>= fun () -> aux (i + 1) )
+                    Lwt_unix.sleep delays.(i) >>= fun () -> aux (i + 1))
             | e -> Lwt.fail e)
       in
       aux 0
@@ -259,8 +256,8 @@ module IO = struct
             Log.debug (fun l -> l "Reading %s" file);
             Lwt_unix.stat file >>= fun stats ->
             let size = stats.Lwt_unix.st_size in
-            ( if size >= mmap_threshold then read_file_with_mmap file
-            else read_file_with_read file size )
+            (if size >= mmap_threshold then read_file_with_mmap file
+            else read_file_with_read file size)
             >|= fun buf -> Some buf))
       (function
         | Unix.Unix_error _ | Sys_error _ -> Lwt.return_none | e -> Lwt.fail e)
@@ -285,9 +282,9 @@ module IO = struct
         in
         if not equal then Lwt.return_false
         else
-          ( match set with
+          (match set with
           | None -> remove_file file
-          | Some v -> write_file ?temp_dir file v )
+          | Some v -> write_file ?temp_dir file v)
           >|= fun () -> true)
 
   let rec_files dir =

@@ -13,9 +13,7 @@ open Lwt.Infix
 open Astring
 
 let info = Irmin_unix.info
-
 let time = ref 0L
-
 let failure fmt = Fmt.kstrf failwith fmt
 
 (* A log entry *)
@@ -23,7 +21,6 @@ module Entry : sig
   include Irmin.Type.S
 
   val v : string -> t
-
   val timestamp : t -> int64
 end = struct
   type t = { timestamp : int64; message : string }
@@ -35,7 +32,6 @@ end = struct
     { timestamp = !time; message }
 
   let timestamp t = t.timestamp
-
   let pp ppf { timestamp; message } = Fmt.pf ppf "%04Ld: %s" timestamp message
 
   let of_string str =
@@ -43,7 +39,7 @@ end = struct
     | None -> Error (`Msg ("invalid entry: " ^ str))
     | Some (x, message) -> (
         try Ok { timestamp = Int64.of_string x; message }
-        with Failure e -> Error (`Msg e) )
+        with Failure e -> Error (`Msg e))
 
   let t =
     let open Irmin.Type in
@@ -60,15 +56,12 @@ module Log : sig
   include Irmin.Contents.S
 
   val add : t -> Entry.t -> t
-
   val empty : t
 end = struct
   type t = Entry.t list
 
   let empty = []
-
   let pp_entry = Irmin.Type.pp Entry.t
-
   let lines ppf l = List.iter (Fmt.pf ppf "%a\n" pp_entry) (List.rev l)
 
   let of_string str =
@@ -84,9 +77,7 @@ end = struct
     with Failure e -> Error (`Msg e)
 
   let cli = (lines, of_string)
-
   let t = Irmin.Type.(like ~cli (list Entry.t))
-
   let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
 
   let newer_than timestamp file =
@@ -108,14 +99,12 @@ end = struct
     Irmin.Merge.ok (List.rev_append t3 old)
 
   let merge = Irmin.Merge.(option (v t merge))
-
   let add t e = e :: t
 end
 
 module Store = Irmin_unix.Git.FS.KV (Log)
 
 let config = Irmin_git.config ~bare:true Config.root
-
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =

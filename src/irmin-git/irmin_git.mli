@@ -31,11 +31,8 @@ val config :
   Irmin.config
 
 val bare : bool Irmin.Private.Conf.key
-
 val head : Git.Reference.t option Irmin.Private.Conf.key
-
 val level : int option Irmin.Private.Conf.key
-
 val dot_git : string option Irmin.Private.Conf.key
 
 module Content_addressable (G : Git.S) (V : Irmin.Type.S) :
@@ -134,21 +131,17 @@ module type REF_MAKER = functor
      and type Private.Sync.endpoint = S.Endpoint.t
 
 module Make : S_MAKER
-
 module Ref : REF_MAKER
-
 module KV : KV_MAKER
 
 module type BRANCH = sig
   include Irmin.Branch.S
 
   val pp_ref : t Fmt.t
-
   val of_ref : string -> (t, [ `Msg of string ]) result
 end
 
 module Branch (B : Irmin.Branch.S) : BRANCH
-
 module Reference : BRANCH with type t = reference
 
 module Make_ext

@@ -22,11 +22,8 @@ let current_version = "00000001"
 
 module Default = struct
   let fresh = false
-
   let lru_size = 100_000
-
   let index_log_size = 500_000
-
   let readonly = false
 end
 
@@ -47,13 +44,9 @@ let readonly_key =
     Irmin.Private.Conf.bool Default.readonly
 
 let fresh config = Irmin.Private.Conf.get config fresh_key
-
 let lru_size config = Irmin.Private.Conf.get config lru_size_key
-
 let readonly config = Irmin.Private.Conf.get config readonly_key
-
 let index_log_size config = Irmin.Private.Conf.get config index_log_size_key
-
 let root_key = Irmin.Private.Conf.root
 
 let root config =
@@ -75,7 +68,6 @@ let config ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   config
 
 let ( ++ ) = Int64.add
-
 let with_cache = IO.with_cache
 
 open Lwt.Infix
@@ -90,7 +82,6 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t
 
   let hash (t : t) = Irmin.Type.short_hash K.t t
-
   let equal (x : t) (y : t) = Irmin.Type.equal K.t x y
 end)
 
@@ -99,9 +90,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   module W = Irmin.Private.Watch.Make (K) (V)
 
   type key = K.t
-
   type value = V.t
-
   type watch = W.watch
 
   type t = {
@@ -201,13 +190,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Tbl.clear t.index
 
   let create = Lwt_mutex.create ()
-
   let watches = W.v ()
 
   let valid t =
     if t.open_instances <> 0 then (
       t.open_instances <- t.open_instances + 1;
-      true )
+      true)
     else false
 
   let unsafe_v ~fresh ~readonly file =
@@ -277,9 +265,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
     Lwt.return keys
 
   let watch_key t = W.watch_key t.w
-
   let watch t = W.watch t.w
-
   let unwatch t = W.unwatch t.w
 
   let unsafe_close t =
@@ -289,7 +275,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
       Tbl.reset t.cache;
       if not (IO.readonly t.block) then IO.sync t.block;
       IO.close t.block;
-      W.clear t.w )
+      W.clear t.w)
     else Lwt.return_unit
 
   let close t = Lwt_mutex.with_lock t.lock (fun () -> unsafe_close t)
@@ -336,9 +322,7 @@ struct
           module H = Irmin.Hash.Typed (H) (Val)
 
           let hash = H.hash
-
           let magic = 'B'
-
           let value = value Val.t
 
           let encode_bin ~dict:_ ~offset:_ v hash =
@@ -372,9 +356,7 @@ struct
           module H = Irmin.Hash.Typed (H) (Val)
 
           let hash = H.hash
-
           let value = value Val.t
-
           let magic = 'C'
 
           let encode_bin ~dict:_ ~offset:_ v hash =
@@ -414,11 +396,8 @@ struct
       }
 
       let contents_t t : 'a Contents.t = t.contents
-
       let node_t t : 'a Node.t = (contents_t t, t.node)
-
       let commit_t t : 'a Commit.t = (node_t t, t.commit)
-
       let branch_t t = t.branch
 
       let batch t f =
@@ -514,7 +493,7 @@ struct
           | Error `Absent_value -> incr nb_absent)
         t.index;
       if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
-      else Error (`Corrupted (!nb_corrupted + !nb_absent)) )
+      else Error (`Corrupted (!nb_corrupted + !nb_absent)))
 
   include Irmin.Of_private (X)
 end
@@ -538,6 +517,7 @@ end
 
 module KV (Config : CONFIG) (C : Irmin.Contents.S) =
   Make (Config) (Metadata) (C) (Path) (Irmin.Branch.String) (Hash)
+
 module Stats = Stats
 
 module Private = struct
@@ -546,12 +526,8 @@ end
 
 module Layout = struct
   let toplevel name ~root = Filename.(concat root name)
-
   let pack = toplevel "store.pack"
-
   let branch = toplevel "store.branches"
-
   let dict = toplevel "store.dict"
-
   let stores ~root = [ pack ~root; branch ~root; dict ~root ]
 end

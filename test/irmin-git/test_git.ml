@@ -32,7 +32,6 @@ end
 
 module type G = sig
   include S
-
   module Git : Irmin_git.G
 end
 
@@ -68,11 +67,12 @@ module Mem (C : Irmin.Contents.S) = struct
 end
 
 module Generic (C : Irmin.Contents.S) = struct
-  include Irmin_git.Generic_KV
-            (Irmin.Content_addressable
-               (Irmin_mem.Append_only))
-               (Irmin_mem.Atomic_write)
-            (C)
+  include
+    Irmin_git.Generic_KV
+      (Irmin.Content_addressable
+         (Irmin_mem.Append_only))
+         (Irmin_mem.Atomic_write)
+      (C)
 
   let init () =
     Repo.v config >>= fun repo ->

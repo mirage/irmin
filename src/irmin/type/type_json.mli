@@ -17,15 +17,10 @@
 open Type_core
 
 val pp : ?minify:bool -> 'a t -> 'a Fmt.t
-
 val to_string : ?minify:bool -> 'a t -> 'a to_string
-
 val of_string : 'a t -> 'a of_string
-
 val encode : 'a t -> 'a encode_json
-
 val decode : 'a t -> 'a decode_json
-
 val decode_jsonm : 'a t -> Jsonm.decoder -> ('a, [ `Msg of string ]) result
 
 val decode_lexemes :

@@ -55,7 +55,7 @@ module Make (X : Ordered) = struct
     (* first addition: we allocate the array *)
     if h.size < 0 then (
       h.data <- Array.make (-h.size) x;
-      h.size <- 0 );
+      h.size <- 0);
     let n = h.size in
     (* resizing if needed *)
     if n == Array.length h.data then resize h;
@@ -65,7 +65,7 @@ module Make (X : Ordered) = struct
       let fi = (i - 1) / 2 in
       if i > 0 && X.compare d.(fi) x < 0 then (
         d.(i) <- d.(fi);
-        moveup fi )
+        moveup fi)
       else d.(i) <- x
     in
     moveup n;
@@ -91,7 +91,7 @@ module Make (X : Ordered) = struct
         in
         if X.compare d.(j) x > 0 then (
           d.(i) <- d.(j);
-          movedown j )
+          movedown j)
         else d.(i) <- x
       else d.(i) <- x
     in

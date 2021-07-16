@@ -42,7 +42,6 @@ module type S = sig
     include Irmin.Private.Node.S with type t = value and type hash = key
 
     val stable : t -> bool
-
     val hash : t -> Key.t
   end
 
@@ -55,15 +54,10 @@ module type S = sig
 
   module Concrete : sig
     type hash = Key.t [@@deriving irmin]
-
     type step = Val.step [@@deriving irmin]
-
     type metadata = Val.metadata [@@deriving irmin]
-
     type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
-
     type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
-
     type 'a pointer = { index : int; pointer : hash; tree : 'a }
 
     val pointer_t : 'a Irmin.Type.t -> 'a pointer Irmin.Type.t
@@ -89,13 +83,11 @@ module type S = sig
   end
 
   val to_concrete : Val.t -> Concrete.t
-
   val of_concrete : Concrete.t -> (Val.t, Concrete.error) result
 end
 
 module type CONFIG = sig
   val entries : int
-
   val stable_hash : int
 end
 
@@ -116,23 +108,17 @@ struct
 
   module T = struct
     type hash = H.t
-
     type step = Node.step
-
     type metadata = Node.metadata
 
     let step_t = Node.step_t
-
     let hash_t = H.t
-
     let metadata_t = Node.metadata_t
-
     let default = Node.default
 
     type value = Node.value
 
     let value_t = Node.value_t
-
     let pp_hash = Irmin.Type.(pp hash_t)
   end
 
@@ -156,9 +142,7 @@ struct
       open T
 
       type inode = { index : int; hash : H.t }
-
       type inodes = { seed : int; length : int; entries : inode list }
-
       type v = Values of (step * value) list | Inodes of inodes
 
       let inode : inode Irmin.Type.t =
@@ -179,8 +163,8 @@ struct
 
       let v_t : v Irmin.Type.t =
         let open Irmin.Type in
-        variant "Bin.v" (fun values inodes ->
-          function Values l -> values l | Inodes i -> inodes i)
+        variant "Bin.v" (fun values inodes -> function
+          | Values l -> values l | Inodes i -> inodes i)
         |~ case1 "Values" (list (pair step_t value_t)) (fun t -> Values t)
         |~ case1 "Inodes" inodes (fun t -> Inodes t)
         |> sealv
@@ -207,9 +191,7 @@ struct
         |> like ~pre_hash
 
       let node ~hash v = { stable = true; hash; v }
-
       let inode ~hash v = { stable = false; hash; v }
-
       let hash t = Lazy.force t.hash
     end
 
@@ -218,13 +200,12 @@ struct
       open T
 
       type name = Indirect of int | Direct of step
-
       type address = Indirect of int64 | Direct of H.t
 
       let address : address Irmin.Type.t =
         let open Irmin.Type in
-        variant "Compress.address" (fun i d ->
-          function Indirect x -> i x | Direct x -> d x)
+        variant "Compress.address" (fun i d -> function
+          | Indirect x -> i x | Direct x -> d x)
         |~ case1 "Indirect" int64 (fun x -> Indirect x)
         |~ case1 "Direct" H.t (fun x -> Direct x)
         |> sealv
@@ -258,20 +239,20 @@ struct
       let value : value Irmin.Type.t =
         let open Irmin.Type in
         variant "Compress.value"
-          (fun contents_ii
-               contents_x_ii
-               node_ii
-               contents_id
-               contents_x_id
-               node_id
-               contents_di
-               contents_x_di
-               node_di
-               contents_dd
-               contents_x_dd
-               node_dd
-               ->
-          function
+          (fun
+            contents_ii
+            contents_x_ii
+            node_ii
+            contents_id
+            contents_x_id
+            node_id
+            contents_di
+            contents_x_di
+            node_di
+            contents_dd
+            contents_x_dd
+            node_dd
+          -> function
           | Contents (Indirect n, Indirect h, m) ->
               if is_default m then contents_ii (n, h)
               else contents_x_ii (n, h, m)
@@ -318,8 +299,8 @@ struct
 
       let v_t : v Irmin.Type.t =
         let open Irmin.Type in
-        variant "Compress.v" (fun values inodes ->
-          function Values x -> values x | Inodes x -> inodes x)
+        variant "Compress.v" (fun values inodes -> function
+          | Values x -> values x | Inodes x -> inodes x)
         |~ case1 "Values" (list value) (fun x -> Values x)
         |~ case1 "Inodes" inodes (fun x -> Inodes x)
         |> sealv
@@ -327,11 +308,8 @@ struct
       type t = { hash : H.t; stable : bool; v : v }
 
       let node ~hash v = { hash; stable = true; v }
-
       let inode ~hash v = { hash; stable = false; v }
-
       let magic_node = 'N'
-
       let magic_inode = 'I'
 
       let stable : bool Irmin.Type.t =
@@ -376,8 +354,8 @@ struct
 
       let entry_t inode : entry Irmin.Type.t =
         let open Irmin.Type in
-        variant "Node.entry" (fun empty inode ->
-          function Empty -> empty | Inode i -> inode i)
+        variant "Node.entry" (fun empty inode -> function
+          | Empty -> empty | Inode i -> inode i)
         |~ case0 "Empty" Empty
         |~ case1 "Inode" inode (fun i -> Inode i)
         |> sealv
@@ -406,7 +384,7 @@ struct
             | None -> Fmt.failwith "%a: unknown key" pp_hash h
             | Some x ->
                 t.tree <- Some x;
-                x )
+                x)
 
       let rec list_entry ~find acc = function
         | Empty -> acc
@@ -422,7 +400,6 @@ struct
       and list_values ~find acc t = list_values_v ~find acc t.v
 
       let compare_step a b = Irmin.Type.compare step_t a b
-
       let compare_entry x y = compare_step (fst x) (fst y)
 
       let list_v ~find v =
@@ -438,7 +415,8 @@ struct
         | Inodes t ->
             let _, entries =
               Array.fold_left
-                (fun (i, acc) -> function Empty -> (i + 1, acc)
+                (fun (i, acc) -> function
+                  | Empty -> (i + 1, acc)
                   | Inode inode ->
                       let hash = hash_of_inode inode in
                       (i + 1, { Bin.index = i; hash } :: acc))
@@ -491,8 +469,8 @@ struct
         let open Irmin.Type in
         let pre_hash x = pre_hash Bin.v_t (to_bin_v x) in
         let entry = entry_t (inode_t t) in
-        variant "Inode.t" (fun values inodes ->
-          function Values v -> values v | Inodes i -> inodes i)
+        variant "Inode.t" (fun values inodes -> function
+          | Values v -> values v | Inodes i -> inodes i)
         |~ case1 "Values" (StepMap.t value_t) (fun t -> Values t)
         |~ case1 "Inodes" (inodes entry) (fun t -> Inodes t)
         |> sealv
@@ -537,13 +515,13 @@ struct
       let find_value ~seed ~find t s =
         let rec aux ~seed = function
           | Values vs -> (
-              try Some (StepMap.find s vs) with Not_found -> None )
+              try Some (StepMap.find s vs) with Not_found -> None)
           | Inodes t -> (
               let i = index ~seed s in
               let x = t.entries.(i) in
               match x with
               | Empty -> None
-              | Inode i -> aux ~seed:(seed + 1) (get_tree ~find i).v )
+              | Inode i -> aux ~seed:(seed + 1) (get_tree ~find i).v)
         in
         aux ~seed t.v
 
@@ -599,7 +577,7 @@ struct
                     let inode = inode ~tree tree.hash in
                     entries.(i) <- inode;
                     let t = inodes { seed; length; entries } in
-                    k t ) )
+                    k t))
 
       let add ~find ~copy t s v =
         add ~seed:0 ~find ~copy t s v (stabilize ~find)
@@ -630,7 +608,7 @@ struct
                       remove ~seed:(seed + 1) ~find t s @@ fun tree ->
                       entries.(i) <- inode ~tree (lazy (hash tree));
                       let t = inodes { seed; length; entries } in
-                      k t ) )
+                      k t))
 
       let remove ~find t s = remove ~find ~seed:0 t s (stabilize ~find)
 
@@ -726,7 +704,7 @@ struct
               | Some s -> (
                   match Irmin.Type.of_bin_string T.step_t s with
                   | Error e -> raise_notrace (Exit e)
-                  | Ok v -> v ) )
+                  | Ok v -> v))
         in
         let hash : Compress.address -> H.t = function
           | Indirect off -> hash off
@@ -765,15 +743,10 @@ struct
     type t = { mutable find : H.t -> I.t option; v : I.t }
 
     let niet _ = assert false
-
     let v l = { find = niet; v = I.v l }
-
     let list t = I.list ~find:t.find t.v
-
     let empty = { find = niet; v = Inode.Val.empty }
-
     let is_empty t = I.is_empty t.v
-
     let find t s = I.find ~find:t.find t.v s
 
     let add t s v =
@@ -785,7 +758,6 @@ struct
       if v == t.v then t else { find = t.find; v }
 
     let stable t = t.v.I.stable
-
     let hash t = Lazy.force t.v.I.hash
 
     let t : t Irmin.Type.t =
@@ -801,9 +773,7 @@ struct
   module Key = H
 
   type 'a t = 'a Inode.t
-
   type key = Key.t
-
   type value = Val.t
 
   let mem t k = Inode.mem t k
@@ -845,26 +815,19 @@ struct
     Lwt.return_unit
 
   let batch = Inode.batch
-
   let v = Inode.v
 
   type integrity_error = Inode.integrity_error
 
   let integrity_check = Inode.integrity_check
-
   let close = Inode.close
 
   module Concrete = struct
     type hash = H.t [@@deriving irmin]
-
     type step = Node.step [@@deriving irmin]
-
     type metadata = Node.metadata [@@deriving irmin]
-
     type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
-
     type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
-
     type 'a pointer = { index : int; pointer : hash; tree : 'a }
 
     let pointer_t a =
@@ -919,7 +882,6 @@ struct
       | Tree t -> List.fold_left (fun acc p -> acc + length p.tree) 0 t.pointers
 
     let pp = Irmin.Type.pp_json t
-
     let pp_hash = Irmin.Type.pp hash_t
 
     let pp_error ppf = function
@@ -970,19 +932,12 @@ struct
     snd (aux t.v)
 
   exception Invalid_hash of H.t * H.t * Concrete.t
-
   exception Invalid_depth of int * int * Concrete.t
-
   exception Invalid_length of int * int * Concrete.t
-
   exception Empty
-
   exception Duplicated_entries of Concrete.t
-
   exception Duplicated_pointers of Concrete.t
-
   exception Unsorted_entries of Concrete.t
-
   exception Unsorted_pointers of Concrete.t
 
   let hash_equal = Irmin.Type.(equal H.t)

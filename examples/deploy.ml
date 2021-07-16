@@ -65,7 +65,7 @@ let revert repo =
       "WARNING: the filesystem is different in dev and prod, intrusion detected!\n\
        Reverting the production system to the dev environment.\n\
        %!";
-    Lwt_unix.sleep 2. >>= fun () -> Store.Head.set prod h2 )
+    Lwt_unix.sleep 2. >>= fun () -> Store.Head.set prod h2)
   else Lwt.return_unit
 
 let () =

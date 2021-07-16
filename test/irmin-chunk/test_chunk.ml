@@ -22,7 +22,6 @@ module Key = struct
   include Irmin.Hash.SHA1
 
   let pp = Irmin.Type.pp t
-
   let equal = Irmin.Type.equal t
 end
 
@@ -30,7 +29,6 @@ module Value = struct
   include Irmin.Contents.String
 
   let pp = Fmt.string
-
   let equal = String.equal
 
   type hash = Key.t
@@ -47,7 +45,6 @@ module type S = sig
        and type value = Value.t
 
   val v : unit -> [ `Read ] t Lwt.t
-
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
 end
 
@@ -64,7 +61,6 @@ module MemChunk = struct
   include Content_addressable (Key) (Value)
 
   let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
-
   let v () = v small_config
 end
 
@@ -72,10 +68,10 @@ let init () = Lwt.return_unit
 
 let store =
   Irmin_test.store
-    ( module Irmin.Make
-               (Irmin_chunk.Content_addressable
-                  (Append_only))
-                  (Irmin_mem.Atomic_write) )
+    (module Irmin.Make
+              (Irmin_chunk.Content_addressable
+                 (Append_only))
+                 (Irmin_mem.Atomic_write))
     (module Irmin.Metadata.None)
 
 let config = Irmin_chunk.config ()

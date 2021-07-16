@@ -18,21 +18,13 @@ open Type_core
 
 module B = struct
   external get_16 : string -> int -> int = "%caml_string_get16"
-
   external get_32 : string -> int -> int32 = "%caml_string_get32"
-
   external get_64 : string -> int -> int64 = "%caml_string_get64"
-
   external set_16 : Bytes.t -> int -> int -> unit = "%caml_string_set16u"
-
   external set_32 : Bytes.t -> int -> int32 -> unit = "%caml_string_set32u"
-
   external set_64 : Bytes.t -> int -> int64 -> unit = "%caml_string_set64u"
-
   external swap16 : int -> int = "%bswap16"
-
   external swap32 : int32 -> int32 = "%bswap_int32"
-
   external swap64 : int64 -> int64 = "%bswap_int64"
 
   let get_uint16 s off =
@@ -56,13 +48,9 @@ end
 
 module Encode = struct
   let unit () _k = ()
-
   let add_bytes b k = k (Bytes.to_string b)
-
   let add_string s k = k s
-
   let char c = add_bytes (Bytes.make 1 c)
-
   let int8 i = char (Char.chr i)
 
   let int16 i =
@@ -81,7 +69,6 @@ module Encode = struct
     add_bytes b
 
   let float f = int64 (Int64.bits_of_float f)
-
   let bool b = char (if b then '\255' else '\000')
 
   let int i k =
@@ -197,27 +184,18 @@ end
 
 module Decode = struct
   let ( >|= ) (ofs, x) f = (ofs, f x)
-
   let ( >>= ) (ofs, x) f = f (ofs, x)
-
   let ok ofs x = (ofs, x)
 
   type 'a res = int * 'a
 
   let unit _ ofs = ok ofs ()
-
   let char buf ofs = ok (ofs + 1) buf.[ofs]
-
   let int8 buf ofs = char buf ofs >|= Char.code
-
   let int16 buf ofs = ok (ofs + 2) (B.get_uint16 buf ofs)
-
   let int32 buf ofs = ok (ofs + 4) (B.get_uint32 buf ofs)
-
   let int64 buf ofs = ok (ofs + 8) (B.get_uint64 buf ofs)
-
   let bool buf ofs = char buf ofs >|= function '\000' -> false | _ -> true
-
   let float buf ofs = int64 buf ofs >|= Int64.float_of_bits
 
   let int buf ofs =
@@ -341,7 +319,6 @@ module Decode = struct
 end
 
 let encode_bin = Encode.t
-
 let decode_bin = Decode.t
 
 let to_bin size_of encode_bin x =

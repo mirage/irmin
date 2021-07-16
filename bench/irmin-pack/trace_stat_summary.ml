@@ -32,8 +32,8 @@
 
     The duration of a {e buildup} can be split into 2 parts: 1. the time spend
     in each operation and 2. the sum of the time spent between, before and after
-    all operations. The first being the {e seen buildup} and the second the {e
-    unseen buildup}.
+    all operations. The first being the {e seen buildup} and the second the
+    {e unseen buildup}.
 
     The total duration of a block is the sum of the durations of the {e commit},
     the {e seen buildup} and the {e unseen buildup}.

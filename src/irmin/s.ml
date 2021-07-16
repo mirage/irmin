@@ -84,7 +84,6 @@ end
 
 module type TYPED_HASH = sig
   type t
-
   type value
 
   val hash : value -> t
@@ -161,9 +160,7 @@ module type CONTENT_ADDRESSABLE_STORE_MAKER = functor
   include CONTENT_ADDRESSABLE_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
   val v : Conf.t -> [ `Read ] t Lwt.t
-
   val close : 'a t -> unit Lwt.t
 end
 
@@ -198,9 +195,7 @@ module type APPEND_ONLY_STORE_MAKER = functor (K : Type.S) (V : Type.S) -> sig
   include APPEND_ONLY_STORE with type key = K.t and type value = V.t
 
   val batch : [ `Read ] t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-
   val v : Conf.t -> [ `Read ] t Lwt.t
-
   val close : 'a t -> unit Lwt.t
 end
 
@@ -224,9 +219,9 @@ module type CONTENTS_STORE = sig
   val merge : [ `Read | `Write ] t -> key option Merge.t
   (** [merge t] lifts the merge functions defined on contents values to contents
       key. The merge function will: {e (i)} read the values associated with the
-      given keys, {e (ii)} use the merge function defined on values and {e
-      (iii)} write the resulting values into the store to get the resulting key.
-      See {!Contents.S.merge}.
+      given keys, {e (ii)} use the merge function defined on values and
+      {e (iii)} write the resulting values into the store to get the resulting
+      key. See {!Contents.S.merge}.
 
       If any of these operations fail, return [`Conflict]. *)
 
@@ -427,7 +422,6 @@ module type NODE_STORE = sig
 end
 
 type config = Conf.t
-
 type 'a diff = 'a Diff.t
 
 module type COMMIT = sig
@@ -745,7 +739,6 @@ end
 
 module type PRIVATE = sig
   module Hash : HASH
-
   module Contents : CONTENTS_STORE with type key = Hash.t
 
   module Node :
@@ -766,15 +759,10 @@ module type PRIVATE = sig
     type t
 
     val v : Conf.t -> t Lwt.t
-
     val close : t -> unit Lwt.t
-
     val contents_t : t -> [ `Read ] Contents.t
-
     val node_t : t -> [ `Read ] Node.t
-
     val commit_t : t -> [ `Read ] Commit.t
-
     val branch_t : t -> Branch.t
 
     val batch :
@@ -795,15 +783,10 @@ end
 
 module type TREE = sig
   type key
-
   type step
-
   type metadata
-
   type contents
-
   type node
-
   type tree
 
   (** [Tree] provides immutable, in-memory partial mirror of the store, with
@@ -993,11 +976,8 @@ module type TREE = sig
   }
 
   val counters : unit -> counters
-
   val dump_counters : unit Fmt.t
-
   val reset_counters : unit -> unit
-
   val inspect : tree -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
 end
 

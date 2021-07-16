@@ -2,14 +2,12 @@ open! Import
 open Common
 
 let root = Filename.concat "_build" "test-inode"
-
 let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
   let entries = 2
-
   let stable_hash = 3
 end
 
@@ -59,23 +57,16 @@ module H_contents =
     end)
 
 let normal x = `Contents (x, Metadata.default)
-
 let node x = `Node x
-
 let foo = H_contents.hash "foo"
-
 let bar = H_contents.hash "bar"
-
 let check_hash = Alcotest.check_repr Inode.Val.hash_t
-
 let check_values = Alcotest.check_repr Inode.Val.t
 
 (* Exhaustive inode structure generator *)
 module Inode_permutations_generator = struct
   type step = string
-
   type content = Inode.Val.value
-
   type inode = Inode.value
 
   module StepMap = Map.Make (struct

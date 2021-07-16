@@ -5,7 +5,6 @@ module type S = sig
   module IO : Cohttp_lwt.S.IO
 
   type repo
-
   type server
 
   type response_action =
@@ -46,29 +45,20 @@ module type CUSTOM_TYPE = sig
   type t
 
   val schema_typ : (unit, t option) Schema.typ
-
   val arg_typ : t option Schema.Arg.arg_typ
 end
 
 module type CUSTOM_TYPES = sig
   type key
-
   type metadata
-
   type contents
-
   type hash
-
   type branch
 
   module Key : CUSTOM_TYPE with type t := key
-
   module Metadata : CUSTOM_TYPE with type t := metadata
-
   module Contents : CUSTOM_TYPE with type t := contents
-
   module Hash : CUSTOM_TYPE with type t := hash
-
   module Branch : CUSTOM_TYPE with type t := branch
 end
 
@@ -138,7 +128,6 @@ struct
   module Graphql_server = Graphql_cohttp.Make (Schema) (IO) (Cohttp_lwt.Body)
 
   type repo = Store.repo
-
   type server = Server.t
 
   type txn_args = {
@@ -194,19 +183,14 @@ struct
       | `String s -> (
           match Config.remote with
           | Some remote -> Ok (remote s)
-          | None -> Error "sync is not available" )
+          | None -> Error "sync is not available")
       | _ -> Error "Invalid input value"
 
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
-
     let key = Types.Key.arg_typ
-
     let commit_hash = Types.Hash.arg_typ
-
     let branch = Types.Branch.arg_typ
-
     let value = Types.Contents.arg_typ
-
     let metadata = Types.Metadata.arg_typ
 
     let info =
@@ -362,7 +346,7 @@ struct
                       | Ok lcas -> Lwt.return_ok lcas
                       | Error e ->
                           let msg = Irmin.Type.to_string Store.lca_error_t e in
-                          Lwt.return_error msg )
+                          Lwt.return_error msg)
                   | None -> Lwt.return_error "Commit not found");
             ]))
 
@@ -385,15 +369,12 @@ struct
             ]))
 
   and node = Schema.union "Node"
-
   and tree_as_node = lazy (Schema.add_type node (Lazy.force tree))
-
   and contents_as_node = lazy (Schema.add_type node (Lazy.force contents))
 
   [@@@ocaml.warning "-5"]
 
   let _ = Lazy.force tree_as_node
-
   let _ = Lazy.force contents_as_node
 
   let err_write e =
@@ -632,17 +613,17 @@ struct
           ~resolve:(fun _ _src branch key value old info ->
             mk_branch s branch >>= fun t ->
             txn_args s info >>= fun (info, retries, allow_empty, parents) ->
-            ( match old with
+            (match old with
             | Some old ->
                 let tree = Store.Tree.empty in
                 to_tree tree old >>= Lwt.return_some
-            | None -> Lwt.return_none )
+            | None -> Lwt.return_none)
             >>= fun old ->
-            ( match value with
+            (match value with
             | Some value ->
                 let tree = Store.Tree.empty in
                 to_tree tree value >>= Lwt.return_some
-            | None -> Lwt.return_none )
+            | None -> Lwt.return_none)
             >>= fun value ->
             Store.merge_tree t key ~info ?retries ?allow_empty ?parents ~old
               value
@@ -684,7 +665,7 @@ struct
                 | Ok _ -> Store.Head.find t >>= Lwt.return_ok
                 | Error e ->
                     Lwt.return_error
-                      (Irmin.Type.to_string Irmin.Merge.conflict_t e) )
+                      (Irmin.Type.to_string Irmin.Merge.conflict_t e))
             | None -> Lwt.return_error "invalid hash");
         io_field "revert" ~typ:(Lazy.force commit)
           ~args:
@@ -709,8 +690,9 @@ struct
             field "commit"
               ~typ:(non_null Lazy.(force commit))
               ~args:[]
-              ~resolve:(fun _ctx -> function
-                | `Added c | `Removed c | `Updated (_, c) -> c);
+              ~resolve:
+                (fun _ctx -> function
+                  | `Added c | `Removed c | `Updated (_, c) -> c);
           ]))
 
   let map_diff diff ~added ~removed ~updated =

@@ -1,8 +1,6 @@
 module Git : sig
   val misc : unit Alcotest.test_case list
-
   val store : (module Test_git.G)
-
   val suite : Irmin_test.t
 end
 

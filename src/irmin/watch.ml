@@ -22,19 +22,13 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
   type key
-
   type value
-
   type watch
-
   type t
 
   val stats : t -> int * int
-
   val notify : t -> key -> value option -> unit Lwt.t
-
   val v : unit -> t
-
   val clear : t -> unit Lwt.t
 
   val watch_key :
@@ -74,9 +68,7 @@ let id () =
     !c
 
 let global = id ()
-
 let workers_r = ref 0
-
 let workers () = !workers_r
 
 let scheduler () =
@@ -117,9 +109,7 @@ end) (V : sig
 end) =
 struct
   type key = K.t
-
   type value = V.t
-
   type watch = int
 
   module KMap = Map.Make (struct
@@ -135,13 +125,10 @@ struct
   end)
 
   type key_handler = value Diff.t -> unit Lwt.t
-
   type all_handler = key -> value Diff.t -> unit Lwt.t
 
   let pp_value = Type.pp V.t
-
   let equal_opt_values = Type.(equal (option V.t))
-
   let equal_keys = Type.equal K.t
 
   type t = {
@@ -252,7 +239,7 @@ struct
           if equal_opt_values old_value value then (
             Log.debug (fun f ->
                 f "notify-all[%d:%d]: same value, skipping." t.id id);
-            IMap.add id arg acc )
+            IMap.add id arg acc)
           else fire old_value)
         t.glob IMap.empty
     in
@@ -270,11 +257,11 @@ struct
           else if equal_opt_values value old_value then (
             Log.debug (fun f ->
                 f "notify-key[%d.%d]: same value, skipping." t.id id);
-            IMap.add id arg acc )
+            IMap.add id arg acc)
           else (
             Log.debug (fun f -> f "notify-key[%d:%d] firing!" t.id id);
             todo := protect (fun () -> f (mk old_value value)) :: !todo;
-            IMap.add id (k, value, f) acc ))
+            IMap.add id (k, value, f) acc))
         t.keys IMap.empty
     in
     t.keys <- keys;
@@ -288,7 +275,7 @@ struct
         else (
           notify_all_unsafe t key value;
           notify_key_unsafe t key value;
-          Lwt.return_unit ))
+          Lwt.return_unit))
 
   let watch_key_unsafe t key ?init f =
     let id = next t in
@@ -323,10 +310,10 @@ struct
             match key file with
             | None -> Lwt.return_unit
             | Some key -> value key >>= notify t key)
-        >|= fun f -> t.stop_listening <- f )
+        >|= fun f -> t.stop_listening <- f)
       else (
         Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);
-        Lwt.return_unit )
+        Lwt.return_unit)
     in
     init () >|= fun () ->
     t.listeners <- t.listeners + 1;
@@ -336,5 +323,5 @@ struct
         if t.listeners <> 0 then Lwt.return_unit
         else (
           Log.debug (fun f -> f "%s: stop listening to %s" (to_string t) dir);
-          t.stop_listening () )
+          t.stop_listening ())
 end

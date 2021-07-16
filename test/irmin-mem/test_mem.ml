@@ -16,7 +16,8 @@
 
 open Lwt.Infix
 
-let store = Irmin_test.store (module Irmin_mem.Make) (module Irmin.Metadata.None)
+let store =
+  Irmin_test.store (module Irmin_mem.Make) (module Irmin.Metadata.None)
 
 let config = Irmin_mem.config ()
 
@@ -27,7 +28,5 @@ let clean () =
   S.Repo.close repo
 
 let init () = Lwt.return_unit
-
 let stats = None
-
 let suite = { Irmin_test.name = "MEM"; init; clean; config; store; stats }

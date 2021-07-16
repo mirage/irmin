@@ -15,9 +15,14 @@ build: [
 depends: [
   "ocaml"    {>= "4.02.3"}
   "dune"     {>= "1.8.0"}
-  "irmin"    {>= "2.0.0"}
+  "irmin"    {= version}
   "alcotest" {>= "1.0.1"}
   "mtime"    {>= "1.0.0"}
+  "cmdliner"
+  "fmt"
+  "logs"
+  "lwt"
+  "metrics"
   "metrics-unix"
 ]
 

@@ -25,9 +25,7 @@ let ( / ) = Filename.concat
 
 module type Config = sig
   val dir : string -> string
-
   val file_of_key : string -> string
-
   val key_of_file : string -> string
 end
 
@@ -35,17 +33,13 @@ module type IO = sig
   type path = string
 
   val rec_files : path -> string list Lwt.t
-
   val file_exists : path -> bool Lwt.t
-
   val read_file : path -> string option Lwt.t
-
   val mkdir : path -> unit Lwt.t
 
   type lock
 
   val lock_file : string -> lock
-
   val write_file : ?temp_dir:path -> ?lock:lock -> path -> string -> unit Lwt.t
 
   val test_and_set_file :
@@ -72,9 +66,7 @@ module Read_only_ext
     (V : Irmin.Type.S) =
 struct
   type key = K.t
-
   type value = V.t
-
   type 'a t = { path : string }
 
   let get_path config =
@@ -87,9 +79,7 @@ struct
     IO.mkdir path >|= fun () -> { path }
 
   let close _ = Lwt.return_unit
-
   let cast t = (t :> [ `Read | `Write ] t)
-
   let batch t f = f (cast t)
 
   let file_of_key { path; _ } key =
@@ -172,11 +162,8 @@ struct
   module W = Irmin.Private.Watch.Make (K) (V)
 
   type t = { t : unit RO.t; w : W.t }
-
   type key = RO.key
-
   type value = RO.value
-
   type watch = W.watch * (unit -> unit Lwt.t)
 
   let temp_dir t = t.t.RO.path / "tmp"
@@ -185,7 +172,6 @@ struct
     type t = string
 
     let equal x y = compare x y = 0
-
     let hash = Hashtbl.hash
   end)
 
@@ -204,11 +190,8 @@ struct
     { t; w }
 
   let close t = W.clear t.w >>= fun () -> RO.close t.t
-
   let find t = RO.find t.t
-
   let mem t = RO.mem t.t
-
   let list t = RO.list t.t
 
   let listen_dir t =
@@ -231,7 +214,6 @@ struct
     W.watch t.w ?init f >|= fun w -> (w, stop)
 
   let unwatch t (id, stop) = stop () >>= fun () -> W.unwatch t.w id
-
   let raw_value v = Irmin.Type.to_bin_string V.t v
 
   let set t key value =
@@ -316,6 +298,7 @@ end
 module Append_only (IO : IO) = Append_only_ext (IO) (Obj)
 module Atomic_write (IO : IO) = Atomic_write_ext (IO) (Ref)
 module Make (IO : IO) = Make_ext (IO) (Obj) (Ref)
+
 module KV (IO : IO) (C : Irmin.Contents.S) =
   Make (IO) (Irmin.Metadata.None) (C) (Irmin.Path.String_list)
     (Irmin.Branch.String)
@@ -330,7 +313,6 @@ module IO_mem = struct
   let t = { watches = Hashtbl.create 3; files = Hashtbl.create 13 }
 
   type path = string
-
   type lock = Lwt_mutex.t
 
   let locks = Hashtbl.create 10

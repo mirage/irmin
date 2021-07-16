@@ -19,7 +19,6 @@ open Common
 
 module Config = struct
   let entries = 2
-
   let stable_hash = 3
 end
 
@@ -37,7 +36,7 @@ let suite =
       let cmd = Printf.sprintf "rm -rf %s" test_dir in
       Fmt.epr "exec: %s\n%!" cmd;
       let _ = Sys.command cmd in
-      () );
+      ());
     Lwt.return_unit
   in
   let clean () =
@@ -299,7 +298,6 @@ module Branch = struct
     Irmin_pack.Atomic_write (Irmin.Branch.String) (Irmin.Hash.SHA1)
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
-
   let hash = Alcotest.testable pp_hash (Irmin.Type.equal Irmin.Hash.SHA1.t)
 
   let test_branch () =

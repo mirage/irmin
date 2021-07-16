@@ -20,5 +20,5 @@ let misc =
 let () =
   Test_http.with_server Test_unix.Http.servers (fun () ->
       Irmin_test.Store.run "irmin-unix" ~misc
-        ( [ (`Quick, Test_unix.FS.suite); (`Quick, Test_unix.Git.suite) ]
-        @ Test_http.suites Test_unix.Http.servers ))
+        ([ (`Quick, Test_unix.FS.suite); (`Quick, Test_unix.Git.suite) ]
+        @ Test_http.suites Test_unix.Http.servers))

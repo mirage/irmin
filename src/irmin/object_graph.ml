@@ -26,13 +26,12 @@ let list_partition_map f t =
     | h :: t -> (
         match f h with
         | `Fst x -> aux (x :: fst) snd t
-        | `Snd x -> aux fst (x :: snd) t )
+        | `Snd x -> aux fst (x :: snd) t)
   in
   aux [] [] t
 
 module type S = sig
   include Graph.Sig.I
-
   include Graph.Oper.S with type g := t
 
   module Topological : sig
@@ -40,7 +39,6 @@ module type S = sig
   end
 
   val vertex : t -> vertex list
-
   val edges : t -> (vertex * vertex) list
 
   val closure :
@@ -71,13 +69,11 @@ module type S = sig
     unit
 
   val min : t -> vertex list
-
   val max : t -> vertex list
 
   type dump = vertex list * (vertex * vertex) list
 
   val export : t -> dump
-
   val import : dump -> t
 
   module Dump : Type.S with type t = dump
@@ -99,8 +95,7 @@ struct
 
     let t =
       let open Type in
-      variant "vertex" (fun contents node commit branch ->
-        function
+      variant "vertex" (fun contents node commit branch -> function
         | `Contents x -> contents x
         | `Node x -> node x
         | `Commit x -> commit x
@@ -112,7 +107,6 @@ struct
       |> sealv
 
     let equal = Type.equal t
-
     let compare = Type.compare t
 
     (* we are using cryptographic hashes here, so the first bytes
@@ -143,7 +137,6 @@ struct
   end
 
   let vertex g = G.fold_vertex (fun k set -> k :: set) g []
-
   let edges g = G.fold_edges (fun k1 k2 list -> (k1, k2) :: list) g []
 
   let iter ?(depth = max_int) ~pred ~min ~max ~node ~edge ~skip ~rev () =
@@ -173,7 +166,7 @@ struct
           else if has_mark key then (
             (if rev then treat key else Lwt.return_unit) >>= fun () ->
             ignore (Stack.pop todo);
-            visit () )
+            visit ())
           else
             skip key >>= function
             | true -> pop key level
@@ -188,7 +181,7 @@ struct
                     (fun k ->
                       if not (has_mark k) then Stack.push (k, level + 1) todo)
                     keys;
-                  visit () )
+                  visit ())
     in
     visit ()
 
@@ -219,16 +212,13 @@ struct
       g []
 
   let vertex_attributes = ref (fun _ -> [])
-
   let edge_attributes = ref (fun _ -> [])
-
   let graph_name = ref None
 
   module Dot = Graph.Graphviz.Dot (struct
     include G
 
     let edge_attributes k = !edge_attributes k
-
     let default_edge_attributes _ = []
 
     let vertex_name k =
@@ -240,9 +230,7 @@ struct
       | `Contents (c, _) -> str Contents.t c
 
     let vertex_attributes k = !vertex_attributes k
-
     let default_vertex_attributes _ = []
-
     let get_subgraph _ = None
 
     let graph_attributes _ =

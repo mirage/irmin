@@ -18,11 +18,8 @@ open Lwt.Infix
 
 module Append_only (S : S.APPEND_ONLY_STORE) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
-
   type key = S.key
-
   type value = S.value
-
   type ctx = S.ctx
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
@@ -50,7 +47,7 @@ module Append_only (S : S.APPEND_ONLY_STORE) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t )
+      S.close t.t)
 
   let batch t f =
     check_not_closed t;
@@ -59,11 +56,8 @@ end
 
 module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
   type t = { closed : bool ref; t : S.t }
-
   type key = S.key
-
   type value = S.value
-
   type ctx = S.ctx
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
@@ -113,5 +107,5 @@ module Atomic_write (S : S.ATOMIC_WRITE_STORE) = struct
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t )
+      S.close t.t)
 end

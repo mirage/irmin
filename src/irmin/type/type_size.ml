@@ -17,7 +17,6 @@
 open Type_core
 
 let ( >>= ) x f = match x with Some x -> f x | None -> None
-
 let ( >|= ) x f = match x with Some x -> Some (f x) | None -> None
 
 let int n =
@@ -35,15 +34,10 @@ let len n = function
   | `Fixed _ -> 0
 
 let unit () = 0
-
 let char (_ : char) = 1
-
 let int32 (_ : int32) = 4
-
 let int64 (_ : int64) = 8
-
 let bool (_ : bool) = 1
-
 let float (_ : float) = 8 (* NOTE: we consider 'double' here *)
 
 let string ?(headers = true) n s =

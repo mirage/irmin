@@ -28,13 +28,10 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   end)
 
   type key = K.t
-
   type value = V.t
-
   type 'a t = { mutable t : value KMap.t }
 
   let map = { t = KMap.empty }
-
   let v _config = Lwt.return map
 
   let close t =
@@ -43,9 +40,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     Lwt.return_unit
 
   let cast t = (t :> [ `Read | `Write ] t)
-
   let batch t f = f (cast t)
-
   let pp_key = Irmin.Type.pp K.t
 
   let find { t; _ } key =
@@ -72,29 +67,18 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   module L = Irmin.Private.Lock.Make (K)
 
   type t = { t : unit RO.t; w : W.t; lock : L.t }
-
   type key = RO.key
-
   type value = RO.value
-
   type watch = W.watch
 
   let watches = W.v ()
-
   let lock = L.v ()
-
   let v config = RO.v config >>= fun t -> Lwt.return { t; w = watches; lock }
-
   let close t = W.clear t.w >>= fun () -> RO.close t.t
-
   let find t = RO.find t.t
-
   let mem t = RO.mem t.t
-
   let watch_key t = W.watch_key t.w
-
   let watch t = W.watch t.w
-
   let unwatch t = W.unwatch t.w
 
   let list t =
@@ -136,6 +120,7 @@ let config () = Irmin.Private.Conf.empty
 
 module Make =
   Irmin.Make (Irmin.Content_addressable (Append_only)) (Atomic_write)
+
 module KV (C : Irmin.Contents.S) =
   Make (Irmin.Metadata.None) (C) (Irmin.Path.String_list) (Irmin.Branch.String)
     (Irmin.Hash.BLAKE2B)

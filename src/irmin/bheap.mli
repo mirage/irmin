@@ -54,6 +54,5 @@ module Make (X : Ordered) : sig
   (* usual iterators and combinators; elements are presented in
      arbitrary order *)
   val iter : (X.t -> unit) -> t -> unit
-
   val fold : (X.t -> 'a -> 'a) -> t -> 'a -> 'a
 end

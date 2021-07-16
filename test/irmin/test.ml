@@ -1,7 +1,6 @@
 module T = Irmin.Type
 
 type foo = { a : int; b : int }
-
 type bar = { c : int option; d : int option option }
 
 let test_base () =
@@ -31,7 +30,6 @@ let pp_hex ppf s =
   Fmt.string ppf x
 
 let of_hex_string x = Ok (Hex.to_string (`Hex x))
-
 let hex = T.map T.string ~cli:(pp_hex, of_hex_string) id id
 
 let hex2 =
@@ -64,7 +62,6 @@ let hex2 =
   T.map T.string ~json:(encode_json, decode_json) id id
 
 let error = Alcotest.testable (fun ppf (`Msg e) -> Fmt.string ppf e) ( = )
-
 let ok x = Alcotest.result x error
 
 let test_json () =
@@ -195,7 +192,6 @@ module Algebraic = struct
   (* Dummy algebraic types and corresponding generics *)
 
   type my_enum = Alpha | Beta | Gamma | Delta [@@deriving irmin]
-
   type my_variant = Left of int | Right of int list [@@deriving irmin]
 
   type my_recursive_variant =
@@ -357,8 +353,8 @@ let test_pp_ty () =
     let tree_t, node_t =
       let open T in
       mu2 (fun tree node ->
-          ( variant "tree" (fun empty node ->
-              function Empty -> empty | Node n -> node n)
+          ( variant "tree" (fun empty node -> function
+              | Empty -> empty | Node n -> node n)
             |~ case0 "empty" Empty
             |~ case1 "node" node (fun n -> Node n)
             |> sealv,
@@ -385,9 +381,7 @@ let test_pp_ty () =
         ~pre_hash:a2
 
     let like_prim : int T.t = T.(like int)
-
     let like_custom : empty T.t = T.like v
-
     let map : int T.t = T.(map int) (fun x -> x) (fun x -> x)
   end in
   test ~case_name:"custom v" Custom.v "Custom (-)";
@@ -649,37 +643,37 @@ let test_duplicate_names () =
     (Invalid_argument
        "The name foo was used for two or more fields in record bar.") (fun () ->
       ignore
-        ( record "bar" (fun a b -> { a; b })
+        (record "bar" (fun a b -> { a; b })
         |+ field "foo" int (fun r -> r.a)
         |+ field "foo" int (fun r -> r.b)
-        |> sealr ));
+        |> sealr));
 
   Alcotest.check_raises "Two variant case0 with the same name."
     (Invalid_argument
        "The name Foo was used for two or more case0 in variant or enum bar.")
     (fun () ->
       ignore
-        ( variant "bar" (fun a b -> function `A -> a | `B -> b)
+        (variant "bar" (fun a b -> function `A -> a | `B -> b)
         |~ case0 "Foo" `A
         |~ case0 "Foo" `B
-        |> sealv ));
+        |> sealv));
 
   Alcotest.check_raises "Two variant case1 with the same name."
     (Invalid_argument
        "The name Foo was used for two or more case1 in variant or enum bar.")
     (fun () ->
       ignore
-        ( variant "bar" (fun a b -> function `A i -> a i | `B i -> b i)
+        (variant "bar" (fun a b -> function `A i -> a i | `B i -> b i)
         |~ case1 "Foo" int (fun i -> `A i)
         |~ case1 "Foo" int (fun i -> `B i)
-        |> sealv ));
+        |> sealv));
 
   (* Check that we don't raise when two cases have the same name but different arity. *)
   ignore
-    ( variant "bar" (fun a b -> function `A -> a | `B i -> b i)
+    (variant "bar" (fun a b -> function `A -> a | `B i -> b i)
     |~ case0 "Foo" `A
     |~ case1 "Foo" int (fun i -> `B i)
-    |> sealv );
+    |> sealv);
 
   Alcotest.check_raises "Two enum cases with the same name."
     (Invalid_argument
@@ -692,21 +686,21 @@ let test_malformed_utf8 () =
     (Invalid_argument "Malformed UTF-8") (fun () ->
       let open Irmin.Type in
       ignore
-        ( record "foo" (fun a b -> { a; b })
+        (record "foo" (fun a b -> { a; b })
         |+ field "a" int (fun r -> r.a)
-        |+ field "\128\255\255\r\012\247" int (fun r -> r.b) ));
+        |+ field "\128\255\255\r\012\247" int (fun r -> r.b)));
   Alcotest.check_raises "Malformed UTF-8 in case0 name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
       let open Irmin.Type in
       ignore
-        ( variant "foo" (fun a -> function `A -> a)
-        |~ case0 "\128\255\255\r\012\247" `A ));
+        (variant "foo" (fun a -> function `A -> a)
+        |~ case0 "\128\255\255\r\012\247" `A));
   Alcotest.check_raises "Malformed UTF-8 in case1 name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
       let open Irmin.Type in
       ignore
-        ( variant "foo" (fun a -> function `A i -> a i)
-        |~ case1 "\128\255\255\r\012\247" int (fun i -> `A i) ));
+        (variant "foo" (fun a -> function `A i -> a i)
+        |~ case1 "\128\255\255\r\012\247" int (fun i -> `A i)));
   Alcotest.check_raises "Malformed UTF-8 in enum tag name"
     (Invalid_argument "Malformed UTF-8") (fun () ->
       let open Irmin.Type in

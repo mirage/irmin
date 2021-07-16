@@ -20,24 +20,17 @@ let src =
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let current_version = "00000001"
-
 let ( -- ) = Int64.sub
 
 module type S = sig
   type t
 
   val find : t -> int -> string option
-
   val index : t -> string -> int option
-
   val sync : t -> unit
-
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-
   val clear : t -> unit
-
   val close : t -> unit
-
   val valid : t -> bool
 end
 
@@ -92,7 +85,7 @@ module Make (IO : IO.S) : S = struct
         append_string t v;
         Hashtbl.add t.cache v id;
         Hashtbl.add t.index id v;
-        Some id )
+        Some id)
 
   let find t id =
     if IO.readonly t.io then sync_offset t;
@@ -119,11 +112,11 @@ module Make (IO : IO.S) : S = struct
       if not (IO.readonly t.io) then sync t;
       IO.close t.io;
       Hashtbl.reset t.cache;
-      Hashtbl.reset t.index )
+      Hashtbl.reset t.index)
 
   let valid t =
     if t.open_instances <> 0 then (
       t.open_instances <- t.open_instances + 1;
-      true )
+      true)
     else false
 end

@@ -14,9 +14,7 @@ module type S = sig
   include Index.S with type value = int64 * int * char
 
   val find : t -> key -> value option
-
   val add : t -> key -> value -> unit
-
   val close : t -> unit
 end
 
@@ -25,15 +23,10 @@ module Make (K : Irmin.Hash.S) = struct
     type t = K.t
 
     let pp ppf t = Irmin.Type.pp K.t ppf t
-
     let hash t = Irmin.Type.short_hash K.t t
-
     let hash_size = 30
-
     let equal x y = Irmin.Type.equal K.t x y
-
     let encode x = Irmin.Type.to_bin_string K.t x
-
     let encoded_size = K.hash_size
 
     let decode s off =
@@ -63,6 +56,5 @@ module Make (K : Irmin.Hash.S) = struct
   include Index
 
   let add t k v = replace t k v
-
   let find t k = match find t k with exception Not_found -> None | h -> Some h
 end

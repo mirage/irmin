@@ -51,9 +51,7 @@ module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
      and module Git = G
 
 module Make : S_MAKER
-
 module KV : KV_MAKER
-
 module Ref : REF_MAKER
 
 module FS : sig

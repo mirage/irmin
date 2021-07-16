@@ -18,7 +18,6 @@ let config ~root = Irmin_pack.config ~fresh:false root
 
 module Config = struct
   let entries = 2
-
   let stable_hash = 3
 end
 
@@ -42,9 +41,6 @@ let index root =
   aux 0 0 / 1024 / 1024
 
 let log root = file (Filename.concat root "store.log")
-
 let pack root = file (Filename.concat root "store.pack") / 1024 / 1024
-
 let size ~root = dict root + index root + pack root + log root
-
 let () = Bench.run ~config ~size

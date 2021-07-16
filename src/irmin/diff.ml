@@ -18,8 +18,7 @@ type 'a t = [ `Updated of 'a * 'a | `Removed of 'a | `Added of 'a ]
 
 let t a =
   let open Type in
-  variant "diff" (fun updated removed added ->
-    function
+  variant "diff" (fun updated removed added -> function
     | `Updated x -> updated x | `Removed x -> removed x | `Added x -> added x)
   |~ case1 "updated" (pair a a) (fun x -> `Updated x)
   |~ case1 "removed" a (fun x -> `Removed x)

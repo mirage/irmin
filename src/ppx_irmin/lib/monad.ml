@@ -18,7 +18,6 @@ module type FUNCTOR = sig
   type 'a t
 
   val return : 'a -> 'a t
-
   val map : ('a -> 'b) -> 'a t -> 'b t
 end
 
@@ -26,12 +25,10 @@ module type S = sig
   include FUNCTOR
 
   val bind : ('a -> 'b t) -> 'a t -> 'b t
-
   val sequence : 'a t list -> 'a list t
 
   module Syntax : sig
     val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
-
     val ( let* ) : 'a t -> ('a -> 'b t) -> 'b t
   end
 end
@@ -43,11 +40,8 @@ struct
   type 'a t = Reader of (E.t -> 'a)
 
   let run (Reader r) = r
-
   let map f m = Reader (fun env -> f (run m env))
-
   let bind f m = Reader (fun env -> run (f (run m env)) env)
-
   let return x = Reader (fun _ -> x)
 
   let sequence ms =
@@ -57,14 +51,11 @@ struct
       ms (return [])
 
   let asks f = Reader (fun env -> f env)
-
   let ask = asks (fun x -> x)
-
   let local f m = Reader (fun env -> run m (f env))
 
   module Syntax = struct
     let ( let+ ) x f = map f x
-
     let ( let* ) x f = bind f x
   end
 end

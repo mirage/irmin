@@ -16,7 +16,6 @@
 
 module type CONFIG = sig
   val entries : int
-
   val stable_hash : int
 end
 
@@ -41,7 +40,6 @@ module type S = sig
     include Irmin.Private.Node.S with type t = value and type hash = key
 
     val stable : t -> bool
-
     val hash : t -> Key.t
   end
 
@@ -56,9 +54,7 @@ module type S = sig
     (** {1 Concrete trees} *)
 
     type hash = Key.t [@@deriving irmin]
-
     type step = Val.step [@@deriving irmin]
-
     type metadata = Val.metadata [@@deriving irmin]
 
     (** The type for pointer kinds. *)
