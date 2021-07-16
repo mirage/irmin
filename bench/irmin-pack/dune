@@ -39,5 +39,6 @@
 
 (alias
  (name runtest)
+ (package irmin-bench)
  (deps main.exe tree.exe trace_stats.exe)
  (action (progn)))
