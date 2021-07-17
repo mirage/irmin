@@ -19,17 +19,17 @@ open! Import
 module type S = sig
   include Irmin.Content_addressable.S
 
-  val add : 'a t -> value -> key Lwt.t
+  val add : _ t -> value -> Key.t Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)
 
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+  val unsafe_add : _ t -> hash -> value -> Key.t Lwt.t
   (** Overwrite [unsafe_add] to work with a read-only database handler. *)
 
   val unsafe_append :
-    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
+    ensure_unique:bool -> overcommit:bool -> 'a t -> Key.t -> value -> unit
 
-  val unsafe_mem : 'a t -> key -> bool
-  val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
+  val unsafe_mem : 'a t -> Key.t -> bool
+  val unsafe_find : check_integrity:bool -> 'a t -> Key.t -> value option
 
   val generation : 'a t -> int63
   (** The number of times that {!clear} has been called on this store. *)
@@ -38,19 +38,19 @@ module type S = sig
 end
 
 module type Maker = sig
-  type key
+  type hash
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.kind], so they have to all be different. *)
-  module Make (V : Pack_value.S with type hash := key) :
-    S with type key = key and type value = V.t
+  module Make (V : Pack_value.S with type hash := hash) :
+    S with type hash = hash and type value = V.t
 end
 
 module type Sigs = sig
   module type S = S
 
   module Closeable (CA : S) : sig
-    include S with type key = CA.key and type value = CA.value
+    include S with type Key.t = CA.Key.t and type value = CA.value
 
     val make_closeable : 'a CA.t -> 'a t
     val get_open_exn : 'a t -> 'a CA.t

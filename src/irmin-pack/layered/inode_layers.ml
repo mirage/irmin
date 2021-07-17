@@ -21,16 +21,16 @@ module Make
     (Conf : Irmin_pack.Conf.S)
     (H : Irmin.Hash.S)
     (Maker : S.Content_addressable_maker
-               with type key = H.t
+               with type hash = H.t
                 and type index := Index.Make(H).t)
-    (Node : Irmin.Node.S with type hash = H.t) =
+    (Node : Irmin_pack.Node.S with module Hash = H) =
 struct
   type index = Index.Make(H).t
 
   module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
   module P = Maker.Make (Internal.Raw)
   module Val = Internal.Val
-  module Key = H
+  module Key = P.Key
 
   type 'a t = 'a P.t
   type key = Key.t

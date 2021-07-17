@@ -152,6 +152,8 @@ module Private : sig
   (** The complete collection of private implementations. *)
 end
 
+module Key = Key
+
 (** {1 High-level Stores}
 
     An Irmin store is a branch-consistent store where keys are lists of steps.
@@ -447,10 +449,10 @@ module Dot (S : S) : Dot.S with type db = S.t
 
 (** Simple store creator. Use the same type of all of the internal keys and
     store all the values in the same store. *)
-module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
+module Maker (CA : Content_addressable.Maker') (AW : Atomic_write.Maker) :
   Maker with type endpoint = unit
 
-module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
+module KV_maker (CA : Content_addressable.Maker') (AW : Atomic_write.Maker) :
   KV_maker with type endpoint = unit and type metadata = unit
 
 (** Advanced store creator. *)
@@ -459,6 +461,9 @@ module Of_private (P : Private.S) :
     with module Schema = P.Schema
      and type repo = P.Repo.t
      and type slice = P.Slice.t
+     and type contents_key = P.Contents.Key.t
+     and type node_key = P.Node.Key.t
+     and type commit_key = P.Commit.Key.t
      and module Private = P
 
 module Export_for_backends = Export_for_backends

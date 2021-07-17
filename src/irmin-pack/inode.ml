@@ -20,7 +20,9 @@ include Inode_intf
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (Node : Irmin.Node.S with type hash = H.t) =
+    (Node : Irmin.Node.S
+              with type node_key = Pack_key.Make(H).t
+               and type contents_key = Pack_key.Make(H).t) =
 struct
   let () =
     if Conf.entries > Conf.stable_hash then
@@ -33,8 +35,11 @@ struct
     let hash = H.hash
   end
 
+  module Key = Pack_key.Make (H)
+
   module T = struct
     type hash = H.t [@@deriving irmin ~pp ~equal]
+    type key = Key.t [@@deriving irmin ~pp]
 
     type step = Node.step
     [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
@@ -98,14 +103,14 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-    type address = Indirect of int63 | Direct of H.t
+    type address = Indirect of int63 | Direct of Key.t
 
     let address_t : address Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.address" (fun i d -> function
         | Indirect x -> i x | Direct x -> d x)
       |~ case1 "Indirect" int63_t (fun x -> Indirect x)
-      |~ case1 "Direct" H.t (fun x -> Direct x)
+      |~ case1 "Direct" Key.t (fun x -> Direct x)
       |> sealv
 
     type ptr = { index : int; hash : address }
@@ -169,11 +174,11 @@ struct
              Contents (Indirect n, Indirect i, m))
       |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
              Node (Indirect n, Indirect i))
-      |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
+      |~ case1 "contents-id" (pair int Key.t) (fun (n, h) ->
              Contents (Indirect n, Direct h, T.default))
-      |~ case1 "contents-x-id" (triple int H.t metadata_t) (fun (n, h, m) ->
+      |~ case1 "contents-x-id" (triple int Key.t metadata_t) (fun (n, h, m) ->
              Contents (Indirect n, Direct h, m))
-      |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
+      |~ case1 "node-id" (pair int Key.t) (fun (n, h) ->
              Node (Indirect n, Direct h))
       |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
              Contents (Direct n, Indirect i, T.default))
@@ -181,11 +186,11 @@ struct
            (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
       |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
              Node (Direct n, Indirect i))
-      |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
+      |~ case1 "contents-dd" (pair step_t Key.t) (fun (n, i) ->
              Contents (Direct n, Direct i, T.default))
-      |~ case1 "contents-x-dd" (triple step_t H.t metadata_t) (fun (n, i, m) ->
-             Contents (Direct n, Direct i, m))
-      |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
+      |~ case1 "contents-x-dd" (triple step_t Key.t metadata_t)
+           (fun (n, i, m) -> Contents (Direct n, Direct i, m))
+      |~ case1 "node-dd" (pair step_t Key.t) (fun (n, i) ->
              Node (Direct n, Direct i))
       |> sealv
 
@@ -291,11 +296,11 @@ struct
 
     type _ layout =
       | Total : total_ptr layout
-      | Partial : (hash -> partial_ptr t option) -> partial_ptr layout
+      | Partial : (Key.t -> partial_ptr t option) -> partial_ptr layout
       | Truncated : truncated_ptr layout
 
     and partial_ptr = {
-      target_hash : hash Lazy.t;
+      target_key : Key.t Lazy.t;
       mutable target : partial_ptr t option;
     }
     (** [mutable target : partial_ptr t option] could be turned to
@@ -306,20 +311,20 @@ struct
 
     and total_ptr = Total_ptr of total_ptr t [@@unboxed]
 
-    and truncated_ptr = Broken of hash | Intact of truncated_ptr t
+    and truncated_ptr = Broken of Key.t | Intact of truncated_ptr t
 
     and 'ptr tree = { depth : int; length : int; entries : 'ptr option array }
 
     and 'ptr v = Values of value StepMap.t | Tree of 'ptr tree
 
-    and 'ptr t = { hash : hash Lazy.t; stable : bool; v : 'ptr v }
+    and 'ptr t = { key : Key.t Lazy.t; stable : bool; v : 'ptr v }
 
     module Ptr = struct
-      let hash : type ptr. ptr layout -> ptr -> _ = function
-        | Total -> fun (Total_ptr ptr) -> Lazy.force ptr.hash
-        | Partial _ -> fun { target_hash; _ } -> Lazy.force target_hash
+      let key : type ptr. ptr layout -> ptr -> _ = function
+        | Total -> fun (Total_ptr ptr) -> Lazy.force ptr.key
+        | Partial _ -> fun { target_key; _ } -> Lazy.force target_key
         | Truncated -> (
-            function Broken h -> h | Intact ptr -> Lazy.force ptr.hash)
+            function Broken h -> h | Intact ptr -> Lazy.force ptr.key)
 
       let target : type ptr. ptr layout -> ptr -> ptr t =
        fun layout ->
@@ -329,9 +334,9 @@ struct
             function
             | { target = Some entry; _ } -> entry
             | t -> (
-                let h = hash layout t in
-                match find h with
-                | None -> Fmt.failwith "%a: unknown key" pp_hash h
+                let k = key layout t in
+                match find k with
+                | None -> Fmt.failwith "%a: unknown key" pp_key k
                 | Some x ->
                     t.target <- Some x;
                     x))
@@ -346,18 +351,17 @@ struct
       let of_target : type ptr. ptr layout -> ptr t -> ptr = function
         | Total -> fun target -> Total_ptr target
         | Partial _ ->
-            fun target -> { target = Some target; target_hash = target.hash }
+            fun target -> { target = Some target; target_key = target.key }
         | Truncated -> fun target -> Intact target
 
-      let of_hash : type ptr. ptr layout -> hash -> ptr = function
+      let of_key : type ptr. ptr layout -> Key.t -> ptr = function
         | Total -> assert false
-        | Partial _ -> fun hash -> { target = None; target_hash = lazy hash }
-        | Truncated -> fun hash -> Broken hash
+        | Partial _ -> fun key -> { target = None; target_key = lazy key }
+        | Truncated -> fun key -> Broken key
 
       let iter_if_loaded :
           type ptr.
-          broken:(hash -> unit) -> ptr layout -> (ptr t -> unit) -> ptr -> unit
-          =
+          broken:(key -> unit) -> ptr layout -> (ptr t -> unit) -> ptr -> unit =
        fun ~broken -> function
         | Total -> fun f (Total_ptr entry) -> f entry
         | Partial _ -> (
@@ -369,11 +373,11 @@ struct
     let pred layout t =
       match t.v with
       | Tree i ->
-          let hash_of_ptr = Ptr.hash layout in
+          let key_of_ptr = Ptr.key layout in
           Array.fold_left
             (fun acc -> function
               | None -> acc
-              | Some ptr -> `Inode (hash_of_ptr ptr) :: acc)
+              | Some ptr -> `Inode (key_of_ptr ptr) :: acc)
             [] i.entries
       | Values l ->
           StepMap.fold
@@ -453,14 +457,14 @@ struct
           let vs = StepMap.bindings vs in
           Bin.Values vs
       | Tree t ->
-          let hash_of_ptr = Ptr.hash layout in
+          let key_of_ptr = Ptr.key layout in
           let _, entries =
             Array.fold_left
               (fun (i, acc) -> function
                 | None -> (i + 1, acc)
                 | Some ptr ->
-                    let hash = hash_of_ptr ptr in
-                    (i + 1, { Bin.index = i; hash } :: acc))
+                    let key = key_of_ptr ptr in
+                    (i + 1, { Bin.index = i; key } :: acc))
               (0, []) t.entries
           in
           let entries = List.rev entries in
@@ -468,13 +472,13 @@ struct
 
     let to_bin layout t =
       let v = to_bin_v layout t.v in
-      Bin.v ~stable:t.stable ~hash:t.hash v
+      Bin.v ~stable:t.stable ~key:t.key v
 
     module Concrete = struct
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
-      type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
+      type entry = { name : step; kind : kind; key : Key.t } [@@deriving irmin]
 
-      type 'a pointer = { index : int; pointer : hash; tree : 'a }
+      type 'a pointer = { index : int; pointer : key; tree : 'a }
       [@@deriving irmin]
 
       type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
@@ -484,21 +488,21 @@ struct
 
       let to_entry (name, v) =
         match v with
-        | `Contents (hash, m) ->
+        | `Contents (contents_key, m) ->
             if T.equal_metadata m Node.default then
-              { name; kind = Contents; hash }
-            else { name; kind = Contents_x m; hash }
-        | `Node hash -> { name; kind = Node; hash }
+              { name; kind = Contents; key = contents_key }
+            else { name; kind = Contents_x m; key = contents_key }
+        | `Node node_key -> { name; kind = Node; key = node_key }
 
       let of_entry e =
         ( e.name,
           match e.kind with
-          | Contents -> `Contents (e.hash, Node.default)
-          | Contents_x m -> `Contents (e.hash, m)
-          | Node -> `Node e.hash )
+          | Contents -> `Contents (e.key, Node.default)
+          | Contents_x m -> `Contents (e.key, m)
+          | Node -> `Node e.key )
 
       type error =
-        [ `Invalid_hash of hash * hash * t
+        [ `Invalid_key of key * key * t
         | `Invalid_depth of int * int * t
         | `Invalid_length of int * int * t
         | `Duplicated_entries of t
@@ -516,9 +520,9 @@ struct
       let pp = Irmin.Type.pp_json t
 
       let pp_error ppf = function
-        | `Invalid_hash (got, expected, t) ->
-            Fmt.pf ppf "invalid hash for %a@,got: %a@,expecting: %a" pp t
-              pp_hash got pp_hash expected
+        | `Invalid_key (got, expected, t) ->
+            Fmt.pf ppf "invalid key for %a@,got: %a@,expecting: %a" pp t pp_key
+              got pp_key expected
         | `Invalid_depth (got, expected, t) ->
             Fmt.pf ppf "invalid depth for %a@,got: %d@,expecting: %d" pp t got
               expected
@@ -537,7 +541,7 @@ struct
       let rec aux t =
         match t.v with
         | Tree tr ->
-            ( Lazy.force t.hash,
+            ( Lazy.force t.key,
               Concrete.Tree
                 {
                   depth = tr.depth;

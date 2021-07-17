@@ -23,18 +23,24 @@ module Make (G : Git.S) :
      and module Info = Irmin.Info.Default
 
 module Store (G : Git.S) : sig
+  type hash := G.Hash.t
+
   include
     Irmin.Content_addressable.S
       with type _ t = bool ref * G.t
-       and type key = G.Hash.t
+       and type key = hash
        and type value = G.Value.Commit.t
 
   module Info = Irmin.Info.Default
   module Key : Irmin.Hash.S with type t = key
 
-  module Val :
+  module Val : functor
+    (N : Irmin.Key.S with type hash = hash)
+    (C : Irmin.Key.Poly with type hash = hash)
+    ->
     Irmin.Commit.S
-      with type t = value
-       and type hash = key
+      with type t := value
+       and type node_key := key
+       and type commit_key := key
        and module Info = Info
 end

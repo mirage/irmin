@@ -109,7 +109,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
       | Error e -> parse_error rd body e
       | Ok body ->
           S.batch repo @@ fun db ->
-          S.unsafe_add db key body >>= fun () ->
+          S.unsafe_add db key body >>= fun (_ : S.key) ->
           let resp_body = `String "" in
           Wm.continue true { rd with Wm.Rd.resp_body }
 

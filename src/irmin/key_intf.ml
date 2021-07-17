@@ -14,36 +14,38 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  include Irmin.Atomic_write.S
+(* module type Poly = sig
+ *   type 'a t [@@deriving irmin]
+ *   (\** The type of keys.*\)
+ * 
+ *   type hash
+ *   (\** The type of hashes. *\)
+ * 
+ *   val hash : 'a t -> hash
+ *   (\** [hash t] is [t]'s hash. This function is assumed to be efficient and is
+ *       called frequently (e.g. for consistency checking of the store). *\)
+ * end *)
 
-  val flush : t -> unit
-  val clear_keep_generation : t -> unit Lwt.t
+module type S = sig
+  type t [@@deriving irmin]
+  (** The type for keys.*)
+
+  type hash
+
+  val to_hash : t -> hash
 end
 
-module type Persistent = sig
+module type Hash_like = sig
   include S
 
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+  val of_hash : hash -> t
 end
 
 module type Sigs = sig
   module type S = S
-  module type Persistent = Persistent
+  module type Hash_like = Hash_like
 
-  module Make_persistent
-      (_ : Version.S)
-      (_ : Irmin.Hash.S)
-      (K : Irmin.Type.S)
-      (V : Irmin.Hash.S) : Persistent with type Key.t = K.t and type value = V.t
-
-  module Closeable (AW : S) : sig
-    include
-      S
-        with type Key.t = AW.Key.t
-         and type value = AW.value
-         and type watch = AW.watch
-
-    val make_closeable : AW.t -> t
-  end
+  (** The simplest possible [Key] implementation is just a hash of the
+      corresponding value, attaching no additional metadata about the value. *)
+  module Of_hash (H : Hash.S) : Hash_like with type hash = H.t
 end

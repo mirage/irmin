@@ -32,6 +32,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
     module Index = Pack_index.Make (H)
     module Pack = Pack_store.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
+    module Key = Pack_key.Make (H)
 
     module X = struct
       module Hash = H
@@ -46,12 +47,14 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       end
 
       module Node = struct
+        module Value = Schema.Node (Key) (Key)
+
         module CA = struct
-          module Inter = Inode.Make_internal (Config) (H) (Schema.Node)
-          include Inode.Make_persistent (H) (Schema.Node) (Inter) (Pack)
+          module Inter = Inode.Make_internal (Config) (H) (Value)
+          include Inode.Make_persistent (H) (Value) (Inter) (Pack)
         end
 
-        include Irmin.Node.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+        include Irmin.Node.Store' (Contents) (CA) (H) (Value) (M) (P)
       end
 
       module Schema = struct

@@ -62,13 +62,13 @@ module type S = sig
       - When [`Block_writes], the function blocks until the ongoing freeze ends
         and then a new one is started afterwards. *)
 
-  type store_handle =
-    | Commit_t : hash -> store_handle
-    | Node_t : hash -> store_handle
-    | Content_t : hash -> store_handle
+  type kinded_key =
+    | Commit_t of commit_key
+    | Node_t of node_key
+    | Content_t of contents_key
 
-  val layer_id : repo -> store_handle -> layer_id Lwt.t
-  (** [layer_id t store_handle] returns the layer where an object, identified by
+  val layer_id : repo -> kinded_key -> layer_id Lwt.t
+  (** [layer_id t kinded_key] returns the layer where an object, identified by
       its hash, is stored. *)
 
   val async_freeze : repo -> bool

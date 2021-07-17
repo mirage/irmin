@@ -19,17 +19,26 @@ module type S = sig
   module Hash : Hash.S
   module Branch : Branch.S
   module Info : Info.S
-  module Commit : Commit.S with type hash = Hash.t and module Info := Info
   module Metadata : Metadata.S
   module Path : Path.S
+  module Contents : Contents.S
 
-  module Node :
+  module Node
+      (Contents_key : Key.S with type hash = Hash.t)
+      (Node_key : Key.S with type hash = Hash.t) :
     Node.S
       with type metadata = Metadata.t
-       and type hash = Hash.t
        and type step = Path.step
+       and type contents_key = Contents_key.t
+       and type node_key = Node_key.t
 
-  module Contents : Contents.S
+  module Commit
+      (Node_key : Key.S with type hash = Hash.t)
+      (Commit_key : Key.S with type hash = Hash.t) :
+    Commit.S
+      with module Info := Info
+       and type node_key = Node_key.t
+       and type commit_key = Commit_key.t
 end
 
 module type KV =
@@ -42,12 +51,23 @@ module type KV =
      and type Path.t = string list
 
 module KV (C : Contents.S) : KV with module Contents = C = struct
+  module Contents = C
   module Hash = Hash.BLAKE2B
   module Info = Info.Default
   module Branch = Branch.String
-  module Commit = Commit.Make (Hash)
   module Path = Path.String_list
   module Metadata = Metadata.None
-  module Node = Node.Make (Hash) (Path) (Metadata)
-  module Contents = C
+
+  module Node
+      (Contents_key : Key.S with type hash = Hash.t)
+      (Node_key : Key.S with type hash = Hash.t) =
+  Node.Make (struct
+    module Hash = Hash
+    module Path = Path
+    module Contents_key = Contents_key
+    module Node_key = Node_key
+    module Metadata = Metadata
+  end)
+
+  module Commit = Commit.Make (Hash)
 end

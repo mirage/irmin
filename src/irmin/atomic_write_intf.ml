@@ -18,7 +18,7 @@ open Store_properties
 
 type 'a diff = 'a Diff.t
 
-module type S = sig
+module type Simple = sig
   (** {1 Atomic write stores}
 
       Atomic-write stores are stores where it is possible to read, update and
@@ -27,7 +27,7 @@ module type S = sig
   type t
   (** The type for atomic-write backend stores. *)
 
-  include Read_only.S with type _ t := t
+  include Read_only.Simple with type _ t := t
   (** @inline *)
 
   val set : t -> key -> value -> unit Lwt.t
@@ -79,8 +79,16 @@ module type S = sig
   (** @inline *)
 end
 
+module type S = sig
+  module Key : sig
+    type t
+  end
+
+  include Simple with type key := Key.t
+end
+
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
-  include S with type key = K.t and type value = V.t
+  include S with type Key.t = K.t and type value = V.t
 
   include Of_config with type _ t := t
   (** @inline *)
@@ -88,6 +96,7 @@ end
 
 module type Sigs = sig
   module type S = S
+  module type Simple = Simple
   module type Maker = Maker
 
   module Check_closed (M : Maker) : Maker

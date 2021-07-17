@@ -17,7 +17,7 @@
 open Import
 open Store_properties
 
-module type S = sig
+module type Simple = sig
   (** {1 Read-only stores}
 
       Read-only stores are store where it is only possible to read existing
@@ -44,8 +44,16 @@ module type S = sig
   (** @inline *)
 end
 
+module type S = sig
+  module Key : sig
+    type t
+  end
+
+  include Simple with type key := Key.t
+end
+
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
-  include S with type key = K.t and type value = V.t
+  include S with module Key = K and type value = V.t
 
   include Of_config with type 'a t := 'a t
   (** @inline *)
@@ -53,5 +61,6 @@ end
 
 module type Sigs = sig
   module type S = S
+  module type Simple = Simple
   module type Maker = Maker
 end

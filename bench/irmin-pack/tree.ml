@@ -43,7 +43,7 @@ module type Store = sig
 
   include Irmin.KV with type Schema.Contents.t = bytes
 
-  type on_commit := int -> Hash.t -> unit Lwt.t
+  type on_commit := int -> commit_key -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
   type pp := Format.formatter -> unit
 
@@ -77,11 +77,12 @@ module Bench_suite (Store : Store) = struct
   let init_commit repo =
     Store.Commit.v repo ~info:(Info.f ()) ~parents:[] Store.Tree.empty
 
+  module Key = Store.Private.Commit.Key
   module Trees = Generate_trees (Store)
   module Trace_replay = Trace_replay.Make (Store)
 
   let checkout_and_commit repo prev_commit f =
-    Store.Commit.of_hash repo prev_commit >>= function
+    Store.Commit.of_key repo (Key.v prev_commit) >>= function
     | None -> Lwt.fail_with "commit not found"
     | Some commit ->
         let tree = Store.Commit.tree commit in

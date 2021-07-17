@@ -97,6 +97,17 @@ module Make_helpers (S : S) = struct
     S.Info.v ~author ~message date
 
   let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+
+  let get_contents_key = function
+    | `Contents key -> key
+    | _ -> Alcotest.fail "expecting contents_key"
+
+  let get_node_key = function
+    | `Node key -> key
+    | _ -> Alcotest.fail "expecting node_key"
+
+  type x = int [@@deriving irmin]
+
   let v repo = P.Repo.contents_t repo
   let n repo = P.Repo.node_t repo
   let ct repo = P.Repo.commit_t repo
@@ -108,6 +119,7 @@ module Make_helpers (S : S) = struct
   let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
   let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
   let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
+  let with_info repo n f = with_commit repo (fun h -> f h ~info:(info n))
   let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
   let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
   let normal x = `Contents (x, S.Metadata.default)
@@ -137,7 +149,7 @@ module Make_helpers (S : S) = struct
 
   let r1 ~repo =
     let* kn2 = n2 ~repo in
-    S.Tree.of_hash repo (`Node kn2) >>= function
+    S.Tree.of_key repo (`Node kn2) >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:S.Info.empty ~parents:[] (tree :> S.tree)
@@ -145,10 +157,10 @@ module Make_helpers (S : S) = struct
   let r2 ~repo =
     let* kn3 = n3 ~repo in
     let* kr1 = r1 ~repo in
-    S.Tree.of_hash repo (`Node kn3) >>= function
+    S.Tree.of_key repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
-        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.hash kr1 ]
+        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
   let run x test =

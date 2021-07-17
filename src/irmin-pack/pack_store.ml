@@ -62,15 +62,16 @@ module Maker
 
   module Make_without_close_checks (Val : Pack_value.S with type hash := K.t) =
   struct
-    module H = struct
+    module Hash = struct
       include K
 
       let hash = K.short_hash
       let equal = Irmin.Type.(unstage (equal K.t))
     end
 
+    module Key = Pack_key.Make (K)
     module Tbl = Table (K)
-    module Lru = Irmin.Private.Lru.Make (H)
+    module Lru = Irmin.Private.Lru.Make (Hash)
 
     type nonrec 'a t = {
       pack : 'a t;
@@ -80,12 +81,18 @@ module Maker
       readonly : bool;
     }
 
-    type key = K.t
+    type hash = K.t
+    type key = Key.t
 
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
     type value = Val.t
     type index = Index.t
+
+    let index t hash =
+      match Index.find t.pack.index hash with
+      | None -> None
+      | Some index -> Some { Pack_key.hash; index }
 
     let unsafe_clear ?keep_generation t =
       clear ?keep_generation t.pack;

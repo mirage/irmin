@@ -99,24 +99,24 @@ module type Content_addressable = sig
     freeze_in_progress:(unit -> bool) ->
     read t
 
-  val layer_id : read t -> key -> Irmin_layers.Layer_id.t Lwt.t
+  val layer_id : read t -> Key.t -> Irmin_layers.Layer_id.t Lwt.t
 
   type 'a layer_type =
     | Upper : read U.t layer_type
     | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> read t -> string -> key -> unit
+  val copy : 'l layer_type * 'l -> read t -> string -> Key.t -> unit
 
   val copy_from_lower :
     read t ->
     dst:'a U.t ->
     ?aux:(value -> unit Lwt.t) ->
     string ->
-    key ->
+    Key.t ->
     unit Lwt.t
 
-  val mem_lower : 'a t -> key -> bool Lwt.t
-  val mem_next : [> read ] t -> key -> bool Lwt.t
+  val mem_lower : 'a t -> Key.t -> bool Lwt.t
+  val mem_next : [> read ] t -> Key.t -> bool Lwt.t
   val current_upper : 'a t -> read U.t
   val next_upper : 'a t -> read U.t
   val lower : 'a t -> read L.t
@@ -133,7 +133,7 @@ module type Content_addressable = sig
   val clear_caches_next_upper : 'a t -> unit
 
   val unsafe_append :
-    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
+    ensure_unique:bool -> overcommit:bool -> 'a t -> Key.t -> value -> unit
 
   val flush_next_lower : 'a t -> unit
 
@@ -141,31 +141,31 @@ module type Content_addressable = sig
     offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
-    key ->
+    Key.t ->
     _ t ->
     (unit, Irmin_pack.Checks.integrity_error) result
 
-  val consume_newies : 'a t -> key list
+  val consume_newies : 'a t -> Key.t list
 
   val check :
     'a t ->
     ?none:(unit -> unit Lwt.t) ->
     ?some:(value -> unit Lwt.t) ->
-    key ->
+    Key.t ->
     unit Lwt.t
 end
 
 module type Content_addressable_maker = sig
-  type key
+  type hash
   type index
 
-  module Make (V : Irmin_pack.Pack_value.S with type hash := key) :
+  module Make (V : Irmin_pack.Pack_value.S with type hash := hash) :
     Content_addressable
-      with type key = key
+      with type hash = hash
        and type value = V.t
        and type index = index
-       and type U.key = key
-       and type L.key = key
+       and type U.hash = hash
+       and type L.hash = hash
        and type U.value = V.t
        and type L.value = V.t
 end
