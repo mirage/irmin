@@ -29,15 +29,15 @@ module type S = sig
     freeze_in_progress:(unit -> bool) ->
     read t
 
-  val layer_id : read t -> key -> Irmin_layers.Layer_id.t Lwt.t
+  val layer_id : read t -> Key.t -> Irmin_layers.Layer_id.t Lwt.t
 
   type 'a layer_type =
     | Upper : read U.t layer_type
     | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> read t -> key -> unit
-  val mem_lower : 'a t -> key -> bool Lwt.t
-  val mem_next : [> read ] t -> key -> bool Lwt.t
+  val copy : 'l layer_type * 'l -> read t -> Key.t -> unit
+  val mem_lower : 'a t -> Key.t -> bool Lwt.t
+  val mem_next : [> read ] t -> Key.t -> bool Lwt.t
   val next_upper : 'a t -> read U.t
   val current_upper : 'a t -> read U.t
   val lower : 'a t -> read L.t
@@ -56,19 +56,19 @@ module type S = sig
     offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
-    key ->
+    Key.t ->
     'a t ->
     (unit, Irmin_pack.Checks.integrity_error) result
 
   val flush : ?index:bool -> 'a t -> unit
-  val copy_from_lower : dst:'a U.t -> read t -> key -> unit Lwt.t
-  val consume_newies : 'a t -> key list
+  val copy_from_lower : dst:'a U.t -> read t -> Key.t -> unit Lwt.t
+  val consume_newies : 'a t -> Key.t list
 
   val check :
     'a t ->
     ?none:(unit -> unit Lwt.t) ->
     ?some:(U.value -> unit Lwt.t) ->
-    key ->
+    Key.t ->
     unit Lwt.t
 end
 
@@ -81,11 +81,11 @@ module type Sigs = sig
       (_ : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
       (_ : S.Content_addressable_maker
-             with type key = H.t
+             with type hash = H.t
               and type index = Index.Make(H).t)
-      (Node : Irmin.Node.S with type hash = H.t) :
+      (Node : Irmin.Node.S) :
     S
-      with type key = H.t
+      with type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
        and type index = Index.Make(H).t

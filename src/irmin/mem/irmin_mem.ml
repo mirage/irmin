@@ -49,7 +49,7 @@ module Append_only (Hash : Irmin.Hash.S) (Value : Irmin.Type.S) = struct
   let batch t f = f (cast t)
 
   let find_aux { t; _ } key =
-    try Some (Hashes.find (Key.hash key) t) with Not_found -> None
+    try Some (Hashes.find (Key.to_hash key) t) with Not_found -> None
 
   (* match Key.value key with
    * | Some _ as v ->
@@ -65,7 +65,7 @@ module Append_only (Hash : Irmin.Hash.S) (Value : Irmin.Type.S) = struct
 
   let index _ h =
     Log.debug (fun f -> f "index %a" pp_hash h);
-    Lwt.return (Some (Key.v h))
+    Lwt.return (Some (Key.of_hash h))
 
   let find t key =
     Log.debug (fun f -> f "find %a" pp_key key);
@@ -81,7 +81,7 @@ module Append_only (Hash : Irmin.Hash.S) (Value : Irmin.Type.S) = struct
   let add t hash value =
     Log.debug (fun f -> f "add -> %a" pp_hash hash);
     t.t <- Hashes.add hash value t.t;
-    Lwt.return (Key.v hash)
+    Lwt.return (Key.of_hash hash)
 
   (* match Hashes.find_opt hash t.t with
    * | Some (k, _) -> Lwt.return k

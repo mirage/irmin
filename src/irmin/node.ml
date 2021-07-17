@@ -195,9 +195,9 @@ module Make (Schema : Schema) = struct
     Merge.like t merge explode implode
 end
 
-module Store
+module Store'
     (C : Contents.Store)
-    (S : Content_addressable.S')
+    (S : Content_addressable.S)
     (H : Hash.S with type t = S.hash)
     (V : S
            with type t = S.value
@@ -222,7 +222,7 @@ struct
   let clear (_, t) = S.clear t
   let add (_, t) = S.add t
   let unsafe_add (_, t) = S.unsafe_add t
-  let index _ k = Lwt.return (Some (Key.v k))
+  let index _ _ = Lwt.return_none
   let batch (c, s) f = C.batch c (fun n -> S.batch s (fun s -> f (n, s)))
 
   let close (c, s) =
@@ -244,6 +244,22 @@ struct
       if Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
     in
     Merge.like_lwt [%typ: Key.t option] merge read add
+end
+
+module Store
+    (C : Contents.Store)
+    (S : Content_addressable.S')
+    (H : Hash.S with type t = S.hash)
+    (V : S
+           with type t = S.value
+            and type contents_key = C.Key.t
+            and type node_key = S.Key.t)
+    (M : Metadata.S with type t = V.metadata)
+    (P : Path.S with type step = V.step) =
+struct
+  include Store' (C) (S) (H) (V) (M) (P)
+
+  let index _ k = Lwt.return (Some (S.Key.of_hash k))
 end
 
 module Graph (S : Store) = struct

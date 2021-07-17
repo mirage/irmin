@@ -36,7 +36,7 @@ struct
     | None -> Lwt.return_none
     | Some v as r ->
         let h = hash v in
-        let h' = Key.hash k in
+        let h' = Key.to_hash k in
         if equal_hash h h' then Lwt.return r
         else
           Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"

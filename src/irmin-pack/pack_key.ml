@@ -8,7 +8,7 @@ type 'hash t = {
 [@@deriving irmin]
 
 module Make (Hash : Irmin.Hash.S) : sig
-  include Irmin.Key.S with type t = Hash.t t
+  include Irmin.Key.S with type t = Hash.t t and type hash = Hash.t
 end = struct
   type nonrec t = Hash.t t [@@deriving irmin]
   type hash = Hash.t

@@ -19,10 +19,10 @@ open! Import
 module type S = sig
   include Irmin.Content_addressable.S
 
-  val add : 'a t -> value -> Key.t Lwt.t
+  val add : _ t -> value -> Key.t Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)
 
-  val unsafe_add : 'a t -> Key.t -> value -> unit Lwt.t
+  val unsafe_add : _ t -> hash -> value -> Key.t Lwt.t
   (** Overwrite [unsafe_add] to work with a read-only database handler. *)
 
   val unsafe_append :
@@ -38,12 +38,12 @@ module type S = sig
 end
 
 module type Maker = sig
-  type key
+  type hash
 
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.kind], so they have to all be different. *)
-  module Make (V : Pack_value.S with type hash := key) :
-    S with type Key.t = key and type value = V.t
+  module Make (V : Pack_value.S with type hash := hash) :
+    S with type hash = hash and type value = V.t
 end
 
 module type Sigs = sig

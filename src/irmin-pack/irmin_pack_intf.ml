@@ -21,6 +21,7 @@ module type Sigs = sig
   module Dict = Pack_dict
   module Index = Pack_index
   module Conf = Conf
+  module Node = Node
   module Inode = Inode
   module Pack_value = Pack_value
   module Pack_store = Pack_store

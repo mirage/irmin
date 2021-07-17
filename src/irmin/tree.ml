@@ -187,7 +187,7 @@ module Make (P : Private.S) = struct
     let of_v v =
       let hash, value =
         match v with
-        | Key (_, k) -> (Some (P.Contents.Key.hash k), None)
+        | Key (_, k) -> (Some (P.Contents.Key.to_hash k), None)
         | Value v -> (None, Some v)
       in
       let info = { hash; value } in
@@ -195,7 +195,7 @@ module Make (P : Private.S) = struct
 
     let export ?clear:(c = true) repo t k =
       if c then clear t;
-      t.info.hash <- Some (P.Contents.Key.hash k);
+      t.info.hash <- Some (P.Contents.Key.to_hash k);
       t.v <- Key (repo, k)
 
     let of_value c = of_v (Value c)
@@ -204,7 +204,7 @@ module Make (P : Private.S) = struct
     let cached_hash t =
       match (t.v, t.info.hash) with
       | Key (_, k), None ->
-          let h = Some (P.Contents.Key.hash k) in
+          let h = Some (P.Contents.Key.to_hash k) in
           t.info.hash <- h;
           h
       | _, h -> h
@@ -234,7 +234,7 @@ module Make (P : Private.S) = struct
     let value_of_id t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
-      | None -> Error (`Dangling_hash (P.Contents.Key.hash k))
+      | None -> Error (`Dangling_hash (P.Contents.Key.to_hash k))
       | Some v as some_v ->
           t.info.value <- some_v;
           Ok v
@@ -381,7 +381,7 @@ module Make (P : Private.S) = struct
       let hash, map, value =
         match v with
         | Map m -> (None, Some m, None)
-        | Key (_, k) -> (Some (P.Node.Key.hash k), None, None)
+        | Key (_, k) -> (Some (P.Node.Key.to_hash k), None, None)
         | Value (_, v, None) -> (None, None, Some v)
         | Value _ -> (None, None, None)
       in
@@ -454,7 +454,7 @@ module Make (P : Private.S) = struct
     let cached_hash t =
       match (t.v, t.info.hash) with
       | Key (_, h), None ->
-          let h = Some (P.Node.Key.hash h) in
+          let h = Some (P.Node.Key.to_hash h) in
           t.info.hash <- h;
           h
       | _, h -> h
@@ -494,7 +494,7 @@ module Make (P : Private.S) = struct
           | Some v -> a_of_value v
           | None -> (
               match t.v with
-              | Key (_, h) -> k (P.Node.Key.hash h)
+              | Key (_, h) -> k (P.Node.Key.to_hash h)
               | Value (_, v, None) -> a_of_value v
               | Value (_, v, Some um) -> value_of_updates t v um a_of_value
               | Map m -> value_of_map t m a_of_value))
@@ -575,7 +575,7 @@ module Make (P : Private.S) = struct
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
           P.Node.find (P.Repo.node_t repo) k >|= function
-          | None -> Error (`Dangling_hash (P.Node.Key.hash k))
+          | None -> Error (`Dangling_hash (P.Node.Key.to_hash k))
           | Some v as some_v ->
               t.info.value <- some_v;
               Ok v)
@@ -708,7 +708,7 @@ module Make (P : Private.S) = struct
             | None -> (
                 match t.v with
                 | Value (_, v, Some um) -> is_empty_after_updates v um
-                | Key (_, key) -> equal_hash (P.Node.Key.hash key) empty_hash
+                | Key (_, key) -> equal_hash (P.Node.Key.to_hash key) empty_hash
                 | Map _ -> assert false (* [cached_map <> None] *)
                 | Value (_, _, None) ->
                     assert false (* [cached_value <> None] *)))
@@ -1004,7 +1004,7 @@ module Make (P : Private.S) = struct
         | _ -> false
       in
       if is_empty then t.info.value <- Some P.Node.Val.empty;
-      t.info.hash <- Some (P.Node.Key.hash k);
+      t.info.hash <- Some (P.Node.Key.to_hash k);
       t.v <- Key (repo, k)
   end
 
@@ -1321,14 +1321,14 @@ module Make (P : Private.S) = struct
       cnt.node_add <- cnt.node_add + 1;
       let+ k = P.Node.add node_t v in
       let h = Node.hash n in
-      assert (Node.equal_hash (P.Node.Key.hash k) h);
+      assert (Node.equal_hash (P.Node.Key.to_hash k) h);
       Node.export ?clear repo n k
     in
     let add_contents c x () =
       cnt.contents_add <- cnt.contents_add + 1;
       let+ k = P.Contents.add contents_t x in
       let h = Contents.hash c in
-      assert (Contents.equal_hash (P.Contents.Key.hash k) h);
+      assert (Contents.equal_hash (P.Contents.Key.to_hash k) h);
       Contents.export ?clear repo c k
     in
 

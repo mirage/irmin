@@ -53,6 +53,7 @@ end
 module Stats = Stats
 module Layout = Layout
 module Checks = Checks
+module Node = Node
 module Inode = Inode
 module IO = IO
 module Utils = Utils

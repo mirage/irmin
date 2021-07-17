@@ -10,7 +10,6 @@ module type S = sig
   include Content_addressable.S
 
   type index
-  type key
 
   val v :
     ?fresh:bool ->
@@ -36,7 +35,7 @@ module type S = sig
       are not removed. *)
 
   (** @inline *)
-  include S.Checkable with type 'a t := 'a t and type key := key
+  include S.Checkable with type 'a t := 'a t and type key := Key.t
 end
 
 module type Maker = sig

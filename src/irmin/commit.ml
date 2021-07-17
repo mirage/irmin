@@ -42,7 +42,7 @@ module Maker (Info : Info.S) = struct
     let node t = t.node
     let info t = t.info
     let compare_hash = Type.(unstage (compare H.t))
-    let compare_commit x y = compare_hash (C.hash x) (C.hash y)
+    let compare_commit x y = compare_hash (C.to_hash x) (C.to_hash y)
 
     let v ~info ~node ~parents =
       let parents = List.fast_sort compare_commit parents in
@@ -54,8 +54,8 @@ module Maker (Info : Info.S) = struct
 
       let v t =
         {
-          p_node = N.hash t.node;
-          p_parents = List.map C.hash t.parents;
+          p_node = N.to_hash t.node;
+          p_parents = List.map C.to_hash t.parents;
           p_info = t.info;
         }
     end
@@ -234,7 +234,7 @@ module History (S : Store) = struct
     type t = S.Key.t
 
     let compare = Type.(unstage (compare S.Key.t))
-    let hash k = S.Hash.short_hash (S.Key.hash k)
+    let hash k = S.Hash.short_hash (S.Key.to_hash k)
     let equal = Type.(unstage (equal S.Key.t))
   end
 

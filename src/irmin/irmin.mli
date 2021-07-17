@@ -99,9 +99,6 @@ module Hash = Hash
 
     A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
 
-module Key = Key
-(** TODO *)
-
 module Metadata = Metadata
 (** [Metadata] defines metadata that is attached to contents but stored in
     nodes. For instance, the Git backend uses this to indicate the type of file
@@ -154,6 +151,8 @@ module Private : sig
   module type S = Private.S
   (** The complete collection of private implementations. *)
 end
+
+module Key = Key
 
 (** {1 High-level Stores}
 

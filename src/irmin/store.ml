@@ -137,7 +137,7 @@ module Make (P : Private.S) = struct
     let tree t = Tree.import_no_check t.r (`Node (node t))
     let equal x y = equal_commit_key x.key y.key
     let key t = t.key
-    let hash t = P.Commit.Key.hash t.key
+    let hash t = P.Commit.Key.to_hash t.key
     let info t = P.Commit.Val.info t.v
     let parents t = P.Commit.Val.parents t.v
     let pp_hash ppf t = Type.pp Hash.t ppf (hash t)
@@ -1119,7 +1119,7 @@ module Make (P : Private.S) = struct
     let pp ppf = function
       | `Empty -> Fmt.string ppf "empty"
       | `Branch b -> pp_branch ppf b
-      | `Commit c -> pp_hash ppf (Commit_key.hash c.key)
+      | `Commit c -> pp_hash ppf (Commit_key.to_hash c.key)
   end
 
   let commit_t = Commit.t

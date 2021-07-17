@@ -69,6 +69,7 @@ module Maker
       let equal = Irmin.Type.(unstage (equal K.t))
     end
 
+    module Key = Pack_key.Make (K)
     module Tbl = Table (K)
     module Lru = Irmin.Private.Lru.Make (Hash)
 
@@ -80,7 +81,8 @@ module Maker
       readonly : bool;
     }
 
-    type key = K.t
+    type hash = K.t
+    type key = Key.t
 
     let equal_key = Irmin.Type.(unstage (equal K.t))
 

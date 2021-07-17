@@ -261,6 +261,26 @@ module type Sigs = sig
        and module Metadata = M
        and module Val = V
 
+  (* XXX: find proper name *)
+  module Store'
+      (C : Contents.Store)
+      (S : Content_addressable.S)
+      (H : Hash.S with type t = S.hash)
+      (V : S
+             with type t = S.value
+              and type contents_key = C.Key.t
+              and type node_key = S.Key.t)
+      (M : Metadata.S with type t = V.metadata)
+      (P : Path.S with type step = V.step) :
+    Store
+      with type 'a t = 'a C.t * 'a S.t
+       and type Key.t = S.Key.t
+       and type value = S.value
+       and type hash = S.hash
+       and module Path = P
+       and module Metadata = M
+       and module Val = V
+
   module type Graph = Graph
   (** [Graph] specifies the signature for node graphs. A node graph is a
       deterministic DAG, labeled by steps. *)
