@@ -58,7 +58,9 @@ end
 
 module Make (Args : Args) : sig
   val run :
-    [ `Reconstruct_index of [ `In_place | `Output of string ] | `Check_index ] ->
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
     Irmin.config ->
     unit
 end = struct
@@ -143,6 +145,35 @@ end = struct
           Ok ()
 
     let finalise (index, _) () = Index.close index
+  end
+
+  module Index_check_and_fix = struct
+    let create config =
+      let log_size = Conf.index_log_size config in
+      Log.app (fun f ->
+          f "Beginning index checking with parameters: { log_size = %d }"
+            log_size);
+      let index =
+        Index.v ~fresh:false ~readonly:false ~log_size (Conf.root config)
+      in
+      (index, ref 0)
+
+    let iter_pack_entry (index, idx_ref) key data =
+      match Index.find index key with
+      | None ->
+          Index.add index key data;
+          Error (`Missing_hash { idx_pack = !idx_ref; binding = { key; data } })
+      | Some data' when not @@ equal_index_value data data' ->
+          Error `Inconsistent_entry
+      | Some _ ->
+          incr idx_ref;
+          Ok ()
+
+    let finalise (index, _) () =
+      Log.app (fun f ->
+          f "Completed indexing of pack entries. Running a final merge ...");
+      Index.try_merge index;
+      Index.close index
   end
 
   let decode_entry_length = function
@@ -247,6 +278,10 @@ end = struct
           let open Index_checker in
           let v = create config in
           (iter_pack_entry v, finalise v, "Checking index")
+      | `Check_and_fix_index ->
+          let open Index_check_and_fix in
+          let v = create config in
+          (iter_pack_entry v, finalise v, "Checking and fixing index")
     in
     let run_duration = Mtime_clock.counter () in
     let root = Conf.root config in
@@ -276,6 +311,13 @@ end = struct
               Fmt.(styled `Green string)
               "Success" Mtime.Span.pp run_duration store_stats)
     | Some x ->
+        let msg =
+          match mode with
+          | `Check_index -> "Detected missing entries"
+          | `Check_and_fix_index ->
+              "Detected missing entries and added them to index"
+          | _ -> assert false
+        in
         Logs.err (fun f ->
             f
               "%a in %a.@,\
@@ -284,6 +326,6 @@ end = struct
               \  %a@,\
                %t"
               Fmt.(styled `Red string)
-              "Detected missing entries" Mtime.Span.pp run_duration x.idx_pack
-              pp_binding x.binding store_stats)
+              msg Mtime.Span.pp run_duration x.idx_pack pp_binding x.binding
+              store_stats)
 end
