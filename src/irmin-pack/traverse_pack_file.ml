@@ -75,11 +75,14 @@ end = struct
      as requests for more data. *)
   exception Not_enough_buffer
 
-  type index_value = int63 * int * Pack_value.Kind.t
-  [@@deriving irmin ~equal ~pp]
-
+  type index_value = int63 * int * Pack_value.Kind.t [@@deriving irmin]
   type index_binding = { key : Hash.t; data : index_value }
   type missing_hash = { idx_pack : int; binding : index_binding }
+
+  let equal_index_value (off1, len1, kind1) (off2, len2, kind2) =
+    Int63.equal off1 off2
+    && len1 = len2
+    && Pack_value.Kind.to_magic kind1 = Pack_value.Kind.to_magic kind2
 
   let pp_binding ppf x =
     let off, len, kind = x.data in
