@@ -31,8 +31,8 @@
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
 
 - **irmin-pack**
-   - Added `integrity-check-index` command in `irmin-fsck`. (#1480, @icristescu,
-     @samoht)
+   - Added `integrity-check-index` command in `irmin-fsck`. (#1480, #1487
+     @icristescu, @samoht)
 
 - **irmin-unix**
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
