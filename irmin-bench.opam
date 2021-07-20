@@ -28,7 +28,7 @@ depends: [
   "re"           {>= "1.9.0"}
   "fmt"
   "uuidm"
-  "progress"
+  "progress"     {>="0.2.1"}
   "fpath"        {with-test}
   "bentov"       {with-test}
   "mtime"        {with-test}

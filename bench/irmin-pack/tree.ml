@@ -280,7 +280,7 @@ struct
 
   let add_commits repo commits () =
     with_progress_bar ~message:"Replaying trace" ~n:(Array.length commits)
-      ~unit:"commits" ~sampling_interval:50
+      ~unit:"commits"
     @@ fun prog ->
     let t = { tree = Store.Tree.empty } in
     let rec array_iter_lwt prev_commit i =
@@ -288,7 +288,7 @@ struct
       else
         let operations = commits.(i) in
         let* _, prev_commit = add_operations t repo prev_commit operations i in
-        prog Int64.one;
+        prog 1;
         array_iter_lwt prev_commit (i + 1)
     in
     array_iter_lwt None 0
@@ -350,14 +350,13 @@ struct
         Store.Commit.v repo ~info:(info ()) ~parents:[ prev_commit ] tree
 
   let add_commits ~message repo ncommits f () =
-    with_progress_bar ~message ~n:ncommits ~unit:"commits" ~sampling_interval:1
-    @@ fun prog ->
+    with_progress_bar ~message ~n:ncommits ~unit:"commits" @@ fun prog ->
     let* c = init_commit repo in
     let rec aux c i =
       if i >= ncommits then Lwt.return c
       else
         let* c' = checkout_and_commit repo (Store.Commit.hash c) f in
-        prog Int64.one;
+        prog 1;
         aux c' (i + 1)
     in
     let+ _ = aux c 0 in
