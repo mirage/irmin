@@ -8,6 +8,9 @@ COMMANDS
        integrity-check
            Check integrity of an existing store.
 
+       integrity-check-index
+           Check index integrity.
+
        integrity-check-inodes
            Check integrity of inodes in an existing store.
 
