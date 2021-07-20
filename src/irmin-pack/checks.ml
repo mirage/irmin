@@ -197,17 +197,26 @@ module Make (M : Maker) = struct
   module Integrity_check_index = struct
     let conf root = Conf.v ~readonly:true ~fresh:false root
 
-    let run ~root () =
+    let run ~root ~auto_repair () =
       let (module Store : Versioned_store) =
         match Stat.detect_version ~root with
         | `V1 -> (module Store_V1)
         | `V2 -> (module Store_V2)
       in
       let conf = conf root in
-      Store.traverse_pack_file `Check_index conf
+      if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
+      else Store.traverse_pack_file `Check_index conf
+
+    let auto_repair =
+      let open Cmdliner.Arg in
+      value
+      & (flag @@ info ~doc:"Add missing entries in index" [ "auto-repair" ])
 
     let term_internal =
-      Cmdliner.Term.(const (fun root () -> run ~root ()) $ path)
+      Cmdliner.Term.(
+        const (fun root auto_repair () -> run ~root ~auto_repair ())
+        $ path
+        $ auto_repair)
 
     let term =
       let doc = "Check index integrity." in

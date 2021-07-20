@@ -79,7 +79,9 @@ module type S = sig
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 
   val traverse_pack_file :
-    [ `Reconstruct_index of [ `In_place | `Output of string ] | `Check_index ] ->
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
     Irmin.config ->
     unit
 end
