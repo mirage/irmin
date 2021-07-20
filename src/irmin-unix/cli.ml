@@ -699,6 +699,31 @@ let graphql =
        Term.(mk graphql $ store $ port $ addr));
   }
 
+let options =
+  {
+    name = "options";
+    doc = "Get information about backend specific configuration options.";
+    man = [];
+    term =
+      (let options (store, hash, contents) =
+         let module Conf = Irmin.Private.Conf in
+         let store, _ = Resolver.load_config ?store ?hash ?contents () in
+         let _, spec, _ = Store.destruct store in
+         Seq.iter
+           (fun (Conf.Key k) ->
+             let name = Conf.name k in
+             let ty = Conf.ty k in
+             let doc = Conf.doc k |> Option.value ~default:"" in
+             let ty =
+               Fmt.str "%a" Irmin.Type.pp_ty ty
+               |> Astring.String.filter (fun c -> c <> '\n')
+             in
+             Fmt.pr "%s: %s\n\t%s\n" name ty doc)
+           (Conf.Spec.keys spec)
+       in
+       Term.(mk options $ Store.term));
+  }
+
 let default =
   let doc = "Irmin, the database that never forgets." in
   let man =
@@ -734,12 +759,13 @@ let default =
       \    revert      %s\n\
       \    watch       %s\n\
       \    dot         %s\n\
-      \    graphql     %s\n\n\
+      \    graphql     %s\n\
+      \    options     %s\n\n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc clone.doc fetch.doc
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
-      graphql.doc
+      graphql.doc options.doc
   in
   ( Term.(mk usage $ const ()),
     Term.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc
@@ -765,6 +791,7 @@ let commands =
       watch;
       dot;
       graphql;
+      options;
     ]
 
 let run ~default:x y =

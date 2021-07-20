@@ -41,11 +41,7 @@ let key k default =
   Arg.(value & opt mk default i)
 
 let opt_key k = key k (Conf.default k)
-
-let spec' =
-  Conf.Spec.(
-    join (v "unix")
-      [ Irmin_git.Conf.spec; Irmin_pack.Conf.spec; Irmin_http.Conf.spec ])
+let spec' = Conf.Spec.(join (v "unix") [ Irmin_http.Conf.spec ])
 
 let config_path_key =
   Conf.key ~spec:spec' ~docs:global_option_section ~docv:"PATH"
@@ -388,17 +384,7 @@ let config_term =
       |> add_opt Irmin_http.Conf.Key.uri uri
       |> add config_path_key config_path
     in
-    List.fold_left
-      (fun config (k, v) ->
-        let (Irmin.Private.Conf.Key key) =
-          match Conf.Spec.find_key spec' k with
-          | Some x -> x
-          | None -> invalid_arg ("opt: " ^ k)
-        in
-        let v = Irmin.Type.of_string (Conf.ty key) v |> Result.get_ok in
-        let config = Conf.add config key v in
-        config)
-      config (List.flatten opts)
+    (config, opts)
   in
   let doc =
     Seq.map
@@ -409,7 +395,8 @@ let config_term =
   in
   let doc = "Backend-specific options: " ^ doc in
   let opts =
-    Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc [ "opt" ]
+    Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc
+      [ "opt"; "option" ]
   in
   Term.(
     const create
@@ -490,14 +477,33 @@ let load_config_file_with_defaults path (store, hash, contents) config =
   in
   (store, config)
 
-let from_config_file_with_defaults path (store, hash, contents) config branch :
-    store =
+let from_config_file_with_defaults path (store, hash, contents) config opts
+    branch : store =
   let y = read_config_file path in
   let store, config =
     load_config_file_with_defaults path (store, hash, contents) config
   in
   match store with
-  | Store.T ((module S), _spec, remote) -> (
+  | Store.T ((module S), spec, remote) -> (
+      let keys = Irmin.Private.Conf.Spec.keys spec in
+      Seq.iter
+        (fun (Irmin.Private.Conf.Key k) ->
+          print_endline (Irmin.Private.Conf.name k))
+        keys;
+      print_endline (Irmin.Private.Conf.Spec.name spec);
+      let config =
+        List.fold_left
+          (fun config (k, v) ->
+            let (Irmin.Private.Conf.Key key) =
+              match Conf.Spec.find_key spec k with
+              | Some x -> x
+              | None -> invalid_arg ("opt: " ^ k)
+            in
+            let v = Irmin.Type.of_string (Conf.ty key) v |> Result.get_ok in
+            let config = Conf.add config key v in
+            config)
+          config (List.flatten opts)
+      in
       let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
       let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
       let branch =
@@ -559,9 +565,9 @@ let branch =
   Arg.(value & opt (some string) None & doc)
 
 let store =
-  let create store config branch =
+  let create store (config, opts) branch =
     let cfg = Conf.get config config_path_key in
-    from_config_file_with_defaults cfg store config branch
+    from_config_file_with_defaults cfg store config opts branch
   in
   Term.(const create $ Store.term $ config_term $ branch)
 

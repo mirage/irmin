@@ -108,6 +108,11 @@ val get : t -> 'a key -> 'a
 
 val list_keys : t -> k Seq.t
 
+val verify : t -> t
+(** [verify t] is an identity function that ensures all keys match the spec
+
+    {b Raises.} [Invalid_argument] if [t] contains invalid keys *)
+
 (** {1:builtin_converters Built-in value converters} *)
 
 val uri : Uri.t Type.t

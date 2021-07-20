@@ -40,7 +40,7 @@ end
 
 let config x config =
   let a = Conf.empty Conf.spec in
-  Conf.(union (add a Key.uri (Some x)) config)
+  Conf.(verify (union (add a Key.uri (Some x)) config))
 
 let uri_append t path =
   match Uri.path t :: path with

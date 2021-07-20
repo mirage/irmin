@@ -195,7 +195,7 @@ module Make (M : Maker) = struct
   end
 
   module Integrity_check_index = struct
-    let conf root = Conf.v ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false root
 
     let run ~root ~auto_repair () =
       let (module Store : Versioned_store) =

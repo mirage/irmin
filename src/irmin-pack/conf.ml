@@ -85,4 +85,4 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config = add config Key.readonly readonly in
   let config = add config Key.merge_throttle merge_throttle in
   let config = add config Key.freeze_throttle freeze_throttle in
-  config
+  verify config

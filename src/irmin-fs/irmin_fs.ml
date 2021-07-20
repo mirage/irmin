@@ -65,7 +65,7 @@ module Conf = struct
   end
 end
 
-let config root = Conf.(add (empty Conf.spec) Key.root) root
+let config r = Conf.(verify (add (empty Conf.spec) Key.root r))
 
 module Read_only_ext
     (IO : IO)

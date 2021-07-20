@@ -61,7 +61,7 @@ let config ?size ?min_size ?(chunking = `Best_fit) config =
     |> add Conf.Key.chunk_size size
     |> add Conf.Key.chunking chunking
   in
-  Conf.union cfg config
+  Conf.(verify (union cfg config))
 
 module Chunk (K : Irmin.Hash.S) = struct
   type v = Data of string | Index of K.t list

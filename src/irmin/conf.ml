@@ -38,19 +38,23 @@ type 'a key = {
 
 type k = Key : 'a key -> k
 
-module M = Map.Make (struct
+module C = struct
   type t = k
 
   let compare (Key a) (Key b) = String.compare a.name b.name
-end)
+end
+
+module M = Map.Make (C)
 
 module Spec = struct
-  type t = { name : string; keys : (string, k) Hashtbl.t }
+  module M = Map.Make (String)
+
+  type t = { name : string; mutable keys : k M.t }
 
   let all = Hashtbl.create 8
 
   let v name =
-    let keys = Hashtbl.create 8 in
+    let keys = M.empty in
     if Hashtbl.mem all name then
       Fmt.failwith "Config spec already exists: %s" name;
     let x = { name; keys } in
@@ -58,24 +62,26 @@ module Spec = struct
     x
 
   let name { name; _ } = name
-  let update { keys; _ } name k = Hashtbl.replace keys name k
+  let update spec name k = spec.keys <- M.add name k spec.keys
   let list () = Hashtbl.to_seq all
   let find name = Hashtbl.find_opt all name
-  let find_key spec name = Hashtbl.find_opt spec.keys name
-  let keys spec = Hashtbl.to_seq_values spec.keys
-  let clone spec = { spec with keys = Hashtbl.copy spec.keys }
+  let find_key spec name = M.find_opt name spec.keys
+  let keys spec = M.to_seq spec.keys |> Seq.map snd
+  let clone { name; keys } = { name; keys }
 
   let join dest src =
     let dest = clone dest in
     let name = ref dest.name in
-    List.iter
-      (fun spec ->
-        if dest.name = spec.name then ()
-        else
-          let () = name := !name ^ "-" ^ spec.name in
-          Hashtbl.add_seq dest.keys (Hashtbl.to_seq spec.keys))
-      src;
-    { dest with name = !name }
+    let keys =
+      List.fold_left
+        (fun acc spec ->
+          if dest.name = spec.name then acc
+          else
+            let () = name := !name ^ "-" ^ spec.name in
+            M.add_seq (M.to_seq spec.keys) acc)
+        dest.keys src
+    in
+    { name = !name; keys }
 end
 
 type t = Spec.t * Univ.t M.t
@@ -105,11 +111,15 @@ let empty spec = (spec, M.empty)
 let singleton spec k v = (spec, M.singleton (Key k) (k.to_univ v))
 let is_empty (_, t) = M.is_empty t
 let mem (_, d) k = M.mem (Key k) d
+let add (spec, d) k v = (spec, M.add (Key k) (k.to_univ v) d)
 
-let add (spec, d) k v =
-  if Spec.find_key spec k.name |> Option.is_none then
-    Fmt.failwith "invalid key, not found in spec: %s" k.name;
-  (spec, M.add (Key k) (k.to_univ v) d)
+let verify (spec, d) =
+  M.iter
+    (fun (Key k) _ ->
+      if Spec.find_key spec k.name |> Option.is_none then
+        Fmt.invalid_arg "invalid config key: %s" k.name)
+    d;
+  (spec, d)
 
 let union (rs, r) (ss, s) =
   let spec = Spec.join rs [ ss ] in

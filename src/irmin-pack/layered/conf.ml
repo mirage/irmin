@@ -71,4 +71,4 @@ let init ?(lower_root = Default.lower_root) ?(upper_root1 = Default.upper1_root)
     |> with_binding Key.with_lower with_lower
     |> with_binding Key.blocking_copy_size blocking_copy_size
   in
-  union config cfg
+  verify (union config cfg)

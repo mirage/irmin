@@ -66,4 +66,4 @@ let init ?head ?bare ?level ?dot_git ?buffers root =
   let config = C.add config Key.level level in
   let config = C.add config Key.dot_git dot_git in
   let config = C.add config Key.buffers buffers in
-  config
+  C.verify config
