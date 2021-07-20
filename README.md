@@ -1,17 +1,18 @@
-## Irmin - A distributed database built on the same principles as Git
+## Irmin &mdash; A Distributed Database Built on the Same Principles as Git
 [![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmaster&logo=ocaml)](https://ci.ocamllabs.io/github/mirage/irmin)
 [![Travis-CI Build Status](https://travis-ci.org/mirage/irmin.svg)](https://travis-ci.org/mirage/irmin)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://mirage.github.io/irmin/)
 
-Irmin is an OCaml library for building mergeable, branchable distributed data stores.
+Irmin is an OCaml library for building mergeable, branchable distributed data stores.  
+[Website: irmin.org](https://irmin.org)
 
 ### Features
-- **Built-in snapshotting** - backup and restore
-- **Storage agnostic** - you can use Irmin on top of your own storage layer
-- **Custom datatypes** - (de)serialization for custom data types, derivable via [`ppx_irmin`][ppx_irmin-readme]
-- **Highly portable** - runs anywhere from Linux to web browsers and Xen unikernels
-- **Git compatibility** - `irmin-git` uses an on-disk format that can be inspected and modified using Git
-- **Dynamic behavior** - allows the users to define custom merge functions, use in-memory transactions (to keep track of reads as well as writes) and to define event-driven workflows using a notification mechanism
+- **Built-in Snapshotting** - backup and restore
+- **Storage Agnostic** - you can use Irmin on top of your own storage layer
+- **Custom Datatypes** - (de)serialization for custom data types, derivable via [`ppx_irmin`][ppx_irmin-readme]
+- **Highly Portable** - runs anywhere from Linux to web browsers and Xen unikernels
+- **Git Compatibility** - `irmin-git` uses an on-disk format that can be inspected and modified using Git
+- **Dynamic Behavior** - allows the users to define custom merge functions, use in-memory transactions (to keep track of reads as well as writes) and to define event-driven workflows using a notification mechanism
 
 ### Documentation
 Documentation can be found online at [https://mirage.github.io/irmin](https://mirage.github.io/irmin)
@@ -20,26 +21,27 @@ Documentation can be found online at [https://mirage.github.io/irmin](https://mi
 
 #### Prerequisites:
 
-Please ensure to install the minimum Opam and Ocaml versions which are 2 and 4.07 respectively.
+Please ensure to install the minimum Opam and OCaml versions.  
+Find the latest version and install instructions on [OCaml.org](https://ocaml.org/docs/install.html).
 
     opam list    // listing the installed packages
 
-To install Irmin, the command-line tool and all optional dependencies using [opam](https://github.com/ocaml/opam):
+To install Irmin with the command-line tool and all optional dependencies using [opam](https://github.com/ocaml/opam):
 
     opam install irmin-unix
 
-***Note :***  If you face installation issues due to pinned packages. Run  the below commands to unpin and try to install again,
+***Note :***  If you face installation issues due to pinned packages. Run the below commands to unpin and try to install again.
 
-Unpinning *irmin-unix* package,
+Unpinning *irmin-unix* package:
 
     opam info irmin-unix // to get available versions
     opam pin -s | grep irmin | xargs opam unpin
 
-A minimal installation, containing the reference in-memory backend, can be installed by running:
+A minimal installation containing the reference in-memory backend can be installed by running:
 
     opam install irmin
 
-The following packages have been made available on `opam`:
+The following packages have been made available on `opam`
 - `irmin` - the base package, plus an in-memory storage implementation
 - `irmin-chunk` - chunked storage
 - `irmin-fs` - filesystem-based storage using `bin_prot`
@@ -54,9 +56,10 @@ The following packages have been made available on `opam`:
 - `ppx_irmin` - PPX deriver for Irmin content types (see [README_PPX.md][ppx_irmin-readme])
 - `irmin-containers` - collection of simple, ready-to-use mergeable data structures
 
+To install, simply run `opam install package-name`.   
 For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin).
 
-#### Development version
+#### Development Version
 
 To install the development version of Irmin, clone this repository and `opam install` the packages inside:
 
@@ -65,7 +68,7 @@ To install the development version of Irmin, clone this repository and `opam ins
     opam install .
 
 ### Examples
-Below is a simple example of setting a key and getting the value out of a Git based, filesystem-backed store.
+Below is a simple example of setting a key and getting the value out of a Git-based, filesystem-backed store.
 
 <!-- N.B. Any changes to the following example must be mirrored in `examples/readme.ml`. -->
 ```ocaml
