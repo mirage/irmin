@@ -36,15 +36,13 @@ type 'a key = {
   of_univ : Univ.t -> 'a option;
 }
 
-type k = Key : 'a key -> k
+type k = K : 'a key -> k
 
-module C = struct
+module M = Map.Make (struct
   type t = k
 
-  let compare (Key a) (Key b) = String.compare a.name b.name
-end
-
-module M = Map.Make (C)
+  let compare (K a) (K b) = String.compare a.name b.name
+end)
 
 module Spec = struct
   module M = Map.Make (String)
@@ -98,7 +96,7 @@ let key ?docs ?docv ?doc ~spec name ty default =
   in
   let to_univ, of_univ = Univ.create () in
   let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
-  Spec.update spec name (Key k);
+  Spec.update spec name (K k);
   k
 
 let name t = t.name
@@ -108,14 +106,14 @@ let docs t = t.docs
 let ty t = t.ty
 let default t = t.default
 let empty spec = (spec, M.empty)
-let singleton spec k v = (spec, M.singleton (Key k) (k.to_univ v))
+let singleton spec k v = (spec, M.singleton (K k) (k.to_univ v))
 let is_empty (_, t) = M.is_empty t
-let mem (_, d) k = M.mem (Key k) d
-let add (spec, d) k v = (spec, M.add (Key k) (k.to_univ v) d)
+let mem (_, d) k = M.mem (K k) d
+let add (spec, d) k v = (spec, M.add (K k) (k.to_univ v) d)
 
 let verify (spec, d) =
   M.iter
-    (fun (Key k) _ ->
+    (fun (K k) _ ->
       if Spec.find_key spec k.name |> Option.is_none then
         Fmt.invalid_arg "invalid config key: %s" k.name)
     d;
@@ -125,13 +123,13 @@ let union (rs, r) (ss, s) =
   let spec = Spec.join rs [ ss ] in
   (spec, M.fold M.add r s)
 
-let rem (s, d) k = (s, M.remove (Key k) d)
-let find (_, d) k = try k.of_univ (M.find (Key k) d) with Not_found -> None
+let rem (s, d) k = (s, M.remove (K k) d)
+let find (_, d) k = try k.of_univ (M.find (K k) d) with Not_found -> None
 let uri = Type.(map string) Uri.of_string Uri.to_string
 
 let get (_, d) k =
   try
-    match k.of_univ (M.find (Key k) d) with
+    match k.of_univ (M.find (K k) d) with
     | Some v -> v
     | None -> raise Not_found
   with Not_found -> k.default

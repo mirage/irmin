@@ -387,16 +387,14 @@ let config_term =
     (config, opts)
   in
   let doc =
-    Seq.map
-      (fun (Irmin.Private.Conf.Key x) -> Conf.name x)
-      (Conf.Spec.keys spec')
+    Seq.map (fun (Irmin.Private.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec')
     |> List.of_seq
     |> String.concat ~sep:", "
   in
   let doc = "Backend-specific options: " ^ doc in
   let opts =
     Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc
-      [ "opt"; "option" ]
+      [ "opt"; "options" ]
   in
   Term.(
     const create
@@ -459,7 +457,7 @@ let load_config_file_with_defaults path (store, hash, contents) config =
     List.fold_left
       (fun config (k, v) ->
         match Conf.Spec.find_key spec k with
-        | Some (Irmin.Private.Conf.Key k) ->
+        | Some (Irmin.Private.Conf.K k) ->
             let v = json_of_yaml v |> Yojson.Basic.to_string in
             let v =
               match Irmin.Type.of_json_string (Conf.ty k) v with
@@ -470,9 +468,11 @@ let load_config_file_with_defaults path (store, hash, contents) config =
             in
             Conf.add config k v
         | None -> (
-            match (k, v) with
-            | "contents", _ | "hash", _ | "store", _ -> config
-            | _ -> invalid_arg ("unknown config key: " ^ k)))
+            match k with
+            | "contents" | "hash" | "store" -> config
+            | _ ->
+                Fmt.invalid_arg "unknown config key for %s: %s"
+                  (Conf.Spec.name spec) k))
       config y
   in
   (store, config)
@@ -485,21 +485,26 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
   in
   match store with
   | Store.T ((module S), spec, remote) -> (
-      let keys = Irmin.Private.Conf.Spec.keys spec in
-      Seq.iter
-        (fun (Irmin.Private.Conf.Key k) ->
-          print_endline (Irmin.Private.Conf.name k))
-        keys;
-      print_endline (Irmin.Private.Conf.Spec.name spec);
       let config =
         List.fold_left
           (fun config (k, v) ->
-            let (Irmin.Private.Conf.Key key) =
-              match Conf.Spec.find_key spec k with
-              | Some x -> x
-              | None -> invalid_arg ("opt: " ^ k)
+            let (Irmin.Private.Conf.K key) =
+              if k = "root" || k = "uri" then
+                invalid_arg
+                  "use the --root and --uri flags instead of passing them as \
+                   options"
+              else
+                match Conf.Spec.find_key spec k with
+                | Some x -> x
+                | None -> invalid_arg ("opt: " ^ k)
             in
-            let v = Irmin.Type.of_string (Conf.ty key) v |> Result.get_ok in
+            let v =
+              match Irmin.Type.of_string (Conf.ty key) v with
+              | Error _ ->
+                  let v = Format.sprintf "{\"some\": %s}" v in
+                  Irmin.Type.of_string (Conf.ty key) v |> Result.get_ok
+              | Ok v -> v
+            in
             let config = Conf.add config key v in
             config)
           config (List.flatten opts)
@@ -535,7 +540,7 @@ let save_config ~path conf =
   let keys = keys conf in
   let y =
     Seq.fold_left
-      (fun acc (Irmin.Private.Conf.Key k) ->
+      (fun acc (Irmin.Private.Conf.K k) ->
         let v = Conf.get conf k in
         let name = name k in
         let j = Irmin.Type.to_json_string (ty k) v in

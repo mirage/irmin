@@ -614,7 +614,11 @@ let config_man =
          \\$XDG_CONFIG_HOME. \n\
         \        The following keys are allowed: $(b,contents), $(b,store), \
          $(b,branch), $(b,root), $(b,bare), $(b,head), or $(b,uri). These \
-         correspond to the irmin options of the same names.";
+         correspond to the irmin options of the same names. Additionally, \
+         specific\n\
+        \         backends may have other options available, these can be \
+         lised using the $(b,options)\n\
+        \         command and applied using the $(b,--opt) flag.";
       `S Manpage.s_examples;
       `P
         "Here is an example $(b,irmin.yml) for accessing a local http irmin \
@@ -710,15 +714,17 @@ let options =
          let store, _ = Resolver.load_config ?store ?hash ?contents () in
          let _, spec, _ = Store.destruct store in
          Seq.iter
-           (fun (Conf.Key k) ->
+           (fun (Conf.K k) ->
              let name = Conf.name k in
-             let ty = Conf.ty k in
-             let doc = Conf.doc k |> Option.value ~default:"" in
-             let ty =
-               Fmt.str "%a" Irmin.Type.pp_ty ty
-               |> Astring.String.filter (fun c -> c <> '\n')
-             in
-             Fmt.pr "%s: %s\n\t%s\n" name ty doc)
+             if name = "root" || name = "uri" then ()
+             else
+               let ty = Conf.ty k in
+               let doc = Conf.doc k |> Option.value ~default:"" in
+               let ty =
+                 Fmt.str "%a" Irmin.Type.pp_ty ty
+                 |> Astring.String.filter (fun c -> c <> '\n')
+               in
+               Fmt.pr "%s: %s\n\t%s\n" name ty doc)
            (Conf.Spec.keys spec)
        in
        Term.(mk options $ Store.term));
