@@ -528,30 +528,6 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
-let rec yaml_of_json : Yojson.Basic.t -> Yaml.value = function
-  | `Assoc [ ("some", x) ] -> yaml_of_json x
-  | `Assoc x -> `O (List.map (fun (k, v) -> (k, yaml_of_json v)) x)
-  | `List l -> `A (List.map yaml_of_json l)
-  | `Int i -> `Float (float_of_int i)
-  | (`Null | `Bool _ | `Float _ | `String _) as x -> x
-
-let save_config ~path conf =
-  let open Conf in
-  let keys = keys conf in
-  let y =
-    Seq.fold_left
-      (fun acc (Irmin.Private.Conf.K k) ->
-        let v = Conf.get conf k in
-        let name = name k in
-        let j = Irmin.Type.to_json_string (ty k) v in
-        let j = Yojson.Basic.from_string j |> yaml_of_json in
-        (name, j) :: acc)
-      [] keys
-  in
-  let output = open_out path in
-  output_string output (Yaml.to_string_exn (`O y));
-  close_out output
-
 let load_config ?(default = Conf.empty spec') ?config_path ?store ?hash
     ?contents () =
   let cfg =
