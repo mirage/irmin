@@ -109,7 +109,11 @@ let empty spec = (spec, M.empty)
 let singleton spec k v = (spec, M.singleton (K k) (k.to_univ v))
 let is_empty (_, t) = M.is_empty t
 let mem (_, d) k = M.mem (K k) d
-let add (spec, d) k v = (spec, M.add (K k) (k.to_univ v) d)
+
+let add (spec, d) ?(verify = true) k v =
+  if verify && Spec.find_key spec k.name |> Option.is_none then
+    Fmt.invalid_arg "invalid config key: %s" k.name
+  else (spec, M.add (K k) (k.to_univ v) d)
 
 let verify (spec, d) =
   M.iter

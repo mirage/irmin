@@ -14,14 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let suite =
-  [
-    ("tree", Test_tree.suite);
-    ("hash", Test_hash.suite);
-    ("conf", Test_conf.suite);
-  ]
-
-let () =
-  Logs.set_level (Some Debug);
-  Logs.set_reporter (Logs_fmt.reporter ());
-  Lwt_main.run (Alcotest_lwt.run "irmin" suite)
+val suite : unit Alcotest_lwt.test_case list

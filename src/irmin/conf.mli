@@ -89,7 +89,7 @@ val is_empty : t -> bool
 val mem : t -> 'a key -> bool
 (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
 
-val add : t -> 'a key -> 'a -> t
+val add : t -> ?verify:bool -> 'a key -> 'a -> t
 (** [add c k v] is [c] with [k] mapping to [v]. *)
 
 val rem : t -> 'a key -> t

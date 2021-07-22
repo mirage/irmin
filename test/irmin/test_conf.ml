@@ -14,14 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let suite =
-  [
-    ("tree", Test_tree.suite);
-    ("hash", Test_hash.suite);
-    ("conf", Test_conf.suite);
-  ]
+open Irmin.Private.Conf
 
-let () =
-  Logs.set_level (Some Debug);
-  Logs.set_reporter (Logs_fmt.reporter ());
-  Lwt_main.run (Alcotest_lwt.run "irmin" suite)
+let test_conf () =
+  let spec_a = Spec.v "a" in
+  let spec_b = Spec.v "b" in
+  let x = key ~spec:spec_a "x" Irmin.Type.string "0" in
+  let conf_a = add (empty spec_a) x "1" in
+  let () = Alcotest.(check string) "x" "1" (get conf_a x) in
+  let () =
+    Alcotest.check_raises "Wrong spec"
+      (Invalid_argument "invalid config key: x") (fun () ->
+        ignore (add (empty spec_b) x "1"))
+  in
+  let specs =
+    Spec.list () |> Seq.map fst |> List.of_seq |> List.sort String.compare
+  in
+  let () =
+    Alcotest.(check (list string)) "Spec list" [ "a"; "b"; "mem" ] specs
+  in
+  ()
+
+let suite = [ Alcotest_lwt.test_case_sync "conf" `Quick test_conf ]

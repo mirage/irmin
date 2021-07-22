@@ -77,6 +77,9 @@
     define in an Irmin store. Use this as a parameter to every `Maker`
     functor. This is a large change which touches all the backends.
     (#1470, @samoht, @CraigFe)
+  - Add `Irmin.Private.Conf.Schema` for grouping configuration keys. Now
+    `Irmin.Private.Conf.key` takes an additional `~schema` parameter.
+    (#1492, @zshipko)
 
 - **irmin-pack**
    - `reconstruct_index` is now `traverse_pack_file`, it allows for both index
