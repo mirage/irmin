@@ -19,13 +19,14 @@ open Irmin.Private.Conf
 let test_conf () =
   let spec_a = Spec.v "a" in
   let spec_b = Spec.v "b" in
-  let x = key ~spec:spec_a "x" Irmin.Type.string "0" in
-  let conf_a = add (empty spec_a) x "1" in
-  let () = Alcotest.(check string) "x" "1" (get conf_a x) in
+  let x = key ~spec:spec_a "x" Irmin.Type.int 0 in
+  let _y = key ~spec:spec_a "y" Irmin.Type.int 1 in
+  let conf_a = add (empty spec_a) x 1 in
+  let () = Alcotest.(check int) "x" 1 (get conf_a x) in
   let () =
     Alcotest.check_raises "Wrong spec"
       (Invalid_argument "invalid config key: x") (fun () ->
-        ignore (add (empty spec_b) x "1"))
+        ignore (add (empty spec_b) x 1))
   in
   let specs =
     Spec.list () |> Seq.map fst |> List.of_seq |> List.sort String.compare
@@ -33,6 +34,13 @@ let test_conf () =
   let () =
     Alcotest.(check (list string)) "Spec list" [ "a"; "b"; "mem" ] specs
   in
+  let keys =
+    Spec.keys spec_a
+    |> Seq.map (fun (K k) -> name k)
+    |> List.of_seq
+    |> List.sort String.compare
+  in
+  let () = Alcotest.(check (list string)) "Key list" [ "x"; "y" ] keys in
   ()
 
 let suite = [ Alcotest_lwt.test_case_sync "conf" `Quick test_conf ]

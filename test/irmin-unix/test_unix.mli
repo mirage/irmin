@@ -27,3 +27,7 @@ end
 module FS : sig
   val suite : Irmin_test.t
 end
+
+module Conf : sig
+  val misc : unit Alcotest.test_case list
+end

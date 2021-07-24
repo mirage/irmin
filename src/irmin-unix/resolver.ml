@@ -473,7 +473,8 @@ let load_config_file_with_defaults path (store, hash, contents) config =
             | _ ->
                 Fmt.invalid_arg "unknown config key for %s: %s"
                   (Conf.Spec.name spec) k))
-      config y
+      (Conf.with_spec config spec)
+      y
   in
   (store, config)
 

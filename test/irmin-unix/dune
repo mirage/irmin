@@ -13,6 +13,7 @@
  (alias runtest)
  (package irmin-unix)
  (locks ../http)
+ (deps test.yml)
  (action
   (chdir
    %{workspace_root}

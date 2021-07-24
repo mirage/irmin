@@ -58,7 +58,7 @@ end
 module Conf = struct
   include Irmin.Private.Conf
 
-  let spec = Spec.v "irf"
+  let spec = Spec.v "ifs"
 
   module Key = struct
     let root = root spec

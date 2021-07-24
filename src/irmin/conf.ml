@@ -139,6 +139,7 @@ let get (_, d) k =
   with Not_found -> k.default
 
 let keys (_, conf) = M.to_seq conf |> Seq.map (fun (k, _) -> k)
+let with_spec (_, conf) spec = (spec, conf)
 
 (* ~root *)
 let root spec =

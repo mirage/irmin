@@ -108,6 +108,9 @@ val get : t -> 'a key -> 'a
 
 val list_keys : t -> k Seq.t
 
+val with_spec : t -> Spec.t -> t
+(** [with_spec t s] is the config [t] with spec [s] *)
+
 val verify : t -> t
 (** [verify t] is an identity function that ensures all keys match the spec
 
