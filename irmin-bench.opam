@@ -22,7 +22,7 @@ depends: [
   "lwt"          {>= "5.3.0"}
   "ppx_deriving_yojson"
   "yojson"
-  "memtrace"
+  "memtrace"     {>= "0.1.2"}
   "repr"         {>= "0.3.0"}
   "ppx_repr"
   "re"           {>= "1.9.0"}
