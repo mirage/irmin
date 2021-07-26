@@ -29,7 +29,7 @@ let test_conf () =
         ignore (add (empty spec_b) x 1))
   in
   let specs =
-    Spec.list () |> Seq.map fst |> List.of_seq |> List.sort String.compare
+    Spec.list () |> Seq.map Spec.name |> List.of_seq |> List.sort String.compare
   in
   let () =
     Alcotest.(check (list string)) "Spec list" [ "a"; "b"; "mem" ] specs

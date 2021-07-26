@@ -61,7 +61,7 @@ module Spec = struct
 
   let name { name; _ } = name
   let update spec name k = spec.keys <- M.add name k spec.keys
-  let list () = Hashtbl.to_seq all
+  let list () = Hashtbl.to_seq_values all
   let find name = Hashtbl.find_opt all name
   let find_key spec name = M.find_opt name spec.keys
   let keys spec = M.to_seq spec.keys |> Seq.map snd
