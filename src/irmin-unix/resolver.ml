@@ -377,12 +377,9 @@ let rec read_config_file path =
 let root_key = Conf.root spec'
 
 let config_term =
-  let create root uri config_path (opts : (string * string) list list) =
+  let create root config_path (opts : (string * string) list list) =
     let config =
-      Conf.empty spec'
-      |> add root_key root
-      |> add_opt Irmin_http.Conf.Key.uri uri
-      |> add config_path_key config_path
+      Conf.empty spec' |> add root_key root |> add config_path_key config_path
     in
     (config, opts)
   in
@@ -399,7 +396,6 @@ let config_term =
   Term.(
     const create
     $ opt_key root_key
-    $ opt_key Irmin_http.Conf.Key.uri
     $ opt_key config_path_key
     $ Arg.(value @@ opt_all (list (pair ~sep:'=' string string)) [] opts))
 
@@ -490,10 +486,9 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
         List.fold_left
           (fun config (k, v) ->
             let (Irmin.Private.Conf.K key) =
-              if k = "root" || k = "uri" then
+              if k = "root" then
                 invalid_arg
-                  "use the --root and --uri flags instead of passing them as \
-                   options"
+                  "use the --root flag instead of passing it as a config option"
               else
                 match Conf.Spec.find_key spec k with
                 | Some x -> x
