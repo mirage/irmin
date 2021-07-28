@@ -102,6 +102,7 @@ let init =
        Term.(mk init $ store));
   }
 
+(* HTTP *)
 let http =
   {
     name = "http";
@@ -112,9 +113,8 @@ let http =
          let doc =
            Arg.info ~docv:"URI" [ "a"; "address" ]
              ~doc:
-               "Start the Irmin server on the given socket address (to use \
-                with --daemon). Examples include http://localhost:8080 and \
-                launchd://Listener."
+               "Start the Irmin server on the given socket address. Examples \
+                include http://localhost:8080 and launchd://Listener."
          in
          Arg.(value & opt string "http://localhost:8080" & doc)
        in
