@@ -21,6 +21,5 @@ module type Maker = S.Maker
 
 module Maker = Ext_layered.Maker
 module Checks = Checks
-module Conf = Conf
 
 let config = Conf.init

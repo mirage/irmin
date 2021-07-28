@@ -54,9 +54,9 @@ let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
-  match v with None -> config | Some _ -> Conf.add ~verify:false config k v
+  match v with None -> config | Some _ -> Conf.add config k v
 
-let add k v config = Conf.add ~verify:false config k v
+let add k v config = Conf.add config k v
 
 (* Contents *)
 
@@ -463,7 +463,7 @@ let load_config_file_with_defaults path (store, hash, contents) config =
                   Irmin.Type.of_json_string (Conf.ty k) v |> Result.get_ok
               | Ok v -> v
             in
-            Conf.add ~verify:false config k v
+            Conf.add config k v
         | None -> (
             match k with
             | "contents" | "hash" | "store" -> config
@@ -508,7 +508,7 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
                   | Ok v -> v)
               | Ok v -> v
             in
-            let config = Conf.add ~verify:false config key v in
+            let config = Conf.add config key v in
             config)
           config (List.flatten opts)
       in

@@ -49,8 +49,10 @@ module Spec : sig
   (** [keys spec] is a sequence of keys available in [spec] *)
 
   val join : t -> t list -> t
-  (** [join dest src] is a new [Spec.t] combining [src] and all specs present in
-      [src] *)
+  (** [join a b] is a new [Spec.t] combining [a] and all specs present in [b]
+
+      The name of the resulting spec will be the name of [a] and the names of
+      the specs in [b] joined by hyphens. *)
 end
 
 val key :
@@ -121,7 +123,7 @@ val is_empty : t -> bool
 val mem : t -> 'a key -> bool
 (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
 
-val add : t -> ?verify:bool -> 'a key -> 'a -> t
+val add : t -> 'a key -> 'a -> t
 (** [add c k v] is [c] with [k] mapping to [v]. *)
 
 val rem : t -> 'a key -> t

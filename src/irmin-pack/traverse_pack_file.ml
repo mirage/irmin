@@ -101,7 +101,7 @@ end = struct
             path
         | `In_place ->
             if Conf.readonly config then raise S.RO_not_allowed;
-            Irmin.Private.Conf.get config Conf.Key.root
+            Conf.root config
       in
       let log_size = Conf.index_log_size config in
       Log.app (fun f ->
@@ -130,8 +130,7 @@ end = struct
           f "Beginning index checking with parameters: { log_size = %d }"
             log_size);
       let index =
-        Index.v ~fresh:false ~readonly:true ~log_size
-          (Irmin.Private.Conf.get config Conf.Key.root)
+        Index.v ~fresh:false ~readonly:true ~log_size (Conf.root config)
       in
       (index, ref 0)
 
@@ -154,7 +153,7 @@ end = struct
       Log.app (fun f ->
           f "Beginning index checking with parameters: { log_size = %d }"
             log_size);
-      let root = Irmin.Private.Conf.get config Conf.Key.root in
+      let root = Conf.root config in
       let index = Index.v ~fresh:false ~readonly:false ~log_size root in
       (index, ref 0)
 
@@ -284,7 +283,7 @@ end = struct
           (iter_pack_entry v, finalise v, "Checking and fixing index")
     in
     let run_duration = Mtime_clock.counter () in
-    let root = Irmin.Private.Conf.get config Conf.Key.root in
+    let root = Conf.root config in
     let pack_file = Filename.concat root "store.pack" in
     let pack =
       IO.v ~fresh:false ~readonly:true ~version:(Some Version.version) pack_file

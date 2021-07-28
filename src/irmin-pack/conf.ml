@@ -72,6 +72,7 @@ let readonly config = get config Key.readonly
 let index_log_size config = get config Key.index_log_size
 let merge_throttle config = get config Key.merge_throttle
 let freeze_throttle config = get config Key.freeze_throttle
+let root config = get config Key.root
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)

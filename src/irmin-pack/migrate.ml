@@ -26,12 +26,10 @@ let migrate_io_to_v2 ~progress src =
   | Ok () -> IO.close src
   | Error (`Msg s) -> invalid_arg s
 
-let root c = Irmin.Private.Conf.get c Conf.Key.root
-
 let run config =
   if Conf.readonly config then raise S.RO_not_allowed;
-  Log.debug (fun l -> l "[%s] migrate" (root config));
-  Layout.stores ~root:(root config)
+  Log.debug (fun l -> l "[%s] migrate" (Conf.root config));
+  Layout.stores ~root:(Conf.root config)
   |> List.map (fun store ->
          let io = IO.v ~version:None ~fresh:false ~readonly:true store in
          let version = IO.version io in
@@ -40,7 +38,7 @@ let run config =
   |> function
   | migrated, [] ->
       Log.info (fun l ->
-          l "Store at %s is already in current version (%a)" (root config)
+          l "Store at %s is already in current version (%a)" (Conf.root config)
             Version.pp latest_version);
       List.iter (fun (_, io, _) -> IO.close io) migrated
   | migrated, to_migrate ->

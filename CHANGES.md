@@ -78,7 +78,7 @@
     functor. This is a large change which touches all the backends.
     (#1470, @samoht, @CraigFe)
   - Add `Irmin.Private.Conf.Schema` for grouping configuration keys. Now
-    `Irmin.Private.Conf.key` takes an additional `~schema` parameter.
+    `Irmin.Private.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
 
 - **irmin-pack**

@@ -40,6 +40,7 @@ val index_log_size : Irmin.Private.Conf.t -> int
 val readonly : Irmin.Private.Conf.t -> bool
 val merge_throttle : Irmin.Private.Conf.t -> merge_throttle
 val freeze_throttle : Irmin.Private.Conf.t -> freeze_throttle
+val root : Irmin.Private.Conf.t -> string
 
 val init :
   ?fresh:bool ->
