@@ -20,48 +20,43 @@ open Astring
 
 let global_option_section = "COMMON OPTIONS"
 
-let flag_key k =
-  let doc = Irmin.Private.Conf.doc k in
-  let docs = Irmin.Private.Conf.docs k in
-  let docv = Irmin.Private.Conf.docv k in
-  let default = Irmin.Private.Conf.default k in
-  let name =
-    let x = Irmin.Private.Conf.name k in
-    if default then "no-" ^ x else x
-  in
-  let i = Arg.info ?docv ?doc ?docs [ name ] in
-  if default then Arg.(value & vflag true [ (false, i) ])
-  else Arg.(value & flag i)
+module Conf = Irmin.Private.Conf
 
-let pconv (parse, pp) =
-  let parse str =
-    match parse str with Ok x -> `Ok x | Error (`Msg e) -> `Error e
+let pconv t =
+  let pp = Irmin.Type.pp t in
+  let parse s =
+    match Irmin.Type.of_string t s with
+    | Ok x -> `Ok x
+    | Error (`Msg e) -> `Error e
   in
   (parse, pp)
 
 let key k default =
-  let doc = Irmin.Private.Conf.doc k in
-  let docs = Irmin.Private.Conf.docs k in
-  let docv = Irmin.Private.Conf.docv k in
-  let mk = pconv (Irmin.Private.Conf.conv k) in
-  let name = Irmin.Private.Conf.name k in
+  let doc = Conf.doc k in
+  let docs = Conf.docs k in
+  let docv = Conf.docv k in
+  let mk = pconv (Conf.ty k) in
+  let name = Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [ name ] in
   Arg.(value & opt mk default i)
 
-let opt_key k = key k (Irmin.Private.Conf.default k)
+let opt_key k = key k (Conf.default k)
+let spec' = Conf.Spec.(join (v "unix") [ Irmin_http.Conf.spec ])
 
 let config_path_key =
-  Irmin.Private.Conf.key ~docs:global_option_section ~docv:"PATH"
+  Conf.key ~spec:spec' ~docs:global_option_section ~docv:"PATH"
     ~doc:"Allows configuration file to be specified on the command-line."
     "config"
-    Irmin.Private.Conf.(some string)
+    Irmin.Type.(option string)
     None
 
 let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
-  match v with None -> config | Some _ -> Irmin.Private.Conf.add config k v
+  match v with None -> config | Some _ -> Conf.add config k v
+
+let add k v config = Conf.add config k v
 
 (* Contents *)
 
@@ -73,7 +68,7 @@ module Contents = struct
       [
         ("string", (module Irmin.Contents.String : Irmin.Contents.S));
         ("json", (module Irmin.Contents.Json));
-        ("json_value", (module Irmin.Contents.Json_value));
+        ("json-value", (module Irmin.Contents.Json_value));
       ]
 
   let default = "string" |> fun n -> ref (n, List.assoc n !all)
@@ -249,9 +244,10 @@ module Store = struct
   type remote_fn =
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
-  type t = T : (module Irmin.S) * remote_fn option -> t
+  type t =
+    | T : (module Irmin.S) * Irmin.Private.Conf.Spec.t * remote_fn option -> t
 
-  let destruct (T (a, b)) = (a, b)
+  let destruct (T (a, b, c)) = (a, b, c)
 
   type store_functor =
     | Fixed_hash of (contents -> t)
@@ -263,17 +259,26 @@ module Store = struct
     val remote : remote_fn
   end
 
-  let v ?remote s = T (s, remote)
-  let v_git (module S : G) = v (module S) ~remote:S.remote
+  let v ?remote spec s = T (s, spec, remote)
+  let v_git (module S : G) = v Irmin_git.Conf.spec (module S) ~remote:S.remote
 
-  let create : (module Irmin.Maker) -> hash -> contents -> t =
-   fun (module S) (module H) (module C) ->
+  let create :
+      Irmin.Private.Conf.Spec.t -> (module Irmin.Maker) -> hash -> contents -> t
+      =
+   fun spec (module S) (module H) (module C) ->
     let module S = S.Make (Irmin.Schema.KV (C)) in
-    T ((module S), None)
+    T ((module S), spec, None)
 
-  let mem = create (module Irmin_mem)
-  let irf = create (module Fs)
-  let http = function T ((module S), x) -> T ((module Http.Client (S)), x)
+  let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
+  let irf = create Irmin_fs.Conf.spec (module Fs)
+
+  let http = function
+    | T ((module S), spec, x) ->
+        T
+          ( (module Http.Client (S)),
+            Irmin.Private.Conf.Spec.join spec [ Irmin_http.Conf.spec ],
+            x )
+
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
@@ -282,7 +287,7 @@ module Store = struct
     let stable_hash = 256
   end
 
-  let pack = create (module Irmin_pack.V1 (Inode_config))
+  let pack = create Irmin_pack.Conf.spec (module Irmin_pack.V1 (Inode_config))
 
   let all =
     ref
@@ -291,9 +296,10 @@ module Store = struct
         ("git-mem", Fixed_hash git_mem);
         ("irf", Variable_hash irf);
         ("mem", Variable_hash mem);
-        ("http", Variable_hash (fun h c -> http (mem h c)));
-        ("http.git", Fixed_hash (fun c -> http (git c)));
+        ("mem-http", Variable_hash (fun h c -> http (mem h c)));
+        ("git-http", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
+        ("pack-http", Variable_hash (fun h c -> http (pack h c)));
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
@@ -369,25 +375,30 @@ let rec read_config_file path =
     | Ok _ -> Fmt.failwith "invalid YAML file: %s" path
     | Error (`Msg msg) -> Fmt.failwith "unable to parse YAML: %s" msg
 
+let root_key = Conf.root spec'
+
 let config_term =
-  let add k v config = Irmin.Private.Conf.add config k v in
-  let create root bare head level uri config_path =
-    Irmin.Private.Conf.empty
-    |> add_opt Irmin.Private.Conf.root root
-    |> add Irmin_git.Conf.bare bare
-    |> add_opt Irmin_git.Conf.head head
-    |> add_opt Irmin_git.Conf.level level
-    |> add_opt Irmin_http.uri uri
-    |> add config_path_key config_path
+  let create root config_path (opts : (string * string) list list) =
+    let config =
+      Conf.empty spec' |> add root_key root |> add config_path_key config_path
+    in
+    (config, opts)
+  in
+  let doc =
+    Seq.map (fun (Irmin.Private.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec')
+    |> List.of_seq
+    |> String.concat ~sep:", "
+  in
+  let doc = "Backend-specific options: " ^ doc in
+  let opts =
+    Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc
+      [ "opt"; "options" ]
   in
   Term.(
     const create
-    $ opt_key Irmin.Private.Conf.root
-    $ flag_key Irmin_git.Conf.bare
-    $ opt_key Irmin_git.Conf.head
-    $ opt_key Irmin_git.Conf.level
-    $ opt_key Irmin_http.uri
-    $ opt_key config_path_key)
+    $ opt_key root_key
+    $ opt_key config_path_key
+    $ Arg.(value @@ opt_all (list (pair ~sep:'=' string string)) [] opts))
 
 type store =
   | S :
@@ -399,61 +410,108 @@ let string_value = function `String s -> s | _ -> raise Not_found
 let assoc y name fn =
   try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
 
+let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
+  | `O x -> `Assoc (List.map (fun (k, v) -> (k, json_of_yaml v)) x)
+  | `A x -> `List (List.map json_of_yaml x)
+  | (`Null | `Bool _ | `Float _ | `String _) as x -> x
+
 let load_config_file_with_defaults path (store, hash, contents) config =
-  let ( >>? ) x f = match x with Some x -> x | None -> f () in
   let y = read_config_file path in
   let store =
-    let store =
-      match store with
-      | Some s -> Store.find s
-      | None -> assoc y "store" Store.find >>? fun () -> snd !Store.default
-    in
-    let contents =
-      match contents with
-      | Some c -> Contents.find c
-      | None ->
-          assoc y "contents" Contents.find >>? fun () -> snd !Contents.default
-    in
+    match List.assoc_opt "store" y with
+    | Some (`String s) -> Store.find s
+    | _ -> (
+        match store with Some s -> Store.find s | None -> snd !Store.default)
+  in
+  let contents =
+    match List.assoc_opt "contents" y with
+    | Some (`String s) -> Contents.find s
+    | _ -> (
+        match contents with
+        | Some s -> Contents.find s
+        | None -> snd !Contents.default)
+  in
+  let hash =
+    match List.assoc_opt "hash" y with
+    | Some (`String s) -> Some (Hash.find s)
+    | _ -> ( match hash with Some s -> Some s | None -> None)
+  in
+  let store =
     match store with
-    | Variable_hash s ->
-        let hash : hash =
-          hash >>? fun () ->
-          assoc y "hash" Hash.find >>? fun () -> snd !Hash.default
-        in
+    | Store.Variable_hash s ->
+        let hash : hash = Option.value ~default:(snd !Hash.default) hash in
         s hash contents
     | Fixed_hash s -> (
         (* error if a hash function has been passed *)
-        match (hash, assoc y "hash" Hash.find) with
-        | None, None -> s contents
+        match hash with
+        | None -> s contents
         | _ ->
             Fmt.failwith
               "Cannot customize the hash function for the given store")
   in
-  let root = assoc y "root" (fun x -> x) in
-  let bare =
-    match assoc y "bare" bool_of_string with
-    | None -> Irmin.Private.Conf.default Irmin_git.Conf.bare
-    | Some b -> b
+  let _, spec, _ = Store.destruct store in
+  let config =
+    List.fold_left
+      (fun config (k, v) ->
+        match Conf.Spec.find_key spec k with
+        | Some (Irmin.Private.Conf.K k) ->
+            let v = json_of_yaml v |> Yojson.Basic.to_string in
+            let v =
+              match Irmin.Type.of_json_string (Conf.ty k) v with
+              | Error _ ->
+                  let v = Format.sprintf "{\"some\": %s}" v in
+                  Irmin.Type.of_json_string (Conf.ty k) v |> Result.get_ok
+              | Ok v -> v
+            in
+            Conf.add config k v
+        | None -> (
+            match k with
+            | "contents" | "hash" | "store" -> config
+            | _ ->
+                Fmt.invalid_arg "unknown config key for %s: %s"
+                  (Conf.Spec.name spec) k))
+      (Conf.with_spec config spec)
+      y
   in
-  let head = assoc y "head" (fun x -> Git.Reference.v x) in
-  let uri = assoc y "uri" Uri.of_string in
-  let add k v config = Irmin.Private.Conf.add config k v in
-  ( store,
-    Irmin.Private.Conf.empty
-    |> add_opt Irmin.Private.Conf.root root
-    |> add Irmin_git.Conf.bare bare
-    |> add_opt Irmin_git.Conf.head head
-    |> add_opt Irmin_http.uri uri
-    |> Irmin.Private.Conf.union config )
+  (store, config)
 
-let from_config_file_with_defaults path (store, hash, contents) config branch :
-    store =
+let from_config_file_with_defaults path (store, hash, contents) config opts
+    branch : store =
   let y = read_config_file path in
   let store, config =
     load_config_file_with_defaults path (store, hash, contents) config
   in
   match store with
-  | Store.T ((module S), remote) -> (
+  | Store.T ((module S), spec, remote) -> (
+      let config =
+        List.fold_left
+          (fun config (k, v) ->
+            let (Irmin.Private.Conf.K key) =
+              if k = "root" then
+                invalid_arg
+                  "use the --root flag to set the root directory instead of \
+                   passing it as a config"
+              else
+                match Conf.Spec.find_key spec k with
+                | Some x -> x
+                | None -> invalid_arg ("opt: " ^ k)
+            in
+            let ty = Conf.ty key in
+            let v =
+              match Irmin.Type.of_string ty v with
+              | Error _ -> (
+                  let x = Format.sprintf "{\"some\": %s}" v in
+                  match Irmin.Type.of_string (Conf.ty key) x with
+                  | Error _ ->
+                      let y = Format.sprintf "{\"some\": \"%s\"}" v in
+                      Irmin.Type.of_string (Conf.ty key) y |> Result.get_ok
+                  | Ok v -> v)
+              | Ok v -> v
+            in
+            let config = Conf.add config key v in
+            config)
+          config (List.flatten opts)
+      in
       let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
       let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
       let branch =
@@ -473,12 +531,12 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
-let load_config ?(default = Irmin.Private.Conf.empty) ?config_path ~store ~hash
-    ~contents () =
+let load_config ?(default = Conf.empty spec') ?config_path ?store ?hash
+    ?contents () =
   let cfg =
     match config_path with
     | Some _ as p -> p
-    | None -> Irmin.Private.Conf.get default config_path_key
+    | None -> Conf.get default config_path_key
   in
   load_config_file_with_defaults cfg (store, hash, contents) default
 
@@ -491,9 +549,9 @@ let branch =
   Arg.(value & opt (some string) None & doc)
 
 let store =
-  let create store config branch =
-    let cfg = Irmin.Private.Conf.get config config_path_key in
-    from_config_file_with_defaults cfg store config branch
+  let create store (config, opts) branch =
+    let cfg = Conf.get config config_path_key in
+    from_config_file_with_defaults cfg store config opts branch
   in
   Term.(const create $ Store.term $ config_term $ branch)
 
@@ -530,11 +588,11 @@ let infer_remote hash contents headers str =
       else Store.irf hash contents
     in
     match r with
-    | Store.T ((module R), _) ->
+    | Store.T ((module R), spec, _) ->
         let config =
-          Irmin.Private.Conf.empty
-          |> add_opt Irmin_http.uri (Some (Uri.of_string str))
-          |> add_opt Irmin.Private.Conf.root (Some str)
+          Conf.empty spec
+          |> add_opt Irmin_http.Conf.Key.uri (Some (Uri.of_string str))
+          |> add root_key str
         in
         let* repo = R.Repo.v config in
         let+ r = R.master repo in

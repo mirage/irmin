@@ -52,7 +52,7 @@ module StoreSimple = V2.Make (Schema)
 let config ?(readonly = false) ?(fresh = true) ?(lower_root = Conf.lower_root)
     ?(upper_root0 = Conf.upper0_root) ?(with_lower = Conf.with_lower) root =
   let conf = Irmin_pack.config ~readonly ?index_log_size ~fresh root in
-  Irmin_pack_layered.config ~conf ~lower_root ~upper_root0 ~with_lower ()
+  Irmin_pack_layered.config ~lower_root ~upper_root0 ~with_lower conf
 
 module Test = struct
   type index = { root : string; repo : Store.Repo.t }

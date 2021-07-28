@@ -20,6 +20,10 @@
     is instantiated to a module [M], it has a unique shared hash-table: multiple
     invocation of [M.create] will see and manipulate the same contents. *)
 
+module Conf : sig
+  val spec : Irmin.Private.Conf.Spec.t
+end
+
 val config : unit -> Irmin.config
 (** Configuration values. *)
 

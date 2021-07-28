@@ -94,7 +94,10 @@ let wait_for_the_server_to_start id =
   aux 1
 
 let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
-let root c = Irmin.Private.Conf.(get c root)
+
+module Conf = Irmin_http.Conf
+
+let root c = Irmin.Private.Conf.(get c (root Irmin_http.Conf.spec))
 
 let mkdir d =
   Lwt.catch
@@ -133,9 +136,7 @@ let serve servers n id =
   Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
   let _, (server : Irmin_test.t) = List.nth servers n in
   Logs.debug (fun l ->
-      l "Got server: %s, root=%a" server.name
-        Fmt.(option string)
-        (root server.config));
+      l "Got server: %s, root=%s" server.name (root server.config));
   let (module Server : Irmin_test.S) = server.store in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
   let test = { name = server.name; id } in
@@ -203,7 +204,8 @@ let suite i server =
       (fun () ->
         kill_server socket !server_pid;
         server.clean ());
-    config = Irmin_http.config uri;
+    config =
+      Irmin_http.config uri (Irmin.Private.Conf.empty Irmin_http.Conf.spec);
     store = http_store id server.store;
     layered_store = None;
   }

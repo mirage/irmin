@@ -1,6 +1,5 @@
 (*
  * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
- * Copyright (c) 2017 Daniel C. Bünzli
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,39 +17,57 @@
 (** {1 Configuration converters}
 
     A configuration converter transforms a string value to an OCaml value and
-    vice-versa. There are a few {{!builtin_converters} built-in converters}. *)
-
-type 'a parser = string -> ('a, [ `Msg of string ]) result
-(** The type for configuration converter parsers. *)
-
-type 'a printer = 'a Fmt.t
-(** The type for configuration converter printers. *)
-
-type 'a converter = 'a parser * 'a printer
-(** The type for configuration converters. *)
-
-val parser : 'a converter -> 'a parser
-(** [parser c] is [c]'s parser. *)
-
-val printer : 'a converter -> 'a printer
-(** [converter c] is [c]'s printer. *)
+    vice-versa. *)
 
 (** {1:keys Keys} *)
 
 type 'a key
 (** The type for configuration keys whose lookup value is ['a]. *)
 
+type k = K : 'a key -> k
+
+module Spec : sig
+  type t
+  (** A configuration spec is used to group keys by backend *)
+
+  val v : string -> t
+  (** [v name] is a new configuration specification named [name] *)
+
+  val name : t -> string
+  (** [name spec] is the name associated with a config spec *)
+
+  val list : unit -> t Seq.t
+  (** [list ()] is a sequence containing all available config specs *)
+
+  val find : string -> t option
+  (** [find name] is the config spec associated with [name] if available *)
+
+  val find_key : t -> string -> k option
+  (** [find_key spec k] is the key associated with the name [k] in [spec] *)
+
+  val keys : t -> k Seq.t
+  (** [keys spec] is a sequence of keys available in [spec] *)
+
+  val join : t -> t list -> t
+  (** [join a b] is a new [Spec.t] combining [a] and all specs present in [b]
+
+      The name of the resulting spec will be the name of [a] and the names of
+      the specs in [b] joined by hyphens. *)
+end
+
 val key :
   ?docs:string ->
   ?docv:string ->
   ?doc:string ->
+  spec:Spec.t ->
   string ->
-  'a converter ->
+  'a Type.t ->
   'a ->
   'a key
-(** [key ~docs ~docv ~doc name conv default] is a configuration key named [name]
-    that maps to value [default] by default. [conv] is used to convert key
-    values provided by end users.
+(** [key ~docs ~docv ~doc ~spec name conv default] is a configuration key named
+    [name] that maps to value [default] by default. It will be associated with
+    the config grouping [spec]. [conv] is used to convert key values provided by
+    end users.
 
     [docs] is the title of a documentation section under which the key is
     documented. [doc] is a short documentation string for the key, this should
@@ -68,7 +85,7 @@ val key :
 val name : 'a key -> string
 (** The key name. *)
 
-val conv : 'a key -> 'a converter
+val ty : 'a key -> 'a Type.t
 (** [tc k] is [k]'s converter. *)
 
 val default : 'a key -> 'a
@@ -83,7 +100,7 @@ val docv : 'a key -> string option
 val docs : 'a key -> string option
 (** [docs k] is [k]'s documentation section (if any). *)
 
-val root : string option key
+val root : Spec.t -> string key
 (** Default [--root=ROOT] argument. *)
 
 (** {1:conf Configurations} *)
@@ -91,11 +108,14 @@ val root : string option key
 type t
 (** The type for configurations. *)
 
-val empty : t
-(** [empty] is the empty configuration. *)
+val spec : t -> Spec.t
+(** [spec c] is the specification associated with [c] *)
 
-val singleton : 'a key -> 'a -> t
-(** [singleton k v] is the configuration where [k] maps to [v]. *)
+val empty : Spec.t -> t
+(** [empty spec] is an empty configuration. *)
+
+val singleton : Spec.t -> 'a key -> 'a -> t
+(** [singleton spec k v] is the configuration where [k] maps to [v]. *)
 
 val is_empty : t -> bool
 (** [is_empty c] is [true] iff [c] is empty. *)
@@ -120,19 +140,18 @@ val get : t -> 'a key -> 'a
 
     {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
+val keys : t -> k Seq.t
+(** [keys c] is a sequence of all keys present in [c] *)
+
+val with_spec : t -> Spec.t -> t
+(** [with_spec t s] is the config [t] with spec [s] *)
+
+val verify : t -> t
+(** [verify t] is an identity function that ensures all keys match the spec
+
+    {b Raises.} [Invalid_argument] if [t] contains invalid keys *)
+
 (** {1:builtin_converters Built-in value converters} *)
 
-val bool : bool converter
-(** [bool] converts values with [bool_of_string]. *)
-
-val int : int converter
-(** [int] converts values with [int_of_string]. *)
-
-val string : string converter
-(** [string] converts values with the identity function. *)
-
-val uri : Uri.t converter
+val uri : Uri.t Type.t
 (** [uri] converts values with {!Uri.of_string}. *)
-
-val some : 'a converter -> 'a option converter
-(** [string] converts values with the identity function. *)

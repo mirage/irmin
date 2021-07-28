@@ -1,4 +1,5 @@
 (*
+
  * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -15,7 +16,11 @@
  *)
 
 let misc =
-  [ ("bare", Test_unix.Git.misc); ("misc", Test_git.misc Test_unix.Git.store) ]
+  [
+    ("bare", Test_unix.Git.misc);
+    ("misc", Test_git.misc Test_unix.Git.store);
+    ("conf", Test_unix.Conf.misc);
+  ]
 
 let () =
   Test_http.with_server Test_unix.Http.servers (fun () ->

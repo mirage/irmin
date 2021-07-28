@@ -57,7 +57,9 @@ module Store : sig
         (** The type of constructors of a store configuration. Depending on the
             backend, a store may require a hash function. *)
 
-  val v : ?remote:remote_fn -> (module Irmin.S) -> t
+  val v :
+    ?remote:remote_fn -> Irmin.Private.Conf.Spec.t -> (module Irmin.S) -> t
+
   val mem : hash -> contents -> t
   val irf : hash -> contents -> t
   val http : t -> t
@@ -65,7 +67,10 @@ module Store : sig
   val pack : hash -> contents -> t
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
-  val destruct : t -> (module Irmin.S) * remote_fn option
+
+  val destruct :
+    t -> (module Irmin.S) * Irmin.Private.Conf.Spec.t * remote_fn option
+
   val term : (string option * hash option * string option) Cmdliner.Term.t
 end
 
@@ -79,9 +84,9 @@ val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 val load_config :
   ?default:Irmin.config ->
   ?config_path:string ->
-  store:string option ->
-  hash:hash option ->
-  contents:string option ->
+  ?store:string ->
+  ?hash:hash ->
+  ?contents:string ->
   unit ->
   Store.t * Irmin.config
 (** Load config file from disk

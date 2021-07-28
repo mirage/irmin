@@ -15,17 +15,15 @@
  *)
 
 val config :
-  ?conf:Irmin.config ->
   ?lower_root:string ->
   ?upper_root1:string ->
   ?upper_root0:string ->
   ?with_lower:bool ->
   ?blocking_copy_size:int ->
-  unit ->
+  Irmin.config ->
   Irmin.config
 (** Configuration options for layered stores.
 
-    @param conf is an irmin-pack configuration.
     @param lower_root is the root of the lower store, "lower" is the default.
     @param upper_root1
       is the root of one of the upper stores, "upper1" is the default.

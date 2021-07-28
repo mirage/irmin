@@ -98,58 +98,60 @@ let init =
     doc = "Initialize a store.";
     man = [];
     term =
-      (let daemon =
-         let doc =
-           Arg.info ~doc:"Start an Irmin HTTP server." [ "d"; "daemon" ]
-         in
-         Arg.(value & flag & doc)
-       in
-       let uri =
+      (let init (S ((module S), _store, _)) = run Lwt.return_unit in
+       Term.(mk init $ store));
+  }
+
+(* HTTP *)
+let http =
+  {
+    name = "http";
+    doc = "Run http server";
+    man = [];
+    term =
+      (let uri =
          let doc =
            Arg.info ~docv:"URI" [ "a"; "address" ]
              ~doc:
-               "Start the Irmin server on the given socket address (to use \
-                with --daemon). Examples include http://localhost:8080 and \
-                launchd://Listener."
+               "Start the Irmin server on the given socket address. Examples \
+                include http://localhost:8080 and launchd://Listener."
          in
          Arg.(value & opt string "http://localhost:8080" & doc)
        in
-       let init (S ((module S), store, _)) daemon uri =
+       let init (S ((module S), store, _)) uri =
          run
            (let* t = store in
             let module HTTP = Http.Server (S) in
-            if daemon then (
-              let uri = Uri.of_string uri in
-              let spec = HTTP.v (S.repo t) in
-              match Uri.scheme uri with
-              | Some "launchd" ->
-                  let uri, name =
-                    match Uri.host uri with
-                    | None -> (Uri.with_host uri (Some "Listener"), "Listener")
-                    | Some name -> (uri, name)
-                  in
-                  Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
-                  Cohttp_lwt_unix.Server.create ~timeout:3600
-                    ~mode:(`Launchd name) spec
-              | _ ->
-                  let uri =
-                    match Uri.host uri with
-                    | None -> Uri.with_host uri (Some "localhost")
-                    | Some _ -> uri
-                  in
-                  let port, uri =
-                    match Uri.port uri with
-                    | None -> (8080, Uri.with_port uri (Some 8080))
-                    | Some p -> (p, uri)
-                  in
-                  Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
-                  Printf.printf "Server starting on port %d.\n%!" port;
-                  Cohttp_lwt_unix.Server.create ~timeout:3600
-                    ~mode:(`TCP (`Port port))
-                    spec)
-            else Lwt.return_unit)
+            let uri = Uri.of_string uri in
+            let spec = HTTP.v (S.repo t) in
+            match Uri.scheme uri with
+            | Some "launchd" ->
+                let uri, name =
+                  match Uri.host uri with
+                  | None -> (Uri.with_host uri (Some "Listener"), "Listener")
+                  | Some name -> (uri, name)
+                in
+                Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+                Cohttp_lwt_unix.Server.create ~timeout:3600
+                  ~mode:(`Launchd name) spec
+            | _ ->
+                let uri =
+                  match Uri.host uri with
+                  | None -> Uri.with_host uri (Some "localhost")
+                  | Some _ -> uri
+                in
+                let port, uri =
+                  match Uri.port uri with
+                  | None -> (8080, Uri.with_port uri (Some 8080))
+                  | Some p -> (p, uri)
+                in
+                Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+                Printf.printf "Server starting on port %d.\n%!" port;
+                Cohttp_lwt_unix.Server.create ~timeout:3600
+                  ~mode:(`TCP (`Port port))
+                  spec)
        in
-       Term.(mk init $ store $ daemon $ uri));
+       Term.(mk init $ store $ uri));
   }
 
 let print fmt = Fmt.kstrf print_endline fmt
@@ -614,7 +616,11 @@ let config_man =
          \\$XDG_CONFIG_HOME. \n\
         \        The following keys are allowed: $(b,contents), $(b,store), \
          $(b,branch), $(b,root), $(b,bare), $(b,head), or $(b,uri). These \
-         correspond to the irmin options of the same names.";
+         correspond to the irmin options of the same names. Additionally, \
+         specific\n\
+        \         backends may have other options available, these can be \
+         lised using the $(b,options)\n\
+        \         command and applied using the $(b,--opt) flag.";
       `S Manpage.s_examples;
       `P
         "Here is an example $(b,irmin.yml) for accessing a local http irmin \
@@ -699,6 +705,33 @@ let graphql =
        Term.(mk graphql $ store $ port $ addr));
   }
 
+let options =
+  {
+    name = "options";
+    doc = "Get information about backend specific configuration options.";
+    man = [];
+    term =
+      (let options (store, hash, contents) =
+         let module Conf = Irmin.Private.Conf in
+         let store, _ = Resolver.load_config ?store ?hash ?contents () in
+         let _, spec, _ = Store.destruct store in
+         Seq.iter
+           (fun (Conf.K k) ->
+             let name = Conf.name k in
+             if name = "root" || name = "uri" then ()
+             else
+               let ty = Conf.ty k in
+               let doc = Conf.doc k |> Option.value ~default:"" in
+               let ty =
+                 Fmt.str "%a" Irmin.Type.pp_ty ty
+                 |> Astring.String.filter (fun c -> c <> '\n')
+               in
+               Fmt.pr "%s: %s\n\t%s\n" name ty doc)
+           (Conf.Spec.keys spec)
+       in
+       Term.(mk options $ Store.term));
+  }
+
 let default =
   let doc = "Irmin, the database that never forgets." in
   let man =
@@ -734,12 +767,14 @@ let default =
       \    revert      %s\n\
       \    watch       %s\n\
       \    dot         %s\n\
-      \    graphql     %s\n\n\
+      \    graphql     %s\n\
+      \    http        %s\n\
+      \    options     %s\n\n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc clone.doc fetch.doc
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
-      graphql.doc
+      graphql.doc http.doc options.doc
   in
   ( Term.(mk usage $ const ()),
     Term.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc
@@ -750,6 +785,7 @@ let commands =
     [
       help;
       init;
+      http;
       get;
       set;
       remove;
@@ -765,6 +801,7 @@ let commands =
       watch;
       dot;
       graphql;
+      options;
     ]
 
 let run ~default:x y =

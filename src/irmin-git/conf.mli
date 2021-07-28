@@ -16,15 +16,18 @@
 
 open Irmin.Private.Conf
 
-val root : string option key
-val head : Git.Reference.t option key
-val bare : bool key
-val level : int option key
-val buffers : int option key
-val dot_git : string option key
+val spec : Spec.t
 
-val v :
-  ?config:Irmin.config ->
+module Key : sig
+  val root : string key
+  val head : Git.Reference.t option key
+  val bare : bool key
+  val level : int option key
+  val buffers : int option key
+  val dot_git : string option key
+end
+
+val init :
   ?head:Git.Reference.t ->
   ?bare:bool ->
   ?level:int ->

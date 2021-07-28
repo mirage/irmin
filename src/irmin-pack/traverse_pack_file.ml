@@ -153,9 +153,8 @@ end = struct
       Log.app (fun f ->
           f "Beginning index checking with parameters: { log_size = %d }"
             log_size);
-      let index =
-        Index.v ~fresh:false ~readonly:false ~log_size (Conf.root config)
-      in
+      let root = Conf.root config in
+      let index = Index.v ~fresh:false ~readonly:false ~log_size root in
       (index, ref 0)
 
     let iter_pack_entry (index, idx_ref) key data =

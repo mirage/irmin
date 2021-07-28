@@ -84,16 +84,13 @@ struct
     }
 
     let config c =
-      let root =
-        match Irmin.Private.Conf.get c Conf.root with
-        | None -> "."
-        | Some d -> d
-      in
-      let dot_git = Irmin.Private.Conf.get c Conf.dot_git in
-      let level = Irmin.Private.Conf.get c Conf.level in
-      let head = Irmin.Private.Conf.get c Conf.head in
-      let bare = Irmin.Private.Conf.get c Conf.bare in
-      let buffers = Irmin.Private.Conf.get c Conf.buffers in
+      let module C = Irmin.Private.Conf in
+      let root = C.get c Conf.Key.root in
+      let dot_git = C.get c Conf.Key.dot_git in
+      let level = C.get c Conf.Key.level in
+      let head = C.get c Conf.Key.head in
+      let bare = C.get c Conf.Key.bare in
+      let buffers = C.get c Conf.Key.buffers in
       { root; dot_git; level; head; buffers; bare }
 
     let fopt f = function None -> None | Some x -> Some (f x)
@@ -104,7 +101,7 @@ struct
       let root = Fpath.v root in
       let* g = G.v ?dotgit root >>= handle_git_err in
       let+ b = Branch.v ~head ~bare g in
-      { g; b; closed = ref false; config = conf }
+      { g; b; closed = ref false; config = (conf :> Irmin.config) }
 
     let close t = Branch.close t.b >|= fun () -> t.closed := true
   end
@@ -119,5 +116,10 @@ struct
 
   let repo_of_git ?head ?(bare = true) ?lock g =
     let+ b = Branch.v ?lock ~head ~bare g in
-    { Repo.config = Irmin.Private.Conf.empty; closed = ref false; g; b }
+    {
+      Repo.config = Irmin.Private.Conf.empty Conf.spec;
+      closed = ref false;
+      g;
+      b;
+    }
 end

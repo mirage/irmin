@@ -117,3 +117,26 @@ end
 module Http = struct
   let servers = [ (`Quick, FS.suite); (`Quick, Git.suite) ]
 end
+
+module Conf = struct
+  let test_config () =
+    let hash = Irmin_unix.Resolver.Hash.find "blake2b" in
+    let _, cfg =
+      Irmin_unix.Resolver.load_config ~config_path:"test/irmin-unix/test.yml"
+        ~store:"pack" ~contents:"string" ~hash ()
+    in
+    let spec = Irmin.Private.Conf.spec cfg in
+    let index_log_size =
+      Irmin.Private.Conf.get cfg Irmin_pack.Conf.Key.index_log_size
+    in
+    let fresh = Irmin.Private.Conf.get cfg Irmin_pack.Conf.Key.fresh in
+    Alcotest.(check string)
+      "Spec name" "pack"
+      (Irmin.Private.Conf.Spec.name spec);
+    Alcotest.(check int) "index-log-size" 1234 index_log_size;
+    Alcotest.(check bool) "fresh" true fresh;
+    Lwt.return_unit
+
+  let misc : unit Alcotest.test_case list =
+    [ ("config", `Quick, fun () -> Lwt_main.run (test_config ())) ]
+end

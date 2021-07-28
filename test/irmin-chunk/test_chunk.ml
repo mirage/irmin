@@ -59,7 +59,9 @@ end
 module MemChunk = struct
   include Content_addressable
 
-  let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
+  let small_config =
+    Irmin_chunk.config ~min_size:44 ~size:44 (Irmin_mem.config ())
+
   let v () = v small_config
 end
 
@@ -73,7 +75,7 @@ let store =
                  (Irmin_mem.Atomic_write))
     (module Irmin.Metadata.None)
 
-let config = Irmin_chunk.config ()
+let config = Irmin_chunk.config (Irmin_mem.config ())
 
 let clean () =
   let (module S : Irmin_test.S) = store in

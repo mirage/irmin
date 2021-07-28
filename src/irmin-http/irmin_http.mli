@@ -16,8 +16,17 @@
 
 (** JSON REST/CRUD interface. *)
 
-val config : ?config:Irmin.config -> Uri.t -> Irmin.config
-val uri : Uri.t option Irmin.Private.Conf.key
+val config : Uri.t -> Irmin.config -> Irmin.config
+
+module Conf : sig
+  open Irmin.Private.Conf
+
+  val spec : Spec.t
+
+  module Key : sig
+    val uri : Uri.t option key
+  end
+end
 
 module type HTTP_CLIENT = sig
   include Cohttp_lwt.S.Client

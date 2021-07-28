@@ -15,48 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type 'a parser = string -> ('a, [ `Msg of string ]) result
-type 'a printer = 'a Fmt.t
-type 'a converter = 'a parser * 'a printer
-
-let parser (p, _) = p
-let printer (_, p) = p
-let str = Printf.sprintf
-let quote s = str "`%s'" s
-
-module Err = struct
-  let alts = function
-    | [ a; b ] -> str "either %s or %s" a b
-    | alts -> str "one of: %s" (String.concat ", " alts)
-
-  let invalid kind s exp = str "invalid %s %s, %s" kind (quote s) exp
-  let invalid_val = invalid "value"
-end
-
-let bool =
-  ( (fun s ->
-      try Ok (bool_of_string s)
-      with Invalid_argument _ ->
-        Error (`Msg (Err.invalid_val s (Err.alts [ "true"; "false" ])))),
-    Fmt.bool )
-
-let parse_with t_of_str exp s =
-  try Ok (t_of_str s) with Failure _ -> Error (`Msg (Err.invalid_val s exp))
-
-let int = (parse_with int_of_string "expected an integer", Fmt.int)
-let string = ((fun s -> Ok s), Fmt.string)
-
-let some (parse, print) =
-  let none = "" in
-  ( (fun s -> match parse s with Ok v -> Ok (Some v) | Error _ as e -> e),
-    fun ppf v ->
-      match v with None -> Fmt.string ppf none | Some v -> print ppf v )
-
-let uri =
-  let parse s = Ok (Uri.of_string s) in
-  let print pp u = Fmt.string pp (Uri.to_string u) in
-  (parse, print)
-
 module Univ = struct
   type t = exn
 
@@ -68,25 +26,67 @@ module Univ = struct
 end
 
 type 'a key = {
-  id : int;
-  to_univ : 'a -> Univ.t;
-  of_univ : Univ.t -> 'a option;
   name : string;
   doc : string option;
   docv : string option;
   docs : string option;
-  conv : 'a converter;
+  ty : 'a Type.t;
   default : 'a;
+  to_univ : 'a -> Univ.t;
+  of_univ : Univ.t -> 'a option;
 }
 
-let name t = t.name
-let doc t = t.doc
-let docv t = t.docv
-let docs t = t.docs
-let conv t = t.conv
-let default t = t.default
+type k = K : 'a key -> k
 
-let key ?docs ?docv ?doc name conv default =
+module M = Map.Make (struct
+  type t = k
+
+  let compare (K a) (K b) = String.compare a.name b.name
+end)
+
+module Spec = struct
+  module M = Map.Make (String)
+
+  type t = { name : string; mutable keys : k M.t }
+
+  let all = Hashtbl.create 8
+
+  let v name =
+    let keys = M.empty in
+    if Hashtbl.mem all name then
+      Fmt.failwith "Config spec already exists: %s" name;
+    let x = { name; keys } in
+    Hashtbl.replace all name x;
+    x
+
+  let name { name; _ } = name
+  let update spec name k = spec.keys <- M.add name k spec.keys
+  let list () = Hashtbl.to_seq_values all
+  let find name = Hashtbl.find_opt all name
+  let find_key spec name = M.find_opt name spec.keys
+  let keys spec = M.to_seq spec.keys |> Seq.map snd
+  let clone { name; keys } = { name; keys }
+
+  let join dest src =
+    let dest = clone dest in
+    let name = ref dest.name in
+    let keys =
+      List.fold_left
+        (fun acc spec ->
+          if dest.name = spec.name then acc
+          else
+            let () = name := !name ^ "-" ^ spec.name in
+            M.add_seq (M.to_seq spec.keys) acc)
+        dest.keys src
+    in
+    { name = !name; keys }
+end
+
+type t = Spec.t * Univ.t M.t
+
+let spec = fst
+
+let key ?docs ?docv ?doc ~spec name ty default =
   let () =
     String.iter
       (function
@@ -95,34 +95,55 @@ let key ?docs ?docv ?doc name conv default =
       name
   in
   let to_univ, of_univ = Univ.create () in
-  let id = Oo.id (object end) in
-  { id; to_univ; of_univ; name; docs; docv; doc; conv; default }
+  let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
+  Spec.update spec name (K k);
+  k
 
-module Id = struct
-  type t = int
+let name t = t.name
+let doc t = t.doc
+let docv t = t.docv
+let docs t = t.docs
+let ty t = t.ty
+let default t = t.default
+let empty spec = (spec, M.empty)
+let singleton spec k v = (spec, M.singleton (K k) (k.to_univ v))
+let is_empty (_, t) = M.is_empty t
+let mem (_, d) k = M.mem (K k) d
 
-  let compare (x : int) (y : int) = compare x y
-end
+let add (spec, d) k v =
+  if Spec.find_key spec k.name |> Option.is_none then
+    Fmt.invalid_arg "invalid config key: %s" k.name
+  else (spec, M.add (K k) (k.to_univ v) d)
 
-module M = Map.Make (Id)
+let verify (spec, d) =
+  M.iter
+    (fun (K k) _ ->
+      if Spec.find_key spec k.name |> Option.is_none then
+        Fmt.invalid_arg "invalid config key: %s" k.name)
+    d;
+  (spec, d)
 
-type t = Univ.t M.t
+let union (rs, r) (ss, s) =
+  let spec = Spec.join rs [ ss ] in
+  (spec, M.fold M.add r s)
 
-let empty = M.empty
-let singleton k v = M.singleton k.id (k.to_univ v)
-let is_empty = M.is_empty
-let mem d k = M.mem k.id d
-let add d k v = M.add k.id (k.to_univ v) d
-let union r s = M.fold M.add r s
-let rem d k = M.remove k.id d
-let find d k = try k.of_univ (M.find k.id d) with Not_found -> None
+let rem (s, d) k = (s, M.remove (K k) d)
+let find (_, d) k = try k.of_univ (M.find (K k) d) with Not_found -> None
+let uri = Type.(map string) Uri.of_string Uri.to_string
 
-let get d k =
+let get (_, d) k =
   try
-    match k.of_univ (M.find k.id d) with Some v -> v | None -> raise Not_found
+    match k.of_univ (M.find (K k) d) with
+    | Some v -> v
+    | None -> raise Not_found
   with Not_found -> k.default
 
+let keys (_, conf) = M.to_seq conf |> Seq.map (fun (k, _) -> k)
+let with_spec (_, conf) spec = (spec, conf)
+
 (* ~root *)
-let root =
-  key ~docv:"ROOT" ~doc:"The location of the Git repository root."
-    ~docs:"COMMON OPTIONS" "root" (some string) None
+let root spec =
+  key ~spec ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
+    ~docs:"COMMON OPTIONS" "root"
+    Type.(string)
+    "."

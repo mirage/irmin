@@ -22,54 +22,46 @@ let src = Logs.Src.create "irmin.chunk" ~doc:"Irmin chunks"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
-  let min_size =
-    Irmin.Private.Conf.key ~doc:"Minimal chunk size" "min-size"
-      Irmin.Private.Conf.int 4000
+  include Irmin.Private.Conf
 
-  let chunk_size =
-    Irmin.Private.Conf.key ~doc:"Size of chunk" "size" Irmin.Private.Conf.int
-      4096
+  let spec = Spec.v "chunk"
 
-  let chunking =
-    let pp ppf = function
-      | `Max -> Fmt.pf ppf "max"
-      | `Best_fit -> Fmt.pf ppf "best-fit"
-    in
-    let of_string = function
-      | "max" -> Ok `Max
-      | "best-fit" -> Ok `Best_fit
-      | e ->
-          Error
-            (`Msg
-              (e ^ " is not a valid chunking algorithm. Use 'max' or 'best-fit'"))
-    in
-    Irmin.Private.Conf.key ~doc:"Chunking algorithm" "chunking" (of_string, pp)
-      `Best_fit
+  module Key = struct
+    let min_size =
+      key ~spec ~doc:"Minimal chunk size" "min-size" Irmin.Type.int 4000
+
+    let chunk_size = key ~spec ~doc:"Size of chunk" "size" Irmin.Type.int 4096
+
+    let chunk_type_t =
+      Irmin.Type.(enum "chunk_type" [ ("max", `Max); ("best-fit", `Best_fit) ])
+
+    let chunking =
+      key ~spec ~doc:"Chunking algorithm" "chunking" chunk_type_t `Best_fit
+  end
 end
-
-let chunk_size = Conf.chunk_size
 
 let err_too_small ~min size =
   Printf.ksprintf invalid_arg
     "Chunks of %d bytes are too small. Size should at least be %d bytes." size
     min
 
-let config ?(config = Irmin.Private.Conf.empty) ?size ?min_size
-    ?(chunking = `Best_fit) () =
-  let module C = Irmin.Private.Conf in
+let config ?size ?min_size ?(chunking = `Best_fit) config =
   let min_size =
-    match min_size with None -> C.default Conf.min_size | Some v -> v
+    match min_size with None -> Conf.default Conf.Key.min_size | Some v -> v
   in
   let size =
     match size with
-    | None -> C.default Conf.chunk_size
+    | None -> Conf.default Conf.Key.chunk_size
     | Some v -> if v < min_size then err_too_small ~min:min_size v else v
   in
-  let add x y c = C.add c x y in
-  config
-  |> add Conf.min_size min_size
-  |> add Conf.chunk_size size
-  |> add Conf.chunking chunking
+  let add x y c = Conf.add c x y in
+  let cfg =
+    Conf.empty Conf.spec
+    |> add Conf.Key.min_size min_size
+    |> add Conf.Key.chunk_size size
+    |> add Conf.Key.chunking chunking
+  in
+  Conf.(verify (union cfg config))
 
 module Chunk (K : Irmin.Hash.S) = struct
   type v = Data of string | Index of K.t list
@@ -192,13 +184,12 @@ struct
   end
 
   let v config =
-    let module C = Irmin.Private.Conf in
-    let chunk_size = C.get config Conf.chunk_size in
+    let chunk_size = Conf.get config Conf.Key.chunk_size in
     let max_data = chunk_size - Chunk.size_of_data_header in
     let max_children =
       (chunk_size - Chunk.size_of_index_header) / K.hash_size
     in
-    let chunking = C.get config Conf.chunking in
+    let chunking = Conf.get config Conf.Key.chunking in
     (if max_children <= 1 then
      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
      err_too_small ~min chunk_size);

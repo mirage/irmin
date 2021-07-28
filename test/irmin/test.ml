@@ -14,7 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let suite = [ ("tree", Test_tree.suite); ("hash", Test_hash.suite) ]
+let suite =
+  [
+    ("tree", Test_tree.suite);
+    ("hash", Test_hash.suite);
+    ("conf", Test_conf.suite);
+  ]
 
 let () =
   Logs.set_level (Some Debug);

@@ -17,6 +17,17 @@
 type config := Irmin.Private.Conf.t
 
 module Pack : module type of Irmin_pack.Conf
+open Irmin.Private.Conf
+
+val spec : Spec.t
+
+module Key : sig
+  val lower_root : string key
+  val upper_root1 : string key
+  val upper_root0 : string key
+  val with_lower : bool key
+  val blocking_copy_size : int key
+end
 
 val lower_root : config -> string
 val upper_root0 : config -> string
@@ -24,12 +35,11 @@ val upper_root1 : config -> string
 val with_lower : config -> bool
 val blocking_copy_size : config -> int
 
-val v :
-  ?conf:config ->
+val init :
   ?lower_root:string ->
   ?upper_root1:string ->
   ?upper_root0:string ->
   ?with_lower:bool ->
   ?blocking_copy_size:int ->
-  unit ->
+  config ->
   config

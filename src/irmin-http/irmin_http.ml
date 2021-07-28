@@ -23,15 +23,24 @@ let src = Logs.Src.create "irmin.http" ~doc:"Irmin HTTP REST interface"
 module Log = (val Logs.src_log src : Logs.LOG)
 module T = Irmin.Type
 
-(* ~uri *)
-let uri =
-  Irmin.Private.Conf.key ~docv:"URI" ~doc:"Location of the remote store." "uri"
-    Irmin.Private.Conf.(some uri)
-    None
+module Conf = struct
+  include Irmin.Private.Conf
 
-module Conf = Irmin.Private.Conf
+  let spec = Spec.v "http"
 
-let config ?(config = Irmin.Private.Conf.empty) x = Conf.add config uri (Some x)
+  module Key = struct
+    (* ~uri *)
+    let uri =
+      key ~spec ~docv:"URI" ~docs:"COMMON OPTIONS"
+        ~doc:"Location of the remote store." "uri"
+        Irmin.Type.(option uri)
+        None
+  end
+end
+
+let config x config =
+  let a = Conf.empty Conf.spec in
+  Conf.(verify (union (add a Key.uri (Some x)) config))
 
 let uri_append t path =
   match Uri.path t :: path with
@@ -51,7 +60,7 @@ let uri_append t path =
 let err_no_uri () = invalid_arg "Irmin_http.create: No URI specified"
 
 let get_uri config =
-  match Conf.get config uri with None -> err_no_uri () | Some u -> u
+  match Conf.(get config Key.uri) with None -> err_no_uri () | Some u -> u
 
 let invalid_arg fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
 

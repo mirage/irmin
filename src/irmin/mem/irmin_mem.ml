@@ -133,7 +133,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let clear t = W.clear t.w >>= fun () -> RO.clear t.t
 end
 
-let config () = Irmin.Private.Conf.empty
+module Conf = struct
+  include Irmin.Private.Conf
+
+  let spec = Spec.v "mem"
+end
+
+let config () = Conf.empty Conf.spec
 
 module Content_addressable = Irmin.Content_addressable.Make (Append_only)
 module S = Irmin.Maker (Content_addressable) (Atomic_write)

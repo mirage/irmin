@@ -257,7 +257,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         { throttle; state = `None; lock = Lwt_mutex.create () }
 
       let v config =
-        let root = Conf.Pack.root config in
+        let root = Irmin_pack.Conf.root config in
         let upper1 = Filename.concat root (Conf.upper_root1 config) in
         let* upper1 = v_layer ~v:unsafe_v_upper upper1 config in
         let upper0 = Filename.concat root (Conf.upper_root0 config) in
@@ -380,7 +380,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
         |> List.map (fun name ->
                let root = Filename.concat root (name config) in
                let config =
-                 Irmin.Private.Conf.add config Conf.Pack.root_key (Some root)
+                 Irmin.Private.Conf.add config Conf.Pack.Key.root root
                in
                try
                  let io =

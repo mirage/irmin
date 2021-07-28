@@ -1,0 +1,4 @@
+store: pack
+hash: blake2b
+index-log-size: 1234
+fresh: true

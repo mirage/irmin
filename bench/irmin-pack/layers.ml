@@ -65,7 +65,7 @@ let configure_store root merge_throttle freeze_throttle =
     Irmin_pack.config ~readonly:false ~fresh:true ~freeze_throttle
       ~merge_throttle root
   in
-  Irmin_pack_layered.config ~conf ~with_lower:false ~blocking_copy_size:1000 ()
+  Irmin_pack_layered.config ~with_lower:false ~blocking_copy_size:1000 conf
 
 let init config =
   FSHelper.rm_dir config.root;
