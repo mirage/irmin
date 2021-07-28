@@ -299,6 +299,7 @@ module Store = struct
         ("mem-http", Variable_hash (fun h c -> http (mem h c)));
         ("git-http", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
+        ("pack-http", Variable_hash (fun h c -> http (pack h c)));
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
@@ -488,17 +489,23 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
             let (Irmin.Private.Conf.K key) =
               if k = "root" then
                 invalid_arg
-                  "use the --root flag instead of passing it as a config option"
+                  "use the --root flag to set the root directory instead of \
+                   passing it as a config"
               else
                 match Conf.Spec.find_key spec k with
                 | Some x -> x
                 | None -> invalid_arg ("opt: " ^ k)
             in
+            let ty = Conf.ty key in
             let v =
-              match Irmin.Type.of_string (Conf.ty key) v with
-              | Error _ ->
-                  let v = Format.sprintf "{\"some\": %s}" v in
-                  Irmin.Type.of_string (Conf.ty key) v |> Result.get_ok
+              match Irmin.Type.of_string ty v with
+              | Error _ -> (
+                  let x = Format.sprintf "{\"some\": %s}" v in
+                  match Irmin.Type.of_string (Conf.ty key) x with
+                  | Error _ ->
+                      let y = Format.sprintf "{\"some\": \"%s\"}" v in
+                      Irmin.Type.of_string (Conf.ty key) y |> Result.get_ok
+                  | Ok v -> v)
               | Ok v -> v
             in
             let config = Conf.add ~verify:false config key v in

@@ -98,13 +98,17 @@ let init =
     doc = "Initialize a store.";
     man = [];
     term =
-      (let daemon =
-         let doc =
-           Arg.info ~doc:"Start an Irmin HTTP server." [ "d"; "daemon" ]
-         in
-         Arg.(value & flag & doc)
-       in
-       let uri =
+      (let init (S ((module S), _store, _)) = run Lwt.return_unit in
+       Term.(mk init $ store));
+  }
+
+let http =
+  {
+    name = "http";
+    doc = "Run http server";
+    man = [];
+    term =
+      (let uri =
          let doc =
            Arg.info ~docv:"URI" [ "a"; "address" ]
              ~doc:
@@ -114,42 +118,40 @@ let init =
          in
          Arg.(value & opt string "http://localhost:8080" & doc)
        in
-       let init (S ((module S), store, _)) daemon uri =
+       let init (S ((module S), store, _)) uri =
          run
            (let* t = store in
             let module HTTP = Http.Server (S) in
-            if daemon then (
-              let uri = Uri.of_string uri in
-              let spec = HTTP.v (S.repo t) in
-              match Uri.scheme uri with
-              | Some "launchd" ->
-                  let uri, name =
-                    match Uri.host uri with
-                    | None -> (Uri.with_host uri (Some "Listener"), "Listener")
-                    | Some name -> (uri, name)
-                  in
-                  Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
-                  Cohttp_lwt_unix.Server.create ~timeout:3600
-                    ~mode:(`Launchd name) spec
-              | _ ->
-                  let uri =
-                    match Uri.host uri with
-                    | None -> Uri.with_host uri (Some "localhost")
-                    | Some _ -> uri
-                  in
-                  let port, uri =
-                    match Uri.port uri with
-                    | None -> (8080, Uri.with_port uri (Some 8080))
-                    | Some p -> (p, uri)
-                  in
-                  Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
-                  Printf.printf "Server starting on port %d.\n%!" port;
-                  Cohttp_lwt_unix.Server.create ~timeout:3600
-                    ~mode:(`TCP (`Port port))
-                    spec)
-            else Lwt.return_unit)
+            let uri = Uri.of_string uri in
+            let spec = HTTP.v (S.repo t) in
+            match Uri.scheme uri with
+            | Some "launchd" ->
+                let uri, name =
+                  match Uri.host uri with
+                  | None -> (Uri.with_host uri (Some "Listener"), "Listener")
+                  | Some name -> (uri, name)
+                in
+                Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+                Cohttp_lwt_unix.Server.create ~timeout:3600
+                  ~mode:(`Launchd name) spec
+            | _ ->
+                let uri =
+                  match Uri.host uri with
+                  | None -> Uri.with_host uri (Some "localhost")
+                  | Some _ -> uri
+                in
+                let port, uri =
+                  match Uri.port uri with
+                  | None -> (8080, Uri.with_port uri (Some 8080))
+                  | Some p -> (p, uri)
+                in
+                Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+                Printf.printf "Server starting on port %d.\n%!" port;
+                Cohttp_lwt_unix.Server.create ~timeout:3600
+                  ~mode:(`TCP (`Port port))
+                  spec)
        in
-       Term.(mk init $ store $ daemon $ uri));
+       Term.(mk init $ store $ uri));
   }
 
 let print fmt = Fmt.kstrf print_endline fmt
@@ -766,12 +768,13 @@ let default =
       \    watch       %s\n\
       \    dot         %s\n\
       \    graphql     %s\n\
+      \    http        %s\n\
       \    options     %s\n\n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc clone.doc fetch.doc
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
-      graphql.doc options.doc
+      graphql.doc http.doc options.doc
   in
   ( Term.(mk usage $ const ()),
     Term.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc
@@ -782,6 +785,7 @@ let commands =
     [
       help;
       init;
+      http;
       get;
       set;
       remove;
