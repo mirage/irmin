@@ -1,3 +1,17 @@
+## 2.7.2 (2021-07-20)
+
+### Added
+
+- **irmin-pack**
+   - Added `integrity-check-index` command in `irmin-fsck`. (#1480, #1487
+     @icristescu, @samoht)
+
+### Changed
+
+- **irmin-pack**
+   - `reconstruct_index` is now `traverse_pack_file`, it allows for both index
+     reconstruction and index checking  (#1478, @Ngoguey42)
+
 ## 2.7.1 (2021-07-02)
 
 ### Fixed

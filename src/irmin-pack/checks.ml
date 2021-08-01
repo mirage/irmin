@@ -177,7 +177,9 @@ module Make (M : Maker) = struct
         | `V2 -> (module Store_V2)
       in
       let conf = conf ~index_log_size root in
-      Store.reconstruct_index ?output conf
+      match output with
+      | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
+      | Some p -> Store.traverse_pack_file (`Reconstruct_index (`Output p)) conf
 
     let term_internal =
       Cmdliner.Term.(
@@ -190,6 +192,36 @@ module Make (M : Maker) = struct
     let term =
       let doc = "Reconstruct index from an existing pack file." in
       Cmdliner.Term.(term_internal $ setup_log, info ~doc "reconstruct-index")
+  end
+
+  module Integrity_check_index = struct
+    let conf root = Conf.v ~readonly:true ~fresh:false root
+
+    let run ~root ~auto_repair () =
+      let (module Store : Versioned_store) =
+        match Stat.detect_version ~root with
+        | `V1 -> (module Store_V1)
+        | `V2 -> (module Store_V2)
+      in
+      let conf = conf root in
+      if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
+      else Store.traverse_pack_file `Check_index conf
+
+    let auto_repair =
+      let open Cmdliner.Arg in
+      value
+      & (flag @@ info ~doc:"Add missing entries in index" [ "auto-repair" ])
+
+    let term_internal =
+      Cmdliner.Term.(
+        const (fun root auto_repair () -> run ~root ~auto_repair ())
+        $ path
+        $ auto_repair)
+
+    let term =
+      let doc = "Check index integrity." in
+      Cmdliner.Term.
+        (term_internal $ setup_log, info ~doc "integrity-check-index")
   end
 
   module Integrity_check = struct
@@ -290,6 +322,7 @@ module Make (M : Maker) = struct
             Reconstruct_index.term;
             Integrity_check.term;
             Integrity_check_inodes.term;
+            Integrity_check_index.term;
           ]) () : empty =
       let default =
         let default_info =

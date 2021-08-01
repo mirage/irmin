@@ -5,12 +5,7 @@ val reset_stats : unit -> unit
 val with_timer : (unit -> 'a Lwt.t) -> (float * 'a) Lwt.t
 
 val with_progress_bar :
-  message:string ->
-  n:int ->
-  unit:string ->
-  sampling_interval:int ->
-  ((int64 -> unit) -> 'a) ->
-  'a
+  message:string -> n:int -> unit:string -> ((int -> unit) -> 'a) -> 'a
 
 val info : unit -> Irmin.Info.t
 val random_blob : unit -> string

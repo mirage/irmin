@@ -12,7 +12,7 @@
 (library
  (name bench_common)
  (modules bench_common)
- (libraries irmin-pack unix progress progress.unix uuidm))
+ (libraries irmin-pack unix progress uuidm))
 
 ;; Require the above executables to compile during tests
 

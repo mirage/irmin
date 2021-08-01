@@ -78,7 +78,12 @@ module type S = sig
     repo ->
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 
-  val reconstruct_index : ?output:string -> Irmin.config -> unit
+  val traverse_pack_file :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
 end
 
 module S_is_a_store (X : S) : Irmin.S = X

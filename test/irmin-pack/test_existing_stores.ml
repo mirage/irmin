@@ -230,7 +230,7 @@ module Test_reconstruct = struct
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf;
-    S.reconstruct_index conf;
+    S.traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
       Index.v ~fresh:false ~readonly:false ~log_size:500_000 Config_store.tmp
     in
