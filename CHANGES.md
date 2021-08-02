@@ -7,9 +7,6 @@
     path that contains dangling hashes in the underlying store, rather than
     interpreting such paths as ending with empty nodes (#1477, @CraigFe)
 
-- **irmin-pack**
-  - Fix termination condition of reconstruct index (#1468, @Ngoguey42)
-
 ### Added
 
 - **irmin**
@@ -29,10 +26,6 @@
 
 - **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
-
-- **irmin-pack**
-   - Added `integrity-check-index` command in `irmin-fsck`. (#1480, #1487
-     @icristescu, @samoht)
 
 - **irmin-unix**
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
@@ -81,10 +74,6 @@
     `Irmin.Private.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
 
-- **irmin-pack**
-   - `reconstruct_index` is now `traverse_pack_file`, it allows for both index
-     reconstruction and index checking  (#1478, @Ngoguey42)
-
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
     `Irmin.Content_addressable.S` (#1369, @samoht)
@@ -113,6 +102,27 @@
 - **irmin-unix**
   - Allow config file to be specified when using
     `Irmin_unix.Resolver.load_config` (#1464, @zshipko)
+
+## 2.7.2 (2021-07-20)
+
+### Added
+
+- **irmin-pack**
+   - Added `integrity-check-index` command in `irmin-fsck`. (#1480, #1487
+     @icristescu, @samoht)
+
+### Changed
+
+- **irmin-pack**
+   - `reconstruct_index` is now `traverse_pack_file`, it allows for both index
+     reconstruction and index checking  (#1478, @Ngoguey42)
+
+## 2.7.1 (2021-07-02)
+
+### Fixed
+
+- **irmin-pack**
+  - Fix termination condition of reconstruct index (#1468, @Ngoguey42)
 
 ## 2.7.0 (2021-06-22)
 
