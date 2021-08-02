@@ -97,6 +97,18 @@ module type S = sig
         with type run := root:string -> heads:string list option -> unit Lwt.t
   end
 
+  (** Traverses a commit to get stats on its underlying tree. *)
+  module Stats_commit : sig
+    include
+      Subcommand
+        with type run :=
+              root:string ->
+              commit:string option ->
+              dump_blob_paths_to:string option ->
+              unit ->
+              unit Lwt.t
+  end
+
   val cli :
     ?terms:(unit Cmdliner.Term.t * Cmdliner.Term.info) list -> unit -> empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.
@@ -140,5 +152,31 @@ module type Sigs = sig
       ( [> `Fixed of int | `No_error ],
         [> `Cannot_fix of string | `Corrupted of int ] )
       result
+  end
+
+  module Stats (S : sig
+    type step
+
+    val step_t : step Irmin.Type.t
+
+    module Hash : Irmin.Hash.S
+  end) : sig
+    type t
+
+    val v : unit -> t
+    val visit_commit : t -> S.Hash.t -> unit
+    val visit_contents : t -> S.Hash.t -> unit
+
+    val visit_node :
+      t ->
+      S.Hash.t ->
+      (S.step option
+      * [ `Contents of S.Hash.t | `Inode of S.Hash.t | `Node of S.Hash.t ])
+      list ->
+      nb_children:int ->
+      width:int ->
+      unit
+
+    val pp_results : dump_blob_paths_to:string option -> t -> unit
   end
 end

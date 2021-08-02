@@ -502,7 +502,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
       | None -> []
       | Some v ->
           List.rev_map
-            (function `Inode x -> `Node x | (`Node _ | `Contents _) as x -> x)
+            (function
+              | _, `Inode x -> `Node x | _, ((`Node _ | `Contents _) as x) -> x)
             (X.Node.CA.Val.pred v)
 
     let always_false _ = false

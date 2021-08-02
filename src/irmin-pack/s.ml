@@ -84,6 +84,9 @@ module type S = sig
     | `Check_and_fix_index ] ->
     Irmin.config ->
     unit
+
+  val stats :
+    dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
 end
 
 module S_is_a_store (X : S) : Irmin.S = X
