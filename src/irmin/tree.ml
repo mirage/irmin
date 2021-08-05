@@ -1238,7 +1238,8 @@ module Make (P : Private.S) = struct
         let empty_tree =
           match is_empty root_tree with
           | true -> root_tree
-          | false -> `Node Node.empty
+          | false -> `Node (Node.of_map StepMap.empty)
+          (* XXX: Node.empty *)
         in
         f (Some root_tree) >>= function
         (* Here we consider "deleting" a root contents value or node to consist
