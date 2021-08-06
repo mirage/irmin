@@ -370,6 +370,9 @@ module Resample = struct
           let v1 =
             match mode with
             | `Next_neighbor -> v0
+            | `Interpolate when where_inside = 1. ->
+                (* Optimisation in case of nan *)
+                v0
             | `Interpolate -> prev_v0 +. (where_inside *. (v0 -. prev_v0))
           in
           aux (i1 + 1) (v1 :: rev_samples)
