@@ -1,5 +1,5 @@
 (library
  (name irmin_mirage_git)
  (public_name irmin-mirage-git)
- (libraries fmt cohttp conduit-lwt conduit-mirage git irmin irmin-mirage
-   irmin-git git-paf lwt mirage-clock mirage-kv uri))
+ (libraries fmt git irmin irmin-mirage irmin-git git-paf lwt mirage-clock
+   mirage-kv uri))

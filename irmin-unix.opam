@@ -25,7 +25,7 @@ depends: [
   "irmin-pack"    {= version}
   "irmin-graphql" {= version}
   "irmin-layers"  {= version}
-  "git-unix"      {>= "3.4.0"}
+  "git-unix"      {>= "3.5.0"}
   "digestif"      {>= "0.9.0"}
   "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "0.1.0"}
@@ -42,8 +42,8 @@ depends: [
   "cmdliner"
   "cohttp-lwt-unix"
   "fmt"
-  "git"             {>= "3.4.0"}
-  "git-cohttp-unix" {>= "3.4.0"}
+  "git"             {>= "3.5.0"}
+  "git-cohttp-unix" {>= "3.5.0"}
   "lwt"           {>= "5.3.0"}
   "irmin-test"    {with-test & = version}
   "alcotest"      {with-test}
@@ -55,3 +55,10 @@ description: """
 as a very simple CLI tool (called `irmin`) to manipulate and inspect Irmin
 stores.
 """
+
+pin-depends: [
+  [ "git.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
+  [ "git-cohttp.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
+  [ "git-cohttp-unix.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
+  [ "git-unix.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
+]
