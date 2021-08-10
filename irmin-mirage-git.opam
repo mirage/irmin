@@ -26,7 +26,3 @@ depends: [
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
-
-pin-depends: [
-  [ "git-paf.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
-]

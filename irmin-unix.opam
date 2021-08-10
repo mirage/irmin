@@ -55,10 +55,3 @@ description: """
 as a very simple CLI tool (called `irmin`) to manipulate and inspect Irmin
 stores.
 """
-
-pin-depends: [
-  [ "git.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
-  [ "git-cohttp.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
-  [ "git-cohttp-unix.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
-  [ "git-unix.dev" "git+https://github.com/mirage/ocaml-git.git#1908383243210d71d3595e0d2f239aaf2ca60c34" ]
-]
