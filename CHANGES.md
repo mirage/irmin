@@ -17,12 +17,18 @@
     (#1345, @samoht)
 
 - **irmin-bench**
-  - Benchmarks for tree operations now support layered stores
-    (#1293, @Ngoguey42)
-  - New features in benchmarks for tree operations (TODO: A pretty description
-    just before release) (#1314, #1326, #1357, #1358, #1367, #1384, #1403,
-    #1404, #1416, #1429, #1430, #1438, #1441 @Ngoguey42)
-  - Check hash of commit in benchmarks for trees (#1328, @icristescu)
+  - Many improvements to the actions trace replay:
+      - Support for the layered store (#1293, @Ngoguey42)
+      - Fix replay for the first ~650k commits (was ~13k) (#1314, @Ngoguey42)
+      - Can change inode configuration prior to replay (#1326, @Ngoguey42)
+      - Check hash of commits (#1328, @icristescu)
+      - Fix the path flattening technique (#1357, @Ngoguey42)
+      - Introduce a new actions trace that can support replaying up to ~1300k
+        commits. (#1358, @Ngoguey42)
+      - Improve the stats collection and stats report (#1367, #1384, #1403,
+        #1404, #1416, #1429, #1438, #1501, @Ngoguey42)
+      - Enable replay in CI (#1430, @Ngoguey42)
+      - Enable replay in CB (#1441, @Ngoguey42)
 
 - **irmin-mem**
   - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
