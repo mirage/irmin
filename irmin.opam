@@ -22,7 +22,7 @@ depends: [
   "uutf"
   "jsonm"   {>= "1.0.0"}
   "lwt"     {>= "5.3.0"}
-  "digestif" {>= "0.9.0"}
+  "digestif" {>= "0.9.0" & != "1.0.1"}
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
   "bheap" {>= "2.0.0"}
