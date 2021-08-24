@@ -34,6 +34,8 @@ module S = struct
   include Maker.Make (Schema)
 end
 
+module IO = Irmin_pack.IO.Unix
+
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root
 
@@ -213,6 +215,38 @@ let dict_sync_after_clear_same_offset () =
   find_key h long_string "y" >>= fun () ->
   S.Repo.close rw >>= fun () -> S.Repo.close ro
 
+let size_of_io path =
+  let io = IO.v ~fresh:false ~readonly:true ~version:(Some `V2) path in
+  Fun.protect ~finally:(fun () -> IO.close io) (fun () -> IO.size io)
+
+let test_files test =
+  test (Irmin_pack.Layout.pack ~root);
+  test (Irmin_pack.Layout.dict ~root);
+  test (Irmin_pack.Layout.branch ~root)
+
+let clear_files_on_disk () =
+  rm_dir root;
+  let* rw = S.Repo.v (config ~fresh:false root) in
+  let* t = S.master rw in
+  let* () =
+    S.set_exn t ~info:(fun () -> S.Info.empty) [ "very_long_key" ] "x"
+  in
+  S.flush rw;
+  let () =
+    test_files @@ fun path ->
+    let size = size_of_io path in
+    if size <= 24 then
+      Alcotest.failf "before clear: unexpected size for file %s is %d" path size
+  in
+  let* () = clear_all rw in
+  let () =
+    test_files @@ fun path ->
+    let size = size_of_io path in
+    if size <> 24 then
+      Alcotest.failf "after clear: unexpected size of file %s is %d" path size
+  in
+  S.Repo.close rw
+
 let tests =
   let tc name test =
     Alcotest.test_case name `Quick (fun () -> Lwt_main.run (test ()))
@@ -225,4 +259,5 @@ let tests =
     tc "Test ro sync after add" ro_sync_after_add;
     tc "Test ro sync after close" ro_sync_after_close;
     tc "RO sync dict after clear, same offset" dict_sync_after_clear_same_offset;
+    tc "Test files on disk after clear" clear_files_on_disk;
   ]
