@@ -841,8 +841,8 @@ module Make (P : Private.S) = struct
         match s with
         | [] -> k acc
         | h :: t ->
-            (step [@tailcall]) ~path acc d h @@ fun acc ->
-            (steps [@tailcall]) ~path acc d t k
+            (step [@tailcall]) ~path acc d h (fun acc ->
+                (steps [@tailcall]) ~path acc d t k)
       and map : type r. (map option, acc, r) folder =
        fun ~path acc d m k ->
         match m with
@@ -851,8 +851,8 @@ module Make (P : Private.S) = struct
             let bindings = StepMap.bindings m in
             let s = List.rev_map fst bindings in
             let* acc = pre path s acc in
-            (steps [@tailcall]) ~path acc d bindings @@ fun acc ->
-            post path s acc >>= k
+            (steps [@tailcall]) ~path acc d bindings (fun acc ->
+                post path s acc >>= k)
       in
       aux_uniq ~path acc 0 t Lwt.return
 
@@ -1176,7 +1176,7 @@ module Make (P : Private.S) = struct
                   | true -> k Unchanged
                   | false -> with_new_child t)
               | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
-          | Some (step, key_suffix) -> (
+          | Some (step, key_suffix) ->
               let* old_binding =
                 Node.findv "update_tree.findv" parent_node step
               in
@@ -1185,19 +1185,19 @@ module Make (P : Private.S) = struct
                 | Some (`Node child) -> child
                 | None | Some (`Contents _) -> Node.empty
               in
-              (aux [@tailcall]) key_suffix to_recurse @@ function
-              | Unchanged ->
-                  (* This includes [remove]s in an empty node, in which case we
-                     want to avoid adding a binding anyway. *)
-                  k Unchanged
-              | Changed child -> (
-                  match Node.is_empty child with
-                  | true ->
-                      (* A [remove] has emptied previously non-empty child with
-                         binding [h], so we remove the binding. *)
-                      Node.remove parent_node step >>= changed
-                  | false -> Node.add parent_node step (`Node child) >>= changed
-                  ))
+              (aux [@tailcall]) key_suffix to_recurse (function
+                | Unchanged ->
+                    (* This includes [remove]s in an empty node, in which case we
+                       want to avoid adding a binding anyway. *)
+                    k Unchanged
+                | Changed child -> (
+                    match Node.is_empty child with
+                    | true ->
+                        (* A [remove] has emptied previously non-empty child with
+                           binding [h], so we remove the binding. *)
+                        Node.remove parent_node step >>= changed
+                    | false ->
+                        Node.add parent_node step (`Node child) >>= changed))
         in
         let top_node =
           match root_tree with `Node n -> n | `Contents _ -> Node.empty
@@ -1362,11 +1362,11 @@ module Make (P : Private.S) = struct
       let task = try Some (Stack.pop todo) with Stack.Empty -> None in
       match task with None -> Lwt.return_unit | Some t -> t () >>= loop
     in
-    (add_to_todo [@tailcall]) n @@ fun () ->
-    loop () >|= fun () ->
-    let x = Node.hash n in
-    Log.debug (fun l -> l "Tree.export -> %a" pp_hash x);
-    x
+    (add_to_todo [@tailcall]) n (fun () ->
+        loop () >|= fun () ->
+        let x = Node.hash n in
+        Log.debug (fun l -> l "Tree.export -> %a" pp_hash x);
+        x)
 
   let merge : t Merge.t =
     let f ~old (x : t) y =
