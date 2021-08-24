@@ -853,10 +853,10 @@ struct
                 Ptr.target ~cache:true layout n
               in
               (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
-              @@ fun target ->
-              entries.(i) <- Some (Ptr.of_target layout target);
-              let t = tree layout { depth; length; entries } in
-              k t)
+                (fun target ->
+                  entries.(i) <- Some (Ptr.of_target layout target);
+                  let t = tree layout { depth; length; entries } in
+                  k t))
 
     let add layout ~copy t s v =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
