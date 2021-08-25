@@ -6,6 +6,8 @@
   - `Tree` operations now raise a `Dangling_hash` exception when called with a
     path that contains dangling hashes in the underlying store, rather than
     interpreting such paths as ending with empty nodes (#1477, @CraigFe)
+  - Fix the pre-hashing function for big-endian architectures. (#1505,
+    @Ngoguey42, @dinosaure)
   - Fix a bug in `Tree.export` where nodes could be exported before
     some of their contents, resulting in indirect hashes in irmin-pack
     (#1508, @Ngoguey42)
