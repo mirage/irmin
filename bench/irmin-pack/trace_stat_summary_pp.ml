@@ -339,9 +339,7 @@ module Table2 = struct
         (fun sname s -> (sname, variable_of_summary s))
         summary_names summaries
     in
-    let pb :
-        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
-        =
+    let pb : ?f:_ -> string -> (summary -> Summary.bag_stat) -> summary_floor =
      fun ?(f = (`Ri, `R3)) stat_name lbs_of_summary ->
       let variables =
         zip (fun s ->
@@ -497,9 +495,7 @@ module Table3 = struct
         summary_names summaries
     in
 
-    let v :
-        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
-        =
+    let v : ?f:_ -> string -> (summary -> Summary.bag_stat) -> summary_floor =
      fun ?(f = (`RM, `RM)) stat_name lbs_of_summary ->
       let variables =
         zip (fun s ->
@@ -709,25 +705,19 @@ module Table4 = struct
           summaries
     in
 
-    let v :
-        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
-        =
+    let v : ?f:_ -> string -> (summary -> Summary.bag_stat) -> summary_floor =
      fun ?(f = `R) stat_name lbs_of_summary ->
       let curves =
         zip (fun s -> (lbs_of_summary s).value_after_commit.evolution)
       in
       `Data (f, stat_name, curves)
     in
-    let pb :
-        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
-        =
+    let pb : ?f:_ -> string -> (summary -> Summary.bag_stat) -> summary_floor =
      fun ?(f = `R) stat_name lbs_of_summary ->
       let curves = zip (fun s -> (lbs_of_summary s).diff_per_block.evolution) in
       `Data (f, stat_name, curves)
     in
-    let ps :
-        ?f:_ -> string -> (summary -> Summary.linear_bag_stat) -> summary_floor
-        =
+    let ps : ?f:_ -> string -> (summary -> Summary.bag_stat) -> summary_floor =
      fun ?(f = `R) stat_name lbs_of_summary ->
       let curves =
         zip_per_block_to_per_sec (fun s ->

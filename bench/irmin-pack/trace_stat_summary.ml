@@ -187,7 +187,7 @@ module Watched_node = struct
     Irmin.Type.(map (Json.assoc Val.t) decode encode)
 end
 
-type linear_bag_stat = {
+type bag_stat = {
   value_before_commit : Vs.t;
   value_after_commit : Vs.t;
   diff_per_block : Vs.t;
@@ -195,62 +195,75 @@ type linear_bag_stat = {
   diff_per_commit : Vs.t;
 }
 [@@deriving repr]
-(** Summary of an entry of [Def.bag_of_stat], recorded in header, before and
-    after each commit. *)
+(** Summary of an entry contained in [Def.bag_of_stat].
+
+    Properties of such a variables:
+
+    - Is sampled before each commit operation.
+    - Is sampled after each commit operation.
+    - Is sampled in header.
+    - Most of these entries are expected to grow linearly, it implies that no
+      smoothing is necessary for the downsampled curve in these cases, and that
+      the histogram is best viewed on a linear scale - as opposed to a log
+      scale. The other entries are summarised using
+      [~is_linearly_increasing:false].
+
+    The [value_after_commit] is initially fed with the value in the header (i.e.
+    the value recorded just before the start of the play). *)
 
 type pack = {
-  finds : linear_bag_stat;
-  cache_misses : linear_bag_stat;
-  appended_hashes : linear_bag_stat;
-  appended_offsets : linear_bag_stat;
+  finds : bag_stat;
+  cache_misses : bag_stat;
+  appended_hashes : bag_stat;
+  appended_offsets : bag_stat;
 }
 [@@deriving repr]
 
 type tree = {
-  contents_hash : linear_bag_stat;
-  contents_find : linear_bag_stat;
-  contents_add : linear_bag_stat;
-  node_hash : linear_bag_stat;
-  node_mem : linear_bag_stat;
-  node_add : linear_bag_stat;
-  node_find : linear_bag_stat;
-  node_val_v : linear_bag_stat;
-  node_val_find : linear_bag_stat;
-  node_val_list : linear_bag_stat;
+  contents_hash : bag_stat;
+  contents_find : bag_stat;
+  contents_add : bag_stat;
+  node_hash : bag_stat;
+  node_mem : bag_stat;
+  node_add : bag_stat;
+  node_find : bag_stat;
+  node_val_v : bag_stat;
+  node_val_find : bag_stat;
+  node_val_list : bag_stat;
 }
 [@@deriving repr]
 
 type index = {
-  bytes_read : linear_bag_stat;
-  nb_reads : linear_bag_stat;
-  bytes_written : linear_bag_stat;
-  nb_writes : linear_bag_stat;
-  bytes_both : linear_bag_stat;
-  nb_both : linear_bag_stat;
-  nb_merge : linear_bag_stat;
-  cumu_data_bytes : linear_bag_stat;
+  bytes_read : bag_stat;
+  nb_reads : bag_stat;
+  bytes_written : bag_stat;
+  nb_writes : bag_stat;
+  bytes_both : bag_stat;
+  nb_both : bag_stat;
+  nb_merge : bag_stat;
+  cumu_data_bytes : bag_stat;
   merge_durations : float list;
 }
 [@@deriving repr]
 
 type gc = {
-  minor_words : linear_bag_stat;
-  promoted_words : linear_bag_stat;
-  major_words : linear_bag_stat;
-  minor_collections : linear_bag_stat;
-  major_collections : linear_bag_stat;
-  compactions : linear_bag_stat;
-  major_heap_bytes : linear_bag_stat;
+  minor_words : bag_stat;
+  promoted_words : bag_stat;
+  major_words : bag_stat;
+  minor_collections : bag_stat;
+  major_collections : bag_stat;
+  compactions : bag_stat;
+  major_heap_bytes : bag_stat;
   major_heap_top_bytes : curve;
 }
 [@@deriving repr]
 
 type disk = {
-  index_data : linear_bag_stat;
-  index_log : linear_bag_stat;
-  index_log_async : linear_bag_stat;
-  store_dict : linear_bag_stat;
-  store_pack : linear_bag_stat;
+  index_data : bag_stat;
+  index_log : bag_stat;
+  index_log_async : bag_stat;
+  store_dict : bag_stat;
+  store_pack : bag_stat;
 }
 [@@deriving repr]
 
@@ -464,20 +477,8 @@ module Span_folder = struct
     Utils.Parallel_folders.folder acc0 accumulate finalise
 end
 
-(** Summary computation for statistics recorded in [Def.bag_of_stat].
-
-    Properties of such a variables:
-
-    - Is sampled before each commit operation.
-    - Is sampled after each commit operation.
-    - Is sampled in header.
-    - Is expected to grow linearly (or mostly, i.e. [disk.store_pack] with
-      layered store). This implies that the curves/histos are best viewed on a
-      linear scale - as opposed to a log scale.
-
-    The [value_after_commit] is initially fed with the value in the header (i.e.
-    the value recorded just before the start of the play). *)
-module Linear_bag_stat_folder = struct
+(** Summary computation for statistics recorded in [Def.bag_of_stat]. *)
+module Bag_stat_folder = struct
   type acc = {
     value_before_commit : Vs.acc;
     value_after_commit : Vs.acc;
@@ -490,12 +491,15 @@ module Linear_bag_stat_folder = struct
     should_cumulate_value : bool;
   }
 
-  let create_acc ?(should_cumulate_value = false) header block_count
-      value_of_bag =
+  let create_acc ?(is_linearly_increasing = true)
+      ?(should_cumulate_value = false) header block_count value_of_bag =
     let value_in_header = value_of_bag header.Def.initial_stats in
-    let value_before_commit = create_vs_exact block_count in
+    let f =
+      if is_linearly_increasing then create_vs_exact else create_vs_smooth
+    in
+    let value_before_commit = f block_count in
     let value_before_commit = Vs.accumulate value_before_commit [] in
-    let value_after_commit = create_vs_exact block_count in
+    let value_after_commit = f block_count in
     let value_after_commit =
       Vs.accumulate value_after_commit [ value_in_header ]
     in
@@ -551,7 +555,7 @@ module Linear_bag_stat_folder = struct
         }
     | _ -> acc
 
-  let finalise acc : linear_bag_stat =
+  let finalise acc : bag_stat =
     {
       value_before_commit = Vs.finalise acc.value_before_commit;
       value_after_commit = Vs.finalise acc.value_after_commit;
@@ -560,9 +564,11 @@ module Linear_bag_stat_folder = struct
       diff_per_commit = Vs.finalise acc.diff_per_commit;
     }
 
-  let create ?should_cumulate_value header block_count value_of_bag =
+  let create ?should_cumulate_value ?is_linearly_increasing header block_count
+      value_of_bag =
     let acc0 =
-      create_acc ?should_cumulate_value header block_count value_of_bag
+      create_acc ?should_cumulate_value ?is_linearly_increasing header
+        block_count value_of_bag
     in
     Utils.Parallel_folders.folder acc0 accumulate finalise
 end
@@ -750,9 +756,10 @@ let misc_stats_folder header =
     be stored in [Trace_stat_summary.t]. Calling [Parallel_folders.finalise pf]
     will finalise all folders and pass their result to [construct]. *)
 let summarise' header block_count (row_seq : Def.row Seq.t) =
-  let lbs_folder_of_bag_getter ?should_cumulate_value value_of_bag =
-    Linear_bag_stat_folder.create ?should_cumulate_value header block_count
-      value_of_bag
+  let bs_folder_of_bag_getter ?should_cumulate_value ?is_linearly_increasing
+      value_of_bag =
+    Bag_stat_folder.create ?should_cumulate_value ?is_linearly_increasing header
+      block_count value_of_bag
   in
 
   let pack_folder =
@@ -763,10 +770,10 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       let open Utils.Parallel_folders in
       let ofi = float_of_int in
       open_ construct
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.cache_misses)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_hashes)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_offsets)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.cache_misses)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_hashes)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_offsets)
       |> seal
     in
     Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
@@ -793,16 +800,16 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       let open Utils.Parallel_folders in
       let ofi = float_of_int in
       open_ construct
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_hash)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_find)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_add)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_hash)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_mem)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_add)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_find)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_v)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_find)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_list)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_hash)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_find)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.contents_add)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_hash)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_mem)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_add)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_find)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_v)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_find)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.tree.node_val_list)
       |> seal
     in
     Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
@@ -828,16 +835,16 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       let open Utils.Parallel_folders in
       let ofi = float_of_int in
       open_ construct
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_read)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_reads)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
-      |+ lbs_folder_of_bag_getter (fun bag ->
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_read)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_reads)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
+      |+ bs_folder_of_bag_getter (fun bag ->
              ofi (bag.Def.index.bytes_read + bag.Def.index.bytes_written))
-      |+ lbs_folder_of_bag_getter (fun bag ->
+      |+ bs_folder_of_bag_getter (fun bag ->
              ofi (bag.Def.index.nb_reads + bag.Def.index.nb_writes))
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
-      |+ lbs_folder_of_bag_getter ~should_cumulate_value:true (fun bag ->
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
+      |+ bs_folder_of_bag_getter ~should_cumulate_value:true (fun bag ->
              (* When 1 merge occured, [data_size] bytes were written.
 
                 When 2 merge occured, [data_size * 2 - log_size] bytes were
@@ -873,13 +880,14 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       let ofi = float_of_int in
       let ws = header.Def.word_size / 8 |> float_of_int in
       open_ construct
-      |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.minor_words)
-      |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.promoted_words)
-      |+ lbs_folder_of_bag_getter (fun bag -> bag.Def.gc.major_words)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.minor_collections)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.major_collections)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.compactions)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.heap_words *. ws)
+      |+ bs_folder_of_bag_getter (fun bag -> bag.Def.gc.minor_words)
+      |+ bs_folder_of_bag_getter (fun bag -> bag.Def.gc.promoted_words)
+      |+ bs_folder_of_bag_getter (fun bag -> bag.Def.gc.major_words)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.minor_collections)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.major_collections)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.compactions)
+      |+ bs_folder_of_bag_getter ~is_linearly_increasing:false (fun bag ->
+             ofi bag.Def.gc.heap_words *. ws)
       |+ major_heap_top_bytes_folder header block_count
       |> seal
     in
@@ -895,12 +903,15 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       let open Utils.Parallel_folders in
       let ofi64 = Int64.to_float in
       open_ construct
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_data)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_log)
-      |+ lbs_folder_of_bag_getter (fun bag ->
+      |+ bs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_data)
+      |+ bs_folder_of_bag_getter ~is_linearly_increasing:false (fun bag ->
+             ofi64 bag.Def.disk.index_log)
+      |+ bs_folder_of_bag_getter ~is_linearly_increasing:false (fun bag ->
              ofi64 bag.Def.disk.index_log_async)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_dict)
-      |+ lbs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_pack)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_dict)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             (* This would not be linearly increasing with irmin layers *)
+             ofi64 bag.Def.disk.store_pack)
       |> seal
     in
     Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
