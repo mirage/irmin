@@ -20,6 +20,8 @@
     provide `close` and `batch` functions (#1345, @samoht)
   - Atomic-write backend implementations have to provide a `close` function
     (#1345, @samoht)
+  - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
+    lists when it is not necessary (#1508, @samoht)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
@@ -89,6 +91,9 @@
     `Irmin.Private.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
   - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
+  - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
+  - Rewrite `Tree.export` in order to minimise the memory footprint.
+    (#1508, @Ngoguey42)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
