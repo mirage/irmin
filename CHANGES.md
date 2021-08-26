@@ -15,6 +15,8 @@
     provide `close` and `batch` functions (#1345, @samoht)
   - Atomic-write backend implementations have to provide a `close` function
     (#1345, @samoht)
+  - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
+    lists when it is not necessary (#1506, @samoht)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
@@ -83,6 +85,7 @@
   - Add `Irmin.Private.Conf.Schema` for grouping configuration keys. Now
     `Irmin.Private.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
+  - `Node.v` is renamed to `Node.of_list` (#1506, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
