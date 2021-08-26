@@ -443,6 +443,7 @@ module Make (P : Private.S) = struct
     let map_of_value repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
       let entries = P.Node.Val.list n in
+      (* XXX: The map could be built using a seq instead of a list *)
       let aux = function
         | `Node h -> `Node (of_hash repo h)
         | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
@@ -500,22 +501,17 @@ module Make (P : Private.S) = struct
       if StepMap.is_empty map then (
         t.info.value <- Some P.Node.Val.empty;
         k P.Node.Val.empty)
-      else
-        let alist = StepMap.bindings map in
-        let rec aux acc = function
-          | [] ->
-              cnt.node_val_v <- cnt.node_val_v + 1;
-              let v = P.Node.Val.v (List.rev acc) in
-              t.info.value <- Some v;
-              k v
-          | (step, v) :: rest -> (
-              match v with
-              | `Contents (c, m) ->
-                  let v = `Contents (Contents.hash c, m) in
-                  (aux [@tailcall]) ((step, v) :: acc) rest
-              | `Node n -> hash n (fun h -> aux ((step, `Node h) :: acc) rest))
+      else (
+        cnt.node_val_v <- cnt.node_val_v + 1;
+        let v =
+          StepMap.to_seq map
+          |> Seq.map (function
+               | step, `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
+               | step, `Node n -> (step, hash n (fun h -> `Node h)))
+          |> P.Node.Val.of_seq
         in
-        aux [] alist
+        t.info.value <- Some v;
+        k v)
 
     and value_of_elt : type r. elt -> (P.Node.Val.value, r) cont =
      fun e k ->
@@ -650,6 +646,7 @@ module Make (P : Private.S) = struct
                no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
             let entries = P.Node.Val.list v in
+            (* XXX: A sequence could be used here *)
             List.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let length t =
@@ -722,40 +719,40 @@ module Make (P : Private.S) = struct
               | None -> of_t ()
               | Some _ as r -> Lwt.return r))
 
-    let list_of_map ?(offset = 0) ?length m : (step * elt) list =
-      let take_length seq =
-        match length with None -> List.of_seq seq | Some n -> Seq.take n seq
+    let seq_of_map ?(offset = 0) ?length m : (step * elt) Seq.t =
+      let take seq =
+        match length with None -> seq | Some n -> Seq.take n seq
       in
-      StepMap.to_seq m |> Seq.drop offset |> take_length
+      StepMap.to_seq m |> Seq.drop offset |> take
 
-    let list_of_value repo ?offset ?length v : (step * elt) list =
+    let seq_of_value repo ?offset ?length v : (step * elt) Seq.t =
       cnt.node_val_list <- cnt.node_val_list + 1;
-      let t = P.Node.Val.list ?offset ?length v in
-      List.fold_left
-        (fun acc (k, v) ->
+      let seq = P.Node.Val.seq ?offset ?length v in
+      Seq.map
+        (fun (k, v) ->
           match v with
           | `Node n ->
               let n = `Node (of_hash repo n) in
-              (k, n) :: acc
+              (k, n)
           | `Contents (c, m) ->
               let c = Contents.of_hash repo c in
-              (k, `Contents (c, m)) :: acc)
-        [] (List.rev t)
+              (k, `Contents (c, m)))
+        seq
 
-    let list ?offset ?length t : (step * elt) list or_error Lwt.t =
+    let seq ?offset ?length t : (step * elt) Seq.t or_error Lwt.t =
       match cached_map t with
-      | Some m -> ok (list_of_map ?offset ?length m)
+      | Some m -> ok (seq_of_map ?offset ?length m)
       | None -> (
           match t.v with
-          | Value (repo, n, None) -> ok (list_of_value ?offset ?length repo n)
+          | Value (repo, n, None) -> ok (seq_of_value ?offset ?length repo n)
           | Hash (repo, h) -> (
               value_of_hash t repo h >>= function
               | Error _ as e -> Lwt.return e
-              | Ok v -> ok (list_of_value ?offset ?length repo v))
+              | Ok v -> ok (seq_of_value ?offset ?length repo v))
           | _ -> (
               to_map t >>= function
               | Error _ as e -> Lwt.return e
-              | Ok m -> ok (list_of_map ?offset ?length m)))
+              | Ok m -> ok (seq_of_map ?offset ?length m)))
 
     let bindings t =
       to_map t >|= function
@@ -1102,13 +1099,16 @@ module Make (P : Private.S) = struct
 
   let length = Node.length
 
-  let list t ?offset ?length path : (step * t) list Lwt.t =
-    Log.debug (fun l -> l "Tree.list %a" pp_key path);
-    sub "list.sub" t path >>= function
-    | None -> Lwt.return []
+  let seq t ?offset ?length path : (step * t) Seq.t Lwt.t =
+    Log.debug (fun l -> l "Tree.seq %a" pp_key path);
+    sub "seq.sub" t path >>= function
+    | None -> Lwt.return Seq.empty
     | Some n -> (
-        Node.list ?offset ?length n >|= function Error _ -> [] | Ok l -> l)
+        Node.seq ?offset ?length n >|= function
+        | Error _ -> Seq.empty
+        | Ok l -> l)
 
+  let list t ?offset ?length path = seq t ?offset ?length path >|= List.of_seq
   let empty = `Node Node.empty
 
   (** During recursive updates, we keep track of whether or not we've made a

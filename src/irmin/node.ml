@@ -70,19 +70,21 @@ struct
   type value = [ `Contents of hash * metadata | `Node of hash ]
   type t = entry StepMap.t
 
-  let v l =
-    List.fold_left
+  let of_seq l =
+    Seq.fold_left
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
       StepMap.empty l
 
-  let list ?(offset = 0) ?length (t : t) =
-    let take_length seq =
-      match length with None -> List.of_seq seq | Some n -> Seq.take n seq
-    in
+  let of_list l = of_seq (List.to_seq l)
+
+  let seq ?(offset = 0) ?length (t : t) =
+    let take seq = match length with None -> seq | Some n -> Seq.take n seq in
     StepMap.to_seq t
     |> Seq.drop offset
+    |> take
     |> Seq.map (fun (_, e) -> of_entry e)
-    |> take_length
+
+  let list ?offset ?length t = List.of_seq (seq ?offset ?length t)
 
   let find t s =
     try
@@ -113,7 +115,7 @@ struct
     |~ case1 "contents-x" (pair H.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
 
-  let of_entries e = v (List.rev_map of_entry e)
+  let of_entries e = of_list (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
 
@@ -159,7 +161,7 @@ struct
     let implode (contents, succ) =
       let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
       let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      v (xs @ ys)
+      of_list (xs @ ys)
     in
     let merge = Merge.pair (merge_contents contents) (merge_node node) in
     Merge.like t merge explode implode
@@ -286,7 +288,7 @@ module Graph (S : Store) = struct
     in
     Graph.iter ~pred:(pred t) ~min ~max ~node ?edge ~skip ~rev ()
 
-  let v t xs = S.add t (S.Val.v xs)
+  let v t xs = S.add t (S.Val.of_list xs)
 
   let find_step t node step =
     Log.debug (fun f -> f "contents %a" pp_key node);
@@ -389,16 +391,20 @@ module V1 (N : S with type step = string) = struct
   let import n = { n; entries = N.list n }
   let export t = t.n
 
-  let v entries =
-    let n = N.v entries in
+  let of_seq entries =
+    let n = N.of_seq entries in
+    let entries = List.of_seq entries in
     { n; entries }
 
-  let list ?(offset = 0) ?length t =
-    let take_length seq =
-      match length with None -> List.of_seq seq | Some n -> Seq.take n seq
-    in
-    List.to_seq t.entries |> Seq.drop offset |> take_length
+  let of_list entries =
+    let n = N.of_list entries in
+    { n; entries }
 
+  let seq ?(offset = 0) ?length t =
+    let take seq = match length with None -> seq | Some n -> Seq.take n seq in
+    List.to_seq t.entries |> Seq.drop offset |> take
+
+  let list ?offset ?length t = List.of_seq (seq ?offset ?length t)
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []
   let length e = N.length e.n
@@ -446,7 +452,7 @@ module V1 (N : S with type step = string) = struct
     |> sealr
 
   let t : t Type.t =
-    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) of_list list
 
   let merge ~contents ~node =
     let merge = N.merge ~contents ~node in

@@ -79,18 +79,15 @@ module Seq = struct
     | Nil -> Nil
     | Cons (_, l') -> drop (n - 1) l' ()
 
-  let take : type a. int -> a t -> a list =
-    let rec aux acc n l =
-      if n = 0 then acc
-      else
-        match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-    in
-    fun n s -> List.rev (aux [] n s)
-
   let exists : type a. (a -> bool) -> a Seq.t -> bool =
    fun f s ->
     let rec aux s =
       match s () with Seq.Nil -> false | Seq.Cons (v, s) -> f v || aux s
     in
     aux s
+
+  let rec take : type a. int -> a t -> a t =
+   fun n l () ->
+    if n = 0 then Nil
+    else match l () with Nil -> Nil | Cons (x, l') -> Cons (x, take (n - 1) l')
 end
