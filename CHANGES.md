@@ -38,6 +38,10 @@
     cache the lazily loaded data any more. Pass `~cache:true` to enable it
     again. (#1526, @Ngoguey42)
 
+- **irmin-git**
+  - Upgrade `irmin-git` to `git.3.5.0`. (#1495, @dinosaure)
+
+
 ## 2.7.2 (2021-07-20)
 
 ### Added
