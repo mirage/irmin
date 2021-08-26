@@ -30,7 +30,7 @@ depends: [
   "uri"
   "irmin-git"  {with-test & = version}
   "irmin-test" {with-test & = version}
-  "git-unix"   {with-test & >= "3.4.0"}
+  "git-unix"   {with-test & >= "3.5.0"}
   "digestif"   {with-test & >= "0.9.0"}
 ]
 

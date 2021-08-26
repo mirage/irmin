@@ -19,7 +19,6 @@ include Irmin_mirage_git_intf
 
 let remote ?(ctx = Mimic.empty) ?headers uri =
   let ( ! ) f a b = f b a in
-  let headers = Option.map Cohttp.Header.to_list headers in
   match Smart_git.Endpoint.of_string uri with
   | Ok edn ->
       let edn =
