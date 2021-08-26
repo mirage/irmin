@@ -995,7 +995,9 @@ struct
             (name, `Node hash)
       in
       let t : Compress.v -> Bin.v = function
-        | Values vs -> Values (List.rev_map value (List.rev vs))
+        | Values vs ->
+           (* List.map is fine here as the number of entries is small *)
+           Values (List.map value vs)
         | Tree { depth; length; entries } ->
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
