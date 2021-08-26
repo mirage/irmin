@@ -1,3 +1,18 @@
+## Unreleased
+
+### Added
+
+- **irmin**
+  - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
+    lists when it is not necessary (#1508, @samoht)
+
+### Changed
+
+- **irmin**
+  - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
+  - Rewrite `Tree.export` in order to minimise the memory footprint.
+    (#1508, @Ngoguey42)
+
 ## 2.7.2 (2021-07-20)
 
 ### Added
