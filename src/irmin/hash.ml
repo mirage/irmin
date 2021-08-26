@@ -20,8 +20,12 @@ module Make (H : Digestif.S) = struct
   type t = H.t
 
   external get_64 : string -> int -> int64 = "%caml_string_get64u"
+  external swap64 : int64 -> int64 = "%bswap_int64"
 
-  let short_hash c = Int64.to_int (get_64 (H.to_raw_string c) 0)
+  let get_64_little_endian str idx =
+    if Sys.big_endian then swap64 (get_64 str idx) else get_64 str idx
+
+  let short_hash c = Int64.to_int (get_64_little_endian (H.to_raw_string c) 0)
   let hash_size = H.digest_size
 
   let of_hex s =
