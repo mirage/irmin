@@ -402,25 +402,21 @@ struct
 
     let stable t = t.stable
 
-    type acc = {
-      cursor : int;
-      values : (step * value) list list;
-      remaining : int;
-    }
+    type acc = { cursor : int; values : (step * value) Seq.t; remaining : int }
 
-    let empty_acc n = { cursor = 0; values = []; remaining = n }
+    let empty_acc n = { cursor = 0; values = Seq.empty; remaining = n }
 
-    let rec list_entry layout ~offset ~length acc = function
+    let rec seq_entry layout ~offset ~length acc = function
       | None -> acc
-      | Some i -> list_values layout ~offset ~length acc (Ptr.target layout i).v
+      | Some i -> seq_values layout ~offset ~length acc (Ptr.target layout i).v
 
-    and list_tree layout ~offset ~length acc t =
+    and seq_tree layout ~offset ~length acc t =
       if acc.remaining <= 0 || offset + length <= acc.cursor then acc
       else if acc.cursor + t.length < offset then
         { acc with cursor = t.length + acc.cursor }
-      else Array.fold_left (list_entry layout ~offset ~length) acc t.entries
+      else Array.fold_left (seq_entry layout ~offset ~length) acc t.entries
 
-    and list_values layout ~offset ~length acc v =
+    and seq_values layout ~offset ~length acc v =
       if acc.remaining <= 0 || offset + length <= acc.cursor then acc
       else
         match v with
@@ -435,15 +431,15 @@ struct
               let vs =
                 StepMap.to_seq vs |> Seq.drop to_drop |> Seq.take acc.remaining
               in
-              let n = List.length vs in
+              let n = Seq.length vs in
               {
-                values = vs :: acc.values;
+                values = Seq.append acc.values vs;
                 cursor = acc.cursor + len;
                 remaining = acc.remaining - n;
               }
-        | Tree t -> list_tree layout ~offset ~length acc t
+        | Tree t -> seq_tree layout ~offset ~length acc t
 
-    let list_v layout ?(offset = 0) ?length v =
+    let seq_v layout ?(offset = 0) ?length v =
       let length =
         match length with
         | Some n -> n
@@ -452,10 +448,10 @@ struct
             | Values vs -> StepMap.cardinal vs - offset
             | Tree i -> i.length - offset)
       in
-      let entries = list_values layout ~offset ~length (empty_acc length) v in
-      List.concat (List.rev entries.values)
+      let entries = seq_values layout ~offset ~length (empty_acc length) v in
+      entries.values
 
-    let list layout ?offset ?length t = list_v layout ?offset ?length t.v
+    let seq layout ?offset ?length t = seq_v layout ?offset ?length t.v
 
     let to_bin_v layout = function
       | Values vs ->
@@ -627,7 +623,7 @@ struct
       let stable, hash =
         if length > Conf.stable_hash then (false, hash v)
         else
-          let node = Node.v (list_v Total v) in
+          let node = Node.of_seq (seq_v Total v) in
           (true, Node.hash node)
       in
       { hash = lazy hash; stable; v }
@@ -678,8 +674,8 @@ struct
         else
           let hash =
             lazy
-              (let vs = list layout t in
-               Node.hash (Node.v vs))
+              (let vs = seq layout t in
+               Node.hash (Node.of_seq vs))
           in
           { hash; stable = true; v = t.v }
 
@@ -724,7 +720,7 @@ struct
       let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
       { hash; stable = false; v }
 
-    let of_values layout l = values layout (StepMap.of_list l)
+    let of_values layout l = values layout (StepMap.of_seq l)
 
     let is_empty t =
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
@@ -803,10 +799,9 @@ struct
           let len = t.length - 1 in
           if len <= Conf.entries then
             let vs =
-              list_tree layout ~offset:0 ~length:t.length (empty_acc t.length) t
+              seq_tree layout ~offset:0 ~length:t.length (empty_acc t.length) t
             in
-            let vs = List.concat (List.rev vs.values) in
-            let vs = StepMap.of_list vs in
+            let vs = StepMap.of_seq vs.values in
             let vs = StepMap.remove s vs in
             let t = values layout vs in
             k t
@@ -833,13 +828,13 @@ struct
       | None -> stabilize layout t
       | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
-    let v l =
-      let len = List.length l in
+    let of_seq l =
+      let len = Seq.length l in
       let t =
         if len <= Conf.entries then of_values Total l
         else
           let aux acc (s, v) = add Total ~copy:false acc s v in
-          List.fold_left aux (empty Total) l
+          Seq.fold_left aux (empty Total) l
       in
       stabilize Total t
 
@@ -1049,12 +1044,14 @@ struct
           if v == v' then t else Truncated v'
 
     let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let v l = Total (I.v l)
+    let of_seq l = Total (I.of_seq l)
+    let of_list l = of_seq (List.to_seq l)
 
-    let list ?offset ?length t =
-      apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
+    let seq ?offset ?length t =
+      apply t { f = (fun layout v -> I.seq layout ?offset ?length v) }
 
-    let empty = v []
+    let list ?offset ?length t = List.of_seq (seq ?offset ?length t)
+    let empty = of_list []
     let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
     let find t s = apply t { f = (fun layout v -> I.find layout v s) }
 
@@ -1083,8 +1080,8 @@ struct
           let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
           pre_hash_binv bin.v
         else
-          let vs = list x in
-          pre_hash_node (Node.v vs)
+          let vs = seq x in
+          pre_hash_node (Node.of_seq vs)
       in
       Irmin.Type.map ~pre_hash Bin.t
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
@@ -1137,8 +1134,8 @@ struct
 
     let merge ~contents ~node : t Irmin.Merge.t =
       let merge = Node.merge ~contents ~node in
-      let to_node t = v (Node.list t) in
-      let of_node n = Node.v (list n) in
+      let to_node t = of_seq (Node.seq t) in
+      let of_node n = Node.of_seq (seq n) in
       Irmin.Merge.like t merge of_node to_node
   end
 end

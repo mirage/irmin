@@ -37,12 +37,19 @@ module type S = sig
   (** The type for either (node) keys or (contents) keys combined with their
       metadata. *)
 
-  val v : (step * value) list -> t
-  (** [create l] is a new node. *)
+  val of_list : (step * value) list -> t
+  (** [of_list l] is the node [n] such that [list n = l]. *)
 
   val list : ?offset:int -> ?length:int -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
       paginate results.*)
+
+  val of_seq : (step * value) Seq.t -> t
+  (** [of_seq s] is a new node. *)
+
+  val seq : ?offset:int -> ?length:int -> t -> (step * value) Seq.t
+  (** [seq t] is the contents of [t]. [offset] and [length] are used to paginate
+      results.*)
 
   val empty : t
   (** [empty] is the empty node. *)

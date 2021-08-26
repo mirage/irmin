@@ -144,7 +144,7 @@ module Make (S : S) = struct
         check_val "find xx" None (P.Node.Val.find u "xx")
       in
       check_values u;
-      let w = P.Node.Val.v [ ("y", k); ("z", k); ("x", k) ] in
+      let w = P.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
       check P.Node.Val.t "v" u w;
       let l = P.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
@@ -1902,7 +1902,7 @@ module Make (S : S) = struct
       let tree_1 = S.Tree.shallow repo (`Node foo_k) in
       let tree_2 = S.Tree.shallow repo (`Node bar_k) in
       let node_3 =
-        S.Private.Node.Val.v
+        S.Private.Node.Val.of_list
           [
             ("foo", `Contents (foo_k, S.Metadata.default)); ("bar", `Node bar_k);
           ]
