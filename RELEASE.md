@@ -144,14 +144,15 @@ First delete the release distribution via the GitHub UI, then cleanup the Git
 tags and re-perform the required release steps:
 
 ```sh
-; git tag -d X.Y.Z                     #  Erase git tag locally
-; git push -d upstream X.Y.Z           #  Erase git tag on GitHib
+; git tag -d X.Y.Z                        #  Erase git tag locally
+; git push -d upstream X.Y.Z              #  Erase git tag on GitHib
 ; dune-release distrib --skip-tests
-; dune-release publish doc --verbose   # ... if necessary
+; dune-release publish distrib --verbose
+; dune-release publish doc --verbose      # ... if necessary
 ; dune-release opam pkg
-; dune-release opam submit ^C          #  Exit at prompt to avoid creating pull request
+; dune-release opam submit ^C             #  Exit at prompt to avoid creating pull request
 ; cd <opam-repository>
-; git push -u origin --force           #  Add new `.opam` files to PR
+; git push -u origin --force              #  Add new `.opam` files to PR
 ```
 
 ## Releasing to Tezos' opam-repository
