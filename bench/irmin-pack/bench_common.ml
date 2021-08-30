@@ -28,7 +28,7 @@ let reporter ?(prefix = "") () =
     let with_stamp h _tags k fmt =
       let dt = now_s () in
       Fmt.kpf k ppf
-        ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
+        ("%s%+04.0fs %a %a @[" ^^ fmt ^^ "@]@.")
         prefix dt Logs_fmt.pp_header (level, h)
         Fmt.(styled `Magenta string)
         (Logs.Src.name src)
@@ -146,6 +146,14 @@ module FSHelper = struct
       Logs.info (fun l -> l "exec: %s" cmd);
       let _ = Sys.command cmd in
       ())
+
+  let cp_dir root tmp_root =
+    if Sys.file_exists root then (
+      let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root; tmp_root ] in
+      Logs.info (fun l -> l "exec: %s\n%!" cmd);
+      match Sys.command cmd with
+      | 0 -> ()
+      | n -> Fmt.failwith "command `%s' exited with non-zero exit code %d" cmd n)
 end
 
 module Generate_trees (Store : Irmin.KV with type Schema.Contents.t = bytes) =
@@ -194,3 +202,26 @@ struct
     in
     aux 0 tree
 end
+
+module Benchmark = struct
+  type result = { time : float; size : int }
+
+  let run store_dir f =
+    let+ time, res = with_timer f in
+    let size = FSHelper.get_size store_dir in
+    ({ time; size }, res)
+
+  let pp_results ppf result =
+    Format.fprintf ppf "Total time: %f@\nSize on disk: %d M" result.time
+      result.size
+end
+
+let get_maxrss () =
+  let usage = Rusage.(get Self) in
+  let ( / ) = Int64.div in
+  Int64.to_int (usage.maxrss / 1024L / 1024L)
+
+let report_mem_stats () =
+  let mem = (Gc.quick_stat ()).heap_words in
+  let maxrss = get_maxrss () in
+  Logs.info (fun l -> l "Gc.heap_words = %d maxrss = %d" mem maxrss)

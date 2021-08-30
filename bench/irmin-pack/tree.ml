@@ -58,19 +58,6 @@ let pp_store_type ppf = function
   | `Pack_layered -> Format.fprintf ppf "[pack-layered store]"
   | `Pack_mem -> Format.fprintf ppf "[pack-mem store]"
 
-module Benchmark = struct
-  type result = { time : float; size : int }
-
-  let run config f =
-    let+ time, res = with_timer f in
-    let size = FSHelper.get_size config.store_dir in
-    ({ time; size }, res)
-
-  let pp_results ppf result =
-    Format.fprintf ppf "Total time: %f@\nSize on disk: %d M" result.time
-      result.size
-end
-
 module Bench_suite (Store : Store) = struct
   module Info = Info (Store.Info)
 
@@ -108,7 +95,7 @@ module Bench_suite (Store : Store) = struct
       Trees.add_large_trees config.width config.nlarge_trees
       |> add_commits ~message:"Playing large mode" repo config.ncommits
            on_commit on_end
-      |> Benchmark.run config
+      |> Benchmark.run config.store_dir
     in
     let+ () = Store.Repo.close repo in
     fun ppf ->
@@ -128,7 +115,7 @@ module Bench_suite (Store : Store) = struct
       Trees.add_chain_trees config.depth config.nchain_trees
       |> add_commits ~message:"Playing chain mode" repo config.ncommits
            on_commit on_end
-      |> Benchmark.run config
+      |> Benchmark.run config.store_dir
     in
     let+ () = Store.Repo.close repo in
     fun ppf ->

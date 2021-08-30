@@ -25,6 +25,7 @@ val with_progress_bar :
   message:string -> n:int -> unit:string -> ((int -> unit) -> 'a) -> 'a
 
 val random_blob : unit -> bytes
+val random_string : int -> string
 
 module Info (I : Irmin.Info.S) : sig
   val f : I.f
@@ -37,6 +38,7 @@ module FSHelper : sig
   val rm_dir : string -> unit
   val get_size : string -> int
   val print_size_layers : string -> unit
+  val cp_dir : string -> string -> unit
 end
 
 module Generate_trees (Store : Irmin.KV with type Schema.Contents.t = bytes) : sig
@@ -48,3 +50,13 @@ module Generate_trees (Store : Irmin.KV with type Schema.Contents.t = bytes) : s
   (** [add_large_trees width nb tree] adds [nb] random contents to [tree],
       breadthwise. *)
 end
+
+module Benchmark : sig
+  type result
+
+  val run : string -> (unit -> 'a Lwt.t) -> (result * 'a) Lwt.t
+  val pp_results : Format.formatter -> result -> unit
+end
+
+val get_maxrss : unit -> int
+val report_mem_stats : unit -> unit
