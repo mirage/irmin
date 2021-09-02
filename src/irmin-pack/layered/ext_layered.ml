@@ -92,7 +92,10 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.S) = struct
       module Val = H
 
       module Atomic_write = struct
-        module AW = Irmin_pack.Atomic_write.Make_persistent (V) (Key) (Val)
+        module AW =
+          Irmin_pack.Atomic_write.Make_persistent (V) (Key)
+            (Irmin_pack.Atomic_write.Value.Of_hash (Val))
+
         include Irmin_pack.Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =

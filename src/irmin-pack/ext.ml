@@ -75,7 +75,11 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       module Branch = struct
         module Key = B
         module Val = H
-        module AW = Atomic_write.Make_persistent (V) (Key) (Val)
+
+        module AW =
+          Atomic_write.Make_persistent (V) (Key)
+            (Atomic_write.Value.Of_hash (Val))
+
         include Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =

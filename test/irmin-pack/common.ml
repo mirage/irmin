@@ -86,7 +86,7 @@ module Branch =
   Irmin_pack.Atomic_write.Make_persistent
     (Irmin_pack.Version.V2)
     (Irmin.Branch.String)
-    (Schema.Hash)
+    (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 
 module Make_context (Config : sig
   val root : string

@@ -24,10 +24,20 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let hash = short_hash ?seed:None
 end)
 
-module Make_persistent
-    (Current : Version.S)
-    (K : Irmin.Type.S)
-    (V : Irmin.Hash.S) =
+module Value = struct
+  module type S = Value
+
+  module Of_hash (X : Irmin.Hash.S) = struct
+    type t = X.t [@@deriving irmin ~of_bin_string]
+
+    let null =
+      match of_bin_string (String.make X.hash_size '\000') with
+      | Ok x -> x
+      | Error _ -> assert false
+  end
+end
+
+module Make_persistent (Current : Version.S) (K : Irmin.Type.S) (V : Value) =
 struct
   module Tbl = Table (K)
   module W = Irmin.Private.Watch.Make (K) (V)
@@ -65,17 +75,20 @@ struct
     | None -> IO.append t.block buf
     | Some off -> IO.set t.block buf ~off
 
-  let zero =
-    match value_of_bin_string (String.make V.hash_size '\000') with
-    | Ok x -> x
-    | Error _ -> assert false
+  let value_encoded_size =
+    match Irmin.Type.Size.of_value V.t with
+    | Repr.Size.Static n -> n
+    | Dynamic _ | Unknown ->
+        failwith
+          "Irmin_pack.Atomic_write: supplied value type must have a \
+           fixed-width binary encoding"
 
   let refill t ~to_ ~from =
     let rec aux offset =
       if offset >= to_ then ()
       else
         let len = read_length32 ~off:offset t.block in
-        let buf = Bytes.create (len + V.hash_size) in
+        let buf = Bytes.create (len + value_encoded_size) in
         let off = offset ++ Int63.of_int 4 in
         let n = IO.read t.block ~off buf in
         assert (n = Bytes.length buf);
@@ -88,9 +101,9 @@ struct
         in
         let n, v = decode_bin_value buf len in
         assert (n = String.length buf);
-        if not (equal_value v zero) then Tbl.add t.cache h v;
+        if not (equal_value v V.null) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
-        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + V.hash_size)))
+        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + value_encoded_size)))
     in
     aux from
 
@@ -129,7 +142,7 @@ struct
     Tbl.remove t.cache k;
     try
       let off = Tbl.find t.index k in
-      set_entry t ~off k zero
+      set_entry t ~off k V.null
     with Not_found -> ()
 
   let remove t k =
