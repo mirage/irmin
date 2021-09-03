@@ -27,11 +27,25 @@ module type Persistent = sig
   val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
 end
 
+module type Value = sig
+  include Irmin.Type.S
+
+  val null : t
+  (** A special value that is reserved for use by the implementation of
+      {!Make_persistent} (and must never be passed by the user). *)
+end
+
 module type Sigs = sig
   module type S = S
   module type Persistent = Persistent
 
-  module Make_persistent (_ : Version.S) (K : Irmin.Type.S) (V : Irmin.Hash.S) :
+  module Value : sig
+    module type S = Value
+
+    module Of_hash (X : Irmin.Hash.S) : S with type t = X.t
+  end
+
+  module Make_persistent (_ : Version.S) (K : Irmin.Type.S) (V : Value.S) :
     Persistent with type key = K.t and type value = V.t
 
   module Closeable (AW : S) : sig
