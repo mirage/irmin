@@ -48,6 +48,6 @@ depend on external C stubs; it aims to run everywhere, from Linux,
 to browsers and Xen unikernels.
 """
 pin-depends: [
-  [ "repr.dev" "git+https://github.com/mirage/repr#6845bd77f82739333d893c07ca7e973908facb05" ]
-  [ "ppx_repr.dev" "git+https://github.com/mirage/repr#6845bd77f82739333d893c07ca7e973908facb05" ]
+  [ "repr.dev" "git+https://github.com/mirage/repr#0c0b7b76bd6531ce3d3adc341bf3df72046f5855" ]
+  [ "ppx_repr.dev" "git+https://github.com/mirage/repr#0c0b7b76bd6531ce3d3adc341bf3df72046f5855" ]
 ]
