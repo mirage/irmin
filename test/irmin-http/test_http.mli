@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type test = Alcotest.speed_level * Irmin_test.t
+type test = Alcotest.speed_level * Irmin_test.Suite.t
 
 val servers : test list
 val suites : test list -> test list

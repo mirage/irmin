@@ -83,8 +83,21 @@ type t = {
   stats : (unit -> int * int) option;
 }
 
+module Suite = struct
+  type nonrec t = t
+
+  let create ~name ~init ~clean ~config ~store ~layered_store ~stats =
+    { name; init; clean; config; store; layered_store; stats }
+
+  let name t = t.name
+  let config t = t.config
+  let store t = t.store
+  let init t = t.init
+  let clean t = t.clean
+end
+
 module type Store_tests = functor (S : S) -> sig
-  val tests : (string * (t -> unit -> unit)) list
+  val tests : (string * (Suite.t -> unit -> unit)) list
 end
 
 module Make_helpers (S : S) = struct
@@ -151,7 +164,7 @@ module Make_helpers (S : S) = struct
         S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.hash kr1 ]
           (t3 :> S.tree)
 
-  let run x test =
+  let run (x : Suite.t) test =
     Lwt_main.run
       (Lwt.catch
          (fun () ->

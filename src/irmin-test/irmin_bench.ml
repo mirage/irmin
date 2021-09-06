@@ -16,7 +16,6 @@
  *)
 
 open Irmin.Export_for_backends
-open Irmin_test.Common
 
 type t = {
   root : string;
@@ -50,7 +49,7 @@ open Cmdliner
 let log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
-  Logs.set_reporter (reporter ());
+  Logs.set_reporter (Irmin_test.reporter ());
   ()
 
 let log = Term.(const log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
