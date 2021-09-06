@@ -39,7 +39,7 @@ module Option = struct
   let of_result = function Ok x -> Some x | Error _ -> None
 end
 
-let direct_depth_default_ = 1000
+let direct_depth_default_ = 100
 
 module List = struct
   include List
