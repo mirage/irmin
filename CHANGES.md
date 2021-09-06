@@ -39,6 +39,7 @@
   - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
     cache the lazily loaded data any more. Pass `~cache:true` to enable it
     again. (#1526, @Ngoguey42)
+  - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
 
 - **irmin-git**
   - Upgrade `irmin-git` to `git.3.5.0`. (#1495, @dinosaure)
