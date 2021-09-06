@@ -16,6 +16,9 @@
 
 (* Extensions to the default namespace, opened throughout the Irmin codebase. *)
 
+(* Some functions from that file are xtracted from ocaml-containers:
+   Copyright (c) 2013, Simon Cruanes *)
+
 type read = Perms.read
 type write = Perms.write
 type read_write = Perms.read_write
@@ -36,6 +39,8 @@ module Option = struct
   let of_result = function Ok x -> Some x | Error _ -> None
 end
 
+let direct_depth_default_ = 1000
+
 module List = struct
   include List
   (** @closed *)
@@ -45,12 +50,59 @@ module List = struct
     if len < 0 then true
     else match l with [] -> false | _ :: tl -> is_longer_than (len - 1) tl
 
-  let map f l =
-    let rec aux acc = function
-      | [] -> acc []
-      | h :: t -> (aux [@tailcall]) (fun t' -> acc (f h :: t')) t
+  let tail_map f l =
+    (* Unwind the list of tuples, reconstructing the full list front-to-back.
+       @param tail_acc a suffix of the final list; we append tuples' content
+       at the front of it *)
+    let rec rebuild tail_acc = function
+      | [] -> tail_acc
+      | (y0, y1, y2, y3, y4, y5, y6, y7, y8) :: bs ->
+          rebuild
+            (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: y7 :: y8 :: tail_acc)
+            bs
     in
-    aux (fun x -> x) l
+    (* Create a compressed reverse-list representation using tuples
+       @param tuple_acc a reverse list of chunks mapped with [f] *)
+    let rec dive tuple_acc = function
+      | x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: xs ->
+          let y0 = f x0 in
+          let y1 = f x1 in
+          let y2 = f x2 in
+          let y3 = f x3 in
+          let y4 = f x4 in
+          let y5 = f x5 in
+          let y6 = f x6 in
+          let y7 = f x7 in
+          let y8 = f x8 in
+          dive ((y0, y1, y2, y3, y4, y5, y6, y7, y8) :: tuple_acc) xs
+      | xs ->
+          (* Reverse direction, finishing off with a direct map *)
+          let tail = List.map f xs in
+          rebuild tail tuple_acc
+    in
+    dive [] l
+
+  let map f l =
+    let rec direct f i l =
+      match l with
+      | [] -> []
+      | [ x ] -> [ f x ]
+      | [ x1; x2 ] ->
+          let y1 = f x1 in
+          [ y1; f x2 ]
+      | [ x1; x2; x3 ] ->
+          let y1 = f x1 in
+          let y2 = f x2 in
+          [ y1; y2; f x3 ]
+      | _ when i = 0 -> tail_map f l
+      | x1 :: x2 :: x3 :: x4 :: l' ->
+          let y1 = f x1 in
+          let y2 = f x2 in
+          let y3 = f x3 in
+          let y4 = f x4 in
+          y1 :: y2 :: y3 :: y4 :: direct f (i - 1) l'
+    in
+    direct f direct_depth_default_ l
 
   let concat l =
     let rec aux acc curr l =
@@ -88,4 +140,20 @@ module Seq = struct
       match s () with Seq.Nil -> false | Seq.Cons (v, s) -> f v || aux s
     in
     aux s
+
+  let of_seq_rev l =
+    let rec loop acc s =
+      match s () with Seq.Nil -> acc | Seq.Cons (x, tl) -> loop (x :: acc) tl
+    in
+    loop [] l
+
+  let of_seq l =
+    let rec direct i seq =
+      if i <= 0 then List.rev (of_seq_rev seq)
+      else
+        match seq () with
+        | Seq.Nil -> []
+        | Seq.Cons (x, tl) -> x :: direct (i - 1) tl
+    in
+    direct direct_depth_default_ l
 end
