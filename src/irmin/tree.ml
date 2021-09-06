@@ -124,7 +124,7 @@ module Make (P : Private.S) = struct
 
   type metadata = Metadata.t [@@deriving irmin ~equal]
   type key = Path.t [@@deriving irmin ~pp]
-  type hash = P.Hash.t [@@deriving irmin ~pp ~equal]
+  type hash = P.Hash.t [@@deriving irmin ~pp ~equal ~compare]
   type step = Path.step [@@deriving irmin ~pp ~compare]
   type contents = P.Contents.Val.t [@@deriving irmin ~equal]
   type repo = P.Repo.t
@@ -255,8 +255,12 @@ module Make (P : Private.S) = struct
           | Some x, Some y -> equal_contents x y
           | _ -> equal_hash (hash x) (hash y))
 
-    (* FIXME: fix compare *)
-    let t = Type.map ~equal:(Type.stage equal) v of_v (fun t -> t.v)
+    let compare (x : t) (y : t) =
+      if x == y then 0 else compare_hash (hash x) (hash y)
+
+    let t =
+      Type.map ~equal:(Type.stage equal) ~compare:(Type.stage compare) v of_v
+        (fun t -> t.v)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -880,8 +884,12 @@ module Make (P : Private.S) = struct
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
 
-    (* FIXME: fix compare *)
-    let t node = Type.map ~equal:(Type.stage equal) node of_v (fun t -> t.v)
+    let compare (x : t) (y : t) =
+      if x == y then 0 else compare_hash (hash x) (hash y)
+
+    let t node =
+      Type.map ~equal:(Type.stage equal) ~compare:(Type.stage compare) node of_v
+        (fun t -> t.v)
 
     let _, t =
       Type.mu2 (fun _ y ->

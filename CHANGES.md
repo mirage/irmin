@@ -8,6 +8,9 @@
     interpreting such paths as ending with empty nodes (#1477, @CraigFe)
   - Fix the pre-hashing function for big-endian architectures. (#1505,
     @Ngoguey42, @dinosaure)
+  - Fix the implementation of comparison on `Irmin.Tree` objects to use the
+    comparison defined on hashes. The previous implementation was unstable.
+    (#1519, @CraigFe)
 
 ### Added
 
