@@ -15,6 +15,7 @@
  *)
 
 module type S = Common.S
+module type Generic_key = Common.Generic_key
 module type Layered_store = Common.Layered_store
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
@@ -32,9 +33,19 @@ module Suite : sig
     stats:(unit -> int * int) option ->
     t
 
+  val create_generic_key :
+    name:string ->
+    init:(unit -> unit Lwt.t) ->
+    clean:(unit -> unit Lwt.t) ->
+    config:Irmin.config ->
+    store:(module Generic_key) ->
+    layered_store:(module Layered_store) option ->
+    stats:(unit -> int * int) option ->
+    t
+
   val name : t -> string
   val config : t -> Irmin.config
-  val store : t -> (module S)
+  val store : t -> (module S) option
   val init : t -> unit -> unit Lwt.t
   val clean : t -> unit -> unit Lwt.t
 end

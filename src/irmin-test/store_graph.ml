@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-module Make (S : S) = struct
+module Make (S : Generic_key) = struct
   include Common.Make_helpers (S)
 
   let test_iter x () =
@@ -111,7 +111,7 @@ module Make (S : S) = struct
           nodes
       in
       let test1 () =
-        let foo = P.Contents.Hash.hash "foo" in
+        let* foo = with_contents repo (fun c -> P.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
         let* k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
         let* k2 = with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) in
@@ -137,7 +137,7 @@ module Make (S : S) = struct
       let test2 () =
         (* Graph.iter requires a node as max, we cannot test a graph with only
            contents. *)
-        let foo = P.Contents.Hash.hash "foo" in
+        let* foo = with_contents repo (fun c -> P.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
         let* k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
         visited := [];
@@ -149,7 +149,7 @@ module Make (S : S) = struct
           ~not_visited:[ `Contents foo_k ]
       in
       let test3 () =
-        let foo = P.Contents.Hash.hash "foo" in
+        let* foo = with_contents repo (fun c -> P.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
         let* kb1 = with_node repo (fun g -> Graph.v g [ ("b1", normal foo) ]) in
         let* ka1 = with_node repo (fun g -> Graph.v g [ ("a1", `Node kb1) ]) in

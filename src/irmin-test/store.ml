@@ -21,7 +21,7 @@ let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (S : S) = struct
+module Make (S : Generic_key) = struct
   include Common.Make_helpers (S)
   module History = Irmin.Commit.History (P.Commit)
 
@@ -117,7 +117,9 @@ module Make (S : S) = struct
   let test_nodes x () =
     let test repo =
       let g = g repo and n = n repo in
-      let k = normal (P.Contents.Hash.hash "foo") in
+      let* k =
+        with_contents repo (fun c -> P.Contents.add c "foo") >|= normal
+      in
       let check_hash = check P.Hash.t in
       let check_key = check P.Node.Key.t in
       let check_val = check [%typ: Graph.value option] in
@@ -1470,6 +1472,7 @@ module Make (S : S) = struct
           (match P.Node.Val.find v "499999" with
           | None | Some (`Node _) -> Alcotest.fail "value 499999 not found"
           | Some (`Contents (x, _)) ->
+              let x = P.Contents.Key.to_hash x in
               let x' = P.Contents.Hash.hash "499999" in
               check P.Contents.Hash.t "find 499999" x x');
           match P.Node.Val.find v "500000" with
@@ -1924,17 +1927,37 @@ module Make (S : S) = struct
 
   let test_shallow_objects x () =
     let test repo =
-      let contents s = P.Contents.Hash.hash s in
-      let node s = P.Contents.Hash.hash s in
-      let commit s = P.Contents.Hash.hash s in
-      let foo_k = node "foo" in
-      let bar_k = node "bar" in
+      (* NOTE: A store of type `Irmin.Generic_key.S` does not currently expose
+         functions for building nodes / commits with non-existent children, due to
+         the need to have _keys_ for all store pointers.
+
+          A future version of this API may support such operations (e.g. for
+          constructing Merkle proofs), but until then we must synthesise test keys
+          by adding test values to the correponding backend stores directly. *)
+      let contents (s : string) : S.contents_key Lwt.t =
+        with_contents repo (fun c -> P.Contents.add c s)
+      in
+      let node (s : string) : S.node_key Lwt.t =
+        with_node repo (fun n ->
+            let* contents = contents s in
+            let node = P.Node.Val.(add empty) s (normal contents) in
+            P.Node.add n node)
+      in
+      let commit (s : string) : S.commit_key Lwt.t =
+        with_commit repo (fun c ->
+            let* node = node s in
+            let commit = P.Commit.Val.v ~info:(info "") ~node ~parents:[] in
+            P.Commit.add c commit)
+      in
+      let* foo_k = node "foo" in
+      let* bar_k = node "bar" in
       let tree_1 = S.Tree.shallow repo (`Node foo_k) in
       let tree_2 = S.Tree.shallow repo (`Node bar_k) in
-      let node_3 =
+      let* node_3 =
+        let+ contents_foo = contents "foo" in
         S.Private.Node.Val.of_list
           [
-            ("foo", `Contents (contents "foo", S.Metadata.default));
+            ("foo", `Contents (contents_foo, S.Metadata.default));
             ("bar", `Node bar_k);
           ]
       in
@@ -1948,11 +1971,12 @@ module Make (S : S) = struct
       S.set_tree_exn t [ "1" ] tree_1 ~info >>= fun () ->
       S.set_tree_exn t [ "2" ] tree_2 ~info >>= fun () ->
       let* h = S.Head.get t in
-      let commit_v =
+      let* commit_v =
+        let+ commit_foo = commit "foo" in
         S.Private.Commit.Val.v ~info:(info ()) ~node:key_3
-          ~parents:[ S.Commit.key h; commit "foo" ]
+          ~parents:[ S.Commit.key h; commit_foo ]
       in
-      let commit_key = P.Commit.Hash.hash commit_v in
+      let* commit_key = with_commit repo (fun c -> P.Commit.add c commit_v) in
       let commit = S.of_private_commit repo commit_key commit_v in
       S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
       let* t1 = S.find_tree t [ "1" ] in
@@ -2016,12 +2040,12 @@ module Make (S : S) = struct
 end
 
 let suite' l ?(prefix = "") (_, x) =
-  let (module S) = x.store in
+  let (module S) = Suite.store_generic_key x in
   let module T = Make (S) in
   (prefix ^ x.name, l)
 
 let suite (speed, x) =
-  let (module S) = x.store in
+  let (module S) = Suite.store_generic_key x in
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
@@ -2058,7 +2082,7 @@ let suite (speed, x) =
     (speed, x)
 
 let slow_suite (speed, x) =
-  let (module S) = x.store in
+  let (module S) = Suite.store_generic_key x in
   let module T = Make (S) in
   suite' ~prefix:"SLOW_"
     [

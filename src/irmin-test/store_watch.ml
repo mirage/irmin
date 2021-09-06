@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-module Make (Log : Logs.LOG) (S : S) = struct
+module Make (Log : Logs.LOG) (S : Generic_key) = struct
   include Common.Make_helpers (S)
 
   let sleep ?(sleep_t = 0.01) () =

@@ -42,6 +42,13 @@ module type S =
      and type Schema.Contents.t = string
      and type Schema.Branch.t = string
 
+module type Generic_key =
+  Irmin.Generic_key.S
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
+
 module type Layered_store =
   Irmin_layers.S
     with type Schema.Path.step = string
@@ -73,12 +80,14 @@ let layered_store :
   let module S = B.Make (Schema (M)) in
   (module S)
 
+type store = S of (module S) | Generic_key of (module Generic_key)
+
 type t = {
   name : string;
   init : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
-  store : (module S);
+  store : store;
   layered_store : (module Layered_store) option;
   stats : (unit -> int * int) option;
 }
@@ -87,20 +96,31 @@ module Suite = struct
   type nonrec t = t
 
   let create ~name ~init ~clean ~config ~store ~layered_store ~stats =
+    { name; init; clean; config; store = S store; layered_store; stats }
+
+  let create_generic_key ~name ~init ~clean ~config ~store ~layered_store ~stats
+      =
+    let store = Generic_key store in
     { name; init; clean; config; store; layered_store; stats }
 
   let name t = t.name
   let config t = t.config
-  let store t = t.store
+  let store t = match t.store with S x -> Some x | Generic_key _ -> None
+
+  let store_generic_key t =
+    match t.store with
+    | Generic_key x -> x
+    | S (module S) -> (module S : Generic_key)
+
   let init t = t.init
   let clean t = t.clean
 end
 
-module type Store_tests = functor (S : S) -> sig
+module type Store_tests = functor (S : Generic_key) -> sig
   val tests : (string * (Suite.t -> unit -> unit)) list
 end
 
-module Make_helpers (S : S) = struct
+module Make_helpers (S : Generic_key) = struct
   module P = S.Private
   module Graph = Irmin.Node.Graph (P.Node)
 
