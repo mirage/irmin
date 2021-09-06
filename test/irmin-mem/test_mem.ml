@@ -40,12 +40,5 @@ let stats = None
 let lower_name = "lower"
 
 let suite =
-  {
-    Irmin_test.name = "MEM";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = None;
-  }
+  Irmin_test.Suite.create ~name:"MEM" ~init ~store ~config ~clean ~stats:None
+    ~layered_store:None

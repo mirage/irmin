@@ -134,16 +134,18 @@ let unlock fd = Lwt_unix.close fd
 let serve servers n id =
   Logs.set_level ~all:true (Some Logs.Debug);
   Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
-  let _, (server : Irmin_test.t) = List.nth servers n in
+  let _, (server : Irmin_test.Suite.t) = List.nth servers n in
   Logs.debug (fun l ->
-      l "Got server: %s, root=%s" server.name (root server.config));
-  let (module Server : Irmin_test.S) = server.store in
+      l "Got server: %s, root=%s"
+        (Irmin_test.Suite.name server)
+        (root (Irmin_test.Suite.config server)));
+  let (module Server : Irmin_test.S) = Irmin_test.Suite.store server in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
-  let test = { name = server.name; id } in
+  let test = { name = Irmin_test.Suite.name server; id } in
   let socket = socket test in
   let server () =
-    server.init () >>= fun () ->
-    let* repo = Server.Repo.v server.config in
+    Irmin_test.Suite.init server () >>= fun () ->
+    let* repo = Server.Repo.v (Irmin_test.Suite.config server) in
     let* lock = lock test in
     let spec = HTTP.v repo ~strict:false in
     let* () =
@@ -173,42 +175,40 @@ let kill_server socket pid =
   Fmt.epr "Server [PID %d] is killed.\n%!" pid
 
 let suite i server =
-  let open Irmin_test in
-  let id = { name = server.name; id = Random.int 0x3FFFFFFF } in
+  let id =
+    { name = Irmin_test.Suite.name server; id = Random.int 0x3FFFFFFF }
+  in
   let socket = socket id in
   let server_pid = ref 0 in
-  {
-    name = Printf.sprintf "HTTP.%s" server.name;
-    init =
-      (fun () ->
-        remove socket;
-        remove (pid_file id);
-        mkdir test_http_dir >>= fun () ->
-        Lwt_io.flush_all () >>= fun () ->
-        let pwd = Sys.getcwd () in
-        let root =
-          if Filename.basename pwd = "default" then ".." / ".." / "" else ""
-        in
-        let cmd =
-          root
-          ^ "_build"
-            / "default"
-            / Fmt.strf "%s serve %d %d &" Sys.argv.(0) i id.id
-        in
-        Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
-        let _ = Sys.command cmd in
-        let+ pid = wait_for_the_server_to_start id in
-        server_pid := pid);
-    stats = None;
-    clean =
-      (fun () ->
-        kill_server socket !server_pid;
-        server.clean ());
-    config =
-      Irmin_http.config uri (Irmin.Private.Conf.empty Irmin_http.Conf.spec);
-    store = http_store id server.store;
-    layered_store = None;
-  }
+  Irmin_test.Suite.create
+    ~name:(Printf.sprintf "HTTP.%s" (Irmin_test.Suite.name server))
+    ~init:(fun () ->
+      remove socket;
+      remove (pid_file id);
+      mkdir test_http_dir >>= fun () ->
+      Lwt_io.flush_all () >>= fun () ->
+      let pwd = Sys.getcwd () in
+      let root =
+        if Filename.basename pwd = "default" then ".." / ".." / "" else ""
+      in
+      let cmd =
+        root
+        ^ "_build"
+          / "default"
+          / Fmt.strf "%s serve %d %d &" Sys.argv.(0) i id.id
+      in
+      Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
+      let _ = Sys.command cmd in
+      let+ pid = wait_for_the_server_to_start id in
+      server_pid := pid)
+    ~stats:None
+    ~clean:(fun () ->
+      kill_server socket !server_pid;
+      Irmin_test.Suite.clean server ())
+    ~config:
+      (Irmin_http.config uri (Irmin.Private.Conf.empty Irmin_http.Conf.spec))
+    ~store:(http_store id (Irmin_test.Suite.store server))
+    ~layered_store:None
 
 let suites servers =
   if Sys.os_type = "Win32" then
@@ -225,4 +225,4 @@ let with_server servers f =
     serve servers n id)
   else f ()
 
-type test = Alcotest.speed_level * Irmin_test.t
+type test = Alcotest.speed_level * Irmin_test.Suite.t

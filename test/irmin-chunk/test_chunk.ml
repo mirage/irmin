@@ -94,12 +94,5 @@ let clean () =
   S.Repo.close repo
 
 let suite =
-  {
-    Irmin_test.name = "CHUNK";
-    init;
-    store;
-    config;
-    clean;
-    stats = None;
-    layered_store = None;
-  }
+  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats:None
+    ~layered_store:None

@@ -17,15 +17,15 @@
 module Git : sig
   val misc : unit Alcotest.test_case list
   val store : (module Test_git.G)
-  val suite : Irmin_test.t
+  val suite : Irmin_test.Suite.t
 end
 
 module Http : sig
-  val servers : (Alcotest.speed_level * Irmin_test.t) list
+  val servers : (Alcotest.speed_level * Irmin_test.Suite.t) list
 end
 
 module FS : sig
-  val suite : Irmin_test.t
+  val suite : Irmin_test.Suite.t
 end
 
 module Conf : sig

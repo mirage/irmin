@@ -30,15 +30,25 @@ module type Layered_store =
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
-type t = {
-  name : string;
-  init : unit -> unit Lwt.t;
-  clean : unit -> unit Lwt.t;
-  config : Irmin.config;
-  store : (module S);
-  layered_store : (module Layered_store) option;
-  stats : (unit -> int * int) option;
-}
+module Suite : sig
+  type t
+
+  val create :
+    name:string ->
+    init:(unit -> unit Lwt.t) ->
+    clean:(unit -> unit Lwt.t) ->
+    config:Irmin.config ->
+    store:(module S) ->
+    layered_store:(module Layered_store) option ->
+    stats:(unit -> int * int) option ->
+    t
+
+  val name : t -> string
+  val config : t -> Irmin.config
+  val store : t -> (module S)
+  val init : t -> unit -> unit Lwt.t
+  val clean : t -> unit -> unit Lwt.t
+end
 
 val line : string -> unit
 val store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S)
@@ -57,8 +67,6 @@ module Store : sig
     string ->
     ?slow:bool ->
     misc:unit Alcotest.test list ->
-    (Alcotest.speed_level * t) list ->
+    (Alcotest.speed_level * Suite.t) list ->
     unit
 end
-
-module Common = Common

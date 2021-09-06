@@ -74,15 +74,8 @@ let suite_pack =
     clear repo >>= fun () -> S.Repo.close repo
   in
   let stats = None in
-  {
-    Irmin_test.name = "PACK";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = Some layered_store;
-  }
+  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats
+    ~layered_store:(Some layered_store)
 
 module Irmin_pack_mem_maker = Irmin_pack_mem.Maker (Config)
 
@@ -116,15 +109,8 @@ let suite_mem =
     clear repo >>= fun () -> S.Repo.close repo
   in
   let stats = None in
-  {
-    Irmin_test.name = "PACK MEM";
-    init;
-    clean;
-    config;
-    store;
-    stats;
-    layered_store = None;
-  }
+  Irmin_test.Suite.create ~name:"PACK MEM" ~init ~store ~config ~clean ~stats
+    ~layered_store:None
 
 let suite = [ suite_pack; suite_mem ]
 

@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.t
-val suite_generic : Irmin_test.t
+val suite : Irmin_test.Suite.t
+val suite_generic : Irmin_test.Suite.t
 val test_db : string
 
 module type S = sig
