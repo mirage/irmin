@@ -33,7 +33,7 @@ depends: [
   "mtime"      {with-test & >= "1.0.0"}
   "alcotest"   {with-test}
 ]
-available: arch != "arm32" & arch != "x86_32"
+available: arch != "arm32" & arch != "x86_32" &  arch != "s390x"
 
 synopsis: "Git backend for Irmin"
 description: """
