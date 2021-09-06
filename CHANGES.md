@@ -85,6 +85,7 @@
   - Add `Irmin.Private.Conf.Schema` for grouping configuration keys. Now
     `Irmin.Private.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
+  - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

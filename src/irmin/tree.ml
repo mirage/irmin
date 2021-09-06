@@ -376,38 +376,34 @@ module Make (P : Private.S) = struct
       let info = { hash; map; value; findv_cache } in
       { v; info }
 
-    let rec clear_elt ~max_depth depth (_, v) =
+    let rec clear_elt ~max_depth depth v =
       match v with
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
       | `Node t -> clear ~max_depth (depth + 1) t
 
-    and clear_map ~max_depth depth = List.iter (clear_elt ~max_depth depth)
-    and clear_maps ~max_depth depth = List.iter (clear_map ~max_depth depth)
-
     and clear_info ~max_depth ?v depth i =
-      let added =
+      let clear _ v = clear_elt ~max_depth depth v in
+      let () =
         match v with
         | Some (Value (_, _, Some um)) ->
-            StepMap.bindings um
-            |> List.filter_map (function
-                 | _, Remove -> None
-                 | k, Add v -> Some (k, v))
-        | _ -> []
+            StepMap.iter
+              (fun k -> function Remove -> () | Add v -> clear k v)
+              um
+        | _ -> ()
       in
-      let map =
+      let () =
         match (v, i.map) with
-        | Some (Map m), _ | _, Some m -> StepMap.bindings m
-        | _ -> []
+        | Some (Map m), _ | _, Some m -> StepMap.iter clear m
+        | _ -> ()
       in
-      let findv =
-        match i.findv_cache with Some m -> StepMap.bindings m | None -> []
+      let () =
+        match i.findv_cache with Some m -> StepMap.iter clear m | None -> ()
       in
       if depth >= max_depth && not (info_is_empty i) then (
         i.value <- None;
         i.map <- None;
         i.hash <- None;
-        i.findv_cache <- None);
-      clear_maps ~max_depth depth [ map; added; findv ]
+        i.findv_cache <- None)
 
     and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
 
