@@ -1439,8 +1439,6 @@ module Make (S : Generic_key) = struct
       | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
       | `Node node -> (
           let* v = S.to_private_node node in
-          let module PNode = P.Node_portable in
-          let module PNode_hash = Irmin.Hash.Typed (P.Hash) (P.Node_portable) in
           let () =
             let ls = P.Node.Val.list v in
             Alcotest.(check int) "list wide node" size (List.length ls)
