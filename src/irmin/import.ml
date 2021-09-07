@@ -66,6 +66,10 @@ module List = struct
    fun ~equal y -> function
     | [] -> false
     | x :: xs -> equal x y || mem ~equal y xs
+
+  let rec rev_append_map : type a b. (a -> b) -> a list -> b list -> b list =
+   fun f xs ys ->
+    match xs with [] -> ys | x :: xs -> rev_append_map f xs (f x :: ys)
 end
 
 module Seq = struct
