@@ -56,7 +56,7 @@ struct
   module Key = Hash.Typed (K) (Val)
 
   type 'a t = 'a N.t * 'a S.t
-  type key = S.key
+  type key = Key.t [@@deriving irmin ~equal]
   type value = S.value
 
   let add (_, t) = S.add t
@@ -89,8 +89,8 @@ struct
   let merge_commit info t ~old k1 k2 =
     let* v1 = get t k1 in
     let* v2 = get t k2 in
-    if List.mem k1 (Val.parents v2) then Merge.ok k2
-    else if List.mem k2 (Val.parents v1) then Merge.ok k1
+    if List.mem ~equal:equal_key k1 (Val.parents v2) then Merge.ok k2
+    else if List.mem ~equal:equal_key k2 (Val.parents v1) then Merge.ok k1
     else
       (* If we get an error while looking the the lca, then we
          assume that there is no common ancestor. Maybe we want to

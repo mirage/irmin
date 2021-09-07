@@ -61,6 +61,11 @@ module List = struct
       | h :: t, l -> (aux [@tailcall]) (h :: acc) t l
     in
     aux [] [] l
+
+  let rec mem : type a. equal:(a -> a -> bool) -> a -> a t -> bool =
+   fun ~equal y -> function
+    | [] -> false
+    | x :: xs -> equal x y || mem ~equal y xs
 end
 
 module Seq = struct

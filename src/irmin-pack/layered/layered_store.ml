@@ -339,7 +339,7 @@ module Atomic_write
            with type key = U.key
             and type value = U.value) =
 struct
-  type key = U.key
+  type key = K.t [@@deriving irmin ~equal]
   type value = U.value
 
   module U = U
@@ -434,7 +434,7 @@ struct
     (match t.lower with None -> Lwt.return_nil | Some lower -> L.list lower)
     >|= fun lower ->
     List.fold_left
-      (fun acc b -> if List.mem b acc then acc else b :: acc)
+      (fun acc b -> if List.mem ~equal:equal_key b acc then acc else b :: acc)
       lower upper
 
   type watch = U.watch
