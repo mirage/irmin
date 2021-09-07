@@ -177,7 +177,7 @@ module Make_helpers (S : S) = struct
 end
 
 let ignore_srcs src =
-  List.mem (Logs.Src.name src)
+  List.mem ~equal:String.equal (Logs.Src.name src)
     [
       "git.inflater.decoder";
       "git.deflater.encoder";

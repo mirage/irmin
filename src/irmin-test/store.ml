@@ -224,7 +224,8 @@ module Make (S : S) = struct
         let+ all = Graph.list g node in
         List.iter
           (fun (s, _) ->
-            if List.mem s !names then Alcotest.failf "%s: duplicate!" n
+            if List.mem ~equal:String.equal s !names then
+              Alcotest.failf "%s: duplicate!" n
             else names := s :: !names)
           all
       in
@@ -402,7 +403,7 @@ module Make (S : S) = struct
       in
       let* () =
         let+ ls = History.closure h ~min:[ commits.(7) ] ~max:[ commits.(6) ] in
-        if List.exists (fun x -> H_node.equal commits.(7) x) ls then
+        if List.mem ~equal:H_node.equal commits.(7) ls then
           Alcotest.fail "disconnected node should not be in closure"
       in
       let* krs =
@@ -417,7 +418,7 @@ module Make (S : S) = struct
             ~min:[ commits.(4); commits.(0) ]
             ~max:[ commits.(4); commits.(6) ]
         in
-        if List.exists (fun x -> H_node.equal commits.(0) x) ls then
+        if List.mem ~equal:H_node.equal commits.(0) ls then
           Alcotest.fail "disconnected node should not be in closure"
       in
       S.Repo.close repo
