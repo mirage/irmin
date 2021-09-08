@@ -158,13 +158,22 @@ module type Maker_generic_key = functor
   (Metadata : Metadata.S)
   (Contents_key : Key.S with type hash = Hash.t)
   (Node_key : Key.S with type hash = Hash.t)
-  ->
-  S_generic_key
-    with type metadata = Metadata.t
-     and type step = Path.step
-     and type hash = Hash.t
-     and type contents_key = Contents_key.t
-     and type node_key = Node_key.t
+  -> sig
+  include
+    S_generic_key
+      with type metadata = Metadata.t
+       and type step = Path.step
+       and type hash = Hash.t
+       and type contents_key = Contents_key.t
+       and type node_key = Node_key.t
+
+  module Portable :
+    Portable
+      with type node := t
+       and type step := step
+       and type metadata := metadata
+       and type hash := hash
+end
 
 module type Store = sig
   include Indexable.S

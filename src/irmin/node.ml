@@ -38,13 +38,13 @@ struct
   type metadata = Metadata.t [@@deriving irmin ~equal]
   type hash = Hash.t [@@deriving irmin]
 
-  type contents_entry = { name : Path.step; contents : contents_key }
+  type 'key contents_entry = { name : Path.step; contents : 'key }
   [@@deriving irmin]
 
-  type contents_m_entry = {
+  type 'key contents_m_entry = {
     metadata : Metadata.t;
     name : Path.step;
-    contents : contents_key;
+    contents : 'key;
   }
   [@@deriving irmin]
 
@@ -52,12 +52,17 @@ struct
     type t = Path.step [@@deriving irmin ~compare]
   end)
 
-  type node_entry = { name : Path.step; node : Node_key.t } [@@deriving irmin]
+  type 'h node_entry = { name : Path.step; node : 'h } [@@deriving irmin]
 
   type entry =
-    | Node of node_entry
-    | Contents of contents_entry
-    | Contents_m of contents_m_entry
+    | Node of node_key node_entry
+    | Contents of contents_key contents_entry
+    | Contents_m of contents_key contents_m_entry
+    (* NOTE: the [_hash] cases are only externally reachable via
+       [Portable.of_node]. *)
+    | Node_hash of Hash.t node_entry
+    | Contents_hash of Hash.t contents_entry
+    | Contents_m_hash of Hash.t contents_m_entry
   [@@deriving irmin]
 
   type t = entry StepMap.t
@@ -85,10 +90,13 @@ struct
           Contents { name = k; contents = h }
         else Contents_m { metadata = m; name = k; contents = h }
 
-  let of_entry = function
+  let of_entry : entry -> step * value = function
     | Node n -> (n.name, `Node n.node)
     | Contents c -> (c.name, `Contents (c.contents, Metadata.default))
     | Contents_m c -> (c.name, `Contents (c.contents, c.metadata))
+    | Node_hash _ | Contents_hash _ | Contents_m_hash _ ->
+        (* Not reachable after [Portable.of_node] *)
+        assert false
 
   let of_seq l =
     Seq.fold_left
@@ -118,17 +126,62 @@ struct
   let clear _ = ()
   let equal_entry_opt = Type.(unstage (equal (option entry_t)))
 
-  let add t k v =
-    let e = to_entry (k, v) in
+  let add_entry t k e =
     StepMap.update k
       (fun e' -> if equal_entry_opt (Some e) e' then e' else Some e)
       t
+
+  let add t k v =
+    let e = to_entry (k, v) in
+    add_entry t k e
 
   let remove t k = StepMap.remove k t
   let default = Metadata.default
   let of_entries e = of_list (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
-  let t = Type.map Type.(list entry_t) of_entries entries
+
+  module Hash_preimage = struct
+    type entry =
+      | Node_hash of Hash.t node_entry
+      | Contents_hash of Hash.t contents_entry
+      | Contents_m_hash of Hash.t contents_m_entry
+    [@@deriving irmin]
+
+    type t = entry list [@@deriving irmin ~pre_hash]
+  end
+
+  let t =
+    let pre_hash t f =
+      let entries : Hash_preimage.t =
+        StepMap.to_seq t
+        |> Seq.map (fun (_, v) ->
+               match v with
+               (* Weaken keys to hashes *)
+               | Node { name; node } ->
+                   Hash_preimage.Node_hash
+                     { name; node = Node_key.to_hash node }
+               | Contents { name; contents } ->
+                   Contents_hash
+                     { name; contents = Contents_key.to_hash contents }
+               | Contents_m { metadata; name; contents } ->
+                   Contents_m_hash
+                     {
+                       metadata;
+                       name;
+                       contents = Contents_key.to_hash contents;
+                     }
+               | Node_hash { name; node } -> Node_hash { name; node }
+               | Contents_hash { name; contents } ->
+                   Contents_hash { name; contents }
+               | Contents_m_hash { metadata; name; contents } ->
+                   Contents_m_hash { metadata; name; contents })
+        |> Seq.fold_left (fun xs x -> x :: xs) []
+      in
+      Hash_preimage.pre_hash entries f
+    in
+    Type.map ~pre_hash:(Type.stage pre_hash)
+      Type.(list entry_t)
+      of_entries entries
 
   (** Merges *)
 
@@ -174,6 +227,44 @@ struct
     in
     let merge = Merge.pair (merge_contents contents) (merge_node node) in
     Merge.like t merge explode implode
+
+  module Portable = struct
+    type nonrec t = t [@@deriving irmin]
+    type value = [ `Contents of hash * metadata | `Node of hash ]
+
+    let of_node t = t
+    let remove = remove
+    let length = length
+
+    let to_entry name = function
+      | `Node node -> Node_hash { name; node }
+      | `Contents (contents, metadata) ->
+          if equal_metadata metadata Metadata.default then
+            Contents_hash { name; contents }
+          else Contents_m_hash { name; contents; metadata }
+
+    let weaken_value = function
+      | `Node key -> `Node (Node_key.to_hash key)
+      | `Contents (key, m) -> `Contents (Contents_key.to_hash key, m)
+
+    let of_seq s =
+      Seq.fold_left
+        (fun acc (name, v) -> StepMap.add name (to_entry name v) acc)
+        StepMap.empty s
+
+    let add t name v =
+      let entry = to_entry name v in
+      add_entry t name entry
+
+    let find ?cache t k =
+      match find ?cache t k with
+      | None -> None
+      | Some value -> Some (weaken_value value)
+
+    let list ?offset ?length ?cache t =
+      list ?offset ?length ?cache t
+      |> List.map (fun (k, v) -> (k, weaken_value v))
+  end
 end
 
 module Make
