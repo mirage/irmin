@@ -212,9 +212,25 @@ module type KV_maker = sig
   (** @inline *)
 end
 
-module Generic_key = Store.Generic_key
 (** "Generic key" stores are Irmin stores in which the backend may not be keyed
     directly by the hashes of stored values. See {!Key} for more details. *)
+module Generic_key : sig
+  include module type of Store.Generic_key
+  (** @inline *)
+
+  module type Maker_args = sig
+    module Contents_store : Indexable.Maker_concrete_key
+    module Node_store : Indexable.Maker_concrete_key
+    module Commit_store : Indexable.Maker_concrete_key
+    module Branch_store : Atomic_write.Maker
+  end
+
+  module Maker (X : Maker_args) :
+    Maker
+      with type 'h contents_key = 'h X.Contents_store.key
+       and type 'h node_key = 'h X.Node_store.key
+       and type 'h commit_key = 'h X.Commit_store.key
+end
 
 (** {2 Synchronization} *)
 

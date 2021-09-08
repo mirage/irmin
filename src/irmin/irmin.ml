@@ -38,52 +38,62 @@ module Irmin_node = Node
 
 exception Closed = Store_properties.Closed
 
-module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
-  type endpoint = unit
+module type Maker_generic_key_args = sig
+  module Contents_store : Indexable.Maker_concrete_key
+  module Node_store : Indexable.Maker_concrete_key
+  module Commit_store : Indexable.Maker_concrete_key
+  module Branch_store : Atomic_write.Maker
+end
 
-  include Key.Store_spec.Hash_keyed
+module Maker_generic_key (Backend : Maker_generic_key_args) = struct
+  type endpoint = unit
+  type 'h contents_key = 'h Backend.Contents_store.key
+  type 'h node_key = 'h Backend.Node_store.key
+  type 'h commit_key = 'h Backend.Commit_store.key
 
   module Make (S : Schema.S) = struct
-    module CA = Content_addressable.Check_closed (CA)
-    module AW = Atomic_write.Check_closed (AW)
-
     module X = struct
       module Schema = S
       module Hash = S.Hash
-      module XKey = Key.Of_hash (S.Hash)
-      module Commit_key = XKey
-      module Node_key = XKey
+      module Contents_key = Backend.Contents_store.Key (S.Hash)
+      module Node_key = Backend.Node_store.Key (S.Hash)
+      module Commit_key = Backend.Commit_store.Key (S.Hash)
 
       module Contents = struct
-        module CA = CA (S.Hash) (S.Contents)
-        include Contents.Store (CA) (S.Hash) (S.Contents)
+        module Backend = Backend.Contents_store.Make (S.Hash) (S.Contents)
+        include Contents.Store_indexable (Backend) (S.Hash) (S.Contents)
       end
 
       module Node = struct
-        module Value = Node.Make (S.Hash) (S.Path) (S.Metadata)
-        module CA = CA (S.Hash) (Value)
+        module Value =
+          Node.Generic_key.Make (S.Hash) (S.Path) (S.Metadata) (Contents_key)
+            (Node_key)
+
+        module Backend = Backend.Node_store.Make (S.Hash) (Value)
 
         include
-          Node.Store (Contents) (CA) (S.Hash) (Value) (S.Metadata) (S.Path)
+          Node.Generic_key.Store (Contents) (Backend) (S.Hash) (Value)
+            (S.Metadata)
+            (S.Path)
       end
 
-      module Node_portable = Irmin_node.Portable.Of_node (Node.Val)
+      module Node_portable = Node.Value.Portable
 
       module Commit = struct
         module Commit_maker = Commit.Maker (Schema.Info)
         module C = Commit_maker.Make (S.Hash) (Node_key) (Commit_key)
-        module CA = CA (S.Hash) (C)
-        include Commit.Store (S.Info) (Node) (CA) (S.Hash) (C)
+        module Backend = Backend.Commit_store.Make (S.Hash) (C)
+        include Commit.Store_indexable (S.Info) (Node) (Backend) (S.Hash) (C)
       end
 
       module Branch = struct
         module Val = Commit.Key
-        include AW (S.Branch) (Val)
+        include Backend.Branch_store (S.Branch) (Val)
         module Key = S.Branch
       end
 
       module Slice = Slice.Make (Contents) (Node) (Commit)
-      module Remote = Remote.None (S.Hash) (S.Branch)
+      module Remote = Remote.None (Commit_key) (S.Branch)
 
       module Repo = struct
         type t = {
@@ -100,32 +110,57 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
         let branch_t t = t.branch
 
         let batch t f =
-          Contents.CA.batch t.contents @@ fun c ->
-          Node.CA.batch (snd t.nodes) @@ fun n ->
-          Commit.CA.batch (snd t.commits) @@ fun ct ->
+          Contents.Backend.batch t.contents @@ fun c ->
+          Node.Backend.batch (snd t.nodes) @@ fun n ->
+          Commit.Backend.batch (snd t.commits) @@ fun ct ->
           let contents_t = c in
           let node_t = (contents_t, n) in
           let commit_t = (node_t, ct) in
           f contents_t node_t commit_t
 
         let v config =
-          let* contents = Contents.CA.v config in
-          let* nodes = Node.CA.v config in
-          let* commits = Commit.CA.v config in
+          let* contents = Contents.Backend.v config in
+          let* nodes = Node.Backend.v config in
+          let* commits = Commit.Backend.v config in
           let nodes = (contents, nodes) in
           let commits = (nodes, commits) in
           let+ branch = Branch.v config in
           { contents; nodes; commits; branch; config }
 
         let close t =
-          Contents.CA.close t.contents >>= fun () ->
-          Node.CA.close (snd t.nodes) >>= fun () ->
-          Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+          Contents.Backend.close t.contents >>= fun () ->
+          Node.Backend.close (snd t.nodes) >>= fun () ->
+          Commit.Backend.close (snd t.commits) >>= fun () ->
+          Branch.close t.branch
       end
     end
 
     include Store.Make (X)
   end
+end
+
+module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
+  module Indexable = struct
+    type 'h key = 'h
+
+    module Key = Key.Of_hash
+
+    module Make (Hash : Hash.S) (Value : Type.S) = struct
+      module CA = Content_addressable.Check_closed (CA) (Hash) (Value)
+      include Indexable.Of_content_addressable (Hash) (CA)
+
+      let v = CA.v
+    end
+  end
+
+  module Maker_args = struct
+    module Contents_store = Indexable
+    module Node_store = Indexable
+    module Commit_store = Indexable
+    module Branch_store = Atomic_write.Check_closed (AW)
+  end
+
+  include Maker_generic_key (Maker_args)
 end
 
 module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
@@ -150,7 +185,13 @@ module type Maker = Store.Maker
 module type KV = Store.KV
 module type KV_maker = Store.KV_maker
 
-module Generic_key = Store.Generic_key
+module Generic_key = struct
+  include Store.Generic_key
+
+  module type Maker_args = Maker_generic_key_args
+
+  module Maker = Maker_generic_key
+end
 
 module Private = struct
   module Conf = Conf
