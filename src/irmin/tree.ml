@@ -156,88 +156,34 @@ module Make (P : Private.S) = struct
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
   module Contents = struct
-    type v = Hash of repo * hash | Value of contents
-    type info = { mutable hash : hash option; mutable value : contents option }
-    type t = { mutable v : v; mutable info : info }
+    type t = Hash of repo * hash | Value of contents
 
-    let info_is_empty i = i.hash = None && i.value = None
+    let of_hash repo h = Hash (repo, h)
+    let of_value c = Value c
 
-    let v =
+    let t =
       let open Type in
-      variant "Node.Contents.v" (fun hash value -> function
+      variant "Node.Contents.t" (fun hash value -> function
         | Hash (_, x) -> hash x | Value v -> value v)
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |~ case1 "value" P.Contents.Val.t (fun v -> Value v)
       |> sealv
 
-    let clear_info i =
-      if not (info_is_empty i) then (
-        i.value <- None;
-        i.hash <- None)
+    let hash = function
+      | Hash (_, k) -> k
+      | Value v ->
+          cnt.contents_hash <- cnt.contents_hash + 1;
+          P.Contents.Key.hash v
 
-    let clear t = clear_info t.info
-
-    let of_v v =
-      let hash, value =
-        match v with Hash (_, k) -> (Some k, None) | Value v -> (None, Some v)
-      in
-      let info = { hash; value } in
-      { v; info }
-
-    let export ?clear:(c = true) repo t k =
-      let hash = t.info.hash in
-      if c then clear t;
-      match (t.v, hash) with
-      | Hash (_, k), _ -> t.v <- Hash (repo, k)
-      | Value _, None -> t.v <- Hash (repo, k)
-      | Value _, Some k -> t.v <- Hash (repo, k)
-
-    let of_value c = of_v (Value c)
-    let of_hash repo k = of_v (Hash (repo, k))
-
-    let cached_hash t =
-      match (t.v, t.info.hash) with
-      | Hash (_, k), None ->
-          let h = Some k in
-          t.info.hash <- h;
-          h
-      | _, h -> h
-
-    let cached_value t =
-      match (t.v, t.info.value) with
-      | Value v, None ->
-          let v = Some v in
-          t.info.value <- v;
-          v
-      | _, v -> v
-
-    let hash c =
-      match cached_hash c with
-      | Some k -> k
-      | None -> (
-          match cached_value c with
-          | None -> assert false
-          | Some v ->
-              cnt.contents_hash <- cnt.contents_hash + 1;
-              let k = P.Contents.Key.hash v in
-              c.info.hash <- Some k;
-              k)
-
-    let value_of_hash t repo k =
+    let value_of_hash repo k =
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
       | None -> Error (`Dangling_hash k)
-      | Some v as some_v ->
-          t.info.value <- some_v;
-          Ok v
+      | Some v -> Ok v
 
-    let to_value t =
-      match cached_value t with
-      | Some v -> Lwt.return (Ok v)
-      | None -> (
-          match t.v with
-          | Value v -> Lwt.return (Ok v)
-          | Hash (repo, k) -> value_of_hash t repo k)
+    let to_value = function
+      | Value v -> Lwt.return (Ok v)
+      | Hash (repo, k) -> value_of_hash repo k
 
     let force = to_value
 
@@ -248,19 +194,15 @@ module Make (P : Private.S) = struct
     let equal (x : t) (y : t) =
       x == y
       ||
-      match (cached_hash x, cached_hash y) with
-      | Some x, Some y -> equal_hash x y
-      | _ -> (
-          match (cached_value x, cached_value y) with
-          | Some x, Some y -> equal_contents x y
-          | _ -> equal_hash (hash x) (hash y))
+      match (x, y) with
+      | Hash (_, x), Hash (_, y) -> equal_hash x y
+      | Value x, Value y -> equal_contents x y
+      | _ -> equal_hash (hash x) (hash y)
 
     let compare (x : t) (y : t) =
       if x == y then 0 else compare_hash (hash x) (hash y)
 
-    let t =
-      Type.map ~equal:(Type.stage equal) ~compare:(Type.stage compare) v of_v
-        (fun t -> t.v)
+    let t = Type.like ~equal:(Type.stage equal) ~compare:(Type.stage compare) t
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -272,7 +214,7 @@ module Make (P : Private.S) = struct
         let* x = to_value x >|= Option.of_result in
         let* y = to_value y >|= Option.of_result in
         Merge.(f P.Contents.Val.merge) ~old x y >|= function
-        | Ok (Some c) -> Ok (of_value c)
+        | Ok (Some c) -> Ok (Value c)
         | Ok None -> Error (`Conflict "empty contents")
         | Error _ as e -> e
       in
@@ -282,12 +224,9 @@ module Make (P : Private.S) = struct
       match force with
       | `True | `And_clear ->
           let* c = to_value t in
-          if force = `And_clear then clear t;
           f path (get_ok "fold" c) acc
       | `False skip -> (
-          match cached_value t with
-          | None -> skip path acc
-          | Some c -> f path c acc)
+          match t with Hash _ -> skip path acc | Value c -> f path c acc)
   end
 
   module Node = struct
@@ -382,7 +321,7 @@ module Make (P : Private.S) = struct
 
     let rec clear_elt ~max_depth depth v =
       match v with
-      | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
+      | `Contents _ -> ()
       | `Node t -> clear ~max_depth (depth + 1) t
 
     and clear_info ~max_depth ?v depth i =
@@ -1272,12 +1211,10 @@ module Make (P : Private.S) = struct
       assert (equal_hash k k');
       Node.export ?clear repo n k
     in
-    let add_contents c x () =
+    let add_contents x () =
       cnt.contents_add <- cnt.contents_add + 1;
-      let+ k = P.Contents.add contents_t x in
-      let k' = Contents.hash c in
-      assert (equal_hash k k');
-      Contents.export ?clear repo c k
+      let+ _ = P.Contents.add contents_t x in
+      ()
     in
     let add_node_map n x () = add_node n (value_of_map n x) () in
     let todo = Stack.create () in
@@ -1349,9 +1286,9 @@ module Make (P : Private.S) = struct
           if Hashes.mem seen h then ()
           else (
             Hashes.add seen h ();
-            match c.Contents.v with
+            match c with
             | Contents.Hash _ -> ()
-            | Contents.Value x -> Stack.push (add_contents c x) todo))
+            | Contents.Value x -> Stack.push (add_contents x) todo))
         !contents;
 
       (* 3. push the children jobs on the stack. *)

@@ -95,9 +95,6 @@ module type S = sig
     val force_exn : t -> contents Lwt.t
     (** Equivalent to {!force}, but raises an exception if the lazy content
         value is not present in the underlying repository. *)
-
-    val clear : t -> unit
-    (** [clear t] clears [t]'s cache. *)
   end
 
   val mem : t -> key -> bool Lwt.t
