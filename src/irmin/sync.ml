@@ -42,14 +42,14 @@ module Make (S : Store.Generic_key.S) = struct
   let convert_slice (type r s) (module RP : Private.S with type Slice.t = r)
       (module SP : Private.S with type Slice.t = s) r =
     let conv_contents_k =
-      Type.unstage (conv RP.Contents.Key.t SP.Contents.Key.t)
+      Type.unstage (conv RP.Contents.Hash.t SP.Contents.Hash.t)
     in
     let conv_contents_v =
       Type.unstage (conv RP.Contents.Val.t SP.Contents.Val.t)
     in
-    let conv_node_k = Type.unstage (conv RP.Node.Key.t SP.Node.Key.t) in
+    let conv_node_k = Type.unstage (conv RP.Node.Hash.t SP.Node.Hash.t) in
     let conv_node_v = Type.unstage (conv RP.Node.Val.t SP.Node.Val.t) in
-    let conv_commit_k = Type.unstage (conv RP.Commit.Key.t SP.Commit.Key.t) in
+    let conv_commit_k = Type.unstage (conv RP.Commit.Hash.t SP.Commit.Hash.t) in
     let conv_commit_v = Type.unstage (conv RP.Commit.Val.t SP.Commit.Val.t) in
     let* s = SP.Slice.empty () in
     let* () =

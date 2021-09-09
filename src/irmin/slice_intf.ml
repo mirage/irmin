@@ -50,7 +50,7 @@ module type Sigs = sig
   (** Build simple slices. *)
   module Make (C : Contents.Store) (N : Node.Store) (H : Commit.Store) :
     S
-      with type contents = C.Key.t * C.value
-       and type node = N.Key.t * N.value
-       and type commit = H.Key.t * H.value
+      with type contents = C.hash * C.value
+       and type node = N.hash * N.value
+       and type commit = H.hash * H.value
 end

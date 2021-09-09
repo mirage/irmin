@@ -63,9 +63,9 @@ module type S = sig
   (** Private slices. *)
   module Slice :
     Slice.S
-      with type contents = Contents.key * Contents.value
-       and type node = Node.key * Node.value
-       and type commit = Commit.key * Commit.value
+      with type contents = Contents.hash * Contents.value
+       and type node = Node.hash * Node.value
+       and type commit = Commit.hash * Commit.value
 
   (** Private repositories. *)
   module Repo : sig

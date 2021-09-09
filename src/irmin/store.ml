@@ -32,6 +32,7 @@ end
 module Make (P : Private.S) = struct
   module Schema = P.Schema
   module Contents_key = P.Contents.Key
+  module Node_key = P.Node.Key
   module Commit_key = P.Commit.Key
   module Metadata = P.Node.Metadata
   module Typed = Hash.Typed (P.Hash)
@@ -69,7 +70,7 @@ module Make (P : Private.S) = struct
   type commit_key = P.Commit.Key.t [@@deriving irmin ~pp ~equal]
   type repo = P.Repo.t
   type commit = { r : repo; key : commit_key; v : P.Commit.value }
-  type hash = Hash.t [@@deriving irmin ~pp ~compare]
+  type hash = Hash.t [@@deriving irmin ~equal ~pp ~compare]
   type node = Tree.node [@@deriving irmin]
   type contents = Contents.t [@@deriving irmin ~equal]
   type metadata = Metadata.t [@@deriving irmin]
@@ -252,7 +253,7 @@ module Make (P : Private.S) = struct
             | None -> Lwt.return_unit
             | Some c ->
                 root_nodes := P.Commit.Val.node c :: !root_nodes;
-                P.Slice.add slice (`Commit (k, c)))
+                P.Slice.add slice (`Commit (Commit_key.to_hash k, c)))
           keys
       in
       if not full then Lwt.return slice
@@ -272,7 +273,7 @@ module Make (P : Private.S) = struct
                           contents := Contents_keys.add c !contents
                       | _ -> ())
                     (P.Node.Val.list v);
-                  P.Slice.add slice (`Node (k, v)))
+                  P.Slice.add slice (`Node (Node_key.to_hash k, v)))
             nodes
         in
         let+ () =
@@ -280,7 +281,8 @@ module Make (P : Private.S) = struct
             (fun k ->
               P.Contents.find (contents_t t) k >>= function
               | None -> Lwt.return_unit
-              | Some m -> P.Slice.add slice (`Contents (k, m)))
+              | Some m ->
+                  P.Slice.add slice (`Contents (Contents_key.to_hash k, m)))
             (Contents_keys.elements !contents)
         in
         slice
@@ -290,10 +292,12 @@ module Make (P : Private.S) = struct
     let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
 
     let import t s =
-      let aux name equal pp add (k, v) =
+      let aux name key_to_hash add (h, v) =
         let* k' = add v in
-        if not (equal k k') then
-          import_error "%s import error: expected %a, got %a" name pp k pp k'
+        let h' = key_to_hash k' in
+        if not (equal_hash h h') then
+          import_error "%s import error: expected %a, got %a" name pp_hash h
+            pp_hash h'
         else Lwt.return_unit
       in
       let contents = ref [] in
@@ -316,18 +320,17 @@ module Make (P : Private.S) = struct
         (fun () ->
           let* () =
             Lwt_list.iter_p
-              (aux "Contents" equal_contents_key pp_contents_key
+              (aux "Contents" P.Contents.Key.to_hash
                  (P.Contents.add contents_t))
               !contents
           in
           Lwt_list.iter_p
-            (aux "Node" equal_node_key pp_node_key (P.Node.add node_t))
+            (aux "Node" P.Node.Key.to_hash (P.Node.add node_t))
             !nodes
           >>= fun () ->
           let+ () =
             Lwt_list.iter_p
-              (aux "Commit" equal_commit_key pp_commit_key
-                 (P.Commit.add commit_t))
+              (aux "Commit" P.Commit.Key.to_hash (P.Commit.add commit_t))
               !commits
           in
           Ok ())
