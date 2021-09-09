@@ -37,7 +37,6 @@ let clean () =
 
 let init () = Lwt.return_unit
 let stats = None
-let lower_name = "lower"
 
 let suite =
   Irmin_test.Suite.create ~name:"MEM" ~init ~store ~config ~clean ~stats:None
