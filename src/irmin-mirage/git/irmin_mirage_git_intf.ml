@@ -52,6 +52,7 @@ module type KV_maker = sig
        and module Schema.Metadata = Irmin_git.Metadata
        and type Schema.Info.t = Irmin.Info.default
        and type Schema.Path.step = string
+       and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash
        and type Schema.Branch.t = branch
        and type Private.Remote.endpoint = endpoint
