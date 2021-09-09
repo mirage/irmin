@@ -2042,6 +2042,8 @@ let suite' l ?(prefix = "") (_, x) =
   let module T = Make (S) in
   (prefix ^ x.name, l)
 
+let when_ b x = if b then x else []
+
 let suite (speed, x) =
   let (module S) = Suite.store_generic_key x in
   let module T = Make (S) in
@@ -2056,14 +2058,12 @@ let suite (speed, x) =
        ("Basic operations on branches", speed, T.test_branches x);
        ("Hash operations on trees", speed, T.test_tree_hashes x);
        ("Basic merge operations", speed, T.test_simple_merges x);
-       ("Basic operations on slices", speed, T.test_slice x);
        ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
        ("Tree caches and hashconsing", speed, T.test_tree_caches x);
        ("Complex histories", speed, T.test_history x);
        ("Empty stores", speed, T.test_empty x);
        ("Private node manipulation", speed, T.test_private_nodes x);
        ("High-level store operations", speed, T.test_stores x);
-       ("High-level store synchronisation", speed, T.test_sync x);
        ("High-level store merges", speed, T.test_merge x);
        ("Unrelated merges", speed, T.test_merge_unrelated x);
        ("Low-level concurrency", speed, T.test_concurrent_low x);
@@ -2075,6 +2075,11 @@ let suite (speed, x) =
        ("Closure with disconnected commits", speed, T.test_closure x);
        ("Clear", speed, T.test_clear x);
      ]
+    @ when_ x.import_supported
+        [
+          ("Basic operations on slices", speed, T.test_slice x);
+          ("High-level store synchronisation", speed, T.test_sync x);
+        ]
     @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
     @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
     (speed, x)
@@ -2103,7 +2108,6 @@ let layered_suite (speed, x) =
           ("Basic merge operations", speed, T.test_simple_merges ~hook x);
           ("Complex histories", speed, T.test_history ~hook x);
           ("Empty stores", speed, T.test_empty ~hook x);
-          ("Basic operations on slices", speed, T.test_slice ~hook x);
           ("Private node manipulation", speed, T.test_private_nodes ~hook x);
           ("High-level store merges", speed, T.test_merge ~hook x);
           ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
@@ -2127,7 +2131,9 @@ let layered_suite (speed, x) =
           ("Test find during freeze", speed, TL.test_find_during_freeze x);
           ("Test add during freeze", speed, TL.test_add_during_freeze x);
           ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
-        ] )
+        ]
+        @ when_ x.import_supported
+            [ ("Basic operations on slices", speed, T.test_slice ~hook x) ] )
 
 let run name ?(slow = false) ~misc tl =
   Printexc.record_backtrace true;

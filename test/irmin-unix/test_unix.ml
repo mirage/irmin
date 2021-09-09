@@ -45,7 +45,7 @@ module FS = struct
 
   let suite =
     Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean ~stats
-      ~layered_store:None
+      ~layered_store:None ()
 end
 
 (* GIT *)
@@ -84,7 +84,7 @@ module Git = struct
   let suite =
     let store = (module S : Irmin_test.S) in
     Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ~stats
-      ~layered_store:None
+      ~layered_store:None ()
 
   let test_non_bare () =
     init () >>= fun () ->

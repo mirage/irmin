@@ -40,4 +40,4 @@ let stats = None
 
 let suite =
   Irmin_test.Suite.create ~name:"MEM" ~init ~store ~config ~clean ~stats:None
-    ~layered_store:None
+    ~layered_store:None ()

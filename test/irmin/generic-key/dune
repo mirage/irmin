@@ -1,0 +1,6 @@
+(test
+ (name test)
+ (package irmin)
+ (preprocess
+  (pps ppx_irmin))
+ (libraries irmin irmin-test alcotest alcotest-lwt lwt vector))

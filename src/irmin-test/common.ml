@@ -90,18 +90,37 @@ type t = {
   store : store;
   layered_store : (module Layered_store) option;
   stats : (unit -> int * int) option;
+  (* Certain store implementations currently don't support implementing
+     repository state from a slice, because their slice formats contain
+     non-portable objects. For now, we disable the tests require this feature
+     for such backends.
+
+     TODO: fix slices to always contain portable objects, and extend
+     [Store.import] to re-hydrate the keys in these slices (by tracking keys of
+     added objects), then require all backends to run thee tests. *)
+  import_supported : bool;
 }
 
 module Suite = struct
   type nonrec t = t
 
-  let create ~name ~init ~clean ~config ~store ~layered_store ~stats =
-    { name; init; clean; config; store = S store; layered_store; stats }
+  let create ~name ~init ~clean ~config ~store ~layered_store ~stats
+      ?(import_supported = true) () =
+    {
+      name;
+      init;
+      clean;
+      config;
+      store = S store;
+      layered_store;
+      stats;
+      import_supported;
+    }
 
   let create_generic_key ~name ~init ~clean ~config ~store ~layered_store ~stats
-      =
+      ?(import_supported = true) () =
     let store = Generic_key store in
-    { name; init; clean; config; store; layered_store; stats }
+    { name; init; clean; config; store; layered_store; stats; import_supported }
 
   let name t = t.name
   let config t = t.config

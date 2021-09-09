@@ -31,6 +31,8 @@ module Suite : sig
     store:(module S) ->
     layered_store:(module Layered_store) option ->
     stats:(unit -> int * int) option ->
+    ?import_supported:bool ->
+    unit ->
     t
 
   val create_generic_key :
@@ -41,6 +43,8 @@ module Suite : sig
     store:(module Generic_key) ->
     layered_store:(module Layered_store) option ->
     stats:(unit -> int * int) option ->
+    ?import_supported:bool ->
+    unit ->
     t
 
   val name : t -> string

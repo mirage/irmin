@@ -95,4 +95,4 @@ let clean () =
 
 let suite =
   Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats:None
-    ~layered_store:None
+    ~layered_store:None ()

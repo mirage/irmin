@@ -80,7 +80,7 @@ let suite =
   let clean () = S.init () in
   let stats = None in
   Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+    ~layered_store:None ()
 
 let suite_generic =
   let module S = Generic (Irmin.Contents.String) in
@@ -89,7 +89,7 @@ let suite_generic =
   let init () = S.init () in
   let stats = None in
   Irmin_test.Suite.create ~name:"GIT.generic" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+    ~layered_store:None ()
 
 let get = function Some x -> x | None -> Alcotest.fail "get"
 

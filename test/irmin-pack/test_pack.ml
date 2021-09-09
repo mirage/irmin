@@ -94,7 +94,7 @@ let suite_pack =
   in
   let stats = None in
   Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats
-    ~layered_store:(Some layered_store)
+    ~layered_store:(Some layered_store) ()
 
 module Irmin_pack_mem_maker = struct
   include Irmin_pack_mem.Maker (Config)
@@ -138,7 +138,7 @@ let suite_mem =
   in
   let stats = None in
   Irmin_test.Suite.create ~name:"PACK MEM" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+    ~layered_store:None ()
 
 let suite = [ suite_pack; suite_mem ]
 
