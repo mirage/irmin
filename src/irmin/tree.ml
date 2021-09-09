@@ -218,7 +218,7 @@ module Make (P : Private.S) = struct
 
     let cached_hash t =
       match (t.v, t.info.ptr) with
-      | Key (_, k), Ptr_none ->
+      | Key (_, k), (Ptr_none | Hash _) ->
           let h = Some (P.Contents.Key.to_hash k) in
           t.info.ptr <- Key k;
           h
