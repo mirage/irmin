@@ -40,14 +40,16 @@ module type S = sig
   val of_list : (step * value) list -> t
   (** [of_list l] is the node [n] such that [list n = l]. *)
 
-  val list : ?offset:int -> ?length:int -> t -> (step * value) list
+  val list :
+    ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
       paginate results.*)
 
   val of_seq : (step * value) Seq.t -> t
   (** [of_seq s] is the node [n] such that [seq n = s]. *)
 
-  val seq : ?offset:int -> ?length:int -> t -> (step * value) Seq.t
+  val seq :
+    ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) Seq.t
   (** [seq t] is the contents of [t]. [offset] and [length] are used to paginate
       results.*)
 
@@ -60,7 +62,10 @@ module type S = sig
   val length : t -> int
   (** [length t] is the number of entries in [t]. *)
 
-  val find : t -> step -> value option
+  val clear : t -> unit
+  (** Cleanup internal caches. *)
+
+  val find : ?cache:bool -> t -> step -> value option
   (** [find t s] is the value associated with [s] in [t].
 
       A node can point to user-defined {{!Node.S.contents} contents}. The edge

@@ -294,15 +294,22 @@ struct
       | Partial : (hash -> partial_ptr t option) -> partial_ptr layout
       | Truncated : truncated_ptr layout
 
-    and partial_ptr = {
-      target_hash : hash Lazy.t;
-      mutable target : partial_ptr t option;
-    }
-    (** [mutable target : partial_ptr t option] could be turned to
-        [target : partial_ptr t Lazy.t] to make the code even clearer (we never
-        set it back to [None]), but we might soon implement a garbage collection
-        method for inodes that will necessitate that mutable option (among other
-        things). *)
+    and partial_ptr_target =
+      | Newie of partial_ptr t
+      | Lazy of hash
+      | Lazy_loaded of partial_ptr t
+          (** A partial pointer differentiates the [Newie] and [Lazy_loaded]
+              cases in order to remember that only the latter should be
+              collected when [clear] is called.
+
+              The child in [Lazy_loaded] can only emanate from the disk. It can
+              be savely collected on [clear].
+
+              The child in [Newie] can only emanate from a user modification,
+              e.g. through the [add] or [to_concrete] functions. It shouldn't be
+              collected on [clear] because it will be needed for [save]. *)
+
+    and partial_ptr = { mutable target : partial_ptr_target }
 
     and total_ptr = Total_ptr of total_ptr t [@@unboxed]
 
@@ -317,23 +324,31 @@ struct
     module Ptr = struct
       let hash : type ptr. ptr layout -> ptr -> _ = function
         | Total -> fun (Total_ptr ptr) -> Lazy.force ptr.hash
-        | Partial _ -> fun { target_hash; _ } -> Lazy.force target_hash
+        | Partial _ -> (
+            fun { target } ->
+              match target with
+              | Lazy hash -> hash
+              | Newie { hash; _ } | Lazy_loaded { hash; _ } -> Lazy.force hash)
         | Truncated -> (
             function Broken h -> h | Intact ptr -> Lazy.force ptr.hash)
 
-      let target : type ptr. ptr layout -> ptr -> ptr t =
-       fun layout ->
+      let target : type ptr. cache:bool -> ptr layout -> ptr -> ptr t =
+       fun ~cache layout ->
         match layout with
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
             function
-            | { target = Some entry; _ } -> entry
-            | t -> (
+            | { target = Newie entry; _ } | { target = Lazy_loaded entry; _ } ->
+                (* [target] is already cached. [cache] is only concerned with
+                   new cache entries, not the older ones for which the irmin
+                   users can discard using [clear]. *)
+                entry
+            | { target = Lazy _; _ } as t -> (
                 let h = hash layout t in
                 match find h with
                 | None -> Fmt.failwith "%a: unknown key" pp_hash h
                 | Some x ->
-                    t.target <- Some x;
+                    if cache then t.target <- Lazy_loaded x;
                     x))
         | Truncated -> (
             function
@@ -345,25 +360,53 @@ struct
 
       let of_target : type ptr. ptr layout -> ptr t -> ptr = function
         | Total -> fun target -> Total_ptr target
-        | Partial _ ->
-            fun target -> { target = Some target; target_hash = target.hash }
+        | Partial _ -> fun target -> { target = Newie target }
         | Truncated -> fun target -> Intact target
 
       let of_hash : type ptr. ptr layout -> hash -> ptr = function
         | Total -> assert false
-        | Partial _ -> fun hash -> { target = None; target_hash = lazy hash }
+        | Partial _ -> fun hash -> { target = Lazy hash }
         | Truncated -> fun hash -> Broken hash
 
-      let iter_if_loaded :
+      let save :
           type ptr.
-          broken:(hash -> unit) -> ptr layout -> (ptr t -> unit) -> ptr -> unit
-          =
-       fun ~broken -> function
-        | Total -> fun f (Total_ptr entry) -> f entry
+          broken:(hash -> unit) ->
+          loaded:(ptr t -> unit) ->
+          clear:bool ->
+          ptr layout ->
+          ptr ->
+          unit =
+       fun ~broken ~loaded ~clear -> function
+        | Total -> fun (Total_ptr entry) -> loaded entry
         | Partial _ -> (
-            fun f -> function { target = Some entry; _ } -> f entry | _ -> ())
+            function
+            | { target = Newie entry; _ } as box ->
+                if clear then box.target <- Lazy (Lazy.force entry.hash)
+                else box.target <- Lazy_loaded entry;
+                loaded entry
+            | { target = Lazy_loaded entry; _ } as box ->
+                if clear then box.target <- Lazy (Lazy.force entry.hash);
+                loaded entry
+            | { target = Lazy _; _ } -> ())
         | Truncated -> (
-            fun f -> function Broken h -> broken h | Intact entry -> f entry)
+            function Broken h -> broken h | Intact entry -> loaded entry)
+
+      let clear :
+          type ptr.
+          iter_newie:(ptr layout -> ptr t -> unit) -> ptr layout -> ptr -> unit
+          =
+       fun ~iter_newie layout ptr ->
+        match layout with
+        | Partial _ -> (
+            match ptr with
+            | { target = Lazy _; _ } -> ()
+            | { target = Newie ptr; _ } -> iter_newie layout ptr
+            | { target = Lazy_loaded ptr; _ } as box ->
+                let hash = Lazy.force ptr.hash in
+                (* Since a [Lazy_loaded] used to be a [Lazy], the hash is always
+                   available. *)
+                box.target <- Lazy hash)
+        | Total | Truncated -> ()
     end
 
     let pred layout t =
@@ -392,6 +435,14 @@ struct
 
     let length t = length_of_v t.v
 
+    let rec clear layout t =
+      match t.v with
+      | Tree i ->
+          Array.iter
+            (Option.iter (Ptr.clear ~iter_newie:clear layout))
+            i.entries
+      | Values _ -> ()
+
     let nb_children t =
       match t.v with
       | Tree i ->
@@ -404,15 +455,15 @@ struct
 
     type cont = off:int -> len:int -> (step * value) Seq.node
 
-    let rec seq_tree layout bucket_seq : cont -> cont =
+    let rec seq_tree layout bucket_seq ~cache : cont -> cont =
      fun k ~off ~len ->
       assert (off >= 0);
       assert (len > 0);
       match bucket_seq () with
       | Seq.Nil -> k ~off ~len
-      | Seq.Cons (None, rest) -> seq_tree layout rest k ~off ~len
+      | Seq.Cons (None, rest) -> seq_tree layout rest ~cache k ~off ~len
       | Seq.Cons (Some i, rest) ->
-          let trg = Ptr.target layout i in
+          let trg = Ptr.target ~cache layout i in
           let trg_len = length trg in
           if off - trg_len >= 0 then
             (* Skip a branch of the inode tree in case the user asked for a
@@ -422,8 +473,9 @@ struct
                because [seq_value] would handles the pagination value by value
                instead. *)
             let off = off - trg_len in
-            seq_tree layout rest k ~off ~len
-          else seq_v layout trg.v (seq_tree layout rest k) ~off ~len
+            seq_tree layout rest ~cache k ~off ~len
+          else
+            seq_v layout trg.v ~cache (seq_tree layout rest ~cache k) ~off ~len
 
     and seq_values layout value_seq : cont -> cont =
      fun k ~off ~len ->
@@ -445,32 +497,32 @@ struct
             let off = off - 1 in
             seq_values layout rest k ~off ~len
 
-    and seq_v layout v : cont -> cont =
+    and seq_v layout v ~cache : cont -> cont =
      fun k ~off ~len ->
       assert (off >= 0);
       assert (len > 0);
       match v with
-      | Tree t -> seq_tree layout (Array.to_seq t.entries) k ~off ~len
+      | Tree t -> seq_tree layout (Array.to_seq t.entries) ~cache k ~off ~len
       | Values vs -> seq_values layout (StepMap.to_seq vs) k ~off ~len
 
     let empty_continuation : cont = fun ~off:_ ~len:_ -> Seq.Nil
 
-    let seq layout ?offset:(off = 0) ?length:(len = Int.max_int) t :
-        (step * value) Seq.t =
+    let seq layout ?offset:(off = 0) ?length:(len = Int.max_int) ?(cache = true)
+        t : (step * value) Seq.t =
       if off < 0 then invalid_arg "Invalid pagination offset";
       if len < 0 then invalid_arg "Invalid pagination length";
       if len = 0 then Seq.empty
-      else fun () -> seq_v layout t.v empty_continuation ~off ~len
+      else fun () -> seq_v layout t.v ~cache empty_continuation ~off ~len
 
-    let seq_tree layout i : (step * value) Seq.t =
+    let seq_tree layout ?(cache = true) i : (step * value) Seq.t =
       let off = 0 in
       let len = Int.max_int in
-      fun () -> seq_v layout (Tree i) empty_continuation ~off ~len
+      fun () -> seq_v layout (Tree i) ~cache empty_continuation ~off ~len
 
-    let seq_v layout v : (step * value) Seq.t =
+    let seq_v layout ?(cache = true) v : (step * value) Seq.t =
       let off = 0 in
       let len = Int.max_int in
-      fun () -> seq_v layout v empty_continuation ~off ~len
+      fun () -> seq_v layout v ~cache empty_continuation ~off ~len
 
     let to_bin_v layout = function
       | Values vs ->
@@ -572,7 +624,9 @@ struct
                         match e with
                         | None -> (i + 1, acc)
                         | Some t ->
-                            let pointer, tree = aux (Ptr.target la t) in
+                            let pointer, tree =
+                              aux (Ptr.target ~cache:true la t)
+                            in
                             (i + 1, { Concrete.index = i; tree; pointer } :: acc))
                       (0, []) tr.entries
                     |> snd
@@ -742,8 +796,8 @@ struct
     let is_empty t =
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
 
-    let find_value layout ~depth t s =
-      let target_of_ptr = Ptr.target layout in
+    let find_value ~cache layout ~depth t s =
+      let target_of_ptr = Ptr.target ~cache layout in
       let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
@@ -755,7 +809,7 @@ struct
       in
       aux ~depth t.v
 
-    let find layout t s = find_value ~depth:0 layout t s
+    let find ?(cache = true) layout t s = find_value ~cache ~depth:0 layout t s
 
     let rec add layout ~depth ~copy ~replace t s v k =
       match t.v with
@@ -789,7 +843,11 @@ struct
               let t = tree layout { depth; length; entries } in
               k t
           | Some n ->
-              let t = Ptr.target layout n in
+              let t =
+                (* [cache] is unimportant here as we've already called
+                   [find_value] for that path.*)
+                Ptr.target ~cache:true layout n
+              in
               (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
                 (fun target ->
                   entries.(i) <- Some (Ptr.of_target layout target);
@@ -798,7 +856,7 @@ struct
 
     let add layout ~copy t s v =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
-      match find_value ~depth:0 layout t s with
+      match find_value ~cache:true ~depth:0 layout t s with
       | Some v' when equal_value v v' -> stabilize layout t
       | Some _ ->
           add ~depth:0 layout ~copy ~replace:true t s v Fun.id
@@ -826,7 +884,11 @@ struct
             match entries.(i) with
             | None -> assert false
             | Some t ->
-                let t = Ptr.target layout t in
+                let t =
+                  (* [cache] is unimportant here as we've already called
+                     [find_value] for that path.*)
+                  Ptr.target ~cache:true layout t
+                in
                 if length t = 1 then (
                   entries.(i) <- None;
                   let t = tree layout { depth; length = len; entries } in
@@ -839,7 +901,7 @@ struct
 
     let remove layout t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
-      match find_value layout ~depth:0 t s with
+      match find_value ~cache:true layout ~depth:0 t s with
       | None -> stabilize layout t
       | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
@@ -851,6 +913,11 @@ struct
       stabilize Total t
 
     let save layout ~add ~mem t =
+      let clear =
+        (* When set to [true], collect the loaded inodes as soon as they're
+           saved. *)
+        false
+      in
       let iter_entries =
         let broken h =
           (* This function is called when we encounter a Broken pointer with
@@ -866,8 +933,9 @@ struct
                traverse further down. This happens during the unit tests. *)
             ()
         in
-        let iter_ptr = Ptr.iter_if_loaded ~broken layout in
-        fun f arr -> Array.iter (Option.iter (iter_ptr f)) arr
+        fun loaded arr ->
+          let iter_ptr = Ptr.save ~broken ~loaded ~clear layout in
+          Array.iter (Option.iter iter_ptr) arr
       in
       let rec aux ~depth t =
         Log.debug (fun l -> l "save depth:%d" depth);
@@ -884,7 +952,7 @@ struct
       aux ~depth:0 t
 
     let check_stable layout t =
-      let target_of_ptr = Ptr.target layout in
+      let target_of_ptr = Ptr.target ~cache:true layout in
       let rec check t any_stable_ancestor =
         let stable = t.stable || any_stable_ancestor in
         match t.v with
@@ -901,7 +969,7 @@ struct
       check t t.stable
 
     let contains_empty_map layout t =
-      let target_of_ptr = Ptr.target layout in
+      let target_of_ptr = Ptr.target ~cache:true layout in
       let rec check_lower t =
         match t.v with
         | Values l when StepMap.is_empty l -> true
@@ -1059,13 +1127,17 @@ struct
     let of_seq l = Total (I.of_seq l)
     let of_list l = of_seq (List.to_seq l)
 
-    let seq ?offset ?length t =
-      apply t { f = (fun layout v -> I.seq layout ?offset ?length v) }
+    let seq ?offset ?length ?cache t =
+      apply t { f = (fun layout v -> I.seq layout ?offset ?length ?cache v) }
 
-    let list ?offset ?length t = List.of_seq (seq ?offset ?length t)
+    let list ?offset ?length ?cache t =
+      List.of_seq (seq ?offset ?length ?cache t)
+
     let empty = of_list []
     let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
-    let find t s = apply t { f = (fun layout v -> I.find layout v s) }
+
+    let find ?cache t s =
+      apply t { f = (fun layout v -> I.find ?cache layout v s) }
 
     let add t s value =
       let f layout v =
@@ -1117,6 +1189,7 @@ struct
     let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
     let stable t = apply t { f = (fun _ v -> I.stable v) }
     let length t = apply t { f = (fun _ v -> I.length v) }
+    let clear t = apply t { f = (fun layout v -> I.clear layout v) }
     let nb_children t = apply t { f = (fun _ v -> I.nb_children v) }
     let index = I.index
 

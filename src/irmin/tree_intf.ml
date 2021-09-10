@@ -84,7 +84,7 @@ module type S = sig
     type t
     (** The type of lazy tree contents. *)
 
-    val hash : t -> hash
+    val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
         {!force}d successfully. *)
 
@@ -329,7 +329,7 @@ module type Sigs = sig
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
-    val hash : t -> kinded_hash
+    val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
   end
