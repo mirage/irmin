@@ -110,7 +110,7 @@
     @Ngoguey42, @CraigFe)
 
   - Add support for non-content-addressed ("generic key") backend stores. This includes:
-    - `Store.Commit.of_hash` is now `Store.Commit.of_key`.
+    - New functions: `Store.{Commit,Contents,Tree}.of_key`
     - Adds `Irmin.Generic_key` and `Irmin.Node.Generic_key` modules.
     - Adds a new type of backend store: `Irmin.Indexable.S`.
     - ... TODO(craigfe)

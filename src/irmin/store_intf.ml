@@ -364,7 +364,7 @@ module type S_generic_key = sig
         no such commit object exists. *)
 
     val of_hash : repo -> hash -> commit option Lwt.t
-    (** [of_hash r k] is the commit object in [r] with hash [h], or [None] if no
+    (** [of_hash r h] is the commit object in [r] with hash [h], or [None] if no
         such commit object is indexed in [r].
 
         {b Note:} in stores for which {!commit_key} = {!hash}, this function has
@@ -381,8 +381,15 @@ module type S_generic_key = sig
     (** [hash c] it [c]'s hash. *)
 
     val of_key : repo -> contents_key -> contents option Lwt.t
-    (** [of_key r k] is the the contents object in [r] having [k] as ID, or
-        [None] is no such contents object exists. *)
+    (** [of_key r k] is the contents object in [r] with key [k], or [None] if no
+        such contents object exists. *)
+
+    val of_hash : repo -> hash -> contents option Lwt.t
+    (** [of_hash r h] is the contents object in [r] with hash [h], or [None] if
+        no such contents object is indexed in [r].
+
+        {b Note:} in stores for which {!contents_key} = {!hash}, this function
+        has identical behaviour to {!of_key}. *)
   end
 
   (** Managing store's trees. *)
@@ -403,9 +410,9 @@ module type S_generic_key = sig
     type kinded_key =
       [ `Contents of contents_key * metadata | `Node of node_key ]
     [@@deriving irmin]
-    (** Hashes in the Irmin store are tagged with the type of the value they
+    (** Keys in the Irmin store are tagged with the type of the value they
         reference (either {!contents} or {!node}). In the [contents] case, the
-        hash is paired with corresponding {!metadata}. *)
+        key is paired with corresponding {!metadata}. *)
 
     val hash : ?cache:bool -> tree -> hash
     (** [hash c] is [c]'s hash. *)
@@ -416,6 +423,17 @@ module type S_generic_key = sig
     val of_key : Repo.t -> kinded_key -> tree option Lwt.t
     (** [of_key r h] is the the tree object in [r] having [h] as key, or [None]
         is no such tree object exists. *)
+
+    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+    (** Like {!kinded_key}, but with hashes as value references rather than
+        keys. *)
+
+    val of_hash : Repo.t -> kinded_hash -> tree option Lwt.t
+    (** [of_hash r h] is the tree object in [r] with hash [h], or [None] if no
+        such tree object is indexed in [r].
+
+        {b Note:} in stores for which {!node_key} = {!contents_key} = {!hash},
+        this function has identical behaviour to {!of_key}. *)
 
     val shallow : Repo.t -> kinded_key -> tree
     (** [shallow r h] is the shallow tree object with the key [h]. No check is

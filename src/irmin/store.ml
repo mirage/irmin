@@ -50,6 +50,13 @@ module Make (P : Private.S) = struct
     module H = Typed (P.Contents.Val)
 
     let of_key r k = P.Contents.find (P.Repo.contents_t r) k
+
+    let of_hash r h =
+      let store = P.Repo.contents_t r in
+      P.Contents.index store h >>= function
+      | None -> Lwt.return_none
+      | Some k -> P.Contents.find store k
+
     let hash c = H.hash c
   end
 
@@ -57,6 +64,17 @@ module Make (P : Private.S) = struct
     include T
 
     let of_key r k = import r k
+
+    let of_hash r = function
+      | `Node h -> (
+          P.Node.index (P.Repo.node_t r) h >>= function
+          | None -> Lwt.return_none
+          | Some k -> of_key r (`Node k))
+      | `Contents (h, m) -> (
+          P.Contents.index (P.Repo.contents_t r) h >>= function
+          | None -> Lwt.return_none
+          | Some k -> of_key r (`Contents (k, m)))
+
     let shallow r h = import_no_check r h
 
     let hash : ?cache:bool -> t -> hash =

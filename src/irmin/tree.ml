@@ -1165,6 +1165,9 @@ module Make (P : Private.S) = struct
   type kinded_key = [ `Contents of Contents.key * metadata | `Node of Node.key ]
   [@@deriving irmin]
 
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  [@@deriving irmin]
+
   type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin]
 

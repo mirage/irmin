@@ -345,7 +345,8 @@ module type Sigs = sig
          and type contents_key = P.Contents.Key.t
          and type hash = P.Hash.t
 
-    type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
+    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+    [@@deriving irmin]
 
     type kinded_key =
       [ `Contents of P.Contents.Key.t * metadata | `Node of P.Node.Key.t ]
