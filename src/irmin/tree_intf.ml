@@ -227,7 +227,9 @@ module type S = sig
       For every node [n], ui [n] is a leaf node, call [f path n]. Otherwise:
 
       - Call [pre path n]. By default [pre] is the identity;
-      - Recursively call [fold] on each children, in lexicographic order;
+      - Recursively call [fold] on each children - the order in which we visit
+        the children is unstable. The order is lexicographic if the node is
+        completely in-memory and undefined otherwise.
       - Call [post path n]; By default [post] is the identity.
 
       See {!force} for details about the [force] parameters. By default it is
