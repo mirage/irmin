@@ -447,13 +447,12 @@ module Make (P : Private.S) = struct
 
     let map_of_value repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
-      let entries = P.Node.Val.list n in
-      (* XXX: The map could be built using a seq instead of a list *)
+      let entries = P.Node.Val.seq n in
       let aux = function
         | `Node h -> `Node (of_hash repo h)
         | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
       in
-      List.fold_left
+      Seq.fold_left
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
         StepMap.empty entries
 
@@ -650,9 +649,10 @@ module Make (P : Private.S) = struct
             (* Starting from this point the function is expensive, but there is
                no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
-            let entries = P.Node.Val.list v in
-            (* XXX: A sequence could be used here *)
-            List.for_all (fun (step, _) -> StepMap.mem step um) entries)
+            let entries = P.Node.Val.seq v in
+            Seq.fold_left
+              (fun ok (step, _) -> ok && StepMap.mem step um)
+              true entries)
 
     let length t =
       match cached_map t with
@@ -774,8 +774,8 @@ module Make (P : Private.S) = struct
         type acc.
         force:acc force ->
         uniq:uniq ->
-        pre:acc node_fn ->
-        post:acc node_fn ->
+        pre:acc node_fn option ->
+        post:acc node_fn option ->
         path:Path.t ->
         ?depth:depth ->
         node:(key -> _ -> acc -> acc Lwt.t) ->
@@ -790,16 +790,34 @@ module Make (P : Private.S) = struct
         | `True -> empty_marks ()
         | `Marks n -> n
       in
+      let pre path bindings acc =
+        match pre with
+        | None -> Lwt.return acc
+        | Some pre ->
+            let s = Seq.fold_left (fun acc (s, _) -> s :: acc) [] bindings in
+            pre path s acc
+      in
+      let post path bindings acc =
+        match post with
+        | None -> Lwt.return acc
+        | Some post ->
+            let s = Seq.fold_left (fun acc (s, _) -> s :: acc) [] bindings in
+            post path s acc
+      in
       let rec aux : type r. (t, acc, r) folder =
        fun ~path acc d t k ->
         let apply acc = node path t acc in
         let next acc =
           match force with
-          | `True | `And_clear ->
-              (* XXX: Let's not call [to_map] when [Value] *)
-              let* m = to_map t >|= get_ok "fold" in
-              if force = `And_clear then clear ~depth:0 t;
-              (map [@tailcall]) ~path acc d (Some m) k
+          | `True | `And_clear -> (
+              match t.v with
+              | Map m ->
+                  if force = `And_clear then clear ~depth:0 t;
+                  (map [@tailcall]) ~path acc d (Some m) k
+              | Value (repo, _, _) | Hash (repo, _) ->
+                  let* v = to_value t >|= get_ok "fold" in
+                  if force = `And_clear then clear ~depth:0 t;
+                  (value [@tailcall]) ~path acc d (repo, v) k)
           | `False skip -> (
               match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
@@ -842,11 +860,11 @@ module Make (P : Private.S) = struct
             | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
             | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
             | Some (`Gt depth) -> if d >= depth then apply () else k acc)
-      and steps : type r. ((step * elt) list, acc, r) folder =
+      and steps : type r. ((step * elt) Seq.t, acc, r) folder =
        fun ~path acc d s k ->
-        match s with
-        | [] -> k acc
-        | h :: t ->
+        match s () with
+        | Seq.Nil -> k acc
+        | Seq.Cons (h, t) ->
             (step [@tailcall]) ~path acc d h (fun acc ->
                 (steps [@tailcall]) ~path acc d t k)
       and map : type r. (map option, acc, r) folder =
@@ -854,11 +872,22 @@ module Make (P : Private.S) = struct
         match m with
         | None -> k acc
         | Some m ->
-            let bindings = StepMap.bindings m in
-            let s = List.rev_map fst bindings in
-            let* acc = pre path s acc in
+            let bindings = StepMap.to_seq m in
+            let* acc = pre path bindings acc in
             (steps [@tailcall]) ~path acc d bindings (fun acc ->
-                post path s acc >>= k)
+                post path bindings acc >>= k)
+      and value : type r. (repo * value, acc, r) folder =
+       fun ~path acc d (repo, v) k ->
+        let to_elt = function
+          | `Node h -> `Node (of_hash repo h)
+          | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
+        in
+        let bindings =
+          P.Node.Val.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
+        in
+        let* acc = pre path bindings acc in
+        (steps [@tailcall]) ~path acc d bindings (fun acc ->
+            post path bindings acc >>= k)
       in
       aux_uniq ~path acc 0 t Lwt.return
 
@@ -1034,8 +1063,8 @@ module Make (P : Private.S) = struct
 
   let id _ _ acc = Lwt.return acc
 
-  let fold ?(force = `And_clear) ?(uniq = `False) ?(pre = id) ?(post = id)
-      ?depth ?(contents = id) ?(node = id) (t : t) acc =
+  let fold ?(force = `And_clear) ?(uniq = `False) ?pre ?post ?depth
+      ?(contents = id) ?(node = id) (t : t) acc =
     match t with
     | `Contents (c, _) -> Contents.fold ~force ~path:Path.empty contents c acc
     | `Node n ->
