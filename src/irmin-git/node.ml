@@ -137,9 +137,12 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
 
   module N = Irmin.Node.Make (Key) (P) (Metadata)
 
-  let to_n t = N.v (alist t)
+  let to_n t = N.of_list (alist t)
   let of_n n = v (N.list n)
   let to_bin t = Raw.to_raw (G.Value.tree t)
+  let of_list = v
+  let of_seq seq = List.of_seq seq |> v
+  let seq ?offset ?length t = list ?offset ?length t |> List.to_seq
 
   let encode_bin =
     Irmin.Type.stage @@ fun (t : t) k ->

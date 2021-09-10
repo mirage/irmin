@@ -402,60 +402,75 @@ struct
 
     let stable t = t.stable
 
-    type acc = {
-      cursor : int;
-      values : (step * value) list list;
-      remaining : int;
-    }
+    type cont = off:int -> len:int -> (step * value) Seq.node
 
-    let empty_acc n = { cursor = 0; values = []; remaining = n }
+    let rec seq_tree layout bucket_seq : cont -> cont =
+     fun k ~off ~len ->
+      assert (off >= 0);
+      assert (len > 0);
+      match bucket_seq () with
+      | Seq.Nil -> k ~off ~len
+      | Seq.Cons (None, rest) -> seq_tree layout rest k ~off ~len
+      | Seq.Cons (Some i, rest) ->
+          let trg = Ptr.target layout i in
+          let trg_len = length trg in
+          if off - trg_len >= 0 then
+            (* Skip a branch of the inode tree in case the user asked for a
+               specific starting offset.
 
-    let rec list_entry layout ~offset ~length acc = function
-      | None -> acc
-      | Some i -> list_values layout ~offset ~length acc (Ptr.target layout i).v
+               Without this branch the algorithm would keep the same semantic
+               because [seq_value] would handles the pagination value by value
+               instead. *)
+            let off = off - trg_len in
+            seq_tree layout rest k ~off ~len
+          else seq_v layout trg.v (seq_tree layout rest k) ~off ~len
 
-    and list_tree layout ~offset ~length acc t =
-      if acc.remaining <= 0 || offset + length <= acc.cursor then acc
-      else if acc.cursor + t.length < offset then
-        { acc with cursor = t.length + acc.cursor }
-      else Array.fold_left (list_entry layout ~offset ~length) acc t.entries
+    and seq_values layout value_seq : cont -> cont =
+     fun k ~off ~len ->
+      assert (off >= 0);
+      assert (len > 0);
+      match value_seq () with
+      | Seq.Nil -> k ~off ~len
+      | Cons (x, rest) ->
+          if off = 0 then
+            let len = len - 1 in
+            if len = 0 then
+              (* Yield the current value and skip the rest of the inode tree in
+                 case the user asked for a specific length. *)
+              Seq.Cons (x, Seq.empty)
+            else Seq.Cons (x, fun () -> seq_values layout rest k ~off ~len)
+          else
+            (* Skip one value in case the user asked for a specific starting
+               offset. *)
+            let off = off - 1 in
+            seq_values layout rest k ~off ~len
 
-    and list_values layout ~offset ~length acc v =
-      if acc.remaining <= 0 || offset + length <= acc.cursor then acc
-      else
-        match v with
-        | Values vs ->
-            let len = StepMap.cardinal vs in
-            if acc.cursor + len < offset then
-              { acc with cursor = len + acc.cursor }
-            else
-              let to_drop =
-                if acc.cursor > offset then 0 else offset - acc.cursor
-              in
-              let vs =
-                StepMap.to_seq vs |> Seq.drop to_drop |> Seq.take acc.remaining
-              in
-              let n = List.length vs in
-              {
-                values = vs :: acc.values;
-                cursor = acc.cursor + len;
-                remaining = acc.remaining - n;
-              }
-        | Tree t -> list_tree layout ~offset ~length acc t
+    and seq_v layout v : cont -> cont =
+     fun k ~off ~len ->
+      assert (off >= 0);
+      assert (len > 0);
+      match v with
+      | Tree t -> seq_tree layout (Array.to_seq t.entries) k ~off ~len
+      | Values vs -> seq_values layout (StepMap.to_seq vs) k ~off ~len
 
-    let list_v layout ?(offset = 0) ?length v =
-      let length =
-        match length with
-        | Some n -> n
-        | None -> (
-            match v with
-            | Values vs -> StepMap.cardinal vs - offset
-            | Tree i -> i.length - offset)
-      in
-      let entries = list_values layout ~offset ~length (empty_acc length) v in
-      List.concat (List.rev entries.values)
+    let empty_continuation : cont = fun ~off:_ ~len:_ -> Seq.Nil
 
-    let list layout ?offset ?length t = list_v layout ?offset ?length t.v
+    let seq layout ?offset:(off = 0) ?length:(len = Int.max_int) t :
+        (step * value) Seq.t =
+      if off < 0 then invalid_arg "Invalid pagination offset";
+      if len < 0 then invalid_arg "Invalid pagination length";
+      if len = 0 then Seq.empty
+      else fun () -> seq_v layout t.v empty_continuation ~off ~len
+
+    let seq_tree layout i : (step * value) Seq.t =
+      let off = 0 in
+      let len = Int.max_int in
+      fun () -> seq_v layout (Tree i) empty_continuation ~off ~len
+
+    let seq_v layout v : (step * value) Seq.t =
+      let off = 0 in
+      let len = Int.max_int in
+      fun () -> seq_v layout v empty_continuation ~off ~len
 
     let to_bin_v layout = function
       | Values vs ->
@@ -627,7 +642,7 @@ struct
       let stable, hash =
         if length > Conf.stable_hash then (false, hash v)
         else
-          let node = Node.v (list_v Total v) in
+          let node = Node.of_seq (seq_v Total v) in
           (true, Node.hash node)
       in
       { hash = lazy hash; stable; v }
@@ -678,8 +693,8 @@ struct
         else
           let hash =
             lazy
-              (let vs = list layout t in
-               Node.hash (Node.v vs))
+              (let vs = seq layout t in
+               Node.hash (Node.of_seq vs))
           in
           { hash; stable = true; v = t.v }
 
@@ -723,8 +738,6 @@ struct
       let v = Tree is in
       let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
       { hash; stable = false; v }
-
-    let of_values layout l = values layout (StepMap.of_list l)
 
     let is_empty t =
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
@@ -802,11 +815,8 @@ struct
       | Tree t -> (
           let len = t.length - 1 in
           if len <= Conf.entries then
-            let vs =
-              list_tree layout ~offset:0 ~length:t.length (empty_acc t.length) t
-            in
-            let vs = List.concat (List.rev vs.values) in
-            let vs = StepMap.of_list vs in
+            let vs = seq_tree layout t in
+            let vs = StepMap.of_seq vs in
             let vs = StepMap.remove s vs in
             let t = values layout vs in
             k t
@@ -833,13 +843,10 @@ struct
       | None -> stabilize layout t
       | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
-    let v l =
-      let len = List.length l in
+    let of_seq l =
       let t =
-        if len <= Conf.entries then of_values Total l
-        else
-          let aux acc (s, v) = add Total ~copy:false acc s v in
-          List.fold_left aux (empty Total) l
+        let aux acc (s, v) = add Total ~copy:false acc s v in
+        Seq.fold_left aux (empty Total) l
       in
       stabilize Total t
 
@@ -1049,12 +1056,14 @@ struct
           if v == v' then t else Truncated v'
 
     let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let v l = Total (I.v l)
+    let of_seq l = Total (I.of_seq l)
+    let of_list l = of_seq (List.to_seq l)
 
-    let list ?offset ?length t =
-      apply t { f = (fun layout v -> I.list layout ?offset ?length v) }
+    let seq ?offset ?length t =
+      apply t { f = (fun layout v -> I.seq layout ?offset ?length v) }
 
-    let empty = v []
+    let list ?offset ?length t = List.of_seq (seq ?offset ?length t)
+    let empty = of_list []
     let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
     let find t s = apply t { f = (fun layout v -> I.find layout v s) }
 
@@ -1083,8 +1092,8 @@ struct
           let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
           pre_hash_binv bin.v
         else
-          let vs = list x in
-          pre_hash_node (Node.v vs)
+          let vs = seq x in
+          pre_hash_node (Node.of_seq vs)
       in
       Irmin.Type.map ~pre_hash Bin.t
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
@@ -1137,8 +1146,8 @@ struct
 
     let merge ~contents ~node : t Irmin.Merge.t =
       let merge = Node.merge ~contents ~node in
-      let to_node t = v (Node.list t) in
-      let of_node n = Node.v (list n) in
+      let to_node t = of_seq (Node.seq t) in
+      let of_node n = Node.of_seq (seq n) in
       Irmin.Merge.like t merge of_node to_node
   end
 end
