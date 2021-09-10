@@ -85,4 +85,11 @@ module Seq = struct
    fun n l () ->
     if n = 0 then Nil
     else match l () with Nil -> Nil | Cons (x, l') -> Cons (x, take (n - 1) l')
+
+  let for_all : type a. (a -> bool) -> a Seq.t -> bool =
+   fun f s ->
+    let rec aux s =
+      match s () with Seq.Nil -> true | Seq.Cons (v, s) -> f v && aux s
+    in
+    aux s
 end
