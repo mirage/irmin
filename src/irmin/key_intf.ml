@@ -31,14 +31,14 @@ end
 
 module Store_spec = struct
   module type S = sig
-    type 'h contents_key
+    type ('h, 'v) contents_key
     type 'h node_key
     type 'h commit_key
   end
 
   module type Hash_keyed =
     S
-      with type 'h contents_key = 'h
+      with type ('h, _) contents_key = 'h
        and type 'h node_key = 'h
        and type 'h commit_key = 'h
 

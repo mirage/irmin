@@ -219,15 +219,15 @@ module Generic_key : sig
   (** @inline *)
 
   module type Maker_args = sig
-    module Contents_store : Indexable.Maker_concrete_key
-    module Node_store : Indexable.Maker_concrete_key
-    module Commit_store : Indexable.Maker_concrete_key
+    module Contents_store : Indexable.Maker_concrete_key2
+    module Node_store : Indexable.Maker_concrete_key1
+    module Commit_store : Indexable.Maker_concrete_key1
     module Branch_store : Atomic_write.Maker
   end
 
   module Maker (X : Maker_args) :
     Maker
-      with type 'h contents_key = 'h X.Contents_store.key
+      with type ('h, 'v) contents_key = ('h, 'v) X.Contents_store.key
        and type 'h node_key = 'h X.Node_store.key
        and type 'h commit_key = 'h X.Commit_store.key
 end

@@ -78,7 +78,7 @@ end
 
 (** A {!Maker_concrete_key} is an indexable store in which the key type is
     uniquely determined by the hash type and is stated up-front. *)
-module type Maker_concrete_key = sig
+module type Maker_concrete_key1 = sig
   type 'h key
 
   module Key : functor (Hash : Hash.S) ->
@@ -96,11 +96,35 @@ module type Maker_concrete_key = sig
   end
 end
 
+(** Like {!Maker_concrete_key1}, but the key type may also depend on type of the
+    value that it references. *)
+module type Maker_concrete_key2 = sig
+  type ('h, 'v) key
+
+  module Key : functor (Hash : Hash.S) (Value : Type.S) ->
+    Key.S with type t = (Hash.t, Value.t) key and type hash = Hash.t
+
+  module Make : functor (Hash : Hash.S) (Value : Type.S) -> sig
+    include
+      S
+        with type value = Value.t
+         and type hash = Hash.t
+         and type key = (Hash.t, Value.t) key
+
+    include Of_config with type 'a t := 'a t
+    (** @inline *)
+  end
+end
+
 module type Sigs = sig
   module type S = S
   module type S_without_key_impl = S_without_key_impl
   module type Maker = Maker
-  module type Maker_concrete_key = Maker_concrete_key
+  module type Maker_concrete_key1 = Maker_concrete_key1
+  module type Maker_concrete_key2 = Maker_concrete_key2
+
+  module Maker_concrete_key2_of_1 (X : Maker_concrete_key1) :
+    Maker_concrete_key2 with type ('h, _) key = 'h X.key
 
   module Of_content_addressable
       (Key : Type.S)

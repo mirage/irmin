@@ -956,14 +956,14 @@ module type Maker_generic_key = sig
     S_generic_key
       with module Schema = Schema
        and type Private.Remote.endpoint = endpoint
-       and type contents_key = Schema.Hash.t contents_key
+       and type contents_key = (Schema.Hash.t, Schema.Contents.t) contents_key
        and type node_key = Schema.Hash.t node_key
        and type commit_key = Schema.Hash.t commit_key
 end
 
 module type Maker =
   Maker_generic_key
-    with type 'h contents_key = 'h
+    with type ('h, _) contents_key = 'h
      and type 'h node_key = 'h
      and type 'h commit_key = 'h
 
@@ -1004,9 +1004,8 @@ module type KV_maker_generic_key = sig
   type endpoint
   type metadata
   type hash
-  type 'h contents_key
-  type 'h node_key
-  type 'h commit_key
+
+  include Key.Store_spec.S
 
   module Make (C : Contents.S) :
     KV_generic_key
@@ -1014,14 +1013,14 @@ module type KV_maker_generic_key = sig
        and type Schema.Metadata.t = metadata
        and type Private.Remote.endpoint = endpoint
        and type Schema.Hash.t = hash
-       and type contents_key = hash contents_key
+       and type contents_key = (hash, C.t) contents_key
        and type node_key = hash node_key
        and type commit_key = hash commit_key
 end
 
 module type KV_maker =
   KV_maker_generic_key
-    with type 'h contents_key = 'h
+    with type ('h, _) contents_key = 'h
      and type 'h node_key = 'h
      and type 'h commit_key = 'h
 

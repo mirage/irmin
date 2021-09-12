@@ -39,15 +39,15 @@ module Irmin_node = Node
 exception Closed = Store_properties.Closed
 
 module type Maker_generic_key_args = sig
-  module Contents_store : Indexable.Maker_concrete_key
-  module Node_store : Indexable.Maker_concrete_key
-  module Commit_store : Indexable.Maker_concrete_key
+  module Contents_store : Indexable.Maker_concrete_key2
+  module Node_store : Indexable.Maker_concrete_key1
+  module Commit_store : Indexable.Maker_concrete_key1
   module Branch_store : Atomic_write.Maker
 end
 
 module Maker_generic_key (Backend : Maker_generic_key_args) = struct
   type endpoint = unit
-  type 'h contents_key = 'h Backend.Contents_store.key
+  type ('h, 'v) contents_key = ('h, 'v) Backend.Contents_store.key
   type 'h node_key = 'h Backend.Node_store.key
   type 'h commit_key = 'h Backend.Commit_store.key
 
@@ -55,7 +55,7 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
     module X = struct
       module Schema = S
       module Hash = S.Hash
-      module Contents_key = Backend.Contents_store.Key (S.Hash)
+      module Contents_key = Backend.Contents_store.Key (S.Hash) (S.Contents)
       module Node_key = Backend.Node_store.Key (S.Hash)
       module Commit_key = Backend.Commit_store.Key (S.Hash)
 
@@ -140,7 +140,7 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
 end
 
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
-  module Indexable = struct
+  module Indexable_store = struct
     type 'h key = 'h
 
     module Key = Key.Of_hash
@@ -154,9 +154,9 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) = struct
   end
 
   module Maker_args = struct
-    module Contents_store = Indexable
-    module Node_store = Indexable
-    module Commit_store = Indexable
+    module Contents_store = Indexable.Maker_concrete_key2_of_1 (Indexable_store)
+    module Node_store = Indexable_store
+    module Commit_store = Indexable_store
     module Branch_store = Atomic_write.Check_closed (AW)
   end
 

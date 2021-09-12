@@ -17,6 +17,13 @@
 open! Import
 include Indexable_intf
 
+module Maker_concrete_key2_of_1 (X : Maker_concrete_key1) = struct
+  type ('h, _) key = 'h X.key
+
+  module Key (H : Hash.S) (_ : Type.S) = X.Key (H)
+  module Make = X.Make
+end
+
 module Of_content_addressable (Key : Type.S) (S : Content_addressable.S) =
 struct
   include S
