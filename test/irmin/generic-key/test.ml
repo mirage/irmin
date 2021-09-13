@@ -16,4 +16,4 @@
 
 let () =
   Irmin_test.Store.run __FILE__ ~slow:true ~misc:[]
-    [ (`Quick, Test_store_offset.suite) ]
+    [ (`Quick, Test_store_offset.suite); (`Quick, Test_inlined_contents.suite) ]
