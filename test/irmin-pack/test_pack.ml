@@ -92,8 +92,7 @@ let suite_pack =
     let* repo = S.Repo.v config in
     clear repo >>= fun () -> S.Repo.close repo
   in
-  let stats = None in
-  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats
+  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean
     ~layered_store:(Some layered_store) ()
 
 module Irmin_pack_mem_maker = struct
@@ -112,33 +111,7 @@ let suite_mem =
     Irmin_test.store (module Irmin_pack_mem_maker) (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
-  let init () =
-    if Sys.file_exists test_dir then (
-      let cmd = Printf.sprintf "rm -rf %s" test_dir in
-      Fmt.epr "exec: %s\n%!" cmd;
-      let _ = Sys.command cmd in
-      ());
-    Lwt.return_unit
-  in
-  let clean () =
-    let (module S : Irmin_test.S) = store in
-    let module P = S.Private in
-    let clear repo =
-      Lwt.join
-        [
-          P.Commit.clear (P.Repo.commit_t repo);
-          P.Node.clear (P.Repo.node_t repo);
-          P.Contents.clear (P.Repo.contents_t repo);
-          P.Branch.clear (P.Repo.branch_t repo);
-        ]
-    in
-    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-    S.Repo.v config >>= fun repo ->
-    clear repo >>= fun () -> S.Repo.close repo
-  in
-  let stats = None in
-  Irmin_test.Suite.create ~name:"PACK MEM" ~init ~store ~config ~clean ~stats
-    ~layered_store:None ()
+  Irmin_test.Suite.create ~name:"PACK MEM" ~store ~config ~layered_store:None ()
 
 let suite = [ suite_pack; suite_mem ]
 

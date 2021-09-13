@@ -104,22 +104,37 @@ type t = {
 module Suite = struct
   type nonrec t = t
 
-  let create ~name ~init ~clean ~config ~store ~layered_store ~stats
-      ?(import_supported = true) () =
-    {
-      name;
-      init;
-      clean;
-      config;
-      store = S store;
-      layered_store;
-      stats;
-      import_supported;
-    }
+  let default_clean ~config ~store () =
+    let (module Store : Generic_key) =
+      match store with
+      | Generic_key x -> x
+      | S (module S) -> (module S : Generic_key)
+    in
+    let open Lwt.Syntax in
+    let module P = Store.Private in
+    let clear repo =
+      Lwt.join
+        [
+          P.Commit.clear (P.Repo.commit_t repo);
+          P.Node.clear (P.Repo.node_t repo);
+          P.Contents.clear (P.Repo.contents_t repo);
+          P.Branch.clear (P.Repo.branch_t repo);
+        ]
+    in
+    let* repo = Store.Repo.v config in
+    let* () = clear repo in
+    Store.Repo.close repo
 
-  let create_generic_key ~name ~init ~clean ~config ~store ~layered_store ~stats
-      ?(import_supported = true) () =
+  let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
+      ~layered_store ?stats ?(import_supported = true) () =
+    let store = S store in
+    let clean = Option.value clean ~default:(default_clean ~config ~store) in
+    { name; init; clean; config; store; layered_store; stats; import_supported }
+
+  let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
+      ~config ~store ~layered_store ?stats ?(import_supported = true) () =
     let store = Generic_key store in
+    let clean = Option.value clean ~default:(default_clean ~config ~store) in
     { name; init; clean; config; store; layered_store; stats; import_supported }
 
   let name t = t.name

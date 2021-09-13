@@ -209,7 +209,6 @@ let suite i server =
       let _ = Sys.command cmd in
       let+ pid = wait_for_the_server_to_start id in
       server_pid := pid)
-    ~stats:None
     ~clean:(fun () ->
       kill_server socket !server_pid;
       Irmin_test.Suite.clean server ())

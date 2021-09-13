@@ -25,24 +25,24 @@ module Suite : sig
 
   val create :
     name:string ->
-    init:(unit -> unit Lwt.t) ->
-    clean:(unit -> unit Lwt.t) ->
+    ?init:(unit -> unit Lwt.t) ->
+    ?clean:(unit -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module S) ->
     layered_store:(module Layered_store) option ->
-    stats:(unit -> int * int) option ->
+    ?stats:(unit -> int * int) ->
     ?import_supported:bool ->
     unit ->
     t
 
   val create_generic_key :
     name:string ->
-    init:(unit -> unit Lwt.t) ->
-    clean:(unit -> unit Lwt.t) ->
+    ?init:(unit -> unit Lwt.t) ->
+    ?clean:(unit -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module Generic_key) ->
     layered_store:(module Layered_store) option ->
-    stats:(unit -> int * int) option ->
+    ?stats:(unit -> int * int) ->
     ?import_supported:bool ->
     unit ->
     t

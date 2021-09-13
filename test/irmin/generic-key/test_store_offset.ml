@@ -168,23 +168,5 @@ module Store = Store_maker.Make (Schema.KV (Contents.String))
 let suite =
   let store = (module Store : Irmin_test.Generic_key) in
   let config = Irmin_mem.config () in
-  let clean () =
-    let open Lwt.Syntax in
-    let module P = Store.Private in
-    let clear repo =
-      Lwt.join
-        [
-          P.Commit.clear (P.Repo.commit_t repo);
-          P.Node.clear (P.Repo.node_t repo);
-          P.Contents.clear (P.Repo.contents_t repo);
-          P.Branch.clear (P.Repo.branch_t repo);
-        ]
-    in
-    let* repo = Store.Repo.v config in
-    let* () = clear repo in
-    Store.Repo.close repo
-  in
-  Irmin_test.Suite.create_generic_key ~name:"store_offset"
-    ~init:(fun () -> Lwt.return_unit)
-    ~store ~config ~clean ~stats:None ~layered_store:None
-    ~import_supported:false ()
+  Irmin_test.Suite.create_generic_key ~name:"store_offset" ~store ~config
+    ~layered_store:None ~import_supported:false ()
