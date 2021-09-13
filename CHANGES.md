@@ -22,6 +22,8 @@
     (#1345, @samoht)
   - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
     lists when it is not necessary (#1508, @samoht)
+  - Added a `tree` argument to `Tree.fold` to manipulate the subtrees (#1527,
+    @icristescu, @Ngoguey42)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
