@@ -780,10 +780,11 @@ module Make (P : Private.S) = struct
         ?depth:depth ->
         node:(key -> _ -> acc -> acc Lwt.t) ->
         contents:(key -> contents -> acc -> acc Lwt.t) ->
+        tree:(key -> _ -> acc -> acc Lwt.t) option ->
         t ->
         acc ->
         acc Lwt.t =
-     fun ~force ~uniq ~pre ~post ~path ?depth ~node ~contents t acc ->
+     fun ~force ~uniq ~pre ~post ~path ?depth ~node ~contents ~tree t acc ->
       let marks =
         match uniq with
         | `False -> dummy_marks
@@ -806,7 +807,11 @@ module Make (P : Private.S) = struct
       in
       let rec aux : type r. (t, acc, r) folder =
        fun ~path acc d t k ->
-        let apply acc = node path t acc in
+        let apply acc =
+          match tree with
+          | Some f -> f path (`Node t) acc
+          | None -> node path t acc
+        in
         let next acc =
           match force with
           | `True | `And_clear -> (
@@ -851,7 +856,10 @@ module Make (P : Private.S) = struct
         | `Node n -> (aux_uniq [@tailcall]) ~path acc (d + 1) n k
         | `Contents c -> (
             let apply () =
-              Contents.fold ~force ~path contents (fst c) acc >>= k
+              (match tree with
+              | Some f -> f path (`Contents c) acc
+              | None -> Contents.fold ~force ~path contents (fst c) acc)
+              >>= k
             in
             match depth with
             | None -> apply ()
@@ -1064,12 +1072,12 @@ module Make (P : Private.S) = struct
   let id _ _ acc = Lwt.return acc
 
   let fold ?(force = `And_clear) ?(uniq = `False) ?pre ?post ?depth
-      ?(contents = id) ?(node = id) (t : t) acc =
+      ?(contents = id) ?(node = id) ?tree (t : t) acc =
     match t with
     | `Contents (c, _) -> Contents.fold ~force ~path:Path.empty contents c acc
     | `Node n ->
         Node.fold ~force ~uniq ~pre ~post ~path:Path.empty ?depth ~contents
-          ~node n acc
+          ~node ~tree n acc
 
   type stats = {
     nodes : int;

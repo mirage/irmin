@@ -219,6 +219,7 @@ module type S = sig
     ?depth:depth ->
     ?contents:(key -> contents -> 'a -> 'a Lwt.t) ->
     ?node:(key -> node -> 'a -> 'a Lwt.t) ->
+    ?tree:(key -> t -> 'a -> 'a Lwt.t) ->
     t ->
     'a ->
     'a Lwt.t
