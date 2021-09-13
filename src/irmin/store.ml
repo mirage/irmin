@@ -63,6 +63,20 @@ module Make (P : Private.S) = struct
   module Tree = struct
     include T
 
+    let find_key r t =
+      match key t with
+      | Some k -> Lwt.return (Some k)
+      | None -> (
+          match hash t with
+          | `Node h -> (
+              P.Node.index (P.Repo.node_t r) h >|= function
+              | None -> None
+              | Some k -> Some (`Node k))
+          | `Contents (h, m) -> (
+              P.Contents.index (P.Repo.contents_t r) h >|= function
+              | None -> None
+              | Some k -> Some (`Contents (k, m))))
+
     let of_key r k = import r k
 
     let of_hash r = function
