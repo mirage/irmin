@@ -86,7 +86,14 @@ module type S = sig
 
     val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
-        {!force}d successfully. *)
+        {!force}d successfully. [cache] regulates the caching behaviour
+        regarding the node's internal data which are lazily loaded.
+
+        [cache] defaults to [true] which may greatly reduce the IOs and the
+        runtime but may also grealy increase the memory consumption.
+
+        [cache = false] doesn't replace a call to [clear], it only prevents the
+        storing of new data, it doesn't discard the existing one. *)
 
     val force : t -> contents or_error Lwt.t
     (** [force t] forces evaluation of the lazy content value [t], or returns an

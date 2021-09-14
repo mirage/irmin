@@ -382,9 +382,6 @@ module Make (P : Private.S) = struct
     let of_hash repo k = of_v (Hash (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
 
-    (* Use a stable represetation for empty trees. *)
-    let empty = of_map StepMap.empty
-
     let cached_hash t =
       match (t.v, t.info.hash) with
       | Hash (_, h), None ->
@@ -622,6 +619,10 @@ module Make (P : Private.S) = struct
             | Some x, Some y -> if equal_value x y then True else False
             | _ -> Maybe)
 
+    (* Use a stable represetation for empty trees. *)
+    let empty = of_map StepMap.empty
+    let empty_hash = hash ~cache:false empty
+
     (** Does [um] empties [v]?
 
         Gotcha: Some [Remove] entries in [um] might not be in [v]. *)
@@ -655,7 +656,6 @@ module Make (P : Private.S) = struct
           get_ok "length" v |> P.Node.Val.length
 
     let is_empty ~cache t =
-      let empty_hash = hash ~cache (of_map StepMap.empty) in
       match cached_map t with
       | Some m -> StepMap.is_empty m
       | None -> (
@@ -753,7 +753,8 @@ module Make (P : Private.S) = struct
               | Ok m -> ok (seq_of_map ?offset ?length m)))
 
     let bindings ~cache t =
-      (* XXX: If [t] is value, no need to [to_map] *)
+      (* XXX: If [t] is value, no need to [to_map]. Let's remove and inline
+         this into Tree.entries. *)
       to_map ~cache t >|= function
       | Error _ as e -> e
       | Ok m -> Ok (StepMap.bindings m)
@@ -810,8 +811,7 @@ module Make (P : Private.S) = struct
           match force with
           | `True | `And_clear -> (
               match t.v with
-              | Map m ->
-                  (map [@tailcall]) ~path acc d (Some m) k
+              | Map m -> (map [@tailcall]) ~path acc d (Some m) k
               | Value (repo, _, _) | Hash (repo, _) ->
                   let* v = to_value ~cache t >|= get_ok "fold" in
                   (value [@tailcall]) ~path acc d (repo, v) k)

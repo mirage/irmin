@@ -22,6 +22,10 @@
     (#1345, @samoht)
   - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
     lists when it is not necessary (#1508, @samoht)
+  - New optional `cache` parameter to `Tree.hash`, `Tree.Contents.hash`,
+    `Node.list`, `Node.seq` and `Node.find` to avoid internal storing of lazily
+    loaded data when it is not necessary (#1526, @Ngoguey42)
+  - Add `Node.clear` to clear internal caches (#1526, @Ngoguey42)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

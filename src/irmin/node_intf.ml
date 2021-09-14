@@ -43,7 +43,14 @@ module type S = sig
   val list :
     ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
-      paginate results.*)
+      paginate results. [cache] regulates the caching behaviour regarding the
+      node's internal data which are lazily loaded.
+
+      [cache] defaults to [true] which may greatly reduce the IOs and the
+      runtime but may also grealy increase the memory consumption.
+
+      [cache = false] doesn't replace a call to [clear], it only prevents the
+      storing of new data, it doesn't discard the existing one. *)
 
   val of_seq : (step * value) Seq.t -> t
   (** [of_seq s] is the node [n] such that [seq n = s]. *)
@@ -51,7 +58,14 @@ module type S = sig
   val seq :
     ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) Seq.t
   (** [seq t] is the contents of [t]. [offset] and [length] are used to paginate
-      results.*)
+      results. [cache] regulates the caching behaviour regarding the node's
+      internal data which are lazily loaded.
+
+      [cache] defaults to [true] which may greatly reduce the IOs and the
+      runtime but may also grealy increase the memory consumption.
+
+      [cache = false] doesn't replace a call to [clear], it only prevents the
+      storing of new data, it doesn't discard the existing one. *)
 
   val empty : t
   (** [empty] is the empty node. *)
@@ -69,7 +83,15 @@ module type S = sig
   (** [find t s] is the value associated with [s] in [t].
 
       A node can point to user-defined {{!Node.S.contents} contents}. The edge
-      between the node and the contents is labeled by a {{!Node.S.step} step}. *)
+      between the node and the contents is labeled by a {{!Node.S.step} step}.
+      [cache] regulates the caching behaviour regarding the node's internal data
+      which are lazily loaded.
+
+      [cache] defaults to [true] which may greatly reduce the IOs and the
+      runtime but may also grealy increase the memory consumption.
+
+      [cache = false] doesn't replace a call to [clear], it only prevents the
+      storing of new data, it doesn't discard the existing one. *)
 
   val add : t -> step -> value -> t
   (** [add t s v] is the node where [find t v] is [Some s] but is similar to [t]
