@@ -130,7 +130,7 @@ module Make (P : Private.S) = struct
   type repo = P.Repo.t
   type marks = unit Hashes.t
   type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
   type uniq = [ `False | `True | `Marks of marks ]
   type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
 
@@ -280,10 +280,10 @@ module Make (P : Private.S) = struct
       in
       Merge.v t f
 
-    let fold ~force ~path f t acc =
+    let fold ~force ~cache ~path f t acc =
       match force with
-      | `True | `And_clear ->
-          let* c = to_value ~cache:(force = `True) t in
+      | `True ->
+          let* c = to_value ~cache t in
           f path (get_ok "fold" c) acc
       | `False skip -> (
           match cached_value t with
@@ -416,31 +416,32 @@ module Make (P : Private.S) = struct
         i.hash <- None;
         i.findv_cache <- None)
 
-    let rec clear_elt ~max_depth depth _ = function
-      | `Contents (c, _) -> Contents.clear c
-      | `Node t -> clear_node ~max_depth (depth + 1) t
+    let rec clear_elt ~max_depth depth v =
+      match v with
+      | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
+      | `Node t -> clear ~max_depth (depth + 1) t
 
-    and clear_node ~max_depth depth n =
-      if depth = max_depth then (
-        clear_info_fields n.info;
-        match n.v with Value (_, v, _) -> P.Node.Val.clear v | _ -> ())
-      else
-        let clear_elt = clear_elt ~max_depth depth in
-        cached_map n |> Option.iter (StepMap.iter clear_elt);
-        n.info.findv_cache |> Option.iter (StepMap.iter clear_elt);
-        match n.v with
-        | Value (_, _, Some um) ->
+    and clear_info ~max_depth ?v depth i =
+      let clear _ v = clear_elt ~max_depth depth v in
+      let () =
+        match v with
+        | Some (Value (_, _, Some um)) ->
             StepMap.iter
-              (fun k -> function Remove -> () | Add v -> clear_elt k v)
+              (fun k -> function Remove -> () | Add v -> clear k v)
               um
         | _ -> ()
+      in
+      let () =
+        match (v, i.map) with
+        | Some (Map m), _ | _, Some m -> StepMap.iter clear m
+        | _ -> ()
+      in
+      let () =
+        match i.findv_cache with Some m -> StepMap.iter clear m | None -> ()
+      in
+      if depth >= max_depth then clear_info_fields i
 
-    let clear ?depth:(max_depth = 0) n =
-      match n.v with
-      | Map m when StepMap.is_empty m -> ()
-      | _ ->
-          let max_depth = max 0 max_depth in
-          clear_node ~max_depth 0 n
+    and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
 
     (* export t to the given repo and clear the cache *)
     let export ?clear:(c = true) repo t k =
@@ -767,6 +768,7 @@ module Make (P : Private.S) = struct
     let fold :
         type acc.
         force:acc force ->
+        cache:bool ->
         uniq:uniq ->
         pre:acc node_fn option ->
         post:acc node_fn option ->
@@ -778,8 +780,7 @@ module Make (P : Private.S) = struct
         t ->
         acc ->
         acc Lwt.t =
-     fun ~force ~uniq ~pre ~post ~path ?depth ~node ~contents ~tree t acc ->
-      let cache = force = `True in
+     fun ~force ~cache ~uniq ~pre ~post ~path ?depth ~node ~contents ~tree t acc ->
       let marks =
         match uniq with
         | `False -> dummy_marks
@@ -809,7 +810,8 @@ module Make (P : Private.S) = struct
         in
         let next acc =
           match force with
-          | `True | `And_clear -> (
+          | `True -> (
+              (* TODO: Will need rebasing  *)
               match t.v with
               | Map m -> (map [@tailcall]) ~path acc d (Some m) k
               | Value (repo, _, _) | Hash (repo, _) ->
@@ -850,7 +852,7 @@ module Make (P : Private.S) = struct
             let apply () =
               (match tree with
               | Some f -> f path (`Contents c) acc
-              | None -> Contents.fold ~force ~path contents (fst c) acc)
+              | None -> Contents.fold ~force ~cache ~path contents (fst c) acc)
               >>= k
             in
             match depth with
@@ -1038,8 +1040,8 @@ module Make (P : Private.S) = struct
 
   let destruct x = x
 
-  let clear ?depth = function
-    | `Node n -> Node.clear ?depth n
+  let clear ?(depth = 0) = function
+    | `Node n -> Node.clear ~max_depth:depth 0 n
     | `Contents _ -> ()
 
   let sub ~cache ctx t path =
@@ -1067,13 +1069,14 @@ module Make (P : Private.S) = struct
 
   let id _ _ acc = Lwt.return acc
 
-  let fold ?(force = `And_clear) ?(uniq = `False) ?pre ?post ?depth
+  let fold ?(force = `True) ?(cache = false) ?(uniq = `False) ?pre ?post ?depth
       ?(contents = id) ?(node = id) ?tree (t : t) acc =
     match t with
-    | `Contents (c, _) -> Contents.fold ~force ~path:Path.empty contents c acc
+    | `Contents (c, _) ->
+        Contents.fold ~force ~cache ~path:Path.empty contents c acc
     | `Node n ->
-        Node.fold ~force ~uniq ~pre ~post ~path:Path.empty ?depth ~contents
-          ~node ~tree n acc
+        Node.fold ~force ~cache ~uniq ~pre ~post ~path:Path.empty ?depth
+          ~contents ~node ~tree n acc
 
   type stats = {
     nodes : int;
@@ -1143,7 +1146,10 @@ module Make (P : Private.S) = struct
   let length = Node.length ~cache:true
 
   let seq t ?offset ?length path : (step * t) Seq.t Lwt.t =
-    let cache = true in
+    let cache =
+      (* TODO: Maybe change *)
+      true
+    in
     Log.debug (fun l -> l "Tree.seq %a" pp_key path);
     sub ~cache "seq.sub" t path >>= function
     | None -> Lwt.return Seq.empty
@@ -1308,7 +1314,12 @@ module Make (P : Private.S) = struct
     | `Contents (k, m) -> `Contents (Contents.of_hash repo k, m)
 
   let export ?clear repo contents_t node_t n =
-    let non_impacting = false in
+    let cache =
+      (* This choice of [cache] flag has no impact, since we either immediately
+         clear the corresponding cache or are certain that it is already
+         filled. *)
+      false
+    in
     let skip n =
       match Node.cached_hash n with
       | Some h ->
@@ -1343,9 +1354,9 @@ module Make (P : Private.S) = struct
                 Seq.map (fun (_, x) -> x) seq
               in
               on_node_seq new_children_seq @@ fun () ->
-              let* v = Node.to_value ~cache:non_impacting n in
+              let* v = Node.to_value ~cache n in
               let v = get_ok "export" v in
-              let key = Node.hash ~cache:non_impacting n in
+              let key = Node.hash ~cache n in
               cnt.node_add <- cnt.node_add + 1;
               let* key' = P.Node.add node_t v in
               assert (equal_hash key key');
@@ -1357,9 +1368,9 @@ module Make (P : Private.S) = struct
           Contents.export ?clear repo c key;
           k ()
       | Contents.Value _ ->
-          let* v = Contents.to_value ~cache:non_impacting c in
+          let* v = Contents.to_value ~cache c in
           let v = get_ok "export" v in
-          let key = Contents.hash ~cache:non_impacting c in
+          let key = Contents.hash ~cache c in
           cnt.contents_add <- cnt.contents_add + 1;
           let* key' = P.Contents.add contents_t v in
           assert (equal_hash key key');
@@ -1376,7 +1387,7 @@ module Make (P : Private.S) = struct
           on_contents c (fun () -> on_node_seq rest k)
     in
     let+ () = on_node (`Node n) (fun () -> Lwt.return_unit) in
-    Node.hash ~cache:non_impacting n
+    Node.hash ~cache n
 
   let merge : t Merge.t =
     let f ~old (x : t) y =
@@ -1598,6 +1609,7 @@ module Make (P : Private.S) = struct
     | `Contents (c, m) -> `Contents (Contents.hash ~cache c, m)
 
   let stats ?(force = false) (t : t) =
+    let cache = true in
     let force =
       if force then `True
       else `False (fun k s -> set_depth k s |> incr_skips |> Lwt.return)
@@ -1608,7 +1620,7 @@ module Make (P : Private.S) = struct
       else set_depth k s |> set_width childs |> incr_nodes |> Lwt.return
     in
     let post _ _ acc = Lwt.return acc in
-    fold ~force ~pre ~post ~contents t empty_stats
+    fold ~force ~cache ~pre ~post ~contents t empty_stats
 
   let counters () = cnt
   let dump_counters ppf () = dump_counters ppf cnt

@@ -43,8 +43,13 @@ module type S = sig
   val list :
     ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
-      paginate results. [cache] regulates the caching behaviour regarding the
-      node's internal data which are lazily loaded.
+      paginate results.
+
+      {2 caching}
+
+      [cache] regulates the caching behaviour regarding the node's internal data
+      which may be lazily loaded from the backend, depending on the node
+      implementation.
 
       [cache] defaults to [true] which may greatly reduce the IOs and the
       runtime but may also grealy increase the memory consumption.
@@ -58,14 +63,9 @@ module type S = sig
   val seq :
     ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) Seq.t
   (** [seq t] is the contents of [t]. [offset] and [length] are used to paginate
-      results. [cache] regulates the caching behaviour regarding the node's
-      internal data which are lazily loaded.
+      results.
 
-      [cache] defaults to [true] which may greatly reduce the IOs and the
-      runtime but may also grealy increase the memory consumption.
-
-      [cache = false] doesn't replace a call to [clear], it only prevents the
-      storing of new data, it doesn't discard the existing one. *)
+      See {!caching} for an explanation of the [cache] parameter *)
 
   val empty : t
   (** [empty] is the empty node. *)
@@ -84,14 +84,8 @@ module type S = sig
 
       A node can point to user-defined {{!Node.S.contents} contents}. The edge
       between the node and the contents is labeled by a {{!Node.S.step} step}.
-      [cache] regulates the caching behaviour regarding the node's internal data
-      which are lazily loaded.
 
-      [cache] defaults to [true] which may greatly reduce the IOs and the
-      runtime but may also grealy increase the memory consumption.
-
-      [cache = false] doesn't replace a call to [clear], it only prevents the
-      storing of new data, it doesn't discard the existing one. *)
+      See {!caching} for an explanation of the [cache] parameter *)
 
   val add : t -> step -> value -> t
   (** [add t s v] is the node where [find t v] is [Some s] but is similar to [t]

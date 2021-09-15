@@ -86,8 +86,12 @@ module type S = sig
 
     val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
-        {!force}d successfully. [cache] regulates the caching behaviour
-        regarding the node's internal data which are lazily loaded.
+        {!force}d successfully.
+
+        {2 caching}
+
+        [cache] regulates the caching behaviour regarding the node's internal
+        data which are be lazily loaded from the backend.
 
         [cache] defaults to [true] which may greatly reduce the IOs and the
         runtime but may also grealy increase the memory consumption.
@@ -193,7 +197,7 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes and contents. [`False f] is applying [f] on
       every lazy node and content value instead. [`And_clear] is like [`True]
@@ -220,6 +224,7 @@ module type S = sig
 
   val fold :
     ?force:'a force ->
+    ?cache:bool ->
     ?uniq:uniq ->
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
@@ -244,7 +249,9 @@ module type S = sig
       See {!uniq} for details about the [uniq] parameters. By default it is
       [`False].
 
-      The fold depth is controlled by the [depth] parameter. *)
+      The fold depth is controlled by the [depth] parameter.
+
+      See {!caching} for an explanation of the [cache] parameter *)
 
   (** {1 Stats} *)
 
@@ -336,6 +343,7 @@ module type Sigs = sig
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
+
     val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t

@@ -295,17 +295,17 @@ struct
       | Truncated : truncated_ptr layout
 
     and partial_ptr_target =
-      | Newie of partial_ptr t
+      | Dirty of partial_ptr t
       | Lazy of hash
       | Lazy_loaded of partial_ptr t
-          (** A partial pointer differentiates the [Newie] and [Lazy_loaded]
+          (** A partial pointer differentiates the [Dirty] and [Lazy_loaded]
               cases in order to remember that only the latter should be
               collected when [clear] is called.
 
               The child in [Lazy_loaded] can only emanate from the disk. It can
               be savely collected on [clear].
 
-              The child in [Newie] can only emanate from a user modification,
+              The child in [Dirty] can only emanate from a user modification,
               e.g. through the [add] or [to_concrete] functions. It shouldn't be
               collected on [clear] because it will be needed for [save]. *)
 
@@ -328,7 +328,7 @@ struct
             fun { target } ->
               match target with
               | Lazy hash -> hash
-              | Newie { hash; _ } | Lazy_loaded { hash; _ } -> Lazy.force hash)
+              | Dirty { hash; _ } | Lazy_loaded { hash; _ } -> Lazy.force hash)
         | Truncated -> (
             function Broken h -> h | Intact ptr -> Lazy.force ptr.hash)
 
@@ -338,7 +338,7 @@ struct
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
             function
-            | { target = Newie entry; _ } | { target = Lazy_loaded entry; _ } ->
+            | { target = Dirty entry; _ } | { target = Lazy_loaded entry; _ } ->
                 (* [target] is already cached. [cache] is only concerned with
                    new cache entries, not the older ones for which the irmin
                    users can discard using [clear]. *)
@@ -360,7 +360,7 @@ struct
 
       let of_target : type ptr. ptr layout -> ptr t -> ptr = function
         | Total -> fun target -> Total_ptr target
-        | Partial _ -> fun target -> { target = Newie target }
+        | Partial _ -> fun target -> { target = Dirty target }
         | Truncated -> fun target -> Intact target
 
       let of_hash : type ptr. ptr layout -> hash -> ptr = function
@@ -371,36 +371,41 @@ struct
       let save :
           type ptr.
           broken:(hash -> unit) ->
-          loaded:(ptr t -> unit) ->
+          save_dirty:(ptr t -> unit) ->
           clear:bool ->
           ptr layout ->
           ptr ->
           unit =
-       fun ~broken ~loaded ~clear -> function
-        | Total -> fun (Total_ptr entry) -> loaded entry
+       fun ~broken ~save_dirty ~clear -> function
+        | Total -> fun (Total_ptr entry) -> (save_dirty [@tailcall]) entry
         | Partial _ -> (
             function
-            | { target = Newie entry; _ } as box ->
+            | { target = Dirty entry; _ } as box ->
                 if clear then box.target <- Lazy (Lazy.force entry.hash)
-                else box.target <- Lazy_loaded entry;
-                loaded entry
+                else
+                  (* Promote from dirty to lazy as it will be saved during
+                     [save_dirty]. *)
+                  box.target <- Lazy_loaded entry;
+                (save_dirty [@tailcall]) entry
             | { target = Lazy_loaded entry; _ } as box ->
                 if clear then box.target <- Lazy (Lazy.force entry.hash);
-                loaded entry
+                (save_dirty [@tailcall]) entry
             | { target = Lazy _; _ } -> ())
         | Truncated -> (
-            function Broken h -> broken h | Intact entry -> loaded entry)
+            function
+            | Broken h -> (broken [@tailcall]) h
+            | Intact entry -> (save_dirty [@tailcall]) entry)
 
       let clear :
           type ptr.
-          iter_newie:(ptr layout -> ptr t -> unit) -> ptr layout -> ptr -> unit
+          iter_dirty:(ptr layout -> ptr t -> unit) -> ptr layout -> ptr -> unit
           =
-       fun ~iter_newie layout ptr ->
+       fun ~iter_dirty layout ptr ->
         match layout with
         | Partial _ -> (
             match ptr with
             | { target = Lazy _; _ } -> ()
-            | { target = Newie ptr; _ } -> iter_newie layout ptr
+            | { target = Dirty ptr; _ } -> iter_dirty layout ptr
             | { target = Lazy_loaded ptr; _ } as box ->
                 let hash = Lazy.force ptr.hash in
                 (* Since a [Lazy_loaded] used to be a [Lazy], the hash is always
@@ -439,7 +444,7 @@ struct
       match t.v with
       | Tree i ->
           Array.iter
-            (Option.iter (Ptr.clear ~iter_newie:clear layout))
+            (Option.iter (Ptr.clear ~iter_dirty:clear layout))
             i.entries
       | Values _ -> ()
 
@@ -933,8 +938,8 @@ struct
                traverse further down. This happens during the unit tests. *)
             ()
         in
-        fun loaded arr ->
-          let iter_ptr = Ptr.save ~broken ~loaded ~clear layout in
+        fun save_dirty arr ->
+          let iter_ptr = Ptr.save ~broken ~save_dirty ~clear layout in
           Array.iter (Option.iter iter_ptr) arr
       in
       let rec aux ~depth t =

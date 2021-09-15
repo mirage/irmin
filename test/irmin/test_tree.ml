@@ -522,12 +522,12 @@ let test_fold_force _ () =
           "After folding, the tree is eagerly evaluated" eager_stats
   in
 
-  (* Ensure that [fold ~force:`And_clear] visits all children and does not
-     leave them cached. *)
+  (* Ensure that [fold ~force:`True ~cache:false] visits all children and does
+     not leave them cached. *)
   let* () =
     clear_and_assert_lazy sample_tree >>= fun () ->
     let* contents =
-      Tree.fold ~force:`And_clear
+      Tree.fold ~force:`True ~cache:false
         ~contents:(fun _ -> Lwt.wrap2 List.cons)
         sample_tree []
     in
