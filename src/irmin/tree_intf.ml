@@ -127,11 +127,20 @@ module type S = sig
   val get_all : t -> key -> (contents * metadata) Lwt.t
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
-  val list : t -> ?offset:int -> ?length:int -> key -> (step * t) list Lwt.t
+  val list :
+    t ->
+    ?offset:int ->
+    ?length:int ->
+    ?cache:bool ->
+    key ->
+    (step * t) list Lwt.t
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
       The result order is not specified but is stable.
 
-      [offset] and [length] are used for pagination. *)
+      [offset] and [length] are used for pagination.
+
+      [cache] defaults to [false], see {!caching} for an explanation of the
+      parameter. *)
 
   val get : t -> key -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
@@ -343,7 +352,6 @@ module type Sigs = sig
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
-
     val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t

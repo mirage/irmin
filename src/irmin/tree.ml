@@ -1145,11 +1145,7 @@ module Make (P : Private.S) = struct
 
   let length = Node.length ~cache:true
 
-  let seq t ?offset ?length path : (step * t) Seq.t Lwt.t =
-    let cache =
-      (* TODO: Maybe change *)
-      true
-    in
+  let seq t ?offset ?length ~cache path : (step * t) Seq.t Lwt.t =
     Log.debug (fun l -> l "Tree.seq %a" pp_key path);
     sub ~cache "seq.sub" t path >>= function
     | None -> Lwt.return Seq.empty
@@ -1158,7 +1154,9 @@ module Make (P : Private.S) = struct
         | Error _ -> Seq.empty
         | Ok l -> l)
 
-  let list t ?offset ?length path = seq t ?offset ?length path >|= List.of_seq
+  let list t ?offset ?length ?(cache = false) path =
+    seq t ?offset ?length ~cache path >|= List.of_seq
+
   let empty = `Node Node.empty
 
   (** During recursive updates, we keep track of whether or not we've made a
