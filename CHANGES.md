@@ -98,6 +98,8 @@
   - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
   - Rewrite `Tree.export` in order to minimise the memory footprint.
     (#1508, @Ngoguey42)
+  - Remove the `` `And_clear`` case of the `force` parameter of `Tree.fold`.
+    Use `~cache:false ~force:true` instead.
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
