@@ -279,16 +279,16 @@ module Make (P : Private.S) = struct
       in
       Merge.v t f
 
-    let fold ~force ~path f t acc =
+    let fold ~force ~path f_value f_tree t acc =
       match force with
       | `True | `And_clear ->
           let* c = to_value t in
           if force = `And_clear then clear t;
-          f path (get_ok "fold" c) acc
+          f_value path (get_ok "fold" c) acc >>= f_tree path
       | `False skip -> (
           match cached_value t with
           | None -> skip path acc
-          | Some c -> f path c acc)
+          | Some c -> f_value path c acc >>= f_tree path)
   end
 
   module Node = struct
@@ -778,10 +778,11 @@ module Make (P : Private.S) = struct
         ?depth:depth ->
         node:(key -> _ -> acc -> acc Lwt.t) ->
         contents:(key -> contents -> acc -> acc Lwt.t) ->
+        tree:(key -> _ -> acc -> acc Lwt.t) ->
         t ->
         acc ->
         acc Lwt.t =
-     fun ~force ~uniq ~pre ~post ~path ?depth ~node ~contents t acc ->
+     fun ~force ~uniq ~pre ~post ~path ?depth ~node ~contents ~tree t acc ->
       let marks =
         match uniq with
         | `False -> dummy_marks
@@ -804,7 +805,7 @@ module Make (P : Private.S) = struct
       in
       let rec aux : type r. (t, acc, r) folder =
        fun ~path acc d t k ->
-        let apply acc = node path t acc in
+        let apply acc = node path t acc >>= tree path (`Node t) in
         let next acc =
           match force with
           | `And_clear -> (
@@ -852,7 +853,8 @@ module Make (P : Private.S) = struct
         | `Node n -> (aux_uniq [@tailcall]) ~path acc (d + 1) n k
         | `Contents c -> (
             let apply () =
-              Contents.fold ~force ~path contents (fst c) acc >>= k
+              let tree path = tree path (`Contents c) in
+              Contents.fold ~force ~path contents tree (fst c) acc >>= k
             in
             match depth with
             | None -> apply ()
@@ -1065,12 +1067,14 @@ module Make (P : Private.S) = struct
   let id _ _ acc = Lwt.return acc
 
   let fold ?(force = `And_clear) ?(uniq = `False) ?pre ?post ?depth
-      ?(contents = id) ?(node = id) (t : t) acc =
+      ?(contents = id) ?(node = id) ?(tree = id) t acc =
     match t with
-    | `Contents (c, _) -> Contents.fold ~force ~path:Path.empty contents c acc
+    | `Contents (c, _) as c' ->
+        let tree path = tree path c' in
+        Contents.fold ~force ~path:Path.empty contents tree c acc
     | `Node n ->
         Node.fold ~force ~uniq ~pre ~post ~path:Path.empty ?depth ~contents
-          ~node n acc
+          ~node ~tree n acc
 
   type stats = {
     nodes : int;
