@@ -920,7 +920,12 @@ struct
     let save layout ~add ~mem t =
       let clear =
         (* When set to [true], collect the loaded inodes as soon as they're
-           saved. *)
+           saved.
+
+           This parameter is not exposed yet. Ideally it would be exposed and
+           be forwarded from [Tree.export ?clear] through [P.Node.add].
+
+           It is currently set to true in order to preserve behaviour *)
         false
       in
       let iter_entries =

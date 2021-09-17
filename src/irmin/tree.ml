@@ -1308,10 +1308,7 @@ module Make (P : Private.S) = struct
 
   let export ?clear repo contents_t node_t n =
     let cache =
-      (* This choice of [cache] flag has no impact, since we either immediately
-         clear the corresponding cache or are certain that it is already
-         filled. *)
-      false
+      match clear with Some true | None -> true | Some false -> false
     in
     let skip n =
       match Node.cached_hash n with
