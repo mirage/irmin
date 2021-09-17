@@ -338,7 +338,7 @@ struct
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
             function
-            | { target = Dirty entry; _ } | { target = Lazy_loaded entry; _ } ->
+            | { target = Dirty entry } | { target = Lazy_loaded entry } ->
                 (* [target] is already cached. [cache] is only concerned with
                    new cache entries, not the older ones for which the irmin
                    users can discard using [clear]. *)
@@ -404,7 +404,7 @@ struct
         match layout with
         | Partial _ -> (
             match ptr with
-            | { target = Lazy _; _ } -> ()
+            | { target = Lazy _} -> ()
             | { target = Dirty ptr; _ } -> iter_dirty layout ptr
             | { target = Lazy_loaded ptr; _ } as box ->
                 let hash = Lazy.force ptr.hash in

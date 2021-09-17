@@ -52,7 +52,7 @@ module type S = sig
       implementation.
 
       [cache] defaults to [true] which may greatly reduce the IOs and the
-      runtime but may also grealy increase the memory consumption.
+     may reduce the IOs and the runtime but also increase the memory consumption.
 
       [cache = false] doesn't replace a call to [clear], it only prevents the
       storing of new data, it doesn't discard the existing one. *)
