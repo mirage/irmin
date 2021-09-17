@@ -343,7 +343,7 @@ struct
                    new cache entries, not the older ones for which the irmin
                    users can discard using [clear]. *)
                 entry
-            | { target = Lazy _; _ } as t -> (
+            | { target = Lazy _ } as t -> (
                 let h = hash layout t in
                 match find h with
                 | None -> Fmt.failwith "%a: unknown key" pp_hash h
@@ -380,17 +380,17 @@ struct
         | Total -> fun (Total_ptr entry) -> (save_dirty [@tailcall]) entry
         | Partial _ -> (
             function
-            | { target = Dirty entry; _ } as box ->
+            | { target = Dirty entry } as box ->
                 if clear then box.target <- Lazy (Lazy.force entry.hash)
                 else
                   (* Promote from dirty to lazy as it will be saved during
                      [save_dirty]. *)
                   box.target <- Lazy_loaded entry;
                 (save_dirty [@tailcall]) entry
-            | { target = Lazy_loaded entry; _ } as box ->
+            | { target = Lazy_loaded entry } as box ->
                 if clear then box.target <- Lazy (Lazy.force entry.hash);
                 (save_dirty [@tailcall]) entry
-            | { target = Lazy _; _ } -> ())
+            | { target = Lazy _ } -> ())
         | Truncated -> (
             function
             | Broken h -> (broken [@tailcall]) h
@@ -404,9 +404,9 @@ struct
         match layout with
         | Partial _ -> (
             match ptr with
-            | { target = Lazy _} -> ()
-            | { target = Dirty ptr; _ } -> iter_dirty layout ptr
-            | { target = Lazy_loaded ptr; _ } as box ->
+            | { target = Lazy _ } -> ()
+            | { target = Dirty ptr } -> iter_dirty layout ptr
+            | { target = Lazy_loaded ptr } as box ->
                 let hash = Lazy.force ptr.hash in
                 (* Since a [Lazy_loaded] used to be a [Lazy], the hash is always
                    available. *)
