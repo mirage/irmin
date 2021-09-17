@@ -280,15 +280,15 @@ module Make (P : Private.S) = struct
       in
       Merge.v t f
 
-    let fold ~force ~cache ~path f t acc =
+    let fold ~force ~cache ~path f_value f_tree t acc =
       match force with
       | `True ->
           let* c = to_value ~cache t in
-          f path (get_ok "fold" c) acc
+          f_value path (get_ok "fold" c) acc >>= f_tree path
       | `False skip -> (
           match cached_value t with
           | None -> skip path acc
-          | Some c -> f path c acc)
+          | Some c -> f_value path c acc >>= f_tree path)
   end
 
   module Node = struct
@@ -645,9 +645,7 @@ module Make (P : Private.S) = struct
                no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
             let entries = P.Node.Val.seq ~cache v in
-            Seq.fold_left
-              (fun ok (step, _) -> ok && StepMap.mem step um)
-              true entries)
+            Seq.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let length ~cache t =
       match cached_map t with
@@ -776,7 +774,7 @@ module Make (P : Private.S) = struct
         ?depth:depth ->
         node:(key -> _ -> acc -> acc Lwt.t) ->
         contents:(key -> contents -> acc -> acc Lwt.t) ->
-        tree:(key -> _ -> acc -> acc Lwt.t) option ->
+        tree:(key -> _ -> acc -> acc Lwt.t) ->
         t ->
         acc ->
         acc Lwt.t =
@@ -803,21 +801,19 @@ module Make (P : Private.S) = struct
       in
       let rec aux : type r. (t, acc, r) folder =
        fun ~path acc d t k ->
-        let apply acc =
-          match tree with
-          | Some f -> f path (`Node t) acc
-          | None -> node path t acc
-        in
+        let apply acc = node path t acc >>= tree path (`Node t) in
         let next acc =
-          match force with
-          | `True -> (
-              (* TODO: Will need rebasing  *)
+          match (force, cache) with
+          | `True, false -> (
               match t.v with
               | Map m -> (map [@tailcall]) ~path acc d (Some m) k
               | Value (repo, _, _) | Hash (repo, _) ->
                   let* v = to_value ~cache t >|= get_ok "fold" in
                   (value [@tailcall]) ~path acc d (repo, v) k)
-          | `False skip -> (
+          | `True, true ->
+              let* m = to_map ~cache t >|= get_ok "fold" in
+              (map [@tailcall]) ~path acc d (Some m) k
+          | `False skip, (true | false) -> (
               match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
               | None ->
@@ -850,10 +846,8 @@ module Make (P : Private.S) = struct
         | `Node n -> (aux_uniq [@tailcall]) ~path acc (d + 1) n k
         | `Contents c -> (
             let apply () =
-              (match tree with
-              | Some f -> f path (`Contents c) acc
-              | None -> Contents.fold ~force ~cache ~path contents (fst c) acc)
-              >>= k
+              let tree path = tree path (`Contents c) in
+              Contents.fold ~force ~cache ~path contents tree (fst c) acc >>= k
             in
             match depth with
             | None -> apply ()
@@ -1070,10 +1064,11 @@ module Make (P : Private.S) = struct
   let id _ _ acc = Lwt.return acc
 
   let fold ?(force = `True) ?(cache = false) ?(uniq = `False) ?pre ?post ?depth
-      ?(contents = id) ?(node = id) ?tree (t : t) acc =
+      ?(contents = id) ?(node = id) ?(tree = id) (t : t) acc =
     match t with
-    | `Contents (c, _) ->
-        Contents.fold ~force ~cache ~path:Path.empty contents c acc
+    | `Contents (c, _) as c' ->
+        let tree path = tree path c' in
+        Contents.fold ~force ~cache ~path:Path.empty contents tree c acc
     | `Node n ->
         Node.fold ~force ~cache ~uniq ~pre ~post ~path:Path.empty ?depth
           ~contents ~node ~tree n acc

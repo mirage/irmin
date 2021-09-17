@@ -26,6 +26,8 @@
     `Tree.list`, `Node.list`, `Node.seq` and `Node.find` to control the storing
     of lazily loaded data (#1526, @Ngoguey42)
   - Add `Node.clear` to clear internal caches (#1526, @Ngoguey42)
+  - Added a `tree` argument to `Tree.fold` to manipulate the subtrees (#1527,
+    @icristescu, @Ngoguey42)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
@@ -99,7 +101,10 @@
   - Rewrite `Tree.export` in order to minimise the memory footprint.
     (#1508, @Ngoguey42)
   - Remove the `` `And_clear`` case of the `force` parameter of `Tree.fold`.
-    Use `~cache:false ~force:true` instead.
+    Use `~cache:false ~force:true` instead. (#1526, @Ngoguey42)
+  - The order in which nodes are visited in `Tree.fold` is now unstable and
+    depends on whether the node is in memory or on disk (#1525, @icristescu,
+    @Ngoguey42, @CraigFe)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
