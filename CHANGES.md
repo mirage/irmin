@@ -100,8 +100,11 @@
   - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
   - Rewrite `Tree.export` in order to minimise the memory footprint.
     (#1508, @Ngoguey42)
-  - Remove the `` `And_clear`` case of the `force` parameter of `Tree.fold`.
-    Use `~cache:false ~force:true` instead. (#1526, @Ngoguey42)
+  - Remove the ``~force:`And_clear`` case parameter from `Tree.fold`,
+    ``~force:`True ~cache:false`` is the new equivalent. (#1526, @Ngoguey42)
+  - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
+    cache the lazily loaded data any more. Pass `~cache:true` to enable it
+    again. (#1526, @Ngoguey42)
   - The order in which nodes are visited in `Tree.fold` is now unstable and
     depends on whether the node is in memory or on disk (#1525, @icristescu,
     @Ngoguey42, @CraigFe)
