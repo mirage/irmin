@@ -58,7 +58,7 @@ struct
     | Node of node_key node_entry
     | Contents of contents_key contents_entry
     | Contents_m of contents_key contents_m_entry
-    (* NOTE: the [_hash] cases are only externally reachable via
+    (* Invariant: the [_hash] cases are only externally reachable via
        [Portable.of_node]. *)
     | Node_hash of Hash.t node_entry
     | Contents_hash of Hash.t contents_entry
@@ -95,7 +95,7 @@ struct
     | Contents c -> (c.name, `Contents (c.contents, Metadata.default))
     | Contents_m c -> (c.name, `Contents (c.contents, c.metadata))
     | Node_hash _ | Contents_hash _ | Contents_m_hash _ ->
-        (* Not reachable after [Portable.of_node] *)
+        (* Not reachable after [Portable.of_node]. See invariant on {!entry}. *)
         assert false
 
   let of_seq l =
