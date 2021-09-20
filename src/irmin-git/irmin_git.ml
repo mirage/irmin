@@ -276,7 +276,12 @@ struct
       end
 
       module Commit = struct
-        module V = Dummy.Commit.Val
+        module V = struct
+          include Dummy.Commit.Val
+
+          type hash = Hash.t [@@deriving irmin]
+        end
+
         module CA = CA (Hash) (V)
         include Irmin.Commit.Store (Info) (Node) (CA) (Hash) (V)
       end

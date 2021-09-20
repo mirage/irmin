@@ -49,7 +49,7 @@ module Schema = struct
   module Branch = Irmin.Branch.String
   module Hash = Irmin.Hash.SHA1
   module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-  module Commit = Irmin.Commit.Make (Hash)
+  module Commit = Irmin.Commit.Generic_key.Make (Hash)
   module Info = Irmin.Info.Default
 end
 

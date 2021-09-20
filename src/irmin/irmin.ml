@@ -80,10 +80,10 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
       module Node_portable = Node.Value.Portable
 
       module Commit = struct
-        module Commit_maker = Commit.Maker (Schema.Info)
+        module Commit_maker = Commit.Generic_key.Maker (Schema.Info)
         module C = Commit_maker.Make (S.Hash) (Node_key) (Commit_key)
         module Backend = Backend.Commit_store.Make (S.Hash) (C)
-        include Commit.Store_indexable (S.Info) (Node) (Backend) (S.Hash) (C)
+        include Commit.Generic_key.Store (S.Info) (Node) (Backend) (S.Hash) (C)
       end
 
       module Branch = struct

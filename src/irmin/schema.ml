@@ -27,14 +27,6 @@ end
 module type Extended = sig
   include S
 
-  module Commit
-      (Node_key : Key.S with type hash = Hash.t)
-      (Commit_key : Key.S with type hash = Hash.t) :
-    Commit.S
-      with module Info := Info
-       and type node_key = Node_key.t
-       and type commit_key = Commit_key.t
-
   module Node
       (Contents_key : Key.S with type hash = Hash.t)
       (Node_key : Key.S with type hash = Hash.t) :
@@ -44,6 +36,14 @@ module type Extended = sig
        and type hash = Hash.t
        and type contents_key = Contents_key.t
        and type node_key = Node_key.t
+
+  module Commit
+      (Node_key : Key.S with type hash = Hash.t)
+      (Commit_key : Key.S with type hash = Hash.t) :
+    Commit.Generic_key.S
+      with module Info := Info
+       and type node_key = Node_key.t
+       and type commit_key = Commit_key.t
 end
 
 open struct
@@ -65,9 +65,9 @@ module KV (C : Contents.S) : KV with module Contents = C = struct
   module Hash = Hash.BLAKE2B
   module Info = Info.Default
   module Branch = Branch.String
-  module Commit = Commit.Make (Hash)
   module Path = Path.String_list
   module Metadata = Metadata.None
-  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Contents = C
+  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Generic_key.Make (Hash)
 end

@@ -22,15 +22,18 @@ let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Maker (Info : Info.S) = struct
-  module Info = Info
+module Maker_generic_key (I : Info.S) = struct
+  module Info = I
 
   module Make
       (H : Type.S)
       (N : Key.S with type hash = H.t)
-      (C : Key.S with type hash = H.t) =
-  struct
-    module Info = Info
+      (C : Key.S with type hash = H.t) :
+    S_generic_key
+      with type node_key = N.t
+       and type commit_key = C.t
+       and module Info = Info = struct
+    module Info = I
 
     type node_key = N.t [@@deriving irmin ~compare]
     type commit_key = C.t [@@deriving irmin]
@@ -50,12 +53,23 @@ module Maker (Info : Info.S) = struct
   end
 end
 
-module Store_indexable
+module Maker (Info : Info.S) = struct
+  include Maker_generic_key (Info)
+
+  module Make (H : Type.S) = struct
+    type hash = H.t [@@deriving irmin]
+
+    module Key = Key.Of_hash (H)
+    include Make (H) (Key) (Key)
+  end
+end
+
+module Store_generic_key
     (I : Info.S)
     (N : Node.Store)
     (S : Indexable.S)
     (H : Hash.S with type t = S.hash)
-    (V : S
+    (V : S_generic_key
            with type node_key = N.Key.t
             and type commit_key = S.Key.t
             and type t = S.value
@@ -140,17 +154,31 @@ struct
   let merge t ~info = Merge.(option (v Key.t (merge_commit info t)))
 end
 
+module Generic_key = struct
+  module type S = S_generic_key
+  module type Maker = Maker_generic_key
+
+  module Maker = Maker_generic_key
+  module Store = Store_generic_key
+  include Maker (Info.Default)
+end
+
 module Store
     (I : Info.S)
     (N : Node.Store)
     (S : Content_addressable.S with type key = N.key)
     (K : Hash.S with type t = S.key)
-    (V : S
-           with type node_key = S.key
-            and type commit_key = S.key
-            and type t = S.value
-            and module Info := I) =
-  Store_indexable (I) (N) (Indexable.Of_content_addressable (K) (S)) (K) (V)
+    (V : S with type hash = S.key and type t = S.value and module Info := I) =
+struct
+  include
+    Store_generic_key (I) (N) (Indexable.Of_content_addressable (K) (S)) (K) (V)
+
+  module Val = struct
+    include Val
+
+    type hash = K.t [@@deriving irmin]
+  end
+end
 
 module History (S : Store) = struct
   type commit_key = S.Key.t [@@deriving irmin]
@@ -531,7 +559,7 @@ module V1 = struct
       |> sealr
   end
 
-  module Make (C : S with module Info := Info) = struct
+  module Make (C : Generic_key.S with module Info := Info) = struct
     module K (K : Type.S) = struct
       let h = Type.string_of `Int64
       let hash_to_bin_string = Type.(unstage (to_bin_string K.t))

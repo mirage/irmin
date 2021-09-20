@@ -291,7 +291,7 @@ module Store = struct
     module Make (Schema : Irmin.Schema.S) = Make (struct
       include Schema
       module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-      module Commit_maker = Irmin.Commit.Maker (Info)
+      module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
       module Commit = Commit_maker.Make (Hash)
     end)
   end

@@ -16,7 +16,7 @@
 
 open! Import
 
-module type S = sig
+module type S_generic_key = sig
   (** {1 Commit values} *)
 
   type t [@@deriving irmin]
@@ -44,14 +44,33 @@ module type S = sig
   (** The commit info. *)
 end
 
-module type Maker = sig
+module type S = sig
+  type hash [@@deriving irmin]
+
+  (** @inline *)
+  include S_generic_key with type node_key = hash and type commit_key = hash
+end
+
+open struct
+  module S_is_a_generic_key (X : S) : S_generic_key = X
+end
+
+module type Maker_generic_key = sig
   module Info : Info.S
 
   module Make
       (H : Type.S)
       (N : Key.S with type hash = H.t)
       (C : Key.S with type hash = H.t) :
-    S with type node_key = N.t and type commit_key = C.t and module Info = Info
+    S_generic_key
+      with type node_key = N.t
+       and type commit_key = C.t
+       and module Info = Info
+end
+
+module type Maker = sig
+  module Info : Info.S
+  module Make (H : Type.S) : S with type hash = H.t and module Info = Info
 end
 
 module type Store = sig
@@ -64,7 +83,10 @@ module type Store = sig
 
   (** [Val] provides functions for commit values. *)
   module Val :
-    S with type t = value and type commit_key = key and module Info := Info
+    S_generic_key
+      with type t = value
+       and type commit_key = key
+       and module Info := Info
 
   module Hash : Hash.Typed with type t = hash and type value = value
 
@@ -176,14 +198,43 @@ module type Sigs = sig
       by commit info. *)
   module Maker (I : Info.S) : Maker with module Info = I
 
+  (** [Generic_key] generalises the concept of "commit" to one that supports
+      object keys that are not strictly equal to hashes. *)
+  module Generic_key : sig
+    module type S = S_generic_key
+    module type Maker = Maker_generic_key
+
+    module Maker (I : Info.S) : Maker with module Info = I
+
+    module Store
+        (I : Info.S)
+        (N : Node.Store)
+        (S : Indexable.S)
+        (H : Hash.S with type t = S.hash)
+        (V : S
+               with type node_key = N.key
+                and type commit_key = S.key
+                and type t = S.value
+                and module Info := I) :
+      Store
+        with type 'a t = 'a N.t * 'a S.t
+         and type key = S.key
+         and type value = S.value
+         and module Info = I
+         and type hash = S.hash
+         and module Val = V
+
+    include Maker with module Info = Info.Default
+  end
+
   (** V1 serialisation. *)
   module V1 : sig
     module Info : Info.S with type t = Info.Default.t
     (** Serialisation format for V1 info. *)
 
-    module Make (C : S with module Info := Info) : sig
+    module Make (C : Generic_key.S with module Info := Info) : sig
       include
-        S
+        Generic_key.S
           with module Info = Info
            and type node_key = C.node_key
            and type commit_key = C.commit_key
@@ -202,37 +253,13 @@ module type Sigs = sig
       (N : Node.Store)
       (S : Content_addressable.S with type key = N.key)
       (K : Hash.S with type t = S.key)
-      (V : S
-             with type node_key = S.key
-              and type commit_key = S.key
-              and type t = S.value
-              and module Info := I) :
+      (V : S with type hash = S.key and type t = S.value and module Info := I) :
     Store
       with type 'a t = 'a N.t * 'a S.t
        and type key = S.key
        and type hash = S.key
        and type value = S.value
        and module Info = I
-       and module Val = V
-
-  (** [Store_indexable] is like {!Store} but uses an indexable store as a
-      backend (rather than a content-addressable one). *)
-  module Store_indexable
-      (I : Info.S)
-      (N : Node.Store)
-      (S : Indexable.S)
-      (H : Hash.S with type t = S.hash)
-      (V : S
-             with type node_key = N.key
-              and type commit_key = S.key
-              and type t = S.value
-              and module Info := I) :
-    Store
-      with type 'a t = 'a N.t * 'a S.t
-       and type key = S.key
-       and type value = S.value
-       and module Info = I
-       and type hash = S.hash
        and module Val = V
 
   module type History = History

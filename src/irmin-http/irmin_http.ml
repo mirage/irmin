@@ -495,7 +495,13 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     module Commit = struct
       module X = struct
         module Key = S.Hash
-        module Val = S.Private.Commit.Val
+
+        module Val = struct
+          include S.Private.Commit.Val
+
+          type hash = S.Hash.t [@@deriving irmin]
+        end
+
         module CA = CA (Client) (Key) (Val)
         include Closeable.Content_addressable (CA)
       end

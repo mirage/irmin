@@ -79,7 +79,11 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
       module Node_portable = Node.CA.Val.Portable
 
       module Commit = struct
-        module Value = Schema.Commit (Node.Key) (XKey)
+        module Value = struct
+          include Schema.Commit (Node.Key) (XKey)
+
+          type hash = Hash.t [@@deriving irmin]
+        end
 
         module Pack_value =
           Irmin_pack.Pack_value.Of_commit

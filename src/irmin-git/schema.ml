@@ -31,11 +31,7 @@ module type S = sig
        and type step = Path.step
        and type hash = Hash.t
 
-  module Commit :
-    Irmin.Commit.S
-      with module Info := Info
-       and type node_key = Hash.t
-       and type commit_key = Hash.t
+  module Commit : Irmin.Commit.S with module Info := Info and type hash = Hash.t
 end
 
 module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) :
