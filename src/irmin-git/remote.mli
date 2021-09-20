@@ -18,7 +18,7 @@ module Make
     (G : Git.S)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
     (B : Irmin.Branch.S) :
-  Irmin.Private.Remote.S
+  Irmin.Backend.Remote.S
     with type commit = G.hash
      and type branch = B.t
      and type t = G.t

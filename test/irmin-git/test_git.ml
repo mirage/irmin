@@ -94,17 +94,17 @@ let get = function Some x -> x | None -> Alcotest.fail "get"
 let test_sort_order (module S : S) =
   S.init () >>= fun () ->
   let* repo = S.Repo.v (Irmin_git.config test_db) in
-  let commit_t = S.Private.Repo.commit_t repo in
-  let node_t = S.Private.Repo.node_t repo in
+  let commit_t = S.Backend.Repo.commit_t repo in
+  let node_t = S.Backend.Repo.node_t repo in
   let head_tree_id branch =
     let* head = S.Head.get branch in
-    let+ commit = S.Private.Commit.find commit_t (S.Commit.hash head) in
-    S.Private.Commit.Val.node (get commit)
+    let+ commit = S.Backend.Commit.find commit_t (S.Commit.hash head) in
+    S.Backend.Commit.Val.node (get commit)
   in
   let ls branch =
     let* tree_id = head_tree_id branch in
-    let+ tree = S.Private.Node.find node_t tree_id in
-    S.Private.Node.Val.list (get tree) |> List.map fst
+    let+ tree = S.Backend.Node.find node_t tree_id in
+    S.Backend.Node.Val.list (get tree) |> List.map fst
   in
   let info = S.Info.none in
   let* master = S.master repo in
@@ -117,7 +117,7 @@ let test_sort_order (module S : S) =
   let* tree_id = head_tree_id master in
   Alcotest.(check string)
     "Sort hash" "00c5f5e40e37fde61911f71373813c0b6cad1477"
-    (Irmin.Type.to_string S.Private.Node.Key.t tree_id);
+    (Irmin.Type.to_string S.Backend.Node.Key.t tree_id);
 
   (* Convert dir to file; changes order in listing *)
   S.set_exn master ~info [ "foo" ] "foo" >>= fun () ->
@@ -197,7 +197,7 @@ let test_blobs (module S : S) =
   let k1 = X.Tree.hash t in
   let* repo = X.Repo.v (Irmin_git.config test_db) in
   let* k2 =
-    X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
+    X.Backend.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
     >|= function
     | `Node k -> k
     | `Contents k -> k

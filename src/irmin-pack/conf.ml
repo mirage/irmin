@@ -28,7 +28,7 @@ module Default = struct
   let freeze_throttle = `Block_writes
 end
 
-open Irmin.Private.Conf
+open Irmin.Backend.Conf
 
 let spec = Spec.v "pack"
 

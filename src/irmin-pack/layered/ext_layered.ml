@@ -123,8 +123,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
       include Layered_store.Atomic_write (Key) (Atomic_write) (Atomic_write)
     end
 
-    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Remote = Irmin.Private.Remote.None (H) (B)
+    module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
+    module Remote = Irmin.Backend.Remote.None (H) (B)
 
     module Repo = struct
       type upper_layer = {
@@ -401,7 +401,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         |> List.map (fun name ->
                let root = Filename.concat root (name config) in
                let config =
-                 Irmin.Private.Conf.add config Conf.Pack.Key.root root
+                 Irmin.Backend.Conf.add config Conf.Pack.Key.root root
                in
                try
                  let io =
@@ -490,7 +490,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
            | Some index -> (integrity_check_layer ~layer index, layer)
            | None -> (Ok `No_error, layer))
 
-  include Irmin.Of_private (X)
+  include Irmin.Of_backend (X)
 
   let sync = X.Repo.sync
   let clear = X.Repo.clear
@@ -871,7 +871,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
          detected"
         pp_commits heads !errors
 
-  module Private_layer = struct
+  module Backend_layer = struct
     module Hook = struct
       type 'a t = 'a -> unit Lwt.t
 

@@ -78,7 +78,7 @@ end
 module Make (K : Key) (G : Git.S) = struct
   module Key = K
   module Val = Irmin.Hash.Make (G.Hash)
-  module W = Irmin.Private.Watch.Make (Key) (Val)
+  module W = Irmin.Backend.Watch.Make (Key) (Val)
 
   let handle_git_err = function
     | Ok x -> Lwt.return x

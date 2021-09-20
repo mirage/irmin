@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let init () = Irmin.Private.Watch.set_listen_dir_hook Irmin_watcher.hook
+let init () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook

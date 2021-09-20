@@ -28,7 +28,7 @@
       usual Git tools.
     - The HTTP {{!module:Irmin_http} clients} and {{!module:Http.Server}
       servers} provides a high-level REST API, with 1 RTT for the
-      {{!Irmin.S.Private} private} and {{!Irmin.S} public} functions. *)
+      {{!Irmin.S.Backend} private} and {{!Irmin.S} public} functions. *)
 
 module Info = Info.Make
 
@@ -91,14 +91,14 @@ module Http : sig
 
   (** [Make] provides bindings to the remote HTTP server.
 
-      Only the {{!Irmin.S.Private} low-level operations} are forwarded to the
+      Only the {{!Irmin.S.Backend} low-level operations} are forwarded to the
       server, all the high-level logic is done on the client. Hence a high-level
       operation might take multiple RTTs. *)
   module Client (S : Irmin.S) :
     Irmin.S
       with type hash = S.Hash.t
        and module Schema = S.Schema
-       and type Private.Remote.endpoint = unit
+       and type Backend.Remote.endpoint = unit
 
   (** {1 HTTP server} *)
 

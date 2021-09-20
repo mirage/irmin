@@ -48,11 +48,11 @@ let is_valid_utf8 str =
 module Make (S : Store.Generic_key.S) = struct
   type db = S.t
 
-  module Branch = S.Private.Branch
-  module Contents = S.Private.Contents
-  module Node = S.Private.Node
-  module Commit = S.Private.Commit
-  module Slice = S.Private.Slice
+  module Branch = S.Backend.Branch
+  module Contents = S.Backend.Contents
+  module Node = S.Backend.Node
+  module Commit = S.Backend.Commit
+  module Slice = S.Backend.Slice
 
   module Graph =
     Object_graph.Make (Contents.Hash) (Node.Hash) (Commit.Hash) (Branch.Key)
@@ -202,7 +202,7 @@ module Make (S : Store.Generic_key.S) = struct
         let node_hash = Commit.Val.node r |> Node.Key.to_hash in
         add_edge (`Commit k) [ `Style `Dashed ] (`Node node_hash))
       !commits;
-    let branch_t = S.Private.Repo.branch_t (S.repo t) in
+    let branch_t = S.Backend.Repo.branch_t (S.repo t) in
     let* bs = Branch.list branch_t in
     let+ () =
       Lwt_list.iter_s

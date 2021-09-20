@@ -111,5 +111,5 @@ module type Maker = sig
        and type Schema.Path.step = Schema.Path.step
        and type Schema.Contents.t = Schema.Contents.t
        and type Schema.Info.t = Schema.Info.t
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
 end

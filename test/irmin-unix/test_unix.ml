@@ -18,7 +18,7 @@ open! Import
 
 let stats () =
   let stats = Irmin_watcher.stats () in
-  (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ())
+  (stats.Irmin_watcher.watchdogs, Irmin.Backend.Watch.workers ())
 
 (* FS *)
 
@@ -38,7 +38,7 @@ module FS = struct
     Lwt.return_unit
 
   let clean () =
-    Irmin.Private.Watch.(set_listen_dir_hook none);
+    Irmin.Backend.Watch.(set_listen_dir_hook none);
     Lwt.return_unit
 
   let suite =
@@ -72,7 +72,7 @@ module Git = struct
   let store = (module S : Test_git.G)
 
   let clean () =
-    Irmin.Private.Watch.(set_listen_dir_hook none);
+    Irmin.Backend.Watch.(set_listen_dir_hook none);
     Lwt.return_unit
 
   let config =
@@ -109,14 +109,14 @@ module Conf = struct
       Irmin_unix.Resolver.load_config ~config_path:"test/irmin-unix/test.yml"
         ~store:"pack" ~contents:"string" ~hash ()
     in
-    let spec = Irmin.Private.Conf.spec cfg in
+    let spec = Irmin.Backend.Conf.spec cfg in
     let index_log_size =
-      Irmin.Private.Conf.get cfg Irmin_pack.Conf.Key.index_log_size
+      Irmin.Backend.Conf.get cfg Irmin_pack.Conf.Key.index_log_size
     in
-    let fresh = Irmin.Private.Conf.get cfg Irmin_pack.Conf.Key.fresh in
+    let fresh = Irmin.Backend.Conf.get cfg Irmin_pack.Conf.Key.fresh in
     Alcotest.(check string)
       "Spec name" "pack"
-      (Irmin.Private.Conf.Spec.name spec);
+      (Irmin.Backend.Conf.Spec.name spec);
     Alcotest.(check int) "index-log-size" 1234 index_log_size;
     Alcotest.(check bool) "fresh" true fresh;
     Lwt.return_unit

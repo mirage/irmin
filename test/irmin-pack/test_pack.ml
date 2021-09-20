@@ -66,7 +66,7 @@ let suite_pack =
   in
   let clean () =
     let (module S : Irmin_test.S) = store in
-    let module P = S.Private in
+    let module P = S.Backend in
     let clear repo =
       Lwt.join
         [
@@ -81,7 +81,7 @@ let suite_pack =
     clear repo >>= fun () ->
     S.Repo.close repo >>= fun () ->
     let (module S : Irmin_test.Layered_store) = layered_store in
-    let module P = S.Private in
+    let module P = S.Backend in
     let clear repo =
       P.Commit.clear (P.Repo.commit_t repo) >>= fun () ->
       P.Node.clear (P.Repo.node_t repo) >>= fun () ->

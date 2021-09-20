@@ -51,7 +51,7 @@
     the root chunk node as is the case for {{!AO} AO}. *)
 
 module Conf : sig
-  open Irmin.Private.Conf
+  open Irmin.Backend.Conf
 
   val spec : Spec.t
 

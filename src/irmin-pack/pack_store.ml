@@ -70,7 +70,7 @@ module Maker
     end
 
     module Tbl = Table (K)
-    module Lru = Irmin.Private.Lru.Make (H)
+    module Lru = Irmin.Backend.Lru.Make (H)
 
     type nonrec 'a t = {
       pack : 'a t;

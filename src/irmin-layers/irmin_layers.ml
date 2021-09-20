@@ -54,7 +54,7 @@ struct
     let check_self_contained ?heads:_ _ = failwith "not implemented"
     let needs_recovery _ = failwith "not implemented"
 
-    module Private_layer = struct
+    module Backend_layer = struct
       module Hook = struct
         type 'a t = unit
 

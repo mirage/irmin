@@ -67,8 +67,8 @@ end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   module RO = Read_only (K) (V)
-  module W = Irmin.Private.Watch.Make (K) (V)
-  module L = Irmin.Private.Lock.Make (K)
+  module W = Irmin.Backend.Watch.Make (K) (V)
+  module L = Irmin.Backend.Lock.Make (K)
 
   type t = { t : unit RO.t; w : W.t; lock : L.t }
   type key = RO.key
@@ -134,7 +134,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 end
 
 module Conf = struct
-  include Irmin.Private.Conf
+  include Irmin.Backend.Conf
 
   let spec = Spec.v "mem"
 end

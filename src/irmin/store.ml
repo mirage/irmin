@@ -29,7 +29,7 @@ module Generic_key = struct
   module type KV_maker = KV_maker_generic_key
 end
 
-module Make (P : Private.S) = struct
+module Make (P : Backend.S) = struct
   module Schema = P.Schema
   module Contents_key = P.Contents.Key
   module Node_key = P.Node.Key
@@ -40,7 +40,7 @@ module Make (P : Private.S) = struct
   module Branch_store = P.Branch
   module Key = P.Node.Path
   module Commits = Commit.History (P.Commit)
-  module Private = P
+  module Backend = P
   module Info = P.Commit.Info
   module H = Commit.History (P.Commit)
   module T = Tree.Make (P)
@@ -199,8 +199,8 @@ module Make (P : Private.S) = struct
 
     module H = Typed (P.Commit.Val)
 
-    let to_private_commit t = t.v
-    let of_private_commit r key v = { r; key; v }
+    let to_backend_commit t = t.v
+    let of_backend_commit r key v = { r; key; v }
 
     let equal_opt x y =
       match (x, y) with
@@ -209,11 +209,11 @@ module Make (P : Private.S) = struct
       | _ -> false
   end
 
-  let to_private_portable_node = Tree.to_private_portable_node
-  let to_private_node = Tree.to_private_node
-  let of_private_node = Tree.of_private_node
-  let to_private_commit = Commit.to_private_commit
-  let of_private_commit = Commit.of_private_commit
+  let to_backend_portable_node = Tree.to_backend_portable_node
+  let to_backend_node = Tree.to_backend_node
+  let of_backend_node = Tree.of_backend_node
+  let to_backend_commit = Commit.to_backend_commit
+  let of_backend_commit = Commit.of_backend_commit
 
   type head_ref = [ `Branch of branch | `Head of commit option ref ]
 

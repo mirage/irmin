@@ -115,7 +115,7 @@ let ro_sync_after_close () =
   S.sync ro;
   binding (check_binding ro c1) >>= fun () -> S.Repo.close ro
 
-module P = S.Private
+module P = S.Backend
 
 let clear_all repo =
   Log.debug (fun l -> l "clear repo");

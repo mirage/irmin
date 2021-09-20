@@ -877,7 +877,7 @@ module Make (S : Generic_key) = struct
     in
     run x test
 
-  let test_private_nodes ?hook x () =
+  let test_backend_nodes ?hook x () =
     let test repo =
       let check_val = check [%typ: S.contents option] in
       let vx = "VX" in
@@ -1433,12 +1433,12 @@ module Make (S : Generic_key) = struct
       check S.Hash.t "same tree" h h';
       let* c1 = S.Tree.get_tree c [ "foo" ] in
       let* _ =
-        S.Private.Repo.batch repo (fun c n _ -> S.save_tree repo c n c1)
+        S.Backend.Repo.batch repo (fun c n _ -> S.save_tree repo c n c1)
       in
       (match S.Tree.destruct c1 with
       | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
       | `Node node -> (
-          let* v = S.to_private_node node in
+          let* v = S.to_backend_node node in
           let () =
             let ls = P.Node.Val.list v in
             Alcotest.(check int) "list wide node" size (List.length ls)
@@ -1953,15 +1953,15 @@ module Make (S : Generic_key) = struct
       let tree_2 = S.Tree.shallow repo (`Node bar_k) in
       let* node_3 =
         let+ contents_foo = contents "foo" in
-        S.Private.Node.Val.of_list
+        S.Backend.Node.Val.of_list
           [
             ("foo", `Contents (contents_foo, S.Metadata.default));
             ("bar", `Node bar_k);
           ]
       in
-      let tree_3 = S.Tree.of_node (S.of_private_node repo node_3) in
+      let tree_3 = S.Tree.of_node (S.of_backend_node repo node_3) in
       let* _ =
-        S.Private.Repo.batch repo (fun c n _ -> S.save_tree repo c n tree_3)
+        S.Backend.Repo.batch repo (fun c n _ -> S.save_tree repo c n tree_3)
       in
       let key_3 = get_node_key (Option.get (S.Tree.key tree_3)) in
       let info () = info "shallow" in
@@ -1971,11 +1971,11 @@ module Make (S : Generic_key) = struct
       let* h = S.Head.get t in
       let* commit_v =
         let+ commit_foo = commit "foo" in
-        S.Private.Commit.Val.v ~info:(info ()) ~node:key_3
+        S.Backend.Commit.Val.v ~info:(info ()) ~node:key_3
           ~parents:[ S.Commit.key h; commit_foo ]
       in
       let* commit_key = with_commit repo (fun c -> P.Commit.add c commit_v) in
-      let commit = S.of_private_commit repo commit_key commit_v in
+      let commit = S.of_backend_commit repo commit_key commit_v in
       S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
       let* t1 = S.find_tree t [ "1" ] in
       Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
@@ -2062,7 +2062,7 @@ let suite (speed, x) =
        ("Tree caches and hashconsing", speed, T.test_tree_caches x);
        ("Complex histories", speed, T.test_history x);
        ("Empty stores", speed, T.test_empty x);
-       ("Private node manipulation", speed, T.test_private_nodes x);
+       ("Backend node manipulation", speed, T.test_backend_nodes x);
        ("High-level store operations", speed, T.test_stores x);
        ("High-level store merges", speed, T.test_merge x);
        ("Unrelated merges", speed, T.test_merge_unrelated x);
@@ -2108,7 +2108,7 @@ let layered_suite (speed, x) =
           ("Basic merge operations", speed, T.test_simple_merges ~hook x);
           ("Complex histories", speed, T.test_history ~hook x);
           ("Empty stores", speed, T.test_empty ~hook x);
-          ("Private node manipulation", speed, T.test_private_nodes ~hook x);
+          ("Backend node manipulation", speed, T.test_backend_nodes ~hook x);
           ("High-level store merges", speed, T.test_merge ~hook x);
           ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
           ("Test commits and graphs", speed, TL.test_graph_and_history x);

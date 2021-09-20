@@ -23,7 +23,7 @@ module Default = struct
 end
 
 module Pack = Irmin_pack.Conf
-open Irmin.Private.Conf
+open Irmin.Backend.Conf
 
 let spec = Spec.v "layered"
 

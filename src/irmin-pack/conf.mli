@@ -19,28 +19,28 @@ module type S = sig
   val stable_hash : int
 end
 
-val spec : Irmin.Private.Conf.Spec.t
+val spec : Irmin.Backend.Conf.Spec.t
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
 type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
 
 module Key : sig
-  val fresh : bool Irmin.Private.Conf.key
-  val lru_size : int Irmin.Private.Conf.key
-  val index_log_size : int Irmin.Private.Conf.key
-  val readonly : bool Irmin.Private.Conf.key
-  val root : string Irmin.Private.Conf.key
-  val merge_throttle : merge_throttle Irmin.Private.Conf.key
-  val freeze_throttle : freeze_throttle Irmin.Private.Conf.key
+  val fresh : bool Irmin.Backend.Conf.key
+  val lru_size : int Irmin.Backend.Conf.key
+  val index_log_size : int Irmin.Backend.Conf.key
+  val readonly : bool Irmin.Backend.Conf.key
+  val root : string Irmin.Backend.Conf.key
+  val merge_throttle : merge_throttle Irmin.Backend.Conf.key
+  val freeze_throttle : freeze_throttle Irmin.Backend.Conf.key
 end
 
-val fresh : Irmin.Private.Conf.t -> bool
-val lru_size : Irmin.Private.Conf.t -> int
-val index_log_size : Irmin.Private.Conf.t -> int
-val readonly : Irmin.Private.Conf.t -> bool
-val merge_throttle : Irmin.Private.Conf.t -> merge_throttle
-val freeze_throttle : Irmin.Private.Conf.t -> freeze_throttle
-val root : Irmin.Private.Conf.t -> string
+val fresh : Irmin.Backend.Conf.t -> bool
+val lru_size : Irmin.Backend.Conf.t -> int
+val index_log_size : Irmin.Backend.Conf.t -> int
+val readonly : Irmin.Backend.Conf.t -> bool
+val merge_throttle : Irmin.Backend.Conf.t -> merge_throttle
+val freeze_throttle : Irmin.Backend.Conf.t -> freeze_throttle
+val root : Irmin.Backend.Conf.t -> string
 
 val init :
   ?fresh:bool ->

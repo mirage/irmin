@@ -116,7 +116,7 @@ module Atomic_write = struct
     (K : Irmin.Branch.S)
     (V : Irmin.Hash.S)
     -> sig
-    module W : Irmin.Private.Watch.S with type key = K.t and type value = V.t
+    module W : Irmin.Backend.Watch.S with type key = K.t and type value = V.t
     module RO : Read_only.S
     module HTTP = RO.HTTP
     include S with type key = K.t and type value = V.t and type ctx = Client.ctx

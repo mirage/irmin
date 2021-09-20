@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type config := Irmin.Private.Conf.t
+type config := Irmin.Backend.Conf.t
 
 module Pack : module type of Irmin_pack.Conf
-open Irmin.Private.Conf
+open Irmin.Backend.Conf
 
 val spec : Spec.t
 

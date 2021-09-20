@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Private module: turn a Git store into an Irmin backend for Git blobs. *)
+(** Backend module: turn a Git store into an Irmin backend for Git blobs. *)
 
 module Make (G : Git.S) (C : Irmin.Contents.S) : sig
   include

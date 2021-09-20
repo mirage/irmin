@@ -135,10 +135,10 @@ type config = Conf.t
     Every backend has different configuration options, which are kept abstract
     to the user. *)
 
-(** [Private] defines functions only useful for creating new backends. If you
+(** [Backend] defines functions only useful for creating new backends. If you
     are just using the library (and not developing a new backend), you should
     not use this module. *)
-module Private : sig
+module Backend : sig
   module Conf : module type of Conf
   (** Backend configuration.
 
@@ -151,8 +151,8 @@ module Private : sig
   module Slice = Slice
   module Remote = Remote
 
-  module type S = Private.S
-  (** The complete collection of private implementations. *)
+  module type S = Backend.S
+  (** The complete collection of backend implementations. *)
 end
 
 module Key = Key
@@ -479,7 +479,7 @@ module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
   KV_maker with type endpoint = unit and type metadata = unit
 
 (** Advanced store creator. *)
-module Of_private (P : Private.S) :
+module Of_backend (P : Backend.S) :
   Generic_key.S
     with module Schema = P.Schema
      and type repo = P.Repo.t
@@ -487,7 +487,7 @@ module Of_private (P : Private.S) :
      and type contents_key = P.Contents.Key.t
      and type node_key = P.Node.Key.t
      and type commit_key = P.Commit.Key.t
-     and module Private = P
+     and module Backend = P
 
 module Export_for_backends = Export_for_backends
 (** Helper module containing useful top-level types for defining Irmin backends.

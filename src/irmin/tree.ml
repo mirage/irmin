@@ -63,7 +63,7 @@ let backend_invariant_violation fmt =
 
 let assertion_failure fmt = Fmt.kstr (fun s -> raise (Assertion_failure s)) fmt
 
-module Make (P : Private.S) = struct
+module Make (P : Backend.S) = struct
   type counters = {
     mutable contents_hash : int;
     mutable contents_find : int;
@@ -1171,13 +1171,13 @@ module Make (P : Private.S) = struct
   type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin]
 
-  let to_private_node n =
-    Node.to_value ~cache:true n >|= get_ok "to_private_node"
+  let to_backend_node n =
+    Node.to_value ~cache:true n >|= get_ok "to_backend_node"
 
-  let to_private_portable_node n =
-    Node.to_portable_value ~cache:true n >|= get_ok "to_private_portable_node"
+  let to_backend_portable_node n =
+    Node.to_portable_value ~cache:true n >|= get_ok "to_backend_portable_node"
 
-  let of_private_node repo n = Node.of_value repo n
+  let of_backend_node repo n = Node.of_value repo n
 
   let dump ppf = function
     | `Node n -> Fmt.pf ppf "node: %a" Node.dump n

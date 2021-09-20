@@ -65,7 +65,7 @@ module type Maker = sig
     S
       with module Git = G
        and module Schema := Schema
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
 end
 
 module type KV_maker = sig
@@ -84,7 +84,7 @@ module type KV_maker = sig
        and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash
        and type Schema.Branch.t = branch
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
 end
 
 module type Sigs = sig

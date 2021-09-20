@@ -24,7 +24,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module T = Irmin.Type
 
 module Conf = struct
-  include Irmin.Private.Conf
+  include Irmin.Backend.Conf
 
   let spec = Spec.v "http"
 
@@ -282,7 +282,7 @@ functor
   struct
     module RO = RO (Client) (K) (V)
     module HTTP = RO.HTTP
-    module W = Irmin.Private.Watch.Make (K) (V)
+    module W = Irmin.Backend.Watch.Make (K) (V)
 
     type key = RO.key
     type value = RO.value
@@ -458,7 +458,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     end
 
     module Node = struct
-      module Val = S.Private.Node.Val
+      module Val = S.Backend.Node.Val
       module Hash = Irmin.Hash.Typed (S.Hash) (Val)
       module CA = CA (Client) (S.Hash) (Val)
       include Irmin.Indexable.Of_content_addressable (S.Hash) (CA)
@@ -497,7 +497,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
         module Key = S.Hash
 
         module Val = struct
-          include S.Private.Commit.Val
+          include S.Backend.Commit.Val
 
           type hash = S.Hash.t [@@deriving irmin]
         end
@@ -511,8 +511,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let v ?ctx config = X.v ?ctx config "commit" "commits"
     end
 
-    module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-    module Remote = Irmin.Private.Remote.None (Hash) (S.Branch)
+    module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
+    module Remote = Irmin.Backend.Remote.None (Hash) (S.Branch)
 
     module Branch = struct
       module Key = S.Branch
@@ -560,7 +560,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
     end
   end
 
-  include Irmin.Of_private (X)
+  include Irmin.Of_backend (X)
 end
 
 module type SERVER = Irmin_http_server.S

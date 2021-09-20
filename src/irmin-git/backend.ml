@@ -68,7 +68,7 @@ struct
     let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
   end
 
-  module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
+  module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
 
   module Repo = struct
     let handle_git_err = function
@@ -93,7 +93,7 @@ struct
     }
 
     let config c =
-      let module C = Irmin.Private.Conf in
+      let module C = Irmin.Backend.Conf in
       let root = C.get c Conf.Key.root in
       let dot_git = C.get c Conf.Key.dot_git in
       let level = C.get c Conf.Key.level in
@@ -126,7 +126,7 @@ struct
   let repo_of_git ?head ?(bare = true) ?lock g =
     let+ b = Branch.v ?lock ~head ~bare g in
     {
-      Repo.config = Irmin.Private.Conf.empty Conf.spec;
+      Repo.config = Irmin.Backend.Conf.empty Conf.spec;
       closed = ref false;
       g;
       b;
