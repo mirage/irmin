@@ -35,12 +35,12 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let v _config = Lwt.return map
 
   let clear t =
-    Log.debug (fun f -> f "clear");
+    [%log.debug "clear"];
     t.t <- KMap.empty;
     Lwt.return_unit
 
   let close _ =
-    Log.debug (fun f -> f "close");
+    [%log.debug "close"];
     Lwt.return_unit
 
   let cast t = (t :> read_write t)
@@ -48,11 +48,11 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let pp_key = Irmin.Type.pp K.t
 
   let find { t; _ } key =
-    Log.debug (fun f -> f "find %a" pp_key key);
+    [%log.debug "find %a" pp_key key];
     try Lwt.return_some (KMap.find key t) with Not_found -> Lwt.return_none
 
   let mem { t; _ } key =
-    Log.debug (fun f -> f "mem %a" pp_key key);
+    [%log.debug "mem %a" pp_key key];
     Lwt.return (KMap.mem key t)
 end
 
@@ -60,7 +60,7 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   include Read_only (K) (V)
 
   let add t key value =
-    Log.debug (fun f -> f "add -> %a" pp_key key);
+    [%log.debug "add -> %a" pp_key key];
     t.t <- KMap.add key value t.t;
     Lwt.return_unit
 end
@@ -90,11 +90,11 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let unwatch t = W.unwatch t.w
 
   let list t =
-    Log.debug (fun f -> f "list");
+    [%log.debug "list"];
     RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t [] |> Lwt.return
 
   let set t key value =
-    Log.debug (fun f -> f "update");
+    [%log.debug "update"];
     let* () =
       L.with_lock t.lock key (fun () ->
           t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
@@ -103,7 +103,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     W.notify t.w key (Some value)
 
   let remove t key =
-    Log.debug (fun f -> f "remove");
+    [%log.debug "remove"];
     let* () =
       L.with_lock t.lock key (fun () ->
           t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
@@ -114,7 +114,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
 
   let test_and_set t key ~test ~set =
-    Log.debug (fun f -> f "test_and_set");
+    [%log.debug "test_and_set"];
     let* updated =
       L.with_lock t.lock key (fun () ->
           let+ v = find t key in

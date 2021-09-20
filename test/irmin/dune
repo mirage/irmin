@@ -2,6 +2,6 @@
  (name test)
  (package irmin)
  (preprocess
-  (pps ppx_irmin))
+  (pps ppx_irmin.internal))
  (libraries irmin irmin.mem irmin-test alcotest alcotest-lwt lwt hex logs
    logs.fmt))

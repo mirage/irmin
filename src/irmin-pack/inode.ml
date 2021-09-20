@@ -950,7 +950,7 @@ struct
           Array.iter (Option.iter iter_ptr) arr
       in
       let rec aux ~depth t =
-        Log.debug (fun l -> l "save depth:%d" depth);
+        [%log.debug "save depth:%d" depth];
         match t.v with
         | Values _ -> add (Lazy.force t.hash) (to_bin layout t)
         | Tree n ->

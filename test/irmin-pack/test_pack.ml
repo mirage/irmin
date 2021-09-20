@@ -636,7 +636,7 @@ module Branch = struct
     let add t =
       Lwt_list.iter_s
         (fun k ->
-          Logs.debug (fun l -> l "k = %s, v= %a" k pp_hash (sha1 k));
+          [%logs.debug "k = %s, v= %a" k pp_hash (sha1 k)];
           Branch.set t k (sha1 k))
         branches
     in

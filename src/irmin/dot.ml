@@ -63,11 +63,11 @@ module Make (S : Store.Generic_key.S) = struct
   let pp_message = Type.pp Info.message_t
 
   let fprintf (t : db) ?depth ?(html = false) ?full ~date name =
-    Log.debug (fun f ->
-        f "fprintf depth=%s html=%b full=%s"
-          (match depth with None -> "<none>" | Some d -> string_of_int d)
-          html
-          (match full with None -> "<none>" | Some b -> string_of_bool b));
+    [%log.debug
+      "depth=%s html=%b full=%s"
+        (match depth with None -> "<none>" | Some d -> string_of_int d)
+        html
+        (match full with None -> "<none>" | Some b -> string_of_bool b)];
     let* slice = S.Repo.export ?full ?depth (S.repo t) in
     let vertex = Hashtbl.create 102 in
     let add_vertex v l = Hashtbl.add vertex v l in

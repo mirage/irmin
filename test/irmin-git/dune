@@ -4,7 +4,7 @@
  (libraries alcotest fmt fpath irmin irmin-test irmin.mem irmin-git git
    git-unix git-cohttp-unix lwt lwt.unix)
  (preprocess
-  (pps ppx_irmin)))
+  (pps ppx_irmin ppx_irmin.internal)))
 
 (executable
  (name test)

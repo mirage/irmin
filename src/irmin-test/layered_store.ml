@@ -361,7 +361,7 @@ module Make_Layered (S : Layered_store) = struct
     in
     run x test
 
-  let log_stats () = Logs.debug (fun l -> l "%t" Irmin_layers.Stats.pp_latest)
+  let log_stats () = [%logs.debug "%t" Irmin_layers.Stats.pp_latest]
 
   let test_squash x () =
     let check_val = check T.(option S.contents_t) in
@@ -539,7 +539,7 @@ module Make_Layered (S : Layered_store) = struct
           let y = "y" ^ string_of_int i in
           let b = "b" ^ string_of_int i in
           let* tree = S.Tree.add tree [ "c"; "b"; a ] y in
-          Log.debug (fun l -> l "commit %s" y);
+          [%log.debug "commit %s" y];
           let* c = S.Commit.v repo ~info ~parents:[] tree in
           S.Branch.set repo b c >>= fun () ->
           S.freeze repo ~max_lower:[ c ] ~max_upper:[] >>= fun () ->
@@ -551,7 +551,7 @@ module Make_Layered (S : Layered_store) = struct
         let a = "a" ^ string_of_int i in
         let y = "y" ^ string_of_int i in
         let b = "b" ^ string_of_int i in
-        Log.debug (fun l -> l "test %s" y);
+        [%log.debug "test %s" y];
         let* y' = S.Tree.find tree [ "c"; "b"; a ] in
         Alcotest.(check (option string)) "commit" (Some y) y';
 
@@ -574,12 +574,12 @@ module Make_Layered (S : Layered_store) = struct
     let info = info "two" in
     let test repo =
       let find4 tree =
-        Log.debug (fun l -> l "find4");
+        [%log.debug "find4"];
         let+ x = S.Tree.find tree [ "4" ] in
         Alcotest.(check (option string)) "x4" (Some "x4") x
       in
       let find5 tree () =
-        Log.debug (fun l -> l "find5");
+        [%log.debug "find5"];
         let+ x = S.Tree.find tree [ "5" ] in
         Alcotest.(check (option string)) "x5" (Some "x5") x
       in
@@ -587,7 +587,7 @@ module Make_Layered (S : Layered_store) = struct
       let* tree = S.Tree.add tree [ "1"; "2"; "3" ] "x1" in
       let* tree = S.Tree.add tree [ "4" ] "x4" in
       let* tree = S.Tree.add tree [ "5" ] "x5" in
-      Log.debug (fun l -> l "commit.v");
+      [%log.debug "commit.v"];
       let* h = S.Commit.v repo ~info ~parents:[] tree in
       S.Tree.clear tree;
       let* commit =
@@ -880,7 +880,7 @@ module Make_Layered (S : Layered_store) = struct
     let hook =
       Hook.v (function
         | `Before_Copy ->
-            Log.debug (fun l -> l "test hook -- before_copy");
+            [%log.debug "test hook -- before_copy"];
             Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
             Lwt.return_unit
         | _ -> Lwt.return_unit)
@@ -892,7 +892,7 @@ module Make_Layered (S : Layered_store) = struct
     let hook =
       Hook.v (function
         | `Before_Copy_Newies ->
-            Log.debug (fun l -> l "test hook -- before_copy_newies");
+            [%log.debug "test hook -- before_copy_newies"];
             Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
             Lwt.return_unit
         | _ -> Lwt.return_unit)
@@ -904,7 +904,7 @@ module Make_Layered (S : Layered_store) = struct
     let hook =
       Hook.v (function
         | `Before_Copy_Last_Newies ->
-            Log.debug (fun l -> l "test hook -- before_copy_last_newies");
+            [%log.debug "test hook -- before_copy_last_newies"];
             Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
             Lwt.return_unit
         | _ -> Lwt.return_unit)
@@ -916,7 +916,7 @@ module Make_Layered (S : Layered_store) = struct
     let hook =
       Hook.v (function
         | `Before_Flip ->
-            Log.debug (fun l -> l "test hook -- before_flip");
+            [%log.debug "test hook -- before_flip"];
             Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
             Lwt.return_unit
         | _ -> Lwt.return_unit)
@@ -928,7 +928,7 @@ module Make_Layered (S : Layered_store) = struct
     let hook =
       Hook.v (function
         | `Before_Clear ->
-            Log.debug (fun l -> l "test hook -- before_clear");
+            [%log.debug "test hook -- before_clear"];
             Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
             Lwt.return_unit
         | _ -> Lwt.return_unit)
@@ -940,7 +940,7 @@ module Make_Layered (S : Layered_store) = struct
     let hook =
       Hook.v (function
         | `After_Clear ->
-            Log.debug (fun l -> l "test hook -- after_clear");
+            [%log.debug "test hook -- after_clear"];
             Lwt.async (fun () -> f () >|= fun () -> Lwt.wakeup r ());
             Lwt.return_unit
         | _ -> Lwt.return_unit)

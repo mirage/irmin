@@ -53,14 +53,13 @@ module IO = struct
       else
         let clear =
           if Sys.file_exists dir then (
-            Log.debug (fun l ->
-                l "%s already exists but is a file, removing." dir);
+            [%log.debug "%s already exists but is a file, removing." dir];
             safe Lwt_unix.unlink dir)
           else Lwt.return_unit
         in
         clear >>= fun () ->
         aux (Filename.dirname dir) >>= fun () ->
-        Log.debug (fun l -> l "mkdir %s" dir);
+        [%log.debug "mkdir %s" dir];
         protect (Lwt_unix.mkdir dir) 0o755
     in
     Lwt_pool.use mkdir_pool (fun () -> aux dirname)
@@ -88,10 +87,10 @@ module IO = struct
 
     let lock ?(max_age = 10. *. 60. (* 10 minutes *)) ?(sleep = 0.001) file =
       let rec aux i =
-        Log.debug (fun f -> f "lock %s %d" file i);
+        [%log.debug "lock %s %d" file i];
         let* is_stale = is_stale max_age file in
         if is_stale then (
-          Log.err (fun f -> f "%s is stale, removing it." file);
+          [%log.err "%s is stale, removing it." file];
           unlock file >>= fun () -> aux 1)
         else
           let create () =
@@ -164,9 +163,9 @@ module IO = struct
   let command fmt =
     Printf.ksprintf
       (fun str ->
-        Log.debug (fun l -> l "[exec] %s" str);
+        [%log.debug "[exec] %s" str];
         let i = Sys.command str in
-        if i <> 0 then Log.debug (fun l -> l "[exec] error %d" i);
+        if i <> 0 then [%log.debug "[exec] error %d" i];
         Lwt.return_unit)
       fmt
 
@@ -205,8 +204,7 @@ module IO = struct
                   if exists && Sys.is_directory file then
                     remove_dir file >>= fun () -> aux (i + 1)
                   else (
-                    Log.debug (fun l ->
-                        l "Got EACCES, retrying in %.1fs" delays.(i));
+                    [%log.debug "Got EACCES, retrying in %.1fs" delays.(i)];
                     Lwt_unix.sleep delays.(i) >>= fun () -> aux (i + 1))
             | e -> Lwt.fail e)
       in
@@ -220,7 +218,7 @@ module IO = struct
     mkdir dir >>= fun () ->
     let tmp = Filename.temp_file ?temp_dir (Filename.basename file) "write" in
     Lwt_pool.use openfile_pool (fun () ->
-        Log.debug (fun l -> l "Writing %s (%s)" file tmp);
+        [%log.debug "Writing %s (%s)" file tmp];
         let* fd =
           let open Lwt_unix in
           openfile tmp [ O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC ] 0o644
@@ -256,7 +254,7 @@ module IO = struct
     Lwt.catch
       (fun () ->
         Lwt_pool.use openfile_pool (fun () ->
-            Log.debug (fun l -> l "Reading %s" file);
+            [%log.debug "Reading %s" file];
             let* stats = Lwt_unix.stat file in
             let size = stats.Lwt_unix.st_size in
             let+ buf =

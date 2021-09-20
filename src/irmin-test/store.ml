@@ -1894,10 +1894,10 @@ module Make (S : Generic_key) = struct
         let rec aux i =
           fn () >>= function
           | true ->
-              Log.debug (fun f -> f "%d: ok!" d);
+              [%log.debug "%d: ok!" d];
               Lwt.return_unit
           | false ->
-              Log.debug (fun f -> f "%d: conflict, retrying (%d)." d i);
+              [%log.debug "%d: conflict, retrying (%d)." d i];
               aux (i + 1)
         in
         aux 1

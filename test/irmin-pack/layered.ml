@@ -28,7 +28,7 @@ let fresh_name =
   fun () ->
     incr c;
     let name = Filename.concat root ("layered_" ^ string_of_int !c) in
-    Logs.info (fun m -> m "Constructing irmin store %s" name);
+    [%logs.info "Constructing irmin store %s" name];
     name
 
 let index_log_size = Some 4
@@ -285,7 +285,7 @@ module Test = struct
     let* ctxt, block1a = checkout_and_commit ctxt block1 commit_block1a in
     let* ctxt, block1b = checkout_and_commit ctxt block1 commit_block1b in
     Store.sync ro_ctxt.index.repo;
-    Log.debug (fun l -> l "Freeze removes block1b but keeps block1, block1a");
+    [%log.debug "Freeze removes block1b but keeps block1, block1a"];
     let* ctxt = freeze ctxt block1a in
     Store.Backend_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block1 ro_ctxt.index.repo block1 >>= fun () ->
@@ -298,7 +298,7 @@ module Test = struct
     let* ctxt, block2a = checkout_and_commit ctxt block1a commit_block2a in
     let* ctxt, block1c = checkout_and_commit ctxt block1a commit_block1c in
     Store.sync ro_ctxt.index.repo;
-    Log.debug (fun l -> l "Freeze removes block1c but keeps block2a");
+    [%log.debug "Freeze removes block1c but keeps block2a"];
     let* ctxt = freeze ctxt block2a in
     Store.Backend_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block2a ro_ctxt.index.repo block2a >>= fun () ->
@@ -427,21 +427,21 @@ module Test = struct
     let* ctxt = init ~with_lower:false () in
     let* ro_ctxt = clone ~readonly:true ~with_lower:false ctxt.index.root in
     let* ctxt, block1 = commit_block1 ctxt in
-    Log.debug (fun l -> l "Freeze removes block1 from upper");
+    [%log.debug "Freeze removes block1 from upper"];
     let* ctxt = freeze ~copy_in_upper:false ctxt block1 in
     Store.Backend_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->
     Store.sync ro_ctxt.index.repo;
     check_removed ro_ctxt block1 "block1" >>= fun () ->
     let* ctxt, block1 = commit_block1 ctxt in
-    Log.debug (fun l -> l "Freeze keeps block1 in upper");
+    [%log.debug "Freeze keeps block1 in upper"];
     let* ctxt = freeze ctxt block1 in
     Store.Backend_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_block1 ctxt.index.repo block1 >>= fun () ->
     Store.sync ro_ctxt.index.repo;
     check_block1 ro_ctxt.index.repo block1 >>= fun () ->
     let* ctxt, block1a = checkout_and_commit ctxt block1 commit_block1a in
-    Log.debug (fun l -> l "Freeze removes block1, block1a from upper");
+    [%log.debug "Freeze removes block1, block1a from upper"];
     let* ctxt = freeze ~copy_in_upper:false ctxt block1 in
     Store.Backend_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     check_removed ctxt block1 "block1" >>= fun () ->

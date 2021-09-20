@@ -374,7 +374,7 @@ let rec read_config_file path =
   in
   if not (Sys.file_exists path) then global
   else
-    let () = Logs.debug (fun f -> f "Loading config from file: %s" path) in
+    let () = [%logs.debug "Loading config from file: %s" path] in
     let oc = open_in path in
     let len = in_channel_length oc in
     let buf = really_input_string oc len in

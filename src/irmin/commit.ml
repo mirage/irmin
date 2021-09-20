@@ -116,7 +116,7 @@ struct
   let equal_opt_keys = Type.(unstage (equal (option Key.t)))
 
   let merge_commit info t ~old k1 k2 =
-    Log.debug (fun l -> l "Commit.merge %a %a" pp_key k1 pp_key k2);
+    [%log.debug "Commit.merge %a %a" pp_key k1 pp_key k2];
     let* v1 = get t k1 in
     let* v2 = get t k2 in
     if List.mem ~equal:equal_key k1 (Val.parents v2) then Merge.ok k2
@@ -129,7 +129,7 @@ struct
       let* old =
         old () >>= function
         | Error (`Conflict msg) ->
-            Log.debug (fun f -> f "old: conflict %s" msg);
+            [%log.debug "old: conflict %s" msg];
             Lwt.return_none
         | Ok o -> Lwt.return o
       in
@@ -205,7 +205,7 @@ module History (S : Store) = struct
   let pp_key = Type.pp S.Key.t
 
   let parents t c =
-    Log.debug (fun f -> f "parents %a" pp_key c);
+    [%log.debug "parents %a" pp_key c];
     S.find t c >|= function None -> [] | Some c -> S.Val.parents c
 
   module U = struct
@@ -215,11 +215,11 @@ module History (S : Store) = struct
   module Graph = Object_graph.Make (U) (S.Node.Key) (S.Key) (U)
 
   let edges t =
-    Log.debug (fun f -> f "edges");
+    [%log.debug "edges"];
     [ `Node (S.Val.node t) ] @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
-    Log.debug (fun f -> f "closure");
+    [%log.debug "closure"];
     let pred = function
       | `Commit k -> ( S.find t k >|= function Some r -> edges r | None -> [])
       | _ -> Lwt.return_nil
@@ -421,7 +421,7 @@ module History (S : Store) = struct
     let is_init () = equal_keys commit t.c1 || equal_keys commit t.c2 in
     let is_shared () = new_mark = SeenBoth || new_mark = LCA in
     if is_shared () && is_init () then (
-      Log.debug (fun f -> f "fast-forward");
+      [%log.debug "fast-forward"];
       t.complete <- true);
     set_mark t commit new_mark;
     new_mark
@@ -489,12 +489,11 @@ module History (S : Store) = struct
           traverse_bfs t ~f:(update_parents s) ~pp ~check ~init ~return)
         (fun () ->
           let t1 = Sys.time () -. t0 in
-          Log.debug (fun f ->
-              f "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1);
+          [%log.debug "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1];
           Lwt.return_unit)
 
   let rec three_way_merge t ~info ?max_depth ?n c1 c2 =
-    Log.debug (fun f -> f "3-way merge between %a and %a" pp_key c1 pp_key c2);
+    [%log.debug "3-way merge between %a and %a" pp_key c1 pp_key c2];
     if equal_keys c1 c2 then Merge.ok c1
     else
       let* lcas = lcas t ?max_depth ?n c1 c2 in

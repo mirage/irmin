@@ -136,14 +136,14 @@ module FSHelper = struct
     let upper1 = Filename.concat root "upper1" in
     let upper0 = Filename.concat root "upper0" in
     let lower = Filename.concat root "lower" in
-    Logs.app (fun l ->
-        l "%+04.0fus: upper1 = %d M, upper0 = %d M, lower = %d M\n%!" dt
-          (size upper1) (size upper0) (size lower))
+    [%logs.app
+      "%+04.0fus: upper1 = %d M, upper0 = %d M, lower = %d M\n%!" dt
+        (size upper1) (size upper0) (size lower)]
 
   let rm_dir root =
     if Sys.file_exists root then (
       let cmd = Printf.sprintf "rm -rf %s" root in
-      Logs.info (fun l -> l "exec: %s" cmd);
+      [%logs.info "exec: %s" cmd];
       let _ = Sys.command cmd in
       ())
 end

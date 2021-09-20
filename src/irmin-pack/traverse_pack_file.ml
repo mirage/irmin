@@ -104,9 +104,9 @@ end = struct
             Conf.root config
       in
       let log_size = Conf.index_log_size config in
-      Log.app (fun f ->
-          f "Beginning index reconstruction with parameters: { log_size = %d }"
-            log_size);
+      [%log.app
+        "Beginning index reconstruction with parameters: { log_size = %d }"
+          log_size];
       let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
       index
 
@@ -117,8 +117,7 @@ end = struct
     let finalise index () =
       (* Ensure that the log file is empty, so that subsequent opens with a
          smaller [log_size] don't immediately trigger a merge operation. *)
-      Log.app (fun f ->
-          f "Completed indexing of pack entries. Running a final merge ...");
+      [%log.app "Completed indexing of pack entries. Running a final merge ..."];
       Index.try_merge index;
       Index.close index
   end
@@ -126,9 +125,8 @@ end = struct
   module Index_checker = struct
     let create config =
       let log_size = Conf.index_log_size config in
-      Log.app (fun f ->
-          f "Beginning index checking with parameters: { log_size = %d }"
-            log_size);
+      [%log.app
+        "Beginning index checking with parameters: { log_size = %d }" log_size];
       let index =
         Index.v ~fresh:false ~readonly:true ~log_size (Conf.root config)
       in
@@ -150,9 +148,8 @@ end = struct
   module Index_check_and_fix = struct
     let create config =
       let log_size = Conf.index_log_size config in
-      Log.app (fun f ->
-          f "Beginning index checking with parameters: { log_size = %d }"
-            log_size);
+      [%log.app
+        "Beginning index checking with parameters: { log_size = %d }" log_size];
       let root = Conf.root config in
       let index = Index.v ~fresh:false ~readonly:false ~log_size root in
       (index, ref 0)
@@ -169,8 +166,7 @@ end = struct
           Ok ()
 
     let finalise (index, _) () =
-      Log.app (fun f ->
-          f "Completed indexing of pack entries. Running a final merge ...");
+      [%log.app "Completed indexing of pack entries. Running a final merge ..."];
       Index.try_merge index;
       Index.close index
   end
@@ -234,9 +230,9 @@ end = struct
               let off', entry_len, kind = data in
               let entry_lenL = Int63.of_int entry_len in
               assert (off = off');
-              Log.debug (fun l ->
-                  l "k = %a (off, len, kind) = (%a, %d, %a)" pp_key key Int63.pp
-                    off entry_len Pack_value.Kind.pp kind);
+              [%log.debug
+                "k = %a (off, len, kind) = (%a, %d, %a)" pp_key key Int63.pp off
+                  entry_len Pack_value.Kind.pp kind];
               Stats.add stats kind;
               let missing_hash =
                 match iter_pack_entry key data with
@@ -305,10 +301,10 @@ end = struct
     in
     match missing_hash with
     | None ->
-        Log.app (fun f ->
-            f "%a in %a. %t"
-              Fmt.(styled `Green string)
-              "Success" Mtime.Span.pp run_duration store_stats)
+        [%log.app
+          "%a in %a. %t"
+            Fmt.(styled `Green string)
+            "Success" Mtime.Span.pp run_duration store_stats]
     | Some x ->
         let msg =
           match mode with
@@ -317,14 +313,12 @@ end = struct
               "Detected missing entries and added them to index"
           | _ -> assert false
         in
-        Log.err (fun f ->
-            f
-              "%a in %a.@,\
-               First pack entry missing from index is the %d entry of the \
-               pack:@,\
-              \  %a@,\
-               %t"
-              Fmt.(styled `Red string)
-              msg Mtime.Span.pp run_duration x.idx_pack pp_binding x.binding
-              store_stats)
+        [%log.err
+          "%a in %a.@,\
+           First pack entry missing from index is the %d entry of the pack:@,\
+          \  %a@,\
+           %t"
+            Fmt.(styled `Red string)
+            msg Mtime.Span.pp run_duration x.idx_pack pp_binding x.binding
+            store_stats]
 end

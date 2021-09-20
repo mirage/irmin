@@ -42,7 +42,7 @@ struct
   let reword_error f = function Ok _ as v -> v | Error err -> Error (f err)
 
   let fetch t ?depth (ctx, e) br =
-    Log.debug (fun f -> f "fetch %a" Smart_git.Endpoint.pp e);
+    [%log.debug "fetch %a" Smart_git.Endpoint.pp e];
     let push_stdout msg = Gitlog.info (fun f -> f "%s" msg)
     and push_stderr msg = Gitlog.warn (fun f -> f "%s" msg)
     and deepen =
@@ -78,7 +78,7 @@ struct
     | _ -> assert false
 
   let push t ?depth:_ (ctx, e) br =
-    Log.debug (fun f -> f "push %a" Smart_git.Endpoint.pp e);
+    [%log.debug "push %a" Smart_git.Endpoint.pp e];
     let reference = git_of_branch br in
     let capabilities =
       [

@@ -170,9 +170,9 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
             (function
               | Version.Invalid { expected; found } as e
                 when expected = V.version ->
-                  Log.err (fun m ->
-                      m "[%s] Attempted to open store of unsupported version %a"
-                        (Conf.root config) Version.pp found);
+                  [%log.err
+                    "[%s] Attempted to open store of unsupported version %a"
+                      (Conf.root config) Version.pp found];
                   Lwt.fail e
               | e -> Lwt.fail e)
 
@@ -210,7 +210,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
     include Irmin.Of_backend (X)
 
     let integrity_check_inodes ?heads t =
-      Log.debug (fun l -> l "Check integrity for inodes");
+      [%log.debug "Check integrity for inodes"];
       let bar, (_, progress_nodes, progress_commits) =
         Utils.Progress.increment ()
       in

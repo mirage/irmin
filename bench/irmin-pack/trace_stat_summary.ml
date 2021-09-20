@@ -1014,6 +1014,6 @@ let save_to_json v path =
   let j = Fmt.strf "%a\n" (Irmin.Type.pp_json t) v in
   let chan = open_out path in
   output_string chan j;
-  Logs.app (fun l -> l "Summary saved to %s" path);
+  [%logs.app "Summary saved to %s" path];
   close_out chan;
   Unix.chmod path 0o444

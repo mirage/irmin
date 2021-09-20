@@ -409,24 +409,24 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let pp_con = Fmt.of_to_string Cohttp.Connection.to_string in
     let callback (_ch, conn) request body =
       let open Cohttp in
-      Log.debug (fun l -> l "new connection %a" pp_con conn);
+      [%log.debug "new connection %a" pp_con conn];
       let* status, headers, body, _path =
         Wm.dispatch' routes ~body ~request >|= function
         | None -> (`Not_found, Header.init (), `String "Not found", [])
         | Some result -> result
       in
-      Log.info (fun l ->
-          l "[%a] %d - %s %s" pp_con conn
-            (Code.code_of_status status)
-            (Code.string_of_method (Request.meth request))
-            (Uri.path (Request.uri request)));
+      [%log.info
+        "[%a] %d - %s %s" pp_con conn
+          (Code.code_of_status status)
+          (Code.string_of_method (Request.meth request))
+          (Uri.path (Request.uri request))];
 
       (* Finally, send the response to the client *)
       HTTP.respond ~headers ~body ~status ()
     in
     (* create the server and handle requests with the function defined above *)
     let conn_closed (_, conn) =
-      Log.debug (fun l -> l "connection %a closed" pp_con conn)
+      [%log.debug "connection %a closed" pp_con conn]
     in
     HTTP.make ~callback ~conn_closed ()
 end

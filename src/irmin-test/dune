@@ -4,9 +4,21 @@
  (modules Irmin_test Node Store Store_graph Store_watch Common Layered_store
    Import)
  (preprocess
-  (pps ppx_irmin))
- (libraries alcotest astring fmt irmin irmin-layers jsonm logs.fmt lwt
-   lwt.unix mtime mtime.clock.os))
+  (pps ppx_irmin.internal))
+ (libraries
+  alcotest
+  astring
+  fmt
+  irmin
+  irmin-layers
+  jsonm
+  logs.fmt
+  lwt
+  lwt.unix
+  mtime
+  mtime.clock.os
+  ppx_irmin.internal-lib ;; TODO: re-export from Irmin
+  ))
 
 (library
  (foreign_stubs

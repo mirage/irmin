@@ -3,4 +3,4 @@
  (name irmin_pack_layered)
  (libraries irmin-pack irmin-layers)
  (preprocess
-  (pps ppx_irmin)))
+  (pps ppx_irmin.internal)))

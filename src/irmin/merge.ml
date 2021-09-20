@@ -45,7 +45,7 @@ let f (x : 'a t) = snd x
 let conflict fmt =
   ksprintf
     (fun msg ->
-      Log.debug (fun f -> f "conflict: %s" msg);
+      [%log.debug "conflict: %s" msg];
       Lwt.return (Error (`Conflict msg)))
     fmt
 
@@ -80,11 +80,11 @@ let default (type a) (t : a Type.t) : a t =
   ( t,
     fun ~old t1 t2 ->
       let open Infix in
-      Log.debug (fun f -> f "default %a | %a" pp t1 pp t2);
+      [%log.debug "default %a | %a" pp t1 pp t2];
       old () >>=* function
       | None -> conflict "default: add/add and no common ancestor"
       | Some old ->
-          Log.debug (fun f -> f "default old=%a" pp t1);
+          [%log.debug "default old=%a" pp t1];
           if equal old t1 && equal t1 t2 then ok t1
           else if equal old t1 then ok t2
           else if equal old t2 then ok t1
@@ -113,7 +113,7 @@ let option (type a) ((a, t) : a t) : a option t =
   let pp = Type.pp dt in
   ( dt,
     fun ~old t1 t2 ->
-      Log.debug (fun f -> f "some %a | %a" pp t1 pp t2);
+      [%log.debug "some %a | %a" pp t1 pp t2];
       f (default Type.(option a)) ~old t1 t2 >>= function
       | Ok x -> ok x
       | Error _ -> (
@@ -125,7 +125,7 @@ let option (type a) ((a, t) : a t) : a option t =
                 old () >>=* function
                 | None -> ok None
                 | Some o ->
-                    Log.debug (fun f -> f "option old=%a" pp o);
+                    [%log.debug "option old=%a" pp o];
                     ok o
               in
               t ~old v1 v2 >|=* fun x -> Some x
@@ -134,7 +134,7 @@ let option (type a) ((a, t) : a t) : a option t =
               old () >>=* function
               | None | Some None -> ok (Some x)
               | Some (Some o) ->
-                  Log.debug (fun f -> f "option old=%a" pp_a o);
+                  [%log.debug "option old=%a" pp_a o];
                   if equal x o then ok (Some x) else conflict "option: add/del")
           ) )
 
@@ -143,7 +143,7 @@ let pair (da, a) (db, b) =
   let pp = Type.pp dt in
   ( dt,
     fun ~old x y ->
-      Log.debug (fun f -> f "pair %a | %a" pp x pp y);
+      [%log.debug "pair %a | %a" pp x pp y];
       (snd (default dt)) ~old x y >>= function
       | Ok x -> ok x
       | Error _ ->
@@ -158,7 +158,7 @@ let triple (da, a) (db, b) (dc, c) =
   let pp = Type.pp dt in
   ( dt,
     fun ~old x y ->
-      Log.debug (fun f -> f "triple %a | %a" pp x pp y);
+      [%log.debug "triple %a | %a" pp x pp y];
       (snd (default dt)) ~old x y >>= function
       | Ok x -> ok x
       | Error _ ->
@@ -235,7 +235,7 @@ let alist dx dy merge_v =
   ( dt,
     fun ~old x y ->
       let pp = Type.pp dt in
-      Log.debug (fun l -> l "alist %a | %a" pp x pp y);
+      [%log.debug "alist %a | %a" pp x pp y];
       let sort = List.sort compare_pair in
       let x = sort x in
       let y = sort y in
@@ -296,7 +296,7 @@ struct
   let pp = Type.pp t
 
   let merge ~old x y =
-    Log.debug (fun l -> l "merge %a %a" pp x pp y);
+    [%log.debug "merge %a %a" pp x pp y];
     old () >|=* fun old ->
     let old = match old with None -> S.empty | Some o -> o in
     let ( ++ ) = S.union and ( -- ) = S.diff in
@@ -338,14 +338,14 @@ struct
     let merge_v k = f (merge_v k) in
     ( t dv,
       fun ~old m1 m2 ->
-        Log.debug (fun f -> f "assoc %a | %a" pp m1 pp m2);
+        [%log.debug "assoc %a | %a" pp m1 pp m2];
         Lwt.catch
           (fun () ->
             let old key =
               old () >>=* function
               | None -> ok None
               | Some old ->
-                  Log.debug (fun f -> f "assoc old=%a" pp old);
+                  [%log.debug "assoc old=%a" pp old];
                   let old =
                     try Some (M.find key old) with Not_found -> None
                   in
@@ -358,7 +358,7 @@ end
 let like da t a_to_b b_to_a =
   let pp = Type.pp da in
   let merge ~old a1 a2 =
-    Log.debug (fun f -> f "biject %a | %a" pp a1 pp a2);
+    [%log.debug "biject %a | %a" pp a1 pp a2];
     try
       let b1 = a_to_b a1 in
       let b2 = a_to_b a2 in
@@ -372,7 +372,7 @@ let like_lwt (type a b) da (t : b t) (a_to_b : a -> b Lwt.t)
     (b_to_a : b -> a Lwt.t) : a t =
   let pp = Type.pp da in
   let merge ~old a1 a2 =
-    Log.debug (fun f -> f "biject' %a | %a" pp a1 pp a2);
+    [%log.debug "biject' %a | %a" pp a1 pp a2];
     try
       let* b1 = a_to_b a1 in
       let* b2 = a_to_b a2 in

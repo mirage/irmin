@@ -38,10 +38,10 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
         fn (str i);
         Lwt.return_unit
       with ex ->
-        Log.debug (fun f -> f "retry ex: %s" (Printexc.to_string ex));
+        [%log.debug "retry ex: %s" (Printexc.to_string ex)];
         let sleep_t = sleep_t *. (1. +. (float i ** 2.)) in
         sleep ~sleep_t () >>= fun () ->
-        Log.debug (fun f -> f "Test.retry %s" (str i));
+        [%log.debug "Test.retry %s" (str i)];
         aux (i + 1)
     in
     aux 0
@@ -141,8 +141,8 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
               let msg = Fmt.strf "workers: %s %a (%s)" msg pp_w got s in
               if got = exp then line msg
               else (
-                Log.debug (fun f ->
-                    f "check-worker: expected %a, got %a" pp_w exp pp_w got);
+                [%log.debug
+                  "check-worker: expected %a, got %a" pp_w exp pp_w got];
                 Alcotest.failf "%s: %a / %a" msg pp_w got pp_w exp))
     in
     let module State = struct
@@ -158,15 +158,15 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       let empty () = { adds = 0; updates = 0; removes = 0 }
 
       let add t =
-        Log.debug (fun l -> l "add %a" pp t);
+        [%log.debug "add %a" pp t];
         t.adds <- t.adds + 1
 
       let update t =
-        Log.debug (fun l -> l "update %a" pp t);
+        [%log.debug "update %a" pp t];
         t.updates <- t.updates + 1
 
       let remove t =
-        Log.debug (fun l -> l "remove %a" pp t);
+        [%log.debug "remove %a" pp t];
         t.removes <- t.removes + 1
 
       let pretty ppf t = Fmt.pf ppf "%d/%d/%d" t.adds t.updates t.removes
@@ -236,8 +236,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
               let post = if on then incr pre else pre in
               (* check pre-condition *)
               check `Pre (n - i) pre_w pre >>= fun () ->
-              Log.debug (fun f ->
-                  f "[waiting for] %s" (msg `Post (n - i) post_w post));
+              [%log.debug "[waiting for] %s" (msg `Post (n - i) post_w post)];
               fn (n - i) >>= fun () ->
               (* check post-condition *)
               check `Post (n - i) post_w post >>= fun () -> aux post (i - 1)
@@ -248,7 +247,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       let* t1 = S.master repo1 in
       let* repo = S.Repo.v x.config in
       let* t2 = S.master repo in
-      Log.debug (fun f -> f "WATCH");
+      [%log.debug "WATCH"];
       let state = State.empty () in
       let sleep_t = 0.02 in
       let process = State.process ~sleep_t state in
@@ -282,7 +281,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       Lwt_list.iter_s (fun f -> S.unwatch f) !stops_1 >>= fun () ->
       S.set_exn t1 ~info:(infof "update") [ "a" ] v2 >>= fun () ->
       State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
-      Log.debug (fun f -> f "WATCH-ALL");
+      [%log.debug "WATCH-ALL"];
       let state = State.empty () in
       let* head = r1 ~repo in
       let add =
@@ -305,7 +304,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       S.unwatch u >>= fun () ->
       add false (10, 0, 5) 4 >>= fun () ->
       remove false (10, 0, 5) 4 >>= fun () ->
-      Log.debug (fun f -> f "WATCH-KEY");
+      [%log.debug "WATCH-KEY"];
       let state = State.empty () in
       let path1 = [ "a"; "b"; "c" ] in
       let path2 = [ "a"; "d" ] in
@@ -343,7 +342,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       add false (1, 10, 1) 3 >>= fun () ->
       update false (1, 10, 1) 5 >>= fun () ->
       remove false (1, 10, 1) 4 >>= fun () ->
-      Log.debug (fun f -> f "WATCH-MORE");
+      [%log.debug "WATCH-MORE"];
       let state = State.empty () in
       let update =
         State.apply "watch-more" state `Update (fun n ->

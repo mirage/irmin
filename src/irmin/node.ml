@@ -380,7 +380,7 @@ module Graph (S : Store) = struct
   let empty t = S.add t S.Val.empty
 
   let list t n =
-    Log.debug (fun f -> f "steps");
+    [%log.debug "steps"];
     S.find t n >|= function None -> [] | Some n -> S.Val.list n
 
   module U = struct
@@ -404,7 +404,7 @@ module Graph (S : Store) = struct
     | _ -> Lwt.return_nil
 
   let closure t ~min ~max =
-    Log.debug (fun f -> f "closure min=%a max=%a" pp_keys min pp_keys max);
+    [%log.debug "closure min=%a max=%a" pp_keys min pp_keys max];
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
     let+ g = Graph.closure ~pred:(pred t) ~min ~max () in
@@ -442,11 +442,11 @@ module Graph (S : Store) = struct
   let v t xs = S.add t (S.Val.of_list xs)
 
   let find_step t node step =
-    Log.debug (fun f -> f "contents %a" pp_key node);
+    [%log.debug "contents %a" pp_key node];
     S.find t node >|= function None -> None | Some n -> S.Val.find n step
 
   let find t node path =
-    Log.debug (fun f -> f "read_node_exn %a %a" pp_key node pp_path path);
+    [%log.debug "read_node_exn %a %a" pp_key node pp_path path];
     let rec aux node path =
       match Path.decons path with
       | None -> Lwt.return_some (`Node node)
@@ -460,7 +460,7 @@ module Graph (S : Store) = struct
   let err_empty_path () = invalid_arg "Irmin.node: empty path"
 
   let map_one t node f label =
-    Log.debug (fun f -> f "map_one %a" Type.(pp Path.step_t) label);
+    [%log.debug "map_one %a" Type.(pp Path.step_t) label];
     let old_key = S.Val.find node label in
     let* old_node =
       match old_key with
@@ -478,7 +478,7 @@ module Graph (S : Store) = struct
       S.Val.add node label (`Node k)
 
   let map t node path f =
-    Log.debug (fun f -> f "map %a %a" pp_key node pp_path path);
+    [%log.debug "map %a %a" pp_key node pp_path path];
     let rec aux node path =
       match Path.decons path with
       | None -> Lwt.return (f node)
@@ -490,7 +490,7 @@ module Graph (S : Store) = struct
     aux node path >>= S.add t
 
   let add t node path n =
-    Log.debug (fun f -> f "add %a %a" pp_key node pp_path path);
+    [%log.debug "add %a %a" pp_key node pp_path path];
     match Path.rdecons path with
     | Some (path, file) -> map t node path (fun node -> S.Val.add node file n)
     | None -> (

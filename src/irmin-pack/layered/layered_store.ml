@@ -34,12 +34,12 @@ struct
   let ignore_lwt _ = Lwt.return_unit
 
   let copy ~src ~dst str k =
-    Log.debug (fun l -> l "copy %s %a" str (Irmin.Type.pp Key.t) k);
+    [%log.debug "copy %s %a" str (Irmin.Type.pp Key.t) k];
     match SRC.unsafe_find ~check_integrity:false src k with
     | None ->
-        Log.warn (fun l ->
-            l "Attempt to copy %s %a not contained in upper." str
-              (Irmin.Type.pp Key.t) k)
+        [%log.warn
+          "Attempt to copy %s %a not contained in upper." str
+            (Irmin.Type.pp Key.t) k]
     | Some v ->
         stats str;
         DST.unsafe_append ~ensure_unique:false ~overcommit:true dst k v
@@ -81,7 +81,7 @@ struct
   module L = L
 
   let v upper1 upper0 lower ~flip ~freeze_in_progress =
-    Log.debug (fun l -> l "v flip = %b" flip);
+    [%log.debug "v flip = %b" flip];
     { lower; flip; uppers = (upper1, upper0); freeze_in_progress; newies = [] }
 
   let next_upper t = if t.flip then snd t.uppers else fst t.uppers
@@ -102,8 +102,7 @@ struct
 
   let add t v =
     let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "add in %a%a" pp_current_upper t pp_during_freeze freeze);
+    [%log.debug "add in %a%a" pp_current_upper t pp_during_freeze freeze];
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.add upper v >|= fun k ->
@@ -112,8 +111,7 @@ struct
 
   let unsafe_add t k v =
     let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "unsafe_add in %a%a" pp_current_upper t pp_during_freeze freeze);
+    [%log.debug "unsafe_add in %a%a" pp_current_upper t pp_during_freeze freeze];
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_add upper k v >|= fun () ->
@@ -121,8 +119,8 @@ struct
 
   let unsafe_append ~ensure_unique ~overcommit t k v =
     let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze);
+    [%log.debug
+      "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze];
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
     U.unsafe_append ~ensure_unique ~overcommit upper k v;
@@ -131,26 +129,26 @@ struct
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "find in %a" pp_current_upper t);
+    [%log.debug "find in %a" pp_current_upper t];
     U.find current k >>= function
     | Some v -> Lwt.return_some v
     | None -> (
         match t.lower with
         | None -> Lwt.return_none
         | Some lower ->
-            Log.debug (fun l -> l "find in lower");
+            [%log.debug "find in lower"];
             L.find lower k)
 
   let unsafe_find ~check_integrity t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "unsafe_find in %a" pp_current_upper t);
+    [%log.debug "unsafe_find in %a" pp_current_upper t];
     match U.unsafe_find ~check_integrity current k with
     | Some v -> Some v
     | None -> (
         match t.lower with
         | None -> None
         | Some lower ->
-            Log.debug (fun l -> l "unsafe_find in lower");
+            [%log.debug "unsafe_find in lower"];
             L.unsafe_find ~check_integrity lower k)
 
   let mem t k =
@@ -194,14 +192,14 @@ struct
 
       See https://github.com/mirage/irmin/issues/1225 *)
   let sync ?on_generation_change ?on_generation_change_next_upper t =
-    Log.debug (fun l -> l "sync %a" pp_current_upper t);
+    [%log.debug "sync %a" pp_current_upper t];
     (* a first implementation where only the current upper is synced *)
     let current = current_upper t in
     let former_generation = U.generation current in
     U.sync ?on_generation_change current;
     let generation = U.generation current in
     if former_generation <> generation then (
-      Log.debug (fun l -> l "generation change, RO updates upper");
+      [%log.debug "generation change, RO updates upper"];
       t.flip <- not t.flip;
       let current = current_upper t in
       U.sync ?on_generation_change:on_generation_change_next_upper current;
@@ -276,7 +274,7 @@ struct
     U.offset current
 
   let flip_upper t =
-    Log.debug (fun l -> l "flip_upper to %a" pp_next_upper t);
+    [%log.debug "flip_upper to %a" pp_next_upper t];
     t.flip <- not t.flip
 
   module CopyUpper = Copy (H) (U) (U)
@@ -361,34 +359,33 @@ struct
 
   let mem t k =
     let current = current_upper t in
-    Log.debug (fun l ->
-        l "[branches] mem %a in %a" pp_branch k pp_current_upper t);
+    [%log.debug "[branches] mem %a in %a" pp_branch k pp_current_upper t];
     U.mem current k >>= function
     | true -> Lwt.return_true
     | false -> (
         match t.lower with
         | None -> Lwt.return_false
         | Some lower ->
-            Log.debug (fun l -> l "[branches] mem in lower");
+            [%log.debug "[branches] mem in lower"];
             L.mem lower k)
 
   let find t k =
     let current = current_upper t in
-    Log.debug (fun l -> l "[branches] find in %a" pp_current_upper t);
+    [%log.debug "[branches] find in %a" pp_current_upper t];
     U.find current k >>= function
     | Some v -> Lwt.return_some v
     | None -> (
         match t.lower with
         | None -> Lwt.return_none
         | Some lower ->
-            Log.debug (fun l -> l "[branches] find in lower");
+            [%log.debug "[branches] find in lower"];
             L.find lower k)
 
   let set t k v =
     let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "[branches] set %a in %a%a" pp_branch k pp_current_upper t
-          pp_during_freeze freeze);
+    [%log.debug
+      "[branches] set %a in %a%a" pp_branch k pp_current_upper t
+        pp_during_freeze freeze];
     let upper = current_upper t in
     U.set upper k v >|= fun () ->
     if freeze then t.newies <- (k, Some v) :: t.newies
@@ -396,9 +393,9 @@ struct
   (** Copy back into upper the branch against we want to do test and set. *)
   let test_and_set t k ~test ~set =
     let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "[branches] test_and_set %a in %a%a" pp_branch k pp_current_upper t
-          pp_during_freeze freeze);
+    [%log.debug
+      "[branches] test_and_set %a in %a%a" pp_branch k pp_current_upper t
+        pp_during_freeze freeze];
     let current = current_upper t in
     let find_in_lower () =
       (match t.lower with
@@ -418,9 +415,9 @@ struct
 
   let remove t k =
     let freeze = t.freeze_in_progress () in
-    Log.debug (fun l ->
-        l "[branches] remove %a in %a%a" pp_branch k pp_current_upper t
-          pp_during_freeze freeze);
+    [%log.debug
+      "[branches] remove %a in %a%a" pp_branch k pp_current_upper t
+        pp_during_freeze freeze];
     U.remove (fst t.uppers) k >>= fun () ->
     U.remove (snd t.uppers) k >>= fun () ->
     if freeze then t.newies <- (k, None) :: t.newies;
@@ -475,27 +472,25 @@ struct
             | Some lower -> (
                 mem_commit_lower hash >>= function
                 | true ->
-                    Log.debug (fun l ->
-                        l "[branches] copy to lower %a" (Irmin.Type.pp K.t)
-                          branch);
+                    [%log.debug
+                      "[branches] copy to lower %a" (Irmin.Type.pp K.t) branch];
                     Irmin_layers.Stats.copy_branches ();
                     L.set lower branch hash
                 | false -> Lwt.return_unit))
             >>= fun () ->
             mem_commit_upper hash >>= function
             | true ->
-                Log.debug (fun l ->
-                    l "[branches] copy to next %a" (Irmin.Type.pp K.t) branch);
+                [%log.debug
+                  "[branches] copy to next %a" (Irmin.Type.pp K.t) branch];
                 Irmin_layers.Stats.copy_branches ();
                 U.set next branch hash
             | false ->
-                Log.debug (fun l ->
-                    l "branch %a not copied" (Irmin.Type.pp K.t) branch);
+                [%log.debug "branch %a not copied" (Irmin.Type.pp K.t) branch];
                 Lwt.return_unit))
       branches
 
   let flip_upper t =
-    Log.debug (fun l -> l "[branches] flip to %a" pp_next_upper t);
+    [%log.debug "[branches] flip to %a" pp_next_upper t];
     t.flip <- not t.flip
 
   (** After clearing the previous upper, we also needs to flush current upper to
@@ -514,9 +509,8 @@ struct
     match t.lower with None -> () | Some x -> L.flush x
 
   let copy_newies_to_next_upper t =
-    Log.debug (fun l ->
-        l "[branches] copy %d newies to %a" (List.length t.newies) pp_next_upper
-          t);
+    [%log.debug
+      "[branches] copy %d newies to %a" (List.length t.newies) pp_next_upper t];
     let next = next_upper t in
     let newies = t.newies in
     t.newies <- [];

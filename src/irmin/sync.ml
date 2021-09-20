@@ -100,7 +100,7 @@ module Make (S : Store.Generic_key.S) = struct
   let fetch t ?depth remote =
     match remote with
     | Store.Store ((module R), r) -> (
-        Log.debug (fun f -> f "fetch store");
+        [%log.debug "fetch store"];
         let s_repo = S.repo t in
         let r_repo = R.repo r in
         let conv =
@@ -125,12 +125,12 @@ module Make (S : Store.Generic_key.S) = struct
         match S.status t with
         | `Empty | `Commit _ -> Lwt.return (Ok `Empty)
         | `Branch br -> (
-            Log.debug (fun l -> l "Fetching branch %a" pp_branch br);
+            [%log.debug "Fetching branch %a" pp_branch br];
             let* g = B.v (S.repo t) in
             B.fetch g ?depth e br >>= function
             | Error _ as e -> Lwt.return e
             | Ok (Some key) -> (
-                Log.debug (fun l -> l "Fetched %a" pp_commit_key key);
+                [%log.debug "Fetched %a" pp_commit_key key];
                 S.Commit.of_key (S.repo t) key >|= function
                 | None -> Ok `Empty
                 | Some x -> Ok (`Head x))
@@ -175,13 +175,13 @@ module Make (S : Store.Generic_key.S) = struct
     | `Detached_head -> Fmt.string ppf "cannot push to a non-persistent store"
 
   let push t ?depth remote =
-    Log.debug (fun f -> f "push");
+    [%log.debug "push"];
     match remote with
     | Store.Store ((module R), r) -> (
         S.Head.find t >>= function
         | None -> Lwt.return (Ok `Empty)
         | Some h -> (
-            Log.debug (fun f -> f "push store");
+            [%log.debug "push store"];
             let* min = R.Repo.heads (R.repo r) in
             let r_repo = R.repo r in
             let s_repo = S.repo t in

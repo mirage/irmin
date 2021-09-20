@@ -74,7 +74,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
   let flush t = IO.flush t.io
 
   let index t v =
-    Log.debug (fun l -> l "[dict] index %S" v);
+    [%log.debug "[dict] index %S" v];
     try Some (Hashtbl.find t.cache v)
     with Not_found ->
       let id = Hashtbl.length t.cache in
@@ -87,7 +87,7 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
         Some id)
 
   let find t id =
-    Log.debug (fun l -> l "[dict] find %d" id);
+    [%log.debug "[dict] find %d" id];
     let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
     v
 

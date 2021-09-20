@@ -1214,7 +1214,7 @@ module Make (P : Backend.S) = struct
 
   let find_tree (t : t) path =
     let cache = true in
-    Log.debug (fun l -> l "Tree.find_tree %a" pp_key path);
+    [%log.debug "Tree.find_tree %a" pp_key path];
     match (t, Path.rdecons path) with
     | v, None -> Lwt.return_some v
     | _, Some (path, file) -> (
@@ -1286,7 +1286,7 @@ module Make (P : Backend.S) = struct
 
   let kind t path =
     let cache = true in
-    Log.debug (fun l -> l "Tree.kind %a" pp_key path);
+    [%log.debug "Tree.kind %a" pp_key path];
     match (t, Path.rdecons path) with
     | `Contents _, None -> Lwt.return_some `Contents
     | `Node _, None -> Lwt.return_some `Node
@@ -1302,7 +1302,7 @@ module Make (P : Backend.S) = struct
   let length = Node.length ~cache:true
 
   let seq t ?offset ?length ~cache path : (step * t) Seq.t Lwt.t =
-    Log.debug (fun l -> l "Tree.seq %a" pp_key path);
+    [%log.debug "Tree.seq %a" pp_key path];
     sub ~cache "seq.sub" t path >>= function
     | None -> Lwt.return Seq.empty
     | Some n -> (
@@ -1417,7 +1417,7 @@ module Make (P : Backend.S) = struct
 
   let update t k ?(metadata = Metadata.default) f =
     let cache = true in
-    Log.debug (fun l -> l "Tree.update %a" pp_key k);
+    [%log.debug "Tree.update %a" pp_key k];
     update_tree ~cache t k ~f_might_return_empty_node:false ~f:(fun t ->
         let+ old_contents =
           match t with
@@ -1431,25 +1431,25 @@ module Make (P : Backend.S) = struct
         | Some c -> Some (`Contents (Contents.of_value c, metadata)))
 
   let add t k ?(metadata = Metadata.default) c =
-    Log.debug (fun l -> l "Tree.add %a" pp_key k);
+    [%log.debug "Tree.add %a" pp_key k];
     update_tree ~cache:true t k
       ~f:(fun _ -> Lwt.return_some (`Contents (Contents.of_value c, metadata)))
       ~f_might_return_empty_node:false
 
   let add_tree t k v =
-    Log.debug (fun l -> l "Tree.add_tree %a" pp_key k);
+    [%log.debug "Tree.add_tree %a" pp_key k];
     update_tree ~cache:true t k
       ~f:(fun _ -> Lwt.return_some v)
       ~f_might_return_empty_node:true
 
   let remove t k =
-    Log.debug (fun l -> l "Tree.remove %a" pp_key k);
+    [%log.debug "Tree.remove %a" pp_key k];
     update_tree ~cache:true t k
       ~f:(fun _ -> Lwt.return_none)
       ~f_might_return_empty_node:false
 
   let update_tree t k f =
-    Log.debug (fun l -> l "Tree.update_tree %a" pp_key k);
+    [%log.debug "Tree.update_tree %a" pp_key k];
     update_tree ~cache:true t k ~f:(Lwt.wrap1 f) ~f_might_return_empty_node:true
 
   let import repo = function
@@ -1880,7 +1880,7 @@ module Make (P : Backend.S) = struct
     tree t (fun x -> Lwt.return x)
 
   let key (t : t) =
-    Log.debug (fun l -> l "Tree.key");
+    [%log.debug "Tree.key"];
     match t with
     | `Node n -> (
         match Node.key n with Some key -> Some (`Node key) | None -> None)
@@ -1890,7 +1890,7 @@ module Make (P : Backend.S) = struct
         | None -> None)
 
   let hash ?(cache = true) (t : t) =
-    Log.debug (fun l -> l "Tree.hash");
+    [%log.debug "Tree.hash"];
     match t with
     | `Node n -> `Node (Node.hash ~cache n)
     | `Contents (c, m) -> `Contents (Contents.hash ~cache c, m)

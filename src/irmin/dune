@@ -14,4 +14,4 @@
   uutf
   (re_export repr))
  (preprocess
-  (pps ppx_irmin -- --lib "Type")))
+  (pps ppx_irmin.internal -- --lib "Type")))

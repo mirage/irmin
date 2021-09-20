@@ -382,7 +382,7 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
     Lwt_main.run
       (Lwt.finalize run_benchmarks (fun () ->
            if keep_store then (
-             Logs.app (fun l -> l "Store kept at %s" config.store_dir);
+             [%logs.app "Store kept at %s" config.store_dir];
              let ( / ) = Filename.concat in
              let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
              ro (config.store_dir / "store.branches");
@@ -394,8 +394,7 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
            else FSHelper.rm_dir config.store_dir;
            Lwt.return_unit))
   in
-  Logs.app (fun l ->
-      l "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results)
+  [%logs.app "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results]
 
 open Cmdliner
 

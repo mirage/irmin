@@ -265,13 +265,23 @@ let reporter ?(prefix = "") () =
       k ()
     in
     let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
-    let with_stamp h _tags k fmt =
+    let with_stamp h tags k fmt =
       let dt = Mtime.Span.to_us (Mtime_clock.elapsed ()) in
+      let source_pos =
+        match tags with
+        | None -> None
+        | Some tags ->
+            Logs.Tag.find Ppx_irmin_lib.Source_code_position.tag tags
+            |> Option.map (fun (fname, lnum, _, _) ->
+                   pad 30 (Fmt.str "%s:%d" fname lnum))
+      in
       Fmt.kpf k ppf
-        ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
+        ("%s%+04.0fus %a%a @[" ^^ fmt ^^ "@]@.")
         prefix dt
-        Fmt.(styled `Magenta string)
-        (pad 15 @@ Logs.Src.name src)
+        Fmt.(styled `Faint @@ option (string ++ any " "))
+        source_pos
+        (* Fmt.(styled `Magenta string)
+         * (pad 15 @@ Logs.Src.name src) *)
         Logs_fmt.pp_header (level, h)
     in
     msgf @@ fun ?header ?tags fmt ->
@@ -293,7 +303,7 @@ let line ppf ?color c =
 let line msg =
   let line () = line Fmt.stderr ~color:`Yellow '-' in
   line ();
-  Logs.info (fun f -> f "ASSERT %s" msg);
+  [%logs.info "ASSERT %s" msg];
   line ()
 
 let ( / ) = Filename.concat

@@ -107,11 +107,11 @@ module Make (K : Key) (G : Git.S) = struct
   let pp_key = Irmin.Type.pp Key.t
 
   let mem { t; _ } r =
-    Log.debug (fun l -> l "mem %a" pp_key r);
+    [%log.debug "mem %a" pp_key r];
     G.Ref.mem t (git_of_branch r)
 
   let find { t; _ } r =
-    Log.debug (fun l -> l "find %a" pp_key r);
+    [%log.debug "find %a" pp_key r];
     let* k = G.Ref.resolve t (git_of_branch r) in
     match k with
     | Error (`Reference_not_found _) -> Lwt.return_none
@@ -126,20 +126,20 @@ module Make (K : Key) (G : Git.S) = struct
         match K.of_ref ("refs" / file) with
         | Ok x -> Some x
         | Error (`Msg e) ->
-            Log.err (fun l -> l "listen: file %s: %s" file e);
+            [%log.err "listen: file %s: %s" file e];
             None
       in
       W.listen_dir t.w dir ~key ~value:(find t)
     else Lwt.return (fun () -> Lwt.return_unit)
 
   let watch_key t key ?init f =
-    Log.debug (fun l -> l "watch_key %a" pp_key key);
+    [%log.debug "watch_key %a" pp_key key];
     let* stop = listen_dir t in
     let+ w = W.watch_key t.w key ?init f in
     (w, stop)
 
   let watch t ?init f =
-    Log.debug (fun l -> l "watch");
+    [%log.debug "watch"];
     let* stop = listen_dir t in
     let+ w = W.watch t.w ?init f in
     (w, stop)
@@ -161,7 +161,7 @@ module Make (K : Key) (G : Git.S) = struct
           else Lwt.return (Ok ())
         in
         match r with
-        | Error e -> Log.err (fun l -> l "Cannot create HEAD: %a" G.pp_error e)
+        | Error e -> [%log.err "Cannot create HEAD: %a" G.pp_error e]
         | Ok () -> ()
       in
       head
@@ -187,7 +187,7 @@ module Make (K : Key) (G : Git.S) = struct
     { git_head; bare; t; w; dot_git; m }
 
   let list { t; _ } =
-    Log.debug (fun l -> l "list");
+    [%log.debug "list"];
     let+ refs = G.Ref.list t in
     List.fold_left
       (fun acc (r, _) ->
@@ -195,13 +195,12 @@ module Make (K : Key) (G : Git.S) = struct
       [] refs
 
   let write_index t gr gk =
-    Log.debug (fun l -> l "write_index");
-    if G.has_global_checkout then Log.debug (fun f -> f "write_index");
+    [%log.debug "write_index"];
+    if G.has_global_checkout then [%log.debug "write_index"];
     let git_head = Git.Reference.Ref gr in
-    Log.debug (fun f ->
-        f "write_index/if bare=%b head=%a" t.bare Git.Reference.pp gr);
+    [%log.debug "write_index/if bare=%b head=%a" t.bare Git.Reference.pp gr];
     if (not t.bare) && git_head = t.git_head then (
-      Log.debug (fun f -> f "write cache (%a)" Git.Reference.pp gr);
+      [%log.debug "write cache (%a)" Git.Reference.pp gr];
 
       (* FIXME G.write_index t.t gk *)
       let _ = gk in
@@ -211,7 +210,7 @@ module Make (K : Key) (G : Git.S) = struct
   let pp_branch = Irmin.Type.pp K.t
 
   let set t r k =
-    Log.debug (fun f -> f "set %a" pp_branch r);
+    [%log.debug "set %a" pp_branch r];
     let gr = git_of_branch r in
     Lwt_mutex.with_lock t.m @@ fun () ->
     let* e = G.Ref.write t.t gr (Git.Reference.Uid k) in
@@ -220,7 +219,7 @@ module Make (K : Key) (G : Git.S) = struct
     write_index t gr k
 
   let remove t r =
-    Log.debug (fun f -> f "remove %a" pp_branch r);
+    [%log.debug "remove %a" pp_branch r];
     Lwt_mutex.with_lock t.m @@ fun () ->
     let* e = G.Ref.remove t.t (git_of_branch r) in
     let* () = handle_git_err e in
@@ -233,9 +232,10 @@ module Make (K : Key) (G : Git.S) = struct
     | _ -> false
 
   let test_and_set t r ~test ~set =
-    Log.debug (fun f ->
-        let pp = Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp Val.t) in
-        f "test_and_set %a: %a => %a" pp_branch r pp test pp set);
+    [%log.debug fun f ->
+      let pp = Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp Val.t) in
+      f "test_and_set %a: %a => %a" pp_branch r pp test pp set]
+    ;
     let gr = git_of_branch r in
     let c = function None -> None | Some h -> Some (Git.Reference.Uid h) in
     let ok r =
@@ -284,7 +284,7 @@ module Make (K : Key) (G : Git.S) = struct
   let close _ = Lwt.return_unit
 
   let clear t =
-    Log.debug (fun l -> l "clear");
+    [%log.debug "clear"];
     Lwt_mutex.with_lock t.m (fun () ->
         let* refs = G.Ref.list t.t in
         Lwt_list.iter_p

@@ -254,13 +254,13 @@ module Make (P : Backend.S) = struct
         [] bs
 
     let export ?(full = true) ?depth ?(min = []) ?(max = `Head) t =
-      Log.debug (fun f ->
-          f "export depth=%s full=%b min=%d max=%s"
-            (match depth with None -> "<none>" | Some d -> string_of_int d)
-            full (List.length min)
-            (match max with
-            | `Head -> "heads"
-            | `Max m -> string_of_int (List.length m)));
+      [%log.debug
+        "export depth=%s full=%b min=%d max=%s"
+          (match depth with None -> "<none>" | Some d -> string_of_int d)
+          full (List.length min)
+          (match max with
+          | `Head -> "heads"
+          | `Max m -> string_of_int (List.length m))];
       let* max = match max with `Head -> heads t | `Max m -> Lwt.return m in
       let* slice = P.Slice.empty () in
       let max = List.map (fun x -> `Commit x.key) max in
@@ -393,7 +393,7 @@ module Make (P : Backend.S) = struct
     let default_pred_commit t c =
       P.Commit.find (commit_t t) c >|= function
       | None ->
-          Log.debug (fun l -> l "%a: not found" pp_commit_key c);
+          [%log.debug "%a: not found" pp_commit_key c];
           []
       | Some c ->
           let node = P.Commit.Val.node c in
@@ -403,7 +403,7 @@ module Make (P : Backend.S) = struct
     let default_pred_branch t b =
       P.Branch.find (branch_t t) b >|= function
       | None ->
-          Log.debug (fun l -> l "%a: not found" pp_branch b);
+          [%log.debug "%a: not found" pp_branch b];
           []
       | Some b -> [ `Commit b ]
 
@@ -489,7 +489,7 @@ module Make (P : Backend.S) = struct
       | Error _ as c -> Lwt.return c
       | Ok true -> Merge.ok ()
       | Ok false ->
-          Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
+          [%log.debug "Irmin.%s: conflict, retrying (%d)." name i];
           aux (i + 1)
     in
     aux 1
@@ -511,16 +511,17 @@ module Make (P : Backend.S) = struct
   let of_commit c = of_ref c.r (`Head (ref (Some c)))
 
   let skip_key key =
-    Log.debug (fun l -> l "[watch-key] key %a has not changed" pp_key key);
+    [%log.debug "[watch-key] key %a has not changed" pp_key key];
     Lwt.return_unit
 
   let changed_key key old_t new_t =
-    Log.debug (fun l ->
+    [%log.debug
+      fun l ->
         let pp = Fmt.option ~none:(Fmt.any "<none>") pp_hash in
         let old_h = Option.map Tree.hash old_t in
         let new_h = Option.map Tree.hash new_t in
         l "[watch-key] key %a has changed: %a -> %a" pp_key key pp old_h pp
-          new_h)
+          new_h]
 
   let with_tree ~key x f =
     x >>= function
@@ -567,7 +568,7 @@ module Make (P : Backend.S) = struct
           | Some k -> Commit.of_key t.repo k)
     in
     let+ h = h in
-    Log.debug (fun f -> f "Head.find -> %a" Fmt.(option Commit.pp_key) h);
+    [%log.debug "Head.find -> %a" Fmt.(option Commit.pp_key) h];
     h
 
   let tree_and_head t =
@@ -624,7 +625,7 @@ module Make (P : Backend.S) = struct
         fun () -> Branch_store.unwatch (branch_store t) key
 
   let watch_key t key ?init fn =
-    Log.debug (fun f -> f "watch-key %a" pp_key key);
+    [%log.debug "watch-key %a" pp_key key];
     let tree c = Tree.find_tree (Commit.tree c) key in
     watch t ?init (lift_tree_diff ~key tree fn)
 
@@ -663,9 +664,9 @@ module Make (P : Backend.S) = struct
       find t >>= function
       | None -> test_and_set t ~test:None ~set:(Some new_head) >|= return
       | Some old_head -> (
-          Log.debug (fun f ->
-              f "fast-forward-head old=%a new=%a" Commit.pp_hash old_head
-                Commit.pp_hash new_head);
+          [%log.debug
+            "fast-forward-head old=%a new=%a" Commit.pp_hash old_head
+              Commit.pp_hash new_head];
           if Commit.equal new_head old_head then
             (* we only update if there is a change *)
             Lwt.return (Error `No_change)
@@ -690,7 +691,7 @@ module Make (P : Backend.S) = struct
     (* FIXME: we might want to keep the new commit in case of conflict,
          and use it as a base for the next merge. *)
     let merge ~into:t ~info ?max_depth ?n c1 =
-      Log.debug (fun f -> f "merge_head");
+      [%log.debug "merge_head"];
       let aux () =
         let* head = head t in
         match head with
@@ -813,7 +814,7 @@ module Make (P : Backend.S) = struct
     | Some tree -> Tree.add_tree root key tree >|= ok
 
   let set_tree ?(retries = 13) ?allow_empty ?parents ~info t k v =
-    Log.debug (fun l -> l "set %a" pp_key k);
+    [%log.debug "set %a" pp_key k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_some v
@@ -822,7 +823,7 @@ module Make (P : Backend.S) = struct
     set_tree ?retries ?allow_empty ?parents ~info t k v >>= fail "set_exn"
 
   let remove ?(retries = 13) ?allow_empty ?parents ~info t k =
-    Log.debug (fun l -> l "debug %a" pp_key k);
+    [%log.debug "debug %a" pp_key k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_none
@@ -847,7 +848,7 @@ module Make (P : Backend.S) = struct
 
   let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
       ~set =
-    Log.debug (fun l -> l "test-and-set %a" pp_key k);
+    [%log.debug "test-and-set %a" pp_key k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
     @@ fun _tree -> Lwt.return set
@@ -873,7 +874,7 @@ module Make (P : Backend.S) = struct
     | Error e -> write_error (e :> write_error)
 
   let merge_tree ?(retries = 13) ?allow_empty ?parents ~info ~old t k tree =
-    Log.debug (fun l -> l "merge %a" pp_key k);
+    [%log.debug "merge %a" pp_key k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (merge_once ~old) @@ fun _tree ->
     Lwt.return tree
@@ -920,7 +921,7 @@ module Make (P : Backend.S) = struct
       ?(strategy = `Test_and_set) ~info t key f =
     let done_once = ref false in
     let rec aux n old_tree =
-      Log.debug (fun l -> l "with_tree %a (%d/%d)" pp_key key n retries);
+      [%log.debug "with_tree %a (%d/%d)" pp_key key n retries];
       if !done_once && n > retries then write_error (`Too_many_retries retries)
       else
         let* new_tree = f old_tree in
@@ -998,7 +999,7 @@ module Make (P : Backend.S) = struct
     (unit, Merge.conflict) result Lwt.t
 
   let merge_with_branch t ~info ?max_depth ?n other =
-    Log.debug (fun f -> f "merge_with_branch %a" pp_branch other);
+    [%log.debug "merge_with_branch %a" pp_branch other];
     Branch_store.find (branch_store t) other >>= function
     | None ->
         Fmt.kstrf Lwt.fail_invalid_arg
@@ -1012,7 +1013,7 @@ module Make (P : Backend.S) = struct
     Head.merge ~into:t ~info ?max_depth ?n other
 
   let merge_into ~into ~info ?max_depth ?n t =
-    Log.debug (fun l -> l "merge");
+    [%log.debug "merge"];
     match head_ref t with
     | `Branch name -> merge_with_branch into ~info ?max_depth ?n name
     | `Head h -> merge_with_commit into ~info ?max_depth ?n h
@@ -1059,7 +1060,7 @@ module Make (P : Backend.S) = struct
   end
 
   let history ?depth ?(min = []) ?(max = []) t =
-    Log.debug (fun f -> f "history");
+    [%log.debug "history"];
     let pred = function
       | `Commit k ->
           Commits.parents (commit_store t) k
@@ -1086,10 +1087,10 @@ module Make (P : Backend.S) = struct
   end)
 
   let last_modified ?depth ?(n = 1) t key =
-    Log.debug (fun l ->
-        l "last_modified depth=%a n=%d key=%a"
-          Fmt.(Dump.option pp_int)
-          depth n pp_key key);
+    [%log.debug
+      "last_modified depth=%a n=%d key=%a"
+        Fmt.(Dump.option pp_int)
+        depth n pp_key key];
     let repo = repo t in
     let* commit = Head.get t in
     let heap = Heap.create ~dummy:(commit, 0) 0 in
