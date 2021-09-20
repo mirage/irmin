@@ -48,8 +48,9 @@ module Make (P : Private.S) = struct
     let of_hash r h = import r h
     let shallow r h = import_no_check r h
 
-    let hash : t -> hash =
-     fun tr -> match hash tr with `Node h -> h | `Contents (h, _) -> h
+    let hash : ?cache:bool -> t -> hash =
+     fun ?cache tr ->
+      match hash ?cache tr with `Node h -> h | `Contents (h, _) -> h
   end
 
   type branch = P.Branch.Key.t [@@deriving irmin]
