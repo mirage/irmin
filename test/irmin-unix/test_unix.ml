@@ -16,11 +16,9 @@
 
 open! Import
 
-let stats =
-  Some
-    (fun () ->
-      let stats = Irmin_watcher.stats () in
-      (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ()))
+let stats () =
+  let stats = Irmin_watcher.stats () in
+  (stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ())
 
 (* FS *)
 
@@ -45,7 +43,7 @@ module FS = struct
 
   let suite =
     Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean ~stats
-      ~layered_store:None
+      ~layered_store:None ()
 end
 
 (* GIT *)
@@ -84,7 +82,7 @@ module Git = struct
   let suite =
     let store = (module S : Irmin_test.S) in
     Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ~stats
-      ~layered_store:None
+      ~layered_store:None ()
 
   let test_non_bare () =
     init () >>= fun () ->

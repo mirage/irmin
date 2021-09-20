@@ -16,8 +16,8 @@
 
 type layer_id = [ `Upper0 | `Upper1 | `Lower ] [@@deriving irmin]
 
-module type S = sig
-  include Irmin.S
+module type Generic_key = sig
+  include Irmin.Generic_key.S
 
   val freeze :
     ?min_lower:commit list ->
@@ -62,13 +62,13 @@ module type S = sig
       - When [`Block_writes], the function blocks until the ongoing freeze ends
         and then a new one is started afterwards. *)
 
-  type store_handle =
-    | Commit_t : hash -> store_handle
-    | Node_t : hash -> store_handle
-    | Content_t : hash -> store_handle
+  type kinded_key =
+    | Commit_t of commit_key
+    | Node_t of node_key
+    | Content_t of contents_key
 
-  val layer_id : repo -> store_handle -> layer_id Lwt.t
-  (** [layer_id t store_handle] returns the layer where an object, identified by
+  val layer_id : repo -> kinded_key -> layer_id Lwt.t
+  (** [layer_id t kinded_key] returns the layer where an object, identified by
       its hash, is stored. *)
 
   val async_freeze : repo -> bool
@@ -126,14 +126,32 @@ module type S = sig
   end
 end
 
+module type S = sig
+  type hash
+
+  include
+    Generic_key
+      with type Schema.Hash.t = hash
+       and type hash := hash
+       and type contents_key = hash
+       and type node_key = hash
+       and type commit_key = hash
+end
+
+module Generic_key_is_a_generic_key (X : Generic_key) : Irmin.Generic_key.S = X
 module S_is_an_S (X : S) : Irmin.S = X
 
 (* Duplicated from [Irmin.Maker] in order to extend the body signature [S]. *)
 module type Maker = sig
   type endpoint
 
+  include Irmin.Key.Store_spec.Hash_keyed
+
   module Make (Schema : Irmin.Schema.S) :
-    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
+    S
+      with type hash = Schema.Hash.t
+       and module Schema = Schema
+       and type Private.Remote.endpoint = endpoint
 end
 
 module Maker_is_a_maker (X : Maker) : Irmin.Maker = X
@@ -147,6 +165,7 @@ module type Sigs = sig
   end
 
   module type S = S
+  module type Generic_key = Generic_key
   module type Maker = Maker
 
   module Maker

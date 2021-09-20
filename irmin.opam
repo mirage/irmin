@@ -31,6 +31,7 @@ depends: [
   "hex"      {with-test}
   "alcotest" {>= "1.1.0" & with-test}
   "alcotest-lwt" {with-test}
+  "vector" {with-test}
 ]
 
 conflicts: [

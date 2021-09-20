@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,46 +15,52 @@
  *)
 
 open! Import
-include Content_addressable_intf
+include Indexable_intf
 
-module Make (AO : Append_only.Maker) (K : Hash.S) (V : Type.S) = struct
-  include AO (K) (V)
-  open Lwt.Infix
-  module H = Hash.Typed (K) (V)
+module Maker_concrete_key2_of_1 (X : Maker_concrete_key1) = struct
+  type ('h, _) key = 'h X.key
 
-  let hash = H.hash
-  let pp_key = Type.pp K.t
-  let equal_hash = Type.(unstage (equal K.t))
-
-  let find t k =
-    find t k >>= function
-    | None -> Lwt.return_none
-    | Some v as r ->
-        let k' = hash v in
-        if equal_hash k k' then Lwt.return r
-        else
-          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_key k' pp_key k
-
-  let unsafe_add t k v = add t k v
-
-  let add t v =
-    let k = hash v in
-    add t k v >|= fun () -> k
+  module Key (H : Hash.S) (_ : Type.S) = X.Key (H)
+  module Make = X.Make
 end
 
-module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
-  module S = CA (K) (V)
+module Of_content_addressable (Key : Type.S) (S : Content_addressable.S) =
+struct
+  include S
+
+  type hash = key
+  type key = Key.t
+
+  module Key = struct
+    include Key
+
+    type nonrec hash = hash
+
+    let to_hash x = x
+  end
+
+  let index _ h = Lwt.return_some h
+  let unsafe_add t h v = unsafe_add t h v >|= fun () -> h
+end
+
+module Check_closed (CA : Maker) (Hash : Hash.S) (Value : Type.S) = struct
+  module S = CA (Hash) (Value)
+  module Key = S.Key
 
   type 'a t = { closed : bool ref; t : 'a S.t }
-  type key = S.key
   type value = S.value
+  type key = S.key
+  type hash = S.hash
 
   let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
 
   let mem t k =
     check_not_closed t;
     S.mem t.t k
+
+  let index t h =
+    check_not_closed t;
+    S.index t.t h
 
   let find t k =
     check_not_closed t;

@@ -24,8 +24,27 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker = Irmin_pack.V2 (Config)
-module Irmin_pack_layered = Irmin_pack_layered.Maker (Config)
+module Irmin_pack_maker : Irmin.Maker = struct
+  include Irmin_pack.V2 (Config)
+
+  module Make (Schema : Irmin.Schema.S) = Make (struct
+    include Schema
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+    module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
+    module Commit = Commit_maker.Make (Hash)
+  end)
+end
+
+module Irmin_pack_layered = struct
+  include Irmin_pack_layered.Maker (Config)
+
+  module Make (Schema : Irmin.Schema.S) = Make (struct
+    include Schema
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+    module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
+    module Commit = Commit_maker.Make (Hash)
+  end)
+end
 
 let suite_pack =
   let store =
@@ -73,44 +92,26 @@ let suite_pack =
     let* repo = S.Repo.v config in
     clear repo >>= fun () -> S.Repo.close repo
   in
-  let stats = None in
-  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats
-    ~layered_store:(Some layered_store)
+  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean
+    ~layered_store:(Some layered_store) ()
 
-module Irmin_pack_mem_maker = Irmin_pack_mem.Maker (Config)
+module Irmin_pack_mem_maker = struct
+  include Irmin_pack_mem.Maker (Config)
+
+  module Make (Schema : Irmin.Schema.S) = Make (struct
+    include Schema
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+    module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
+    module Commit = Commit_maker.Make (Hash)
+  end)
+end
 
 let suite_mem =
   let store =
     Irmin_test.store (module Irmin_pack_mem_maker) (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
-  let init () =
-    if Sys.file_exists test_dir then (
-      let cmd = Printf.sprintf "rm -rf %s" test_dir in
-      Fmt.epr "exec: %s\n%!" cmd;
-      let _ = Sys.command cmd in
-      ());
-    Lwt.return_unit
-  in
-  let clean () =
-    let (module S : Irmin_test.S) = store in
-    let module P = S.Private in
-    let clear repo =
-      Lwt.join
-        [
-          P.Commit.clear (P.Repo.commit_t repo);
-          P.Node.clear (P.Repo.node_t repo);
-          P.Contents.clear (P.Repo.contents_t repo);
-          P.Branch.clear (P.Repo.branch_t repo);
-        ]
-    in
-    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-    S.Repo.v config >>= fun repo ->
-    clear repo >>= fun () -> S.Repo.close repo
-  in
-  let stats = None in
-  Irmin_test.Suite.create ~name:"PACK MEM" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+  Irmin_test.Suite.create ~name:"PACK MEM" ~store ~config ~layered_store:None ()
 
 let suite = [ suite_pack; suite_mem ]
 

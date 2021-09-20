@@ -109,6 +109,14 @@
     depends on whether the node is in memory or on disk (#1525, @icristescu,
     @Ngoguey42, @CraigFe)
 
+  - Add support for non-content-addressed ("generic key") backend stores. This
+    allows Irmin to work with backends in which not all values are addressed by
+    their hash. In particular, this includes:
+    - New functions: `Store.{Commit,Contents,Tree}.of_key`.
+    - Adds `Irmin.{Node,Commit}.Generic_key` modules.
+    - Adds a new type that must be provided by backends: `Node.Portable`.
+    - Adds a new type of backend store: `Irmin.Indexable.S`.
+
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
     `Irmin.Content_addressable.S` (#1369, @samoht)

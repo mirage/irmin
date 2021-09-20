@@ -14,19 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S =
-  Irmin.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
-
-module type Layered_store =
-  Irmin_layers.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
+module type S = Common.S
+module type Generic_key = Common.Generic_key
+module type Layered_store = Common.Layered_store
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
@@ -35,17 +25,31 @@ module Suite : sig
 
   val create :
     name:string ->
-    init:(unit -> unit Lwt.t) ->
-    clean:(unit -> unit Lwt.t) ->
+    ?init:(unit -> unit Lwt.t) ->
+    ?clean:(unit -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module S) ->
     layered_store:(module Layered_store) option ->
-    stats:(unit -> int * int) option ->
+    ?stats:(unit -> int * int) ->
+    ?import_supported:bool ->
+    unit ->
+    t
+
+  val create_generic_key :
+    name:string ->
+    ?init:(unit -> unit Lwt.t) ->
+    ?clean:(unit -> unit Lwt.t) ->
+    config:Irmin.config ->
+    store:(module Generic_key) ->
+    layered_store:(module Layered_store) option ->
+    ?stats:(unit -> int * int) ->
+    ?import_supported:bool ->
+    unit ->
     t
 
   val name : t -> string
   val config : t -> Irmin.config
-  val store : t -> (module S)
+  val store : t -> (module S) option
   val init : t -> unit -> unit Lwt.t
   val clean : t -> unit -> unit Lwt.t
 end
@@ -70,3 +74,5 @@ module Store : sig
     (Alcotest.speed_level * Suite.t) list ->
     unit
 end
+
+module Node = Node

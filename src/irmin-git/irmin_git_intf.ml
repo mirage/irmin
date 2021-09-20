@@ -32,7 +32,7 @@ module type S = sig
   module Schema :
     Irmin.Schema.S with type Metadata.t = Metadata.t and type Hash.t = Git.hash
 
-  include Irmin.S with module Schema := Schema
+  include Irmin.S with type hash = Schema.Hash.t and module Schema := Schema
 
   val git_commit : Repo.t -> commit -> Git.Value.Commit.t option Lwt.t
   (** [git_commit repo h] is the commit corresponding to [h] in the repository

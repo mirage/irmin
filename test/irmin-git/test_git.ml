@@ -78,18 +78,16 @@ let suite =
   let store = (module S : Irmin_test.S) in
   let init () = S.init () in
   let clean () = S.init () in
-  let stats = None in
-  Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+  Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean
+    ~layered_store:None ()
 
 let suite_generic =
   let module S = Generic (Irmin.Contents.String) in
   let store = (module S : Irmin_test.S) in
   let clean () = S.clean () in
   let init () = S.init () in
-  let stats = None in
-  Irmin_test.Suite.create ~name:"GIT.generic" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+  Irmin_test.Suite.create ~name:"GIT.generic" ~init ~store ~config ~clean
+    ~layered_store:None ()
 
 let get = function Some x -> x | None -> Alcotest.fail "get"
 
@@ -200,6 +198,9 @@ let test_blobs (module S : S) =
   let* repo = X.Repo.v (Irmin_git.config test_db) in
   let* k2 =
     X.Private.Repo.batch repo (fun x y _ -> X.save_tree ~clear:false repo x y t)
+    >|= function
+    | `Node k -> k
+    | `Contents k -> k
   in
   let hash = Irmin_test.testable X.Hash.t in
   Alcotest.(check hash) "blob" k1 k2;

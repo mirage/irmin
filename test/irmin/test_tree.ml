@@ -32,7 +32,7 @@ module Schema = struct
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.BLAKE2B
-  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Commit = Commit.Make (Hash)
   module Info = Info.Default
 end
@@ -413,7 +413,7 @@ let inspect =
   Alcotest.testable
     (fun ppf -> function
       | `Contents -> Fmt.string ppf "contents"
-      | `Node `Hash -> Fmt.string ppf "hash"
+      | `Node `Key -> Fmt.string ppf "key"
       | `Node `Map -> Fmt.string ppf "map"
       | `Node `Value -> Fmt.string ppf "value")
     ( = )
@@ -461,7 +461,7 @@ let test_clear _ () =
   (* 3. Persist (and implicitly clear) *)
   let* _ = persist_tree t in
   (* Check the state of the root *)
-  Alcotest.(check inspect) "After persist+clear" (`Node `Hash) (Tree.inspect t);
+  Alcotest.(check inspect) "After persist+clear" (`Node `Key) (Tree.inspect t);
   let* () =
     Tree.stats ~force:false t
     >|= Alcotest.(gcheck Tree.stats_t)

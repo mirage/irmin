@@ -21,15 +21,29 @@ module type Value = sig
 
   val pred :
     t ->
-    (step option * [ `Node of hash | `Inode of hash | `Contents of hash ]) list
+    (step option
+    * [ `Node of node_key | `Inode of node_key | `Contents of contents_key ])
+    list
+
+  module Portable :
+    Irmin.Node.Portable.S
+      with type node := t
+       and type hash = hash
+       and type step := step
+       and type metadata := metadata
 
   val nb_children : t -> int
 end
 
 module type S = sig
-  include Irmin.Content_addressable.S
-  module Key : Irmin.Hash.S with type t = key
-  module Val : Value with type t = value and type hash = key
+  include Irmin.Indexable.S
+  module Hash : Irmin.Hash.S with type t = hash
+
+  module Val :
+    Value
+      with type t = value
+       and type hash = Hash.t
+       and type Portable.hash := hash
 
   val decode_bin_length : string -> int -> int
 end
@@ -151,6 +165,7 @@ module type Sigs = sig
     S
       with type 'a t = 'a Pack.t
        and type key = H.t
+       and type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
        and type value = Inter.Val.t
@@ -168,6 +183,7 @@ module type Sigs = sig
     include
       Persistent
         with type key = H.t
+         and type hash = H.t
          and type Val.metadata = Node.metadata
          and type Val.step = Node.step
          and type index = Pack_index.Make(H).t

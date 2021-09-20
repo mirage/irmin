@@ -19,10 +19,13 @@ open Import
 module Make (G : Git.S) = struct
   module Info = Irmin.Info.Default
   module Raw = Git.Value.Make (G.Hash)
-  module Key = Irmin.Hash.Make (G.Hash)
+  module Hash = Irmin.Hash.Make (G.Hash)
+  module Key = Irmin.Key.Of_hash (Hash)
 
   type t = G.Value.Commit.t
-  type hash = Key.t [@@deriving irmin]
+  type commit_key = Key.t [@@deriving irmin]
+  type node_key = Key.t [@@deriving irmin]
+  type hash = Hash.t [@@deriving irmin]
 
   let info_of_git author message =
     let id = author.Git.User.name in
@@ -78,7 +81,7 @@ module Make (G : Git.S) = struct
     let message = Option.value ~default:"" (G.Value.Commit.message g) in
     info_of_git author message
 
-  module C = Irmin.Commit.Make (Key)
+  module C = Irmin.Commit.Make (Hash)
 
   let of_c c = to_git (C.info c) (C.node c) (C.parents c)
 
@@ -107,7 +110,7 @@ end
 
 module Store (G : Git.S) = struct
   module Info = Irmin.Info.Default
-  module Key = Irmin.Hash.Make (G.Hash)
+  module Hash = Irmin.Hash.Make (G.Hash)
   module Val = Make (G)
 
   module V = struct

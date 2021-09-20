@@ -65,8 +65,6 @@ module MemChunk = struct
   let v () = v small_config
 end
 
-let init () = Lwt.return_unit
-
 let store =
   Irmin_test.store
     (module Irmin.Maker
@@ -77,22 +75,5 @@ let store =
 
 let config = Irmin_chunk.config (Irmin_mem.config ())
 
-let clean () =
-  let (module S : Irmin_test.S) = store in
-  let module P = S.Private in
-  let clear repo =
-    Lwt.join
-      [
-        P.Commit.clear (P.Repo.commit_t repo);
-        P.Node.clear (P.Repo.node_t repo);
-        P.Contents.clear (P.Repo.contents_t repo);
-        P.Branch.clear (P.Repo.branch_t repo);
-      ]
-  in
-  let* repo = S.Repo.v config in
-  let* () = clear repo in
-  S.Repo.close repo
-
 let suite =
-  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean ~stats:None
-    ~layered_store:None
+  Irmin_test.Suite.create ~name:"CHUNK" ~store ~config ~layered_store:None ()

@@ -98,7 +98,8 @@ let t =
     $ clear
     $ gc)
 
-module Make (Store : Irmin.KV with type Schema.Contents.t = string) = struct
+module Make (Store : Irmin.Generic_key.KV with type Schema.Contents.t = string) =
+struct
   let info () = Store.Info.v ~author:"author" ~message:"commit message" 0L
 
   let times ~n ~init f =

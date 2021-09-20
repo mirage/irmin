@@ -39,6 +39,8 @@ module type S = sig
   (** @inline *)
 end
 
+module Append_only_is_a_read_only (X : S) : Read_only.S = X
+
 module type Maker = functor (K : Type.S) (V : Type.S) -> sig
   include S with type key = K.t and type value = V.t
 

@@ -22,6 +22,7 @@ module type S = sig
   type step [@@deriving irmin]
   type metadata [@@deriving irmin]
   type contents [@@deriving irmin]
+  type contents_key [@@deriving irmin]
   type node [@@deriving irmin]
   type hash [@@deriving irmin]
 
@@ -98,6 +99,10 @@ module type S = sig
 
         [cache = false] doesn't replace a call to [clear], it only prevents the
         storing of new data, it doesn't discard the existing one. *)
+
+    val key : t -> contents_key option
+    (** [key t] is the key of the {!contents} value returned when [t] is
+        {!force}d successfully. *)
 
     val force : t -> contents or_error Lwt.t
     (** [force t] forces evaluation of the lazy content value [t], or returns an
@@ -310,6 +315,7 @@ module type S = sig
     mutable contents_add : int;
     mutable node_hash : int;
     mutable node_mem : int;
+    mutable node_index : int;
     mutable node_add : int;
     mutable node_find : int;
     mutable node_val_v : int;
@@ -320,7 +326,7 @@ module type S = sig
   val counters : unit -> counters
   val dump_counters : unit Fmt.t
   val reset_counters : unit -> unit
-  val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
+  val inspect : t -> [ `Contents | `Node of [ `Map | `Key | `Value ] ]
 end
 
 module type Sigs = sig
@@ -336,12 +342,18 @@ module type Sigs = sig
          and type step = P.Node.Path.step
          and type metadata = P.Node.Metadata.t
          and type contents = P.Contents.value
+         and type contents_key = P.Contents.Key.t
          and type hash = P.Hash.t
 
-    type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
+    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+    [@@deriving irmin]
 
-    val import : P.Repo.t -> kinded_hash -> t option Lwt.t
-    val import_no_check : P.Repo.t -> kinded_hash -> t
+    type kinded_key =
+      [ `Contents of P.Contents.Key.t * metadata | `Node of P.Node.Key.t ]
+    [@@deriving irmin]
+
+    val import : P.Repo.t -> kinded_key -> t option Lwt.t
+    val import_no_check : P.Repo.t -> kinded_key -> t
 
     val export :
       ?clear:bool ->
@@ -353,8 +365,10 @@ module type Sigs = sig
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
+    val key : t -> kinded_key option
     val hash : ?cache:bool -> t -> kinded_hash
+    val to_private_node : node -> P.Node.Val.t Lwt.t
+    val to_private_portable_node : node -> P.Node_portable.t Lwt.t
     val of_private_node : P.Repo.t -> P.Node.value -> node
-    val to_private_node : node -> P.Node.value or_error Lwt.t
   end
 end

@@ -21,7 +21,7 @@ module I = Index
 module Conf : Irmin_pack.Conf.S
 
 module Schema :
-  Irmin.Schema.S
+  Irmin.Schema.Extended
     with type Hash.t = Irmin.Hash.SHA1.t
      and type Path.step = string
      and type Path.t = string list

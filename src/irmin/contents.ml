@@ -196,13 +196,13 @@ module String = struct
   let merge = Merge.idempotent Type.(option string)
 end
 
-module Store
-    (S : Content_addressable.S)
-    (H : Hash.S with type t = S.key)
+module Store_indexable
+    (S : Indexable.S)
+    (H : Hash.S with type t = S.hash)
     (C : S with type t = S.value) =
 struct
   module Val = C
-  module Key = Hash.Typed (H) (Val)
+  module Hash = Hash.Typed (H) (C)
   include S
 
   let read_opt t = function None -> Lwt.return_none | Some k -> find t k
@@ -214,6 +214,12 @@ struct
   let merge t =
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)
 end
+
+module Store
+    (S : Content_addressable.S)
+    (H : Hash.S with type t = S.key)
+    (C : S with type t = S.value) =
+  Store_indexable (Indexable.Of_content_addressable (H) (S)) (H) (C)
 
 module V1 = struct
   module String = struct

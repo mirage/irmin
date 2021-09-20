@@ -282,12 +282,21 @@ module Store = struct
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
-  module Inode_config = struct
-    let entries = 32
-    let stable_hash = 256
+  module Irmin_pack_maker : Irmin.Maker = struct
+    include Irmin_pack.V1 (struct
+      let entries = 32
+      let stable_hash = 256
+    end)
+
+    module Make (Schema : Irmin.Schema.S) = Make (struct
+      include Schema
+      module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+      module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
+      module Commit = Commit_maker.Make (Hash)
+    end)
   end
 
-  let pack = create Irmin_pack.Conf.spec (module Irmin_pack.V1 (Inode_config))
+  let pack = create Irmin_pack.Conf.spec (module Irmin_pack_maker)
 
   let all =
     ref

@@ -30,7 +30,7 @@ module Store (G : Git.S) : sig
        and type value = G.Value.Commit.t
 
   module Info = Irmin.Info.Default
-  module Key : Irmin.Hash.S with type t = key
+  module Hash : Irmin.Hash.S with type t = key
 
   module Val :
     Irmin.Commit.S

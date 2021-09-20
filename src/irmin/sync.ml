@@ -26,11 +26,12 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let remote_store m x = Store.Store (m, x)
 
-module Make (S : Store.S) = struct
+module Make (S : Store.Generic_key.S) = struct
   module B = S.Private.Remote
 
   type db = S.t
   type commit = S.commit
+  type commit_key = S.commit_key [@@deriving irmin ~pp]
   type info = S.info
 
   let conv dx dy =
@@ -41,14 +42,14 @@ module Make (S : Store.S) = struct
   let convert_slice (type r s) (module RP : Private.S with type Slice.t = r)
       (module SP : Private.S with type Slice.t = s) r =
     let conv_contents_k =
-      Type.unstage (conv RP.Contents.Key.t SP.Contents.Key.t)
+      Type.unstage (conv RP.Contents.Hash.t SP.Contents.Hash.t)
     in
     let conv_contents_v =
       Type.unstage (conv RP.Contents.Val.t SP.Contents.Val.t)
     in
-    let conv_node_k = Type.unstage (conv RP.Node.Key.t SP.Node.Key.t) in
+    let conv_node_k = Type.unstage (conv RP.Node.Hash.t SP.Node.Hash.t) in
     let conv_node_v = Type.unstage (conv RP.Node.Val.t SP.Node.Val.t) in
-    let conv_commit_k = Type.unstage (conv RP.Commit.Key.t SP.Commit.Key.t) in
+    let conv_commit_k = Type.unstage (conv RP.Commit.Hash.t SP.Commit.Hash.t) in
     let conv_commit_v = Type.unstage (conv RP.Commit.Val.t SP.Commit.Val.t) in
     let* s = SP.Slice.empty () in
     let* () =
@@ -81,13 +82,12 @@ module Make (S : Store.S) = struct
       [] l
 
   let pp_branch = Type.pp S.Branch.t
-  let pp_hash = Type.pp S.Hash.t
 
   type status = [ `Empty | `Head of commit ]
 
   let pp_status ppf = function
     | `Empty -> Fmt.string ppf "empty"
-    | `Head c -> Type.pp S.Hash.t ppf (S.Commit.hash c)
+    | `Head c -> S.Commit.pp_hash ppf c
 
   let status_t t =
     let open Type in
@@ -129,9 +129,9 @@ module Make (S : Store.S) = struct
             let* g = B.v (S.repo t) in
             B.fetch g ?depth e br >>= function
             | Error _ as e -> Lwt.return e
-            | Ok (Some c) -> (
-                Log.debug (fun l -> l "Fetched %a" pp_hash c);
-                S.Commit.of_hash (S.repo t) c >|= function
+            | Ok (Some key) -> (
+                Log.debug (fun l -> l "Fetched %a" pp_commit_key key);
+                S.Commit.of_key (S.repo t) key >|= function
                 | None -> Ok `Empty
                 | Some x -> Ok (`Head x))
             | Ok None -> (

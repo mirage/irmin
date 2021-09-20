@@ -21,11 +21,10 @@ let test_db = Filename.concat "_build" "test-db"
 let init () = IO.clear () >|= fun () -> IO.set_listen_hook ()
 let config = Irmin_fs.config test_db
 let clean () = Lwt.return_unit
-let stats = None
 
 let store =
   Irmin_test.store (module Irmin_fs.Maker (IO)) (module Irmin.Metadata.None)
 
 let suite =
-  Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean ~stats
-    ~layered_store:None
+  Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean
+    ~layered_store:None ()

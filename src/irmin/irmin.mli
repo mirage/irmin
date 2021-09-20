@@ -73,6 +73,9 @@ module Read_only = Read_only
 module Append_only = Append_only
 (** Append-only backend backends. *)
 
+module Indexable = Indexable
+(** Indexable backend backends. *)
+
 module Content_addressable = Content_addressable
 (** Content-addressable backends. *)
 
@@ -152,6 +155,8 @@ module Private : sig
   (** The complete collection of private implementations. *)
 end
 
+module Key = Key
+
 (** {1 High-level Stores}
 
     An Irmin store is a branch-consistent store where keys are lists of steps.
@@ -207,9 +212,29 @@ module type KV_maker = sig
   (** @inline *)
 end
 
+(** "Generic key" stores are Irmin stores in which the backend may not be keyed
+    directly by the hashes of stored values. See {!Key} for more details. *)
+module Generic_key : sig
+  include module type of Store.Generic_key
+  (** @inline *)
+
+  module type Maker_args = sig
+    module Contents_store : Indexable.Maker_concrete_key2
+    module Node_store : Indexable.Maker_concrete_key1
+    module Commit_store : Indexable.Maker_concrete_key1
+    module Branch_store : Atomic_write.Maker
+  end
+
+  module Maker (X : Maker_args) :
+    Maker
+      with type ('h, 'v) contents_key = ('h, 'v) X.Contents_store.key
+       and type 'h node_key = 'h X.Node_store.key
+       and type 'h commit_key = 'h X.Commit_store.key
+end
+
 (** {2 Synchronization} *)
 
-val remote_store : (module S with type t = 'a) -> 'a -> remote
+val remote_store : (module Generic_key.S with type t = 'a) -> 'a -> remote
 (** [remote_store t] is the remote corresponding to the local store [t].
     Synchronization is done by importing and exporting store {{!BC.slice}
     slices}, so this is usually much slower than native synchronization using
@@ -426,7 +451,7 @@ module Sync = Sync
 (** {1 Helpers} *)
 
 (** [Dot] provides functions to export a store to the Graphviz `dot` format. *)
-module Dot (S : S) : Dot.S with type db = S.t
+module Dot (S : Generic_key.S) : Dot.S with type db = S.t
 
 (** {1:backend Backends}
 
@@ -455,10 +480,13 @@ module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
 
 (** Advanced store creator. *)
 module Of_private (P : Private.S) :
-  S
+  Generic_key.S
     with module Schema = P.Schema
      and type repo = P.Repo.t
      and type slice = P.Slice.t
+     and type contents_key = P.Contents.Key.t
+     and type node_key = P.Node.Key.t
+     and type commit_key = P.Commit.Key.t
      and module Private = P
 
 module Export_for_backends = Export_for_backends

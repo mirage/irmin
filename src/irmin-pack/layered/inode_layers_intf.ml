@@ -86,6 +86,7 @@ module type Sigs = sig
       (Node : Irmin.Node.S with type hash = H.t) :
     S
       with type key = H.t
+       and type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
        and type index = Index.Make(H).t

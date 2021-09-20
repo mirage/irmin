@@ -42,7 +42,9 @@ module V2 = Maker (Version.V2)
 
 module KV (V : Version.S) (Config : Conf.S) = struct
   type endpoint = unit
+  type hash = Irmin.Schema.default_hash
 
+  include Irmin.Key.Store_spec.Hash_keyed
   module Maker = Maker (V) (Config)
 
   type metadata = Metadata.t
@@ -67,6 +69,3 @@ end
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
 module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)
-
-(* Enforce that {!Maker} is a sub-type of {!Irmin.Maker}. *)
-module Maker_is_a_maker : Irmin.Maker = Maker (Vx) (Cx)

@@ -42,6 +42,13 @@ module type S =
      and type Schema.Contents.t = string
      and type Schema.Branch.t = string
 
+module type Generic_key =
+  Irmin.Generic_key.S
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
+
 module type Layered_store =
   Irmin_layers.S
     with type Schema.Path.step = string
@@ -54,7 +61,7 @@ module Schema (M : Irmin.Metadata.S) = struct
   module Commit = Irmin.Commit.Make (Hash)
   module Path = Irmin.Path.String_list
   module Metadata = M
-  module Node = Irmin.Node.Make (Hash) (Path) (Metadata)
+  module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Branch = Irmin.Branch.String
   module Info = Irmin.Info.Default
   module Contents = Irmin.Contents.String
@@ -73,34 +80,81 @@ let layered_store :
   let module S = B.Make (Schema (M)) in
   (module S)
 
+type store = S of (module S) | Generic_key of (module Generic_key)
+
 type t = {
   name : string;
   init : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
-  store : (module S);
+  store : store;
   layered_store : (module Layered_store) option;
   stats : (unit -> int * int) option;
+  (* Certain store implementations currently don't support implementing
+     repository state from a slice, because their slice formats contain
+     non-portable objects. For now, we disable the tests require this feature
+     for such backends.
+
+     TODO: fix slices to always contain portable objects, and extend
+     [Store.import] to re-hydrate the keys in these slices (by tracking keys of
+     added objects), then require all backends to run thee tests. *)
+  import_supported : bool;
 }
 
 module Suite = struct
   type nonrec t = t
 
-  let create ~name ~init ~clean ~config ~store ~layered_store ~stats =
-    { name; init; clean; config; store; layered_store; stats }
+  let default_clean ~config ~store () =
+    let (module Store : Generic_key) =
+      match store with
+      | Generic_key x -> x
+      | S (module S) -> (module S : Generic_key)
+    in
+    let open Lwt.Syntax in
+    let module P = Store.Private in
+    let clear repo =
+      Lwt.join
+        [
+          P.Commit.clear (P.Repo.commit_t repo);
+          P.Node.clear (P.Repo.node_t repo);
+          P.Contents.clear (P.Repo.contents_t repo);
+          P.Branch.clear (P.Repo.branch_t repo);
+        ]
+    in
+    let* repo = Store.Repo.v config in
+    let* () = clear repo in
+    Store.Repo.close repo
+
+  let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
+      ~layered_store ?stats ?(import_supported = true) () =
+    let store = S store in
+    let clean = Option.value clean ~default:(default_clean ~config ~store) in
+    { name; init; clean; config; store; layered_store; stats; import_supported }
+
+  let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
+      ~config ~store ~layered_store ?stats ?(import_supported = true) () =
+    let store = Generic_key store in
+    let clean = Option.value clean ~default:(default_clean ~config ~store) in
+    { name; init; clean; config; store; layered_store; stats; import_supported }
 
   let name t = t.name
   let config t = t.config
-  let store t = t.store
+  let store t = match t.store with S x -> Some x | Generic_key _ -> None
+
+  let store_generic_key t =
+    match t.store with
+    | Generic_key x -> x
+    | S (module S) -> (module S : Generic_key)
+
   let init t = t.init
   let clean t = t.clean
 end
 
-module type Store_tests = functor (S : S) -> sig
+module type Store_tests = functor (S : Generic_key) -> sig
   val tests : (string * (Suite.t -> unit -> unit)) list
 end
 
-module Make_helpers (S : S) = struct
+module Make_helpers (S : Generic_key) = struct
   module P = S.Private
   module Graph = Irmin.Node.Graph (P.Node)
 
@@ -110,6 +164,17 @@ module Make_helpers (S : S) = struct
     S.Info.v ~author ~message date
 
   let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+
+  let get_contents_key = function
+    | `Contents key -> key
+    | _ -> Alcotest.fail "expecting contents_key"
+
+  let get_node_key = function
+    | `Node key -> key
+    | _ -> Alcotest.fail "expecting node_key"
+
+  type x = int [@@deriving irmin]
+
   let v repo = P.Repo.contents_t repo
   let n repo = P.Repo.node_t repo
   let ct repo = P.Repo.commit_t repo
@@ -121,6 +186,7 @@ module Make_helpers (S : S) = struct
   let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
   let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
   let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
+  let with_info repo n f = with_commit repo (fun h -> f h ~info:(info n))
   let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
   let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
   let normal x = `Contents (x, S.Metadata.default)
@@ -150,7 +216,7 @@ module Make_helpers (S : S) = struct
 
   let r1 ~repo =
     let* kn2 = n2 ~repo in
-    S.Tree.of_hash repo (`Node kn2) >>= function
+    S.Tree.of_key repo (`Node kn2) >>= function
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:S.Info.empty ~parents:[] (tree :> S.tree)
@@ -158,10 +224,10 @@ module Make_helpers (S : S) = struct
   let r2 ~repo =
     let* kn3 = n3 ~repo in
     let* kr1 = r1 ~repo in
-    S.Tree.of_hash repo (`Node kn3) >>= function
+    S.Tree.of_key repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
-        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.hash kr1 ]
+        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
   let run (x : Suite.t) test =

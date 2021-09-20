@@ -30,13 +30,16 @@ struct
   module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
   module P = Maker.Make (Internal.Raw)
   module Val = Internal.Val
-  module Key = H
+  module Hash = H
+  module Key = Irmin.Key.Of_hash (H)
 
   type 'a t = 'a P.t
   type key = Key.t
   type value = Val.t
+  type hash = Hash.t
 
   let mem t k = P.mem t k
+  let index _ h = Lwt.return_some h
   let unsafe_find = P.unsafe_find
 
   let find t k =
@@ -75,7 +78,7 @@ struct
   let unsafe_add t k v =
     check_hash k (hash v);
     save t v;
-    Lwt.return ()
+    Lwt.return k
 
   let clear_caches_next_upper = P.clear_caches_next_upper
 

@@ -94,8 +94,22 @@ module S_is_a_store (X : S) : Irmin.S = X
 module type Maker = sig
   type endpoint = unit
 
-  module Make (Schema : Irmin.Schema.S) :
-    S with module Schema = Schema and type Private.Remote.endpoint = endpoint
-end
+  include Irmin.Key.Store_spec.Hash_keyed
 
-module Maker_is_a_maker (X : Maker) : Irmin.Maker with type endpoint = unit = X
+  module Make (Schema : Irmin.Schema.Extended) :
+    S
+    (* We can't have `with module Schema = Schema` here, since the Schema
+       on the RHS contains more information than the one on the LHS. We _want_
+       to do something like `with module Schema = (Schema : Irmin.Schema.S)`,
+       but this isn't supported.
+
+       TODO: extract these extensions as a separate functor argument instead. *)
+      with type hash = Schema.Hash.t
+       and type Schema.Branch.t = Schema.Branch.t
+       and type Schema.Metadata.t = Schema.Metadata.t
+       and type Schema.Path.t = Schema.Path.t
+       and type Schema.Path.step = Schema.Path.step
+       and type Schema.Contents.t = Schema.Contents.t
+       and type Schema.Info.t = Schema.Info.t
+       and type Private.Remote.endpoint = endpoint
+end
