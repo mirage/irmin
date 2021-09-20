@@ -229,7 +229,7 @@ struct
 
       exception Exit of (step * value) list
 
-      let list ?(offset = 0) ?length t =
+      let list ?(offset = 0) ?length ?cache:_ t =
         let t = G.Value.Tree.to_list t in
         let length = match length with None -> List.length t | Some n -> n in
         try
@@ -247,7 +247,7 @@ struct
           |> fun (_, acc) -> List.rev acc
         with Exit acc -> List.rev acc
 
-      let find t s =
+      let find ?cache:_ t s =
         let s = of_step s in
         let rec aux = function
           | [] -> None
@@ -331,7 +331,8 @@ struct
       let to_bin t = Raw.to_raw (G.Value.tree t)
       let of_list = v
       let of_seq seq = List.of_seq seq |> v
-      let seq ?offset ?length t = list ?offset ?length t |> List.to_seq
+      let seq ?offset ?length ?cache:_ t = list ?offset ?length t |> List.to_seq
+      let clear _ = ()
 
       let encode_bin =
         Irmin.Type.stage @@ fun (t : t) k ->

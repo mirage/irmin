@@ -1088,7 +1088,7 @@ module Make (S : S) = struct
       in
       let fold depth ecs ens =
         let* cs, ns =
-          S.Tree.fold v1 ?depth ~force:`And_clear
+          S.Tree.fold v1 ?depth ~force:`True ~cache:false
             ~contents:(fun path _ (cs, ns) -> Lwt.return (path :: cs, ns))
             ~node:(fun path _ (cs, ns) -> Lwt.return (cs, path :: ns))
             ([], [])

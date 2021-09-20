@@ -356,7 +356,7 @@ module type S = sig
 
     (** {1 Import/Export} *)
 
-    val hash : tree -> hash
+    val hash : ?cache:bool -> tree -> hash
     (** [hash r c] it [c]'s hash in the repository [r]. *)
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]

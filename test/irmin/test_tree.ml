@@ -486,21 +486,21 @@ let test_fold_force _ () =
     Tree.{ nodes = 2; leafs = 5; skips = 0; depth = 2; width = 3 }
   in
 
-  (* Ensure that [fold ~force:`True] forces all lazy trees. *)
+  (* Ensure that [fold ~force:`True ~cache:true] forces all lazy trees. *)
   let* () =
     let* () = clear_and_assert_lazy sample_tree in
-    Tree.fold ~force:`True sample_tree () >>= fun () ->
+    Tree.fold ~force:`True ~cache:true sample_tree () >>= fun () ->
     Tree.stats ~force:false sample_tree
     >|= Alcotest.(gcheck Tree.stats_t)
           "After folding, the tree is eagerly evaluated" eager_stats
   in
 
-  (* Ensure that [fold ~force:`And_clear] visits all children and does not
-     leave them cached. *)
+  (* Ensure that [fold ~force:`True ~cache:false] visits all children and does
+     not leave them cached. *)
   let* () =
     clear_and_assert_lazy sample_tree >>= fun () ->
     let* contents =
-      Tree.fold ~force:`And_clear
+      Tree.fold ~force:`True ~cache:false
         ~contents:(fun _ -> Lwt.wrap2 List.cons)
         sample_tree []
     in

@@ -80,9 +80,20 @@ module type S = sig
     type t
     (** The type of lazy tree contents. *)
 
-    val hash : t -> hash
+    val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
-        {!force}d successfully. *)
+        {!force}d successfully.
+
+        {2 caching}
+
+        [cache] regulates the caching behaviour regarding the node's internal
+        data which are be lazily loaded from the backend.
+
+        [cache] defaults to [true] which may greatly reduce the IOs and the
+        runtime but may also grealy increase the memory consumption.
+
+        [cache = false] doesn't replace a call to [clear], it only prevents the
+        storing of new data, it doesn't discard the existing one. *)
 
     val force : t -> contents or_error Lwt.t
     (** [force t] forces evaluation of the lazy content value [t], or returns an
@@ -112,11 +123,20 @@ module type S = sig
   val get_all : t -> key -> (contents * metadata) Lwt.t
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
-  val list : t -> ?offset:int -> ?length:int -> key -> (step * t) list Lwt.t
+  val list :
+    t ->
+    ?offset:int ->
+    ?length:int ->
+    ?cache:bool ->
+    key ->
+    (step * t) list Lwt.t
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
       The result order is not specified but is stable.
 
-      [offset] and [length] are used for pagination. *)
+      [offset] and [length] are used for pagination.
+
+      [cache] defaults to [false], see {!caching} for an explanation of the
+      parameter. *)
 
   val get : t -> key -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
@@ -182,11 +202,10 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes and contents. [`False f] is applying [f] on
-      every lazy node and content value instead. [`And_clear] is like [`True]
-      but also eagerly empties the Tree caches when traversing sub-nodes. *)
+      every lazy node and content value instead. *)
 
   type uniq = [ `False | `True | `Marks of marks ]
   (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the
@@ -209,6 +228,7 @@ module type S = sig
 
   val fold :
     ?force:'a force ->
+    ?cache:bool ->
     ?uniq:uniq ->
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
@@ -235,7 +255,9 @@ module type S = sig
       See {!uniq} for details about the [uniq] parameters. By default it is
       [`False].
 
-      The fold depth is controlled by the [depth] parameter. *)
+      The fold depth is controlled by the [depth] parameter.
+
+      See {!caching} for an explanation of the [cache] parameter *)
 
   (** {1 Stats} *)
 
@@ -331,7 +353,7 @@ module type Tree = sig
     val equal : t -> t -> bool
     val node_t : node Type.t
     val tree_t : t Type.t
-    val hash : t -> kinded_hash
+    val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
   end
