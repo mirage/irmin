@@ -142,7 +142,10 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
   let to_bin t = Raw.to_raw (G.Value.tree t)
   let of_list = v
   let of_seq seq = List.of_seq seq |> v
-  let seq ?offset ?length ?cache t = list ?offset ?length ?cache t |> List.to_seq
+
+  let seq ?offset ?length ?cache t =
+    list ?offset ?length ?cache t |> List.to_seq
+
   let clear _ = ()
 
   let encode_bin =
