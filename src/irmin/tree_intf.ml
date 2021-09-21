@@ -335,7 +335,7 @@ module type Sigs = sig
     (** @inline *)
   end
 
-  module Make (P : Private.S) : sig
+  module Make (P : Backend.S) : sig
     include
       S
         with type key = P.Node.Path.t
@@ -367,8 +367,8 @@ module type Sigs = sig
     val equal : t -> t -> bool
     val key : t -> kinded_key option
     val hash : ?cache:bool -> t -> kinded_hash
-    val to_private_node : node -> P.Node.Val.t Lwt.t
-    val to_private_portable_node : node -> P.Node_portable.t Lwt.t
-    val of_private_node : P.Repo.t -> P.Node.value -> node
+    val to_backend_node : node -> P.Node.Val.t Lwt.t
+    val to_backend_portable_node : node -> P.Node_portable.t Lwt.t
+    val of_backend_node : P.Repo.t -> P.Node.value -> node
   end
 end

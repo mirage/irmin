@@ -592,8 +592,8 @@ struct
                 arg "set" ~typ:Input.commit_hash;
               ]
           ~resolve:(fun _ _src branch test set ->
-            let branches = Store.Private.Repo.branch_t s in
-            Store.Private.Branch.test_and_set branches branch ~test ~set
+            let branches = Store.Backend.Repo.branch_t s in
+            Store.Backend.Branch.test_and_set branches branch ~test ~set
             >|= Result.ok);
         io_field "remove" ~typ:(Lazy.force commit)
           ~args:

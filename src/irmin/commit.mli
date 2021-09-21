@@ -20,7 +20,7 @@
     commits form an acyclic directed graph.
 
     Every commit also can contain an optional key, pointing to a
-    {{!Private.Commit.Store} node} value. See the {{!Private.Node.Store} Node}
+    {{!Backend.Commit.Store} node} value. See the {{!Backend.Node.Store} Node}
     signature for more details on node values. *)
 
 include Commit_intf.Sigs

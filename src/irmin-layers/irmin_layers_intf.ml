@@ -96,7 +96,7 @@ module type Generic_key = sig
 
   (** These modules should not be used. They are exposed purely for testing
       purposes. *)
-  module Private_layer : sig
+  module Backend_layer : sig
     module Hook : sig
       type 'a t
 
@@ -151,7 +151,7 @@ module type Maker = sig
     S
       with type hash = Schema.Hash.t
        and module Schema = Schema
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
 end
 
 module Maker_is_a_maker (X : Maker) : Irmin.Maker = X

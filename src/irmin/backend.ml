@@ -27,12 +27,12 @@ module type S = sig
   module Hash : Hash.S with type t = Schema.Hash.t
   (** Internal hashes. *)
 
-  (** Private content store. *)
+  (** Backend content store. *)
 
   module Contents :
     Contents.Store with type hash = Hash.t and type value = Schema.Contents.t
 
-  (** Private node store. *)
+  (** Backend node store. *)
 
   module Node :
     Node.Store
@@ -48,7 +48,7 @@ module type S = sig
        and type metadata := Schema.Metadata.t
        and type step := Schema.Path.step
 
-  (** Private commit store. *)
+  (** Backend commit store. *)
 
   module Commit :
     Commit.Store
@@ -56,18 +56,18 @@ module type S = sig
        and type Val.node_key = Node.key
        and module Info = Schema.Info
 
-  (** Private branch store. *)
+  (** Backend branch store. *)
   module Branch :
     Branch.Store with type key = Schema.Branch.t and type value = Commit.key
 
-  (** Private slices. *)
+  (** Backend slices. *)
   module Slice :
     Slice.S
       with type contents = Contents.hash * Contents.value
        and type node = Node.hash * Node.value
        and type commit = Commit.hash * Commit.value
 
-  (** Private repositories. *)
+  (** Backend repositories. *)
   module Repo : sig
     type t
 

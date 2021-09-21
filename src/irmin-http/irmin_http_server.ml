@@ -45,7 +45,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     include Webmachine.Make (HTTP.IO) (Clock)
   end
 
-  module P = S.Private
+  module P = S.Backend
 
   class virtual resource =
     object
@@ -389,7 +389,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
         ("/blobs", fun () -> new Blob.items db);
         ("/blob/:id", fun () -> new Blob.item blob);
         ("/trees", fun () -> new Tree.items db);
-        ("/trees/merge", fun () -> new Tree.merge S.Private.Node.merge db);
+        ("/trees/merge", fun () -> new Tree.merge S.Backend.Node.merge db);
         ("/tree/:id", fun () -> new Tree.item tree);
         ("/commits", fun () -> new Commit.items db);
         ("/commit/:id", fun () -> new Commit.item commit);

@@ -40,7 +40,7 @@ end
 module Make_persistent (Current : Version.S) (K : Irmin.Type.S) (V : Value) =
 struct
   module Tbl = Table (K)
-  module W = Irmin.Private.Watch.Make (K) (V)
+  module W = Irmin.Backend.Watch.Make (K) (V)
   module IO = IO.Unix
 
   type key = K.t [@@deriving irmin ~pp ~to_bin_string ~of_bin_string]

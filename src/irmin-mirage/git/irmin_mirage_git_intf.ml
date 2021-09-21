@@ -17,7 +17,7 @@
 module type S = sig
   include
     Irmin_git.S
-      with type Private.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
+      with type Backend.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   val remote :
     ?ctx:Mimic.ctx -> ?headers:(string * string) list -> string -> Irmin.remote
@@ -35,7 +35,7 @@ module type Maker = sig
                    and type Commit.t = G.Value.Commit.t) :
     S
       with module Git = G
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
        and module Schema := Schema
 end
 
@@ -55,7 +55,7 @@ module type KV_maker = sig
        and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash
        and type Schema.Branch.t = branch
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
 end
 
 module type KV_RO = sig
@@ -139,7 +139,7 @@ module type Sigs = sig
                      and type Commit.t = G.Value.Commit.t) :
       S
         with module Git = G
-         and type Private.Remote.endpoint = endpoint
+         and type Backend.Remote.endpoint = endpoint
          and module Schema := Schema
 
     module Ref : KV_maker with type branch = Irmin_git.reference

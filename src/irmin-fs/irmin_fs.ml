@@ -56,7 +56,7 @@ end
 (* ~path *)
 
 module Conf = struct
-  include Irmin.Private.Conf
+  include Irmin.Backend.Conf
 
   let spec = Spec.v "ifs"
 
@@ -174,7 +174,7 @@ module Atomic_write_ext
     (V : Irmin.Type.S) =
 struct
   module RO = Read_only_ext (IO) (S) (K) (V)
-  module W = Irmin.Private.Watch.Make (K) (V)
+  module W = Irmin.Backend.Watch.Make (K) (V)
 
   type t = { t : unit RO.t; w : W.t }
   type key = RO.key
@@ -355,7 +355,7 @@ module IO_mem = struct
           Hashtbl.remove t.watches dir;
           Lwt.return_unit)
     in
-    Irmin.Private.Watch.set_listen_dir_hook h
+    Irmin.Backend.Watch.set_listen_dir_hook h
 
   let notify file =
     Hashtbl.fold

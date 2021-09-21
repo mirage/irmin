@@ -30,7 +30,7 @@ module Make
   type t := bool ref * G.t
 
   include
-    Irmin.Private.S
+    Irmin.Backend.S
       with module Schema = Schema
       with type 'a Contents.t = t
        and type 'a Node.t = t * t

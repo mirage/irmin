@@ -111,7 +111,7 @@ module Suite = struct
       | S (module S) -> (module S : Generic_key)
     in
     let open Lwt.Syntax in
-    let module P = Store.Private in
+    let module P = Store.Backend in
     let clear repo =
       Lwt.join
         [
@@ -155,7 +155,7 @@ module type Store_tests = functor (S : Generic_key) -> sig
 end
 
 module Make_helpers (S : Generic_key) = struct
-  module P = S.Private
+  module P = S.Backend
   module Graph = Irmin.Node.Graph (P.Node)
 
   let info message =

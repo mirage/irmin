@@ -104,12 +104,12 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           AW.v ?fresh ?readonly path >|= make_closeable
       end
 
-      module Slice = Irmin.Private.Slice.Make (Contents) (Node) (Commit)
-      module Remote = Irmin.Private.Remote.None (H) (B)
+      module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
+      module Remote = Irmin.Backend.Remote.None (H) (B)
 
       module Repo = struct
         type t = {
-          config : Irmin.Private.Conf.t;
+          config : Irmin.Backend.Conf.t;
           contents : read Contents.CA.t;
           node : read Node.CA.t;
           commit : read Commit.CA.t;
@@ -207,7 +207,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       in
       Checks.integrity_check ?ppf ~auto_repair ~check t.index
 
-    include Irmin.Of_private (X)
+    include Irmin.Of_backend (X)
 
     let integrity_check_inodes ?heads t =
       Log.debug (fun l -> l "Check integrity for inodes");

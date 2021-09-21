@@ -173,7 +173,7 @@ struct
   module Make (C : Contents.S) = Maker.Make (Schema.KV (C))
 end
 
-module Of_private = Store.Make
+module Of_backend = Store.Make
 
 module type Tree = Tree.S
 module type S = Store.S
@@ -193,12 +193,12 @@ module Generic_key = struct
   module Maker = Maker_generic_key
 end
 
-module Private = struct
+module Backend = struct
   module Conf = Conf
   module Slice = Slice
   module Remote = Remote
 
-  module type S = Private.S
+  module type S = Backend.S
 
   module Watch = Watch
   module Lock = Lock

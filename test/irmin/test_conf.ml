@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin.Private.Conf
+open Irmin.Backend.Conf
 
 let test_conf () =
   let spec_a = Spec.v "a" in

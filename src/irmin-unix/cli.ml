@@ -712,7 +712,7 @@ let options =
     man = [];
     term =
       (let options (store, hash, contents) =
-         let module Conf = Irmin.Private.Conf in
+         let module Conf = Irmin.Backend.Conf in
          let store, _ = Resolver.load_config ?store ?hash ?contents () in
          let _, spec, _ = Store.destruct store in
          Seq.iter

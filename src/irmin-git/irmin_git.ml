@@ -38,8 +38,8 @@ struct
                    and type Node.t = G.Value.Tree.t
                    and type Commit.t = G.Value.Commit.t) =
   struct
-    module P = Private.Make (G) (S) (Schema)
-    include Irmin.Of_private (P)
+    module P = Backend.Make (G) (S) (Schema)
+    include Irmin.Of_backend (P)
 
     let git_of_repo = P.git_of_repo
     let repo_of_git = P.repo_of_git
@@ -123,11 +123,11 @@ module Content_addressable (G : Git.S) = struct
 
     module Schema = Schema.Make (G) (V) (Reference)
     module M = Maker.Make (Schema)
-    module X = M.Private.Contents
+    module X = M.Backend.Contents
 
     let state t =
       let+ r = M.repo_of_git (snd t) in
-      M.Private.Repo.contents_t r
+      M.Backend.Repo.contents_t r
 
     type 'a t = bool ref * G.t
     type key = X.key
@@ -242,7 +242,7 @@ struct
       module G = Mem
       module Maker = Maker (G) (No_sync)
       module S = Maker.Make (Sc)
-      include S.Private
+      include S.Backend
     end
 
     module CA = Irmin.Content_addressable.Check_closed (CA)
@@ -293,7 +293,7 @@ struct
       end
 
       module Slice = Dummy.Slice
-      module Remote = Irmin.Private.Remote.None (Branch.Val) (Branch.Key)
+      module Remote = Irmin.Backend.Remote.None (Branch.Val) (Branch.Key)
 
       module Repo = struct
         (* FIXME: remove duplication with irmin.mli *)
@@ -335,7 +335,7 @@ struct
       end
     end
 
-    include Irmin.Of_private (X)
+    include Irmin.Of_backend (X)
   end
 end
 

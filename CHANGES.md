@@ -59,7 +59,9 @@
 - **irmin**
   - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
     `Irmin.Sync(S)` (#1338, @samoht)
-  - `Store.Private.Sync` is now `Store.Private.Remote` (#1338, @samoht)
+  - `Irmin.Private` is now `Irmin.Backend` (#1530, @CraigFe)
+  - `Store.Private` is now `Store.Backend` (#1530, @CraigFe)
+  - `Store.Private.Sync` is now `Store.Backend.Remote` (#1338, @samoht)
   - `Irmin.Private.{Commit,Node}` are now `Irmin.{Node,Commit}`. (#1471,
     @CraigFe)
   - All module types are now using snake-case and are not capitalized anymore.
@@ -93,8 +95,8 @@
     define in an Irmin store. Use this as a parameter to every `Maker`
     functor. This is a large change which touches all the backends.
     (#1470, @samoht, @CraigFe)
-  - Add `Irmin.Private.Conf.Schema` for grouping configuration keys. Now
-    `Irmin.Private.Conf.key` takes an additional `~spec` parameter.
+  - Add `Irmin.Backend.Conf.Schema` for grouping configuration keys. Now
+    `Irmin.Backend.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
   - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
   - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)

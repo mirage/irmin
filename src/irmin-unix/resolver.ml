@@ -20,7 +20,7 @@ open Astring
 
 let global_option_section = "COMMON OPTIONS"
 
-module Conf = Irmin.Private.Conf
+module Conf = Irmin.Backend.Conf
 
 let pconv t =
   let pp = Irmin.Type.pp t in
@@ -245,7 +245,7 @@ module Store = struct
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
   type t =
-    | T : (module Irmin.S) * Irmin.Private.Conf.Spec.t * remote_fn option -> t
+    | T : (module Irmin.S) * Irmin.Backend.Conf.Spec.t * remote_fn option -> t
 
   let destruct (T (a, b, c)) = (a, b, c)
 
@@ -263,7 +263,7 @@ module Store = struct
   let v_git (module S : G) = v Irmin_git.Conf.spec (module S) ~remote:S.remote
 
   let create :
-      Irmin.Private.Conf.Spec.t -> (module Irmin.Maker) -> hash -> contents -> t
+      Irmin.Backend.Conf.Spec.t -> (module Irmin.Maker) -> hash -> contents -> t
       =
    fun spec (module S) (module H) (module C) ->
     let module S = S.Make (Irmin.Schema.KV (C)) in
@@ -276,7 +276,7 @@ module Store = struct
     | T ((module S), spec, x) ->
         T
           ( (module Http.Client (S)),
-            Irmin.Private.Conf.Spec.join spec [ Irmin_http.Conf.spec ],
+            Irmin.Backend.Conf.Spec.join spec [ Irmin_http.Conf.spec ],
             x )
 
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
@@ -394,7 +394,7 @@ let config_term =
     (config, opts)
   in
   let doc =
-    Seq.map (fun (Irmin.Private.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec')
+    Seq.map (fun (Irmin.Backend.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec')
     |> List.of_seq
     |> String.concat ~sep:", "
   in
@@ -463,7 +463,7 @@ let load_config_file_with_defaults path (store, hash, contents) config =
     List.fold_left
       (fun config (k, v) ->
         match Conf.Spec.find_key spec k with
-        | Some (Irmin.Private.Conf.K k) ->
+        | Some (Irmin.Backend.Conf.K k) ->
             let v = json_of_yaml v |> Yojson.Basic.to_string in
             let v =
               match Irmin.Type.of_json_string (Conf.ty k) v with
@@ -495,7 +495,7 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
       let config =
         List.fold_left
           (fun config (k, v) ->
-            let (Irmin.Private.Conf.K key) =
+            let (Irmin.Backend.Conf.K key) =
               if k = "root" then
                 invalid_arg
                   "use the --root flag to set the root directory instead of \

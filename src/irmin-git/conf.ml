@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin.Private.Conf
+open Irmin.Backend.Conf
 
 let spec = Spec.v "git"
 
@@ -54,7 +54,7 @@ module Key = struct
 end
 
 let init ?head ?bare ?level ?dot_git ?buffers root =
-  let module C = Irmin.Private.Conf in
+  let module C = Irmin.Backend.Conf in
   let config = C.empty spec in
   let config = C.add config Key.root root in
   let config =

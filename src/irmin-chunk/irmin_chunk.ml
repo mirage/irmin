@@ -22,7 +22,7 @@ let src = Logs.Src.create "irmin.chunk" ~doc:"Irmin chunks"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Conf = struct
-  include Irmin.Private.Conf
+  include Irmin.Backend.Conf
 
   let spec = Spec.v "chunk"
 

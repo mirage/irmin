@@ -893,9 +893,9 @@ module type S_generic_key = sig
   module Metadata : Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
 
-  (** Private functions, which might be used by the backends. *)
-  module Private :
-    Private.S
+  (** Backend functions, which might be used by the backends. *)
+  module Backend :
+    Backend.S
       with module Schema = Schema
       with type Slice.t = slice
        and type Repo.t = repo
@@ -906,33 +906,33 @@ module type S_generic_key = sig
        and type Commit.key = commit_key
 
   type Remote.t +=
-    | E of Private.Remote.endpoint
+    | E of Backend.Remote.endpoint
           (** Extend the [remote] type with [endpoint]. *)
 
-  (** {2 Converters to private types} *)
+  (** {2 Converters to backend types} *)
 
-  val of_private_node : repo -> Private.Node.value -> node
-  val to_private_node : node -> Private.Node.value Lwt.t
-  val to_private_portable_node : node -> Private.Node_portable.t Lwt.t
+  val of_backend_node : repo -> Backend.Node.value -> node
+  val to_backend_node : node -> Backend.Node.value Lwt.t
+  val to_backend_portable_node : node -> Backend.Node_portable.t Lwt.t
 
-  val to_private_commit : commit -> Private.Commit.value
-  (** [to_private_commit c] is the private commit object associated with the
+  val to_backend_commit : commit -> Backend.Commit.value
+  (** [to_backend_commit c] is the backend commit object associated with the
       commit [c]. *)
 
-  val of_private_commit :
-    repo -> Private.Commit.Key.t -> Private.Commit.value -> commit
-  (** [of_private_commit r k c] is the commit associated with the private commit
+  val of_backend_commit :
+    repo -> Backend.Commit.Key.t -> Backend.Commit.value -> commit
+  (** [of_backend_commit r k c] is the commit associated with the backend commit
       object [c] that hash key [k] in [r]. *)
 
   val save_contents :
-    [> write ] Private.Contents.t -> contents -> contents_key Lwt.t
+    [> write ] Backend.Contents.t -> contents -> contents_key Lwt.t
   (** Save a content into the database *)
 
   val save_tree :
     ?clear:bool ->
     repo ->
-    [> write ] Private.Contents.t ->
-    [> read_write ] Private.Node.t ->
+    [> write ] Backend.Contents.t ->
+    [> read_write ] Backend.Node.t ->
     tree ->
     kinded_key Lwt.t
   (** Save a tree into the database. Does not do any reads. If [clear] is set
@@ -962,7 +962,7 @@ module type Maker_generic_key = sig
   module Make (Schema : Schema.S) :
     S_generic_key
       with module Schema = Schema
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
        and type contents_key = (Schema.Hash.t, Schema.Contents.t) contents_key
        and type node_key = Schema.Hash.t node_key
        and type commit_key = Schema.Hash.t commit_key
@@ -1018,7 +1018,7 @@ module type KV_maker_generic_key = sig
     KV_generic_key
       with module Schema.Contents = C
        and type Schema.Metadata.t = metadata
-       and type Private.Remote.endpoint = endpoint
+       and type Backend.Remote.endpoint = endpoint
        and type Schema.Hash.t = hash
        and type contents_key = (hash, C.t) contents_key
        and type node_key = hash node_key
@@ -1048,7 +1048,7 @@ module type Sigs = sig
   type Remote.t +=
     | Store : (module Generic_key.S with type t = 'a) * 'a -> Remote.t
 
-  module Make (P : Private.S) :
+  module Make (P : Backend.S) :
     Generic_key.S
       with module Schema = P.Schema
        and type slice = P.Slice.t
@@ -1056,7 +1056,7 @@ module type Sigs = sig
        and type contents_key = P.Contents.key
        and type node_key = P.Node.key
        and type commit_key = P.Commit.key
-       and module Private = P
+       and module Backend = P
 
   module Json_tree : Json_tree
   (** [Json_tree] is used to project JSON values onto trees. Instead of the

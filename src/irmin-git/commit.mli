@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Private module: turn a Git store into an Irmin backend for Git commits. *)
+(** Backend module: turn a Git store into an Irmin backend for Git commits. *)
 
 module Make (G : Git.S) :
   Irmin.Commit.S

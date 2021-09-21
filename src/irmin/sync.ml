@@ -27,7 +27,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let remote_store m x = Store.Store (m, x)
 
 module Make (S : Store.Generic_key.S) = struct
-  module B = S.Private.Remote
+  module B = S.Backend.Remote
 
   type db = S.t
   type commit = S.commit
@@ -39,8 +39,8 @@ module Make (S : Store.Generic_key.S) = struct
     let dy_of_bin_string = Type.(unstage (of_bin_string dy)) in
     Type.stage (fun x -> dy_of_bin_string (dx_to_bin_string x))
 
-  let convert_slice (type r s) (module RP : Private.S with type Slice.t = r)
-      (module SP : Private.S with type Slice.t = s) r =
+  let convert_slice (type r s) (module RP : Backend.S with type Slice.t = r)
+      (module SP : Backend.S with type Slice.t = s) r =
     let conv_contents_k =
       Type.unstage (conv RP.Contents.Hash.t SP.Contents.Hash.t)
     in
@@ -115,7 +115,7 @@ module Make (S : Store.Generic_key.S) = struct
               R.Repo.export (R.repo r) ?depth ~min ~max:(`Max [ h ])
             in
             let* s_slice =
-              convert_slice (module R.Private) (module S.Private) r_slice
+              convert_slice (module R.Backend) (module S.Backend) r_slice
             in
             S.Repo.import s_repo s_slice >|= function
             | Error e -> Error e
@@ -191,7 +191,7 @@ module Make (S : Store.Generic_key.S) = struct
             in
             let* s_slice = S.Repo.export (S.repo t) ?depth ~min in
             let* r_slice =
-              convert_slice (module S.Private) (module R.Private) s_slice
+              convert_slice (module S.Backend) (module R.Backend) s_slice
             in
             R.Repo.import (R.repo r) r_slice >>= function
             | Error e -> Lwt.return (Error (e :> push_error))

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Private module: turn a Git store into an Irmin backend for Git trees. *)
+(** Backend module: turn a Git store into an Irmin backend for Git trees. *)
 
 module Make (G : Git.S) (P : Irmin.Path.S) :
   Irmin.Node.S
