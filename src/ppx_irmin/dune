@@ -1,3 +1,5 @@
+;; The publicly-available PPX for consumers of the Irmin API
+
 (library
  (public_name ppx_irmin)
  (modules ppx_irmin)
