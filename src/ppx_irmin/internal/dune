@@ -5,7 +5,7 @@
  (name ppx_irmin_internal)
  (public_name ppx_irmin.internal)
  (modules ppx_irmin_internal)
- (ppx_runtime_libraries ppx_irmin.internal-lib)
+ (ppx_runtime_libraries logs ppx_irmin.internal-lib)
  (preprocess
   (pps ppxlib.metaquot))
  (libraries

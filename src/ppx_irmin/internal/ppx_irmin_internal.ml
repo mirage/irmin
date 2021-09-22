@@ -45,10 +45,8 @@ let level_to_function_name : Logs.level -> string = function
   | Debug -> "debug"
 
 let log_function ~loc (source : Source.t) (level : Logs.level) =
-  let fn = Ast_builder.Default.evar ~loc (level_to_function_name level) in
-  match source with
-  | Logs -> [%expr Logs.([%e fn])]
-  | Log -> [%expr Log.([%e fn])]
+  let prefix = match source with Logs -> "Logs." | Log -> "Log." in
+  Ast_builder.Default.evar ~loc (prefix ^ level_to_function_name level)
 
 let tags ~loc =
   [%expr

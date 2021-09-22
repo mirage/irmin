@@ -1,0 +1,5 @@
+[Line 2, characters 2-32] [App] Simple log entry
+[Line 3, characters 2-45] [Error] Log entry on Line 3
+[Line 4, characters 2-49] [Warning] Infix @ operator: 3
+[Line 5, characters 2-76] [Info] Log entry in CPS form: Line 5, 3.140000
+[Line 12, characters 2-154] [Debug] Everything's OK on line 14
