@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
+ * Copyright (c) 2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,6 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Store_properties = Store_properties
-module Logging = Logging
-include Import
+include Logging_intf.Sigs
+(** @inline *)

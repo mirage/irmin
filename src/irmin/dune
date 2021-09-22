@@ -8,7 +8,9 @@
   fmt
   jsonm
   logs
+  logs.fmt
   lwt
+  mtime
   ocamlgraph
   uri
   uutf

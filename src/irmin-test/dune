@@ -5,20 +5,8 @@
    Import)
  (preprocess
   (pps ppx_irmin.internal))
- (libraries
-  alcotest
-  astring
-  fmt
-  irmin
-  irmin-layers
-  jsonm
-  logs.fmt
-  lwt
-  lwt.unix
-  mtime
-  mtime.clock.os
-  ppx_irmin.internal-lib ;; TODO: re-export from Irmin
-  ))
+ (libraries alcotest astring fmt irmin irmin-layers jsonm logs.fmt lwt
+   lwt.unix mtime mtime.clock.os))
 
 (library
  (foreign_stubs

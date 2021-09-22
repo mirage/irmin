@@ -242,53 +242,22 @@ module Make_helpers (S : Generic_key) = struct
            x.clean () >>= fun () -> Printexc.raise_with_backtrace exn bt))
 end
 
-let ignore_srcs src =
-  List.mem ~equal:String.equal (Logs.Src.name src)
-    [
-      "git.inflater.decoder";
-      "git.deflater.encoder";
-      "git.encoder";
-      "git.decoder";
-      "git.loose";
-      "git.store";
-      "cohttp.lwt.io";
-    ]
+let filter_src src =
+  not
+    (List.mem ~equal:String.equal (Logs.Src.name src)
+       [
+         "git.inflater.decoder";
+         "git.deflater.encoder";
+         "git.encoder";
+         "git.decoder";
+         "git.loose";
+         "git.store";
+         "cohttp.lwt.io";
+       ])
 
-let reporter ?(prefix = "") () =
-  let pad n x =
-    if String.length x > n then x
-    else x ^ String.v ~len:(n - String.length x) (fun _ -> ' ')
-  in
-  let report src level ~over k msgf =
-    let k _ =
-      over ();
-      k ()
-    in
-    let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
-    let with_stamp h tags k fmt =
-      let dt = Mtime.Span.to_us (Mtime_clock.elapsed ()) in
-      let source_pos =
-        match tags with
-        | None -> None
-        | Some tags ->
-            Logs.Tag.find Ppx_irmin_lib.Source_code_position.tag tags
-            |> Option.map (fun (fname, lnum, _, _) ->
-                   pad 30 (Fmt.str "%s:%d" fname lnum))
-      in
-      Fmt.kpf k ppf
-        ("%s%+04.0fus %a%a @[" ^^ fmt ^^ "@]@.")
-        prefix dt
-        Fmt.(styled `Faint @@ option (string ++ any " "))
-        source_pos
-        (* Fmt.(styled `Magenta string)
-         * (pad 15 @@ Logs.Src.name src) *)
-        Logs_fmt.pp_header (level, h)
-    in
-    msgf @@ fun ?header ?tags fmt ->
-    if ignore_srcs src then Format.ikfprintf k ppf fmt
-    else with_stamp header tags k fmt
-  in
-  { Logs.report }
+let reporter ?prefix () =
+  Irmin.Export_for_backends.Logging.reporter ~filter_src ?prefix
+    (module Mtime_clock)
 
 let () =
   Logs.set_level (Some Logs.Debug);
