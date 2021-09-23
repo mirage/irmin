@@ -194,7 +194,11 @@ module Make (B : Backend.S) = struct
 
     let of_hash r hash =
       B.Commit.index (B.Repo.commit_t r) hash >>= function
-      | None -> Lwt.return_none
+      | None ->
+          Log.err (fun f ->
+              f "Attempted an index of hash %a, but got None" (Type.pp Hash.t)
+                hash);
+          Lwt.return_none
       | Some key -> of_key r key
 
     module H = Typed (B.Commit.Val)
@@ -559,7 +563,7 @@ module Make (B : Backend.S) = struct
               fn @@ `Updated ((x, vx), (y, vy))))
 
   let head t =
-    let h =
+    let+ h =
       match head_ref t with
       | `Head key -> Lwt.return_some key
       | `Empty -> Lwt.return_none
@@ -568,7 +572,6 @@ module Make (B : Backend.S) = struct
           | None -> Lwt.return_none
           | Some k -> Commit.of_key t.repo k)
     in
-    let+ h = h in
     [%log.debug "Head.find -> %a" Fmt.(option Commit.pp_key) h];
     h
 

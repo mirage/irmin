@@ -1,6 +1,16 @@
 open! Import
 include Pack_store_intf
 
+module Indexing_strategy = struct
+  type t = Pack_value.Kind.t -> bool
+
+  let always _ = true
+  let never _ = false
+end
+
+module type S = S with type indexing_strategy := Indexing_strategy.t
+module type Maker = Maker with type indexing_strategy := Indexing_strategy.t
+
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
@@ -8,21 +18,39 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
+exception Invalid_read of string
+
+let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
+
 module Maker
     (V : Version.S)
     (Index : Pack_index.S)
     (K : Irmin.Hash.S with type t = Index.key) :
-  Maker with type key = K.t and type index = Index.t = struct
+  Maker
+    with type key = K.t Pack_key.t
+     and type hash = K.t
+     and type index := Index.t = struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
   module Dict = Pack_dict.Make (V)
 
-  type index = Index.t
+  module Hash = struct
+    include K
+
+    let hash = K.short_hash
+    let equal = Irmin.Type.(unstage (equal K.t))
+  end
+
+  module Key = Pack_key.Make (K)
+
+  type hash = K.t
+  type key = Key.t
 
   type 'a t = {
     mutable block : IO.t;
     index : Index.t;
+    indexing_strategy : Indexing_strategy.t;
     dict : Dict.t;
     mutable open_instances : int;
   }
@@ -42,16 +70,16 @@ module Maker
       true)
     else false
 
-  let unsafe_v ~index ~fresh ~readonly file =
+  let unsafe_v ~index ~indexing_strategy ~fresh ~readonly file =
     let root = Filename.dirname file in
     let dict = Dict.v ~fresh ~readonly root in
     let block = IO.v ~version:(Some V.version) ~fresh ~readonly file in
-    { block; index; dict; open_instances = 1 }
+    { block; index; indexing_strategy; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
-    IO_cache.memoize ~clear ~valid ~v:(fun index -> unsafe_v ~index) Layout.pack
-
-  type key = K.t
+    IO_cache.memoize ~clear ~valid
+      ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
+      Layout.pack
 
   let close t =
     t.open_instances <- t.open_instances - 1;
@@ -60,17 +88,12 @@ module Maker
       IO.close t.block;
       Dict.close t.dict)
 
-  module Make_without_close_checks (Val : Pack_value.S with type hash := K.t) =
+  module Make_without_close_checks
+      (Val : Pack_value.Persistent with type hash := K.t) =
   struct
-    module H = struct
-      include K
-
-      let hash = K.short_hash
-      let equal = Irmin.Type.(unstage (equal K.t))
-    end
-
+    module Key = Key
     module Tbl = Table (K)
-    module Lru = Irmin.Backend.Lru.Make (H)
+    module Lru = Irmin.Backend.Lru.Make (Hash)
 
     type nonrec 'a t = {
       pack : 'a t;
@@ -80,12 +103,17 @@ module Maker
       readonly : bool;
     }
 
-    type key = K.t
+    type hash = K.t [@@deriving irmin ~pp ~equal ~decode_bin]
+    type key = Key.t [@@deriving irmin ~pp]
+    type value = Val.t [@@deriving irmin ~pp]
 
-    let equal_key = Irmin.Type.(unstage (equal K.t))
+    let index_direct t hash =
+      Log.err (fun f -> f "Index");
+      match Index.find t.pack.index hash with
+      | None -> None
+      | Some (offset, length, _) -> Some (Pack_key.v ~hash ~offset ~length)
 
-    type value = Val.t
-    type index = Index.t
+    let index t hash = Lwt.return (index_direct t hash)
 
     let unsafe_clear ?keep_generation t =
       clear ?keep_generation t.pack;
@@ -107,17 +135,18 @@ module Maker
       if index_merge then Index.merge t.pack.index;
       Dict.flush t.pack.dict;
       IO.flush t.pack.block;
-      if index then Index.flush ~no_callback:() t.pack.index;
+      if index then Index.flush t.pack.index;
       Tbl.clear t.staging
 
-    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
-      let pack = v index ~fresh ~readonly root in
+    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+        root =
+      let pack = v (index, indexing_strategy) ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack; open_instances = 1; readonly }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
-        ~index root =
+        ~index ~indexing_strategy root =
       try
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
@@ -127,77 +156,122 @@ module Maker
           Hashtbl.remove roots (root, readonly);
           raise Not_found)
       with Not_found ->
-        let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
+        let t =
+          unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+            root
+        in
         if fresh then unsafe_clear t;
         Hashtbl.add roots (root, readonly) t;
         t
 
-    let v ?fresh ?readonly ?lru_size ~index root =
-      let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
+    let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy root =
+      let t =
+        unsafe_v ?fresh ?readonly ?lru_size ~index ~indexing_strategy root
+      in
       Lwt.return t
-
-    let pp_hash = Irmin.Type.pp K.t
-    let decode_key = Irmin.Type.(unstage (decode_bin K.t))
 
     let io_read_and_decode_hash ~off t =
       let buf = Bytes.create K.hash_size in
       let n = IO.read t.pack.block ~off buf in
       assert (n = K.hash_size);
-      decode_key (Bytes.unsafe_to_string buf) (ref 0)
+      decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
+
+    let pack_file_contains_key t k =
+      let offset = Key.to_offset k and length = Key.to_length k in
+      if
+        Int63.compare
+          (Int63.add offset (Int63.of_int length))
+          (IO.offset t.pack.block)
+        >= 0
+      then false
+      else
+        (* We read the hash explicitly as an integrity check: it's not
+           sufficient to assume that any offset within the file is valid. *)
+        let hash = io_read_and_decode_hash ~off:offset t in
+        let expected_hash = Key.to_hash k in
+        (* XXX: raise exception / log error in the [false] case here? *)
+        Hash.equal hash expected_hash
+
+    (* NOTE: may return false negatives, since the index may be partial. *)
+    (* let mem_via_hash t h =
+     *   Log.debug (fun l -> l "[pack] contains_hash %a" pp_hash h);
+     *   Tbl.mem t.staging h || Lru.mem t.lru h || Index.mem t.pack.index h *)
 
     let unsafe_mem t k =
-      [%log.debug "[pack] mem %a" pp_hash k];
-      Tbl.mem t.staging k || Lru.mem t.lru k || Index.mem t.pack.index k
+      [%log.debug "[pack] mem %a" pp_key k];
+      Tbl.mem t.staging (Key.to_hash k)
+      || Lru.mem t.lru (Key.to_hash k)
+      || pack_file_contains_key t k
 
     let mem t k =
       let b = unsafe_mem t k in
       Lwt.return b
 
-    let check_key k v =
-      let k' = Val.hash v in
-      if equal_key k k' then Ok () else Error (k, k')
+    let check_hash h v =
+      let h' = Val.hash v in
+      if equal_hash h h' then Ok () else Error (h, h')
 
-    exception Invalid_read
+    let _check_key k v = check_hash (Key.to_hash k) v
 
     let io_read_and_decode ~off ~len t =
-      if (not (IO.readonly t.pack.block)) && off > IO.offset t.pack.block then
-        raise Invalid_read;
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
-      if n <> len then raise Invalid_read;
-      let hash off = io_read_and_decode_hash ~off t in
+      if n <> len then
+        invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp
+          off len;
+      let key_of_offset off =
+        let hash = io_read_and_decode_hash ~off t in
+        Pack_key.v ~hash ~offset:off ~length:len
+      in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
+      Val.decode_bin ~key_of_offset ~dict (Bytes.unsafe_to_string buf) (ref 0)
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
-    let unsafe_find ~check_integrity t k =
-      [%log.debug "[pack:%a] find %a" pp_io t pp_hash k];
+    let unsafe_find ~check_integrity:_ t k =
+      [%log.debug "[pack:%a] find %a" pp_io t pp_key k];
       Stats.incr_finds ();
-      match Tbl.find t.staging k with
+      let hash = Key.to_hash k in
+      match Tbl.find t.staging hash with
       | v ->
-          Lru.add t.lru k v;
+          Lru.add t.lru hash v;
           Some v
       | exception Not_found -> (
-          match Lru.find t.lru k with
+          match Lru.find t.lru hash with
           | v -> Some v
           | exception Not_found -> (
               Stats.incr_cache_misses ();
-              match Index.find t.pack.index k with
-              | None -> None
-              | Some (off, len, _) ->
-                  let v = io_read_and_decode ~off ~len t in
-                  (if check_integrity then
-                   check_key k v |> function
-                   | Ok () -> ()
-                   | Error (expected, got) ->
-                       Fmt.failwith "corrupted value: got %a, expecting %a."
-                         pp_hash got pp_hash expected);
-                  Lru.add t.lru k v;
-                  Some v))
+              (* XXX *)
+              (* match Index.find t.pack.index k with
+               * | None -> None
+               * | Some (off, len, _) -> *)
+              let off, len = Key.(to_offset k, to_length k) in
+              if Int63.add off (Int63.of_int len) > IO.offset t.pack.block then
+                (* This key is from a different store instance, referencing an
+                   offset that is not yet visible to this one. It's possible
+                   that the key _is_ a valid pointer into the same store, but
+                   the offset just hasn't been flushed to disk yet, so we return
+                   [None]. *)
+                None
+              else
+                let v = io_read_and_decode ~off ~len t in
+                Lru.add t.lru hash v;
+                match equal_hash (Key.to_hash k) (Val.hash v) with
+                | false -> (* A clear happened *) None
+                | true -> Some v
+              (* XXX: this isn't a valid check, because it's possible that we
+                 read and decode a value with a different hash just because a
+                 clear happened and then there were writes over the offset. *)
+              (* (if check_integrity then
+               *  check_key k v |> function
+               *  | Ok () -> ()
+               *  | Error (expected, got) ->
+               *      Fmt.failwith
+               *        "corrupted value: got %a, expecting %a (for val: %a)."
+               *        pp_hash got pp_hash expected pp_value v); *)))
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in
@@ -205,13 +279,13 @@ module Maker
 
     let cast t = (t :> read_write t)
 
-    let integrity_check ~offset ~length k t =
+    let integrity_check ~offset ~length hash t =
       try
         let value = io_read_and_decode ~off:offset ~len:length t in
-        match check_key k value with
+        match check_hash hash value with
         | Ok () -> Ok ()
         | Error _ -> Error `Wrong_hash
-      with Invalid_read -> Error `Absent_value
+      with Invalid_read _ -> Error `Absent_value
 
     let batch t f =
       let* r = f (cast t) in
@@ -222,36 +296,49 @@ module Maker
 
     let auto_flush = 1024
 
-    let unsafe_append ~ensure_unique ~overcommit t k v =
-      if ensure_unique && unsafe_mem t k then ()
-      else (
-        [%log.debug "[pack] append %a" pp_hash k];
-        let offset k =
-          match Index.find t.pack.index k with
-          | None ->
-              Stats.incr_appended_hashes ();
-              None
-          | Some (off, _, _) ->
-              Stats.incr_appended_offsets ();
-              Some off
+    let unsafe_append ~ensure_unique_indexed ~overcommit t hash v =
+      let unguarded_append () =
+        [%log.debug "[pack] append %a" pp_hash hash];
+        let offset_of_key k =
+          (* XXX: don't need option any more? *)
+          Some (Key.to_offset k)
+          (* match Index.find t.pack.index k with
+           * | None ->
+           *     Stats.incr_appended_hashes ();
+           *     None
+           * | Some (off, _, _) ->
+           *     Stats.incr_appended_offsets ();
+           *     Some off *)
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+        Val.encode_bin ~offset_of_key ~dict v hash (fun s ->
+            IO.append t.pack.block s);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
-        Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
+        let key = Pack_key.v ~hash ~offset:off ~length:len in
+        let () =
+          let kind = Val.kind v in
+          let should_index = t.pack.indexing_strategy kind in
+          if should_index then
+            Index.add ~overcommit t.pack.index hash (off, len, Val.kind v)
+        in
         if Tbl.length t.staging >= auto_flush then flush t
-        else Tbl.add t.staging k v;
-        Lru.add t.lru k v)
+        else Tbl.add t.staging hash v;
+        Lru.add t.lru hash v;
+        key
+      in
+      match ensure_unique_indexed with
+      | false -> unguarded_append ()
+      | true -> (
+          match index_direct t hash with
+          | None -> unguarded_append ()
+          | Some key -> key)
 
-    let add t v =
-      let k = Val.hash v in
-      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
-      Lwt.return k
+    let unsafe_add t hash v =
+      unsafe_append ~ensure_unique_indexed:true ~overcommit:false t hash v
+      |> Lwt.return
 
-    let unsafe_add t k v =
-      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
-      Lwt.return ()
+    let add t v = unsafe_add t (Val.hash v) v
 
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
@@ -302,14 +389,13 @@ module Maker
     let offset t = IO.offset t.pack.block
   end
 
-  module Make (Val : Pack_value.S with type hash := K.t) = struct
+  module Make (Val : Pack_value.Persistent with type hash := K.t) = struct
     module Inner = Make_without_close_checks (Val)
-    include Content_addressable.Closeable (Inner)
+    include Indexable.Closeable (Inner)
 
-    let v ?fresh ?readonly ?lru_size ~index path =
-      Inner.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
-
-    type index = Inner.index
+    let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path =
+      Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
+      >|= make_closeable
 
     let sync ?on_generation_change t =
       Inner.sync ?on_generation_change (get_open_exn t)

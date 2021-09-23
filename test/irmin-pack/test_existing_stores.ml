@@ -57,7 +57,7 @@ let exec_cmd cmd =
 
 module type Migrate_store = sig
   include
-    Irmin.S
+    Irmin.Generic_key.S
       with type Schema.Path.step = string
        and type Schema.Path.t = string list
        and type Schema.Contents.t = string
@@ -73,7 +73,7 @@ module Test
     end) =
 struct
   let check_commit repo commit bindings =
-    commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
+    commit |> S.Commit.key |> S.Commit.of_key repo >>= function
     | None ->
         Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash commit
     | Some commit ->
@@ -371,7 +371,7 @@ module Test_corrupted_stores = struct
       S.Tree.singleton k v |> S.Commit.v repo ~parents:[] ~info:S.Info.empty
     in
     let check_commit repo commit k v =
-      commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
+      commit |> S.Commit.key |> S.Commit.of_key repo >>= function
       | None ->
           Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash
             commit
@@ -444,9 +444,9 @@ module Test_corrupted_inode = struct
     let module S = V1 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let get_head c =
-      match Irmin.Type.of_string S.Hash.t c with
+      match Irmin.Type.of_string S.commit_key_t c with
       | Ok x -> (
-          let* commit = S.Commit.of_hash rw x in
+          let* commit = S.Commit.of_key rw x in
           match commit with
           | None -> Alcotest.fail "could not find commit in store"
           | Some x -> Lwt.return [ x ])

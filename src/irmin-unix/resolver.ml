@@ -311,18 +311,18 @@ module Store = struct
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
-  module Irmin_pack_maker : Irmin.Maker = struct
-    include Irmin_pack.V1 (Irmin_tezos.Conf)
-
-    module Make (Schema : Irmin.Schema.S) = Make (struct
-      include Schema
-      module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-      module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
-      module Commit = Commit_maker.Make (Hash)
-    end)
-  end
-
-  let pack = create Irmin_pack.Conf.spec (module Irmin_pack_maker)
+  (* module Irmin_pack_maker : Irmin.Maker = struct
+   *   include Irmin_pack.V1 (Irmin_tezos.Conf)
+   * 
+   *   module Make (Schema : Irmin.Schema.S) = Make (struct
+   *     include Schema
+   *     module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+   *     module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
+   *     module Commit = Commit_maker.Make (Hash)
+   *   end)
+   * end
+   * 
+   * let pack = create Irmin_pack.Conf.spec (module Irmin_pack_maker) *)
 
   let all =
     ref
@@ -333,8 +333,8 @@ module Store = struct
         ("mem", Variable_hash mem);
         ("mem-http", Variable_hash (fun h c -> http (mem h c)));
         ("git-http", Fixed_hash (fun c -> http (git c)));
-        ("pack", Variable_hash pack);
-        ("pack-http", Variable_hash (fun h c -> http (pack h c)));
+        (* ("pack", Variable_hash pack);
+         * ("pack-http", Variable_hash (fun h c -> http (pack h c))); *)
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)

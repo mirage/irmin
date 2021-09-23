@@ -48,8 +48,8 @@ module Layered = struct
     let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
     let* () = Store.Backend_layer.wait_for_freeze repo in
     let* tree = Store.Tree.add tree [ "a"; "b"; "d" ] "x2" in
-    let hash = Store.Commit.hash c in
-    let* c3 = Store.Commit.v repo ~info ~parents:[ hash ] tree in
+    let key = Store.Commit.key c in
+    let* c3 = Store.Commit.v repo ~info ~parents:[ key ] tree in
     let* () = Store.Branch.set repo "master" c3 in
     Store.Repo.close repo
 end
@@ -82,10 +82,10 @@ module Simple = struct
     let* c1 = Store.Commit.v rw ~parents:[] ~info tree in
 
     let* tree = Store.Tree.add tree [ "a"; "b3" ] "x3" in
-    let* c2 = Store.Commit.v rw ~parents:[ Store.Commit.hash c1 ] ~info tree in
+    let* c2 = Store.Commit.v rw ~parents:[ Store.Commit.key c1 ] ~info tree in
 
     let* tree = Store.Tree.remove tree [ "a"; "b1"; "c1" ] in
-    let* _ = Store.Commit.v rw ~parents:[ Store.Commit.hash c2 ] ~info tree in
+    let* _ = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
 
     Store.Repo.close rw
 end

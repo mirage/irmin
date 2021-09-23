@@ -29,7 +29,8 @@ let rm_dir root =
     ())
 
 let index_log_size = Some 1_000
-let () = Random.self_init ()
+
+(* let () = Random.self_init () *)
 let random_char () = char_of_int (Random.int 256)
 let random_string n = String.init n (fun _i -> random_char ())
 let random_letter () = char_of_int (Char.code 'a' + Random.int 26)
@@ -56,12 +57,14 @@ module Contents = struct
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
+  type key = H.t Irmin_pack.Pack_key.t (* XXX: why do I need this? *)
+
   let hash = H.hash
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
-  let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
+  let encode_bin ~dict:_ ~offset_of_key:_ x k = encode_pair (k, x)
 
-  let decode_bin ~dict:_ ~hash:_ x pos_ref =
+  let decode_bin ~dict:_ ~key_of_offset:_ x pos_ref =
     let _, v = decode_pair x pos_ref in
     v
 
@@ -78,12 +81,22 @@ module P =
   Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (Schema.Hash)
 
 module Pack = P.Make (Contents)
+module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
 module Branch =
   Irmin_pack.Atomic_write.Make_persistent
     (Irmin_pack.Version.V2)
     (Irmin.Branch.String)
-    (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
+    (struct
+      include Schema.Hash
+
+      (* XXX: provide an unsafe coercion function on hashes *)
+      let null =
+        let buf = String.make hash_size '\000' in
+        match Irmin.Type.(unstage (of_bin_string t)) buf with
+        | Ok x -> x
+        | Error (`Msg _) -> assert false
+    end)
 
 module Make_context (Config : sig
   val root : string
@@ -120,14 +133,17 @@ struct
     let index =
       Index.v ~flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
     in
-    let+ pack = Pack.v ~fresh:true ~lru_size ~index name in
+    let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+    let+ pack = Pack.v ~fresh:true ~lru_size ~index ~indexing_strategy name in
     (f := fun () -> Pack.flush ~index:false pack);
     let clone_pack ~readonly =
-      Pack.v ~lru_size ~fresh:false ~readonly ~index name
+      Pack.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy name
     in
     let clone_index_pack ~readonly =
       let index = Index.v ~log_size ~fresh:false ~readonly name in
-      let+ pack = Pack.v ~lru_size ~fresh:false ~readonly ~index name in
+      let+ pack =
+        Pack.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy name
+      in
       (index, pack)
     in
     { index; pack; clone_pack; clone_index_pack }

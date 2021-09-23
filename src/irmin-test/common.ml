@@ -16,7 +16,7 @@
 
 open! Import
 
-let () = Random.self_init ()
+(* let () = Random.self_init () *)
 let random_char () = char_of_int (Random.int 256)
 
 let random_ascii () =
@@ -56,6 +56,13 @@ module type Layered_store =
      and type Schema.Contents.t = string
      and type Schema.Branch.t = string
 
+module type Layered_store_generic_key =
+  Irmin_layers.Generic_key
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Contents.t = string
+     and type Schema.Branch.t = string
+
 module Schema (M : Irmin.Metadata.S) = struct
   module Hash = Irmin.Hash.SHA1
   module Commit = Irmin.Commit.Make (Hash)
@@ -82,13 +89,17 @@ let layered_store :
 
 type store = S of (module S) | Generic_key of (module Generic_key)
 
+type layered_store =
+  | Layered_store of (module Layered_store)
+  | Layered_store_generic_key of (module Layered_store_generic_key)
+
 type t = {
   name : string;
   init : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : store;
-  layered_store : (module Layered_store) option;
+  layered_store : layered_store option;
   stats : (unit -> int * int) option;
   (* Certain store implementations currently don't support implementing
      repository state from a slice, because their slice formats contain
@@ -128,12 +139,16 @@ module Suite = struct
   let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
       ~layered_store ?stats ?(import_supported = true) () =
     let store = S store in
+    let layered_store = Option.map (fun s -> Layered_store s) layered_store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
     { name; init; clean; config; store; layered_store; stats; import_supported }
 
   let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
       ~config ~store ~layered_store ?stats ?(import_supported = true) () =
     let store = Generic_key store in
+    let layered_store =
+      Option.map (fun s -> Layered_store_generic_key s) layered_store
+    in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
     { name; init; clean; config; store; layered_store; stats; import_supported }
 
@@ -145,6 +160,13 @@ module Suite = struct
     match t.store with
     | Generic_key x -> x
     | S (module S) -> (module S : Generic_key)
+
+  let layered_store_generic_key t =
+    match t.layered_store with
+    | None -> None
+    | Some (Layered_store_generic_key x) -> Some x
+    | Some (Layered_store (module S)) ->
+        Some (module S : Layered_store_generic_key)
 
   let init t = t.init
   let clean t = t.clean

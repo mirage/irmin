@@ -66,7 +66,7 @@ module Test = struct
   let info = Store.Info.empty
 
   let commit ctxt =
-    let parents = List.map Store.Commit.hash ctxt.parents in
+    let parents = List.map Store.Commit.key ctxt.parents in
     let+ h = Store.Commit.v ctxt.index.repo ~info ~parents ctxt.tree in
     Store.Tree.clear ctxt.tree;
     h
@@ -118,7 +118,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1 repo block1 =
-    Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -136,7 +136,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1a repo block1a =
-    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1a) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -154,7 +154,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1b repo block1 =
-    Store.Commit.of_hash repo (Store.Commit.hash block1) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -168,7 +168,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block1c repo block =
-    Store.Commit.of_hash repo (Store.Commit.hash block) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -181,7 +181,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block2a repo block1a =
-    Store.Commit.of_hash repo (Store.Commit.hash block1a) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block1a) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -194,7 +194,7 @@ module Test = struct
     (ctxt, h)
 
   let check_block3a repo block =
-    Store.Commit.of_hash repo (Store.Commit.hash block) >>= function
+    Store.Commit.of_key repo (Store.Commit.key block) >>= function
     | None -> Alcotest.fail "no hash found in repo"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -489,7 +489,7 @@ module Test = struct
     Store.freeze ctxt.index.repo ~max_lower:[ block1a ] >>= fun () ->
     Store.Backend_layer.wait_for_freeze ctxt.index.repo >>= fun () ->
     let check_layer block msg exp =
-      Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.hash block))
+      Store.layer_id ctxt.index.repo (Store.Commit_t (Store.Commit.key block))
       >|= Irmin_test.check Irmin_layers.Layer_id.t msg exp
     in
     check_layer block1 "check layer of block1" `Lower >>= fun () ->

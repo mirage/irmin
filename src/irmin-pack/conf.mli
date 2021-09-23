@@ -32,6 +32,7 @@ module Key : sig
   val root : string Irmin.Backend.Conf.key
   val merge_throttle : merge_throttle Irmin.Backend.Conf.key
   val freeze_throttle : freeze_throttle Irmin.Backend.Conf.key
+  val indexing_strategy : Pack_store.Indexing_strategy.t Irmin.Backend.Conf.key
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
@@ -41,6 +42,7 @@ val readonly : Irmin.Backend.Conf.t -> bool
 val merge_throttle : Irmin.Backend.Conf.t -> merge_throttle
 val freeze_throttle : Irmin.Backend.Conf.t -> freeze_throttle
 val root : Irmin.Backend.Conf.t -> string
+val indexing_strategy : Irmin.Backend.Conf.t -> Pack_store.Indexing_strategy.t
 
 val init :
   ?fresh:bool ->

@@ -18,7 +18,7 @@ open! Import
 open Store_properties
 
 module type Store = sig
-  include Irmin_layers.S
+  include Irmin_layers.Generic_key
   include Irmin_pack.Specifics with type repo := repo and type commit := commit
 
   val integrity_check :
@@ -35,11 +35,11 @@ end
 module type Maker = sig
   type endpoint = unit
 
-  include Irmin.Key.Store_spec.Hash_keyed
+  include Irmin.Key.Store_spec.S
 
   module Make (Schema : Irmin.Schema.Extended) :
     Store
-      with type hash = Schema.Hash.t
+      with type Schema.Hash.t = Schema.Hash.t
        and type Schema.Branch.t = Schema.Branch.t
        and type Schema.Metadata.t = Schema.Metadata.t
        and type Schema.Path.t = Schema.Path.t
@@ -91,7 +91,7 @@ module type Atomic_write = sig
   val copy_newies_to_next_upper : t -> unit Lwt.t
 end
 
-module type Content_addressable = sig
+module type Indexable = sig
   open Irmin_pack.Pack_store
   include S
   module U : S with type value = value and type index := index
@@ -111,7 +111,7 @@ module type Content_addressable = sig
     | Upper : read U.t layer_type
     | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> read t -> string -> key -> unit
+  val copy : 'l layer_type * 'l -> read t -> string -> key -> key option
 
   val copy_from_lower :
     read t ->
@@ -119,7 +119,7 @@ module type Content_addressable = sig
     ?aux:(value -> unit Lwt.t) ->
     string ->
     key ->
-    unit Lwt.t
+    key option Lwt.t
 
   val mem_lower : 'a t -> key -> bool Lwt.t
   val mem_next : [> read ] t -> key -> bool Lwt.t
@@ -139,7 +139,12 @@ module type Content_addressable = sig
   val clear_caches_next_upper : 'a t -> unit
 
   val unsafe_append :
-    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
+    ensure_unique_indexed:bool ->
+    overcommit:bool ->
+    'a t ->
+    hash ->
+    value ->
+    key
 
   val flush_next_lower : 'a t -> unit
 
@@ -147,7 +152,7 @@ module type Content_addressable = sig
     offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
-    key ->
+    hash ->
     _ t ->
     (unit, Irmin_pack.Checks.integrity_error) result
 
@@ -161,13 +166,16 @@ module type Content_addressable = sig
     unit Lwt.t
 end
 
-module type Content_addressable_maker = sig
+module type Indexable_maker = sig
+  type hash
   type key
   type index
 
-  module Make (V : Irmin_pack.Pack_value.S with type hash := key) :
-    Content_addressable
-      with type key = key
+  module Make
+      (V : Irmin_pack.Pack_value.S with type hash := hash and type key := key) :
+    Indexable
+      with type hash = hash
+       and type key = key
        and type value = V.t
        and type index = index
        and type U.key = key

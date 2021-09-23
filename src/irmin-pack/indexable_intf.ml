@@ -17,16 +17,23 @@
 open! Import
 
 module type S = sig
-  include Irmin.Content_addressable.S
+  include Irmin.Indexable.S
 
   val add : 'a t -> value -> key Lwt.t
   (** Overwrite [add] to work with a read-only database handler. *)
 
-  val unsafe_add : 'a t -> key -> value -> unit Lwt.t
+  val unsafe_add : 'a t -> hash -> value -> key Lwt.t
   (** Overwrite [unsafe_add] to work with a read-only database handler. *)
 
+  val index_direct : _ t -> hash -> key option
+
   val unsafe_append :
-    ensure_unique:bool -> overcommit:bool -> 'a t -> key -> value -> unit
+    ensure_unique_indexed:bool ->
+    overcommit:bool ->
+    'a t ->
+    hash ->
+    value ->
+    key
 
   val unsafe_mem : 'a t -> key -> bool
   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
@@ -50,7 +57,8 @@ module type Sigs = sig
   module type S = S
 
   module Closeable (CA : S) : sig
-    include S with type key = CA.key and type value = CA.value
+    include
+      S with type key = CA.key and type hash = CA.hash and type value = CA.value
 
     val make_closeable : 'a CA.t -> 'a t
     val get_open_exn : 'a t -> 'a CA.t

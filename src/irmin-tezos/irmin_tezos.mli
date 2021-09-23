@@ -26,6 +26,6 @@ module Store :
      and type Schema.Path.step = Schema.Path.step
      and type Schema.Contents.t = Schema.Contents.t
      and type Backend.Remote.endpoint = unit
-     and type contents_key = Schema.Hash.t
-     and type node_key = Schema.Hash.t
-     and type commit_key = Schema.Hash.t
+     and type contents_key = Schema.Hash.t Irmin_pack.Pack_key.t
+     and type node_key = Schema.Hash.t Irmin_pack.Pack_key.t
+     and type commit_key = Schema.Hash.t Irmin_pack.Pack_key.t

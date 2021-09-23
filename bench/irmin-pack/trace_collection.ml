@@ -24,7 +24,7 @@
 open Lwt.Syntax
 
 (** Make state trace collector. *)
-module Make_stat (Store : Irmin.KV) = struct
+module Make_stat (Store : Irmin.Generic_key.KV) = struct
   module Def = Trace_definitions.Stat_trace
 
   type t = {

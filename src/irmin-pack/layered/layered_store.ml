@@ -25,10 +25,11 @@ let stats = function
   | _ -> failwith "unexpected type in stats"
 
 module Copy
-    (Key : Irmin.Hash.S)
-    (SRC : Irmin_pack.Content_addressable.S with type key := Key.t)
-    (DST : Irmin_pack.Content_addressable.S
-             with type key := Key.t
+    (Key : Irmin.Key.S)
+    (SRC : Irmin_pack.Indexable.S with type key = Key.t and type hash = Key.hash)
+    (DST : Irmin_pack.Indexable.S
+             with type key = Key.t
+              and type hash = Key.hash
               and type value = SRC.value) =
 struct
   let ignore_lwt _ = Lwt.return_unit
@@ -39,10 +40,15 @@ struct
     | None ->
         [%log.warn
           "Attempt to copy %s %a not contained in upper." str
-            (Irmin.Type.pp Key.t) k]
+            (Irmin.Type.pp Key.t) k];
+        None
     | Some v ->
         stats str;
-        DST.unsafe_append ~ensure_unique:false ~overcommit:true dst k v
+        let key =
+          DST.unsafe_append ~ensure_unique_indexed:false ~overcommit:true dst
+            (Key.to_hash k) v
+        in
+        Some key
 
   let check ~src ?(some = ignore_lwt) ?(none = ignore_lwt) k =
     SRC.find src k >>= function None -> none () | Some v -> some v
@@ -56,18 +62,25 @@ let pp_layer_id = Irmin_layers.Layer_id.pp
 let pp_current_upper ppf t = pp_layer_id ppf (if t then `Upper1 else `Upper0)
 let pp_next_upper ppf t = pp_layer_id ppf (if t then `Upper0 else `Upper1)
 
-module Content_addressable
+module Indexable
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Index.S)
-    (U : S with type index := Index.t and type key = H.t)
+    (U : S
+           with type index := Index.t
+            and type hash = H.t
+            and type key = H.t Irmin_pack.Pack_key.t)
     (L : S
            with type index := Index.t
+            and type hash = U.hash
             and type key = U.key
             and type value = U.value) =
 struct
   type index = Index.t
+  type hash = U.hash
   type key = U.key
   type value = U.value
+
+  module Key = Irmin_pack.Pack_key.Make (H)
 
   type 'a t = {
     lower : read L.t option;
@@ -109,22 +122,24 @@ struct
     if freeze then t.newies <- k :: t.newies;
     k
 
-  let unsafe_add t k v =
+  let unsafe_add t hash v =
     let freeze = t.freeze_in_progress () in
     [%log.debug "unsafe_add in %a%a" pp_current_upper t pp_during_freeze freeze];
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
-    U.unsafe_add upper k v >|= fun () ->
-    if freeze then t.newies <- k :: t.newies
+    let+ k = U.unsafe_add upper hash v in
+    if freeze then t.newies <- k :: t.newies;
+    k
 
-  let unsafe_append ~ensure_unique ~overcommit t k v =
+  let unsafe_append ~ensure_unique_indexed ~overcommit t hash v =
     let freeze = t.freeze_in_progress () in
     [%log.debug
       "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze];
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
-    U.unsafe_append ~ensure_unique ~overcommit upper k v;
-    if freeze then t.newies <- k :: t.newies
+    let k = U.unsafe_append ~ensure_unique_indexed ~overcommit upper hash v in
+    if freeze then t.newies <- k :: t.newies;
+    k
 
   (** Everything is in current upper, no need to look in next upper. *)
   let find t k =
@@ -159,6 +174,24 @@ struct
         match t.lower with
         | None -> Lwt.return_false
         | Some lower -> L.mem lower k)
+
+  let index t hash =
+    let current = current_upper t in
+    U.index current hash >>= function
+    | Some _ as r -> Lwt.return r
+    | None -> (
+        match t.lower with
+        | None -> Lwt.return_none
+        | Some lower -> L.index lower hash)
+
+  let index_direct t hash =
+    let current = current_upper t in
+    U.index_direct current hash |> function
+    | Some _ as r -> r
+    | None -> (
+        match t.lower with
+        | None -> None
+        | Some lower -> L.index_direct lower hash)
 
   let unsafe_mem t k =
     let current = current_upper t in
@@ -277,8 +310,8 @@ struct
     [%log.debug "flip_upper to %a" pp_next_upper t];
     t.flip <- not t.flip
 
-  module CopyUpper = Copy (H) (U) (U)
-  module CopyLower = Copy (H) (U) (L)
+  module CopyUpper = Copy (Key) (U) (U)
+  module CopyLower = Copy (Key) (U) (L)
 
   type 'a layer_type =
     | Upper : read U.t layer_type
@@ -293,7 +326,8 @@ struct
   let check t ?none ?some k =
     CopyUpper.check ~src:(current_upper t) ?none ?some k
 
-  let copy : type l. l layer_type * l -> read t -> string -> key -> unit =
+  let copy :
+      type l. l layer_type * l -> read t -> string -> L.key -> U.key option =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 
@@ -304,29 +338,40 @@ struct
     let lower = lower t in
     let current = current_upper t in
     U.find current k >>= function
-    | Some v -> aux v
+    | Some v -> aux v >|= fun () -> None
     | None -> (
         L.find lower k >>= function
         | Some v ->
             aux v >>= fun () ->
             stats str;
-            U.unsafe_add dst k v
-        | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp H.t) k)
+            U.unsafe_add dst (Key.to_hash k) v >|= fun key -> Some key
+        | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp Key.t) k)
 end
 
 module Pack_maker
     (H : Irmin.Hash.S)
     (Index : Irmin_pack.Index.S)
     (P : Irmin_pack.Pack_store.Maker
-           with type key = H.t
+           with type hash = H.t
+            and type key := H.t Irmin_pack.Pack_key.t
             and type index := Index.t) =
 struct
   type index = Index.t
-  type key = P.key
+  type hash = H.t
+  type key = H.t Irmin_pack.Pack_key.t
 
-  module Make (V : Irmin_pack.Pack_value.S with type hash := key) = struct
-    module Upper = P.Make (V)
-    include Content_addressable (H) (Index) (Upper) (Upper)
+  module Make
+      (V : Irmin_pack.Pack_value.S
+             with type hash := hash
+              and type key := hash Irmin_pack.Pack_key.t) =
+  struct
+    module Upper = P.Make (struct
+      include V
+
+      type key = H.t Irmin_pack.Pack_key.t
+    end)
+
+    include Indexable (H) (Index) (Upper) (Upper)
   end
 end
 

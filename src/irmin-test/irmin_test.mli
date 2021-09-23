@@ -17,6 +17,7 @@
 module type S = Common.S
 module type Generic_key = Common.Generic_key
 module type Layered_store = Common.Layered_store
+module type Layered_store_generic_key = Common.Layered_store_generic_key
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
@@ -41,7 +42,7 @@ module Suite : sig
     ?clean:(unit -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module Generic_key) ->
-    layered_store:(module Layered_store) option ->
+    layered_store:(module Layered_store_generic_key) option ->
     ?stats:(unit -> int * int) ->
     ?import_supported:bool ->
     unit ->

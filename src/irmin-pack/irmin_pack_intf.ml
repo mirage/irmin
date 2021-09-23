@@ -22,6 +22,7 @@ module type Sigs = sig
   module Index = Pack_index
   module Conf = Conf
   module Inode = Inode
+  module Pack_key = Pack_key
   module Pack_value = Pack_value
   module Pack_store = Pack_store
   module Version = Version
@@ -54,12 +55,12 @@ module type Sigs = sig
   module V2 : Maker
 
   module KV (_ : Version.S) (_ : Conf.S) :
-    Irmin.KV_maker with type metadata = unit
+    Irmin.Generic_key.KV_maker with type metadata = unit
 
   module type S = S.S
   module type Specifics = S.Specifics
 
-  module Maker_ext (_ : Version.S) (_ : Conf.S) : S.Maker
+  module Maker_ext (_ : Version.S) (_ : Conf.S) : S.Maker_persistent
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks
@@ -72,7 +73,7 @@ module type Sigs = sig
       attempting to use pre-migration instances of the repository after the
       migration is complete, will result in undefined behaviour. *)
 
-  module Content_addressable = Content_addressable
+  module Indexable = Indexable
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils

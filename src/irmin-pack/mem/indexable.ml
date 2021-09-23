@@ -56,14 +56,23 @@ end
 module Maker (K : Irmin.Hash.S) = struct
   type key = K.t
 
-  module Make (Val : Irmin_pack.Pack_value.S with type hash := K.t) = struct
+  module Make
+      (Val : Irmin_pack.Pack_value.S with type hash := K.t and type key := K.t) =
+  struct
+    (* TODO(craigfe): We could use the keys to skip traversal of the map on
+       lookup, but this must not introduce false-positives under [clear].
+
+       See https://github.com/mirage/irmin/pull/1389#discussion_r693789934. *)
+    module Key = Irmin.Key.Of_hash (K)
+
     module KMap = Map.Make (struct
       type t = K.t
 
       let compare = Irmin.Type.(unstage (compare K.t))
     end)
 
-    type key = K.t
+    type hash = K.t
+    type key = Key.t
     type value = Val.t
 
     type 'a t = {
@@ -71,6 +80,12 @@ module Maker (K : Irmin.Hash.S) = struct
       mutable t : value KMap.t;
       mutable generation : int63;
     }
+
+    let index_direct _ h =
+      Log.debug (fun f -> f "index");
+      Some h
+
+    let index t h = Lwt.return (index_direct t h)
 
     let instances =
       Pool.create ~alloc:(fun name ->
@@ -97,7 +112,7 @@ module Maker (K : Irmin.Hash.S) = struct
 
     let cast t = (t :> read_write t)
     let batch t f = f (cast t)
-    let pp_key = Irmin.Type.pp K.t
+    let pp_hash = Irmin.Type.pp K.t
 
     let check_key k v =
       let k' = Val.hash v in
@@ -110,39 +125,37 @@ module Maker (K : Irmin.Hash.S) = struct
       with Not_found -> Ok None
 
     let unsafe_find ~check_integrity:_ t k =
-      [%log.debug "unsafe find %a" pp_key k];
+      [%log.debug "unsafe find %a" pp_hash k];
       find t k |> function
       | Ok r -> r
       | Error (k, k') ->
-          Fmt.invalid_arg "corrupted value: got %a, expecting %a" pp_key k'
-            pp_key k
+          Fmt.invalid_arg "corrupted value: got %a, expecting %a" pp_hash k'
+            pp_hash k
 
     let find t k =
-      [%log.debug "find %a" pp_key k];
+      [%log.debug "find %a" pp_hash k];
       find t k |> function
       | Ok r -> Lwt.return r
       | Error (k, k') ->
           Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_key k' pp_key k
+            pp_hash k' pp_hash k
 
     let unsafe_mem t k =
-      [%log.debug "mem %a" pp_key k];
+      [%log.debug "mem %a" pp_hash k];
       KMap.mem k t.t
 
     let mem t k = Lwt.return (unsafe_mem t k)
 
-    let unsafe_append ~ensure_unique:_ ~overcommit:_ t k v =
-      [%log.debug "add -> %a" pp_key k];
-      t.t <- KMap.add k v t.t
+    let unsafe_append ~ensure_unique_indexed:_ ~overcommit:_ t k v =
+      [%log.debug "add -> %a" pp_hash k];
+      t.t <- KMap.add k v t.t;
+      k
 
     let unsafe_add t k v =
-      unsafe_append ~ensure_unique:true ~overcommit:true t k v;
-      Lwt.return_unit
+      Lwt.return
+        (unsafe_append ~ensure_unique_indexed:true ~overcommit:true t k v)
 
-    let add t v =
-      let k = Val.hash v in
-      unsafe_add t k v >|= fun () -> k
-
+    let add t v = unsafe_add t (Val.hash v) v
     let generation t = t.generation
   end
 end

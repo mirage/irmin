@@ -45,7 +45,7 @@ let open_ro_after_rw_closed () =
   let* t = S.main ro in
   let* c = S.Head.get t in
   S.Commit.of_hash ro (S.Commit.hash c) >>= function
-  | None -> Alcotest.fail "no hash"
+  | None -> Alcotest.fail ~pos:__POS__ "no hash"
   | Some commit ->
       let tree = S.Commit.tree commit in
       let* x = S.Tree.find tree [ "a" ] in

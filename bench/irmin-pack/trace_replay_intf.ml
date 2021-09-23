@@ -30,7 +30,7 @@ type config = {
 module type Store = sig
   type store_config
 
-  include Irmin.KV with type Schema.Contents.t = bytes
+  include Irmin.Generic_key.KV with type Schema.Contents.t = bytes
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t

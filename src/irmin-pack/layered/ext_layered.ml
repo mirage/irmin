@@ -42,7 +42,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
   module H = Schema.Hash
   module Index = Irmin_pack.Index.Make (H)
   module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
-  module XKey = Irmin.Key.Of_hash (H)
+  module XKey = Irmin_pack.Pack_key.Make (H)
 
   type kinded_key =
     | Commit_t of XKey.t
@@ -54,15 +54,15 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     module Hash = H
 
     module Contents = struct
-      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
+      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (XKey) (C)
 
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
         module CA = Pack.Make (Pack_value)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+        include Layered_store.Indexable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Contents.Store (CA) (H) (C)
+      include Irmin.Contents.Store_indexable (CA) (H) (C)
     end
 
     module Node = struct
@@ -86,8 +86,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
       end
 
       module Pack_value =
-        Irmin_pack.Pack_value.Of_commit
-          (H)
+        Irmin_pack.Pack_value.Of_commit (H) (XKey)
           (struct
             module Info = Schema.Info
             include Value
@@ -95,25 +94,19 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
 
       module CA = struct
         module CA = Pack.Make (Pack_value)
-        include Layered_store.Content_addressable (H) (Index) (CA) (CA)
+        include Layered_store.Indexable (H) (Index) (CA) (CA)
       end
 
-      include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Value)
+      include
+        Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
     end
 
     module Branch = struct
       module Key = B
-
-      module Val = struct
-        include H
-        include Commit.Key
-      end
+      module Val = XKey
 
       module Atomic_write = struct
-        module AW =
-          Irmin_pack.Atomic_write.Make_persistent (V) (Key)
-            (Irmin_pack.Atomic_write.Value.Of_hash (Val))
-
+        module AW = Irmin_pack.Atomic_write.Make_persistent (V) (Key) (Val)
         include Irmin_pack.Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =
@@ -124,7 +117,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     end
 
     module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
-    module Remote = Irmin.Backend.Remote.None (H) (B)
+    module Remote = Irmin.Backend.Remote.None (Commit.Key) (B)
 
     module Repo = struct
       type upper_layer = {
@@ -220,11 +213,12 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
                     f contents node commit)))
 
       let unsafe_v_upper root config =
-        let fresh = Conf.Pack.fresh config in
-        let lru_size = Conf.Pack.lru_size config in
-        let readonly = Conf.Pack.readonly config in
-        let log_size = Conf.Pack.index_log_size config in
-        let throttle = Conf.Pack.merge_throttle config in
+        let fresh = Conf.Pack.fresh config
+        and lru_size = Conf.Pack.lru_size config
+        and readonly = Conf.Pack.readonly config
+        and log_size = Conf.Pack.index_log_size config
+        and throttle = Conf.Pack.merge_throttle config
+        and indexing_strategy = Conf.Pack.indexing_strategy config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -233,20 +227,27 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
             ~fresh ~readonly ~throttle ~log_size root
         in
         let* contents =
-          Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
+          Contents.CA.U.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+            root
         in
-        let* node = Node.CA.U.v ~fresh ~readonly ~lru_size ~index root in
-        let* commit = Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root in
+        let* node =
+          Node.CA.U.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
+        in
+        let* commit =
+          Commit.CA.U.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+            root
+        in
         let+ branch = Branch.U.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.U.flush ~index:false contents);
         ({ index; contents; node; commit; branch } : upper_layer)
 
       let unsafe_v_lower root config =
-        let fresh = Conf.Pack.fresh config in
-        let lru_size = Conf.Pack.lru_size config in
-        let readonly = Conf.Pack.readonly config in
-        let log_size = Conf.Pack.index_log_size config in
-        let throttle = Conf.Pack.merge_throttle config in
+        let fresh = Conf.Pack.fresh config
+        and lru_size = Conf.Pack.lru_size config
+        and readonly = Conf.Pack.readonly config
+        and log_size = Conf.Pack.index_log_size config
+        and throttle = Conf.Pack.merge_throttle config
+        and indexing_strategy = Conf.Pack.indexing_strategy config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -254,10 +255,16 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
             ~fresh ~readonly ~throttle ~log_size root
         in
         let* lcontents =
-          Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
+          Contents.CA.L.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+            root
         in
-        let* lnode = Node.CA.L.v ~fresh ~readonly ~lru_size ~index root in
-        let* lcommit = Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root in
+        let* lnode =
+          Node.CA.L.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
+        in
+        let* lcommit =
+          Commit.CA.L.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+            root
+        in
         let+ lbranch = Branch.L.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.L.flush ~index:false lcontents);
         ({ lindex = index; lcontents; lnode; lcommit; lbranch } : lower_layer)
@@ -538,7 +545,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
          copied *)
       let commit k =
         with_cancel cancel @@ fun () ->
-        X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
+        let (_ : commit_key option) =
+          X.Commit.CA.copy commits t.X.Repo.commit "Commit" k
+        in
         Irmin_layers.Stats.freeze_yield ();
         let* () = Lwt.pause () in
         Irmin_layers.Stats.freeze_yield_end ();
@@ -546,12 +555,14 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
       in
       let node k =
         with_cancel cancel @@ fun () ->
-        X.Node.CA.copy nodes t.X.Repo.node k;
+        let (_ : node_key option) = X.Node.CA.copy nodes t.X.Repo.node k in
         Lwt.return_unit
       in
       let contents k =
         with_cancel cancel @@ fun () ->
-        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
+        let (_ : contents_key option) =
+          X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
+        in
         Lwt.return_unit
       in
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
@@ -576,8 +587,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         [%log.debug
           "@[<2>copy to lower:@ min=%a,@ max=%a@]" pp_commits min pp_commits
             commits];
-        let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
+        let max = List.map (fun x -> `Commit (Commit.key x)) commits in
+        let min = List.map (fun x -> `Commit (Commit.key x)) min in
         on_lower t (fun l ->
             iter_copy ?cancel l ~skip_commits:(mem_commit_lower t)
               ~skip_nodes:(mem_node_lower t)
@@ -599,8 +610,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         [%log.debug
           "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
             pp_commits commits];
-        let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
-        let min = List.map (fun x -> `Commit (Commit.hash x)) min in
+        let max = List.map (fun x -> `Commit (Commit.key x)) commits in
+        let min = List.map (fun x -> `Commit (Commit.key x)) min in
         on_next_upper t (fun u ->
             iter_copy ?cancel u ~skip_commits:(mem_commit_next t)
               ~skip_nodes:(mem_node_next t) ~skip_contents:(mem_contents_next t)
@@ -650,16 +661,26 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
            copied *)
         let commit k =
           with_cancel cancel @@ fun () ->
-          X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
+          let+ (_ : commit_key option) =
+            X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
+          in
+          ()
         in
         let node k =
           with_cancel cancel @@ fun () ->
-          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
+          let+ (_ : node_key option) =
+            X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
+          in
+          ()
         in
         let contents k =
           with_cancel cancel @@ fun () ->
-          X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
-            "Contents" k
+          let+ (_ : contents_key option) =
+            X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
+              "Contents" k
+          in
+
+          ()
         in
         let skip_node h = skip_with_stats ~skip:skip_nodes h in
         let skip_contents h = skip_with_stats ~skip:skip_contents h in
@@ -681,11 +702,11 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
       (** An object can be in either lower or upper or both. We can't skip an
           object already in upper as some predecessors could still be in lower. *)
       let self_contained ?min ~max t =
-        let max = List.map (fun x -> Commit.hash x) max in
+        let max = List.map (fun x -> Commit.key x) max in
         let min =
           match min with
           | None -> max (* if min is empty then copy only the max commits *)
-          | Some min -> List.map (fun x -> Commit.hash x) min
+          | Some min -> List.map (fun x -> Commit.key x) min
         in
         (* FIXME(samoht): do this in 2 steps: 1/ find the shallow
            hashes in upper 2/ iterates with max=shallow
@@ -695,9 +716,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         [%log.debug
           "self_contained: copy commits min:%a; max:%a from lower into upper \
            to make the upper self contained"
-            (Fmt.list (Irmin.Type.pp H.t))
+            (Fmt.list (Irmin.Type.pp XKey.t))
             min
-            (Fmt.list (Irmin.Type.pp H.t))
+            (Fmt.list (Irmin.Type.pp XKey.t))
             max];
         on_current_upper t (fun u -> iter_copy u ~min t max)
     end
@@ -854,7 +875,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     let* heads =
       match heads with None -> Repo.heads t | Some m -> Lwt.return m
     in
-    let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
+    let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
     let+ () =
       Repo.iter ~cache_size ~min:[] ~max:hashes ~commit ~node ~contents t
     in

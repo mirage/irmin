@@ -152,7 +152,7 @@ module Make (Store : Store) = struct
 
   type t = {
     contexts : (int64, context) Hashtbl.t;
-    hash_corresps : (Def.hash, Store.Hash.t) Hashtbl.t;
+    hash_corresps : (Def.hash, Store.commit_key) Hashtbl.t;
     mutable latest_commit : Store.Hash.t option;
   }
 
@@ -178,7 +178,7 @@ module Make (Store : Store) = struct
     let h_store = Hashtbl.find t.hash_corresps (unscope h_trace) in
     maybe_forget_hash t h_trace;
     Stat_collector.short_op_begin stats;
-    Store.Commit.of_hash repo h_store >|= function
+    Store.Commit.of_key repo h_store >|= function
     | None -> failwith "prev commit not found"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -267,11 +267,11 @@ module Make (Store : Store) = struct
     let* commit = Store.Commit.v repo ~info ~parents:parents_store tree in
     let+ () = Stat_collector.commit_end stats tree in
     Store.Tree.clear tree;
-    let h_store = Store.Commit.hash commit in
+    let k_store, h_store = Store.Commit.(key commit, hash commit) in
     if check_hash then check_hash_trace (unscope h_trace) h_store;
     (* It's okey to have [h_trace] already in history. It corresponds to
      * re-commiting the same thing, hence the [.replace] below. *)
-    Hashtbl.replace t.hash_corresps (unscope h_trace) h_store;
+    Hashtbl.replace t.hash_corresps (unscope h_trace) k_store;
     maybe_forget_hash t h_trace;
     t.latest_commit <- Some h_store
 

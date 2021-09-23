@@ -23,7 +23,7 @@ exception RO_not_allowed = S.RO_not_allowed
 
 module type S = S.S
 
-module Content_addressable = Content_addressable
+module Indexable = Indexable
 module Atomic_write = Atomic_write
 module Dict = Pack_dict
 module Hash = Irmin.Hash.BLAKE2B
@@ -44,7 +44,7 @@ module KV (V : Version.S) (Config : Conf.S) = struct
   type endpoint = unit
   type hash = Irmin.Schema.default_hash
 
-  include Irmin.Key.Store_spec.Hash_keyed
+  include Pack_key.Store_spec
   module Maker = Maker (V) (Config)
 
   type metadata = Metadata.t
@@ -58,14 +58,6 @@ module Checks = Checks
 module Inode = Inode
 module IO = IO
 module Utils = Utils
+module Pack_key = Pack_key
 module Pack_value = Pack_value
 module Pack_store = Pack_store
-module Vx = Version.V1
-
-module Cx = struct
-  let stable_hash = 0
-  let entries = 0
-end
-
-(* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module KV_is_a_KV_maker : Irmin.KV_maker = KV (Vx) (Cx)

@@ -79,20 +79,24 @@ module Make (S : Generic_key) = struct
   let test_contents x () =
     let test repo =
       let t = B.Repo.contents_t repo in
-      let check_key = check B.Contents.Key.t in
+      let check_key_hash m k1 k2 =
+        check B.Contents.Hash.t m
+          (B.Contents.Key.to_hash k1)
+          (B.Contents.Key.to_hash k2)
+      in
       let check_val = check (T.option S.contents_t) in
       let* kv2 = kv2 ~repo in
       let* k2' = with_contents repo (fun t -> B.Contents.add t v2) in
-      check_key "kv2" kv2 k2';
+      check_key_hash "kv2" kv2 k2';
       let* v2' = B.Contents.find t k2' in
       check_val "v2" (Some v2) v2';
       let* k2'' = with_contents repo (fun t -> B.Contents.add t v2) in
-      check_key "kv2" kv2 k2'';
+      check_key_hash "kv2" kv2 k2'';
       let* kv1 = kv1 ~repo in
       let* k1' = with_contents repo (fun t -> B.Contents.add t v1) in
-      check_key "kv1" kv1 k1';
+      check_key_hash "kv1" kv1 k1';
       let* k1'' = with_contents repo (fun t -> B.Contents.add t v1) in
-      check_key "kv1" kv1 k1'';
+      check_key_hash "kv1" kv1 k1'';
       let* v1' = B.Contents.find t kv1 in
       check_val "v1" (Some v1) v1';
       let* v2' = B.Contents.find t kv2 in
@@ -121,7 +125,9 @@ module Make (S : Generic_key) = struct
         with_contents repo (fun c -> B.Contents.add c "foo") >|= normal
       in
       let check_hash = check B.Hash.t in
-      let check_key = check B.Node.Key.t in
+      let check_key_hash m k1 k2 =
+        check B.Node.Hash.t m (B.Node.Key.to_hash k1) (B.Node.Key.to_hash k2)
+      in
       let check_val = check [%typ: Graph.value option] in
       let check_list = checks [%typ: S.step * B.Node.Val.value] in
       let check_node msg v =
@@ -151,8 +157,12 @@ module Make (S : Generic_key) = struct
         check_val "find xx" None (B.Node.Val.find u "xx")
       in
       check_values u;
-      let w = B.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
-      check B.Node.Val.t "v" u w;
+      let () =
+        let _w = B.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
+        (* XXX: this isn't a valid check. [u] is not concrete, and [w] is. *)
+        (* check B.Node.Val.t "v" u w; *)
+        ()
+      in
       let l = B.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
       let l = B.Node.Val.list ~length:1 u in
@@ -173,7 +183,7 @@ module Make (S : Generic_key) = struct
       let* kv1 = kv1 ~repo in
       let* k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       let* k1' = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
-      check_key "k1.1" k1 k1';
+      check_key_hash "k1.1" k1 k1';
       let* t1 = B.Node.find n k1 in
       let k' = B.Node.Val.find (get t1) "x" in
       check
@@ -182,21 +192,21 @@ module Make (S : Generic_key) = struct
         (Some (normal kv1))
         k';
       let* k1'' = with_node repo (fun n -> B.Node.add n (get t1)) in
-      check_key "k1.2" k1 k1'';
+      check_key_hash "k1.2" k1 k1'';
       let* k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
       let* k2' = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
-      check_key "k2.1" k2 k2';
+      check_key_hash "k2.1" k2 k2';
       let* t2 = B.Node.find n k2 in
       let* k2'' = with_node repo (fun n -> B.Node.add n (get t2)) in
-      check_key "k2.2" k2 k2'';
+      check_key_hash "k2.2" k2 k2'';
       let* k1''' = Graph.find g k2 [ "b" ] in
       check_val "k1.3" (Some (`Node k1)) k1''';
       let* k3 = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
       let* k3' = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
-      check_key "k3.1" k3 k3';
+      check_key_hash "k3.1" k3 k3';
       let* t3 = B.Node.find n k3 in
       let* k3'' = with_node repo (fun n -> B.Node.add n (get t3)) in
-      check_key "k3.2" k3 k3'';
+      check_key_hash "k3.2" k3 k3'';
       let* k2'' = Graph.find g k3 [ "a" ] in
       check_val "k2.3" (Some (`Node k2)) k2'';
       let* k1'''' = Graph.find g k2' [ "b" ] in
@@ -218,7 +228,7 @@ module Make (S : Generic_key) = struct
       let* k6' =
         with_node repo (fun g -> Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
       in
-      check_key "node k6" k6 k6';
+      check_key_hash "node k6" k6 k6';
       let* n6' = B.Node.find n k6' in
       let* n6 = B.Node.find n k6 in
       check T.(option B.Node.Val.t) "node n6" n6 n6';
@@ -2099,10 +2109,9 @@ let slow_suite (speed, x) =
 
 let layered_suite (speed, x) =
   ( "LAYERED_" ^ x.name,
-    match x.layered_store with
+    match Suite.layered_store_generic_key x with
     | None -> []
-    | Some layered_store ->
-        let (module S) = layered_store in
+    | Some (module S) ->
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
         let hook repo max = S.freeze repo ~max_lower:max in

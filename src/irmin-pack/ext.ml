@@ -20,21 +20,21 @@ module IO = IO.Unix
 module Maker (V : Version.S) (Config : Conf.S) = struct
   type endpoint = unit
 
-  include Irmin.Key.Store_spec.Hash_keyed
+  include Pack_key.Store_spec
 
   module Make (Schema : Irmin.Schema.Extended) = struct
     open struct
-      module H = Schema.Hash
       module P = Schema.Path
       module M = Schema.Metadata
       module C = Schema.Contents
       module B = Schema.Branch
     end
 
+    module H = Schema.Hash
     module Index = Pack_index.Make (H)
     module Pack = Pack_store.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
-    module XKey = Irmin.Key.Of_hash (H)
+    module XKey = Pack_key.Make (H)
 
     module X = struct
       module Hash = H
@@ -43,16 +43,16 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       [@@deriving irmin]
 
       module Contents = struct
-        module Pack_value = Pack_value.Of_contents (H) (C)
+        module Pack_value = Pack_value.Of_contents (H) (XKey) (C)
         module CA = Pack.Make (Pack_value)
-        include Irmin.Contents.Store (CA) (H) (C)
+        include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
       module Node = struct
         module Value = Schema.Node (XKey) (XKey)
 
         module CA = struct
-          module Inter = Inode.Make_internal (Config) (H) (Value)
+          module Inter = Inode.Make_internal (Config) (H) (XKey) (Value)
           include Inode.Make_persistent (H) (Value) (Inter) (Pack)
         end
 
@@ -75,29 +75,22 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
         end
 
         module Pack_value =
-          Pack_value.Of_commit
-            (H)
+          Pack_value.Of_commit (H) (XKey)
             (struct
               module Info = Schema.Info
               include Value
             end)
 
         module CA = Pack.Make (Pack_value)
-        include Irmin.Commit.Store (Schema.Info) (Node) (CA) (H) (Value)
+
+        include
+          Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
       end
 
       module Branch = struct
         module Key = B
-
-        module Val = struct
-          include H
-          include Commit.Key
-        end
-
-        module AW =
-          Atomic_write.Make_persistent (V) (Key)
-            (Atomic_write.Value.Of_hash (Val))
-
+        module Val = XKey
+        module AW = Atomic_write.Make_persistent (V) (Key) (Val)
         include Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =
@@ -105,7 +98,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       end
 
       module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
-      module Remote = Irmin.Backend.Remote.None (H) (B)
+      module Remote = Irmin.Backend.Remote.None (Commit.Key) (B)
 
       module Repo = struct
         type t = {
@@ -132,12 +125,13 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
                       f contents node commit)))
 
         let unsafe_v config =
-          let root = Conf.root config in
-          let fresh = Conf.fresh config in
-          let lru_size = Conf.lru_size config in
-          let readonly = Conf.readonly config in
-          let log_size = Conf.index_log_size config in
-          let throttle = Conf.merge_throttle config in
+          let root = Conf.root config
+          and fresh = Conf.fresh config
+          and lru_size = Conf.lru_size config
+          and readonly = Conf.readonly config
+          and log_size = Conf.index_log_size config
+          and throttle = Conf.merge_throttle config
+          and indexing_strategy = Conf.indexing_strategy config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -146,16 +140,22 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
               ~fresh ~readonly ~throttle ~log_size root
           in
           let* contents =
-            Contents.CA.v ~fresh ~readonly ~lru_size ~index root
+            Contents.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+              root
           in
-          let* node = Node.CA.v ~fresh ~readonly ~lru_size ~index root in
-          let* commit = Commit.CA.v ~fresh ~readonly ~lru_size ~index root in
+          let* node =
+            Node.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
+          in
+          let* commit =
+            Commit.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+              root
+          in
           let+ branch = Branch.v ~fresh ~readonly root in
           (* Stores share instances in memory, one flush is enough. In case of a
              system crash, the flush_callback might not make with the disk. In
              this case, when the store is reopened, [integrity_check] needs to be
              called to repair the store. *)
-          (f := fun () -> Contents.CA.flush ~index:false contents);
+          (f := fun () -> Commit.CA.flush ~index:false commit);
           { contents; node; commit; branch; config; index }
 
         let close t =
@@ -181,15 +181,18 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
         let sync t =
           let on_generation_change () =
             Node.CA.clear_caches (snd (node_t t));
-            Commit.CA.clear_caches (snd (commit_t t))
+            Contents.CA.clear_caches (contents_t t)
           in
-          Contents.CA.sync ~on_generation_change (contents_t t)
+          Commit.CA.sync ~on_generation_change (snd (commit_t t))
 
-        (** Stores share instances so one clear is enough. *)
-        let clear t = Contents.CA.clear (contents_t t)
+        (** Stores share instances so one clear is enough. We clear the [Commit]
+            store because it's guaranteed to have an Index handle.
+
+            TODO(craigfe): review whether this choice should be relied on here. *)
+        let clear t = Commit.CA.clear (snd (commit_t t))
 
         let flush t =
-          Contents.CA.flush (contents_t t);
+          Commit.CA.flush (snd (commit_t t));
           Branch.flush t.branch
       end
     end
@@ -229,7 +232,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       let* heads =
         match heads with None -> Repo.heads t | Some m -> Lwt.return m
       in
-      let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
+      let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
       let+ () =
         Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
       in
@@ -245,7 +248,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           !errors
 
     module Stats = struct
-      let pp_hash = Irmin.Type.pp Hash.t
+      let pp_key = Irmin.Type.pp XKey.t
 
       let traverse_inodes ~dump_blob_paths_to commit repo =
         let module Stats = Checks.Stats (struct
@@ -258,12 +261,19 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
         let t = Stats.v () in
         let pred_node repo k =
           X.Node.find (X.Repo.node_t repo) k >|= function
-          | None -> Fmt.failwith "hash %a not found" pp_hash k
+          | None -> Fmt.failwith "key %a not found" pp_key k
           | Some v ->
               let width = X.Node.Val.length v in
               let nb_children = X.Node.CA.Val.nb_children v in
               let preds = X.Node.CA.Val.pred v in
-              Stats.visit_node t k ~width ~nb_children preds;
+              let () =
+                preds
+                |> List.map (function
+                     | s, `Contents h -> (s, `Contents (XKey.to_hash h))
+                     | s, `Inode h -> (s, `Inode (XKey.to_hash h))
+                     | s, `Node h -> (s, `Node (XKey.to_hash h)))
+                |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
+              in
               List.rev_map
                 (function
                   | s, `Inode x ->
@@ -279,11 +289,11 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           | None -> []
           | Some c ->
               let node = X.Commit.Val.node c in
-              Stats.visit_commit t node;
+              Stats.visit_commit t (XKey.to_hash node);
               [ `Node node ]
         in
         let pred_contents _repo k =
-          Stats.visit_contents t k;
+          Stats.visit_contents t (XKey.to_hash k);
           Lwt.return []
         in
         (* We want to discover all paths to a node, so we don't cache nodes
@@ -297,8 +307,8 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
       let run ~dump_blob_paths_to ~commit repo =
         Printexc.record_backtrace true;
-        let hash = `Commit (Commit.hash commit) in
-        traverse_inodes ~dump_blob_paths_to hash repo
+        let key = `Commit (Commit.key commit) in
+        traverse_inodes ~dump_blob_paths_to key repo
     end
 
     let stats = Stats.run
