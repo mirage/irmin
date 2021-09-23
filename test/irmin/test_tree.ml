@@ -419,6 +419,7 @@ let inspect =
     ( = )
 
 let pp_key = Irmin.Type.pp Store.Key.t
+let equal_key = Irmin.Type.(unstage (equal Store.Key.t))
 
 let test_clear _ () =
   (* 1. Build a tree *)
@@ -542,6 +543,58 @@ let test_fold_force _ () =
       contents
   in
 
+  (* Ensure that [fold ~force:`True ~cache:false] visits newly added values. *)
+  let* () =
+    let* () = clear_and_assert_lazy sample_tree in
+    Tree.add sample_tree [ "a"; "ad" ] "v-ad" >>= fun updated_tree ->
+    let visited = ref false in
+    let contents k v () =
+      if equal_key k [ "a"; "ad" ] then (
+        visited := true;
+        if not (String.equal v "v-ad") then
+          Alcotest.failf "Newly added contents at %a not visited during fold"
+            pp_key k);
+      Lwt.return_unit
+    in
+    Tree.fold ~force:`True ~cache:false ~contents updated_tree () >>= fun () ->
+    Alcotest.(check bool) "Newly added contents visited" !visited true;
+    Lwt.return_unit
+  in
+
+  (* Ensure that [fold ~force:`True ~cache:false] does not visit newly removed values. *)
+  let* () =
+    let* () = clear_and_assert_lazy sample_tree in
+    Tree.remove sample_tree [ "a"; "ab" ] >>= fun updated_tree ->
+    let contents k _ () =
+      if equal_key k [ "a"; "ab" ] then
+        Alcotest.failf
+          "Removed contents at %a should not be visited during fold" pp_key k;
+      Lwt.return_unit
+    in
+    Tree.fold ~force:`True ~cache:false ~contents updated_tree () >>= fun () ->
+    Lwt.return_unit
+  in
+
+  (* Ensure that [fold ~force:`True ~cache:false] visits updated values only once. *)
+  let* () =
+    let* () = clear_and_assert_lazy sample_tree in
+    Tree.add sample_tree [ "a"; "ab" ] "v-abb" >>= fun updated_tree ->
+    let visited = ref [] in
+    let tree k _ () =
+      if List.mem ~equal:equal_key k !visited then
+        Alcotest.failf "Visited node at %a twice during fold" pp_key k
+      else visited := k :: !visited;
+      Lwt.return_unit
+    in
+    let contents k v () =
+      if equal_key k [ "a"; "ab" ] then
+        if not (String.equal v "v-abb") then
+          Alcotest.failf "Outdated contents at %a visited during fold" pp_key k;
+      Lwt.return_unit
+    in
+    Tree.fold ~force:`True ~cache:false ~tree ~contents updated_tree ()
+    >>= fun () -> Lwt.return_unit
+  in
   Lwt.return_unit
 
 let test_shallow _ () =
