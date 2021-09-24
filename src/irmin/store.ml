@@ -51,6 +51,10 @@ module Make (P : Private.S) = struct
     let hash : ?cache:bool -> t -> hash =
      fun ?cache tr ->
       match hash ?cache tr with `Node h -> h | `Contents (h, _) -> h
+
+    let shallow_hash repo t =
+      superclear repo t;
+      hash ~cache:false t
   end
 
   type branch = P.Branch.Key.t [@@deriving irmin]

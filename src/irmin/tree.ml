@@ -529,6 +529,14 @@ module Make (P : Private.S) = struct
 
     let hash ~cache k = hash ~cache k (fun x -> x)
 
+    let superclear repo t =
+      match t.v with
+      | Hash _ -> ()
+      | Map _ | Value _ ->
+          let hash = hash ~cache:false t in
+          t.v <- Hash (repo, hash);
+      clear_info_fields t.info
+
     let value_of_hash ~cache t repo k =
       match cached_value t with
       | Some v -> Lwt.return_ok v
@@ -1036,6 +1044,10 @@ module Make (P : Private.S) = struct
 
   let clear ?(depth = 0) = function
     | `Node n -> Node.clear ~max_depth:depth 0 n
+    | `Contents _ -> ()
+
+  let superclear repo = function
+    | `Node n -> Node.superclear repo n
     | `Contents _ -> ()
 
   let sub ~cache ctx t path =

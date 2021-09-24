@@ -356,5 +356,6 @@ module type Sigs = sig
     val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
+    val superclear : P.Repo.t -> t -> unit
   end
 end

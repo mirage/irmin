@@ -397,6 +397,8 @@ module type S = sig
     val shallow : Repo.t -> kinded_hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No check is
         performed to verify if [h] actually exists in [r]. *)
+
+    val shallow_hash : Repo.t -> tree -> hash
   end
 
   (** {1 Reads} *)
