@@ -92,7 +92,7 @@ let suite_pack =
     let* repo = S.Repo.v config in
     clear repo >>= fun () -> S.Repo.close repo
   in
-  Irmin_test.Suite.create ~name:"CHUNK" ~init ~store ~config ~clean
+  Irmin_test.Suite.create ~name:"PACK" ~init ~store ~config ~clean
     ~layered_store:(Some layered_store) ()
 
 module Irmin_pack_mem_maker = struct
