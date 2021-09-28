@@ -393,7 +393,10 @@ let inspect =
       | `Node `Value -> Fmt.string ppf "value")
     ( = )
 
-let pp_key = Irmin.Type.pp Store.Key.t
+type key = Store.Key.t [@@deriving irmin]
+
+let pp_key = Irmin.Type.pp key_t
+let equal_key = Irmin.Type.(unstage (equal key_t))
 
 let test_clear _ () =
   (* 1. Build a tree *)
@@ -515,6 +518,33 @@ let test_fold_force _ () =
       "During forced fold, all contents were traversed"
       [ "v-aa"; "v-ab"; "v-ac"; "v-b"; "v-c" ]
       contents
+  in
+
+  (* Ensure that [fold ~force:`True ~cache:false] visits newly added values and
+     updated values only once and does not visit removed values. *)
+  let* () =
+    let* () = clear_and_assert_lazy sample_tree in
+    Tree.remove sample_tree [ "a"; "ab" ] >>= fun updated_tree ->
+    Tree.add updated_tree [ "a"; "ad" ] "v-ad" >>= fun updated_tree ->
+    Tree.add updated_tree [ "a"; "ac" ] "v-acc" >>= fun updated_tree ->
+    let visited = ref [] in
+    let contents k v () =
+      if equal_key k [ "a"; "ab" ] then
+        Alcotest.failf
+          "Removed contents at %a should not be visited during fold" pp_key k;
+      if equal_key k [ "a"; "ac" ] then
+        if not (String.equal v "v-acc") then
+          Alcotest.failf "Outdated contents at %a visited during fold" pp_key k;
+      if List.exists (fun x -> equal_key k x) !visited then
+        Alcotest.failf "Visited node at %a twice during fold" pp_key k
+      else visited := k :: !visited;
+      Lwt.return_unit
+    in
+    Tree.fold ~force:`True ~cache:false ~contents updated_tree () >|= fun () ->
+    Alcotest.(check bool)
+      "Newly added contents visited"
+      (List.exists (fun x -> equal_key [ "a"; "ad" ] x) !visited)
+      true
   in
 
   Lwt.return_unit
