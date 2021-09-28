@@ -30,9 +30,6 @@
   - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
     cache the lazily loaded data any more. Pass `~cache:true` to enable it
     again. (#1526, @Ngoguey42)
-  - The order in which nodes are visited in `Tree.fold` is now unstable and
-    depends on whether the node is in memory or on disk (#1525, @icristescu,
-    @Ngoguey42, @CraigFe)
 
 ## 2.7.2 (2021-07-20)
 
