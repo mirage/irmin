@@ -535,7 +535,7 @@ module Make (P : Private.S) = struct
       | Map _ | Value _ ->
           let hash = hash ~cache:false t in
           t.v <- Hash (repo, hash);
-      clear_info_fields t.info
+          clear_info_fields t.info
 
     let value_of_hash ~cache t repo k =
       match cached_value t with
@@ -811,17 +811,11 @@ module Make (P : Private.S) = struct
        fun ~path acc d t k ->
         let apply acc = node path t acc >>= tree path (`Node t) in
         let next acc =
-          match (force, cache) with
-          | `True, false -> (
-              match t.v with
-              | Map m -> (map [@tailcall]) ~path acc d (Some m) k
-              | Value (repo, _, _) | Hash (repo, _) ->
-                  let* v = to_value ~cache t >|= get_ok "fold" in
-                  (value [@tailcall]) ~path acc d (repo, v) k)
-          | `True, true ->
+          match force with
+          | `True ->
               let* m = to_map ~cache t >|= get_ok "fold" in
               (map [@tailcall]) ~path acc d (Some m) k
-          | `False skip, (true | false) -> (
+          | `False skip -> (
               match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
               | None ->
@@ -880,18 +874,6 @@ module Make (P : Private.S) = struct
             let* acc = pre path bindings acc in
             (steps [@tailcall]) ~path acc d bindings (fun acc ->
                 post path bindings acc >>= k)
-      and value : type r. (repo * value, acc, r) folder =
-       fun ~path acc d (repo, v) k ->
-        let to_elt = function
-          | `Node h -> `Node (of_hash repo h)
-          | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
-        in
-        let bindings =
-          P.Node.Val.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
-        in
-        let* acc = pre path bindings acc in
-        (steps [@tailcall]) ~path acc d bindings (fun acc ->
-            post path bindings acc >>= k)
       in
       aux_uniq ~path acc 0 t Lwt.return
 
