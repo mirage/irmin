@@ -1170,7 +1170,7 @@ module Make (P : Private.S) = struct
         | Error _ -> Seq.empty
         | Ok l -> l)
 
-  let list t ?offset ?length ?(cache = false) path =
+  let list t ?offset ?length ?(cache = true) path =
     seq t ?offset ?length ~cache path >|= List.of_seq
 
   let empty = `Node Node.empty
