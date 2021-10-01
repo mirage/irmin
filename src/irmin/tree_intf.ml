@@ -144,7 +144,7 @@ module type S = sig
 
       [offset] and [length] are used for pagination.
 
-      [cache] defaults to [false], see {!caching} for an explanation of the
+      [cache] defaults to [true], see {!caching} for an explanation of the
       parameter. *)
 
   val get : t -> key -> contents Lwt.t
@@ -266,7 +266,8 @@ module type S = sig
 
       The fold depth is controlled by the [depth] parameter.
 
-      See {!caching} for an explanation of the [cache] parameter *)
+      [cache] defaults to [false], see {!caching} for an explanation of the
+      parameter. *)
 
   (** {1 Stats} *)
 
@@ -305,7 +306,10 @@ module type S = sig
   val clear : ?depth:int -> t -> unit
   (** [clear ?depth t] clears all caches in the tree [t] for subtrees with a
       depth higher than [depth]. If [depth] is not set, all of the subtrees are
-      cleared. *)
+      cleared.
+
+      A call to [clear] doesn't discard the subtrees of [t], only their cache
+      are discarded. Even the lazily loaded and unmodified subtrees remain. *)
 
   (** {1 Performance counters} *)
 
