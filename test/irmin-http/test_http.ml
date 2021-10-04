@@ -84,11 +84,11 @@ let wait_for_the_server_to_start id =
       let line = input_line ic in
       close_in ic;
       let pid = int_of_string line in
-      Logs.debug (fun l -> l "read PID %d from %s" pid pid_file);
+      [%logs.debug "read PID %d from %s" pid pid_file];
       Unix.unlink pid_file;
       check_connection id >|= fun () -> pid)
     else (
-      Logs.debug (fun l -> l "waiting for the server to start...");
+      [%logs.debug "waiting for the server to start..."];
       Lwt_unix.sleep (float n *. 0.1) >>= fun () -> aux (n + 1))
   in
   aux 1
@@ -118,7 +118,7 @@ let rec lock id =
   Lwt.catch
     (fun () ->
       Lwt_unix.lockf fd Unix.F_LOCK 0 >>= fun () ->
-      Logs.debug (fun l -> l "write PID %s in %s" pid pid_file);
+      [%logs.debug "write PID %s in %s" pid pid_file];
       let* len = Lwt_unix.write fd (Bytes.of_string pid) 0 pid_len in
       if len <> pid_len then
         Lwt_unix.close fd >>= fun () ->
@@ -141,12 +141,12 @@ let get_store suite =
 
 let serve servers n id =
   Logs.set_level ~all:true (Some Logs.Debug);
-  Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
+  [%logs.debug "pwd: %s" @@ Unix.getcwd ()];
   let _, (server : Irmin_test.Suite.t) = List.nth servers n in
-  Logs.debug (fun l ->
-      l "Got server: %s, root=%s"
-        (Irmin_test.Suite.name server)
-        (root (Irmin_test.Suite.config server)));
+  [%logs.debug
+    "Got server: %s, root=%s"
+      (Irmin_test.Suite.name server)
+      (root (Irmin_test.Suite.config server))];
   let (module Server : Irmin_test.S) = get_store server in
   let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
   let test = { name = Irmin_test.Suite.name server; id } in

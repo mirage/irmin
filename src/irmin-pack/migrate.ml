@@ -28,7 +28,7 @@ let migrate_io_to_v2 ~progress src =
 
 let run config =
   if Conf.readonly config then raise S.RO_not_allowed;
-  Log.debug (fun l -> l "[%s] migrate" (Conf.root config));
+  [%log.debug "[%s] migrate" (Conf.root config)];
   Layout.stores ~root:(Conf.root config)
   |> List.map (fun store ->
          let io = IO.v ~version:None ~fresh:false ~readonly:true store in
@@ -37,9 +37,9 @@ let run config =
   |> List.partition (fun (_, _, v) -> v = latest_version)
   |> function
   | migrated, [] ->
-      Log.info (fun l ->
-          l "Store at %s is already in current version (%a)" (Conf.root config)
-            Version.pp latest_version);
+      [%log.info
+        "Store at %s is already in current version (%a)" (Conf.root config)
+          Version.pp latest_version];
       List.iter (fun (_, io, _) -> IO.close io) migrated
   | migrated, to_migrate ->
       List.iter (fun (_, io, _) -> IO.close io) migrated;
@@ -47,11 +47,10 @@ let run config =
       | [] -> ()
       | _ :: _ ->
           let pp_ios = Fmt.(Dump.list (using (fun (n, _, _) -> n) string)) in
-          Log.warn (fun l ->
-              l
-                "Store is in an inconsistent state: files %a have already been \
-                 upgraded, but %a have not. Upgrading the remaining files now."
-                pp_ios migrated pp_ios to_migrate));
+          [%log.warn
+            "Store is in an inconsistent state: files %a have already been \
+             upgraded, but %a have not. Upgrading the remaining files now."
+            pp_ios migrated pp_ios to_migrate]);
       let total =
         to_migrate
         |> List.map (fun (_, io, _) -> IO.offset io)

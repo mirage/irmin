@@ -80,18 +80,18 @@ module Maker (K : Irmin.Hash.S) = struct
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
     let clear_keep_generation t =
-      Log.debug (fun f -> f "clear_keep_generation");
+      [%log.debug "clear_keep_generation"];
       t.t <- KMap.empty;
       Lwt.return_unit
 
     let clear t =
-      Log.debug (fun f -> f "clear");
+      [%log.debug "clear"];
       t.t <- KMap.empty;
       t.generation <- Int63.succ t.generation;
       Lwt.return_unit
 
     let close t =
-      Log.debug (fun f -> f "close");
+      [%log.debug "close"];
       Pool.drop instances t.name;
       Lwt.return_unit
 
@@ -110,7 +110,7 @@ module Maker (K : Irmin.Hash.S) = struct
       with Not_found -> Ok None
 
     let unsafe_find ~check_integrity:_ t k =
-      Log.debug (fun f -> f "unsafe find %a" pp_key k);
+      [%log.debug "unsafe find %a" pp_key k];
       find t k |> function
       | Ok r -> r
       | Error (k, k') ->
@@ -118,7 +118,7 @@ module Maker (K : Irmin.Hash.S) = struct
             pp_key k
 
     let find t k =
-      Log.debug (fun f -> f "find %a" pp_key k);
+      [%log.debug "find %a" pp_key k];
       find t k |> function
       | Ok r -> Lwt.return r
       | Error (k, k') ->
@@ -126,13 +126,13 @@ module Maker (K : Irmin.Hash.S) = struct
             pp_key k' pp_key k
 
     let unsafe_mem t k =
-      Log.debug (fun f -> f "mem %a" pp_key k);
+      [%log.debug "mem %a" pp_key k];
       KMap.mem k t.t
 
     let mem t k = Lwt.return (unsafe_mem t k)
 
     let unsafe_append ~ensure_unique:_ ~overcommit:_ t k v =
-      Log.debug (fun f -> f "add -> %a" pp_key k);
+      [%log.debug "add -> %a" pp_key k];
       t.t <- KMap.add k v t.t
 
     let unsafe_add t k v =

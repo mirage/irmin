@@ -3,4 +3,4 @@
  (name irmin_pack_mem)
  (libraries irmin-pack irmin.mem)
  (preprocess
-  (pps ppx_irmin)))
+  (pps ppx_irmin.internal)))

@@ -268,9 +268,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
           (function
             | Irmin_pack.Version.Invalid { expected; found } as e
               when expected = V.version ->
-                Log.err (fun m ->
-                    m "[%s] Attempted to open store of unsupported version %a"
-                      root Irmin_pack.Version.pp found);
+                [%log.err
+                  "[%s] Attempted to open store of unsupported version %a" root
+                    Irmin_pack.Version.pp found];
                 Lwt.fail e
             | e -> Lwt.fail e)
 
@@ -440,7 +440,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
           call clear on one store. However, each store has its own caches, which
           need to be cleared too. *)
       let clear_previous_upper ?keep_generation t =
-        Log.debug (fun l -> l "clear previous upper");
+        [%log.debug "clear previous upper"];
         Contents.CA.clear_previous_upper ?keep_generation t.contents
         >>= fun () ->
         Node.CA.clear_caches_next_upper t.node;
@@ -573,9 +573,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         f (contents, nodes, commits)
 
       let copy ?cancel ?(min = []) t commits =
-        Log.debug (fun f ->
-            f "@[<2>copy to lower:@ min=%a,@ max=%a@]" pp_commits min pp_commits
-              commits);
+        [%log.debug
+          "@[<2>copy to lower:@ min=%a,@ max=%a@]" pp_commits min pp_commits
+            commits];
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
         let min = List.map (fun x -> `Commit (Commit.hash x)) min in
         on_lower t (fun l ->
@@ -596,9 +596,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         f (contents, nodes, commits)
 
       let copy ?cancel ?(min = []) t commits =
-        Log.debug (fun f ->
-            f "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
-              pp_commits commits);
+        [%log.debug
+          "@[<2>copy to next upper:@ min=%a,@ max=%a@]" pp_commits min
+            pp_commits commits];
         let max = List.map (fun x -> `Commit (Commit.hash x)) commits in
         let min = List.map (fun x -> `Commit (Commit.hash x)) min in
         on_next_upper t (fun u ->
@@ -615,7 +615,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
       let copy_newies ~cancel t =
         let newies = X.Commit.CA.consume_newies t.X.Repo.commit in
         let newies = List.rev_map (fun x -> `Commit x) newies in
-        Log.debug (fun l -> l "copy newies");
+        [%log.debug "copy newies"];
         (* we want to copy all the new commits; stop whenever one
            commmit already in the other upper or in lower. *)
         let skip_commits k =
@@ -692,14 +692,13 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
 
            (ngoguey): we could stop at the uppers directly following a lower.
         *)
-        Log.debug (fun l ->
-            l
-              "self_contained: copy commits min:%a; max:%a from lower into \
-               upper to make the upper self contained"
-              (Fmt.list (Irmin.Type.pp H.t))
-              min
-              (Fmt.list (Irmin.Type.pp H.t))
-              max);
+        [%log.debug
+          "self_contained: copy commits min:%a; max:%a from lower into upper \
+           to make the upper self contained"
+            (Fmt.list (Irmin.Type.pp H.t))
+            min
+            (Fmt.list (Irmin.Type.pp H.t))
+            max];
         on_current_upper t (fun u -> iter_copy u ~min t max)
     end
   end
@@ -737,14 +736,14 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     Fmt.pf ppf "%a" Layered_store.pp_current_upper t.X.Repo.flip
 
   let unsafe_freeze ~min_lower ~max_lower ~min_upper ~max_upper ?hook t =
-    Log.info (fun l ->
-        l "[%a] freeze starts { %a }" pp_repo t Field.pps
-          [
-            Field.commits "min_lower" min_lower;
-            Field.commits "max_lower" max_lower;
-            Field.commits "min_upper" min_upper;
-            Field.commits "max_upper" max_upper;
-          ]);
+    [%log.info
+      "[%a] freeze starts { %a }" pp_repo t Field.pps
+        [
+          Field.commits "min_lower" min_lower;
+          Field.commits "max_lower" max_lower;
+          Field.commits "min_upper" min_upper;
+          Field.commits "max_upper" max_upper;
+        ]];
     let offset = X.Repo.offset t in
     let lock_file = lock_path t.root in
     (* We take a file lock here to signal that a freeze was in progess in
@@ -843,7 +842,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
   let needs_recovery t = Lock.test (lock_path t.X.Repo.root)
 
   let check_self_contained ?heads t =
-    Log.debug (fun l -> l "Check that the upper layer is self contained");
+    [%log.debug "Check that the upper layer is self contained"];
     let errors = ref 0 in
     let none () =
       incr errors;

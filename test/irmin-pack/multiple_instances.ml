@@ -118,7 +118,7 @@ let ro_sync_after_close () =
 module P = S.Backend
 
 let clear_all repo =
-  Log.debug (fun l -> l "clear repo");
+  [%log.debug "clear repo"];
   Lwt.join
     [
       P.Contents.clear (P.Repo.contents_t repo);

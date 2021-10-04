@@ -335,8 +335,8 @@ module Make (Store : Store) = struct
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
           if (len0, len1) <> (0, 1) then
-            Logs.app (fun l ->
-                l "\nAfter commit %6d we have %d/%d history sizes" i len0 len1);
+            [%logs.app
+              "\nAfter commit %6d we have %d/%d history sizes" i len0 len1];
           let* () = on_commit i (Option.get t.latest_commit) in
           prog 1;
           aux commit_seq (i + 1)
@@ -349,9 +349,9 @@ module Make (Store : Store) = struct
       && config.inode_config = (32, 256)
       && config.empty_blobs = false
     in
-    Logs.app (fun l ->
-        l "Will %scheck commit hashes against reference."
-          (if check_hash then "" else "NOT "));
+    [%logs.app
+      "Will %scheck commit hashes against reference."
+        (if check_hash then "" else "NOT ")];
     let commit_seq =
       open_commit_sequence config.ncommits_trace config.path_conversion
         config.commit_data_file
@@ -381,16 +381,16 @@ module Make (Store : Store) = struct
             add_commits repo config.ncommits_trace commit_seq on_commit on_end
               stats check_hash config.empty_blobs
           in
-          Logs.app (fun l -> l "Closing repo...");
+          [%logs.app "Closing repo..."];
           let+ () = Store.Repo.close repo in
           Stat_collector.close stats;
           if not config.no_summary then (
-            Logs.app (fun l -> l "Computing summary...");
+            [%logs.app "Computing summary..."];
             Some (Trace_stat_summary.summarise ~block_count stat_path))
           else None)
         (fun () ->
           if config.keep_stat_trace then (
-            Logs.app (fun l -> l "Stat trace kept at %s" stat_path);
+            [%logs.app "Stat trace kept at %s" stat_path];
             Unix.chmod stat_path 0o444;
             Lwt.return_unit)
           else Lwt.return (Stat_collector.remove stats))

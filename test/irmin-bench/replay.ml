@@ -55,7 +55,7 @@ let replay_1_commit () =
   assert (Sys.file_exists trace_path);
   if Sys.file_exists test_dir then (
     let cmd = Printf.sprintf "rm -rf %s" test_dir in
-    Logs.debug (fun l -> l "exec: %s\n%!" cmd);
+    [%logs.debug "exec: %s\n%!" cmd];
     let _ = Sys.command cmd in
     ());
 
@@ -76,7 +76,7 @@ let replay_1_commit () =
     }
   in
   let+ pp_result = Replay.run store_dir replay_config in
-  Logs.debug (fun l -> l "%t" pp_result);
+  [%logs.debug "%t" pp_result];
   ()
 
 module Store_mem = struct
@@ -108,7 +108,7 @@ let replay_1_commit_mem () =
   assert (Sys.file_exists trace_path);
   if Sys.file_exists test_dir then (
     let cmd = Printf.sprintf "rm -rf %s" test_dir in
-    Logs.debug (fun l -> l "exec: %s\n%!" cmd);
+    [%logs.debug "exec: %s\n%!" cmd];
     let _ = Sys.command cmd in
     ());
 
@@ -129,7 +129,7 @@ let replay_1_commit_mem () =
     }
   in
   let+ pp_result = Replay_mem.run store_dir replay_config in
-  Logs.debug (fun l -> l "%t" pp_result);
+  [%logs.debug "%t" pp_result];
   ()
 
 let test_cases =

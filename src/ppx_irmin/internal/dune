@@ -1,0 +1,21 @@
+;; Extensions to `ppx_irmin` intended for Irmin developers only
+
+(library
+ (kind ppx_rewriter)
+ (name ppx_irmin_internal)
+ (public_name ppx_irmin.internal)
+ (modules ppx_irmin_internal)
+ (ppx_runtime_libraries logs ppx_irmin.internal-lib)
+ (preprocess
+  (pps ppxlib.metaquot))
+ (libraries
+  ppxlib
+  ppx_irmin.internal-lib
+  ;; Depending on [ppx_irmin.internal] implies a dependency on [ppx_irmin]
+  ppx_irmin))
+
+(library
+ (name ppx_irmin_internal_lib)
+ (public_name ppx_irmin.internal-lib)
+ (modules ppx_irmin_internal_lib)
+ (libraries logs))

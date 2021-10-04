@@ -136,7 +136,7 @@ module Make (M : Maker) = struct
     let conf root = Conf.init ~readonly:true ~fresh:false root
 
     let run_versioned_store ~root version =
-      Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
+      [%logs.app "Getting statistics for store: `%s'@," root];
       let log_size = conf root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
       let files = v ~root ~version in
@@ -290,7 +290,7 @@ module Make (M : Maker) = struct
       in
       let* () =
         Store.integrity_check_inodes ~heads repo >|= function
-        | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok: %s" msg)
+        | Ok (`Msg msg) -> [%logs.app "Ok: %s" msg]
         | Error (`Msg msg) -> Fmt.failwith "Error: %s" msg
       in
       Store.Repo.close repo
@@ -657,7 +657,7 @@ struct
     if maximum > t.max_mp then t.max_mp <- maximum
 
   let pp_results ~dump_blob_paths_to t =
-    Log.app (fun l -> l "Max width = %a" Metrics.pp t.max_width);
+    [%log.app "Max width = %a" Metrics.pp t.max_width];
     let maximal_count, representative =
       Hashtbl.fold
         (fun _ (stat : Metrics.node) ((counter, _) as acc) ->
@@ -673,8 +673,7 @@ struct
     let max_mp =
       Metrics.v ~maximal_count ~representative ~maximum:t.max_mp ()
     in
-    Log.app (fun l ->
-        l "Max number of path-adjacent nodes = %a" Metrics.pp max_mp);
+    [%log.app "Max number of path-adjacent nodes = %a" Metrics.pp max_mp];
     (* Count all paths that have max length. *)
     let maximal_count, representative =
       Hashtbl.fold
@@ -690,7 +689,7 @@ struct
     let max_length =
       Metrics.v ~maximal_count ~representative ~maximum:t.max_length ()
     in
-    Log.app (fun l -> l "Max length = %a" Metrics.pp max_length);
+    [%log.app "Max length = %a" Metrics.pp max_length];
     match dump_blob_paths_to with
     | None -> ()
     | Some filename ->

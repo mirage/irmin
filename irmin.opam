@@ -27,6 +27,7 @@ depends: [
   "logs"    {>= "0.5.0"}
   "bheap" {>= "2.0.0"}
   "astring"
+  "mtime"
   "ppx_irmin" {= version}
   "hex"      {with-test}
   "alcotest" {>= "1.1.0" & with-test}

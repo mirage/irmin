@@ -15,4 +15,5 @@
  *)
 
 module Store_properties = Store_properties
+module Logging = Logging
 include Import

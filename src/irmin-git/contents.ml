@@ -48,7 +48,7 @@ module Make (G : Git.S) (C : Irmin.Contents.S) = struct
 
     let decode_bin =
       Irmin.Type.stage @@ fun buf off ->
-      Log.debug (fun l -> l "Content.decode_bin");
+      [%log.debug "Content.decode_bin"];
       match Raw.of_raw_with_header ~off buf with
       | Ok g -> (
           match V.of_git g with

@@ -4,14 +4,16 @@
  (modules main layers import)
  (package irmin-bench)
  (preprocess
-  (pps ppx_repr))
+  (pps ppx_irmin.internal ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
    unix cmdliner logs memtrace repr ppx_repr bench_common rusage))
 
 (library
  (name bench_common)
  (modules bench_common)
- (libraries irmin-pack unix progress uuidm))
+ (libraries irmin-pack unix progress uuidm)
+ (preprocess
+  (pps ppx_irmin.internal)))
 
 (library
  (name irmin_traces)
@@ -19,7 +21,7 @@
    trace_stat_summary_conf trace_stat_summary_utils trace_stat_summary_pp
    trace_replay trace_replay_intf tezos_history_metrics trace_stat_summary_cb)
  (preprocess
-  (pps ppx_repr ppx_deriving.enum))
+  (pps ppx_irmin.internal ppx_repr ppx_deriving.enum))
  (libraries irmin irmin-pack unix lwt repr ppx_repr bentov mtime printbox
    uucp uutf printbox.unicode mtime.clock.os bench_common))
 
@@ -27,7 +29,7 @@
  (name tree)
  (modules tree)
  (preprocess
-  (pps ppx_repr))
+  (pps ppx_irmin.internal ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-pack.mem irmin-test.bench
    irmin-layers lwt unix cmdliner logs memtrace repr ppx_repr bench_common
    tezos-context-hash-irmin irmin_traces))

@@ -103,19 +103,19 @@ struct
     match of_bin_string v with
     | Ok v -> Some v
     | Error (`Msg e) ->
-        Log.err (fun l -> l "Irmin_fs.value %s" e);
+        [%log.err "Irmin_fs.value %s" e];
         None
 
   let pp_key = Irmin.Type.pp K.t
 
   let find t key =
-    Log.debug (fun f -> f "find %a" pp_key key);
+    [%log.debug "find %a" pp_key key];
     IO.read_file (file_of_key t key) >|= function
     | None -> None
     | Some x -> value x
 
   let list t =
-    Log.debug (fun f -> f "list");
+    [%log.debug "list"];
     let+ files = IO.rec_files (S.dir t.path) in
     let files =
       let p = String.length t.path in
@@ -133,12 +133,12 @@ struct
         match Irmin.Type.of_string K.t (S.key_of_file file) with
         | Ok k -> k :: acc
         | Error (`Msg e) ->
-            Log.err (fun l -> l "Irmin_fs.list: %s" e);
+            [%log.err "Irmin_fs.list: %s" e];
             acc)
       [] files
 
   let clear t =
-    Log.debug (fun f -> f "clear");
+    [%log.debug "clear"];
     let remove_file key =
       IO.remove_file ~lock:(lock_of_key t key) (file_of_key t key)
     in
@@ -157,7 +157,7 @@ struct
   let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
 
   let add t key value =
-    Log.debug (fun f -> f "add %a" pp_key key);
+    [%log.debug "add %a" pp_key key];
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     IO.file_exists file >>= function
@@ -215,7 +215,7 @@ struct
       match Irmin.Type.of_string K.t file with
       | Ok t -> Some t
       | Error (`Msg e) ->
-          Log.err (fun l -> l "listen_dir: %s" e);
+          [%log.err "listen_dir: %s" e];
           None
     in
     W.listen_dir t.w dir ~key ~value:(RO.find t.t)
@@ -234,7 +234,7 @@ struct
   let raw_value = Irmin.Type.(unstage (to_bin_string V.t))
 
   let set t key value =
-    Log.debug (fun f -> f "update %a" RO.pp_key key);
+    [%log.debug "update %a" RO.pp_key key];
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
@@ -242,14 +242,14 @@ struct
     W.notify t.w key (Some value)
 
   let remove t key =
-    Log.debug (fun f -> f "remove %a" RO.pp_key key);
+    [%log.debug "remove %a" RO.pp_key key];
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
     let* () = IO.remove_file ~lock file in
     W.notify t.w key None
 
   let test_and_set t key ~test ~set =
-    Log.debug (fun f -> f "test_and_set %a" RO.pp_key key);
+    [%log.debug "test_and_set %a" RO.pp_key key];
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
     let lock = RO.lock_of_key t.t key in
@@ -262,7 +262,7 @@ struct
     b
 
   let clear t =
-    Log.debug (fun f -> f "clear");
+    [%log.debug "clear"];
     let remove_file key =
       IO.remove_file ~lock:(RO.lock_of_key t.t key) (RO.file_of_key t.t key)
     in

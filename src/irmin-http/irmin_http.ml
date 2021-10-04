@@ -188,13 +188,11 @@ module Helper (Client : Cohttp_lwt.S.Client) :
     let uri = uri_append t path in
     let body = match body with None -> None | Some b -> Some (`String b) in
     let headers = headers ~keep_alive () in
-    Log.debug (fun f ->
-        f "%s %s" (Cohttp.Code.string_of_method meth) (Uri.path uri));
+    [%log.debug "%s %s" (Cohttp.Code.string_of_method meth) (Uri.path uri)];
     Lwt.catch
       (fun () -> Client.call ?ctx meth ~headers ?body uri >>= fn)
       (fun e ->
-        Log.debug (fun l ->
-            l "request to %a failed: %a" Uri.pp_hum uri Fmt.exn e);
+        [%log.debug "request to %a failed: %a" Uri.pp_hum uri Fmt.exn e];
         Lwt.fail e)
 
   let call meth t ctx ?body path parse =
@@ -401,11 +399,12 @@ functor
                   | `Added v | `Updated (_, v) -> Some v
                 in
                 let k = ev.branch in
-                Log.debug (fun l ->
-                    let pp_opt =
-                      Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp V.t)
-                    in
-                    l "notify %a: %a" pp_key k pp_opt diff);
+                [%log.debug fun l ->
+                  let pp_opt =
+                    Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp V.t)
+                  in
+                  l "notify %a: %a" pp_key k pp_opt diff]
+                ;
                 W.notify t.w k diff)
               s
           in

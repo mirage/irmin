@@ -4,4 +4,6 @@
  (libraries astring cmdliner cohttp cohttp-lwt cohttp-lwt-unix conduit
    conduit-lwt-unix git-cohttp-unix fmt.cli fmt.tty git git-unix irmin
    irmin-fs irmin-git irmin-graphql irmin-http irmin.mem irmin-pack
-   irmin-watcher logs.cli logs.fmt lwt lwt.unix uri yaml))
+   irmin-watcher logs.cli logs.fmt lwt lwt.unix uri yaml)
+ (preprocess
+  (pps ppx_irmin.internal)))

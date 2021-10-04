@@ -3,4 +3,4 @@
  (public_name irmin-http)
  (libraries astring cohttp cohttp-lwt fmt irmin jsonm logs lwt uri webmachine)
  (preprocess
-  (pps ppx_irmin)))
+  (pps ppx_irmin.internal)))

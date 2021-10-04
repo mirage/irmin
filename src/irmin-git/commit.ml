@@ -93,12 +93,12 @@ module Make (G : Git.S) = struct
 
   let encode_bin =
     Irmin.Type.stage @@ fun (t : t) k ->
-    Log.debug (fun l -> l "Commit.encode_bin");
+    [%log.debug "Commit.encode_bin"];
     k (to_bin t)
 
   let decode_bin =
     Irmin.Type.stage @@ fun buf off ->
-    Log.debug (fun l -> l "Commit.decode_bin");
+    [%log.debug "Commit.decode_bin"];
     match Raw.of_raw_with_header ~off buf with
     | Ok (Git.Value.Commit t) -> (String.length buf, t)
     | Ok _ -> failwith "wrong object kind"

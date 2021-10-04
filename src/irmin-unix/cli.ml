@@ -131,7 +131,7 @@ let http =
                   | None -> (Uri.with_host uri (Some "Listener"), "Listener")
                   | Some name -> (uri, name)
                 in
-                Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+                [%logs.info "daemon: %s" (Uri.to_string uri)];
                 Cohttp_lwt_unix.Server.create ~timeout:3600
                   ~mode:(`Launchd name) spec
             | _ ->
@@ -145,7 +145,7 @@ let http =
                   | None -> (8080, Uri.with_port uri (Some 8080))
                   | Some p -> (p, uri)
                 in
-                Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+                [%logs.info "daemon: %s" (Uri.to_string uri)];
                 Printf.printf "Server starting on port %d.\n%!" port;
                 Cohttp_lwt_unix.Server.create ~timeout:3600
                   ~mode:(`TCP (`Port port))
@@ -581,16 +581,14 @@ let dot =
             if call_dot then (
               let i = Sys.command "/bin/sh -c 'command -v dot'" in
               if i <> 0 then
-                Logs.err (fun f ->
-                    f
-                      "Cannot find the `dot' utility. Please install it on \
-                       your system and be sure it is available in your $PATH.");
+                [%logs.err
+                  "Cannot find the `dot' utility. Please install it on your \
+                   system and be sure it is available in your $PATH."];
               let i =
                 Sys.command
                   (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename)
               in
-              if i <> 0 then
-                Logs.err (fun f -> f "The %s.dot is corrupted" basename));
+              if i <> 0 then [%logs.err "The %s.dot is corrupted" basename]);
             Lwt.return_unit)
        in
        Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full));
@@ -696,7 +694,7 @@ let graphql =
            let* ctx = Conduit_lwt_unix.init ~src:addr () in
            let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
            let on_exn exn =
-             Logs.debug (fun l -> l "on_exn: %s" (Printexc.to_string exn))
+             [%logs.debug "on_exn: %s" (Printexc.to_string exn)]
            in
            Cohttp_lwt_unix.Server.create ~on_exn ~ctx
              ~mode:(`TCP (`Port port))

@@ -112,7 +112,7 @@ struct
     let former_generation = IO.generation t.block in
     let h = IO.force_headers t.block in
     if former_generation <> h.generation then (
-      Log.debug (fun l -> l "[branches] generation changed, refill buffers");
+      [%log.debug "[branches] generation changed, refill buffers"];
       IO.close t.block;
       let io =
         IO.v ~fresh:false ~readonly:true ~version:(Some Current.version)
@@ -126,14 +126,14 @@ struct
       refill t ~to_:h.offset ~from:former_offset
 
   let unsafe_find t k =
-    Log.debug (fun l -> l "[branches] find %a" pp_key k);
+    [%log.debug "[branches] find %a" pp_key k];
     if IO.readonly t.block then sync_offset t;
     try Some (Tbl.find t.cache k) with Not_found -> None
 
   let find t k = Lwt.return (unsafe_find t k)
 
   let unsafe_mem t k =
-    Log.debug (fun l -> l "[branches] mem %a" pp_key k);
+    [%log.debug "[branches] mem %a" pp_key k];
     try Tbl.mem t.cache k with Not_found -> false
 
   let mem t v = Lwt.return (unsafe_mem t v)
@@ -146,7 +146,7 @@ struct
     with Not_found -> ()
 
   let remove t k =
-    Log.debug (fun l -> l "[branches] remove %a" pp_key k);
+    [%log.debug "[branches] remove %a" pp_key k];
     unsafe_remove t k;
     W.notify t.w k None
 
@@ -160,12 +160,12 @@ struct
         Tbl.clear t.index
 
   let clear t =
-    Log.debug (fun l -> l "[branches] clear");
+    [%log.debug "[branches] clear"];
     unsafe_clear t;
     Lwt.return_unit
 
   let clear_keep_generation t =
-    Log.debug (fun l -> l "[branches] clear");
+    [%log.debug "[branches] clear"];
     unsafe_clear ~keep_generation:() t;
     Lwt.return_unit
 
@@ -205,7 +205,7 @@ struct
       Tbl.add t.index k offset
 
   let set t k v =
-    Log.debug (fun l -> l "[branches %s] set %a" (IO.name t.block) pp_key k);
+    [%log.debug "[branches %s] set %a" (IO.name t.block) pp_key k];
     unsafe_set t k v;
     W.notify t.w k (Some v)
 
@@ -221,13 +221,13 @@ struct
       | Some v -> unsafe_set t k v |> return
 
   let test_and_set t k ~test ~set =
-    Log.debug (fun l -> l "[branches] test-and-set %a" pp_key k);
+    [%log.debug "[branches] test-and-set %a" pp_key k];
     unsafe_test_and_set t k ~test ~set >>= function
     | true -> W.notify t.w k set >|= fun () -> true
     | false -> Lwt.return_false
 
   let list t =
-    Log.debug (fun l -> l "[branches] list");
+    [%log.debug "[branches] list"];
     let keys = Tbl.fold (fun k _ acc -> k :: acc) t.cache [] in
     Lwt.return keys
 

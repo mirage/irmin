@@ -131,7 +131,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
         | { Git.Tree.perm = `Commit; name; _ } ->
             (* Irmin does not support Git submodules; do not follow them,
                just consider *)
-            Log.warn (fun l -> l "skipping Git submodule: %s" name);
+            [%log.warn "skipping Git submodule: %s" name];
             acc
         | { Git.Tree.perm = #Metadata.t as perm; name; node; _ } ->
             (to_step name, mk_c node perm) :: acc)
@@ -153,12 +153,12 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
 
   let encode_bin =
     Irmin.Type.stage @@ fun (t : t) k ->
-    Log.debug (fun l -> l "Tree.encode_bin");
+    [%log.debug "Tree.encode_bin"];
     k (to_bin t)
 
   let decode_bin =
     Irmin.Type.stage @@ fun buf off ->
-    Log.debug (fun l -> l "Tree.decode_bin");
+    [%log.debug "Tree.decode_bin"];
     match Raw.of_raw_with_header buf ~off with
     | Ok (Git.Value.Tree t) -> (String.length buf, t)
     | Ok _ -> failwith "wrong object kind"

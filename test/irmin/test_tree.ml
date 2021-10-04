@@ -609,9 +609,8 @@ let test_dangling_hash _ () =
       Tree.shallow repo (`Node n_hash) )
   in
   let run_tests path =
-    Logs.app (fun f ->
-        f "Testing operations on a tree with a shallowed position at %a" pp_key
-          path);
+    [%logs.app
+      "Testing operations on a tree with a shallowed position at %a" pp_key path];
     let* shallow_leaf = Tree.(add_tree empty) path shallow_leaf in
     let* shallow_node = Tree.(add_tree empty) path shallow_node in
     let beneath = path @ [ "a"; "b"; "c" ] in

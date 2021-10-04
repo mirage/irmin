@@ -21,4 +21,4 @@ end)
 
 let () =
   Plugins.register_deriver ();
-  Plugins.register_extension ()
+  Plugins.register_extension ~no_reserve_namespace:() ()

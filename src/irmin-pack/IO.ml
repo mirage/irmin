@@ -42,7 +42,7 @@ module Unix : S = struct
     | `V2 -> (* offset + version + generation *) Int63.of_int 24
 
   let unsafe_flush t =
-    Log.debug (fun l -> l "IO flush %s" t.file);
+    [%log.debug "IO flush %s" t.file];
     let buf = Buffer.contents t.buf in
     if buf = "" then ()
     else
@@ -106,8 +106,8 @@ module Unix : S = struct
         { offset = t.offset; generation = t.generation }
 
   let version t =
-    Log.debug (fun l ->
-        l "[%s] version: %a" (Filename.basename t.file) Version.pp t.version);
+    [%log.debug
+      "[%s] version: %a" (Filename.basename t.file) Version.pp t.version];
     t.version
 
   let readonly t = t.readonly
@@ -145,7 +145,7 @@ module Unix : S = struct
 
   let unsafe_clear ?keep_generation t =
     if t.readonly then invalid_arg "Read-only IO cannot be cleared";
-    Log.debug (fun l -> l "clear %s" t.file);
+    [%log.debug "clear %s" t.file];
     Buffer.clear t.buf;
     (* no-op if the file is already empty; this is to avoid bumping
        the version number when this is not necessary. *)
@@ -239,7 +239,7 @@ module Unix : S = struct
           | _ -> ());
           match actual_version with
           | `V1 ->
-              Log.debug (fun l -> l "[%s] file exists in V1" file);
+              [%log.debug "[%s] file exists in V1" file];
               let offset = Raw.Offset.get raw in
               v ~offset ~version:`V1 ~generation:Int63.zero raw
           | `V2 ->
@@ -286,11 +286,11 @@ module Unix : S = struct
           let rand = Random.State.(bits (make_self_init ())) land 0xFFFFFF in
           Fmt.str "%s-tmp-migrate-%06x" src.file rand
         in
-        Log.debug (fun m ->
-            m "[%s] Performing migration [%a → %a] using tmp file %s"
-              (Filename.basename src.file)
-              Version.pp `V1 Version.pp `V2
-              (Filename.basename dst_path));
+        [%log.debug
+          "[%s] Performing migration [%a → %a] using tmp file %s"
+            (Filename.basename src.file)
+            Version.pp `V1 Version.pp `V2
+            (Filename.basename dst_path)];
         let dst =
           (* Note: all V1 files implicitly have [generation = 0], since it
              is not possible to [clear] them. *)
@@ -321,25 +321,23 @@ module Cache = struct
       if fresh && readonly then invalid_arg "Read-only IO cannot be fresh";
       try
         if not (Sys.file_exists file) then (
-          Log.debug (fun l ->
-              l "[%s] does not exist anymore, cleaning up the fd cache"
-                (Filename.basename file));
+          [%log.debug
+            "[%s] does not exist anymore, cleaning up the fd cache"
+              (Filename.basename file)];
           Hashtbl.remove files (file, true);
           Hashtbl.remove files (file, false);
           raise Not_found);
         let t = Hashtbl.find files (file, readonly) in
         if valid t then (
-          Log.debug (fun l ->
-              l "found in cache: %s (readonly=%b)" file readonly);
+          [%log.debug "found in cache: %s (readonly=%b)" file readonly];
           if fresh then clear t;
           t)
         else (
           Hashtbl.remove files (file, readonly);
           raise Not_found)
       with Not_found ->
-        Log.debug (fun l ->
-            l "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh
-              readonly);
+        [%log.debug
+          "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh readonly];
         let t = v extra_args ~fresh ~readonly file in
         if fresh then clear t;
         Hashtbl.add files (file, readonly) t;

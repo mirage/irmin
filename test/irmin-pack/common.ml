@@ -24,7 +24,7 @@ let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 let rm_dir root =
   if Sys.file_exists root then (
     let cmd = Printf.sprintf "rm -rf %s" root in
-    Logs.info (fun l -> l "exec: %s\n%!" cmd);
+    [%logs.info "exec: %s\n%!" cmd];
     let _ = Sys.command cmd in
     ())
 
@@ -97,8 +97,7 @@ struct
     fun object_type ->
       incr c;
       let name = Filename.concat Config.root ("pack_" ^ string_of_int !c) in
-      Logs.info (fun m ->
-          m "Constructing %s context object: %s" object_type name);
+      [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
   type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }

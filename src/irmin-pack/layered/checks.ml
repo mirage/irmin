@@ -111,7 +111,7 @@ module Make (M : Maker) (Store : S.Store) = struct
       { lower; upper1; upper0 }
 
     let run ~root =
-      Logs.app (fun f -> f "Getting statistics for store: `%s'@," root);
+      [%logs.app "Getting statistics for store: `%s'@," root];
       let log_size = conf root |> Irmin_pack.Conf.index_log_size in
       let objects = traverse_indexes ~root log_size in
       let+ files = v ~root in
@@ -187,8 +187,8 @@ module Make (M : Maker) (Store : S.Store) = struct
 
       let* () =
         S.check_self_contained ~heads repo >|= function
-        | Ok (`Msg msg) -> Logs.app (fun l -> l "Ok -- %s" msg)
-        | Error (`Msg msg) -> Logs.err (fun l -> l "Error -- %s" msg)
+        | Ok (`Msg msg) -> [%logs.app "Ok -- %s" msg]
+        | Error (`Msg msg) -> [%logs.err "Error -- %s" msg]
       in
       S.Repo.close repo
 

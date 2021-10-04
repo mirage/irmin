@@ -4,4 +4,4 @@
  (libraries fmt index index.unix irmin irmin-layers logs lwt lwt.unix mtime
    ppx_irmin cmdliner optint)
  (preprocess
-  (pps ppx_irmin)))
+  (pps ppx_irmin.internal)))

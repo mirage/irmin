@@ -46,7 +46,7 @@ let archive =
   ]
 
 let exec_cmd cmd =
-  Log.info (fun l -> l "exec: %s\n%!" cmd);
+  [%log.info "exec: %s\n%!" cmd];
   match Sys.command cmd with
   | 0 -> ()
   | n ->
@@ -111,22 +111,21 @@ struct
     in
     Alcotest.check_raises "Migrating with RO config should fail"
       Irmin_pack.RO_not_allowed (fun () -> ignore (S.migrate conf_ro));
-    Log.app (fun m -> m "Running the migration with a RW config");
+    [%log.app "Running the migration with a RW config"];
     S.migrate conf_rw;
-    Log.app (fun m -> m "Checking migration is idempotent (cached instance)");
+    [%log.app "Checking migration is idempotent (cached instance)"];
     S.migrate conf_rw;
     uncached_instance_check_idempotent ();
     let* () =
-      Log.app (fun m ->
-          m
-            "Checking old bindings are still reachable post-migration (cached \
-             RO instance)");
+      [%log.app
+        "Checking old bindings are still reachable post-migration (cached RO \
+         instance)"];
       let* r = S.Repo.v conf_ro in
       check_repo r archive
     in
     let* new_commit =
       let* rw = S.Repo.v conf_rw in
-      Log.app (fun m -> m "Checking new commits can be added to the V2 store");
+      [%log.app "Checking new commits can be added to the V2 store"];
       let* new_commit =
         S.Tree.add S.Tree.empty [ "c" ] "x"
         >>= S.Commit.v rw ~parents:[] ~info:S.Info.empty
@@ -151,7 +150,7 @@ module Config_store = struct
     let cmd =
       Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
     in
-    Log.info (fun l -> l "exec: %s\n%!" cmd);
+    [%log.info "exec: %s\n%!" cmd];
     match Sys.command cmd with
     | 0 -> ()
     | n ->
@@ -176,14 +175,13 @@ module Test_store = struct
   include Test (S) (Config_store)
 
   let uncached_instance_check_idempotent () =
-    Log.app (fun m -> m "Checking migration is idempotent (uncached instance)");
+    [%log.app "Checking migration is idempotent (uncached instance)"];
     let module S = V2 () in
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.migrate conf
 
   let uncached_instance_check_commit new_commit =
-    Log.app (fun m ->
-        m "Checking all values can be read from an uncached instance");
+    [%log.app "Checking all values can be read from an uncached instance"];
     let module S = V2 () in
     let conf = config ~readonly:true ~fresh:false Config_store.root_v1 in
     let* ro = S.Repo.v conf in
@@ -205,7 +203,7 @@ module Test_reconstruct = struct
       Filename.quote_command "cp"
         [ "-R"; "-p"; Config_store.root_v1; Config_store.tmp ]
     in
-    Log.info (fun l -> l "exec: %s\n%!" cmd);
+    [%log.info "exec: %s\n%!" cmd];
     match Sys.command cmd with
     | 0 -> ()
     | n ->
@@ -229,9 +227,9 @@ module Test_reconstruct = struct
     in
     Index.iter
       (fun k (offset, length, kind) ->
-        Log.debug (fun l ->
-            l "index find k = %a (off, len, kind) = (%a, %d, %a)"
-              (Irmin.Type.pp S.Hash.t) k Int63.pp offset length Kind.pp kind);
+        [%log.debug
+          "index find k = %a (off, len, kind) = (%a, %d, %a)"
+            (Irmin.Type.pp S.Hash.t) k Int63.pp offset length Kind.pp kind];
         match Index.find index_new k with
         | Some (offset', length', kind') ->
             Alcotest.(check int63) "check offset" offset offset';
@@ -242,8 +240,8 @@ module Test_reconstruct = struct
       index_old;
     Index.close index_old;
     Index.close index_new;
-    Log.app (fun m ->
-        m "Checking old bindings are still reachable post index reconstruction)");
+    [%log.app
+      "Checking old bindings are still reachable post index reconstruction)"];
     let* r = S.Repo.v conf in
     check_repo r archive >>= fun () -> S.Repo.close r
 end
@@ -315,8 +313,8 @@ module Test_corrupted_stores = struct
     setup_test_env ();
     let module S = V2 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
-    Log.app (fun l ->
-        l "integrity check on a store where 3 entries are missing from pack");
+    [%log.app
+      "integrity check on a store where 3 entries are missing from pack"];
     (match S.integrity_check ~auto_repair:false rw with
     | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
     | Error (`Corrupted 3) -> ()
@@ -333,10 +331,9 @@ module Test_corrupted_stores = struct
     setup_test_env_layered_store ();
     let module S = Make_layered in
     let* rw = S.Repo.v (config ~fresh:false root_layers) in
-    Log.app (fun l ->
-        l
-          "integrity check on a layered store where 3 entries are missing from \
-           the pack file of each layer");
+    [%log.app
+      "integrity check on a layered store where 3 entries are missing from the \
+       pack file of each layer"];
     S.integrity_check ~auto_repair:false rw
     |> List.iter (function
          | Ok `No_error, _ ->
@@ -397,13 +394,13 @@ module Test_corrupted_stores = struct
     in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let* ro = S.Repo.v (config ~fresh:false ~readonly:true root) in
-    Log.app (fun l -> l "Open a layered store aborted during a freeze");
+    [%log.app "Open a layered store aborted during a freeze"];
     Alcotest.(check bool) "Store needs recovery" true (S.needs_recovery rw);
     check_upper rw "Upper before recovery" `Upper1;
     let* c = add_commit rw [ "a" ] "x" in
     S.sync ro;
     check_commit ro c [ "a" ] "x" >>= fun () ->
-    Log.app (fun l -> l "Freeze with recovery flag set");
+    [%log.app "Freeze with recovery flag set"];
     let* () =
       S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
       S.Backend_layer.wait_for_freeze rw
@@ -416,10 +413,9 @@ module Test_corrupted_stores = struct
     check_commit ro c [ "a" ] "x" >>= fun () ->
     check_upper ro "RO upper after recovery" `Upper0;
     let* c = add_commit rw [ "b" ] "y" in
-    Log.app (fun l ->
-        l
-          "If recovery flag is set, freeze proceeds with recovery even when it \
-           isn't needed");
+    [%log.app
+      "If recovery flag is set, freeze proceeds with recovery even when it \
+       isn't needed"];
     let* () =
       S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
       S.Backend_layer.wait_for_freeze rw
@@ -457,8 +453,7 @@ module Test_corrupted_inode = struct
           | Some x -> Lwt.return [ x ])
       | _ -> Alcotest.fail "could not read hash"
     in
-    Log.app (fun l ->
-        l "integrity check of inodes on a store with one corrupted inode");
+    [%log.app "integrity check of inodes on a store with one corrupted inode"];
     let c2 = "8d89b97726d9fb650d088cb7e21b78d84d132c6e" in
     let* heads = get_head c2 in
     let* result = S.integrity_check_inodes ~heads rw in

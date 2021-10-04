@@ -193,9 +193,9 @@ struct
     (if max_children <= 1 then
      let min = Chunk.size_of_index_header + (K.hash_size * 2) in
      err_too_small ~min chunk_size);
-    Log.debug (fun l ->
-        l "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
-          chunk_size K.hash_size max_data max_children);
+    [%log.debug
+      "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
+        chunk_size K.hash_size max_data max_children];
     let+ db = CA.v config in
     { chunking; db; chunk_size; max_children; max_data }
 
@@ -234,7 +234,7 @@ struct
     let len = String.length buf in
     if len <= t.max_data then
       AO.add t.db key (data t buf) >|= fun () ->
-      Log.debug (fun l -> l "add -> %a (no split)" pp_key key)
+      [%log.debug "add -> %a (no split)" pp_key key]
     else
       let offs = list_range ~init:0 ~stop:len ~step:t.max_data in
       let aux off =
@@ -243,7 +243,7 @@ struct
         CA.add t.db (data t payload)
       in
       let+ k = Lwt_list.map_s aux offs >>= Tree.add ~key t in
-      Log.debug (fun l -> l "add -> %a (split)" pp_key k)
+      [%log.debug "add -> %a (split)" pp_key k]
 
   let add t v =
     let buf = value_to_bin_string v in

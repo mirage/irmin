@@ -147,7 +147,7 @@ module Maker
       v
 
     let unsafe_mem t k =
-      Log.debug (fun l -> l "[pack] mem %a" pp_hash k);
+      [%log.debug "[pack] mem %a" pp_hash k];
       Tbl.mem t.staging k || Lru.mem t.lru k || Index.mem t.pack.index k
 
     let mem t k =
@@ -176,7 +176,7 @@ module Maker
       Fmt.pf ppf "%s%s" name mode
 
     let unsafe_find ~check_integrity t k =
-      Log.debug (fun l -> l "[pack:%a] find %a" pp_io t pp_hash k);
+      [%log.debug "[pack:%a] find %a" pp_io t pp_hash k];
       Stats.incr_finds ();
       match Tbl.find t.staging k with
       | v ->
@@ -226,7 +226,7 @@ module Maker
     let unsafe_append ~ensure_unique ~overcommit t k v =
       if ensure_unique && unsafe_mem t k then ()
       else (
-        Log.debug (fun l -> l "[pack] append %a" pp_hash k);
+        [%log.debug "[pack] append %a" pp_hash k];
         let offset k =
           match Index.find t.pack.index k with
           | None ->
@@ -257,7 +257,7 @@ module Maker
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
       if t.open_instances = 0 then (
-        Log.debug (fun l -> l "[pack] close %s" (IO.name t.pack.block));
+        [%log.debug "[pack] close %s" (IO.name t.pack.block)];
         Tbl.clear t.staging;
         Lru.clear t.lru;
         close t.pack)
@@ -283,7 +283,7 @@ module Maker
       let former_generation = IO.generation t.pack.block in
       let h = IO.force_headers t.pack.block in
       if former_generation <> h.generation then (
-        Log.debug (fun l -> l "[pack] generation changed, refill buffers");
+        [%log.debug "[pack] generation changed, refill buffers"];
         clear_caches t;
         on_generation_change ();
         IO.close t.pack.block;
