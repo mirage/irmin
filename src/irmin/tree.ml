@@ -158,6 +158,7 @@ module Make (P : Private.S) = struct
   let equal_hash = Type.(unstage (equal P.Hash.t))
   let equal_node = Type.(unstage (equal P.Node.Val.t))
 
+  exception Pruned_hash of { context : string; hash : hash }
   exception Dangling_hash of { context : string; hash : hash }
 
   let () =
@@ -166,7 +167,13 @@ module Make (P : Private.S) = struct
           Some
             (Fmt.str "Irmin.Tree.%s: encountered dangling hash %a" context
                pp_hash hash)
+      | Pruned_hash { context; hash } ->
+          Some
+            (Fmt.str "Irmin.Tree.%s: encountered pruned hash %a" context pp_hash
+               hash)
       | _ -> None)
+
+  let pruned_hash_exn context hash = raise (Pruned_hash { context; hash })
 
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
@@ -174,7 +181,7 @@ module Make (P : Private.S) = struct
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
   module Contents = struct
-    type v = Hash of repo * hash | Value of contents
+    type v = Hash of repo * hash | Value of contents | Pruned of hash
     type info = { mutable hash : hash option; mutable value : contents option }
     type t = { mutable v : v; info : info }
 
@@ -182,10 +189,11 @@ module Make (P : Private.S) = struct
 
     let v =
       let open Type in
-      variant "Node.Contents.v" (fun hash value -> function
-        | Hash (_, x) -> hash x | Value v -> value v)
+      variant "Node.Contents.v" (fun hash value pruned -> function
+        | Hash (_, x) -> hash x | Value v -> value v | Pruned h -> pruned h)
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |~ case1 "value" P.Contents.Val.t (fun v -> Value v)
+      |~ case1 "pruned" P.Hash.t (fun h -> Pruned h)
       |> sealv
 
     let clear_info i =
@@ -197,7 +205,10 @@ module Make (P : Private.S) = struct
 
     let of_v v =
       let hash, value =
-        match v with Hash (_, k) -> (Some k, None) | Value v -> (None, Some v)
+        match v with
+        | Hash (_, k) -> (Some k, None)
+        | Value v -> (None, Some v)
+        | Pruned _ -> (None, None)
       in
       let info = { hash; value } in
       { v; info }
@@ -210,12 +221,17 @@ module Make (P : Private.S) = struct
       | Hash (_, k), _ -> t.v <- Hash (repo, k)
       | Value _, None -> t.v <- Hash (repo, k)
       | Value _, Some k -> t.v <- Hash (repo, k)
+      | Pruned _, _ ->
+          (* The main export function never exports a pruned position. *)
+          assert false
 
     let of_value c = of_v (Value c)
     let of_hash repo k = of_v (Hash (repo, k))
+    let pruned h = of_v (Pruned h)
 
     let cached_hash t =
       match (t.v, t.info.hash) with
+      | Pruned h, _ -> Some h
       | Hash (_, k), None ->
           let h = Some k in
           t.info.hash <- h;
@@ -256,7 +272,8 @@ module Make (P : Private.S) = struct
       | None -> (
           match t.v with
           | Value v -> Lwt.return (Ok v)
-          | Hash (repo, k) -> value_of_hash ~cache t repo k)
+          | Hash (repo, k) -> value_of_hash ~cache t repo k
+          | Pruned h -> pruned_hash_exn "Contents.to_value" h)
 
     let force = to_value ~cache:true
 
@@ -333,6 +350,7 @@ module Make (P : Private.S) = struct
       | Map of map
       | Hash of repo * hash
       | Value of repo * value * updatemap option
+      | Pruned of hash
 
     and t = { mutable v : v; info : info }
     (** [t.v] has 3 possible states:
@@ -377,13 +395,15 @@ module Make (P : Private.S) = struct
       let m = stepmap_t elt in
       let um = stepmap_t (update_t elt) in
       let open Type in
-      variant "Node.node" (fun map hash value -> function
+      variant "Node.node" (fun map hash value pruned -> function
         | Map m -> map m
         | Hash (_, y) -> hash y
-        | Value (_, v, m) -> value (v, m))
+        | Value (_, v, m) -> value (v, m)
+        | Pruned h -> pruned h)
       |~ case1 "map" m (fun m -> Map m)
       |~ case1 "hash" P.Hash.t (fun _ -> assert false)
       |~ case1 "value" (pair P.Node.Val.t (option um)) (fun _ -> assert false)
+      |~ case1 "pruned" P.Hash.t (fun h -> Pruned h)
       |> sealv
 
     let of_v v =
@@ -393,6 +413,7 @@ module Make (P : Private.S) = struct
         | Hash (_, k) -> (Some k, None, None)
         | Value (_, v, None) -> (None, None, Some v)
         | Value _ -> (None, None, None)
+        | Pruned _ -> (None, None, None)
       in
       let findv_cache = None in
       let info = { hash; map; value; findv_cache } in
@@ -401,6 +422,7 @@ module Make (P : Private.S) = struct
     let of_map m = of_v (Map m)
     let of_hash repo k = of_v (Hash (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
+    let pruned h = of_v (Pruned h)
 
     let cached_hash t =
       match (t.v, t.info.hash) with
@@ -472,6 +494,9 @@ module Make (P : Private.S) = struct
       | Hash (_, k) -> t.v <- Hash (repo, k)
       | Value (_, v, None) when P.Node.Val.is_empty v -> ()
       | Map m when StepMap.is_empty m -> ()
+      | Pruned _ ->
+          (* The main export function never exports a pruned position. *)
+          assert false
       | _ -> (
           match hash with
           | None -> t.v <- Hash (repo, k)
@@ -503,6 +528,7 @@ module Make (P : Private.S) = struct
           | Some v -> a_of_value v
           | None -> (
               match t.v with
+              | Pruned h -> k h
               | Hash (_, h) -> k h
               | Value (_, v, None) -> a_of_value v
               | Value (_, v, Some um) ->
@@ -568,7 +594,8 @@ module Make (P : Private.S) = struct
           | Value (_, v, None) -> ok v
           | Value (_, v, Some um) -> value_of_updates ~cache t v um ok
           | Map m -> value_of_map ~cache t m ok
-          | Hash (repo, h) -> value_of_hash ~cache t repo h)
+          | Hash (repo, h) -> value_of_hash ~cache t repo h
+          | Pruned h -> pruned_hash_exn "Node.to_value" h)
 
     let to_map ~cache t =
       match cached_map t with
@@ -598,7 +625,8 @@ module Make (P : Private.S) = struct
           | Hash (repo, k) -> (
               value_of_hash ~cache t repo k >|= function
               | Error _ as e -> e
-              | Ok v -> Ok (of_value repo v None)))
+              | Ok v -> Ok (of_value repo v None))
+          | Pruned h -> pruned_hash_exn "Node.to_map" h)
 
     let hash_equal x y = x == y || equal_hash x y
 
@@ -682,6 +710,7 @@ module Make (P : Private.S) = struct
           | Some v -> P.Node.Val.is_empty v
           | None -> (
               match t.v with
+              | Pruned h -> equal_hash h empty_hash
               | Value (_, v, Some um) -> is_empty_after_updates ~cache v um
               | Hash (_, h) -> hash_equal empty_hash h
               | Map _ -> assert false (* [cached_map <> None] *)
@@ -724,6 +753,7 @@ module Make (P : Private.S) = struct
             | None ->
                 let+ v = value_of_hash ~cache t repo h >|= get_ok ctx in
                 of_value repo v)
+        | Pruned h -> pruned_hash_exn "Node.find" h
       in
       match cached_map t with
       | Some m -> Lwt.return (of_map m)
@@ -913,6 +943,7 @@ module Make (P : Private.S) = struct
           | None, None ->
               let+ v = value_of_hash ~cache:true t repo h >|= get_ok "update" in
               of_value repo v StepMap.empty)
+      | Pruned h -> pruned_hash_exn "update" h
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
@@ -1034,6 +1065,13 @@ module Make (P : Private.S) = struct
   let v : elt -> t = function
     | `Contents (c, meta) -> `Contents (Contents.of_value c, meta)
     | `Node n -> `Node n
+
+  type kinded_hash = [ `Contents of P.Hash.t * Metadata.t | `Node of P.Hash.t ]
+  [@@deriving irmin]
+
+  let pruned : kinded_hash -> t = function
+    | `Contents (h, meta) -> `Contents (Contents.pruned h, meta)
+    | `Node h -> `Node (Node.pruned h)
 
   let destruct x = x
 
@@ -1335,6 +1373,7 @@ module Make (P : Private.S) = struct
           let h = P.Node.Key.hash v in
           Node.export ?clear repo n h;
           k ()
+      | Pruned h -> pruned_hash_exn "export" h
       | _ -> (
           skip n >>= function
           | true -> k ()
@@ -1348,6 +1387,9 @@ module Make (P : Private.S) = struct
                            | step, Node.Add v -> Some (step, v)
                            | _, Remove -> None)
                   | Node.Map m -> StepMap.to_seq m
+                  | Pruned _ ->
+                      (* [n.v = Pruned _] is excluded above. *)
+                      assert false
                   | _ -> fun () -> Seq.Nil
                 in
                 Seq.map (fun (_, x) -> x) seq
@@ -1375,6 +1417,7 @@ module Make (P : Private.S) = struct
           assert (equal_hash key key');
           Contents.export ?clear repo c key;
           k ()
+      | Contents.Pruned h -> pruned_hash_exn "export" h
     and on_node_seq seq k =
       match seq () with
       | Seq.Nil ->
@@ -1634,5 +1677,6 @@ module Make (P : Private.S) = struct
           (match n.Node.v with
           | Map _ -> `Map
           | Value _ -> `Value
-          | Hash _ -> `Hash)
+          | Hash _ -> `Hash
+          | Pruned _ -> `Pruned)
 end

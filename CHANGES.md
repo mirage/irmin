@@ -18,6 +18,8 @@
   - Add `Node.clear` to clear internal caches (#1526, @Ngoguey42)
   - Added a `tree` argument to `Tree.fold` to manipulate the subtrees (#1527,
     @icristescu, @Ngoguey42)
+  - Add a function `Store.Tree.pruned` for building purely in-memory tree
+    objects with known hashes. (#1537, @CraigFe)
 
 ### Changed
 

@@ -37,6 +37,25 @@ module Alcotest = struct
       >|= Alcotest.check ?pos concrete_tree msg expected
 end
 
+let check_exn_lwt ~exn_type pos f =
+  Lwt.catch
+    (fun () ->
+      let* _ = f () in
+      Alcotest.failf ~pos
+        "Expected a `%s` exception, but no exception was raised."
+        (match exn_type with
+        | `Dangling_hash -> "Dangling_hash"
+        | `Pruned_hash -> "Pruned_hash"))
+    (fun exn ->
+      match (exn_type, exn) with
+      | `Dangling_hash, Tree.Dangling_hash _ -> Lwt.return_unit
+      | `Pruned_hash, Tree.Pruned_hash _ -> Lwt.return_unit
+      | _ -> Lwt.fail exn)
+
+(* Let-syntax for testing all possible combinations of a set of choices: *)
+let ( let&* ) x f = Lwt_list.iter_s f x
+and ( and&* ) l m = List.concat_map (fun a -> List.map (fun b -> (a, b)) m) l
+
 let ( >> ) f g x = g (f x)
 let c ?(info = Metadata.Default) blob = `Contents (blob, info)
 
@@ -390,7 +409,8 @@ let inspect =
       | `Contents -> Fmt.string ppf "contents"
       | `Node `Hash -> Fmt.string ppf "hash"
       | `Node `Map -> Fmt.string ppf "map"
-      | `Node `Value -> Fmt.string ppf "value")
+      | `Node `Value -> Fmt.string ppf "value"
+      | `Node `Pruned -> Fmt.string ppf "pruned")
     ( = )
 
 type key = Store.Key.t [@@deriving irmin]
@@ -549,93 +569,129 @@ let test_fold_force _ () =
 
   Lwt.return_unit
 
-let test_shallow _ () =
-  let* () =
-    let compute_hash ~subtree =
-      Tree.(add_tree empty) [ "key" ] subtree >|= Tree.hash
-    in
-    let leaf = Tree.of_concrete (c "0") in
-    let* shallow_leaf =
-      let+ repo = Store.Repo.v (Irmin_mem.config ()) in
-      Tree.shallow repo (`Contents (Tree.hash leaf, Metadata.default))
-    in
-    let* hash = compute_hash ~subtree:leaf in
-    let+ hash_shallow = compute_hash ~subtree:shallow_leaf in
-    Alcotest.(gcheck Store.Hash.t)
-      "Hashing a shallow contents value is equivalent to hashing the \
-       non-shallow contents"
-      hash hash_shallow
-  in
-  Lwt.return_unit
+(* Tests of "broken" trees: trees that can't be dereferenced. Tree currently
+   supports two varieties of broken tree:
 
-let test_dangling_hash _ () =
-  let check_exn pos f =
-    Lwt.catch
-      (fun () ->
-        let* _ = f () in
-        Alcotest.failf ~pos
-          "Expected a `Dangling_hash` exception, but no exception was raised.")
-      (function Tree.Dangling_hash _ -> Lwt.return_unit | exn -> Lwt.fail exn)
-  in
-  let* shallow_leaf, shallow_node =
+   - shallow trees containing [(repo, key)] pairs for which [repo] doesn't
+     contain [key]. Attempted dereferences should raise [Dangling_hash].
+
+   - pruned trees (hash-only tree nodes, with no underlying repository).
+     Attempted dereferences should raise [Pruned_hash]. *)
+module Broken = struct
+  let shallow_of_ptr kinded_key =
     let+ repo = Store.Repo.v (Irmin_mem.config ()) in
-    (* Get hashes of valid nodes / contents, assumed absent from [repo]. *)
-    let rand = Irmin.Type.(unstage (random (string_of (`Fixed 32)))) () in
-    let c_hash = Tree.(hash @@ of_concrete (c rand)) in
-    let n_hash = Tree.(hash @@ of_concrete (`Tree [ ("k", c rand) ])) in
-    ( Tree.shallow repo (`Contents (c_hash, Metadata.default)),
-      Tree.shallow repo (`Node n_hash) )
-  in
-  let run_tests path =
-    Logs.app (fun f ->
-        f "Testing operations on a tree with a shallowed position at %a" pp_key
-          path);
-    let* shallow_leaf = Tree.(add_tree empty) path shallow_leaf in
-    let* shallow_node = Tree.(add_tree empty) path shallow_node in
-    let beneath = path @ [ "a"; "b"; "c" ] in
-    let blob = "v" in
-    let* singleton_at_path = Tree.(add empty path blob >>= to_concrete) in
-    let* singleton_beneath = Tree.(add empty beneath blob >>= to_concrete) in
+    Tree.shallow repo kinded_key
 
-    (* [add] on shallow nodes/contents replaces the shallowed position. *)
-    let* () =
-      Tree.add shallow_leaf path blob
-      |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_at_path
+  let pruned_of_ptr kinded_hash = Lwt.return (Tree.pruned kinded_hash)
+  let random_string32 = Irmin.Type.(unstage (random (string_of (`Fixed 32))))
+
+  let random_contents () =
+    let value = Tree.of_concrete (c (random_string32 ())) in
+    let value_ptr = `Contents (Tree.hash value, Metadata.default) in
+    (value, value_ptr)
+
+  let random_node () =
+    let value = tree [ ("k", c (random_string32 ())) ] in
+    let value_ptr = `Node (Tree.hash value) in
+    (value, value_ptr)
+
+  let test_hashes _ () =
+    let&* leaf_type, (leaf, leaf_ptr) =
+      [ ("contents", random_contents ()); ("node", random_node ()) ]
+    and&* operation_name, operation =
+      [ ("shallow", shallow_of_ptr); ("pruned", pruned_of_ptr) ]
+    and&* path = [ []; [ "k" ] ] in
+    let* leaf_broken = operation leaf_ptr in
+    let* hash_actual = Tree.(add_tree empty) path leaf >|= Tree.hash in
+    let+ hash_expected = Tree.(add_tree empty) path leaf_broken >|= Tree.hash in
+    Alcotest.(gcheck Store.Hash.t)
+      (Fmt.str
+         "Hashing a %s %s value at path %a is equivalent to hashing the \
+          non-broken %s"
+         operation_name leaf_type
+         Fmt.Dump.(list string)
+         path leaf_type)
+      hash_expected hash_actual
+
+  let test_trees _ () =
+    let run_tests ~exn_type ~broken_contents ~broken_node ~path =
+      Logs.app (fun l ->
+          l "Testing operations on a tree with a broken position at %a" pp_key
+            path);
+      let* broken_leaf = Tree.(add_tree empty) path broken_contents in
+      let* broken_node = Tree.(add_tree empty) path broken_node in
+      let beneath = path @ [ "a"; "b"; "c" ] in
+      let blob = "v" in
+      let* singleton_at_path = Tree.(add empty path blob >>= to_concrete) in
+      let* singleton_beneath = Tree.(add empty beneath blob >>= to_concrete) in
+
+      (* [add] on broken nodes/contents replaces the broken position. *)
+      let* () =
+        let&* broken = [ broken_leaf; broken_node ] in
+        Tree.add broken path blob
+        |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_at_path
+      in
+
+      (* [add] _beneath_ a broken contents value also works fine, but on broken
+         nodes an exception is raised. (We can't know what the node's contents are,
+         so there's no valid return tree.) *)
+      let* () =
+        Tree.add broken_leaf beneath blob
+        |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_beneath
+      in
+      let* () =
+        check_exn_lwt ~exn_type __POS__ (fun () ->
+            Tree.add broken_node beneath blob)
+      in
+
+      (* [find] on broken contents raises an exception (can't recover contents),
+         but _beneath_ broken contents it returns [None] (mismatched type). (The
+         behaviour is reversed for broken nodes.) *)
+      let* () =
+        check_exn_lwt ~exn_type __POS__ (fun () -> Tree.find broken_leaf path)
+      in
+      let* () =
+        check_exn_lwt ~exn_type __POS__ (fun () ->
+            Tree.find broken_node beneath)
+      in
+      let* () =
+        Tree.find broken_leaf beneath
+        >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
+      in
+      let* () =
+        Store.Tree.find broken_node path
+        >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
+      in
+      Lwt.return_unit
     in
+    let&* path = [ []; [ "k" ] ]
+    and&* exn_type, tree_of_ptr =
+      [ (`Dangling_hash, shallow_of_ptr); (`Pruned_hash, pruned_of_ptr) ]
+    in
+    let* broken_contents = tree_of_ptr (snd (random_contents ())) in
+    let* broken_node = tree_of_ptr (snd (random_node ())) in
+    run_tests ~exn_type ~broken_contents ~broken_node ~path
+
+  let test_pruned_fold _ () =
+    let&* _, ptr = [ random_contents (); random_node () ]
+    and&* path = [ []; [ "k" ] ] in
+    let* tree = Tree.(add_tree empty) path (Tree.pruned ptr) in
+
+    (* Folding over a pruned tree with [force:`True] should fail: *)
     let* () =
-      Tree.add shallow_node path blob
-      |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_at_path
+      check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
+          Tree.fold ~force:`True tree ())
     in
 
-    (* [add] _beneath_ a shallow contents value also works fine, but on shallow
-       nodes an exception is raised. (We can't know what the node's contents are,
-       so there's no valid return tree.) *)
-    let* () =
-      Tree.add shallow_leaf beneath blob
-      |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_beneath
-    in
-    let* () =
-      check_exn __POS__ (fun () -> Tree.add shallow_node beneath blob)
-    in
+    (* But folding with [force:`False] should not: *)
+    let* () = Tree.fold ~force:(`False (fun _ -> Lwt.return)) tree () in
 
-    (* [find] on shallow contents raises an exception (can't recover contents),
-       but _beneath_ shallow contents it returns [None] (mismatched type). (The
-       behaviour is reversed for shallow nodes.) *)
-    let* () = check_exn __POS__ (fun () -> Tree.find shallow_leaf path) in
-    let* () = check_exn __POS__ (fun () -> Tree.find shallow_node beneath) in
-    let* () =
-      Tree.find shallow_leaf beneath
-      >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
-    in
-    let* () =
-      Store.Tree.find shallow_node path
-      >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
-    in
-    Lwt.return_unit
-  in
-  let* () = run_tests [] in
-  let* () = run_tests [ "k" ] in
-  Lwt.return_unit
+    (* Similarly, attempting to export a pruned tree should fail: *)
+    let* repo = Store.Repo.v (Irmin_mem.config ()) in
+    check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
+        Store.Private.Repo.batch repo (fun c n _ ->
+            Store.save_tree repo c n tree >|= ignore))
+end
 
 let test_kind_empty_path _ () =
   let cont = c "c" |> Tree.of_concrete in
@@ -720,8 +776,9 @@ let suite =
     Alcotest_lwt.test_case "update" `Quick test_update;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
-    Alcotest_lwt.test_case "shallow" `Quick test_shallow;
-    Alcotest_lwt.test_case "dangling hash" `Quick test_dangling_hash;
+    Alcotest_lwt.test_case "Broken.hashes" `Quick Broken.test_hashes;
+    Alcotest_lwt.test_case "Broken.trees" `Quick Broken.test_trees;
+    Alcotest_lwt.test_case "Broken.pruned_fold" `Quick Broken.test_pruned_fold;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
     Alcotest_lwt.test_case "generic equality" `Quick test_generic_equality;
     Alcotest_lwt.test_case "is_empty" `Quick test_is_empty;
