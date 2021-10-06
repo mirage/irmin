@@ -151,6 +151,7 @@ module Make (P : Backend.S) = struct
   let dummy_marks = Hashes.create 0
   let empty_marks () = Hashes.create 39
 
+  exception Pruned_hash of { context : string; hash : hash }
   exception Dangling_hash of { context : string; hash : hash }
 
   let () =
@@ -159,7 +160,13 @@ module Make (P : Backend.S) = struct
           Some
             (Fmt.str "Irmin.Tree.%s: encountered dangling hash %a" context
                pp_hash hash)
+      | Pruned_hash { context; hash } ->
+          Some
+            (Fmt.str "Irmin.Tree.%s: encountered pruned hash %a" context pp_hash
+               hash)
       | _ -> None)
+
+  let pruned_hash_exn context hash = raise (Pruned_hash { context; hash })
 
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
@@ -172,7 +179,7 @@ module Make (P : Backend.S) = struct
 
   module Contents = struct
     type key = P.Contents.Key.t [@@deriving irmin]
-    type v = Key of repo * key | Value of contents
+    type v = Key of repo * key | Value of contents | Pruned of hash
     type nonrec ptr_option = key ptr_option
     type info = { mutable ptr : ptr_option; mutable value : contents option }
     type t = { mutable v : v; info : info }
@@ -181,10 +188,14 @@ module Make (P : Backend.S) = struct
 
     let v =
       let open Type in
-      variant "Node.Contents.v" (fun key value (v : v) ->
-          match v with Key (_, x) -> key x | Value v -> value v)
+      variant "Node.Contents.v" (fun key value pruned (v : v) ->
+          match v with
+          | Key (_, x) -> key x
+          | Value v -> value v
+          | Pruned h -> pruned h)
       |~ case1 "key" P.Contents.Key.t (fun _ -> assert false)
       |~ case1 "value" P.Contents.Val.t (fun v -> Value v)
+      |~ case1 "pruned" hash_t (fun h -> Pruned h)
       |> sealv
 
     let clear_info i =
@@ -199,6 +210,7 @@ module Make (P : Backend.S) = struct
         match v with
         | Key (_, k) -> ((Key k : ptr_option), None)
         | Value v -> (Ptr_none, Some v)
+        | Pruned _ -> (Ptr_none, None)
       in
       let info = { ptr; value } in
       { v; info }
@@ -212,12 +224,17 @@ module Make (P : Backend.S) = struct
       | Key (repo', _), Key k -> if repo != repo' then t.v <- Key (repo, k)
       | Value _, (Ptr_none | Hash _) -> t.v <- Key (repo, k)
       | Value _, Key k -> t.v <- Key (repo, k)
+      | Pruned _, _ ->
+          (* The main export function never exports a pruned position. *)
+          assert false
 
     let of_value c = of_v (Value c)
     let of_key repo k = of_v (Key (repo, k))
+    let pruned h = of_v (Pruned h)
 
     let cached_hash t =
       match (t.v, t.info.ptr) with
+      | Pruned h, _ -> Some h
       | Key (_, k), (Ptr_none | Hash _) ->
           let h = Some (P.Contents.Key.to_hash k) in
           t.info.ptr <- Key k;
@@ -228,6 +245,7 @@ module Make (P : Backend.S) = struct
 
     let cached_key t =
       match (t.v, t.info.ptr) with
+      | Pruned _, _ -> None
       | Key (_, k), (Hash _ | Ptr_none) ->
           t.info.ptr <- Key k;
           Some k
@@ -255,7 +273,8 @@ module Make (P : Backend.S) = struct
               if cache then c.info.ptr <- Hash h;
               h)
 
-    let key t = match t.v with Key (_, k) -> Some k | _ -> None
+    let key t =
+      match t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
 
     let value_of_key ~cache t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
@@ -271,7 +290,8 @@ module Make (P : Backend.S) = struct
       | None -> (
           match t.v with
           | Value v -> Lwt.return (Ok v)
-          | Key (repo, k) -> value_of_key ~cache t repo k)
+          | Key (repo, k) -> value_of_key ~cache t repo k
+          | Pruned h -> pruned_hash_exn "Contents.to_value" h)
 
     let force = to_value ~cache:true
 
@@ -348,6 +368,7 @@ module Make (P : Backend.S) = struct
       | Map of map
       | Key of repo * key
       | Value of repo * value * updatemap option
+      | Pruned of hash
 
     and t = { mutable v : v; info : info }
     (** [t.v] has 3 possible states:
@@ -392,11 +413,15 @@ module Make (P : Backend.S) = struct
       let m = stepmap_t elt in
       let um = stepmap_t (update_t elt) in
       let open Type in
-      variant "Node.node" (fun map key value -> function
-        | Map m -> map m | Key (_, y) -> key y | Value (_, v, m) -> value (v, m))
+      variant "Node.node" (fun map key value pruned -> function
+        | Map m -> map m
+        | Key (_, y) -> key y
+        | Value (_, v, m) -> value (v, m)
+        | Pruned h -> pruned h)
       |~ case1 "map" m (fun m -> Map m)
       |~ case1 "key" P.Node.Key.t (fun _ -> assert false)
       |~ case1 "value" (pair P.Node.Val.t (option um)) (fun _ -> assert false)
+      |~ case1 "pruned" hash_t (fun h -> Pruned h)
       |> sealv
 
     let of_v v =
@@ -405,7 +430,7 @@ module Make (P : Backend.S) = struct
         | Map m -> (Ptr_none, Some m, None)
         | Key (_, k) -> (Key k, None, None)
         | Value (_, v, None) -> (Ptr_none, None, Some v)
-        | Value _ -> (Ptr_none, None, None)
+        | Value _ | Pruned _ -> (Ptr_none, None, None)
       in
       let findv_cache = None in
       let info = { ptr; map; value; findv_cache } in
@@ -414,6 +439,7 @@ module Make (P : Backend.S) = struct
     let of_map m = of_v (Map m)
     let of_key repo k = of_v (Key (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
+    let pruned h = of_v (Pruned h)
 
     let info_is_empty i =
       i.map = None && i.value = None && i.findv_cache = None && i.ptr = Ptr_none
@@ -460,10 +486,13 @@ module Make (P : Backend.S) = struct
       | Key (repo', k) -> if repo != repo' then t.v <- Key (repo, k)
       | Value (_, v, None) when P.Node.Val.is_empty v -> t.info.ptr <- Key k
       | Map m when StepMap.is_empty m -> t.info.ptr <- Key k
-      | _ -> (
+      | Value _ | Map _ -> (
           match ptr with
           | Ptr_none | Hash _ -> t.v <- Key (repo, k)
           | Key k -> t.v <- Key (repo, k))
+      | Pruned _ ->
+          (* The main export function never exports a pruned position. *)
+          assert false
 
     let map_of_value ~cache repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
@@ -478,6 +507,7 @@ module Make (P : Backend.S) = struct
 
     let cached_hash t =
       match (t.v, t.info.ptr) with
+      | Pruned h, _ -> Some h
       | Key (_, k), Ptr_none ->
           let h = Some (P.Node.Key.to_hash k) in
           t.info.ptr <- Key k;
@@ -488,6 +518,7 @@ module Make (P : Backend.S) = struct
 
     let cached_key t =
       match (t.v, t.info.ptr) with
+      | Pruned _, _ -> None
       | Key (_, k), (Hash _ | Ptr_none) ->
           t.info.ptr <- Key k;
           Some k
@@ -552,6 +583,7 @@ module Make (P : Backend.S) = struct
           | Some v -> a_of_hashable P.Node.Hash.hash v
           | None -> (
               match t.v with
+              | Pruned h -> k h
               | Key (_, h) -> k (P.Node.Key.to_hash h)
               | Value (_, v, None) -> a_of_hashable P.Node.Hash.hash v
               | Value (_, v, Some um) ->
@@ -682,6 +714,7 @@ module Make (P : Backend.S) = struct
           match t.v with
           | Value (_, v, None) -> ok v
           | Key (repo, h) -> value_of_key ~cache t repo h
+          | Pruned h -> pruned_hash_exn "Node.to_value" h
           | Value (_, _, Some _) | Map _ ->
               invalid_arg
                 "Tree.Node.to_value: the supplied node has not been written to \
@@ -704,7 +737,8 @@ module Make (P : Backend.S) = struct
                 | Pnode x -> ok x)
           | Key (repo, h) ->
               value_of_key ~cache t repo h
-              |> Lwt_result.map P.Node_portable.of_node)
+              |> Lwt_result.map P.Node_portable.of_node
+          | Pruned h -> pruned_hash_exn "Node.to_portable_value" h)
 
     let to_map ~cache t =
       match cached_map t with
@@ -734,7 +768,8 @@ module Make (P : Backend.S) = struct
           | Key (repo, k) -> (
               value_of_key ~cache t repo k >|= function
               | Error _ as e -> e
-              | Ok v -> Ok (of_value repo v None)))
+              | Ok v -> Ok (of_value repo v None))
+          | Pruned h -> pruned_hash_exn "Node.to_map" h)
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
@@ -818,7 +853,8 @@ module Make (P : Backend.S) = struct
               | Value (_, v, Some u) ->
                   hash_preimage_of_updates ~cache t v u (function
                     | Node x -> P.Node.Val.length x |> Lwt.return
-                    | Pnode x -> P.Node_portable.length x |> Lwt.return)))
+                    | Pnode x -> P.Node_portable.length x |> Lwt.return)
+              | Pruned h -> pruned_hash_exn "length" h))
 
     let is_empty ~cache t =
       match cached_map t with
@@ -830,6 +866,7 @@ module Make (P : Backend.S) = struct
               match t.v with
               | Value (_, v, Some um) -> is_empty_after_updates ~cache v um
               | Key (_, key) -> equal_hash (P.Node.Key.to_hash key) empty_hash
+              | Pruned h -> equal_hash h empty_hash
               | Map _ -> assert false (* [cached_map <> None] *)
               | Value (_, _, None) -> assert false (* [cached_value <> None] *))
           )
@@ -870,6 +907,7 @@ module Make (P : Backend.S) = struct
             | None ->
                 let+ v = value_of_key ~cache t repo h >|= get_ok ctx in
                 of_value repo v)
+        | Pruned h -> pruned_hash_exn "Node.find" h
       in
       match cached_map t with
       | Some m -> Lwt.return (of_map m)
@@ -1059,6 +1097,7 @@ module Make (P : Backend.S) = struct
           | None, None ->
               let+ v = value_of_key ~cache:true t repo h >|= get_ok "update" in
               of_value repo v StepMap.empty)
+      | Pruned h -> pruned_hash_exn "update" h
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
@@ -1192,6 +1231,10 @@ module Make (P : Backend.S) = struct
   let v : elt -> t = function
     | `Contents (c, meta) -> `Contents (Contents.of_value c, meta)
     | `Node n -> `Node n
+
+  let pruned : kinded_hash -> t = function
+    | `Contents (h, meta) -> `Contents (Contents.pruned h, meta)
+    | `Node h -> `Node (Node.pruned h)
 
   let destruct x = x
 
@@ -1595,6 +1638,7 @@ module Make (P : Backend.S) = struct
       | Node.Key (_, key) ->
           Node.export ?clear repo n key;
           k ()
+      | Pruned h -> pruned_hash_exn "export" h
       | _ -> (
           skip n >>= function
           | true -> k ()
@@ -1609,8 +1653,8 @@ module Make (P : Backend.S) = struct
                            | _, Remove -> None)
                   | Map m -> StepMap.to_seq m
                   | Value (_, _, None) -> Seq.empty
-                  | Key _ ->
-                      (* [n.v = Key _] is excluded above. *)
+                  | Key _ | Pruned _ ->
+                      (* [n.v = (Key _ | Pruned _)] is excluded above. *)
                       assert false
                 in
                 Seq.map (fun (_, x) -> x) seq
@@ -1620,8 +1664,8 @@ module Make (P : Backend.S) = struct
               | Map x, _ -> add_node_map n x k
               | Value (_, v, None), None | _, Some v -> add_node n v k
               | Value (_, v, Some um), _ -> add_updated_node n v um k
-              | Key _, _ ->
-                  (* [n.v = Key _] is excluded above. *)
+              | (Key _ | Pruned _), _ ->
+                  (* [n.v = (Key _ | Pruned _)] is excluded above. *)
                   assert false))
     and on_contents :
         type r. [ `Contents of Contents.t * metadata ] -> (unit, r) cont_lwt =
@@ -1648,6 +1692,7 @@ module Make (P : Backend.S) = struct
           in
           Contents.export ?clear repo c key;
           k ()
+      | Contents.Pruned h -> pruned_hash_exn "export" h
     and on_node_seq : type r. Node.elt Seq.t -> (unit, r) cont_lwt =
      fun seq k ->
       match seq () with
@@ -1920,5 +1965,6 @@ module Make (P : Backend.S) = struct
           (match n.Node.v with
           | Map _ -> `Map
           | Value _ -> `Value
-          | Key _ -> `Key)
+          | Key _ -> `Key
+          | Pruned _ -> `Pruned)
 end

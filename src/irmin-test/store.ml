@@ -1012,7 +1012,8 @@ module Make (S : Generic_key) = struct
         | `Contents -> Fmt.string ppf "contents"
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
-        | `Node `Value -> Fmt.string ppf "value")
+        | `Node `Value -> Fmt.string ppf "value"
+        | `Node `Pruned -> Fmt.string ppf "pruned")
       ( = )
 
   let test_tree_caches x () =

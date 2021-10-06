@@ -57,6 +57,19 @@ module type S = sig
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  [@@deriving irmin]
+
+  val pruned : kinded_hash -> t
+  (** [pruned h] is a purely in-memory tree with the hash [h]. Such trees can be
+      used as children of other in-memory tree nodes, for instance in order to
+      compute the hash of the parent, but they cannot be dereferenced.
+
+      Any operation that would require loading the contents of a pruned node
+      (e.g. calling {!find} on one of its children) will instead raise a
+      {!Pruned_hash} exception. Attempting to export a tree containing pruned
+      sub-trees to a repository will fail similarly. *)
+
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
@@ -79,6 +92,10 @@ module type S = sig
   exception Dangling_hash of { context : string; hash : hash }
   (** The exception raised by functions that can force lazy tree nodes but do
       not return an explicit {!or_error}. *)
+
+  exception Pruned_hash of { context : string; hash : hash }
+  (** The exception raised by functions that attempt to load {!pruned} tree
+      nodes. *)
 
   (** Operations on lazy tree contents. *)
   module Contents : sig
@@ -330,7 +347,7 @@ module type S = sig
   val counters : unit -> counters
   val dump_counters : unit Fmt.t
   val reset_counters : unit -> unit
-  val inspect : t -> [ `Contents | `Node of [ `Map | `Key | `Value ] ]
+  val inspect : t -> [ `Contents | `Node of [ `Map | `Key | `Value | `Pruned ] ]
 end
 
 module type Sigs = sig
@@ -348,9 +365,6 @@ module type Sigs = sig
          and type contents = P.Contents.value
          and type contents_key = P.Contents.Key.t
          and type hash = P.Hash.t
-
-    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
-    [@@deriving irmin]
 
     type kinded_key =
       [ `Contents of P.Contents.Key.t * metadata | `Node of P.Node.Key.t ]
