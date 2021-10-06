@@ -28,7 +28,7 @@ let what =
   \  - concatenate `lca` and `l3`; This gives the final result."
 
 let time = ref 0L
-let failure fmt = Fmt.kstrf failwith fmt
+let failure fmt = Fmt.kstr failwith fmt
 
 (* A log entry *)
 module Entry : sig

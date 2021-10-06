@@ -32,7 +32,7 @@ module Make_Layered (S : Layered_store) = struct
     let author = Printf.sprintf "TESTS" in
     S.Info.v ~author ~message date
 
-  let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+  let infof fmt = Fmt.kstr (fun str () -> info str) fmt
   let v1 = "X1"
   let v2 = "X2"
   let v3 = "X3"

@@ -41,7 +41,7 @@ let decode_json d =
   let decode d =
     match Jsonm.decode d with
     | `Lexeme l -> l
-    | `Error e -> failwith (Fmt.strf "%a" Jsonm.pp_error e)
+    | `Error e -> failwith (Fmt.str "%a" Jsonm.pp_error e)
     | _ -> failwith "invalid JSON encoding"
   in
   let rec unwrap v d =

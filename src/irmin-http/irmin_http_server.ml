@@ -77,7 +77,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     end
 
   let parse_error rd str (`Msg e) =
-    let err = Fmt.strf "Parse error %S: %s" str e in
+    let err = Fmt.str "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
 
   module Content_addressable (S : sig

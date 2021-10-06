@@ -163,7 +163,7 @@ module Make_helpers (S : Generic_key) = struct
     let author = Printf.sprintf "TESTS" in
     S.Info.v ~author ~message date
 
-  let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+  let infof fmt = Fmt.kstr (fun str () -> info str) fmt
 
   let get_contents_key = function
     | `Contents key -> key

@@ -31,7 +31,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
   let retry ?(timeout = 15.) ?(sleep_t = 0.) ~while_ fn =
     let sleep_t = max sleep_t 0.001 in
     let t = now_s () in
-    let str i = Fmt.strf "%d, %.3fs" i (now_s () -. t) in
+    let str i = Fmt.str "%d, %.3fs" i (now_s () -. t) in
     let rec aux i =
       if now_s () -. t > timeout || not (while_ ()) then fn (str i);
       try
@@ -138,7 +138,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
             (fun s ->
               let got = stats () in
               let exp = (p, w) in
-              let msg = Fmt.strf "workers: %s %a (%s)" msg pp_w got s in
+              let msg = Fmt.str "workers: %s %a (%s)" msg pp_w got s in
               if got = exp then line msg
               else (
                 [%log.debug
@@ -187,7 +187,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
         retry ?sleep_t
           ~while_:(fun () -> less_than b a (* While [b] converges toward [a] *))
           (fun s ->
-            let msg = Fmt.strf "state: %s (%s)" msg s in
+            let msg = Fmt.str "state: %s (%s)" msg s in
             if a = b then line msg
             else Alcotest.failf "%s: %a / %a" msg pp a pp b)
 
@@ -216,8 +216,8 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
           let mode =
             match mode with `Pre -> "[pre-condition]" | `Post -> ""
           in
-          Fmt.strf "%s %s %s %d on=%b expected=%a:%a current=%a:%a" mode msg
-            kind n on xpp s pp_w w pretty state pp_s x.stats
+          Fmt.str "%s %s %s %d on=%b expected=%a:%a current=%a:%a" mode msg kind
+            n on xpp s pp_w w pretty state pp_s x.stats
         in
         let check mode n w s = check (msg mode n w s) w s state in
         let incr =
@@ -286,12 +286,12 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       let* head = r1 ~repo in
       let add =
         State.apply "branch-watch-all" state `Add (fun n ->
-            let tag = Fmt.strf "t%d" n in
+            let tag = Fmt.str "t%d" n in
             S.Branch.set repo tag head)
       in
       let remove =
         State.apply "branch-watch-all" state `Remove (fun n ->
-            let tag = Fmt.strf "t%d" n in
+            let tag = Fmt.str "t%d" n in
             S.Branch.remove repo tag)
       in
       let* master = S.Branch.get repo "master" in
