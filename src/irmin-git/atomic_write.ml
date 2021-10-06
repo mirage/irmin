@@ -82,7 +82,7 @@ module Make (K : Key) (G : Git.S) = struct
 
   let handle_git_err = function
     | Ok x -> Lwt.return x
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
 
   type t = {
     bare : bool;
@@ -115,7 +115,7 @@ module Make (K : Key) (G : Git.S) = struct
     let* k = G.Ref.resolve t (git_of_branch r) in
     match k with
     | Error (`Reference_not_found _) -> Lwt.return_none
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
     | Ok k -> Lwt.return_some k
 
   let listen_dir t =
@@ -174,7 +174,7 @@ module Make (K : Key) (G : Git.S) = struct
           match r with
           | Error (`Reference_not_found _ | `Not_found _) ->
               write_head (git_of_branch K.master)
-          | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+          | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
           | Ok r -> Lwt.return r)
     in
     let w =
@@ -248,7 +248,7 @@ module Make (K : Key) (G : Git.S) = struct
           match x with
           | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
           | Ok x -> Lwt.return_some x
-          | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+          | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
         in
         let* b =
           if not (eq_head_contents_opt x (c test)) then Lwt.return_false

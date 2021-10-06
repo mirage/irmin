@@ -73,9 +73,7 @@ struct
 
   let merge_node (t, _) = Merge.f (N.merge t)
   let pp_key = Type.pp Key.t
-
-  let err_not_found k =
-    Fmt.kstrf invalid_arg "Commit.get: %a not found" pp_key k
+  let err_not_found k = Fmt.kstr invalid_arg "Commit.get: %a not found" pp_key k
 
   let get (_, t) k =
     S.find t k >>= function None -> err_not_found k | Some v -> Lwt.return v
@@ -219,7 +217,7 @@ module History (S : Store) = struct
 
   let pp_keys ppf keys =
     let keys = KSet.elements keys in
-    Fmt.pf ppf "[%a]" Fmt.(list ~sep:(unit " ") pp_key) keys
+    Fmt.pf ppf "[%a]" Fmt.(list ~sep:(any " ") pp_key) keys
 
   let str_keys = Fmt.to_to_string pp_keys
   let lca_calls = ref 0
@@ -300,11 +298,11 @@ module History (S : Store) = struct
            t.marks []
          |> String.concat " "
        in
-       Fmt.strf "d: %d, seen1: %s, seen2: %s, seenboth: %s, lcas: %s (%d) %s"
+       Fmt.str "d: %d, seen1: %s, seen2: %s, seenboth: %s, lcas: %s (%d) %s"
          t.depth (pp Seen1) (pp Seen2) (pp SeenBoth) (pp LCA) t.lcas
          (String.concat " | "
             (Hashtbl.fold
-               (fun d ks acc -> Fmt.strf "(%d: %s)" d (str_keys ks) :: acc)
+               (fun d ks acc -> Fmt.str "(%d: %s)" d (str_keys ks) :: acc)
                t.layers [])))
 
   let get_mark_exn t elt = KHashtbl.find t.marks elt
@@ -458,7 +456,7 @@ module History (S : Store) = struct
       let merge =
         merge t ~info
         |> Merge.with_conflict (fun msg ->
-               Fmt.strf "Recursive merging of common ancestors: %s" msg)
+               Fmt.str "Recursive merging of common ancestors: %s" msg)
         |> Merge.f
       in
       merge ~old c1 c2

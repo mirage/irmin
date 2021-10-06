@@ -82,7 +82,7 @@ struct
         |> Lwt_list.iter_s (fun (key, value) ->
                S.Tree.find tree key
                >|= Alcotest.(check (option string))
-                     (Fmt.strf "Expected binding [%a ↦ %s]"
+                     (Fmt.str "Expected binding [%a ↦ %s]"
                         Fmt.(Dump.list string)
                         key value)
                      (Some value))
@@ -383,7 +383,7 @@ module Test_corrupted_stores = struct
           let tree = S.Commit.tree commit in
           S.Tree.find tree k
           >|= Alcotest.(check (option string))
-                (Fmt.strf "Expected binding [%a ↦ %s]"
+                (Fmt.str "Expected binding [%a ↦ %s]"
                    Fmt.(Dump.list string)
                    k v)
                 (Some v)

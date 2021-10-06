@@ -109,7 +109,7 @@ module Make_helpers (S : S) = struct
     let author = Printf.sprintf "TESTS" in
     S.Info.v ~author ~message date
 
-  let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+  let infof fmt = Fmt.kstr (fun str () -> info str) fmt
   let v repo = P.Repo.contents_t repo
   let n repo = P.Repo.node_t repo
   let ct repo = P.Repo.commit_t repo

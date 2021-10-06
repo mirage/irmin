@@ -1154,7 +1154,7 @@ module Make (P : Private.S) = struct
     { s with width }
 
   let err_not_found n k =
-    Fmt.kstrf invalid_arg "Irmin.Tree.%s: %a not found" n pp_key k
+    Fmt.kstr invalid_arg "Irmin.Tree.%s: %a not found" n pp_key k
 
   let get_tree (t : t) path =
     find_tree t path >|= function

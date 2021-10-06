@@ -28,5 +28,5 @@ module Make (B : Irmin.Branch.S) = struct
     match String.cuts ~sep:"/" str with
     | "refs" :: "heads" :: b ->
         Irmin.Type.of_string B.t (String.concat ~sep:"/" b)
-    | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
+    | _ -> Error (`Msg (Fmt.str "%s is not a valid branch" str))
 end

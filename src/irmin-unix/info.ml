@@ -18,7 +18,7 @@ module Make (I : Irmin.Info.S) = struct
   include I
 
   let v ?author fmt =
-    Fmt.kstrf
+    Fmt.kstr
       (fun message () ->
         let date = Int64.of_float (Unix.gettimeofday ()) in
         let author =

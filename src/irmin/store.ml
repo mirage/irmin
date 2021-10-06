@@ -278,7 +278,7 @@ module Make (P : Private.S) = struct
 
     exception Import_error of string
 
-    let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
+    let import_error fmt = Fmt.kstr (fun x -> Lwt.fail (Import_error x)) fmt
 
     let import t s =
       let aux name add (k, v) =
@@ -318,7 +318,7 @@ module Make (P : Private.S) = struct
           Ok ())
         (function
           | Import_error e -> Lwt.return (Error (`Msg e))
-          | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
+          | e -> Fmt.kstr Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
 
     let ignore_lwt _ = Lwt.return_unit
     let return_false _ = Lwt.return false
@@ -424,7 +424,7 @@ module Make (P : Private.S) = struct
     | `Branch t -> Lwt.return_some t
     | `Empty | `Head _ -> Lwt.return_none
 
-  let err_no_head s = Fmt.kstrf Lwt.fail_invalid_arg "Irmin.%s: no head" s
+  let err_no_head s = Fmt.kstr Lwt.fail_invalid_arg "Irmin.%s: no head" s
 
   let retry_merge name fn =
     let rec aux i =
@@ -442,7 +442,7 @@ module Make (P : Private.S) = struct
     Lwt.return { lock; head_ref; repo; tree = None }
 
   let err_invalid_branch t =
-    let err = Fmt.strf "%a is not a valid branch name." pp_branch t in
+    let err = Fmt.str "%a is not a valid branch name." pp_branch t in
     Lwt.fail (Invalid_argument err)
 
   let of_branch repo id =
@@ -747,7 +747,7 @@ module Make (P : Private.S) = struct
 
   let fail name = function
     | Ok x -> Lwt.return x
-    | Error e -> Fmt.kstrf Lwt.fail_with "%s: %a" name pp_write_error e
+    | Error e -> Fmt.kstr Lwt.fail_with "%s: %a" name pp_write_error e
 
   let set_tree_once root key ~current_tree:_ ~new_tree =
     match new_tree with
@@ -933,7 +933,7 @@ module Make (P : Private.S) = struct
     Log.debug (fun f -> f "merge_with_branch %a" pp_branch other);
     Branch_store.find (branch_store t) other >>= function
     | None ->
-        Fmt.kstrf Lwt.fail_invalid_arg
+        Fmt.kstr Lwt.fail_invalid_arg
           "merge_with_branch: %a is not a valid branch ID" pp_branch other
     | Some c -> (
         Commit.of_hash t.repo c >>= function
@@ -1086,7 +1086,7 @@ module Make (P : Private.S) = struct
       fun () -> Branch_store.unwatch (Repo.branch_t t) w
 
     let err_not_found k =
-      Fmt.kstrf invalid_arg "Branch.get: %a not found" pp_branch k
+      Fmt.kstr invalid_arg "Branch.get: %a not found" pp_branch k
 
     let get t k =
       find t k >>= function None -> err_not_found k | Some v -> Lwt.return v

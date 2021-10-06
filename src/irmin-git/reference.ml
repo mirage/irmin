@@ -36,7 +36,7 @@ let of_ref str =
   | "refs" :: "remotes" :: r -> Ok (`Remote (path r))
   | "refs" :: "tags" :: t -> Ok (`Tag (path t))
   | "refs" :: o -> Ok (`Other (path o))
-  | _ -> Error (`Msg (Fmt.strf "%s is not a valid reference" str))
+  | _ -> Error (`Msg (Fmt.str "%s is not a valid reference" str))
 
 let t = Irmin.Type.like t ~pp:pp_ref ~of_string:of_ref
 let master = `Branch Irmin.Branch.String.master
