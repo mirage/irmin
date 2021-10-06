@@ -24,8 +24,8 @@ let uri = Uri.of_string "http://irmin"
 type id = { name : string; id : int }
 
 let pp ppf t = Fmt.pf ppf "%s-%d" t.name t.id
-let socket t = test_http_dir / Fmt.strf "irmin-%a.sock" pp t
-let pid_file t = test_http_dir / Fmt.strf "irmin-test-%a.pid" pp t
+let socket t = test_http_dir / Fmt.str "irmin-%a.sock" pp t
+let pid_file t = test_http_dir / Fmt.str "irmin-test-%a.pid" pp t
 let tmp_file file = file ^ ".tmp"
 
 module Client (P : sig
@@ -192,7 +192,7 @@ let suite i server =
           root
           ^ "_build"
             / "default"
-            / Fmt.strf "%s serve %d %d &" Sys.argv.(0) i id.id
+            / Fmt.str "%s serve %d %d &" Sys.argv.(0) i id.id
         in
         Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
         let _ = Sys.command cmd in

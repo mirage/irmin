@@ -17,7 +17,7 @@
 open! Import
 include Sync_ext_intf
 
-let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
+let invalid_argf fmt = Fmt.kstr Lwt.fail_invalid_arg fmt
 let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 
 module Log = (val Logs.src_log src : Logs.LOG)

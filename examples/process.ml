@@ -131,7 +131,7 @@ let rec process image =
       if branch <> id then (
         Printf.printf "Merging ...%!";
         Store.merge_with_branch t
-          ~info:(info image @@ Fmt.strf "Merging with %s" branch)
+          ~info:(info image @@ Fmt.str "Merging with %s" branch)
           branch
         >>= function
         | Ok () ->

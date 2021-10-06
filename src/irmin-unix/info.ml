@@ -15,7 +15,7 @@
  *)
 
 let v ?author fmt =
-  Fmt.kstrf
+  Fmt.kstr
     (fun msg () ->
       let date = Int64.of_float (Unix.gettimeofday ()) in
       let author =
