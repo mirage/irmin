@@ -16,7 +16,7 @@
 
 module Info (Info : Irmin.Info.S) (C : Mirage_clock.PCLOCK) = struct
   let f ~author fmt =
-    Fmt.kstrf
+    Fmt.kstr
       (fun message () ->
         C.now_d_ps () |> Ptime.v |> Ptime.to_float_s |> Int64.of_float
         |> fun date -> Info.v ~author ~message date)

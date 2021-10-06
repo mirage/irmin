@@ -27,7 +27,7 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
 
   let handle_git_err = function
     | Ok x -> Lwt.return x
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
 
   type 'a t = G.t
   type key = H.t [@@deriving irmin ~pp ~equal]
@@ -40,14 +40,14 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
     | true -> (
         G.read t key >>= function
         | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_false
-        | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+        | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
         | Ok v -> Lwt.return (V.type_eq (G.Value.kind v)))
 
   let find t key =
     [%log.debug "find %a" pp_key key];
     G.read t key >>= function
     | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
     | Ok v -> Lwt.return (V.of_git v)
 
   let add t v =

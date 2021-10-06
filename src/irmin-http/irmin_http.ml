@@ -62,7 +62,7 @@ let err_no_uri () = invalid_arg "Irmin_http.create: No URI specified"
 let get_uri config =
   match Conf.(get config Key.uri) with None -> err_no_uri () | Some u -> u
 
-let invalid_arg fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
+let invalid_arg fmt = Fmt.kstr Lwt.fail_invalid_arg fmt
 
 exception Escape of ((int * int) * (int * int)) * Jsonm.error
 
@@ -155,7 +155,7 @@ module Helper (Client : Cohttp_lwt.S.Client) :
       match parse b with
       | Ok x -> Lwt.return x
       | Error (`Msg e) ->
-          Lwt.fail_with (Fmt.strf "Error while parsing %S: %s" b e)
+          Lwt.fail_with (Fmt.str "Error while parsing %S: %s" b e)
     else Lwt.fail_with ("Server error: " ^ b)
 
   let map_stream_response t (r, b) =
@@ -336,7 +336,7 @@ functor
           | `Not_found | `OK -> Lwt.return_unit
           | _ ->
               let* b = Cohttp_lwt.Body.to_string b in
-              Fmt.kstrf Lwt.fail_with "cannot remove %a: %s" pp_key key b)
+              Fmt.kstr Lwt.fail_with "cannot remove %a: %s" pp_key key b)
 
     let nb_keys t = fst (W.stats t.w)
     let nb_glob t = snd (W.stats t.w)

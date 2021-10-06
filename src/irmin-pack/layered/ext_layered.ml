@@ -727,7 +727,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     let pp ppf = function E -> () | F (pp, k, v) -> Fmt.pf ppf "%s=%a" k pp v
 
     let pps ppf t =
-      Fmt.list ~sep:(Fmt.unit "; ") pp ppf (List.filter (fun x -> x <> E) t)
+      Fmt.list ~sep:(Fmt.any "; ") pp ppf (List.filter (fun x -> x <> E) t)
 
     let commits k = function [] -> E | v -> F (pp_commits, k, v)
   end
@@ -860,11 +860,11 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     in
     let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
     if !errors = 0 then
-      Fmt.kstrf
+      Fmt.kstr
         (fun x -> Ok (`Msg x))
         "Upper layer is self contained for heads %a" pp_commits heads
     else
-      Fmt.kstrf
+      Fmt.kstr
         (fun x -> Error (`Msg x))
         "Upper layer is not self contained for heads %a: %n phantom objects \
          detected"

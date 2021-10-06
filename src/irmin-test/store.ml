@@ -264,7 +264,7 @@ module Make (S : Generic_key) = struct
   let test_commits x () =
     let test repo =
       let info date =
-        let message = Fmt.strf "Test commit: %d" date in
+        let message = Fmt.str "Test commit: %d" date in
         S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
       let* kv1 = kv1 ~repo in
@@ -313,7 +313,7 @@ module Make (S : Generic_key) = struct
   let test_closure x () =
     let test repo =
       let info date =
-        let message = Fmt.strf "Test commit: %d" date in
+        let message = Fmt.str "Test commit: %d" date in
         S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
       let check_keys = checks P.Commit.Key.t in
@@ -1555,7 +1555,7 @@ module Make (S : Generic_key) = struct
     let buf = Buffer.create 1024 in
     let date d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Fmt.strf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      Fmt.str "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
     let oc =
@@ -1682,7 +1682,7 @@ module Make (S : Generic_key) = struct
       let read =
         read
           (fun _i -> S.Branch.find repo k >|= get)
-          (fun i -> check (S.commit_t repo) (Fmt.strf "tag %d" i) v)
+          (fun i -> check (S.commit_t repo) (Fmt.str "tag %d" i) v)
       in
       perform (write 1) >>= fun () ->
       perform (write 10 @ read 10 @ write 10 @ read 10)
@@ -1699,7 +1699,7 @@ module Make (S : Generic_key) = struct
       let read =
         read
           (fun _i -> P.Contents.find t k >|= get)
-          (fun i -> check S.contents_t (Fmt.strf "contents %d" i) v)
+          (fun i -> check S.contents_t (Fmt.str "contents %d" i) v)
       in
       perform (write 1) >>= fun () ->
       perform (write 10 @ read 10 @ write 10 @ read 10)
@@ -1720,13 +1720,13 @@ module Make (S : Generic_key) = struct
       let read t =
         read
           (fun _ -> S.get t k)
-          (fun i -> check S.contents_t (Fmt.strf "update: one %d" i) v)
+          (fun i -> check S.contents_t (Fmt.str "update: one %d" i) v)
       in
       perform (write t1 10 @ write t2 10) >>= fun () -> perform (read t1 10)
     in
     let test_multi repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
-      let v i = Fmt.strf "X%d" i in
+      let v i = Fmt.str "X%d" i in
       let* t1 = S.master repo in
       let* t2 = S.master repo in
       let write t =
@@ -1736,7 +1736,7 @@ module Make (S : Generic_key) = struct
       let read t =
         read
           (fun i -> S.get t (k i))
-          (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
+          (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
       perform (write t1 10 @ write t2 10) >>= fun () -> perform (read t1 10)
     in
@@ -1747,12 +1747,12 @@ module Make (S : Generic_key) = struct
   let test_concurrent_merges x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
-      let v i = Fmt.strf "X%d" i in
+      let v i = Fmt.str "X%d" i in
       let* t1 = S.master repo in
       let* t2 = S.master repo in
       let write t n =
         write (fun i ->
-            let tag = Fmt.strf "tmp-%d-%d" n i in
+            let tag = Fmt.str "tmp-%d-%d" n i in
             let* m = S.clone ~src:t ~dst:tag in
             S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
             Lwt_unix.yield () >>= fun () ->
@@ -1762,7 +1762,7 @@ module Make (S : Generic_key) = struct
       let read t =
         read
           (fun i -> S.get t (k i))
-          (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
+          (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
@@ -1887,7 +1887,7 @@ module Make (S : Generic_key) = struct
   let test_concurrent_head_updates x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
-      let v i = Fmt.strf "X%d" i in
+      let v i = Fmt.str "X%d" i in
       let* t1 = S.master repo in
       let* t2 = S.master repo in
       let retry d fn =
@@ -1906,7 +1906,7 @@ module Make (S : Generic_key) = struct
         write (fun i ->
             retry i (fun () ->
                 let* test = S.Head.find t in
-                let tag = Fmt.strf "tmp-%d-%d" n i in
+                let tag = Fmt.str "tmp-%d-%d" n i in
                 let* m = S.clone ~src:t ~dst:tag in
                 S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
                 let* set = S.Head.find m in
@@ -1915,7 +1915,7 @@ module Make (S : Generic_key) = struct
       let read t =
         read
           (fun i -> S.get t (k i))
-          (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
+          (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 5 @ write t2 2 5) >>= fun () ->

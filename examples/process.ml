@@ -145,7 +145,7 @@ let rec process image =
         Printf.printf "Merging ...%!";
         let* r =
           Store.merge_with_branch t
-            ~info:(info image @@ Fmt.strf "Merging with %s" branch)
+            ~info:(info image @@ Fmt.str "Merging with %s" branch)
             branch
         in
         match r with

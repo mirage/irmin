@@ -33,7 +33,7 @@ module Make (AO : Append_only.Maker) (K : Hash.S) (V : Type.S) = struct
         let k' = hash v in
         if equal_hash k k' then Lwt.return r
         else
-          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
+          Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
             pp_key k' pp_key k
 
   let unsafe_add t k v = add t k v

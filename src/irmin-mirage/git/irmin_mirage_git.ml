@@ -147,7 +147,7 @@ module KV_RO (G : Git.S) = struct
     | None -> "empty HEAD"
     | Some h ->
         let info = S.Commit.info h in
-        Fmt.strf "commit: %a\nAuthor: %s\nDate: %Ld\n\n%s\n" S.Commit.pp_hash h
+        Fmt.str "commit: %a\nAuthor: %s\nDate: %Ld\n\n%s\n" S.Commit.pp_hash h
           (S.Info.author info) (S.Info.date info) (S.Info.message info)
 
   let last_modified t key =
@@ -213,8 +213,8 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let default_author () = "irmin <irmin@mirage.io>"
 
   let default_msg = function
-    | `Set k -> Fmt.strf "Updating %a" Mirage_kv.Key.pp k
-    | `Remove k -> Fmt.strf "Removing %a" Mirage_kv.Key.pp k
+    | `Set k -> Fmt.str "Updating %a" Mirage_kv.Key.pp k
+    | `Remove k -> Fmt.str "Removing %a" Mirage_kv.Key.pp k
     | `Batch -> "Commmiting batch operation"
 
   let connect ?depth ?branch ?root ?ctx ?headers ?(author = default_author)

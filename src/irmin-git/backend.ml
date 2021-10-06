@@ -73,7 +73,7 @@ struct
   module Repo = struct
     let handle_git_err = function
       | Ok x -> Lwt.return x
-      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
 
     type t = { config : Irmin.config; closed : bool ref; g : G.t; b : Branch.t }
 
