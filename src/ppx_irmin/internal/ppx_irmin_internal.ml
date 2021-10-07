@@ -74,7 +74,7 @@ let expansion_function source level ~loc ~path:_ payload =
          the first argument of a function [debug]. *)
       let input_args =
         match payload with
-        | { pexp_desc = Pexp_constant (Pconst_string (_, _, _)); _ } ->
+        | { pexp_desc = Pexp_constant (Pconst_string _); _ } ->
             [ (Nolabel, payload) ]
         (* Special case for ( @@ ), e.g. [%log.err "%d" @@ 1 + 2] *)
         | [%expr [%e? fmt] @@ [%e? args]] -> [ (Nolabel, fmt); (Nolabel, args) ]
