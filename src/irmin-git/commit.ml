@@ -91,13 +91,11 @@ module Make (G : Git.S) = struct
 
   let to_bin t = Raw.to_raw (G.Value.commit t)
 
-  let encode_bin =
-    Irmin.Type.stage @@ fun (t : t) k ->
+  let encode_bin (t : t) k =
     [%log.debug "Commit.encode_bin"];
     k (to_bin t)
 
-  let decode_bin =
-    Irmin.Type.stage @@ fun buf off ->
+  let decode_bin buf off =
     [%log.debug "Commit.decode_bin"];
     match Raw.of_raw_with_header ~off buf with
     | Ok (Git.Value.Commit t) -> (String.length buf, t)

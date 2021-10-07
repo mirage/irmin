@@ -26,8 +26,6 @@ module Machine : S = struct
 
   let t =
     let open Mtime in
-    let equal = Irmin.Type.stage equal in
-    let compare = Irmin.Type.stage compare in
     Irmin.Type.map ~equal ~compare Irmin.Type.int64 Mtime.of_uint64_ns
       Mtime.to_uint64_ns
 

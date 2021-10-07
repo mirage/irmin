@@ -44,10 +44,9 @@ module Make (G : Git.S) (C : Irmin.Contents.S) = struct
     include C
 
     let to_bin t = Raw.to_raw (V.to_git t)
-    let encode_bin = Irmin.Type.stage (fun (t : t) k -> k (to_bin t))
+    let encode_bin (t : t) k = k (to_bin t)
 
-    let decode_bin =
-      Irmin.Type.stage @@ fun buf off ->
+    let decode_bin buf off =
       [%log.debug "Content.decode_bin"];
       match Raw.of_raw_with_header ~off buf with
       | Ok g -> (
