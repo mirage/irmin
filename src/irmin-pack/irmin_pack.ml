@@ -50,7 +50,6 @@ module Layout = Layout
 module Checks = Checks
 module Inode = Inode
 module IO = IO
-module Utils = Utils
 module Pack_key = Pack_key
 module Pack_value = Pack_value
 module Pack_store = Pack_store

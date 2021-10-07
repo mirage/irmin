@@ -15,6 +15,5 @@
  *)
 
 let () =
-  Irmin_test.Store.run "irmin-pack"
-    ~misc:(Test_pack.misc @ [ ("utils", Test_utils.tests) ])
+  Irmin_test.Store.run "irmin-pack" ~misc:Test_pack.misc
     (List.map (fun s -> (`Quick, s)) Test_pack.suite)

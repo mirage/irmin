@@ -279,14 +279,15 @@ end = struct
         ~version:(Some Pack_store.selected_version) pack_file
     in
     let total = IO.offset pack in
-    let bar, progress =
-      Utils.Progress.counter ~total ~sampling_interval:100 ~message
-        ~pp_count:Utils.pp_bytes ()
-    in
     let stats, missing_hash =
-      ingest_data_file ~progress ~total pack iter_pack_entry
+      let bar =
+        let open Progress.Line.Using_int63 in
+        list
+          [ const message; bytes; elapsed (); bar total; percentage_of total ]
+      in
+      Progress.(with_reporter bar) (fun progress ->
+          ingest_data_file ~progress ~total pack iter_pack_entry)
     in
-    Utils.Progress.finalise bar;
     finalise ();
     IO.close pack;
     let run_duration = Mtime_clock.count run_duration in

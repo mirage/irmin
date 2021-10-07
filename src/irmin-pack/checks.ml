@@ -98,7 +98,7 @@ module Make (Store : Store) = struct
     let traverse_index ~root log_size =
       let index = Index.v ~readonly:true ~fresh:false ~log_size root in
       let bar, (progress_contents, progress_nodes, progress_commits) =
-        Utils.Progress.increment ~ppf:Format.err_formatter ()
+        Utils.Object_counter.start ()
       in
       let f _ (_, _, (kind : Pack_value.Kind.t)) =
         match kind with
@@ -109,10 +109,10 @@ module Make (Store : Store) = struct
         | Commit_v1 | Commit_v2 -> progress_commits ()
       in
       Index.iter f index;
-      let nb_commits, nb_nodes, nb_contents =
-        Utils.Progress.finalise_with_stats bar
+      let nb_contents, nb_nodes, nb_commits =
+        Utils.Object_counter.finalise_with_stats bar
       in
-      { nb_commits; nb_nodes; nb_contents }
+      { nb_contents; nb_nodes; nb_commits }
 
     let conf root = Conf.init ~readonly:true ~fresh:false root
 
@@ -374,8 +374,8 @@ module Index (Index : Pack_index.S) = struct
     let nb_absent = ref 0 in
     let nb_corrupted = ref 0 in
     let exception Cannot_fix in
-    let bar, (progress_contents, progress_nodes, progress_commits) =
-      Utils.Progress.increment ()
+    let counter, (progress_contents, progress_nodes, progress_commits) =
+      Utils.Object_counter.start ()
     in
     let f (k, (offset, length, (kind : Pack_value.Kind.t))) =
       match kind with
@@ -413,7 +413,7 @@ module Index (Index : Pack_index.S) = struct
         if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
         else Error (`Corrupted (!nb_corrupted + !nb_absent)))
     in
-    Utils.Progress.finalise bar;
+    Utils.Object_counter.finalise counter;
     result
 end
 
