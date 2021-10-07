@@ -24,8 +24,7 @@ module Entry : sig
 end = struct
   type t = { timestamp : int64; message : string } [@@deriving irmin]
 
-  let compare =
-    Irmin.Type.stage (fun x y -> Int64.compare x.timestamp y.timestamp)
+  let compare x y = Int64.compare x.timestamp y.timestamp
 
   let v message =
     time := Int64.add 1L !time;

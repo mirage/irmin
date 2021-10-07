@@ -183,10 +183,9 @@ struct
       include C
 
       let to_bin t = Raw.to_raw (GitContents.to_git t)
-      let encode_bin = Irmin.Type.stage (fun (t : t) k -> k (to_bin t))
+      let encode_bin (t : t) k = k (to_bin t)
 
-      let decode_bin =
-        Irmin.Type.stage @@ fun buf off ->
+      let decode_bin buf off =
         Log.debug (fun l -> l "Content.decode_bin");
         match Raw.of_raw_with_header ~off buf with
         | Ok g -> (
@@ -334,13 +333,11 @@ struct
       let seq ?offset ?length ?cache:_ t = list ?offset ?length t |> List.to_seq
       let clear _ = ()
 
-      let encode_bin =
-        Irmin.Type.stage @@ fun (t : t) k ->
+      let encode_bin (t : t) k =
         Log.debug (fun l -> l "Tree.encode_bin");
         k (to_bin t)
 
-      let decode_bin =
-        Irmin.Type.stage @@ fun buf off ->
+      let decode_bin buf off =
         Log.debug (fun l -> l "Tree.decode_bin");
         match Raw.of_raw_with_header buf ~off with
         | Ok (Git.Value.Tree t) -> (String.length buf, t)
@@ -433,13 +430,11 @@ struct
 
       let to_bin t = Raw.to_raw (G.Value.commit t)
 
-      let encode_bin =
-        Irmin.Type.stage @@ fun (t : t) k ->
+      let encode_bin (t : t) k =
         Log.debug (fun l -> l "Commit.encode_bin");
         k (to_bin t)
 
-      let decode_bin =
-        Irmin.Type.stage @@ fun buf off ->
+      let decode_bin buf off =
         Log.debug (fun l -> l "Commit.decode_bin");
         match Raw.of_raw_with_header ~off buf with
         | Ok (Git.Value.Commit t) -> (String.length buf, t)
