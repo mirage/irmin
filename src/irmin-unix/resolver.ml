@@ -41,22 +41,11 @@ let key k default =
   Arg.(value & opt mk default i)
 
 let opt_key k = key k (Conf.default k)
-let spec' = Conf.Spec.(join (v "unix") [ Irmin_http.Conf.spec ])
-
-let config_path_key =
-  Conf.key ~spec:spec' ~docs:global_option_section ~docv:"PATH"
-    ~doc:"Allows configuration file to be specified on the command-line."
-    "config"
-    Irmin.Type.(option string)
-    None
-
 let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
 
 let add_opt k v config =
   match v with None -> config | Some _ -> Conf.add config k v
-
-let add k v config = Conf.add config k v
 
 (* Contents *)
 
@@ -382,14 +371,13 @@ let rec read_config_file path =
     | Ok _ -> Fmt.failwith "invalid YAML file: %s" path
     | Error (`Msg msg) -> Fmt.failwith "unable to parse YAML: %s" msg
 
-let root_key = Conf.root spec'
-
 let config_term =
   let create root config_path (opts : (string * string) list list) =
     (Some root, config_path, opts)
   in
+  let spec = Conf.Spec.(join (v "unix") [ Irmin_http.Conf.spec ]) in
   let doc =
-    Seq.map (fun (Irmin.Backend.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec')
+    Seq.map (fun (Irmin.Backend.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec)
     |> List.of_seq
     |> String.concat ~sep:", "
   in
@@ -397,6 +385,15 @@ let config_term =
   let opts =
     Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc
       [ "opt"; "options" ]
+  in
+
+  let root_key = Conf.root spec in
+  let config_path_key =
+    Conf.key ~spec ~docs:global_option_section ~docv:"PATH"
+      ~doc:"Allows configuration file to be specified on the command-line."
+      "config"
+      Irmin.Type.(option string)
+      None
   in
   Term.(
     const create
@@ -597,7 +594,13 @@ let infer_remote hash contents headers str =
         let config =
           Conf.empty spec
           |> add_opt Irmin_http.Conf.Key.uri (Some (Uri.of_string str))
-          |> add root_key str
+        in
+        let config =
+          match Conf.Spec.find_key spec "root" with
+          | Some (K r) ->
+              let v = Irmin.Type.of_string (Conf.ty r) str |> Result.get_ok in
+              Conf.add config r v
+          | _ -> config
         in
         let* repo = R.Repo.v config in
         let+ r = R.master repo in
