@@ -12,6 +12,9 @@
     comparison defined on hashes. The previous implementation was unstable.
     (#1519, @CraigFe)
 
+- **irmin-unix**
+  - Fixed broken `--root` flag on `irmin` executable (#1543, @zshipko)
+
 ### Added
 
 - **irmin**
