@@ -22,7 +22,7 @@ let global_option_section = "COMMON OPTIONS"
 
 module Conf = Irmin.Backend.Conf
 
-let string_or_option ty v =
+let value_or_option ty v =
   match Irmin.Type.of_string ty v with
   | Error e -> (
       let x = Format.sprintf "{\"some\": %s}" v in
@@ -36,7 +36,7 @@ let string_or_option ty v =
 let pconv t =
   let pp = Irmin.Type.pp t in
   let parse s =
-    match string_or_option t s with Ok x -> `Ok x | Error (`Msg e) -> `Error e
+    match value_or_option t s with Ok x -> `Ok x | Error (`Msg e) -> `Error e
   in
   (parse, pp)
 
@@ -473,7 +473,13 @@ let load_config_file_with_defaults root config_path (store, hash, contents) =
         match Conf.Spec.find_key spec k with
         | Some (Irmin.Backend.Conf.K k) ->
             let v = json_of_yaml v |> Yojson.Basic.to_string in
-            let v = string_or_option (Conf.ty k) v |> Result.get_ok in
+            let v =
+              match Irmin.Type.of_json_string (Conf.ty k) v with
+              | Error _ ->
+                  let v = Format.sprintf "{\"some\": %s}" v in
+                  Irmin.Type.of_json_string (Conf.ty k) v |> Result.get_ok
+              | Ok v -> v
+            in
             Conf.add config k v
         | None -> (
             match k with
@@ -508,7 +514,7 @@ let from_config_file_with_defaults root config_path (store, hash, contents) opts
                 | None -> invalid_arg ("opt: " ^ k)
             in
             let ty = Conf.ty key in
-            let v = string_or_option ty v |> Result.get_ok in
+            let v = value_or_option ty v |> Result.get_ok in
             let config = Conf.add config key v in
             config)
           config (List.flatten opts)
