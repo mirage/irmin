@@ -386,10 +386,7 @@ let root_key = Conf.root spec'
 
 let config_term =
   let create root config_path (opts : (string * string) list list) =
-    let config =
-      Conf.empty spec' |> add root_key root |> add config_path_key config_path
-    in
-    (config, opts)
+    (Some root, config_path, opts)
   in
   let doc =
     Seq.map (fun (Irmin.Backend.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec')
@@ -422,8 +419,8 @@ let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
   | `A x -> `List (List.map json_of_yaml x)
   | (`Null | `Bool _ | `Float _ | `String _) as x -> x
 
-let load_config_file_with_defaults path (store, hash, contents) config =
-  let y = read_config_file path in
+let load_config_file_with_defaults root config_path (store, hash, contents) =
+  let y = read_config_file config_path in
   let store =
     match List.assoc_opt "store" y with
     | Some (`String s) -> Store.find s
@@ -457,6 +454,14 @@ let load_config_file_with_defaults path (store, hash, contents) config =
               "Cannot customize the hash function for the given store")
   in
   let _, spec, _ = Store.destruct store in
+  let config = Conf.empty spec in
+  let config =
+    match (root, Conf.Spec.find_key spec "root") with
+    | Some root, Some (K r) ->
+        let v = Irmin.Type.of_string (Conf.ty r) root |> Result.get_ok in
+        Conf.add config r v
+    | _ -> config
+  in
   let config =
     List.fold_left
       (fun config (k, v) ->
@@ -477,17 +482,17 @@ let load_config_file_with_defaults path (store, hash, contents) config =
             | _ ->
                 Fmt.invalid_arg "unknown config key for %s: %s"
                   (Conf.Spec.name spec) k))
-      (Conf.with_spec config spec)
-      y
+      config y
   in
   (store, config)
 
-let from_config_file_with_defaults path (store, hash, contents) config opts
+let from_config_file_with_defaults root config_path (store, hash, contents) opts
     branch : store =
-  let y = read_config_file path in
+  let y = read_config_file config_path in
   let store, config =
-    load_config_file_with_defaults path (store, hash, contents) config
+    load_config_file_with_defaults root config_path (store, hash, contents)
   in
+
   match store with
   | Store.T ((module S), spec, remote) -> (
       let config =
@@ -538,14 +543,8 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
       | None -> S ((module S), mk_master (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
-let load_config ?(default = Conf.empty spec') ?config_path ?store ?hash
-    ?contents () =
-  let cfg =
-    match config_path with
-    | Some _ as p -> p
-    | None -> Conf.get default config_path_key
-  in
-  load_config_file_with_defaults cfg (store, hash, contents) default
+let load_config ?root ?config_path ?store ?hash ?contents () =
+  load_config_file_with_defaults root config_path (store, hash, contents)
 
 let branch =
   let doc =
@@ -556,9 +555,8 @@ let branch =
   Arg.(value & opt (some string) None & doc)
 
 let store =
-  let create store (config, opts) branch =
-    let cfg = Conf.get config config_path_key in
-    from_config_file_with_defaults cfg store config opts branch
+  let create store (root, config_path, opts) branch =
+    from_config_file_with_defaults root config_path store opts branch
   in
   Term.(const create $ Store.term $ config_term $ branch)
 
