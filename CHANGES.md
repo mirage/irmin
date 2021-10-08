@@ -13,7 +13,8 @@
     (#1519, @CraigFe)
 
 - **irmin-unix**
-  - Fixed broken `--root` flag on `irmin` executable (#1543, @zshipko)
+  - Fixed broken `--root` and `--config` flags on `irmin` executable
+    (#1543, @zshipko)
 
 ### Added
 
