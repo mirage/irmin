@@ -461,13 +461,6 @@ let load_config_file_with_defaults root config_path (store, hash, contents) =
   let _, spec, _ = Store.destruct store in
   let config = Conf.empty spec in
   let config =
-    match (root, Conf.Spec.find_key spec "root") with
-    | Some root, Some (K r) ->
-        let v = Irmin.Type.of_string (Conf.ty r) root |> Result.get_ok in
-        Conf.add config r v
-    | _ -> config
-  in
-  let config =
     List.fold_left
       (fun config (k, v) ->
         match Conf.Spec.find_key spec k with
@@ -488,6 +481,13 @@ let load_config_file_with_defaults root config_path (store, hash, contents) =
                 Fmt.invalid_arg "unknown config key for %s: %s"
                   (Conf.Spec.name spec) k))
       config y
+  in
+  let config =
+    match (root, Conf.Spec.find_key spec "root") with
+    | Some root, Some (K r) ->
+        let v = Irmin.Type.of_string (Conf.ty r) root |> Result.get_ok in
+        Conf.add config r v
+    | _ -> config
   in
   (store, config)
 
