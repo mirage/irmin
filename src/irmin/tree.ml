@@ -224,6 +224,11 @@ module Make (P : Private.S) = struct
               if cache then c.info.hash <- Some k;
               k)
 
+    let hash_and_prune repo c =
+      let h = hash c in
+      c.v <- Hash (repo, h);
+      h
+
     let value_of_hash ~cache t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
@@ -528,6 +533,68 @@ module Make (P : Private.S) = struct
       aux v updates
 
     let hash ~cache k = hash ~cache k (fun x -> x)
+
+    let rec hash_and_prune : type a. repo -> t -> (hash -> a) -> a =
+     fun repo t k ->
+      match cached_hash t with
+      | Some h ->
+          t.v <- Hash (repo, h);
+          clear_info_fields t.info;
+          k h
+      | None -> (
+          let a_of_value v =
+            cnt.node_hash <- cnt.node_hash + 1;
+            let h = P.Node.Key.hash v in
+            clear_info_fields t.info;
+            t.v <- Hash (repo, h);
+            k h
+          in
+          match cached_value t with
+          | Some v -> a_of_value v
+          | None -> (
+              match t.v with
+              | Hash (_, h) ->
+                  t.v <- Hash (repo, h);
+                  k h
+              | Value (_, v, None) -> a_of_value v
+              | Value (_, v, Some um) ->
+                  value_of_updates_prune repo v um a_of_value
+              | Map m -> value_of_map_prune repo m a_of_value))
+
+    and value_of_map_prune : type r. repo -> map -> (value, r) cont =
+     fun repo map k ->
+      if StepMap.is_empty map then k P.Node.Val.empty
+      else
+        let v =
+          StepMap.to_seq map
+          |> Seq.map (function
+               | step, `Contents (c, m) ->
+                   (step, `Contents (Contents.hash_and_prune repo c, m))
+               | step, `Node n ->
+                   (step, hash_and_prune repo n (fun h -> `Node h)))
+          |> P.Node.Val.of_seq
+        in
+        k v
+
+    and value_of_elt_prune : type r. repo -> elt -> (P.Node.Val.value, r) cont =
+     fun repo e k ->
+      match e with
+      | `Contents (c, m) -> k (`Contents (Contents.hash_and_prune repo c, m))
+      | `Node n -> hash_and_prune repo n (fun h -> k (`Node h))
+
+    and value_of_updates_prune : type r. repo -> value -> _ -> (value, r) cont =
+     fun repo v updates k ->
+      let updates = StepMap.bindings updates in
+      let rec aux acc = function
+        | [] -> k acc
+        | (k, Add e) :: rest ->
+            value_of_elt_prune repo e (fun e ->
+                aux (P.Node.Val.add acc k e) rest)
+        | (k, Remove) :: rest -> aux (P.Node.Val.remove acc k) rest
+      in
+      aux v updates
+
+    let hash_and_prune repo k = hash_and_prune repo k (fun x -> x)
 
     let superclear repo t =
       match t.v with
@@ -1597,6 +1664,12 @@ module Make (P : Private.S) = struct
     match t with
     | `Node n -> `Node (Node.hash ~cache n)
     | `Contents (c, m) -> `Contents (Contents.hash ~cache c, m)
+
+  let hash_and_prune repo (t : t) =
+    Log.debug (fun l -> l "Tree.hash_and_prune");
+    match t with
+    | `Node n -> `Node (Node.hash_and_prune repo n)
+    | `Contents (c, m) -> `Contents (Contents.hash_and_prune repo c, m)
 
   let stats ?(force = false) (t : t) =
     let cache = true in

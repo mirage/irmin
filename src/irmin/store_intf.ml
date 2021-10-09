@@ -399,6 +399,7 @@ module type S = sig
         performed to verify if [h] actually exists in [r]. *)
 
     val shallow_hash : Repo.t -> tree -> hash
+    val pruned_hash : Repo.t -> tree -> hash
   end
 
   (** {1 Reads} *)

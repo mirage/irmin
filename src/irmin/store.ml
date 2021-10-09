@@ -52,6 +52,9 @@ module Make (P : Private.S) = struct
      fun ?cache tr ->
       match hash ?cache tr with `Node h -> h | `Contents (h, _) -> h
 
+    let pruned_hash repo tr =
+      match hash_and_prune repo tr with `Node h -> h | `Contents (h, _) -> h
+
     let shallow_hash repo t =
       superclear repo t;
       hash ~cache:false t

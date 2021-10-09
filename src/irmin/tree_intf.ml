@@ -357,5 +357,6 @@ module type Sigs = sig
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
     val superclear : P.Repo.t -> t -> unit
+    val hash_and_prune : P.Repo.t -> t -> kinded_hash
   end
 end
