@@ -9,3 +9,6 @@
   [1]
   $ irmin get --root ./test1 foo
   bar
+  $ irmin get --root ./test1 -s irf foo
+  <none>
+  [1]

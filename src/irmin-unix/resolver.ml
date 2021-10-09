@@ -427,23 +427,29 @@ let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
 let load_config_file_with_defaults root config_path (store, hash, contents) =
   let y = read_config_file config_path in
   let store =
-    match List.assoc_opt "store" y with
-    | Some (`String s) -> Store.find s
-    | _ -> (
-        match store with Some s -> Store.find s | None -> snd !Store.default)
+    match store with
+    | Some s -> Store.find s
+    | None -> (
+        match List.assoc_opt "store" y with
+        | Some (`String s) -> (
+            match store with Some s -> Store.find s | None -> Store.find s)
+        | _ -> snd !Store.default)
   in
   let contents =
-    match List.assoc_opt "contents" y with
-    | Some (`String s) -> Contents.find s
-    | _ -> (
-        match contents with
-        | Some s -> Contents.find s
-        | None -> snd !Contents.default)
+    match contents with
+    | Some s -> Contents.find s
+    | None -> (
+        match List.assoc_opt "contents" y with
+        | Some (`String s) -> Contents.find s
+        | _ -> snd !Contents.default)
   in
   let hash =
-    match List.assoc_opt "hash" y with
-    | Some (`String s) -> Some (Hash.find s)
-    | _ -> ( match hash with Some s -> Some s | None -> None)
+    match hash with
+    | Some s -> Some s
+    | None -> (
+        match List.assoc_opt "hash" y with
+        | Some (`String s) -> Some (Hash.find s)
+        | _ -> None)
   in
   let store =
     match store with
@@ -497,7 +503,6 @@ let from_config_file_with_defaults root config_path (store, hash, contents) opts
   let store, config =
     load_config_file_with_defaults root config_path (store, hash, contents)
   in
-
   match store with
   | Store.T ((module S), spec, remote) -> (
       let config =
