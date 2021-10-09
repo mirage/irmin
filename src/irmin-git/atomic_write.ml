@@ -238,7 +238,6 @@ module Make (K : Key) (G : Git.S) = struct
     ;
     let gr = git_of_branch r in
     let c = function None -> None | Some h -> Some (Git.Reference.Uid h) in
-
     let ok r =
       let+ () = handle_git_err r in
       true
@@ -251,7 +250,6 @@ module Make (K : Key) (G : Git.S) = struct
           | Ok x -> Lwt.return_some x
           | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
         in
-
         let* b =
           if not (eq_head_contents_opt x (c test)) then Lwt.return_false
           else

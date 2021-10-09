@@ -12,10 +12,6 @@
     comparison defined on hashes. The previous implementation was unstable.
     (#1519, @CraigFe)
 
-- **irmin-unix**
-  - Fixed broken `--root` and `--config` flags on `irmin` executable
-    (#1543, @zshipko)
-
 ### Added
 
 - **irmin**
@@ -151,8 +147,10 @@
     (#1369, @samoht)
 
 - **irmin-unix**
-  - Allow config file to be specified when using
-    `Irmin_unix.Resolver.load_config` (#1464, @zshipko)
+  - Clean up command line interface. Allow config file to be specified when
+    using `Irmin_unix.Resolver.load_config` and make command line options
+    take precedence over config options.
+    (#1464, #1543, @zshipko)
 
 ## 2.7.2 (2021-07-20)
 
