@@ -115,6 +115,20 @@ module Make (P : Private.S) = struct
     let stdlib_merge = merge
 
     include Merge.Map (X)
+
+    let to_array m =
+      let length = cardinal m in
+      if length = 0 then [||]
+      else
+        let arr = Array.make length (choose m) in
+        let (_ : int) =
+          fold
+            (fun k v i ->
+              arr.(i) <- (k, v);
+              i + 1)
+            m 0
+        in
+        arr
   end
 
   module Metadata = P.Node.Metadata
@@ -808,6 +822,22 @@ module Make (P : Private.S) = struct
       | Error _ as e -> e
       | Ok m -> Ok (StepMap.bindings m)
 
+    let seq_of_updates updates value_bindings =
+      (* This operation can be costly for large updates. *)
+      if StepMap.is_empty updates then
+        (* Short-circuit return if we have no more updates to apply. *)
+        value_bindings
+      else
+        let value_bindings =
+          Seq.filter (fun (s, _) -> not (StepMap.mem s updates)) value_bindings
+        in
+        let updates =
+          StepMap.to_seq updates
+          |> Seq.filter_map (fun (s, elt) ->
+                 match elt with Remove -> None | Add e -> Some (s, e))
+        in
+        Seq.append value_bindings updates
+
     type ('v, 'acc, 'r) folder =
       path:key -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
     (** A ('val, 'acc, 'r) folder is a CPS, threaded fold function over values
@@ -815,6 +845,7 @@ module Make (P : Private.S) = struct
 
     let fold :
         type acc.
+        order:[ `Sorted | `Undefined | `Random of Random.State.t ] ->
         force:acc force ->
         cache:bool ->
         uniq:uniq ->
@@ -828,7 +859,8 @@ module Make (P : Private.S) = struct
         t ->
         acc ->
         acc Lwt.t =
-     fun ~force ~cache ~uniq ~pre ~post ~path ?depth ~node ~contents ~tree t acc ->
+     fun ~order ~force ~cache ~uniq ~pre ~post ~path ?depth ~node ~contents
+         ~tree t acc ->
       let marks =
         match uniq with
         | `False -> dummy_marks
@@ -854,9 +886,23 @@ module Make (P : Private.S) = struct
         let apply acc = node path t acc >>= tree path (`Node t) in
         let next acc =
           match force with
-          | `True ->
-              let* m = to_map ~cache t >|= get_ok "fold" in
-              (map [@tailcall]) ~path acc d (Some m) k
+          | `True -> (
+              match (order, t.v) with
+              | `Random state, _ ->
+                  let* m = to_map ~cache t >|= get_ok "fold" in
+                  let arr = StepMap.to_array m in
+                  let () = shuffle state arr in
+                  let s = Array.to_seq arr in
+                  (seq [@tailcall]) ~path acc d s k
+              | `Sorted, _ | `Undefined, Map _ ->
+                  let* m = to_map ~cache t >|= get_ok "fold" in
+                  (map [@tailcall]) ~path acc d (Some m) k
+              | `Undefined, Value (repo, v, updates) ->
+                  (value [@tailcall]) ~path acc d (repo, v, updates) k
+              | `Undefined, Hash (repo, _) ->
+                  let* v = to_value ~cache t >|= get_ok "fold" in
+                  (value [@tailcall]) ~path acc d (repo, v, None) k
+              | `Undefined, Pruned h -> pruned_hash_exn "fold" h)
           | `False skip -> (
               match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
@@ -913,9 +959,27 @@ module Make (P : Private.S) = struct
         | None -> k acc
         | Some m ->
             let bindings = StepMap.to_seq m in
-            let* acc = pre path bindings acc in
-            (steps [@tailcall]) ~path acc d bindings (fun acc ->
-                post path bindings acc >>= k)
+            seq ~path acc d bindings k
+      and value : type r. (repo * value * updatemap option, acc, r) folder =
+       fun ~path acc d (repo, v, updates) k ->
+        let to_elt = function
+          | `Node n -> `Node (of_hash repo n)
+          | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
+        in
+        let bindings =
+          P.Node.Val.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
+        in
+        let bindings =
+          match updates with
+          | None -> bindings
+          | Some updates -> seq_of_updates updates bindings
+        in
+        seq ~path acc d bindings k
+      and seq : type r. ((step * elt) Seq.t, acc, r) folder =
+       fun ~path acc d bindings k ->
+        let* acc = pre path bindings acc in
+        (steps [@tailcall]) ~path acc d bindings (fun acc ->
+            post path bindings acc >>= k)
       in
       aux_uniq ~path acc 0 t Lwt.return
 
@@ -1104,14 +1168,14 @@ module Make (P : Private.S) = struct
 
   let id _ _ acc = Lwt.return acc
 
-  let fold ?(force = `True) ?(cache = false) ?(uniq = `False) ?pre ?post ?depth
-      ?(contents = id) ?(node = id) ?(tree = id) (t : t) acc =
+  let fold ?(order = `Sorted) ?(force = `True) ?(cache = false) ?(uniq = `False)
+      ?pre ?post ?depth ?(contents = id) ?(node = id) ?(tree = id) (t : t) acc =
     match t with
     | `Contents (c, _) as c' ->
         let tree path = tree path c' in
         Contents.fold ~force ~cache ~path:Path.empty contents tree c acc
     | `Node n ->
-        Node.fold ~force ~cache ~uniq ~pre ~post ~path:Path.empty ?depth
+        Node.fold ~order ~force ~cache ~uniq ~pre ~post ~path:Path.empty ?depth
           ~contents ~node ~tree n acc
 
   type stats = {

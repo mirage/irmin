@@ -248,6 +248,7 @@ module type S = sig
       [Le d] is [Eq d] and [Lt d]. [Ge d] is [Eq d] and [Gt d]. *)
 
   val fold :
+    ?order:[ `Sorted | `Undefined | `Random of Random.State.t ] ->
     ?force:'a force ->
     ?cache:bool ->
     ?uniq:uniq ->
@@ -268,8 +269,6 @@ module type S = sig
       - Recursively call [fold] on each children.
       - Call [post path n]; By default [post] is the identity.
 
-      Elements are traversed in lexical order of keys.
-
       See {!force} for details about the [force] parameters. By default it is
       [`True].
 
@@ -279,7 +278,12 @@ module type S = sig
       The fold depth is controlled by the [depth] parameter.
 
       [cache] defaults to [false], see {!caching} for an explanation of the
-      parameter. *)
+      parameter.
+
+      If [order] is [`Sorted] (the default), the elements are traversed in
+      lexicographic order of their keys. If [`Random state], they are traversed
+      in a random order. For large nodes, these two modes are memory-consuming,
+      use [`Undefined] for a more memory efficient [fold]. *)
 
   (** {1 Stats} *)
 
