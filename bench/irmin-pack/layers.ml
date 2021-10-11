@@ -38,7 +38,7 @@ module Contents = struct
   let ty = Irmin.Type.(pair (bytes_of `Int64) unit)
   let pre_hash_ty = Irmin.Type.(unstage (pre_hash ty))
   let pre_hash_v1 x = pre_hash_ty (x, ())
-  let t = Irmin.Type.(like bytes ~pre_hash:(stage @@ fun x -> pre_hash_v1 x))
+  let t = Irmin.Type.(like bytes ~pre_hash:pre_hash_v1)
   let merge = Irmin.Merge.(idempotent (Irmin.Type.option t))
 end
 

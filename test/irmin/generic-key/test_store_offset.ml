@@ -40,8 +40,8 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
     |+ field "hash" hash_t (fun t -> t.hash)
     |> sealr
     |> like (* TODO: write tests that expose the need for these directly *)
-         ~equal:(stage (fun a b -> hash_equal a.hash b.hash))
-         ~pre_hash:(stage (fun t f -> hash_pre_hash t.hash f))
+         ~equal:(fun a b -> hash_equal a.hash b.hash)
+         ~pre_hash:(fun t f -> hash_pre_hash t.hash f)
 
   module Key (Hash : Hash.S) = struct
     type t = Hash.t key [@@deriving irmin]

@@ -151,13 +151,11 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
 
   let clear _ = ()
 
-  let encode_bin =
-    Irmin.Type.stage @@ fun (t : t) k ->
+  let encode_bin (t : t) k =
     [%log.debug "Tree.encode_bin"];
     k (to_bin t)
 
-  let decode_bin =
-    Irmin.Type.stage @@ fun buf off ->
+  let decode_bin buf off =
     [%log.debug "Tree.decode_bin"];
     match Raw.of_raw_with_header buf ~off with
     | Ok (Git.Value.Tree t) -> (String.length buf, t)

@@ -17,10 +17,9 @@ module Keyed_by_value = struct
     let (t : t Type.t) =
       let open Type in
       map
-        ~pre_hash:
-          (stage (fun t f ->
-               let hash = value_to_hash t.value in
-               pre_hash_hash hash f))
+        ~pre_hash:(fun t f ->
+          let hash = value_to_hash t.value in
+          pre_hash_hash hash f)
         Value.t
         (fun _ ->
           Alcotest.fail ~pos:__POS__ "Key implementation is non-serialisable")

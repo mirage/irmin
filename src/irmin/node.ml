@@ -179,9 +179,7 @@ struct
       in
       Hash_preimage.pre_hash entries f
     in
-    Type.map ~pre_hash:(Type.stage pre_hash)
-      Type.(list entry_t)
-      of_entries entries
+    Type.map ~pre_hash Type.(list entry_t) of_entries entries
 
   (** Merges *)
 
@@ -520,16 +518,16 @@ module V1 (N : Generic_key.S with type step = string) = struct
 
     let encode_bin =
       let encode_bin = Type.(unstage (encode_bin h)) in
-      Type.stage @@ fun e k -> encode_bin (to_bin_string e) k
+      fun e k -> encode_bin (to_bin_string e) k
 
     let decode_bin =
       let decode_bin = Type.(unstage (decode_bin h)) in
-      Type.stage @@ fun buf off ->
-      let n, v = decode_bin buf off in
-      ( n,
-        match of_bin_string v with
-        | Ok v -> v
-        | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
+      fun buf off ->
+        let n, v = decode_bin buf off in
+        ( n,
+          match of_bin_string v with
+          | Ok v -> v
+          | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 
     let t = Type.like t ~bin:(encode_bin, decode_bin, size_of)
   end
