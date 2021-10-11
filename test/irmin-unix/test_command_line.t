@@ -4,14 +4,14 @@ Create default config file
   > store: pack
   > EOF
 
-Set abc => 123 in ./test
-  $ irmin set abc 123
+Set a/b/c => 123 in ./test
+  $ irmin set a/b/c 123
 
 Set foo => bar in ./test1
   $ irmin set --root ./test1 foo bar
 
-Check for abc in ./test
-  $ irmin get --root ./test abc
+Check for a/b/c in ./test
+  $ irmin get --root ./test a/b/c
   123
 
 Check for the non-existence of foo in ./test
@@ -27,3 +27,34 @@ Try getting foo from ./test1 using the wrong store type
   $ irmin get --root ./test1 -s irf foo
   <none>
   [1]
+
+Set d/e/f => 456 in ./test
+  $ irmin set d/e/f 456
+
+List keys in ./test
+  $ irmin list /
+  DIR a
+  DIR d
+
+Set g/h/i => 789 in ./test
+  $ irmin set /g/h/i/ 789
+
+Snapshot
+  $ export SNAPSHOT=`irmin snapshot`
+
+List keys under g/h in ./test
+  $ irmin list g/h
+  FILE i
+
+Remove g in ./test
+  $ irmin remove g
+
+List keys under g in ./test
+  $ irmin list g
+
+Restore snapshot
+  $ irmin revert $SNAPSHOT
+
+Get g/h/i in ./test
+  $ irmin get g/h/i/
+  789

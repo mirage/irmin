@@ -202,7 +202,7 @@ let list =
             let pp ppf (s, k) =
               match S.Tree.destruct k with
               | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
-              | `Node _ -> Fmt.pf ppf "DIR  %a" pp_step s
+              | `Node _ -> Fmt.pf ppf "DIR %a" pp_step s
             in
             List.iter (print "%a" pp) paths;
             Lwt.return_unit)
