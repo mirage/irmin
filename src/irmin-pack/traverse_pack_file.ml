@@ -178,11 +178,12 @@ end = struct
 
   let decode_entry_exn ~off ~buffer ~buffer_off =
     try
+      let buffer_pos = ref buffer_off in
       (* Decode the key and kind by hand *)
-      let off_after_key, key = decode_key buffer buffer_off in
-      assert (off_after_key = buffer_off + Hash.hash_size);
-      let off_after_kind, kind = decode_kind buffer off_after_key in
-      assert (off_after_kind = buffer_off + Hash.hash_size + 1);
+      let key = decode_key buffer buffer_pos in
+      assert (!buffer_pos = buffer_off + Hash.hash_size);
+      let kind = decode_kind buffer buffer_pos in
+      assert (!buffer_pos = buffer_off + Hash.hash_size + 1);
       (* Get the length of the entire entry *)
       let entry_len = decode_entry_length kind buffer buffer_off in
       { key; data = (off, entry_len, kind) }

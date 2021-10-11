@@ -89,9 +89,10 @@ module Chunk (H : Irmin.Hash.S) = struct
 
   let of_string b =
     let len = String.length b in
-    let n, v = decode_bin_value b 0 in
-    if len = n then { len; v }
-    else Fmt.invalid_arg "invalid length: got %d, expecting %d" n len
+    let pos_ref = ref 0 in
+    let v = decode_bin_value b pos_ref in
+    if !pos_ref = len then { len; v }
+    else Fmt.invalid_arg "invalid length: got %d, expecting %d" !pos_ref len
 
   let to_string t =
     let buf = Bytes.make t.len '\000' in

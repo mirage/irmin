@@ -199,20 +199,21 @@ module Io (Ff : File_format) = struct
   let encode_lrow = Repr.(encode_bin Ff.Latest.row_t |> unstage)
   let magic = Ff.magic
 
-  let read_with_prefix_exn : (string -> int -> int * 'a) -> in_channel -> 'a =
+  let read_with_prefix_exn : (string -> int ref -> 'a) -> in_channel -> 'a =
    fun decode chan ->
     (* First read the prefix *)
     let len = Var_int.read_exn chan in
     (* Then read the repr. *)
-    let len', v =
+    let pos_ref = ref 0 in
+    let v =
       (* This could fail if [len] is not long enough for repr (corruption) *)
-      decode (really_input_string chan len) 0
+      decode (really_input_string chan len) pos_ref
     in
-    if len <> len' then
+    if len <> !pos_ref then
       Fmt.failwith
         "An value read in the Trace was expected to take %d bytes, but it took \
          only %d."
-        len len';
+        len !pos_ref;
     v
 
   let decoded_seq_of_encoded_chan_with_prefixes :
@@ -240,8 +241,9 @@ module Io (Ff : File_format) = struct
         magic Magic.pp Ff.magic;
 
     let (Version_converter vc) =
-      let len', version = decode_i32 (really_input_string chan 4) 0 in
-      assert (len' = 4);
+      let pos_ref = ref 0 in
+      let version = decode_i32 (really_input_string chan 4) pos_ref in
+      assert (!pos_ref = 4);
       Ff.get_version_converter (Int32.to_int version)
     in
 

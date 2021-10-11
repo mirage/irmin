@@ -61,8 +61,9 @@ struct
     let buf = Bytes.create 4 in
     let n = IO.read block ~off buf in
     assert (n = 4);
-    let n, v = decode_bin (Bytes.unsafe_to_string buf) 0 in
-    assert (n = 4);
+    let pos_ref = ref 0 in
+    let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
+    assert (!pos_ref = 4);
     Int32.to_int v
 
   let entry = Irmin.Type.(pair (string_of `Int32) V.t)
@@ -102,8 +103,9 @@ struct
           | Ok k -> k
           | Error (`Msg e) -> failwith e
         in
-        let n, v = decode_bin_value buf len in
-        assert (n = String.length buf);
+        let pos_ref = ref len in
+        let v = decode_bin_value buf pos_ref in
+        assert (!pos_ref = String.length buf);
         if not (equal_value v V.null) then Tbl.add t.cache h v;
         Tbl.add t.index h offset;
         (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + value_encoded_size)))

@@ -21,8 +21,8 @@ module type S = sig
     dict:(int -> string option) ->
     hash:(int63 -> hash) ->
     string ->
-    int ->
-    int * t
+    int ref ->
+    t
 
   val decode_bin_length : string -> int -> int
 end

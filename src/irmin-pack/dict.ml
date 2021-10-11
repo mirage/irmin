@@ -39,17 +39,19 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
     let n = IO.read t.io ~off:from raw in
     assert (n = len);
     let raw = Bytes.unsafe_to_string raw in
-    let rec aux n offset =
-      if offset >= len then ()
+    let pos_ref = ref 0 in
+    let rec aux n =
+      if !pos_ref >= len then ()
       else
-        let _, v = decode_bin_int32 raw offset in
+        let v = decode_bin_int32 raw pos_ref in
         let len = Int32.to_int v in
-        let v = String.sub raw (offset + 4) len in
+        let v = String.sub raw !pos_ref len in
+        pos_ref := !pos_ref + len;
         Hashtbl.add t.cache v n;
         Hashtbl.add t.index n v;
-        (aux [@tailcall]) (n + 1) (offset + 4 + len)
+        (aux [@tailcall]) (n + 1)
     in
-    (aux [@tailcall]) (Hashtbl.length t.cache) 0
+    (aux [@tailcall]) (Hashtbl.length t.cache)
 
   let sync_offset t =
     let former_offset = IO.offset t.io in
