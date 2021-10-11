@@ -61,8 +61,8 @@ module type S = sig
       and later found via their keys.
 
       Keys are not necessarily portable between different stores, so each store
-      provides an {!index} mechanism to find keys by the hashes of the values
-      they reference. *)
+      provides an {!val-index} mechanism to find keys by the hashes of the
+      values they reference. *)
 
   include S_without_key_impl (* @inline *)
 

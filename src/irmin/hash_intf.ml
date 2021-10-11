@@ -33,7 +33,7 @@ module type S = sig
   (** {1 Value Types} *)
 
   val t : t Type.t
-  (** [t] is the value type for {!t}. *)
+  (** [t] is the value type for {!type-t}. *)
 end
 
 module type Typed = sig
@@ -53,7 +53,7 @@ module type Typed = sig
   (** {1 Value Types} *)
 
   val t : t Type.t
-  (** [t] is the value type for {!t}. *)
+  (** [t] is the value type for {!type-t}. *)
 end
 
 module type Sigs = sig

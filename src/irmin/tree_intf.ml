@@ -108,9 +108,25 @@ module type S = sig
 
     val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
-        {!force}d successfully.
+        {!val-force}d successfully. See {!caching} for an explanation of the
+        [cache] parameter. *)
 
-        {2 caching}
+    val key : t -> contents_key option
+    (** [key t] is the key of the {!contents} value returned when [t] is
+        {!val-force}d successfully. *)
+
+    val force : t -> contents or_error Lwt.t
+    (** [force t] forces evaluation of the lazy content value [t], or returns an
+        error if no such value exists in the underlying repository. *)
+
+    val force_exn : t -> contents Lwt.t
+    (** Equivalent to {!val-force}, but raises an exception if the lazy content
+        value is not present in the underlying repository. *)
+
+    val clear : t -> unit
+    (** [clear t] clears [t]'s cache. *)
+
+    (** {2:caching caching}
 
         [cache] regulates the caching behaviour regarding the node's internal
         data which are be lazily loaded from the backend.
@@ -120,21 +136,6 @@ module type S = sig
 
         [cache = false] doesn't replace a call to [clear], it only prevents the
         storing of new data, it doesn't discard the existing one. *)
-
-    val key : t -> contents_key option
-    (** [key t] is the key of the {!contents} value returned when [t] is
-        {!force}d successfully. *)
-
-    val force : t -> contents or_error Lwt.t
-    (** [force t] forces evaluation of the lazy content value [t], or returns an
-        error if no such value exists in the underlying repository. *)
-
-    val force_exn : t -> contents Lwt.t
-    (** Equivalent to {!force}, but raises an exception if the lazy content
-        value is not present in the underlying repository. *)
-
-    val clear : t -> unit
-    (** [clear t] clears [t]'s cache. *)
   end
 
   val mem : t -> path -> bool Lwt.t
@@ -165,8 +166,8 @@ module type S = sig
 
       [offset] and [length] are used for pagination.
 
-      [cache] defaults to [true], see {!caching} for an explanation of the
-      parameter. *)
+      [cache] defaults to [true], see {!Contents.caching} for an explanation of
+      the parameter. *)
 
   val get : t -> path -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
@@ -286,8 +287,8 @@ module type S = sig
 
       The fold depth is controlled by the [depth] parameter.
 
-      [cache] defaults to [false], see {!caching} for an explanation of the
-      parameter.
+      [cache] defaults to [false], see {!Contents.caching} for an explanation of
+      the parameter.
 
       If [order] is [`Sorted] (the default), the elements are traversed in
       lexicographic order of their keys. If [`Random state], they are traversed

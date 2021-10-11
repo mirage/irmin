@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The implementation of an {!int64} counter. This module supports operations
-    to increment, decrement and read the value of the counter.
+(** The implementation of an [int64] counter. This module supports operations to
+    increment, decrement and read the value of the counter.
 
     Merge semantics is as follows: if [old] is the value of the LCA and [v1] and
     [v2] are the current values, then the merged value is [v1 + v2 - old]. *)

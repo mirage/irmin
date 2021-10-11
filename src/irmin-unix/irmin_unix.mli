@@ -36,8 +36,8 @@ val info :
   ?author:string ->
   ('a, Format.formatter, unit, unit -> Irmin.Info.default) format4 ->
   'a
-(** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.date}
-    date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.author} author}
+(** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.S.date}
+    date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.S.author} author}
     built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
     provided. *)
 
