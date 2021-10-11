@@ -40,16 +40,24 @@ let pconv t =
   in
   (parse, pp)
 
-let key k default =
-  let doc = Conf.doc k in
-  let docs = Conf.docs k in
-  let docv = Conf.docv k in
-  let mk = pconv (Conf.ty k) in
-  let name = Conf.name k in
-  let i = Arg.info ?docv ?doc ?docs [ name ] in
-  Arg.(value & opt mk default i)
+let config_path_term =
+  let name = "config" in
+  let doc = "Allows configuration file to be specified on the command-line." in
+  let docv = "PATH" in
+  let docs = "COMMON OPTIONS" in
+  let mk = pconv Irmin.Type.(option string) in
+  let i = Arg.info ~docv ~docs ~doc [ name ] in
+  Arg.(value & opt mk None i)
 
-let opt_key k = key k (Conf.default k)
+let root_term =
+  let name = "root" in
+  let doc = "The location of the Irmin store on disk." in
+  let docv = "PATH" in
+  let docs = "COMMON OPTIONS" in
+  let mk = pconv Irmin.Type.(option string) in
+  let i = Arg.info ~docv ~docs ~doc [ name ] in
+  Arg.(value & opt mk None i)
+
 let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
 
@@ -382,7 +390,7 @@ let rec read_config_file path =
 
 let config_term =
   let create root config_path (opts : (string * string) list list) =
-    (Some root, config_path, opts)
+    (root, config_path, opts)
   in
   let spec = Conf.Spec.(join (v "unix") [ Irmin_http.Conf.spec ]) in
   let doc =
@@ -395,18 +403,10 @@ let config_term =
     Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc
       [ "opt"; "options" ]
   in
-  let root_key = Conf.root spec in
-  let config_path_key =
-    Conf.key ~spec ~docs:global_option_section ~docv:"PATH"
-      ~doc:"Allows configuration file to be specified on the command-line."
-      "config"
-      Irmin.Type.(option string)
-      None
-  in
   Term.(
     const create
-    $ opt_key root_key
-    $ opt_key config_path_key
+    $ root_term
+    $ config_path_term
     $ Arg.(value @@ opt_all (list (pair ~sep:'=' string string)) [] opts))
 
 type store =
