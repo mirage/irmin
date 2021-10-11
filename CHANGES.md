@@ -30,6 +30,8 @@
     @icristescu, @Ngoguey42)
   - Add a function `Store.Tree.pruned` for building purely in-memory tree
     objects with known hashes. (#1537, @CraigFe)
+  - Added a `order` argument to specify the order of traversal in `Tree.fold`
+    (#1548, @icristescu, @CraigFe)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

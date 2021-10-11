@@ -102,3 +102,16 @@ module Seq = struct
     in
     aux s
 end
+
+let shuffle state arr =
+  let rec aux n =
+    if n > 1 then (
+      let k = Random.State.int state (n + 1) in
+      let temp = arr.(n) in
+      arr.(n) <- arr.(k);
+      arr.(k) <- temp;
+      aux (n - 1))
+  in
+  let len = Array.length arr in
+  aux (len - 1);
+  ()
