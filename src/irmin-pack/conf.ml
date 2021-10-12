@@ -22,7 +22,7 @@ end
 module Default = struct
   let fresh = false
   let lru_size = 100_000
-  let index_log_size = 500_000
+  let index_log_size = 2_500_000
   let readonly = false
   let merge_throttle = `Block_writes
   let freeze_throttle = `Block_writes

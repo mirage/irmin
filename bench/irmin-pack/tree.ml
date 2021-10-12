@@ -173,7 +173,10 @@ struct
   end
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true ~index_log_size:2_500_000
+        config.store_dir
+    in
     let* repo = Store.Repo.v conf in
     let on_commit i commit_hash =
       let* () =
@@ -212,7 +215,10 @@ struct
   end
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true ~index_log_size:2_500_000
+        config.store_dir
+    in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
