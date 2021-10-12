@@ -121,9 +121,9 @@ module Make (K : Key) (G : Git.S) = struct
   let listen_dir t =
     let ( / ) = Filename.concat in
     if G.has_global_watches then
-      let dir = Fpath.(to_string @@ (t.dot_git / "refs")) in
+      let dir = Fpath.(to_string @@ (t.dot_git / "refs" / "heads")) in
       let key file =
-        match K.of_ref ("refs" / file) with
+        match K.of_ref ("refs" / "heads" / file) with
         | Ok x -> Some x
         | Error (`Msg e) ->
             [%log.err "listen: file %s: %s" file e];
