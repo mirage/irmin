@@ -369,16 +369,16 @@ module V1 (N : S with type step = string) = struct
 
     let encode_bin =
       let encode_bin = Type.(unstage (encode_bin h)) in
-      Type.stage @@ fun e k -> encode_bin (to_bin_string e) k
+      fun e k -> encode_bin (to_bin_string e) k
 
     let decode_bin =
       let decode_bin = Type.(unstage (decode_bin h)) in
-      Type.stage @@ fun buf off ->
-      let n, v = decode_bin buf off in
-      ( n,
-        match of_bin_string v with
-        | Ok v -> v
-        | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
+      fun buf off ->
+        let n, v = decode_bin buf off in
+        ( n,
+          match of_bin_string v with
+          | Ok v -> v
+          | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 
     let t = Type.like N.hash_t ~bin:(encode_bin, decode_bin, size_of)
   end

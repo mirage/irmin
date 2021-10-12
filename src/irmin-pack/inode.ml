@@ -81,7 +81,7 @@ struct
 
     let t : t Irmin.Type.t =
       let open Irmin.Type in
-      let pre_hash = stage (fun x -> pre_hash_v x.v) in
+      let pre_hash x = pre_hash_v x.v in
       record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
       |+ field "hash" H.t (fun t -> Lazy.force t.hash)
       |+ field "stable" bool (fun t -> t.stable)
@@ -1167,8 +1167,7 @@ struct
     let pre_hash_node = Irmin.Type.(unstage (pre_hash Node.t))
 
     let t : t Irmin.Type.t =
-      let pre_hash =
-        Irmin.Type.stage @@ fun x ->
+      let pre_hash x =
         let stable = apply x { f = (fun _ v -> I.stable v) } in
         if not stable then
           let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in

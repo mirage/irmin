@@ -265,9 +265,7 @@ module Make (P : Private.S) = struct
       if x == y then 0
       else compare_hash (hash ~cache:true x) (hash ~cache:true y)
 
-    let t =
-      Type.map ~equal:(Type.stage equal) ~compare:(Type.stage compare) v of_v
-        (fun t -> t.v)
+    let t = Type.map ~equal ~compare v of_v (fun t -> t.v)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -976,9 +974,7 @@ module Make (P : Private.S) = struct
       if x == y then 0
       else compare_hash (hash ~cache:true x) (hash ~cache:true y)
 
-    let t node =
-      Type.map ~equal:(Type.stage equal) ~compare:(Type.stage compare) node of_v
-        (fun t -> t.v)
+    let t node = Type.map ~equal ~compare node of_v (fun t -> t.v)
 
     let _, t =
       Type.mu2 (fun _ y ->

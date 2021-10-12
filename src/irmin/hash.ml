@@ -83,16 +83,16 @@ module V1 (K : S) : S with type t = K.t = struct
 
   let encode_bin =
     let encode_bin = Type.unstage (Type.encode_bin h) in
-    Type.stage (fun e -> encode_bin (to_bin_key e))
+    fun e -> encode_bin (to_bin_key e)
 
   let decode_bin =
     let decode_bin = Type.unstage (Type.decode_bin h) in
-    Type.stage @@ fun buf off ->
-    let n, v = decode_bin buf off in
-    ( n,
-      match of_bin_key v with
-      | Ok v -> v
-      | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
+    fun buf off ->
+      let n, v = decode_bin buf off in
+      ( n,
+        match of_bin_key v with
+        | Ok v -> v
+        | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 
   let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
 end
