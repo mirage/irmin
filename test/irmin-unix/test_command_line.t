@@ -39,7 +39,7 @@ List keys in ./test
 Set g/h/i => 789 in ./test
   $ irmin set /g/h/i/ 789
 
-Snapshot
+Snapshot master branch
   $ export SNAPSHOT=`irmin snapshot`
 
 List keys under g/h in ./test
@@ -58,3 +58,18 @@ Restore snapshot
 Get g/h/i in ./test
   $ irmin get g/h/i/
   789
+
+Create branch a from master
+  $ irmin merge --branch a master
+
+Remove g/h/i in branch a
+  $ irmin remove --branch a /g/h/i/
+
+Merge branch a in master
+  $ irmin merge a
+
+Check that g/h/i has been deleted after merge
+  $ irmin get g/h/i/
+  <none>
+  [1]
+
