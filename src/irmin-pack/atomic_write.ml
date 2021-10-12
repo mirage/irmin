@@ -57,10 +57,11 @@ struct
 
   let decode_bin = Irmin.Type.(unstage (decode_bin int32))
 
-  let read_length32 ~off block =
+  let read_length32 ~file_pos block =
     let buf = Bytes.create 4 in
-    let n = IO.read block ~off buf in
+    let n = IO.read block ~off:!file_pos buf in
     assert (n = 4);
+    file_pos := !file_pos ++ Int63.of_int 4;
     let pos_ref = ref 0 in
     let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
     assert (!pos_ref = 4);
@@ -88,29 +89,36 @@ struct
            fixed-width binary encoding"
 
   let refill t ~to_ ~from =
-    let rec aux offset =
-      if offset >= to_ then ()
+    let file_pos = ref from in
+    let rec aux () =
+      if !file_pos >= to_ then ()
       else
-        let len = read_length32 ~off:offset t.block in
-        let buf = Bytes.create (len + value_encoded_size) in
-        let off = offset ++ Int63.of_int 4 in
-        let n = IO.read t.block ~off buf in
-        assert (n = Bytes.length buf);
-        let buf = Bytes.unsafe_to_string buf in
-        let h =
-          let h = String.sub buf 0 len in
-          match key_of_bin_string h with
+        let start = !file_pos in
+        let key_encoded_size = read_length32 ~file_pos t.block in
+        let buf_size = key_encoded_size + value_encoded_size in
+        let buf =
+          let buf = Bytes.create buf_size in
+          let n = IO.read t.block ~off:!file_pos buf in
+          assert (n = buf_size);
+          file_pos := !file_pos ++ Int63.of_int buf_size;
+          Bytes.unsafe_to_string buf
+        in
+        let key =
+          match String.sub buf 0 key_encoded_size |> key_of_bin_string with
           | Ok k -> k
           | Error (`Msg e) -> failwith e
         in
-        let pos_ref = ref len in
-        let v = decode_bin_value buf pos_ref in
-        assert (!pos_ref = String.length buf);
-        if not (equal_value v V.null) then Tbl.add t.cache h v;
-        Tbl.add t.index h offset;
-        (aux [@tailcall]) (off ++ Int63.(of_int @@ (len + value_encoded_size)))
+        let value =
+          let pos_ref = ref key_encoded_size in
+          let v = decode_bin_value buf pos_ref in
+          assert (!pos_ref = buf_size);
+          v
+        in
+        if not (equal_value value V.null) then Tbl.add t.cache key value;
+        Tbl.add t.index key start;
+        (aux [@tailcall]) ()
     in
-    aux from
+    aux ()
 
   let sync_offset t =
     let former_offset = IO.offset t.block in
