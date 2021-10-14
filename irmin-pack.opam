@@ -18,7 +18,7 @@ depends: [
   "irmin"        {= version}
   "irmin-layers" {= version}
   "ppx_irmin"    {= version}
-  "index"        {>= "1.4.1"}
+  "index"        {>= "1.4.2"}
   "fmt"
   "logs"
   "lwt"          {>= "5.3.0"}
@@ -30,10 +30,6 @@ depends: [
   "astring"      {with-test}
   "fpath"        {with-test}
   "alcotest"     {with-test}
-]
-
-pin-depends: [
-  [ "index.dev" "git+https://github.com/mirage/index#0e9748860227e5eb20c7485551af8e77a1fe7e97" ]
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"
