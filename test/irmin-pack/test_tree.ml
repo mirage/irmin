@@ -27,35 +27,30 @@ end
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ?index_log_size ~fresh root
 
-let info () = Store.Info.empty
-
 module Tree = Store.Tree
 
 type bindings = string list list [@@deriving irmin]
 
-let equal_string_list_list ~msg l1 l2 = Alcotest.check_repr bindings_t msg l1 l2
+let equal_ordered_slist ~msg l1 l2 = Alcotest.check_repr bindings_t msg l1 l2
+
+let equal_slist ~msg l1 l2 =
+  Alcotest.(check (slist (list string) Stdlib.compare)) msg l1 l2
+
+type context = { repo : Store.repo; tree : Store.tree }
 
 let persist_tree tree =
-  let* store = Store.Repo.v (config root) >>= Store.empty in
+  let* repo = Store.Repo.v (config root) in
+  let* store = Store.empty repo in
   let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
-  Store.tree store
+  let+ tree = Store.tree store in
+  { repo; tree }
 
-let fold ?depth t k ~init ~f =
-  Tree.find_tree t k >>= function
-  | None -> Lwt.return init
-  | Some t ->
-      Tree.fold ?depth ~force:`True ~cache:false ~uniq:`False
-        ~node:(fun k v acc -> f k (Store.Tree.of_node v) acc)
-        ~contents:(fun k v acc ->
-          if k = [] then Lwt.return acc else f k (Store.Tree.of_contents v) acc)
-        t init
+let close { repo; _ } = Store.Repo.close repo
 
-let kind t =
-  match Tree.destruct t with `Contents _ -> `Value | `Node _ -> `Tree
-
-let fold_keys s root ~init ~f =
-  fold s root ~init ~f:(fun k v acc ->
-      match kind v with `Value -> f (root @ k) acc | `Tree -> Lwt.return acc)
+let fold ~order t ~init ~f =
+  Tree.fold ~order ~force:`True ~cache:false ~uniq:`False
+    ~contents:(fun k _v acc -> if k = [] then Lwt.return acc else f k acc)
+    t init
 
 let steps =
   ["00"; "01"; "02"; "03"; "05"; "06"; "07"; "09"; "0a"; "0b"; "0c";
@@ -88,25 +83,60 @@ let steps =
    "r0"; "r1"; "r2"; "r3"; "r4"; "r5"; "r6"; "r7"; "r8"; "r9"; "ra";]
 [@@ocamlformat "disable"]
 
-let bindings =
-  let zero = String.make 10 '0' in
-  List.map (fun x -> ([ "data"; "root"; x ], zero)) steps
+let some_steps = [ "0g"; "1g"; "0h"; "2g"; "1h"; "2h" ]
 
-let test_fold_keys () =
-  let ctxt = Tree.empty in
-  Lwt_list.fold_left_s (fun ctxt (k, v) -> Tree.add ctxt k v) ctxt bindings
-  >>= fun ctxt ->
-  persist_tree ctxt >>= fun ctxt ->
-  fold_keys ctxt [ "data"; "root" ] ~init:[] ~f:(fun k acc ->
-      Lwt.return (k :: acc))
-  >>= fun bs ->
-  let bs = List.rev bs in
-  equal_string_list_list ~msg:"Visit elements in lexicographical order"
-    (List.map fst bindings) bs;
-  Lwt.return_unit
+let some_random_steps =
+  [ [ "2g" ]; [ "1h" ]; [ "0h" ]; [ "2h" ]; [ "0g" ]; [ "1g" ] ]
+
+let another_random_steps =
+  [ [ "1g" ]; [ "2h" ]; [ "1h" ]; [ "0g" ]; [ "0h" ]; [ "2g" ] ]
+
+let bindings steps =
+  let zero = String.make 10 '0' in
+  List.map (fun x -> ([ x ], zero)) steps
+
+let test_fold ~order bindings expected =
+  let tree = Tree.empty in
+  let* tree =
+    Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+  in
+  let* ctxt = persist_tree tree in
+  let* keys =
+    fold ~order ctxt.tree ~init:[] ~f:(fun k acc -> Lwt.return (k :: acc))
+  in
+  let keys = List.rev keys in
+  let msg, equal_lists =
+    match order with
+    | `Sorted -> ("sorted", equal_ordered_slist)
+    | `Random _ -> ("random", equal_ordered_slist)
+    | `Undefined -> ("undefined", equal_slist)
+  in
+  equal_lists ~msg:(Fmt.str "Visit elements in %s order" msg) expected keys;
+  close ctxt
+
+let test_fold_sorted () =
+  let bindings = bindings steps in
+  let expected = List.map fst bindings in
+  test_fold ~order:`Sorted bindings expected
+
+let test_fold_random () =
+  let bindings = bindings some_steps in
+  let state = Random.State.make [| 0 |] in
+  let* () = test_fold ~order:(`Random state) bindings some_random_steps in
+  let state = Random.State.make [| 1 |] in
+  test_fold ~order:(`Random state) bindings another_random_steps
+
+let test_fold_undefined () =
+  let bindings = bindings steps in
+  let expected = List.map fst bindings in
+  test_fold ~order:`Undefined bindings expected
 
 let tests =
   [
-    Alcotest.test_case "test fold keys" `Quick (fun () ->
-        Lwt_main.run (test_fold_keys ()));
+    Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
+        Lwt_main.run (test_fold_sorted ()));
+    Alcotest.test_case "fold over keys in random order" `Quick (fun () ->
+        Lwt_main.run (test_fold_random ()));
+    Alcotest.test_case "fold over keys in undefined order" `Quick (fun () ->
+        Lwt_main.run (test_fold_undefined ()));
   ]
