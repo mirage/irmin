@@ -1620,14 +1620,21 @@ module Make (P : Backend.S) = struct
       cnt.node_add <- cnt.node_add + 1;
       let* key = P.Node.add node_t v in
       let () =
-        let h = P.Node.Key.to_hash key in
-        let h' = Node.hash ~cache:true n in
-        if not (equal_hash h h') then
-          backend_invariant_violation
-            "@[<v 2>Tree.export: added inconsistent node binding@,\
-             key: %a@,\
-             value: %a@,\
-             computed hash: %a@]" pp_node_key key Node.pp_value v pp_hash h'
+        (* Sanity check: Did we just store the same hash as the one represented
+           by the Tree.Node [n]? *)
+        match Node.cached_hash n with
+        | None ->
+            (* No hash is in [n]. Computing it would result in getting it from
+               [v] or rebuilding a private node. *)
+            ()
+        | Some h' ->
+            let h = P.Node.Key.to_hash key in
+            if not (equal_hash h h') then
+              backend_invariant_violation
+                "@[<v 2>Tree.export: added inconsistent node binding@,\
+                 key: %a@,\
+                 value: %a@,\
+                 computed hash: %a@]" pp_node_key key Node.pp_value v pp_hash h'
       in
       Node.export ?clear repo n key;
       k ()
