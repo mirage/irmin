@@ -82,7 +82,7 @@ val remote : Irmin.remote Lwt.t Cmdliner.Term.t
 (** {1 Stores} *)
 
 val load_config :
-  ?default:Irmin.config ->
+  ?root:string ->
   ?config_path:string ->
   ?store:string ->
   ?hash:hash ->
@@ -92,6 +92,8 @@ val load_config :
 (** Load config file from disk
 
     [config_path] can be used to specify the location of a configuration file.
+
+    [root] is used to specify the path of the store.
 
     The values provided for [store], [hash] and [contents] will be used by
     default if no other value is found in the config file *)

@@ -202,7 +202,7 @@ let list =
             let pp ppf (s, k) =
               match S.Tree.destruct k with
               | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
-              | `Node _ -> Fmt.pf ppf "DIR  %a" pp_step s
+              | `Node _ -> Fmt.pf ppf "DIR %a" pp_step s
             in
             List.iter (print "%a" pp) paths;
             Lwt.return_unit)
@@ -613,9 +613,8 @@ let config_man =
          also be set using the $(b,--config) command-line flag or by setting \
          \\$XDG_CONFIG_HOME. \n\
         \        The following keys are allowed: $(b,contents), $(b,store), \
-         $(b,branch), $(b,root), $(b,bare), $(b,head), or $(b,uri). These \
-         correspond to the irmin options of the same names. Additionally, \
-         specific\n\
+         $(b,branch), $(b,root), $(b,bare) or $(b,head). These correspond to \
+         the irmin options of the same names. Additionally, specific\n\
         \         backends may have other options available, these can be \
          lised using the $(b,options)\n\
         \         command and applied using the $(b,--opt) flag.";
@@ -623,9 +622,8 @@ let config_man =
       `P
         "Here is an example $(b,irmin.yml) for accessing a local http irmin \
          store. This $(b,irmin.yml) prevents the user from having to specify \
-         the $(b,store) and $(b,uri) options for every command.";
-      `Pre
-        "    \\$ cat irmin.yml\n    store: http\n    uri: http://127.0.0.1:8080";
+         the $(b,store) and $(b,root) options for every command.";
+      `Pre "    \\$ cat irmin.yml\n    store: pack\n    root: /path/to/my/store";
     ]
     @ help_sections )
 
