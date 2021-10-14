@@ -519,7 +519,7 @@ let from_config_file_with_defaults path (store, hash, contents) config opts
             config)
           config (List.flatten opts)
       in
-      let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
+      let mk_master () = S.Repo.v config >>= S.master in
       let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
       let branch =
         let of_string = Irmin.Type.of_string S.Branch.t in
