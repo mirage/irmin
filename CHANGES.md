@@ -32,6 +32,8 @@
     objects with known hashes. (#1537, @CraigFe)
   - Added a `order` argument to specify the order of traversal in `Tree.fold`
     (#1548, @icristescu, @CraigFe)
+  - Add a `unsafe_prune_inplace` function to remove a tree and replace with the
+    hash of its root. (#1552, @icristescu, @Ngoguey42)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

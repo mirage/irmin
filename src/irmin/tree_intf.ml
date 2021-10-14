@@ -389,6 +389,7 @@ module type Sigs = sig
     val equal : t -> t -> bool
     val key : t -> kinded_key option
     val hash : ?cache:bool -> t -> kinded_hash
+    val unsafe_prune_inplace : t -> hash -> unit
     val to_backend_node : node -> P.Node.Val.t Lwt.t
     val to_backend_portable_node : node -> P.Node_portable.t Lwt.t
     val of_backend_node : P.Repo.t -> P.Node.value -> node

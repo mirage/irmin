@@ -435,6 +435,11 @@ module type S_generic_key = sig
     val hash : ?cache:bool -> tree -> hash
     (** [hash t] is the hash of tree [t]. *)
 
+    val unsafe_prune_inplace : tree -> hash -> unit
+    (** [unsafe_prune_inplace t hash] modifies [t] to only contain [h] as its
+        root. This operation makes [t] unuseable, apart for hash computations,
+        and is not safe when the tree is shared. *)
+
     type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
     (** Like {!kinded_key}, but with hashes as value references rather than
         keys. *)

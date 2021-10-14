@@ -287,6 +287,10 @@ module Make (P : Backend.S) = struct
               if cache then c.info.ptr <- Hash h;
               h)
 
+    let unsafe_prune_inplace t h =
+      clear_info t.info;
+      t.v <- Pruned h
+
     let key t =
       match t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
 
@@ -707,6 +711,10 @@ module Make (P : Backend.S) = struct
       aux (Pnode (P.Node_portable.of_node v)) updates
 
     let hash ~cache k = hash ~cache k (fun x -> x)
+
+    let unsafe_prune_inplace t h =
+      clear_info_fields t.info;
+      t.v <- Pruned h
 
     let value_of_key ~cache t repo k =
       match cached_value t with
@@ -1295,6 +1303,11 @@ module Make (P : Backend.S) = struct
   let pruned : kinded_hash -> t = function
     | `Contents (h, meta) -> `Contents (Contents.pruned h, meta)
     | `Node h -> `Node (Node.pruned h)
+
+  let unsafe_prune_inplace (t : t) h =
+    match t with
+    | `Node n -> Node.unsafe_prune_inplace n h
+    | `Contents (c, _) -> Contents.unsafe_prune_inplace c h
 
   let destruct x = x
 

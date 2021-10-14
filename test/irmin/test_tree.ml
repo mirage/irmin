@@ -712,6 +712,20 @@ module Broken = struct
     check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
         Store.Backend.Repo.batch repo (fun c n _ ->
             Store.save_tree repo c n tree >|= ignore))
+
+  let test_prune_inplace _ () =
+    let tree = `Tree [ ("a", `Tree [ ("b", c "c") ]) ] |> Tree.of_concrete in
+    let* entry = Tree.find tree [ "a"; "b" ] >|= Option.get in
+    Alcotest.(check string) "contents before prune" "c" entry;
+    let* subtree = Tree.find_tree tree [ "a" ] >|= Option.get in
+    let hash = Tree.hash subtree in
+    let () = Tree.unsafe_prune_inplace subtree hash in
+    let () = Tree.clear tree in
+    (* After a pruned_inplace we can compute the hash of the tree *)
+    let _ = Tree.hash tree in
+    (* but we cannot retrieve objects from the subtree.*)
+    check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
+        Tree.find tree [ "a"; "b" ] >|= Option.get)
 end
 
 let test_kind_empty_path _ () =
@@ -800,6 +814,8 @@ let suite =
     Alcotest_lwt.test_case "Broken.hashes" `Quick Broken.test_hashes;
     Alcotest_lwt.test_case "Broken.trees" `Quick Broken.test_trees;
     Alcotest_lwt.test_case "Broken.pruned_fold" `Quick Broken.test_pruned_fold;
+    Alcotest_lwt.test_case "Broken.pruned_inplace" `Quick
+      Broken.test_prune_inplace;
     Alcotest_lwt.test_case "kind of empty path" `Quick test_kind_empty_path;
     Alcotest_lwt.test_case "generic equality" `Quick test_generic_equality;
     Alcotest_lwt.test_case "is_empty" `Quick test_is_empty;
