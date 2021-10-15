@@ -11,6 +11,9 @@
   - Fix the implementation of comparison on `Irmin.Tree` objects to use the
     comparison defined on hashes. The previous implementation was unstable.
     (#1519, @CraigFe)
+  - Fix a bug in `Tree.export` where nodes could be exported before
+    some of their contents, resulting in indirect hashes in irmin-pack
+    (#1508, @Ngoguey42)
 
 ### Added
 
