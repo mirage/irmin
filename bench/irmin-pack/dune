@@ -6,8 +6,7 @@
  (preprocess
   (pps ppx_deriving_yojson ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
-   unix cmdliner logs yojson ppx_deriving_yojson memtrace repr ppx_repr
-   bench_common))
+   unix cmdliner logs yojson ppx_deriving_yojson repr ppx_repr bench_common))
 
 (library
  (name bench_common)
@@ -28,5 +27,5 @@
  (preprocess
   (pps ppx_deriving_yojson ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
-   unix cmdliner logs yojson ppx_deriving_yojson memtrace repr ppx_repr
-   bench_common mtime mtime.clock.os bentov))
+   unix cmdliner logs yojson ppx_deriving_yojson repr ppx_repr bench_common
+   mtime mtime.clock.os bentov))

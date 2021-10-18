@@ -33,7 +33,6 @@ let configure_store root merge_throttle freeze_throttle =
 
 let init config =
   FSHelper.rm_dir config.root;
-  Memtrace.trace_if_requested ();
   reset_stats ()
 
 module Trees = Generate_trees (Store)
