@@ -230,16 +230,35 @@ module Make_helpers (S : Generic_key) = struct
         S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
+  let ignore_thunk_errors f = Lwt.catch f (fun _ -> Lwt.return_unit)
+
   let run (x : Suite.t) test =
+    let ptr = ref None in
     Lwt_main.run
       (Lwt.catch
          (fun () ->
            let* () = x.init () in
            let* repo = S.Repo.v x.config in
-           test repo >>= x.clean)
+           ptr := Some repo;
+           let* () = test repo in
+           let* () =
+             (* [test] might have already closed the repo. That
+                [ignore_thunk_errors] shall be removed as soon as all stores
+                support double closes. *)
+             ignore_thunk_errors (fun () -> S.Repo.close repo)
+           in
+           x.clean ())
          (fun exn ->
+           (* [test] failed, attempt an errorless cleanup and forward the right
+              backtrace to the user. *)
            let bt = Printexc.get_raw_backtrace () in
-           x.clean () >>= fun () -> Printexc.raise_with_backtrace exn bt))
+           let* () =
+             match !ptr with
+             | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
+             | None -> Lwt.return_unit
+           in
+           let+ () = ignore_thunk_errors (fun () -> x.clean ()) in
+           Printexc.raise_with_backtrace exn bt))
 end
 
 let filter_src src =

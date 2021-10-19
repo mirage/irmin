@@ -57,40 +57,12 @@ let suite_pack =
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
   let init () =
-    if Sys.file_exists test_dir then (
-      let cmd = Printf.sprintf "rm -rf %s" test_dir in
-      Fmt.epr "exec: %s\n%!" cmd;
-      let _ = Sys.command cmd in
-      ());
+    rm_dir test_dir;
     Lwt.return_unit
   in
   let clean () =
-    let (module S : Irmin_test.S) = store in
-    let module P = S.Backend in
-    let clear repo =
-      Lwt.join
-        [
-          P.Commit.clear (P.Repo.commit_t repo);
-          P.Node.clear (P.Repo.node_t repo);
-          P.Contents.clear (P.Repo.contents_t repo);
-          P.Branch.clear (P.Repo.branch_t repo);
-        ]
-    in
-    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-    let* repo = S.Repo.v config in
-    clear repo >>= fun () ->
-    S.Repo.close repo >>= fun () ->
-    let (module S : Irmin_test.Layered_store) = layered_store in
-    let module P = S.Backend in
-    let clear repo =
-      P.Commit.clear (P.Repo.commit_t repo) >>= fun () ->
-      P.Node.clear (P.Repo.node_t repo) >>= fun () ->
-      P.Contents.clear (P.Repo.contents_t repo) >>= fun () ->
-      P.Branch.clear (P.Repo.branch_t repo)
-    in
-    let config = Irmin_pack.config ~fresh:true ~lru_size:0 test_dir in
-    let* repo = S.Repo.v config in
-    clear repo >>= fun () -> S.Repo.close repo
+    rm_dir test_dir;
+    Lwt.return_unit
   in
   Irmin_test.Suite.create ~name:"PACK" ~init ~store ~config ~clean
     ~layered_store:(Some layered_store) ()
