@@ -541,7 +541,6 @@ struct
               collected on [clear] because it will be needed for [save]. *)
 
     and partial_ptr = { mutable target : partial_ptr_target }
-
     and total_ptr = Total_ptr of total_ptr t [@@unboxed]
 
     and truncated_ptr =
@@ -551,7 +550,6 @@ struct
       | Intact of truncated_ptr t
 
     and 'ptr tree = { depth : int; length : int; entries : 'ptr option array }
-
     and 'ptr v = Values of value StepMap.t | Tree of 'ptr tree
 
     and 'ptr t = {

@@ -260,7 +260,8 @@ module Make_helpers (S : Generic_key) = struct
     S.Tree.of_key repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
-        S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.key kr1 ]
+        S.Commit.v repo ~info:S.Info.empty
+          ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
   let ignore_thunk_errors f = Lwt.catch f (fun _ -> Lwt.return_unit)

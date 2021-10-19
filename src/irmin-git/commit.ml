@@ -67,8 +67,8 @@ module Make (G : Git.S) = struct
       Git.User.{ name; email; date = (date, None) }
     in
     let message = Info.message info in
-    G.Value.Commit.make (* FIXME: should be v *) ~tree ~parents ~author
-      ~committer:author
+    G.Value.Commit.make (* FIXME: should be v *)
+      ~tree ~parents ~author ~committer:author
       (if message = "" then None else Some message)
 
   let v ~info ~node ~parents = to_git info node parents

@@ -372,11 +372,8 @@ module Make (P : Backend.S) = struct
     type nonrec ptr_option = key ptr_option
 
     type elt = [ `Node of t | `Contents of Contents.t * Metadata.t ]
-
     and update = Add of elt | Remove
-
     and updatemap = update StepMap.t
-
     and map = elt StepMap.t
 
     and info = {

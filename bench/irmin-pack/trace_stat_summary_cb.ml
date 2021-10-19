@@ -130,8 +130,8 @@ let create_raw_results1 s : result list =
          let vs = Span.(Map.find k s.span).duration in
          ( Printf.sprintf "%s (ms)" (Span.Key.to_string k),
            [
-             vs.mean *. 1000.;
-             (* TODO: {min / max / avg}, maybe on a log scale? *)
+             vs.mean *. 1000.
+             (* TODO: {min / max / avg}, maybe on a log scale? *);
            ] )
     in
     { name; metrics }
@@ -145,7 +145,7 @@ let create_raw_results1 s : result list =
          let vs = Span.(Map.find k s.span).duration in
          ( Printf.sprintf "%s (\xc2\xb5s)" (Span.Key.to_string k),
            [
-             vs.mean *. 1e6; (* TODO: {min / max / avg}, maybe on a log scale? *)
+             vs.mean *. 1e6 (* TODO: {min / max / avg}, maybe on a log scale? *);
            ] )
     in
     { name; metrics }

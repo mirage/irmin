@@ -61,7 +61,8 @@ module Make_Layered (S : Layered_store) = struct
     S.Tree.of_key repo (`Node kn3) >>= function
     | None -> Alcotest.fail "r2"
     | Some t3 ->
-        S.Commit.v repo ~info:(info "r2") ~parents:[ S.Commit.key kr1 ]
+        S.Commit.v repo ~info:(info "r2")
+          ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
   let fail_with_none f msg =
@@ -789,13 +790,15 @@ module Make_Layered (S : Layered_store) = struct
       in
       let* commits, contents = setup 0 tree [] [] in
       let* () =
-        S.freeze repo ~min_lower:[ List.nth commits 1 ]
+        S.freeze repo
+          ~min_lower:[ List.nth commits 1 ]
           ~min_upper:[ List.nth commits 3 ]
           ~max_lower:[ List.nth commits 5; List.nth commits 6 ]
       in
       S.Backend_layer.wait_for_freeze repo >>= fun () ->
       let* () =
-        S.freeze repo ~min_lower:[ List.nth commits 1 ]
+        S.freeze repo
+          ~min_lower:[ List.nth commits 1 ]
           ~min_upper:[ List.nth commits 3 ]
           ~max_lower:[ List.nth commits 5; List.nth commits 6 ]
       in
