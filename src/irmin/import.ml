@@ -62,6 +62,16 @@ module List = struct
     in
     aux [] [] l
 
+  (* For compatibility with versions older than ocaml.4.11.0 *)
+  let concat_map f l =
+    let rec aux f acc = function
+      | [] -> rev acc
+      | x :: l ->
+          let xs = f x in
+          aux f (rev_append xs acc) l
+    in
+    aux f [] l
+
   let rec mem : type a. equal:(a -> a -> bool) -> a -> a t -> bool =
    fun ~equal y -> function
     | [] -> false
@@ -101,6 +111,12 @@ module Seq = struct
       match s () with Seq.Nil -> true | Seq.Cons (v, s) -> f v && aux s
     in
     aux s
+
+  (* For compatibility with versions older than ocaml.4.11.0 *)
+  let rec append seq1 seq2 () =
+    match seq1 () with
+    | Nil -> seq2 ()
+    | Cons (x, next) -> Cons (x, append next seq2)
 end
 
 let shuffle state arr =
