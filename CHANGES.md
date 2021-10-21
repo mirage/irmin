@@ -74,8 +74,10 @@
   - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
     `Irmin.Sync(S)` (#1338, @samoht)
   - `Irmin.Private` is now `Irmin.Backend` (#1530, @CraigFe)
+  - `Store.master` is now `Store.main` (#1564, @CraigFe)
   - `Store.Private` is now `Store.Backend` (#1530, @CraigFe)
   - `Store.Private.Sync` is now `Store.Backend.Remote` (#1338, @samoht)
+  - `Irmin.Branch.S.master` is now `Irmin.Branch.S.main` (#1564, @CraigFe)
   - `Irmin.Private.{Commit,Node}` are now `Irmin.{Node,Commit}`. (#1471,
     @CraigFe)
   - All module types are now using snake-case and are not capitalized anymore.
@@ -154,6 +156,10 @@
    (#1347, @samoht)
   - Renamed `Irmin_git.Make` into `Irmin_git.Maker` (#1369, @samoht)
   - Upgrade `irmin-git` to `git.3.5.0`. (#1495, @dinosaure)
+
+- **irmin-graphql**:
+  - Changed the name of the default branch node from `master` to `main` in the
+    GraphQL API. (#1564, @CraigFe)
 
 - **irmin-mirage**
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
