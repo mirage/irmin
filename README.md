@@ -1,6 +1,5 @@
 ## Irmin &mdash; A Distributed Database Built on the Same Principles as Git
-[![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmaster&logo=ocaml)](https://ci.ocamllabs.io/github/mirage/irmin)
-[![Travis-CI Build Status](https://travis-ci.org/mirage/irmin.svg)](https://travis-ci.org/mirage/irmin)
+[![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmain&logo=ocaml)](https://ci.ocamllabs.io/github/mirage/irmin)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://mirage.github.io/irmin/)
 
 Irmin is an OCaml library for building mergeable, branchable distributed data stores.  
