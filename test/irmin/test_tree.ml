@@ -673,31 +673,33 @@ module Broken = struct
       let* broken_leaf = Tree.(add_tree (empty ())) path broken_contents in
       let* broken_node = Tree.(add_tree (empty ())) path broken_node in
       let beneath = path @ [ "a"; "b"; "c" ] in
-      let blob = "v" in
-      let* singleton_at_path =
-        Tree.(add (empty ()) path blob >>= to_concrete)
-      in
-      let* singleton_beneath =
-        Tree.(add (empty ()) beneath blob >>= to_concrete)
+      let blob = "v" and node = tree [ ("k", c "v") ] in
+      let add_blob_or_node path =
+        [
+          (fun tr -> Tree.(add tr path blob));
+          (fun tr -> Tree.(add_tree tr path node));
+        ]
       in
 
       (* [add] on broken nodes/contents replaces the broken position. *)
       let* () =
-        let&* broken = [ broken_leaf; broken_node ] in
-        Tree.add broken path blob
-        |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_at_path
+        let&* broken = [ broken_leaf; broken_node ]
+        and&* add = add_blob_or_node path in
+        let* expected = add (Tree.empty ()) >>= Tree.to_concrete in
+        Alcotest.check_tree_lwt ~__POS__ "" ~expected (add broken)
       in
 
       (* [add] _beneath_ a broken contents value also works fine, but on broken
          nodes an exception is raised. (We can't know what the node's contents are,
          so there's no valid return tree.) *)
       let* () =
-        Tree.add broken_leaf beneath blob
-        |> Alcotest.check_tree_lwt ~__POS__ "" ~expected:singleton_beneath
+        let&* add_beneath = add_blob_or_node beneath in
+        let* expected = add_beneath (Tree.empty ()) >>= Tree.to_concrete in
+        Alcotest.check_tree_lwt ~__POS__ "" ~expected (add_beneath broken_leaf)
       in
       let* () =
-        check_exn_lwt ~exn_type __POS__ (fun () ->
-            Tree.add broken_node beneath blob)
+        let&* add_beneath = add_blob_or_node beneath in
+        check_exn_lwt ~exn_type __POS__ (fun () -> add_beneath broken_node)
       in
 
       (* [find] on broken contents raises an exception (can't recover contents),
