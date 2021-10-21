@@ -28,14 +28,14 @@ depends: [
   "uuidm"
   "progress"     {>="0.2.1"}
   "fpath"        {with-test}
-  "bentov"       {with-test}
-  "mtime"        {with-test}
-  "ppx_deriving" {with-test}
+  "bentov"
+  "mtime"
+  "ppx_deriving"
   "alcotest"     {with-test}
   "rusage"
-  "uutf"         {with-test}
-  "uucp"         {with-test}
-  "printbox"     {with-test}
+  "uutf"
+  "uucp"
+  "printbox"
 ]
 
 synopsis: "Irmin benchmarking suite"
