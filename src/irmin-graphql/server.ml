@@ -191,7 +191,7 @@ struct
 
   let mk_branch repo = function
     | Some b -> Store.of_branch repo b
-    | None -> Store.master repo
+    | None -> Store.main repo
 
   let rec concat_key a b =
     match Store.Path.decons a with
@@ -783,10 +783,9 @@ struct
                       let+ store = Store.of_branch s branch in
                       (store, branch))
               >|= Result.ok);
-          io_field "master" ~typ:(Lazy.force branch) ~args:[]
-            ~resolve:(fun _ _ ->
-              let+ t = Store.master s in
-              Ok (Some (t, Store.Branch.master)));
+          io_field "main" ~typ:(Lazy.force branch) ~args:[] ~resolve:(fun _ _ ->
+              let+ t = Store.main s in
+              Ok (Some (t, Store.Branch.main)));
           io_field "branch" ~typ:(Lazy.force branch)
             ~args:Arg.[ arg "name" ~typ:(non_null Input.branch) ]
             ~resolve:(fun _ _ branch ->

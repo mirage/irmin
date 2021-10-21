@@ -42,12 +42,12 @@ let info () = S.Info.empty
 let open_ro_after_rw_closed () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let* t = S.master rw in
+  let* t = S.main rw in
   let tree = S.Tree.singleton [ "a" ] "x" in
   S.set_tree_exn ~parents:[] ~info t [] tree >>= fun () ->
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
   S.Repo.close rw >>= fun () ->
-  let* t = S.master ro in
+  let* t = S.main ro in
   let* c = S.Head.get t in
   S.Commit.of_hash ro (S.Commit.hash c) >>= function
   | None -> Alcotest.fail "no hash"
@@ -164,7 +164,7 @@ let clear_rw_find_ro () =
 let clear_rw_twice () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let* t = S.master rw in
+  let* t = S.main rw in
   let check_empty () =
     S.Head.find t >|= function
     | None -> ()

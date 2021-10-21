@@ -173,7 +173,7 @@ module Make (K : Key) (G : Git.S) = struct
           let* r = G.Ref.read t Git.Reference.head in
           match r with
           | Error (`Reference_not_found _ | `Not_found _) ->
-              write_head (git_of_branch K.master)
+              write_head (git_of_branch K.main)
           | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
           | Ok r -> Lwt.return r)
     in

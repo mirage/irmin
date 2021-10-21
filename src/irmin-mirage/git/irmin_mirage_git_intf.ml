@@ -74,7 +74,7 @@ module type KV_RO = sig
     t Lwt.t
   (** [connect ?depth ?branch ?path g uri] clones the given [uri] into [g]
       repository, using the given [branch], [depth] and ['/']-separated
-      sub-[path]. By default, [branch] is master, [depth] is [1] and [path] is
+      sub-[path]. By default, [branch] is main, [depth] is [1] and [path] is
       empty, ie. reads will be relative to the root of the repository. *)
 end
 
@@ -96,7 +96,7 @@ module type KV_RW = sig
     t Lwt.t
   (** [connect ?depth ?branch ?path ?author ?msg g c uri] clones the given [uri]
       into [g] repository, using the given [branch], [depth] and ['/']-separated
-      sub-[path]. By default, [branch] is master, [depth] is [1] and [path] is
+      sub-[path]. By default, [branch] is main, [depth] is [1] and [path] is
       empty, ie. reads will be relative to the root of the repository. [author],
       [msg] and [c] are used to create new commit info values on every update.
       By defaut [author] is [fun () -> "irmin" <irmin@mirage.io>] and [msg]

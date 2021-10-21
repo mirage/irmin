@@ -39,7 +39,7 @@ let of_ref str =
   | _ -> Error (`Msg (Fmt.str "%s is not a valid reference" str))
 
 let t = Irmin.Type.like t ~pp:pp_ref ~of_string:of_ref
-let master = `Branch Irmin.Branch.String.master
+let main = `Branch Irmin.Branch.String.main
 
 let is_valid = function
   | `Branch s | `Tag s | `Remote s | `Other s -> Irmin.Branch.String.is_valid s

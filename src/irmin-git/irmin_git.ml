@@ -168,8 +168,8 @@ module Atomic_write (G : Git.S) = struct
     module K = struct
       include K
 
-      let master =
-        match Irmin.Type.of_string K.t "master" with
+      let main =
+        match Irmin.Type.of_string K.t "main" with
         | Ok x -> x
         | Error (`Msg e) -> failwith e
     end

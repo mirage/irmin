@@ -89,7 +89,7 @@ module Git = struct
     let config = Irmin_git.config ~bare:false test_db in
     let info = Irmin_unix.info in
     let* repo = S.Repo.v config in
-    let* t = S.master repo in
+    let* t = S.main repo in
     S.set_exn t ~info:(info "fst one") [ "fst" ] "ok" >>= fun () ->
     S.set_exn t ~info:(info "snd one") [ "fst"; "snd" ] "maybe?" >>= fun () ->
     S.set_exn t ~info:(info "fst one") [ "fst" ] "hoho"

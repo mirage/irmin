@@ -141,7 +141,7 @@ let print_logs name t =
 let main () =
   Config.init ();
   let* repo = Store.Repo.v config in
-  let* t = Store.master repo in
+  let* t = Store.main repo in
 
   (* populate the log with some random messages *)
   let* () =

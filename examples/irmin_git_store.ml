@@ -36,7 +36,7 @@ let main () =
   Config.init ();
   let config = Irmin_git.config ~bare:true Config.root in
   let* repo = Store.Repo.v config in
-  let* t = Store.master repo in
+  let* t = Store.main repo in
   let* () = update t [ "root"; "misc"; "1.txt" ] "Hello world!" in
   let* () = update t [ "root"; "misc"; "2.txt" ] "Hi!" in
   let* () = update t [ "root"; "misc"; "3.txt" ] "How are you ?" in

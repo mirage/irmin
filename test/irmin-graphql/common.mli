@@ -26,7 +26,7 @@ type server = {
   event_loop : 'a. 'a Lwt.t;
       (** The server runtime. Cancelling this thread terminates the server. *)
   set_tree : Store.Tree.concrete -> unit Lwt.t;
-      (** Set the state of the [master] branch in the underlying store. *)
+      (** Set the state of the [main] branch in the underlying store. *)
 }
 
 val spawn_graphql_server : unit -> server Lwt.t

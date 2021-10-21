@@ -224,13 +224,13 @@ module type S_generic_key = sig
   (** [empty repo] is a temporary, empty store. Becomes a normal temporary store
       after the first update. *)
 
-  val master : repo -> t Lwt.t
-  (** [master repo] is a persistent store based on [r]'s master branch. This
+  val main : repo -> t Lwt.t
+  (** [main repo] is a persistent store based on [r]'s main branch. This
       operation is cheap, can be repeated multiple times. *)
 
   val of_branch : repo -> branch -> t Lwt.t
   (** [of_branch r name] is a persistent store based on the branch [name].
-      Similar to [master], but use [name] instead {!Branch.S.master}. *)
+      Similar to [main], but use [name] instead {!Branch.S.main}. *)
 
   val of_commit : commit -> t Lwt.t
   (** [of_commit c] is a temporary store, based on the commit [c].

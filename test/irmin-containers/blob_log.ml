@@ -25,28 +25,28 @@ let merge_into_exn = merge_into_exn (module B.Store)
 
 let test_empty_read _ () =
   config ()
-  >>= B.Store.master
+  >>= B.Store.main
   >>= B.read_all ~path
   >|= Alcotest.(check (list string)) "checked - reading empty log" []
 
 let test_append _ () =
-  let* t = config () >>= B.Store.master in
-  B.append ~path t "master.1" >>= fun () ->
-  B.append ~path t "master.2" >>= fun () ->
+  let* t = config () >>= B.Store.main in
+  B.append ~path t "main.1" >>= fun () ->
+  B.append ~path t "main.2" >>= fun () ->
   B.read_all ~path t
   >|= Alcotest.(check (list string))
-        "checked - log after appending" [ "master.2"; "master.1" ]
+        "checked - log after appending" [ "main.2"; "main.1" ]
 
 let test_clone_merge _ () =
-  let* t = config () >>= B.Store.master in
+  let* t = config () >>= B.Store.main in
   let* b = B.Store.clone ~src:t ~dst:"cl" in
   B.append ~path b "clone.1" >>= fun () ->
-  B.append ~path t "master.3" >>= fun () ->
+  B.append ~path t "main.3" >>= fun () ->
   merge_into_exn b ~into:t >>= fun () ->
   B.read_all ~path t
   >|= Alcotest.(check (list string))
         "checked - log after appending"
-        [ "master.3"; "clone.1"; "master.2"; "master.1" ]
+        [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
 let test_branch_merge _ () =
   let* r = config () in

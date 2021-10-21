@@ -59,7 +59,7 @@ let main () =
   in
   let* v = tree_of_t t in
   let* repo = Store.Repo.v config in
-  let* t = Store.master repo in
+  let* t = Store.main repo in
   let* () = Store.set_tree_exn t ~info:(info "update a/b") [ "a"; "b" ] v in
   let* v = Store.get_tree t [ "a"; "b" ] in
   let* tt = t_of_tree v in

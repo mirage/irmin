@@ -50,7 +50,7 @@ let test_get_contents_list : test_case =
   let data = strees [ "a"; "b"; "c" ] (contents "data")
   and query =
     {|{
-  master {
+  main {
     tree {
       get_contents(key: "/a/b/c") {
         key
@@ -64,7 +64,7 @@ let test_get_contents_list : test_case =
   let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
   let result : (string * Yojson.Safe.t) list =
     let open Yojson.Safe.Util in
-    result |> members [ "data"; "master"; "tree"; "get_contents" ] |> to_assoc
+    result |> members [ "data"; "main"; "tree"; "get_contents" ] |> to_assoc
   in
   Alcotest.(check (list (pair string yojson)))
     "Returned entry data is valid"
@@ -80,7 +80,7 @@ let test_get_tree_list : test_case =
         [ ("leaf", contents "data1"); ("branch", stree "f" (contents "data2")) ])
   and query =
     {|{
-  master {
+  main {
     tree {
       get_tree(key: "/a/b/c") {
         list {
@@ -97,7 +97,7 @@ let test_get_tree_list : test_case =
   let key_data : (string * Yojson.Safe.t) list list =
     let open Yojson.Safe.Util in
     result
-    |> members [ "data"; "master"; "tree"; "get_tree"; "list" ]
+    |> members [ "data"; "main"; "tree"; "get_tree"; "list" ]
     |> to_list
     |> List.map to_assoc
   in
@@ -115,7 +115,7 @@ let test_get_last_modified : test_case =
   let data = stree "a" (contents "data")
   and query =
     {|{
-        master {
+        main {
           last_modified(key: "a", n: 1, depth:1) {
             tree {
               get_contents(key: "a") {
@@ -132,7 +132,7 @@ let test_get_last_modified : test_case =
   let result : (string * Yojson.Safe.t) list list =
     let open Yojson.Safe.Util in
     result
-    |> members [ "data"; "master"; "last_modified" ]
+    |> members [ "data"; "main"; "last_modified" ]
     |> to_list
     |> List.map (members [ "tree"; "get_contents" ])
     |> List.map to_assoc

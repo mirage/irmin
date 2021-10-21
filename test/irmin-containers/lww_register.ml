@@ -32,26 +32,26 @@ let config () = L.Store.Repo.v (Irmin_mem.config ())
 
 let test_empty_read _ () =
   config ()
-  >>= L.Store.master
+  >>= L.Store.main
   >>= L.read ~path
   >|= Alcotest.(check (option int))
         "checked - reading register without writing" None
 
 let test_write _ () =
-  let* t = config () >>= L.Store.master in
+  let* t = config () >>= L.Store.main in
   L.write ~path t 1 >>= fun () ->
   L.write ~path t 3 >>= fun () ->
   L.read ~path t
   >|= Alcotest.(check (option int)) "checked - writing to register" (Some 3)
 
 let test_clone_merge _ () =
-  let* t = config () >>= L.Store.master in
+  let* t = config () >>= L.Store.main in
   let* b = L.Store.clone ~src:t ~dst:"cl" in
   L.write ~path t 5 >>= fun () ->
   L.write ~path b 10 >>= fun () ->
   let* () =
     L.read ~path t
-    >|= Alcotest.(check (option int)) "checked - value of master" (Some 5)
+    >|= Alcotest.(check (option int)) "checked - value of main" (Some 5)
   in
   let* () =
     L.read ~path b
@@ -60,7 +60,7 @@ let test_clone_merge _ () =
   merge_into_exn b ~into:t >>= fun () ->
   L.read ~path t
   >|= Alcotest.(check (option int))
-        "checked - value of master after merging" (Some 10)
+        "checked - value of main after merging" (Some 10)
 
 let test_branch_merge _ () =
   let* r = config () in

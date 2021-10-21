@@ -524,7 +524,7 @@ let from_config_file_with_defaults root config_path (store, hash, contents) opts
             config)
           config (List.flatten opts)
       in
-      let mk_master () = S.Repo.v config >>= S.master in
+      let mk_main () = S.Repo.v config >>= S.main in
       let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
       let branch =
         let of_string = Irmin.Type.of_string S.Branch.t in
@@ -540,7 +540,7 @@ let from_config_file_with_defaults root config_path (store, hash, contents) opts
             | Error (`Msg e) -> failwith e)
       in
       match branch with
-      | None -> S ((module S), mk_master (), remote)
+      | None -> S ((module S), mk_main (), remote)
       | Some b -> S ((module S), mk_branch b, remote))
 
 let load_config ?root ?config_path ?store ?hash ?contents () =
@@ -548,8 +548,7 @@ let load_config ?root ?config_path ?store ?hash ?contents () =
 
 let branch =
   let doc =
-    Arg.info
-      ~doc:"The current branch name. Default is the store's master branch."
+    Arg.info ~doc:"The current branch name. Default is the store's main branch."
       ~docs:global_option_section ~docv:"BRANCH" [ "b"; "branch" ]
   in
   Arg.(value & opt (some string) None & doc)
@@ -606,7 +605,7 @@ let infer_remote hash contents headers str =
           | _ -> config
         in
         let* repo = R.Repo.v config in
-        let+ r = R.master repo in
+        let+ r = R.main repo in
         Irmin.remote_store (module R) r
   else
     let headers =

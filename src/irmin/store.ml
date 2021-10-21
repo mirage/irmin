@@ -506,7 +506,7 @@ module Make (B : Backend.S) = struct
     if Branch_store.Key.is_valid key then of_ref repo (`Branch key)
     else err_invalid_branch key
 
-  let master repo = of_branch repo Branch_store.Key.master
+  let main repo = of_branch repo Branch_store.Key.main
   let empty repo = of_ref repo (`Head (ref None))
   let of_commit c = of_ref c.r (`Head (ref (Some c)))
 

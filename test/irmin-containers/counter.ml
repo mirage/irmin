@@ -24,7 +24,7 @@ let config () = C.Store.Repo.v (Irmin_mem.config ())
 let merge_into_exn = merge_into_exn (module C.Store)
 
 let test_inc _ () =
-  let* t = config () >>= C.Store.master in
+  let* t = config () >>= C.Store.main in
   C.inc ~path t >>= fun () ->
   let* () =
     C.read ~path t
@@ -34,7 +34,7 @@ let test_inc _ () =
   C.read ~path t >|= Alcotest.(check int64) "checked - increment using by" 3L
 
 let test_dec _ () =
-  let* t = config () >>= C.Store.master in
+  let* t = config () >>= C.Store.main in
   C.dec ~path t >>= fun () ->
   let* () =
     C.read ~path t
@@ -44,20 +44,20 @@ let test_dec _ () =
   C.read ~path t >|= Alcotest.(check int64) "checked - decrement using by" 0L
 
 let test_clone_merge _ () =
-  let* t = config () >>= C.Store.master in
+  let* t = config () >>= C.Store.main in
   C.inc ~by:5L ~path t >>= fun () ->
   let* b = C.Store.clone ~src:t ~dst:"cl" in
   C.inc ~by:2L ~path b >>= fun () ->
   C.dec ~by:4L ~path t >>= fun () ->
   let* () =
-    C.read ~path t >|= Alcotest.(check int64) "checked - value of master" 1L
+    C.read ~path t >|= Alcotest.(check int64) "checked - value of main" 1L
   in
   let* () =
     C.read ~path b >|= Alcotest.(check int64) "checked - value of clone" 7L
   in
   merge_into_exn b ~into:t >>= fun () ->
   C.read t ~path
-  >|= Alcotest.(check int64) "checked - value of master after merging" 3L
+  >|= Alcotest.(check int64) "checked - value of main after merging" 3L
 
 let test_branch_merge _ () =
   let* r = config () in

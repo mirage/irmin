@@ -72,11 +72,11 @@ type server = {
 let spawn_graphql_server () =
   let config = Irmin_mem.config () in
   let* repo = Store.Repo.v config in
-  let+ master = Store.master repo in
+  let+ main = Store.main repo in
   let event_loop = server_of_repo repo
   and set_tree tree =
     Store.Tree.of_concrete tree
-    |> Store.set_tree_exn ~info:Store.Info.none master []
+    |> Store.set_tree_exn ~info:Store.Info.none main []
   in
   { event_loop; set_tree }
 

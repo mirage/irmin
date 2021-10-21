@@ -37,7 +37,7 @@ let test () =
   Config.init ();
   let config = Irmin_git.config Config.root in
   let* repo = Store.Repo.v config in
-  let* t = Store.master repo in
+  let* t = Store.main repo in
   let* _ = Sync.pull_exn t remote `Set in
   let* readme = Store.get t [ "README.md" ] in
   let* tree = Store.get_tree t [] in
