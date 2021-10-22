@@ -539,9 +539,8 @@ let test_fold_force _ () =
      and that [f] is called the correct number of times. *)
   let* () =
     let* tree =
-      Lwt.return (Tree.empty ())
-      >>= with_binding [ "existing"; "subtree" ] (Tree.of_contents "value")
-      >>= with_binding [ "dangling"; "subtree"; "hash" ] invalid_tree
+      Tree.singleton [ "existing"; "subtree" ] "value"
+      |> with_binding [ "dangling"; "subtree"; "hash" ] invalid_tree
       >>= with_binding [ "other"; "lazy"; "path" ] invalid_tree
     in
     let force = `False (Lwt.wrap2 List.cons) in

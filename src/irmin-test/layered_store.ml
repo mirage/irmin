@@ -145,8 +145,7 @@ module Make_Layered (S : Layered_store) = struct
                  \-> c3
     *)
     let tree1 repo =
-      let tree = S.Tree.empty () in
-      let* tree = S.Tree.add tree [ "c"; "b"; "a" ] "x" in
+      let tree = S.Tree.singleton [ "c"; "b"; "a" ] "x" in
       let* c0 = S.Commit.v repo ~info ~parents:[] tree in
       let* tree = S.Tree.add tree [ "c"; "b"; "a1" ] "x1" in
       let* c1 = S.Commit.v repo ~info ~parents:[ S.Commit.key c0 ] tree in
@@ -161,8 +160,7 @@ module Make_Layered (S : Layered_store) = struct
      \->  c4      \-> c8
     *)
     let tree2 repo =
-      let tree = S.Tree.empty () in
-      let* tree = S.Tree.add tree [ "c"; "b1" ] "x4" in
+      let tree = S.Tree.singleton [ "c"; "b1" ] "x4" in
       let* c4 = S.Commit.v repo ~info ~parents:[] tree in
       let* tree = S.Tree.add tree [ "c"; "b2" ] "x5" in
       let* c5 = S.Commit.v repo ~info ~parents:[] tree in
@@ -289,7 +287,7 @@ module Make_Layered (S : Layered_store) = struct
   let test_set_tree x () =
     let test repo =
       let* t = S.master repo in
-      let* t1 = S.Tree.add (S.Tree.empty ()) [ "a"; "d" ] v1 in
+      let t1 = S.Tree.singleton [ "a"; "d" ] v1 in
       let* t1 = S.Tree.add t1 [ "a"; "b"; "c" ] v2 in
       S.set_tree_exn ~info:(infof "commit 1") ~parents:[] t [] t1 >>= fun () ->
       S.freeze repo ~max_upper:[] >>= fun () ->
@@ -441,8 +439,8 @@ module Make_Layered (S : Layered_store) = struct
   let test_branch_squash x () =
     let check_val = check T.(option S.contents_t) in
     let setup repo =
-      let* tree1 = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v1 in
-      let* tree2 = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "d" ] v2 in
+      let tree1 = S.Tree.singleton [ "a"; "b"; "c" ] v1 in
+      let tree2 = S.Tree.singleton [ "a"; "b"; "d" ] v2 in
       let* foo = S.of_branch repo "foo" in
       S.set_tree_exn ~parents:[] ~info:(infof "tree1") foo [] tree1
       >>= fun () ->
@@ -961,7 +959,7 @@ module Make_Layered (S : Layered_store) = struct
         Alcotest.(check (option string)) "v1" v' (Some v)
       in
       let add_and_find_commit ~hook v =
-        let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v in
+        let tree = S.Tree.singleton [ "a"; "b"; "c" ] v in
         let* c = S.Commit.v repo ~info ~parents:[] tree in
         let hook, p = hook (find_commit c v) in
         let* () =
@@ -993,7 +991,7 @@ module Make_Layered (S : Layered_store) = struct
         Alcotest.(check (option string)) "v" v' (Some v)
       in
       let add_commit t v () =
-        let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v in
+        let tree = S.Tree.singleton [ "a"; "b"; "c" ] v in
         S.set_tree_exn ~parents:[] ~info:(infof "tree1") t [] tree
       in
       let add_and_find_commit ~hook t v =
@@ -1017,12 +1015,12 @@ module Make_Layered (S : Layered_store) = struct
   let test_add_again x () =
     let test repo =
       let* t = S.master repo in
-      let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v1 in
+      let tree = S.Tree.singleton [ "a"; "b"; "c" ] v1 in
       S.set_tree_exn ~parents:[] ~info:(infof "v1") t [] tree >>= fun () ->
-      let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "d" ] v2 in
+      let tree = S.Tree.singleton [ "a"; "d" ] v2 in
       S.set_tree_exn ~parents:[] ~info:(infof "v2") t [] tree >>= fun () ->
       let add_commit () =
-        let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v1 in
+        let tree = S.Tree.singleton [ "a"; "b"; "c" ] v1 in
         let* tree = S.Tree.add tree [ "a"; "e" ] v3 in
         S.set_tree_exn ~parents:[] ~info:(infof "v3") t [] tree
       in

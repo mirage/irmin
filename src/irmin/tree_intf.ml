@@ -45,6 +45,10 @@ module type S = sig
       backend configuration values, as they can perform in-memory operation,
       independently of any given backend. *)
 
+  val singleton : key -> ?metadata:metadata -> contents -> t
+  (** [singleton k c] is the tree with a single binding mapping the key [k] to
+      the contents [c]. *)
+
   val of_contents : ?metadata:metadata -> contents -> t
   (** [of_contents c] is the subtree built from the contents [c]. *)
 

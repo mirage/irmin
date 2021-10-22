@@ -220,9 +220,7 @@ module Test = struct
     | Some _ -> Alcotest.failf "should not find %s" msg
 
   let commit_block1_simple_store repo =
-    let* tree =
-      StoreSimple.Tree.add (StoreSimple.Tree.empty ()) [ "a"; "b" ] "Novembre"
-    in
+    let tree = StoreSimple.Tree.singleton [ "a"; "b" ] "Novembre" in
     let* tree = StoreSimple.Tree.add tree [ "a"; "c" ] "Juin" in
     let* tree = StoreSimple.Tree.add tree [ "version" ] "0.0" in
     let+ block1 =
