@@ -325,7 +325,7 @@ module Make (Store : Store) = struct
     in
 
     (* Manually add genesis context *)
-    Hashtbl.add t.contexts 0L { tree = Store.Tree.empty };
+    Hashtbl.add t.contexts 0L { tree = Store.Tree.empty () };
 
     let rec aux commit_seq i =
       match commit_seq () with

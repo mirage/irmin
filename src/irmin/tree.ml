@@ -496,8 +496,6 @@ module Make (P : Backend.S) = struct
       if c then clear_info_fields t.info;
       match t.v with
       | Key (repo', k) -> if repo != repo' then t.v <- Key (repo, k)
-      | Value (_, v, None) when P.Node.Val.is_empty v -> t.info.ptr <- Key k
-      | Map m when StepMap.is_empty m -> t.info.ptr <- Key k
       | Value _ | Map _ -> (
           match ptr with
           | Ptr_none | Hash _ -> t.v <- Key (repo, k)
@@ -610,59 +608,55 @@ module Make (P : Backend.S) = struct
     and hash_preimage_of_map :
         type r. cache:bool -> t -> map -> (hash_preimage, r) cont =
      fun ~cache t map k ->
-      if StepMap.is_empty map then (
-        if cache then t.info.value <- Some P.Node.Val.empty;
-        k (Node P.Node.Val.empty))
-      else (
-        cnt.node_val_v <- cnt.node_val_v + 1;
-        let bindings = StepMap.to_seq map in
-        let must_build_portable_node =
+      cnt.node_val_v <- cnt.node_val_v + 1;
+      let bindings = StepMap.to_seq map in
+      let must_build_portable_node =
+        bindings
+        |> Seq.exists (fun (_, v) ->
+               match v with
+               | `Node n -> Option.is_none (cached_key n)
+               | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
+      in
+      if must_build_portable_node then
+        let pnode =
           bindings
-          |> Seq.exists (fun (_, v) ->
+          |> Seq.map (fun (step, v) ->
                  match v with
-                 | `Node n -> Option.is_none (cached_key n)
-                 | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
+                 | `Contents (c, m) ->
+                     let hash =
+                       match Contents.key c with
+                       | Some key -> P.Contents.Key.to_hash key
+                       | None -> Contents.hash c
+                     in
+                     (step, `Contents (hash, m))
+                 | `Node n -> (
+                     match key n with
+                     | Some key -> (step, `Node (P.Node.Key.to_hash key))
+                     | None -> hash ~cache n (fun k -> (step, `Node k))))
+          |> Portable.of_seq
         in
-        if must_build_portable_node then
-          let pnode =
-            bindings
-            |> Seq.map (fun (step, v) ->
-                   match v with
-                   | `Contents (c, m) ->
-                       let hash =
-                         match Contents.key c with
-                         | Some key -> P.Contents.Key.to_hash key
-                         | None -> Contents.hash c
-                       in
-                       (step, `Contents (hash, m))
-                   | `Node n -> (
-                       match key n with
-                       | Some key -> (step, `Node (P.Node.Key.to_hash key))
-                       | None -> hash ~cache n (fun k -> (step, `Node k))))
-            |> Portable.of_seq
-          in
-          k (Pnode pnode)
-        else
-          let node =
-            bindings
-            |> Seq.map (fun (step, v) ->
-                   match v with
-                   | `Contents (c, m) -> (
-                       match Contents.cached_key c with
-                       | Some k -> (step, `Contents (k, m))
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false)
-                   | `Node n -> (
-                       match cached_key n with
-                       | Some k -> (step, `Node k)
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false))
-            |> P.Node.Val.of_seq
-          in
-          t.info.value <- Some node;
-          k (Node node))
+        k (Pnode pnode)
+      else
+        let node =
+          bindings
+          |> Seq.map (fun (step, v) ->
+                 match v with
+                 | `Contents (c, m) -> (
+                     match Contents.cached_key c with
+                     | Some k -> (step, `Contents (k, m))
+                     | None ->
+                         (* We checked that all child keys are cached above *)
+                         assert false)
+                 | `Node n -> (
+                     match cached_key n with
+                     | Some k -> (step, `Node k)
+                     | None ->
+                         (* We checked that all child keys are cached above *)
+                         assert false))
+          |> P.Node.Val.of_seq
+        in
+        t.info.value <- Some node;
+        k (Node node)
 
     and hash_preimage_value_of_elt :
         type r. cache:bool -> elt -> (hash_preimage_value, r) cont =
@@ -821,9 +815,8 @@ module Make (P : Backend.S) = struct
             | Some x, Some y -> if equal_value x y then True else False
             | _ -> Maybe)
 
-    (* Use a stable represetation for empty trees. *)
-    let empty = of_map StepMap.empty
-    let empty_hash = hash ~cache:false empty
+    let empty () = of_map StepMap.empty
+    let empty_hash = hash ~cache:false (empty ())
 
     (** Does [um] empties [v]?
 
@@ -1413,7 +1406,7 @@ module Make (P : Backend.S) = struct
   let list t ?offset ?length ?(cache = true) path =
     seq t ?offset ?length ~cache path >|= List.of_seq
 
-  let empty = `Node Node.empty
+  let empty () = `Node (Node.empty ())
 
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree
@@ -1492,7 +1485,7 @@ module Make (P : Backend.S) = struct
               let to_recurse =
                 match old_binding with
                 | Some (`Node child) -> child
-                | None | Some (`Contents _) -> Node.empty
+                | None | Some (`Contents _) -> Node.empty ()
               in
               (aux [@tailcall]) key_suffix to_recurse (function
                 | Unchanged ->
@@ -1509,7 +1502,7 @@ module Make (P : Backend.S) = struct
                         Node.add parent_node step (`Node child) >>= changed))
         in
         let top_node =
-          match root_tree with `Node n -> n | `Contents _ -> Node.empty
+          match root_tree with `Node n -> n | `Contents _ -> Node.empty ()
         in
         aux path top_node @@ function
         | Unchanged -> Lwt.return root_tree
@@ -1896,11 +1889,11 @@ module Make (P : Backend.S) = struct
           Lwt.return [ (Path.empty, `Updated ((c1, m1), (c2, m2))) ]
     | `Node x, `Node y -> diff_node x y
     | `Contents (x, m), `Node y ->
-        let* diff = diff_node Node.empty y in
+        let* diff = diff_node (Node.empty ()) y in
         let+ x = Contents.to_value ~cache:true x >|= get_ok "diff" in
         (Path.empty, `Removed (x, m)) :: diff
     | `Node x, `Contents (y, m) ->
-        let* diff = diff_node x Node.empty in
+        let* diff = diff_node x (Node.empty ()) in
         let+ y = Contents.to_value ~cache:true y >|= get_ok "diff" in
         (Path.empty, `Added (y, m)) :: diff
 
@@ -1946,7 +1939,7 @@ module Make (P : Backend.S) = struct
                    map)
                 t k)
     in
-    (concrete [@tailcall]) c (function Empty -> empty | Non_empty x -> x)
+    (concrete [@tailcall]) c (function Empty -> empty () | Non_empty x -> x)
 
   let to_concrete t =
     let rec tree : type r. t -> (concrete, r) cont_lwt =

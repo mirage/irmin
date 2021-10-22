@@ -587,7 +587,7 @@ module Make (P : Backend.S) = struct
 
   let tree t =
     tree_and_head t >|= function
-    | None -> Tree.empty
+    | None -> Tree.empty ()
     | Some (_, tree) -> (tree :> tree)
 
   let lift_head_diff repo fn = function
@@ -770,7 +770,8 @@ module Make (P : Backend.S) = struct
   let snapshot t key =
     tree_and_head t >>= function
     | None ->
-        Lwt.return { head = None; root = Tree.empty; tree = None; parents = [] }
+        Lwt.return
+          { head = None; root = Tree.empty (); tree = None; parents = [] }
     | Some (c, root) ->
         let root = (root :> tree) in
         let+ tree = Tree.find_tree root key in
@@ -1236,7 +1237,7 @@ struct
     of_concrete_tree c
 
   let set t key j ~info =
-    set_tree Store.Tree.empty Store.Key.empty j >>= function
+    set_tree (Store.Tree.empty ()) Store.Key.empty j >>= function
     | tree -> Store.set_tree_exn ~info t key tree
 
   let get t key =

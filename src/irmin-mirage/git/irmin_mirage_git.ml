@@ -169,7 +169,7 @@ module KV_RO (G : Git.S) = struct
   let tree t =
     let repo = S.repo t.t in
     (S.find_tree t.t t.root >|= function
-     | None -> S.Tree.empty
+     | None -> S.Tree.empty ()
      | Some tree -> tree)
     >|= fun tree -> { Tree.repo; tree }
 
@@ -292,7 +292,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
         let tree = S.Commit.tree origin in
         S.Tree.find_tree tree t.root >|= function
         | Some t -> Some (origin, t)
-        | None -> Some (origin, S.Tree.empty))
+        | None -> Some (origin, S.Tree.empty ()))
 
   let batch t ?(retries = 42) f =
     let info = info t `Batch in

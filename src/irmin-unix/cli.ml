@@ -502,10 +502,10 @@ let watch =
                   let view (c, _) =
                     let* t = S.of_commit c in
                     S.find_tree t path >|= function
-                    | None -> S.Tree.empty
+                    | None -> S.Tree.empty ()
                     | Some v -> v
                   in
-                  let empty = Lwt.return S.Tree.empty in
+                  let empty = Lwt.return (S.Tree.empty ()) in
                   let x, y =
                     match d with
                     | `Updated (x, y) -> (view x, view y)
