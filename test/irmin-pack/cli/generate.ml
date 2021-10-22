@@ -48,7 +48,7 @@ module Layered = struct
     rm_dir data_dir;
     let* repo = Store.Repo.v (config data_dir) in
     let* _t = Store.master repo in
-    let* tree = Store.Tree.add (Store.Tree.empty ()) [ "a"; "b"; "c" ] "x1" in
+    let tree = Store.Tree.singleton [ "a"; "b"; "c" ] "x1" in
     let* c = Store.Commit.v repo ~info ~parents:[] tree in
     let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
     let* () = Store.Backend_layer.wait_for_freeze repo in
@@ -80,9 +80,7 @@ module Simple = struct
   let create_store () =
     rm_dir data_dir;
     let* rw = Store.Repo.v (config data_dir) in
-    let* tree =
-      Store.Tree.add (Store.Tree.empty ()) [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1"
-    in
+    let tree = Store.Tree.singleton [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1" in
     let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
     let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
     let* tree = Store.Tree.add tree [ "a"; "b2"; "c2"; "e3" ] "x2" in

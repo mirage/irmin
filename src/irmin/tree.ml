@@ -111,7 +111,14 @@ module Make (P : Backend.S) = struct
 
   let cnt = fresh_counters ()
 
-  module Path = P.Node.Path
+  module Path = struct
+    include P.Node.Path
+
+    let fold_right t ~f ~init =
+      let steps = map t Fun.id in
+      List.fold_right f steps init
+  end
+
   module Metadata = P.Node.Metadata
 
   module Hashes = Hashtbl.Make (struct
@@ -817,6 +824,7 @@ module Make (P : Backend.S) = struct
 
     let empty () = of_map StepMap.empty
     let empty_hash = hash ~cache:false (empty ())
+    let singleton k v = of_map (StepMap.singleton k v)
 
     (** Does [um] empties [v]?
 
@@ -1410,6 +1418,13 @@ module Make (P : Backend.S) = struct
     seq t ?offset ?length ~cache path >|= List.of_seq
 
   let empty () = `Node (Node.empty ())
+
+  let singleton k ?(metadata = Metadata.default) c =
+    [%log.debug "Tree.singleton %a" pp_key k];
+    let base_tree = `Contents (Contents.of_value c, metadata) in
+    Path.fold_right k
+      ~f:(fun step child -> `Node (Node.singleton step child))
+      ~init:base_tree
 
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree

@@ -30,9 +30,9 @@ let provision repo =
   Config.init ();
   let provision = info ~user:"Automatic VM provisioning" in
   let* t = Store.of_branch repo "upstream" in
-  let v = Store.Tree.empty () in
-  let* v =
-    Store.Tree.add v [ "etc"; "manpath" ] "/usr/share/man\n/usr/local/share/man"
+  let v =
+    Store.Tree.singleton [ "etc"; "manpath" ]
+      "/usr/share/man\n/usr/local/share/man"
   in
   let* v =
     Store.Tree.add v [ "bin"; "sh" ]
