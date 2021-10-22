@@ -60,6 +60,16 @@ module Alcotest = struct
       b_lwt
       >>= Tree.to_concrete
       >|= Alcotest.check ?pos concrete_tree msg expected
+
+  let inspect =
+    Alcotest.testable
+      (fun ppf -> function
+        | `Contents -> Fmt.string ppf "contents"
+        | `Node `Key -> Fmt.string ppf "key"
+        | `Node `Map -> Fmt.string ppf "map"
+        | `Node `Value -> Fmt.string ppf "value"
+        | `Node `Pruned -> Fmt.string ppf "pruned")
+      ( = )
 end
 
 let check_exn_lwt ~exn_type pos f =
@@ -166,6 +176,36 @@ let test_diff _ () =
   >|= Alcotest.(check diffs)
         "Changed metadata"
         [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
+
+let test_empty _ () =
+  let* () =
+    Alcotest.check_tree_lwt "The empty tree is empty" ~expected:(`Tree [])
+      (Lwt.return Tree.empty)
+  in
+
+  (* Ensure that different [empty] values have disjoint cache state.
+
+     This is a regression test for a bug in which all [Tree.empty] values had
+     shared cache state and any keys obtained from [export] were discarded (to
+     avoid sharing keys from different repositories). *)
+  let* () =
+    let* repo = Store.Repo.v (Irmin_mem.config ()) in
+    let empty_exported = Tree.empty and empty_not_exported = Tree.empty in
+    let+ () =
+      Store.Backend.Repo.batch repo (fun c n _ ->
+          Store.save_tree repo c n empty_exported >|= ignore)
+    in
+    Alcotest.(check inspect)
+      "The exported empty tree is now in Key form"
+      (`Node `Key)
+      (Tree.inspect empty_exported);
+    Alcotest.(check inspect)
+      "The non-exported empty tree should still be represented as a Map"
+      (`Node `Map)
+      (Tree.inspect empty_not_exported)
+  in
+
+  Lwt.return_unit
 
 let test_add _ () =
   let sample_tree ?(ab = "ab_v") ?ac () : Tree.concrete =
@@ -427,16 +467,6 @@ let persist_tree : Store.tree -> Store.tree Lwt.t =
   let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
   let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
   Store.tree store
-
-let inspect =
-  Alcotest.testable
-    (fun ppf -> function
-      | `Contents -> Fmt.string ppf "contents"
-      | `Node `Key -> Fmt.string ppf "key"
-      | `Node `Map -> Fmt.string ppf "map"
-      | `Node `Value -> Fmt.string ppf "value"
-      | `Node `Pruned -> Fmt.string ppf "pruned")
-    ( = )
 
 type key = Store.Key.t [@@deriving irmin ~pp ~equal]
 
@@ -792,6 +822,7 @@ let suite =
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
+    Alcotest_lwt.test_case "empty" `Quick test_empty;
     Alcotest_lwt.test_case "add" `Quick test_add;
     Alcotest_lwt.test_case "remove" `Quick test_remove;
     Alcotest_lwt.test_case "update" `Quick test_update;
