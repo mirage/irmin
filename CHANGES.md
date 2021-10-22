@@ -114,6 +114,7 @@
   - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
     cache the lazily loaded data any more. Pass `~cache:true` to enable it
     again. (#1526, @Ngoguey42)
+  - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
 
   - Add support for non-content-addressed ("generic key") backend stores. This
     allows Irmin to work with backends in which not all values are addressed by
