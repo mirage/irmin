@@ -468,7 +468,7 @@ module Make (S : S) = struct
       let tree bindings =
         Lwt_list.fold_left_s
           (fun t (k, v) -> S.Tree.add t k v)
-          S.Tree.empty bindings
+          (S.Tree.empty ()) bindings
       in
       let check_hash msg bindings =
         let* node = node bindings in
@@ -649,7 +649,7 @@ module Make (S : S) = struct
         >|= S.History.is_empty
         >|= Alcotest.(check bool) msg expected
       in
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let k0 = random_path ~label:8 ~path:5 in
       let k1 = random_path ~label:8 ~path:4 in
       let k2 = random_path ~label:8 ~path:6 in
@@ -1043,9 +1043,11 @@ module Make (S : S) = struct
       let nodes = random_nodes 100 in
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
-      S.Tree.empty |> fun v1 ->
-      let* v1 = S.Tree.add v1 [ "foo"; "toto" ] foo1 in
-      let* v1 = S.Tree.add v1 [ "foo"; "bar"; "toto" ] foo2 in
+      let* v1 =
+        S.Tree.empty ()
+        |> with_binding [ "foo"; "bar"; "toto" ] foo2
+        >>= with_binding [ "foo"; "toto" ] foo1
+      in
       S.Tree.clear v1;
       let* () =
         let dont_skip k =
@@ -1054,7 +1056,7 @@ module Make (S : S) = struct
         S.Tree.fold ~depth:(`Eq 1) ~force:(`False dont_skip) v1 ()
       in
       let* () =
-        S.Tree.fold ~depth:(`Eq 1) ~force:`True S.Tree.empty ()
+        S.Tree.fold ~depth:(`Eq 1) ~force:`True (S.Tree.empty ()) ()
           ~contents:(fun k _ ->
             assert (List.length k = 1);
             Alcotest.fail "contents")
@@ -1105,7 +1107,7 @@ module Make (S : S) = struct
       let* v1 = S.Tree.remove v1 [ "foo"; "bar"; "toto" ] in
       let* v = S.Tree.find v1 [ "foo"; "toto" ] in
       Alcotest.(check (option string)) "remove" (Some foo1) v;
-      S.Tree.empty |> fun v1 ->
+      let v1 = S.Tree.empty () in
       let* s = S.Tree.stats v1 in
       Alcotest.(check stats_t) "empty stats" empty_stats s;
       let* v1 = S.Tree.add v1 [ "foo"; "1" ] foo1 in
@@ -1135,9 +1137,9 @@ module Make (S : S) = struct
       let check_ls = checks T.(pair S.step_t S.tree_t) in
       let normal c = Some (c, S.Metadata.default) in
       let d0 = S.Metadata.default in
-      S.Tree.empty |> fun v0 ->
-      S.Tree.empty |> fun v1 ->
-      S.Tree.empty |> fun v2 ->
+      let v0 = S.Tree.empty () in
+      let v1 = S.Tree.empty () in
+      let v2 = S.Tree.empty () in
       let* v1 = S.Tree.add v1 [ "foo"; "1" ] foo1 in
       let* f = S.Tree.find_all v1 [ "foo"; "1" ] in
       check_val "tree update" (normal foo1) f;
@@ -1220,11 +1222,13 @@ module Make (S : S) = struct
         Alcotest.(check int) "size l2" 0 (List.length l2);
         check_ls "5 paginated list" ls (l1 @ l2)
       in
-      let c0 = S.Tree.empty in
-      let* c0 = S.Tree.add c0 [ "foo"; "a" ] "1" in
-      let* c0 = S.Tree.add c0 [ "foo"; "b"; "c" ] "2" in
-      let* c0 = S.Tree.add c0 [ "foo"; "c" ] "3" in
-      let* c0 = S.Tree.add c0 [ "foo"; "d" ] "4" in
+      let* c0 =
+        S.Tree.empty ()
+        |> with_binding [ "foo"; "a" ] "1"
+        >>= with_binding [ "foo"; "b"; "c" ] "2"
+        >>= with_binding [ "foo"; "c" ] "3"
+        >>= with_binding [ "foo"; "d" ] "4"
+      in
       let* b = S.Tree.get_tree c0 [ "foo"; "b" ] in
       let* ls = S.Tree.list c0 [ "foo" ] in
       check_ls "list all"
@@ -1241,7 +1245,7 @@ module Make (S : S) = struct
 
       (* Testing concrete representation *)
       let* c0 =
-        Lwt.return S.Tree.empty
+        Lwt.return (S.Tree.empty ())
         >>= with_binding [ "foo"; "a" ] "1"
         >>= with_binding [ "foo"; "b"; "c" ] "2"
         >>= with_binding [ "bar"; "d" ] "3"
@@ -1276,7 +1280,7 @@ module Make (S : S) = struct
             ([ "dir"; v ], S.Tree.pruned (`Node (hash v))))
       in
       let* c0 =
-        Lwt.return S.Tree.empty
+        Lwt.return (S.Tree.empty ())
         >>= with_binding [ "foo"; "a" ] "1"
         >>= with_binding [ "foo"; "b"; "c" ] "2"
         >>= with_binding [ "bar"; "d" ] "3"
@@ -1314,7 +1318,7 @@ module Make (S : S) = struct
       in
 
       (* Testing other tree operations. *)
-      S.Tree.empty |> fun v0 ->
+      let v0 = S.Tree.empty () in
       let* c = S.Tree.to_concrete v0 in
       (match c with
       | `Tree [] -> ()
@@ -1421,7 +1425,7 @@ module Make (S : S) = struct
         s;
       let* vx' = S.Tree.find_all tree px in
       check_val "updates" (normal vx) vx';
-      S.Tree.empty |> fun v ->
+      let v = S.Tree.empty () in
       let* v = S.Tree.add v [] vx in
       let* () =
         S.set_tree_exn t ~info:(infof "update file as tree") [ "a" ] v
@@ -1435,7 +1439,7 @@ module Make (S : S) = struct
   let test_wide_nodes x () =
     let test repo =
       let size = 500_000 in
-      let c0 = S.Tree.empty in
+      let c0 = S.Tree.empty () in
       let rec wide_node i c =
         if i >= size then Lwt.return c
         else
@@ -1503,7 +1507,7 @@ module Make (S : S) = struct
   let test_commit_wide_node x () =
     let test repo =
       let size = 500_000 in
-      let c0 = S.Tree.empty in
+      let c0 = S.Tree.empty () in
       let rec wide_node i c =
         if i >= size then Lwt.return c
         else

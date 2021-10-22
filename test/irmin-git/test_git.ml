@@ -211,7 +211,7 @@ let test_blobs (module S : S) =
     "blob foo" "blob 19\000{\"Y\":[\"foo\",\"bar\"]}" str;
   let str = pre_hash X.Contents.t (X (1, 2)) in
   Alcotest.(check bin_string) "blob ''" "blob 11\000{\"X\":[1,2]}" str;
-  let t = X.Tree.empty in
+  let t = X.Tree.empty () in
   let* t = X.Tree.add t [ "foo" ] (X (1, 2)) in
   let k1 = X.Tree.hash t in
   let* repo = X.Repo.v (Irmin_git.config test_db) in

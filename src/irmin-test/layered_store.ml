@@ -139,7 +139,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
                  \-> c3
     *)
     let tree1 repo =
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let* tree = S.Tree.add tree [ "c"; "b"; "a" ] "x" in
       let* c0 = S.Commit.v repo ~info ~parents:[] tree in
       let* tree = S.Tree.add tree [ "c"; "b"; "a1" ] "x1" in
@@ -155,7 +155,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
      \->  c4      \-> c8
     *)
     let tree2 repo =
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let* tree = S.Tree.add tree [ "c"; "b1" ] "x4" in
       let* c4 = S.Commit.v repo ~info ~parents:[] tree in
       let* tree = S.Tree.add tree [ "c"; "b2" ] "x5" in
@@ -286,7 +286,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
   let test_set_tree x () =
     let test repo =
       let* t = S.master repo in
-      let* t1 = S.Tree.add S.Tree.empty [ "a"; "d" ] v1 in
+      let* t1 = S.Tree.add (S.Tree.empty ()) [ "a"; "d" ] v1 in
       let* t1 = S.Tree.add t1 [ "a"; "b"; "c" ] v2 in
       S.set_tree_exn ~info:(infof "commit 1") ~parents:[] t [] t1 >>= fun () ->
       S.freeze repo ~max_upper:[] >>= fun () ->
@@ -438,8 +438,8 @@ module Make_Layered (S : LAYERED_STORE) = struct
   let test_branch_squash x () =
     let check_val = check T.(option S.contents_t) in
     let setup repo =
-      let* tree1 = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 in
-      let* tree2 = S.Tree.add S.Tree.empty [ "a"; "b"; "d" ] v2 in
+      let* tree1 = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v1 in
+      let* tree2 = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "d" ] v2 in
       let* foo = S.of_branch repo "foo" in
       S.set_tree_exn ~parents:[] ~info:(infof "tree1") foo [] tree1
       >>= fun () ->
@@ -528,7 +528,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     let test repo =
       let info = info "freezes" in
       let check_val repo = check (T.option @@ S.commit_t repo) in
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let rec commits tree acc i =
         if i = 10 then Lwt.return acc
         else
@@ -578,7 +578,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
         let+ x = S.Tree.find tree [ "5" ] in
         Alcotest.(check (option string)) "x5" (Some "x5") x
       in
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let* tree = S.Tree.add tree [ "1"; "2"; "3" ] "x1" in
       let* tree = S.Tree.add tree [ "4" ] "x4" in
       let* tree = S.Tree.add tree [ "5" ] "x5" in
@@ -730,7 +730,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
     let check_commit = check (T.option P.Commit.Val.t) in
     let check_branch repo = check (T.option @@ S.commit_t repo) in
     let test repo =
-      let tree = S.Tree.empty in
+      let tree = S.Tree.empty () in
       let rec setup i tree commits contents =
         if i > 6 then Lwt.return (commits, List.rev contents)
         else
@@ -952,7 +952,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
         Alcotest.(check (option string)) "v1" v' (Some v)
       in
       let add_and_find_commit ~hook v =
-        let* tree = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v in
+        let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v in
         let* c = S.Commit.v repo ~info ~parents:[] tree in
         let hook, p = hook (find_commit c v) in
         let* () =
@@ -984,7 +984,7 @@ module Make_Layered (S : LAYERED_STORE) = struct
         Alcotest.(check (option string)) "v" v' (Some v)
       in
       let add_commit t v () =
-        let* tree = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v in
+        let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v in
         S.set_tree_exn ~parents:[] ~info:(infof "tree1") t [] tree
       in
       let add_and_find_commit ~hook t v =
@@ -1008,12 +1008,12 @@ module Make_Layered (S : LAYERED_STORE) = struct
   let test_add_again x () =
     let test repo =
       let* t = S.master repo in
-      let* tree = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 in
+      let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v1 in
       S.set_tree_exn ~parents:[] ~info:(infof "v1") t [] tree >>= fun () ->
-      let* tree = S.Tree.add S.Tree.empty [ "a"; "d" ] v2 in
+      let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "d" ] v2 in
       S.set_tree_exn ~parents:[] ~info:(infof "v2") t [] tree >>= fun () ->
       let add_commit () =
-        let* tree = S.Tree.add S.Tree.empty [ "a"; "b"; "c" ] v1 in
+        let* tree = S.Tree.add (S.Tree.empty ()) [ "a"; "b"; "c" ] v1 in
         let* tree = S.Tree.add tree [ "a"; "e" ] v3 in
         S.set_tree_exn ~parents:[] ~info:(infof "v3") t [] tree
       in

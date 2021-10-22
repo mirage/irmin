@@ -282,7 +282,7 @@ struct
     with_progress_bar ~message:"Replaying trace" ~n:(Array.length commits)
       ~unit:"commits"
     @@ fun prog ->
-    let t = { tree = Store.Tree.empty } in
+    let t = { tree = Store.Tree.empty () } in
     let rec array_iter_lwt prev_commit i =
       if i >= Array.length commits then Lwt.return_unit
       else
@@ -336,7 +336,7 @@ struct
       (Hash)
 
   let init_commit repo =
-    Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
+    Store.Commit.v repo ~info:(info ()) ~parents:[] (Store.Tree.empty ())
 
   module Trees = Generate_trees (Store)
   module Trees_trace = Generate_trees_from_trace (Store)

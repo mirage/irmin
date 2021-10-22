@@ -98,13 +98,13 @@ module Test = struct
     Common.rm_dir root;
     let+ repo = Store.Repo.v (config ?readonly ?with_lower root) in
     let index = { root; repo } in
-    let tree = Store.Tree.empty in
+    let tree = Store.Tree.empty () in
     { index; tree; parents = [] }
 
   let clone ?readonly ?with_lower root =
     let+ repo = Store.Repo.v (config ~fresh:false ?readonly ?with_lower root) in
     let index = { root; repo } in
-    let tree = Store.Tree.empty in
+    let tree = Store.Tree.empty () in
     { index; tree; parents = [] }
 
   let freeze ?copy_in_upper ctxt commit =
@@ -114,7 +114,7 @@ module Test = struct
       | None | Some true -> None
     in
     Store.freeze ?max_upper ctxt.index.repo ~max_lower:[ commit ] >|= fun () ->
-    { index = ctxt.index; tree = Store.Tree.empty; parents = [] }
+    { index = ctxt.index; tree = Store.Tree.empty (); parents = [] }
 
   let commit_block1 ctxt =
     let* ctxt = set ctxt [ "a"; "b" ] "Novembre" in
@@ -227,7 +227,7 @@ module Test = struct
 
   let commit_block1_simple_store repo =
     let* tree =
-      StoreSimple.Tree.add StoreSimple.Tree.empty [ "a"; "b" ] "Novembre"
+      StoreSimple.Tree.add (StoreSimple.Tree.empty ()) [ "a"; "b" ] "Novembre"
     in
     let* tree = StoreSimple.Tree.add tree [ "a"; "c" ] "Juin" in
     let* tree = StoreSimple.Tree.add tree [ "version" ] "0.0" in

@@ -46,7 +46,7 @@ let create_store () =
   rm_dir ();
   let* repo = Store.Repo.v (config data_dir) in
   let* _t = Store.master repo in
-  let* tree = Store.Tree.add Store.Tree.empty [ "a"; "b"; "c" ] "x1" in
+  let* tree = Store.Tree.add (Store.Tree.empty ()) [ "a"; "b"; "c" ] "x1" in
   let* c = Store.Commit.v repo ~info ~parents:[] tree in
   let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
   let* () = Store.Private_layer.wait_for_freeze repo in

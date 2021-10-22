@@ -67,7 +67,7 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
         ([ h ], zero))
 
   let init_tree bindings =
-    let tree = Tree.empty in
+    let tree = Tree.empty () in
     let* tree =
       Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
@@ -135,7 +135,7 @@ let zero = String.make 10 '0'
 let bindings steps = List.map (fun x -> ([ x ], zero)) steps
 
 let test_fold ~order bindings expected =
-  let tree = Tree.empty in
+  let tree = Tree.empty () in
   let* tree =
     Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
   in
@@ -280,7 +280,7 @@ let test_small_inode () =
 
 let test_deeper_proof () =
   let* ctxt =
-    let tree = Tree.empty in
+    let tree = Tree.empty () in
     let* level_one =
       let bindings = bindings fewer_steps in
       Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
