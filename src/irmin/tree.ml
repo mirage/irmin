@@ -496,8 +496,6 @@ module Make (P : Backend.S) = struct
       if c then clear_info_fields t.info;
       match t.v with
       | Key (repo', k) -> if repo != repo' then t.v <- Key (repo, k)
-      | Value (_, v, None) when P.Node.Val.is_empty v -> t.info.ptr <- Key k
-      | Map m when StepMap.is_empty m -> t.info.ptr <- Key k
       | Value _ | Map _ -> (
           match ptr with
           | Ptr_none | Hash _ -> t.v <- Key (repo, k)
@@ -610,59 +608,55 @@ module Make (P : Backend.S) = struct
     and hash_preimage_of_map :
         type r. cache:bool -> t -> map -> (hash_preimage, r) cont =
      fun ~cache t map k ->
-      if StepMap.is_empty map then (
-        if cache then t.info.value <- Some P.Node.Val.empty;
-        k (Node P.Node.Val.empty))
-      else (
-        cnt.node_val_v <- cnt.node_val_v + 1;
-        let bindings = StepMap.to_seq map in
-        let must_build_portable_node =
+      cnt.node_val_v <- cnt.node_val_v + 1;
+      let bindings = StepMap.to_seq map in
+      let must_build_portable_node =
+        bindings
+        |> Seq.exists (fun (_, v) ->
+               match v with
+               | `Node n -> Option.is_none (cached_key n)
+               | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
+      in
+      if must_build_portable_node then
+        let pnode =
           bindings
-          |> Seq.exists (fun (_, v) ->
+          |> Seq.map (fun (step, v) ->
                  match v with
-                 | `Node n -> Option.is_none (cached_key n)
-                 | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
+                 | `Contents (c, m) ->
+                     let hash =
+                       match Contents.key c with
+                       | Some key -> P.Contents.Key.to_hash key
+                       | None -> Contents.hash c
+                     in
+                     (step, `Contents (hash, m))
+                 | `Node n -> (
+                     match key n with
+                     | Some key -> (step, `Node (P.Node.Key.to_hash key))
+                     | None -> hash ~cache n (fun k -> (step, `Node k))))
+          |> Portable.of_seq
         in
-        if must_build_portable_node then
-          let pnode =
-            bindings
-            |> Seq.map (fun (step, v) ->
-                   match v with
-                   | `Contents (c, m) ->
-                       let hash =
-                         match Contents.key c with
-                         | Some key -> P.Contents.Key.to_hash key
-                         | None -> Contents.hash c
-                       in
-                       (step, `Contents (hash, m))
-                   | `Node n -> (
-                       match key n with
-                       | Some key -> (step, `Node (P.Node.Key.to_hash key))
-                       | None -> hash ~cache n (fun k -> (step, `Node k))))
-            |> Portable.of_seq
-          in
-          k (Pnode pnode)
-        else
-          let node =
-            bindings
-            |> Seq.map (fun (step, v) ->
-                   match v with
-                   | `Contents (c, m) -> (
-                       match Contents.cached_key c with
-                       | Some k -> (step, `Contents (k, m))
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false)
-                   | `Node n -> (
-                       match cached_key n with
-                       | Some k -> (step, `Node k)
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false))
-            |> P.Node.Val.of_seq
-          in
-          t.info.value <- Some node;
-          k (Node node))
+        k (Pnode pnode)
+      else
+        let node =
+          bindings
+          |> Seq.map (fun (step, v) ->
+                 match v with
+                 | `Contents (c, m) -> (
+                     match Contents.cached_key c with
+                     | Some k -> (step, `Contents (k, m))
+                     | None ->
+                         (* We checked that all child keys are cached above *)
+                         assert false)
+                 | `Node n -> (
+                     match cached_key n with
+                     | Some k -> (step, `Node k)
+                     | None ->
+                         (* We checked that all child keys are cached above *)
+                         assert false))
+          |> P.Node.Val.of_seq
+        in
+        t.info.value <- Some node;
+        k (Node node)
 
     and hash_preimage_value_of_elt :
         type r. cache:bool -> elt -> (hash_preimage_value, r) cont =
