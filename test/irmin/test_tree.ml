@@ -683,6 +683,18 @@ module Broken = struct
         Store.Tree.find broken_node path
         >|= Alcotest.(check ~pos:__POS__ (option reject)) "" None
       in
+
+      (* [list] on (or beneath) broken contents returns the empty list, but on
+         (or beneath) broken nodes an exception is raised. *)
+      let* () =
+        let&* path = [ path; beneath ] in
+        Tree.list broken_leaf path
+        >|= Alcotest.(check ~pos:__POS__ (list reject)) "" []
+      in
+      let* () =
+        let&* path = [ path; beneath ] in
+        check_exn_lwt ~exn_type __POS__ (fun () -> Tree.list broken_node path)
+      in
       Lwt.return_unit
     in
     let&* path = [ []; [ "k" ] ]

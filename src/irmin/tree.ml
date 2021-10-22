@@ -1408,10 +1408,7 @@ module Make (P : Backend.S) = struct
     [%log.debug "Tree.seq %a" pp_key path];
     sub ~cache "seq.sub" t path >>= function
     | None -> Lwt.return Seq.empty
-    | Some n -> (
-        Node.seq ?offset ?length ~cache n >|= function
-        | Error _ -> Seq.empty
-        | Ok l -> l)
+    | Some n -> Node.seq ?offset ?length ~cache n >|= get_ok "seq"
 
   let list t ?offset ?length ?(cache = true) path =
     seq t ?offset ?length ~cache path >|= List.of_seq

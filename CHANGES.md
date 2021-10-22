@@ -5,7 +5,7 @@
 - **irmin**
   - `Tree` operations now raise a `Dangling_hash` exception when called with a
     path that contains dangling hashes in the underlying store, rather than
-    interpreting such paths as ending with empty nodes (#1477, @CraigFe)
+    interpreting such paths as ending with empty nodes (#1477 #1559, @CraigFe)
   - Fix the pre-hashing function for big-endian architectures. (#1505,
     @Ngoguey42, @dinosaure)
   - Fix the implementation of comparison on `Irmin.Tree` objects to use the
