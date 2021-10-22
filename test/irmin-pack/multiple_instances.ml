@@ -43,7 +43,7 @@ let open_ro_after_rw_closed () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* t = S.master rw in
-  let* tree = S.Tree.add (S.Tree.empty ()) [ "a" ] "x" in
+  let tree = S.Tree.singleton [ "a" ] "x" in
   S.set_tree_exn ~parents:[] ~info t [] tree >>= fun () ->
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
   S.Repo.close rw >>= fun () ->
@@ -88,11 +88,11 @@ let ro_sync_after_add () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
-  let* tree = S.Tree.add (S.Tree.empty ()) [ "a" ] "x" in
+  let tree = S.Tree.singleton [ "a" ] "x" in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.sync ro;
   check ro c1 "a" "x" >>= fun () ->
-  let* tree = S.Tree.add (S.Tree.empty ()) [ "a" ] "y" in
+  let tree = S.Tree.singleton [ "a" ] "y" in
   let* c2 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   check ro c1 "a" "x" >>= fun () ->
   let* () =
@@ -109,7 +109,7 @@ let ro_sync_after_close () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
-  let* tree = binding (S.Tree.add (S.Tree.empty ()) ?metadata:None) in
+  let tree = binding (S.Tree.singleton ?metadata:None) in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.Repo.close rw >>= fun () ->
   S.sync ro;
@@ -131,7 +131,7 @@ let clear_all repo =
 let clear_rw_open_ro () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let* tree = S.Tree.add (S.Tree.empty ()) [ "a" ] "x" in
+  let tree = S.Tree.singleton [ "a" ] "x" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   clear_all rw >>= fun () ->
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
@@ -143,12 +143,12 @@ let clear_rw_find_ro () =
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
-  let* tree = S.Tree.add (S.Tree.empty ()) [ "a" ] "x" in
+  let tree = S.Tree.singleton [ "a" ] "x" in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.sync ro;
   check_binding ro c1 ~msg:"RO finds value" [ "a" ] "x" >>= fun () ->
   clear_all rw >>= fun () ->
-  let* tree = S.Tree.add (S.Tree.empty ()) [ "b" ] "y" in
+  let tree = S.Tree.singleton [ "b" ] "y" in
   let* c2 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   let* () =
     check_binding ro c1 ~msg:"RO finds value after clear but before sync"
@@ -172,7 +172,7 @@ let clear_rw_twice () =
   in
   let add () =
     check_empty () >>= fun () ->
-    let* tree = S.Tree.add (S.Tree.empty ()) [ "a" ] "x" in
+    let tree = S.Tree.singleton [ "a" ] "x" in
     S.set_tree_exn ~parents:[] ~info t [] tree
   in
   let add_after_clear () =
@@ -199,14 +199,14 @@ let dict_sync_after_clear_same_offset () =
         Alcotest.(check (option string)) "RO find" (Some value) x
   in
   let long_string = random_string 200 in
-  let* tree = S.Tree.add (S.Tree.empty ()) [ long_string ] "x" in
+  let tree = S.Tree.singleton [ long_string ] "x" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   let h = S.Commit.hash c in
   S.sync ro;
   find_key h long_string "x" >>= fun () ->
   clear_all rw >>= fun () ->
   let long_string = random_string 200 in
-  let* tree = S.Tree.add (S.Tree.empty ()) [ long_string ] "y" in
+  let tree = S.Tree.singleton [ long_string ] "y" in
   let* c = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   let h = S.Commit.hash c in
   S.sync ro;

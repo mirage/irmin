@@ -1054,9 +1054,8 @@ module Make (S : Generic_key) = struct
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
       let* v1 =
-        S.Tree.empty ()
-        |> with_binding [ "foo"; "bar"; "toto" ] foo2
-        >>= with_binding [ "foo"; "toto" ] foo1
+        S.Tree.singleton [ "foo"; "bar"; "toto" ] foo2
+        |> with_binding [ "foo"; "toto" ] foo1
       in
       S.Tree.clear v1;
       let* () =
@@ -1233,9 +1232,8 @@ module Make (S : Generic_key) = struct
         check_ls "5 paginated list" ls (l1 @ l2)
       in
       let* c0 =
-        S.Tree.empty ()
-        |> with_binding [ "foo"; "a" ] "1"
-        >>= with_binding [ "foo"; "b"; "c" ] "2"
+        S.Tree.singleton [ "foo"; "a" ] "1"
+        |> with_binding [ "foo"; "b"; "c" ] "2"
         >>= with_binding [ "foo"; "c" ] "3"
         >>= with_binding [ "foo"; "d" ] "4"
       in
@@ -1390,8 +1388,7 @@ module Make (S : Generic_key) = struct
         s;
       let* vx' = S.Tree.find_all tree px in
       check_val "updates" (normal vx) vx';
-      let v = S.Tree.empty () in
-      let* v = S.Tree.add v [] vx in
+      let v = S.Tree.singleton [] vx in
       let* () =
         S.set_tree_exn t ~info:(infof "update file as tree") [ "a" ] v
       in
