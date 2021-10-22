@@ -34,7 +34,8 @@ let tree_of_t t =
         let* v = Tree.add v [ si; "x" ] t2.x in
         let+ v = Tree.add v [ si; "y" ] (string_of_int t2.y) in
         (v, i + 1))
-      (Tree.empty, 0) t
+      (Tree.empty (), 0)
+      t
   in
   tree
 

@@ -127,7 +127,7 @@ struct
       let* rw = S.Repo.v conf_rw in
       [%log.app "Checking new commits can be added to the V2 store"];
       let* new_commit =
-        S.Tree.add S.Tree.empty [ "c" ] "x"
+        S.Tree.add (S.Tree.empty ()) [ "c" ] "x"
         >>= S.Commit.v rw ~parents:[] ~info:S.Info.empty
       in
       check_commit rw new_commit [ ([ "c" ], "x") ] >>= fun () ->
@@ -368,7 +368,7 @@ module Test_corrupted_stores = struct
     setup_test ();
     let module S = Make_layered in
     let add_commit repo k v =
-      S.Tree.add S.Tree.empty k v
+      S.Tree.add (S.Tree.empty ()) k v
       >>= S.Commit.v repo ~parents:[] ~info:S.Info.empty
     in
     let check_commit repo commit k v =

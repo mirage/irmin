@@ -75,7 +75,7 @@ module Bench_suite (Store : Store) = struct
   module Info = Info (Store.Info)
 
   let init_commit repo =
-    Store.Commit.v repo ~info:(Info.f ()) ~parents:[] Store.Tree.empty
+    Store.Commit.v repo ~info:(Info.f ()) ~parents:[] (Store.Tree.empty ())
 
   module Trees = Generate_trees (Store)
   module Trace_replay = Trace_replay.Make (Store)

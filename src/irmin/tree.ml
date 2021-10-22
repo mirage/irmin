@@ -821,9 +821,8 @@ module Make (P : Backend.S) = struct
             | Some x, Some y -> if equal_value x y then True else False
             | _ -> Maybe)
 
-    (* Use a stable represetation for empty trees. *)
-    let empty = of_map StepMap.empty
-    let empty_hash = hash ~cache:false empty
+    let empty () = of_map StepMap.empty
+    let empty_hash = hash ~cache:false (empty ())
 
     (** Does [um] empties [v]?
 
@@ -1416,7 +1415,7 @@ module Make (P : Backend.S) = struct
   let list t ?offset ?length ?(cache = true) path =
     seq t ?offset ?length ~cache path >|= List.of_seq
 
-  let empty = `Node Node.empty
+  let empty () = `Node (Node.empty ())
 
   (** During recursive updates, we keep track of whether or not we've made a
       modification in order to avoid unnecessary allocations of identical tree
@@ -1495,7 +1494,7 @@ module Make (P : Backend.S) = struct
               let to_recurse =
                 match old_binding with
                 | Some (`Node child) -> child
-                | None | Some (`Contents _) -> Node.empty
+                | None | Some (`Contents _) -> Node.empty ()
               in
               (aux [@tailcall]) key_suffix to_recurse (function
                 | Unchanged ->
@@ -1512,7 +1511,7 @@ module Make (P : Backend.S) = struct
                         Node.add parent_node step (`Node child) >>= changed))
         in
         let top_node =
-          match root_tree with `Node n -> n | `Contents _ -> Node.empty
+          match root_tree with `Node n -> n | `Contents _ -> Node.empty ()
         in
         aux path top_node @@ function
         | Unchanged -> Lwt.return root_tree
@@ -1899,11 +1898,11 @@ module Make (P : Backend.S) = struct
           Lwt.return [ (Path.empty, `Updated ((c1, m1), (c2, m2))) ]
     | `Node x, `Node y -> diff_node x y
     | `Contents (x, m), `Node y ->
-        let* diff = diff_node Node.empty y in
+        let* diff = diff_node (Node.empty ()) y in
         let+ x = Contents.to_value ~cache:true x >|= get_ok "diff" in
         (Path.empty, `Removed (x, m)) :: diff
     | `Node x, `Contents (y, m) ->
-        let* diff = diff_node x Node.empty in
+        let* diff = diff_node x (Node.empty ()) in
         let+ y = Contents.to_value ~cache:true y >|= get_ok "diff" in
         (Path.empty, `Added (y, m)) :: diff
 
@@ -1949,7 +1948,7 @@ module Make (P : Backend.S) = struct
                    map)
                 t k)
     in
-    (concrete [@tailcall]) c (function Empty -> empty | Non_empty x -> x)
+    (concrete [@tailcall]) c (function Empty -> empty () | Non_empty x -> x)
 
   let to_concrete t =
     let rec tree : type r. t -> (concrete, r) cont_lwt =

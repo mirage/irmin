@@ -96,7 +96,7 @@ let bindings steps =
   List.map (fun x -> ([ x ], zero)) steps
 
 let test_fold ~order bindings expected =
-  let tree = Tree.empty in
+  let tree = Tree.empty () in
   let* tree =
     Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
   in
