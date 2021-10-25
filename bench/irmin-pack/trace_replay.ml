@@ -374,6 +374,7 @@ module Make (Store : Store) = struct
         }
     in
     let stats = Stat_collector.create_file stat_path c config.store_dir in
+    Irmin_pack.Stats.reset_stats ();
     let+ summary_opt =
       Lwt.finalize
         (fun () ->
