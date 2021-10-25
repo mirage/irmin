@@ -918,8 +918,36 @@ struct
 
     let of_seq l =
       let t =
-        let aux acc (s, v) = add Total ~copy:false acc s v in
-        Seq.fold_left aux (empty Total) l
+        let rec aux_big seq inode =
+          match seq () with
+          | Seq.Nil -> inode
+          | Seq.Cons ((s, v), rest) ->
+              aux_big rest (add Total ~copy:false inode s v)
+        in
+        let len =
+          (* [StepMap.cardinal] is (a bit) expensive to compute, let's track the
+             size of the map in a [ref] while doing [StepMap.update]. *)
+          ref 0
+        in
+        let rec aux_small seq map =
+          match seq () with
+          | Seq.Nil ->
+              assert (!len <= Conf.entries);
+              values Total map
+          | Seq.Cons ((s, v), rest) ->
+              let map =
+                StepMap.update s
+                  (function
+                    | None ->
+                        incr len;
+                        Some v
+                    | Some _ -> Some v)
+                  map
+              in
+              if !len = Conf.entries then aux_big rest (values Total map)
+              else aux_small rest map
+        in
+        aux_small l StepMap.empty
       in
       stabilize Total t
 
