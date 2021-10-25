@@ -38,7 +38,7 @@ let info msg =
   let author = Printf.sprintf "TESTS" in
   Irmin.Info.v ~date ~author msg
 
-let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
+let infof fmt = Fmt.kstr (fun str () -> info str) fmt
 
 open Astring
 

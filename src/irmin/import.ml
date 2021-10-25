@@ -61,6 +61,15 @@ module List = struct
       | h :: t, l -> (aux [@tailcall]) (h :: acc) t l
     in
     aux [] [] l
+
+  let concat_map f l =
+    let rec aux f acc = function
+      | [] -> rev acc
+      | x :: l ->
+          let xs = f x in
+          aux f (rev_append xs acc) l
+    in
+    aux f [] l
 end
 
 module Seq = struct
@@ -74,18 +83,41 @@ module Seq = struct
     | Nil -> Nil
     | Cons (_, l') -> drop (n - 1) l' ()
 
-  let take : type a. int -> a t -> a list =
-    let rec aux acc n l =
-      if n = 0 then acc
-      else
-        match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-    in
-    fun n s -> List.rev (aux [] n s)
-
   let exists : type a. (a -> bool) -> a Seq.t -> bool =
    fun f s ->
     let rec aux s =
       match s () with Seq.Nil -> false | Seq.Cons (v, s) -> f v || aux s
     in
     aux s
+
+  let rec take : type a. int -> a t -> a t =
+   fun n l () ->
+    if n = 0 then Nil
+    else match l () with Nil -> Nil | Cons (x, l') -> Cons (x, take (n - 1) l')
+
+  let for_all : type a. (a -> bool) -> a Seq.t -> bool =
+   fun f s ->
+    let rec aux s =
+      match s () with Seq.Nil -> true | Seq.Cons (v, s) -> f v && aux s
+    in
+    aux s
+
+  (* For compatibility with versions older than ocaml.4.11.0 *)
+  let rec append seq1 seq2 () =
+    match seq1 () with
+    | Nil -> seq2 ()
+    | Cons (x, next) -> Cons (x, append next seq2)
 end
+
+let shuffle state arr =
+  let rec aux n =
+    if n > 1 then (
+      let k = Random.State.int state (n + 1) in
+      let temp = arr.(n) in
+      arr.(n) <- arr.(k);
+      arr.(k) <- temp;
+      aux (n - 1))
+  in
+  let len = Array.length arr in
+  aux (len - 1);
+  ()

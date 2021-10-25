@@ -23,20 +23,6 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let rec drop n (l : 'a Seq.t) () =
-  match l () with
-  | l' when n = 0 -> l'
-  | Nil -> Nil
-  | Cons (_, l') -> drop (n - 1) l' ()
-
-let take : type a. int -> a Seq.t -> a list =
-  let rec aux acc n (l : a Seq.t) =
-    if n = 0 then acc
-    else
-      match l () with Nil -> acc | Cons (x, l') -> aux (x :: acc) (n - 1) l'
-  in
-  fun n s -> List.rev (aux [] n s)
-
 module No_metadata = struct
   type t = unit [@@deriving irmin]
 
@@ -92,21 +78,23 @@ struct
   type value = [ `Contents of hash * metadata | `Node of hash ]
   type t = entry StepMap.t
 
-  let v l =
-    List.fold_left
+  let of_seq l =
+    Seq.fold_left
       (fun acc x -> StepMap.add (fst x) (to_entry x) acc)
       StepMap.empty l
 
-  let list ?(offset = 0) ?length (t : t) =
-    let take_length seq =
-      match length with None -> List.of_seq seq | Some n -> take n seq
-    in
-    StepMap.to_seq t
-    |> drop offset
-    |> Seq.map (fun (_, e) -> of_entry e)
-    |> take_length
+  let of_list l = of_seq (List.to_seq l)
 
-  let find t s =
+  let seq ?(offset = 0) ?length ?cache:_ (t : t) =
+    let take seq = match length with None -> seq | Some n -> Seq.take n seq in
+    StepMap.to_seq t
+    |> Seq.drop offset
+    |> take
+    |> Seq.map (fun (_, e) -> of_entry e)
+
+  let list ?offset ?length ?cache:_ t = List.of_seq (seq ?offset ?length t)
+
+  let find ?cache:_ t s =
     try
       let _, v = of_entry (StepMap.find s t) in
       Some v
@@ -115,6 +103,7 @@ struct
   let empty = StepMap.empty
   let is_empty e = StepMap.is_empty e
   let length e = StepMap.cardinal e
+  let clear _ = ()
 
   let add t k v =
     let e = to_entry (k, v) in
@@ -135,7 +124,7 @@ struct
     |~ case1 "contents-x" (pair K.t M.t) (fun (h, m) -> `Contents (h, m))
     |> sealv
 
-  let of_entries e = v (List.rev_map of_entry e)
+  let of_entries e = of_list (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
 end
@@ -212,7 +201,7 @@ struct
     let implode (contents, succ) =
       let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
       let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      S.Val.v (xs @ ys)
+      S.Val.of_list (xs @ ys)
     in
     let merge = Merge.pair (merge_contents_meta c) (merge_parents merge_key) in
     Merge.like S.Val.t merge explode implode
@@ -310,7 +299,7 @@ module Graph (S : STORE) = struct
     in
     Graph.iter ~pred:(pred t) ~min ~max ~node ?edge ~skip ~rev ()
 
-  let v t xs = S.add t (S.Val.v xs)
+  let v t xs = S.add t (S.Val.of_list xs)
 
   let find_step t node step =
     Log.debug (fun f -> f "contents %a" pp_key node);
@@ -390,16 +379,16 @@ module V1 (N : S with type step = string) = struct
 
     let encode_bin =
       let encode_bin = Type.(unstage (encode_bin h)) in
-      Type.stage @@ fun e k -> encode_bin (to_bin_string e) k
+      fun e k -> encode_bin (to_bin_string e) k
 
     let decode_bin =
       let decode_bin = Type.(unstage (decode_bin h)) in
-      Type.stage @@ fun buf off ->
-      let n, v = decode_bin buf off in
-      ( n,
-        match of_bin_string v with
-        | Ok v -> v
-        | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
+      fun buf off ->
+        let n, v = decode_bin buf off in
+        ( n,
+          match of_bin_string v with
+          | Ok v -> v
+          | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
 
     let t = Type.like N.hash_t ~bin:(encode_bin, decode_bin, size_of)
   end
@@ -413,21 +402,26 @@ module V1 (N : S with type step = string) = struct
   let import n = { n; entries = N.list n }
   let export t = t.n
 
-  let v entries =
-    let n = N.v entries in
+  let of_seq entries =
+    let n = N.of_seq entries in
+    let entries = List.of_seq entries in
     { n; entries }
 
-  let list ?(offset = 0) ?length t =
-    let take_length seq =
-      match length with None -> List.of_seq seq | Some n -> take n seq
-    in
-    List.to_seq t.entries |> drop offset |> take_length
+  let of_list entries =
+    let n = N.of_list entries in
+    { n; entries }
 
+  let seq ?(offset = 0) ?length ?cache:_ t =
+    let take seq = match length with None -> seq | Some n -> Seq.take n seq in
+    List.to_seq t.entries |> Seq.drop offset |> take
+
+  let list ?offset ?length ?cache t = List.of_seq (seq ?offset ?length ?cache t)
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []
   let length e = N.length e.n
+  let clear _ = ()
   let default = N.default
-  let find t k = N.find t.n k
+  let find ?cache t k = N.find ?cache t.n k
 
   let add t k v =
     let n = N.add t.n k v in
@@ -470,5 +464,5 @@ module V1 (N : S with type step = string) = struct
     |> sealr
 
   let t : t Type.t =
-    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) v list
+    Type.map Type.(list ~len:`Int64 (pair step_t value_t)) of_list list
 end

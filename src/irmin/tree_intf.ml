@@ -56,6 +56,19 @@ module type S = sig
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  [@@deriving irmin]
+
+  val pruned : kinded_hash -> t
+  (** [pruned h] is a purely in-memory tree with the hash [h]. Such trees can be
+      used as children of other in-memory tree nodes, for instance in order to
+      compute the hash of the parent, but they cannot be dereferenced.
+
+      Any operation that would require loading the contents of a pruned node
+      (e.g. calling {!find} on one of its children) will instead raise a
+      {!Pruned_hash} exception. Attempting to export a tree containing pruned
+      sub-trees to a repository will fail similarly. *)
+
   val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
@@ -75,14 +88,33 @@ module type S = sig
   (** Operations on lazy nodes can fail if the underlying store does not contain
       the expected hash. *)
 
+  exception Dangling_hash of { context : string; hash : hash }
+  (** The exception raised by functions that can force lazy tree nodes but do
+      not return an explicit {!or_error}. *)
+
+  exception Pruned_hash of { context : string; hash : hash }
+  (** The exception raised by functions that attempt to load {!pruned} tree
+      nodes. *)
+
   (** Operations on lazy tree contents. *)
   module Contents : sig
     type t
     (** The type of lazy tree contents. *)
 
-    val hash : t -> hash
+    val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
-        {!force}d successfully. *)
+        {!force}d successfully.
+
+        {2 caching}
+
+        [cache] regulates the caching behaviour regarding the node's internal
+        data which are be lazily loaded from the backend.
+
+        [cache] defaults to [true] which may greatly reduce the IOs and the
+        runtime but may also grealy increase the memory consumption.
+
+        [cache = false] doesn't replace a call to [clear], it only prevents the
+        storing of new data, it doesn't discard the existing one. *)
 
     val force : t -> contents or_error Lwt.t
     (** [force t] forces evaluation of the lazy content value [t], or returns an
@@ -112,11 +144,20 @@ module type S = sig
   val get_all : t -> key -> (contents * metadata) Lwt.t
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
-  val list : t -> ?offset:int -> ?length:int -> key -> (step * t) list Lwt.t
+  val list :
+    t ->
+    ?offset:int ->
+    ?length:int ->
+    ?cache:bool ->
+    key ->
+    (step * t) list Lwt.t
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
       The result order is not specified but is stable.
 
-      [offset] and [length] are used for pagination. *)
+      [offset] and [length] are used for pagination.
+
+      [cache] defaults to [true], see {!caching} for an explanation of the
+      parameter. *)
 
   val get : t -> key -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
@@ -182,11 +223,10 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t | `And_clear ]
+  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes and contents. [`False f] is applying [f] on
-      every lazy node and content value instead. [`And_clear] is like [`True]
-      but also eagerly empties the Tree caches when traversing sub-nodes. *)
+      every lazy node and content value instead. *)
 
   type uniq = [ `False | `True | `Marks of marks ]
   (** The type for {!fold}'s [uniq] parameters. [`False] folds over all the
@@ -208,13 +248,16 @@ module type S = sig
       [Le d] is [Eq d] and [Lt d]. [Ge d] is [Eq d] and [Gt d]. *)
 
   val fold :
+    ?order:[ `Sorted | `Undefined | `Random of Random.State.t ] ->
     ?force:'a force ->
+    ?cache:bool ->
     ?uniq:uniq ->
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
     ?depth:depth ->
     ?contents:(key -> contents -> 'a -> 'a Lwt.t) ->
     ?node:(key -> node -> 'a -> 'a Lwt.t) ->
+    ?tree:(key -> t -> 'a -> 'a Lwt.t) ->
     t ->
     'a ->
     'a Lwt.t
@@ -223,16 +266,24 @@ module type S = sig
       For every node [n], ui [n] is a leaf node, call [f path n]. Otherwise:
 
       - Call [pre path n]. By default [pre] is the identity;
-      - Recursively call [fold] on each children, in lexicographic order;
+      - Recursively call [fold] on each children.
       - Call [post path n]; By default [post] is the identity.
 
       See {!force} for details about the [force] parameters. By default it is
-      [`And_clear].
+      [`True].
 
       See {!uniq} for details about the [uniq] parameters. By default it is
       [`False].
 
-      The fold depth is controlled by the [depth] parameter. *)
+      The fold depth is controlled by the [depth] parameter.
+
+      [cache] defaults to [false], see {!caching} for an explanation of the
+      parameter.
+
+      If [order] is [`Sorted] (the default), the elements are traversed in
+      lexicographic order of their keys. If [`Random state], they are traversed
+      in a random order. For large nodes, these two modes are memory-consuming,
+      use [`Undefined] for a more memory efficient [fold]. *)
 
   (** {1 Stats} *)
 
@@ -262,8 +313,8 @@ module type S = sig
   val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent of the concrete tree [c].
 
-      @raise Invalid_argument if [c] contains duplicate bindings for a given
-      path. *)
+      @raise Invalid_argument
+        if [c] contains duplicate bindings for a given path. *)
 
   val to_concrete : t -> concrete Lwt.t
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
@@ -273,7 +324,10 @@ module type S = sig
   val clear : ?depth:int -> t -> unit
   (** [clear ?depth t] clears all caches in the tree [t] for subtrees with a
       depth higher than [depth]. If [depth] is not set, all of the subtrees are
-      cleared. *)
+      cleared.
+
+      A call to [clear] doesn't discard the subtrees of [t], only their cache
+      are discarded. Even the lazily loaded and unmodified subtrees remain. *)
 
   (** {1 Performance counters} *)
 
@@ -293,7 +347,7 @@ module type S = sig
   val counters : unit -> counters
   val dump_counters : unit Fmt.t
   val reset_counters : unit -> unit
-  val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value ] ]
+  val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value | `Pruned ] ]
 end
 
 module type Tree = sig
@@ -328,7 +382,7 @@ module type Tree = sig
     val equal : t -> t -> bool
     val node_t : node Type.t
     val tree_t : t Type.t
-    val hash : t -> kinded_hash
+    val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
   end

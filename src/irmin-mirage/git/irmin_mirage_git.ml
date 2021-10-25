@@ -6,7 +6,7 @@ module type S = sig
       with type Private.Sync.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   val remote :
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
+    ?ctx:Mimic.ctx -> ?headers:(string * string) list -> string -> Irmin.remote
 end
 
 module type S_MAKER = functor
@@ -41,7 +41,6 @@ module type REF_MAKER = functor (G : Irmin_git.G) (C : Irmin.Contents.S) ->
 
 let remote ?(ctx = Mimic.empty) ?headers uri =
   let ( ! ) f a b = f b a in
-  let headers = Option.map Cohttp.Header.to_list headers in
   match Smart_git.Endpoint.of_string uri with
   | Ok edn ->
       let edn =
@@ -85,7 +84,7 @@ module type KV_RO = sig
     ?branch:string ->
     ?root:key ->
     ?ctx:Mimic.ctx ->
-    ?headers:Cohttp.Header.t ->
+    ?headers:(string * string) list ->
     git ->
     string ->
     t Lwt.t
@@ -163,7 +162,7 @@ module KV_RO (G : Git.S) = struct
     | None -> "empty HEAD"
     | Some h ->
         let info = S.Commit.info h in
-        Fmt.strf "commit: %a\nAuthor: %s\nDate: %Ld\n\n%s\n" S.Commit.pp_hash h
+        Fmt.str "commit: %a\nAuthor: %s\nDate: %Ld\n\n%s\n" S.Commit.pp_hash h
           (Irmin.Info.author info) (Irmin.Info.date info)
           (Irmin.Info.message info)
 
@@ -211,7 +210,7 @@ module type KV_RW = sig
     ?branch:string ->
     ?root:key ->
     ?ctx:Mimic.ctx ->
-    ?headers:Cohttp.Header.t ->
+    ?headers:(string * string) list ->
     ?author:(unit -> string) ->
     ?msg:([ `Set of key | `Remove of key | `Batch ] -> string) ->
     git ->
@@ -248,8 +247,8 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let default_author () = "irmin <irmin@mirage.io>"
 
   let default_msg = function
-    | `Set k -> Fmt.strf "Updating %a" Mirage_kv.Key.pp k
-    | `Remove k -> Fmt.strf "Removing %a" Mirage_kv.Key.pp k
+    | `Set k -> Fmt.str "Updating %a" Mirage_kv.Key.pp k
+    | `Remove k -> Fmt.str "Removing %a" Mirage_kv.Key.pp k
     | `Batch -> "Commmiting batch operation"
 
   let connect ?depth ?branch ?root ?ctx ?headers ?(author = default_author)

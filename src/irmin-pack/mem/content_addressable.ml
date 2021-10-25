@@ -122,7 +122,7 @@ module Maker (K : Irmin.Hash.S) = struct
       find t k |> function
       | Ok r -> Lwt.return r
       | Error (k, k') ->
-          Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
+          Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
             pp_key k' pp_key k
 
     let unsafe_mem t k =

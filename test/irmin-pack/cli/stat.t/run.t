@@ -9,7 +9,7 @@ Running stat on a layered store after a first freeze
     "hash_size": {
       "Bytes": 64
     },
-    "log_size": 500000,
+    "log_size": 2500000,
     "files": {
       "flip": "Upper0",
       "lower": {

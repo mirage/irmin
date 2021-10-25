@@ -144,7 +144,7 @@ module Make (S : S) = struct
         check_val "find xx" None (P.Node.Val.find u "xx")
       in
       check_values u;
-      let w = P.Node.Val.v [ ("y", k); ("z", k); ("x", k) ] in
+      let w = P.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
       check P.Node.Val.t "v" u w;
       let l = P.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
@@ -256,7 +256,7 @@ module Make (S : S) = struct
   let test_commits x () =
     let test repo =
       let info date =
-        let msg = Fmt.strf "Test commit: %d" date in
+        let msg = Fmt.str "Test commit: %d" date in
         Irmin.Info.v ~date:(Int64.of_int date) ~author:"test" msg
       in
       let* kv1 = kv1 ~repo in
@@ -305,7 +305,7 @@ module Make (S : S) = struct
   let test_closure x () =
     let test repo =
       let info date =
-        let msg = Fmt.strf "Test commit: %d" date in
+        let msg = Fmt.str "Test commit: %d" date in
         Irmin.Info.v ~date:(Int64.of_int date) ~author:"test" msg
       in
       let check_keys = checks P.Commit.Key.t in
@@ -1002,7 +1002,8 @@ module Make (S : S) = struct
         | `Contents -> Fmt.string ppf "contents"
         | `Node `Hash -> Fmt.string ppf "hash"
         | `Node `Map -> Fmt.string ppf "map"
-        | `Node `Value -> Fmt.string ppf "value")
+        | `Node `Value -> Fmt.string ppf "value"
+        | `Node `Pruned -> Fmt.string ppf "pruned")
       ( = )
 
   let test_tree_caches x () =
@@ -1023,38 +1024,13 @@ module Make (S : S) = struct
       Alcotest.(check int) "val-list:1" 0 (S.Tree.counters ()).node_val_list;
       let _ = S.Tree.hash v in
       Alcotest.(check inspect) "inspect:2" (`Node `Value) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:2" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-v:2" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
       S.set_tree_exn t1 ~info [] v >>= fun () ->
       Alcotest.(check inspect) "inspect:3" (`Node `Hash) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:3" 0 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-v:3" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
-
-      (* Test caching (makesure that no tree is lying in scope) *)
-      let v0 = S.Tree.shallow repo (`Node (P.Contents.Key.hash "foo-x")) in
-      S.Tree.reset_counters ();
-      let foo = "foo-x" in
-      let* v0 = S.Tree.add v0 [ "foo" ] foo in
-      (* 2 calls to Node.find because v0 is a shallow tree *)
-      Alcotest.(check int) "1 Node.find" 2 (S.Tree.counters ()).node_find;
-
-      (* cache is filled whenever we hash something *)
-      let _ = S.Tree.hash v0 in
-      let* _v0 = S.Tree.add v0 [ "foo" ] foo in
-      let _k = S.Tree.hash v0 in
-      let v0 = S.Tree.shallow repo (`Node (P.Contents.Key.hash "bar-x")) in
-      let xxx = "xxx" in
-      let yyy = "yyy" in
-      let zzz = "zzz" in
-      let* v0 = S.Tree.add v0 [ "a" ] xxx in
-      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
-      let* v0 = S.get_tree t1 [] in
-      let* v0 = S.Tree.add v0 [ "b" ] xxx in
-      S.set_tree_exn ~info t1 [] v0 >>= fun () ->
-      let* v0 = S.Tree.add v0 [ "c"; "d" ] yyy in
-      let* v0 = S.Tree.add v0 [ "c"; "e"; "f" ] zzz in
-      Alcotest.(check inspect) "inspect" (`Node `Value) (S.Tree.inspect v0);
-      S.set_tree_exn ~info t1 [] v0 >>= fun () -> P.Repo.close repo
+      P.Repo.close repo
     in
     run x test
 
@@ -1088,7 +1064,7 @@ module Make (S : S) = struct
       in
       let fold depth ecs ens =
         let* cs, ns =
-          S.Tree.fold v1 ?depth ~force:`And_clear
+          S.Tree.fold v1 ?depth ~force:`True ~cache:false
             ~contents:(fun path _ (cs, ns) -> Lwt.return (path :: cs, ns))
             ~node:(fun path _ (cs, ns) -> Lwt.return (cs, path :: ns))
             ([], [])
@@ -1552,7 +1528,7 @@ module Make (S : S) = struct
     let buf = Buffer.create 1024 in
     let date d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Fmt.strf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      Fmt.str "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
     let oc =
@@ -1679,7 +1655,7 @@ module Make (S : S) = struct
       let read =
         read
           (fun _i -> S.Branch.find repo k >|= get)
-          (fun i -> check (S.commit_t repo) (Fmt.strf "tag %d" i) v)
+          (fun i -> check (S.commit_t repo) (Fmt.str "tag %d" i) v)
       in
       perform (write 1) >>= fun () ->
       perform (write 10 @ read 10 @ write 10 @ read 10)
@@ -1696,7 +1672,7 @@ module Make (S : S) = struct
       let read =
         read
           (fun _i -> P.Contents.find t k >|= get)
-          (fun i -> check S.contents_t (Fmt.strf "contents %d" i) v)
+          (fun i -> check S.contents_t (Fmt.str "contents %d" i) v)
       in
       perform (write 1) >>= fun () ->
       perform (write 10 @ read 10 @ write 10 @ read 10)
@@ -1717,13 +1693,13 @@ module Make (S : S) = struct
       let read t =
         read
           (fun _ -> S.get t k)
-          (fun i -> check S.contents_t (Fmt.strf "update: one %d" i) v)
+          (fun i -> check S.contents_t (Fmt.str "update: one %d" i) v)
       in
       perform (write t1 10 @ write t2 10) >>= fun () -> perform (read t1 10)
     in
     let test_multi repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
-      let v i = Fmt.strf "X%d" i in
+      let v i = Fmt.str "X%d" i in
       let* t1 = S.master repo in
       let* t2 = S.master repo in
       let write t =
@@ -1733,7 +1709,7 @@ module Make (S : S) = struct
       let read t =
         read
           (fun i -> S.get t (k i))
-          (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
+          (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
       perform (write t1 10 @ write t2 10) >>= fun () -> perform (read t1 10)
     in
@@ -1744,12 +1720,12 @@ module Make (S : S) = struct
   let test_concurrent_merges x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
-      let v i = Fmt.strf "X%d" i in
+      let v i = Fmt.str "X%d" i in
       let* t1 = S.master repo in
       let* t2 = S.master repo in
       let write t n =
         write (fun i ->
-            let tag = Fmt.strf "tmp-%d-%d" n i in
+            let tag = Fmt.str "tmp-%d-%d" n i in
             let* m = S.clone ~src:t ~dst:tag in
             S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
             Lwt_unix.yield () >>= fun () ->
@@ -1759,7 +1735,7 @@ module Make (S : S) = struct
       let read t =
         read
           (fun i -> S.get t (k i))
-          (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
+          (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
@@ -1884,7 +1860,7 @@ module Make (S : S) = struct
   let test_concurrent_head_updates x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
-      let v i = Fmt.strf "X%d" i in
+      let v i = Fmt.str "X%d" i in
       let* t1 = S.master repo in
       let* t2 = S.master repo in
       let retry d fn =
@@ -1903,7 +1879,7 @@ module Make (S : S) = struct
         write (fun i ->
             retry i (fun () ->
                 let* test = S.Head.find t in
-                let tag = Fmt.strf "tmp-%d-%d" n i in
+                let tag = Fmt.str "tmp-%d-%d" n i in
                 let* m = S.clone ~src:t ~dst:tag in
                 S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
                 let* set = S.Head.find m in
@@ -1912,7 +1888,7 @@ module Make (S : S) = struct
       let read t =
         read
           (fun i -> S.get t (k i))
-          (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
+          (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 5 @ write t2 2 5) >>= fun () ->
@@ -1927,7 +1903,7 @@ module Make (S : S) = struct
       let tree_1 = S.Tree.shallow repo (`Node foo_k) in
       let tree_2 = S.Tree.shallow repo (`Node bar_k) in
       let node_3 =
-        S.Private.Node.Val.v
+        S.Private.Node.Val.of_list
           [
             ("foo", `Contents (foo_k, S.Metadata.default)); ("bar", `Node bar_k);
           ]

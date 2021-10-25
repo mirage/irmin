@@ -95,7 +95,7 @@ module Contents = struct
     let content_types = !all |> List.map (fun (name, _) -> (name, name)) in
     let kind =
       let doc =
-        Fmt.strf "The type of user-defined contents (%s). Default is `%s'."
+        Fmt.str "The type of user-defined contents (%s). Default is `%s'."
           (Arg.doc_alts_enum content_types)
           (fst !default)
       in
@@ -173,8 +173,7 @@ module Hash = struct
     | Some (hashname, size) -> (
         match int_of_string_opt size with
         | Some size -> Ok (hashname, Some size)
-        | None -> Error (`Msg (Fmt.strf "Non-numeric hash size %s passed" size))
-        )
+        | None -> Error (`Msg (Fmt.str "Non-numeric hash size %s passed" size)))
     | None -> Ok (hashname, None))
     >>= fun (hashname, size_opt) ->
     match (find_hashfn hashname, size_opt) with
@@ -183,8 +182,7 @@ module Hash = struct
     | Fixed _, Some size ->
         Error
           (`Msg
-            (Fmt.strf
-               "Cannot specify a size for hash function `%s' (%d passed)."
+            (Fmt.str "Cannot specify a size for hash function `%s' (%d passed)."
                hashname size))
 
   let find h =
@@ -194,7 +192,7 @@ module Hash = struct
 
   let term =
     let kind =
-      let quote s = Fmt.strf "`%s'" s in
+      let quote s = Fmt.str "`%s'" s in
       let hash_types = !all |> List.map (fun (name, _) -> (name, name)) in
       let variable_size_types =
         !all
@@ -209,7 +207,7 @@ module Hash = struct
           | [ h ] -> quote h
           | hs ->
               let rev_hs = List.rev hs in
-              Fmt.strf "%s and %s"
+              Fmt.str "%s and %s"
                 (String.concat ~sep:", " (List.rev_map quote (List.tl rev_hs)))
                 (quote (List.hd rev_hs)))
       in
@@ -226,7 +224,7 @@ module Hash = struct
               pp_plural hs pp_prose_list hs (List.hd hs)
       in
       let doc =
-        Fmt.strf "The hash function (%s). Default is `%s'.%a"
+        Fmt.str "The hash function (%s). Default is `%s'.%a"
           (Arg.doc_alts_enum hash_types)
           (fst !default) pp_variable_size_doc variable_size_types
       in
@@ -316,7 +314,7 @@ module Store = struct
     let store =
       let store_types = !all |> List.map (fun (name, _) -> (name, name)) in
       let doc =
-        Fmt.strf "The storage backend (%s). Default is `%s'."
+        Fmt.str "The storage backend (%s). Default is `%s'."
           (Arg.doc_alts_enum store_types)
           (fst !default)
       in

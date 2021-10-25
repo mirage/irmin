@@ -24,8 +24,7 @@ let provision repo =
   in
   let* v =
     Store.Tree.add v [ "bin"; "sh" ]
-      "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT \
-       [...]"
+      "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   in
   Store.set_tree_exn t ~info:(provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
@@ -58,9 +57,7 @@ let attack repo =
   Lwt_unix.sleep 2. >>= fun () ->
   Store.set_exn t
     ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
-    [ "bin"; "sh" ]
-    "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT \
-     [...]"
+    [ "bin"; "sh" ] "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 
 let revert repo =
   let* prod = Store.of_branch repo "prod" in

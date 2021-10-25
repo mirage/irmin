@@ -1,3 +1,50 @@
+## 2.8.0 (2021-10-15)
+
+### Fixed
+
+- **irmin**
+  - `Tree` operations now raise a `Dangling_hash` exception when called with a
+    path that contains dangling hashes in the underlying store, rather than
+    interpreting such paths as ending with empty nodes (#1477, @CraigFe)
+  - Fix the pre-hashing function for big-endian architectures. (#1505,
+    @Ngoguey42, @dinosaure)
+  - Fix a bug in `Tree.export` where nodes could be exported before
+    some of their contents, resulting in indirect hashes in irmin-pack
+    (#1508, @Ngoguey42)
+
+### Added
+
+- **irmin**
+  - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
+    lists when it is not necessary (#1508, @samoht)
+  - New optional `cache` parameter to `Tree.hash`, `Tree.Contents.hash`,
+    `Tree.list`, `Node.list`, `Node.seq` and `Node.find` to control the storing
+    of lazily loaded data (#1526, @Ngoguey42)
+  - Add `Node.clear` to clear internal caches (#1526, @Ngoguey42)
+  - Added a `tree` argument to `Tree.fold` to manipulate the subtrees (#1527,
+    @icristescu, @Ngoguey42)
+  - Add a function `Store.Tree.pruned` for building purely in-memory tree
+    objects with known hashes. (#1537, @CraigFe)
+  - Added a `order` argument to specify the order of traversal in `Tree.fold`
+    (#1548, @icristescu, @CraigFe)
+
+### Changed
+
+- **irmin**
+  - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
+  - Rewrite `Tree.export` in order to minimise the memory footprint.
+    (#1508, @Ngoguey42)
+  - Remove the ``~force:`And_clear`` case parameter from `Tree.fold`,
+    ``~force:`True ~cache:false`` is the new equivalent. (#1526, @Ngoguey42)
+  - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
+    cache the lazily loaded data any more. Pass `~cache:true` to enable it
+    again. (#1526, @Ngoguey42)
+  - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
+
+- **irmin-git**
+  - Upgrade `irmin-git` to `git.3.5.0`. (#1495, @dinosaure)
+
+
 ## 2.7.2 (2021-07-20)
 
 ### Added

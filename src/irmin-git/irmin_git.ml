@@ -101,7 +101,7 @@ struct
 
   let handle_git_err = function
     | Ok x -> Lwt.return x
-    | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
 
   module type V = sig
     type t
@@ -125,14 +125,14 @@ struct
       | true -> (
           G.read t key >>= function
           | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_false
-          | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+          | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
           | Ok v -> Lwt.return (V.type_eq (G.Value.kind v)))
 
     let find t key =
       Log.debug (fun l -> l "find %a" pp_key key);
       G.read t key >>= function
       | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
-      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
       | Ok v -> Lwt.return (V.of_git v)
 
     let add t v =
@@ -183,10 +183,9 @@ struct
       include C
 
       let to_bin t = Raw.to_raw (GitContents.to_git t)
-      let encode_bin = Irmin.Type.stage (fun (t : t) k -> k (to_bin t))
+      let encode_bin (t : t) k = k (to_bin t)
 
-      let decode_bin =
-        Irmin.Type.stage @@ fun buf off ->
+      let decode_bin buf off =
         Log.debug (fun l -> l "Content.decode_bin");
         match Raw.of_raw_with_header ~off buf with
         | Ok g -> (
@@ -229,7 +228,7 @@ struct
 
       exception Exit of (step * value) list
 
-      let list ?(offset = 0) ?length t =
+      let list ?(offset = 0) ?length ?cache:_ t =
         let t = G.Value.Tree.to_list t in
         let length = match length with None -> List.length t | Some n -> n in
         try
@@ -247,7 +246,7 @@ struct
           |> fun (_, acc) -> List.rev acc
         with Exit acc -> List.rev acc
 
-      let find t s =
+      let find ?cache:_ t s =
         let s = of_step s in
         let rec aux = function
           | [] -> None
@@ -326,17 +325,19 @@ struct
 
       module N = Irmin.Private.Node.Make (H) (P) (Metadata)
 
-      let to_n t = N.v (alist t)
+      let to_n t = N.of_list (alist t)
       let of_n n = v (N.list n)
       let to_bin t = Raw.to_raw (G.Value.tree t)
+      let of_list = v
+      let of_seq seq = List.of_seq seq |> v
+      let seq ?offset ?length ?cache:_ t = list ?offset ?length t |> List.to_seq
+      let clear _ = ()
 
-      let encode_bin =
-        Irmin.Type.stage @@ fun (t : t) k ->
+      let encode_bin (t : t) k =
         Log.debug (fun l -> l "Tree.encode_bin");
         k (to_bin t)
 
-      let decode_bin =
-        Irmin.Type.stage @@ fun buf off ->
+      let decode_bin buf off =
         Log.debug (fun l -> l "Tree.decode_bin");
         match Raw.of_raw_with_header buf ~off with
         | Ok (Git.Value.Tree t) -> (String.length buf, t)
@@ -429,13 +430,11 @@ struct
 
       let to_bin t = Raw.to_raw (G.Value.commit t)
 
-      let encode_bin =
-        Irmin.Type.stage @@ fun (t : t) k ->
+      let encode_bin (t : t) k =
         Log.debug (fun l -> l "Commit.encode_bin");
         k (to_bin t)
 
-      let decode_bin =
-        Irmin.Type.stage @@ fun buf off ->
+      let decode_bin buf off =
         Log.debug (fun l -> l "Commit.decode_bin");
         match Raw.of_raw_with_header ~off buf with
         | Ok (Git.Value.Commit t) -> (String.length buf, t)
@@ -480,7 +479,7 @@ module Branch (B : Irmin.Branch.S) : BRANCH with type t = B.t = struct
     match String.cuts ~sep:"/" str with
     | "refs" :: "heads" :: b ->
         Irmin.Type.of_string B.t (String.concat ~sep:"/" b)
-    | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
+    | _ -> Error (`Msg (Fmt.str "%s is not a valid branch" str))
 end
 
 module type ATOMIC_WRITE_STORE = functor (G : Git.S) (B : BRANCH) -> sig
@@ -511,7 +510,7 @@ functor
 
     let handle_git_err = function
       | Ok x -> Lwt.return x
-      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
 
     type t = {
       bare : bool;
@@ -543,7 +542,7 @@ functor
       Log.debug (fun l -> l "find %a" pp_key r);
       G.Ref.resolve t (git_of_branch r) >>= function
       | Error (`Reference_not_found _) -> Lwt.return_none
-      | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
       | Ok k -> Lwt.return_some k
 
     let listen_dir t =
@@ -598,7 +597,7 @@ functor
             G.Ref.read t Git.Reference.head >>= function
             | Error (`Reference_not_found _ | `Not_found _) ->
                 write_head (git_of_branch B.master)
-            | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+            | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
             | Ok r -> Lwt.return r)
       in
       let w =
@@ -666,7 +665,7 @@ functor
             G.Ref.read t.t gr >>= function
             | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
             | Ok x -> Lwt.return_some x
-            | Error e -> Fmt.kstrf Lwt.fail_with "%a" G.pp_error e
+            | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
           in
           let* b =
             if not (eq_head_contents_opt x (c test)) then Lwt.return_false
@@ -733,7 +732,7 @@ struct
   let ( >>? ) x f =
     x >>= function Ok x -> f x | Error err -> Lwt.return (Error err)
 
-  let msgf fmt = Fmt.kstrf (fun err -> `Msg err) fmt
+  let msgf fmt = Fmt.kstr (fun err -> `Msg err) fmt
   let reword_error f = function Ok _ as v -> v | Error err -> Error (f err)
 
   let fetch t ?depth (ctx, e) br =
@@ -759,7 +758,7 @@ struct
     | Error (`Msg err) -> Lwt.return (Error (`Msg err))
     | Error (`Exn err) -> Lwt.return (Error (`Msg (Printexc.to_string err)))
     | Error err ->
-        Fmt.kstrf (fun e -> Lwt.return (Error (`Msg e))) "%a" S.pp_error err
+        Fmt.kstr (fun e -> Lwt.return (Error (`Msg e))) "%a" S.pp_error err
     | Ok None -> Lwt.return (Ok None)
     | Ok (Some (_, [ (reference, hash) ])) ->
         let value = Git.Reference.uid hash in
@@ -789,7 +788,7 @@ struct
     | Error (`Msg err) -> Error (`Msg err)
     | Error (`Exn exn) -> Error (`Msg (Printexc.to_string exn))
     | Error `Not_found -> Error (`Msg "not found")
-    | Error err -> Error (`Msg (Fmt.strf "%a" S.pp_error err))
+    | Error err -> Error (`Msg (Fmt.str "%a" S.pp_error err))
     | Ok () -> Ok ()
 end
 
@@ -817,7 +816,7 @@ module Reference : BRANCH with type t = reference = struct
     | "refs" :: "remotes" :: r -> Ok (`Remote (path r))
     | "refs" :: "tags" :: t -> Ok (`Tag (path t))
     | "refs" :: o -> Ok (`Other (path o))
-    | _ -> Error (`Msg (Fmt.strf "%s is not a valid reference" str))
+    | _ -> Error (`Msg (Fmt.str "%s is not a valid reference" str))
 
   let t = Irmin.Type.like t ~pp:pp_ref ~of_string:of_ref
   let master = `Branch Irmin.Branch.String.master

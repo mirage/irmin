@@ -37,12 +37,35 @@ module type S = sig
   (** The type for either (node) keys or (contents) keys combined with their
       metadata. *)
 
-  val v : (step * value) list -> t
-  (** [create l] is a new node. *)
+  val of_list : (step * value) list -> t
+  (** [of_list l] is the node [n] such that [list n = l]. *)
 
-  val list : ?offset:int -> ?length:int -> t -> (step * value) list
+  val list :
+    ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
-      paginate results.*)
+      paginate results.
+
+      {2 caching}
+
+      [cache] regulates the caching behaviour regarding the node's internal data
+      which may be lazily loaded from the backend, depending on the node
+      implementation.
+
+      [cache] defaults to [true] which may greatly reduce the IOs and the
+      runtime but may also increase the memory consumption.
+
+      [cache = false] doesn't replace a call to [clear], it only prevents the
+      storing of new data, it doesn't discard the existing one. *)
+
+  val of_seq : (step * value) Seq.t -> t
+  (** [of_seq s] is the node [n] such that [seq n = s]. *)
+
+  val seq :
+    ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) Seq.t
+  (** [seq t] is the contents of [t]. [offset] and [length] are used to paginate
+      results.
+
+      See {!caching} for an explanation of the [cache] parameter *)
 
   val empty : t
   (** [empty] is the empty node. *)
@@ -53,11 +76,16 @@ module type S = sig
   val length : t -> int
   (** [length t] is the number of entries in [t]. *)
 
-  val find : t -> step -> value option
+  val clear : t -> unit
+  (** Cleanup internal caches. *)
+
+  val find : ?cache:bool -> t -> step -> value option
   (** [find t s] is the value associated with [s] in [t].
 
       A node can point to user-defined {{!Node.S.contents} contents}. The edge
-      between the node and the contents is labeled by a {{!Node.S.step} step}. *)
+      between the node and the contents is labeled by a {{!Node.S.step} step}.
+
+      See {!caching} for an explanation of the [cache] parameter *)
 
   val add : t -> step -> value -> t
   (** [add t s v] is the node where [find t v] is [Some s] but is similar to [t]

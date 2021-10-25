@@ -286,7 +286,7 @@ module Sync (S : S) : SYNC with type db = S.t and type commit = S.commit
       open Astring
 
       let time = ref 0L
-      let failure fmt = Fmt.kstrf failwith fmt
+      let failure fmt = Fmt.kstr failwith fmt
 
       (* A log entry *)
       module Entry : sig

@@ -148,12 +148,12 @@ let init =
        Term.(mk init $ store $ daemon $ uri));
   }
 
-let print fmt = Fmt.kstrf print_endline fmt
+let print fmt = Fmt.kstr print_endline fmt
 
 let get name f x =
   match Irmin.Type.of_string f x with
   | Ok x -> x
-  | Error (`Msg e) -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
+  | Error (`Msg e) -> Fmt.kstr invalid_arg "invalid %s: %s" name e
 
 let key f x = get "key" f x
 let value f x = get "value" f x

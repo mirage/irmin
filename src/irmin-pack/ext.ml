@@ -214,9 +214,9 @@ struct
     Utils.Progress.finalise bar;
     let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
     if !errors = [] then
-      Fmt.kstrf (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
+      Fmt.kstr (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
     else
-      Fmt.kstrf
+      Fmt.kstr
         (fun x -> Error (`Msg x))
         "Inconsistent inodes found for heads %a: %a" pp_commits heads
         Fmt.(list ~sep:comma string)

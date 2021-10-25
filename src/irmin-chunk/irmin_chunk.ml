@@ -229,7 +229,7 @@ struct
     let k' = K.hash (pre_hash v) in
     if equal_hash k k' then Lwt.return_unit
     else
-      Fmt.kstrf Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
+      Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
 
   let find t key =
