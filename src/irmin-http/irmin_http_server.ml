@@ -45,7 +45,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     include Webmachine.Make (HTTP.IO) (Clock)
   end
 
-  module P = S.Backend
+  module B = S.Backend
 
   class virtual resource =
     object
@@ -83,7 +83,7 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   module Content_addressable (S : sig
     include Irmin.Content_addressable.S
 
-    val batch : P.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
+    val batch : B.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
   end)
   (K : Irmin.Type.S with type t = S.key)
   (V : Irmin.Type.S with type t = S.value) =
@@ -344,46 +344,46 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   module Blob =
     Content_addressable
       (struct
-        include P.Contents
+        include B.Contents
 
         let unsafe_add t k v = unsafe_add t k v >|= fun _ -> ()
-        let batch t f = P.Repo.batch t @@ fun x _ _ -> f x
+        let batch t f = B.Repo.batch t @@ fun x _ _ -> f x
       end)
-      (P.Contents.Key)
-      (P.Contents.Val)
+      (B.Contents.Key)
+      (B.Contents.Val)
 
   module Tree =
     Content_addressable
       (struct
-        include P.Node
+        include B.Node
 
         let unsafe_add t k v = unsafe_add t k v >|= fun _ -> ()
-        let batch t f = P.Repo.batch t @@ fun _ x _ -> f x
+        let batch t f = B.Repo.batch t @@ fun _ x _ -> f x
       end)
-      (P.Node.Key)
-      (P.Node.Val)
+      (B.Node.Key)
+      (B.Node.Val)
 
   module Commit =
     Content_addressable
       (struct
-        include P.Commit
+        include B.Commit
 
         let unsafe_add t k v = unsafe_add t k v >|= fun _ -> ()
-        let batch t f = P.Repo.batch t @@ fun _ _ x -> f x
+        let batch t f = B.Repo.batch t @@ fun _ _ x -> f x
       end)
-      (P.Commit.Key)
-      (P.Commit.Val)
+      (B.Commit.Key)
+      (B.Commit.Val)
 
-  module Branch = Atomic_write (P.Branch) (P.Branch.Key) (P.Branch.Val)
+  module Branch = Atomic_write (B.Branch) (B.Branch.Key) (B.Branch.Val)
 
   type repo = S.Repo.t
   type t = HTTP.t
 
   let v ?strict:_ db =
-    let blob = P.Repo.contents_t db in
-    let tree = P.Repo.node_t db in
-    let commit = P.Repo.commit_t db in
-    let branch = P.Repo.branch_t db in
+    let blob = B.Repo.contents_t db in
+    let tree = B.Repo.node_t db in
+    let commit = B.Repo.commit_t db in
+    let branch = B.Repo.branch_t db in
     let routes =
       [
         ("/blobs", fun () -> new Blob.items db);

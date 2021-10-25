@@ -119,7 +119,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       S.unwatch v >>= fun () ->
       S.unwatch w >>= fun () ->
       Alcotest.(check unit) "ok!" () ();
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -362,7 +362,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       update true (0, 0, 0) 10 ~first:true >>= fun () ->
       S.unwatch u >>= fun () ->
       update false (0, 10, 0) 10 >>= fun () ->
-      P.Repo.close repo >>= fun () -> P.Repo.close repo1
+      B.Repo.close repo >>= fun () -> B.Repo.close repo1
     in
     run x test
 

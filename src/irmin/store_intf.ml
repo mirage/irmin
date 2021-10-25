@@ -1048,15 +1048,15 @@ module type Sigs = sig
   type Remote.t +=
     | Store : (module Generic_key.S with type t = 'a) * 'a -> Remote.t
 
-  module Make (P : Backend.S) :
+  module Make (B : Backend.S) :
     Generic_key.S
-      with module Schema = P.Schema
-       and type slice = P.Slice.t
-       and type repo = P.Repo.t
-       and type contents_key = P.Contents.key
-       and type node_key = P.Node.key
-       and type commit_key = P.Commit.key
-       and module Backend = P
+      with module Schema = B.Schema
+       and type slice = B.Slice.t
+       and type repo = B.Repo.t
+       and type contents_key = B.Contents.key
+       and type node_key = B.Node.key
+       and type commit_key = B.Commit.key
+       and module Backend = B
 
   module Json_tree : Json_tree
   (** [Json_tree] is used to project JSON values onto trees. Instead of the

@@ -364,37 +364,37 @@ module type Sigs = sig
     (** @inline *)
   end
 
-  module Make (P : Backend.S) : sig
+  module Make (B : Backend.S) : sig
     include
       S
-        with type key = P.Node.Path.t
-         and type step = P.Node.Path.step
-         and type metadata = P.Node.Metadata.t
-         and type contents = P.Contents.value
-         and type contents_key = P.Contents.Key.t
-         and type hash = P.Hash.t
+        with type key = B.Node.Path.t
+         and type step = B.Node.Path.step
+         and type metadata = B.Node.Metadata.t
+         and type contents = B.Contents.value
+         and type contents_key = B.Contents.Key.t
+         and type hash = B.Hash.t
 
     type kinded_key =
-      [ `Contents of P.Contents.Key.t * metadata | `Node of P.Node.Key.t ]
+      [ `Contents of B.Contents.Key.t * metadata | `Node of B.Node.Key.t ]
     [@@deriving irmin]
 
-    val import : P.Repo.t -> kinded_key -> t option Lwt.t
-    val import_no_check : P.Repo.t -> kinded_key -> t
+    val import : B.Repo.t -> kinded_key -> t option Lwt.t
+    val import_no_check : B.Repo.t -> kinded_key -> t
 
     val export :
       ?clear:bool ->
-      P.Repo.t ->
-      [> write ] P.Contents.t ->
-      [> read_write ] P.Node.t ->
+      B.Repo.t ->
+      [> write ] B.Contents.t ->
+      [> read_write ] B.Node.t ->
       node ->
-      P.Node.key Lwt.t
+      B.Node.key Lwt.t
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
     val key : t -> kinded_key option
     val hash : ?cache:bool -> t -> kinded_hash
-    val to_backend_node : node -> P.Node.Val.t Lwt.t
-    val to_backend_portable_node : node -> P.Node_portable.t Lwt.t
-    val of_backend_node : P.Repo.t -> P.Node.value -> node
+    val to_backend_node : node -> B.Node.Val.t Lwt.t
+    val to_backend_portable_node : node -> B.Node_portable.t Lwt.t
+    val of_backend_node : B.Repo.t -> B.Node.value -> node
   end
 end

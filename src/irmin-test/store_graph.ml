@@ -37,7 +37,7 @@ module Make (S : Generic_key) = struct
       in
       let node k =
         if mem (`Node k) !visited then
-          Alcotest.failf "node %a visited twice" (Irmin.Type.pp P.Node.Key.t) k;
+          Alcotest.failf "node %a visited twice" (Irmin.Type.pp B.Node.Key.t) k;
         visited := `Node k :: !visited;
         Lwt.return_unit
       in
@@ -45,7 +45,7 @@ module Make (S : Generic_key) = struct
         let e = `Contents (k, S.Metadata.default) in
         if mem e !visited then
           Alcotest.failf "contents %a visited twice"
-            (Irmin.Type.pp P.Contents.Key.t)
+            (Irmin.Type.pp B.Contents.Key.t)
             k;
         (match order with None -> () | Some f -> f e);
         visited := e :: !visited;
@@ -111,7 +111,7 @@ module Make (S : Generic_key) = struct
           nodes
       in
       let test1 () =
-        let* foo = with_contents repo (fun c -> P.Contents.add c "foo") in
+        let* foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
         let* k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
         let* k2 = with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) in
@@ -137,7 +137,7 @@ module Make (S : Generic_key) = struct
       let test2 () =
         (* Graph.iter requires a node as max, we cannot test a graph with only
            contents. *)
-        let* foo = with_contents repo (fun c -> P.Contents.add c "foo") in
+        let* foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
         let* k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
         visited := [];
@@ -149,7 +149,7 @@ module Make (S : Generic_key) = struct
           ~not_visited:[ `Contents foo_k ]
       in
       let test3 () =
-        let* foo = with_contents repo (fun c -> P.Contents.add c "foo") in
+        let* foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
         let* kb1 = with_node repo (fun g -> Graph.v g [ ("b1", normal foo) ]) in
         let* ka1 = with_node repo (fun g -> Graph.v g [ ("a1", `Node kb1) ]) in
@@ -199,7 +199,7 @@ module Make (S : Generic_key) = struct
       in
       test1 () >>= fun () ->
       test2 () >>= fun () ->
-      test3 () >>= fun () -> P.Repo.close repo
+      test3 () >>= fun () -> B.Repo.close repo
     in
     run x test
 
