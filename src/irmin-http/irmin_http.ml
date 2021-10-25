@@ -244,13 +244,13 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
   let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
 end
 
-module CA (Client : Cohttp_lwt.S.Client) (K : Irmin.Hash.S) (V : Irmin.Type.S) =
+module CA (Client : Cohttp_lwt.S.Client) (H : Irmin.Hash.S) (V : Irmin.Type.S) =
 struct
-  include RO (Client) (K) (V)
+  include RO (Client) (H) (V)
 
   let add t value =
     let body = Irmin.Type.to_string V.t value in
-    HTTP.call `POST t.uri t.ctx [ t.items ] ~body (Irmin.Type.of_string K.t)
+    HTTP.call `POST t.uri t.ctx [ t.items ] ~body (Irmin.Type.of_string H.t)
 
   let unsafe_add t key value =
     let body = Irmin.Type.to_string V.t value in

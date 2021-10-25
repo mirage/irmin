@@ -17,12 +17,12 @@
 
 open! Import
 
-module Log_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
-  type t = { time : T.t; msg : V.t; prev : K.t option } [@@deriving irmin]
+module Log_item (T : Time.S) (H : Irmin.Hash.S) (V : Irmin.Type.S) = struct
+  type t = { time : T.t; msg : V.t; prev : H.t option } [@@deriving irmin]
 end
 
-module Store_item (T : Time.S) (K : Irmin.Hash.S) (V : Irmin.Type.S) = struct
-  module L = Log_item (T) (K) (V)
+module Store_item (T : Time.S) (H : Irmin.Hash.S) (V : Irmin.Type.S) = struct
+  module L = Log_item (T) (H) (V)
 
   type t = Value of L.t | Merge of L.t list [@@deriving irmin]
 end
@@ -30,16 +30,16 @@ end
 module Linked_log
     (C : Stores.Content_addressable)
     (T : Time.S)
-    (K : Irmin.Hash.S)
+    (H : Irmin.Hash.S)
     (V : Irmin.Type.S) =
 struct
-  type t = K.t [@@deriving irmin]
+  type t = H.t [@@deriving irmin]
 
-  module L = Log_item (T) (K) (V)
-  module S = Store_item (T) (K) (V)
+  module L = Log_item (T) (H) (V)
+  module S = Store_item (T) (H) (V)
 
   module Store = struct
-    module CAS = C.Make (K) (Store_item (T) (K) (V))
+    module CAS = C.Make (H) (Store_item (T) (H) (V))
 
     let get_store =
       let st = CAS.v @@ C.config in
@@ -96,17 +96,17 @@ module Make
     (Backend : Irmin.KV_maker)
     (C : Stores.Content_addressable)
     (T : Time.S)
-    (K : Irmin.Hash.S)
+    (H : Irmin.Hash.S)
     (V : Irmin.Type.S)
     () =
 struct
-  module L = Linked_log (C) (T) (K) (V)
+  module L = Linked_log (C) (T) (H) (V)
   module Store = Backend.Make (L)
 
   module Set_elt = struct
-    type t = K.t
+    type t = H.t
 
-    let compare = Irmin.Type.(unstage (compare K.t))
+    let compare = Irmin.Type.(unstage (compare H.t))
   end
 
   module HashSet = Set.Make (Set_elt)
@@ -115,7 +115,7 @@ struct
 
   type cursor = {
     seen : HashSet.t;
-    cache : Log_item(T)(K)(V).t list;
+    cache : Log_item(T)(H)(V).t list;
     store : Store.t;
   }
 

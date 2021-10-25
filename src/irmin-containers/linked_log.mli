@@ -46,7 +46,7 @@ module Make
     (Backend : Irmin.KV_maker)
     (C : Stores.Content_addressable)
     (T : Time.S)
-    (K : Irmin.Hash.S)
+    (H : Irmin.Hash.S)
     (V : Irmin.Type.S)
     () : S with type value = V.t
 

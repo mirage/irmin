@@ -379,7 +379,7 @@ module type Sigs = sig
   module Store
       (C : Contents.Store)
       (S : Content_addressable.S with type key = C.key)
-      (K : Hash.S with type t = S.key)
+      (H : Hash.S with type t = S.key)
       (V : S with type t = S.value and type hash = S.key)
       (M : Metadata.S with type t = V.metadata)
       (P : Path.S with type step = V.step) :
@@ -387,7 +387,7 @@ module type Sigs = sig
       with type 'a t = 'a C.t * 'a S.t
        and type key = S.key
        and type value = S.value
-       and type hash = K.t
+       and type hash = H.t
        and module Path = P
        and module Metadata = M
        and module Val = V

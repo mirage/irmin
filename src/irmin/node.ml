@@ -353,13 +353,13 @@ end
 module Store
     (C : Contents.Store)
     (S : Content_addressable.S with type key = C.key)
-    (K : Hash.S with type t = S.key)
+    (H : Hash.S with type t = S.key)
     (V : S with type t = S.value and type hash = S.key)
     (M : Metadata.S with type t = V.metadata)
     (P : Path.S with type step = V.step) =
 struct
-  module S = Indexable.Of_content_addressable (K) (S)
-  include Store_generic_key (C) (S) (K) (V) (M) (P)
+  module S = Indexable.Of_content_addressable (H) (S)
+  include Store_generic_key (C) (S) (H) (V) (M) (P)
 end
 
 module Graph (S : Store) = struct

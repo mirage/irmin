@@ -165,16 +165,16 @@ module Store
     (I : Info.S)
     (N : Node.Store)
     (S : Content_addressable.S with type key = N.key)
-    (K : Hash.S with type t = S.key)
+    (H : Hash.S with type t = S.key)
     (V : S with type hash = S.key and type t = S.value and module Info := I) =
 struct
   include
-    Store_generic_key (I) (N) (Indexable.Of_content_addressable (K) (S)) (K) (V)
+    Store_generic_key (I) (N) (Indexable.Of_content_addressable (H) (S)) (H) (V)
 
   module Val = struct
     include Val
 
-    type hash = K.t [@@deriving irmin]
+    type hash = H.t [@@deriving irmin]
   end
 end
 
