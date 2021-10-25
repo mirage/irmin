@@ -100,7 +100,7 @@ end
 
 module Default_types (S : Irmin.S) = struct
   module Key = Default_type (struct
-    include S.Key
+    include S.Path
 
     let name = "Key"
   end)
@@ -194,9 +194,9 @@ struct
     | None -> Store.master repo
 
   let rec concat_key a b =
-    match Store.Key.decons a with
+    match Store.Path.decons a with
     | None -> b
-    | Some (step, a_tl) -> Store.Key.cons step (concat_key a_tl b)
+    | Some (step, a_tl) -> Store.Path.cons step (concat_key a_tl b)
 
   module Input = struct
     let coerce_remote = function
@@ -249,7 +249,7 @@ struct
               field "tree"
                 ~typ:(non_null (Lazy.force tree))
                 ~args:[]
-                ~resolve:(fun _ c -> (Store.Commit.tree c, Store.Key.empty));
+                ~resolve:(fun _ c -> (Store.Commit.tree c, Store.Path.empty));
               field "parents"
                 ~typ:(non_null (list (non_null Types.Hash.schema_typ)))
                 ~args:[]
@@ -314,7 +314,7 @@ struct
                     | `Tree l ->
                         List.fold_left
                           (fun acc (step, t) ->
-                            let key' = Store.Key.rcons key step in
+                            let key' = Store.Path.rcons key step in
                             tree_list t key' ~acc)
                           acc l
                         |> List.rev
@@ -327,9 +327,9 @@ struct
                 ~typ:(non_null (list (non_null node)))
                 ~args:[]
                 ~resolve:(fun _ (tree, tree_key) ->
-                  Store.Tree.list tree Store.Key.empty
+                  Store.Tree.list tree Store.Path.empty
                   >>= Lwt_list.map_s (fun (step, tree) ->
-                          let absolute_key = Store.Key.rcons tree_key step in
+                          let absolute_key = Store.Path.rcons tree_key step in
                           match Store.Tree.destruct tree with
                           | `Contents (c, m) ->
                               let+ c = Store.Tree.Contents.force_exn c in
@@ -353,7 +353,7 @@ struct
                 ~typ:(non_null Lazy.(force tree))
                 ~resolve:(fun _ (t, _) ->
                   let+ tree = Store.tree t in
-                  Ok (tree, Store.Key.empty));
+                  Ok (tree, Store.Path.empty));
               io_field "last_modified"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:

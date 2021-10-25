@@ -233,7 +233,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Store t -> RO.last_modified t key
     | Batch b ->
         RO.S.of_commit b.origin >>= fun t ->
-        RO.last_modified { root = S.Key.empty; t } key
+        RO.last_modified { root = S.Path.empty; t } key
 
   let repo t = match t.store with Store t -> S.repo t.t | Batch b -> b.repo
 

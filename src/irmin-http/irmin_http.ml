@@ -463,7 +463,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       include Irmin.Indexable.Of_content_addressable (S.Hash) (CA)
       module Contents = Contents
       module Metadata = S.Metadata
-      module Path = S.Key
+      module Path = S.Path
 
       let merge (t : _ t) =
         let f ~(old : Key.t option Irmin.Merge.promise) left right =

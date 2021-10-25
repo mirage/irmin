@@ -909,7 +909,7 @@ module Make (S : Generic_key) = struct
   let test_stores x () =
     let test repo =
       let check_val = check [%typ: S.contents option] in
-      let check_list = checks [%typ: S.Key.step * S.tree] in
+      let check_list = checks [%typ: S.Path.step * S.tree] in
       let* t = S.master repo in
       S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1 >>= fun () ->
       let* b0 = S.mem t [ "a"; "b" ] in
@@ -1045,7 +1045,7 @@ module Make (S : Generic_key) = struct
     run x test
 
   let pp_depth = Irmin.Type.pp S.Tree.depth_t
-  let pp_key = Irmin.Type.pp S.Key.t
+  let pp_key = Irmin.Type.pp S.Path.t
 
   let test_trees x () =
     let test repo =
@@ -1080,7 +1080,7 @@ module Make (S : Generic_key) = struct
             ~node:(fun path _ (cs, ns) -> Lwt.return (cs, path :: ns))
             ([], [])
         in
-        let paths = Alcotest.slist (testable S.Key.t) compare in
+        let paths = Alcotest.slist (testable S.Path.t) compare in
         Alcotest.(check paths)
           (Fmt.str "contents depth=%a" Fmt.(Dump.option pp_depth) depth)
           ecs cs;

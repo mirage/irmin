@@ -887,8 +887,8 @@ module type S_generic_key = sig
     (** Base functions for branches. *)
   end
 
-  (** [Key] provides base functions for the stores's paths. *)
-  module Key : Path.S with type t = path and type step = step
+  (** [Path] provides base functions for the stores's paths. *)
+  module Path : Path.S with type t = path and type step = step
 
   module Metadata : Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
@@ -900,7 +900,7 @@ module type S_generic_key = sig
       with type Slice.t = slice
        and type Repo.t = repo
        and module Hash = Hash
-       and module Node.Path = Key
+       and module Node.Path = Path
        and type Contents.key = contents_key
        and type Node.key = node_key
        and type Commit.key = commit_key

@@ -249,7 +249,7 @@ module Make_Layered (S : Layered_store) = struct
     check_layer repo (S.Commit_t (S.Commit.key commit)) msg exp
 
   let test_set x () =
-    let check_list = checks T.(pair S.Key.step_t S.tree_t) in
+    let check_list = checks T.(pair S.Path.step_t S.tree_t) in
     let check_parents = checks B.Commit.Key.t in
     let contents v = S.Tree.v (`Contents (v, S.Metadata.default)) in
     let test repo =

@@ -38,7 +38,7 @@ module Make (B : Backend.S) = struct
   module Typed = Hash.Typed (B.Hash)
   module Hash = B.Hash
   module Branch_store = B.Branch
-  module Key = B.Node.Path
+  module Path = B.Node.Path
   module Commits = Commit.History (B.Commit)
   module Backend = B
   module Info = B.Commit.Info
@@ -107,8 +107,8 @@ module Make (B : Backend.S) = struct
   type contents = Contents.t [@@deriving irmin ~equal]
   type metadata = Metadata.t [@@deriving irmin]
   type tree = Tree.t [@@deriving irmin ~pp]
-  type path = Key.t [@@deriving irmin ~pp]
-  type step = Key.step [@@deriving irmin]
+  type path = Path.t [@@deriving irmin ~pp]
+  type step = Path.step [@@deriving irmin]
   type info = B.Commit.Info.t [@@deriving irmin]
   type Remote.t += E of B.Remote.endpoint
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
@@ -1205,7 +1205,7 @@ struct
       match j with
       | [] -> `Tree acc
       | (k, v) :: l -> (
-          match Type.of_string Store.Key.step_t k with
+          match Type.of_string Store.Path.step_t k with
           | Ok key -> obj l ((key, node v []) :: acc)
           | _ -> obj l acc)
     and node j acc =
@@ -1216,7 +1216,7 @@ struct
     node j []
 
   let of_concrete_tree c : json =
-    let step = Type.to_string Store.Key.step_t in
+    let step = Type.to_string Store.Path.step_t in
     let rec tree t acc =
       match t with
       | [] -> `O acc
@@ -1237,12 +1237,12 @@ struct
     of_concrete_tree c
 
   let set t key j ~info =
-    set_tree (Store.Tree.empty ()) Store.Key.empty j >>= function
+    set_tree (Store.Tree.empty ()) Store.Path.empty j >>= function
     | tree -> Store.set_tree_exn ~info t key tree
 
   let get t key =
     let* tree = Store.get_tree t key in
-    get_tree tree Store.Key.empty
+    get_tree tree Store.Path.empty
 end
 
 type Remote.t +=

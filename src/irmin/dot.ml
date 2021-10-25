@@ -97,7 +97,7 @@ module Make (S : Store.Generic_key.S) = struct
       `Label s
     in
     let label_of_step l =
-      let l = Type.to_string S.Key.step_t l in
+      let l = Type.to_string S.Path.step_t l in
       let s =
         (if html then sprintf "<div class='path'>%s</div>" else fun x -> x)
           (string_of_contents l)

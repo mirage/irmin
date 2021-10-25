@@ -468,7 +468,7 @@ let persist_tree : Store.tree -> Store.tree Lwt.t =
   let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
   Store.tree store
 
-type path = Store.Key.t [@@deriving irmin ~pp ~equal]
+type path = Store.Path.t [@@deriving irmin ~pp ~equal]
 
 let test_clear _ () =
   (* 1. Build a tree *)
