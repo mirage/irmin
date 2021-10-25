@@ -88,7 +88,7 @@ module type S = sig
 
   type cursor
 
-  val get_cursor : path:Store.key -> Store.t -> cursor Lwt.t
+  val get_cursor : path:Store.path -> Store.t -> cursor Lwt.t
   val read : num_items:int -> cursor -> (value list * cursor) Lwt.t
 end
 

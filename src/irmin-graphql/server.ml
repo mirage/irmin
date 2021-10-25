@@ -135,7 +135,7 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
-               with type key := Store.key
+               with type key := Store.path
                 and type metadata := Store.metadata
                 and type contents := Store.contents
                 and type hash := Store.hash
@@ -184,7 +184,7 @@ struct
     | `Response of Cohttp.Response.t * Cohttp_lwt.Body.t ]
 
   type tree_item = {
-    key : Store.key;
+    key : Store.path;
     value : Store.contents option;
     metadata : Store.metadata option;
   }
@@ -275,7 +275,7 @@ struct
                 ~resolve:(fun _ i -> Info.message i);
             ]))
 
-  and tree : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t =
+  and tree : ('ctx, (Store.tree * Store.path) option) Schema.typ Lazy.t =
     lazy
       Schema.(
         obj "Tree" ~fields:(fun _ ->
@@ -380,7 +380,7 @@ struct
             ]))
 
   and contents :
-      ('ctx, (Store.contents * Store.metadata * Store.key) option) Schema.typ
+      ('ctx, (Store.contents * Store.metadata * Store.path) option) Schema.typ
       Lazy.t =
     lazy
       Schema.(

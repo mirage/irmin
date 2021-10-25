@@ -140,7 +140,7 @@ module KV_RO (G : Git.S) = struct
       | Some v -> Ok v
   end
 
-  type t = { root : S.key; t : S.t }
+  type t = { root : S.path; t : S.t }
 
   let head_message t =
     S.Head.find t.t >|= function

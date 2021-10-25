@@ -28,12 +28,12 @@ module type S = sig
   module Store : Irmin.KV
 
   val inc :
-    ?by:int64 -> ?info:Store.Info.f -> path:Store.key -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit Lwt.t
 
   val dec :
-    ?by:int64 -> ?info:Store.Info.f -> path:Store.key -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit Lwt.t
 
-  val read : path:Store.key -> Store.t -> int64 Lwt.t
+  val read : path:Store.path -> Store.t -> int64 Lwt.t
 end
 
 module Make (Backend : Irmin.KV_maker) = struct

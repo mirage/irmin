@@ -18,7 +18,7 @@
 open! Import
 
 module type S = sig
-  type key [@@deriving irmin]
+  type path [@@deriving irmin]
   type step [@@deriving irmin]
   type metadata [@@deriving irmin]
   type contents [@@deriving irmin]
@@ -45,7 +45,7 @@ module type S = sig
       backend configuration values, as they can perform in-memory operation,
       independently of any given backend. *)
 
-  val singleton : key -> ?metadata:metadata -> contents -> t
+  val singleton : path -> ?metadata:metadata -> contents -> t
   (** [singleton k c] is the tree with a single binding mapping the key [k] to
       the contents [c]. *)
 
@@ -74,7 +74,7 @@ module type S = sig
       {!Pruned_hash} exception. Attempting to export a tree containing pruned
       sub-trees to a repository will fail similarly. *)
 
-  val kind : t -> key -> [ `Contents | `Node ] option Lwt.t
+  val kind : t -> path -> [ `Contents | `Node ] option Lwt.t
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
@@ -84,7 +84,7 @@ module type S = sig
 
   (** {1 Diffs} *)
 
-  val diff : t -> t -> (key * (contents * metadata) Diff.t) list Lwt.t
+  val diff : t -> t -> (path * (contents * metadata) Diff.t) list Lwt.t
   (** [diff x y] is the difference of contents between [x] and [y]. *)
 
   (** {1 Manipulating Contents} *)
@@ -137,20 +137,20 @@ module type S = sig
     (** [clear t] clears [t]'s cache. *)
   end
 
-  val mem : t -> key -> bool Lwt.t
+  val mem : t -> path -> bool Lwt.t
   (** [mem t k] is true iff [k] is associated to some contents in [t]. *)
 
-  val find_all : t -> key -> (contents * metadata) option Lwt.t
+  val find_all : t -> path -> (contents * metadata) option Lwt.t
   (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
       and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
   val length : node -> int Lwt.t
   (** [find n] is the number of entries in [n]. *)
 
-  val find : t -> key -> contents option Lwt.t
+  val find : t -> path -> contents option Lwt.t
   (** [find] is similar to {!find_all} but it discards metadata. *)
 
-  val get_all : t -> key -> (contents * metadata) Lwt.t
+  val get_all : t -> path -> (contents * metadata) Lwt.t
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
   val list :
@@ -158,7 +158,7 @@ module type S = sig
     ?offset:int ->
     ?length:int ->
     ?cache:bool ->
-    key ->
+    path ->
     (step * t) list Lwt.t
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
       The result order is not specified but is stable.
@@ -168,16 +168,16 @@ module type S = sig
       [cache] defaults to [true], see {!caching} for an explanation of the
       parameter. *)
 
-  val get : t -> key -> contents Lwt.t
+  val get : t -> path -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
 
-  val add : t -> key -> ?metadata:metadata -> contents -> t Lwt.t
+  val add : t -> path -> ?metadata:metadata -> contents -> t Lwt.t
   (** [add t k c] is the tree where the key [k] is bound to the contents [c] but
       is similar to [t] for other bindings. *)
 
   val update :
     t ->
-    key ->
+    path ->
     ?metadata:metadata ->
     (contents option -> contents option) ->
     t Lwt.t
@@ -187,30 +187,30 @@ module type S = sig
       If [k] refers to an internal node of [t], [f] is called with [None] to
       determine the value with which to replace it. *)
 
-  val remove : t -> key -> t Lwt.t
+  val remove : t -> path -> t Lwt.t
   (** [remove t k] is the tree where [k] bindings has been removed but is
       similar to [t] for other bindings. *)
 
   (** {1 Manipulating Subtrees} *)
 
-  val mem_tree : t -> key -> bool Lwt.t
+  val mem_tree : t -> path -> bool Lwt.t
   (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
-  val find_tree : t -> key -> t option Lwt.t
+  val find_tree : t -> path -> t option Lwt.t
   (** [find_tree t k] is [Some v] if [k] is associated to [v] in [t]. It is
       [None] if [k] is not present in [t]. *)
 
-  val get_tree : t -> key -> t Lwt.t
+  val get_tree : t -> path -> t Lwt.t
   (** [get_tree t k] is [v] if [k] is associated to [v] in [t]. Raise
       [Invalid_arg] if [k] is not present in [t].*)
 
-  val add_tree : t -> key -> t -> t Lwt.t
+  val add_tree : t -> path -> t -> t Lwt.t
   (** [add_tree t k v] is the tree where the key [k] is bound to the non-empty
       tree [v] but is similar to [t] for other bindings.
 
       If [v] is empty, this is equivalent to [remove t k]. *)
 
-  val update_tree : t -> key -> (t option -> t option) -> t Lwt.t
+  val update_tree : t -> path -> (t option -> t option) -> t Lwt.t
   (** [update_tree t k f] is the tree [t'] that is the same as [t] for all
       subtrees except under [k], and whose subtree at [k] is determined by
       [f (find_tree t k)].
@@ -232,7 +232,7 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of key -> 'a -> 'a Lwt.t ]
+  type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes and contents. [`False f] is applying [f] on
       every lazy node and content value instead. *)
@@ -243,7 +243,7 @@ module type S = sig
       collection of marks [m] to store the cache of keys: the fold will modify
       [m]. This can be used for incremental folds. *)
 
-  type 'a node_fn = key -> step list -> 'a -> 'a Lwt.t
+  type 'a node_fn = path -> step list -> 'a -> 'a Lwt.t
   (** The type for {!fold}'s [pre] and [post] parameters. *)
 
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
@@ -264,9 +264,9 @@ module type S = sig
     ?pre:'a node_fn ->
     ?post:'a node_fn ->
     ?depth:depth ->
-    ?contents:(key -> contents -> 'a -> 'a Lwt.t) ->
-    ?node:(key -> node -> 'a -> 'a Lwt.t) ->
-    ?tree:(key -> t -> 'a -> 'a Lwt.t) ->
+    ?contents:(path -> contents -> 'a -> 'a Lwt.t) ->
+    ?node:(path -> node -> 'a -> 'a Lwt.t) ->
+    ?tree:(path -> t -> 'a -> 'a Lwt.t) ->
     t ->
     'a ->
     'a Lwt.t
@@ -367,7 +367,7 @@ module type Sigs = sig
   module Make (B : Backend.S) : sig
     include
       S
-        with type key = B.Node.Path.t
+        with type path = B.Node.Path.t
          and type step = B.Node.Path.step
          and type metadata = B.Node.Metadata.t
          and type contents = B.Contents.value

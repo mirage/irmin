@@ -107,7 +107,7 @@ module Make (B : Backend.S) = struct
   type contents = Contents.t [@@deriving irmin ~equal]
   type metadata = Metadata.t [@@deriving irmin]
   type tree = Tree.t [@@deriving irmin ~pp]
-  type key = Key.t [@@deriving irmin ~pp]
+  type path = Key.t [@@deriving irmin ~pp]
   type step = Key.step [@@deriving irmin]
   type info = B.Commit.Info.t [@@deriving irmin]
   type Remote.t += E of B.Remote.endpoint
@@ -511,7 +511,7 @@ module Make (B : Backend.S) = struct
   let of_commit c = of_ref c.r (`Head (ref (Some c)))
 
   let skip_key key =
-    [%log.debug "[watch-key] key %a has not changed" pp_key key];
+    [%log.debug "[watch-key] key %a has not changed" pp_path key];
     Lwt.return_unit
 
   let changed_key key old_t new_t =
@@ -520,7 +520,7 @@ module Make (B : Backend.S) = struct
         let pp = Fmt.option ~none:(Fmt.any "<none>") pp_hash in
         let old_h = Option.map Tree.hash old_t in
         let new_h = Option.map Tree.hash new_t in
-        l "[watch-key] key %a has changed: %a -> %a" pp_key key pp old_h pp
+        l "[watch-key] key %a has changed: %a -> %a" pp_path key pp old_h pp
           new_h]
 
   let with_tree ~key x f =
@@ -625,7 +625,7 @@ module Make (B : Backend.S) = struct
         fun () -> Branch_store.unwatch (branch_store t) key
 
   let watch_key t key ?init fn =
-    [%log.debug "watch-key %a" pp_key key];
+    [%log.debug "watch-key %a" pp_path key];
     let tree c = Tree.find_tree (Commit.tree c) key in
     watch t ?init (lift_tree_diff ~key tree fn)
 
@@ -815,7 +815,7 @@ module Make (B : Backend.S) = struct
     | Some tree -> Tree.add_tree root key tree >|= ok
 
   let set_tree ?(retries = 13) ?allow_empty ?parents ~info t k v =
-    [%log.debug "set %a" pp_key k];
+    [%log.debug "set %a" pp_path k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_some v
@@ -824,7 +824,7 @@ module Make (B : Backend.S) = struct
     set_tree ?retries ?allow_empty ?parents ~info t k v >>= fail "set_exn"
 
   let remove ?(retries = 13) ?allow_empty ?parents ~info t k =
-    [%log.debug "debug %a" pp_key k];
+    [%log.debug "debug %a" pp_path k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_none
@@ -849,7 +849,7 @@ module Make (B : Backend.S) = struct
 
   let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
       ~set =
-    [%log.debug "test-and-set %a" pp_key k];
+    [%log.debug "test-and-set %a" pp_path k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
     @@ fun _tree -> Lwt.return set
@@ -875,7 +875,7 @@ module Make (B : Backend.S) = struct
     | Error e -> write_error (e :> write_error)
 
   let merge_tree ?(retries = 13) ?allow_empty ?parents ~info ~old t k tree =
-    [%log.debug "merge %a" pp_key k];
+    [%log.debug "merge %a" pp_path k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (merge_once ~old) @@ fun _tree ->
     Lwt.return tree
@@ -922,7 +922,7 @@ module Make (B : Backend.S) = struct
       ?(strategy = `Test_and_set) ~info t key f =
     let done_once = ref false in
     let rec aux n old_tree =
-      [%log.debug "with_tree %a (%d/%d)" pp_key key n retries];
+      [%log.debug "with_tree %a (%d/%d)" pp_path key n retries];
       if !done_once && n > retries then write_error (`Too_many_retries retries)
       else
         let* new_tree = f old_tree in
@@ -1091,7 +1091,7 @@ module Make (B : Backend.S) = struct
     [%log.debug
       "last_modified depth=%a n=%d key=%a"
         Fmt.(Dump.option pp_int)
-        depth n pp_key key];
+        depth n pp_path key];
     let repo = repo t in
     let* commit = Head.get t in
     let heap = Heap.create ~dummy:(commit, 0) 0 in

@@ -1140,7 +1140,7 @@ module Make (S : Generic_key) = struct
 
       (* Testing [Tree.diff] *)
       let contents_t = T.pair S.contents_t S.metadata_t in
-      let diff = T.(pair S.key_t (Irmin.Diff.t contents_t)) in
+      let diff = T.(pair S.path_t (Irmin.Diff.t contents_t)) in
       let check_diffs = checks diff in
       let check_val = check T.(option contents_t) in
       let check_ls = checks T.(pair S.step_t S.tree_t) in
@@ -1418,7 +1418,7 @@ module Make (S : Generic_key) = struct
         ~node:(fun k _ i ->
           if not (List.length k = 0 || List.length k = 1) then
             Alcotest.failf "nodes should be at [] and [foo], got %a"
-              (Irmin.Type.pp S.key_t) k;
+              (Irmin.Type.pp S.path_t) k;
           Lwt.return i)
         0
       >>= fun nb_contents ->
