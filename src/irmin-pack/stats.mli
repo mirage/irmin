@@ -19,7 +19,17 @@ type t = {
   mutable cache_misses : int;
   mutable appended_hashes : int;
   mutable appended_offsets : int;
+  mutable inode_add : int;
+  mutable inode_remove : int;
+  mutable inode_of_seq : int;
+  mutable inode_of_raw : int;
+  mutable inode_rec_add : int;
+  mutable inode_rec_remove : int;
+  mutable inode_to_binv : int;
+  mutable inode_decode_bin : int;
+  mutable inode_encode_bin : int;
 }
+[@@deriving irmin]
 (** The type for stats for a store S.
 
     - [finds] is the number of calls to [S.find];
@@ -29,8 +39,13 @@ type t = {
       to [add];
     - [appended_offsets] is the number of times an offset was appended, during
       calls to [add];
-
-    [appended_hashes] + [appended_offsets] = the number of calls to [add] *)
+    - [inode_add + inode_remove + inode_of_seq + inode_of_raw] is the total
+      number of [Inode.Val.t] built;
+    - [inode_rec_add + inode_rec_remove] are witnesses of the quantity of work
+      that is done modifying inodes;
+    - [inode_to_binv] is the number of [Inode.Bin.v] built;
+    - [inode_encode_bin] is the number of [Bin] to [Compress] conversions;
+    - [inode_decode_bin] is the number of [Compress] to [Bin] conversions; *)
 
 val reset_stats : unit -> unit
 val get : unit -> t
@@ -38,6 +53,15 @@ val incr_finds : unit -> unit
 val incr_cache_misses : unit -> unit
 val incr_appended_hashes : unit -> unit
 val incr_appended_offsets : unit -> unit
+val incr_inode_add : unit -> unit
+val incr_inode_remove : unit -> unit
+val incr_inode_of_seq : unit -> unit
+val incr_inode_of_raw : unit -> unit
+val incr_inode_rec_add : unit -> unit
+val incr_inode_rec_remove : unit -> unit
+val incr_inode_to_binv : unit -> unit
+val incr_inode_decode_bin : unit -> unit
+val incr_inode_encode_bin : unit -> unit
 
 type cache_stats = { cache_misses : float }
 type offset_stats = { offset_ratio : float; offset_significance : int }

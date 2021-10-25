@@ -531,7 +531,9 @@ struct
       let len = Int.max_int in
       fun () -> seq_v layout v ~cache empty_continuation ~off ~len
 
-    let to_bin_v layout = function
+    let to_bin_v layout v =
+      Stats.incr_inode_to_binv ();
+      match v with
       | Values vs ->
           let vs = StepMap.bindings vs in
           Bin.Values vs
@@ -819,6 +821,7 @@ struct
     let find ?(cache = true) layout t s = find_value ~cache ~depth:0 layout t s
 
     let rec add layout ~depth ~copy ~replace t s v k =
+      Stats.incr_inode_rec_add ();
       match t.v with
       | Values vs ->
           let length =
@@ -873,6 +876,7 @@ struct
           |> stabilize layout
 
     let rec remove layout ~depth t s k =
+      Stats.incr_inode_rec_remove ();
       match t.v with
       | Values vs ->
           let t = values layout (StepMap.remove s vs) in
@@ -1018,6 +1022,7 @@ struct
       | Dynamic f -> f
 
     let encode_bin ~dict ~offset (t : t) k =
+      Stats.incr_inode_encode_bin ();
       let step s : Compress.name =
         let str = step_to_bin s in
         if String.length str <= 3 then Direct s
@@ -1056,6 +1061,7 @@ struct
     exception Exit of [ `Msg of string ]
 
     let decode_bin ~dict ~hash t off : int * t =
+      Stats.incr_inode_decode_bin ();
       let off, i = decode_compress t off in
       let step : Compress.name -> T.step = function
         | Direct n -> n
@@ -1136,7 +1142,11 @@ struct
           if v == v' then t else Truncated v'
 
     let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let of_seq l = Total (I.of_seq l)
+
+    let of_seq l =
+      Stats.incr_inode_of_seq ();
+      Total (I.of_seq l)
+
     let of_list l = of_seq (List.to_seq l)
 
     let seq ?offset ?length ?cache t =
@@ -1152,6 +1162,7 @@ struct
       apply t { f = (fun layout v -> I.find ?cache layout v s) }
 
     let add t s value =
+      Stats.incr_inode_add ();
       let f layout v =
         I.check_write_op_supported v;
         I.add ~copy:true layout v s value
@@ -1159,6 +1170,7 @@ struct
       map t { f }
 
     let remove t s =
+      Stats.incr_inode_remove ();
       let f layout v =
         I.check_write_op_supported v;
         I.remove layout v s
@@ -1192,6 +1204,7 @@ struct
       apply t { f }
 
     let of_raw find' v =
+      Stats.incr_inode_of_raw ();
       let rec find h =
         match find' h with None -> None | Some v -> Some (I.of_bin layout v)
       and layout = I.Partial find in
