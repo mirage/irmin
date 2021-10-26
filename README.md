@@ -1,46 +1,68 @@
-## Irmin &mdash; A Distributed Database Built on the Same Principles as Git
-[![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmain&logo=ocaml)](https://ci.ocamllabs.io/github/mirage/irmin)
-[![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://mirage.github.io/irmin/)
+<div align="center">
+  <a href="https://irmin.org">
+    <img src="./logo.svg" alt="Irmin logo"/>
+  </a>
+  <br />
+  <strong>A Distributed Database Built on the Same Principles as Git</strong>
+</div>
 
-Irmin is an OCaml library for building mergeable, branchable distributed data stores.  
-[Website: irmin.org](https://irmin.org)
+<div align="center">
+<br />
 
-### Features
+[![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmain&logo=ocaml&style=flat-square)](https://ci.ocamllabs.io/github/mirage/irmin)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/mirage/irmin?style=flat-square&color=09aa89)](https://github.com/mirage/irmin/releases/latest)
+[![docs](https://img.shields.io/badge/doc-online-blue.svg?style=flat-square)](https://mirage.github.io/irmin/)
+
+</div>
+
+<hr />
+
+<div align="center">
+  <em>
+    Irmin is an OCaml library for building mergeable, branchable distributed
+    data stores.
+  </em>
+</div>
+
+## About
+
 - **Built-in Snapshotting** - backup and restore
 - **Storage Agnostic** - you can use Irmin on top of your own storage layer
-- **Custom Datatypes** - (de)serialization for custom data types, derivable via [`ppx_irmin`][ppx_irmin-readme]
+- **Custom Datatypes** - (de)serialization for custom data types, derivable via
+  [`ppx_irmin`][ppx_irmin-readme]
 - **Highly Portable** - runs anywhere from Linux to web browsers and Xen unikernels
-- **Git Compatibility** - `irmin-git` uses an on-disk format that can be inspected and modified using Git
-- **Dynamic Behavior** - allows the users to define custom merge functions, use in-memory transactions (to keep track of reads as well as writes) and to define event-driven workflows using a notification mechanism
+- **Git Compatibility** - `irmin-git` uses an on-disk format that can be
+  inspected and modified using Git
+- **Dynamic Behavior** - allows the users to define custom merge functions,
+  use in-memory transactions (to keep track of reads as well as writes) and
+  to define event-driven workflows using a notification mechanism
 
-### Documentation
-Documentation can be found online at [https://mirage.github.io/irmin](https://mirage.github.io/irmin)
+## Documentation
 
-### Installation
+API documentation can be found online at [https://mirage.github.io/irmin](https://mirage.github.io/irmin)
 
-#### Prerequisites:
+## Installation
 
-Please ensure to install the minimum Opam and OCaml versions.  
-Find the latest version and install instructions on [OCaml.org](https://ocaml.org/docs/install.html).
+### Prerequisites
 
-    opam list    // listing the installed packages
+Please ensure to install the minimum `opam` and `ocaml` versions. Find the latest
+version and install instructions on [ocaml.org](https://ocaml.org/docs/install.html).
 
-To install Irmin with the command-line tool and all optional dependencies using [opam](https://github.com/ocaml/opam):
+To install Irmin with the command-line tool and all optional dependencies using
+`opam`:
 
-    opam install irmin-unix
+```bash
+  opam install irmin-unix
+```
 
-***Note :***  If you face installation issues due to pinned packages. Run the below commands to unpin and try to install again.
+A minimal installation containing the reference in-memory backend can be
+installed by running:
 
-Unpinning *irmin-unix* package:
+```bash
+  opam install irmin
+```
 
-    opam info irmin-unix // to get available versions
-    opam pin -s | grep irmin | xargs opam unpin
-
-A minimal installation containing the reference in-memory backend can be installed by running:
-
-    opam install irmin
-
-The following packages have been made available on `opam`
+The following packages have been made available on `opam`:
 - `irmin` - the base package, plus an in-memory storage implementation
 - `irmin-chunk` - chunked storage
 - `irmin-fs` - filesystem-based storage using `bin_prot`
@@ -55,19 +77,29 @@ The following packages have been made available on `opam`
 - `ppx_irmin` - PPX deriver for Irmin content types (see [README_PPX.md][ppx_irmin-readme])
 - `irmin-containers` - collection of simple, ready-to-use mergeable data structures
 
-To install, simply run `opam install package-name`.   
-For more information about an individual package consult the [online documentation](https://mirage.github.io/irmin).
+To install a specific package, simply run:
 
-#### Development Version
+```bash
+  opam install <package-name>
+```
 
-To install the development version of Irmin, clone this repository and `opam install` the packages inside:
+### Development Version
 
-    git clone https://github.com/mirage/irmin
-    cd irmin/
-    opam install .
+To install the development version of Irmin in your current `opam switch`, clone
+this repository and `opam install` the packages inside:
 
-### Examples
-Below is a simple example of setting a key and getting the value out of a Git-based, filesystem-backed store.
+```bash
+  git clone https://github.com/mirage/irmin
+  cd irmin/
+  opam install .
+```
+
+## Usage
+
+### Example
+
+Below is a simple example of setting a key and getting the value out of a
+Git-based, filesystem-backed store.
 
 <!-- N.B. Any changes to the following example must be mirrored in `examples/readme.ml`. -->
 ```ocaml
@@ -106,38 +138,45 @@ let main =
 let () = Lwt_main.run main
 ```
 
-The example is contained in `examples/readme.ml`. It can be compiled and executed with dune:
+The example is contained in [examples/readme.ml](./examples/readme.ml) It can
+be compiled and executed with dune:
 
-```bash
-$ dune build examples/readme.exe
-$ dune exec examples/readme.exe
-foo/bar => 'testing 123'
-```
-The `examples/` directory also contains more advanced examples, which can be executed in the same way.
+    $ dune build examples/readme.exe
+    $ dune exec examples/readme.exe
+    foo/bar => 'testing 123'
+
+The [examples](./examples/) directory also contains more advanced examples,
+which can be executed in the same way.
 
 ### Command-line
-The same thing can also be accomplished using `irmin`, the command-line application installed with `irmin-unix`, by running:
 
-```bash
-$ echo "root: ." > irmin.yml
-$ irmin init
-$ irmin set foo/bar "testing 123"
-$ irmin get foo/bar
-```
+The same thing can also be accomplished using `irmin`, the command-line
+application installed with `irmin-unix`, by running:
 
-`irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You can also set flags globally using `$HOME/.irmin/config.yml`. Run `irmin help irmin.yml` for further details.
+    $ echo "root: ." > irmin.yml
+    $ irmin init
+    $ irmin set foo/bar "testing 123"
+    $ irmin get foo/bar
 
-Also see `irmin --help` for list of all commands and either `irmin <command> --help` or `irmin help <command>` for more help with a specific command.
+`irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You
+can also set flags globally using `$HOME/.irmin/config.yml`. Run
+`irmin help irmin.yml` for further details.
 
-### Issues
-Feel free to to report any issues using the [Github bugtracker](https://github.com/mirage/irmin/issues).
+Also see `irmin --help` for list of all commands and either
+`irmin <command> --help` or `irmin help <command>` for more help with a
+specific command.
 
-### Conditions
+## Issues
+
+Feel free to to report any issues using the [GitHub bugtracker](https://github.com/mirage/irmin/issues).
+
+## License
 
 See the [LICENSE file](./LICENSE.md).
 
-### Acknowledgements
+## Acknowledgements
 
-Development of Irmin was supported in part by the EU FP7 User-Centric Networking project, Grant No. 611001.
+Development of Irmin was supported in part by the EU FP7 User-Centric Networking
+project, Grant No. 611001.
 
 [ppx_irmin-readme]: ./README_PPX.md
