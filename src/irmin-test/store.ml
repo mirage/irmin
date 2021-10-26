@@ -1038,7 +1038,7 @@ module Make (S : Generic_key) = struct
       Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
       S.set_tree_exn t1 ~info [] v >>= fun () ->
       Alcotest.(check inspect) "inspect:3" (`Node `Key) (S.Tree.inspect v);
-      Alcotest.(check int) "val-v:3" 1 (S.Tree.counters ()).node_val_v;
+      Alcotest.(check int) "val-v:3" 2 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
       B.Repo.close repo
     in
