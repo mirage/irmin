@@ -68,6 +68,7 @@ module Make (P : Backend.S) = struct
     mutable contents_hash : int;
     mutable contents_find : int;
     mutable contents_add : int;
+    mutable contents_mem : int;
     mutable node_hash : int;
     mutable node_mem : int;
     mutable node_index : int;
@@ -86,6 +87,7 @@ module Make (P : Backend.S) = struct
       contents_hash = 0;
       contents_add = 0;
       contents_find = 0;
+      contents_mem = 0;
       node_hash = 0;
       node_mem = 0;
       node_index = 0;
@@ -100,6 +102,7 @@ module Make (P : Backend.S) = struct
     t.contents_hash <- 0;
     t.contents_add <- 0;
     t.contents_find <- 0;
+    t.contents_mem <- 0;
     t.node_hash <- 0;
     t.node_mem <- 0;
     t.node_index <- 0;
@@ -1120,6 +1123,7 @@ module Make (P : Backend.S) = struct
           | `Contents (c, m) -> `Contents (Contents.of_key repo c, m)
         in
         let bindings =
+          cnt.node_val_list <- cnt.node_val_list + 1;
           P.Node.Val.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
         in
         let bindings =
@@ -1562,6 +1566,7 @@ module Make (P : Backend.S) = struct
 
   let import repo = function
     | `Contents (k, m) -> (
+        cnt.contents_mem <- cnt.contents_mem + 1;
         P.Contents.mem (P.Repo.contents_t repo) k >|= function
         | true -> Some (`Contents (Contents.of_key repo k, m))
         | false -> None)
@@ -1644,6 +1649,7 @@ module Make (P : Backend.S) = struct
       let node =
         (* Since we traverse in post-order, all children of [x] have already
            been added. Thus, their keys are cached and we can retrieve them. *)
+        cnt.node_val_v <- cnt.node_val_v + 1;
         StepMap.to_seq x
         |> Seq.map (fun (step, v) ->
                match v with

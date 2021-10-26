@@ -342,6 +342,7 @@ module type S = sig
     mutable contents_hash : int;
     mutable contents_find : int;
     mutable contents_add : int;
+    mutable contents_mem : int;
     mutable node_hash : int;
     mutable node_mem : int;
     mutable node_index : int;
