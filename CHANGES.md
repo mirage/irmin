@@ -74,7 +74,8 @@
   - `Irmin.Sync` is now a namespace: use `Irmin.Sync.Make(S)` instead of
     `Irmin.Sync(S)` (#1338, @samoht)
   - `Irmin.Private` is now `Irmin.Backend` (#1530, @CraigFe)
-  - `Store.master` is now `Store.main` (#1564, @CraigFe)
+  - `Store.master` is now `Store.main`. The existing `Store.master` function is
+    deprecated and will be removed in a future release. (#1564, @CraigFe)
   - `Store.Private` is now `Store.Backend` (#1530, @CraigFe)
   - `Store.Private.Sync` is now `Store.Backend.Remote` (#1338, @samoht)
   - `Irmin.Branch.S.master` is now `Irmin.Branch.S.main` (#1564, @CraigFe)

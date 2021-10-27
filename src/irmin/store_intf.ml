@@ -937,6 +937,12 @@ module type S_generic_key = sig
     kinded_key Lwt.t
   (** Save a tree into the database. Does not do any reads. If [clear] is set
       (it is by default), the tree cache will be cleared after the save. *)
+
+  (** {Deprecated} *)
+
+  val master : repo -> t Lwt.t
+    [@@ocaml.deprecated "Use `main` instead."]
+  (** @deprecated Use {!main} instead *)
 end
 
 module type S = sig
