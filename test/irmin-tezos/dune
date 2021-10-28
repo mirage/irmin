@@ -1,12 +1,12 @@
 (executable
  (name irmin_fsck)
  (modules irmin_fsck)
- (libraries irmin-pack irmin-pack.layered tezos-context-hash-irmin))
+ (libraries irmin-pack irmin-pack.layered irmin-tezos))
 
 (executable
  (name generate)
  (modules generate)
- (libraries irmin-pack irmin-pack.layered))
+ (libraries irmin-tezos irmin-pack irmin-pack.layered))
 
 (rule
  (alias generate-cli-test-data)
@@ -15,18 +15,17 @@
   (run %{exe:generate.exe})))
 
 (cram
- ;; TODO: attach these to the irmin-pack package
  (enabled_if
   (= %{profile} dev))
  (deps
-  (package irmin-pack)
+  (package irmin-tezos)
   (file irmin_fsck.exe)
   (file data)
   (alias generate-cli-test-data)))
 
 (rule
  (alias runtest)
- (package irmin-pack)
+ (package irmin-tezos)
  (action
   (progn
    (with-stdout-to

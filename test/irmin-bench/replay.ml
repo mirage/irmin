@@ -15,8 +15,7 @@ end
 module Store = struct
   type store_config = string
 
-  module Maker = Irmin_pack.V1 (Conf)
-  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding)
+  module Store = Irmin_tezos.Store
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in
@@ -108,7 +107,7 @@ module Store_mem = struct
   type store_config = string
 
   module Maker = Irmin_pack_mem.Maker (Conf)
-  module Store = Maker.Make (Tezos_context_hash_irmin.Encoding)
+  module Store = Maker.Make (Irmin_tezos.Schema)
 
   let create_repo store_dir =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in

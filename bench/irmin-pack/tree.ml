@@ -169,7 +169,7 @@ struct
 
   module Store = struct
     open Irmin_pack_layered.Maker (Conf)
-    include Make (Tezos_context_hash_irmin.Encoding)
+    include Make (Irmin_tezos.Schema)
   end
 
   let create_repo config =
@@ -208,7 +208,7 @@ struct
 
   module Store = struct
     open Maker (Conf)
-    include Make (Tezos_context_hash_irmin.Encoding)
+    include Make (Irmin_tezos.Schema)
   end
 
   let create_repo config =
