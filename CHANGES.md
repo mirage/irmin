@@ -64,6 +64,10 @@
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
     config file is specified (#1413, @zshipko)
 
+- **irmin-tezos**
+  - Added a new package to mirror Tezos `tezos-context.encoding` library.
+    That'll simplify building benchmarks and custom tools (#1579, @samoht)
+
 ### Changed
 
 - **irmin**
