@@ -162,6 +162,8 @@
     using `Irmin_unix.Resolver.load_config` and make command line options
     take precedence over config options.
     (#1464, #1543, @zshipko)
+  - Update `irmin` CLI to support empty path in `list` subcommand.
+    (#1575, @maiste)
 
 ## 2.7.2 (2021-07-20)
 
