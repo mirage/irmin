@@ -10,14 +10,14 @@ module Kind = struct
     | Inode -> 'I'
     | Node -> 'N'
 
-  let of_magic = function
+  let of_magic_exn = function
     | 'C' -> Commit
     | 'B' -> Contents
     | 'I' -> Inode
     | 'N' -> Node
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
-  let t = Irmin.Type.(map char) of_magic to_magic
+  let t = Irmin.Type.(map char) of_magic_exn to_magic
   let pp = Fmt.using to_magic Fmt.char
 end
 

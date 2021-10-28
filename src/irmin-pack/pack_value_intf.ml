@@ -32,6 +32,7 @@ module type Sigs = sig
     type t = Commit | Contents | Inode | Node [@@deriving irmin]
 
     val to_magic : t -> char
+    val of_magic_exn : char -> t
     val pp : t Fmt.t
   end
 

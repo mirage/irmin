@@ -36,20 +36,21 @@ module Make (K : Irmin.Hash.S) = struct
   module Val = struct
     type t = int63 * int * Pack_value.Kind.t [@@deriving irmin]
 
-    let to_bin_string =
-      Irmin.Type.(
-        unstage (to_bin_string (triple int63_t int32 Pack_value.Kind.t)))
-
-    let encode (off, len, kind) = to_bin_string (off, Int32.of_int len, kind)
-
-    let decode_bin =
-      Irmin.Type.(unstage (decode_bin (triple int63_t int32 Pack_value.Kind.t)))
-
-    let decode s off =
-      let off, len, kind = snd (decode_bin s off) in
-      (off, Int32.to_int len, kind)
-
     let encoded_size = (64 / 8) + (32 / 8) + 1
+
+    let encode ((off, len, kind) : t) =
+      let buf = Bytes.create encoded_size in
+      Bytes.set_int64_be buf 0 (Int63.to_int64 off);
+      Bytes.set_int32_be buf 8 (Int32.of_int len);
+      Bytes.set buf 12 (Pack_value.Kind.to_magic kind);
+      Bytes.unsafe_to_string buf
+
+    let decode s pos : t =
+      let buf = Bytes.unsafe_of_string s in
+      let off = Bytes.get_int64_be buf pos |> Int63.of_int64 in
+      let len = Bytes.get_int32_be buf (pos + 8) |> Int32.to_int in
+      let kind = Bytes.get buf (pos + 12) |> Pack_value.Kind.of_magic_exn in
+      (off, len, kind)
   end
 
   module Stats = Index.Stats
