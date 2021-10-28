@@ -32,7 +32,7 @@
   (pps ppx_irmin.internal ppx_repr))
  (libraries irmin-pack irmin-pack.layered irmin-pack.mem irmin-test.bench
    irmin-layers lwt unix cmdliner logs memtrace repr ppx_repr bench_common
-   tezos-context-hash-irmin irmin_traces))
+   irmin-tezos irmin_traces))
 
 (executable
  (name trace_stats)

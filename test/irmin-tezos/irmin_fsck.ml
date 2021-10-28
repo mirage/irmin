@@ -14,29 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
-
 module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 
 module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker (V) (Conf)
+  module Maker = Irmin_pack.Maker (V) (Irmin_tezos.Conf)
   include Maker.Make (Schema)
 end
 
 module Store = Irmin_pack.Checks.Make (Maker)
 
 module TzMaker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.V1 (Conf)
-  include Maker.Make (Tezos_context_hash_irmin.Encoding)
+  module Maker = Irmin_pack.V1 (Irmin_tezos.Conf)
+  include Maker.Make (Schema)
 end
 
 module TzStore = Irmin_pack.Checks.Make (TzMaker)
 
 module Store_layered = struct
-  open Irmin_pack_layered.Maker (Conf)
+  open Irmin_pack_layered.Maker (Irmin_tezos.Conf)
   module S = Make (Schema)
   include Irmin_pack_layered.Checks.Make (Maker) (S)
 end

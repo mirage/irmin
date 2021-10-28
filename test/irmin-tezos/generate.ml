@@ -26,15 +26,10 @@ let rm_dir data_dir =
 module Layered = struct
   let data_dir = "data/layered_pack_upper"
 
-  module Conf = struct
-    let entries = 32
-    let stable_hash = 256
-  end
-
   module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 
   module Store = struct
-    open Irmin_pack_layered.Maker (Conf)
+    open Irmin_pack_layered.Maker (Irmin_tezos.Conf)
     include Make (Schema)
   end
 

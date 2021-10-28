@@ -17,6 +17,7 @@ depends: [
   "irmin-pack"   {= version}
   "irmin-layers" {= version}
   "irmin-test"   {= version}
+  "irmin-tezos"  {= version}
   "cmdliner"
   "logs"
   "lwt"          {>= "5.3.0"}
