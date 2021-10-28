@@ -58,13 +58,13 @@ end
 
 (** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch). *)
 module type CUSTOM_TYPES = sig
-  type key
+  type path
   type metadata
   type contents
   type hash
   type branch
 
-  module Key : CUSTOM_TYPE with type t := key
+  module Path : CUSTOM_TYPE with type t := path
   module Metadata : CUSTOM_TYPE with type t := metadata
   module Contents : CUSTOM_TYPE with type t := contents
   module Hash : CUSTOM_TYPE with type t := hash
@@ -74,7 +74,7 @@ end
 (** Default GraphQL types for the Irmin store [S]. *)
 module Default_types (S : Irmin.S) :
   CUSTOM_TYPES
-    with type key := S.path
+    with type path := S.path
      and type metadata := S.metadata
      and type contents := S.contents
      and type hash := S.hash
@@ -93,7 +93,7 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
-               with type key := Store.path
+               with type path := Store.path
                 and type metadata := Store.metadata
                 and type contents := Store.contents
                 and type hash := Store.hash

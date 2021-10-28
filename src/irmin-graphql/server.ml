@@ -67,13 +67,13 @@ module type CUSTOM_TYPE = sig
 end
 
 module type CUSTOM_TYPES = sig
-  type key
+  type path
   type metadata
   type contents
   type hash
   type branch
 
-  module Key : CUSTOM_TYPE with type t := key
+  module Path : CUSTOM_TYPE with type t := path
   module Metadata : CUSTOM_TYPE with type t := metadata
   module Contents : CUSTOM_TYPE with type t := contents
   module Hash : CUSTOM_TYPE with type t := hash
@@ -99,7 +99,7 @@ struct
 end
 
 module Default_types (S : Irmin.S) = struct
-  module Key = Default_type (struct
+  module Path = Default_type (struct
     include S.Path
 
     let name = "Key"
@@ -135,7 +135,7 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
-               with type key := Store.path
+               with type path := Store.path
                 and type metadata := Store.metadata
                 and type contents := Store.contents
                 and type hash := Store.hash
@@ -207,7 +207,7 @@ struct
       | _ -> Error "Invalid input value"
 
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
-    let key = Types.Key.arg_typ
+    let key = Types.Path.arg_typ
     let commit_hash = Types.Hash.arg_typ
     let branch = Types.Branch.arg_typ
     let value = Types.Contents.arg_typ
@@ -280,7 +280,7 @@ struct
       Schema.(
         obj "Tree" ~fields:(fun _ ->
             [
-              field "key" ~typ:(non_null Types.Key.schema_typ) ~args:[]
+              field "key" ~typ:(non_null Types.Path.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, key) -> key);
               io_field "get"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
@@ -386,7 +386,7 @@ struct
       Schema.(
         obj "Contents" ~fields:(fun _contents ->
             [
-              field "key" ~typ:(non_null Types.Key.schema_typ) ~args:[]
+              field "key" ~typ:(non_null Types.Path.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, _, key) -> key);
               field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
                 ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
