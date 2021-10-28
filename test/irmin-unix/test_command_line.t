@@ -36,6 +36,11 @@ List keys in ./test
   DIR a
   DIR d
 
+List keys in ./test but no path is specified
+  $ irmin list
+  DIR a
+  DIR d
+
 Set g/h/i => 789 in ./test
   $ irmin set /g/h/i/ 789
 
