@@ -76,6 +76,22 @@ let path =
   let doc = Arg.info ~docv:"PATH" ~doc:"Key to lookup or modify." [] in
   Arg.(required & pos 0 (some path_conv) None & doc)
 
+type path_or_empty = Empty | Path of string
+
+let path_or_empty =
+  let path_conv =
+    let parse str = `Ok (Path str) in
+    let print = Fmt.of_to_string (function Path str -> str | Empty -> "/") in
+    (parse, print)
+  in
+  let doc =
+    Arg.info [] ~docv:"PATH"
+      ~doc:
+        "Path to lookup or modify. Defaults to the empty path (which queries \
+         the root tree of a store)."
+  in
+  Arg.(value & pos 0 path_conv Empty & doc)
+
 let depth =
   let doc =
     Arg.info ~docv:"DEPTH" ~doc:"Limit the history depth." [ "d"; "depth" ]
@@ -194,10 +210,15 @@ let list =
     doc = "List subdirectories.";
     man = [];
     term =
-      (let list (S ((module S), store, _)) path =
+      (let list (S ((module S), store, _)) path_or_empty =
+         let path =
+           match path_or_empty with
+           | Empty -> S.Key.empty
+           | Path str -> key S.Key.t str
+         in
          run
            (let* t = store in
-            let* paths = S.list t (key S.Key.t path) in
+            let* paths = S.list t path in
             let pp_step = Irmin.Type.pp S.Key.step_t in
             let pp ppf (s, k) =
               match S.Tree.destruct k with
@@ -207,7 +228,7 @@ let list =
             List.iter (print "%a" pp) paths;
             Lwt.return_unit)
        in
-       Term.(mk list $ store $ path));
+       Term.(mk list $ store $ path_or_empty));
   }
 
 (* TREE *)
