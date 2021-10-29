@@ -1,0 +1,4 @@
+(library
+ (name irmin_tezos)
+ (public_name irmin-tezos)
+ (libraries tezos-base58 digestif fmt irmin irmin-pack))
