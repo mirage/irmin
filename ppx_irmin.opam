@@ -13,6 +13,7 @@ build: [
 ]
 
 depends: [
+  "ocaml" {>= "4.10.0"}
   "dune" {>= "2.7.0"}
   "ppx_repr" {>= "0.2.0"}
   "ppxlib" {>= "0.12.0"}
