@@ -71,6 +71,7 @@ module Maker
 
     module Tbl = Table (K)
     module Lru = Irmin.Backend.Lru.Make (H)
+    module Cclru = Cachecache.Lru.Make (H)
 
     type nonrec 'a t = {
       pack : 'a t;
@@ -78,6 +79,7 @@ module Maker
       staging : Val.t Tbl.t;
       mutable open_instances : int;
       readonly : bool;
+      offsets_for_free_lru : int63 Cclru.t;
     }
 
     type key = K.t
@@ -110,11 +112,83 @@ module Maker
       if index then Index.flush ~no_callback:() t.pack.index;
       Tbl.clear t.staging
 
+    type st = {
+      mutable offlru_insertions : int;
+      mutable unsafe_find : int;
+      mutable unsafe_find_table_hit : int;
+      mutable unsafe_find_vallru_hit : int;
+      mutable unsafe_find_offlru_hit : int;
+      mutable unsafe_find_long_none : int;
+      mutable unsafe_find_long_some : int;
+      mutable unsafe_append : int;
+      mutable unsafe_append_offset : int;
+      mutable unsafe_append_offset_offlru_hit : int;
+      mutable unsafe_append_offset_long_none : int;
+      mutable unsafe_append_offset_long_some : int;
+      mutable blindfolded_read_first_try : int;
+      mutable blindfolded_read_second_try : int;
+      mutable blindfolded_read_third_or_more_try : int;
+    }
+    [@@deriving irmin]
+
+    let st =
+      {
+        offlru_insertions = 0;
+        unsafe_find = 0;
+        unsafe_find_table_hit = 0;
+        unsafe_find_vallru_hit = 0;
+        unsafe_find_offlru_hit = 0;
+        unsafe_find_long_none = 0;
+        unsafe_find_long_some = 0;
+        unsafe_append = 0;
+        unsafe_append_offset = 0;
+        unsafe_append_offset_offlru_hit = 0;
+        unsafe_append_offset_long_none = 0;
+        unsafe_append_offset_long_some = 0;
+        blindfolded_read_first_try = 0;
+        blindfolded_read_second_try = 0;
+        blindfolded_read_third_or_more_try = 0;
+      }
+
+    let () =
+      let st0 =
+        {
+          offlru_insertions = 0;
+          unsafe_find = 0;
+          unsafe_find_table_hit = 0;
+          unsafe_find_vallru_hit = 0;
+          unsafe_find_offlru_hit = 0;
+          unsafe_find_long_none = 0;
+          unsafe_find_long_some = 0;
+          unsafe_append = 0;
+          unsafe_append_offset = 0;
+          unsafe_append_offset_offlru_hit = 0;
+          unsafe_append_offset_long_none = 0;
+          unsafe_append_offset_long_some = 0;
+          blindfolded_read_first_try = 0;
+          blindfolded_read_second_try = 0;
+          blindfolded_read_third_or_more_try = 0;
+        }
+      in
+      at_exit (fun () ->
+          if st <> st0 then (
+            Printf.eprintf "exit\n%!";
+            Fmt.epr "%a\n%!" (Irmin.Type.pp st_t) st;
+            Fmt.epr "%a\n%!" (Irmin.Type.pp Stats.t) (Stats.get ());
+            Printf.eprintf "\n%!"))
+
     let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack; open_instances = 1; readonly }
+      let s =
+        try "LRU_SIZE_OFF" |> Sys.getenv |> int_of_string
+        with Not_found -> 1000
+      in
+      Printf.eprintf "LRU SIZE! = %d\n%!" s;
+      (* Fmt.epr "& v %d\n%!" s; *)
+      let offsets_for_free_lru = Cclru.v s in
+      { staging; lru; pack; open_instances = 1; readonly; offsets_for_free_lru }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
@@ -159,13 +233,119 @@ module Maker
 
     exception Invalid_read
 
-    let io_read_and_decode ~off ~len t =
+    let min_load_bytes = K.hash_size + 30 |> Int63.of_int
+
+    let blindfolded_io_read_at startoff next_page_idx_to_load t =
+      let endoff =
+        IO.end_offset_of_page_idx t.pack.block next_page_idx_to_load
+      in
+      let len = Int63.sub endoff startoff |> Int63.to_int in
+      (* Fmt.epr
+       *   "blindfolded_io_read_at npitl:%a startoff:%a endoff:%a maxoff:%a len:%d \n\
+       *    %!"
+       *   Int63.pp next_page_idx_to_load Int63.pp startoff Int63.pp endoff
+       *   Int63.pp (IO.offset t.pack.block) len; *)
+      if len <= 0 then raise Invalid_read;
+      assert (Int63.compare startoff endoff < 0);
+      let buf =
+        (* TODO: Would benefit a lot from a pool of large shared buffers
+           in [t] *)
+        Bytes.create len
+      in
+      let n = IO.read t.pack.block ~off:startoff buf in
+      if n <> len then (
+        Fmt.epr
+          "FAILED: blindfolded_io_read_at npitl:%a startoff:%a endoff:%a \
+           len:%d. Read only %d \n\
+           %!"
+          Int63.pp next_page_idx_to_load Int63.pp startoff Int63.pp endoff len n;
+        raise Invalid_read);
+      buf
+
+    let is_long_enough buf =
+      try
+        (* Printf.eprintf "is_long_enough?\n%!"; *)
+        let len = Val.decode_bin_length (Bytes.unsafe_to_string buf) 0 in
+        (* Printf.eprintf "good: len:%d buflen:%d \n%!" len (Bytes.length buf); *)
+        len <= Bytes.length buf
+      with
+      | Invalid_argument msg when msg = "index out of bounds" -> false
+      | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
+          false
+
+    let blindfolded_io_read off t =
+      (* Printf.eprintf "blindfolded_io_read\n%!"; *)
+      let rec aux attempt startoff next_page_idx_to_load buf =
+        (* Printf.eprintf "  aux %d\n%!" attempt; *)
+        let buf =
+          match buf with
+          | None -> blindfolded_io_read_at startoff next_page_idx_to_load t
+          | Some buf ->
+              let buf' =
+                blindfolded_io_read_at startoff next_page_idx_to_load t
+              in
+              (* TODO: Would benefit a lot from a pool of large shared buffers
+                 in [t] *)
+              Bytes.cat buf buf'
+        in
+        if is_long_enough buf then (
+          if attempt = 0 then
+            st.blindfolded_read_first_try <- st.blindfolded_read_first_try + 1
+          else if attempt = 1 then
+            st.blindfolded_read_second_try <- st.blindfolded_read_second_try + 1
+          else
+            st.blindfolded_read_third_or_more_try <-
+              st.blindfolded_read_third_or_more_try + 1;
+          buf)
+        else
+          aux (Int.succ attempt)
+            (Int63.succ next_page_idx_to_load
+            |> IO.start_offset_of_page_idx t.pack.block)
+            (Int63.succ next_page_idx_to_load)
+            (Some buf)
+      in
+
+      (* let page0_idx = Int63.(div off page_len) in *)
+      (* let page0_remaining =
+       *   let open Int63 in
+       *   let open Infix in
+       *   (succ page0_idx * page_len) - off
+       * in *)
+      let page0_idx = IO.page_idx_of_offset t.pack.block off in
+      let page0_remaining =
+        IO.bytes_remaning_in_page_from_offset t.pack.block off
+      in
+      (* Fmt.epr "blindfolded_io_read pidx:%a rem:%a\n%!"
+       *   Int63.pp page0_idx
+       *   Int63.pp page0_remaining
+       * ; *)
+      assert (Int63.compare page0_remaining Int63.zero > 0);
+      if Int63.compare page0_remaining min_load_bytes < 0 then
+        (* If [off] is near the end of the page, load next page too *)
+        aux 0 off (Int63.succ page0_idx) None
+      else aux 0 off page0_idx None
+
+    let io_read_and_decode ~off ~len_opt t =
+      (* Printf.eprintf "io_read_and_decode\n%!"; *)
       if (not (IO.readonly t.pack.block)) && off > IO.offset t.pack.block then
         raise Invalid_read;
-      let buf = Bytes.create len in
-      let n = IO.read t.pack.block ~off buf in
-      if n <> len then raise Invalid_read;
-      let hash off = io_read_and_decode_hash ~off t in
+
+      let buf =
+        match len_opt with
+        | Some len ->
+            let buf = Bytes.create len in
+            let n = IO.read t.pack.block ~off buf in
+            if n <> len then raise Invalid_read;
+            buf
+        | None -> blindfolded_io_read off t
+      in
+      let hash off =
+        let h = io_read_and_decode_hash ~off t in
+        (* Fmt.epr {|& replace,%a,%a\n%!|} (Repr.pp K.t) h Int63.pp off; *)
+        Cclru.replace t.offsets_for_free_lru h off;
+        st.offlru_insertions <- st.offlru_insertions + 1;
+        h
+      in
       let dict = Dict.find t.pack.dict in
       Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
 
@@ -174,30 +354,46 @@ module Maker
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
+    let unsafe_find' ~check_integrity t k off len_opt =
+      let v = io_read_and_decode ~off ~len_opt t in
+      (if check_integrity then
+       check_key k v |> function
+       | Ok () -> ()
+       | Error (expected, got) ->
+           Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash got
+             pp_hash expected);
+      Lru.add t.lru k v;
+      Some v
+
     let unsafe_find ~check_integrity t k =
       [%log.debug "[pack:%a] find %a" pp_io t pp_hash k];
       Stats.incr_finds ();
+      st.unsafe_find <- st.unsafe_find + 1;
       match Tbl.find t.staging k with
       | v ->
+          st.unsafe_find_table_hit <- st.unsafe_find_table_hit + 1;
           Lru.add t.lru k v;
           Some v
       | exception Not_found -> (
           match Lru.find t.lru k with
-          | v -> Some v
+          | v ->
+              st.unsafe_find_vallru_hit <- st.unsafe_find_vallru_hit + 1;
+              Some v
           | exception Not_found -> (
-              Stats.incr_cache_misses ();
-              match Index.find t.pack.index k with
-              | None -> None
-              | Some (off, len, _) ->
-                  let v = io_read_and_decode ~off ~len t in
-                  (if check_integrity then
-                   check_key k v |> function
-                   | Ok () -> ()
-                   | Error (expected, got) ->
-                       Fmt.failwith "corrupted value: got %a, expecting %a."
-                         pp_hash got pp_hash expected);
-                  Lru.add t.lru k v;
-                  Some v))
+              (* match raise Not_found with *)
+              match Cclru.find t.offsets_for_free_lru k with
+              | off ->
+                  st.unsafe_find_offlru_hit <- st.unsafe_find_offlru_hit + 1;
+                  unsafe_find' ~check_integrity t k off None
+              | exception Not_found -> (
+                  Stats.incr_cache_misses ();
+                  match Index.find t.pack.index k with
+                  | None ->
+                      st.unsafe_find_long_none <- st.unsafe_find_long_none + 1;
+                      None
+                  | Some (off, len, _) ->
+                      st.unsafe_find_long_some <- st.unsafe_find_long_some + 1;
+                      unsafe_find' ~check_integrity t k off (Some len))))
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in
@@ -206,8 +402,9 @@ module Maker
     let cast t = (t :> read_write t)
 
     let integrity_check ~offset ~length k t =
+      (* Fmt.epr " pack_store.integrity_check\n%!"; *)
       try
-        let value = io_read_and_decode ~off:offset ~len:length t in
+        let value = io_read_and_decode ~off:offset ~len_opt:(Some length) t in
         match check_key k value with
         | Ok () -> Ok ()
         | Error _ -> Error `Wrong_hash
@@ -225,15 +422,29 @@ module Maker
     let unsafe_append ~ensure_unique ~overcommit t k v =
       if ensure_unique && unsafe_mem t k then ()
       else (
+        st.unsafe_append <- st.unsafe_append + 1;
         [%log.debug "[pack] append %a" pp_hash k];
         let offset k =
-          match Index.find t.pack.index k with
-          | None ->
-              Stats.incr_appended_hashes ();
-              None
-          | Some (off, _, _) ->
+          st.unsafe_append_offset <- st.unsafe_append_offset + 1;
+          (* match raise Not_found with *)
+          match Cclru.find t.offsets_for_free_lru k with
+          | off ->
+              st.unsafe_append_offset_offlru_hit <-
+                st.unsafe_append_offset_offlru_hit + 1;
               Stats.incr_appended_offsets ();
               Some off
+          | exception Not_found -> (
+              match Index.find t.pack.index k with
+              | None ->
+                  st.unsafe_append_offset_long_none <-
+                    st.unsafe_append_offset_long_none + 1;
+                  Stats.incr_appended_hashes ();
+                  None
+              | Some (off, _, _) ->
+                  st.unsafe_append_offset_long_some <-
+                    st.unsafe_append_offset_long_some + 1;
+                  Stats.incr_appended_offsets ();
+                  Some off)
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in

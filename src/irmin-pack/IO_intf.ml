@@ -38,6 +38,10 @@ module type S = sig
   val close : t -> unit
   val exists : string -> bool
   val size : t -> int
+  val page_idx_of_offset : t -> int63 -> int63
+  val bytes_remaning_in_page_from_offset : t -> int63 -> int63
+  val end_offset_of_page_idx : t -> int63 -> int63
+  val start_offset_of_page_idx : t -> int63 -> int63
 
   val truncate : t -> unit
   (** Sets the length of the underlying IO to be 0, without actually purging the

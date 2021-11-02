@@ -432,12 +432,15 @@ module Index (Index : Pack_index.S) = struct
     let f (k, (offset, length, (kind : Pack_value.Kind.t))) =
       match kind with
       | Contents ->
+         (* Fmt.epr " on b %a %d \n%!" Int63.pp offset length; *)
           progress_contents ();
           check ~kind:`Contents ~offset ~length k
       | Node | Inode ->
+         (* Fmt.epr " on i/n %a %d \n%!" Int63.pp offset length; *)
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
       | Commit ->
+         (* Fmt.epr " on c %a %d \n%!" Int63.pp offset length; *)
           progress_commits ();
           check ~kind:`Commit ~offset ~length k
     in
@@ -456,6 +459,8 @@ module Index (Index : Pack_index.S) = struct
       else (
         Index.iter
           (fun k v ->
+            (* Fmt.epr "\n%!"; *)
+            (* Fmt.epr "> Index iter step \n%!"; *)
             match f (k, v) with
             | Ok () -> ()
             | Error `Wrong_hash -> incr nb_corrupted
