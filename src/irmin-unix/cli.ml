@@ -192,7 +192,7 @@ let get =
       (let get (S ((module S), store, _)) path =
          run
            (let* t = store in
-            S.find t (key S.Key.t path) >>= function
+            S.find t (key S.Path.t path) >>= function
             | None ->
                 print "<none>";
                 exit 1
@@ -213,13 +213,13 @@ let list =
       (let list (S ((module S), store, _)) path_or_empty =
          let path =
            match path_or_empty with
-           | Empty -> S.Key.empty
-           | Path str -> key S.Key.t str
+           | Empty -> S.Path.empty
+           | Path str -> key S.Path.t str
          in
          run
            (let* t = store in
             let* paths = S.list t path in
-            let pp_step = Irmin.Type.pp S.Key.step_t in
+            let pp_step = Irmin.Type.pp S.Path.step_t in
             let pp ppf (s, k) =
               match S.Tree.destruct k with
               | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
@@ -242,7 +242,7 @@ let tree =
          run
            (let* t = store in
             let all = ref [] in
-            let todo = ref [ S.Key.empty ] in
+            let todo = ref [ S.Path.empty ] in
             let rec walk () =
               match !todo with
               | [] -> Lwt.return_unit
@@ -251,7 +251,7 @@ let tree =
                   let* childs = S.list t k in
                   Lwt_list.iter_p
                     (fun (s, c) ->
-                      let k = S.Key.rcons k s in
+                      let k = S.Path.rcons k s in
                       match S.Tree.destruct c with
                       | `Node _ ->
                           todo := k :: !todo;
@@ -267,7 +267,7 @@ let tree =
             let all =
               List.map
                 (fun (k, v) ->
-                  ( Irmin.Type.to_string S.Key.t k,
+                  ( Irmin.Type.to_string S.Path.t k,
                     Irmin.Type.to_string S.Contents.t v ))
                 all
             in
@@ -312,7 +312,7 @@ let set =
          run
            (let message = match message with Some s -> s | None -> "set" in
             let* t = store in
-            let path = key S.Key.t path in
+            let path = key S.Path.t path in
             let value = value S.Contents.t v in
             S.set_exn t ~info:(info (module S) ?author "%s" message) path value)
        in
@@ -334,7 +334,7 @@ let remove =
             let* t = store in
             S.remove_exn t
               ~info:(info (module S) ?author "%s" message)
-              (key S.Key.t path))
+              (key S.Path.t path))
        in
        Term.(mk remove $ store $ author $ message $ path));
   }
@@ -506,7 +506,7 @@ let watch =
     man = [];
     term =
       (let watch (S ((module S), store, _)) path =
-         let path = key S.Key.t path in
+         let path = key S.Path.t path in
          run
            (let* t = store in
             let* _ =
@@ -518,7 +518,7 @@ let watch =
                       | `Added _ -> "+"
                       | `Removed _ -> "-"
                     in
-                    print "%s%a" v (Irmin.Type.pp S.Key.t) k
+                    print "%s%a" v (Irmin.Type.pp S.Path.t) k
                   in
                   let view (c, _) =
                     let* t = S.of_commit c in

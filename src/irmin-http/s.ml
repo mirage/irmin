@@ -97,9 +97,9 @@ module Content_addressable = struct
 
   module type Maker = functor
     (Client : Cohttp_lwt.S.Client)
-    (K : Irmin.Hash.S)
+    (H : Irmin.Hash.S)
     (V : Irmin.Type.S)
-    -> S with type key = K.t and type value = V.t and type ctx = Client.ctx
+    -> S with type key = H.t and type value = V.t and type ctx = Client.ctx
 end
 
 module Atomic_write = struct
@@ -113,12 +113,12 @@ module Atomic_write = struct
 
   module type Maker = functor
     (Client : Cohttp_lwt.S.Client)
-    (K : Irmin.Branch.S)
-    (V : Irmin.Hash.S)
+    (B : Irmin.Branch.S)
+    (H : Irmin.Hash.S)
     -> sig
-    module W : Irmin.Backend.Watch.S with type key = K.t and type value = V.t
+    module W : Irmin.Backend.Watch.S with type key = B.t and type value = H.t
     module RO : Read_only.S
     module HTTP = RO.HTTP
-    include S with type key = K.t and type value = V.t and type ctx = Client.ctx
+    include S with type key = B.t and type value = H.t and type ctx = Client.ctx
   end
 end

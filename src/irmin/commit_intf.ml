@@ -252,7 +252,7 @@ module type Sigs = sig
       (I : Info.S)
       (N : Node.Store)
       (S : Content_addressable.S with type key = N.key)
-      (K : Hash.S with type t = S.key)
+      (H : Hash.S with type t = S.key)
       (V : S with type hash = S.key and type t = S.value and module Info := I) :
     Store
       with type 'a t = 'a N.t * 'a S.t

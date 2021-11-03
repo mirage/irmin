@@ -111,14 +111,14 @@ module Suite = struct
       | S (module S) -> (module S : Generic_key)
     in
     let open Lwt.Syntax in
-    let module P = Store.Backend in
+    let module B = Store.Backend in
     let clear repo =
       Lwt.join
         [
-          P.Commit.clear (P.Repo.commit_t repo);
-          P.Node.clear (P.Repo.node_t repo);
-          P.Contents.clear (P.Repo.contents_t repo);
-          P.Branch.clear (P.Repo.branch_t repo);
+          B.Commit.clear (B.Repo.commit_t repo);
+          B.Node.clear (B.Repo.node_t repo);
+          B.Contents.clear (B.Repo.contents_t repo);
+          B.Branch.clear (B.Repo.branch_t repo);
         ]
     in
     let* repo = Store.Repo.v config in
@@ -155,8 +155,8 @@ module type Store_tests = functor (S : Generic_key) -> sig
 end
 
 module Make_helpers (S : Generic_key) = struct
-  module P = S.Backend
-  module Graph = Irmin.Node.Graph (P.Node)
+  module B = S.Backend
+  module Graph = Irmin.Node.Graph (B.Node)
 
   let info message =
     let date = Int64.of_float 0. in
@@ -175,20 +175,20 @@ module Make_helpers (S : Generic_key) = struct
 
   type x = int [@@deriving irmin]
 
-  let v repo = P.Repo.contents_t repo
-  let n repo = P.Repo.node_t repo
-  let ct repo = P.Repo.commit_t repo
-  let g repo = P.Repo.node_t repo
-  let h repo = P.Repo.commit_t repo
-  let b repo = P.Repo.branch_t repo
+  let v repo = B.Repo.contents_t repo
+  let n repo = B.Repo.node_t repo
+  let ct repo = B.Repo.commit_t repo
+  let g repo = B.Repo.node_t repo
+  let h repo = B.Repo.commit_t repo
+  let b repo = B.Repo.branch_t repo
   let v1 = long_random_string
   let v2 = ""
-  let with_contents repo f = P.Repo.batch repo (fun t _ _ -> f t)
-  let with_node repo f = P.Repo.batch repo (fun _ t _ -> f t)
-  let with_commit repo f = P.Repo.batch repo (fun _ _ t -> f t)
+  let with_contents repo f = B.Repo.batch repo (fun t _ _ -> f t)
+  let with_node repo f = B.Repo.batch repo (fun _ t _ -> f t)
+  let with_commit repo f = B.Repo.batch repo (fun _ _ t -> f t)
   let with_info repo n f = with_commit repo (fun h -> f h ~info:(info n))
-  let kv1 ~repo = with_contents repo (fun t -> P.Contents.add t v1)
-  let kv2 ~repo = with_contents repo (fun t -> P.Contents.add t v2)
+  let kv1 ~repo = with_contents repo (fun t -> B.Contents.add t v1)
+  let kv2 ~repo = with_contents repo (fun t -> B.Contents.add t v2)
   let normal x = `Contents (x, S.Metadata.default)
   let b1 = "foo"
   let b2 = "bar/toto"

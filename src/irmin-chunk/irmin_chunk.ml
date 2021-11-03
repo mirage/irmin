@@ -63,15 +63,15 @@ let config ?size ?min_size ?(chunking = `Best_fit) config =
   in
   Conf.(verify (union cfg config))
 
-module Chunk (K : Irmin.Hash.S) = struct
-  type v = Data of string | Index of K.t list
+module Chunk (H : Irmin.Hash.S) = struct
+  type v = Data of string | Index of H.t list
 
   let v_t =
     let open Irmin.Type in
     variant "chunk" (fun d i -> function
       | Data data -> d data | Index index -> i index)
     |~ case1 "Data" string (fun d -> Data d)
-    |~ case1 "Index" (list ~len:`Int16 K.t) (fun i -> Index i)
+    |~ case1 "Index" (list ~len:`Int16 H.t) (fun i -> Index i)
     |> sealv
 
   type value = v
@@ -106,14 +106,14 @@ end
 
 module Content_addressable
     (Make_append_only : Irmin.Append_only.Maker)
-    (K : Irmin.Hash.S)
+    (H : Irmin.Hash.S)
     (V : Irmin.Type.S) =
 struct
-  module Chunk = Chunk (K)
-  module AO = Make_append_only (K) (Chunk)
-  module CA = Irmin.Content_addressable.Make (Make_append_only) (K) (Chunk)
+  module Chunk = Chunk (H)
+  module AO = Make_append_only (H) (Chunk)
+  module CA = Irmin.Content_addressable.Make (Make_append_only) (H) (Chunk)
 
-  type key = K.t [@@deriving irmin ~pp ~equal]
+  type key = H.t [@@deriving irmin ~pp ~equal]
   type value = V.t [@@deriving irmin ~of_bin_string ~to_bin_string ~pre_hash]
 
   type 'a t = {
@@ -187,15 +187,15 @@ struct
     let chunk_size = Conf.get config Conf.Key.chunk_size in
     let max_data = chunk_size - Chunk.size_of_data_header in
     let max_children =
-      (chunk_size - Chunk.size_of_index_header) / K.hash_size
+      (chunk_size - Chunk.size_of_index_header) / H.hash_size
     in
     let chunking = Conf.get config Conf.Key.chunking in
     (if max_children <= 1 then
-     let min = Chunk.size_of_index_header + (K.hash_size * 2) in
+     let min = Chunk.size_of_index_header + (H.hash_size * 2) in
      err_too_small ~min chunk_size);
     [%log.debug
       "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
-        chunk_size K.hash_size max_data max_children];
+        chunk_size H.hash_size max_data max_children];
     let+ db = CA.v config in
     { chunking; db; chunk_size; max_children; max_data }
 
@@ -209,7 +209,7 @@ struct
     | Some x -> Tree.find_leaves t x >|= Option.some
 
   let check_hash k v =
-    let k' = K.hash (pre_hash_value v) in
+    let k' = H.hash (pre_hash_value v) in
     if equal_key k k' then Lwt.return_unit
     else
       Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
@@ -247,7 +247,7 @@ struct
 
   let add t v =
     let buf = value_to_bin_string v in
-    let key = K.hash (pre_hash_value v) in
+    let key = H.hash (pre_hash_value v) in
     let+ () = unsafe_add_buffer t key buf in
     key
 

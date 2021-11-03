@@ -67,13 +67,13 @@ module type CUSTOM_TYPE = sig
 end
 
 module type CUSTOM_TYPES = sig
-  type key
+  type path
   type metadata
   type contents
   type hash
   type branch
 
-  module Key : CUSTOM_TYPE with type t := key
+  module Path : CUSTOM_TYPE with type t := path
   module Metadata : CUSTOM_TYPE with type t := metadata
   module Contents : CUSTOM_TYPE with type t := contents
   module Hash : CUSTOM_TYPE with type t := hash
@@ -99,8 +99,8 @@ struct
 end
 
 module Default_types (S : Irmin.S) = struct
-  module Key = Default_type (struct
-    include S.Key
+  module Path = Default_type (struct
+    include S.Path
 
     let name = "Key"
   end)
@@ -135,7 +135,7 @@ module Make_ext
     (Config : CONFIG)
     (Store : Irmin.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
-               with type key := Store.key
+               with type path := Store.path
                 and type metadata := Store.metadata
                 and type contents := Store.contents
                 and type hash := Store.hash
@@ -184,7 +184,7 @@ struct
     | `Response of Cohttp.Response.t * Cohttp_lwt.Body.t ]
 
   type tree_item = {
-    key : Store.key;
+    key : Store.path;
     value : Store.contents option;
     metadata : Store.metadata option;
   }
@@ -194,9 +194,9 @@ struct
     | None -> Store.master repo
 
   let rec concat_key a b =
-    match Store.Key.decons a with
+    match Store.Path.decons a with
     | None -> b
-    | Some (step, a_tl) -> Store.Key.cons step (concat_key a_tl b)
+    | Some (step, a_tl) -> Store.Path.cons step (concat_key a_tl b)
 
   module Input = struct
     let coerce_remote = function
@@ -207,7 +207,7 @@ struct
       | _ -> Error "Invalid input value"
 
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
-    let key = Types.Key.arg_typ
+    let key = Types.Path.arg_typ
     let commit_hash = Types.Hash.arg_typ
     let branch = Types.Branch.arg_typ
     let value = Types.Contents.arg_typ
@@ -249,7 +249,7 @@ struct
               field "tree"
                 ~typ:(non_null (Lazy.force tree))
                 ~args:[]
-                ~resolve:(fun _ c -> (Store.Commit.tree c, Store.Key.empty));
+                ~resolve:(fun _ c -> (Store.Commit.tree c, Store.Path.empty));
               field "parents"
                 ~typ:(non_null (list (non_null Types.Hash.schema_typ)))
                 ~args:[]
@@ -275,12 +275,12 @@ struct
                 ~resolve:(fun _ i -> Info.message i);
             ]))
 
-  and tree : ('ctx, (Store.tree * Store.key) option) Schema.typ Lazy.t =
+  and tree : ('ctx, (Store.tree * Store.path) option) Schema.typ Lazy.t =
     lazy
       Schema.(
         obj "Tree" ~fields:(fun _ ->
             [
-              field "key" ~typ:(non_null Types.Key.schema_typ) ~args:[]
+              field "key" ~typ:(non_null Types.Path.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, key) -> key);
               io_field "get"
                 ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
@@ -314,7 +314,7 @@ struct
                     | `Tree l ->
                         List.fold_left
                           (fun acc (step, t) ->
-                            let key' = Store.Key.rcons key step in
+                            let key' = Store.Path.rcons key step in
                             tree_list t key' ~acc)
                           acc l
                         |> List.rev
@@ -327,9 +327,9 @@ struct
                 ~typ:(non_null (list (non_null node)))
                 ~args:[]
                 ~resolve:(fun _ (tree, tree_key) ->
-                  Store.Tree.list tree Store.Key.empty
+                  Store.Tree.list tree Store.Path.empty
                   >>= Lwt_list.map_s (fun (step, tree) ->
-                          let absolute_key = Store.Key.rcons tree_key step in
+                          let absolute_key = Store.Path.rcons tree_key step in
                           match Store.Tree.destruct tree with
                           | `Contents (c, m) ->
                               let+ c = Store.Tree.Contents.force_exn c in
@@ -353,7 +353,7 @@ struct
                 ~typ:(non_null Lazy.(force tree))
                 ~resolve:(fun _ (t, _) ->
                   let+ tree = Store.tree t in
-                  Ok (tree, Store.Key.empty));
+                  Ok (tree, Store.Path.empty));
               io_field "last_modified"
                 ~typ:(non_null (list (non_null (Lazy.force commit))))
                 ~args:
@@ -380,13 +380,13 @@ struct
             ]))
 
   and contents :
-      ('ctx, (Store.contents * Store.metadata * Store.key) option) Schema.typ
+      ('ctx, (Store.contents * Store.metadata * Store.path) option) Schema.typ
       Lazy.t =
     lazy
       Schema.(
         obj "Contents" ~fields:(fun _contents ->
             [
-              field "key" ~typ:(non_null Types.Key.schema_typ) ~args:[]
+              field "key" ~typ:(non_null Types.Path.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, _, key) -> key);
               field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
                 ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);

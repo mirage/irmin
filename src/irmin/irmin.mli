@@ -479,15 +479,15 @@ module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
   KV_maker with type endpoint = unit and type metadata = unit
 
 (** Advanced store creator. *)
-module Of_backend (P : Backend.S) :
+module Of_backend (B : Backend.S) :
   Generic_key.S
-    with module Schema = P.Schema
-     and type repo = P.Repo.t
-     and type slice = P.Slice.t
-     and type contents_key = P.Contents.Key.t
-     and type node_key = P.Node.Key.t
-     and type commit_key = P.Commit.Key.t
-     and module Backend = P
+    with module Schema = B.Schema
+     and type repo = B.Repo.t
+     and type slice = B.Slice.t
+     and type contents_key = B.Contents.Key.t
+     and type node_key = B.Node.Key.t
+     and type commit_key = B.Commit.Key.t
+     and module Backend = B
 
 module Export_for_backends = Export_for_backends
 (** Helper module containing useful top-level types for defining Irmin backends.

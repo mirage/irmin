@@ -37,7 +37,7 @@ module Store = Irmin_unix.Git.Mem.KV (Car)
 
 module Custom_types = struct
   module Defaults = Irmin_graphql.Server.Default_types (Store)
-  module Key = Defaults.Key
+  module Path = Defaults.Path
   module Metadata = Defaults.Metadata
   module Hash = Defaults.Hash
   module Branch = Defaults.Branch

@@ -122,6 +122,8 @@
     cache the lazily loaded data any more. Pass `~cache:true` to enable it
     again. (#1526, @Ngoguey42)
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
+  - Rename `key` type to `path` and `Key` module to `Path` when it is in a path
+    context in `Tree` and `Store`. (#1569, @maiste)
 
   - Add support for non-content-addressed ("generic key") backend stores. This
     allows Irmin to work with backends in which not all values are addressed by

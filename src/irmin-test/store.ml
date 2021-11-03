@@ -23,7 +23,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (S : Generic_key) = struct
   include Common.Make_helpers (S)
-  module History = Irmin.Commit.History (P.Commit)
+  module History = Irmin.Commit.History (B.Commit)
 
   let with_binding k v t = S.Tree.add t k v
   let random_value value = random_string value
@@ -78,29 +78,29 @@ module Make (S : Generic_key) = struct
 
   let test_contents x () =
     let test repo =
-      let t = P.Repo.contents_t repo in
-      let check_key = check P.Contents.Key.t in
+      let t = B.Repo.contents_t repo in
+      let check_key = check B.Contents.Key.t in
       let check_val = check (T.option S.contents_t) in
       let* kv2 = kv2 ~repo in
-      let* k2' = with_contents repo (fun t -> P.Contents.add t v2) in
+      let* k2' = with_contents repo (fun t -> B.Contents.add t v2) in
       check_key "kv2" kv2 k2';
-      let* v2' = P.Contents.find t k2' in
+      let* v2' = B.Contents.find t k2' in
       check_val "v2" (Some v2) v2';
-      let* k2'' = with_contents repo (fun t -> P.Contents.add t v2) in
+      let* k2'' = with_contents repo (fun t -> B.Contents.add t v2) in
       check_key "kv2" kv2 k2'';
       let* kv1 = kv1 ~repo in
-      let* k1' = with_contents repo (fun t -> P.Contents.add t v1) in
+      let* k1' = with_contents repo (fun t -> B.Contents.add t v1) in
       check_key "kv1" kv1 k1';
-      let* k1'' = with_contents repo (fun t -> P.Contents.add t v1) in
+      let* k1'' = with_contents repo (fun t -> B.Contents.add t v1) in
       check_key "kv1" kv1 k1'';
-      let* v1' = P.Contents.find t kv1 in
+      let* v1' = B.Contents.find t kv1 in
       check_val "v1" (Some v1) v1';
-      let* v2' = P.Contents.find t kv2 in
+      let* v2' = B.Contents.find t kv2 in
       check_val "v2" (Some v2) v2';
-      P.Repo.close repo >>= fun () ->
+      B.Repo.close repo >>= fun () ->
       Lwt.catch
         (fun () ->
-          let+ _ = with_contents repo (fun t -> P.Contents.add t v2) in
+          let+ _ = with_contents repo (fun t -> B.Contents.add t v2) in
           Alcotest.fail "Add after close should not be allowed")
         (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
     in
@@ -109,7 +109,7 @@ module Make (S : Generic_key) = struct
   let get = function None -> Alcotest.fail "get" | Some v -> v
 
   module H_node = struct
-    include Irmin.Hash.Typed (P.Hash) (P.Node.Val)
+    include Irmin.Hash.Typed (B.Hash) (B.Node.Val)
 
     type nonrec t = t [@@deriving irmin ~equal]
   end
@@ -118,84 +118,84 @@ module Make (S : Generic_key) = struct
     let test repo =
       let g = g repo and n = n repo in
       let* k =
-        with_contents repo (fun c -> P.Contents.add c "foo") >|= normal
+        with_contents repo (fun c -> B.Contents.add c "foo") >|= normal
       in
-      let check_hash = check P.Hash.t in
-      let check_key = check P.Node.Key.t in
+      let check_hash = check B.Hash.t in
+      let check_key = check B.Node.Key.t in
       let check_val = check [%typ: Graph.value option] in
-      let check_list = checks [%typ: S.step * P.Node.Val.value] in
+      let check_list = checks [%typ: S.step * B.Node.Val.value] in
       let check_node msg v =
-        let h' = P.Node.Hash.hash v in
-        let+ key = with_node repo (fun n -> P.Node.add n v) in
-        check_hash (msg ^ ": hash(v) = add(v)") (P.Node.Key.to_hash key) h'
+        let h' = B.Node.Hash.hash v in
+        let+ key = with_node repo (fun n -> B.Node.add n v) in
+        check_hash (msg ^ ": hash(v) = add(v)") (B.Node.Key.to_hash key) h'
       in
-      let v = P.Node.Val.empty in
+      let v = B.Node.Val.empty in
       check_node "empty node" v >>= fun () ->
-      let v1 = P.Node.Val.add v "x" k in
+      let v1 = B.Node.Val.add v "x" k in
       check_node "node: x" v1 >>= fun () ->
-      let v2 = P.Node.Val.add v "x" k in
+      let v2 = B.Node.Val.add v "x" k in
       check_node "node: x (bis)" v2 >>= fun () ->
-      check P.Node.Val.t "add x" v1 v2;
-      let v0 = P.Node.Val.remove v1 "x" in
-      check P.Node.Val.t "remove x" v v0;
-      let v3 = P.Node.Val.add v1 "x" k in
+      check B.Node.Val.t "add x" v1 v2;
+      let v0 = B.Node.Val.remove v1 "x" in
+      check B.Node.Val.t "remove x" v v0;
+      let v3 = B.Node.Val.add v1 "x" k in
       Alcotest.(check bool) "same same" true (v1 == v3);
-      let u = P.Node.Val.add v3 "y" k in
+      let u = B.Node.Val.add v3 "y" k in
       check_node "node: x+y" v3 >>= fun () ->
-      let u = P.Node.Val.add u "z" k in
+      let u = B.Node.Val.add u "z" k in
       check_node "node: x+y+z" u >>= fun () ->
       let check_values u =
-        check_val "find x" (Some k) (P.Node.Val.find u "x");
-        check_val "find y" (Some k) (P.Node.Val.find u "y");
-        check_val "find z" (Some k) (P.Node.Val.find u "x");
-        check_val "find xx" None (P.Node.Val.find u "xx")
+        check_val "find x" (Some k) (B.Node.Val.find u "x");
+        check_val "find y" (Some k) (B.Node.Val.find u "y");
+        check_val "find z" (Some k) (B.Node.Val.find u "x");
+        check_val "find xx" None (B.Node.Val.find u "xx")
       in
       check_values u;
-      let w = P.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
-      check P.Node.Val.t "v" u w;
-      let l = P.Node.Val.list u in
+      let w = B.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
+      check B.Node.Val.t "v" u w;
+      let l = B.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
-      let l = P.Node.Val.list ~length:1 u in
+      let l = B.Node.Val.list ~length:1 u in
       check_list "list length=1" [ ("x", k) ] l;
-      let l = P.Node.Val.list ~offset:1 u in
+      let l = B.Node.Val.list ~offset:1 u in
       check_list "list offset=1" [ ("y", k); ("z", k) ] l;
-      let l = P.Node.Val.list ~offset:1 ~length:1 u in
+      let l = B.Node.Val.list ~offset:1 ~length:1 u in
       check_list "list offset=1 length=1" [ ("y", k) ] l;
-      let u = P.Node.Val.add u "a" k in
+      let u = B.Node.Val.add u "a" k in
       check_node "node: x+y+z+a" u >>= fun () ->
-      let u = P.Node.Val.add u "b" k in
+      let u = B.Node.Val.add u "b" k in
       check_node "node: x+y+z+a+b" u >>= fun () ->
-      let h = P.Node.Hash.hash u in
-      let* k = with_node repo (fun n -> P.Node.add n u) in
-      check_hash "hash(v) = add(v)" h (P.Node.Key.to_hash k);
-      let* w = P.Node.find n k in
+      let h = B.Node.Hash.hash u in
+      let* k = with_node repo (fun n -> B.Node.add n u) in
+      check_hash "hash(v) = add(v)" h (B.Node.Key.to_hash k);
+      let* w = B.Node.find n k in
       check_values (get w);
       let* kv1 = kv1 ~repo in
       let* k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       let* k1' = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       check_key "k1.1" k1 k1';
-      let* t1 = P.Node.find n k1 in
-      let k' = P.Node.Val.find (get t1) "x" in
+      let* t1 = B.Node.find n k1 in
+      let k' = B.Node.Val.find (get t1) "x" in
       check
-        (Irmin.Type.option P.Node.Val.value_t)
+        (Irmin.Type.option B.Node.Val.value_t)
         "find x"
         (Some (normal kv1))
         k';
-      let* k1'' = with_node repo (fun n -> P.Node.add n (get t1)) in
+      let* k1'' = with_node repo (fun n -> B.Node.add n (get t1)) in
       check_key "k1.2" k1 k1'';
       let* k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
       let* k2' = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
       check_key "k2.1" k2 k2';
-      let* t2 = P.Node.find n k2 in
-      let* k2'' = with_node repo (fun n -> P.Node.add n (get t2)) in
+      let* t2 = B.Node.find n k2 in
+      let* k2'' = with_node repo (fun n -> B.Node.add n (get t2)) in
       check_key "k2.2" k2 k2'';
       let* k1''' = Graph.find g k2 [ "b" ] in
       check_val "k1.3" (Some (`Node k1)) k1''';
       let* k3 = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
       let* k3' = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
       check_key "k3.1" k3 k3';
-      let* t3 = P.Node.find n k3 in
-      let* k3'' = with_node repo (fun n -> P.Node.add n (get t3)) in
+      let* t3 = B.Node.find n k3 in
+      let* k3'' = with_node repo (fun n -> B.Node.add n (get t3)) in
       check_key "k3.2" k3 k3'';
       let* k2'' = Graph.find g k3 [ "a" ] in
       check_val "k2.3" (Some (`Node k2)) k2'';
@@ -219,9 +219,9 @@ module Make (S : Generic_key) = struct
         with_node repo (fun g -> Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
       in
       check_key "node k6" k6 k6';
-      let* n6' = P.Node.find n k6' in
-      let* n6 = P.Node.find n k6 in
-      check T.(option P.Node.Val.t) "node n6" n6 n6';
+      let* n6' = B.Node.find n k6' in
+      let* n6 = B.Node.find n k6 in
+      check T.(option B.Node.Val.t) "node n6" n6 n6';
       let assert_no_duplicates n node =
         let names = ref [] in
         let+ all = Graph.list g node in
@@ -268,10 +268,10 @@ module Make (S : Generic_key) = struct
         S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
       let* kv1 = kv1 ~repo in
-      let h = h repo and c = P.Repo.commit_t repo in
-      let check_val = check (T.option P.Commit.Val.t) in
-      let check_key = check P.Commit.Key.t in
-      let check_keys = checks P.Commit.Key.t in
+      let h = h repo and c = B.Repo.commit_t repo in
+      let check_val = check (T.option B.Commit.Val.t) in
+      let check_key = check B.Commit.Key.t in
+      let check_keys = checks B.Commit.Key.t in
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
       let* kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       let* kt2 = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) in
@@ -280,8 +280,8 @@ module Make (S : Generic_key) = struct
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
       let* kr1, _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
       let* kr1', _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
-      let* t1 = P.Commit.find c kr1 in
-      let* t1' = P.Commit.find c kr1' in
+      let* t1 = B.Commit.find c kr1 in
+      let* t1' = B.Commit.find c kr1' in
       check_val "t1" t1 t1';
       check_key "kr1" kr1 kr1';
 
@@ -316,14 +316,14 @@ module Make (S : Generic_key) = struct
         let message = Fmt.str "Test commit: %d" date in
         S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
-      let check_keys = checks P.Commit.Key.t in
-      let equal_key = Irmin.Type.(unstage (equal P.Commit.Key.t)) in
+      let check_keys = checks B.Commit.Key.t in
+      let equal_key = Irmin.Type.(unstage (equal B.Commit.Key.t)) in
       let h = h repo in
       let initialise_nodes =
         Lwt_list.map_p
           (fun i ->
             let* kv =
-              with_contents repo (fun t -> P.Contents.add t (string_of_int i))
+              with_contents repo (fun t -> B.Contents.add t (string_of_int i))
             in
             with_node repo (fun g -> Graph.v g [ (string_of_int i, normal kv) ]))
           [ 0; 1; 2; 3; 4; 5; 6; 7; 8 ]
@@ -470,7 +470,7 @@ module Make (S : Generic_key) = struct
             let* empty = Graph.empty g in
             Lwt_list.fold_left_s
               (fun t (k, v) ->
-                let* v = with_contents repo (fun t -> P.Contents.add t v) in
+                let* v = with_contents repo (fun t -> B.Contents.add t v) in
                 Graph.add g t k (`Contents (v, S.Metadata.default)))
               empty bindings)
       in
@@ -482,7 +482,7 @@ module Make (S : Generic_key) = struct
       let check_hash msg bindings =
         let* node = node bindings in
         let+ tree = tree bindings in
-        check P.Hash.t msg (P.Node.Key.to_hash node) (S.Tree.hash tree)
+        check B.Hash.t msg (B.Node.Key.to_hash node) (S.Tree.hash tree)
       in
       check_hash "empty" [] >>= fun () ->
       let bindings1 = [ ([ "a" ], "x"); ([ "b" ], "y") ] in
@@ -524,18 +524,18 @@ module Make (S : Generic_key) = struct
       let* kv1 = kv1 ~repo in
       let* kv2 = kv2 ~repo in
       let result =
-        T.(result (option P.Contents.Key.t) Irmin.Merge.conflict_t)
+        T.(result (option B.Contents.Key.t) Irmin.Merge.conflict_t)
       in
       (* merge contents *)
       let* kv1' =
         with_contents repo (fun v ->
-            Irmin.Merge.f (P.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
+            Irmin.Merge.f (B.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
               (Some kv1))
       in
       check result "merge kv1" (Ok (Some kv1)) kv1';
       let* kv2' =
         with_contents repo (fun v ->
-            Irmin.Merge.f (P.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
+            Irmin.Merge.f (B.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
               (Some kv2))
       in
       check result "merge kv2" (Ok (Some kv2)) kv2';
@@ -555,7 +555,7 @@ module Make (S : Generic_key) = struct
                              \c/ *)
       let* k4 =
         with_node repo (fun g ->
-            Irmin.Merge.(f @@ P.Node.merge g)
+            Irmin.Merge.(f @@ B.Node.merge g)
               ~old:(old (Some k0)) (Some k2) (Some k3))
       in
       let* k4 = merge_exn "k4" k4 in
@@ -568,7 +568,7 @@ module Make (S : Generic_key) = struct
         let i = Int64.of_int date in
         S.Info.v ~author:"test" ~message:"Test commit" i
       in
-      let c = P.Repo.commit_t repo in
+      let c = B.Repo.commit_t repo in
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
       let* kr0, _ = with_info 0 (History.v ~node:k0 ~parents:[]) in
       let* kr1, _ = with_info 1 (History.v ~node:k2 ~parents:[ kr0 ]) in
@@ -589,7 +589,7 @@ module Make (S : Generic_key) = struct
               ~old:(old kr2) kr2 kr3)
       in
       let* kr3_key' = merge_exn "kr3_key'" kr3_key' in
-      let check_key = check P.Commit.Key.t in
+      let check_key = check B.Commit.Key.t in
       check_key "kr3 id with immediate parent'" kr3 kr3_key';
       let* kr3_key =
         with_info 5 (fun h ~info ->
@@ -600,11 +600,11 @@ module Make (S : Generic_key) = struct
       let* kr3_key = merge_exn "kr3_key" kr3_key in
       check_key "kr3 key with old parent" kr3 kr3_key;
       let* kr3', _ = with_info 3 @@ History.v ~node:k4 ~parents:[ kr1; kr2 ] in
-      let* r3 = P.Commit.find c kr3 in
-      let* r3' = P.Commit.find c kr3' in
-      check T.(option P.Commit.Val.t) "r3" r3 r3';
+      let* r3 = B.Commit.find c kr3 in
+      let* r3' = B.Commit.find c kr3' in
+      check T.(option B.Commit.Val.t) "r3" r3 r3';
       check_key "kr3" kr3 kr3';
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -839,7 +839,7 @@ module Make (S : Generic_key) = struct
       Alcotest.(check ff) "ff 2.2" (Ok ()) b3;
       let* c14' = S.Head.get t12 in
       check (S.commit_t repo) "ff 2.3" c14 c14';
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -853,7 +853,7 @@ module Make (S : Generic_key) = struct
       S.set_exn t ~info:S.Info.none [ "b"; "x" ] v1 >>= fun () ->
       let* h = S.Head.find t in
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -866,14 +866,14 @@ module Make (S : Generic_key) = struct
       S.set_exn t ~info:(infof "slice") [ "x"; "b" ] b >>= fun () ->
       may_with_branch [ t ] repo hook >>= fun () ->
       let* slice = S.Repo.export repo in
-      let str = T.to_json_string P.Slice.t slice in
+      let str = T.to_json_string B.Slice.t slice in
       let slice' =
-        match T.decode_json P.Slice.t (Jsonm.decoder (`String str)) with
+        match T.decode_json B.Slice.t (Jsonm.decoder (`String str)) with
         | Ok t -> t
         | Error (`Msg e) -> Alcotest.failf "decoding error: %s" e
       in
-      check P.Slice.t "slices" slice slice';
-      P.Repo.close repo
+      check B.Slice.t "slices" slice slice';
+      B.Repo.close repo
     in
     run x test
 
@@ -902,14 +902,14 @@ module Make (S : Generic_key) = struct
       check_val "vy after merge" (Some vy) vy';
       let* vx' = S.find t [ "u"; "x"; "z" ] in
       check_val "vx after merge" (Some vx) vx';
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
   let test_stores x () =
     let test repo =
       let check_val = check [%typ: S.contents option] in
-      let check_list = checks [%typ: S.Key.step * S.tree] in
+      let check_list = checks [%typ: S.Path.step * S.tree] in
       let* t = S.master repo in
       S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1 >>= fun () ->
       let* b0 = S.mem t [ "a"; "b" ] in
@@ -1040,12 +1040,12 @@ module Make (S : Generic_key) = struct
       Alcotest.(check inspect) "inspect:3" (`Node `Key) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:3" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
   let pp_depth = Irmin.Type.pp S.Tree.depth_t
-  let pp_key = Irmin.Type.pp S.Key.t
+  let pp_key = Irmin.Type.pp S.Path.t
 
   let test_trees x () =
     let test repo =
@@ -1080,7 +1080,7 @@ module Make (S : Generic_key) = struct
             ~node:(fun path _ (cs, ns) -> Lwt.return (cs, path :: ns))
             ([], [])
         in
-        let paths = Alcotest.slist (testable S.Key.t) compare in
+        let paths = Alcotest.slist (testable S.Path.t) compare in
         Alcotest.(check paths)
           (Fmt.str "contents depth=%a" Fmt.(Dump.option pp_depth) depth)
           ecs cs;
@@ -1133,14 +1133,14 @@ module Make (S : Generic_key) = struct
       S.set_tree_exn t ~info:(infof "empty tree") [] v1 >>= fun () ->
       let* head = S.Head.get t in
       S.Commit.key head |> fun head ->
-      let* commit = P.Commit.find (ct repo) head in
-      let node = P.Commit.Val.node (get commit) in
-      let* node = P.Node.find (n repo) node in
-      check T.(option P.Node.Val.t) "empty tree" (Some P.Node.Val.empty) node;
+      let* commit = B.Commit.find (ct repo) head in
+      let node = B.Commit.Val.node (get commit) in
+      let* node = B.Node.find (n repo) node in
+      check T.(option B.Node.Val.t) "empty tree" (Some B.Node.Val.empty) node;
 
       (* Testing [Tree.diff] *)
       let contents_t = T.pair S.contents_t S.metadata_t in
-      let diff = T.(pair S.key_t (Irmin.Diff.t contents_t)) in
+      let diff = T.(pair S.path_t (Irmin.Diff.t contents_t)) in
       let check_diffs = checks diff in
       let check_val = check T.(option contents_t) in
       let check_ls = checks T.(pair S.step_t S.tree_t) in
@@ -1394,7 +1394,7 @@ module Make (S : Generic_key) = struct
       in
       let* vx' = S.find_all t [ "a" ] in
       check_val "update file as tree" (normal vx) vx';
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -1418,7 +1418,7 @@ module Make (S : Generic_key) = struct
         ~node:(fun k _ i ->
           if not (List.length k = 0 || List.length k = 1) then
             Alcotest.failf "nodes should be at [] and [foo], got %a"
-              (Irmin.Type.pp S.key_t) k;
+              (Irmin.Type.pp S.path_t) k;
           Lwt.return i)
         0
       >>= fun nb_contents ->
@@ -1438,43 +1438,43 @@ module Make (S : Generic_key) = struct
       | `Node node -> (
           let* v = S.to_backend_node node in
           let () =
-            let ls = P.Node.Val.list v in
+            let ls = B.Node.Val.list v in
             Alcotest.(check int) "list wide node" size (List.length ls)
           in
-          let* bar_key = with_contents repo (fun t -> P.Contents.add t "bar") in
+          let* bar_key = with_contents repo (fun t -> B.Contents.add t "bar") in
           let k = normal bar_key in
-          let v1 = P.Node.Val.add v "x" k in
+          let v1 = B.Node.Val.add v "x" k in
           let* () =
-            let h' = P.Node.Hash.hash v1 in
-            let+ h = with_node repo (fun n -> P.Node.add n v1) in
-            check P.Node.Hash.t "wide node + x: hash(v) = add(v)"
-              (P.Node.Key.to_hash h) h'
+            let h' = B.Node.Hash.hash v1 in
+            let+ h = with_node repo (fun n -> B.Node.add n v1) in
+            check B.Node.Hash.t "wide node + x: hash(v) = add(v)"
+              (B.Node.Key.to_hash h) h'
           in
           let () =
-            let v2 = P.Node.Val.add v "x" k in
-            check P.Node.Val.t "add x" v1 v2
+            let v2 = B.Node.Val.add v "x" k in
+            check B.Node.Val.t "add x" v1 v2
           in
           let () =
-            let v0 = P.Node.Val.remove v1 "x" in
-            check P.Node.Val.t "remove x" v v0
+            let v0 = B.Node.Val.remove v1 "x" in
+            check B.Node.Val.t "remove x" v v0
           in
           let* () =
-            let v3 = P.Node.Val.remove v "1" in
-            let h' = P.Node.Hash.hash v3 in
-            with_node repo (fun n -> P.Node.add n v3) >|= fun h ->
-            check P.Node.Hash.t "wide node - 1 : hash(v) = add(v)"
-              (P.Node.Key.to_hash h) h'
+            let v3 = B.Node.Val.remove v "1" in
+            let h' = B.Node.Hash.hash v3 in
+            with_node repo (fun n -> B.Node.add n v3) >|= fun h ->
+            check B.Node.Hash.t "wide node - 1 : hash(v) = add(v)"
+              (B.Node.Key.to_hash h) h'
           in
-          (match P.Node.Val.find v "499999" with
+          (match B.Node.Val.find v "499999" with
           | None | Some (`Node _) -> Alcotest.fail "value 499999 not found"
           | Some (`Contents (x, _)) ->
-              let x = P.Contents.Key.to_hash x in
-              let x' = P.Contents.Hash.hash "499999" in
-              check P.Contents.Hash.t "find 499999" x x');
-          match P.Node.Val.find v "500000" with
+              let x = B.Contents.Key.to_hash x in
+              let x' = B.Contents.Hash.hash "499999" in
+              check B.Contents.Hash.t "find 499999" x x');
+          match B.Node.Val.find v "500000" with
           | None -> Lwt.return_unit
           | Some _ -> Alcotest.fail "value 500000 should not be found"))
-      >>= fun () -> P.Repo.close repo
+      >>= fun () -> B.Repo.close repo
     in
     run x test
 
@@ -1494,7 +1494,7 @@ module Make (S : Generic_key) = struct
       >>= fun () ->
       S.list t [ "wide"; "foo" ] >>= fun ls ->
       Alcotest.(check int) "commit wide node list" size (List.length ls);
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -1543,7 +1543,7 @@ module Make (S : Generic_key) = struct
       S.Head.set t2 r2 >>= fun () ->
       let* b4 = S.mem t2 [ "a"; "d" ] in
       Alcotest.(check bool) "mem-ad" false b4;
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -1603,7 +1603,7 @@ module Make (S : Generic_key) = struct
       check S.contents_t "v1" v1 v1';
       check S.contents_t "v2" v2 v2';
       check S.contents_t "v3" v3 v3';
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -1631,7 +1631,7 @@ module Make (S : Generic_key) = struct
       let info () = S.Commit.info c3 in
       with_commit repo (fun commit_t ->
           Irmin.Merge.f
-            (P.Commit.merge commit_t ~info)
+            (B.Commit.merge commit_t ~info)
             ~old
             (Some (S.Commit.key c3))
             (Some (S.Commit.key c2)))
@@ -1644,7 +1644,7 @@ module Make (S : Generic_key) = struct
           let* t = S.of_branch repo "foo" in
           let* vy' = S.find t [ "u"; "x"; "y" ] in
           check_val "vy after merge" None vy';
-          P.Repo.close repo
+          B.Repo.close repo
     in
     run x test
 
@@ -1660,7 +1660,7 @@ module Make (S : Generic_key) = struct
       S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
       >>= merge_exn "merge unrelated"
     in
-    P.Repo.close repo
+    B.Repo.close repo
 
   let rec write fn = function
     | 0 -> []
@@ -1688,15 +1688,15 @@ module Make (S : Generic_key) = struct
     let test_contents repo =
       let* k = kv2 ~repo in
       let v = v2 in
-      let t = P.Repo.contents_t repo in
+      let t = B.Repo.contents_t repo in
       let write =
         write (fun _i ->
-            let* _ = with_contents repo (fun t -> P.Contents.add t v) in
+            let* _ = with_contents repo (fun t -> B.Contents.add t v) in
             Lwt.return_unit)
       in
       let read =
         read
-          (fun _i -> P.Contents.find t k >|= get)
+          (fun _i -> B.Contents.find t k >|= get)
           (fun i -> check S.contents_t (Fmt.str "contents %d" i) v)
       in
       perform (write 1) >>= fun () ->
@@ -1704,7 +1704,7 @@ module Make (S : Generic_key) = struct
     in
     run x (fun repo ->
         Lwt.choose [ test_branches repo; test_contents repo ] >>= fun () ->
-        P.Repo.close repo)
+        B.Repo.close repo)
 
   let test_concurrent_updates x () =
     let test_one repo =
@@ -1740,7 +1740,7 @@ module Make (S : Generic_key) = struct
     in
     run x (fun repo ->
         test_one repo >>= fun () ->
-        test_multi repo >>= fun () -> P.Repo.close repo)
+        test_multi repo >>= fun () -> B.Repo.close repo)
 
   let test_concurrent_merges x () =
     let test repo =
@@ -1764,7 +1764,7 @@ module Make (S : Generic_key) = struct
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
-      perform (read t1 10) >>= fun () -> P.Repo.close repo
+      perform (read t1 10) >>= fun () -> B.Repo.close repo
     in
     run x test
 
@@ -1878,7 +1878,7 @@ module Make (S : Generic_key) = struct
               Alcotest.(check string) "merge z" a "4" );
           ]
       in
-      set () >>= test_and_set >>= merge >>= fun () -> P.Repo.close repo
+      set () >>= test_and_set >>= merge >>= fun () -> B.Repo.close repo
     in
     run x test
 
@@ -1917,7 +1917,7 @@ module Make (S : Generic_key) = struct
       in
       S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
       perform (write t1 1 5 @ write t2 2 5) >>= fun () ->
-      perform (read t1 5) >>= fun () -> P.Repo.close repo
+      perform (read t1 5) >>= fun () -> B.Repo.close repo
     in
     run x test
 
@@ -1931,19 +1931,19 @@ module Make (S : Generic_key) = struct
           constructing Merkle proofs), but until then we must synthesise test keys
           by adding test values to the correponding backend stores directly. *)
       let contents (s : string) : S.contents_key Lwt.t =
-        with_contents repo (fun c -> P.Contents.add c s)
+        with_contents repo (fun c -> B.Contents.add c s)
       in
       let node (s : string) : S.node_key Lwt.t =
         with_node repo (fun n ->
             let* contents = contents s in
-            let node = P.Node.Val.(add empty) s (normal contents) in
-            P.Node.add n node)
+            let node = B.Node.Val.(add empty) s (normal contents) in
+            B.Node.add n node)
       in
       let commit (s : string) : S.commit_key Lwt.t =
         with_commit repo (fun c ->
             let* node = node s in
-            let commit = P.Commit.Val.v ~info:(info "") ~node ~parents:[] in
-            P.Commit.add c commit)
+            let commit = B.Commit.Val.v ~info:(info "") ~node ~parents:[] in
+            B.Commit.add c commit)
       in
       let* foo_k = node "foo" in
       let* bar_k = node "bar" in
@@ -1972,12 +1972,12 @@ module Make (S : Generic_key) = struct
         S.Backend.Commit.Val.v ~info:(info ()) ~node:key_3
           ~parents:[ S.Commit.key h; commit_foo ]
       in
-      let* commit_key = with_commit repo (fun c -> P.Commit.add c commit_v) in
+      let* commit_key = with_commit repo (fun c -> B.Commit.add c commit_v) in
       let commit = S.of_backend_commit repo commit_key commit_v in
       S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
       let* t1 = S.find_tree t [ "1" ] in
       Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -1991,13 +1991,13 @@ module Make (S : Generic_key) = struct
       let check_val = check (T.option S.contents_t) in
       let check_commit = check (T.option @@ S.commit_t repo) in
       let* h2 = kv2 ~repo in
-      P.Contents.clear vt >>= fun () ->
+      B.Contents.clear vt >>= fun () ->
       let* () =
-        P.Contents.find vt h2 >|= check_val "v2 after clear is not found" None
+        B.Contents.find vt h2 >|= check_val "v2 after clear is not found" None
       in
       let* h2 = kv2 ~repo in
       let* () =
-        P.Contents.find vt h2 >|= check_val "add v2 again after clear" (Some v2)
+        B.Contents.find vt h2 >|= check_val "add v2 again after clear" (Some v2)
       in
       let* h1 = r1 ~repo in
       let* n1 = n1 ~repo in
@@ -2007,30 +2007,30 @@ module Make (S : Generic_key) = struct
         >|= check_commit "r1 before clear is found" (Some h1)
       in
       let* () =
-        Lwt.join [ P.Branch.clear b; P.Commit.clear ct; P.Node.clear n ]
+        Lwt.join [ B.Branch.clear b; B.Commit.clear ct; B.Node.clear n ]
       in
       let* () =
         S.Branch.find repo b1
         >|= check_commit "r1 after clear is not found" None
       in
       let* () =
-        P.Commit.find ct (S.Commit.key h1)
+        B.Commit.find ct (S.Commit.key h1)
         >|= check_none "after clear commit is not found"
       in
       let* () =
-        P.Node.find n n1 >|= check_none "after clear node is not found"
+        B.Node.find n n1 >|= check_none "after clear node is not found"
       in
       let* h2 = kv2 ~repo in
-      P.Contents.clear vt >>= fun () ->
+      B.Contents.clear vt >>= fun () ->
       let* () =
-        P.Contents.find vt h2 >|= check_none "v2 after clear is not found"
+        B.Contents.find vt h2 >|= check_none "v2 after clear is not found"
       in
       r1 ~repo >>= S.Branch.set repo b1 >>= fun () ->
-      P.Branch.clear b >>= fun () ->
+      B.Branch.clear b >>= fun () ->
       let* () =
         S.Branch.find repo b1 >|= check_commit "cleared twice r1" None
       in
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 end

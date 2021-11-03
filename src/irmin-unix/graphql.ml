@@ -26,7 +26,7 @@ module Server = struct
         val remote : Resolver.Store.remote_fn option
       end)
       (T : Irmin_graphql.Server.CUSTOM_TYPES
-             with type key := S.key
+             with type path := S.path
               and type metadata := S.metadata
               and type contents := S.contents
               and type hash := S.hash

@@ -38,11 +38,11 @@ struct
                    and type Node.t = G.Value.Tree.t
                    and type Commit.t = G.Value.Commit.t) =
   struct
-    module P = Backend.Make (G) (S) (Schema)
-    include Irmin.Of_backend (P)
+    module B = Backend.Make (G) (S) (Schema)
+    include Irmin.Of_backend (B)
 
-    let git_of_repo = P.git_of_repo
-    let repo_of_git = P.repo_of_git
+    let git_of_repo = B.git_of_repo
+    let repo_of_git = B.repo_of_git
 
     let git_commit (repo : Repo.t) (h : commit) : G.Value.Commit.t option Lwt.t
         =

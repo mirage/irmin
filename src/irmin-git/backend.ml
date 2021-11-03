@@ -38,7 +38,7 @@ struct
 
   module Contents = struct
     module S = Contents.Make (G) (Schema.Contents)
-    include Irmin.Contents.Store (S) (S.Key) (S.Val)
+    include Irmin.Contents.Store (S) (S.Hash) (S.Val)
   end
 
   module Node = struct

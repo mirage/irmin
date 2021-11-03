@@ -22,9 +22,9 @@ let src = Logs.Src.create "test" ~doc:"Irmin layered tests"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make_Layered (S : Layered_store) = struct
-  module P = S.Backend
-  module Graph = Irmin.Node.Graph (P.Node)
-  module History = Irmin.Commit.History (P.Commit)
+  module B = S.Backend
+  module Graph = Irmin.Node.Graph (B.Node)
+  module History = Irmin.Commit.History (B.Commit)
   open Common.Make_helpers (S)
 
   let info message =
@@ -43,7 +43,7 @@ module Make_Layered (S : Layered_store) = struct
   let b2 = "bar/toto"
 
   let n1 ~repo =
-    let* kv1 = with_contents repo (fun t -> P.Contents.add t v1) in
+    let* kv1 = with_contents repo (fun t -> B.Contents.add t v1) in
     let* kn1 = with_node repo (fun t -> Graph.v t [ ("x", normal kv1) ]) in
     with_node repo (fun t -> Graph.v t [ ("b", `Node kn1) ])
 
@@ -78,10 +78,10 @@ module Make_Layered (S : Layered_store) = struct
      reconstruct node kt3 and commit again kr2; freeze kr2 and check again*)
   let test_graph_and_history x () =
     let test repo =
-      let* kv1 = with_contents repo (fun t -> P.Contents.add t v1) in
-      let check_val = check (T.option P.Commit.Val.t) in
-      let check_key = check P.Commit.Key.t in
-      let check_keys = checks P.Commit.Key.t in
+      let* kv1 = with_contents repo (fun t -> B.Contents.add t v1) in
+      let check_val = check (T.option B.Commit.Val.t) in
+      let check_key = check B.Commit.Key.t in
+      let check_keys = checks B.Commit.Key.t in
       let* kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       let* kt2 = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) in
       let* kt3 = with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) in
@@ -91,12 +91,12 @@ module Make_Layered (S : Layered_store) = struct
       let* kr2, _ =
         with_info repo "commit kt3" (History.v ~node:kt3 ~parents:[ kr1 ])
       in
-      let* t1 = P.Commit.find (h repo) kr1 in
+      let* t1 = B.Commit.find (h repo) kr1 in
       let* commit =
         fail_with_none (S.Commit.of_key repo kr1) "of_hash commit"
       in
       S.freeze repo ~max_lower:[ commit ] ~max_upper:[] >>= fun () ->
-      let* t1' = P.Commit.find (h repo) kr1 in
+      let* t1' = B.Commit.find (h repo) kr1 in
       check_val "value of kr1 before and after freeze" t1 t1';
       let* kt1' = Graph.find (n repo) kt2 [ "a" ] in
       check (T.option Graph.value_t) "kt2 -a-> kt1 before and after freeze"
@@ -115,14 +115,14 @@ module Make_Layered (S : Layered_store) = struct
       check_keys "closure over lower" [ kr1 ] kr1s;
       let* kr2s = History.closure (h repo) ~min:[] ~max:[ kr2 ] in
       check_keys "closure over upper and lower" [ kr1; kr2 ] kr2s;
-      let* t2 = P.Commit.find (h repo) kr2' in
+      let* t2 = B.Commit.find (h repo) kr2' in
       let* commit =
         fail_with_none (S.Commit.of_key repo kr2') "of_key commit"
       in
       S.freeze repo ~max_lower:[ commit ] ~max_upper:[] >>= fun () ->
-      let* t1' = P.Commit.find (h repo) kr1 in
+      let* t1' = B.Commit.find (h repo) kr1 in
       check_val "value of kr1 before and after snd freeze" t1 t1';
-      let* t2' = P.Commit.find (h repo) kr2 in
+      let* t2' = B.Commit.find (h repo) kr2 in
       check_val "value of kr2 before and after snd freeze" t2 t2';
       let* kt1' = Graph.find (n repo) kt2 [ "a" ] in
       check (T.option Graph.value_t) "kt2 -a-> kt1 before and after snd freeze"
@@ -139,7 +139,7 @@ module Make_Layered (S : Layered_store) = struct
   (* Test freezes over several commits; temporary stores from commits *)
   let test_gc x () =
     let info = info "gc" in
-    let check_val = check (T.option P.Commit.Val.t) in
+    let check_val = check (T.option B.Commit.Val.t) in
     (*
       -> c0 -> c1 -> c2 |freeze|
                  \-> c3
@@ -174,9 +174,9 @@ module Make_Layered (S : Layered_store) = struct
     in
     let test repo =
       let* c2, c3 = tree1 repo in
-      let* t2 = P.Commit.find (h repo) (S.Commit.key c2) in
+      let* t2 = B.Commit.find (h repo) (S.Commit.key c2) in
       S.freeze repo ~max_lower:[ c2 ] ~max_upper:[] >>= fun () ->
-      let* t2' = P.Commit.find (h repo) (S.Commit.key c2) in
+      let* t2' = B.Commit.find (h repo) (S.Commit.key c2) in
       check_val "c2" t2 t2';
       let tree = S.Commit.tree c2 in
       let* x1 = S.Tree.find tree [ "c"; "b"; "a1" ] in
@@ -187,7 +187,7 @@ module Make_Layered (S : Layered_store) = struct
       Alcotest.(check (option string)) "x2" (Some "x2") x2;
       let* () =
         if not (S.async_freeze repo) then (
-          let* t3 = P.Commit.find (h repo) (S.Commit.key c3) in
+          let* t3 = B.Commit.find (h repo) (S.Commit.key c3) in
           check_val "c3" None t3;
           let* x3 = S.Tree.find tree [ "c"; "b"; "a3" ] in
           Alcotest.(check (option string)) "x3" None x3;
@@ -196,12 +196,12 @@ module Make_Layered (S : Layered_store) = struct
         else Lwt.return_unit
       in
       let* c4, c5, c7, c8 = tree2 repo in
-      let* t5 = P.Commit.find (h repo) (S.Commit.key c5) in
-      let* t7 = P.Commit.find (h repo) (S.Commit.key c7) in
+      let* t5 = B.Commit.find (h repo) (S.Commit.key c5) in
+      let* t7 = B.Commit.find (h repo) (S.Commit.key c7) in
       S.freeze repo ~max_lower:[ c7 ] ~max_upper:[] >>= fun () ->
-      let* t5' = P.Commit.find (h repo) (S.Commit.key c5) in
+      let* t5' = B.Commit.find (h repo) (S.Commit.key c5) in
       check_val "c5" t5 t5';
-      let* t7' = P.Commit.find (h repo) (S.Commit.key c7) in
+      let* t7' = B.Commit.find (h repo) (S.Commit.key c7) in
       check_val "c7" t7 t7';
       let* c7 =
         fail_with_none (S.Commit.of_key repo (S.Commit.key c7)) "of_key commit"
@@ -211,9 +211,9 @@ module Make_Layered (S : Layered_store) = struct
       Alcotest.(check (option string)) "x7" (Some "x7") x7;
       let* () =
         if not (S.async_freeze repo) then (
-          let* t4 = P.Commit.find (h repo) (S.Commit.key c4) in
+          let* t4 = B.Commit.find (h repo) (S.Commit.key c4) in
           check_val "c4" None t4;
-          let* t8 = P.Commit.find (h repo) (S.Commit.key c8) in
+          let* t8 = B.Commit.find (h repo) (S.Commit.key c8) in
           check_val "c8" None t8;
           fail_with_some
             (S.Commit.of_key repo (S.Commit.key c8))
@@ -249,8 +249,8 @@ module Make_Layered (S : Layered_store) = struct
     check_layer repo (S.Commit_t (S.Commit.key commit)) msg exp
 
   let test_set x () =
-    let check_list = checks T.(pair S.Key.step_t S.tree_t) in
-    let check_parents = checks P.Commit.Key.t in
+    let check_list = checks T.(pair S.Path.step_t S.tree_t) in
+    let check_parents = checks B.Commit.Key.t in
     let contents v = S.Tree.v (`Contents (v, S.Metadata.default)) in
     let test repo =
       let* t = S.master repo in
@@ -432,7 +432,7 @@ module Make_Layered (S : Layered_store) = struct
         Alcotest.(check int) "one freeze" (get_freeze_count ()) 1;
         Alcotest.(check int) "one commit" (get_copied_commits_count ()) 1
       in
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test
 
@@ -457,7 +457,7 @@ module Make_Layered (S : Layered_store) = struct
         S.freeze repo ~min_lower:heads ~max_lower:heads ~max_upper:[]
       in
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.key c1) >>= function
+        B.Commit.mem (B.Repo.commit_t repo) (S.Commit.key c1) >>= function
         | true ->
             if not (S.async_freeze repo) then
               check_layer_for_commits repo c1 "layer id commit 1" `Lower
@@ -466,7 +466,7 @@ module Make_Layered (S : Layered_store) = struct
             Alcotest.failf "did not copy commit %a to dst" S.Commit.pp_hash c1
       in
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.key c2) >>= function
+        B.Commit.mem (B.Repo.commit_t repo) (S.Commit.key c2) >>= function
         | true ->
             if not (S.async_freeze repo) then
               check_layer_for_commits repo c2 "layer id commit 2" `Lower
@@ -480,7 +480,7 @@ module Make_Layered (S : Layered_store) = struct
       let* t = S.master repo in
       let* v2' = S.find t [ "a"; "b"; "d" ] in
       check_val "copy v2 to dst" (Some v2) v2';
-      P.Repo.close repo
+      B.Repo.close repo
     in
     let test_squash repo =
       let* c1, c2 = setup repo in
@@ -489,14 +489,14 @@ module Make_Layered (S : Layered_store) = struct
       >>= fun () ->
       S.Backend_layer.wait_for_freeze repo >>= fun () ->
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.key c1) >|= function
+        B.Commit.mem (B.Repo.commit_t repo) (S.Commit.key c1) >|= function
         | true ->
             Alcotest.failf "should not copy commit %a to dst" S.Commit.pp_hash
               c1
         | false -> ()
       in
       let* () =
-        P.Commit.mem (P.Repo.commit_t repo) (S.Commit.key c2) >>= function
+        B.Commit.mem (B.Repo.commit_t repo) (S.Commit.key c2) >>= function
         | true -> check_layer_for_commits repo c2 "layer id commit 2" `Lower
         | false ->
             Alcotest.failf "should copy commit %a to dst" S.Commit.pp_hash c2
@@ -520,7 +520,7 @@ module Make_Layered (S : Layered_store) = struct
         Alcotest.(check int) "one content" (get_copied_contents_count ()) 1;
         Alcotest.(check int) "several nodes" (get_copied_nodes_count ()) 3
       in
-      P.Repo.close repo
+      B.Repo.close repo
     in
     run x test;
     run x test_squash
@@ -607,7 +607,7 @@ module Make_Layered (S : Layered_store) = struct
 
   let test_copy_in_upper x () =
     let test repo =
-      let* kv1 = with_contents repo (fun t -> P.Contents.add t v1) in
+      let* kv1 = with_contents repo (fun t -> B.Contents.add t v1) in
       let* kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       let* kt2 = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) in
       let* kt3 = with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) in
@@ -633,7 +633,7 @@ module Make_Layered (S : Layered_store) = struct
       S.freeze repo ~max_lower:[ c1 ] >>= fun () ->
       S.Backend_layer.wait_for_freeze repo >>= fun () ->
       test_commit1 `Upper0 `Upper0 >>= fun () ->
-      let* kv2 = with_contents repo (fun t -> P.Contents.add t v2) in
+      let* kv2 = with_contents repo (fun t -> B.Contents.add t v2) in
       let* kt1' = with_node repo (fun g -> Graph.v g [ ("d", normal kv2) ]) in
       let* kt2' = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1') ]) in
       let* kr2, _ =
@@ -730,7 +730,7 @@ module Make_Layered (S : Layered_store) = struct
       else Alcotest.fail msg
     in
     let info = info "keep_heads" in
-    let check_commit = check (T.option P.Commit.Val.t) in
+    let check_commit = check (T.option B.Commit.Val.t) in
     let check_branch repo = check (T.option @@ S.commit_t repo) in
     let test repo =
       let tree = S.Tree.empty () in
@@ -740,7 +740,7 @@ module Make_Layered (S : Layered_store) = struct
           let c = "c" ^ string_of_int i in
           let x = "x" ^ string_of_int i in
           let b = "b" ^ string_of_int i in
-          let* hx = with_contents repo (fun t -> P.Contents.add t x) in
+          let* hx = with_contents repo (fun t -> B.Contents.add t x) in
           let contents = hx :: contents in
           let* tree' = S.Tree.add tree [ "a"; "b"; c ] x in
           match i with
@@ -804,7 +804,7 @@ module Make_Layered (S : Layered_store) = struct
         Lwt_list.iter_p
           (fun i ->
             let+ t =
-              P.Commit.find (h repo) (S.Commit.key (List.nth commits i))
+              B.Commit.find (h repo) (S.Commit.key (List.nth commits i))
             in
             check_commit "deleted commit" None t)
           [ 0; 2; 4 ]

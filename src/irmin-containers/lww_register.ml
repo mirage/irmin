@@ -40,10 +40,10 @@ module type S = sig
 
   type value
 
-  val read : path:Store.key -> Store.t -> value option Lwt.t
+  val read : path:Store.path -> Store.t -> value option Lwt.t
 
   val write :
-    ?info:Store.Info.f -> path:Store.key -> Store.t -> value -> unit Lwt.t
+    ?info:Store.Info.f -> path:Store.path -> Store.t -> value -> unit Lwt.t
 end
 
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct

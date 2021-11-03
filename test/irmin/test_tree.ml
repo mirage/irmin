@@ -468,7 +468,7 @@ let persist_tree : Store.tree -> Store.tree Lwt.t =
   let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
   Store.tree store
 
-type key = Store.Key.t [@@deriving irmin ~pp ~equal]
+type path = Store.Path.t [@@deriving irmin ~pp ~equal]
 
 let test_clear _ () =
   (* 1. Build a tree *)
@@ -489,7 +489,7 @@ let test_clear _ () =
   Alcotest.(check inspect)
     "Before clear, root/42" `Contents (Tree.inspect entry42);
   let* () =
-    let dont_skip k = Alcotest.failf "should not have skipped %a" pp_key k in
+    let dont_skip k = Alcotest.failf "should not have skipped %a" pp_path k in
     Tree.fold ~force:(`False dont_skip) entry42 ()
   in
   (* 2. Clear on non-persisted *)
@@ -505,7 +505,7 @@ let test_clear _ () =
   let* entry42 = Tree.find_tree t [ "42" ] >|= Option.get in
   Alcotest.(check inspect) "Before persist" `Contents (Tree.inspect entry42);
   let* () =
-    let dont_skip k = Alcotest.failf "should not have skipped %a" pp_key k in
+    let dont_skip k = Alcotest.failf "should not have skipped %a" pp_path k in
     Tree.fold ~force:(`False dont_skip) entry42 ()
   in
   (* 3. Persist (and implicitly clear) *)
@@ -600,21 +600,21 @@ let test_fold_force _ () =
     Tree.add updated_tree [ "a"; "ac" ] "v-acc" >>= fun updated_tree ->
     let visited = ref [] in
     let contents k v () =
-      if equal_key k [ "a"; "ab" ] then
+      if equal_path k [ "a"; "ab" ] then
         Alcotest.failf
-          "Removed contents at %a should not be visited during fold" pp_key k;
-      if equal_key k [ "a"; "ac" ] then
+          "Removed contents at %a should not be visited during fold" pp_path k;
+      if equal_path k [ "a"; "ac" ] then
         if not (String.equal v "v-acc") then
-          Alcotest.failf "Outdated contents at %a visited during fold" pp_key k;
-      if List.mem ~equal:equal_key k !visited then
-        Alcotest.failf "Visited node at %a twice during fold" pp_key k
+          Alcotest.failf "Outdated contents at %a visited during fold" pp_path k;
+      if List.mem ~equal:equal_path k !visited then
+        Alcotest.failf "Visited node at %a twice during fold" pp_path k
       else visited := k :: !visited;
       Lwt.return_unit
     in
     Tree.fold ~force:`True ~cache:false ~contents updated_tree () >|= fun () ->
     Alcotest.(check bool)
       "Newly added contents visited"
-      (List.mem ~equal:equal_key [ "a"; "ad" ] !visited)
+      (List.mem ~equal:equal_path [ "a"; "ad" ] !visited)
       true
   in
 
@@ -669,7 +669,7 @@ module Broken = struct
   let test_trees _ () =
     let run_tests ~exn_type ~broken_contents ~broken_node ~path =
       [%logs.app
-        "Testing operations on a tree with a broken position at %a" pp_key path];
+        "Testing operations on a tree with a broken position at %a" pp_path path];
       let* broken_leaf = Tree.(add_tree (empty ())) path broken_contents in
       let* broken_node = Tree.(add_tree (empty ())) path broken_node in
       let beneath = path @ [ "a"; "b"; "c" ] in

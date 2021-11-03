@@ -30,7 +30,7 @@ module type S = sig
   (** Type of cursor. Cursor is like a marker from which a certain number of
       entries can be read *)
 
-  val get_cursor : path:Store.key -> Store.t -> cursor Lwt.t
+  val get_cursor : path:Store.path -> Store.t -> cursor Lwt.t
   (** Create a new cursor over the log entires at the given path *)
 
   val read : num_items:int -> cursor -> (value list * cursor) Lwt.t
@@ -46,7 +46,7 @@ module Make
     (Backend : Irmin.KV_maker)
     (C : Stores.Content_addressable)
     (T : Time.S)
-    (K : Irmin.Hash.S)
+    (H : Irmin.Hash.S)
     (V : Irmin.Type.S)
     () : S with type value = V.t
 
