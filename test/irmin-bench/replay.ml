@@ -85,8 +85,8 @@ let replay_1_commit () =
   let expected =
     Irmin_pack.Stats.
       {
-        finds = 2;
-        cache_misses = 0;
+        finds = 6;
+        cache_misses = 3;
         appended_hashes = 0;
         appended_offsets = 4;
         inode_add = 0;

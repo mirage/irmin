@@ -72,10 +72,20 @@ module Maker
     module Tbl = Table (K)
     module Lru = Irmin.Backend.Lru.Make (H)
 
+    module Offsets = Irmin.Backend.Lru.Make (struct
+      type t = int63
+
+      let hash = Hashtbl.hash
+      let equal = ( = )
+    end)
+
+    type offset_and_value = int63 * Val.t
+
     type nonrec 'a t = {
       pack : 'a t;
-      lru : Val.t Lru.t;
-      staging : Val.t Tbl.t;
+      lru : offset_and_value Lru.t;
+      staging : offset_and_value Tbl.t;
+      offsets : Val.t Offsets.t;
       mutable open_instances : int;
       readonly : bool;
     }
@@ -90,7 +100,8 @@ module Maker
     let unsafe_clear ?keep_generation t =
       clear ?keep_generation t.pack;
       Tbl.clear t.staging;
-      Lru.clear t.lru
+      Lru.clear t.lru;
+      Offsets.clear t.offsets
 
     (* we need another cache here, as we want to share the LRU and
        staging caches too. *)
@@ -114,7 +125,8 @@ module Maker
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack; open_instances = 1; readonly }
+      let offsets = Offsets.create lru_size in
+      { staging; lru; pack; open_instances = 1; readonly; offsets }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
@@ -166,39 +178,49 @@ module Maker
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
       if n <> len then raise Invalid_read;
-      let hash off = io_read_and_decode_hash ~off t in
+      let hash off =
+        match Offsets.find t.offsets off with
+        | v -> Val.hash v
+        | exception Not_found -> io_read_and_decode_hash ~off t
+      in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
+      let _, v = Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0 in
+      v
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
-    let unsafe_find ~check_integrity t k =
+    let unsafe_find_aux t k f g =
       [%log.debug "[pack:%a] find %a" pp_io t pp_hash k];
       Stats.incr_finds ();
       match Tbl.find t.staging k with
       | v ->
           Lru.add t.lru k v;
-          Some v
+          Some (f v)
       | exception Not_found -> (
           match Lru.find t.lru k with
-          | v -> Some v
+          | v -> Some (f v)
           | exception Not_found -> (
               Stats.incr_cache_misses ();
               match Index.find t.pack.index k with
               | None -> None
-              | Some (off, len, _) ->
-                  let v = snd (io_read_and_decode ~off ~len t) in
-                  (if check_integrity then
-                   check_key k v |> function
-                   | Ok () -> ()
-                   | Error (expected, got) ->
-                       Fmt.failwith "corrupted value: got %a, expecting %a."
-                         pp_hash got pp_hash expected);
-                  Lru.add t.lru k v;
-                  Some v))
+              | Some (off, len, _) -> g off len))
+
+    let unsafe_find ~check_integrity t k =
+      let find off len =
+        let v = io_read_and_decode ~off ~len t in
+        (if check_integrity then
+         check_key k v |> function
+         | Ok () -> ()
+         | Error (expected, got) ->
+             Fmt.failwith "corrupted value: got %a, expecting %a." pp_hash got
+               pp_hash expected);
+        Lru.add t.lru k (off, v);
+        Some v
+      in
+      unsafe_find_aux t k snd find
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in
@@ -208,7 +230,7 @@ module Maker
 
     let integrity_check ~offset ~length k t =
       try
-        let value = snd (io_read_and_decode ~off:offset ~len:length t) in
+        let value = io_read_and_decode ~off:offset ~len:length t in
         match check_key k value with
         | Ok () -> Ok ()
         | Error _ -> Error `Wrong_hash
@@ -228,19 +250,22 @@ module Maker
       else (
         [%log.debug "[pack] append %a" pp_hash k];
         let offset k =
-          match Index.find t.pack.index k with
+          let f off _ = Some off in
+          match unsafe_find_aux t k fst f with
+          | Some _ as f ->
+              Stats.incr_appended_offsets ();
+              f
           | None ->
               Stats.incr_appended_hashes ();
               None
-          | Some (off, _, _) ->
-              Stats.incr_appended_offsets ();
-              Some off
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
         Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
+        Offsets.add t.offsets off v;
+        let v = (off, v) in
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
         Lru.add t.lru k v)
@@ -260,6 +285,7 @@ module Maker
         [%log.debug "[pack] close %s" (IO.name t.pack.block)];
         Tbl.clear t.staging;
         Lru.clear t.lru;
+        Offsets.clear t.offsets;
         close t.pack)
 
     let close t =
@@ -276,7 +302,8 @@ module Maker
 
     let clear_caches t =
       Tbl.clear t.staging;
-      Lru.clear t.lru
+      Lru.clear t.lru;
+      Offsets.clear t.offsets
 
     let sync ?(on_generation_change = Fun.id) t =
       let former_offset = IO.offset t.pack.block in
