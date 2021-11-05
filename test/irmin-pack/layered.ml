@@ -34,8 +34,8 @@ let fresh_name =
 let index_log_size = Some 4
 
 module Conf = struct
-  let entries = 32
-  let stable_hash = 256
+  include Conf
+
   let lower_root = "_lower"
   let upper0_root = "0"
   let with_lower = true

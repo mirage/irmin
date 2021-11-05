@@ -35,10 +35,7 @@ let random_string n = String.init n (fun _i -> random_char ())
 let random_letter () = char_of_int (Char.code 'a' + Random.int 26)
 let random_letters n = String.init n (fun _i -> random_letter ())
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
+module Conf = Irmin_tezos.Conf
 
 module Schema = struct
   open Irmin
