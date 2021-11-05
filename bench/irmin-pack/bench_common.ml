@@ -93,10 +93,7 @@ let with_progress_bar ~message ~n ~unit =
   in
   with_reporter ~config bar
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
+module Conf = Irmin_tezos.Conf
 
 module Schema = struct
   open Irmin

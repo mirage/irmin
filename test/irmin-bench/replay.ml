@@ -7,10 +7,7 @@ let testable t =
 
 let check t = Alcotest.check (testable t)
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-end
+module Conf = Irmin_tezos.Conf
 
 module Store = struct
   type store_config = string

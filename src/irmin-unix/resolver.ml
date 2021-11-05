@@ -287,10 +287,7 @@ module Store = struct
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
   module Irmin_pack_maker : Irmin.Maker = struct
-    include Irmin_pack.V1 (struct
-      let entries = 32
-      let stable_hash = 256
-    end)
+    include Irmin_pack.V1 (Irmin_tezos.Conf)
 
     module Make (Schema : Irmin.Schema.S) = Make (struct
       include Schema
