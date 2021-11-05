@@ -34,7 +34,7 @@ let fresh_name =
 let index_log_size = Some 4
 
 module Conf = struct
-  include Irmin_tezos.Conf
+  include Conf
 
   let lower_root = "_lower"
   let upper0_root = "0"
