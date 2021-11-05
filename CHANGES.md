@@ -15,6 +15,10 @@
     some of their contents, resulting in indirect hashes in irmin-pack
     (#1508, @Ngoguey42)
 
+ - **irmin-pack**
+   - Improved the performance of Index encode and decode operations by
+     eliminating intermediate allocations. (#1577, @CraigFe)
+
 ### Added
 
 - **irmin**
