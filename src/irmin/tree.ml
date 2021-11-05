@@ -307,10 +307,10 @@ module Make (P : Backend.S) = struct
 
     let to_value ~cache t =
       match cached_value t with
-      | Some v -> Lwt.return (Ok v)
+      | Some v -> ok v
       | None -> (
           match t.v with
-          | Value v -> Lwt.return (Ok v)
+          | Value v -> ok v
           | Key (repo, k) -> value_of_key ~cache t repo k
           | Pruned h -> pruned_hash_exn "Contents.to_value" h)
 
@@ -711,7 +711,7 @@ module Make (P : Backend.S) = struct
 
     let value_of_key ~cache t repo k =
       match cached_value t with
-      | Some v -> Lwt.return_ok v
+      | Some v -> ok v
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
           P.Node.find (P.Repo.node_t repo) k >|= function
@@ -755,7 +755,7 @@ module Make (P : Backend.S) = struct
 
     let to_map ~cache t =
       match cached_map t with
-      | Some m -> Lwt.return (Ok m)
+      | Some m -> ok m
       | None -> (
           let of_value repo v updates =
             let m = map_of_value ~cache repo v in
@@ -776,8 +776,8 @@ module Make (P : Backend.S) = struct
             m
           in
           match t.v with
-          | Map m -> Lwt.return (Ok m)
-          | Value (repo, v, m) -> Lwt.return (Ok (of_value repo v m))
+          | Map m -> ok m
+          | Value (repo, v, m) -> ok (of_value repo v m)
           | Key (repo, k) -> (
               value_of_key ~cache t repo k >|= function
               | Error _ as e -> e
@@ -1212,15 +1212,15 @@ module Make (P : Backend.S) = struct
             let mold =
               Merge.bind_promise old (fun old () ->
                   match old with
-                  | `Contents (_, m) -> Lwt.return (Ok (Some m))
-                  | `Node _ -> Lwt.return (Ok None))
+                  | `Contents (_, m) -> ok (Some m)
+                  | `Node _ -> ok None)
             in
             Merge.(f Metadata.merge) ~old:mold cx cy >>=* fun m ->
             let old =
               Merge.bind_promise old (fun old () ->
                   match old with
-                  | `Contents (c, _) -> Lwt.return (Ok (Some c))
-                  | `Node _ -> Lwt.return (Ok None))
+                  | `Contents (c, _) -> ok (Some c)
+                  | `Node _ -> ok None)
             in
             Merge.(f Contents.merge) ~old x y >>=* fun c ->
             Merge.ok (`Contents (c, m))
@@ -1229,8 +1229,8 @@ module Make (P : Backend.S) = struct
                 let old =
                   Merge.bind_promise old (fun old () ->
                       match old with
-                      | `Contents _ -> Lwt.return (Ok None)
-                      | `Node n -> Lwt.return (Ok (Some n)))
+                      | `Contents _ -> ok None
+                      | `Node n -> ok (Some n))
                 in
                 Merge.(f m ~old x y) >>=* fun n -> Merge.ok (`Node n))
         | _ -> Merge.conflict "add/add values"
