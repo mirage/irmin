@@ -42,7 +42,7 @@ module Layered = struct
   let create_store () =
     rm_dir data_dir;
     let* repo = Store.Repo.v (config data_dir) in
-    let* _t = Store.master repo in
+    let* _t = Store.of_branch repo "master" in
     let tree = Store.Tree.singleton [ "a"; "b"; "c" ] "x1" in
     let* c = Store.Commit.v repo ~info ~parents:[] tree in
     let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in

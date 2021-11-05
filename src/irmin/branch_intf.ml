@@ -20,8 +20,8 @@ module type S = sig
   type t [@@deriving irmin]
   (** The type for branches. *)
 
-  val master : t
-  (** The name of the master branch. *)
+  val main : t
+  (** The name of the main branch. *)
 
   val is_valid : t -> bool
   (** Check if the branch is valid. *)
@@ -47,12 +47,12 @@ module type Sigs = sig
   module type S = S
   (** The signature for branches. Irmin branches are similar to Git branches:
       they are used to associated user-defined names to head commits. Branches
-      have a default value: the {{!Branch.S.master} master} branch. *)
+      have a default value: the {{!Branch.S.main} main} branch. *)
 
   module String : S with type t = string
   (** [String] is an implementation of {{!Branch.S} S} where branches are
-      strings. The [master] branch is ["master"]. Valid branch names contain
-      only alpha-numeric characters, [-], [_], [.], and [/]. *)
+      strings. The [main] branch is ["main"]. Valid branch names contain only
+      alpha-numeric characters, [-], [_], [.], and [/]. *)
 
   module type Store = Store
   (** [Store] specifies the signature for branch stores.

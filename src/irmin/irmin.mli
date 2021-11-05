@@ -41,7 +41,7 @@ module Type = Repr
 (** Dynamic types for Irmin values, supplied by
     {{:https://github.com/mirage/repr} [Repr]}. These values can be derived from
     type definitions via [\[@@deriving irmin\]] (see the
-    {{:https://github.com/mirage/irmin/blob/master/README_PPX.md} documentation
+    {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
     for [ppx_irmin]})*)
 
 module Info = Info
@@ -269,7 +269,7 @@ module Sync = Sync
           exit 1)
 
       let test () =
-        S.Repo.v config >>= S.master >>= fun t ->
+        S.Repo.v config >>= S.main >>= fun t ->
         Sync.pull_exn t upstream `Set >>= fun () ->
         S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
 
@@ -425,7 +425,7 @@ module Sync = Sync
       let main () =
         Config.init ();
         Store.Repo.v config >>= fun repo ->
-        Store.master repo >>= fun t ->
+        Store.main repo >>= fun t ->
         (* populate the log with some random messages *)
         Lwt_list.iter_s
           (fun msg -> log t "This is my %s " msg)

@@ -35,8 +35,8 @@ let main =
   (* Open the repo *)
   let* repo = Store.Repo.v config in
 
-  (* Load the master branch *)
-  let* t = Store.master repo in
+  (* Load the main branch *)
+  let* t = Store.main repo in
 
   (* Set key "foo/bar" to "testing 123" *)
   let* () =

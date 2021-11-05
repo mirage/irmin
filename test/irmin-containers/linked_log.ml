@@ -32,43 +32,43 @@ let config () = L.Store.Repo.v (Irmin_mem.config ())
 
 let test_empty_read _ () =
   config ()
-  >>= L.Store.master
+  >>= L.Store.main
   >>= L.read_all ~path
   >|= Alcotest.(check (list string)) "checked - reading empty log" []
 
 let test_append_read_all _ () =
-  let* t = config () >>= L.Store.master in
-  L.append ~path t "master.1" >>= fun () ->
-  L.append ~path t "master.2" >>= fun () ->
+  let* t = config () >>= L.Store.main in
+  L.append ~path t "main.1" >>= fun () ->
+  L.append ~path t "main.2" >>= fun () ->
   L.read_all ~path t
   >|= Alcotest.(check (list string))
-        "checked - log after appending" [ "master.2"; "master.1" ]
+        "checked - log after appending" [ "main.2"; "main.1" ]
 
 let test_read_incr _ () =
-  let* cur = config () >>= L.Store.master >>= L.get_cursor ~path in
+  let* cur = config () >>= L.Store.main >>= L.get_cursor ~path in
   let* l, cur = L.read ~num_items:1 cur in
-  Alcotest.(check (list string)) "checked - read one item" [ "master.2" ] l;
+  Alcotest.(check (list string)) "checked - read one item" [ "main.2" ] l;
   let* l, cur = L.read ~num_items:1 cur in
-  Alcotest.(check (list string)) "checked - read one more item" [ "master.1" ] l;
+  Alcotest.(check (list string)) "checked - read one more item" [ "main.1" ] l;
   let+ l, _ = L.read ~num_items:1 cur in
   Alcotest.(check (list string)) "checked - read one more item" [] l
 
 let test_read_excess _ () =
-  let* cur = config () >>= L.Store.master >>= L.get_cursor ~path in
+  let* cur = config () >>= L.Store.main >>= L.get_cursor ~path in
   let+ l, _ = L.read ~num_items:10 cur in
   Alcotest.(check (list string))
-    "checked - read 10 items" [ "master.2"; "master.1" ] l
+    "checked - read 10 items" [ "main.2"; "main.1" ] l
 
 let test_clone_merge _ () =
-  let* t = config () >>= L.Store.master in
+  let* t = config () >>= L.Store.main in
   let* b = L.Store.clone ~src:t ~dst:"cl" in
   L.append ~path b "clone.1" >>= fun () ->
-  L.append ~path t "master.3" >>= fun () ->
+  L.append ~path t "main.3" >>= fun () ->
   merge_into_exn b ~into:t >>= fun () ->
   L.read_all ~path t
   >|= Alcotest.(check (list string))
         "checked - log after appending"
-        [ "master.3"; "clone.1"; "master.2"; "master.1" ]
+        [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
 let test_branch_merge _ () =
   let* r = config () in

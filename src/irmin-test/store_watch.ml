@@ -48,7 +48,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
 
   let test_watch_exn x () =
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       let* h = S.Head.find t in
       let key = [ "a" ] in
       let v1 = "bar" in
@@ -244,9 +244,9 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
         aux s n
     end in
     let test repo1 =
-      let* t1 = S.master repo1 in
+      let* t1 = S.main repo1 in
       let* repo = S.Repo.v x.config in
-      let* t2 = S.master repo in
+      let* t2 = S.main repo in
       [%log.debug "WATCH"];
       let state = State.empty () in
       let sleep_t = 0.02 in
@@ -265,7 +265,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       let v1 = "X1" in
       let v2 = "X2" in
       S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1 >>= fun () ->
-      S.Branch.remove repo1 S.Branch.master >>= fun () ->
+      S.Branch.remove repo1 S.Branch.main >>= fun () ->
       State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
       watch 100 >>= fun () ->
       State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
@@ -273,7 +273,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       State.check "watches adds" (1, 1) (100, 0, 0) state >>= fun () ->
       S.set_exn t2 ~info:(infof "update") [ "a"; "c" ] v1 >>= fun () ->
       State.check "watches updates" (1, 1) (100, 100, 0) state >>= fun () ->
-      S.Branch.remove repo S.Branch.master >>= fun () ->
+      S.Branch.remove repo S.Branch.main >>= fun () ->
       State.check "watches removes" (1, 1) (100, 100, 100) state >>= fun () ->
       Lwt_list.iter_s (fun f -> S.unwatch f) !stops_0 >>= fun () ->
       S.set_exn t2 ~info:(infof "update") [ "a" ] v1 >>= fun () ->
@@ -294,9 +294,9 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
             let tag = Fmt.str "t%d" n in
             S.Branch.remove repo tag)
       in
-      let* master = S.Branch.get repo "master" in
+      let* main = S.Branch.get repo "main" in
       let* u =
-        S.Branch.watch_all ~init:[ ("master", master) ] repo (fun _ ->
+        S.Branch.watch_all ~init:[ ("main", main) ] repo (fun _ ->
             State.process state)
       in
       add true (0, 0, 0) 10 ~first:true >>= fun () ->

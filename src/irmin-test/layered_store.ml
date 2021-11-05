@@ -253,7 +253,7 @@ module Make_Layered (S : Layered_store) = struct
     let check_parents = checks B.Commit.Key.t in
     let contents v = S.Tree.v (`Contents (v, S.Metadata.default)) in
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.set_exn t [ "a"; "b"; "c" ] v1 ~info:(infof "commit 1") >>= fun () ->
       let* c1 = S.Head.get t in
       S.freeze repo ~max_lower:[ c1 ] ~max_upper:[] >>= fun () ->
@@ -286,7 +286,7 @@ module Make_Layered (S : Layered_store) = struct
   (* Set tree, add and remove to a tree; get head from lower. *)
   let test_set_tree x () =
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       let t1 = S.Tree.singleton [ "a"; "d" ] v1 in
       let* t1 = S.Tree.add t1 [ "a"; "b"; "c" ] v2 in
       S.set_tree_exn ~info:(infof "commit 1") ~parents:[] t [] t1 >>= fun () ->
@@ -364,7 +364,7 @@ module Make_Layered (S : Layered_store) = struct
   let test_squash x () =
     let check_val = check T.(option S.contents_t) in
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       Irmin_layers.Stats.reset_stats ();
       S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] v1 >>= fun () ->
       let* c = S.Head.get t in
@@ -445,7 +445,7 @@ module Make_Layered (S : Layered_store) = struct
       S.set_tree_exn ~parents:[] ~info:(infof "tree1") foo [] tree1
       >>= fun () ->
       let* c1 = S.Head.get foo in
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.set_tree_exn ~parents:[] ~info:(infof "tree2") t [] tree2 >>= fun () ->
       let+ c2 = S.Head.get t in
       (c1, c2)
@@ -477,7 +477,7 @@ module Make_Layered (S : Layered_store) = struct
       let* foo = S.of_branch repo "foo" in
       let* v1' = S.find foo [ "a"; "b"; "c" ] in
       check_val "copy v1 to dst" (Some v1) v1';
-      let* t = S.master repo in
+      let* t = S.main repo in
       let* v2' = S.find t [ "a"; "b"; "d" ] in
       check_val "copy v2 to dst" (Some v2) v2';
       B.Repo.close repo
@@ -501,7 +501,7 @@ module Make_Layered (S : Layered_store) = struct
         | false ->
             Alcotest.failf "should copy commit %a to dst" S.Commit.pp_hash c2
       in
-      let* t = S.master repo in
+      let* t = S.main repo in
       let* v2' = S.find t [ "a"; "b"; "d" ] in
       check_val "copy v2 to dst" (Some v2) v2';
       let* () =
@@ -1002,7 +1002,7 @@ module Make_Layered (S : Layered_store) = struct
         find_commit t v () >>= fun () ->
         S.Backend_layer.wait_for_freeze repo >>= fun () -> find_commit t v ()
       in
-      let* t = S.master repo in
+      let* t = S.main repo in
       add_and_find_commit ~hook:before_copy t v1 >>= fun () ->
       add_and_find_commit ~hook:before_copy_newies t v2 >>= fun () ->
       add_and_find_commit ~hook:before_copy_last_newies t v3 >>= fun () ->
@@ -1014,7 +1014,7 @@ module Make_Layered (S : Layered_store) = struct
 
   let test_add_again x () =
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       let tree = S.Tree.singleton [ "a"; "b"; "c" ] v1 in
       S.set_tree_exn ~parents:[] ~info:(infof "v1") t [] tree >>= fun () ->
       let tree = S.Tree.singleton [ "a"; "d" ] v2 in
@@ -1034,7 +1034,7 @@ module Make_Layered (S : Layered_store) = struct
       S.Backend_layer.wait_for_freeze repo >>= fun () ->
       S.Repo.close repo >>= fun () ->
       let* repo = S.Repo.v x.config in
-      let* t = S.master repo in
+      let* t = S.main repo in
       let* c = S.Head.get t in
       let* commit =
         fail_with_none

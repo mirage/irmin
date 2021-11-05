@@ -110,12 +110,12 @@ let info image message () =
   let author = image.name in
   Store.Info.v ~author ~message date
 
-let master = branch images.(0)
+let main = branch images.(0)
 
 let init () =
   Config.init ();
   let* repo = Store.Repo.v config in
-  let* t = Store.of_branch repo master in
+  let* t = Store.of_branch repo main in
   let* () = Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0" in
   Lwt_list.iter_s
     (fun i ->

@@ -156,7 +156,7 @@ module KV_RO (G : Git.S) = struct
     | [] -> Error (`Not_found key)
     | h :: _ -> Ok (0, S.Info.date (S.Commit.info h))
 
-  let connect ?depth ?(branch = "master") ?(root = Mirage_kv.Key.empty) ?ctx
+  let connect ?depth ?(branch = "main") ?(root = Mirage_kv.Key.empty) ?ctx
       ?headers t uri =
     let remote = S.remote ?ctx ?headers uri in
     let head = Git.Reference.v ("refs/heads/" ^ branch) in

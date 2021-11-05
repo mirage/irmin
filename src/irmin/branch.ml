@@ -20,7 +20,7 @@ module String = struct
   type t = string
 
   let t = Type.string
-  let master = "master"
+  let main = "main"
 
   let is_valid s =
     let ok = ref true in

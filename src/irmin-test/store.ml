@@ -859,7 +859,7 @@ module Make (S : Generic_key) = struct
 
   let test_slice ?hook x () =
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       let a = "" in
       let b = "haha" in
       S.set_exn t ~info:(infof "slice") [ "x"; "a" ] a >>= fun () ->
@@ -882,7 +882,7 @@ module Make (S : Generic_key) = struct
       let check_val = check [%typ: S.contents option] in
       let vx = "VX" in
       let vy = "VY" in
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx >>= fun () ->
       let* tree = S.get_tree t [ "x" ] in
       S.set_tree_exn t ~info:(infof "update") [ "u" ] tree >>= fun () ->
@@ -910,7 +910,7 @@ module Make (S : Generic_key) = struct
     let test repo =
       let check_val = check [%typ: S.contents option] in
       let check_list = checks [%typ: S.Path.step * S.tree] in
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1 >>= fun () ->
       let* b0 = S.mem t [ "a"; "b" ] in
       Alcotest.(check bool) "mem0" true b0;
@@ -991,7 +991,7 @@ module Make (S : Generic_key) = struct
       S.status ty |> fun tagy' ->
       check (S.Status.t repo) "tagx" (`Branch tagx) tagx';
       check (S.Status.t repo) "tagy" (`Branch tagy) tagy';
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.Repo.close repo >>= fun () ->
       Lwt.catch
         (fun () ->
@@ -1019,7 +1019,7 @@ module Make (S : Generic_key) = struct
   let test_tree_caches x () =
     let test repo =
       let info = S.Info.none in
-      let* t1 = S.master repo in
+      let* t1 = S.main repo in
       S.set_exn t1 ~info [ "a"; "b" ] "foo" >>= fun () ->
       (* Testing cache *)
       S.Tree.reset_counters ();
@@ -1049,7 +1049,7 @@ module Make (S : Generic_key) = struct
 
   let test_trees x () =
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       let nodes = random_nodes 100 in
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
@@ -1489,7 +1489,7 @@ module Make (S : Generic_key) = struct
           wide_node (i + 1) c
       in
       wide_node 0 c0 >>= fun c ->
-      S.master repo >>= fun t ->
+      S.main repo >>= fun t ->
       S.set_tree_exn t [ "wide" ] ~info:(infof "commit_wide_nodes") c
       >>= fun () ->
       S.list t [ "wide"; "foo" ] >>= fun ls ->
@@ -1502,7 +1502,7 @@ module Make (S : Generic_key) = struct
 
   let test_sync x () =
     let test repo =
-      let* t1 = S.master repo in
+      let* t1 = S.main repo in
       S.set_exn t1 ~info:(infof "update a/b") [ "a"; "b" ] v1 >>= fun () ->
       let* h = S.Head.get t1 in
       let* _r1 = S.Head.get t1 in
@@ -1569,7 +1569,7 @@ module Make (S : Generic_key) = struct
       let v1 = "X1" in
       let v2 = "X2" in
       let v3 = "X3" in
-      let* t1 = S.master repo in
+      let* t1 = S.main repo in
       let* () =
         S.set_exn t1 ~info:(infof "update a/b/a") [ "a"; "b"; "a" ] v1
       in
@@ -1582,18 +1582,16 @@ module Make (S : Generic_key) = struct
       let test = "test" in
       let* t2 = S.clone ~src:t1 ~dst:test in
       let* () =
-        S.set_exn t1 ~info:(infof "update master:a/b/b") [ "a"; "b"; "b" ] v1
+        S.set_exn t1 ~info:(infof "update main:a/b/b") [ "a"; "b"; "b" ] v1
       in
       let* () =
-        S.set_exn t1 ~info:(infof "update master:a/b/b") [ "a"; "b"; "b" ] v3
+        S.set_exn t1 ~info:(infof "update main:a/b/b") [ "a"; "b"; "b" ] v3
       in
       let* () =
         S.set_exn t2 ~info:(infof "update test:a/b/c") [ "a"; "b"; "c" ] v1
       in
       output_file x t1 "before" >>= fun () ->
-      let* m =
-        S.merge_into ~info:(infof "merge test into master") t2 ~into:t1
-      in
+      let* m = S.merge_into ~info:(infof "merge test into main") t2 ~into:t1 in
       merge_exn "m" m >>= fun () ->
       may_with_branch [ t1 ] repo hook >>= fun () ->
       output_file x t1 "after" >>= fun () ->
@@ -1619,7 +1617,7 @@ module Make (S : Generic_key) = struct
       let vx = "VX" in
       let vy = "VY" in
       let old () = Lwt.return (Ok None) in
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx >>= fun () ->
       let* _c1 = none_fail (S.Head.find t) "head not found" in
       let* tree = S.get_tree t [ "x" ] in
@@ -1710,8 +1708,8 @@ module Make (S : Generic_key) = struct
     let test_one repo =
       let k = [ "a"; "b"; "d" ] in
       let v = "X1" in
-      let* t1 = S.master repo in
-      let* t2 = S.master repo in
+      let* t1 = S.main repo in
+      let* t2 = S.main repo in
       let write t =
         write (fun i -> S.set_exn t ~info:(infof "update: one %d" i) k v)
       in
@@ -1725,8 +1723,8 @@ module Make (S : Generic_key) = struct
     let test_multi repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
-      let* t1 = S.master repo in
-      let* t2 = S.master repo in
+      let* t1 = S.main repo in
+      let* t2 = S.main repo in
       let write t =
         write (fun i ->
             S.set_exn t ~info:(infof "update: multi %d" i) (k i) (v i))
@@ -1746,8 +1744,8 @@ module Make (S : Generic_key) = struct
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
-      let* t1 = S.master repo in
-      let* t2 = S.master repo in
+      let* t1 = S.main repo in
+      let* t2 = S.main repo in
       let write t n =
         write (fun i ->
             let tag = Fmt.str "tmp-%d-%d" n i in
@@ -1773,7 +1771,7 @@ module Make (S : Generic_key) = struct
 
   let test_with_tree x () =
     let test repo =
-      let* t = S.master repo in
+      let* t = S.main repo in
       let update ?retries key strategy r w =
         S.with_tree t ?retries ~info:(infof "with-tree") ~strategy key (fun _ ->
             let+ v = Lwt_mvar.take r in
@@ -1886,8 +1884,8 @@ module Make (S : Generic_key) = struct
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
-      let* t1 = S.master repo in
-      let* t2 = S.master repo in
+      let* t1 = S.main repo in
+      let* t2 = S.main repo in
       let retry d fn =
         let rec aux i =
           fn () >>= function
@@ -1963,7 +1961,7 @@ module Make (S : Generic_key) = struct
       in
       let key_3 = get_node_key (Option.get (S.Tree.key tree_3)) in
       let info () = info "shallow" in
-      let* t = S.master repo in
+      let* t = S.main repo in
       S.set_tree_exn t [ "1" ] tree_1 ~info >>= fun () ->
       S.set_tree_exn t [ "2" ] tree_2 ~info >>= fun () ->
       let* h = S.Head.get t in

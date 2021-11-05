@@ -133,7 +133,7 @@ struct
      [t.tree_add] files + one directory going to the next levele. *)
   let init t config =
     let tree = Store.Tree.empty () in
-    let* v = Store.Repo.v config >>= Store.master in
+    let* v = Store.Repo.v config >>= Store.main in
     let* tree =
       times ~n:t.depth ~init:tree (fun depth tree ->
           let paths = Array.init (t.tree_add + 1) (path ~depth) in
@@ -144,7 +144,7 @@ struct
 
   let run t config size =
     let* r = Store.Repo.v config in
-    let* v = Store.master r in
+    let* v = Store.main r in
     Store.Tree.reset_counters ();
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
     let* () =
