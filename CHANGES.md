@@ -3,17 +3,9 @@
 ### Fixed
 
 - **irmin**
-  - `Tree` operations now raise a `Dangling_hash` exception when called with a
-    path that contains dangling hashes in the underlying store, rather than
-    interpreting such paths as ending with empty nodes (#1477 #1559, @CraigFe)
-  - Fix the pre-hashing function for big-endian architectures. (#1505,
-    @Ngoguey42, @dinosaure)
   - Fix the implementation of comparison on `Irmin.Tree` objects to use the
     comparison defined on hashes. The previous implementation was unstable.
     (#1519, @CraigFe)
-  - Fix a bug in `Tree.export` where nodes could be exported before
-    some of their contents, resulting in indirect hashes in irmin-pack
-    (#1508, @Ngoguey42)
 
  - **irmin-pack**
    - Improved the performance of Index encode and decode operations by
@@ -27,20 +19,8 @@
     provide `close` and `batch` functions (#1345, @samoht)
   - Atomic-write backend implementations have to provide a `close` function
     (#1345, @samoht)
-  - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
-    lists when it is not necessary (#1508, @samoht)
-  - New optional `cache` parameter to `Tree.hash`, `Tree.Contents.hash`,
-    `Tree.list`, `Node.list`, `Node.seq` and `Node.find` to control the storing
-    of lazily loaded data (#1526, @Ngoguey42)
-  - Add `Node.clear` to clear internal caches (#1526, @Ngoguey42)
-  - Added a `tree` argument to `Tree.fold` to manipulate the subtrees (#1527,
-    @icristescu, @Ngoguey42)
   - Add a function `Store.Tree.singleton` for building trees with a single
     contents binding. (#1567, @CraigFe)
-  - Add a function `Store.Tree.pruned` for building purely in-memory tree
-    objects with known hashes. (#1537, @CraigFe)
-  - Added a `order` argument to specify the order of traversal in `Tree.fold`
-    (#1548, @icristescu, @CraigFe)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
@@ -116,15 +96,6 @@
   - Add `Irmin.Backend.Conf.Schema` for grouping configuration keys. Now
     `Irmin.Backend.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
-  - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
-  - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
-  - Rewrite `Tree.export` in order to minimise the memory footprint.
-    (#1508, @Ngoguey42)
-  - Remove the ``~force:`And_clear`` case parameter from `Tree.fold`,
-    ``~force:`True ~cache:false`` is the new equivalent. (#1526, @Ngoguey42)
-  - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
-    cache the lazily loaded data any more. Pass `~cache:true` to enable it
-    again. (#1526, @Ngoguey42)
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
   - Rename `key` type to `path` and `Key` module to `Path` when it is in a path
     context in `Tree` and `Store`. (#1569, @maiste)
@@ -157,7 +128,6 @@
     - `Irmin_git.dot_git` is now `Irmin_git.Conf.dot_git`
    (#1347, @samoht)
   - Renamed `Irmin_git.Make` into `Irmin_git.Maker` (#1369, @samoht)
-  - Upgrade `irmin-git` to `git.3.5.0`. (#1495, @dinosaure)
 
 - **irmin-mirage**
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
