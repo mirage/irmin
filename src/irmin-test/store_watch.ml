@@ -367,8 +367,9 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
     run x test
 
   let tests =
-    [
-      ("Callbacks and exceptions", test_watch_exn);
-      ("Basic operations", test_watches);
-    ]
+    (* [test_watches] has been disabled for being flaky.
+        TODO: work out why, fix it, and re-enable it.
+        See https://github.com/mirage/irmin/issues/1447. *)
+    let _ = ("Basic operations", test_watches) in
+    [ ("Callbacks and exceptions", test_watch_exn) ]
 end
