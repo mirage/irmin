@@ -1268,6 +1268,51 @@ module Make (S : S) = struct
         check_ls "concrete tree list /bar/d" c0' t0'
       in
 
+      (* Testing Merkle proof *)
+      let large_dir =
+        List.init 1000 (fun i ->
+            let v = string_of_int i in
+            let hash x = P.Contents.Key.hash x in
+            ([ "dir"; v ], S.Tree.pruned (`Node (hash v))))
+      in
+      let* c0 =
+        Lwt.return S.Tree.empty
+        >>= with_binding [ "foo"; "a" ] "1"
+        >>= with_binding [ "foo"; "b"; "c" ] "2"
+        >>= with_binding [ "bar"; "d" ] "3"
+        >>= with_binding [ "e" ] "4"
+        >>= fun t ->
+        Lwt_list.fold_left_s
+          (fun acc (k, v) -> S.Tree.add_tree acc k v)
+          t large_dir
+      in
+      let p0 = S.Tree.Proof.of_tree c0 in
+      let t0 = S.Tree.Proof.to_tree p0 in
+      let* () =
+        let+ d0 = S.Tree.diff c0 t0 in
+        check_diffs "proof roundtrip" [] d0
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [] in
+        let+ t0' = S.Tree.list t0 [] in
+        check_ls "proof list /" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "foo" ] in
+        let+ t0' = S.Tree.list t0 [ "foo" ] in
+        check_ls "proof tree list /foo" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "bar"; "d" ] in
+        let+ t0' = S.Tree.list t0 [ "bar"; "d" ] in
+        check_ls "proof tree list /bar/d" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "dir" ] in
+        let+ t0' = S.Tree.list t0 [ "dir" ] in
+        check_ls "proof tree list /dir" c0' t0'
+      in
+
       (* Testing other tree operations. *)
       S.Tree.empty |> fun v0 ->
       let* c = S.Tree.to_concrete v0 in
@@ -1448,7 +1493,9 @@ module Make (S : S) = struct
               | None -> ()
               | Some _ -> Alcotest.fail "value 500000 should not be found")
           | Error (`Dangling_hash _) ->
-              Alcotest.fail "unexpected dangling hash in wide node"))
+              Alcotest.fail "unexpected dangling hash in wide node"
+          | Error (`Pruned_hash _) ->
+              Alcotest.fail "unexpected pruned hash in wide node"))
       >>= fun () -> P.Repo.close repo
     in
     run x test

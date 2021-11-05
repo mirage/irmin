@@ -56,6 +56,16 @@ struct
     let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
   end
 
+  exception Dangling_hash of { context : string; hash : T.hash }
+
+  let () =
+    Printexc.register_printer (function
+      | Dangling_hash { context; hash } ->
+          Some
+            (Fmt.str "Irmin_pack.Inode.%s: encountered dangling hash %a" context
+               T.pp_hash hash)
+      | _ -> None)
+
   (* Binary representation, useful to compute hashes *)
   module Bin = struct
     open T
@@ -335,8 +345,10 @@ struct
         | Truncated -> (
             function Broken h -> h | Intact ptr -> Lazy.force ptr.hash)
 
-      let target : type ptr. cache:bool -> ptr layout -> ptr -> ptr t =
-       fun ~cache layout ->
+      let target :
+          type ptr.
+          cache:bool -> force:bool -> string -> ptr layout -> ptr -> ptr t =
+       fun ~cache ~force context layout ->
         match layout with
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
@@ -348,18 +360,17 @@ struct
                 entry
             | { target = Lazy _ } as t -> (
                 let h = hash layout t in
-                match find h with
-                | None -> Fmt.failwith "%a: unknown key" pp_hash h
-                | Some x ->
-                    if cache then t.target <- Lazy_loaded x;
-                    x))
+                if not force then raise (Dangling_hash { context; hash = h })
+                else
+                  match find h with
+                  | None -> Fmt.failwith "%a: unknown key" pp_hash h
+                  | Some x ->
+                      if cache then t.target <- Lazy_loaded x;
+                      x))
         | Truncated -> (
             function
             | Intact entry -> entry
-            | _ ->
-                failwith
-                  "Impossible to load the subtree on an inode deserialized \
-                   using Repr")
+            | Broken h -> raise (Dangling_hash { context; hash = h }))
 
       let of_target : type ptr. ptr layout -> ptr t -> ptr = function
         | Total -> fun target -> Total_ptr target
@@ -463,7 +474,7 @@ struct
       | Seq.Nil -> k ~off ~len
       | Seq.Cons (None, rest) -> seq_tree layout rest ~cache k ~off ~len
       | Seq.Cons (Some i, rest) ->
-          let trg = Ptr.target ~cache layout i in
+          let trg = Ptr.target ~cache ~force:true "seq_tree" layout i in
           let trg_len = length trg in
           if off - trg_len >= 0 then
             (* Skip a branch of the inode tree in case the user asked for a
@@ -546,6 +557,8 @@ struct
       let v = to_bin_v layout t.v in
       Bin.v ~stable:t.stable ~hash:t.hash v
 
+    type len = [ `Eq of int | `Ge of int ] [@@deriving irmin]
+
     module Concrete = struct
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
       type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
@@ -556,7 +569,8 @@ struct
       type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
       [@@deriving irmin]
 
-      type t = Tree of t tree | Value of entry list [@@deriving irmin]
+      type t = Tree of t tree | Values of entry list | Blinded
+      [@@deriving irmin]
 
       let metadata_equal = Irmin.Type.(unstage (equal metadata_t))
 
@@ -578,20 +592,31 @@ struct
       type error =
         [ `Invalid_hash of hash * hash * t
         | `Invalid_depth of int * int * t
-        | `Invalid_length of int * int * t
+        | `Invalid_length of len * int * t
         | `Duplicated_entries of t
         | `Duplicated_pointers of t
         | `Unsorted_entries of t
         | `Unsorted_pointers of t
+        | `Blinded_root
         | `Empty ]
       [@@deriving irmin]
 
       let rec length = function
-        | Value l -> List.length l
+        | Values l -> `Eq (List.length l)
         | Tree t ->
-            List.fold_left (fun acc p -> acc + length p.tree) 0 t.pointers
+            List.fold_left
+              (fun acc p ->
+                match (acc, length p.tree) with
+                | `Eq x, `Eq y -> `Eq (x + y)
+                | (`Eq x | `Ge x), (`Eq y | `Ge y) -> `Ge (x + y))
+              (`Eq 0) t.pointers
+        | Blinded -> `Ge 0
 
       let pp = Irmin.Type.pp_json t
+
+      let pp_len ppf = function
+        | `Eq e -> Fmt.pf ppf "%d" e
+        | `Ge e -> Fmt.pf ppf "'at least %d'" e
 
       let pp_error ppf = function
         | `Invalid_hash (got, expected, t) ->
@@ -601,17 +626,18 @@ struct
             Fmt.pf ppf "invalid depth for %a@,got: %d@,expecting: %d" pp t got
               expected
         | `Invalid_length (got, expected, t) ->
-            Fmt.pf ppf "invalid length for %a@,got: %d@,expecting: %d" pp t got
-              expected
+            Fmt.pf ppf "invalid length for %a@,got: %a@,expecting: %d" pp t
+              pp_len got expected
         | `Duplicated_entries t -> Fmt.pf ppf "duplicated entries: %a" pp t
         | `Duplicated_pointers t -> Fmt.pf ppf "duplicated pointers: %a" pp t
         | `Unsorted_entries t -> Fmt.pf ppf "entries should be sorted: %a" pp t
         | `Unsorted_pointers t ->
             Fmt.pf ppf "pointers should be sorted: %a" pp t
+        | `Blinded_root -> Fmt.pf ppf "blinded root"
         | `Empty -> Fmt.pf ppf "concrete subtrees cannot be empty"
     end
 
-    let to_concrete (la : 'ptr layout) (t : 'ptr t) =
+    let to_concrete ~force (la : 'ptr layout) (t : 'ptr t) =
       let rec aux t =
         match t.v with
         | Tree tr ->
@@ -627,7 +653,12 @@ struct
                         | None -> (i + 1, acc)
                         | Some t ->
                             let pointer, tree =
-                              aux (Ptr.target ~cache:true la t)
+                              try
+                                aux
+                                  (Ptr.target ~cache:true ~force "to_concrete"
+                                     la t)
+                              with Dangling_hash { hash; _ } ->
+                                (hash, Concrete.Blinded)
                             in
                             (i + 1, { Concrete.index = i; tree; pointer } :: acc))
                       (0, []) tr.entries
@@ -636,19 +667,20 @@ struct
                 } )
         | Values l ->
             ( Lazy.force t.hash,
-              Concrete.Value (List.map Concrete.to_entry (StepMap.bindings l))
+              Concrete.Values (List.map Concrete.to_entry (StepMap.bindings l))
             )
       in
       snd (aux t)
 
     exception Invalid_hash of hash * hash * Concrete.t
     exception Invalid_depth of int * int * Concrete.t
-    exception Invalid_length of int * int * Concrete.t
+    exception Invalid_length of len * int * Concrete.t
     exception Empty
     exception Duplicated_entries of Concrete.t
     exception Duplicated_pointers of Concrete.t
     exception Unsorted_entries of Concrete.t
     exception Unsorted_pointers of Concrete.t
+    exception Blinded_root
 
     let hash_equal = Irmin.Type.(unstage (equal hash_t))
 
@@ -671,36 +703,46 @@ struct
         if List.length s <> List.length ps then raise (Duplicated_pointers t);
         if s <> ps then raise (Unsorted_pointers t)
       in
-      let hash v = Bin.V.hash (to_bin_v Total v) in
+      let hash v = Bin.V.hash (to_bin_v Truncated v) in
       let rec aux depth t =
         match t with
-        | Concrete.Value l ->
+        | Concrete.Blinded -> None
+        | Concrete.Values l ->
             check_entries t l;
-            Values (StepMap.of_list (List.map Concrete.of_entry l))
+            Some (Values (StepMap.of_list (List.map Concrete.of_entry l)))
         | Concrete.Tree tr ->
             let entries = Array.make Conf.entries None in
             check_pointers t tr.pointers;
             List.iter
               (fun { Concrete.index; pointer; tree } ->
-                let v = aux (depth + 1) tree in
-                let hash = hash v in
-                if not (hash_equal hash pointer) then
-                  raise (Invalid_hash (hash, pointer, t));
-                let t = { hash = lazy pointer; stable = false; v } in
-                entries.(index) <- Some (Ptr.of_target Total t))
+                match aux (depth + 1) tree with
+                | None -> entries.(index) <- Some (Broken pointer)
+                | Some v ->
+                    let hash = hash v in
+                    if not (hash_equal hash pointer) then
+                      raise (Invalid_hash (hash, pointer, t));
+                    let t = { hash = lazy pointer; stable = false; v } in
+                    entries.(index) <- Some (Ptr.of_target Truncated t))
               tr.pointers;
-            let length = Concrete.length t in
             if depth <> tr.depth then raise (Invalid_depth (depth, tr.depth, t));
-            if length <> tr.length then
-              raise (Invalid_length (length, tr.length, t));
-            Tree { depth = tr.depth; length = tr.length; entries }
+            let () =
+              match Concrete.length t with
+              | `Eq length ->
+                  if length <> tr.length then
+                    raise (Invalid_length (`Eq length, tr.length, t))
+              | `Ge length ->
+                  if length > tr.length then
+                    raise (Invalid_length (`Ge length, tr.length, t))
+            in
+
+            Some (Tree { depth = tr.depth; length = tr.length; entries })
       in
-      let v = aux 0 t in
+      let v = match aux 0 t with None -> raise Blinded_root | Some v -> v in
       let length = length_of_v v in
       let stable, hash =
         if length > Conf.stable_hash then (false, hash v)
         else
-          let node = Node.of_seq (seq_v Total v) in
+          let node = Node.of_seq (seq_v Truncated v) in
           (true, Node.hash node)
       in
       { hash = lazy hash; stable; v }
@@ -715,6 +757,7 @@ struct
       | Duplicated_pointers t -> Error (`Duplicated_pointers t)
       | Unsorted_entries t -> Error (`Unsorted_entries t)
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
+      | Blinded_root -> Error `Blinded_root
 
     let hash t = Lazy.force t.hash
 
@@ -801,7 +844,7 @@ struct
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
 
     let find_value ~cache layout ~depth t s =
-      let target_of_ptr = Ptr.target ~cache layout in
+      let target_of_ptr = Ptr.target ~cache ~force:true "find_value" layout in
       let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
@@ -850,7 +893,7 @@ struct
               let t =
                 (* [cache] is unimportant here as we've already called
                    [find_value] for that path.*)
-                Ptr.target ~cache:true layout n
+                Ptr.target ~cache:true ~force:true "add" layout n
               in
               (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
                 (fun target ->
@@ -891,7 +934,7 @@ struct
                 let t =
                   (* [cache] is unimportant here as we've already called
                      [find_value] for that path.*)
-                  Ptr.target ~cache:true layout t
+                  Ptr.target ~cache:true ~force:true "remove" layout t
                 in
                 if length t = 1 then (
                   entries.(i) <- None;
@@ -961,7 +1004,9 @@ struct
       aux ~depth:0 t
 
     let check_stable layout t =
-      let target_of_ptr = Ptr.target ~cache:true layout in
+      let target_of_ptr =
+        Ptr.target ~cache:true ~force:true "check_stable" layout
+      in
       let rec check t any_stable_ancestor =
         let stable = t.stable || any_stable_ancestor in
         match t.v with
@@ -978,7 +1023,9 @@ struct
       check t t.stable
 
     let contains_empty_map layout t =
-      let target_of_ptr = Ptr.target ~cache:true layout in
+      let target_of_ptr =
+        Ptr.target ~cache:true ~force:true "contains_empty_map" layout
+      in
       let rec check_lower t =
         match t.v with
         | Values l when StepMap.is_empty l -> true
@@ -992,6 +1039,82 @@ struct
       check_lower t
 
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
+
+    type proof = (hash, step, value) Irmin.Private.Node.Proof.t
+    [@@deriving irmin]
+
+    module Proof = struct
+      let rec proof_of_concrete h : Concrete.t -> proof = function
+        | Blinded -> Blinded (Lazy.force h)
+        | Values vs -> Values (List.map Concrete.of_entry vs)
+        | Tree tr ->
+            let proofs =
+              List.fold_left
+                (fun acc (e : _ Concrete.pointer) ->
+                  let p = proof_of_concrete (lazy e.pointer) e.tree in
+                  let e = (e.index, p) in
+                  e :: acc)
+                [] (List.rev tr.pointers)
+            in
+            Inode { length = tr.length; proofs }
+
+      let hash_v v = Bin.V.hash (to_bin_v Truncated v)
+
+      let rec hash : int -> proof -> hash =
+       fun depth -> function
+        | Values l -> hash_v (Values (StepMap.of_list l))
+        | Inode { length; proofs } ->
+            let es =
+              List.fold_left
+                (fun acc (index, proof) ->
+                  let pointer = hash (depth + 1) proof in
+                  (index, Broken pointer) :: acc)
+                [] proofs
+            in
+            let entries = Array.make Conf.entries None in
+            List.iter (fun (index, ptr) -> entries.(index) <- Some ptr) es;
+            let v : truncated_ptr v = Tree { depth; length; entries } in
+            hash_v v
+        | Blinded h -> h
+
+      let rec concrete_of_proof depth : proof -> Concrete.t = function
+        | Blinded _ -> Concrete.Blinded
+        | Values vs -> Concrete.Values (List.map Concrete.to_entry vs)
+        | Inode { length; proofs } ->
+            let pointers =
+              List.fold_left
+                (fun acc (index, proof) ->
+                  let tree = concrete_of_proof (depth + 1) proof in
+                  let pointer = hash (depth + 1) proof in
+                  { Concrete.tree; pointer; index } :: acc)
+                [] (List.rev proofs)
+            in
+            Concrete.Tree { depth; length; pointers }
+
+      let to_proof la t =
+        let p =
+          if t.stable then
+            (* To preserve the stable hash, the proof needs to contain
+               all the underlying values. *)
+            let bindings =
+              seq la t
+              |> Seq.map Concrete.to_entry
+              |> List.of_seq
+              |> List.fast_sort (fun x y ->
+                     compare x.Concrete.name y.Concrete.name)
+            in
+            Concrete.Values bindings
+          else to_concrete ~force:false la t
+        in
+        proof_of_concrete t.hash p
+
+      let of_proof (proof : proof) =
+        let c = concrete_of_proof 0 proof in
+        of_concrete_exn c
+
+      let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
+      let to_concrete = concrete_of_proof 0
+    end
   end
 
   module Raw = struct
@@ -1218,11 +1341,20 @@ struct
       apply t { f }
 
     module Concrete = I.Concrete
+    module Proof = I.Proof
 
-    let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
+    let to_concrete t =
+      apply t { f = (fun la v -> I.to_concrete ~force:true la v) }
 
     let of_concrete t =
-      match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
+      match I.of_concrete t with Ok t -> Ok (Truncated t) | Error _ as e -> e
+
+    type proof = I.proof [@@deriving irmin]
+
+    let to_proof (t : t) : proof =
+      apply t { f = (fun la v -> I.Proof.to_proof la v) }
+
+    let of_proof (p : proof) = Truncated (I.Proof.of_proof p)
   end
 end
 

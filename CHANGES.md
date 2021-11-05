@@ -1,3 +1,12 @@
+## 2.9.0 (TODO)
+
+### Added
+
+- **irmin**
+  - Add Merkle Proofs and expose function to convert a proof to and from a tree.
+    Once converted, normal tree operations can be performed on the proof, as
+    long at it access values contained in the proof.
+
 ## 2.8.0 (2021-10-15)
 
 ### Fixed
