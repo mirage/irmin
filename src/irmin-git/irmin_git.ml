@@ -348,6 +348,11 @@ struct
 
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
+
+      type proof = N.proof [@@deriving irmin]
+
+      let to_proof t = N.to_proof (to_n t)
+      let of_proof p = of_n (N.of_proof p)
     end
 
     include Content_addressable (struct

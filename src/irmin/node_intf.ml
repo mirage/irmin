@@ -18,22 +18,44 @@
 open! Import
 open S
 
+module Proof = struct
+  type ('hash, 'step, 'value) t =
+    | Blinded of 'hash
+    | Values of ('step * 'value) list
+    | Inode of { length : int; proofs : (int * ('hash, 'step, 'value) t) list }
+
+  (* TODO(craigfe): fix [ppx_irmin] for recursive types with type parameters. *)
+  let t hash_t step_t value_t =
+    let open Type in
+    mu (fun t ->
+        variant "proof" (fun blinded values inode -> function
+          | Blinded x1 -> blinded x1
+          | Values x1 -> values x1
+          | Inode { length; proofs } -> inode (length, proofs))
+        |~ case1 "Blinded" hash_t (fun x1 -> Blinded x1)
+        |~ case1 "Values" [%typ: (step * value) list] (fun x1 -> Values x1)
+        |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
+               Inode { length; proofs })
+        |> sealv)
+end
+
 module type S = sig
   (** {1 Node values} *)
 
-  type t
+  type t [@@deriving irmin]
   (** The type for node values. *)
 
-  type metadata
+  type metadata [@@deriving irmin]
   (** The type for node metadata. *)
 
-  type hash
+  type hash [@@deriving irmin]
   (** The type for keys. *)
 
-  type step
+  type step [@@deriving irmin]
   (** The type for steps between nodes. *)
 
   type value = [ `Node of hash | `Contents of hash * metadata ]
+  [@@deriving irmin]
   (** The type for either (node) keys or (contents) keys combined with their
       metadata. *)
 
@@ -95,25 +117,16 @@ module type S = sig
   (** [remove t s] is the node where [find t s] is [None] but is similar to [t]
       otherwise. *)
 
-  (** {1 Value types} *)
-
-  val t : t Type.t
-  (** [t] is the value type for {!t}. *)
-
   val default : metadata
   (** [default] is the default metadata value. *)
 
-  val metadata_t : metadata Type.t
-  (** [metadata_t] is the value type for {!metadata}. *)
+  (** {1 Proofs} *)
 
-  val hash_t : hash Type.t
-  (** [hash_t] is the value type for {!hash}. *)
+  type nonrec proof = (hash, step, value) Proof.t [@@deriving irmin]
+  (** The type for proof trees. *)
 
-  val step_t : step Type.t
-  (** [step_t] is the value type for {!step}. *)
-
-  val value_t : value Type.t
-  (** [value_t] is the value type for {!value}. *)
+  val to_proof : t -> proof
+  val of_proof : proof -> t
 end
 
 module type Maker = functor
@@ -249,6 +262,17 @@ module type GRAPH = sig
 end
 
 module type Node = sig
+  module Proof : sig
+    type ('hash, 'step, 'value) t = ('hash, 'step, 'value) Proof.t =
+      | Blinded of 'hash
+      | Values of ('step * 'value) list
+      | Inode of {
+          length : int;
+          proofs : (int * ('hash, 'step, 'value) t) list;
+        }
+    [@@deriving irmin]
+  end
+
   module type S = S
   module type Maker = Maker
 
