@@ -1,4 +1,10 @@
-## 2.9.0 (TODO)
+## 2.9.0 (2021-11-10)
+
+### Fixed
+
+- **irmin-pack**
+   - Improved the performance of Index encode and decode operations by
+     eliminating intermediate allocations. (#1577, @CraigFe)
 
 ### Added
 
@@ -26,10 +32,6 @@
   - Fix a bug in `Tree.export` where nodes could be exported before
     some of their contents, resulting in indirect hashes in irmin-pack
     (#1508, @Ngoguey42)
-
- - **irmin-pack**
-   - Improved the performance of Index encode and decode operations by
-     eliminating intermediate allocations. (#1577, @CraigFe)
 
 ### Added
 
