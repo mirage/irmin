@@ -46,6 +46,9 @@ struct
     let hash = H.hash
   end
 
+  (* Keep at most 50 bits of information. *)
+  let max_depth = int_of_float (log (2. ** 50.) /. log (float Conf.entries))
+
   module T = struct
     type hash = H.t [@@deriving irmin ~pp ~to_bin_string ~equal]
     type key = Key.t [@@deriving irmin ~pp ~equal]
@@ -1107,7 +1110,9 @@ struct
         in
         { v_ref; v = t.v; root = true }
 
-    let index ~depth k = Child_ordering.index ~depth k
+    let index ~depth k =
+      if depth >= max_depth then raise (Max_depth depth);
+      Child_ordering.index ~depth k
 
     (** This function shouldn't be called with the [Total] layout. In the
         future, we could add a polymorphic variant to the GADT parameter to
