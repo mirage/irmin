@@ -2,19 +2,19 @@ open! Import
 include Pack_value_intf
 
 module Kind = struct
-  type t = Commit | Contents | Inode | Node
+  type t = Commit | Contents | Inode_v0_unstable | Inode_v0_stable
 
   let to_magic = function
     | Commit -> 'C'
     | Contents -> 'B'
-    | Inode -> 'I'
-    | Node -> 'N'
+    | Inode_v0_unstable -> 'I'
+    | Inode_v0_stable -> 'N'
 
   let of_magic_exn = function
     | 'C' -> Commit
     | 'B' -> Contents
-    | 'I' -> Inode
-    | 'N' -> Node
+    | 'I' -> Inode_v0_unstable
+    | 'N' -> Inode_v0_stable
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
   let t = Irmin.Type.(map char) of_magic_exn to_magic
