@@ -6,6 +6,12 @@
   - Add Merkle Proofs and expose function to convert a proof to and from a tree.
     Once converted, normal tree operations can be performed on the proof, as
     long at it access values contained in the proof.
+    (#1583, @samoht, @Ngoguey42, @icristescu)
+
+### Changed
+
+- **irmin-pack**
+  - Limit inode depth (#1596, #samoht)
 
 ## 2.8.0 (2021-10-15)
 

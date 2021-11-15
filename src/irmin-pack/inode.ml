@@ -33,6 +33,9 @@ struct
     let hash = H.hash
   end
 
+  (* Keep at most 50 bits of information. *)
+  let max_depth = int_of_float (log (2. ** 50.) /. log (float Conf.entries))
+
   module T = struct
     type hash = H.t [@@deriving irmin]
     type step = Node.step [@@deriving irmin]
@@ -57,6 +60,7 @@ struct
   end
 
   exception Dangling_hash of { context : string; hash : T.hash }
+  exception Max_depth of int
 
   let () =
     Printexc.register_printer (function
@@ -800,7 +804,10 @@ struct
           { hash; stable = true; v = t.v }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
-    let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
+
+    let index ~depth k =
+      if depth >= max_depth then raise (Max_depth depth);
+      abs (hash_key ~seed:depth k) mod Conf.entries
 
     (** This function shouldn't be called with the [Total] layout. In the
         future, we could add a polymorphic variant to the GADT parameter to
