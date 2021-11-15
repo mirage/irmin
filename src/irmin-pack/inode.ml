@@ -192,36 +192,77 @@ struct
       |> sealv
 
     type v = Values of value list | Tree of tree
+    [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.v" (fun values tree -> function
-        | Values x -> values x | Tree x -> tree x)
-      |~ case1 "Values" (list value_t) (fun x -> Values x)
-      |~ case1 "Tree" tree_t (fun x -> Tree x)
-      |> sealv
+    let dynamic_size_of_v_encoding =
+      match Irmin.Type.Size.of_encoding v_t with
+      | Irmin.Type.Size.Dynamic f -> f
+      | _ -> assert false
 
-    type t = { hash : H.t; stable : bool; v : v }
+    let dynamic_size_of_v =
+      match Irmin.Type.Size.of_value v_t with
+      | Irmin.Type.Size.Dynamic f -> f
+      | _ -> assert false
 
-    let v ~stable ~hash v = { hash; stable; v }
-    let to_magic = Pack_value.Kind.to_magic
-    let kind_inode_v0_stable = Pack_value.Kind.Inode_v0_stable
-    let kind_inode_v0_unstable = Pack_value.Kind.Inode_v0_unstable
-    let magic_inode_v0_stable = to_magic kind_inode_v0_stable
-    let magic_inode_v0_unstable = to_magic kind_inode_v0_unstable
+    type kind = Pack_value.Kind.t
+    [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    let stable_t : bool Irmin.Type.t =
-      Irmin.Type.(map char)
-        (fun n -> n = magic_inode_v0_stable)
-        (function
-          | true -> magic_inode_v0_stable | false -> magic_inode_v0_unstable)
+    (** [tagged_v] sits between [v] and [t]. It is a variant with the header
+        binary encoded as the magic. *)
+    type tagged_v = V0_stable of v | V0_unstable of v [@@deriving irmin]
+
+    let encode_bin_tv vt f =
+      (* TODO: Deprecate v0 at encode_time *)
+      match vt with
+      | V0_stable v ->
+          encode_bin_kind Pack_value.Kind.Inode_v0_stable f;
+          encode_bin_v v f
+      | V0_unstable v ->
+          encode_bin_kind Pack_value.Kind.Inode_v0_unstable f;
+          encode_bin_v v f
+
+    let decode_bin_tv s off =
+      let kind = decode_bin_kind s off in
+      match kind with
+      | Pack_value.Kind.Inode_v0_unstable ->
+          let v = decode_bin_v s off in
+          V0_unstable v
+      | Inode_v0_stable ->
+          let v = decode_bin_v s off in
+          V0_stable v
+      | Commit | Contents -> assert false
+
+    let size_of_tv =
+      let of_value vt =
+        match vt with V0_stable v | V0_unstable v -> dynamic_size_of_v v + 1
+      in
+      let of_encoding s off =
+        let kind = decode_bin_kind s (ref off) in
+        match kind with
+        | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
+            dynamic_size_of_v_encoding s (off + 1) + 1
+        | Commit | Contents -> assert false
+      in
+      Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
+
+    let tagged_v_t =
+      Irmin.Type.like ~bin:(encode_bin_tv, decode_bin_tv, size_of_tv) tagged_v_t
+
+    type t = { hash : H.t; v : tagged_v }
+
+    let v ~stable ~hash v =
+      let v = if stable then V0_stable v else V0_unstable v in
+      { hash; v }
+
+    let is_stable = function
+      | { v = V0_stable _; _ } -> true
+      | { v = V0_unstable _; _ } -> false
 
     let t =
       let open Irmin.Type in
-      record "Compress.t" (fun hash stable v -> { hash; stable; v })
+      record "Compress.t" (fun hash v -> { hash; v })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "stable" stable_t (fun t -> t.stable)
-      |+ field "v" v_t (fun t -> t.v)
+      |+ field "tagged_v" tagged_v_t (fun t -> t.v)
       |> sealr
   end
 
@@ -1038,8 +1079,9 @@ struct
     let t = Bin.t
 
     let kind (t : t) =
-      if t.stable then Compress.kind_inode_v0_stable
-      else Compress.kind_inode_v0_unstable
+      (* This is the kind of newly appended values, let's use v1 then *)
+      if t.stable then Pack_value.Kind.Inode_v0_stable
+      else Pack_value.Kind.Inode_v0_unstable
 
     let hash t = Bin.hash t
     let step_to_bin = T.step_to_bin_string
@@ -1123,13 +1165,17 @@ struct
             let hash = hash h in
             (name, `Node hash)
       in
-      let t : Compress.v -> Bin.v = function
+      let t : Compress.tagged_v -> Bin.v =
+       fun tv ->
+        let v = match tv with V0_stable v -> v | V0_unstable v -> v in
+        match v with
         | Values vs -> Values (List.rev_map value (List.rev vs))
         | Tree { depth; length; entries } ->
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
       in
-      Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v)
+      let stable = Compress.is_stable i in
+      Bin.v ~stable ~hash:(lazy i.hash) (t i.v)
 
     let decode_bin_length = decode_compress_length
   end
