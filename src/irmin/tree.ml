@@ -1464,10 +1464,19 @@ module Make (P : Private.S) = struct
               on_node_seq new_children_seq @@ fun () ->
               let* v = Node.to_value ~cache n in
               let v = get_ok "export" v in
-              let key = Node.hash ~cache n in
               cnt.node_add <- cnt.node_add + 1;
-              let* key' = P.Node.add node_t v in
-              assert (equal_hash key key');
+              let* key = P.Node.add node_t v in
+              let () =
+                (* Sanity check: Did we just store the same hash as the one represented
+                   by the Tree.Node [n]? *)
+                match Node.cached_hash n with
+                | None ->
+                    (* No hash is in [n]. Computing it would result in getting it from
+                       [v] or rebuilding a private node. *)
+                    ()
+                | Some key' -> assert (equal_hash key key')
+              in
+
               Node.export ?clear (Some repo) n key;
               k ())
     and on_contents (`Contents (c, _)) k =

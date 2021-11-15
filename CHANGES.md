@@ -1,4 +1,13 @@
-## 2.9.0 (TODO)
+## 2.9.0 (2021-11-15)
+
+### Fixed
+
+- **irmin-pack**
+   - Improved the performance of Index encode and decode operations by
+     eliminating intermediate allocations (up to 5% fewer minor words
+     allocated) (#1577, @CraigFe)
+   - Reduce the number of backend nodes built during export
+     (up to 20% fewer minor words allocated) (#1553, @Ngoguey42)
 
 ### Added
 
@@ -12,6 +21,7 @@
 
 - **irmin-pack**
   - Limit inode depth (#1596, #samoht)
+  - Adapt to index 1.5.0 (#1593, @icristescu)
 
 ## 2.8.0 (2021-10-15)
 
