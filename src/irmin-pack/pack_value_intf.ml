@@ -39,7 +39,8 @@ end
 
 module type Sigs = sig
   module Kind : sig
-    type t = Commit | Contents | Inode | Node [@@deriving irmin]
+    type t = Commit | Contents | Inode_v0_unstable | Inode_v0_stable
+    [@@deriving irmin]
 
     val all : t list
     val to_enum : t -> int

@@ -2,30 +2,35 @@ open! Import
 include Pack_value_intf
 
 module Kind = struct
-  type t = Commit | Contents | Inode | Node
+  type t = Commit | Contents | Inode_v0_unstable | Inode_v0_stable
 
   let to_magic = function
     | Commit -> 'C'
     | Contents -> 'B'
-    | Inode -> 'I'
-    | Node -> 'N'
+    | Inode_v0_unstable -> 'I'
+    | Inode_v0_stable -> 'N'
 
   let of_magic_exn = function
     | 'C' -> Commit
     | 'B' -> Contents
-    | 'I' -> Inode
-    | 'N' -> Node
+    | 'I' -> Inode_v0_unstable
+    | 'N' -> Inode_v0_stable
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
-  let all = [ Commit; Contents; Inode; Node ]
-  let to_enum = function Commit -> 0 | Contents -> 1 | Inode -> 2 | Node -> 3
+  let all = [ Commit; Contents; Inode_v0_unstable; Inode_v0_stable ]
+
+  let to_enum = function
+    | Commit -> 0
+    | Contents -> 1
+    | Inode_v0_unstable -> 2
+    | Inode_v0_stable -> 3
 
   let pp =
     Fmt.of_to_string (function
       | Commit -> "Commit"
       | Contents -> "Contents"
-      | Inode -> "Inode"
-      | Node -> "Node")
+      | Inode_v0_unstable -> "Inode_v0_unstable"
+      | Inode_v0_stable -> "Inode_v0_stable")
 
   let t = Irmin.Type.map ~pp Irmin.Type.char of_magic_exn to_magic
 end
