@@ -577,7 +577,16 @@ module V1 = struct
 
       type t = K.t
 
-      let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
+      let pre_hash = Type.(unstage (pre_hash K.t))
+
+      let pre_hash t f =
+        let f x =
+          f "\000\000\000\000\000\000\000 ";
+          f x
+        in
+        pre_hash t f
+
+      let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of) ~pre_hash
     end
 
     module Node_key = K (struct
