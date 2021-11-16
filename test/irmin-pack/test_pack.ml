@@ -49,8 +49,8 @@ let suite_pack =
     rm_dir test_dir;
     Lwt.return_unit
   in
-  Irmin_test.Suite.create ~name:"PACK" ~init ~store ~config ~clean
-    ~layered_store:None ()
+  Irmin_test.Suite.create ~name:"PACK" ~clear_supported:false ~init ~store
+    ~config ~clean ~layered_store:None ()
 
 module Irmin_pack_mem_maker = struct
   include Irmin_pack_mem.Maker (Config)

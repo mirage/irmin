@@ -2072,8 +2072,8 @@ let suite (speed, x) =
        ("Concurrent merges", speed, T.test_concurrent_merges x);
        ("Shallow objects", speed, T.test_shallow_objects x);
        ("Closure with disconnected commits", speed, T.test_closure x);
-       ("Clear", speed, T.test_clear x);
      ]
+    @ when_ x.clear_supported [ ("Clear", speed, T.test_clear x) ]
     @ when_ x.import_supported
         [
           ("Basic operations on slices", speed, T.test_slice x);
