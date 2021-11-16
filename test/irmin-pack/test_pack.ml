@@ -77,8 +77,9 @@ let suite_pack =
     rm_dir test_dir;
     Lwt.return_unit
   in
-  Irmin_test.Suite.create_generic_key ~import_supported:false ~name:"PACK" ~init
-    ~store ~config ~clean ~layered_store:(Some layered_store) ()
+  Irmin_test.Suite.create_generic_key ~clear_supported:false
+    ~import_supported:false ~name:"PACK" ~init ~store ~config ~clean
+    ~layered_store:(Some layered_store) ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)

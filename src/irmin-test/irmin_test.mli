@@ -32,6 +32,7 @@ module Suite : sig
     store:(module S) ->
     layered_store:(module Layered_store) option ->
     ?stats:(unit -> int * int) ->
+    ?clear_supported:bool ->
     ?import_supported:bool ->
     unit ->
     t
@@ -44,6 +45,7 @@ module Suite : sig
     store:(module Generic_key) ->
     layered_store:(module Layered_store_generic_key) option ->
     ?stats:(unit -> int * int) ->
+    ?clear_supported:bool ->
     ?import_supported:bool ->
     unit ->
     t
