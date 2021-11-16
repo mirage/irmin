@@ -245,13 +245,30 @@ type hash = Hash.t
 (* Store *)
 
 module Store = struct
+  module Impl = struct
+    type 'a t =
+      | Hash_keyed : (module Irmin.S with type t = 'a) -> 'a t
+      | Generic_keyed : (module Irmin.Generic_key.S with type t = 'a) -> 'a t
+
+    let generic_keyed (type a) (t : a t) :
+        (module Irmin.Generic_key.S with type t = a) =
+      match t with Hash_keyed (module S) -> (module S) | Generic_keyed x -> x
+
+    let hash_keyed = function Hash_keyed x -> Some x | Generic_keyed _ -> None
+  end
+
   type remote_fn =
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
   type t =
-    | T : (module Irmin.S) * Irmin.Backend.Conf.Spec.t * remote_fn option -> t
+    | T : {
+        impl : _ Impl.t;
+        spec : Irmin.Backend.Conf.Spec.t;
+        remote : remote_fn option;
+      }
+        -> t
 
-  let destruct (T (a, b, c)) = (a, b, c)
+  let spec (T { spec; _ }) = spec
 
   type store_functor =
     | Fixed_hash of (contents -> t)
@@ -264,7 +281,8 @@ module Store = struct
     val remote : remote_fn
   end
 
-  let v ?remote spec s = T (s, spec, remote)
+  let v ?remote spec s = T { impl = Impl.Hash_keyed s; spec; remote }
+  let v_generic ?remote spec s = T { impl = Impl.Generic_keyed s; spec; remote }
   let v_git (module S : G) = v Irmin_git.Conf.spec (module S) ~remote:S.remote
 
   let create :
@@ -272,17 +290,23 @@ module Store = struct
       =
    fun spec (module S) (module H) (module C) ->
     let module S = S.Make (Irmin.Schema.KV (C)) in
-    T ((module S), spec, None)
+    v spec (module S)
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
   let irf = create Irmin_fs.Conf.spec (module Fs)
 
   let http = function
-    | T ((module S), spec, x) ->
+    | T { impl = Generic_keyed _; _ } ->
+        Fmt.failwith
+          "Unsupported backend: can't build an HTTP server over a store that \
+           is not keyed by hashes"
+    | T { impl = Hash_keyed (module S); spec; remote } ->
         T
-          ( (module Http.Client (S)),
-            Irmin.Backend.Conf.Spec.join spec [ Irmin_http.Conf.spec ],
-            x )
+          {
+            impl = Hash_keyed (module Http.Client (S));
+            spec = Irmin.Backend.Conf.Spec.join spec [ Irmin_http.Conf.spec ];
+            remote;
+          }
 
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
@@ -382,10 +406,7 @@ let config_term =
     $ config_path_term
     $ Arg.(value @@ opt_all (list (pair ~sep:'=' string string)) [] opts))
 
-type store =
-  | S :
-      (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
-      -> store
+type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
 
 let rec read_config_file path =
   let home = config_root () / global_config_path in
@@ -499,14 +520,15 @@ let get_store config (store, hash, contents) =
 let load_config ?root ?config_path ?store ?hash ?contents () =
   let y = read_config_file config_path in
   let store = get_store y (store, hash, contents) in
-  let _, spec, _ = Store.destruct store in
+  let spec = Store.spec store in
   let config = parse_config ?root y spec in
   (store, config)
 
 let string_value = function `String s -> s | _ -> raise Not_found
 
-let get_branch (type a) (module S : Irmin.S with type Schema.Branch.t = a)
-    config branch =
+let get_branch (type a)
+    (module S : Irmin.Generic_key.S with type Schema.Branch.t = a) config branch
+    =
   let of_string = function
     | Some x -> (
         match Irmin.Type.of_string S.Branch.t x with
@@ -524,9 +546,8 @@ let get_branch (type a) (module S : Irmin.S with type Schema.Branch.t = a)
   | Some t -> of_string (Some t)
 
 let build_irmin_config config root opts (store, hash, contents) branch : store =
-  let (module S), spec, remote =
-    get_store config (store, hash, contents) |> Store.destruct
-  in
+  let (T { impl; spec; remote }) = get_store config (store, hash, contents) in
+  let (module S) = Store.Impl.generic_keyed impl in
   let branch = get_branch (module S) config branch in
   let config = parse_config ?root config spec in
   let config =
@@ -548,11 +569,12 @@ let build_irmin_config config root opts (store, hash, contents) branch : store =
         config)
       config (List.flatten opts)
   in
-  let mk_master () = S.Repo.v config >>= S.main in
-  let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
-  match branch with
-  | None -> S ((module S), mk_master (), remote)
-  | Some b -> S ((module S), mk_branch b, remote)
+  let spec =
+    match branch with
+    | None -> S.Repo.v config >>= S.main
+    | Some b -> S.Repo.v config >>= fun repo -> S.of_branch repo b
+  in
+  S (impl, spec, remote)
 
 let branch =
   let doc =
@@ -601,7 +623,8 @@ let infer_remote hash contents headers str =
       else Store.irf hash contents
     in
     match r with
-    | Store.T ((module R), spec, _) ->
+    | Store.T { impl; spec; _ } ->
+        let (module R) = Store.Impl.generic_keyed impl in
         let config =
           Conf.empty spec
           |> add_opt Irmin_http.Conf.Key.uri (Some (Uri.of_string str))
