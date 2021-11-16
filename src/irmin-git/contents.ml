@@ -46,12 +46,15 @@ module Make (G : Git.S) (C : Irmin.Contents.S) = struct
     let to_bin t = Raw.to_raw (V.to_git t)
     let encode_bin (t : t) k = k (to_bin t)
 
-    let decode_bin buf off =
+    let decode_bin buf pos_ref =
       [%log.debug "Content.decode_bin"];
+      let off = !pos_ref in
       match Raw.of_raw_with_header ~off buf with
       | Ok g -> (
           match V.of_git g with
-          | Some g -> (String.length buf, g)
+          | Some g ->
+              pos_ref := String.length buf;
+              g
           | None -> failwith "wrong object kind")
       | Error (`Msg _) -> failwith "wrong object"
 

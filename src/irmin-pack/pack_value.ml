@@ -44,8 +44,8 @@ struct
   let encode_bin ~dict:_ ~offset:_ v hash = encode_value { kind; hash; v }
 
   let decode_bin ~dict:_ ~hash:_ s off =
-    let len, t = decode_value s off in
-    (len, t.v)
+    let t = decode_value s off in
+    t.v
 
   let decode_bin_length =
     match Irmin.Type.(Size.of_encoding value) with

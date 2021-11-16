@@ -372,7 +372,7 @@ let test_truncated_inodes () =
       encode inode (Buffer.add_string buf);
       Buffer.contents buf
     in
-    let decode str = decode str 0 |> snd in
+    let decode str = decode str (ref 0) in
     inode |> encode |> decode
   in
   let with_failure f =

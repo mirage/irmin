@@ -26,10 +26,7 @@ module Make (K : Irmin.Hash.S) = struct
     let hash_size = 30
     let encode = to_bin_string
     let encoded_size = K.hash_size
-
-    let decode s off =
-      let _, v = decode_bin s off in
-      v
+    let decode s off = decode_bin s (ref off)
   end
 
   module Val = struct

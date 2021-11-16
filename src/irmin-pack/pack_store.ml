@@ -143,8 +143,7 @@ module Maker
       let buf = Bytes.create K.hash_size in
       let n = IO.read t.pack.block ~off buf in
       assert (n = K.hash_size);
-      let _, v = decode_key (Bytes.unsafe_to_string buf) 0 in
-      v
+      decode_key (Bytes.unsafe_to_string buf) (ref 0)
 
     let unsafe_mem t k =
       [%log.debug "[pack] mem %a" pp_hash k];
@@ -168,7 +167,7 @@ module Maker
       if n <> len then raise Invalid_read;
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) 0
+      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
@@ -190,7 +189,7 @@ module Maker
               match Index.find t.pack.index k with
               | None -> None
               | Some (off, len, _) ->
-                  let v = snd (io_read_and_decode ~off ~len t) in
+                  let v = io_read_and_decode ~off ~len t in
                   (if check_integrity then
                    check_key k v |> function
                    | Ok () -> ()
@@ -208,7 +207,7 @@ module Maker
 
     let integrity_check ~offset ~length k t =
       try
-        let value = snd (io_read_and_decode ~off:offset ~len:length t) in
+        let value = io_read_and_decode ~off:offset ~len:length t in
         match check_key k value with
         | Ok () -> Ok ()
         | Error _ -> Error `Wrong_hash

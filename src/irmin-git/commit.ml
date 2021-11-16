@@ -95,10 +95,13 @@ module Make (G : Git.S) = struct
     [%log.debug "Commit.encode_bin"];
     k (to_bin t)
 
-  let decode_bin buf off =
+  let decode_bin buf pos_ref =
     [%log.debug "Commit.decode_bin"];
+    let off = !pos_ref in
     match Raw.of_raw_with_header ~off buf with
-    | Ok (Git.Value.Commit t) -> (String.length buf, t)
+    | Ok (Git.Value.Commit t) ->
+        pos_ref := String.length buf;
+        t
     | Ok _ -> failwith "wrong object kind"
     | Error _ -> failwith "wrong object kind"
 

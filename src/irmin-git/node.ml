@@ -155,10 +155,13 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
     [%log.debug "Tree.encode_bin"];
     k (to_bin t)
 
-  let decode_bin buf off =
+  let decode_bin buf pos_ref =
     [%log.debug "Tree.decode_bin"];
+    let off = !pos_ref in
     match Raw.of_raw_with_header buf ~off with
-    | Ok (Git.Value.Tree t) -> (String.length buf, t)
+    | Ok (Git.Value.Tree t) ->
+        pos_ref := String.length buf;
+        t
     | Ok _ -> failwith "wrong object kind"
     | Error _ -> failwith "wrong object"
 

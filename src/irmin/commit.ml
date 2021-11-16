@@ -569,12 +569,11 @@ module V1 = struct
 
       let decode_bin =
         let decode_bin = Type.(unstage (decode_bin h)) in
-        fun buf off ->
-          let n, v = decode_bin buf off in
-          ( n,
-            match hash_of_bin_string v with
-            | Ok v -> v
-            | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e )
+        fun buf pos_ref ->
+          let v = decode_bin buf pos_ref in
+          match hash_of_bin_string v with
+          | Ok v -> v
+          | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
 
       type t = K.t
 

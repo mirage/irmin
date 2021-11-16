@@ -1088,9 +1088,9 @@ struct
 
     exception Exit of [ `Msg of string ]
 
-    let decode_bin ~dict ~hash t off : int * t =
+    let decode_bin ~dict ~hash t pos_ref : t =
       Stats.incr_inode_decode_bin ();
-      let off, i = decode_compress t off in
+      let i = decode_compress t pos_ref in
       let step : Compress.name -> T.step = function
         | Direct n -> n
         | Indirect s -> (
@@ -1126,8 +1126,7 @@ struct
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
       in
-      let t = Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v) in
-      (off, t)
+      Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v)
 
     let decode_bin_length = decode_compress_length
   end

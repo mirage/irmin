@@ -61,9 +61,9 @@ module Contents = struct
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
   let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
 
-  let decode_bin ~dict:_ ~hash:_ x off =
-    let len, (_, v) = decode_pair x off in
-    (len, v)
+  let decode_bin ~dict:_ ~hash:_ x pos_ref =
+    let _, v = decode_pair x pos_ref in
+    v
 
   let decode_bin_length =
     match Irmin.Type.(Size.of_encoding (pair H.t t)) with
