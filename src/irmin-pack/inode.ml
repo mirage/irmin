@@ -26,11 +26,6 @@ module Make_internal
                and type contents_key = Key.t
                and type node_key = Key.t) =
 struct
-  let () =
-    (* TODO: REMOVE *)
-    if Conf.entries > Conf.stable_hash then
-      invalid_arg "entries should be lower or equal to stable_hash"
-
   (** If [should_be_stable ~length ~root] is true for an inode [i], then [i]
       hashes the same way as a [Node.t] containings the same entries. *)
   let should_be_stable ~length ~root =
@@ -220,19 +215,52 @@ struct
     type kind = Pack_value.Kind.t
     [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
+    type nonrec int = int [@@deriving irmin ~encode_bin ~decode_bin]
+
+    let no_length = 0
+    let is_real_length length = not (length = 0)
+
+    type v1 = { mutable length : int; v : v } [@@deriving irmin]
+    (** [length] is the length of the binary encoding of [v]. It is not known
+        right away. [length] is [no_length] when it isn't known. Calling
+        [encode_bin] or [size_of] will make [length] known. *)
+
     (** [tagged_v] sits between [v] and [t]. It is a variant with the header
         binary encoded as the magic. *)
-    type tagged_v = V0_stable of v | V0_unstable of v [@@deriving irmin]
+    type tagged_v =
+      | V0_stable of v
+      | V0_unstable of v
+      | V1_root of v1
+      | V1_nonroot of v1
+    [@@deriving irmin]
 
-    let encode_bin_tv vt f =
-      (* TODO: Deprecate v0 at encode_time *)
-      match vt with
-      | V0_stable v ->
-          encode_bin_kind Pack_value.Kind.Inode_v0_stable f;
+    let encode_bin_tv_staggered ({ v; _ } as tv) kind f =
+      (* We need to write [length] before [v], but we will know [length]
+         after [v] is encoded. The solution is to first encode [v], then write
+         [length] and then write [v]. *)
+      let l = ref [] in
+      encode_bin_v v (fun s -> l := s :: !l);
+      let length = List.fold_left (fun acc s -> acc + String.length s) 0 !l in
+      tv.length <- length;
+      encode_bin_kind kind f;
+      encode_bin_int length f;
+      List.iter f (List.rev !l)
+
+    let encode_bin_tv tv f =
+      match tv with
+      | V0_stable _ -> assert false
+      | V0_unstable _ -> assert false
+      | V1_root { length; v } when is_real_length length ->
+          encode_bin_kind Pack_value.Kind.Inode_v1_root f;
+          encode_bin_int length f;
           encode_bin_v v f
-      | V0_unstable v ->
-          encode_bin_kind Pack_value.Kind.Inode_v0_unstable f;
+      | V1_nonroot { length; v } when is_real_length length ->
+          encode_bin_kind Pack_value.Kind.Inode_v1_nonroot f;
+          encode_bin_int length f;
           encode_bin_v v f
+      | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_root f
+      | V1_nonroot tv ->
+          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_nonroot f
 
     let decode_bin_tv s off =
       let kind = decode_bin_kind s off in
@@ -243,17 +271,43 @@ struct
       | Inode_v0_stable ->
           let v = decode_bin_v s off in
           V0_stable v
+      | Inode_v1_root ->
+          let length = decode_bin_int s off in
+          assert (is_real_length length);
+          let v = decode_bin_v s off in
+          V1_root { length; v }
+      | Inode_v1_nonroot ->
+          let length = decode_bin_int s off in
+          assert (is_real_length length);
+          let v = decode_bin_v s off in
+          V1_nonroot { length; v }
       | Commit | Contents -> assert false
 
     let size_of_tv =
-      let of_value vt =
-        match vt with V0_stable v | V0_unstable v -> dynamic_size_of_v v + 1
+      let of_value tv =
+        match tv with
+        | V0_stable v | V0_unstable v -> 1 + dynamic_size_of_v v
+        | (V1_root { length; _ } | V1_nonroot { length; _ })
+          when is_real_length length ->
+            length - H.hash_size
+        | V1_root ({ v; _ } as tv) ->
+            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
+            tv.length <- length;
+            length - H.hash_size
+        | V1_nonroot ({ v; _ } as tv) ->
+            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
+            tv.length <- length;
+            length - H.hash_size
       in
       let of_encoding s off =
-        let kind = decode_bin_kind s (ref off) in
+        let offref = ref off in
+        let kind = decode_bin_kind s offref in
         match kind with
         | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
-            dynamic_size_of_v_encoding s (off + 1) + 1
+            1 + dynamic_size_of_v_encoding s !offref
+        | Inode_v1_root | Inode_v1_nonroot ->
+            let len = decode_bin_int s offref in
+            len - H.hash_size
         | Commit | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
@@ -261,29 +315,48 @@ struct
     let tagged_v_t =
       Irmin.Type.like ~bin:(encode_bin_tv, decode_bin_tv, size_of_tv) tagged_v_t
 
-    type t = { hash : H.t; v : tagged_v }
+    type t = { hash : H.t; tv : tagged_v }
 
     let v ~root ~hash v =
-      (* TODO: Deprecate creation of V0 [Compress.t] *)
-      let length =
-        match v with Values v -> List.length v | Tree { length; _ } -> length
+      let length = no_length in
+      let tv =
+        if root then V1_root { v; length } else V1_nonroot { v; length }
       in
-      let stable = should_be_stable ~length ~root in
-      let v = if stable then V0_stable v else V0_unstable v in
-      { hash; v }
+      { hash; tv }
 
+    (** The rule to determine the [is_root] property of a v0 [Value] is a bit
+        convoluted, it relies on the fact that back then the following property
+        was enforced: [Conf.stable_hash > Conf.entries].
+
+        When [t] is of tag [Values], then [t] is root iff [t] is stable.
+
+        When [t] is stable, then [t] is a root, because:
+
+        - Only 2 functions produce stable inodes: [stabilize] and [empty].
+        - Only the roots are output of [stabilize].
+        - An empty map can only be located at the root.
+
+        When [t] is a root of tag [Value], then [t] is stable, because:
+
+        - All the roots are output of [stabilize].
+        - When an unstable inode enters [stabilize], it becomes stable if it has
+          at most [Conf.stable_hash] leaves.
+        - A [Value] has at most [Conf.stable_hash] leaves because
+          [Conf.entries <= Conf.stable_hash] is enforced. *)
     let is_root = function
-      | { v = V0_stable (Values _); _ } -> true
-      | { v = V0_unstable (Values _); _ } -> false
-      | { v = V0_stable (Tree { depth; _ }); _ }
-      | { v = V0_unstable (Tree { depth; _ }); _ } ->
+      | { tv = V0_stable (Values _); _ } -> true
+      | { tv = V0_unstable (Values _); _ } -> false
+      | { tv = V0_stable (Tree { depth; _ }); _ }
+      | { tv = V0_unstable (Tree { depth; _ }); _ } ->
           depth = 0
+      | { tv = V1_root _; _ } -> true
+      | { tv = V1_nonroot _; _ } -> false
 
     let t =
       let open Irmin.Type in
-      record "Compress.t" (fun hash v -> { hash; v })
+      record "Compress.t" (fun hash tv -> { hash; tv })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "tagged_v" tagged_v_t (fun t -> t.v)
+      |+ field "tagged_v" tagged_v_t (fun t -> t.tv)
       |> sealr
   end
 
@@ -1082,15 +1155,8 @@ struct
 
     let kind (t : t) =
       (* This is the kind of newly appended values, let's use v1 then *)
-      (* TODO: Use v1 *)
-      let length =
-        match t.v with
-        | Bin.Values l -> List.length l
-        | Tree { length; _ } -> length
-      in
-      if should_be_stable ~length ~root:t.root then
-        Pack_value.Kind.Inode_v0_stable
-      else Pack_value.Kind.Inode_v0_unstable
+      if t.root then Pack_value.Kind.Inode_v1_root
+      else Pack_value.Kind.Inode_v1_nonroot
 
     let hash t = Bin.hash t
     let step_to_bin = T.step_to_bin_string
@@ -1177,7 +1243,13 @@ struct
       in
       let t : Compress.tagged_v -> Bin.v =
        fun tv ->
-        let v = match tv with V0_stable v -> v | V0_unstable v -> v in
+        let v =
+          match tv with
+          | V0_stable v -> v
+          | V0_unstable v -> v
+          | V1_root { v; _ } -> v
+          | V1_nonroot { v; _ } -> v
+        in
         match v with
         | Values vs -> Values (List.rev_map value (List.rev vs))
         | Tree { depth; length; entries } ->
@@ -1185,7 +1257,8 @@ struct
             Tree { depth; length; entries }
       in
       let root = Compress.is_root i in
-      Bin.v ~root ~hash:(lazy i.hash) (t i.v)
+      let v = t i.tv in
+      Bin.v ~root ~hash:(lazy i.hash) v
 
     let decode_bin_length = decode_compress_length
   end

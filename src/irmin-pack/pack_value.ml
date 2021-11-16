@@ -2,35 +2,57 @@ open! Import
 include Pack_value_intf
 
 module Kind = struct
-  type t = Commit | Contents | Inode_v0_unstable | Inode_v0_stable
+  type t =
+    | Commit
+    | Contents
+    | Inode_v0_unstable
+    | Inode_v0_stable
+    | Inode_v1_root
+    | Inode_v1_nonroot
 
   let to_magic = function
     | Commit -> 'C'
     | Contents -> 'B'
     | Inode_v0_unstable -> 'I'
     | Inode_v0_stable -> 'N'
+    | Inode_v1_root -> 'R'
+    | Inode_v1_nonroot -> 'O'
 
   let of_magic_exn = function
     | 'C' -> Commit
     | 'B' -> Contents
     | 'I' -> Inode_v0_unstable
     | 'N' -> Inode_v0_stable
+    | 'R' -> Inode_v1_root
+    | 'O' -> Inode_v1_nonroot
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
-  let all = [ Commit; Contents; Inode_v0_unstable; Inode_v0_stable ]
+  let all =
+    [
+      Commit;
+      Contents;
+      Inode_v0_unstable;
+      Inode_v0_stable;
+      Inode_v1_root;
+      Inode_v1_nonroot;
+    ]
 
   let to_enum = function
     | Commit -> 0
     | Contents -> 1
     | Inode_v0_unstable -> 2
     | Inode_v0_stable -> 3
+    | Inode_v1_root -> 4
+    | Inode_v1_nonroot -> 5
 
   let pp =
     Fmt.of_to_string (function
       | Commit -> "Commit"
       | Contents -> "Contents"
       | Inode_v0_unstable -> "Inode_v0_unstable"
-      | Inode_v0_stable -> "Inode_v0_stable")
+      | Inode_v0_stable -> "Inode_v0_stable"
+      | Inode_v1_root -> "Inode_v1_root"
+      | Inode_v1_nonroot -> "Inode_v1_nonroot")
 
   let t = Irmin.Type.map ~pp Irmin.Type.char of_magic_exn to_magic
 end
