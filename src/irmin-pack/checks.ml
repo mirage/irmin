@@ -124,7 +124,9 @@ module Make (M : Maker) = struct
       let f _ (_, _, (kind : Pack_value.Kind.t)) =
         match kind with
         | Contents -> progress_contents ()
-        | Inode_v0_stable | Inode_v0_unstable -> progress_nodes ()
+        | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot
+          ->
+            progress_nodes ()
         | Commit -> progress_commits ()
       in
       Index.iter f index;
@@ -434,7 +436,8 @@ module Index (Index : Pack_index.S) = struct
       | Contents ->
           progress_contents ();
           check ~kind:`Contents ~offset ~length k
-      | Inode_v0_stable | Inode_v0_unstable ->
+      | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot
+        ->
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
       | Commit ->
