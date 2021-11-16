@@ -24,6 +24,7 @@ module type S = sig
     ?fresh:bool ->
     ?readonly:bool ->
     ?throttle:[ `Block_writes | `Overcommit_memory ] ->
+    ?lru_size:int ->
     log_size:int ->
     string ->
     t
