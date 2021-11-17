@@ -2045,6 +2045,12 @@ let suite (speed, x) =
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
+  let with_tree_enabled =
+    (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1090. *)
+    not
+      (List.mem ~equal:String.equal (Suite.name x)
+         [ "FS"; "GIT"; "HTTP.FS"; "HTTP.GIT" ])
+  in
   suite'
     ([
        ("High-level operations on trees", speed, T.test_trees x);
@@ -2064,7 +2070,6 @@ let suite (speed, x) =
        ("Unrelated merges", speed, T.test_merge_unrelated x);
        ("Low-level concurrency", speed, T.test_concurrent_low x);
        ("Concurrent updates", speed, T.test_concurrent_updates x);
-       ("with_tree strategies", speed, T.test_with_tree x);
        ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
        ("Concurrent merges", speed, T.test_concurrent_merges x);
        ("Shallow objects", speed, T.test_shallow_objects x);
@@ -2076,6 +2081,8 @@ let suite (speed, x) =
           ("Basic operations on slices", speed, T.test_slice x);
           ("High-level store synchronisation", speed, T.test_sync x);
         ]
+    @ when_ with_tree_enabled
+        [ ("with_tree strategies", speed, T.test_with_tree x) ]
     @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
     @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
     (speed, x)
@@ -2099,6 +2106,10 @@ let layered_suite (speed, x) =
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
         let hook repo max = S.freeze repo ~max_lower:max in
+        let _ =
+          (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1383. *)
+          ("Test commits and graphs", speed, TL.test_graph_and_history x)
+        in
         [
           ("Basic operations on branches", speed, T.test_branches ~hook x);
           ("Basic merge operations", speed, T.test_simple_merges ~hook x);
@@ -2107,7 +2118,6 @@ let layered_suite (speed, x) =
           ("Backend node manipulation", speed, T.test_backend_nodes ~hook x);
           ("High-level store merges", speed, T.test_merge ~hook x);
           ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
-          ("Test commits and graphs", speed, TL.test_graph_and_history x);
           ("Update branches after freeze", speed, TL.test_fail_branch x);
           ("Test operations on set", speed, TL.test_set x);
           ("Test operations on set tree", speed, TL.test_set_tree x);
