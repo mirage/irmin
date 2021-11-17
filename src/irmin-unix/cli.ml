@@ -801,7 +801,11 @@ let log =
          let doc = Arg.info ~doc:"Show plain text without pager" [ "plain" ] in
          Arg.(value & flag & doc)
        in
-       let commits (S ((module S), store, _)) plain =
+       let pager =
+         let doc = Arg.info ~doc:"Specify pager program to use" [ "pager" ] in
+         Arg.(value & opt string "pager" & doc)
+       in
+       let commits (S ((module S), store, _)) plain pager =
          run
            (let* t = store in
             let fmt f date =
@@ -827,7 +831,7 @@ let log =
             else
               Lwt.catch
                 (fun () ->
-                  let out = Unix.open_process_out "pager" in
+                  let out = Unix.open_process_out pager in
                   let commit = commit (Format.formatter_of_out_channel out) in
                   let+ () = S.Repo.breadth_first_traversal ~commit ~max repo in
                   let _ = Unix.close_process_out out in
@@ -837,7 +841,7 @@ let log =
                       Lwt.return_unit
                   | exn -> raise exn))
        in
-       Term.(mk commits $ store $ plain));
+       Term.(mk commits $ store $ plain $ pager));
   }
 
 let default =
