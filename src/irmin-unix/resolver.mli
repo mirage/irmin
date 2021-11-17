@@ -54,6 +54,7 @@ module Store : sig
   type store_functor =
     | Fixed_hash of (contents -> t)
     | Variable_hash of (hash -> contents -> t)
+    | Fixed of t
         (** The type of constructors of a store configuration. Depending on the
             backend, a store may require a hash function. *)
 
