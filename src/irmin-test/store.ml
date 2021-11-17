@@ -2088,6 +2088,10 @@ let layered_suite (speed, x) =
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
         let hook repo max = S.freeze repo ~max_lower:max in
+        let _ =
+          (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1383. *)
+          ("Test commits and graphs", speed, TL.test_graph_and_history x)
+        in
         [
           ("Basic operations on branches", speed, T.test_branches ~hook x);
           ("Basic merge operations", speed, T.test_simple_merges ~hook x);
@@ -2097,7 +2101,6 @@ let layered_suite (speed, x) =
           ("Private node manipulation", speed, T.test_private_nodes ~hook x);
           ("High-level store merges", speed, T.test_merge ~hook x);
           ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
-          ("Test commits and graphs", speed, TL.test_graph_and_history x);
           ("Update branches after freeze", speed, TL.test_fail_branch x);
           ("Test operations on set", speed, TL.test_set x);
           ("Test operations on set tree", speed, TL.test_set_tree x);
