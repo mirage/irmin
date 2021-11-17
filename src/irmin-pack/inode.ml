@@ -232,7 +232,7 @@ struct
       | V1_nonroot of v1
     [@@deriving irmin]
 
-    let encode_bin_tv_staggered v kind f =
+    let encode_bin_tv_staggered ({ v; _ } as tv) kind f =
       (* We need to write [length] before [v], but we will know [length]
          after [v] is encoded. The solution is to first encode [v], then write
          [length] and then write [v]. *)
@@ -245,10 +245,10 @@ struct
           !l
         |> Int63.of_int
       in
+      tv.length <- length;
       encode_bin_kind kind f;
       encode_bin_int63 length f;
-      List.iter f (List.rev !l);
-      length
+      List.iter f (List.rev !l)
 
     let encode_bin_tv tv f =
       match tv with
@@ -262,16 +262,9 @@ struct
           encode_bin_kind Pack_value.Kind.Inode_v1_nonroot f;
           encode_bin_int63 length f;
           encode_bin_v v f
-      | V1_root ({ v; _ } as tv) ->
-          let length =
-            encode_bin_tv_staggered v Pack_value.Kind.Inode_v1_root f
-          in
-          tv.length <- length
-      | V1_nonroot ({ v; _ } as tv) ->
-          let length =
-            encode_bin_tv_staggered v Pack_value.Kind.Inode_v1_nonroot f
-          in
-          tv.length <- length
+      | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_root f
+      | V1_nonroot tv ->
+          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_nonroot f
 
     let decode_bin_tv s off =
       let kind = decode_bin_kind s off in
@@ -311,13 +304,13 @@ struct
             length - H.hash_size
       in
       let of_encoding s off =
-        let kind = decode_bin_kind s (ref off) in
-        let off = off + 1 in
+        let offref = ref off in
+        let kind = decode_bin_kind s offref in
         match kind with
         | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
-            1 + dynamic_size_of_v_encoding s off
+            1 + dynamic_size_of_v_encoding s !offref
         | Inode_v1_root | Inode_v1_nonroot ->
-            let len = decode_bin_int63 s (ref off) in
+            let len = decode_bin_int63 s offref in
             Int63.to_int len - H.hash_size
         | Commit | Contents -> assert false
       in
@@ -326,29 +319,48 @@ struct
     let tagged_v_t =
       Irmin.Type.like ~bin:(encode_bin_tv, decode_bin_tv, size_of_tv) tagged_v_t
 
-    type t = { hash : H.t; v : tagged_v }
+    type t = { hash : H.t; tv : tagged_v }
 
     let v ~root ~hash v =
       let length = no_length in
-      let v =
+      let tv =
         if root then V1_root { v; length } else V1_nonroot { v; length }
       in
-      { hash; v }
+      { hash; tv }
 
+    (** The rule to determine the [is_root] property of a v0 [Value] is a bit
+        convoluted, it relies on the fact that back then the following property
+        was enforced: [Conf.stable_hash > Conf.entries].
+
+        When [t] is of tag [Values], then [t] is root iff [t] is stable.
+
+        When [t] is stable, then [t] is a root, because:
+
+        - Only 2 functions produce stable inodes: [stabilize] and [empty].
+        - Only the roots are output of [stabilize].
+        - An empty map can only be located at the root.
+
+        When [t] is a root of tag [Value], then [t] is stable, because:
+
+        - All the roots are output of [stabilize].
+        - When an unstable inode enters [stabilize], it becomes stable if it has
+          at most [Conf.stable_hash] leaves.
+        - A [Value] has at most [Conf.stable_hash] leaves because
+          [Conf.entries <= Conf.stable_hash] is enforced. *)
     let is_root = function
-      | { v = V0_stable (Values _); _ } -> true
-      | { v = V0_unstable (Values _); _ } -> false
-      | { v = V0_stable (Tree { depth; _ }); _ }
-      | { v = V0_unstable (Tree { depth; _ }); _ } ->
+      | { tv = V0_stable (Values _); _ } -> true
+      | { tv = V0_unstable (Values _); _ } -> false
+      | { tv = V0_stable (Tree { depth; _ }); _ }
+      | { tv = V0_unstable (Tree { depth; _ }); _ } ->
           depth = 0
-      | { v = V1_root _; _ } -> true
-      | { v = V1_nonroot _; _ } -> false
+      | { tv = V1_root _; _ } -> true
+      | { tv = V1_nonroot _; _ } -> false
 
     let t =
       let open Irmin.Type in
-      record "Compress.t" (fun hash v -> { hash; v })
+      record "Compress.t" (fun hash tv -> { hash; tv })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "tagged_v" tagged_v_t (fun t -> t.v)
+      |+ field "tagged_v" tagged_v_t (fun t -> t.tv)
       |> sealr
   end
 
@@ -857,18 +869,17 @@ struct
       if not @@ is_root t then
         failwith "Cannot perform operation on non-root inode value."
 
-    let stabilize layout t =
-      if is_stable t then { t with root = true }
+    let stabilize_root layout t =
+      let n = length t in
+      (* If [t] is the empty inode (i.e. [n = 0]) then is is already stable *)
+      if n > Conf.stable_hash then { t with root = true }
       else
-        let n = length t in
-        if n > Conf.stable_hash then { t with root = true }
-        else
-          let hash =
-            lazy
-              (let vs = seq layout t in
-               Node.hash (Node.of_seq vs))
-          in
-          { hash; v = t.v; root = true }
+        let hash =
+          lazy
+            (let vs = seq layout t in
+             Node.hash (Node.of_seq vs))
+        in
+        { hash; v = t.v; root = true }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
@@ -979,10 +990,10 @@ struct
       | Some v' when equal_value v v' -> t
       | Some _ ->
           add ~depth:0 layout ~copy ~replace:true t s v Fun.id
-          |> stabilize layout
+          |> stabilize_root layout
       | None ->
           add ~depth:0 layout ~copy ~replace:false t s v Fun.id
-          |> stabilize layout
+          |> stabilize_root layout
 
     let rec remove layout ~depth t s k =
       Stats.incr_inode_rec_remove ();
@@ -1023,7 +1034,7 @@ struct
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       match find_value ~cache:true layout ~depth:0 t s with
       | None -> t
-      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
+      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize_root layout
 
     let of_seq l =
       let t =
@@ -1058,7 +1069,7 @@ struct
         in
         aux_small l StepMap.empty
       in
-      stabilize Total t
+      stabilize_root Total t
 
     let save layout ~add ~mem t =
       let clear =
@@ -1232,23 +1243,23 @@ struct
             let hash = hash h in
             (name, `Node hash)
       in
-      let t : Compress.tagged_v -> Bin.v * int63 option =
+      let t : Compress.tagged_v -> Bin.v =
        fun tv ->
-        let v, len_opt =
+        let v =
           match tv with
-          | V0_stable v -> (v, None)
-          | V0_unstable v -> (v, None)
-          | V1_root { v; length } -> (v, Some length)
-          | V1_nonroot { v; length } -> (v, Some length)
+          | V0_stable v -> v
+          | V0_unstable v -> v
+          | V1_root { v; _ } -> v
+          | V1_nonroot { v; _ } -> v
         in
         match v with
-        | Values vs -> (Values (List.rev_map value (List.rev vs)), len_opt)
+        | Values vs -> Values (List.rev_map value (List.rev vs))
         | Tree { depth; length; entries } ->
             let entries = List.map ptr entries in
-            (Tree { depth; length; entries }, len_opt)
+            Tree { depth; length; entries }
       in
       let root = Compress.is_root i in
-      let v, _len_opt = t i.v in
+      let v = t i.tv in
       Bin.v ~root ~hash:(lazy i.hash) v
 
     let decode_bin_length = decode_compress_length
