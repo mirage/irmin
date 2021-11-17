@@ -80,6 +80,7 @@ module Maker
       mutable open_instances : int;
       readonly : bool;
       offsets_for_free_lru : int63 Cclru.t;
+      read_buffer : Bytes.t;
     }
 
     type key = K.t
@@ -185,10 +186,19 @@ module Maker
         try "LRU_SIZE_OFF" |> Sys.getenv |> int_of_string
         with Not_found -> 1000
       in
+      let read_buffer = Bytes.create (4096 * 3) in
       Printf.eprintf "LRU SIZE! = %d\n%!" s;
       (* Fmt.epr "& v %d\n%!" s; *)
       let offsets_for_free_lru = Cclru.v s in
-      { staging; lru; pack; open_instances = 1; readonly; offsets_for_free_lru }
+      {
+        staging;
+        lru;
+        pack;
+        open_instances = 1;
+        readonly;
+        offsets_for_free_lru;
+        read_buffer;
+      }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
@@ -218,6 +228,9 @@ module Maker
       let n = IO.read t.pack.block ~off buf in
       assert (n = K.hash_size);
       decode_key (Bytes.unsafe_to_string buf) (ref 0)
+    (* let n = IO.read_buffer t.pack.block ~off ~buf:t.read_buffer ~len:K.hash_size in
+     * assert (n = K.hash_size);
+     * decode_key (Bytes.unsafe_to_string t.read_buffer) (ref 0) *)
 
     let unsafe_mem t k =
       [%log.debug "[pack] mem %a" pp_hash k];
@@ -236,10 +249,14 @@ module Maker
     let min_load_bytes = K.hash_size + 30 |> Int63.of_int
 
     let blindfolded_io_read_at startoff next_page_idx_to_load t =
+      (* Fmt.epr "| blindfolded_io_read_at with buflen = %d\n%!"
+       *   (Bytes.length t.read_buffer); *)
       let endoff =
         IO.end_offset_of_page_idx t.pack.block next_page_idx_to_load
       in
       let len = Int63.sub endoff startoff |> Int63.to_int in
+      (* Fmt.epr "| blindfolded_io_read_at with len %d\n%!" len; *)
+      assert (Bytes.length t.read_buffer >= len);
       (* Fmt.epr
        *   "blindfolded_io_read_at npitl:%a startoff:%a endoff:%a maxoff:%a len:%d \n\
        *    %!"
@@ -247,12 +264,13 @@ module Maker
        *   Int63.pp (IO.offset t.pack.block) len; *)
       if len <= 0 then raise Invalid_read;
       assert (Int63.compare startoff endoff < 0);
-      let buf =
-        (* TODO: Would benefit a lot from a pool of large shared buffers
-           in [t] *)
-        Bytes.create len
+
+      let n =
+        IO.read_buffer t.pack.block ~off:startoff ~buf:t.read_buffer ~len
       in
-      let n = IO.read t.pack.block ~off:startoff buf in
+
+      (* let buf = Bytes.create len in
+       * let n = IO.read t.pack.block ~off:startoff buf in *)
       if n <> len then (
         Fmt.epr
           "FAILED: blindfolded_io_read_at npitl:%a startoff:%a endoff:%a \
@@ -260,35 +278,38 @@ module Maker
            %!"
           Int63.pp next_page_idx_to_load Int63.pp startoff Int63.pp endoff len n;
         raise Invalid_read);
-      buf
+      n
 
-    let is_long_enough buf =
+    (* t.read_buffer *)
+    (* buf *)
+
+    let is_long_enough buf buf_len =
       try
         (* Printf.eprintf "is_long_enough?\n%!"; *)
         let len = Val.decode_bin_length (Bytes.unsafe_to_string buf) 0 in
         (* Printf.eprintf "good: len:%d buflen:%d \n%!" len (Bytes.length buf); *)
-        len <= Bytes.length buf
+        len <= buf_len
       with
       | Invalid_argument msg when msg = "index out of bounds" -> false
       | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
           false
 
     let blindfolded_io_read off t =
-      (* Printf.eprintf "blindfolded_io_read\n%!"; *)
-      let rec aux attempt startoff next_page_idx_to_load buf =
-        (* Printf.eprintf "  aux %d\n%!" attempt; *)
-        let buf =
-          match buf with
-          | None -> blindfolded_io_read_at startoff next_page_idx_to_load t
-          | Some buf ->
-              let buf' =
-                blindfolded_io_read_at startoff next_page_idx_to_load t
-              in
-              (* TODO: Would benefit a lot from a pool of large shared buffers
-                 in [t] *)
-              Bytes.cat buf buf'
+      (* Printf.eprintf "| blindfolded_io_read\n%!"; *)
+      let rec aux attempt startoff next_page_idx_to_load payload =
+        (* Printf.eprintf "| blindfolded_io_read | aux %d\n%!" attempt; *)
+        let ((bytes_read, buf) as payload) =
+          match payload with
+          | None ->
+              let n = blindfolded_io_read_at startoff next_page_idx_to_load t in
+              (n, t.read_buffer)
+          | Some (bytes_read, buf) ->
+              let buf = Bytes.sub buf 0 bytes_read in
+              let n = blindfolded_io_read_at startoff next_page_idx_to_load t in
+              let buf = Bytes.cat buf t.read_buffer in
+              (bytes_read + n, buf)
         in
-        if is_long_enough buf then (
+        if is_long_enough buf bytes_read then (
           if attempt = 0 then
             st.blindfolded_read_first_try <- st.blindfolded_read_first_try + 1
           else if attempt = 1 then
@@ -302,15 +323,9 @@ module Maker
             (Int63.succ next_page_idx_to_load
             |> IO.start_offset_of_page_idx t.pack.block)
             (Int63.succ next_page_idx_to_load)
-            (Some buf)
+            (Some payload)
       in
 
-      (* let page0_idx = Int63.(div off page_len) in *)
-      (* let page0_remaining =
-       *   let open Int63 in
-       *   let open Infix in
-       *   (succ page0_idx * page_len) - off
-       * in *)
       let page0_idx = IO.page_idx_of_offset t.pack.block off in
       let page0_remaining =
         IO.bytes_remaning_in_page_from_offset t.pack.block off
@@ -326,7 +341,7 @@ module Maker
       else aux 0 off page0_idx None
 
     let io_read_and_decode ~off ~len_opt t =
-      (* Printf.eprintf "io_read_and_decode\n%!"; *)
+      (* Printf.eprintf "* io_read_and_decode\n%!"; *)
       if (not (IO.readonly t.pack.block)) && off > IO.offset t.pack.block then
         raise Invalid_read;
 
@@ -339,15 +354,24 @@ module Maker
             buf
         | None -> blindfolded_io_read off t
       in
+
+      (* Fmt.epr "| io_read_and_decode, made a buffer of len %d\n%!"
+       *   (Bytes.length buf); *)
       let hash off =
+        (* Fmt.epr "| io_read_and_decode | hash\n%!"; *)
         let h = io_read_and_decode_hash ~off t in
-        (* Fmt.epr {|& replace,%a,%a\n%!|} (Repr.pp K.t) h Int63.pp off; *)
         Cclru.replace t.offsets_for_free_lru h off;
         st.offlru_insertions <- st.offlru_insertions + 1;
         h
       in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
+      (* Fmt.epr "| go\n%!"; *)
+      let res =
+        Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
+      in
+      (* Fmt.epr "| done\n%!"; *)
+      assert (Bytes.length t.read_buffer = 4096 * 3);
+      res
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
