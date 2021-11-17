@@ -525,22 +525,33 @@ let watch =
     doc = "Get notifications when values change.";
     man = [];
     term =
-      (let watch (S (impl, store, _)) path =
+      (let watch (S (impl, store, _)) path command =
          let (module S) = Store.Impl.generic_keyed impl in
-         let path = key S.Path.t path in
+         let path =
+           match path with
+           | Empty -> S.Path.empty
+           | Path str -> key S.Path.t str
+         in
+         let proc = ref None in
+         let () =
+           at_exit (fun () ->
+               match !proc with None -> () | Some p -> p#terminate)
+         in
          run
            (let* t = store in
             let* _ =
               S.watch_key t path (fun d ->
                   let pr (k, v) =
-                    let v =
+                    let x =
                       match v with
                       | `Updated _ -> "*"
                       | `Added _ -> "+"
                       | `Removed _ -> "-"
                     in
-                    print "%s%a" v (Irmin.Type.pp S.Path.t) k
+                    print "%s %a" x (Irmin.Type.pp S.Path.t) k;
+                    Lwt.return_unit
                   in
+
                   let view (c, _) =
                     let* t = S.of_commit c in
                     S.find_tree t path >|= function
@@ -556,14 +567,60 @@ let watch =
                   in
                   let* x = x in
                   let* y = y in
-                  let* diff = S.Tree.diff x y in
-                  List.iter pr diff;
-                  Lwt.return_unit)
+                  let* (diff :
+                         (S.path * (S.contents * S.metadata) Irmin.Diff.t) list)
+                      =
+                    S.Tree.diff x y
+                  in
+                  match command with
+                  | h :: t ->
+                      let s =
+                        Fmt.str "%a"
+                          Irmin.Type.(
+                            pp_json
+                              (list
+                                 (pair S.path_t
+                                    (Irmin.Diff.t
+                                       (pair S.contents_t S.metadata_t)))))
+                          diff
+                      in
+                      let make_proc () =
+                        let p =
+                          Lwt_process.open_process_out
+                            (h, Array.of_list (h :: t))
+                        in
+                        proc := Some p;
+                        p
+                      in
+                      let proc =
+                        match !proc with
+                        | None -> make_proc ()
+                        | Some p -> (
+                            let status = p#state in
+                            match status with
+                            | Lwt_process.Running -> p
+                            | Exited (Unix.WEXITED 0) -> make_proc ()
+                            | Exited (Unix.WEXITED code) ->
+                                Printf.printf "Subprocess exited with code %d\n"
+                                  code;
+                                exit code
+                            | Exited (Unix.WSIGNALED code)
+                            | Exited (Unix.WSTOPPED code) ->
+                                Printf.printf
+                                  "Subprocess stopped with code %d\n" code;
+                                exit code)
+                      in
+                      Lwt_io.write_line proc#stdin s
+                  | [] -> Lwt_list.iter_s pr diff)
             in
             let t, _ = Lwt.task () in
             t)
        in
-       Term.(mk watch $ store () $ path));
+       let command =
+         let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
+         Arg.(value & pos_right 0 string [] & doc)
+       in
+       Term.(mk watch $ store () $ path_or_empty $ command));
   }
 
 (* DOT *)
