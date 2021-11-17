@@ -211,13 +211,13 @@ struct
     type kind = Pack_value.Kind.t
     [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    type nonrec int63 = int63
+    type nonrec int32 = int32
     [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    let no_length = Int63.zero
-    let is_real_length length = not (Int63.equal length no_length)
+    let no_length = Int32.zero
+    let is_real_length length = not (Int32.equal length no_length)
 
-    type v1 = { mutable length : int63; v : v } [@@deriving irmin]
+    type v1 = { mutable length : int32; v : v } [@@deriving irmin]
     (** [length] is the length of the binary encoding of [t] (i.e. [hash] +
         [kind] + [length] + [v]). It is not known right away. [length] is
         [no_length] when it isn't known. Calling [encode_bin] or [size_of] will
@@ -241,13 +241,13 @@ struct
       let length =
         List.fold_left
           (fun acc s -> acc + String.length s)
-          (H.hash_size + 1 + 8)
+          (H.hash_size + 1 + 4)
           !l
-        |> Int63.of_int
+        |> Int32.of_int
       in
       tv.length <- length;
       encode_bin_kind kind f;
-      encode_bin_int63 length f;
+      encode_bin_int32 length f;
       List.iter f (List.rev !l)
 
     let encode_bin_tv tv f =
@@ -256,11 +256,11 @@ struct
       | V0_unstable _ -> assert false
       | V1_root { length; v } when is_real_length length ->
           encode_bin_kind Pack_value.Kind.Inode_v1_root f;
-          encode_bin_int63 length f;
+          encode_bin_int32 length f;
           encode_bin_v v f
       | V1_nonroot { length; v } when is_real_length length ->
           encode_bin_kind Pack_value.Kind.Inode_v1_nonroot f;
-          encode_bin_int63 length f;
+          encode_bin_int32 length f;
           encode_bin_v v f
       | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_root f
       | V1_nonroot tv ->
@@ -276,12 +276,12 @@ struct
           let v = decode_bin_v s off in
           V0_stable v
       | Inode_v1_root ->
-          let length = decode_bin_int63 s off in
+          let length = decode_bin_int32 s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_root { length; v }
       | Inode_v1_nonroot ->
-          let length = decode_bin_int63 s off in
+          let length = decode_bin_int32 s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_nonroot { length; v }
@@ -293,14 +293,14 @@ struct
         | V0_stable v | V0_unstable v -> 1 + dynamic_size_of_v v
         | (V1_root { length; _ } | V1_nonroot { length; _ })
           when is_real_length length ->
-            Int63.to_int length - H.hash_size
+            Int32.to_int length - H.hash_size
         | V1_root ({ v; _ } as tv) ->
-            let length = H.hash_size + 1 + 8 + dynamic_size_of_v v in
-            tv.length <- Int63.of_int length;
+            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
+            tv.length <- Int32.of_int length;
             length - H.hash_size
         | V1_nonroot ({ v; _ } as tv) ->
-            let length = H.hash_size + 1 + 8 + dynamic_size_of_v v in
-            tv.length <- Int63.of_int length;
+            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
+            tv.length <- Int32.of_int length;
             length - H.hash_size
       in
       let of_encoding s off =
@@ -310,8 +310,8 @@ struct
         | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
             1 + dynamic_size_of_v_encoding s !offref
         | Inode_v1_root | Inode_v1_nonroot ->
-            let len = decode_bin_int63 s offref in
-            Int63.to_int len - H.hash_size
+            let len = decode_bin_int32 s offref in
+            Int32.to_int len - H.hash_size
         | Commit | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
