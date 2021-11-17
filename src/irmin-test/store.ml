@@ -2037,6 +2037,12 @@ let suite (speed, x) =
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
+  let with_tree_enabled =
+    (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1090. *)
+    not
+      (List.mem ~equal:String.equal (Suite.name x)
+         [ "FS"; "GIT"; "HTTP.FS"; "HTTP.GIT" ])
+  in
   suite'
     ([
        ("Basic operations on contents", speed, T.test_contents x);
@@ -2058,13 +2064,14 @@ let suite (speed, x) =
        ("Unrelated merges", speed, T.test_merge_unrelated x);
        ("Low-level concurrency", speed, T.test_concurrent_low x);
        ("Concurrent updates", speed, T.test_concurrent_updates x);
-       ("with_tree strategies", speed, T.test_with_tree x);
        ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
        ("Concurrent merges", speed, T.test_concurrent_merges x);
        ("Shallow objects", speed, T.test_shallow_objects x);
        ("Closure with disconnected commits", speed, T.test_closure x);
        ("Clear", speed, T.test_clear x);
      ]
+    @ when_ with_tree_enabled
+        [ ("with_tree strategies", speed, T.test_with_tree x) ]
     @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
     @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
     (speed, x)
