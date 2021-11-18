@@ -78,6 +78,7 @@ module Maker
       staging : Val.t Tbl.t;
       mutable open_instances : int;
       readonly : bool;
+      mutable read_buffer : Bytes.t;
     }
 
     type key = K.t
@@ -114,7 +115,8 @@ module Maker
       let pack = v index ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack; open_instances = 1; readonly }
+      let read_buffer = Bytes.create 0 in
+      { staging; lru; pack; open_instances = 1; readonly; read_buffer }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index root =
@@ -162,12 +164,13 @@ module Maker
     let io_read_and_decode ~off ~len t =
       if (not (IO.readonly t.pack.block)) && off > IO.offset t.pack.block then
         raise Invalid_read;
-      let buf = Bytes.create len in
-      let n = IO.read t.pack.block ~off buf in
+      if len > Bytes.length t.read_buffer then
+        t.read_buffer <- Bytes.create (len + 1000);
+      let n = IO.read_buffer t.pack.block ~off ~buf:t.read_buffer ~len in
       if n <> len then raise Invalid_read;
       let hash off = io_read_and_decode_hash ~off t in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
+      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string t.read_buffer) (ref 0)
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
