@@ -40,7 +40,14 @@ module Conf = Irmin_tezos.Conf
 module Schema = struct
   open Irmin
   module Metadata = Metadata.None
-  module Contents = Contents.String
+
+  module Contents = struct
+    include Contents.String
+
+    let pre_hash_v1 = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
+    let t = Irmin.Type.like t ~pre_hash:pre_hash_v1
+  end
+
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.SHA1
@@ -56,7 +63,7 @@ module Contents = struct
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
-  let hash = H.hash
+  let hash t = H.hash t
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
   let encode_bin ~dict:_ ~offset:_ x k = encode_pair (k, x)
@@ -70,6 +77,8 @@ module Contents = struct
     | Dynamic f -> f
     | _ -> assert false
 end
+
+let contents_hash = Contents.H.hash
 
 module I = Index
 module Index = Irmin_pack.Index.Make (Schema.Hash)
