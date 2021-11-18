@@ -33,7 +33,6 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
   type value = [ `Node of hash | `Contents of hash * metadata ]
   [@@deriving irmin]
 
-  let default = Metadata.default
   let of_step = Irmin.Type.to_string P.step_t
 
   let to_step str =
