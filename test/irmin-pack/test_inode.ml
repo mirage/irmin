@@ -114,14 +114,18 @@ type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
 
 let pp_pred = Irmin.Type.pp pred_t
 
-module H_contents =
-  Irmin.Hash.Typed
-    (Hash)
-    (struct
-      type t = string
+module H_contents = struct
+  include
+    Irmin.Hash.Typed
+      (Hash)
+      (struct
+        type t = string
 
-      let t = Irmin.Type.string
-    end)
+        let t = Irmin.Type.string
+        let pre_hash = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
+        let t = Irmin.Type.like t ~pre_hash
+      end)
+end
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x

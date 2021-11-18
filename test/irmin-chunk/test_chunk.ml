@@ -25,8 +25,15 @@ module Key = struct
   let equal = Irmin.Type.(unstage (equal t))
 end
 
-module Value = struct
+module Contents = struct
   include Irmin.Contents.String
+
+  let pre_hash = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
+  let t = Irmin.Type.like t ~pre_hash
+end
+
+module Value = struct
+  include Contents
 
   let pp = Fmt.string
   let equal = String.equal

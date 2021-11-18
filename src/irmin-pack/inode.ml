@@ -765,6 +765,10 @@ struct
           in
           { hash; stable = true; v = t.v }
 
+    let pre_hash_unboxed =
+      Irmin.Type.(unstage (pre_hash_unboxed_primitives step_t))
+
+    let step_t = Irmin.Type.like step_t ~pre_hash:pre_hash_unboxed
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
 

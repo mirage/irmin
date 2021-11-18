@@ -23,6 +23,15 @@ let rm_dir data_dir =
     let _ = Sys.command cmd in
     ())
 
+module Contents = struct
+  include Irmin.Contents.String
+
+  let pre_hash = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
+  let t = Irmin.Type.like t ~pre_hash
+end
+
+module Schema = Irmin.Schema.KV (Contents)
+
 module Simple = struct
   let data_dir = "data/pack"
 
@@ -31,8 +40,6 @@ module Simple = struct
     let stable_hash = 3
     let contents_length_header = Some `Varint
   end
-
-  module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 
   module Store = struct
     open Irmin_pack.V2 (Conf)

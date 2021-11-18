@@ -14,7 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Schema = Irmin.Schema.KV (Irmin.Contents.String)
+module Contents = struct
+  include Irmin.Contents.String
+
+  let pre_hash = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
+  let t = Irmin.Type.like t ~pre_hash
+end
+
+module Schema = Irmin.Schema.KV (Contents)
 
 module Maker (V : Irmin_pack.Version.S) = struct
   module Maker = Irmin_pack.Maker (V) (Irmin_tezos.Conf)
