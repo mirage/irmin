@@ -749,6 +749,101 @@ let options =
        Term.(mk options $ Store.term));
   }
 
+let branches =
+  {
+    name = "branches";
+    doc = "List branches";
+    man = [];
+    term =
+      (let branches (S ((module S), store, _)) =
+         run
+           (let* t = store in
+            let+ branches = S.Branch.list (S.repo t) in
+            List.iter (Fmt.pr "%a\n" (Irmin.Type.pp S.branch_t)) branches)
+       in
+       Term.(mk branches $ store));
+  }
+
+let weekday Unix.{ tm_wday; _ } =
+  match tm_wday with
+  | 0 -> "Sun"
+  | 1 -> "Mon"
+  | 2 -> "Tue"
+  | 3 -> "Wed"
+  | 4 -> "Thu"
+  | 5 -> "Fri"
+  | 6 -> "Sat"
+  | _ -> assert false
+
+let month Unix.{ tm_mon; _ } =
+  match tm_mon with
+  | 0 -> "Jan"
+  | 1 -> "Feb"
+  | 2 -> "Mar"
+  | 3 -> "Apr"
+  | 4 -> "May"
+  | 5 -> "Jun"
+  | 6 -> "Jul"
+  | 7 -> "Aug"
+  | 8 -> "Sep"
+  | 9 -> "Oct"
+  | 10 -> "Nov"
+  | 11 -> "Dec"
+  | _ -> assert false
+
+let log =
+  {
+    name = "log";
+    doc = "List commits";
+    man = [];
+    term =
+      (let plain =
+         let doc = Arg.info ~doc:"Show plain text without pager" [ "plain" ] in
+         Arg.(value & flag & doc)
+       in
+       let pager =
+         let doc = Arg.info ~doc:"Specify pager program to use" [ "pager" ] in
+         Arg.(value & opt string "pager" & doc)
+       in
+       let commits (S ((module S), store, _)) plain pager =
+         run
+           (let* t = store in
+            let fmt f date =
+              Fmt.pf f "%s %s %02d %02d:%02d:%02d %04d" (weekday date)
+                (month date) date.tm_mday date.tm_hour date.tm_min date.tm_sec
+                (date.tm_year + 1900)
+            in
+            let repo = S.repo t in
+            let commit formatter hash =
+              let+ commit = S.Commit.of_hash repo hash >|= Option.get in
+              let info = S.Commit.info commit in
+              let date = S.Info.date info in
+              let author = S.Info.author info in
+              let message = S.Info.message info in
+              let date = Unix.localtime (Int64.to_float date) in
+              Fmt.pf formatter "commit %a\nAuthor: %s\nDate: %a\n\n%s\n\n%!"
+                (Irmin.Type.pp S.hash_t) hash author fmt date message
+            in
+            let* max = S.Head.get t >|= fun x -> [ `Commit (S.Commit.key x) ] in
+            if plain then
+              let commit = commit Format.std_formatter in
+              S.Repo.breadth_first_traversal ~commit ~max repo
+            else
+              Lwt.catch
+                (fun () ->
+                  let out = Unix.open_process_out pager in
+                  let commit = commit (Format.formatter_of_out_channel out) in
+                  let+ () = S.Repo.breadth_first_traversal ~commit ~max repo in
+                  let _ = Unix.close_process_out out in
+                  ())
+                (function
+                  | Sys_error s when String.equal s "Broken pipe" ->
+                      Lwt.return_unit
+                  | exn -> raise exn))
+       in
+       Term.(mk commits $ store $ plain $ pager));
+  }
+
 let default =
   let doc = "Irmin, the database that never forgets." in
   let man =
@@ -786,12 +881,14 @@ let default =
       \    dot         %s\n\
       \    graphql     %s\n\
       \    http        %s\n\
-      \    options     %s\n\n\
+      \    options     %s\n\
+      \    branches    %s\n\
+      \    log         %s\n\n\
        See `irmin help <command>` for more information on a specific command.\n\
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc clone.doc fetch.doc
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
-      graphql.doc http.doc options.doc
+      graphql.doc http.doc options.doc branches.doc log.doc
   in
   ( Term.(mk usage $ const ()),
     Term.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc
@@ -819,6 +916,8 @@ let commands =
       dot;
       graphql;
       options;
+      branches;
+      log;
     ]
 
 let run ~default:x y =

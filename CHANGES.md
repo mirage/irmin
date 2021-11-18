@@ -149,6 +149,8 @@
     (#1464, #1543, #1607 @zshipko)
   - Update `irmin` CLI to support empty path in `list` subcommand.
     (#1575, @maiste)
+  - Add new commands to CLI: `branches` for listing available branches and
+    `log` which is similar to `git log` (#1609, @zshipko)
 
 ## 2.7.2 (2021-07-20)
 
