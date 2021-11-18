@@ -485,11 +485,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let v ?ctx config = CA.v ?ctx config "tree" "trees"
     end
 
-    module Node_portable = struct
-      include Node.Val
-
-      let of_node x = x
-    end
+    module Node_portable = Irmin.Node.Portable.Of_node (Node.Val)
 
     module Commit = struct
       module X = struct

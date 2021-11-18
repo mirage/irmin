@@ -269,11 +269,7 @@ struct
             (Schema.Path)
       end
 
-      module Node_portable = struct
-        include Node.Val
-
-        let of_node x = x
-      end
+      module Node_portable = Irmin.Node.Portable.Of_node (Node.Val)
 
       module Commit = struct
         module V = struct
