@@ -211,7 +211,7 @@ module Maker
       let h' = Val.hash v in
       if equal_hash h h' then Ok () else Error (h, h')
 
-    let _check_key k v = check_hash (Key.to_hash k) v
+    let check_key k v = check_hash (Key.to_hash k) v
 
     let io_read_and_decode ~off ~len t =
       let buf = Bytes.create len in
@@ -231,7 +231,7 @@ module Maker
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
-    let unsafe_find ~check_integrity:_ t k =
+    let unsafe_find ~check_integrity t k =
       [%log.debug "[pack:%a] find %a" pp_io t pp_key k];
       Stats.incr_finds ();
       let hash = Key.to_hash k in
@@ -242,12 +242,8 @@ module Maker
       | exception Not_found -> (
           match Lru.find t.lru hash with
           | v -> Some v
-          | exception Not_found -> (
+          | exception Not_found ->
               Stats.incr_cache_misses ();
-              (* XXX *)
-              (* match Index.find t.pack.index k with
-               * | None -> None
-               * | Some (off, len, _) -> *)
               let off, len = Key.(to_offset k, to_length k) in
               if Int63.add off (Int63.of_int len) > IO.offset t.pack.block then
                 (* This key is from a different store instance, referencing an
@@ -259,19 +255,15 @@ module Maker
               else
                 let v = io_read_and_decode ~off ~len t in
                 Lru.add t.lru hash v;
-                match equal_hash (Key.to_hash k) (Val.hash v) with
-                | false -> (* A clear happened *) None
-                | true -> Some v
-              (* XXX: this isn't a valid check, because it's possible that we
-                 read and decode a value with a different hash just because a
-                 clear happened and then there were writes over the offset. *)
-              (* (if check_integrity then
-               *  check_key k v |> function
-               *  | Ok () -> ()
-               *  | Error (expected, got) ->
-               *      Fmt.failwith
-               *        "corrupted value: got %a, expecting %a (for val: %a)."
-               *        pp_hash got pp_hash expected pp_value v); *)))
+                (if check_integrity then
+                 check_key k v |> function
+                 | Ok () -> ()
+                 | Error (expected, got) ->
+                     Fmt.failwith
+                       "corrupted value: got hash %a, expecting %a (for val: \
+                        %a)."
+                       pp_hash got pp_hash expected pp_value v);
+                Some v)
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in

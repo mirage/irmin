@@ -185,11 +185,22 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           in
           Commit.CA.sync ~on_generation_change (snd (commit_t t))
 
-        (** Stores share instances so one clear is enough. We clear the [Commit]
-            store because it's guaranteed to have an Index handle.
+        exception Clear_unsupported
 
-            TODO(craigfe): review whether this choice should be relied on here. *)
-        let clear t = Commit.CA.clear (snd (commit_t t))
+        let clear _t =
+          (* NOTE: [clear] cannot be easily supported by `irmin-pack` with structured
+             keys: calling [clear] makes any in-memory [key] values generated before
+             the [clear] invalid, and [find] doesn't have an easy way to check whether
+             this has happened (i.e. the existing keys may be "valid" offsets in the
+             post-cleared store, with arbitrary bytes at the location to be read).
+
+             To avoid this problem of invalidating keys, [clear] is currently
+             unsupported. A future implementation could add the store generation
+             number to the key type (and use these during [find] to ensure that no
+             intermediate clears have occurred), but this would require having a
+             decode implementation for keys (and values containing keys) that can
+             inject the right generation number at the point of decode. *)
+          raise Clear_unsupported
 
         let flush t =
           Commit.CA.flush (snd (commit_t t));
