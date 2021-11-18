@@ -146,7 +146,7 @@
   - Clean up command line interface. Allow config file to be specified when
     using `Irmin_unix.Resolver.load_config` and make command line options
     take precedence over config options.
-    (#1464, #1543, @zshipko)
+    (#1464, #1543, #1607 @zshipko)
   - Update `irmin` CLI to support empty path in `list` subcommand.
     (#1575, @maiste)
 

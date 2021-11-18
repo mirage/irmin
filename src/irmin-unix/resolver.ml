@@ -22,7 +22,7 @@ let global_option_section = "COMMON OPTIONS"
 
 module Conf = Irmin.Backend.Conf
 
-let value_or_option ty v =
+let try_parse ty v =
   match Irmin.Type.of_string ty v with
   | Error e -> (
       let x = Format.sprintf "{\"some\": %s}" v in
@@ -36,7 +36,7 @@ let value_or_option ty v =
 let pconv t =
   let pp = Irmin.Type.pp t in
   let parse s =
-    match value_or_option t s with Ok x -> `Ok x | Error (`Msg e) -> `Error e
+    match try_parse t s with Ok x -> `Ok x | Error (`Msg e) -> `Error e
   in
   (parse, pp)
 
@@ -256,6 +256,7 @@ module Store = struct
   type store_functor =
     | Fixed_hash of (contents -> t)
     | Variable_hash of (hash -> contents -> t)
+    | Fixed of t
 
   module type G = sig
     include Irmin.S
@@ -360,31 +361,6 @@ let config_root () =
   with Not_found ->
     if Sys.win32 then home / "Local Settings" else home / ".config"
 
-let rec read_config_file path =
-  let home = config_root () / global_config_path in
-  let path =
-    match path with
-    | Some path ->
-        if (not (Sys.file_exists path)) && not (String.equal path home) then
-          Fmt.failwith "config file does not exist: %s" path
-        else path
-    | None -> "irmin.yml"
-  in
-  let global =
-    if String.equal path home then [] else read_config_file (Some home)
-  in
-  if not (Sys.file_exists path) then global
-  else
-    let () = [%logs.debug "Loading config from file: %s" path] in
-    let oc = open_in path in
-    let len = in_channel_length oc in
-    let buf = really_input_string oc len in
-    close_in oc;
-    match Yaml.of_string buf with
-    | Ok (`O y) -> y @ global
-    | Ok _ -> Fmt.failwith "invalid YAML file: %s" path
-    | Error (`Msg msg) -> Fmt.failwith "unable to parse YAML: %s" msg
-
 let config_term =
   let create root config_path (opts : (string * string) list list) =
     (root, config_path, opts)
@@ -411,63 +387,46 @@ type store =
       (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
       -> store
 
-let string_value = function `String s -> s | _ -> raise Not_found
-
-let assoc y name fn =
-  try Some (fn (List.assoc name y |> string_value)) with Not_found -> None
+let rec read_config_file path =
+  let home = config_root () / global_config_path in
+  let path =
+    match path with
+    | Some path ->
+        if (not (Sys.file_exists path)) && not (String.equal path home) then
+          Fmt.failwith "config file does not exist: %s" path
+        else path
+    | None -> "irmin.yml"
+  in
+  let global =
+    if String.equal path home then `O [] else read_config_file (Some home)
+  in
+  if not (Sys.file_exists path) then global
+  else
+    let () = [%logs.debug "Loading config from file: %s" path] in
+    let oc = open_in path in
+    let len = in_channel_length oc in
+    let buf = really_input_string oc len in
+    close_in oc;
+    if Astring.String.(is_empty (trim buf)) then `O []
+    else
+      match Yaml.of_string buf with
+      | Ok (`O _ as y) -> Yaml.Util.combine_exn y global
+      | Ok `Null -> global
+      | Ok _ -> Fmt.failwith "invalid YAML file: %s" path
+      | Error (`Msg msg) -> Fmt.failwith "unable to parse YAML: %s" msg
 
 let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
   | `O x -> `Assoc (List.map (fun (k, v) -> (k, json_of_yaml v)) x)
   | `A x -> `List (List.map json_of_yaml x)
   | (`Null | `Bool _ | `Float _ | `String _) as x -> x
 
-let load_config_file_with_defaults root config_path (store, hash, contents) =
-  let y = read_config_file config_path in
-  let store =
-    match store with
-    | Some s -> Store.find s
-    | None -> (
-        match List.assoc_opt "store" y with
-        | Some (`String s) -> (
-            match store with Some s -> Store.find s | None -> Store.find s)
-        | _ -> snd !Store.default)
-  in
-  let contents =
-    match contents with
-    | Some s -> Contents.find s
-    | None -> (
-        match List.assoc_opt "contents" y with
-        | Some (`String s) -> Contents.find s
-        | _ -> snd !Contents.default)
-  in
-  let hash =
-    match hash with
-    | Some s -> Some s
-    | None -> (
-        match List.assoc_opt "hash" y with
-        | Some (`String s) -> Some (Hash.find s)
-        | _ -> None)
-  in
-  let store =
-    match store with
-    | Store.Variable_hash s ->
-        let hash : hash = Option.value ~default:(snd !Hash.default) hash in
-        s hash contents
-    | Fixed_hash s -> (
-        (* error if a hash function has been passed *)
-        match hash with
-        | None -> s contents
-        | _ ->
-            Fmt.failwith
-              "Cannot customize the hash function for the given store")
-  in
-  let _, spec, _ = Store.destruct store in
+let parse_config ?root y spec =
   let config = Conf.empty spec in
   let config =
     List.fold_left
-      (fun config (k, v) ->
-        match Conf.Spec.find_key spec k with
-        | Some (Irmin.Backend.Conf.K k) ->
+      (fun config k ->
+        match (Conf.Spec.find_key spec k, Yaml.Util.find_exn k y) with
+        | Some (Irmin.Backend.Conf.K k), Some v ->
             let v = json_of_yaml v |> Yojson.Basic.to_string in
             let v =
               match Irmin.Type.of_json_string (Conf.ty k) v with
@@ -477,13 +436,14 @@ let load_config_file_with_defaults root config_path (store, hash, contents) =
               | Ok v -> v
             in
             Conf.add config k v
-        | None -> (
+        | None, _ -> (
             match k with
             | "contents" | "hash" | "store" -> config
             | _ ->
                 Fmt.invalid_arg "unknown config key for %s: %s"
-                  (Conf.Spec.name spec) k))
-      config y
+                  (Conf.Spec.name spec) k)
+        | _ -> config)
+      config (Yaml.Util.keys_exn y)
   in
   let config =
     match (root, Conf.Spec.find_key spec "root") with
@@ -492,56 +452,107 @@ let load_config_file_with_defaults root config_path (store, hash, contents) =
         Conf.add config r v
     | _ -> config
   in
-  (store, config)
+  config
 
-let from_config_file_with_defaults root config_path (store, hash, contents) opts
-    branch : store =
-  let y = read_config_file config_path in
-  let store, config =
-    load_config_file_with_defaults root config_path (store, hash, contents)
+let get_store config (store, hash, contents) =
+  let store =
+    match store with
+    | Some s -> Store.find s
+    | None -> (
+        match Yaml.Util.find_exn "store" config with
+        | Some (`String s) -> (
+            match store with Some s -> Store.find s | None -> Store.find s)
+        | _ -> snd !Store.default)
+  in
+  let contents =
+    match contents with
+    | Some s -> Contents.find s
+    | None -> (
+        match Yaml.Util.find_exn "contents" config with
+        | Some (`String s) -> Contents.find s
+        | _ -> snd !Contents.default)
+  in
+  let hash =
+    match hash with
+    | Some s -> Some s
+    | None -> (
+        match Yaml.Util.find_exn "hash" config with
+        | Some (`String s) -> Some (Hash.find s)
+        | _ -> None)
   in
   match store with
-  | Store.T ((module S), spec, remote) -> (
-      let config =
-        List.fold_left
-          (fun config (k, v) ->
-            let (Irmin.Backend.Conf.K key) =
-              if k = "root" then
-                invalid_arg
-                  "use the --root flag to set the root directory instead of \
-                   passing it as a config"
-              else
-                match Conf.Spec.find_key spec k with
-                | Some x -> x
-                | None -> invalid_arg ("opt: " ^ k)
-            in
-            let ty = Conf.ty key in
-            let v = value_or_option ty v |> Result.get_ok in
-            let config = Conf.add config key v in
-            config)
-          config (List.flatten opts)
-      in
-      let mk_main () = S.Repo.v config >>= S.main in
-      let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
-      let branch =
-        let of_string = Irmin.Type.of_string S.Branch.t in
-        match branch with
-        | None ->
-            assoc y "branch" (fun x ->
-                match of_string x with
-                | Ok x -> x
-                | Error (`Msg msg) -> failwith msg)
-        | Some t -> (
-            match of_string t with
-            | Ok x -> Some x
-            | Error (`Msg e) -> failwith e)
-      in
-      match branch with
-      | None -> S ((module S), mk_main (), remote)
-      | Some b -> S ((module S), mk_branch b, remote))
+  | Variable_hash s ->
+      let hash : Hash.t = Option.value ~default:(snd !Hash.default) hash in
+      s hash contents
+  | Fixed_hash s -> (
+      (* error if a hash function has been passed *)
+      match hash with
+      | None -> s contents
+      | _ ->
+          Fmt.failwith "Cannot customize the hash function for the given store")
+  | Fixed s -> (
+      match hash with
+      | None -> s
+      | _ ->
+          Fmt.failwith "Cannot customize the hash function for the given store")
 
 let load_config ?root ?config_path ?store ?hash ?contents () =
-  load_config_file_with_defaults root config_path (store, hash, contents)
+  let y = read_config_file config_path in
+  let store = get_store y (store, hash, contents) in
+  let _, spec, _ = Store.destruct store in
+  let config = parse_config ?root y spec in
+  (store, config)
+
+let string_value = function `String s -> s | _ -> raise Not_found
+
+let get_branch (type a) (module S : Irmin.S with type Schema.Branch.t = a)
+    config branch =
+  let of_string = function
+    | Some x -> (
+        match Irmin.Type.of_string S.Branch.t x with
+        | Ok x -> Some x
+        | _ -> None)
+    | None -> None
+  in
+  match branch with
+  | None ->
+      let br =
+        Yaml.Util.find_exn "branch" config
+        |> Option.map (fun x -> string_value x)
+      in
+      of_string br
+  | Some t -> of_string (Some t)
+
+let build_irmin_config config root opts (store, hash, contents) branch : store =
+  let (module S), spec, remote =
+    get_store config (store, hash, contents) |> Store.destruct
+  in
+  let branch = get_branch (module S) config branch in
+  let config = parse_config ?root config spec in
+  let config =
+    List.fold_left
+      (fun config (k, v) ->
+        let (Irmin.Backend.Conf.K key) =
+          if k = "root" then
+            invalid_arg
+              "use the --root flag to set the root directory instead of \
+               passing it as a config"
+          else
+            match Conf.Spec.find_key spec k with
+            | Some x -> x
+            | None -> invalid_arg ("opt: " ^ k)
+        in
+        let ty = Conf.ty key in
+        let v = try_parse ty v |> Result.get_ok in
+        let config = Conf.add config key v in
+        config)
+      config (List.flatten opts)
+  in
+  let mk_master () = S.Repo.v config >>= S.main in
+  let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
+  match branch with
+  | None -> S ((module S), mk_master (), remote)
+  | Some b -> S ((module S), mk_branch b, remote)
 
 let branch =
   let doc =
@@ -552,7 +563,8 @@ let branch =
 
 let store =
   let create store (root, config_path, opts) branch =
-    from_config_file_with_defaults root config_path store opts branch
+    let y = read_config_file config_path in
+    build_irmin_config y root opts store branch
   in
   Term.(const create $ Store.term $ config_term $ branch)
 
