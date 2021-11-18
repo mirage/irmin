@@ -17,29 +17,7 @@
 
 open! Import
 
-module type Portable = sig
-  type node
-  type t [@@deriving irmin]
-  type step
-  type metadata
-
-  val of_node : node -> t
-
-  type hash
-  type value = [ `Node of hash | `Contents of hash * metadata ]
-
-  val of_seq : (step * value) Seq.t -> t
-  val add : t -> step -> value -> t
-  val length : t -> int
-  val find : ?cache:bool -> t -> step -> value option
-
-  val list :
-    ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) list
-
-  val remove : t -> step -> t
-end
-
-module type S_generic_key = sig
+module type Core = sig
   (** {1 Node values} *)
 
   type t [@@deriving irmin]
@@ -123,14 +101,19 @@ module type S_generic_key = sig
   (** [remove t s] is the node where [find t s] is [None] but is similar to [t]
       otherwise. *)
 
+  module Metadata : Metadata.S with type t = metadata
+  (** Metadata functions. *)
+end
+
+module type S_generic_key = sig
+  include Core
+  (** @inline *)
+
   val merge :
     contents:contents_key option Merge.t ->
     node:node_key option Merge.t ->
     t Merge.t
   (** [merge] is the merge function for nodes. *)
-
-  module Metadata : Metadata.S with type t = metadata
-  (** Metadata values. *)
 end
 
 module type S = sig
@@ -142,6 +125,14 @@ module type S = sig
       with type hash := hash
        and type contents_key = hash
        and type node_key = hash
+end
+
+module type Portable = sig
+  include S
+
+  type node
+
+  val of_node : node -> t
 end
 
 open struct

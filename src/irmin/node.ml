@@ -22,9 +22,67 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+(* Add [merge] to a [Core] implementation. *)
+module Of_core (S : Core) :
+  S_generic_key
+    with type t = S.t
+     and type hash = S.hash
+     and type metadata = S.metadata
+     and type step = S.step
+     and type contents_key = S.contents_key
+     and type node_key = S.node_key = struct
+  include S
+  (* Merges *)
+
+  let all_contents t =
+    let kvs = S.list t in
+    List.fold_left
+      (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
+      [] kvs
+
+  let all_succ t =
+    let kvs = S.list t in
+    List.fold_left
+      (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
+      [] kvs
+
+  (* [Merge.alist] expects us to return an option. [C.merge] does
+       that, but we need to consider the metadata too... *)
+  let merge_metadata merge_contents =
+    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
+       S.Val.Metadata.t) option]. *)
+    let explode = function
+      | None -> (None, S.Metadata.default)
+      | Some (c, m) -> (Some c, m)
+    in
+    let implode = function None, _ -> None | Some c, m -> Some (c, m) in
+    Merge.like [%typ: (S.contents_key * S.metadata) option]
+      (Merge.pair merge_contents S.Metadata.merge)
+      explode implode
+
+  let merge_contents merge_key =
+    Merge.alist S.step_t (Type.pair S.contents_key_t S.metadata_t) (fun _step ->
+        merge_metadata merge_key)
+
+  let merge_node merge_key =
+    Merge.alist S.step_t S.node_key_t (fun _step -> merge_key)
+
+  (* FIXME: this is very broken; do the same thing as [Tree.merge]
+     instead. *)
+  let merge ~contents ~node =
+    let explode t = (all_contents t, all_succ t) in
+    let implode (contents, succ) =
+      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
+      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
+      S.of_list (xs @ ys)
+    in
+    let merge = Merge.pair (merge_contents contents) (merge_node node) in
+    Merge.like S.t merge explode implode
+end
+
 (* A [Make] implementation providing the subset of [S] that can be implemented
    over abstract [key] types. *)
-module Make_generic_key
+module Make_core
     (Hash : Hash.S) (Path : sig
       type step [@@deriving irmin]
     end)
@@ -181,88 +239,70 @@ struct
       Hash_preimage.pre_hash entries f
     in
     Type.map ~pre_hash Type.(list entry_t) of_entries entries
+end
 
-  (** Merges *)
-
-  let all_contents t =
-    let kvs = list t in
-    List.fold_left
-      (fun acc -> function k, `Contents c -> (k, c) :: acc | _ -> acc)
-      [] kvs
-
-  let all_succ t =
-    let kvs = list t in
-    List.fold_left
-      (fun acc -> function k, `Node n -> (k, n) :: acc | _ -> acc)
-      [] kvs
-
-  (* [Merge.alist] expects us to return an option. [C.merge] does
-     that, but we need to consider the metadata too... *)
-  let merge_metadata merge_contents =
-    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t *
-       S.Val.Metadata.t) option]. *)
-    let explode = function
-      | None -> (None, Metadata.default)
-      | Some (c, m) -> (Some c, m)
-    in
-    let implode = function None, _ -> None | Some c, m -> Some (c, m) in
-    Merge.like [%typ: (contents_key * metadata) option]
-      (Merge.pair merge_contents Metadata.merge)
-      explode implode
-
-  let merge_contents merge_key =
-    Merge.alist step_t [%typ: contents_key * metadata] (fun _step ->
-        merge_metadata merge_key)
-
-  let merge_node merge_key =
-    Merge.alist step_t node_key_t (fun _step -> merge_key)
-
-  let merge ~contents ~node =
-    let explode t = (all_contents t, all_succ t) in
-    let implode (contents, succ) =
-      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
-      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      of_list (xs @ ys)
-    in
-    let merge = Merge.pair (merge_contents contents) (merge_node node) in
-    Merge.like t merge explode implode
+module Make_generic_key
+    (Hash : Hash.S) (Path : sig
+      type step [@@deriving irmin]
+    end)
+    (Metadata : Metadata.S)
+    (Contents_key : Key.S with type hash = Hash.t)
+    (Node_key : Key.S with type hash = Hash.t) =
+struct
+  module M = Make_core (Hash) (Path) (Metadata) (Contents_key) (Node_key)
+  include Of_core (M)
 
   module Portable = struct
-    type nonrec t = t [@@deriving irmin]
-    type value = [ `Contents of hash * metadata | `Node of hash ]
+    module P = struct
+      include M
 
-    let of_node t = t
-    let remove = remove
-    let length = length
+      type contents_key = hash [@@deriving irmin]
+      type node_key = hash [@@deriving irmin]
 
-    let to_entry name = function
-      | `Node node -> Node_hash { name; node }
-      | `Contents (contents, metadata) ->
-          if equal_metadata metadata Metadata.default then
-            Contents_hash { name; contents }
-          else Contents_m_hash { name; contents; metadata }
+      type value = [ `Contents of hash * metadata | `Node of hash ]
+      [@@deriving irmin]
 
-    let weaken_value = function
-      | `Node key -> `Node (Node_key.to_hash key)
-      | `Contents (key, m) -> `Contents (Contents_key.to_hash key, m)
+      let of_node (t : M.t) : M.t = t
 
-    let of_seq s =
-      Seq.fold_left
-        (fun acc (name, v) -> StepMap.add name (to_entry name v) acc)
-        StepMap.empty s
+      let to_entry name = function
+        | `Node node -> Node_hash { name; node }
+        | `Contents (contents, metadata) ->
+            if equal_metadata metadata Metadata.default then
+              Contents_hash { name; contents }
+            else Contents_m_hash { name; contents; metadata }
 
-    let add t name v =
-      let entry = to_entry name v in
-      add_entry t name entry
+      let weaken_value = function
+        | `Node key -> `Node (Node_key.to_hash key)
+        | `Contents (key, m) -> `Contents (Contents_key.to_hash key, m)
 
-    let find ?cache t k =
-      match find ?cache t k with
-      | None -> None
-      | Some value -> Some (weaken_value value)
+      let of_seq s =
+        Seq.fold_left
+          (fun acc (name, v) -> StepMap.add name (to_entry name v) acc)
+          StepMap.empty s
 
-    let list ?offset ?length ?cache t =
-      list ?offset ?length ?cache t
-      |> List.map (fun (k, v) -> (k, weaken_value v))
+      let of_list s = of_seq (List.to_seq s)
+
+      let add t name v =
+        let entry = to_entry name v in
+        add_entry t name entry
+
+      let find ?cache t k =
+        match find ?cache t k with
+        | None -> None
+        | Some value -> Some (weaken_value value)
+
+      let list ?offset ?length ?cache t =
+        list ?offset ?length ?cache t
+        |> List.map (fun (k, v) -> (k, weaken_value v))
+
+      let seq ?offset ?length ?cache t =
+        seq ?offset ?length ?cache t
+        |> Seq.map (fun (k, v) -> (k, weaken_value v))
+    end
+
+    include Of_core (P)
+
+    let of_node = P.of_node
   end
 end
 
