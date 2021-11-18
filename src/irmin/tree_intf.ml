@@ -17,6 +17,34 @@
 
 open! Import
 
+module Proof = struct
+  type ('hash, 'step, 'metadata) t =
+    | Blinded of 'hash
+    | Node of ('step * ('hash, 'step, 'metadata) t) list
+    | Inode of {
+        length : int;
+        proofs : (int * ('hash, 'step, 'metadata) t) list;
+      }
+    | Contents of 'hash * 'metadata
+
+  (* TODO(craigfe): fix [ppx_irmin] for recursive types with type parameters. *)
+  let t hash_t step_t metadata_t =
+    let open Type in
+    mu (fun t ->
+        variant "proof" (fun blinded node inode contents -> function
+          | Blinded x1 -> blinded x1
+          | Node x1 -> node x1
+          | Inode { length; proofs } -> inode (length, proofs)
+          | Contents (x1, x2) -> contents (x1, x2))
+        |~ case1 "Blinded" hash_t (fun x1 -> Blinded x1)
+        |~ case1 "Node" [%typ: (step * t) list] (fun x1 -> Node x1)
+        |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
+               Inode { length; proofs })
+        |~ case1 "Contents" [%typ: hash * metadata] (fun (x1, x2) ->
+               Contents (x1, x2))
+        |> Type.sealv)
+end
+
 module type S = sig
   type path [@@deriving irmin]
   type step [@@deriving irmin]
@@ -89,7 +117,11 @@ module type S = sig
 
   (** {1 Manipulating Contents} *)
 
-  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
+  type error =
+    [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
+  (** The type for errors. *)
+
+  type 'a or_error = ('a, error) result
   (** Operations on lazy nodes can fail if the underlying store does not contain
       the expected hash. *)
 
@@ -326,6 +358,26 @@ module type S = sig
   val to_concrete : t -> concrete Lwt.t
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
 
+  (** {1 Proofs} *)
+
+  module Proof : sig
+    type tree
+    type t = (hash, step, metadata) Proof.t [@@deriving irmin]
+
+    val of_tree : tree -> t
+    (** [of_tree t] is the proof representing the tree [t]. Shallow hashes will
+        be blinded. *)
+
+    val to_tree : t -> tree
+    (** [of_proof p] is the tree representing the proof [p]. Blinded parts of
+        the proof will raise [Dangling_hash] when traversed. *)
+
+    val of_paths : tree -> path list -> t Lwt.t
+    (** [of_paths t paths] is the minimal proof that can be used to prove that
+        operations over the domain [keys] are valid with [t]. *)
+  end
+  with type tree := t
+
   (** {1 Caches} *)
 
   val clear : ?depth:int -> t -> unit
@@ -356,10 +408,24 @@ module type S = sig
   val counters : unit -> counters
   val dump_counters : unit Fmt.t
   val reset_counters : unit -> unit
-  val inspect : t -> [ `Contents | `Node of [ `Map | `Key | `Value | `Pruned ] ]
+
+  val inspect :
+    t -> [ `Contents | `Node of [ `Map | `Key | `Value | `Pruned | `Portable ] ]
 end
 
 module type Sigs = sig
+  module Proof : sig
+    type ('hash, 'step, 'metadata) t = ('hash, 'step, 'metadata) Proof.t =
+      | Blinded of 'hash
+      | Node of ('step * ('hash, 'step, 'metadata) t) list
+      | Inode of {
+          length : int;
+          proofs : (int * ('hash, 'step, 'metadata) t) list;
+        }
+      | Contents of 'hash * 'metadata
+    [@@deriving irmin]
+  end
+
   module type S = sig
     include S
     (** @inline *)

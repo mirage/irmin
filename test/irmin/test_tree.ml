@@ -68,7 +68,8 @@ module Alcotest = struct
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value"
-        | `Node `Pruned -> Fmt.string ppf "pruned")
+        | `Node `Pruned -> Fmt.string ppf "pruned"
+        | `Node `Portable -> Fmt.string ppf "portable")
       ( = )
 end
 

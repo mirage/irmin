@@ -75,6 +75,8 @@ module type Internal = sig
 
   val pp_hash : hash Fmt.t
 
+  exception Dangling_hash of { context : string; hash : hash }
+
   module Raw : Pack_value.S with type hash = hash
 
   module Val : sig
@@ -109,16 +111,20 @@ module type Internal = sig
       (** The type for trees. *)
 
       (** The type for concrete trees. *)
-      type t = Tree of t tree | Value of entry list [@@deriving irmin]
+      type t = Tree of t tree | Values of entry list | Blinded
+      [@@deriving irmin]
+
+      type len := [ `Eq of int | `Ge of int ]
 
       type error =
         [ `Invalid_hash of hash * hash * t
         | `Invalid_depth of int * int * t
-        | `Invalid_length of int * int * t
+        | `Invalid_length of len * int * t
         | `Duplicated_entries of t
         | `Duplicated_pointers of t
         | `Unsorted_entries of t
         | `Unsorted_pointers of t
+        | `Blinded_root
         | `Empty ]
       [@@deriving irmin]
       (** The type for errors. *)
@@ -135,6 +141,11 @@ module type Internal = sig
 
         The result is [Error e] when a subtree tree of [c] has an integrity
         error. *)
+
+    module Proof : sig
+      val of_concrete : Concrete.t -> Portable.proof
+      val to_concrete : Portable.proof -> Concrete.t
+    end
   end
 end
 

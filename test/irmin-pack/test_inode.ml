@@ -375,12 +375,11 @@ let test_truncated_inodes () =
     let decode str = decode str (ref 0) in
     inode |> encode |> decode
   in
-  let with_failure f =
-    Alcotest.check_raises
-      "Iteration on that Truncated inode with broken pointers was expected to \
-       fail."
-      (Failure
-         "Impossible to load the subtree on an inode deserialized using Repr") f
+  let with_dangling_hash_failure f =
+    try
+      ignore (f ());
+      Alcotest.fail "was expecting a dangling hash failure, but got nothing"
+    with Inter.Dangling_hash _ -> ()
   in
   let s00, s01, s11, s10 =
     Inode_permutations_generator.
@@ -394,7 +393,7 @@ let test_truncated_inodes () =
   in
   let iter_steps_with_failure f =
     List.iter
-      (fun step -> with_failure (fun () -> f step |> ignore))
+      (fun step -> with_dangling_hash_failure (fun () -> f step))
       [ s00; s01; s11; s10 ]
   in
   (* v1 is a Truncated inode of tag Values. No pointers. *)
@@ -419,7 +418,7 @@ let test_truncated_inodes () =
       [ (s00, normal foo); (s10, normal bar); (s01, normal bar) ]
     |> to_truncated
   in
-  (with_failure @@ fun () -> Inode.Val.list v3 |> ignore);
+  (with_dangling_hash_failure @@ fun () -> Inode.Val.list v3);
   (iter_steps_with_failure @@ fun step -> Inode.Val.find v3 step);
   (iter_steps_with_failure @@ fun step -> Inode.Val.add v3 step (normal bar));
   (iter_steps_with_failure @@ fun step -> Inode.Val.remove v3 step);

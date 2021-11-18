@@ -80,6 +80,66 @@ module Of_core (S : Core) :
     Merge.like S.t merge explode implode
 end
 
+module Make_proof_helper
+    (Hash : Type.S) (Path : sig
+      type step [@@deriving irmin]
+    end)
+    (Metadata : Metadata.S) =
+struct
+  type hash = Hash.t [@@deriving irmin]
+  type metadata = Metadata.t [@@deriving irmin ~equal]
+  type step = Path.step [@@deriving irmin ~equal]
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+
+  (* FIXME:  special-case the default metadata in the default signature? *)
+  let kinded_hash_t : kinded_hash Type.t =
+    let open Type in
+    variant "value" (fun n c x -> function
+      | `Node h -> n h
+      | `Contents (h, m) ->
+          if equal_metadata m Metadata.default then c h else x (h, m))
+    |~ case1 "node" hash_t (fun k -> `Node k)
+    |~ case1 "contents" hash_t (fun h -> `Contents (h, Metadata.default))
+    |~ case1 "contents-x" (pair hash_t metadata_t) (fun (h, m) ->
+           `Contents (h, m))
+    |> sealv
+
+  type proof = (hash, step, kinded_hash) Proof.t [@@deriving irmin]
+end
+
+module Make_proof_helper' (S : S_generic_key) = struct
+  module H = struct
+    type t = S.hash [@@deriving irmin]
+  end
+
+  module P = struct
+    type step = S.step [@@deriving irmin]
+  end
+
+  module M = S.Metadata
+  include Make_proof_helper (H) (P) (M)
+end
+
+module Make_proof (S : sig
+  type hash
+
+  include
+    S_generic_key
+      with type contents_key = hash
+       and type node_key = hash
+       and type hash := hash
+end) =
+struct
+  include Make_proof_helper' (S)
+
+  let to_proof (t : S.t) : proof = Values (S.list t)
+
+  let of_proof (t : proof) : S.t =
+    match t with
+    | Blinded _ | Inode _ -> failwith "unsupported"
+    | Values e -> S.of_list e
+end
+
 (* A [Make] implementation providing the subset of [S] that can be implemented
    over abstract [key] types. *)
 module Make_core
@@ -129,7 +189,7 @@ struct
   type value = [ `Contents of contents_key * metadata | `Node of node_key ]
 
   (* FIXME:  special-case the default metadata in the default signature? *)
-  let value_t =
+  let value_t : value Type.t =
     let open Type in
     variant "value" (fun n c x -> function
       | `Node h -> n h
@@ -253,6 +313,8 @@ struct
   include Of_core (M)
 
   module Portable = struct
+    include Make_proof_helper (Hash) (Path) (Metadata)
+
     module P = struct
       include M
 
@@ -263,6 +325,25 @@ struct
       [@@deriving irmin]
 
       let of_node (t : M.t) : M.t = t
+
+      let kinded_hash_of_entry : entry -> step * kinded_hash = function
+        | Node n -> (n.name, `Node (Node_key.to_hash n.node))
+        | Node_hash n -> (n.name, `Node n.node)
+        | Contents c ->
+            ( c.name,
+              `Contents (Contents_key.to_hash c.contents, Metadata.default) )
+        | Contents_hash c -> (c.name, `Contents (c.contents, Metadata.default))
+        | Contents_m c ->
+            (c.name, `Contents (Contents_key.to_hash c.contents, c.metadata))
+        | Contents_m_hash c -> (c.name, `Contents (c.contents, c.metadata))
+
+      let entry_of_kinded_hash (name, h) =
+        match h with
+        | `Node node -> Node_hash { name; node }
+        | `Contents (contents, metadata) ->
+            if equal_metadata metadata Metadata.default then
+              Contents_hash { name; contents }
+            else Contents_m_hash { name; contents; metadata }
 
       let to_entry name = function
         | `Node node -> Node_hash { name; node }
@@ -303,6 +384,19 @@ struct
     include Of_core (P)
 
     let of_node = P.of_node
+
+    type proof = (hash, step, kinded_hash) Proof.t [@@deriving irmin]
+
+    let to_proof (t : t) : proof =
+      let e = List.map P.kinded_hash_of_entry (P.entries t) in
+      Values e
+
+    let of_proof (t : proof) =
+      match t with
+      | Blinded _ | Inode _ -> failwith "unsupported"
+      | Values e ->
+          let e = List.map P.entry_of_kinded_hash e in
+          P.of_entries e
   end
 end
 
@@ -386,6 +480,8 @@ module Portable = struct
     include X
 
     let of_node t = t
+
+    include Make_proof (X)
   end
 
   module type S = Portable

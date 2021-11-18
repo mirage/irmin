@@ -17,6 +17,7 @@
 
 open! Import
 include Tree_intf
+module Irmin_node = Node
 
 let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
@@ -162,9 +163,13 @@ module Make (P : Backend.S) = struct
   type hash = P.Hash.t [@@deriving irmin ~pp ~equal ~compare]
   type step = Path.step [@@deriving irmin ~pp ~compare]
   type contents = P.Contents.Val.t [@@deriving irmin ~equal ~pp]
+
+  type error =
+    [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
+
   type repo = P.Repo.t
   type marks = unit Hashes.t
-  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
+  type 'a or_error = ('a, error) result
   type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
   type uniq = [ `False | `True | `Marks of marks ]
   type 'a node_fn = path -> step list -> 'a -> 'a Lwt.t
@@ -176,6 +181,7 @@ module Make (P : Backend.S) = struct
   let empty_marks () = Hashes.create 39
 
   exception Pruned_hash of { context : string; hash : hash }
+  exception Portable_value of { context : string }
   exception Dangling_hash of { context : string; hash : hash }
 
   let () =
@@ -188,14 +194,27 @@ module Make (P : Backend.S) = struct
           Some
             (Fmt.str "Irmin.Tree.%s: encountered pruned hash %a" context pp_hash
                hash)
+      | Portable_value { context } ->
+          Some
+            (Fmt.str
+               "Irmin.Tree.%s: the supplied node has not been exported to disk \
+                yet."
+               context)
       | _ -> None)
 
+  let err_dangling_hash h = Error (`Dangling_hash h)
+  let err_pruned_hash h = Error (`Pruned_hash h)
+  let err_portable_value = Error `Portable_value
+  let dangling_hash_exn context hash = raise (Dangling_hash { context; hash })
   let pruned_hash_exn context hash = raise (Pruned_hash { context; hash })
+  let portable_value_exn context = raise (Portable_value { context })
 
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
     | Ok x -> x
-    | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
+    | Error (`Pruned_hash hash) -> pruned_hash_exn context hash
+    | Error (`Dangling_hash hash) -> dangling_hash_exn context hash
+    | Error `Portable_value -> portable_value_exn context
 
   type 'key ptr_option = Key of 'key | Hash of hash | Ptr_none
   (* NOTE: given the choice, we prefer caching [Key] over [Hash] as it can
@@ -253,8 +272,8 @@ module Make (P : Backend.S) = struct
           assert false
 
     let of_value c = of_v (Value c)
-    let of_key repo k = of_v (Key (repo, k))
     let pruned h = of_v (Pruned h)
+    let of_key repo k = of_v (Key (repo, k))
 
     let cached_hash t =
       match (t.v, t.info.ptr) with
@@ -303,25 +322,28 @@ module Make (P : Backend.S) = struct
     let value_of_key ~cache t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
-      | None -> Error (`Dangling_hash (P.Contents.Key.to_hash k))
+      | None -> err_dangling_hash (P.Contents.Key.to_hash k)
       | Some v as some_v ->
           if cache then t.info.value <- some_v;
           Ok v
 
-    let to_value ~cache t =
+    let to_value_aux ~cache ~value_of_key ~return t =
       match cached_value t with
-      | Some v -> ok v
+      | Some v -> return (Ok v)
       | None -> (
           match t.v with
-          | Value v -> ok v
+          | Value v -> return (Ok v)
           | Key (repo, k) -> value_of_key ~cache t repo k
-          | Pruned h -> pruned_hash_exn "Contents.to_value" h)
+          | Pruned h -> return (err_pruned_hash h))
 
+    let to_value = to_value_aux ~value_of_key ~return:Lwt.return
     let force = to_value ~cache:true
 
     let force_exn t =
-      let+ v = force t in
-      get_ok "force" v
+      force t >|= function
+      | Ok v -> v
+      | Error (`Pruned_hash h) -> pruned_hash_exn "force_exn" h
+      | Error (`Dangling_hash h) -> dangling_hash_exn "force_exn" h
 
     let equal (x : t) (y : t) =
       x == y
@@ -368,6 +390,7 @@ module Make (P : Backend.S) = struct
 
   module Node = struct
     type value = P.Node.Val.t [@@deriving irmin ~equal ~pp]
+    type portable = P.Node_portable.t [@@deriving irmin ~equal ~pp]
     type key = P.Node.Key.t [@@deriving irmin]
     type nonrec ptr_option = key ptr_option
 
@@ -391,6 +414,7 @@ module Make (P : Backend.S) = struct
       | Key of repo * key
       | Value of repo * value * updatemap option
       | Pruned of hash
+      | Portable of portable * updatemap option
 
     and t = { mutable v : v; info : info }
     (** [t.v] has 3 possible states:
@@ -435,15 +459,23 @@ module Make (P : Backend.S) = struct
       let m = stepmap_t elt in
       let um = stepmap_t (update_t elt) in
       let open Type in
-      variant "Node.node" (fun map key value pruned -> function
+      variant "Node.node" (fun map key value pruned portable -> function
         | Map m -> map m
         | Key (_, y) -> key y
         | Value (_, v, m) -> value (v, m)
-        | Pruned h -> pruned h)
+        | Pruned h -> pruned h
+        | Portable (v, m) -> portable (v, m))
       |~ case1 "map" m (fun m -> Map m)
-      |~ case1 "key" P.Node.Key.t (fun _ -> assert false)
-      |~ case1 "value" (pair P.Node.Val.t (option um)) (fun _ -> assert false)
+      |~ case1 "key" P.Node.Key.t (fun k -> Pruned (P.Node.Key.to_hash k))
+      |~ case1 "value"
+           (pair P.Node.Val.t (option um))
+           (fun (v, m) ->
+             let v = P.Node_portable.of_node v in
+             Portable (v, m))
       |~ case1 "pruned" hash_t (fun h -> Pruned h)
+      |~ case1 "portable"
+           (pair portable_t (option um))
+           (fun (v, m) -> Portable (v, m))
       |> sealv
 
     let of_v v =
@@ -452,16 +484,18 @@ module Make (P : Backend.S) = struct
         | Map m -> (Ptr_none, Some m, None)
         | Key (_, k) -> (Key k, None, None)
         | Value (_, v, None) -> (Ptr_none, None, Some v)
-        | Value _ | Pruned _ -> (Ptr_none, None, None)
+        | Value _ | Pruned _ | Portable _ -> (Ptr_none, None, None)
       in
       let findv_cache = None in
       let info = { ptr; map; value; findv_cache } in
       { v; info }
 
     let of_map m = of_v (Map m)
+    let hash_of_key = P.Node.Key.to_hash
+    let pruned h = of_v (Pruned h)
     let of_key repo k = of_v (Key (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
-    let pruned h = of_v (Pruned h)
+    let of_portable_value ?updates v = of_v (Portable (v, updates))
 
     let info_is_empty i =
       i.map = None && i.value = None && i.findv_cache = None && i.ptr = Ptr_none
@@ -510,16 +544,28 @@ module Make (P : Backend.S) = struct
           match ptr with
           | Ptr_none | Hash _ -> t.v <- Key (repo, k)
           | Key k -> t.v <- Key (repo, k))
-      | Pruned _ ->
-          (* The main export function never exports a pruned position. *)
+      | Pruned _ | Portable _ ->
+          (* The main export function never exports a pruned or
+             portable value. *)
           assert false
 
     let map_of_value ~cache repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
       let entries = P.Node.Val.seq ~cache n in
       let aux = function
-        | `Node h -> `Node (of_key repo h)
+        | `Node n -> `Node (of_key repo n)
         | `Contents (c, m) -> `Contents (Contents.of_key repo c, m)
+      in
+      Seq.fold_left
+        (fun acc (k, v) -> StepMap.add k (aux v) acc)
+        StepMap.empty entries
+
+    let map_of_portable_value ~cache (n : portable) : map =
+      cnt.node_val_list <- cnt.node_val_list + 1;
+      let entries = P.Node_portable.seq ~cache n in
+      let aux = function
+        | `Node n -> `Node (pruned n)
+        | `Contents (c, m) -> `Contents (Contents.pruned c, m)
       in
       Seq.fold_left
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
@@ -538,12 +584,11 @@ module Make (P : Backend.S) = struct
 
     let cached_key t =
       match (t.v, t.info.ptr) with
-      | Pruned _, _ -> None
-      | Key (_, k), (Hash _ | Ptr_none) ->
+      | _, Key k -> Some k
+      | Key (_, k), _ ->
           t.info.ptr <- Key k;
           Some k
-      | _, Key k -> Some k
-      | (Map _ | Value _), (Hash _ | Ptr_none) -> None
+      | _ -> None
 
     let cached_map t =
       match (t.v, t.info.map) with
@@ -564,18 +609,29 @@ module Make (P : Backend.S) = struct
     let key t = match t.v with Key (_, k) -> Some k | _ -> None
     let unsafe_cache_key t k = t.info.ptr <- Key k
 
-    open struct
-      module Portable = P.Node_portable
-      module Portable_hash = Hash.Typed (P.Hash) (P.Node_portable)
+    module Portable = P.Node_portable
+    module Portable_hash = Hash.Typed (P.Hash) (P.Node_portable)
+
+    type a_node = Node of P.Node.Val.t | Pnode of Portable.t
+
+    module N = struct
+      type t = a_node
+
+      let to_portable = function Node v -> Portable.of_node v | Pnode v -> v
+
+      let is_empty = function
+        | Node v -> P.Node.Val.is_empty v
+        | Pnode v -> Portable.is_empty v
+
+      let length = function
+        | Node v -> P.Node.Val.length v
+        | Pnode v -> Portable.length v
+
+      let steps ?cache = function
+        | Node v -> P.Node.Val.seq ?cache v |> Seq.map fst
+        | Pnode v -> Portable.seq ?cache v |> Seq.map fst
     end
 
-    (* When computing hashes of nodes, we try to use [P.Node.Val.t] as a
-       pre-image if possible so that this intermediate value can be cached
-       within [t.info.value] (in case it is about to be written to the backend).
-
-       This is only possible if all of the child pointers have pre-existing
-       keys, otherwise we must convert to portable nodes as a fallback. *)
-    type hash_preimage = Node of P.Node.Val.t | Pnode of Portable.t
     type node_value = P.Node.Val.value
     type pnode_value = Portable.value
 
@@ -587,6 +643,12 @@ module Make (P : Backend.S) = struct
       | `Contents (key, m) -> `Contents (P.Contents.Key.to_hash key, m)
       | `Node key -> `Node (P.Node.Key.to_hash key)
 
+    (* When computing hashes of nodes, we try to use [P.Node.Val.t] as a
+       pre-image if possible so that this intermediate value can be cached
+       within [t.info.value] (in case it is about to be written to the backend).
+
+       This is only possible if all of the child pointers have pre-existing
+       keys, otherwise we must convert to portable nodes as a fallback. *)
     let rec hash : type a. cache:bool -> t -> (hash -> a) -> a =
      fun ~cache t k ->
       match cached_hash t with
@@ -599,24 +661,24 @@ module Make (P : Backend.S) = struct
             if cache then t.info.ptr <- Hash hash;
             k hash
           in
+          let to_a = function
+            | Node x -> a_of_hashable P.Node.Hash.hash x
+            | Pnode x -> a_of_hashable Portable_hash.hash x
+          in
           match cached_value t with
-          | Some v -> a_of_hashable P.Node.Hash.hash v
+          | Some v -> to_a (Node v)
           | None -> (
               match t.v with
               | Pruned h -> k h
               | Key (_, h) -> k (P.Node.Key.to_hash h)
-              | Value (_, v, None) -> a_of_hashable P.Node.Hash.hash v
-              | Value (_, v, Some um) ->
-                  hash_preimage_of_updates ~cache t v um (function
-                    | Node x -> a_of_hashable P.Node.Hash.hash x
-                    | Pnode x -> a_of_hashable Portable_hash.hash x)
-              | Map m ->
-                  hash_preimage_of_map ~cache t m (function
-                    | Node x -> a_of_hashable P.Node.Hash.hash x
-                    | Pnode x -> a_of_hashable Portable_hash.hash x)))
+              | Value (_, v, None) -> to_a (Node v)
+              | Portable (v, None) -> to_a (Pnode v)
+              | Value (_, v, Some um) -> node_of_updates ~cache (Node v) um to_a
+              | Portable (v, Some um) ->
+                  node_of_updates ~cache (Pnode v) um to_a
+              | Map m -> node_of_map ~cache t m to_a))
 
-    and hash_preimage_of_map :
-        type r. cache:bool -> t -> map -> (hash_preimage, r) cont =
+    and node_of_map : type r. cache:bool -> t -> map -> (N.t, r) cont =
      fun ~cache t map k ->
       cnt.node_val_v <- cnt.node_val_v + 1;
       let bindings = StepMap.to_seq map in
@@ -681,10 +743,9 @@ module Make (P : Backend.S) = struct
           | Some key -> k (Node_value (`Node key))
           | None -> hash ~cache n (fun hash -> k (Pnode_value (`Node hash))))
 
-    and hash_preimage_of_updates :
-        type r. cache:bool -> t -> value -> updatemap -> (hash_preimage, r) cont
-        =
-     fun ~cache _t v updates k ->
+    and node_of_updates :
+        type r. cache:bool -> N.t -> updatemap -> (N.t, r) cont =
+     fun ~cache h updates k ->
       let updates = StepMap.bindings updates in
       let rec aux acc = function
         | [] -> k acc
@@ -708,7 +769,7 @@ module Make (P : Backend.S) = struct
             in
             aux acc rest
       in
-      aux (Pnode (P.Node_portable.of_node v)) updates
+      aux h updates
 
     let hash ~cache k = hash ~cache k (fun x -> x)
 
@@ -723,45 +784,46 @@ module Make (P : Backend.S) = struct
               if cache then t.info.value <- some_v;
               Ok v)
 
-    let to_value ~cache t =
+    let to_value_aux ~cache ~value_of_key ~return t =
+      let ok x = return (Ok x) in
       match cached_value t with
       | Some v -> ok v
       | None -> (
           match t.v with
           | Value (_, v, None) -> ok v
           | Key (repo, h) -> value_of_key ~cache t repo h
-          | Pruned h -> pruned_hash_exn "Node.to_value" h
-          | Value (_, _, Some _) | Map _ ->
-              invalid_arg
-                "Tree.Node.to_value: the supplied node has not been written to \
-                 disk. Either export it or convert it to a portable value \
-                 instead.")
+          | Pruned h -> return (err_pruned_hash h)
+          | Portable _ | Value (_, _, Some _) | Map _ ->
+              return err_portable_value)
 
-    let to_portable_value ~cache t =
+    let to_value = to_value_aux ~value_of_key ~return:Lwt.return
+
+    let to_portable_value_aux ~cache ~value_of_key ~return ~bind t =
+      let ok x = return (Ok x) in
+      let aux v = ok (N.to_portable v) in
       match cached_value t with
-      | Some v -> ok (P.Node_portable.of_node v)
+      | Some v -> aux (Node v)
       | None -> (
           match t.v with
-          | Value (_, v, None) -> ok (P.Node_portable.of_node v)
-          | Value (_, v, Some um) ->
-              hash_preimage_of_updates ~cache t v um (function
-                | Node x -> ok (Portable.of_node x)
-                | Pnode x -> ok x)
-          | Map m ->
-              hash_preimage_of_map ~cache t m (function
-                | Node x -> ok (Portable.of_node x)
-                | Pnode x -> ok x)
+          | Value (_, v, None) -> aux (Node v)
+          | Portable (v, None) -> ok v
+          | Value (_, v, Some um) -> node_of_updates ~cache (Node v) um aux
+          | Portable (v, Some um) -> node_of_updates ~cache (Pnode v) um aux
+          | Map m -> node_of_map ~cache t m aux
           | Key (repo, h) ->
-              value_of_key ~cache t repo h
-              |> Lwt_result.map P.Node_portable.of_node
-          | Pruned h -> pruned_hash_exn "Node.to_portable_value" h)
+              bind (value_of_key ~cache t repo h) (function
+                | Ok v -> aux (Node v)
+                | Error _ as e -> return e)
+          | Pruned h -> return (err_pruned_hash h))
+
+    let to_portable_value =
+      to_portable_value_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
 
     let to_map ~cache t =
       match cached_map t with
       | Some m -> ok m
       | None -> (
-          let of_value repo v updates =
-            let m = map_of_value ~cache repo v in
+          let of_map m updates =
             let m =
               match updates with
               | None -> m
@@ -778,14 +840,23 @@ module Make (P : Backend.S) = struct
             if cache then t.info.map <- Some m;
             m
           in
+          let of_value repo v =
+            let m = map_of_value ~cache repo v in
+            of_map m
+          in
+          let of_portable_value v =
+            let m = map_of_portable_value ~cache v in
+            of_map m
+          in
           match t.v with
           | Map m -> ok m
           | Value (repo, v, m) -> ok (of_value repo v m)
+          | Portable (v, m) -> ok (of_portable_value v m)
           | Key (repo, k) -> (
               value_of_key ~cache t repo k >|= function
               | Error _ as e -> e
               | Ok v -> Ok (of_value repo v None))
-          | Pruned h -> pruned_hash_exn "Node.to_map" h)
+          | Pruned h -> Lwt.return (err_pruned_hash h))
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
@@ -839,25 +910,29 @@ module Make (P : Backend.S) = struct
       in
       if any_add then false
       else
-        let val_is_empty = P.Node.Val.is_empty v in
+        let val_is_empty = N.is_empty v in
         if val_is_empty then true
         else
           let remove_count = StepMap.cardinal um in
           if (not val_is_empty) && remove_count = 0 then false
-          else if P.Node.Val.length v > remove_count then false
+          else if N.length v > remove_count then false
           else (
             (* Starting from this point the function is expensive, but there is
                no alternative. *)
             cnt.node_val_list <- cnt.node_val_list + 1;
-            let entries = P.Node.Val.seq ~cache v in
-            Seq.for_all (fun (step, _) -> StepMap.mem step um) entries)
+            let entries = N.steps ~cache v in
+            Seq.for_all (fun step -> StepMap.mem step um) entries)
 
     let length ~cache t =
+      let of_node = function
+        | Node v -> P.Node.Val.length v |> Lwt.return
+        | Pnode v -> P.Node_portable.length v |> Lwt.return
+      in
       match cached_map t with
       | Some m -> StepMap.cardinal m |> Lwt.return
       | None -> (
           match cached_value t with
-          | Some v -> P.Node.Val.length v |> Lwt.return
+          | Some v -> of_node (Node v)
           | None -> (
               match t.v with
               | Map m -> StepMap.cardinal m |> Lwt.return
@@ -865,11 +940,12 @@ module Make (P : Backend.S) = struct
                   value_of_key ~cache t r k
                   >|= get_ok "length"
                   >|= P.Node.Val.length
-              | Value (_, v, None) -> P.Node.Val.length v |> Lwt.return
+              | Value (_, v, None) -> of_node (Node v)
+              | Portable (v, None) -> of_node (Pnode v)
               | Value (_, v, Some u) ->
-                  hash_preimage_of_updates ~cache t v u (function
-                    | Node x -> P.Node.Val.length x |> Lwt.return
-                    | Pnode x -> P.Node_portable.length x |> Lwt.return)
+                  node_of_updates ~cache (Node v) u of_node
+              | Portable (v, Some u) ->
+                  node_of_updates ~cache (Pnode v) u of_node
               | Pruned h -> pruned_hash_exn "length" h))
 
     let is_empty ~cache t =
@@ -880,9 +956,13 @@ module Make (P : Backend.S) = struct
           | Some v -> P.Node.Val.is_empty v
           | None -> (
               match t.v with
-              | Value (_, v, Some um) -> is_empty_after_updates ~cache v um
+              | Value (_, v, Some um) ->
+                  is_empty_after_updates ~cache (Node v) um
               | Key (_, key) -> equal_hash (P.Node.Key.to_hash key) empty_hash
               | Pruned h -> equal_hash h empty_hash
+              | Portable (v, None) -> Portable.is_empty v
+              | Portable (v, Some um) ->
+                  is_empty_after_updates ~cache (Pnode v) um
               | Map _ -> assert false (* [cached_map <> None] *)
               | Value (_, _, None) -> assert false (* [cached_value <> None] *))
           )
@@ -892,7 +972,7 @@ module Make (P : Backend.S) = struct
       | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
       | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
 
-    let findv ~cache ctx t step =
+    let findv_aux ~cache ~value_of_key ~return ~bind ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
         match P.Node.Val.find ~cache v step with
@@ -908,32 +988,54 @@ module Make (P : Backend.S) = struct
             if cache then add_to_findv_cache t step v;
             Some v
       in
+      let of_portable_value v =
+        match Portable.find ~cache v step with
+        | None -> None
+        | Some (`Contents (c, m)) ->
+            let c = Contents.pruned c in
+            let (v : elt) = `Contents (c, m) in
+            if cache then add_to_findv_cache t step v;
+            Some v
+        | Some (`Node n) ->
+            let n = pruned n in
+            let v = `Node n in
+            if cache then add_to_findv_cache t step v;
+            Some v
+      in
       let of_t () =
         match t.v with
-        | Map m -> Lwt.return (of_map m)
-        | Value (repo, v, None) -> Lwt.return (of_value repo v)
+        | Map m -> return (of_map m)
+        | Value (repo, v, None) -> return (of_value repo v)
+        | Portable (v, None) -> return (of_portable_value v)
         | Value (repo, v, Some um) -> (
             match StepMap.find_opt step um with
-            | Some (Add v) -> Lwt.return (Some v)
-            | Some Remove -> Lwt.return None
-            | None -> Lwt.return (of_value repo v))
+            | Some (Add v) -> return (Some v)
+            | Some Remove -> return None
+            | None -> return (of_value repo v))
+        | Portable (v, Some um) -> (
+            match StepMap.find_opt step um with
+            | Some (Add v) -> return (Some v)
+            | Some Remove -> return None
+            | None -> return (of_portable_value v))
         | Key (repo, h) -> (
             match cached_value t with
-            | Some v -> Lwt.return (of_value repo v)
+            | Some v -> return (of_value repo v)
             | None ->
-                let+ v = value_of_key ~cache t repo h >|= get_ok ctx in
-                of_value repo v)
+                bind (value_of_key ~cache t repo h) (fun v ->
+                    let v = get_ok ctx v in
+                    return (of_value repo v)))
         | Pruned h -> pruned_hash_exn "Node.find" h
       in
+
       match cached_map t with
-      | Some m -> Lwt.return (of_map m)
+      | Some m -> return (of_map m)
       | None -> (
           match t.info.findv_cache with
           | None -> of_t ()
           | Some m -> (
-              match of_map m with
-              | None -> of_t ()
-              | Some _ as r -> Lwt.return r))
+              match of_map m with None -> of_t () | Some _ as r -> return r))
+
+    let findv = findv_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
 
     let seq_of_map ?(offset = 0) ?length m : (step * elt) Seq.t =
       let take seq =
@@ -955,6 +1057,20 @@ module Make (P : Backend.S) = struct
               (k, `Contents (c, m)))
         seq
 
+    let seq_of_portable_value ?offset ?length ~cache v : (step * elt) Seq.t =
+      cnt.node_val_list <- cnt.node_val_list + 1;
+      let seq = Portable.seq ?offset ?length ~cache v in
+      Seq.map
+        (fun (k, v) ->
+          match v with
+          | `Node n ->
+              let n = `Node (pruned n) in
+              (k, n)
+          | `Contents (c, m) ->
+              let c = Contents.pruned c in
+              (k, `Contents (c, m)))
+        seq
+
     let seq ?offset ?length ~cache t : (step * elt) Seq.t or_error Lwt.t =
       match cached_map t with
       | Some m -> ok (seq_of_map ?offset ?length m)
@@ -962,6 +1078,8 @@ module Make (P : Backend.S) = struct
           match t.v with
           | Value (repo, n, None) ->
               ok (seq_of_value ?offset ?length ~cache repo n)
+          | Portable (n, None) ->
+              ok (seq_of_portable_value ?offset ?length ~cache n)
           | Key (repo, h) -> (
               value_of_key ~cache t repo h >>= function
               | Error _ as e -> Lwt.return e
@@ -1055,6 +1173,8 @@ module Make (P : Backend.S) = struct
                   (map [@tailcall]) ~path acc d (Some m) k
               | `Undefined, Value (repo, v, updates) ->
                   (value [@tailcall]) ~path acc d (repo, v, updates) k
+              | `Undefined, Portable (v, updates) ->
+                  (portable_value [@tailcall]) ~path acc d (v, updates) k
               | `Undefined, Key (repo, _) ->
                   let* v = to_value ~cache t >|= get_ok "fold" in
                   (value [@tailcall]) ~path acc d (repo, v, None) k
@@ -1132,6 +1252,23 @@ module Make (P : Backend.S) = struct
           | Some updates -> seq_of_updates updates bindings
         in
         seq ~path acc d bindings k
+      and portable_value : type r. (portable * updatemap option, acc, r) folder
+          =
+       fun ~path acc d (v, updates) k ->
+        let to_elt = function
+          | `Node n -> `Node (pruned n)
+          | `Contents (c, m) -> `Contents (Contents.pruned c, m)
+        in
+        let bindings =
+          cnt.node_val_list <- cnt.node_val_list + 1;
+          Portable.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
+        in
+        let bindings =
+          match updates with
+          | None -> bindings
+          | Some updates -> seq_of_updates updates bindings
+        in
+        seq ~path acc d bindings k
       and seq : type r. ((step * elt) Seq.t, acc, r) folder =
        fun ~path acc d bindings k ->
         let* acc = pre path bindings acc in
@@ -1153,10 +1290,16 @@ module Make (P : Backend.S) = struct
         let updates' = StepMap.add step up updates in
         if updates == updates' then t else of_value repo n ~updates:updates'
       in
+      let of_portable_value n updates =
+        let updates' = StepMap.add step up updates in
+        if updates == updates' then t else of_portable_value n ~updates:updates'
+      in
       match t.v with
       | Map m -> Lwt.return (of_map m)
       | Value (repo, n, None) -> Lwt.return (of_value repo n StepMap.empty)
+      | Portable (n, None) -> Lwt.return (of_portable_value n StepMap.empty)
       | Value (repo, n, Some um) -> Lwt.return (of_value repo n um)
+      | Portable (n, Some um) -> Lwt.return (of_portable_value n um)
       | Key (repo, h) -> (
           match (cached_value t, cached_map t) with
           | Some v, _ -> Lwt.return (of_value repo v StepMap.empty)
@@ -1164,7 +1307,7 @@ module Make (P : Backend.S) = struct
           | None, None ->
               let+ v = value_of_key ~cache:true t repo h >|= get_ok "update" in
               of_value repo v StepMap.empty)
-      | Pruned h -> pruned_hash_exn "update" h
+      | Pruned h -> pruned_hash_exn "Node.update" h
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
@@ -1717,6 +1860,7 @@ module Make (P : Backend.S) = struct
           Node.export ?clear repo n key;
           k ()
       | Pruned h -> pruned_hash_exn "export" h
+      | Portable _ -> portable_value_exn "export"
       | _ -> (
           skip n >>= function
           | true -> k ()
@@ -1731,8 +1875,8 @@ module Make (P : Backend.S) = struct
                            | _, Remove -> None)
                   | Map m -> StepMap.to_seq m
                   | Value (_, _, None) -> Seq.empty
-                  | Key _ | Pruned _ ->
-                      (* [n.v = (Key _ | Pruned _)] is excluded above. *)
+                  | Key _ | Pruned _ | Portable _ ->
+                      (* [n.v = (Key _ | Pruned _ | Portable _)] is excluded above. *)
                       assert false
                 in
                 Seq.map (fun (_, x) -> x) seq
@@ -1742,8 +1886,8 @@ module Make (P : Backend.S) = struct
               | Map x, _ -> add_node_map n x k
               | Value (_, v, None), None | _, Some v -> add_node n v k
               | Value (_, v, Some um), _ -> add_updated_node n v um k
-              | (Key _ | Pruned _), _ ->
-                  (* [n.v = (Key _ | Pruned _)] is excluded above. *)
+              | (Key _ | Pruned _ | Portable _), _ ->
+                  (* [n.v = (Key _ | Pruned _ | Portable _)] is excluded above. *)
                   assert false))
     and on_contents :
         type r. [ `Contents of Contents.t * metadata ] -> (unit, r) cont_lwt =
@@ -1820,11 +1964,15 @@ module Make (P : Backend.S) = struct
   let diff_force_result (type a b) ~(empty : b) ~(diff_ok : a * a -> b)
       (x : a or_error) (y : a or_error) : b =
     match (x, y) with
-    | Error (`Dangling_hash h1), Error (`Dangling_hash h2) -> (
+    | Error (`Dangling_hash h1), Error (`Dangling_hash h2)
+    | Error (`Pruned_hash h1), Error (`Dangling_hash h2)
+    | Error (`Dangling_hash h1), Error (`Pruned_hash h2)
+    | Error (`Pruned_hash h1), Error (`Pruned_hash h2) -> (
         match equal_hash h1 h2 with true -> empty | false -> assert false)
     | Error _, Ok _ -> assert false
     | Ok _, Error _ -> assert false
     | Ok x, Ok y -> diff_ok (x, y)
+    | Error _, Error _ -> assert false
 
   let diff_contents x y =
     if Node.contents_equal x y then Lwt.return_nil
@@ -2044,5 +2192,163 @@ module Make (P : Backend.S) = struct
           | Map _ -> `Map
           | Value _ -> `Value
           | Key _ -> `Key
-          | Pruned _ -> `Pruned)
+          | Pruned _ -> `Pruned
+          | Portable _ -> `Portable)
+
+  module Proof = struct
+    type tree = t
+    type node_proof = Node.Portable.proof
+    type t = (P.Hash.t, Path.step, Metadata.t) Proof.t [@@deriving irmin]
+
+    (** The type of tree proofs. *)
+
+    let value_of_key ~cache:_ _node _repo k =
+      Error (`Pruned_hash (Node.hash_of_key k))
+
+    let portable_value_of_node n =
+      Node.to_portable_value_aux ~cache:false ~value_of_key ~return:Fun.id n
+        ~bind:(fun x f -> f x)
+
+    let findv node =
+      Node.findv_aux ~value_of_key ~return:Fun.id
+        ~bind:(fun x f -> f x)
+        ~cache:false "to_proof" node
+
+    let rec of_tree : tree -> t = function
+      | `Contents (c, h) -> Contents (Contents.hash c, h)
+      | `Node node -> of_node node
+
+    and of_node node : t =
+      match portable_value_of_node node with
+      | Error (`Dangling_hash h) -> Blinded h
+      | Error (`Pruned_hash h) -> Blinded h
+      | Ok v -> of_node_proof node (Node.Portable.to_proof v)
+
+    (** [of_node_proof n np] is [p] (of type [Tree.Proof.t]) which is very
+        similar to [np] (of type [P.Node.Val.proof]) except that the values
+        loaded in [n] have been expanded.
+
+        If [np] is of tag [Inode], [of_node_proof] will be called recursively
+        for each of the proofs [np'] in [p.proofs], using [n] again (i.e.
+        [of_node_proof n np']).
+
+        If [np] is of tag [Values], the proofs contained in it will be ignored
+        and instead be recomputed one value at a time, using the tag [Blinded]
+        for the values non-loaded in [n], and some other tag for the values
+        loaded in [n]. *)
+    and of_node_proof node : node_proof -> t = function
+      | Blinded h -> Blinded h
+      | Inode { length; proofs } -> of_inode node length proofs
+      | Values vs -> proof_of_values node vs
+
+    and of_inode node length proofs : t =
+      let proofs =
+        List.map
+          (fun (index, proof) ->
+            let proof = of_node_proof node proof in
+            (index, proof))
+          proofs
+      in
+      Inode { length; proofs }
+
+    and proof_of_values node steps : t =
+      let findv = findv node in
+      List.fold_left
+        (fun acc (step, _) ->
+          match findv step with
+          | None -> assert false
+          | Some t ->
+              let p = of_tree t in
+              (step, p) :: acc)
+        [] steps
+      |> fun steps -> Proof.Node (List.rev steps)
+
+    let proof_steps acc p =
+      let rec aux acc : t -> _ = function
+        | Blinded _ | Contents _ -> acc
+        | Inode { proofs; _ } ->
+            List.fold_left (fun acc (_, p) -> aux acc p) acc proofs
+        | Node vs -> vs @ acc
+      in
+      aux acc p
+
+    let hash_of_node_proof (p : node_proof) =
+      match p with
+      | Blinded h -> h
+      | _ ->
+          let v = Node.Portable.of_proof p in
+          Node.Portable_hash.hash v
+
+    let rec to_tree (p : t) : tree =
+      match p with
+      | Blinded h -> `Node (Node.pruned h)
+      | Contents (c, h) -> `Contents (Contents.pruned c, h)
+      | Node n -> tree_of_proof_steps n
+      | Inode { length; proofs } -> tree_of_inode length proofs
+
+    and tree_of_proof_steps n : tree =
+      let bindings =
+        List.to_seq n
+        |> Seq.map (fun (s, p) ->
+               let n = to_tree p in
+               (s, n))
+        |> StepMap.of_seq
+      in
+      `Node (Node.of_map bindings)
+
+    (** [tree_of_inode] is solely called on the root of an inode tree *)
+    and tree_of_inode len proofs : tree =
+      let elts =
+        (* Recursively blow up the [Inode] level(s) and compute a list of values
+           in the [Node]s found. *)
+        proofs
+        |> List.fold_left (fun acc (_, s) -> proof_steps acc s) []
+        |> List.rev_map (fun (s, p) -> (s, to_tree p))
+      in
+      let n =
+        if List.compare_length_with elts len = 0 then
+          (* We have a complete proof, let's build a tree node directly! *)
+          Node.of_map (StepMap.of_seq (List.to_seq elts))
+        else
+          (* We have a partial proof, build a [node_proof] and then a private
+             node from it. *)
+          let p = List.map (fun (i, p) -> (i, to_node_proof p)) proofs in
+          let p = Irmin_node.Proof.Inode { length = len; proofs = p } in
+          let n = Node.Portable.of_proof p in
+          Node.of_portable_value n
+      in
+      List.iter (fun (s, elt) -> Node.add_to_findv_cache n s elt) elts;
+      `Node n
+
+    and to_node_proof : t -> node_proof = function
+      | Contents (h, _) -> Blinded h
+      | Blinded x -> Blinded x
+      | Inode { length; proofs } -> node_proof_of_inode length proofs
+      | Node n -> node_proof_of_node n
+
+    and node_proof_of_inode length proofs : node_proof =
+      Inode
+        {
+          length;
+          proofs = List.map (fun (i, p) -> (i, to_node_proof p)) proofs;
+        }
+
+    and node_proof_of_node n : node_proof =
+      Values (List.map (fun (s, n) -> (s, node_value_of_proof n)) n)
+
+    and node_value_of_proof : t -> Node.Portable.kinded_hash = function
+      | Contents (c, m) -> `Contents (c, m)
+      | t ->
+          let p = to_node_proof t in
+          let h = hash_of_node_proof p in
+          `Node h
+
+    let of_paths tree paths =
+      (* The following [clear] gets rid of existing backend values stored in
+         [info.value] and [info.findv_cache], but it doesn't clear the ones
+         stored in [v]. *)
+      clear tree;
+      let+ () = Lwt_list.iter_s (fun k -> find_tree tree k >|= ignore) paths in
+      of_tree tree
+  end
 end

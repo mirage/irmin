@@ -17,6 +17,27 @@
 
 open! Import
 
+module Proof = struct
+  type ('hash, 'step, 'value) t =
+    | Blinded of 'hash
+    | Values of ('step * 'value) list
+    | Inode of { length : int; proofs : (int * ('hash, 'step, 'value) t) list }
+
+  (* TODO(craigfe): fix [ppx_irmin] for recursive types with type parameters. *)
+  let t hash_t step_t value_t =
+    let open Type in
+    mu (fun t ->
+        variant "proof" (fun blinded values inode -> function
+          | Blinded x1 -> blinded x1
+          | Values x1 -> values x1
+          | Inode { length; proofs } -> inode (length, proofs))
+        |~ case1 "Blinded" hash_t (fun x1 -> Blinded x1)
+        |~ case1 "Values" [%typ: (step * value) list] (fun x1 -> Values x1)
+        |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
+               Inode { length; proofs })
+        |> sealv)
+end
+
 module type Core = sig
   (** {1 Node values} *)
 
@@ -122,9 +143,9 @@ module type S = sig
   (** @inline *)
   include
     S_generic_key
-      with type hash := hash
-       and type contents_key = hash
+      with type contents_key = hash
        and type node_key = hash
+       and type hash := hash
 end
 
 module type Portable = sig
@@ -133,6 +154,22 @@ module type Portable = sig
   type node
 
   val of_node : node -> t
+
+  (** {1 Proofs} *)
+
+  type kinded_hash = [ `Node of hash | `Contents of hash * metadata ]
+  [@@deriving irmin]
+  (** The type for either (node) hashes or (contents) hashes combined with their
+      metadata. *)
+
+  type proof = (hash, step, kinded_hash) Proof.t [@@deriving irmin]
+  (** The type for proof trees. *)
+
+  val to_proof : t -> proof
+  (** [to_proof n] is the proof of the portable node [n]. *)
+
+  val of_proof : proof -> t
+  (** [of_proof p] is the portable node built from the proof [p]. *)
 end
 
 open struct
@@ -152,9 +189,9 @@ module type Maker_generic_key = functor
     S_generic_key
       with type metadata = Metadata.t
        and type step = Path.step
-       and type hash = Hash.t
        and type contents_key = Contents_key.t
        and type node_key = Node_key.t
+       and type hash = Hash.t
 
   module Portable :
     Portable
@@ -271,6 +308,17 @@ module type Graph = sig
 end
 
 module type Sigs = sig
+  module Proof : sig
+    type ('hash, 'step, 'value) t = ('hash, 'step, 'value) Proof.t =
+      | Blinded of 'hash
+      | Values of ('step * 'value) list
+      | Inode of {
+          length : int;
+          proofs : (int * ('hash, 'step, 'value) t) list;
+        }
+    [@@deriving irmin]
+  end
+
   module type S = S
 
   (** [Make] provides a simple node implementation, parameterized by hash, path
