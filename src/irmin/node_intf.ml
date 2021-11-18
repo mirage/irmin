@@ -129,10 +129,8 @@ module type S_generic_key = sig
     t Merge.t
   (** [merge] is the merge function for nodes. *)
 
-  (** {1 Default values} *)
-
-  val default : metadata
-  (** [default] is the default metadata value. *)
+  module Metadata : Metadata.S with type t = metadata
+  (** Metadata values. *)
 end
 
 module type S = sig

@@ -102,6 +102,8 @@
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
   - Rename `key` type to `path` and `Key` module to `Path` when it is in a path
     context in `Tree` and `Store`. (#1569, @maiste)
+  - Move `Node.default` metadata default values into a `Node.Metadata.default`
+    to give room for other metadata values (#1611, @samoht)
 
   - Add support for non-content-addressed ("generic key") backend stores. This
     allows Irmin to work with backends in which not all values are addressed by

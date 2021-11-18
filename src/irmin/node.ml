@@ -32,6 +32,8 @@ module Make_generic_key
     (Contents_key : Key.S with type hash = Hash.t)
     (Node_key : Key.S with type hash = Hash.t) =
 struct
+  module Metadata = Metadata
+
   type contents_key = Contents_key.t [@@deriving irmin]
   type node_key = Node_key.t [@@deriving irmin]
   type step = Path.step [@@deriving irmin]
@@ -136,7 +138,6 @@ struct
     add_entry t k e
 
   let remove t k = StepMap.remove k t
-  let default = Metadata.default
   let of_entries e = of_list (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
 
@@ -543,6 +544,8 @@ module V1 (N : Generic_key.S with type step = string) = struct
     let t = N.contents_key_t
   end)
 
+  module Metadata = N.Metadata
+
   type step = N.step
   type node_key = Node_key.t [@@deriving irmin]
   type contents_key = Contents_key.t [@@deriving irmin]
@@ -572,7 +575,6 @@ module V1 (N : Generic_key.S with type step = string) = struct
   let is_empty t = t.entries = []
   let length e = N.length e.n
   let clear _ = ()
-  let default = N.default
   let find ?cache t k = N.find ?cache t.n k
 
   let add t k v =
@@ -596,13 +598,13 @@ module V1 (N : Generic_key.S with type step = string) = struct
     in
     Type.(map (string_of `Int64)) of_string to_string
 
-  let is_default = Type.(unstage (equal N.metadata_t)) N.default
+  let is_default = Type.(unstage (equal N.metadata_t)) Metadata.default
 
   let value_t =
     let open Type in
     record "node" (fun contents metadata node ->
         match (contents, metadata, node) with
-        | Some c, None, None -> `Contents (c, N.default)
+        | Some c, None, None -> `Contents (c, Metadata.default)
         | Some c, Some m, None -> `Contents (c, m)
         | None, None, Some n -> `Node n
         | _ -> failwith "invalid node")

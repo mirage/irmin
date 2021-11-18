@@ -42,10 +42,9 @@ struct
     [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
 
     type metadata = Node.metadata [@@deriving irmin ~equal]
-
-    let default = Node.default
-
     type value = Node.value [@@deriving irmin ~equal]
+
+    module Metadata = Node.Metadata
   end
 
   module StepMap = struct
@@ -134,7 +133,7 @@ struct
       | Contents of name * address * metadata
       | Node of name * address
 
-    let is_default = T.(equal_metadata default)
+    let is_default = T.(equal_metadata Metadata.default)
 
     let value_t : value Irmin.Type.t =
       let open Irmin.Type in
@@ -166,25 +165,25 @@ struct
             if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
         | Node (Direct n, Direct h) -> node_dd (n, h))
       |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
-             Contents (Indirect n, Indirect i, T.default))
+             Contents (Indirect n, Indirect i, Metadata.default))
       |~ case1 "contents-x-ii" (triple int int63_t metadata_t) (fun (n, i, m) ->
              Contents (Indirect n, Indirect i, m))
       |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
              Node (Indirect n, Indirect i))
       |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
-             Contents (Indirect n, Direct h, T.default))
+             Contents (Indirect n, Direct h, Metadata.default))
       |~ case1 "contents-x-id" (triple int H.t metadata_t) (fun (n, h, m) ->
              Contents (Indirect n, Direct h, m))
       |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
              Node (Indirect n, Direct h))
       |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
-             Contents (Direct n, Indirect i, T.default))
+             Contents (Direct n, Indirect i, Metadata.default))
       |~ case1 "contents-x-di" (triple step_t int63_t metadata_t)
            (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
       |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
              Node (Direct n, Indirect i))
       |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
-             Contents (Direct n, Direct i, T.default))
+             Contents (Direct n, Direct i, Metadata.default))
       |~ case1 "contents-x-dd" (triple step_t H.t metadata_t) (fun (n, i, m) ->
              Contents (Direct n, Direct i, m))
       |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
@@ -570,7 +569,7 @@ struct
       let to_entry (name, v) =
         match v with
         | `Contents (hash, m) ->
-            if T.equal_metadata m Node.default then
+            if T.equal_metadata m Metadata.default then
               { name; kind = Contents; hash }
             else { name; kind = Contents_x m; hash }
         | `Node hash -> { name; kind = Node; hash }
@@ -578,7 +577,7 @@ struct
       let of_entry e =
         ( e.name,
           match e.kind with
-          | Contents -> `Contents (e.hash, Node.default)
+          | Contents -> `Contents (e.hash, Metadata.default)
           | Contents_x m -> `Contents (e.hash, m)
           | Node -> `Node e.hash )
 
