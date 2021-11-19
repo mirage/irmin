@@ -521,7 +521,7 @@ let revert =
 (* WATCH *)
 
 let run_command (type a b c)
-    (module S : Irmin.S
+    (module S : Irmin.Generic_key.S
       with type Schema.Path.t = a
        and type Schema.Contents.t = b
        and type Schema.Metadata.t = c) diff command proc =
@@ -551,7 +551,7 @@ let run_command (type a b c)
         | Some p -> (
             (* Determine if the subprocess completed succesfully or exited with an error,
                if it was successful then we can restart it, otherwise report the exit code
-               the uder *)
+               the user *)
             let status = p#state in
             match status with
             | Lwt_process.Running -> p
@@ -564,12 +564,14 @@ let run_command (type a b c)
                 exit code)
       in
       (* Write the diff to the subprocess *)
-      Lwt_io.write_line proc#stdin s
+      let* () = Lwt_io.write_line proc#stdin s in
+      Lwt_io.flush proc#stdin
   | [] -> Lwt_list.iter_s simple_output diff
 
 let handle_diff (type a b)
-    (module S : Irmin.S with type Schema.Path.t = a and type commit = b)
-    (path : a) command proc d =
+    (module S : Irmin.Generic_key.S
+      with type Schema.Path.t = a
+       and type commit = b) (path : a) command proc d =
   let view (c, _) =
     let* t = S.of_commit c in
     S.find_tree t path >|= function None -> S.Tree.empty () | Some v -> v
@@ -591,7 +593,7 @@ let handle_diff (type a b)
     S.Tree.diff x y
   in
   run_command
-    (module S : Irmin.S
+    (module S : Irmin.Generic_key.S
       with type Schema.Path.t = S.path
        and type Schema.Contents.t = S.contents
        and type Schema.Metadata.t = S.metadata)
@@ -620,7 +622,7 @@ let watch =
             let* _ =
               S.watch_key t path
                 (handle_diff
-                   (module S : Irmin.S
+                   (module S : Irmin.Generic_key.S
                      with type Schema.Path.t = S.path
                       and type commit = S.commit)
                    path command proc)
