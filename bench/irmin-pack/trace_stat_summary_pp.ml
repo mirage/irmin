@@ -180,6 +180,7 @@ end
 module Table1 = struct
   let rows_of_summaries summaries =
     let cpu_time_elapsed = List.map (fun s -> s.elapsed_cpu) summaries in
+    let wall_time_elapsed = List.map (fun s -> s.elapsed_wall) summaries in
     let add_per_sec =
       List.map
         (fun s ->
@@ -265,6 +266,7 @@ module Table1 = struct
     [
       `Section "-- main metrics --";
       `Data (`SM, "CPU time elapsed", cpu_time_elapsed);
+      `Data (`SM, "Wall time elapsed", wall_time_elapsed);
       `Data (`R3, "TZ-transactions per sec", tx_per_sec);
       `Data (`R3, "TZ-operations per sec", tz_ops_per_sec);
       `Data (`R3, "Context.set per sec", add_per_sec);
