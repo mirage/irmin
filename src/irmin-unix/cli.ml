@@ -789,14 +789,7 @@ let graphql =
          Arg.(value & opt string "localhost" & doc)
        in
        let graphql (S (impl, store, remote_fn)) port addr =
-         let (module S) =
-           match Store.Impl.hash_keyed impl with
-           | Some x -> x
-           | None ->
-               Fmt.failwith
-                 "Unsupported backend: can't start a GraphQL server with a \
-                  store that is not keyed by hashes"
-         in
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let module Server =
               Graphql.Server.Make
