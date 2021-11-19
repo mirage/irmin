@@ -49,6 +49,16 @@ struct
     type step = Node.step
     [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
 
+    let short_hash_step =
+      let pre_hash =
+        Irmin.Type.(unstage (pre_hash_unboxed_primitives step_t))
+      in
+      fun ?seed x ->
+        let seed = match seed with None -> 0 | Some t -> t in
+        let h = ref seed in
+        pre_hash x (fun s -> h := Hashtbl.seeded_hash !h s);
+        !h
+
     type metadata = Node.metadata [@@deriving irmin ~equal]
     type value = Node.value [@@deriving irmin ~equal]
 
@@ -905,7 +915,7 @@ struct
           in
           { v_ref; stable = true; v = t.v }
 
-    let hash_key = Irmin.Type.(unstage (short_hash step_t))
+    let hash_key = short_hash_step
     let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
 
     (** This function shouldn't be called with the [Total] layout. In the

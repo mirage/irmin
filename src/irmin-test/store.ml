@@ -112,12 +112,6 @@ module Make (S : Generic_key) = struct
 
   let get = function None -> Alcotest.fail "get" | Some v -> v
 
-  module H_node = struct
-    include Irmin.Hash.Typed (B.Hash) (B.Node.Val)
-
-    type nonrec t = t [@@deriving irmin ~equal]
-  end
-
   let test_nodes x () =
     let test repo =
       let g = g repo and n = n repo in
