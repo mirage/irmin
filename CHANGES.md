@@ -155,6 +155,7 @@
   - The backend configuration type `Conf.S` requires a new parameter
     `contents_length_header` that (optionally) further specifies the encoding
     format used for commits in order to improve performance. (#1644, @CraigFe)
+  - Adapt to repr#TODO (#1615, @icristescu)
 
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when
