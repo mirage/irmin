@@ -63,39 +63,43 @@ module type CUSTOM_TYPES = sig
   type contents
   type hash
   type branch
+  type commit_key
 
   module Path : CUSTOM_TYPE with type t := path
   module Metadata : CUSTOM_TYPE with type t := metadata
   module Contents : CUSTOM_TYPE with type t := contents
   module Hash : CUSTOM_TYPE with type t := hash
   module Branch : CUSTOM_TYPE with type t := branch
+  module Commit_key : CUSTOM_TYPE with type t := commit_key
 end
 
 (** Default GraphQL types for the Irmin store [S]. *)
-module Default_types (S : Irmin.S) :
+module Default_types (S : Irmin.Generic_key.S) :
   CUSTOM_TYPES
     with type path := S.path
      and type metadata := S.metadata
      and type contents := S.contents
      and type hash := S.hash
      and type branch := S.branch
+     and type commit_key := S.commit_key
 
 (** Create a GraphQL server with default GraphQL types for [S]. *)
 module Make
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type Schema.Info.t = Config.info) :
+    (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info) :
   S with type repo = Store.repo and type server = Server.t
 
 (** Create a GraphQL server with custom GraphQL types. *)
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type Schema.Info.t = Config.info)
+    (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
                with type path := Store.path
                 and type metadata := Store.metadata
                 and type contents := Store.contents
                 and type hash := Store.hash
-                and type branch := Store.branch) :
+                and type branch := Store.branch
+                and type commit_key := Store.commit_key) :
   S with type repo = Store.repo and type server = Server.t

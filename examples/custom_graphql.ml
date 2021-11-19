@@ -41,6 +41,7 @@ module Custom_types = struct
   module Metadata = Defaults.Metadata
   module Hash = Defaults.Hash
   module Branch = Defaults.Branch
+  module Commit_key = Defaults.Commit_key
 
   module Contents = struct
     open Graphql_lwt

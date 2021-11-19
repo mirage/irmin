@@ -72,12 +72,14 @@ module type CUSTOM_TYPES = sig
   type contents
   type hash
   type branch
+  type commit_key
 
   module Path : CUSTOM_TYPE with type t := path
   module Metadata : CUSTOM_TYPE with type t := metadata
   module Contents : CUSTOM_TYPE with type t := contents
   module Hash : CUSTOM_TYPE with type t := hash
   module Branch : CUSTOM_TYPE with type t := branch
+  module Commit_key : CUSTOM_TYPE with type t := commit_key
 end
 
 module Default_type (T : sig
@@ -98,11 +100,11 @@ struct
     Schema.Arg.scalar T.name ~coerce
 end
 
-module Default_types (S : Irmin.S) = struct
+module Default_types (S : Irmin.Generic_key.S) = struct
   module Path = Default_type (struct
     include S.Path
 
-    let name = "Key"
+    let name = "Path"
   end)
 
   module Metadata = Default_type (struct
@@ -128,18 +130,26 @@ module Default_types (S : Irmin.S) = struct
 
     let name = "BranchName"
   end)
+
+  module Commit_key = Default_type (struct
+    type t = S.commit_key
+
+    let t = S.commit_key_t
+    let name = "CommitKey"
+  end)
 end
 
 module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type Schema.Info.t = Config.info)
+    (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info)
     (Types : CUSTOM_TYPES
                with type path := Store.path
                 and type metadata := Store.metadata
                 and type contents := Store.contents
                 and type hash := Store.hash
-                and type branch := Store.branch) =
+                and type branch := Store.branch
+                and type commit_key := Store.commit_key) =
 struct
   module IO = Server.IO
   module Sync = Irmin.Sync.Make (Store)
@@ -155,7 +165,7 @@ struct
     message : string option;
     retries : int option;
     allow_empty : bool option;
-    parents : Store.Hash.t list option;
+    parents : Store.commit_key list option;
   }
 
   let txn_args repo input =
@@ -166,9 +176,7 @@ struct
         let parents =
           match input.parents with
           | Some l ->
-              Lwt_list.filter_map_s
-                (fun hash -> Store.Commit.of_hash repo hash)
-                l
+              Lwt_list.filter_map_s (Store.Commit.of_key repo) l
               >>= Lwt.return_some
           | None -> Lwt.return_none
         in
@@ -209,6 +217,7 @@ struct
     let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
     let key = Types.Path.arg_typ
     let commit_hash = Types.Hash.arg_typ
+    let commit_key = Types.Commit_key.arg_typ
     let branch = Types.Branch.arg_typ
     let value = Types.Contents.arg_typ
     let metadata = Types.Metadata.arg_typ
@@ -222,7 +231,7 @@ struct
               arg "message" ~typ:string;
               arg "retries" ~typ:int;
               arg "allow_empty" ~typ:bool;
-              arg "parents" ~typ:(list (non_null commit_hash));
+              arg "parents" ~typ:(list (non_null commit_key));
             ]
           ~coerce:(fun author message retries allow_empty parents ->
             { author; message; retries; allow_empty; parents }))
@@ -232,7 +241,7 @@ struct
         obj "TreeItem"
           ~fields:
             [
-              arg "key" ~typ:(non_null key);
+              arg "path" ~typ:(non_null key);
               arg "value" ~typ:value;
               arg "metadata" ~typ:metadata;
             ]
@@ -251,15 +260,15 @@ struct
                 ~args:[]
                 ~resolve:(fun _ c -> (Store.Commit.tree c, Store.Path.empty));
               field "parents"
-                ~typ:(non_null (list (non_null Types.Hash.schema_typ)))
+                ~typ:(non_null (list (non_null Types.Commit_key.schema_typ)))
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.parents c);
               field "info"
                 ~typ:(non_null Lazy.(force info))
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.info c);
-              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                ~resolve:(fun _ c -> Store.Commit.hash c);
+              field "hash" ~typ:(non_null Types.Commit_key.schema_typ) ~args:[]
+                ~resolve:(fun _ c -> Store.Commit.key c);
             ]))
 
   and info : ('ctx, info option) Schema.typ Lazy.t =
@@ -280,15 +289,15 @@ struct
       Schema.(
         obj "Tree" ~fields:(fun _ ->
             [
-              field "key" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+              field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, key) -> key);
               io_field "get"
-                ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
+                ~args:Arg.[ arg "path" ~typ:(non_null Input.key) ]
                 ~typ:Types.Contents.schema_typ
                 ~resolve:(fun _ (tree, _) key ->
                   Store.Tree.find tree key >|= Result.ok);
               io_field "get_contents"
-                ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
+                ~args:Arg.[ arg "path" ~typ:(non_null Input.key) ]
                 ~typ:Lazy.(force contents)
                 ~resolve:(fun _ (tree, tree_key) key ->
                   Store.Tree.find_all tree key
@@ -297,7 +306,7 @@ struct
                           (c, m, key'))
                   >|= Result.ok);
               io_field "get_tree"
-                ~args:Arg.[ arg "key" ~typ:(non_null Input.key) ]
+                ~args:Arg.[ arg "path" ~typ:(non_null Input.key) ]
                 ~typ:Lazy.(force tree)
                 ~resolve:(fun _ (tree, tree_key) key ->
                   Store.Tree.find_tree tree key
@@ -359,7 +368,7 @@ struct
                 ~args:
                   Arg.
                     [
-                      arg "key" ~typ:(non_null Input.key);
+                      arg "path" ~typ:(non_null Input.key);
                       arg "depth" ~typ:int;
                       arg "n" ~typ:int;
                     ]
@@ -386,7 +395,7 @@ struct
       Schema.(
         obj "Contents" ~fields:(fun _contents ->
             [
-              field "key" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+              field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
                 ~resolve:(fun _ (_, _, key) -> key);
               field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
                 ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
@@ -487,7 +496,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "value" ~typ:(non_null Input.value);
                 arg "info" ~typ:Input.info;
               ]
@@ -502,7 +511,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "tree" ~typ:(non_null Input.tree);
                 arg "info" ~typ:Input.info;
               ]
@@ -523,7 +532,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "tree" ~typ:(non_null Input.tree);
                 arg "info" ~typ:Input.info;
               ]
@@ -549,7 +558,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "value" ~typ:(non_null Input.value);
                 arg "metadata" ~typ:Input.metadata;
                 arg "info" ~typ:Input.info;
@@ -572,7 +581,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "test" ~typ:Input.value;
                 arg "set" ~typ:Input.value;
                 arg "info" ~typ:Input.info;
@@ -590,8 +599,8 @@ struct
             Arg.
               [
                 arg "branch" ~typ:(non_null Input.branch);
-                arg "test" ~typ:Input.commit_hash;
-                arg "set" ~typ:Input.commit_hash;
+                arg "test" ~typ:Input.commit_key;
+                arg "set" ~typ:Input.commit_key;
               ]
           ~resolve:(fun _ _src branch test set ->
             let branches = Store.Backend.Repo.branch_t s in
@@ -602,7 +611,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key i ->
@@ -616,7 +625,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "value" ~typ:Input.value;
                 arg "old" ~typ:Input.value;
                 arg "info" ~typ:Input.info;
@@ -633,7 +642,7 @@ struct
             Arg.
               [
                 arg "branch" ~typ:Input.branch;
-                arg "key" ~typ:(non_null Input.key);
+                arg "path" ~typ:(non_null Input.key);
                 arg "value" ~typ:Input.tree;
                 arg "old" ~typ:Input.tree;
                 arg "info" ~typ:Input.info;
@@ -733,7 +742,8 @@ struct
     Schema.
       [
         subscription_field "watch" ~typ:(non_null diff)
-          ~args:Arg.[ arg "branch" ~typ:Input.branch; arg "key" ~typ:Input.key ]
+          ~args:
+            Arg.[ arg "branch" ~typ:Input.branch; arg "path" ~typ:Input.key ]
           ~resolve:(fun _ctx branch key ->
             let* t = mk_branch s branch in
             let stream, push = Lwt_stream.create () in
@@ -804,7 +814,7 @@ end
 module Make
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
-    (Store : Irmin.S with type Schema.Info.t = Config.info) =
+    (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info) =
 struct
   module Types = Default_types (Store)
   include Make_ext (Server) (Config) (Store) (Types)

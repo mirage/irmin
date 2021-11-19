@@ -52,8 +52,8 @@ let test_get_contents_list : test_case =
     {|{
   main {
     tree {
-      get_contents(key: "/a/b/c") {
-        key
+      get_contents(path: "/a/b/c") {
+        path
         __typename
       }
     }
@@ -68,7 +68,7 @@ let test_get_contents_list : test_case =
   in
   Alcotest.(check (list (pair string yojson)))
     "Returned entry data is valid"
-    [ ("key", `String "/a/b/c"); ("__typename", `String "Contents") ]
+    [ ("path", `String "/a/b/c"); ("__typename", `String "Contents") ]
     result;
   ()
 
@@ -82,9 +82,9 @@ let test_get_tree_list : test_case =
     {|{
   main {
     tree {
-      get_tree(key: "/a/b/c") {
+      get_tree(path: "/a/b/c") {
         list {
-          key
+          path
           __typename
         }
       }
@@ -94,7 +94,7 @@ let test_get_tree_list : test_case =
   in
   set_tree data >>= fun () ->
   let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
-  let key_data : (string * Yojson.Safe.t) list list =
+  let path_data : (string * Yojson.Safe.t) list list =
     let open Yojson.Safe.Util in
     result
     |> members [ "data"; "main"; "tree"; "get_tree"; "list" ]
@@ -104,10 +104,10 @@ let test_get_tree_list : test_case =
   Alcotest.(check (list (list (pair string yojson))))
     "Returned entry data is valid"
     [
-      [ ("key", `String "/a/b/c/branch"); ("__typename", `String "Tree") ];
-      [ ("key", `String "/a/b/c/leaf"); ("__typename", `String "Contents") ];
+      [ ("path", `String "/a/b/c/branch"); ("__typename", `String "Tree") ];
+      [ ("path", `String "/a/b/c/leaf"); ("__typename", `String "Contents") ];
     ]
-    key_data;
+    path_data;
   ()
 
 let test_get_last_modified : test_case =
@@ -116,9 +116,9 @@ let test_get_last_modified : test_case =
   and query =
     {|{
         main {
-          last_modified(key: "a", n: 1, depth:1) {
+          last_modified(path: "a", n: 1, depth:1) {
             tree {
-              get_contents(key: "a") {
+              get_contents(path: "a") {
                 value,
                 __typename
               }

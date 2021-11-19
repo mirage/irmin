@@ -22,7 +22,7 @@ module Server = struct
   end
 
   module Make_ext
-      (S : Irmin.S) (Remote : sig
+      (S : Irmin.Generic_key.S) (Remote : sig
         val remote : Resolver.Store.remote_fn option
       end)
       (T : Irmin_graphql.Server.CUSTOM_TYPES
@@ -30,7 +30,8 @@ module Server = struct
               and type metadata := S.metadata
               and type contents := S.contents
               and type hash := S.hash
-              and type branch := S.branch) =
+              and type branch := S.branch
+              and type commit_key := S.commit_key) =
     Irmin_graphql.Server.Make_ext
       (Cohttp_lwt_unix.Server)
       (struct
@@ -49,7 +50,7 @@ module Server = struct
       (T)
 
   module Make
-      (S : Irmin.S) (Remote : sig
+      (S : Irmin.Generic_key.S) (Remote : sig
         val remote : Resolver.Store.remote_fn option
       end) =
     Irmin_graphql.Server.Make
