@@ -44,6 +44,21 @@ type contents = Contents.t
 (** {1 Global Configuration} *)
 
 module Store : sig
+  module Impl : sig
+    (** The type of {i implementations} of an Irmin store.
+
+        Stores can be either keyed by hashes or by some other abstract type. In
+        the latter case, the store implementation cannot be used to build HTTP /
+        GraphQL servers using [irmin-unix]. This limitation may be lifted in a
+        future version of [irmin-unix]. *)
+    type 'a t =
+      | Hash_keyed : (module Irmin.S with type t = 'a) -> 'a t
+      | Generic_keyed : (module Irmin.Generic_key.S with type t = 'a) -> 'a t
+
+    val generic_keyed : 'a t -> (module Irmin.Generic_key.S with type t = 'a)
+    val hash_keyed : 'a t -> (module Irmin.S with type t = 'a) option
+  end
+
   type remote_fn =
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
 
@@ -59,7 +74,16 @@ module Store : sig
             backend, a store may require a hash function. *)
 
   val v :
-    ?remote:remote_fn -> Irmin.Backend.Conf.Spec.t -> (module Irmin.S) -> t
+    ?remote:remote_fn ->
+    Irmin.Backend.Conf.Spec.t ->
+    (module Irmin.S with type t = _) ->
+    t
+
+  val v_generic :
+    ?remote:remote_fn ->
+    Irmin.Backend.Conf.Spec.t ->
+    (module Irmin.Generic_key.S with type t = _) ->
+    t
 
   val mem : hash -> contents -> t
   val irf : hash -> contents -> t
@@ -68,10 +92,7 @@ module Store : sig
   val pack : hash -> contents -> t
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
-
-  val destruct :
-    t -> (module Irmin.S) * Irmin.Backend.Conf.Spec.t * remote_fn option
-
+  val spec : t -> Irmin.Backend.Conf.Spec.t
   val term : (string option * hash option * string option) Cmdliner.Term.t
 end
 
@@ -99,10 +120,7 @@ val load_config :
     The values provided for [store], [hash] and [contents] will be used by
     default if no other value is found in the config file *)
 
-type store =
-  | S :
-      (module Irmin.S with type t = 'a) * 'a Lwt.t * Store.remote_fn option
-      -> store
+type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
 
 val store : store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)

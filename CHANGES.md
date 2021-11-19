@@ -147,6 +147,8 @@
     using `Irmin_unix.Resolver.load_config` and make command line options
     take precedence over config options.
     (#1464, #1543, #1607 @zshipko)
+  - `Irmin_unix.Resolver.destruct` has been removed (and partially replaced by
+    `Resolver.spec`). (#1603, @CraigFe)
   - Update `irmin` CLI to support empty path in `list` subcommand.
     (#1575, @maiste)
   - Add new commands to CLI: `branches` for listing available branches and

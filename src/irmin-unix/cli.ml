@@ -20,7 +20,7 @@ open Resolver
 
 let () = Hook.init ()
 
-let info (type a) (module S : Irmin.S with type Schema.Info.t = a)
+let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
     ?(author = "irmin") fmt =
   let module Info = Info.Make (S.Info) in
   Info.v ~author fmt
@@ -114,7 +114,7 @@ let init =
     doc = "Initialize a store.";
     man = [];
     term =
-      (let init (S ((module S), _store, _)) = run Lwt.return_unit in
+      (let init (S (_, _store, _)) = run Lwt.return_unit in
        Term.(mk init $ store));
   }
 
@@ -134,7 +134,15 @@ let http =
          in
          Arg.(value & opt string "http://localhost:8080" & doc)
        in
-       let init (S ((module S), store, _)) uri =
+       let init (S (impl, store, _)) uri =
+         let (module S) =
+           match Store.Impl.hash_keyed impl with
+           | Some x -> x
+           | None ->
+               Fmt.failwith
+                 "Unsupported backend: can't start an HTTP server with a store \
+                  that is not keyed by hashes"
+         in
          run
            (let* t = store in
             let module HTTP = Http.Server (S) in
@@ -189,7 +197,8 @@ let get =
     doc = "Read the value associated with a key.";
     man = [];
     term =
-      (let get (S ((module S), store, _)) path =
+      (let get (S (impl, store, _)) path =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
             S.find t (key S.Path.t path) >>= function
@@ -210,7 +219,8 @@ let list =
     doc = "List subdirectories.";
     man = [];
     term =
-      (let list (S ((module S), store, _)) path_or_empty =
+      (let list (S (impl, store, _)) path_or_empty =
+         let (module S) = Store.Impl.generic_keyed impl in
          let path =
            match path_or_empty with
            | Empty -> S.Path.empty
@@ -238,7 +248,8 @@ let tree =
     doc = "List the store contents.";
     man = [];
     term =
-      (let tree (S ((module S), store, _)) =
+      (let tree (S (impl, store, _)) =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
             let all = ref [] in
@@ -308,7 +319,8 @@ let set =
          let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
          Arg.(required & pos 1 (some string) None & doc)
        in
-       let set (S ((module S), store, _)) author message path v =
+       let set (S (impl, store, _)) author message path v =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let message = match message with Some s -> s | None -> "set" in
             let* t = store in
@@ -326,7 +338,8 @@ let remove =
     doc = "Delete a key.";
     man = [];
     term =
-      (let remove (S ((module S), store, _)) author message path =
+      (let remove (S (impl, store, _)) author message path =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let message =
               match message with Some s -> s | None -> "remove " ^ path
@@ -352,7 +365,8 @@ let clone =
     doc = "Copy a remote respository to a local store";
     man = [];
     term =
-      (let clone (S ((module S), store, f)) remote depth =
+      (let clone (S (impl, store, f)) remote depth =
+         let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
@@ -372,7 +386,8 @@ let fetch =
     doc = "Download objects and refs from another repository.";
     man = [];
     term =
-      (let fetch (S ((module S), store, f)) remote =
+      (let fetch (S (impl, store, f)) remote =
+         let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
@@ -392,7 +407,8 @@ let merge =
     doc = "Merge branches.";
     man = [];
     term =
-      (let merge (S ((module S), store, _)) author message branch =
+      (let merge (S (impl, store, _)) author message branch =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let message = match message with Some s -> s | None -> "merge" in
             let branch =
@@ -423,7 +439,8 @@ let pull =
     doc = "Fetch and merge with another repository.";
     man = [];
     term =
-      (let pull (S ((module S), store, f)) author message remote =
+      (let pull (S (impl, store, f)) author message remote =
+         let (module S) = Store.Impl.generic_keyed impl in
          let message = match message with Some s -> s | None -> "pull" in
          let module Sync = Irmin.Sync.Make (S) in
          run
@@ -445,7 +462,8 @@ let push =
     doc = "Update remote references along with associated objects.";
     man = [];
     term =
-      (let push (S ((module S), store, f)) remote =
+      (let push (S (impl, store, f)) remote =
+         let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run
            (let* t = store in
@@ -463,7 +481,8 @@ let snapshot =
     doc = "Return a snapshot for the current state of the database.";
     man = [];
     term =
-      (let snapshot (S ((module S), store, _)) =
+      (let snapshot (S (impl, store, _)) =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
             let* k = S.Head.get t in
@@ -486,7 +505,8 @@ let revert =
          in
          Arg.(required & pos 0 (some string) None & doc)
        in
-       let revert (S ((module S), store, _)) snapshot =
+       let revert (S (impl, store, _)) snapshot =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
             let hash = commit S.Hash.t snapshot in
@@ -505,7 +525,8 @@ let watch =
     doc = "Get notifications when values change.";
     man = [];
     term =
-      (let watch (S ((module S), store, _)) path =
+      (let watch (S (impl, store, _)) path =
+         let (module S) = Store.Impl.generic_keyed impl in
          let path = key S.Path.t path in
          run
            (let* t = store in
@@ -577,7 +598,8 @@ let dot =
          in
          Arg.(value & flag & doc)
        in
-       let dot (S ((module S), store, _)) basename depth no_dot_call full =
+       let dot (S (impl, store, _)) basename depth no_dot_call full =
+         let (module S) = Store.Impl.generic_keyed impl in
          let module Dot = Irmin.Dot (S) in
          let date d =
            let tm = Unix.localtime (Int64.to_float d) in
@@ -699,7 +721,15 @@ let graphql =
          in
          Arg.(value & opt string "localhost" & doc)
        in
-       let graphql (S ((module S), store, remote_fn)) port addr =
+       let graphql (S (impl, store, remote_fn)) port addr =
+         let (module S) =
+           match Store.Impl.hash_keyed impl with
+           | Some x -> x
+           | None ->
+               Fmt.failwith
+                 "Unsupported backend: can't start a GraphQL server with a \
+                  store that is not keyed by hashes"
+         in
          run
            (let module Server =
               Graphql.Server.Make
@@ -731,7 +761,7 @@ let options =
       (let options (store, hash, contents) =
          let module Conf = Irmin.Backend.Conf in
          let store, _ = Resolver.load_config ?store ?hash ?contents () in
-         let _, spec, _ = Store.destruct store in
+         let spec = Store.spec store in
          Seq.iter
            (fun (Conf.K k) ->
              let name = Conf.name k in
@@ -755,7 +785,8 @@ let branches =
     doc = "List branches";
     man = [];
     term =
-      (let branches (S ((module S), store, _)) =
+      (let branches (S (impl, store, _)) =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
             let+ branches = S.Branch.list (S.repo t) in
@@ -805,7 +836,8 @@ let log =
          let doc = Arg.info ~doc:"Specify pager program to use" [ "pager" ] in
          Arg.(value & opt string "pager" & doc)
        in
-       let commits (S ((module S), store, _)) plain pager =
+       let commits (S (impl, store, _)) plain pager =
+         let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
             let fmt f date =
@@ -814,8 +846,9 @@ let log =
                 (date.tm_year + 1900)
             in
             let repo = S.repo t in
-            let commit formatter hash =
-              let+ commit = S.Commit.of_hash repo hash >|= Option.get in
+            let commit formatter key =
+              let+ commit = S.Commit.of_key repo key >|= Option.get in
+              let hash = S.Backend.Commit.Key.to_hash key in
               let info = S.Commit.info commit in
               let date = S.Info.date info in
               let author = S.Info.author info in
