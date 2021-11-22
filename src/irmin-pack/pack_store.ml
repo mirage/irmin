@@ -182,7 +182,7 @@ module Maker
         Int63.compare
           (Int63.add offset (Int63.of_int length))
           (IO.offset t.pack.block)
-        >= 0
+        > 0
       then false
       else
         (* We read the hash explicitly as an integrity check: it's not
