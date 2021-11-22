@@ -92,7 +92,11 @@ module type Internal = sig
     val to_raw : t -> Raw.t
 
     val save :
-      add:(hash -> Raw.t -> key) -> index:(hash -> key option) -> t -> key
+      add:(hash -> Raw.t -> key) ->
+      index:(hash -> key option) ->
+      mem:(key -> bool) ->
+      t ->
+      key
 
     val hash : t -> hash
     val stable : t -> bool

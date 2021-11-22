@@ -75,7 +75,7 @@ struct
     let add k v =
       P.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t k v
     in
-    Val.save ~add ~index:(P.index_direct t) v
+    Val.save ~add ~index:(P.index_direct t) ~mem:(P.unsafe_mem t) v
 
   let add t v = Lwt.return (save t v)
 

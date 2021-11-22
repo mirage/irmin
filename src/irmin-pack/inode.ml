@@ -1115,7 +1115,7 @@ struct
       in
       stabilize Total t
 
-    let save layout ~add ~index t =
+    let save layout ~add ~index ~mem t =
       let clear =
         (* When set to [true], collect the loaded inodes as soon as they're
            saved.
@@ -1166,15 +1166,14 @@ struct
                   Val_ref.to_hash t.v_ref
                   (* TODO: use [key] here if it exists? *)
                 in
-                match index hash with
-                | None ->
-                    let key = aux ~depth:(depth + 1) t in
-                    (* TODO: remove this? *)
-                    Val_ref.promote_exn t.v_ref key;
-                    key
-                | Some key ->
-                    Val_ref.promote_exn t.v_ref key;
-                    key)
+                let key =
+                  match index hash with
+                  | None -> aux ~depth:(depth + 1) t
+                  | Some key ->
+                      if mem key then key else aux ~depth:(depth + 1) t
+                in
+                Val_ref.promote_exn t.v_ref key;
+                key)
               n.entries;
             let key =
               add (Val_ref.to_hash t.v_ref)
@@ -1451,10 +1450,10 @@ struct
 
     let hash t = apply t { f = (fun _ v -> I.hash v) }
 
-    let save ~add ~index t =
+    let save ~add ~index ~mem t =
       let f layout v =
         I.check_write_op_supported v;
-        I.save layout ~add ~index v
+        I.save layout ~add ~index ~mem v
       in
       apply t { f }
 
@@ -1584,7 +1583,7 @@ struct
     let add k v =
       Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t k v
     in
-    Val.save ~add ~index:(Pack.index_direct t) v
+    Val.save ~add ~index:(Pack.index_direct t) ~mem:(Pack.unsafe_mem t) v
 
   let hash v = Val.hash v
   let add t v = Lwt.return (save t v)
