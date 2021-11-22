@@ -34,12 +34,48 @@ module Unix : S = struct
     version : Version.t;
     buf : Buffer.t;
   }
+  (* [offset] is virt
+     [flushed] is phy
+
+     Invariant: [buf length + flushed = offset + header size] *)
 
   let name t = t.file
 
   let header = function
     | `V1 -> (* offset + version *) Int63.of_int 16
     | `V2 -> (* offset + version + generation *) Int63.of_int 24
+
+  let page_len = Int63.of_int 4096
+  let virt_of_phy t v = v -- header t.version
+  let phy_of_virt t v = v ++ header t.version
+
+  let page_idx_of_offset t virt_off =
+    let phy_off = phy_of_virt t virt_off in
+    Int63.(div phy_off page_len)
+
+  let start_offset_of_page_idx t page_idx =
+    let virt_of_phy = virt_of_phy t in
+    let open Int63 in
+    let open Infix in
+    let phy_off = page_idx * page_len in
+    virt_of_phy phy_off
+
+  let bytes_remaning_in_page_from_offset t virt_off =
+    let phy_off = phy_of_virt t virt_off in
+    let page_idx = page_idx_of_offset t virt_off in
+    let open Int63 in
+    let open Infix in
+    (succ page_idx * page_len) - phy_off
+
+  (** i.e. first offset of the following page, or t.offset *)
+  let end_offset_of_page_idx t page_idx =
+    let virt_of_phy = virt_of_phy t in
+    let virt_maxoff = t.offset in
+    let open Int63 in
+    let open Infix in
+    let virt_endoff = virt_of_phy (succ page_idx * page_len) in
+    if Int63.compare virt_endoff virt_maxoff <= 0 then virt_endoff
+    else virt_maxoff
 
   let unsafe_flush t =
     Log.debug (fun l -> l "IO flush %s" t.file);
@@ -80,10 +116,37 @@ module Unix : S = struct
       let off = header t.version ++ off ++ len in
       off <= t.flushed)
 
+  (* let read_buffer t ~off ~buf ~len =
+   *   let off = header t.version ++ off in
+   *   assert (if not t.readonly then off <= t.flushed else true);
+   *   Raw.unsafe_read t.raw ~off ~len buf *)
+
   let read_buffer t ~off ~buf ~len =
+    let off0 = off in
     let off = header t.version ++ off in
     assert (if not t.readonly then off <= t.flushed else true);
-    Raw.unsafe_read t.raw ~off ~len buf
+    let n = Raw.unsafe_read t.raw ~off ~len buf in
+    let missing = len - n in
+    assert (missing >= 0);
+    if missing = 0 then n
+    else if Buffer.length t.buf < missing then (
+      let off0 = Int63.to_int off0 in
+      let flushed = Int63.to_int t.flushed in
+      let offset = Int63.to_int t.offset in
+      let h = header t.version |> Int63.to_int in
+      Log.err (fun l ->
+          l
+            "FAILED IO.read_buffer \n\
+             | request: off:%#d len:%#d \n\
+             | io status: t.buflen:%#d + t.flushed:%#d = t.offset:%#d + h:%#d \n\
+             | read: n:%#d missing %#d \n\
+             %!"
+            off0 len (Buffer.length t.buf) flushed offset h n missing);
+      n)
+    else
+      let src = Buffer.sub t.buf 0 missing |> Bytes.unsafe_of_string in
+      Bytes.blit src 0 buf n missing;
+      len
 
   let read t ~off buf = read_buffer t ~off ~buf ~len:(Bytes.length buf)
   let offset t = t.offset

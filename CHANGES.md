@@ -1,3 +1,10 @@
+## 2.9.1 (TODO)
+
+### Changed
+
+- **irmin-pack**
+  - Perf improvement under heavy read-only access patterns (#TODO, @Ngoguey42)
+
 ## 2.9.0 (2021-11-15)
 
 ### Fixed
