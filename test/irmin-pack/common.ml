@@ -85,12 +85,12 @@ let contents_hash = Contents.H.hash
 
 module I = Index
 module Index = Irmin_pack.Index.Make (Schema.Hash)
+module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
 module P =
   Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (Schema.Hash)
 
 module Pack = P.Make (Contents)
-module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
 module Branch =
   Irmin_pack.Atomic_write.Make_persistent

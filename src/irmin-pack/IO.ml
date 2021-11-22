@@ -338,7 +338,13 @@ module Cache = struct
       with Not_found ->
         [%log.debug
           "[%s] v fresh=%b readonly=%b" (Filename.basename file) fresh readonly];
-        let t = v extra_args ~fresh ~readonly file in
+        let t =
+          try v extra_args ~fresh ~readonly file
+          with exn ->
+            Printexc.print_backtrace stdout;
+            raise exn
+        in
+        [%log.debug "%s" __LOC__];
         if fresh then clear t;
         Hashtbl.add files (file, readonly) t;
         t

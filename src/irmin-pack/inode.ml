@@ -1291,7 +1291,7 @@ struct
         dict:(int -> string option) ->
         key_of_offset:(int63 -> key) ->
         t Irmin.Type.decode_bin =
-     fun ~dict ~key_of_offset:_ t pos_ref ->
+     fun ~dict ~key_of_offset t pos_ref ->
       let i = decode_compress t pos_ref in
       let step : Compress.name -> T.step = function
         | Direct n -> n
@@ -1304,10 +1304,14 @@ struct
                 | Ok v -> v))
       in
       let key : Compress.address -> T.key = function
-        | Indirect _off ->
-            assert false
-            (* TODO: remove *)
-            (* hash off *)
+        | Indirect off ->
+            (* NOTE: this happens for _existing_ nodes in the store, but we
+               don't create any new [Compress] values with non-direct pointers
+               on disk.
+
+               XXX(craigfe): clean up this comment, and check that it's actually
+               true. *)
+            key_of_offset off
         | Direct n -> n
       in
       let ptr : Compress.ptr -> T.key Bin.ptr =

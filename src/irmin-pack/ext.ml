@@ -32,9 +32,10 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
+    module Key_direct = Pack_key.Make (H)
+    module Key_indexed = Pack_key.Make_indexed (H)
     module Pack = Pack_store.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
-    module XKey = Pack_key.Make (H)
 
     module X = struct
       module Hash = H
@@ -43,16 +44,16 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       [@@deriving irmin]
 
       module Contents = struct
-        module Pack_value = Pack_value.Of_contents (H) (XKey) (C)
+        module Pack_value = Pack_value.Of_contents (H) (Key_direct) (C)
         module CA = Pack.Make (Pack_value)
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
       module Node = struct
-        module Value = Schema.Node (XKey) (XKey)
+        module Value = Schema.Node (Key_direct) (Key_direct)
 
         module CA = struct
-          module Inter = Inode.Make_internal (Config) (H) (XKey) (Value)
+          module Inter = Inode.Make_internal (Config) (H) (Key_direct) (Value)
           include Inode.Make_persistent (H) (Value) (Inter) (Pack)
         end
 
@@ -69,13 +70,15 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
       module Commit = struct
         module Value = struct
-          include Schema.Commit (Node.Key) (XKey)
+          include Schema.Commit (Key_indexed) (Key_indexed)
+          (** NOTE: All objects (both commits and nodes) referenced by commits
+              must be indexed, for backwards compatibility reasons. *)
 
           type hash = Hash.t [@@deriving irmin]
         end
 
         module Pack_value =
-          Pack_value.Of_commit (H) (XKey)
+          Pack_value.Of_commit (H) (Key_indexed)
             (struct
               module Info = Schema.Info
               include Value
@@ -89,7 +92,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
       module Branch = struct
         module Key = B
-        module Val = XKey
+        module Val = Key_indexed
         module AW = Atomic_write.Make_persistent (V) (Key) (Val)
         include Atomic_write.Closeable (AW)
 
@@ -259,7 +262,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           !errors
 
     module Stats = struct
-      let pp_key = Irmin.Type.pp XKey.t
+      let pp_key = Irmin.Type.pp Key_direct.t
 
       let traverse_inodes ~dump_blob_paths_to commit repo =
         let module Stats = Checks.Stats (struct
@@ -280,10 +283,10 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
               let () =
                 preds
                 |> List.map (function
-                     | s, `Contents h -> (s, `Contents (XKey.to_hash h))
-                     | s, `Inode h -> (s, `Inode (XKey.to_hash h))
-                     | s, `Node h -> (s, `Node (XKey.to_hash h)))
-                |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
+                     | s, `Contents h -> (s, `Contents (Key_direct.to_hash h))
+                     | s, `Inode h -> (s, `Inode (Key_direct.to_hash h))
+                     | s, `Node h -> (s, `Node (Key_direct.to_hash h)))
+                |> Stats.visit_node t (Key_direct.to_hash k) ~width ~nb_children
               in
               List.rev_map
                 (function
@@ -300,11 +303,11 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           | None -> []
           | Some c ->
               let node = X.Commit.Val.node c in
-              Stats.visit_commit t (XKey.to_hash node);
+              Stats.visit_commit t (Key_direct.to_hash node);
               [ `Node node ]
         in
         let pred_contents _repo k =
-          Stats.visit_contents t (XKey.to_hash k);
+          Stats.visit_contents t (Key_direct.to_hash k);
           Lwt.return []
         in
         (* We want to discover all paths to a node, so we don't cache nodes

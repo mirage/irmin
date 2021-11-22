@@ -97,6 +97,8 @@ struct
         let key_encoded_size = read_length32 ~file_pos t.block in
         let buf_size = key_encoded_size + value_encoded_size in
         let buf =
+          Fmt.epr "Encoded value size: %d@." value_encoded_size;
+          Fmt.epr "Bytes.create %d@." buf_size;
           let buf = Bytes.create buf_size in
           let n = IO.read t.block ~off:!file_pos buf in
           assert (n = buf_size);

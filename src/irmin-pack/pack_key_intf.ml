@@ -10,9 +10,17 @@ module type S = sig
 end
 
 module type Sigs = sig
-  type 'h t [@@deriving irmin]
+  type kind = Direct | Indexed
 
+  type[@ocamlformat "disable"] 'hash t = private
+    | Direct             of { hash : 'hash; offset : int63; length : int }
+    | Direct_blindfolded of { hash : 'hash; offset : int63 }
+    | Indexed            of 'hash
+  [@@deriving irmin]
+
+  val t : kind -> 'hash Irmin.Type.t -> 'hash t Irmin.Type.t
   val v : hash:'h -> offset:int63 -> length:int -> 'h t
+  val v_blindfolded : hash:'h -> offset:int63 -> 'h t
 
   module type S = sig
     type hash
@@ -22,6 +30,7 @@ module type Sigs = sig
   end
 
   module Make (Hash : Irmin.Hash.S) : S with type hash = Hash.t
+  module Make_indexed (Hash : Irmin.Hash.S) : S with type hash = Hash.t
 
   module type Store_spec = sig
     type ('h, _) contents_key = 'h t

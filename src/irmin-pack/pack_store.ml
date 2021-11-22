@@ -221,7 +221,7 @@ module Maker
           off len;
       let key_of_offset off =
         let hash = io_read_and_decode_hash ~off t in
-        Pack_key.v ~hash ~offset:off ~length:len
+        Pack_key.v_blindfolded ~hash ~offset:off
       in
       let dict = Dict.find t.pack.dict in
       Val.decode_bin ~key_of_offset ~dict (Bytes.unsafe_to_string buf) (ref 0)
@@ -231,27 +231,44 @@ module Maker
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
-    let unsafe_find ~check_integrity t k =
+    let unsafe_find ~check_integrity t (k : _ Pack_key.t) =
       [%log.debug "[pack:%a] find %a" pp_io t pp_key k];
       Stats.incr_finds ();
       let hash = Key.to_hash k in
       match Tbl.find t.staging hash with
       | v ->
+          [%log.debug "found in table"];
           Lru.add t.lru hash v;
           Some v
       | exception Not_found -> (
+          [%log.debug "not found in table"];
           match Lru.find t.lru hash with
           | v -> Some v
           | exception Not_found ->
+              [%log.debug "not found in LRU"];
               Stats.incr_cache_misses ();
-              let off, len = Key.(to_offset k, to_length k) in
-              if Int63.add off (Int63.of_int len) > IO.offset t.pack.block then
+              let off, len =
+                match k with
+                | Direct k -> (k.offset, k.length)
+                | Direct_blindfolded { hash; _ } | Indexed hash -> (
+                    [%log.debug "indexed key"];
+                    match index_direct t hash with
+                    | Some (Direct t) -> (t.offset, t.length)
+                    | Some (Direct_blindfolded _ | Indexed _) -> assert false
+                    | None -> assert false)
+              in
+              let io_offset = IO.offset t.pack.block in
+              if Int63.add off (Int63.of_int len) > io_offset then (
                 (* This key is from a different store instance, referencing an
                    offset that is not yet visible to this one. It's possible
                    that the key _is_ a valid pointer into the same store, but
                    the offset just hasn't been flushed to disk yet, so we return
                    [None]. *)
-                None
+                [%log.debug
+                  "Direct store key references an unknown starting offset %a \
+                   (length = %d, IO offset = %a)."
+                  Int63.pp off len Int63.pp io_offset];
+                None)
               else
                 let v = io_read_and_decode ~off ~len t in
                 Lru.add t.lru hash v;
