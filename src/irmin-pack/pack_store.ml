@@ -214,6 +214,17 @@ module Maker
     let check_key k v = check_hash (Key.to_hash k) v
 
     let io_read_and_decode ~off ~len t =
+      let () =
+        if not (IO.readonly t.pack.block) then
+          let io_offset = IO.offset t.pack.block in
+          if off > io_offset then
+            (* This is likely a store corruption. We raise [Invalid_read]
+               specifically so that [integrity_check] below can handle it. *)
+            invalid_read
+              "Got request to read %d bytes (at offset %a), but max IO offset \
+               is %a"
+              len Int63.pp off Int63.pp io_offset
+      in
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
       if n <> len then
