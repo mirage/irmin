@@ -65,7 +65,8 @@ end
 
 let suite_pack =
   let store = (module Irmin_pack_store : Irmin_test.Generic_key) in
-  let layered_store =
+  let _layered_store =
+    (* TODO: re-add once the layered store is suppored by Irmin_pack. *)
     (module Irmin_pack_layered_store : Irmin_test.Layered_store_generic_key)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
@@ -79,7 +80,7 @@ let suite_pack =
   in
   Irmin_test.Suite.create_generic_key ~clear_supported:false
     ~import_supported:false ~name:"PACK" ~init ~store ~config ~clean
-    ~layered_store:(Some layered_store) ()
+    ~layered_store:None ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)
@@ -95,8 +96,8 @@ end
 let suite_mem =
   let store = (module Irmin_pack_mem_maker : Irmin_test.Generic_key) in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
-  Irmin_test.Suite.create_generic_key ~name:"PACK MEM" ~store ~config
-    ~layered_store:None ()
+  Irmin_test.Suite.create_generic_key ~import_supported:false ~name:"PACK MEM"
+    ~store ~config ~layered_store:None ()
 
 let suite = [ suite_pack; suite_mem ]
 
@@ -703,7 +704,8 @@ let misc =
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
     ("existing stores", Test_existing_stores.tests);
-    ("layers", Layered.tests);
+    (* NOTE: temporarily disabled as [clear] is no longer supported by [irmin-pack]. *)
+    (* ("layers", Layered.tests); *)
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);
   ]
