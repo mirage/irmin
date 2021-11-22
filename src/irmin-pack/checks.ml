@@ -455,8 +455,7 @@ module Index (Index : Pack_index.S) = struct
         with Cannot_fix -> Error (`Cannot_fix "Not implemented")
       else (
         Index.iter
-          (fun k ((_, _, kind) as v) ->
-            [%log.debug "Kind: %a" Pack_value.Kind.pp kind];
+          (fun k v ->
             match f (k, v) with
             | Ok () -> ()
             | Error `Wrong_hash -> incr nb_corrupted

@@ -1623,7 +1623,6 @@ module Make_persistent
     (H : Irmin.Hash.S)
     (Node : Irmin.Node.Generic_key.S
               with type hash = H.t
-              (* TODO: do we need these key oconstraints *)
                and type contents_key = H.t Pack_key.t
                and type node_key = H.t Pack_key.t)
     (Inter : Internal

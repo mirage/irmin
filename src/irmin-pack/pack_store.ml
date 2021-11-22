@@ -108,7 +108,7 @@ module Maker
     type value = Val.t [@@deriving irmin ~pp]
 
     let index_direct t hash =
-      Log.err (fun f -> f "Index");
+      [%log.debug "index %a" pp_hash hash];
       match Index.find t.pack.index hash with
       | None -> None
       | Some (offset, length, _) -> Some (Pack_key.v ~hash ~offset ~length)
