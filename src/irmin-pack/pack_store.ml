@@ -310,6 +310,7 @@ module Maker
         [%log.debug "[pack] append %a" pp_hash hash];
         let offset_of_key k =
           (* XXX: don't need option any more? *)
+          Stats.incr_appended_offsets ();
           Some (Key.to_offset k)
           (* match Index.find t.pack.index k with
            * | None ->
