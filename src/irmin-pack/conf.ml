@@ -90,7 +90,8 @@ let indexing_strategy config = get config Key.indexing_strategy
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
-    ?(freeze_throttle = Default.freeze_throttle) root =
+    ?(freeze_throttle = Default.freeze_throttle)
+    ?(indexing_strategy = Default.indexing_strategy) root =
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.fresh fresh in
@@ -99,4 +100,5 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config = add config Key.readonly readonly in
   let config = add config Key.merge_throttle merge_throttle in
   let config = add config Key.freeze_throttle freeze_throttle in
+  let config = add config Key.indexing_strategy indexing_strategy in
   verify config
