@@ -324,7 +324,9 @@ module Maker
         Log.debug (fun l -> l "[pack] append %a" pp_hash k);
         let offset k =
           match Lru.find t.offset_lru k with
-          | off -> Some off
+          | off ->
+              Stats.incr_appended_offsets ();
+              Some off
           | exception Not_found -> (
               match Index.find t.pack.index k with
               | None ->
