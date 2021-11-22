@@ -3,7 +3,7 @@
 ### Changed
 
 - **irmin-pack**
-  - Perf improvement under heavy read-only access patterns (#TODO, @Ngoguey42)
+  - Perf improvement under heavy read-only access patterns (#1619, @Ngoguey42)
 
 ## 2.9.0 (2021-11-15)
 
