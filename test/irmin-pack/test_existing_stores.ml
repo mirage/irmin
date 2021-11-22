@@ -444,9 +444,9 @@ module Test_corrupted_inode = struct
     let module S = V1 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let get_head c =
-      match Irmin.Type.of_string S.commit_key_t c with
+      match Irmin.Type.of_string S.hash_t c with
       | Ok x -> (
-          let* commit = S.Commit.of_key rw x in
+          let* commit = S.Commit.of_hash rw x in
           match commit with
           | None -> Alcotest.fail "could not find commit in store"
           | Some x -> Lwt.return [ x ])
