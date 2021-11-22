@@ -61,7 +61,7 @@ let t (type hash) (kind : kind) (hash_t : hash Irmin.Type.t) =
         ( Direct { hash; offset; length = _ }
         | Direct_blindfolded { hash; offset } ) ) ->
         Hash.encode_bin hash f;
-        let buf = Bytes.create (8 + 4) in
+        let buf = Bytes.create 8 in
         Bytes.set_int64_be buf 0 (Int63.to_int64 offset);
         f (Bytes.unsafe_to_string buf)
     | Indexed, Indexed t -> Hash.encode_bin t f
