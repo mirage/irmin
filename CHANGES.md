@@ -32,7 +32,7 @@
       - Introduce a new actions trace that can support replaying up to ~1300k
         commits. (#1358, @Ngoguey42)
       - Improve the stats collection and stats report (#1367, #1384, #1403,
-        #1404, #1416, #1429, #1438, #1501, @Ngoguey42)
+        #1404, #1416, #1429, #1438, #1501, #1616, @Ngoguey42, @maiste)
       - Enable replay in CI (#1430, @Ngoguey42)
       - Enable replay in CB (#1441, @Ngoguey42)
 

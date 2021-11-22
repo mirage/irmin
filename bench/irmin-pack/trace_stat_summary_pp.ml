@@ -51,13 +51,18 @@ module Pb = struct
       | ([ _ ] | []) as l -> l
       | hd :: tl -> hd :: sep :: interleave sep tl
     in
-    List.map (interleave (PrintBox.text " | "))
+    List.map (fun l ->
+        PrintBox.text " | " :: interleave (PrintBox.text " | ") l)
 end
 
 let fprintf_result ppf =
   Format.fprintf ppf
-    {|-- setups --
+    {|<details>
+<summary> Setups </summary>
+
 %s
+</details>
+
 
 %s
 
@@ -155,8 +160,10 @@ module Table0 = struct
             | `V0 -> "v0"))
 
   let box_of_summaries_config summary_names (summaries : summary list) =
-    let row0 =
-      if List.length summary_names = 1 then [] else [ "" :: summary_names ]
+    let summary_name_length = List.length summary_names in
+    let row0 = [ "" :: summary_names ] in
+    let separator_row =
+      [ List.init (summary_name_length + 1) (Fun.const "--") ]
     in
     let rows =
       List.map
@@ -166,13 +173,14 @@ module Table0 = struct
           n :: l)
         summary_config_entries
     in
-    row0 @ rows |> Pb.matrix_to_text
+    row0 @ separator_row @ rows |> Pb.matrix_to_text
 end
 
 (** Highlights *)
 module Table1 = struct
   let rows_of_summaries summaries =
     let cpu_time_elapsed = List.map (fun s -> s.elapsed_cpu) summaries in
+    let wall_time_elapsed = List.map (fun s -> s.elapsed_wall) summaries in
     let add_per_sec =
       List.map
         (fun s ->
@@ -258,6 +266,7 @@ module Table1 = struct
     [
       `Section "-- main metrics --";
       `Data (`SM, "CPU time elapsed", cpu_time_elapsed);
+      `Data (`SM, "Wall time elapsed", wall_time_elapsed);
       `Data (`R3, "TZ-transactions per sec", tx_per_sec);
       `Data (`R3, "TZ-operations per sec", tz_ops_per_sec);
       `Data (`R3, "Context.set per sec", add_per_sec);
@@ -1006,17 +1015,19 @@ let unsafe_pp sample_count ppf summary_names (summaries : Summary.t list) =
     |> PrintBox_text.to_string
   in
   let table1 =
-    let only_one_summary = List.length summaries = 1 in
+    let summary_length = List.length summaries in
     let header_rows =
-      (if only_one_summary then [] else [ "" :: summary_names ])
-      |> Pb.matrix_to_text
-      |> Pb.align_matrix `Center
+      [ "" :: summary_names ] |> Pb.matrix_to_text |> Pb.align_matrix `Center
     in
-    let col_count = List.length summaries + 1 in
+    let col_count = summary_length + 1 in
+    let separator =
+      ([ List.init (summary_length + 1) (Fun.const "--") ] : string list list)
+    in
+    let separator_row = Pb.matrix_to_text separator in
     let body_rows =
       Table1.rows_of_summaries summaries |> Table1.matrix_of_rows col_count
     in
-    header_rows @ body_rows
+    header_rows @ separator_row @ body_rows
     |> Pb.matrix_with_column_spacers
     |> Pb.grid_l ~bars:false
     |> PrintBox_text.to_string
