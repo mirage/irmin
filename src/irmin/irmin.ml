@@ -21,6 +21,7 @@ module Content_addressable = Store.Content_addressable
 module Contents = Contents
 module Merge = Merge
 module Branch = Branch
+module Proof = Proof
 module Info = Info
 module Dot = Dot.Make
 module Hash = Hash

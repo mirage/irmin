@@ -130,6 +130,7 @@ module Contents = Contents
     {{!Contents.Json} JSON} contents are provided. *)
 
 module Branch = Branch
+module Proof = Proof
 
 type remote = S.remote = ..
 (** The type for remote stores. *)

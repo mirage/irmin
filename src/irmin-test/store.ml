@@ -16,6 +16,7 @@
 
 open! Import
 open Common
+module Stream = Irmin.Proof.Stream
 
 let src = Logs.Src.create "test" ~doc:"Irmin tests"
 
@@ -1312,6 +1313,121 @@ module Make (S : S) = struct
         let+ t0' = S.Tree.list t0 [ "dir" ] in
         check_ls "proof tree list /dir" c0' t0'
       in
+
+      (* Testing Merkle traces *)
+      let test tree keys =
+        let root_hash =
+          let h = S.Tree.hash tree in
+          match S.Tree.destruct tree with
+          | `Node _ -> `Node h
+          | `Contents (_, m) -> `Contents (h, m)
+        in
+        let s = S.Tree.Proof.produce tree keys in
+        let tree' = S.Tree.Proof.consume s ~root_hash keys in
+        let pp_tree = Irmin.Type.pp S.tree_t in
+        let msg =
+          Fmt.str "convert traces %a %a" pp_tree tree
+            Fmt.(Dump.list pp_key)
+            keys
+        in
+        check S.tree_t msg tree tree'
+      in
+      test S.Tree.empty [];
+      test S.Tree.empty [ [ "a" ] ];
+      let check_stream = check S.Tree.Proof.stream_t in
+      let to_stream = S.Tree.Proof.produce in
+
+      (* empty tree *)
+      let t0 = S.Tree.empty in
+      let empty = Stream.Empty in
+      let ( ! ) = List.to_seq in
+      check_stream "empty: niet" (List.to_seq []) (to_stream t0 []);
+      check_stream "empty: non-existing path"
+        ![ empty ]
+        (to_stream t0 [ [ "a" ] ]);
+      check_stream "empty: non-existing deep path"
+        ![ empty ]
+        (to_stream t0 [ [ "a"; "b" ] ]);
+      check_stream "emtpy: twice"
+        ![ empty; empty ]
+        (to_stream t0 [ [ "a" ]; [ "b" ] ]);
+
+      (* contents tree *)
+      let t1 = S.Tree.of_contents "foo" in
+      let s1 = Stream.Contents (S.Tree.hash t1, S.Metadata.default) in
+      check_stream "contents: niet" ![] (to_stream t1 []);
+      check_stream "contents: non-existing path"
+        ![ empty ]
+        (to_stream t1 [ [ "a" ] ]);
+      check_stream "contents: root" (List.to_seq [ s1 ]) (to_stream t1 [ [] ]);
+      check_stream "contents: non-existing path and root"
+        ![ empty; s1 ]
+        (to_stream t1 [ [ "foo" ]; [] ]);
+      check_stream "contents: no duplicate" ![ s1 ] (to_stream t1 [ []; [] ]);
+
+      (* node tree *)
+      let* t2 =
+        Lwt.return S.Tree.empty
+        >>= with_binding [ "foo"; "a" ] "1"
+        >>= with_binding [ "foo"; "b"; "c" ] "2"
+        >>= with_binding [ "bar"; "d" ] "3"
+        >>= with_binding [ "e" ] "4"
+      in
+      let* foo = S.Tree.get_tree t2 [ "foo" ] in
+      let* bar = S.Tree.get_tree t2 [ "bar" ] in
+      let* a = S.Tree.get_tree t2 [ "foo"; "a" ] in
+      let* b = S.Tree.get_tree t2 [ "foo"; "b" ] in
+      let* c = S.Tree.get_tree t2 [ "foo"; "b"; "c" ] in
+      let* e = S.Tree.get_tree t2 [ "e" ] in
+      let root =
+        Stream.Node
+          [
+            ("bar", `Node (S.Tree.hash bar));
+            ("e", `Contents (S.Tree.hash e, S.Metadata.default));
+            ("foo", `Node (S.Tree.hash foo));
+          ]
+      in
+      let stream_of_contents c =
+        Stream.Contents (S.Tree.hash c, S.Metadata.default)
+      in
+      let stream_of_node n =
+        let n =
+          List.map
+            (fun (s, n) ->
+              match n with
+              | `Contents h -> (s, `Contents (S.Tree.hash h, S.Metadata.default))
+              | `Node n -> (s, `Node (S.Tree.hash n)))
+            n
+        in
+        Stream.Node n
+      in
+      check_stream "node: niet" ![] (to_stream t2 []);
+      check_stream "node: non-existing path"
+        ![ empty ]
+        (to_stream t2 [ [ "a" ] ]);
+      check_stream "node: root" ![ root ] (to_stream t2 [ [] ]);
+      check_stream "node: get contents"
+        ![ root; stream_of_contents e ]
+        (to_stream t2 [ [ "e" ] ]);
+      check_stream "node: get non-existing sub-tree"
+        ![ root; empty ]
+        (to_stream t2 [ [ "e"; "f" ] ]);
+      check_stream "node: get tree"
+        ![ root; stream_of_node [ ("a", `Contents a); ("b", `Node b) ] ]
+        (to_stream t2 [ [ "foo" ] ]);
+      check_stream "node: get subtree + root + non-existing-path"
+        ![
+           root;
+           stream_of_node [ ("a", `Contents a); ("b", `Node b) ];
+           stream_of_node [ ("c", `Contents c) ];
+           empty;
+         ]
+        (to_stream t2 [ [ "foo"; "b" ]; []; [ "z" ] ]);
+
+      (* more node trees *)
+      test t2 [ [ "foo" ]; [ "bar"; "d"; "x" ] ];
+      test t2 [ [ "foo" ]; [ "bar" ] ];
+      test t2 [ [ "foo"; "a"; "1" ]; [ "bar"; "d" ] ];
 
       (* Testing other tree operations. *)
       S.Tree.empty |> fun v0 ->

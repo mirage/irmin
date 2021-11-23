@@ -16,6 +16,7 @@
 
 open! Import
 include Inode_intf
+module Stream = Irmin.Proof.Stream
 
 module Make_internal
     (Conf : Conf.S)
@@ -959,13 +960,13 @@ struct
       | None -> stabilize layout t
       | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
-    let of_seq l =
+    let of_seq la l =
       let t =
         let rec aux_big seq inode =
           match seq () with
           | Seq.Nil -> inode
           | Seq.Cons ((s, v), rest) ->
-              aux_big rest (add Total ~copy:false inode s v)
+              aux_big rest (add la ~copy:false inode s v)
         in
         let len =
           (* [StepMap.cardinal] is (a bit) expensive to compute, let's track the
@@ -976,7 +977,7 @@ struct
           match seq () with
           | Seq.Nil ->
               assert (!len <= Conf.entries);
-              values Total map
+              values la map
           | Seq.Cons ((s, v), rest) ->
               let map =
                 StepMap.update s
@@ -987,12 +988,12 @@ struct
                     | Some _ -> Some v)
                   map
               in
-              if !len = Conf.entries then aux_big rest (values Total map)
+              if !len = Conf.entries then aux_big rest (values la map)
               else aux_small rest map
         in
         aux_small l StepMap.empty
       in
-      stabilize Total t
+      stabilize la t
 
     let save layout ~add ~mem t =
       let clear =
@@ -1078,6 +1079,8 @@ struct
     type proof = (hash, step, value) Irmin.Private.Node.Proof.t
     [@@deriving irmin]
 
+    type stream = (hash, step, metadata) Stream.t [@@deriving irmin]
+
     module Proof = struct
       let rec proof_of_concrete h : Concrete.t -> proof = function
         | Blinded -> Blinded (Lazy.force h)
@@ -1149,6 +1152,34 @@ struct
 
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof 0
+
+      (** Streams *)
+
+      let bad_stream_exn s = Irmin.Proof.bad_stream_exn ("Irmin_pack.Inode." ^ s)
+
+      let to_stream la t : stream =
+        let s =
+          if t.stable then
+            (* To preserve the stable hash, the proof needs to contain
+               a  ll the underlying values. *)
+            let bindings =
+              seq la t
+              |> List.of_seq
+              |> List.fast_sort (fun (x, _) (y, _) -> compare x y)
+            in
+            Seq.singleton (Stream.Node bindings)
+          else failwith "TODO: Irmin_pack.Inode.to_stream"
+        in
+        s
+
+      let of_stream (s : stream) =
+        match s () with
+        | Seq.Nil -> bad_stream_exn "of_stream/1"
+        | Seq.Cons (Empty, str) -> (None, str)
+        | Seq.Cons (Node bindings, str) ->
+            let n = of_seq Truncated (List.to_seq bindings) in
+            (Some n, str)
+        | _ -> failwith "TODO: Irmin_pack.Inode.of_stream"
     end
   end
 
@@ -1291,7 +1322,7 @@ struct
           if v == v' then t else Truncated v'
 
     let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let of_seq l = Total (I.of_seq l)
+    let of_seq l = Total (I.of_seq Total l)
     let of_list l = of_seq (List.to_seq l)
 
     let seq ?offset ?length ?cache t =
@@ -1390,6 +1421,15 @@ struct
       apply t { f = (fun la v -> I.Proof.to_proof la v) }
 
     let of_proof (p : proof) = Truncated (I.Proof.of_proof p)
+
+    type stream = I.stream [@@deriving irmin]
+
+    let to_stream (t : t) : stream =
+      apply t { f = (fun la v -> I.Proof.to_stream la v) }
+
+    let of_stream (s : stream) =
+      let v, str = I.Proof.of_stream s in
+      match v with None -> (None, str) | Some v -> (Some (Truncated v), str)
   end
 end
 

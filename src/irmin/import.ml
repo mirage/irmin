@@ -107,6 +107,9 @@ module Seq = struct
     match seq1 () with
     | Nil -> seq2 ()
     | Cons (x, next) -> Cons (x, append next seq2)
+
+  let singleton x = Seq.cons x Seq.empty
+  let snoc c x = append c (singleton x)
 end
 
 let shuffle state arr =

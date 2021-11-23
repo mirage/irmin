@@ -20,6 +20,7 @@ open S
 
 let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Node." ^ c)
 
+module Irmin_proof = Proof
 include Node_intf
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
@@ -143,6 +144,31 @@ struct
     | Values e ->
         let e = List.map to_entry e in
         of_entries e
+
+  type stream = (hash, step, metadata) Proof.Stream.t [@@deriving irmin]
+  type stream_elt = (hash, step, metadata) Proof.Stream.elt [@@deriving irmin]
+
+  let bad_stream_exn c = Irmin_proof.bad_proof_exn ("Irmin.Node." ^ c)
+
+  let to_stream (t : t) : stream =
+    (* FIXME(samoht): node entries are sorted in reverse order so we
+       preserve this here. This is fragile. *)
+    let e = List.rev_map of_entry (entries t) in
+    Seq.singleton (Proof.Stream.Node e)
+
+  let consume (s : stream_elt) : t option =
+    match s with
+    | Contents _ | Inode _ -> bad_stream_exn "consume"
+    | Empty -> None
+    | Node e ->
+        let e = List.map to_entry e in
+        let t = of_entries e in
+        Some t
+
+  let of_stream (s : stream) : t option * stream =
+    match s () with
+    | Seq.Nil -> Irmin_proof.end_of_stream_exn ()
+    | Seq.Cons (el, t) -> (consume el, t)
 end
 
 module Store
@@ -415,11 +441,17 @@ module V1 (N : S with type step = string) = struct
   type value = N.value
   type t = { n : N.t; entries : (step * value) list }
   type proof = N.proof [@@deriving irmin]
+  type stream = N.stream [@@deriving irmin]
 
   let import n = { n; entries = N.list n }
   let export t = t.n
   let to_proof t = N.to_proof t.n
   let of_proof p = import (N.of_proof p)
+  let to_stream t = N.to_stream (export t)
+
+  let of_stream s =
+    let t, s = N.of_stream s in
+    (Option.map import t, s)
 
   let of_seq entries =
     let n = N.of_seq entries in

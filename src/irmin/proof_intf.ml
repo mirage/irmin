@@ -14,6 +14,39 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Stream = struct
+  type ('hash, 'metadata) value =
+    [ `Node of 'hash | `Contents of 'hash * 'metadata ]
+  [@@deriving irmin]
+
+  type ('hash, 'step, 'metadata) elt =
+    | Empty
+    | Node of ('step * ('hash, 'metadata) value) list
+    | Inode of { length : int; proofs : (int * 'hash) list }
+    | Contents of 'hash * 'metadata
+
+  (* TODO(craigfe): fix [ppx_irmin] for inline parameters. *)
+  let elt_t hash_t step_t metadata_t =
+    let open Type in
+    variant "stream" (fun empty node inode contents -> function
+      | Empty -> empty
+      | Node x1 -> node x1
+      | Inode { length; proofs } -> inode (length, proofs)
+      | Contents (h, m) -> contents (h, m))
+    |~ case0 "Empty" Empty
+    |~ case1 "Node" [%typ: (step * (hash, metadata) value) list] (fun x1 ->
+           Node x1)
+    |~ case1 "Inode" [%typ: int * (int * hash) list] (fun (length, proofs) ->
+           Inode { length; proofs })
+    |~ case1 "Contents" [%typ: hash * metadata] (fun (h, m) -> Contents (h, m))
+    |> Type.sealv
+
+  type ('hash, 'step, 'metadata) t = ('hash, 'step, 'metadata) elt Seq.t
+
+  let t hash_t step_t metadata_t =
+    Type.map [%typ: (hash, step, metadata) elt list] List.to_seq List.of_seq
+end
+
 module Proof = struct
   type ('hash, 'step, 'metadata) t =
     | Blinded_node of 'hash
@@ -52,4 +85,13 @@ module type Proof = sig
   (** @inline *)
 
   val bad_proof_exn : string -> 'a
+  val bad_stream_exn : string -> 'a
+  val end_of_stream_exn : unit -> 'a
+
+  module Stream : sig
+    include module type of Stream
+    (** @inline *)
+  end
+
+  type ('a, 'b, 'c) stream = ('a, 'b, 'c) Stream.t [@@deriving irmin]
 end

@@ -340,6 +340,34 @@ module type S = sig
     val of_keys : tree -> key list -> t Lwt.t
     (** [of_keys t keys] is the minimal proof that can be used to prove that
         operations over the domain [keys] are valid with [t]. *)
+
+    type stream = (hash, step, metadata) Proof.stream [@@deriving irmin]
+    (** The type type tracing proofs. *)
+
+    val produce : tree -> key list -> stream
+    (** [produce t d] produces the minimal stream proof required to prove that
+        [t] is valid for the domain [d].
+
+        A proof stream represent a search in the proof tree of [t], driven by
+        the domain [d]. For every path in [d], the stream produces all the
+        necessary nodes needed to unshallow subtrees [t], in the right order. If
+        a prefix of a path in [d] is invalid, the stream will contain
+        [Stream.Empty].
+
+        When a node has been unshallowed, it doesn't appear in the rest of the
+        stream (entries are de-duplicated) . *)
+
+    val consume : root_hash:kinded_hash -> stream -> key list -> tree
+    (** [consume ~root_hash s d] is the tree [t] such that [produce t d = s] and
+        [hash t = root_hash], while recursively verifying that the stream is
+        generating the right Merkle hashes.
+
+        Raise [Proof.End_of_stream] if the stream is incomplete.
+
+        Raise [Proof.Bad_stream] if the stream is incorrect: (i) either if one
+        token in [s] does not have the right Merkle hash; or (ii) if one of the
+        path in [d] has an unbound prefix and [s] does not contain the
+        corresponding [Stream.Empty] token. *)
   end
   with type tree := t
 

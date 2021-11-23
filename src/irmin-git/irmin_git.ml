@@ -353,6 +353,14 @@ struct
 
       let to_proof t = N.to_proof (to_n t)
       let of_proof p = of_n (N.of_proof p)
+
+      type stream = N.stream [@@deriving irmin]
+
+      let to_stream t = N.to_stream (to_n t)
+
+      let of_stream s =
+        let n, s = N.of_stream s in
+        (Option.map of_n n, s)
     end
 
     include Content_addressable (struct

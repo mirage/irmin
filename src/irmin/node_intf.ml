@@ -37,6 +37,8 @@ module Proof = struct
         |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
                Inode { length; proofs })
         |> sealv)
+
+  module Stream = Proof.Stream
 end
 
 module type S = sig
@@ -127,6 +129,12 @@ module type S = sig
 
   val to_proof : t -> proof
   val of_proof : proof -> t
+
+  type stream = (hash, step, metadata) Proof.Stream.t [@@deriving irmin]
+  (** The type for proof streams. *)
+
+  val to_stream : t -> stream
+  val of_stream : stream -> t option * stream
 end
 
 module type Maker = functor

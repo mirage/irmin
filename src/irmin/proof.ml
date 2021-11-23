@@ -15,5 +15,10 @@
  *)
 
 include Proof_intf.Proof
+module Stream = Proof_intf.Stream
+
+type ('a, 'b, 'c) stream = ('a, 'b, 'c) Stream.t [@@deriving irmin]
 
 let bad_proof_exn context = raise (Bad_proof { context })
+let bad_stream_exn context = raise (Bad_stream { context })
+let end_of_stream_exn () = raise End_of_stream
