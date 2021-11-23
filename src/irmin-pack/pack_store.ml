@@ -257,12 +257,65 @@ module Maker
           | v -> Some v
           | exception Not_found ->
               [%log.debug "not found in LRU"];
+              (* TODO: extract this logic out to a separate function and handle
+                 error cases more carefully (e.g. when the index does not contain a
+                 necessary object). *)
               Stats.incr_cache_misses ();
               let off, len =
                 match k with
-                | Direct k -> (k.offset, k.length)
-                | Direct_blindfolded { hash; _ } | Indexed hash -> (
+                | Direct k ->
+                    Stats.incr_find_direct ();
+                    (k.offset, k.length)
+                | Direct_blindfolded { hash = _; offset } -> (
+                    match Val.length_header with
+                    | `Sometimes has_length_header -> (
+                        (* We may be able to recover the length of the value
+                           from the pack file. Decode the kind + prefix of the
+                           pack value to see: *)
+                        Stats.incr_find_direct_blindfolded ();
+                        let prefix_offset =
+                          Int63.add offset (Int63.of_int Hash.hash_size)
+                        in
+                        let prefix_length = 1 + 4 in
+                        let buf = Bytes.create prefix_length in
+                        let r = IO.read t.pack.block ~off:prefix_offset buf in
+                        (* TODO: use a proper storage corruption exception here *)
+                        assert (r = prefix_length);
+                        let kind =
+                          Pack_value.Kind.of_magic_exn (Bytes.get buf 0)
+                        in
+                        match has_length_header kind with
+                        | true ->
+                            (* The remaining 4 bytes in the buffer are a
+                               length field: *)
+                            let value_size =
+                              Bytes.get_int32_be buf 1 |> Int32.to_int
+                            in
+                            let length = Hash.hash_size + 1 + 4 + value_size in
+                            (offset, length)
+                        | false -> (
+                            (* The value segment has no length field, so we must
+                               index to find it. NOTE: there's an implicit
+                               invariant here that any objects in the store with
+                               hard-to-guess lengths {i must} be indexed. *)
+                            match index_direct t hash with
+                            | Some (Direct t) ->
+                                (* TODO: check that the indexed offset matches the one in the key *)
+                                (t.offset, t.length)
+                            | Some (Direct_blindfolded _ | Indexed _) ->
+                                assert false
+                            | None -> assert false))
+                    | `Never -> (
+                        (* No length header in the value, we'll have to index to find it instead: *)
+                        Stats.incr_find_indexed ();
+                        match index_direct t hash with
+                        | Some (Direct t) -> (t.offset, t.length)
+                        | Some (Direct_blindfolded _ | Indexed _) ->
+                            assert false
+                        | None -> assert false))
+                | Indexed hash -> (
                     [%log.debug "indexed key"];
+                    Stats.incr_find_indexed ();
                     match index_direct t hash with
                     | Some (Direct t) -> (t.offset, t.length)
                     | Some (Direct_blindfolded _ | Indexed _) -> assert false

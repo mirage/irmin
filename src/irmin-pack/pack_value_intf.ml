@@ -9,6 +9,7 @@ module type S = sig
 
   val hash : t -> hash
   val kind : t -> kind
+  val length_header : [ `Never | `Sometimes of kind -> bool ]
 
   val encode_bin :
     dict:(string -> int option) ->

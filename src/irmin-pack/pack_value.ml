@@ -55,6 +55,7 @@ struct
   let value = [%typ: (Hash.t, Data.t) value]
   let encode_value = Irmin.Type.(unstage (encode_bin value))
   let decode_value = Irmin.Type.(unstage (decode_bin value))
+  let length_header = `Never
 
   let encode_bin ~dict:_ ~offset_of_key:_ v hash =
     encode_value { kind; hash; v }

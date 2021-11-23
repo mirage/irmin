@@ -1356,6 +1356,15 @@ struct
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
+    let length_header =
+      `Sometimes
+        (function
+        | Pack_value.Kind.Inode_v0_unstable -> false
+        | Inode_v0_stable -> false
+        | Inode_v1_root -> true
+        | Inode_v1_nonroot -> true
+        | Contents | Commit -> assert false)
+
     let decode_compress_length =
       match Irmin.Type.Size.of_encoding Compress.t with
       | Unknown | Static _ -> assert false
