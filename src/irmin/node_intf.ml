@@ -122,7 +122,7 @@ module type S = sig
 
   (** {1 Proofs} *)
 
-  type nonrec proof = (hash, step, value) Proof.t [@@deriving irmin]
+  type proof = (hash, step, value) Proof.t [@@deriving irmin]
   (** The type for proof trees. *)
 
   val to_proof : t -> proof
@@ -262,16 +262,7 @@ module type GRAPH = sig
 end
 
 module type Node = sig
-  module Proof : sig
-    type ('hash, 'step, 'value) t = ('hash, 'step, 'value) Proof.t =
-      | Blinded of 'hash
-      | Values of ('step * 'value) list
-      | Inode of {
-          length : int;
-          proofs : (int * ('hash, 'step, 'value) t) list;
-        }
-    [@@deriving irmin]
-  end
+  module Proof = Proof
 
   module type S = S
   module type Maker = Maker

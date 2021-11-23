@@ -131,7 +131,7 @@ struct
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
 
-  type nonrec proof = (hash, step, value) Proof.t [@@deriving irmin]
+  type proof = (hash, step, value) Proof.t [@@deriving irmin]
 
   let to_proof (t : t) : proof =
     let e = List.map of_entry (entries t) in
