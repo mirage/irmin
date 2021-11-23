@@ -1,3 +1,10 @@
+## unreleased
+
+### Fixed
+
+- *irmin*
+  - Conversion between proofs and trees are now done in CPS (#1624, @samoht)
+
 ## 2.9.0 (2021-11-15)
 
 ### Fixed
