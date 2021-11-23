@@ -17,6 +17,9 @@
 
 open! Import
 open S
+
+let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Node." ^ c)
+
 include Node_intf
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
@@ -128,7 +131,7 @@ struct
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
 
-  type nonrec proof = (hash, step, value) Proof.t [@@deriving irmin]
+  type proof = (hash, step, value) Proof.t [@@deriving irmin]
 
   let to_proof (t : t) : proof =
     let e = List.map of_entry (entries t) in
@@ -136,7 +139,7 @@ struct
 
   let of_proof (t : proof) =
     match t with
-    | Blinded _ | Inode _ -> failwith "unsupported"
+    | Blinded _ | Inode _ -> bad_proof_exn "of_proof"
     | Values e ->
         let e = List.map to_entry e in
         of_entries e
