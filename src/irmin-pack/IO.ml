@@ -86,11 +86,10 @@ module Unix : S = struct
 
   let read_buffer t ~off ~buf ~len =
     let off = header t.version ++ off in
-    if (not t.readonly) && off > t.flushed then (
-      Printexc.print_raw_backtrace stdout (Printexc.get_callstack 100);
+    if (not t.readonly) && off > t.flushed then
       raise_invalid_read
         "Requested read of %d bytes at offset %a, but only flushed to %a" len
-        Int63.pp off Int63.pp t.flushed);
+        Int63.pp off Int63.pp t.flushed;
     Raw.unsafe_read t.raw ~off ~len buf
 
   let read t ~off buf = read_buffer t ~off ~buf ~len:(Bytes.length buf)

@@ -19,8 +19,10 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
 end)
 
 exception Invalid_read of string
+exception Corrupted_store of string
 
 let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
+let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 
 module Maker
     (V : Version.S)
@@ -111,7 +113,8 @@ module Maker
       [%log.debug "index %a" pp_hash hash];
       match Index.find t.pack.index hash with
       | None -> None
-      | Some (offset, length, _) -> Some (Pack_key.v ~hash ~offset ~length)
+      | Some (offset, length, _) ->
+          Some (Pack_key.v_direct ~hash ~offset ~length)
 
     let index t hash = Lwt.return (index_direct t hash)
 
@@ -242,109 +245,109 @@ module Maker
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
+    (* Consult the index to get the offset and length of a value (when the key of
+        that value doesn't contain that information). *)
+    let get_value_span_from_index t key hash : int63 * int =
+      match index_direct t hash with
+      | Some key' -> (
+          match Pack_key.inspect key' with
+          | Direct { offset; length; _ } ->
+              (* Cache the offset and length information in the existing key. *)
+              Pack_key.promote_exn key ~offset ~length;
+              (offset, length)
+          | Direct_unknown_length _ | Indexed _ ->
+              (* [index_direct] returns only [Direct] keys. *)
+              assert false)
+      | None ->
+          corrupted_store
+            "Unexpected object %a missing from index. Cannot recover this \
+             object from the store without being able to determine its length."
+            pp_key key
+
+    let find_in_pack_file ~check_integrity t key hash =
+      let off, len =
+        match Pack_key.inspect key with
+        | Direct k ->
+            Stats.incr_find_direct ();
+            (k.offset, k.length)
+        | Direct_unknown_length { hash = _; offset } -> (
+            match Val.length_header with
+            | `Sometimes has_length_header -> (
+                (* We may be able to recover the length of the value
+                   from the pack file. Decode the kind + prefix of the
+                   pack value to see: *)
+                Stats.incr_find_direct_unknown_length ();
+                let prefix_offset =
+                  Int63.add offset (Int63.of_int Hash.hash_size)
+                in
+                let prefix_length = 1 + 4 in
+                let buf = Bytes.create prefix_length in
+                let r = IO.read t.pack.block ~off:prefix_offset buf in
+                (* TODO: use a proper storage corruption exception here *)
+                assert (r = prefix_length);
+                let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf 0) in
+                match has_length_header kind with
+                | true ->
+                    (* The remaining 4 bytes in the buffer are a
+                       length field: *)
+                    let value_size = Bytes.get_int32_be buf 1 |> Int32.to_int in
+                    let length = Hash.hash_size + 1 + 4 + value_size in
+                    (offset, length)
+                | false ->
+                    (* The value segment has no length field, so we must
+                       index to find it. *)
+                    get_value_span_from_index t key hash)
+            | `Never ->
+                (* No length header in the value, we'll have to index to
+                   find it instead: *)
+                Stats.incr_find_indexed ();
+                get_value_span_from_index t key hash)
+        | Indexed hash ->
+            [%log.debug "indexed key"];
+            Stats.incr_find_indexed ();
+            get_value_span_from_index t key hash
+      in
+      let io_offset = IO.offset t.pack.block in
+      if Int63.add off (Int63.of_int len) > io_offset then (
+        (* This key is from a different store instance, referencing an
+           offset that is not yet visible to this one. It's possible
+           that the key _is_ a valid pointer into the same store, but
+           the offset just hasn't been flushed to disk yet, so we return
+           [None]. *)
+        [%log.debug
+          "Direct store key references an unknown starting offset %a (length = \
+           %d, IO offset = %a)."
+          Int63.pp off len Int63.pp io_offset];
+        None)
+      else
+        let v = io_read_and_decode ~off ~len t in
+        Lru.add t.lru hash v;
+        (if check_integrity then
+         check_key key v |> function
+         | Ok () -> ()
+         | Error (expected, got) ->
+             Fmt.failwith
+               "corrupted value: got hash %a, expecting %a (for val: %a)."
+               pp_hash got pp_hash expected pp_value v);
+        Some v
+
     let unsafe_find ~check_integrity t (k : _ Pack_key.t) =
       [%log.debug "[pack:%a] find %a" pp_io t pp_key k];
       Stats.incr_finds ();
       let hash = Key.to_hash k in
       match Tbl.find t.staging hash with
       | v ->
-          [%log.debug "found in table"];
           Lru.add t.lru hash v;
           Some v
       | exception Not_found -> (
-          [%log.debug "not found in table"];
           match Lru.find t.lru hash with
           | v -> Some v
           | exception Not_found ->
-              [%log.debug "not found in LRU"];
               (* TODO: extract this logic out to a separate function and handle
                  error cases more carefully (e.g. when the index does not contain a
                  necessary object). *)
               Stats.incr_cache_misses ();
-              let off, len =
-                match k with
-                | Direct k ->
-                    Stats.incr_find_direct ();
-                    (k.offset, k.length)
-                | Direct_blindfolded { hash = _; offset } -> (
-                    match Val.length_header with
-                    | `Sometimes has_length_header -> (
-                        (* We may be able to recover the length of the value
-                           from the pack file. Decode the kind + prefix of the
-                           pack value to see: *)
-                        Stats.incr_find_direct_blindfolded ();
-                        let prefix_offset =
-                          Int63.add offset (Int63.of_int Hash.hash_size)
-                        in
-                        let prefix_length = 1 + 4 in
-                        let buf = Bytes.create prefix_length in
-                        let r = IO.read t.pack.block ~off:prefix_offset buf in
-                        (* TODO: use a proper storage corruption exception here *)
-                        assert (r = prefix_length);
-                        let kind =
-                          Pack_value.Kind.of_magic_exn (Bytes.get buf 0)
-                        in
-                        match has_length_header kind with
-                        | true ->
-                            (* The remaining 4 bytes in the buffer are a
-                               length field: *)
-                            let value_size =
-                              Bytes.get_int32_be buf 1 |> Int32.to_int
-                            in
-                            let length = Hash.hash_size + 1 + 4 + value_size in
-                            (offset, length)
-                        | false -> (
-                            (* The value segment has no length field, so we must
-                               index to find it. NOTE: there's an implicit
-                               invariant here that any objects in the store with
-                               hard-to-guess lengths {i must} be indexed. *)
-                            match index_direct t hash with
-                            | Some (Direct t) ->
-                                (* TODO: check that the indexed offset matches the one in the key *)
-                                (t.offset, t.length)
-                            | Some (Direct_blindfolded _ | Indexed _) ->
-                                assert false
-                            | None -> assert false))
-                    | `Never -> (
-                        (* No length header in the value, we'll have to index to find it instead: *)
-                        Stats.incr_find_indexed ();
-                        match index_direct t hash with
-                        | Some (Direct t) -> (t.offset, t.length)
-                        | Some (Direct_blindfolded _ | Indexed _) ->
-                            assert false
-                        | None -> assert false))
-                | Indexed hash -> (
-                    [%log.debug "indexed key"];
-                    Stats.incr_find_indexed ();
-                    match index_direct t hash with
-                    | Some (Direct t) -> (t.offset, t.length)
-                    | Some (Direct_blindfolded _ | Indexed _) -> assert false
-                    | None -> assert false)
-              in
-              let io_offset = IO.offset t.pack.block in
-              if Int63.add off (Int63.of_int len) > io_offset then (
-                (* This key is from a different store instance, referencing an
-                   offset that is not yet visible to this one. It's possible
-                   that the key _is_ a valid pointer into the same store, but
-                   the offset just hasn't been flushed to disk yet, so we return
-                   [None]. *)
-                [%log.debug
-                  "Direct store key references an unknown starting offset %a \
-                   (length = %d, IO offset = %a)."
-                  Int63.pp off len Int63.pp io_offset];
-                None)
-              else
-                let v = io_read_and_decode ~off ~len t in
-                Lru.add t.lru hash v;
-                (if check_integrity then
-                 check_key k v |> function
-                 | Ok () -> ()
-                 | Error (expected, got) ->
-                     Fmt.failwith
-                       "corrupted value: got hash %a, expecting %a (for val: \
-                        %a)."
-                       pp_hash got pp_hash expected pp_value v);
-                Some v)
+              find_in_pack_file ~check_integrity t k hash)
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in
@@ -389,7 +392,7 @@ module Maker
         Val.encode_bin ~offset_of_key ~dict v hash (fun s ->
             IO.append t.pack.block s);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
-        let key = Pack_key.v ~hash ~offset:off ~length:len in
+        let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
         let () =
           let kind = Val.kind v in
           let should_index = t.pack.indexing_strategy kind in

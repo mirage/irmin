@@ -17,7 +17,7 @@
 type t = {
   mutable finds : int;
   mutable find_direct : int;
-  mutable find_direct_blindfolded : int;
+  mutable find_direct_unknown_length : int;
   mutable find_indexed : int;
   mutable cache_misses : int;
   mutable appended_hashes : int;
@@ -38,7 +38,7 @@ let fresh_stats () =
   {
     finds = 0;
     find_direct = 0;
-    find_direct_blindfolded = 0;
+    find_direct_unknown_length = 0;
     find_indexed = 0;
     cache_misses = 0;
     appended_hashes = 0;
@@ -62,7 +62,7 @@ let () =
 let reset_stats () =
   s.finds <- 0;
   s.find_direct <- 0;
-  s.find_direct_blindfolded <- 0;
+  s.find_direct_unknown_length <- 0;
   s.find_indexed <- 0;
   s.cache_misses <- 0;
   s.appended_hashes <- 0;
@@ -82,8 +82,8 @@ let get () = s
 let incr_finds () = s.finds <- succ s.finds
 let incr_find_direct () = s.find_direct <- succ s.find_direct
 
-let incr_find_direct_blindfolded () =
-  s.find_direct_blindfolded <- succ s.find_direct_blindfolded
+let incr_find_direct_unknown_length () =
+  s.find_direct_unknown_length <- succ s.find_direct_unknown_length
 
 let incr_find_indexed () = s.find_indexed <- succ s.find_indexed
 let incr_cache_misses () = s.cache_misses <- succ s.cache_misses

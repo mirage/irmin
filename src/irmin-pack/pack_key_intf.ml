@@ -10,17 +10,49 @@ module type S = sig
 end
 
 module type Sigs = sig
-  type kind = Direct | Indexed
+  type 'hash t
+  (** The type of {i keys} referencing values stored in the [irmin-pack]
+      backend. *)
 
-  type[@ocamlformat "disable"] 'hash t = private
-    | Direct             of { hash : 'hash; offset : int63; length : int }
-    | Direct_blindfolded of { hash : 'hash; offset : int63 }
-    | Indexed            of 'hash
-  [@@deriving irmin]
+  (** The internal state of a key (read with {!inspect}).
 
-  val t : kind -> 'hash Irmin.Type.t -> 'hash t Irmin.Type.t
-  val v : hash:'h -> offset:int63 -> length:int -> 'h t
+      Invariant: keys of the form {!Direct_unknown_length} and {!Indexed} always
+      reference values that have entries in the index (as otherwise these keys
+      could not be dereferenced). *)
+  type 'hash state =
+    | Direct of { hash : 'hash; offset : int63; length : int }
+        (** A "direct" pointer to a value stored at [offset] in the pack-file
+            (with hash [hash] and length [length]). Such keys can be
+            dereferenced from the store with a single IO read, without needing
+            to consult the index.
+
+            They are built in-memory (e.g. after adding a fresh value to the
+            pack file), but have no corresponding {!Encoding_format}, as the
+            pack format keeps length information with the values themselves.
+
+            When decoding an inode, which references its children as single
+            offsets, we fetch the length information of the child at the same
+            time as fetching its hash (which we must do anyway in order to do an
+            integrity check), creating keys of this form. *)
+    | Direct_unknown_length of { hash : 'hash; offset : int63 }
+        (** Like {!Direct}, but dereferencing requires first discovering the
+            length of the value by consulting the index (after which the key can
+            be promoted to {!Direct} to avoid unnecessary re-indexing).
+
+            Such keys result from decoding internal pointers between V0 inode
+            objects, which do not have length headers in the pack file. *)
+    | Indexed of 'hash
+        (** A pointer to an object in the pack file that is indexed. As with
+            {!Direct}, reading the object necessitates consulting the index,
+            after which the key can be promoted to {!Direct}.
+
+            Such keys result from decoding pointers to other store objects
+            (nodes or commits) from commits or from the branch store. *)
+
+  val inspect : 'hash t -> 'hash state
+  val v_direct : hash:'h -> offset:int63 -> length:int -> 'h t
   val v_blindfolded : hash:'h -> offset:int63 -> 'h t
+  val promote_exn : 'h t -> offset:int63 -> length:int -> unit
 
   module type S = sig
     type hash

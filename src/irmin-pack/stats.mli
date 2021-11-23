@@ -17,7 +17,7 @@
 type t = {
   mutable finds : int;
   mutable find_direct : int;
-  mutable find_direct_blindfolded : int;
+  mutable find_direct_unknown_length : int;
   mutable find_indexed : int;
   mutable cache_misses : int;
   mutable appended_hashes : int;
@@ -54,7 +54,7 @@ val reset_stats : unit -> unit
 val get : unit -> t
 val incr_finds : unit -> unit
 val incr_find_direct : unit -> unit
-val incr_find_direct_blindfolded : unit -> unit
+val incr_find_direct_unknown_length : unit -> unit
 val incr_find_indexed : unit -> unit
 val incr_cache_misses : unit -> unit
 val incr_appended_hashes : unit -> unit
