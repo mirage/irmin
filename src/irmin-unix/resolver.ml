@@ -354,6 +354,17 @@ module Store = struct
         in
         failwith msg
 
+  let generic_keyed = function
+    | T { impl = Generic_keyed (module S); _ } ->
+        (module S : Irmin.Generic_key.S)
+    | T { impl = Hash_keyed (module S); _ } -> (module S : Irmin.Generic_key.S)
+
+  let hash_keyed = function
+    | T { impl = Generic_keyed (module S); _ } -> None
+    | T { impl = Hash_keyed (module S); _ } -> Some (module S : Irmin.S)
+
+  let remote (T { remote; _ }) = remote
+
   let term =
     let store =
       let store_types = !all |> List.map (fun (name, _) -> (name, name)) in
