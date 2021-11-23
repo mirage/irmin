@@ -42,8 +42,6 @@ module Proof = struct
                Blinded_contents (x1, x2))
         |> Type.sealv)
 
-  exception End_of_stream
-  exception Bad_stream of { context : string }
   exception Bad_proof of { context : string }
 end
 
