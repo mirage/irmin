@@ -1765,17 +1765,25 @@ module Make (P : Private.S) = struct
 
     (** The type of tree proofs. *)
 
+    let value_of_hash ~cache:_ _node _repo h = Error (`Pruned_hash h)
+
+    let to_value node =
+      Node.to_value_aux ~cache:false ~value_of_hash ~return:Fun.id node
+
+    let findv ctx node =
+      let value_of_hash ~cache:_ _node _repo h = Error (`Pruned_hash h) in
+      Node.findv_aux ~value_of_hash ~return:Fun.id
+        ~bind:(fun x f -> f x)
+        ~cache:false ctx node
+
     let rec of_tree : tree -> t = function
-      | `Contents (c, h) -> Contents (Contents.hash c, h)
+      | `Contents (c, h) -> Blinded_contents (Contents.hash c, h)
       | `Node node -> of_node node
 
     and of_node node : t =
-      match
-        let value_of_hash ~cache:_ _node _repo h = Error (`Pruned_hash h) in
-        Node.to_value_aux ~cache:false ~value_of_hash ~return:Fun.id node
-      with
-      | Error (`Dangling_hash h) -> Blinded h
-      | Error (`Pruned_hash h) -> Blinded h
+      match to_value node with
+      | Error (`Dangling_hash h) -> Blinded_node h
+      | Error (`Pruned_hash h) -> Blinded_node h
       | Ok v -> of_node_proof node (P.Node.Val.to_proof v)
 
     (** [of_node_proof n np] is [p] (of type [Tree.Proof.t]) which is very
@@ -1791,7 +1799,7 @@ module Make (P : Private.S) = struct
         for the values non-loaded in [n], and some other tag for the values
         loaded in [n]. *)
     and of_node_proof node : node_proof -> t = function
-      | Blinded h -> Blinded h
+      | Blinded h -> Blinded_node h
       | Inode { length; proofs } -> of_inode node length proofs
       | Values vs -> proof_of_values node vs
 
@@ -1806,12 +1814,7 @@ module Make (P : Private.S) = struct
       Inode { length; proofs }
 
     and proof_of_values node steps : t =
-      let findv =
-        let value_of_hash ~cache:_ _node _repo h = Error (`Pruned_hash h) in
-        Node.findv_aux ~value_of_hash ~return:Fun.id
-          ~bind:(fun x f -> f x)
-          ~cache:false "to_proof" node
-      in
+      let findv = findv "Proof.proof_of_values" node in
       List.fold_left
         (fun acc (step, _) ->
           match findv step with
@@ -1824,7 +1827,7 @@ module Make (P : Private.S) = struct
 
     let proof_steps acc p =
       let rec aux acc : t -> _ = function
-        | Blinded _ | Contents _ -> acc
+        | Blinded_node _ | Blinded_contents _ -> acc
         | Inode { proofs; _ } ->
             List.fold_left (fun acc (_, p) -> aux acc p) acc proofs
         | Node vs -> vs @ acc
@@ -1840,8 +1843,8 @@ module Make (P : Private.S) = struct
 
     let rec to_tree (p : t) : tree =
       match p with
-      | Blinded h -> `Node (Node.of_hash None h)
-      | Contents (c, h) -> `Contents (Contents.of_hash None c, h)
+      | Blinded_node h -> `Node (Node.of_hash None h)
+      | Blinded_contents (c, h) -> `Contents (Contents.of_hash None c, h)
       | Node n -> tree_of_proof_steps n
       | Inode { length; proofs } -> tree_of_inode length proofs
 
@@ -1880,8 +1883,8 @@ module Make (P : Private.S) = struct
       `Node n
 
     and to_node_proof : t -> node_proof = function
-      | Contents (h, _) -> Blinded h
-      | Blinded x -> Blinded x
+      | Blinded_contents _ -> assert false
+      | Blinded_node x -> Blinded x
       | Inode { length; proofs } -> node_proof_of_inode length proofs
       | Node n -> node_proof_of_node n
 
@@ -1896,7 +1899,7 @@ module Make (P : Private.S) = struct
       Values (List.map (fun (s, n) -> (s, node_value_of_proof n)) n)
 
     and node_value_of_proof : t -> P.Node.Val.value = function
-      | Contents (c, m) -> `Contents (c, m)
+      | Blinded_contents (c, m) -> `Contents (c, m)
       | t ->
           let p = to_node_proof t in
           let h = hash_of_node_proof p in

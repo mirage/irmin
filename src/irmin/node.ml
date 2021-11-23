@@ -17,6 +17,9 @@
 
 open! Import
 open S
+
+let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Node." ^ c)
+
 include Node_intf
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
@@ -136,7 +139,7 @@ struct
 
   let of_proof (t : proof) =
     match t with
-    | Blinded _ | Inode _ -> failwith "unsupported"
+    | Blinded _ | Inode _ -> bad_proof_exn "of_proof"
     | Values e ->
         let e = List.map to_entry e in
         of_entries e
