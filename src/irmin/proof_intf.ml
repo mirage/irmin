@@ -14,39 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Proof = struct
+module type S = sig
+  type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
+
   type ('hash, 'step, 'metadata) t =
     | Blinded_node of 'hash
     | Blinded_contents of 'hash * 'metadata
     | Node of ('step * ('hash, 'step, 'metadata) t) list
-    | Inode of {
-        length : int;
-        proofs : (int * ('hash, 'step, 'metadata) t) list;
-      }
-
-  (* TODO(craigfe): fix [ppx_irmin] for inline parameters. *)
-  let t hash_t step_t metadata_t =
-    let open Type in
-    mu (fun t ->
-        variant "proof" (fun blinded_node node inode blinded_contents ->
-          function
-          | Blinded_node x1 -> blinded_node x1
-          | Node x1 -> node x1
-          | Inode { length; proofs } -> inode (length, proofs)
-          | Blinded_contents (x1, x2) -> blinded_contents (x1, x2))
-        |~ case1 "Blinded_node" hash_t (fun x1 -> Blinded_node x1)
-        |~ case1 "Node" [%typ: (step * t) list] (fun x1 -> Node x1)
-        |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
-               Inode { length; proofs })
-        |~ case1 "Blinded_contents" [%typ: hash * metadata] (fun (x1, x2) ->
-               Blinded_contents (x1, x2))
-        |> Type.sealv)
-
-  exception Bad_proof of { context : string }
+    | Inode of ('hash, 'step, 'metadata) t inode
+  [@@deriving irmin]
 end
 
 module type Proof = sig
-  include module type of Proof
+  include S
   (** @inline *)
 
   val bad_proof_exn : string -> 'a
