@@ -15,9 +15,9 @@ Running stat on a layered store after a first freeze
       "lower": {
         "pack": {
           "size": {
-            "Bytes": 466
+            "Bytes": 478
           },
-          "offset": 442,
+          "offset": 454,
           "generation": 0,
           "version": "V2"
         },
@@ -67,9 +67,9 @@ Running stat on a layered store after a first freeze
       "upper0": {
         "pack": {
           "size": {
-            "Bytes": 597
+            "Bytes": 609
           },
-          "offset": 573,
+          "offset": 585,
           "generation": 0,
           "version": "V2"
         },

@@ -40,7 +40,14 @@ end
 
 module type Sigs = sig
   module Kind : sig
-    type t = Commit | Contents | Inode | Node [@@deriving irmin]
+    type t =
+      | Commit
+      | Contents
+      | Inode_v0_unstable
+      | Inode_v0_stable
+      | Inode_v1_root
+      | Inode_v1_nonroot
+    [@@deriving irmin]
 
     val to_magic : t -> char
     val of_magic_exn : char -> t
