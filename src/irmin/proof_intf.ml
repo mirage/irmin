@@ -14,39 +14,46 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Proof = struct
+module type S = sig
+  type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
+  (** The type for (internal) inode proofs. These proofs encode large
+      directories into a more efficient tree-like structure.
+
+      Invariant are dependent on the backend.
+
+      [len] is the total number of entries in the chidren of the inode. E.g. the
+      size of the "flattened" version of that inode. This is used by some
+      backend (like [irmin-pack]) to efficiently implements paginated lists.
+
+      {e For [irmin-pack]}: [proofs] have a length of at most [Conf.entries]
+      entries. This list can be sparsed so every proof is indexed by their
+      position between [0 ... (Conf.entries-1)].*)
+
+  (** The type for proofs.
+
+      [Blinded_node h] is a shallow pointer to a node having hash [h].
+
+      [Blinded_contents (h, m)] is a shallow pointer to contents having hash [h]
+      and metadata [m].
+
+      [Node ls] is a "flat" node containing the list of files [ls]. The length
+      of [ls] depends on the backend. For instance, it can be unbounded for most
+      of the backends, while it is at most [Conf.stable_hash] entries for
+      [irmin-pack].
+
+      [Inode i] is an optimized representation of a node as a tree. Pointers in
+      that trees would refer to blinded nodes, nodes or to other inodes. E.g.
+      Blinded content is not expected to appear directly in an inodes. *)
   type ('hash, 'step, 'metadata) t =
     | Blinded_node of 'hash
     | Blinded_contents of 'hash * 'metadata
     | Node of ('step * ('hash, 'step, 'metadata) t) list
-    | Inode of {
-        length : int;
-        proofs : (int * ('hash, 'step, 'metadata) t) list;
-      }
-
-  (* TODO(craigfe): fix [ppx_irmin] for inline parameters. *)
-  let t hash_t step_t metadata_t =
-    let open Type in
-    mu (fun t ->
-        variant "proof" (fun blinded_node node inode blinded_contents ->
-          function
-          | Blinded_node x1 -> blinded_node x1
-          | Node x1 -> node x1
-          | Inode { length; proofs } -> inode (length, proofs)
-          | Blinded_contents (x1, x2) -> blinded_contents (x1, x2))
-        |~ case1 "Blinded_node" hash_t (fun x1 -> Blinded_node x1)
-        |~ case1 "Node" [%typ: (step * t) list] (fun x1 -> Node x1)
-        |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
-               Inode { length; proofs })
-        |~ case1 "Blinded_contents" [%typ: hash * metadata] (fun (x1, x2) ->
-               Blinded_contents (x1, x2))
-        |> Type.sealv)
-
-  exception Bad_proof of { context : string }
+    | Inode of ('hash, 'step, 'metadata) t inode
+  [@@deriving irmin]
 end
 
 module type Proof = sig
-  include module type of Proof
+  include S
   (** @inline *)
 
   val bad_proof_exn : string -> 'a
