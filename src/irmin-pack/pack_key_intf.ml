@@ -43,8 +43,8 @@ module type Sigs = sig
             objects, which do not have length headers in the pack file. *)
     | Indexed of 'hash
         (** A pointer to an object in the pack file that is indexed. As with
-            {!Direct}, reading the object necessitates consulting the index,
-            after which the key can be promoted to {!Direct}.
+            {!Direct_unknown_length}, reading the object necessitates consulting
+            the index, after which the key can be promoted to {!Direct}.
 
             Such keys result from decoding pointers to other store objects
             (nodes or commits) from commits or from the branch store. *)
