@@ -174,7 +174,11 @@ struct
   end
 
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true
+        ~indexing_strategy:Irmin_pack.Pack_store.Indexing_strategy.minimal
+        config.store_dir
+    in
     let* repo = Store.Repo.v conf in
     let on_commit i commit_hash =
       let* () =

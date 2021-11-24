@@ -67,13 +67,13 @@ module Key = struct
   let root = root spec
 
   let indexing_strategy =
-    let serialisable_t = [%typ: [ `Always | `Never ]] in
+    let serialisable_t = [%typ: [ `Always | `Minimal ]] in
     key ~spec ~doc:"Strategy to use for adding objects to the index"
       "indexing-strategy"
       (Irmin.Type.map serialisable_t
          (function
            | `Always -> Pack_store.Indexing_strategy.always
-           | `Never -> Pack_store.Indexing_strategy.never)
+           | `Minimal -> Pack_store.Indexing_strategy.minimal)
          (fun _ -> Fmt.failwith "Can't serialise indexing strategy"))
       Default.indexing_strategy
 end

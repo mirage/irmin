@@ -5,7 +5,29 @@ module Indexing_strategy = struct
   type t = Pack_value.Kind.t -> bool
 
   let always _ = true
-  let never _ = false
+
+  let minimal : t = function
+    | Commit ->
+        (* Commits must be indexed as the branch store contains only their
+           hashes (and likewise for commit -> commit intenral pointers). *)
+        true
+    | Inode_v0_unstable | Inode_v0_stable ->
+        (* Old inode values must be indexed in order to be able to resolve
+           internal pointers between them (e.g. to get the length of the
+           referenced inode). We never append new values of this kind anyway, so
+           the choice does not matter. *)
+        true
+    | Contents ->
+        (* NOTE: should be possible to not index these, provided we can get their
+           length header from the pack file. *)
+        true
+    | Inode_v1_root ->
+        (* NOTE: should be possible to not index these, but one is
+           referenced by each commit. TODO: either upgrade the commit format to
+           one that contains direct keys, or provide some way to express "index
+           the root node only" as a strategy. *)
+        true
+    | Inode_v1_nonroot -> false
 end
 
 module type S = S with type indexing_strategy := Indexing_strategy.t

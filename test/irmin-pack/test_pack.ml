@@ -69,7 +69,11 @@ let suite_pack =
     (* TODO: re-add once the layered store is suppored by Irmin_pack. *)
     (module Irmin_pack_layered_store : Irmin_test.Layered_store_generic_key)
   in
-  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let config =
+    Irmin_pack.config ~fresh:false ~lru_size:0
+      ~indexing_strategy:Irmin_pack.Pack_store.Indexing_strategy.minimal
+      test_dir
+  in
   let init () =
     rm_dir test_dir;
     Lwt.return_unit

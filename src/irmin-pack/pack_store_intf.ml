@@ -62,7 +62,7 @@ module type Sigs = sig
     type t = Pack_value.Kind.t -> bool
 
     val always : t
-    val never : t
+    val minimal : t
   end
 
   module type S = S with type indexing_strategy := Indexing_strategy.t
