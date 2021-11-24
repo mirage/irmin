@@ -256,6 +256,8 @@ module Maker
         invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp
           off len;
       let key_of_offset off =
+        (* XXX(craigfe): we may as well attempt to read the length here as well
+           (?), as we're touching this page anyway *)
         let hash = io_read_and_decode_hash ~off t in
         Pack_key.v_blindfolded ~hash ~offset:off
       in
