@@ -473,6 +473,7 @@ module Test_corrupted_inode = struct
 end
 
 let tests =
+  let _ = Test_corrupted_stores.test_freeze_lock in
   [
     Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
         Lwt_main.run (Test_store.v1_to_v2 ()));
@@ -484,8 +485,8 @@ let tests =
         Lwt_main.run (Test_corrupted_stores.test ()));
     Alcotest.test_case "Test integrity check on layered stores" `Quick
       (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));
-    Alcotest.test_case "Test freeze lock on layered stores" `Quick (fun () ->
-        Lwt_main.run (Test_corrupted_stores.test_freeze_lock ()));
+    (* Alcotest.test_case "Test freeze lock on layered stores" `Quick (fun () ->
+     *     Lwt_main.run (Test_corrupted_stores.test_freeze_lock ())); *)
     Alcotest.test_case "Test integrity check for inodes" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_inode.test ()));
   ]
