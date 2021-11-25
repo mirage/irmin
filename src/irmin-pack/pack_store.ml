@@ -46,6 +46,12 @@ exception Corrupted_store of string
 let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 
+module Varint = struct
+  type t = int [@@deriving irmin ~decode_bin]
+
+  let max_encoded_size = 9
+end
+
 module Maker
     (V : Version.S)
     (Index : Pack_index.S)
@@ -201,6 +207,73 @@ module Maker
       assert (n = K.hash_size);
       decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
 
+    type span = { offset : int63; length : int }
+    (** The type of contiguous ranges of bytes in the pack file. *)
+
+    (** Refer to the index for the position of a pack entry, assuming it is
+        indexed: *)
+    let get_entry_span_from_index_exn t hash : span =
+      match index_direct t hash with
+      | Some key' -> (
+          match Pack_key.inspect key' with
+          | Direct { offset; length; _ } -> { offset; length }
+          | Direct_unknown_length _ | Indexed _ ->
+              (* [index_direct] returns only [Direct] keys. *)
+              assert false)
+      | None ->
+          corrupted_store "Unexpected object %a missing from index" pp_hash hash
+
+    module Entry_prefix = struct
+      type t = {
+        hash : hash;
+        kind : Pack_value.Kind.t;
+        value_length : int option;
+            (** Length of the value segment including the length header (if it
+                exists). *)
+      }
+      [@@deriving irmin ~pp_dump]
+
+      let min_length = K.hash_size + 1
+      let max_length = K.hash_size + 1 + Varint.max_encoded_size
+    end
+
+    let io_read_and_decode_entry_prefix ~off t =
+      let buf = Bytes.create Entry_prefix.max_length in
+      let bytes_read = IO.read t.pack.block ~off buf in
+      if bytes_read < Entry_prefix.min_length then
+        invalid_read
+          "Attempted to read an entry at offset %a in the pack file, but got \
+           only %d bytes"
+          Int63.pp off bytes_read;
+      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+      let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
+      let value_length =
+        match Val.length_header with
+        | `Never -> None
+        | `Sometimes has_length_header -> (
+            let length_header_start = Entry_prefix.min_length in
+            match has_length_header kind with
+            | None -> None
+            | Some `Int32_be ->
+                (* The 4 bytes at [length_header_start] are a fixed-length field
+                   (if they exist / were read correctly): *)
+                let length_header =
+                  Bytes.get_int32_be buf length_header_start |> Int32.to_int
+                in
+                Some (4 + length_header)
+            | Some `Varint ->
+                (* The bytes starting at [length_header_start] are a
+                   variable-length length field (if they exist / were read
+                   correctly): *)
+                let pos_ref = ref length_header_start in
+                let length_header =
+                  Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
+                in
+                let length_header_length = !pos_ref - length_header_start in
+                Some (length_header_length + length_header))
+      in
+      { Entry_prefix.hash; kind; value_length }
+
     let pack_file_contains_key t k =
       let key = Pack_key.inspect k in
       match key with
@@ -281,87 +354,42 @@ module Maker
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
-    (* Consult the index to get the offset and length of a value (when the key of
-        that value doesn't contain that information). *)
-    let get_value_span_from_index t key hash : int63 * int =
-      match index_direct t hash with
-      | Some key' -> (
-          match Pack_key.inspect key' with
-          | Direct { offset; length; _ } ->
-              (* Cache the offset and length information in the existing key. *)
-              Pack_key.promote_exn key ~offset ~length;
-              (offset, length)
-          | Direct_unknown_length _ | Indexed _ ->
-              (* [index_direct] returns only [Direct] keys. *)
-              assert false)
-      | None ->
-          corrupted_store
-            "Unexpected object %a missing from index. Cannot recover this \
-             object from the store without being able to determine its length."
-            pp_key key
-
-    module Varint = struct
-      type t = int [@@deriving irmin ~decode_bin]
-
-      let max_encoded_size = 9
-    end
-
     let find_in_pack_file ~check_integrity t key hash =
-      let off, len =
+      let { offset; length } =
         match Pack_key.inspect key with
-        | Direct k ->
+        | Direct { offset; length; _ } ->
             Stats.incr_find_direct ();
-            (k.offset, k.length)
-        | Direct_unknown_length { hash = _; offset } -> (
-            match Val.length_header with
-            | `Sometimes has_length_header -> (
-                (* We may be able to recover the length of the value
-                   from the pack file. Decode the kind + prefix of the
-                   pack value to see: *)
-                Stats.incr_find_direct_unknown_length ();
-                let prefix_offset =
-                  Int63.add offset (Int63.of_int Hash.hash_size)
-                in
-                let prefix_length =
-                  1 (* magic character *) + Varint.max_encoded_size
-                in
-                let buf = Bytes.create prefix_length in
-                let r = IO.read t.pack.block ~off:prefix_offset buf in
-                (* TODO: use a proper storage corruption exception here *)
-                assert (r = prefix_length);
-                let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf 0) in
-                match has_length_header kind with
-                | Some `Int32_be ->
-                    (* The remaining 4 bytes in the buffer are a
-                       length field: *)
-                    let value_size = Bytes.get_int32_be buf 1 |> Int32.to_int in
-                    let length = Hash.hash_size + 1 + 4 + value_size in
-                    (offset, length)
-                | Some `Varint ->
-                    (* The remaining bytes start with a variable-length length
-                       field: *)
-                    let pos_ref = ref 1 in
-                    let value_size =
-                      Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
-                    in
-                    let length = Hash.hash_size + !pos_ref + value_size in
-                    (offset, length)
-                | None ->
-                    (* The value segment has no length field, so we must
-                       index to find it. *)
-                    get_value_span_from_index t key hash)
-            | `Never ->
-                (* No length header in the value, we'll have to index to
-                   find it instead: *)
-                Stats.incr_find_indexed ();
-                get_value_span_from_index t key hash)
+            { offset; length }
+        | Direct_unknown_length { hash = _; offset } ->
+            Stats.incr_find_direct_unknown_length ();
+            let length =
+              (* First try to recover the length from the pack file: *)
+              let prefix = io_read_and_decode_entry_prefix ~off:offset t in
+              match prefix.value_length with
+              | Some value_length -> Hash.hash_size + 1 + value_length
+              | None ->
+                  (* Otherwise, we must check the index: *)
+                  let span = get_entry_span_from_index_exn t hash in
+                  if span.offset <> offset then
+                    corrupted_store
+                      "Attempted to recover the length of the object \
+                       referenced by %a, but the index returned the \
+                       inconsistent binding { offset = %a; length = %d }"
+                      pp_key key Int63.pp span.offset span.length;
+                  span.length
+            in
+            (* Cache the offset and length information in the existing key: *)
+            Pack_key.promote_exn key ~offset ~length;
+            { offset; length }
         | Indexed hash ->
-            [%log.debug "indexed key"];
             Stats.incr_find_indexed ();
-            get_value_span_from_index t key hash
+            let entry_span = get_entry_span_from_index_exn t hash in
+            Pack_key.promote_exn key ~offset:entry_span.offset
+              ~length:entry_span.length;
+            entry_span
       in
       let io_offset = IO.offset t.pack.block in
-      if Int63.add off (Int63.of_int len) > io_offset then (
+      if Int63.add offset (Int63.of_int length) > io_offset then (
         (* This key is from a different store instance, referencing an
            offset that is not yet visible to this one. It's possible
            that the key _is_ a valid pointer into the same store, but
@@ -370,18 +398,17 @@ module Maker
         [%log.debug
           "Direct store key references an unknown starting offset %a (length = \
            %d, IO offset = %a)."
-          Int63.pp off len Int63.pp io_offset];
+          Int63.pp offset length Int63.pp io_offset];
         None)
       else
-        let v = io_read_and_decode ~off ~len t in
+        let v = io_read_and_decode ~off:offset ~len:length t in
         Lru.add t.lru hash v;
         (if check_integrity then
          check_key key v |> function
          | Ok () -> ()
          | Error (expected, got) ->
-             Fmt.failwith
-               "corrupted value: got hash %a, expecting %a (for val: %a)."
-               pp_hash got pp_hash expected pp_value v);
+             corrupted_store "Got hash %a, expecting %a (for val: %a)." pp_hash
+               got pp_hash expected pp_value v);
         Some v
 
     let unsafe_find ~check_integrity t (k : _ Pack_key.t) =
@@ -432,7 +459,7 @@ module Maker
           match Pack_key.inspect k with
           | Direct { offset; _ } | Direct_unknown_length { offset; _ } ->
               Stats.incr_appended_offsets ();
-              offset
+              Some offset
           | Indexed hash -> (
               match Index.find t.pack.index hash with
               | None ->
@@ -440,7 +467,7 @@ module Maker
                   None
               | Some (offset, _, _) ->
                   Stats.incr_appended_offsets ();
-                  offset)
+                  Some offset)
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
