@@ -313,10 +313,9 @@ struct
     let is_real_length length = not (Int32.equal length no_length)
 
     type v1 = { mutable length : int32; v : v } [@@deriving irmin]
-    (** [length] is the length of the binary encoding of [t] (i.e. [hash] +
-        [kind] + [length] + [v]). It is not known right away. [length] is
-        [no_length] when it isn't known. Calling [encode_bin] or [size_of] will
-        make [length] known. *)
+    (** [length] is the length of the binary encoding of [v]. It is not known
+        right away. [length] is [no_length] when it isn't known. Calling
+        [encode_bin] or [size_of] will make [length] known. *)
 
     (** [tagged_v] sits between [v] and [t]. It is a variant with the header
         binary encoded as the magic. *)
@@ -334,11 +333,7 @@ struct
       let l = ref [] in
       encode_bin_v v (fun s -> l := s :: !l);
       let length =
-        List.fold_left
-          (fun acc s -> acc + String.length s)
-          (H.hash_size + 1 + 4)
-          !l
-        |> Int32.of_int
+        List.fold_left (fun acc s -> acc + String.length s) 0 !l |> Int32.of_int
       in
       tv.length <- length;
       encode_bin_kind kind f;
