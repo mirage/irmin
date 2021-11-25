@@ -27,8 +27,8 @@ module type Sigs = sig
             to consult the index.
 
             They are built in-memory (e.g. after adding a fresh value to the
-            pack file), but have no corresponding {!Encoding_format}, as the
-            pack format keeps length information with the values themselves.
+            pack file), but have no corresponding encoding format, as the pack
+            format keeps length information with the values themselves.
 
             When decoding an inode, which references its children as single
             offsets, we fetch the length information of the child at the same
