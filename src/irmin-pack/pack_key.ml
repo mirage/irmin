@@ -114,9 +114,7 @@ let t (type hash) (codec : Codec.t) (hash_t : hash Irmin.Type.t) =
     ~bin:(encode_bin, decode_bin, size_of)
 
 let v_direct ~hash ~offset ~length = { state = Direct { hash; offset; length } }
-
-let v_blindfolded ~hash ~offset =
-  { state = Direct_unknown_length { hash; offset } }
+let v_indexed hash = { state = Indexed hash }
 
 module type S = sig
   type hash

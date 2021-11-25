@@ -1353,13 +1353,23 @@ struct
 
     let length_header =
       let some_int32_be = Some `Int32_be in
+      let contents =
+        (* NOTE: the Node instantiation of the pack store must have access to
+           the header format used by contents values in order to eagerly
+           construct contents keys with length information during
+           [key_of_offset]. *)
+        match Conf.contents_length_header with
+        | `None -> None
+        | `Varint -> Some `Varint
+      in
       `Sometimes
         (function
         | Pack_value.Kind.Inode_v0_unstable -> None
         | Inode_v0_stable -> None
         | Inode_v1_root -> some_int32_be
         | Inode_v1_nonroot -> some_int32_be
-        | Contents | Commit -> assert false)
+        | Contents -> contents
+        | Commit -> assert false)
 
     let decode_compress_length =
       match Irmin.Type.Size.of_encoding Compress.t with

@@ -10,7 +10,7 @@ module Indexing_strategy = struct
    fun ~value_length:_ -> function
     | Commit ->
         (* Commits must be indexed as the branch store contains only their
-           hashes (and likewise for commit -> commit intenral pointers). *)
+           hashes (and likewise for commit -> commit internal pointers). *)
         true
     | Inode_v0_unstable | Inode_v0_stable ->
         (* Old inode values are assumed to be indexed in order to be able to
@@ -340,11 +340,23 @@ module Maker
       if n <> len then
         invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp
           off len;
-      let key_of_offset off =
-        (* XXX(craigfe): we may as well attempt to read the length here as well
-           (?), as we're touching this page anyway *)
-        let hash = io_read_and_decode_hash ~off t in
-        Pack_key.v_blindfolded ~hash ~offset:off
+      let key_of_offset offset =
+        (* Attempt to eagerly read the length at the same time as reading the
+           hash in order to save an extra IO read when dereferencing the key: *)
+        let { Entry_prefix.hash; value_length; _ } =
+          io_read_and_decode_entry_prefix ~off:offset t
+        in
+        match value_length with
+        | Some value_length ->
+            let length = Hash.hash_size + 1 + value_length in
+            Pack_key.v_direct ~hash ~offset ~length
+        | None ->
+           (* NOTE: we could store [offset] in this key, but since we know the
+              entry doesn't have a length header we'll need to check the index
+              when dereferencing this key anyway. {i Not} storing the offset
+              avoids doing another failed check in the pack file for the length
+              header during [find]. *)
+           Pack_key.v_indexed hash
       in
       let dict = Dict.find t.pack.dict in
       Val.decode_bin ~key_of_offset ~dict (Bytes.unsafe_to_string buf) (ref 0)

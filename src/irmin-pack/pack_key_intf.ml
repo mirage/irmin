@@ -28,17 +28,18 @@ module type Sigs = sig
             pack file), but have no corresponding encoding format, as the pack
             format keeps length information with the values themselves.
 
-            When decoding an inode, which references its children as single
+            When decoding a inode, which references its children as single
             offsets, we fetch the length information of the child at the same
             time as fetching its hash (which we must do anyway in order to do an
             integrity check), creating keys of this form. *)
     | Direct_unknown_length of { hash : 'hash; offset : int63 }
         (** Like {!Direct}, but dereferencing requires first discovering the
-            length of the value by consulting the index (after which the key can
-            be promoted to {!Direct} to avoid unnecessary re-indexing).
+            length of the value by (a) checking in the pack file for a length
+            header, or (b) consulting the index (after which the key can be
+            promoted to {!Direct} to avoid unnecessary re-indexing).
 
-            Such keys result from decoding internal pointers between V0 inode
-            objects, which do not have length headers in the pack file. *)
+            Such keys result from decoding values containing keys that were
+            encoded as [(hash, offset)] pairs, as created by {!Make}. *)
     | Indexed of 'hash
         (** A pointer to an object in the pack file that is indexed. As with
             {!Direct_unknown_length}, reading the object necessitates consulting
@@ -49,7 +50,7 @@ module type Sigs = sig
 
   val inspect : 'hash t -> 'hash state
   val v_direct : hash:'h -> offset:int63 -> length:int -> 'h t
-  val v_blindfolded : hash:'h -> offset:int63 -> 'h t
+  val v_indexed : 'h -> 'h t
   val promote_exn : 'h t -> offset:int63 -> length:int -> unit
 
   module type S = sig
