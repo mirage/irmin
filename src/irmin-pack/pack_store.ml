@@ -2,26 +2,29 @@ open! Import
 include Pack_store_intf
 
 module Indexing_strategy = struct
-  type t = Pack_value.Kind.t -> bool
+  type t = value_length:int -> Pack_value.Kind.t -> bool
 
-  let always _ = true
+  let always ~value_length:_ _ = true
 
-  let minimal : t = function
+  let minimal : t =
+    fun ~value_length:_ -> function
     | Commit ->
         (* Commits must be indexed as the branch store contains only their
            hashes (and likewise for commit -> commit intenral pointers). *)
         true
     | Inode_v0_unstable | Inode_v0_stable ->
-        (* Old inode values must be indexed in order to be able to resolve
-           internal pointers between them (e.g. to get the length of the
-           referenced inode). We never append new values of this kind anyway, so
-           the choice does not matter. *)
-        true
+        (* Old inode values are assumed to be indexed in order to be able to
+           resolve internal pointers between them (e.g. to get the length of the
+           referenced inode).
+
+           We never append new values of this kinds, so the choice is
+           irrelevant. *)
+        assert false
     | Inode_v1_root ->
-        (* NOTE: should be possible to not index these, but one is
-           referenced by each commit. TODO: either upgrade the commit format to
-           one that contains direct keys, or provide some way to express "index
-           the root node only" as a strategy. *)
+        (* NOTE: should be possible to not index these, but one is referenced by
+           each commit. TODO: either upgrade the commit format to one that
+           contains direct keys, or provide some way to express "index the root
+           node only" as a strategy. *)
         true
     | Inode_v1_nonroot -> false
     | Contents -> false
@@ -433,7 +436,7 @@ module Maker
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
         let () =
           let kind = Val.kind v in
-          let should_index = t.pack.indexing_strategy kind in
+          let should_index = t.pack.indexing_strategy ~value_length:len kind in
           if should_index then
             Index.add ~overcommit t.pack.index hash (off, len, Val.kind v)
         in

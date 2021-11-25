@@ -59,10 +59,21 @@ end
 
 module type Sigs = sig
   module Indexing_strategy : sig
-    type t = Pack_value.Kind.t -> bool
+    type t = value_length:int -> Pack_value.Kind.t -> bool
+    (** The type of configurations for [irmin-pack]'s indexing strategy, which
+        dictates whether or not newly-appended pack entries should also be added
+        to the index. Strategies are parameterised over:
+
+        - the length of the binary encoding of the {i object} inside the pack
+          entry (i.e. not accounting for the encoded hash and kind character);
+        - the kind of the pack object having been added. *)
 
     val always : t
+    (** The strategy that indexes all objects. *)
+
     val minimal : t
+    (** The strategy that indexes as few objects as possible while still
+        maintaing store integrity. *)
   end
 
   module type S = S with type indexing_strategy := Indexing_strategy.t
