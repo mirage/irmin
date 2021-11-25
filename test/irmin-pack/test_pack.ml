@@ -63,16 +63,14 @@ module Irmin_pack_layered_store : Irmin_test.Layered_store_generic_key = struct
   end)
 end
 
-let suite_pack =
+let suite_pack name_suffix indexing_strategy =
   let store = (module Irmin_pack_store : Irmin_test.Generic_key) in
   let _layered_store =
     (* TODO: re-add once the layered store is suppored by Irmin_pack. *)
     (module Irmin_pack_layered_store : Irmin_test.Layered_store_generic_key)
   in
   let config =
-    Irmin_pack.config ~fresh:false ~lru_size:0
-      ~indexing_strategy:Irmin_pack.Pack_store.Indexing_strategy.minimal
-      test_dir
+    Irmin_pack.config ~fresh:false ~lru_size:0 ~indexing_strategy test_dir
   in
   let init () =
     rm_dir test_dir;
@@ -83,8 +81,8 @@ let suite_pack =
     Lwt.return_unit
   in
   Irmin_test.Suite.create_generic_key ~clear_supported:false
-    ~import_supported:false ~name:"PACK" ~init ~store ~config ~clean
-    ~layered_store:None ()
+    ~import_supported:false ~name:("PACK" ^ name_suffix) ~init ~store ~config
+    ~clean ~layered_store:None ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)
@@ -103,7 +101,13 @@ let suite_mem =
   Irmin_test.Suite.create_generic_key ~import_supported:false ~name:"PACK MEM"
     ~store ~config ~layered_store:None ()
 
-let suite = [ suite_pack; suite_mem ]
+let suite =
+  let module Index = Irmin_pack.Pack_store.Indexing_strategy in
+  [
+    suite_pack " { index = always }" Index.always;
+    suite_pack " { index = minimal }" Index.minimal;
+    suite_mem;
+  ]
 
 module Context = Make_context (struct
   let root = test_dir
