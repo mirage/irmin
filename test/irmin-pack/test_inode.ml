@@ -531,6 +531,9 @@ let test_concrete_inodes () =
   Context.close t
 
 let tests =
+  (* Test disabled because it relies on being able to serialise concrete inodes,
+     which is not possible following the introduction of structured keys. *)
+  let _ = test_truncated_inodes in
   [
     Alcotest.test_case "add values" `Quick (fun () ->
         Lwt_main.run (test_add_values ()));
@@ -544,8 +547,8 @@ let tests =
         Lwt_main.run (test_concrete_inodes ()));
     Alcotest.test_case "test representation uniqueness" `Quick (fun () ->
         Lwt_main.run (test_representation_uniqueness_maxdepth_3 ()));
-    Alcotest.test_case "test truncated inodes" `Quick (fun () ->
-        Lwt_main.run (test_truncated_inodes ()));
+    (* Alcotest.test_case "test truncated inodes" `Quick (fun () ->
+     *     Lwt_main.run (test_truncated_inodes ())); *)
     Alcotest.test_case "test intermediate inode as root" `Quick (fun () ->
         Lwt_main.run (test_intermediate_inode_as_root ()));
   ]
