@@ -202,25 +202,37 @@ module Maker
       decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
 
     let pack_file_contains_key t k =
-      let offset = Key.to_offset k and length = Key.to_length k in
-      if
-        Int63.compare
-          (Int63.add offset (Int63.of_int length))
-          (IO.offset t.pack.block)
-        > 0
-      then false
-      else
-        (* We read the hash explicitly as an integrity check: it's not
-           sufficient to assume that any offset within the file is valid. *)
-        let hash = io_read_and_decode_hash ~off:offset t in
-        let expected_hash = Key.to_hash k in
-        (* XXX: raise exception / log error in the [false] case here? *)
-        Hash.equal hash expected_hash
-
-    (* NOTE: may return false negatives, since the index may be partial. *)
-    (* let mem_via_hash t h =
-     *   Log.debug (fun l -> l "[pack] contains_hash %a" pp_hash h);
-     *   Tbl.mem t.staging h || Lru.mem t.lru h || Index.mem t.pack.index h *)
+      let key = Pack_key.inspect k in
+      match key with
+      | Indexed hash -> Index.mem t.pack.index hash
+      | Direct { offset; _ } | Direct_unknown_length { offset; _ } ->
+          let minimal_entry_length = Hash.hash_size + 1 in
+          let io_offset = IO.offset t.pack.block in
+          if
+            Int63.compare
+              (Int63.add offset (Int63.of_int minimal_entry_length))
+              io_offset
+            > 0
+          then (
+            (* Can't fit an entry into this suffix of the store, so this key
+               isn't (yet) valid. If we're a read-only instance, the key may
+               become valid on [sync]; otherwise we know that this key wasn't
+               constructed for this store. *)
+            if not t.readonly then
+              invalid_read
+                "invalid key %a checked for membership (IO offset = %a)" pp_key
+                k Int63.pp io_offset;
+            false)
+          else
+            (* Read the hash explicitly as an integrity check: *)
+            let hash = io_read_and_decode_hash ~off:offset t in
+            let expected_hash = Key.to_hash k in
+            if not (Hash.equal hash expected_hash) then
+              invalid_read
+                "invalid key %a checked for membership (read hash %a at this \
+                 offset instead)"
+                pp_key k pp_hash hash;
+            true
 
     let unsafe_mem t k =
       [%log.debug "[pack] mem %a" pp_key k];
