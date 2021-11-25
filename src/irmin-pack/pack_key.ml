@@ -129,18 +129,6 @@ module Make_no_repr (Hash : Irmin.Hash.S) = struct
   type hash = Hash.t [@@deriving irmin ~of_bin_string]
 
   let to_hash = to_hash
-
-  let to_offset t =
-    match t.state with
-    | Direct t -> t.offset
-    | Direct_unknown_length t -> t.offset
-    | Indexed _ -> assert false
-
-  let to_length t =
-    match t.state with
-    | Direct t -> t.length
-    | Direct_unknown_length _ | Indexed _ -> assert false
-
   let null_offset = Int63.minus_one
   let null_length = -1
 

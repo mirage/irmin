@@ -3,8 +3,6 @@ open! Import
 module type S = sig
   include Irmin.Key.S
 
-  val to_offset : t -> int63
-  val to_length : t -> int
   val null : t
   val unfindable_of_hash : hash -> t
 end
