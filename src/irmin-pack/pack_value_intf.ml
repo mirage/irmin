@@ -1,7 +1,20 @@
 open! Import
 
-type 'k length_header =
-  [ `Never | `Sometimes of 'k -> [ `Varint | `Int32_be ] option ]
+(** This module defines abstractions over entries in the pack file, which are
+    encoded as the following sequence:
+
+    - the (fixed-length) hash of the data stored in this entry;
+    - the {i kind} of data being stored (contents, nodes, blob etc.);
+    - the data itself, optionally with a length header that contains the encoded
+      size of the data section (excluding the header itself). *)
+
+type 'kind length_header =
+  [ `Never | `Sometimes of 'kind -> [ `Varint | `Int32_be ] option ]
+(** The type of descriptions of length header formats for the {i data} sections
+    of pack entries.
+
+    NOTE: [`Never] is equivalent to [`Sometimes (Fun.const None)], but enables a
+    more efficient store implementation. *)
 
 module type S = sig
   include Irmin.Type.S
