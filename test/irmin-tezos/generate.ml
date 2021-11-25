@@ -92,7 +92,8 @@ module Simple = struct
 end
 
 let generate () =
-  let* () = Layered.create_store () in
+  (* XXX: the layered store is currently unsupported *)
+  let _ = Layered.create_store in
   Simple.create_store ()
 
 let () = Lwt_main.run (generate ())
