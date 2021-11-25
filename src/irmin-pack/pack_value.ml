@@ -38,6 +38,7 @@ module type Persistent = Persistent with type kind := Kind.t
 
 module Make (Config : sig
   val selected_kind : Kind.t
+  val length_header : Kind.t length_header
 end)
 (Hash : Irmin.Hash.S) (Key : sig
   type t
@@ -55,7 +56,7 @@ struct
   let value = [%typ: (Hash.t, Data.t) value]
   let encode_value = Irmin.Type.(unstage (encode_bin value))
   let decode_value = Irmin.Type.(unstage (decode_bin value))
-  let length_header = `Never
+  let length_header = Config.length_header
 
   let encode_bin ~dict:_ ~offset_of_key:_ v hash =
     encode_value { kind; hash; v }
@@ -75,10 +76,19 @@ struct
   let kind _ = Config.selected_kind
 end
 
-module Of_contents = Make (struct
+module Of_contents (Conf : sig
+  val contents_length_header : [ `Varint | `None ]
+end) =
+Make (struct
   let selected_kind = Kind.Contents
+
+  let length_header =
+    match Conf.contents_length_header with
+    | `None -> `Never
+    | `Varint -> `Sometimes (Fun.const (Some `Varint))
 end)
 
 module Of_commit = Make (struct
   let selected_kind = Kind.Commit
+  let length_header = `Never
 end)

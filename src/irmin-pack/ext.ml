@@ -44,7 +44,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       [@@deriving irmin]
 
       module Contents = struct
-        module Pack_value = Pack_value.Of_contents (H) (Key_direct) (C)
+        module Pack_value = Pack_value.Of_contents (Config) (H) (Key_direct) (C)
         module CA = Pack.Make (Pack_value)
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end

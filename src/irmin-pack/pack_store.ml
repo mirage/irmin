@@ -17,10 +17,6 @@ module Indexing_strategy = struct
            referenced inode). We never append new values of this kind anyway, so
            the choice does not matter. *)
         true
-    | Contents ->
-        (* NOTE: should be possible to not index these, provided we can get their
-           length header from the pack file. *)
-        true
     | Inode_v1_root ->
         (* NOTE: should be possible to not index these, but one is
            referenced by each commit. TODO: either upgrade the commit format to
@@ -28,6 +24,7 @@ module Indexing_strategy = struct
            the root node only" as a strategy. *)
         true
     | Inode_v1_nonroot -> false
+    | Contents -> false
 end
 
 module type S = S with type indexing_strategy := Indexing_strategy.t
@@ -288,6 +285,12 @@ module Maker
              object from the store without being able to determine its length."
             pp_key key
 
+    module Varint = struct
+      type t = int [@@deriving irmin ~decode_bin]
+
+      let max_encoded_size = 9
+    end
+
     let find_in_pack_file ~check_integrity t key hash =
       let off, len =
         match Pack_key.inspect key with
@@ -304,20 +307,31 @@ module Maker
                 let prefix_offset =
                   Int63.add offset (Int63.of_int Hash.hash_size)
                 in
-                let prefix_length = 1 + 4 in
+                let prefix_length =
+                  1 (* magic character *) + Varint.max_encoded_size
+                in
                 let buf = Bytes.create prefix_length in
                 let r = IO.read t.pack.block ~off:prefix_offset buf in
                 (* TODO: use a proper storage corruption exception here *)
                 assert (r = prefix_length);
                 let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf 0) in
                 match has_length_header kind with
-                | true ->
+                | Some `Int32_be ->
                     (* The remaining 4 bytes in the buffer are a
                        length field: *)
                     let value_size = Bytes.get_int32_be buf 1 |> Int32.to_int in
                     let length = Hash.hash_size + 1 + 4 + value_size in
                     (offset, length)
-                | false ->
+                | Some `Varint ->
+                    (* The remaining bytes start with a variable-length length
+                       field: *)
+                    let pos_ref = ref 1 in
+                    let value_size =
+                      Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
+                    in
+                    let length = Hash.hash_size + !pos_ref + value_size in
+                    (offset, length)
+                | None ->
                     (* The value segment has no length field, so we must
                        index to find it. *)
                     get_value_span_from_index t key hash)

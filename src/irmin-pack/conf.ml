@@ -17,6 +17,7 @@
 module type S = sig
   val entries : int
   val stable_hash : int
+  val contents_length_header : [ `Varint | `None ]
 end
 
 module Default = struct

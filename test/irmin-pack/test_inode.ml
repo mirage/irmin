@@ -25,6 +25,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Conf = struct
   let entries = 2
   let stable_hash = 3
+  let contents_length_header = `Varint
 end
 
 let log_size = 1000

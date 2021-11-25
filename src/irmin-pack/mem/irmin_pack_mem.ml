@@ -63,7 +63,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
       module Info = Schema.Info
 
       module Contents = struct
-        module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (XKey) (C)
+        module Pack_value =
+          Irmin_pack.Pack_value.Of_contents (Config) (H) (XKey) (C)
+
         module Indexable = Indexable_mem (H) (Pack_value)
         include Irmin.Contents.Store_indexable (Indexable) (H) (C)
       end

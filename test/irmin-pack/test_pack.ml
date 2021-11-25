@@ -25,6 +25,7 @@ open Common
 module Config = struct
   let entries = 2
   let stable_hash = 3
+  let contents_length_header = `Varint
 end
 
 let test_dir = Filename.concat "_build" "test-db-pack"

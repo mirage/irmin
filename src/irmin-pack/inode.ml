@@ -1357,12 +1357,13 @@ struct
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
     let length_header =
+      let some_int32_be = Some `Int32_be in
       `Sometimes
         (function
-        | Pack_value.Kind.Inode_v0_unstable -> false
-        | Inode_v0_stable -> false
-        | Inode_v1_root -> true
-        | Inode_v1_nonroot -> true
+        | Pack_value.Kind.Inode_v0_unstable -> None
+        | Inode_v0_stable -> None
+        | Inode_v1_root -> some_int32_be
+        | Inode_v1_nonroot -> some_int32_be
         | Contents | Commit -> assert false)
 
     let decode_compress_length =

@@ -55,7 +55,8 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     module Hash = H
 
     module Contents = struct
-      module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (Key_direct) (C)
+      module Pack_value =
+        Irmin_pack.Pack_value.Of_contents (Config) (H) (Key_direct) (C)
 
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
