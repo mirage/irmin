@@ -429,16 +429,18 @@ module Maker
       let unguarded_append () =
         [%log.debug "[pack] append %a" pp_hash hash];
         let offset_of_key k =
-          (* XXX: don't need option any more? *)
-          Stats.incr_appended_offsets ();
-          Some (Key.to_offset k)
-          (* match Index.find t.pack.index k with
-           * | None ->
-           *     Stats.incr_appended_hashes ();
-           *     None
-           * | Some (off, _, _) ->
-           *     Stats.incr_appended_offsets ();
-           *     Some off *)
+          match Pack_key.inspect k with
+          | Direct { offset; _ } | Direct_unknown_length { offset; _ } ->
+              Stats.incr_appended_offsets ();
+              offset
+          | Indexed hash -> (
+              match Index.find t.pack.index hash with
+              | None ->
+                  Stats.incr_appended_hashes ();
+                  None
+              | Some (offset, _, _) ->
+                  Stats.incr_appended_offsets ();
+                  offset)
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
