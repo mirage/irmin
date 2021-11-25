@@ -7,7 +7,7 @@ module Indexing_strategy = struct
   let always ~value_length:_ _ = true
 
   let minimal : t =
-    fun ~value_length:_ -> function
+   fun ~value_length:_ -> function
     | Commit ->
         (* Commits must be indexed as the branch store contains only their
            hashes (and likewise for commit -> commit intenral pointers). *)
