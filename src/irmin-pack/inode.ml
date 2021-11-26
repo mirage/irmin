@@ -636,10 +636,13 @@ struct
         | Partial _ -> fun key -> { target = Lazy key }
         | Truncated -> fun key -> Broken (Val_ref.of_key key)
 
+      type ('input, 'output) cps = { f : 'r. 'input -> ('output -> 'r) -> 'r }
+      [@@ocaml.unboxed]
+
       let save :
           type ptr.
           broken:(hash -> key) ->
-          save_dirty:(ptr t -> key) ->
+          save_dirty:(ptr t, key) cps ->
           clear:bool ->
           ptr layout ->
           ptr ->
@@ -648,26 +651,26 @@ struct
         (* Invariant: TODO (after return, we can get the key) *)
         | Total ->
             fun (Total_ptr entry) ->
-              let key = save_dirty entry (* TODO: make tailcall? *) in
-              Val_ref.promote_exn entry.v_ref key
+              save_dirty.f entry (fun key ->
+                  Val_ref.promote_exn entry.v_ref key)
         | Partial _ -> (
             function
             | { target = Dirty entry } as box ->
-                let key = save_dirty entry (* TODO: make tailcall? *) in
-                if clear then box.target <- Lazy key
-                else (
-                  box.target <- Lazy_loaded entry;
-                  Val_ref.promote_exn entry.v_ref key)
+                save_dirty.f entry (fun key ->
+                    if clear then box.target <- Lazy key
+                    else (
+                      box.target <- Lazy_loaded entry;
+                      Val_ref.promote_exn entry.v_ref key))
             | { target = Lazy_loaded entry } as box ->
                 (* TODO: Why do we save here anyway? *)
-                let key = save_dirty entry (* TODO: make tailcall? *) in
-                if clear then box.target <- Lazy key
+                save_dirty.f entry (fun key ->
+                    if clear then box.target <- Lazy key)
             | { target = Lazy _ } -> ())
         | Truncated -> (
             function
             | Intact entry ->
-                let key = save_dirty entry (* TODO: make tailcall? *) in
-                Val_ref.promote_exn entry.v_ref key
+                save_dirty.f entry (fun key ->
+                    Val_ref.promote_exn entry.v_ref key)
             | Broken vref -> (
                 (* TODO: add this to val_ref *)
                 match Val_ref.to_key vref with
@@ -1268,32 +1271,35 @@ struct
       let rec aux ~depth t =
         [%log.debug "save depth:%d" depth];
         match t.v with
-        | Values _ ->
-            let key =
-              add
-                (Val_ref.to_hash
-                   t.v_ref (* TODO: pass [key] here if we have it? *))
-                (to_bin layout Bin.Ptr_key
-                   t (* TODO: justify why this is safe *))
+        | Values _ -> (
+            let unguarded_add hash =
+              let value =
+                to_bin layout Bin.Ptr_key t
+                (* TODO: justify why this is safe *)
+              in
+              let key = add hash value in
+              Val_ref.promote_exn t.v_ref key;
+              key
             in
-            Val_ref.promote_exn t.v_ref key;
-            key
+            match Val_ref.inspect t.v_ref with
+            | Key key ->
+                if mem key then key else unguarded_add (Key.to_hash key)
+            | Hash hash -> unguarded_add (Lazy.force hash))
         | Tree n ->
-            iter_entries
-              ~save_dirty:(fun t ->
-                let hash =
-                  Val_ref.to_hash t.v_ref
-                  (* TODO: use [key] here if it exists? *)
-                in
-                let key =
-                  match index hash with
-                  | None -> aux ~depth:(depth + 1) t
-                  | Some key ->
-                      if mem key then key else aux ~depth:(depth + 1) t
-                in
-                Val_ref.promote_exn t.v_ref key;
-                key)
-              n.entries;
+            let save_dirty t k =
+              let key =
+                match Val_ref.inspect t.v_ref with
+                | Key key -> if mem key then key else aux ~depth:(depth + 1) t
+                | Hash hash -> (
+                    match index (Lazy.force hash) with
+                    | Some key ->
+                        if mem key then key else aux ~depth:(depth + 1) t
+                    | None -> aux ~depth:(depth + 1) t)
+              in
+              Val_ref.promote_exn t.v_ref key;
+              k key
+            in
+            iter_entries ~save_dirty:{ f = save_dirty } n.entries;
             let key =
               add (Val_ref.to_hash t.v_ref)
                 (to_bin layout Bin.Ptr_key
