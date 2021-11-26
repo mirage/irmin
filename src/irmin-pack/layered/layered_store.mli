@@ -48,7 +48,6 @@ module Pack_maker
     (Index : Irmin_pack.Index.S)
     (P : Irmin_pack.Pack_store.Maker
            with type hash = H.t
-            and type key := H.t Irmin_pack.Pack_key.t
             and type index := Index.t) :
   S.Indexable_maker
     with type hash = H.t

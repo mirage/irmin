@@ -353,7 +353,6 @@ module Pack_maker
     (Index : Irmin_pack.Index.S)
     (P : Irmin_pack.Pack_store.Maker
            with type hash = H.t
-            and type key := H.t Irmin_pack.Pack_key.t
             and type index := Index.t) =
 struct
   type index = Index.t
@@ -365,12 +364,7 @@ struct
              with type hash := hash
               and type key := hash Irmin_pack.Pack_key.t) =
   struct
-    module Upper = P.Make (struct
-      include V
-
-      type key = H.t Irmin_pack.Pack_key.t
-    end)
-
+    module Upper = P.Make (V)
     include Indexable (H) (Index) (Upper) (Upper)
   end
 end

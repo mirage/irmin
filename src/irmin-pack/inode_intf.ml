@@ -216,7 +216,6 @@ module type Sigs = sig
                   and type Val.step = Node.step)
       (CA : Pack_store.Maker
               with type hash = H.t
-               and type key = H.t Pack_key.t
                and type index := Pack_index.Make(H).t) :
     Persistent
       with type key = H.t Pack_key.t

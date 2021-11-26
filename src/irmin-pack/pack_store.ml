@@ -54,10 +54,7 @@ module Maker
     (V : Version.S)
     (Index : Pack_index.S)
     (K : Irmin.Hash.S with type t = Index.key) :
-  Maker
-    with type key = K.t Pack_key.t
-     and type hash = K.t
-     and type index := Index.t = struct
+  Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
@@ -73,7 +70,6 @@ module Maker
   module Key = Pack_key.Make (K)
 
   type hash = K.t
-  type key = Key.t
 
   type 'a t = {
     mutable block : IO.t;
@@ -117,7 +113,7 @@ module Maker
       Dict.close t.dict)
 
   module Make_without_close_checks
-      (Val : Pack_value.Persistent with type hash := K.t) =
+      (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
   struct
     module Key = Key
     module Tbl = Table (K)
@@ -555,7 +551,9 @@ module Maker
     let offset t = IO.offset t.pack.block
   end
 
-  module Make (Val : Pack_value.Persistent with type hash := K.t) = struct
+  module Make
+      (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
+  struct
     module Inner = Make_without_close_checks (Val)
     include Indexable.Closeable (Inner)
 

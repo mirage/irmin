@@ -40,7 +40,6 @@ module type S = sig
 end
 
 module type Maker = sig
-  type key
   type hash
   type index
   type indexing_strategy
@@ -48,9 +47,12 @@ module type Maker = sig
   (** Save multiple kind of values in the same pack file. Values will be
       distinguished using [V.magic], so they have to all be different. *)
 
-  module Make (V : Pack_value.Persistent with type hash := hash) :
+  module Make
+      (V : Pack_value.Persistent
+             with type hash := hash
+              and type key := hash Pack_key.t) :
     S
-      with type key = key
+      with type key = hash Pack_key.t
        and type hash = hash
        and type value = V.t
        and type index := index
@@ -83,8 +85,5 @@ module type Sigs = sig
       (_ : Version.S)
       (Index : Pack_index.S)
       (Hash : Irmin.Hash.S with type t = Index.key) :
-    Maker
-      with type key = Hash.t Pack_key.t
-       and type hash = Hash.t
-       and type index := Index.t
+    Maker with type hash = Hash.t and type index := Index.t
 end

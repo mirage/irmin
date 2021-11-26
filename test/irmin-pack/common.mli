@@ -69,7 +69,6 @@ module Pack :
 module P :
   Irmin_pack.Pack_store.Maker
     with type hash = Schema.Hash.t
-     and type key = Key.t
      and type index := Irmin_pack.Index.Make(Schema.Hash).t
 
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)

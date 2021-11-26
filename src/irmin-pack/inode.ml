@@ -1793,7 +1793,6 @@ module Make_persistent
                 and type Val.step = Node.step)
     (CA : Pack_store.Maker
             with type hash = H.t
-             and type key = H.t Pack_key.t
              and type index := Pack_index.Make(H).t) =
 struct
   module Persistent_pack = CA.Make (Inter.Raw)

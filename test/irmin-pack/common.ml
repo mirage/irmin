@@ -64,8 +64,6 @@ module Contents = struct
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
-  type key = H.t Irmin_pack.Pack_key.t (* XXX: why do I need this? *)
-
   let hash t = H.hash t
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
