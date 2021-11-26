@@ -99,7 +99,8 @@
   - Add `Irmin.Backend.Conf.Schema` for grouping configuration keys. Now
     `Irmin.Backend.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
-  - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
+  - `Tree.empty` and `Node.empty` now both take a unit argument. (#1566 #1629,
+    @CraigFe)
   - Rename `key` type to `path` and `Key` module to `Path` when it is in a path
     context in `Tree` and `Store`. (#1569, @maiste)
   - Move `Node.default` metadata default values into a `Node.Metadata.default`
