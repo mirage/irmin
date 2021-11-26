@@ -281,7 +281,8 @@ struct
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_nonroot { length; v }
-      | Commit | Contents -> assert false
+      | Commit_v0 | Commit_v1 -> assert false
+      | Contents -> assert false
 
     let size_of_tv =
       let of_value tv =
@@ -308,7 +309,7 @@ struct
         | Inode_v1_root | Inode_v1_nonroot ->
             let len = decode_bin_int s offref in
             len - H.hash_size
-        | Commit | Contents -> assert false
+        | Commit_v0 | Commit_v1 | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
 

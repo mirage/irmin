@@ -165,7 +165,7 @@ end = struct
 
   let decode_entry_length = function
     | Pack_value.Kind.Contents -> Contents.decode_bin_length
-    | Commit -> Commit.decode_bin_length
+    | Commit_v0 | Commit_v1 -> Commit.decode_bin_length
     | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot ->
         Inode.decode_bin_length
 
