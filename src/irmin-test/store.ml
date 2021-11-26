@@ -2032,6 +2032,8 @@ let suite' l ?(prefix = "") (_, x) =
   let module T = Make (S) in
   (prefix ^ x.name, l)
 
+let when_ b x = if b then x else []
+
 let suite (speed, x) =
   let (module S) = x.store in
   let module T = Make (S) in
@@ -2039,9 +2041,7 @@ let suite (speed, x) =
   let module T_watch = Store_watch.Make (Log) (S) in
   let with_tree_enabled =
     (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1090. *)
-    not
-      (List.mem ~equal:String.equal (Suite.name x)
-         [ "FS"; "GIT"; "HTTP.FS"; "HTTP.GIT" ])
+    not (List.mem x.name [ "FS"; "GIT"; "HTTP.FS"; "HTTP.GIT" ])
   in
   suite'
     ([
