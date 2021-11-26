@@ -71,8 +71,12 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       module Commit = struct
         module Value = struct
           include Schema.Commit (Key_indexed) (Key_indexed)
-          (** NOTE: All objects (both commits and nodes) referenced by commits
-              must be indexed, for backwards compatibility reasons. *)
+          (** NOTE: here we derive a serialisation format for commits that uses
+              hashes for keys, matching the [Commit_v0] kind. This is safe since
+              objects of this type are always indexed.
+
+              [Pack_value.Of_commit] constructs a new codec for [Commit_v1]
+              objects that uses offsets as pointers instead. *)
 
           type hash = Hash.t [@@deriving irmin]
         end

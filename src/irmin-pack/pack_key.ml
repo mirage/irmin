@@ -113,7 +113,9 @@ let t (type hash) (codec : Codec.t) (hash_t : hash Irmin.Type.t) =
   Irmin.Type.like (t hash_t) ~pre_hash ~equal ~compare
     ~bin:(encode_bin, decode_bin, size_of)
 
-let v_direct ~hash ~offset ~length = { state = Direct { hash; offset; length } }
+let v_direct ~hash ~offset ~length =
+  { state = Direct { hash; offset; length } }
+
 let v_indexed hash = { state = Indexed hash }
 
 module type S = sig

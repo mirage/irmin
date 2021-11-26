@@ -28,8 +28,8 @@ module type S = sig
       - [`None]: there is no length header, and values have unknown size. NOTE:
         when using [irmin-pack] in this mode, the selected indexing strategy
         {i must} index all contents values (as recovering contents values from
-        the store will require referrring to the index for their length
-        inforamtion). *)
+        the store will require referring to the index for their length
+        information). *)
 end
 
 val spec : Irmin.Backend.Conf.Spec.t
