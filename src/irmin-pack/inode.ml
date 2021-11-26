@@ -785,7 +785,7 @@ struct
 
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
-      let hash = lazy (Node.hash Node.empty) in
+      let hash = lazy (Node.hash (Node.empty ())) in
       { stable = true; hash; v = Values StepMap.empty }
 
     let values layout vs =
@@ -1181,7 +1181,7 @@ struct
     let list ?offset ?length ?cache t =
       List.of_seq (seq ?offset ?length ?cache t)
 
-    let empty = of_list []
+    let empty () = of_list []
     let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
 
     let find ?cache t s =
