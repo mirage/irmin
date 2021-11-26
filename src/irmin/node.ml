@@ -122,7 +122,7 @@ struct
       Some v
     with Not_found -> None
 
-  let empty = StepMap.empty
+  let empty = Fun.const StepMap.empty
   let is_empty e = StepMap.is_empty e
   let length e = StepMap.cardinal e
   let clear _ = ()
@@ -324,8 +324,8 @@ struct
     in
     let merge = Val.merge ~contents:C.(merge (fst t)) ~node:merge_key in
     let read = function
-      | None -> Lwt.return Val.empty
-      | Some k -> ( find t k >|= function None -> Val.empty | Some v -> v)
+      | None -> Lwt.return (Val.empty ())
+      | Some k -> ( find t k >|= function None -> Val.empty () | Some v -> v)
     in
     let add v =
       if Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
@@ -376,7 +376,7 @@ module Graph (S : Store) = struct
   type 'a t = 'a S.t
   type value = [ `Contents of contents_key * metadata | `Node of node_key ]
 
-  let empty t = S.add t S.Val.empty
+  let empty t = S.add t (S.Val.empty ())
 
   let list t n =
     [%log.debug "steps"];
@@ -463,15 +463,16 @@ module Graph (S : Store) = struct
     let old_key = S.Val.find node label in
     let* old_node =
       match old_key with
-      | None | Some (`Contents _) -> Lwt.return S.Val.empty
+      | None | Some (`Contents _) -> Lwt.return (S.Val.empty ())
       | Some (`Node k) -> (
-          S.find t k >|= function None -> S.Val.empty | Some v -> v)
+          S.find t k >|= function None -> S.Val.empty () | Some v -> v)
     in
     let* new_node = f old_node in
     if equal_val old_node new_node then Lwt.return node
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
-      if S.Val.is_empty node then Lwt.return S.Val.empty else Lwt.return node
+      if S.Val.is_empty node then Lwt.return (S.Val.empty ())
+      else Lwt.return node
     else
       let+ k = S.add t new_node in
       S.Val.add node label (`Node k)
@@ -484,7 +485,7 @@ module Graph (S : Store) = struct
       | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
     let* node =
-      S.find t node >|= function None -> S.Val.empty | Some n -> n
+      S.find t node >|= function None -> S.Val.empty () | Some n -> n
     in
     aux node path >>= S.add t
 
@@ -571,7 +572,7 @@ module V1 (N : Generic_key.S with type step = string) = struct
     List.to_seq t.entries |> Seq.drop offset |> take
 
   let list ?offset ?length ?cache t = List.of_seq (seq ?offset ?length ?cache t)
-  let empty = { n = N.empty; entries = [] }
+  let empty () = { n = N.empty (); entries = [] }
   let is_empty t = t.entries = []
   let length e = N.length e.n
   let clear _ = ()

@@ -25,21 +25,22 @@ end = struct
       | Error _ -> assert false
 
   let test_empty () =
-    check __POS__ [%typ: bool] ~expected:true X.(is_empty empty);
-    check __POS__ [%typ: int] ~expected:0 X.(length empty);
-    check __POS__ [%typ: (X.step * X.value) list] ~expected:[] X.(list empty)
+    check __POS__ [%typ: bool] ~expected:true X.(is_empty (empty ()));
+    check __POS__ [%typ: int] ~expected:0 X.(length (empty ()));
+    check __POS__ [%typ: (X.step * X.value) list] ~expected:[]
+      X.(list (empty ()))
 
   let test_add () =
     let with_binding k v t = X.add t k v in
     let k1 = random_key () and k2 = random_key () in
     let a =
-      X.empty |> with_binding "a" (`Node k1) |> with_binding "b" (`Node k2)
+      X.empty () |> with_binding "a" (`Node k1) |> with_binding "b" (`Node k2)
     in
     check __POS__ [%typ: int] ~expected:2 (X.length a)
 
   let test_remove () =
     (* Remove is a no-op on an empty node *)
-    check __POS__ [%typ: X.t] ~expected:X.empty X.(remove empty "foo")
+    check __POS__ [%typ: X.t] ~expected:(X.empty ()) X.(remove (empty ()) "foo")
 
   let suite =
     [

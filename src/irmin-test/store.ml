@@ -129,7 +129,7 @@ module Make (S : Generic_key) = struct
         let+ key = with_node repo (fun n -> B.Node.add n v) in
         check_hash (msg ^ ": hash(v) = add(v)") (B.Node.Key.to_hash key) h'
       in
-      let v = B.Node.Val.empty in
+      let v = B.Node.Val.empty () in
       check_node "empty node" v >>= fun () ->
       let v1 = B.Node.Val.add v "x" k in
       check_node "node: x" v1 >>= fun () ->
@@ -1140,7 +1140,11 @@ module Make (S : Generic_key) = struct
       let* commit = B.Commit.find (ct repo) head in
       let node = B.Commit.Val.node (get commit) in
       let* node = B.Node.find (n repo) node in
-      check T.(option B.Node.Val.t) "empty tree" (Some B.Node.Val.empty) node;
+      check
+        T.(option B.Node.Val.t)
+        "empty tree"
+        (Some (B.Node.Val.empty ()))
+        node;
 
       (* Testing [Tree.diff] *)
       let contents_t = T.pair S.contents_t S.metadata_t in
@@ -1666,7 +1670,7 @@ module Make (S : Generic_key) = struct
 
   let rec write fn = function
     | 0 -> []
-    | i -> (fun () -> fn i >>= Lwt_unix.yield) :: write fn (i - 1)
+    | i -> (fun () -> fn i >>= Lwt.pause) :: write fn (i - 1)
 
   let perform l = Lwt_list.iter_p (fun f -> f ()) l
 
@@ -1755,7 +1759,7 @@ module Make (S : Generic_key) = struct
             let tag = Fmt.str "tmp-%d-%d" n i in
             let* m = S.clone ~src:t ~dst:tag in
             S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
-            Lwt_unix.yield () >>= fun () ->
+            Lwt.pause () >>= fun () ->
             S.merge_into ~info:(infof "update: multi %d" i) m ~into:t
             >>= merge_exn "update: multi")
       in
@@ -1910,7 +1914,7 @@ module Make (S : Generic_key) = struct
                 let* m = S.clone ~src:t ~dst:tag in
                 S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
                 let* set = S.Head.find m in
-                Lwt_unix.yield () >>= fun () -> S.Head.test_and_set t ~test ~set))
+                Lwt.pause () >>= fun () -> S.Head.test_and_set t ~test ~set))
       in
       let read t =
         read
@@ -1938,7 +1942,7 @@ module Make (S : Generic_key) = struct
       let node (s : string) : S.node_key Lwt.t =
         with_node repo (fun n ->
             let* contents = contents s in
-            let node = B.Node.Val.(add empty) s (normal contents) in
+            let node = B.Node.Val.(add (empty ())) s (normal contents) in
             B.Node.add n node)
       in
       let commit (s : string) : S.commit_key Lwt.t =

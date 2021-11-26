@@ -235,8 +235,8 @@ let check_hardcoded_hash msg h v =
 let test_add_values () =
   rm_dir root;
   let* t = Context.get_store () in
-  check_node "hash empty node" Inode.Val.empty t >>= fun () ->
-  let v1 = Inode.Val.add Inode.Val.empty "x" (normal foo) in
+  check_node "hash empty node" (Inode.Val.empty ()) t >>= fun () ->
+  let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
   check_node "node x+y" v2 t >>= fun () ->
   check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
@@ -290,7 +290,8 @@ let test_remove_values () =
   check_values "node x obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
   let v4 = Inode.Val.remove v2 "x" in
-  check_node "remove results in an empty node" Inode.Val.empty t >>= fun () ->
+  check_node "remove results in an empty node" (Inode.Val.empty ()) t
+  >>= fun () ->
   let v5 = Inode.Val.remove v4 "x" in
   check_values "remove on an already empty node" v4 v5;
   check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;

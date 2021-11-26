@@ -32,7 +32,7 @@
       - Introduce a new actions trace that can support replaying up to ~1300k
         commits. (#1358, @Ngoguey42)
       - Improve the stats collection and stats report (#1367, #1384, #1403,
-        #1404, #1416, #1429, #1438, #1501, @Ngoguey42)
+        #1404, #1416, #1429, #1438, #1501, #1616, @Ngoguey42, @maiste)
       - Enable replay in CI (#1430, @Ngoguey42)
       - Enable replay in CB (#1441, @Ngoguey42)
 
@@ -99,7 +99,8 @@
   - Add `Irmin.Backend.Conf.Schema` for grouping configuration keys. Now
     `Irmin.Backend.Conf.key` takes an additional `~spec` parameter.
     (#1492, @zshipko)
-  - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
+  - `Tree.empty` and `Node.empty` now both take a unit argument. (#1566 #1629,
+    @CraigFe)
   - Rename `key` type to `path` and `Key` module to `Path` when it is in a path
     context in `Tree` and `Store`. (#1569, @maiste)
   - Move `Node.default` metadata default values into a `Node.Metadata.default`

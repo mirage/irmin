@@ -94,6 +94,9 @@ module Store : sig
   val find : string -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
   val spec : t -> Irmin.Backend.Conf.Spec.t
+  val generic_keyed : t -> (module Irmin.Generic_key.S)
+  val hash_keyed : t -> (module Irmin.S) option
+  val remote : t -> remote_fn option
   val term : (string option * hash option * string option) Cmdliner.Term.t
 end
 
