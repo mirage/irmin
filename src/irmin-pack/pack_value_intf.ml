@@ -58,7 +58,8 @@ end
 module type Sigs = sig
   module Kind : sig
     type t =
-      | Commit
+      | Commit_v0
+      | Commit_v1
       | Contents
       | Inode_v0_unstable
       | Inode_v0_stable
@@ -74,15 +75,6 @@ module type Sigs = sig
   module type S = S with type kind := Kind.t
   module type Persistent = Persistent with type kind := Kind.t
 
-  module Make (_ : sig
-    val selected_kind : Kind.t
-    val length_header : Kind.t length_header
-  end)
-  (Hash : Irmin.Hash.S)
-  (Key : T)
-  (Data : Irmin.Type.S) :
-    S with type t = Data.t and type hash = Hash.t and type key = Key.t
-
   module Of_contents (_ : sig
     val contents_length_header : [ `Varint | `None ]
   end)
@@ -94,6 +86,8 @@ module type Sigs = sig
   module Of_commit
       (Hash : Irmin.Hash.S)
       (Key : T)
-      (Commit : Irmin.Commit.Generic_key.S) :
+      (Commit : Irmin.Commit.Generic_key.S
+                  with type node_key = Key.t
+                   and type commit_key = Key.t) :
     S with type t = Commit.t and type hash = Hash.t and type key = Key.t
 end

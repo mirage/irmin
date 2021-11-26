@@ -375,7 +375,8 @@ struct
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_nonroot { length; v }
-      | Commit | Contents -> assert false
+      | Commit_v0 | Commit_v1 -> assert false
+      | Contents -> assert false
 
     let size_of_tv =
       let of_value tv =
@@ -402,7 +403,7 @@ struct
         | Inode_v1_root | Inode_v1_nonroot ->
             let len = decode_bin_int32 s offref in
             Int32.to_int len - H.hash_size
-        | Commit | Contents -> assert false
+        | Commit_v0 | Commit_v1 | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
 
@@ -1369,7 +1370,9 @@ struct
         | Inode_v1_root -> some_int32_be
         | Inode_v1_nonroot -> some_int32_be
         | Contents -> contents
-        | Commit -> assert false)
+        | Commit_v0 | Commit_v1 ->
+            (* The node store never inspects a commit object: *)
+            assert false)
 
     let decode_compress_length =
       match Irmin.Type.Size.of_encoding Compress.t with

@@ -19,18 +19,20 @@ end = struct
   }
 
   let empty () =
-    let pack_values = Array.make 6 0 in
+    let total_kinds = 7 (* TODO: expose this from [Pack_value.Kind] *) in
+    let pack_values = Array.make total_kinds 0 in
     { pack_values; duplicates = 0; missing_hashes = 0 }
 
   let incr t n = t.pack_values.(n) <- t.pack_values.(n) + 1
 
   let add t = function
     | Contents -> incr t 0
-    | Commit -> incr t 1
-    | Inode_v0_stable -> incr t 2
-    | Inode_v0_unstable -> incr t 3
-    | Inode_v1_root -> incr t 4
-    | Inode_v1_nonroot -> incr t 5
+    | Commit_v0 -> incr t 1
+    | Commit_v1 -> incr t 2
+    | Inode_v0_stable -> incr t 3
+    | Inode_v0_unstable -> incr t 4
+    | Inode_v1_root -> incr t 5
+    | Inode_v1_nonroot -> incr t 6
 
   let duplicate_entry t = t.duplicates <- t.duplicates + 1
   let missing_hash t = t.missing_hashes <- t.missing_hashes + 1
@@ -40,11 +42,12 @@ end = struct
     record
       [
         field "Contents" (fun t -> t.pack_values.(0)) Fmt.int;
-        field "Commit" (fun t -> t.pack_values.(1)) Fmt.int;
-        field "Inode_v0_stable" (fun t -> t.pack_values.(2)) Fmt.int;
-        field "Inode_v0_unstable" (fun t -> t.pack_values.(3)) Fmt.int;
-        field "Inode_v1_root" (fun t -> t.pack_values.(4)) Fmt.int;
-        field "Inode_v1_nonroot" (fun t -> t.pack_values.(5)) Fmt.int;
+        field "Commit_v0" (fun t -> t.pack_values.(1)) Fmt.int;
+        field "Commit_v1" (fun t -> t.pack_values.(2)) Fmt.int;
+        field "Inode_v0_stable" (fun t -> t.pack_values.(3)) Fmt.int;
+        field "Inode_v0_unstable" (fun t -> t.pack_values.(4)) Fmt.int;
+        field "Inode_v1_root" (fun t -> t.pack_values.(5)) Fmt.int;
+        field "Inode_v1_nonroot" (fun t -> t.pack_values.(6)) Fmt.int;
         field "Duplicated entries" (fun t -> t.duplicates) Fmt.int;
         field "Missing entries" (fun t -> t.missing_hashes) Fmt.int;
       ]
@@ -90,7 +93,8 @@ end = struct
     Fmt.pf ppf "@[<v 0>%s with hash %a@,pack offset = %a, length = %d@]"
       (match kind with
       | Pack_value.Kind.Contents -> "Contents"
-      | Commit -> "Commit"
+      | Commit_v0 -> "Commit_v0"
+      | Commit_v1 -> "Commit_v1"
       | Inode_v0_stable -> "Inode_v0_stable"
       | Inode_v0_unstable -> "Inode_v0_unstable"
       | Inode_v1_root -> "Inode_v1_root"
@@ -179,7 +183,7 @@ end = struct
 
   let decode_entry_length = function
     | Pack_value.Kind.Contents -> Contents.decode_bin_length
-    | Commit -> Commit.decode_bin_length
+    | Commit_v0 | Commit_v1 -> Commit.decode_bin_length
     | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot ->
         Inode.decode_bin_length
 

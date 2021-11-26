@@ -8,26 +8,24 @@ module Indexing_strategy = struct
 
   let minimal : t =
    fun ~value_length:_ -> function
-    | Commit ->
+    | Commit_v1 ->
         (* Commits must be indexed as the branch store contains only their
-           hashes (and likewise for commit -> commit internal pointers). *)
+           hashes. All {i internal} references to V1 commits are via offset
+           (from other V1 commit objects). *)
         true
-    | Inode_v0_unstable | Inode_v0_stable ->
-        (* Old inode values are assumed to be indexed in order to be able to
-           resolve internal pointers between them (e.g. to get the length of the
-           referenced inode).
-
-           We never append new values of this kinds, so the choice is
-           irrelevant. *)
-        assert false
     | Inode_v1_root ->
-        (* NOTE: should be possible to not index these, but one is referenced by
-           each commit. TODO: either upgrade the commit format to one that
-           contains direct keys, or provide some way to express "index the root
-           node only" as a strategy. *)
-        true
+        (* It's safe not to index V1 root inodes because they are never
+           referenced by V0 commit objects (only V1 commit objects, which
+           contain direct pointers rather than hashes).*)
+        false
     | Inode_v1_nonroot -> false
     | Contents -> false
+    | Commit_v0 | Inode_v0_unstable | Inode_v0_stable ->
+        (* We never append new V0 values, so this choice is irrelevant to the
+           store implementation, but we do assume that existing V0 objects are
+           indexed (as they may be referenced via hash by other V0 objects), and
+           this must be accounted for when reconstructing the index. *)
+        true
 end
 
 module type S = S with type indexing_strategy := Indexing_strategy.t
@@ -351,12 +349,12 @@ module Maker
             let length = Hash.hash_size + 1 + value_length in
             Pack_key.v_direct ~hash ~offset ~length
         | None ->
-           (* NOTE: we could store [offset] in this key, but since we know the
-              entry doesn't have a length header we'll need to check the index
-              when dereferencing this key anyway. {i Not} storing the offset
-              avoids doing another failed check in the pack file for the length
-              header during [find]. *)
-           Pack_key.v_indexed hash
+            (* NOTE: we could store [offset] in this key, but since we know the
+               entry doesn't have a length header we'll need to check the index
+               when dereferencing this key anyway. {i Not} storing the offset
+               avoids doing another failed check in the pack file for the length
+               header during [find]. *)
+            Pack_key.v_indexed hash
       in
       let dict = Dict.find t.pack.dict in
       Val.decode_bin ~key_of_offset ~dict (Bytes.unsafe_to_string buf) (ref 0)

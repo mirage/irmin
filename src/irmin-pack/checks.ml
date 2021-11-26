@@ -127,7 +127,7 @@ module Make (M : Maker) = struct
         | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot
           ->
             progress_nodes ()
-        | Commit -> progress_commits ()
+        | Commit_v0 | Commit_v1 -> progress_commits ()
       in
       Index.iter f index;
       let nb_commits, nb_nodes, nb_contents =
@@ -440,7 +440,7 @@ module Index (Index : Pack_index.S) = struct
         ->
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
-      | Commit ->
+      | Commit_v0 | Commit_v1 ->
           progress_commits ();
           check ~kind:`Commit ~offset ~length k
     in
