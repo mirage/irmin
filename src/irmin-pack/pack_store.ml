@@ -433,9 +433,6 @@ module Maker
           match Lru.find t.lru hash with
           | v -> Some v
           | exception Not_found ->
-              (* TODO: extract this logic out to a separate function and handle
-                 error cases more carefully (e.g. when the index does not contain a
-                 necessary object). *)
               Stats.incr_cache_misses ();
               find_in_pack_file ~check_integrity t k hash)
 
