@@ -110,6 +110,9 @@ let suite =
     suite_mem;
   ]
 
+let check_hash pos msg ~expected actual =
+  Alcotest.check_repr ~pos Schema.Hash.t msg expected actual
+
 module Context = Make_context (struct
   let root = test_dir
 end)
@@ -518,85 +521,97 @@ module Pack = struct
 
   (** TODO: we need to ensure that the pack-file actually indexes here,
       otherwise the test is uesless*)
-  let readonly_find_old () = Lwt.return_unit
-  (* let* t = Context.get_pack () in
-   * let* i, r = t.clone_index_pack ~readonly:true in
-   * let check h x msg =
-   *   let+ y = Pack.find r h in
-   *   Alcotest.(check (option string)) msg x y
-   * in
-   * let x1 = "foo" in
-   * let h1 = contents_hash x1 in
-   * let find_before_and_after_sync persist file =
-   *   let k1 =
-   *     Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t.pack
-   *       h1 x1
-   *   in
-   *   persist ();
-   *   Pack.sync r;
-   *   Pack.clear t.pack >>= fun () ->
-   *   Pack.flush t.pack;
-   *   let* () =
-   *     check k1 (Some x1) ("find in " ^ file ^ " after clear but before sync")
-   *   in
-   *   Pack.sync r;
-   *   check k1 None ("find in " ^ file ^ " after clear and sync")
-   * in
-   * let* () =
-   *   find_before_and_after_sync (fun () -> Index.flush t.index) "log"
-   * in
-   * let* () =
-   *   find_before_and_after_sync
-   *     (fun () -> Index.filter t.index (fun _ -> true))
-   *     "data"
-   * in
-   * Context.close t.index t.pack >>= fun () -> Context.close i r *)
+  let readonly_find_old () =
+    let* t = Context.get_pack () in
+    let* i, r = t.clone_index_pack ~readonly:true in
+    let check h x msg =
+      let+ y = Pack.find r h in
+      Alcotest.(check (option string)) msg x y
+    in
+    let x1 = "foo" in
+    let h1 = contents_hash x1 in
+    let find_before_and_after_sync persist file =
+      let k1 =
+        Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t.pack
+          h1 x1
+      in
+      persist ();
+      Pack.sync r;
+      Pack.clear t.pack >>= fun () ->
+      Pack.flush t.pack;
+      let* () =
+        check k1 (Some x1) ("find in " ^ file ^ " after clear but before sync")
+      in
+      Pack.sync r;
+      check k1 None ("find in " ^ file ^ " after clear and sync")
+    in
+    let* () =
+      find_before_and_after_sync (fun () -> Index.flush t.index) "log"
+    in
+    let* () =
+      find_before_and_after_sync
+        (fun () -> Index.filter t.index (fun _ -> true))
+        "data"
+    in
+    Context.close t.index t.pack >>= fun () -> Context.close i r
 
   (** Similar to the test above, but the read-write pack adds new values after a
       clear, and before a readonly sync. *)
-  let readonly_find_old_after_rewrite () = Lwt.return_unit
-  (* let* t = Context.get_pack () in
-   * let* i, r = t.clone_index_pack ~readonly:true in
-   * let check h x msg =
-   *   let+ y = Pack.find r h in
-   *   Alcotest.(check (option string)) msg x y
-   * in
-   * let x1 = "foo" in
-   * let h1 = contents_hash x1 in
-   * let x2 = "bar" in
-   * let h2 = contents_hash x2 in
-   * let find_before_and_after_sync persist file =
-   *   let k1 =
-   *     Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t.pack
-   *       h1 x1
-   *   in
-   *   persist ();
-   *   Pack.sync r;
-   *   Pack.clear t.pack >>= fun () ->
-   *   let k2 =
-   *     Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t.pack
-   *       h2 x2
-   *   in
-   *   persist ();
-   *   let* () =
-   *     check k1 (Some x1)
-   *       ("find old values in " ^ file ^ " after clear but before sync")
-   *   in
-   *   Pack.sync r;
-   *   let* () =
-   *     check k1 None ("do not find old values in " ^ file ^ " after sync")
-   *   in
-   *   check k2 (Some x2) ("find new values in " ^ file ^ " after sync")
-   * in
-   * let* () =
-   *   find_before_and_after_sync (fun () -> Index.flush t.index) "log"
-   * in
-   * let* () =
-   *   find_before_and_after_sync
-   *     (fun () -> Index.filter t.index (fun _ -> true))
-   *     "data"
-   * in
-   * Context.close t.index t.pack >>= fun () -> Context.close i r *)
+  let readonly_find_old_after_rewrite () =
+    let* t = Context.get_pack () in
+    let* i, r = t.clone_index_pack ~readonly:true in
+    let check h x msg =
+      let+ y =
+        Pack.index r h >>= function
+        | None -> Lwt.return_none
+        | Some key -> Pack.find r key
+      in
+      Alcotest.(check (option string)) msg x y
+    in
+    let x1 = "foo" in
+    let h1 = contents_hash x1 in
+    let x2 = "bar" in
+    let h2 = contents_hash x2 in
+    let find_before_and_after_sync persist file =
+      let () =
+        let k1 =
+          Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false
+            t.pack h1 x1
+        in
+        check_hash __POS__ "Returned key is consistent with pre-computed hash"
+          ~expected:h1 (Key.to_hash k1)
+      in
+      persist ();
+      Pack.sync r;
+      Pack.clear t.pack >>= fun () ->
+      let () =
+        let k2 =
+          Pack.unsafe_append ~ensure_unique_indexed:true ~overcommit:false
+            t.pack h2 x2
+        in
+        check_hash __POS__ "Returned key is consistent with pre-computed hash"
+          ~expected:h2 (Key.to_hash k2)
+      in
+      persist ();
+      let* () =
+        check h1 (Some x1)
+          ("find old values in " ^ file ^ " after clear but before sync")
+      in
+      Pack.sync r;
+      let* () =
+        check h1 None ("do not find old values in " ^ file ^ " after sync")
+      in
+      check h2 (Some x2) ("find new values in " ^ file ^ " after sync")
+    in
+    let* () =
+      find_before_and_after_sync (fun () -> Index.flush t.index) "log"
+    in
+    let* () =
+      find_before_and_after_sync
+        (fun () -> Index.filter t.index (fun _ -> true))
+        "data"
+    in
+    Context.close t.index t.pack >>= fun () -> Context.close i r
 
   let tests =
     [
