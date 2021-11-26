@@ -95,8 +95,8 @@ module type S_generic_key = sig
 
       See {!caching} for an explanation of the [cache] parameter *)
 
-  val empty : t
-  (** [empty] is the empty node. *)
+  val empty : unit -> t
+  (** [empty ()] is the empty node. *)
 
   val is_empty : t -> bool
   (** [is_empty t] is true iff [t] is {!empty}. *)

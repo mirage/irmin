@@ -102,7 +102,9 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
           in
           Git.Tree.of_list (entry :: entries)
 
-  let empty : t = Git.Tree.of_list []
+  let empty : unit -> t =
+    (* [Git.Tree.t] is immutable, so sharing a singleton empty tree is safe *)
+    Fun.const (Git.Tree.of_list [])
 
   let to_git perm (name, node) =
     G.Value.Tree.entry ~name:(of_step name) perm node

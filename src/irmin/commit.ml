@@ -107,7 +107,7 @@ struct
     S.find t k >>= function None -> err_not_found k | Some v -> Lwt.return v
 
   let empty_if_none (n, _) = function
-    | None -> N.add n N.Val.empty
+    | None -> N.add n (N.Val.empty ())
     | Some node -> Lwt.return node
 
   let equal_key = Type.(unstage (equal Key.t))
