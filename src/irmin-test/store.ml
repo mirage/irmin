@@ -1686,7 +1686,7 @@ module Make (S : S) = struct
 
   let rec write fn = function
     | 0 -> []
-    | i -> (fun () -> fn i >>= Lwt_unix.yield) :: write fn (i - 1)
+    | i -> (fun () -> fn i >>= Lwt.pause) :: write fn (i - 1)
 
   let perform l = Lwt_list.iter_p (fun f -> f ()) l
 
@@ -1775,7 +1775,7 @@ module Make (S : S) = struct
             let tag = Fmt.str "tmp-%d-%d" n i in
             let* m = S.clone ~src:t ~dst:tag in
             S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
-            Lwt_unix.yield () >>= fun () ->
+            Lwt.pause () >>= fun () ->
             S.merge_into ~info:(infof "update: multi %d" i) m ~into:t
             >>= merge_exn "update: multi")
       in
@@ -1930,7 +1930,7 @@ module Make (S : S) = struct
                 let* m = S.clone ~src:t ~dst:tag in
                 S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
                 let* set = S.Head.find m in
-                Lwt_unix.yield () >>= fun () -> S.Head.test_and_set t ~test ~set))
+                Lwt.pause () >>= fun () -> S.Head.test_and_set t ~test ~set))
       in
       let read t =
         read
@@ -2032,11 +2032,17 @@ let suite' l ?(prefix = "") (_, x) =
   let module T = Make (S) in
   (prefix ^ x.name, l)
 
+let when_ b x = if b then x else []
+
 let suite (speed, x) =
   let (module S) = x.store in
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
   let module T_watch = Store_watch.Make (Log) (S) in
+  let with_tree_enabled =
+    (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1090. *)
+    not (List.mem x.name [ "FS"; "GIT"; "HTTP.FS"; "HTTP.GIT" ])
+  in
   suite'
     ([
        ("Basic operations on contents", speed, T.test_contents x);
@@ -2058,13 +2064,14 @@ let suite (speed, x) =
        ("Unrelated merges", speed, T.test_merge_unrelated x);
        ("Low-level concurrency", speed, T.test_concurrent_low x);
        ("Concurrent updates", speed, T.test_concurrent_updates x);
-       ("with_tree strategies", speed, T.test_with_tree x);
        ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
        ("Concurrent merges", speed, T.test_concurrent_merges x);
        ("Shallow objects", speed, T.test_shallow_objects x);
        ("Closure with disconnected commits", speed, T.test_closure x);
        ("Clear", speed, T.test_clear x);
      ]
+    @ when_ with_tree_enabled
+        [ ("with_tree strategies", speed, T.test_with_tree x) ]
     @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
     @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
     (speed, x)
@@ -2088,6 +2095,10 @@ let layered_suite (speed, x) =
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
         let hook repo max = S.freeze repo ~max_lower:max in
+        let _ =
+          (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1383. *)
+          ("Test commits and graphs", speed, TL.test_graph_and_history x)
+        in
         [
           ("Basic operations on branches", speed, T.test_branches ~hook x);
           ("Basic merge operations", speed, T.test_simple_merges ~hook x);
@@ -2097,7 +2108,6 @@ let layered_suite (speed, x) =
           ("Private node manipulation", speed, T.test_private_nodes ~hook x);
           ("High-level store merges", speed, T.test_merge ~hook x);
           ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
-          ("Test commits and graphs", speed, TL.test_graph_and_history x);
           ("Update branches after freeze", speed, TL.test_fail_branch x);
           ("Test operations on set", speed, TL.test_set x);
           ("Test operations on set tree", speed, TL.test_set_tree x);
