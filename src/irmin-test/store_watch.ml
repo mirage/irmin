@@ -6,7 +6,7 @@ module Make (Log : Logs.LOG) (S : S) = struct
 
   let sleep ?(sleep_t = 0.01) () =
     let sleep_t = min sleep_t 1. in
-    Lwt_unix.yield () >>= fun () -> Lwt_unix.sleep sleep_t
+    Lwt.pause () >>= fun () -> Lwt_unix.sleep sleep_t
 
   (* Re-apply [f] at intervals of [sleep_t] while [f] raises exceptions and
      [while_ ()] holds. *)
