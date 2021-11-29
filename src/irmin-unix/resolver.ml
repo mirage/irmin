@@ -289,7 +289,11 @@ module Store = struct
       Irmin.Backend.Conf.Spec.t -> (module Irmin.Maker) -> hash -> contents -> t
       =
    fun spec (module S) (module H) (module C) ->
-    let module S = S.Make (Irmin.Schema.KV (C)) in
+    let module Schema = struct
+      include Irmin.Schema.KV (C)
+      module Hash = H
+    end in
+    let module S = S.Make (Schema) in
     v spec (module S)
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
