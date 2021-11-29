@@ -102,6 +102,11 @@ end = struct
       pp_key x.key Int63.pp off len
 
   module Index_reconstructor = struct
+    type t = {
+      index : Index.t;
+      indexing_strategy : Pack_store.Indexing_strategy.t;
+    }
+
     let create ~dest config =
       let dest =
         match dest with
@@ -113,23 +118,25 @@ end = struct
             if Conf.readonly config then raise S.RO_not_allowed;
             Conf.root config
       in
-      let log_size = Conf.index_log_size config in
+      let log_size = Conf.index_log_size config
+      and indexing_strategy = Conf.indexing_strategy config in
       [%log.app
         "Beginning index reconstruction with parameters: { log_size = %d }"
           log_size];
       let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
-      index
+      { index; indexing_strategy }
 
-    let iter_pack_entry index key data =
-      Index.add index key data;
+    let iter_pack_entry t key ((_off, len, kind) as data) =
+      if t.indexing_strategy ~value_length:len kind then
+        Index.add t.index key data;
       Ok ()
 
-    let finalise index () =
+    let finalise t () =
       (* Ensure that the log file is empty, so that subsequent opens with a
          smaller [log_size] don't immediately trigger a merge operation. *)
       [%log.app "Completed indexing of pack entries. Running a final merge ..."];
-      Index.try_merge index;
-      Index.close index
+      Index.try_merge t.index;
+      Index.close t.index
   end
 
   module Index_checker = struct
