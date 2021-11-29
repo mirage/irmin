@@ -39,26 +39,48 @@ module Index = Irmin_pack.Index.Make (H)
 module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
 module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
 
+module Contents_value =
+  Irmin_pack.Pack_value.Of_contents (Conf) (H) (Key) (Schema.Contents)
+
+module Contents_store = P.Make (Contents_value)
+
 module Context = struct
   type t = {
     index : Index.t;
     store : read Inode.t;
+    store_contents : read Contents_store.t;
     clone : readonly:bool -> read Inode.t Lwt.t;
+    (* Two contents values that are guaranteed to be read by {!store}: *)
+    foo : Key.t;
+    bar : Key.t;
   }
 
   let get_store ?(lru_size = 0) () =
+    [%log.app "Constructing a fresh context for use by the test"];
     rm_dir root;
     let index = Index.v ~log_size ~fresh:true root in
     let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
-    let+ store = Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root in
+    let* store = Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root in
+    let* store_contents =
+      Contents_store.v ~fresh:false ~lru_size ~index ~indexing_strategy root
+    in
+    let+ foo, bar =
+      Contents_store.batch store_contents (fun writer ->
+          let* foo = Contents_store.add writer "foo" in
+          let* bar = Contents_store.add writer "bar" in
+          Lwt.return (foo, bar))
+    in
     let clone ~readonly =
       Inode.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy root
     in
-    { index; store; clone }
+    [%log.app "Test context constructed"];
+    { index; store; store_contents; clone; foo; bar }
 
   let close t =
     Index.close t.index;
-    Inode.close t.store
+    let* () = Inode.close t.store in
+    let* () = Contents_store.close t.store_contents in
+    Lwt.return_unit
 end
 
 open Schema
@@ -86,8 +108,6 @@ end
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
-let foo = Key.unfindable_of_hash (H_contents.hash "foo")
-let bar = Key.unfindable_of_hash (H_contents.hash "bar")
 let check_hash = Alcotest.check_repr Hash.t
 let check_values = Alcotest.check_repr Inode.Val.t
 
@@ -236,11 +256,11 @@ let test_add_values () =
   rm_dir root;
   let* t = Context.get_store () in
   check_node "hash empty node" (Inode.Val.empty ()) t >>= fun () ->
-  let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
-  let v2 = Inode.Val.add v1 "y" (normal bar) in
+  let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal t.foo) in
+  let v2 = Inode.Val.add v1 "y" (normal t.bar) in
   check_node "node x+y" v2 t >>= fun () ->
   check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
-  let v3 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
+  let v3 = Inode.Val.of_list [ ("x", normal t.foo); ("y", normal t.bar) ] in
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
 
@@ -255,24 +275,24 @@ let integrity_check ?(stable = true) v =
 let test_add_inodes () =
   rm_dir root;
   let* t = Context.get_store () in
-  let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
-  let v2 = Inode.Val.add v1 "z" (normal foo) in
+  let v1 = Inode.Val.of_list [ ("x", normal t.foo); ("y", normal t.bar) ] in
+  let v2 = Inode.Val.add v1 "z" (normal t.foo) in
   let v3 =
     Inode.Val.of_list
-      [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
+      [ ("x", normal t.foo); ("z", normal t.foo); ("y", normal t.bar) ]
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
   check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
   integrity_check v1;
   integrity_check v2;
-  let v4 = Inode.Val.add v2 "a" (normal foo) in
+  let v4 = Inode.Val.add v2 "a" (normal t.foo) in
   let v5 =
     Inode.Val.of_list
       [
-        ("x", normal foo);
-        ("z", normal foo);
-        ("a", normal foo);
-        ("y", normal bar);
+        ("x", normal t.foo);
+        ("z", normal t.foo);
+        ("a", normal t.foo);
+        ("y", normal t.bar);
       ]
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
@@ -284,9 +304,9 @@ let test_add_inodes () =
 let test_remove_values () =
   rm_dir root;
   let* t = Context.get_store () in
-  let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
+  let v1 = Inode.Val.of_list [ ("x", normal t.foo); ("y", normal t.bar) ] in
   let v2 = Inode.Val.remove v1 "y" in
-  let v3 = Inode.Val.of_list [ ("x", normal foo) ] in
+  let v3 = Inode.Val.of_list [ ("x", normal t.foo) ] in
   check_values "node x obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
   let v4 = Inode.Val.remove v2 "x" in
@@ -304,20 +324,20 @@ let test_remove_inodes () =
   let* t = Context.get_store () in
   let v1 =
     Inode.Val.of_list
-      [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
+      [ ("x", normal t.foo); ("y", normal t.bar); ("z", normal t.foo) ]
   in
   check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
   let v2 = Inode.Val.remove v1 "x" in
-  let v3 = Inode.Val.of_list [ ("y", normal bar); ("z", normal foo) ] in
+  let v3 = Inode.Val.of_list [ ("y", normal t.bar); ("z", normal t.foo) ] in
   check_values "node y+z obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
   let v4 =
     Inode.Val.of_list
       [
-        ("x", normal foo);
-        ("z", normal foo);
-        ("a", normal foo);
-        ("y", normal bar);
+        ("x", normal t.foo);
+        ("z", normal t.foo);
+        ("a", normal t.foo);
+        ("y", normal t.bar);
       ]
   in
   let v5 = Inode.Val.remove v4 "a" in
@@ -376,6 +396,8 @@ let test_representation_uniqueness_maxdepth_3 () =
   Lwt.return_unit
 
 let test_truncated_inodes () =
+  rm_dir root;
+  let* t = Context.get_store () in
   let to_truncated inode =
     let encode, decode =
       let t = Inode.Val.t in
@@ -413,29 +435,30 @@ let test_truncated_inodes () =
   in
   (* v1 is a Truncated inode of tag Values. No pointers. *)
   let v1 =
-    Inode.Val.of_list [ (s00, normal foo); (s10, normal foo) ] |> to_truncated
+    Inode.Val.of_list [ (s00, normal t.foo); (s10, normal t.foo) ]
+    |> to_truncated
   in
   Inode.Val.list v1 |> ignore;
   (iter_steps @@ fun step -> Inode.Val.find v1 step);
-  (iter_steps @@ fun step -> Inode.Val.add v1 step (normal bar));
+  (iter_steps @@ fun step -> Inode.Val.add v1 step (normal t.bar));
   (iter_steps @@ fun step -> Inode.Val.remove v1 step);
   (* v2 is just a Truncated inode of tag Tree. The pointers are built after
      the call to [to_truncated], they are [Intact]. *)
-  let v2 = Inode.Val.add v1 s01 (normal foo) in
+  let v2 = Inode.Val.add v1 s01 (normal t.foo) in
   Inode.Val.list v2 |> ignore;
   (iter_steps @@ fun step -> Inode.Val.find v1 step);
-  (iter_steps @@ fun step -> Inode.Val.add v1 step (normal bar));
+  (iter_steps @@ fun step -> Inode.Val.add v1 step (normal t.bar));
   (iter_steps @@ fun step -> Inode.Val.remove v1 step);
   (* v3 is just a Truncated inode of tag Tree. The pointers are built before
      the call to [to_truncated], they are [Broken]. *)
   let v3 =
     Inode.Val.of_list
-      [ (s00, normal foo); (s10, normal bar); (s01, normal bar) ]
+      [ (s00, normal t.foo); (s10, normal t.bar); (s01, normal t.bar) ]
     |> to_truncated
   in
   (with_failure @@ fun () -> Inode.Val.list v3 |> ignore);
   (iter_steps_with_failure @@ fun step -> Inode.Val.find v3 step);
-  (iter_steps_with_failure @@ fun step -> Inode.Val.add v3 step (normal bar));
+  (iter_steps_with_failure @@ fun step -> Inode.Val.add v3 step (normal t.bar));
   (iter_steps_with_failure @@ fun step -> Inode.Val.remove v3 step);
   Lwt.return_unit
 
@@ -448,7 +471,7 @@ let test_intermediate_inode_as_root () =
   in
   let v0 =
     Inode.Val.of_list
-      [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
+      [ (s000, normal t.foo); (s001, normal t.bar); (s010, normal t.foo) ]
   in
   let* h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
   let (`Inode h_depth1) =
@@ -471,7 +494,7 @@ let test_intermediate_inode_as_root () =
   if Inode.Val.list v |> List.length <> 3 then
     Alcotest.fail "Failed to list entries of loaded inode";
   let _ = Inode.Val.remove v s000 in
-  let _ = Inode.Val.add v s000 (normal foo) in
+  let _ = Inode.Val.add v s000 (normal t.foo) in
   let* _ = Inode.batch t.store @@ fun store -> Inode.add store v in
 
   (* On inode with depth=1 *)
@@ -489,7 +512,7 @@ let test_intermediate_inode_as_root () =
         f () |> ignore)
   in
   with_exn (fun () -> Inode.Val.remove v s000);
-  with_exn (fun () -> Inode.Val.add v s000 (normal foo));
+  with_exn (fun () -> Inode.Val.add v s000 (normal t.foo));
   let* () =
     Inode.batch t.store (fun store ->
         with_exn (fun () -> Inode.add store v);
@@ -515,18 +538,22 @@ let test_concrete_inodes () =
     let msg = Fmt.str "%a" pp_concrete c in
     Alcotest.check testable msg (Ok v) r
   in
-  let v = Inode.Val.of_list [ ("a", normal foo) ] in
+  let v = Inode.Val.of_list [ ("a", normal t.foo) ] in
   check v;
-  let v = Inode.Val.of_list [ ("a", normal foo); ("y", node bar) ] in
+  let v = Inode.Val.of_list [ ("a", normal t.foo); ("y", node t.bar) ] in
   check v;
   let v =
-    Inode.Val.of_list [ ("x", node foo); ("a", normal foo); ("y", node bar) ]
+    Inode.Val.of_list
+      [ ("x", node t.foo); ("a", normal t.foo); ("y", node t.bar) ]
   in
   check v;
   let v =
     Inode.Val.of_list
       [
-        ("x", normal foo); ("z", normal foo); ("a", normal foo); ("y", node bar);
+        ("x", normal t.foo);
+        ("z", normal t.foo);
+        ("a", normal t.foo);
+        ("y", node t.bar);
       ]
   in
   check v;
