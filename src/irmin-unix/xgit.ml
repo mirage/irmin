@@ -76,26 +76,26 @@ module Make
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
 struct
-  include Irmin_git.Make (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C) (P) (B)
+  include Irmin_git.Make (G) (Git_unix.Sync (G)) (C) (P) (B)
 
   let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module KV (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
+  include Irmin_git.KV (G) (Git_unix.Sync (G)) (C)
 
   let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.Ref (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
+  include Irmin_git.Ref (G) (Git_unix.Sync (G)) (C)
 
   let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module FS = struct
   module G = Git_unix.Store
-  module S = Git_unix.Sync (G) (Git_cohttp_unix)
+  module S = Git_unix.Sync (G)
   module Make = Make (G)
   module Ref = Ref (G)
   module KV = KV (G)
@@ -103,7 +103,7 @@ end
 
 module Mem = struct
   module G = Irmin_git.Mem
-  module S = Git.Mem.Sync (G) (Git_cohttp_unix)
+  module S = Git.Mem.Sync (G)
   module Content_addressable = Irmin_git.Content_addressable (G)
   module Atomic_write = Irmin_git.Atomic_write (G)
   module Make = Make (G)

@@ -48,7 +48,7 @@ module type X =
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
-  module S = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix)) (C)
+  module S = Irmin_git.KV (G) (Git_unix.Sync (G)) (C)
   include S
 
   let init () =
@@ -144,10 +144,7 @@ let test_sort_order (module S : S) =
   Lwt.return_unit
 
 module Ref (S : Irmin_git.G) =
-  Irmin_git.Ref
-    (S)
-    (Git_unix.Sync (S) (Git_cohttp_unix))
-    (Irmin.Contents.String)
+  Irmin_git.Ref (S) (Git_unix.Sync (S)) (Irmin.Contents.String)
 
 let pp_reference ppf = function
   | `Branch s -> Fmt.pf ppf "branch: %s" s
