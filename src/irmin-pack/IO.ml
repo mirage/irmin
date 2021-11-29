@@ -80,9 +80,16 @@ module Unix : S = struct
       let off = header t.version ++ off ++ len in
       off <= t.flushed)
 
+  exception Invalid_read of string
+
+  let raise_invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
+
   let read_buffer t ~off ~buf ~len =
     let off = header t.version ++ off in
-    assert (if not t.readonly then off <= t.flushed else true);
+    if (not t.readonly) && off > t.flushed then
+      raise_invalid_read
+        "Requested read of %d bytes at offset %a, but only flushed to %a" len
+        Int63.pp off Int63.pp t.flushed;
     Raw.unsafe_read t.raw ~off ~len buf
 
   let read t ~off buf = read_buffer t ~off ~buf ~len:(Bytes.length buf)
