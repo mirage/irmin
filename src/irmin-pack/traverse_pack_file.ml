@@ -50,7 +50,7 @@ module type Args = sig
   module Version : Version.S
   module Hash : Irmin.Hash.S
   module Index : Pack_index.S with type key := Hash.t
-  module Inode : Inode.S with type key := Hash.t
+  module Inode : Inode.S with type hash := Hash.t
   module Dict : Pack_dict.S
   module Contents : Pack_value.S
   module Commit : Pack_value.S

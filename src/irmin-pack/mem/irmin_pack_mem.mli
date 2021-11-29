@@ -18,4 +18,8 @@
     backend, intended for users that must be interoperable with the
     idiosyncrasies of the persistent implementation. *)
 
-module Maker : Irmin_pack.Maker
+module Maker (_ : Irmin_pack.Conf.S) :
+  Irmin_pack.Maker
+    with type ('h, _) contents_key = 'h
+     and type 'h node_key = 'h
+     and type 'h commit_key = 'h

@@ -20,7 +20,11 @@ include Inode_intf
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S)
-    (Node : Irmin.Node.S with type hash = H.t) =
+    (Key : Irmin.Key.S with type hash = H.t and type t = H.t)
+    (Node : Irmin.Node.Generic_key.S
+              with type hash = H.t
+               and type contents_key = Key.t
+               and type node_key = Key.t) =
 struct
   let () =
     if Conf.entries > Conf.stable_hash then
@@ -35,8 +39,9 @@ struct
 
   module T = struct
     type hash = H.t [@@deriving irmin ~pp ~equal]
-    type node_key = H.t [@@deriving irmin]
-    type contents_key = H.t [@@deriving irmin]
+    type key = Key.t
+    type node_key = Node.node_key [@@deriving irmin]
+    type contents_key = Node.contents_key [@@deriving irmin]
 
     type step = Node.step
     [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
@@ -1030,6 +1035,7 @@ struct
 
   module Raw = struct
     type hash = H.t
+    type key = Key.t
     type t = Bin.t
 
     let t = Bin.t
@@ -1131,6 +1137,7 @@ struct
   end
 
   type hash = T.hash
+  type key = Key.t
 
   let pp_hash = T.pp_hash
 
@@ -1287,17 +1294,23 @@ end
 
 module Make
     (H : Irmin.Hash.S)
-    (Node : Irmin.Node.S with type hash = H.t)
+    (Key : Irmin.Key.S with type hash = H.t and type t = H.t)
+    (Node : Irmin.Node.Generic_key.S
+              with type hash = H.t
+               and type contents_key = Key.t
+               and type node_key = Key.t)
     (Inter : Internal
                with type hash = H.t
+                and type key = Key.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (Pack : Content_addressable.S
-              with type key = H.t
+    (Pack : Indexable.S
+              with type hash = H.t
+               and type key = Key.t
                and type value = Inter.Raw.t) =
 struct
   module Hash = H
-  module Key = Irmin.Key.Of_hash (H)
+  module Key = Key
   module Val = Inter.Val
 
   type 'a t = 'a Pack.t
@@ -1318,7 +1331,8 @@ struct
 
   let save t v =
     let add k v =
-      Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+      ignore
+        (Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v : hash)
     in
     Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
@@ -1362,20 +1376,23 @@ end
 
 module Make_persistent
     (H : Irmin.Hash.S)
-    (Node : Irmin.Node.S with type hash = H.t)
+    (Node : Irmin.Node.Generic_key.S
+              with type hash = H.t
+               and type contents_key = H.t Pack_key.t
+               and type node_key = H.t Pack_key.t)
     (Inter : Internal
                with type hash = H.t
+                and type key = H.t Pack_key.t
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
     (CA : Pack_store.Maker
-            with type key = H.t
-             and type index = Pack_index.Make(H).t) =
+            with type hash = H.t
+             and type index := Pack_index.Make(H).t) =
 struct
   module Persistent_pack = CA.Make (Inter.Raw)
   module Pack = Persistent_pack
-  include Make (H) (Node) (Inter) (Pack)
-
-  type index = Pack.index
+  module XKey = Pack_key.Make (H)
+  include Make (H) (XKey) (Node) (Inter) (Pack)
 
   let v = Pack.v
   let sync = Pack.sync

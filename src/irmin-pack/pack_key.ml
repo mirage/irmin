@@ -14,4 +14,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker (_ : Version.S) (_ : Conf.S) : S.Maker_persistent
+open! Import
+include Pack_key_intf
+
+type 'hash t = 'hash
+
+module Make (Hash : Irmin.Hash.S) = struct
+  include Irmin.Key.Of_hash (Hash)
+
+  type nonrec t = t [@@deriving irmin ~of_bin_string]
+
+  let null =
+    match of_bin_string (String.make Hash.hash_size '\000') with
+    | Ok x -> x
+    | Error _ -> assert false
+end
+
+module type Store_spec = sig
+  type ('h, _) contents_key = 'h t
+  type 'h node_key = 'h t
+  type 'h commit_key = 'h t
+end
+
+module rec Store_spec : Store_spec = Store_spec

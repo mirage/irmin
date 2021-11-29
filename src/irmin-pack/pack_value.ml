@@ -24,16 +24,19 @@ end
 type ('h, 'a) value = { hash : 'h; kind : Kind.t; v : 'a } [@@deriving irmin]
 
 module type S = S with type kind := Kind.t
+module type Persistent = Persistent with type kind := Kind.t
 
 module Make (Config : sig
   val selected_kind : Kind.t
 end)
 (Hash : Irmin.Hash.S)
+(Key : T)
 (Data : Irmin.Type.S) =
 struct
   module Hash = Irmin.Hash.Typed (Hash) (Data)
 
   type t = Data.t [@@deriving irmin]
+  type key = Key.t
   type hash = Hash.t
 
   let hash = Hash.hash

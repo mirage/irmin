@@ -20,18 +20,22 @@ include Inode_layers_intf
 module Make
     (Conf : Irmin_pack.Conf.S)
     (H : Irmin.Hash.S)
-    (Maker : S.Content_addressable_maker
-               with type key = H.t
+    (Maker : S.Indexable_maker
+               with type hash = H.t
+                and type key = H.t Irmin_pack.Pack_key.t
                 and type index := Index.Make(H).t)
-    (Node : Irmin.Node.S with type hash = H.t) =
+    (Node : Irmin.Node.Generic_key.S
+              with type hash = H.t
+               and type contents_key = H.t Irmin_pack.Pack_key.t
+               and type node_key = H.t Irmin_pack.Pack_key.t) =
 struct
   type index = Index.Make(H).t
 
-  module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
+  module Key = Irmin_pack.Pack_key.Make (H)
+  module Internal = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
   module P = Maker.Make (Internal.Raw)
   module Val = Internal.Val
   module Hash = H
-  module Key = Irmin.Key.Of_hash (H)
 
   type 'a t = 'a P.t
   type key = Key.t
@@ -39,7 +43,7 @@ struct
   type hash = Hash.t
 
   let mem t k = P.mem t k
-  let index _ h = Lwt.return_some h
+  let index t h = P.index t h
   let unsafe_find = P.unsafe_find
 
   let find t k =
@@ -68,7 +72,12 @@ struct
   let clear_caches = P.clear_caches
 
   let save t v =
-    let add k v = P.unsafe_append ~ensure_unique:true ~overcommit:false t k v in
+    let add k v =
+      let (_ : P.hash) =
+        P.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+      in
+      ()
+    in
     Val.save ~add ~mem:(P.unsafe_mem t) v
 
   let add t v =

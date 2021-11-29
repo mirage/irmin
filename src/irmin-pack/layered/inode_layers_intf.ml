@@ -56,7 +56,7 @@ module type S = sig
     offset:int63 ->
     length:int ->
     layer:Irmin_layers.Layer_id.t ->
-    key ->
+    hash ->
     'a t ->
     (unit, Irmin_pack.Checks.integrity_error) result
 
@@ -80,12 +80,16 @@ module type Sigs = sig
   module Make
       (_ : Irmin_pack.Conf.S)
       (H : Irmin.Hash.S)
-      (_ : S.Content_addressable_maker
-             with type key = H.t
+      (_ : S.Indexable_maker
+             with type hash = H.t
+              and type key = H.t Irmin_pack.Pack_key.t
               and type index = Index.Make(H).t)
-      (Node : Irmin.Node.S with type hash = H.t) :
+      (Node : Irmin.Node.Generic_key.S
+                with type hash = H.t
+                 and type contents_key = H.t Irmin_pack.Pack_key.t
+                 and type node_key = H.t Irmin_pack.Pack_key.t) :
     S
-      with type key = H.t
+      with type key = H.t Irmin_pack.Pack_key.t
        and type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step

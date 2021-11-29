@@ -17,7 +17,12 @@
 open! Import
 
 module type Value = sig
-  include Irmin.Node.S
+  type key
+
+  include
+    Irmin.Node.Generic_key.S
+      with type node_key = key
+       and type contents_key = key
 
   val pred :
     t ->
@@ -42,6 +47,7 @@ module type S = sig
   module Val :
     Value
       with type t = value
+       and type key = key
        and type hash = Hash.t
        and type Portable.hash := hash
 
@@ -61,7 +67,7 @@ module type Persistent = sig
     string ->
     read t Lwt.t
 
-  include S.Checkable with type 'a t := 'a t and type key := key
+  include S.Checkable with type 'a t := 'a t and type hash := hash
 
   val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
   val clear_caches : 'a t -> unit
@@ -72,17 +78,18 @@ end
     implement or test inodes. *)
 module type Internal = sig
   type hash
+  type key
 
   val pp_hash : hash Fmt.t
 
-  module Raw : Pack_value.S with type hash = hash
+  module Raw : Pack_value.S with type hash = hash and type key = key
 
   module Val : sig
-    include Value with type hash = hash
+    include Value with type hash = hash and type key = key
 
-    val of_raw : (hash -> Raw.t option) -> Raw.t -> t
+    val of_raw : (key -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
-    val save : add:(hash -> Raw.t -> unit) -> mem:(hash -> bool) -> t -> unit
+    val save : add:(hash -> Raw.t -> unit) -> mem:(key -> bool) -> t -> unit
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
@@ -146,25 +153,36 @@ module type Sigs = sig
   module Make_internal
       (Conf : Conf.S)
       (H : Irmin.Hash.S)
-      (Node : Irmin.Node.S with type hash = H.t) :
+      (Key : Irmin.Key.S with type hash = H.t and type t = H.t)
+      (Node : Irmin.Node.Generic_key.S
+                with type hash = H.t
+                 and type contents_key = Key.t
+                 and type node_key = Key.t) :
     Internal
       with type hash = H.t
+       and type key = Key.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
 
   module Make
       (H : Irmin.Hash.S)
-      (Node : Irmin.Node.S with type hash = H.t)
+      (Key : Irmin.Key.S with type hash = H.t and type t = H.t)
+      (Node : Irmin.Node.Generic_key.S
+                with type hash = H.t
+                 and type contents_key = Key.t
+                 and type node_key = Key.t)
       (Inter : Internal
                  with type hash = H.t
+                  and type key = Key.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (Pack : Content_addressable.S
-                with type key = H.t
+      (Pack : Indexable.S
+                with type key = Key.t
+                 and type hash = H.t
                  and type value = Inter.Raw.t) :
     S
       with type 'a t = 'a Pack.t
-       and type key = H.t
+       and type key = Key.t
        and type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
@@ -172,21 +190,23 @@ module type Sigs = sig
 
   module Make_persistent
       (H : Irmin.Hash.S)
-      (Node : Irmin.Node.S with type hash = H.t)
+      (Node : Irmin.Node.Generic_key.S
+                with type hash = H.t
+                 and type contents_key = H.t Pack_key.t
+                 and type node_key = H.t Pack_key.t)
       (Inter : Internal
                  with type hash = H.t
+                  and type key = H.t Pack_key.t
                   and type Val.metadata = Node.metadata
                   and type Val.step = Node.step)
       (CA : Pack_store.Maker
-              with type key = H.t
-               and type index = Pack_index.Make(H).t) : sig
-    include
-      Persistent
-        with type key = H.t
-         and type hash = H.t
-         and type Val.metadata = Node.metadata
-         and type Val.step = Node.step
-         and type index = Pack_index.Make(H).t
-         and type value = Inter.Val.t
-  end
+              with type hash = H.t
+               and type index := Pack_index.Make(H).t) :
+    Persistent
+      with type key = H.t Pack_key.t
+       and type hash = H.t
+       and type Val.metadata = Node.metadata
+       and type Val.step = Node.step
+       and type index := Pack_index.Make(H).t
+       and type value = Inter.Val.t
 end

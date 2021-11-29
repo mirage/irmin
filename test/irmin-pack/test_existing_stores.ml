@@ -57,7 +57,7 @@ let exec_cmd cmd =
 
 module type Migrate_store = sig
   include
-    Irmin.S
+    Irmin.Generic_key.S
       with type Schema.Path.step = string
        and type Schema.Path.t = string list
        and type Schema.Contents.t = string
@@ -73,7 +73,7 @@ module Test
     end) =
 struct
   let check_commit repo commit bindings =
-    commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
+    commit |> S.Commit.key |> S.Commit.of_key repo >>= function
     | None ->
         Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash commit
     | Some commit ->
@@ -371,7 +371,7 @@ module Test_corrupted_stores = struct
       S.Tree.singleton k v |> S.Commit.v repo ~parents:[] ~info:S.Info.empty
     in
     let check_commit repo commit k v =
-      commit |> S.Commit.hash |> S.Commit.of_hash repo >>= function
+      commit |> S.Commit.key |> S.Commit.of_key repo >>= function
       | None ->
           Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash
             commit

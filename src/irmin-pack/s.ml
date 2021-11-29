@@ -20,12 +20,12 @@ exception RO_not_allowed
 
 module type Checkable = sig
   type 'a t
-  type key
+  type hash
 
   val integrity_check :
     offset:int63 ->
     length:int ->
-    key ->
+    hash ->
     _ t ->
     (unit, [ `Wrong_hash | `Absent_value ]) result
 end
@@ -70,7 +70,7 @@ module type Specifics = sig
 end
 
 module type S = sig
-  include Irmin.S
+  include Irmin.Generic_key.S
   include Specifics with type repo := repo and type commit := commit
 
   val integrity_check_inodes :
@@ -89,12 +89,12 @@ module type S = sig
     dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
 end
 
-module S_is_a_store (X : S) : Irmin.S = X
+module S_is_a_store (X : S) : Irmin.Generic_key.S = X
 
 module type Maker = sig
   type endpoint = unit
 
-  include Irmin.Key.Store_spec.Hash_keyed
+  include Irmin.Key.Store_spec.S
 
   module Make (Schema : Irmin.Schema.Extended) :
     S
@@ -104,12 +104,21 @@ module type Maker = sig
        but this isn't supported.
 
        TODO: extract these extensions as a separate functor argument instead. *)
-      with type hash = Schema.Hash.t
+      with type Schema.Hash.t = Schema.Hash.t
        and type Schema.Branch.t = Schema.Branch.t
        and type Schema.Metadata.t = Schema.Metadata.t
        and type Schema.Path.t = Schema.Path.t
        and type Schema.Path.step = Schema.Path.step
        and type Schema.Contents.t = Schema.Contents.t
        and type Schema.Info.t = Schema.Info.t
+       and type contents_key = (Schema.Hash.t, Schema.Contents.t) contents_key
+       and type node_key = Schema.Hash.t node_key
+       and type commit_key = Schema.Hash.t commit_key
        and type Backend.Remote.endpoint = endpoint
 end
+
+module type Maker_persistent =
+  Maker
+    with type ('h, _) contents_key = 'h Pack_key.t
+     and type 'h node_key = 'h Pack_key.t
+     and type 'h commit_key = 'h Pack_key.t
