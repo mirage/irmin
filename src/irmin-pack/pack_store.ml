@@ -365,18 +365,16 @@ module Maker
       Fmt.pf ppf "%s%s" name mode
 
     let find_in_pack_file ~check_integrity t key hash =
-      let { offset; length } =
+      let loc, { offset; length } =
         match Pack_key.inspect key with
         | Direct { offset; length; _ } ->
-            Stats.incr_find_direct ();
-            { offset; length }
+            (Stats.Find.Pack_direct, { offset; length })
         | Indexed hash ->
-            Stats.incr_find_indexed ();
             let entry_span = get_entry_span_from_index_exn t hash in
             (* Cache the offset and length information in the existing key: *)
             Pack_key.promote_exn key ~offset:entry_span.offset
               ~length:entry_span.length;
-            entry_span
+            (Stats.Find.Pack_indexed, entry_span)
       in
       let io_offset = IO.offset t.pack.block in
       if Int63.add offset (Int63.of_int length) > io_offset then (
@@ -389,7 +387,7 @@ module Maker
           "Direct store key references an unknown starting offset %a (length = \
            %d, IO offset = %a)."
           Int63.pp offset length Int63.pp io_offset];
-        None)
+        (Stats.Find.Not_found, None))
       else
         let v = io_read_and_decode ~off:offset ~len:length t in
         Lru.add t.lru hash v;
@@ -399,22 +397,24 @@ module Maker
          | Error (expected, got) ->
              corrupted_store "Got hash %a, expecting %a (for val: %a)." pp_hash
                got pp_hash expected pp_value v);
-        Some v
+        (loc, Some v)
 
     let unsafe_find ~check_integrity t (k : _ Pack_key.t) =
       [%log.debug "[pack:%a] find %a" pp_io t pp_key k];
-      Stats.incr_finds ();
       let hash = Key.to_hash k in
-      match Tbl.find t.staging hash with
-      | v ->
-          Lru.add t.lru hash v;
-          Some v
-      | exception Not_found -> (
-          match Lru.find t.lru hash with
-          | v -> Some v
-          | exception Not_found ->
-              Stats.incr_cache_misses ();
-              find_in_pack_file ~check_integrity t k hash)
+      let location, value =
+        match Tbl.find t.staging hash with
+        | v ->
+            Lru.add t.lru hash v;
+            (Stats.Find.Staging, Some v)
+        | exception Not_found -> (
+            match Lru.find t.lru hash with
+            | v -> (Stats.Find.Lru, Some v)
+            | exception Not_found -> find_in_pack_file ~check_integrity t k hash
+            )
+      in
+      Stats.report_find ~location;
+      value
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in
