@@ -1134,7 +1134,7 @@ struct
 
   let pp_hash = T.pp_hash
 
-  module Val = struct
+  module Val_portable = struct
     include T
     module I = Val_impl
 
@@ -1262,30 +1262,26 @@ struct
 
     module Concrete = I.Concrete
 
+    let merge ~contents ~node : t Irmin.Merge.t =
+      let merge = Node.merge ~contents ~node in
+      let to_node t = of_seq (Node.seq t) in
+      let of_node n = Node.of_seq (seq n) in
+      Irmin.Merge.like t merge of_node to_node
+  end
+
+  module Val = struct
+    include Val_portable
+
     module Portable = struct
-      type nonrec t = t [@@deriving irmin]
-      type nonrec hash = hash
-      type nonrec value = value
+      include Val_portable
 
       let of_node t = t
-      let of_seq = of_seq
-      let add = add
-      let list = list
-      let length = length
-      let find = find
-      let remove = remove
     end
 
     let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
 
     let of_concrete t =
       match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
-
-    let merge ~contents ~node : t Irmin.Merge.t =
-      let merge = Node.merge ~contents ~node in
-      let to_node t = of_seq (Node.seq t) in
-      let of_node n = Node.of_seq (seq n) in
-      Irmin.Merge.like t merge of_node to_node
   end
 end
 
