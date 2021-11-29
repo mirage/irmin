@@ -39,9 +39,9 @@ module Maker (G : Irmin_git.G) = struct
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Maker = struct
-    module S = Irmin_git.Maker (G) (Git_unix.Sync (G) (Git_cohttp_unix))
-    module KV = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix))
-    module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G) (Git_cohttp_unix))
+    module S = Irmin_git.Maker (G) (Git_unix.Sync (G))
+    module KV = Irmin_git.KV (G) (Git_unix.Sync (G))
+    module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G))
   end
 
   module Make
