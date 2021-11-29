@@ -1492,7 +1492,7 @@ struct
 
   let pp_hash = T.pp_hash
 
-  module Val = struct
+  module Val_portable = struct
     include T
     module I = Val_impl
 
@@ -1640,10 +1640,24 @@ struct
 
     module Concrete = I.Concrete
 
+    let merge ~contents ~node : t Irmin.Merge.t =
+      let merge = Node.merge ~contents ~node in
+      let to_node t = of_seq (Node.seq t) in
+      let of_node n = Node.of_seq (seq n) in
+      Irmin.Merge.like t merge of_node to_node
+  end
+
+  module Val = struct
+    include Val_portable
+
     module Portable = struct
-      type nonrec t = t [@@deriving irmin]
-      type nonrec hash = hash
+      include Val_portable
+
+      type node_key = hash [@@deriving irmin]
+      type contents_key = hash [@@deriving irmin]
+
       type value = [ `Contents of hash * metadata | `Node of hash ]
+      [@@deriving irmin]
 
       let of_node t = t
 
@@ -1655,7 +1669,7 @@ struct
         | `Contents (k, m) -> `Contents (Key.to_hash k, m)
         | `Node k -> `Node (Key.to_hash k)
 
-      let _of_list bindings =
+      let of_list bindings =
         bindings
         |> List.map (fun (k, v) -> (k, keyvalue_of_hashvalue v))
         |> of_list
@@ -1665,6 +1679,10 @@ struct
         |> Seq.map (fun (k, v) -> (k, keyvalue_of_hashvalue v))
         |> of_seq
 
+      let seq ?offset ?length ?cache t =
+        seq ?offset ?length ?cache t
+        |> Seq.map (fun (k, v) -> (k, hashvalue_of_keyvalue v))
+
       let add : t -> step -> value -> t =
        fun t s v -> add t s (keyvalue_of_hashvalue v)
 
@@ -1673,20 +1691,22 @@ struct
         |> List.map (fun (s, v) -> (s, hashvalue_of_keyvalue v))
 
       let find ?cache t s = find ?cache t s |> Option.map hashvalue_of_keyvalue
-      let length = length
-      let remove = remove
+
+      let merge =
+        let promote_merge :
+            hash option Irmin.Merge.t -> key option Irmin.Merge.t =
+         fun t ->
+          Irmin.Merge.like [%typ: key option] t (Option.map Key.to_hash)
+            (Option.map Key.unfindable_of_hash)
+        in
+        fun ~contents ~node ->
+          merge ~contents:(promote_merge contents) ~node:(promote_merge node)
     end
 
     let to_concrete t = apply t { f = (fun la v -> I.to_concrete la v) }
 
     let of_concrete t =
       match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
-
-    let merge ~contents ~node : t Irmin.Merge.t =
-      let merge = Node.merge ~contents ~node in
-      let to_node t = of_seq (Node.seq t) in
-      let of_node n = Node.of_seq (seq n) in
-      Irmin.Merge.like t merge of_node to_node
   end
 end
 
