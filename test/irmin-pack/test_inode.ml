@@ -38,25 +38,43 @@ module Index = Irmin_pack.Index.Make (H)
 module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
 module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
 
+module Contents_value =
+  Irmin_pack.Pack_value.Of_contents (H) (Key) (Schema.Contents)
+
+module Contents_store = P.Make (Contents_value)
+
 module Context = struct
   type t = {
     index : Index.t;
     store : read Inode.t;
+    store_contents : read Contents_store.t;
     clone : readonly:bool -> read Inode.t Lwt.t;
+    (* Two contents values that are guaranteed to be read by {!store}: *)
+    foo : Key.t;
+    bar : Key.t;
   }
 
   let get_store ?(lru_size = 0) () =
+    [%log.app "Constructing a fresh context for use by the test"];
     rm_dir root;
     let index = Index.v ~log_size ~fresh:true root in
-    let+ store = Inode.v ~fresh:true ~lru_size ~index root in
+    let* store = Inode.v ~fresh:true ~lru_size ~index root in
+    let* store_contents = Contents_store.v ~fresh:false ~lru_size ~index root in
+    let+ foo, bar =
+      Contents_store.batch store_contents (fun writer ->
+          let* foo = Contents_store.add writer "foo" in
+          let* bar = Contents_store.add writer "bar" in
+          Lwt.return (foo, bar))
+    in
     let clone ~readonly =
       Inode.v ~lru_size ~fresh:false ~readonly ~index root
     in
-    { index; store; clone }
+    [%log.app "Test context constructed"];
+    { index; store; store_contents; clone; foo; bar }
 
   let close t =
     Index.close t.index;
-    Inode.close t.store
+    Inode.close t.store >>= fun () -> Contents_store.close t.store_contents
 end
 
 open Schema
@@ -77,8 +95,6 @@ module H_contents =
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
-let foo = H_contents.hash "foo"
-let bar = H_contents.hash "bar"
 let check_hash = Alcotest.check_repr Inode.Val.hash_t
 let check_values = Alcotest.check_repr Inode.Val.t
 
@@ -223,6 +239,7 @@ let check_hardcoded_hash msg h v =
 let test_add_values () =
   rm_dir root;
   let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   check_node "hash empty node" (Inode.Val.empty ()) t >>= fun () ->
   let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
@@ -243,6 +260,7 @@ let integrity_check ?(stable = true) v =
 let test_add_inodes () =
   rm_dir root;
   let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
   let v3 =
@@ -272,6 +290,7 @@ let test_add_inodes () =
 let test_remove_values () =
   rm_dir root;
   let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.remove v1 "y" in
   let v3 = Inode.Val.of_list [ ("x", normal foo) ] in
@@ -290,6 +309,7 @@ let test_remove_values () =
 let test_remove_inodes () =
   rm_dir root;
   let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   let v1 =
     Inode.Val.of_list
       [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
@@ -364,6 +384,8 @@ let test_representation_uniqueness_maxdepth_3 () =
   Lwt.return_unit
 
 let test_truncated_inodes () =
+  let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   let to_truncated inode =
     let encode, decode =
       let t = Inode.Val.t in
@@ -425,11 +447,11 @@ let test_truncated_inodes () =
   (iter_steps_with_failure @@ fun step -> Inode.Val.find v3 step);
   (iter_steps_with_failure @@ fun step -> Inode.Val.add v3 step (normal bar));
   (iter_steps_with_failure @@ fun step -> Inode.Val.remove v3 step);
-  Lwt.return_unit
+  Context.close t
 
 let test_intermediate_inode_as_root () =
-  rm_dir root;
   let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   let s000, s001, s010 =
     Inode_permutations_generator.
       (gen_step [ 0; 0; 0 ], gen_step [ 0; 0; 1 ], gen_step [ 0; 1; 0 ])
@@ -486,8 +508,8 @@ let test_intermediate_inode_as_root () =
   Lwt.return_unit
 
 let test_concrete_inodes () =
-  rm_dir root;
   let* t = Context.get_store () in
+  let { Context.foo; bar; _ } = t in
   let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
   let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
   let testable =
