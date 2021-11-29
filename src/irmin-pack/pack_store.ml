@@ -176,28 +176,30 @@ module Maker
 
     let unsafe_find ~check_integrity t k =
       [%log.debug "[pack:%a] find %a" pp_io t pp_hash k];
-      Stats.incr_finds ();
-      match Tbl.find t.staging k with
-      | v ->
-          Lru.add t.lru k v;
-          Some v
-      | exception Not_found -> (
-          match Lru.find t.lru k with
-          | v -> Some v
-          | exception Not_found -> (
-              Stats.incr_cache_misses ();
-              match Index.find t.pack.index k with
-              | None -> None
-              | Some (off, len, _) ->
-                  let v = io_read_and_decode ~off ~len t in
-                  (if check_integrity then
-                   check_key k v |> function
-                   | Ok () -> ()
-                   | Error (expected, got) ->
-                       Fmt.failwith "corrupted value: got %a, expecting %a."
-                         pp_hash got pp_hash expected);
-                  Lru.add t.lru k v;
-                  Some v))
+      let location, value =
+        match Tbl.find t.staging k with
+        | v ->
+            Lru.add t.lru k v;
+            (Stats.Find.Staging, Some v)
+        | exception Not_found -> (
+            match Lru.find t.lru k with
+            | v -> (Stats.Find.Lru, Some v)
+            | exception Not_found -> (
+                match Index.find t.pack.index k with
+                | None -> (Stats.Find.Not_found, None)
+                | Some (off, len, _) ->
+                    let v = io_read_and_decode ~off ~len t in
+                    (if check_integrity then
+                     check_key k v |> function
+                     | Ok () -> ()
+                     | Error (expected, got) ->
+                         Fmt.failwith "corrupted value: got %a, expecting %a."
+                           pp_hash got pp_hash expected);
+                    Lru.add t.lru k v;
+                    (Stats.Find.Pack, Some v)))
+      in
+      Stats.report_find ~location;
+      value
 
     let find t k =
       let v = unsafe_find ~check_integrity:true t k in

@@ -43,8 +43,8 @@ module Make_stat (Store : Irmin.KV) = struct
       let v = get () in
       Def.
         {
-          finds = v.finds;
-          cache_misses = v.cache_misses;
+          finds = v.finds.total;
+          cache_misses = Find.cache_misses v.finds;
           appended_hashes = v.appended_hashes;
           appended_offsets = v.appended_offsets;
         }

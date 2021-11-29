@@ -14,9 +14,39 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Find = struct
+  type location = Staging | Lru | Pack | Not_found [@@deriving irmin]
+
+  type t = {
+    mutable total : int;
+    mutable from_staging : int;
+    mutable from_lru : int;
+    mutable from_pack : int;
+  }
+  [@@deriving irmin]
+
+  let create () = { total = 0; from_staging = 0; from_lru = 0; from_pack = 0 }
+
+  let clear t =
+    t.total <- 0;
+    t.from_staging <- 0;
+    t.from_lru <- 0;
+    t.from_pack <- 0
+
+  let cache_misses
+      {
+        (* Total finds (hits + misses): *)
+        total;
+        (* In-memory hits: *)
+        from_staging;
+        from_lru;
+        from_pack = _;
+      } =
+    total - (from_staging + from_lru)
+end
+
 type t = {
-  mutable finds : int;
-  mutable cache_misses : int;
+  finds : Find.t;
   mutable appended_hashes : int;
   mutable appended_offsets : int;
   mutable inode_add : int;
@@ -33,8 +63,7 @@ type t = {
 
 let fresh_stats () =
   {
-    finds = 0;
-    cache_misses = 0;
+    finds = Find.create ();
     appended_hashes = 0;
     appended_offsets = 0;
     inode_add = 0;
@@ -51,8 +80,7 @@ let fresh_stats () =
 let s = fresh_stats ()
 
 let reset_stats () =
-  s.finds <- 0;
-  s.cache_misses <- 0;
+  Find.clear s.finds;
   s.appended_hashes <- 0;
   s.appended_offsets <- 0;
   s.inode_add <- 0;
@@ -67,8 +95,16 @@ let reset_stats () =
   ()
 
 let get () = s
-let incr_finds () = s.finds <- succ s.finds
-let incr_cache_misses () = s.cache_misses <- succ s.cache_misses
+
+let report_find ~(location : Find.location) =
+  let finds = s.finds in
+  finds.total <- succ finds.total;
+  match location with
+  | Staging -> finds.from_staging <- succ finds.from_staging
+  | Lru -> finds.from_lru <- succ finds.from_lru
+  | Pack -> finds.from_pack <- succ finds.from_pack
+  | Not_found -> ()
+
 let incr_appended_hashes () = s.appended_hashes <- succ s.appended_hashes
 let incr_appended_offsets () = s.appended_offsets <- succ s.appended_offsets
 let incr_inode_add () = s.inode_add <- s.inode_add + 1
@@ -85,7 +121,10 @@ type cache_stats = { cache_misses : float }
 type offset_stats = { offset_ratio : float; offset_significance : int }
 
 let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b
-let get_cache_stats () = { cache_misses = div_or_zero s.cache_misses s.finds }
+
+let get_cache_stats () =
+  let cache_misses = Find.cache_misses s.finds in
+  { cache_misses = div_or_zero cache_misses s.finds.total }
 
 let get_offset_stats () =
   {
