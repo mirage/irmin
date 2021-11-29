@@ -73,10 +73,10 @@ struct
     | `None -> `Never
     | `Varint -> `Sometimes (Fun.const (Some `Varint))
 
-  let encode_bin ~dict:_ ~offset_of_key:_ v hash =
+  let encode_bin ~dict:_ ~offset_of_key:_ hash v =
     encode_value { kind; hash; v }
 
-  let decode_bin ~dict:_ ~key_of_offset:_ s off =
+  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ s off =
     let t = decode_value s off in
     t.v
 
@@ -132,7 +132,7 @@ struct
       | Commit_v1 -> some_int32_be
       | Contents -> assert false)
 
-  let encode_bin ~dict:_ ~offset_of_key v hash f =
+  let encode_bin ~dict:_ ~offset_of_key hash v f =
     let offset_of_key k =
       match offset_of_key k with
       | None -> assert false (* TODO: justify *)
@@ -148,7 +148,7 @@ struct
     let length_header = Int32.of_int (String.length encoded_commit) in
     Entry_direct.encode_bin { hash; kind = Commit_v1; v = (length_header, v) } f
 
-  let decode_bin ~dict:_ ~key_of_offset s off =
+  let decode_bin ~dict:_ ~key_of_offset ~key_of_hash:_ s off =
     match Kind.of_magic_exn s.[!off + Hash.hash_size] with
     | Commit_v0 -> (Entry.decode_bin s off).v
     | Commit_v1 ->

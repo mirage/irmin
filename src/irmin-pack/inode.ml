@@ -204,18 +204,14 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-
-    type address =
-      | Indirect of int63
-      (* TODO: remove [Indirect] case: we're already doing this now. *)
-      | Direct of key
+    type address = Indirect of int63 | Direct of H.t
 
     let address_t : address Irmin.Type.t =
       let open Irmin.Type in
       variant "Compress.address" (fun i d -> function
         | Indirect x -> i x | Direct x -> d x)
       |~ case1 "Indirect" int63_t (fun x -> Indirect x)
-      |~ case1 "Direct" Key.t (fun x -> Direct x)
+      |~ case1 "Direct" H.t (fun x -> Direct x)
       |> sealv
 
     type ptr = { index : int; hash : address }
@@ -279,11 +275,11 @@ struct
              Contents (Indirect n, Indirect i, m))
       |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
              Node (Indirect n, Indirect i))
-      |~ case1 "contents-id" (pair int Key.t) (fun (n, h) ->
+      |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
              Contents (Indirect n, Direct h, Metadata.default))
-      |~ case1 "contents-x-id" (triple int Key.t metadata_t) (fun (n, h, m) ->
+      |~ case1 "contents-x-id" (triple int H.t metadata_t) (fun (n, h, m) ->
              Contents (Indirect n, Direct h, m))
-      |~ case1 "node-id" (pair int Key.t) (fun (n, h) ->
+      |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
              Node (Indirect n, Direct h))
       |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
              Contents (Direct n, Indirect i, Metadata.default))
@@ -291,11 +287,11 @@ struct
            (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
       |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
              Node (Direct n, Indirect i))
-      |~ case1 "contents-dd" (pair step_t Key.t) (fun (n, i) ->
+      |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
              Contents (Direct n, Direct i, Metadata.default))
-      |~ case1 "contents-x-dd" (triple step_t Key.t metadata_t)
-           (fun (n, i, m) -> Contents (Direct n, Direct i, m))
-      |~ case1 "node-dd" (pair step_t Key.t) (fun (n, i) ->
+      |~ case1 "contents-x-dd" (triple step_t H.t metadata_t) (fun (n, i, m) ->
+             Contents (Direct n, Direct i, m))
+      |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
              Node (Direct n, Direct i))
       |> sealv
 
@@ -1391,37 +1387,33 @@ struct
     let encode_bin :
         dict:(string -> int option) ->
         offset_of_key:(Key.t -> int63 option) ->
-        t ->
         hash ->
-        (string -> unit) ->
-        unit =
-     fun ~dict ~offset_of_key (t : t) k ->
+        t Irmin.Type.encode_bin =
+     fun ~dict ~offset_of_key hash (t : t) ->
       Stats.incr_inode_encode_bin ();
       let step s : Compress.name =
         let str = step_to_bin s in
         if String.length str <= 3 then Direct s
         else match dict str with Some i -> Indirect i | None -> Direct s
       in
-      let hash h : Compress.address =
-        match offset_of_key h with
-        | None -> Compress.Direct h
-        | Some _off -> Compress.Direct h
-        (* TODO: remove [Indirect] case. *)
-        (* Compress.Indirect off *)
+      let address_of_key key : Compress.address =
+        match offset_of_key key with
+        | None -> Compress.Direct (Key.to_hash key)
+        | Some off -> Compress.Indirect off
       in
       let ptr : T.key Bin.with_index -> Compress.ptr =
        fun n ->
-        let hash = hash n.vref in
+        let hash = address_of_key n.vref in
         { index = n.index; hash }
       in
       let value : T.step * T.value -> Compress.value = function
         | s, `Contents (c, m) ->
             let s = step s in
-            let v = hash c in
+            let v = address_of_key c in
             Compress.Contents (s, v, m)
         | s, `Node n ->
             let s = step s in
-            let v = hash n in
+            let v = address_of_key n in
             Compress.Node (s, v)
       in
       (* List.map is fine here as the number of entries is small *)
@@ -1431,7 +1423,7 @@ struct
             let entries = List.map ptr entries in
             Tree { Compress.depth; length; entries }
       in
-      let t = Compress.v ~root:t.root ~hash:k (v t.v) in
+      let t = Compress.v ~root:t.root ~hash (v t.v) in
       encode_compress t
 
     exception Exit of [ `Msg of string ]
@@ -1439,8 +1431,9 @@ struct
     let decode_bin :
         dict:(int -> string option) ->
         key_of_offset:(int63 -> key) ->
+        key_of_hash:(hash -> key) ->
         t Irmin.Type.decode_bin =
-     fun ~dict ~key_of_offset t pos_ref ->
+     fun ~dict ~key_of_offset ~key_of_hash t pos_ref ->
       Stats.incr_inode_decode_bin ();
       let i = decode_compress t pos_ref in
       let step : Compress.name -> T.step = function
@@ -1454,15 +1447,8 @@ struct
                 | Ok v -> v))
       in
       let key : Compress.address -> T.key = function
-        | Indirect off ->
-            (* NOTE: this happens for _existing_ nodes in the store, but we
-               don't create any new [Compress] values with non-direct pointers
-               on disk.
-
-               XXX(craigfe): clean up this comment, and check that it's actually
-               true. *)
-            key_of_offset off
-        | Direct n -> n
+        | Indirect off -> key_of_offset off
+        | Direct n -> key_of_hash n
       in
       let ptr : Compress.ptr -> T.key Bin.with_index =
        fun n ->

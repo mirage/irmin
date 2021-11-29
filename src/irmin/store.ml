@@ -194,11 +194,7 @@ module Make (B : Backend.S) = struct
 
     let of_hash r hash =
       B.Commit.index (B.Repo.commit_t r) hash >>= function
-      | None ->
-          Log.err (fun f ->
-              f "Attempted an index of hash %a, but got None" (Type.pp Hash.t)
-                hash);
-          Lwt.return_none
+      | None -> Lwt.return_none
       | Some key -> of_key r key
 
     module H = Typed (B.Commit.Val)

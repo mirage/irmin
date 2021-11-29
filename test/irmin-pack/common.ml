@@ -67,10 +67,10 @@ module Contents = struct
   let hash t = H.hash t
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
-  let encode_bin ~dict:_ ~offset_of_key:_ x k = encode_pair (k, x)
+  let encode_bin ~dict:_ ~offset_of_key:_ k x = encode_pair (k, x)
   let length_header = `Never
 
-  let decode_bin ~dict:_ ~key_of_offset:_ x pos_ref =
+  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ x pos_ref =
     let _, v = decode_pair x pos_ref in
     v
 

@@ -335,6 +335,7 @@ module Maker
         invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp
           off len;
       let key_of_offset offset =
+        [%log.debug "key_of_offset: %a" Int63.pp offset];
         (* Attempt to eagerly read the length at the same time as reading the
            hash in order to save an extra IO read when dereferencing the key: *)
         let { Entry_prefix.hash; value_length; _ } =
@@ -352,8 +353,11 @@ module Maker
                header during [find]. *)
             Pack_key.v_indexed hash
       in
+      let key_of_hash = Pack_key.v_indexed in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~key_of_offset ~dict (Bytes.unsafe_to_string buf) (ref 0)
+      Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+        (Bytes.unsafe_to_string buf)
+        (ref 0)
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
@@ -474,7 +478,7 @@ module Maker
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset_of_key ~dict v hash (fun s ->
+        Val.encode_bin ~offset_of_key ~dict hash v (fun s ->
             IO.append t.pack.block s);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
