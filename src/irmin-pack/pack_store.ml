@@ -211,7 +211,7 @@ module Maker
       | Some key' -> (
           match Pack_key.inspect key' with
           | Direct { offset; length; _ } -> { offset; length }
-          | Direct_unknown_length _ | Indexed _ ->
+          | Indexed _ ->
               (* [index_direct] returns only [Direct] keys. *)
               assert false)
       | None ->
@@ -272,7 +272,7 @@ module Maker
       let key = Pack_key.inspect k in
       match key with
       | Indexed hash -> Index.mem t.pack.index hash
-      | Direct { offset; _ } | Direct_unknown_length { offset; _ } ->
+      | Direct { offset; _ } ->
           let minimal_entry_length = Hash.hash_size + 1 in
           let io_offset = IO.offset t.pack.block in
           if
@@ -370,30 +370,10 @@ module Maker
         | Direct { offset; length; _ } ->
             Stats.incr_find_direct ();
             { offset; length }
-        | Direct_unknown_length { hash = _; offset } ->
-            Stats.incr_find_direct_unknown_length ();
-            let length =
-              (* First try to recover the length from the pack file: *)
-              let prefix = io_read_and_decode_entry_prefix ~off:offset t in
-              match prefix.value_length with
-              | Some value_length -> Hash.hash_size + 1 + value_length
-              | None ->
-                  (* Otherwise, we must check the index: *)
-                  let span = get_entry_span_from_index_exn t hash in
-                  if span.offset <> offset then
-                    corrupted_store
-                      "Attempted to recover the length of the object \
-                       referenced by %a, but the index returned the \
-                       inconsistent binding { offset = %a; length = %d }"
-                      pp_key key Int63.pp span.offset span.length;
-                  span.length
-            in
-            (* Cache the offset and length information in the existing key: *)
-            Pack_key.promote_exn key ~offset ~length;
-            { offset; length }
         | Indexed hash ->
             Stats.incr_find_indexed ();
             let entry_span = get_entry_span_from_index_exn t hash in
+            (* Cache the offset and length information in the existing key: *)
             Pack_key.promote_exn key ~offset:entry_span.offset
               ~length:entry_span.length;
             entry_span
@@ -464,7 +444,7 @@ module Maker
         [%log.debug "[pack] append %a" pp_hash hash];
         let offset_of_key k =
           match Pack_key.inspect k with
-          | Direct { offset; _ } | Direct_unknown_length { offset; _ } ->
+          | Direct { offset; _ } ->
               Stats.incr_appended_offsets ();
               Some offset
           | Indexed hash -> (
@@ -491,6 +471,7 @@ module Maker
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging hash v;
         Lru.add t.lru hash v;
+        [%log.debug "[pack] append done %a <- %a" pp_hash hash pp_key key];
         key
       in
       match ensure_unique_indexed with

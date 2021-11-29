@@ -14,9 +14,8 @@ module type Sigs = sig
 
   (** The internal state of a key (read with {!inspect}).
 
-      Invariant: keys of the form {!Direct_unknown_length} and {!Indexed} always
-      reference values that have entries in the index (as otherwise these keys
-      could not be dereferenced). *)
+      Invariant: keys of the form {!Indexed} always reference values that have
+      entries in the index (as otherwise these keys could not be dereferenced). *)
   type 'hash state =
     | Direct of { hash : 'hash; offset : int63; length : int }
         (** A "direct" pointer to a value stored at [offset] in the pack-file
@@ -32,18 +31,10 @@ module type Sigs = sig
             offsets, we fetch the length information of the child at the same
             time as fetching its hash (which we must do anyway in order to do an
             integrity check), creating keys of this form. *)
-    | Direct_unknown_length of { hash : 'hash; offset : int63 }
-        (** Like {!Direct}, but dereferencing requires first discovering the
-            length of the value by (a) checking in the pack file for a length
-            header, or (b) consulting the index (after which the key can be
-            promoted to {!Direct} to avoid unnecessary re-indexing).
-
-            Such keys result from decoding values containing keys that were
-            encoded as [(hash, offset)] pairs, as created by {!Make}. *)
     | Indexed of 'hash
-        (** A pointer to an object in the pack file that is indexed. As with
-            {!Direct_unknown_length}, reading the object necessitates consulting
-            the index, after which the key can be promoted to {!Direct}.
+        (** A pointer to an object in the pack file that is indexed. Reading the
+            object necessitates consulting the index, after which the key can be
+            promoted to {!Direct}.
 
             Such keys result from decoding pointers to other store objects
             (nodes or commits) from commits or from the branch store. *)
@@ -61,7 +52,6 @@ module type Sigs = sig
   end
 
   module Make (Hash : Irmin.Hash.S) : S with type hash = Hash.t
-  module Make_indexed (Hash : Irmin.Hash.S) : S with type hash = Hash.t
 
   module type Store_spec = sig
     type ('h, _) contents_key = 'h t

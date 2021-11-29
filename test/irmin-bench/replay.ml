@@ -84,7 +84,6 @@ let replay_1_commit () =
       {
         finds = 2;
         find_direct = 0;
-        find_direct_unknown_length = 0;
         find_indexed = 0;
         cache_misses = 0;
         appended_hashes = 0;

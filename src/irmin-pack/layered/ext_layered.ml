@@ -41,14 +41,13 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
 
   module H = Schema.Hash
   module Index = Irmin_pack.Index.Make (H)
-  module Key_direct = Irmin_pack.Pack_key.Make (H)
-  module Key_indexed = Irmin_pack.Pack_key.Make_indexed (H)
+  module XKey = Irmin_pack.Pack_key.Make (H)
   module Pack = Irmin_pack.Pack_store.Maker (V) (Index) (H)
 
   type kinded_key =
-    | Commit_t of Key_direct.t
-    | Node_t of Key_direct.t
-    | Content_t of Key_direct.t
+    | Commit_t of XKey.t
+    | Node_t of XKey.t
+    | Content_t of XKey.t
 
   module X = struct
     module Schema = Schema
@@ -56,7 +55,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
 
     module Contents = struct
       module Pack_value =
-        Irmin_pack.Pack_value.Of_contents (Config) (H) (Key_direct) (C)
+        Irmin_pack.Pack_value.Of_contents (Config) (H) (XKey) (C)
 
       (* FIXME: remove duplication with irmin-pack/ext.ml *)
       module CA = struct
@@ -70,7 +69,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
     module Node = struct
       module Value = struct
         module Hash = H
-        include Schema.Node (Contents.Key) (Key_direct)
+        include Schema.Node (Contents.Key) (XKey)
       end
 
       module Pa = Layered_store.Pack_maker (H) (Index) (Pack)
@@ -82,13 +81,13 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
 
     module Commit = struct
       module Value = struct
-        include Schema.Commit (Key_indexed) (Key_indexed)
+        include Schema.Commit (XKey) (XKey)
 
         type hash = Hash.t [@@deriving irmin]
       end
 
       module Pack_value =
-        Irmin_pack.Pack_value.Of_commit (H) (Key_indexed)
+        Irmin_pack.Pack_value.Of_commit (H) (XKey)
           (struct
             module Info = Schema.Info
             include Value
@@ -105,7 +104,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
 
     module Branch = struct
       module Key = B
-      module Val = Key_indexed
+      module Val = XKey
 
       module Atomic_write = struct
         module AW = Irmin_pack.Atomic_write.Make_persistent (V) (Key) (Val)
@@ -718,9 +717,9 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
         [%log.debug
           "self_contained: copy commits min:%a; max:%a from lower into upper \
            to make the upper self contained"
-            (Fmt.list (Irmin.Type.pp Key_direct.t))
+            (Fmt.list (Irmin.Type.pp XKey.t))
             min
-            (Fmt.list (Irmin.Type.pp Key_direct.t))
+            (Fmt.list (Irmin.Type.pp XKey.t))
             max];
         on_current_upper t (fun u -> iter_copy u ~min t max)
     end
