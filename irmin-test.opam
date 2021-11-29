@@ -31,12 +31,6 @@ depends: [
   "metrics" {>= "0.2.0"}
 ]
 
-pin-depends: [
-  [ "repr.dev" "git+https://github.com/icristescu/repr#81a0d9f25202dd5625acba35c216a4b203fe1256" ]
-  [ "ppx_repr.dev" "git+https://github.com/icristescu/repr#81a0d9f25202dd5625acba35c216a4b203fe1256" ]
-]
-
-
 synopsis: "Irmin test suite"
 description: """
 `irmin-test` provides access to the Irmin test suite for testing storage backend
