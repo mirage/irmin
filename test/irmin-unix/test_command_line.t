@@ -78,3 +78,9 @@ Check that g/h/i has been deleted after merge
   <none>
   [1]
 
+Check mismatched hash function
+  $ irmin set --root ./test-hash -s irf -h sha1 abc 123
+  $ irmin snapshot --root ./test-hash -s irf -h blake2b
+  irmin: [ERROR] Irmin_fs.value invalid hash size
+  ERROR: (Invalid_argument "Irmin.head: no head")
+  [1]
