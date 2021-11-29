@@ -588,7 +588,8 @@ module V1 = struct
       |> sealr
   end
 
-  module Make (C : Generic_key.S with module Info := Info) = struct
+  module Make (Hash : Hash.S) (C : Generic_key.S with module Info := Info) =
+  struct
     module K (K : Type.S) = struct
       let h = Type.string_of `Int64
       let hash_to_bin_string = Type.(unstage (to_bin_string K.t))
@@ -607,9 +608,20 @@ module V1 = struct
           | Ok v -> v
           | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
 
-      type t = K.t
+      type t = K.t [@@deriving irmin ~pre_hash]
 
-      let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
+      (* Manually box hashes in V1 commits with length headers: *)
+      let pre_hash =
+        let hash_length_header : string =
+          let b = Bytes.create 8 in
+          Bytes.set_int64_be b 0 (Int64.of_int Hash.hash_size);
+          Bytes.unsafe_to_string b
+        in
+        fun x f ->
+          f hash_length_header;
+          pre_hash x f
+
+      let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of) ~pre_hash
     end
 
     module Node_key = K (struct
