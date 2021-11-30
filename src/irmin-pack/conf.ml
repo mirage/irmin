@@ -14,10 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type length_header = [ `Varint ] option
+
 module type S = sig
   val entries : int
   val stable_hash : int
-  val contents_length_header : [ `Varint | `None ]
+  val contents_length_header : length_header
 end
 
 module Default = struct

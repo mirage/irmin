@@ -21,8 +21,6 @@ let config = Conf.init
 
 exception RO_not_allowed = S.RO_not_allowed
 
-module type S = S.S
-
 module Indexable = Indexable
 module Atomic_write = Atomic_write
 module Dict = Pack_dict

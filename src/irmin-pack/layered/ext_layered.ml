@@ -922,6 +922,6 @@ end
 module Maker (C : Conf.Pack.S) = struct
   type endpoint = unit
 
-  include Irmin.Key.Store_spec.Hash_keyed
+  include Irmin_pack.Pack_key.Store_spec
   module Make (S : Irmin.Schema.Extended) = Maker' (C) (S)
 end

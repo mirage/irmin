@@ -81,10 +81,7 @@ module Maker (K : Irmin.Hash.S) = struct
       mutable generation : int63;
     }
 
-    let index_direct _ h =
-      Log.debug (fun f -> f "index");
-      Some h
-
+    let index_direct _ h = Some h
     let index t h = Lwt.return (index_direct t h)
 
     let instances =

@@ -32,9 +32,9 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
-    module XKey = Pack_key.Make (H)
     module Pack = Pack_store.Maker (V) (Index) (H)
     module Dict = Pack_dict.Make (V)
+    module XKey = Pack_key.Make (H)
 
     module X = struct
       module Hash = H

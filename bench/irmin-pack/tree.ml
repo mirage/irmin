@@ -199,7 +199,10 @@ module Make_store_layered (Conf : Irmin_pack.Conf.S) = struct
   include Store
 end
 
-module Make_basic (Maker : Irmin_pack.Maker) (Conf : Irmin_pack.Conf.S) = struct
+module Make_basic (Maker : functor (_ : Irmin_pack.Conf.S) ->
+  Irmin_pack.Maker)
+(Conf : Irmin_pack.Conf.S) =
+struct
   type store_config = config
 
   module Store = struct
@@ -233,7 +236,7 @@ let store_of_config config =
   let module Conf = struct
     let entries = entries
     let stable_hash = stable_hash
-    let contents_length_header = `Varint
+    let contents_length_header = Some `Varint
   end in
   match config.store_type with
   | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)

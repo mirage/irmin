@@ -10,7 +10,7 @@ module Stats : sig
   val missing_hash : t -> unit
   val pp : t Fmt.t
 end = struct
-  open Pack_value.Kind
+  module Kind = Pack_value.Kind
 
   type t = {
     pack_values : int array;
@@ -19,38 +19,28 @@ end = struct
   }
 
   let empty () =
-    let total_kinds = 7 (* TODO: expose this from [Pack_value.Kind] *) in
-    let pack_values = Array.make total_kinds 0 in
+    let pack_values = Array.make (List.length Kind.all) 0 in
     { pack_values; duplicates = 0; missing_hashes = 0 }
 
   let incr t n = t.pack_values.(n) <- t.pack_values.(n) + 1
-
-  let add t = function
-    | Contents -> incr t 0
-    | Commit_v0 -> incr t 1
-    | Commit_v1 -> incr t 2
-    | Inode_v0_stable -> incr t 3
-    | Inode_v0_unstable -> incr t 4
-    | Inode_v1_root -> incr t 5
-    | Inode_v1_nonroot -> incr t 6
-
+  let add t k = incr t (Kind.to_enum k)
   let duplicate_entry t = t.duplicates <- t.duplicates + 1
   let missing_hash t = t.missing_hashes <- t.missing_hashes + 1
 
   let pp =
     let open Fmt.Dump in
+    let pack_values =
+      ListLabels.map Kind.all ~f:(fun k ->
+          let name = Fmt.str "%a" Kind.pp k in
+          let index = Kind.to_enum k in
+          field name (fun t -> t.pack_values.(index)) Fmt.int)
+    in
     record
-      [
-        field "Contents" (fun t -> t.pack_values.(0)) Fmt.int;
-        field "Commit_v0" (fun t -> t.pack_values.(1)) Fmt.int;
-        field "Commit_v1" (fun t -> t.pack_values.(2)) Fmt.int;
-        field "Inode_v0_stable" (fun t -> t.pack_values.(3)) Fmt.int;
-        field "Inode_v0_unstable" (fun t -> t.pack_values.(4)) Fmt.int;
-        field "Inode_v1_root" (fun t -> t.pack_values.(5)) Fmt.int;
-        field "Inode_v1_nonroot" (fun t -> t.pack_values.(6)) Fmt.int;
-        field "Duplicated entries" (fun t -> t.duplicates) Fmt.int;
-        field "Missing entries" (fun t -> t.missing_hashes) Fmt.int;
-      ]
+      (pack_values
+      @ [
+          field "Duplicated entries" (fun t -> t.duplicates) Fmt.int;
+          field "Missing entries" (fun t -> t.missing_hashes) Fmt.int;
+        ])
 end
 
 module type Args = sig
@@ -90,16 +80,8 @@ end = struct
 
   let pp_binding ppf x =
     let off, len, kind = x.data in
-    Fmt.pf ppf "@[<v 0>%s with hash %a@,pack offset = %a, length = %d@]"
-      (match kind with
-      | Pack_value.Kind.Contents -> "Contents"
-      | Commit_v0 -> "Commit_v0"
-      | Commit_v1 -> "Commit_v1"
-      | Inode_v0_stable -> "Inode_v0_stable"
-      | Inode_v0_unstable -> "Inode_v0_unstable"
-      | Inode_v1_root -> "Inode_v1_root"
-      | Inode_v1_nonroot -> "Inode_v1_nonroot")
-      pp_key x.key Int63.pp off len
+    Fmt.pf ppf "@[<v 0>%a with hash %a@,pack offset = %a, length = %d@]"
+      Pack_value.Kind.pp kind pp_key x.key Int63.pp off len
 
   module Index_reconstructor = struct
     type t = {

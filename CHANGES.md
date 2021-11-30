@@ -143,6 +143,13 @@
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
     (#1369, @samoht)
 
+- **irmin-pack**
+  - The `Irmin_pack.Maker` module type now no longer takes a `Conf` argument.
+    (#1641, @CraigFe)
+  - The backend configuration type `Conf.S` requires a new parameter
+    `contents_length_header` that (optionally) further specifies the encoding
+    format used for commits in order to improve performance. (#1644, @CraigFe)
+
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when
     using `Irmin_unix.Resolver.load_config` and make command line options

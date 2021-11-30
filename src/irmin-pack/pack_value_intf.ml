@@ -8,12 +8,7 @@ open! Import
     - the data itself, optionally with a length header that contains the encoded
       size of the data section (excluding the header itself). *)
 
-type 'kind length_header = [ `Never | `Sometimes of 'kind -> [ `Varint ] option ]
-(** The type of descriptions of length header formats for the {i data} sections
-    of pack entries.
-
-    NOTE: [`Never] is equivalent to [`Sometimes (Fun.const None)], but enables a
-    more efficient store implementation. *)
+type length_header = [ `Varint ] option
 
 module type S = sig
   include Irmin.Type.S
@@ -24,7 +19,13 @@ module type S = sig
 
   val hash : t -> hash
   val kind : t -> kind
-  val length_header : kind length_header
+
+  val length_header : [ `Never | `Sometimes of kind -> [ `Varint ] option ]
+  (** Describes the length header formats for the {i data} sections of pack
+      entries.
+
+      NOTE: [`Never] is equivalent to [`Sometimes (Fun.const None)], but enables
+      a more efficient store implementation. *)
 
   val encode_bin :
     dict:(string -> int option) ->
@@ -63,6 +64,8 @@ module type Sigs = sig
       | Inode_v1_nonroot
     [@@deriving irmin]
 
+    val all : t list
+    val to_enum : t -> int
     val to_magic : t -> char
     val of_magic_exn : char -> t
     val pp : t Fmt.t
@@ -72,7 +75,7 @@ module type Sigs = sig
   module type Persistent = Persistent with type kind := Kind.t
 
   module Of_contents (_ : sig
-    val contents_length_header : [ `Varint | `None ]
+    val contents_length_header : length_header
   end)
   (Hash : Irmin.Hash.S)
   (Key : T)

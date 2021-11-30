@@ -30,8 +30,37 @@ module Kind = struct
     | 'O' -> Inode_v1_nonroot
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
-  let t = Irmin.Type.(map char) of_magic_exn to_magic
-  let pp = Fmt.using to_magic Fmt.char
+  let all =
+    [
+      Commit_v0;
+      Commit_v1;
+      Contents;
+      Inode_v0_unstable;
+      Inode_v0_stable;
+      Inode_v1_root;
+      Inode_v1_nonroot;
+    ]
+
+  let to_enum = function
+    | Commit_v0 -> 0
+    | Commit_v1 -> 1
+    | Contents -> 2
+    | Inode_v0_unstable -> 3
+    | Inode_v0_stable -> 4
+    | Inode_v1_root -> 5
+    | Inode_v1_nonroot -> 6
+
+  let pp =
+    Fmt.of_to_string (function
+      | Commit_v0 -> "Commit_v0"
+      | Commit_v1 -> "Commit_v1"
+      | Contents -> "Contents"
+      | Inode_v0_unstable -> "Inode_v0_unstable"
+      | Inode_v0_stable -> "Inode_v0_stable"
+      | Inode_v1_root -> "Inode_v1_root"
+      | Inode_v1_nonroot -> "Inode_v1_nonroot")
+
+  let t = Irmin.Type.map ~pp Irmin.Type.char of_magic_exn to_magic
 end
 
 type ('h, 'a) value = { hash : 'h; kind : Kind.t; v : 'a } [@@deriving irmin]
@@ -49,7 +78,7 @@ let get_dynamic_sizer_exn : type a. a Irmin.Type.t -> string -> int -> int =
   | Dynamic f -> f
 
 module Of_contents (Conf : sig
-  val contents_length_header : [ `Varint | `None ]
+  val contents_length_header : length_header
 end)
 (Hash : Irmin.Hash.S) (Key : sig
   type t
@@ -64,14 +93,15 @@ struct
 
   let hash = Hash.hash
   let kind = Kind.Contents
-  let value = [%typ: (Hash.t, Data.t) value]
-  let encode_value = Irmin.Type.(unstage (encode_bin value))
-  let decode_value = Irmin.Type.(unstage (decode_bin value))
 
   let length_header =
     match Conf.contents_length_header with
-    | `None -> `Never
-    | `Varint -> `Sometimes (Fun.const (Some `Varint))
+    | None -> `Never
+    | Some _ as x -> `Sometimes (Fun.const x)
+
+  let value = [%typ: (Hash.t, Data.t) value]
+  let encode_value = Irmin.Type.(unstage (encode_bin value))
+  let decode_value = Irmin.Type.(unstage (decode_bin value))
 
   let encode_bin ~dict:_ ~offset_of_key:_ hash v =
     encode_value { kind; hash; v }

@@ -23,7 +23,7 @@ end
 module Conf = struct
   let entries = 32
   let stable_hash = 256
-  let contents_length_header = `Varint
+  let contents_length_header = Some `Varint
 end
 
 module Maker = Irmin_pack.Maker_ext (V1) (Conf)

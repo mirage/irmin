@@ -35,7 +35,7 @@ end
 module type Maker = sig
   type endpoint = unit
 
-  include Irmin.Key.Store_spec.S
+  include Irmin_pack.Pack_key.Store_spec
 
   module Make (Schema : Irmin.Schema.Extended) :
     Store
@@ -46,6 +46,9 @@ module type Maker = sig
        and type Schema.Path.step = Schema.Path.step
        and type Schema.Contents.t = Schema.Contents.t
        and type Schema.Info.t = Schema.Info.t
+       and type contents_key = (Schema.Hash.t, Schema.Contents.t) contents_key
+       and type node_key = Schema.Hash.t node_key
+       and type commit_key = Schema.Hash.t commit_key
        and type Backend.Remote.endpoint = endpoint
 end
 

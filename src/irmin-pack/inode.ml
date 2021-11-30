@@ -1356,22 +1356,18 @@ struct
 
     let length_header =
       let some_varint = Some `Varint in
-      let contents =
-        (* NOTE: the Node instantiation of the pack store must have access to
-           the header format used by contents values in order to eagerly
-           construct contents keys with length information during
-           [key_of_offset]. *)
-        match Conf.contents_length_header with
-        | `None -> None
-        | `Varint -> some_varint
-      in
       `Sometimes
         (function
         | Pack_value.Kind.Inode_v0_unstable -> None
         | Inode_v0_stable -> None
         | Inode_v1_root -> some_varint
         | Inode_v1_nonroot -> some_varint
-        | Contents -> contents
+        | Contents ->
+            (* NOTE: the Node instantiation of the pack store must have access to
+               the header format used by contents values in order to eagerly
+               construct contents keys with length information during
+               [key_of_offset]. *)
+            Conf.contents_length_header
         | Commit_v0 | Commit_v1 ->
             (* The node store never inspects a commit object: *)
             assert false)
@@ -1720,13 +1716,13 @@ module Make
                 and type Val.metadata = Node.metadata
                 and type Val.step = Node.step)
     (Pack : Indexable.S
-              with type key = Key.t
-               and type hash = H.t
+              with type hash = H.t
+               and type key = Key.t
                and type value = Inter.Raw.t) =
 struct
   module Hash = H
-  module Val = Inter.Val
   module Key = Key
+  module Val = Inter.Val
 
   type 'a t = 'a Pack.t
   type key = Key.t [@@deriving irmin ~equal]
