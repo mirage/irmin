@@ -31,6 +31,8 @@ module type Sigs = sig
   module Kind : sig
     type t = Commit | Contents | Inode | Node [@@deriving irmin]
 
+    val all : t list
+    val to_enum : t -> int
     val to_magic : t -> char
     val of_magic_exn : char -> t
     val pp : t Fmt.t
