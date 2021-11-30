@@ -145,7 +145,8 @@ module FSHelper = struct
       ())
 end
 
-module Generate_trees (Store : Irmin.KV with type Schema.Contents.t = bytes) =
+module Generate_trees
+    (Store : Irmin.Generic_key.KV with type Schema.Contents.t = bytes) =
 struct
   let key depth =
     let rec aux i acc =

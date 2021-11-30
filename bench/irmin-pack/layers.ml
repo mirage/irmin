@@ -77,7 +77,7 @@ let init_commit repo =
   Store.Commit.v repo ~info:(Info.f ()) ~parents:[] (Store.Tree.empty ())
 
 let checkout_and_commit config repo c nb =
-  Store.Commit.of_hash repo c >>= function
+  Store.Commit.of_key repo c >>= function
   | None -> Lwt.fail_with "commit not found"
   | Some commit ->
       let tree = Store.Commit.tree commit in
@@ -110,7 +110,7 @@ let write_cycle config repo init_commit =
     else
       let* time, c' =
         with_timer (fun () ->
-            checkout_and_commit config repo (Store.Commit.hash c) i)
+            checkout_and_commit config repo (Store.Commit.key c) i)
       in
       print_commit_stats config c' i time;
       go c' (i + 1)
