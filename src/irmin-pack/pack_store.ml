@@ -248,13 +248,6 @@ module Maker
             let length_header_start = Entry_prefix.min_length in
             match has_length_header kind with
             | None -> None
-            | Some `Int32_be ->
-                (* The 4 bytes at [length_header_start] are a fixed-length field
-                   (if they exist / were read correctly): *)
-                let length_header =
-                  Bytes.get_int32_be buf length_header_start |> Int32.to_int
-                in
-                Some (4 + length_header)
             | Some `Varint ->
                 (* The bytes starting at [length_header_start] are a
                    variable-length length field (if they exist / were read

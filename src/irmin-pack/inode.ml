@@ -311,13 +311,12 @@ struct
     type kind = Pack_value.Kind.t
     [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    type nonrec int32 = int32
-    [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
+    type nonrec int = int [@@deriving irmin ~encode_bin ~decode_bin]
 
-    let no_length = Int32.zero
-    let is_real_length length = not (Int32.equal length no_length)
+    let no_length = 0
+    let is_real_length length = not (length = 0)
 
-    type v1 = { mutable length : int32; v : v } [@@deriving irmin]
+    type v1 = { mutable length : int; v : v } [@@deriving irmin]
     (** [length] is the length of the binary encoding of [v]. It is not known
         right away. [length] is [no_length] when it isn't known. Calling
         [encode_bin] or [size_of] will make [length] known. *)
@@ -337,12 +336,10 @@ struct
          [length] and then write [v]. *)
       let l = ref [] in
       encode_bin_v v (fun s -> l := s :: !l);
-      let length =
-        List.fold_left (fun acc s -> acc + String.length s) 0 !l |> Int32.of_int
-      in
+      let length = List.fold_left (fun acc s -> acc + String.length s) 0 !l in
       tv.length <- length;
       encode_bin_kind kind f;
-      encode_bin_int32 length f;
+      encode_bin_int length f;
       List.iter f (List.rev !l)
 
     let encode_bin_tv tv f =
@@ -351,11 +348,11 @@ struct
       | V0_unstable _ -> assert false
       | V1_root { length; v } when is_real_length length ->
           encode_bin_kind Pack_value.Kind.Inode_v1_root f;
-          encode_bin_int32 length f;
+          encode_bin_int length f;
           encode_bin_v v f
       | V1_nonroot { length; v } when is_real_length length ->
           encode_bin_kind Pack_value.Kind.Inode_v1_nonroot f;
-          encode_bin_int32 length f;
+          encode_bin_int length f;
           encode_bin_v v f
       | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_root f
       | V1_nonroot tv ->
@@ -371,12 +368,12 @@ struct
           let v = decode_bin_v s off in
           V0_stable v
       | Inode_v1_root ->
-          let length = decode_bin_int32 s off in
+          let length = decode_bin_int s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_root { length; v }
       | Inode_v1_nonroot ->
-          let length = decode_bin_int32 s off in
+          let length = decode_bin_int s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_nonroot { length; v }
@@ -389,14 +386,14 @@ struct
         | V0_stable v | V0_unstable v -> 1 + dynamic_size_of_v v
         | (V1_root { length; _ } | V1_nonroot { length; _ })
           when is_real_length length ->
-            Int32.to_int length - H.hash_size
+            length - H.hash_size
         | V1_root ({ v; _ } as tv) ->
             let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
-            tv.length <- Int32.of_int length;
+            tv.length <- length;
             length - H.hash_size
         | V1_nonroot ({ v; _ } as tv) ->
             let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
-            tv.length <- Int32.of_int length;
+            tv.length <- length;
             length - H.hash_size
       in
       let of_encoding s off =
@@ -406,8 +403,8 @@ struct
         | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
             1 + dynamic_size_of_v_encoding s !offref
         | Inode_v1_root | Inode_v1_nonroot ->
-            let len = decode_bin_int32 s offref in
-            Int32.to_int len - H.hash_size
+            let len = decode_bin_int s offref in
+            len - H.hash_size
         | Commit_v0 | Commit_v1 | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
@@ -1358,7 +1355,7 @@ struct
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
     let length_header =
-      let some_int32_be = Some `Int32_be in
+      let some_varint = Some `Varint in
       let contents =
         (* NOTE: the Node instantiation of the pack store must have access to
            the header format used by contents values in order to eagerly
@@ -1366,14 +1363,14 @@ struct
            [key_of_offset]. *)
         match Conf.contents_length_header with
         | `None -> None
-        | `Varint -> Some `Varint
+        | `Varint -> some_varint
       in
       `Sometimes
         (function
         | Pack_value.Kind.Inode_v0_unstable -> None
         | Inode_v0_stable -> None
-        | Inode_v1_root -> some_int32_be
-        | Inode_v1_nonroot -> some_int32_be
+        | Inode_v1_root -> some_varint
+        | Inode_v1_nonroot -> some_varint
         | Contents -> contents
         | Commit_v0 | Commit_v1 ->
             (* The node store never inspects a commit object: *)

@@ -8,8 +8,7 @@ open! Import
     - the data itself, optionally with a length header that contains the encoded
       size of the data section (excluding the header itself). *)
 
-type 'kind length_header =
-  [ `Never | `Sometimes of 'kind -> [ `Varint | `Int32_be ] option ]
+type 'kind length_header = [ `Never | `Sometimes of 'kind -> [ `Varint ] option ]
 (** The type of descriptions of length header formats for the {i data} sections
     of pack entries.
 

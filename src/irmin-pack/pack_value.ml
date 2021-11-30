@@ -115,21 +115,21 @@ struct
   end
 
   module Entry_direct = struct
-    type t = (hash, int32 * Value_direct.t) value
+    type t = (hash, int * Value_direct.t) value
     [@@deriving irmin ~encode_bin ~decode_bin]
   end
 
   let length_header =
-    let some_int32_be = Some `Int32_be in
+    let some_varint = Some `Varint in
     `Sometimes
       (function
       (* TODO: avoid duplicating this *)
       | Kind.Inode_v0_unstable -> None
       | Inode_v0_stable -> None
-      | Inode_v1_root -> some_int32_be
-      | Inode_v1_nonroot -> some_int32_be
+      | Inode_v1_root -> some_varint
+      | Inode_v1_nonroot -> some_varint
       | Commit_v0 -> None
-      | Commit_v1 -> some_int32_be
+      | Commit_v1 -> some_varint
       | Contents -> assert false)
 
   let encode_bin ~dict:_ ~offset_of_key hash v f =
@@ -145,7 +145,7 @@ struct
       { Value_direct.node_offset; parent_offsets; info }
     in
     let encoded_commit = Value_direct.to_bin_string v in
-    let length_header = Int32.of_int (String.length encoded_commit) in
+    let length_header = String.length encoded_commit in
     Entry_direct.encode_bin { hash; kind = Commit_v1; v = (length_header, v) } f
 
   let decode_bin ~dict:_ ~key_of_offset ~key_of_hash:_ s off =
