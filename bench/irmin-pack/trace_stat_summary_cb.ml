@@ -157,10 +157,24 @@ let create_raw_results2 s : result list =
   let metrics =
     let open Summary in
     [
-      ("finds", s.pack.finds);
-      ("cache_misses", s.pack.cache_misses);
+      ("finds", s.pack.finds.total);
+      ("finds.from_staging", s.pack.finds.from_staging);
+      ("finds.from_lru", s.pack.finds.from_lru);
+      ("finds.from_pack_direct", s.pack.finds.from_pack_direct);
+      ("finds.from_pack_indexed", s.pack.finds.from_pack_indexed);
+      ("finds.missing", s.pack.finds.missing);
+      ("finds.cache_miss", s.pack.finds.cache_miss);
       ("appended_hashes", s.pack.appended_hashes);
       ("appended_offsets", s.pack.appended_offsets);
+      ("inode_add", s.pack.inode_add);
+      ("inode_remove", s.pack.inode_remove);
+      ("inode_of_seq", s.pack.inode_of_seq);
+      ("inode_of_raw", s.pack.inode_of_raw);
+      ("inode_rec_add", s.pack.inode_rec_add);
+      ("inode_rec_remove", s.pack.inode_rec_remove);
+      ("inode_to_binv", s.pack.inode_to_binv);
+      ("inode_decode_bin", s.pack.inode_decode_bin);
+      ("inode_encode_bin", s.pack.inode_encode_bin);
     ]
     |> List.map @@ fun (name, lbs) -> (name, [ lbs.value_after_commit.diff ])
   in

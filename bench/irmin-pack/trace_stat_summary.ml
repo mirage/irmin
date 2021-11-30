@@ -211,11 +211,30 @@ type bag_stat = {
     The [value_after_commit] is initially fed with the value in the header (i.e.
     the value recorded just before the start of the play). *)
 
+type finds = {
+  total : bag_stat;
+  from_staging : bag_stat;
+  from_lru : bag_stat;
+  from_pack_direct : bag_stat;
+  from_pack_indexed : bag_stat;
+  missing : bag_stat;
+  cache_miss : bag_stat;
+}
+[@@deriving repr]
+
 type pack = {
-  finds : bag_stat;
-  cache_misses : bag_stat;
+  finds : finds;
   appended_hashes : bag_stat;
   appended_offsets : bag_stat;
+  inode_add : bag_stat;
+  inode_remove : bag_stat;
+  inode_of_seq : bag_stat;
+  inode_of_raw : bag_stat;
+  inode_rec_add : bag_stat;
+  inode_rec_remove : bag_stat;
+  inode_to_binv : bag_stat;
+  inode_decode_bin : bag_stat;
+  inode_encode_bin : bag_stat;
 }
 [@@deriving repr]
 
@@ -762,18 +781,85 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       block_count value_of_bag
   in
 
-  let pack_folder =
-    let construct finds cache_misses appended_hashes appended_offsets =
-      { finds; cache_misses; appended_hashes; appended_offsets }
+  let finds_folder =
+    let construct total from_staging from_lru from_pack_direct from_pack_indexed
+        missing cache_miss =
+      {
+        total;
+        from_staging;
+        from_lru;
+        from_pack_direct;
+        from_pack_indexed;
+        missing;
+        cache_miss;
+      }
     in
     let acc0 =
       let open Utils.Parallel_folders in
       let ofi = float_of_int in
       open_ construct
-      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds)
-      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.cache_misses)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds.total)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             ofi bag.Def.pack.finds.from_staging)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds.from_lru)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             ofi bag.Def.pack.finds.from_pack_direct)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             ofi bag.Def.pack.finds.from_pack_indexed)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             let open Def in
+             let v = bag.pack.finds in
+             v.total
+             - v.from_staging
+             - v.from_lru
+             - v.from_pack_direct
+             - v.from_pack_indexed
+             |> ofi)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             let open Def in
+             let v = bag.pack.finds in
+             v.total - v.from_staging - v.from_lru |> ofi)
+      |> seal
+    in
+    Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
+      Utils.Parallel_folders.finalise
+  in
+
+  let pack_folder =
+    let construct finds appended_hashes appended_offsets inode_add inode_remove
+        inode_of_seq inode_of_raw inode_rec_add inode_rec_remove inode_to_binv
+        inode_decode_bin inode_encode_bin =
+      {
+        finds;
+        appended_hashes;
+        appended_offsets;
+        inode_add;
+        inode_remove;
+        inode_of_seq;
+        inode_of_raw;
+        inode_rec_add;
+        inode_rec_remove;
+        inode_to_binv;
+        inode_decode_bin;
+        inode_encode_bin;
+      }
+    in
+    let acc0 =
+      let open Utils.Parallel_folders in
+      let ofi = float_of_int in
+      open_ construct
+      |+ finds_folder
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_hashes)
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.appended_offsets)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_add)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_remove)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_of_seq)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_of_raw)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_rec_add)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_rec_remove)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_to_binv)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_decode_bin)
+      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.inode_encode_bin)
       |> seal
     in
     Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate

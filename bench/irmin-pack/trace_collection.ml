@@ -41,12 +41,30 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
     let pack () =
       let open Irmin_pack.Stats in
       let v = get () in
+      let finds =
+        Def.
+          {
+            total = v.finds.total;
+            from_staging = v.finds.from_staging;
+            from_lru = v.finds.from_lru;
+            from_pack_direct = v.finds.from_pack_direct;
+            from_pack_indexed = v.finds.from_pack_indexed;
+          }
+      in
       Def.
         {
-          finds = v.finds.total;
-          cache_misses = Find.cache_misses v.finds;
+          finds;
           appended_hashes = v.appended_hashes;
           appended_offsets = v.appended_offsets;
+          inode_add = v.inode_add;
+          inode_remove = v.inode_remove;
+          inode_of_seq = v.inode_of_seq;
+          inode_of_raw = v.inode_of_raw;
+          inode_rec_add = v.inode_rec_add;
+          inode_rec_remove = v.inode_rec_remove;
+          inode_to_binv = v.inode_to_binv;
+          inode_decode_bin = v.inode_decode_bin;
+          inode_encode_bin = v.inode_encode_bin;
         }
 
     let tree () =

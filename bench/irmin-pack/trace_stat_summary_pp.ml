@@ -391,10 +391,25 @@ module Table2 = struct
       pb "Disk writes" (fun s -> s.index.nb_writes);
       pb "Disk both" (fun s -> s.index.nb_both);
       `Spacer;
-      pb "pack.finds" (fun s -> s.pack.finds);
-      pb "pack.cache_misses" (fun s -> s.pack.cache_misses);
+      pb "pack.finds" (fun s -> s.pack.finds.total);
+      pb "pack.finds.from_staging" (fun s -> s.pack.finds.from_staging);
+      pb "pack.finds.from_lru" (fun s -> s.pack.finds.from_lru);
+      pb "pack.finds.from_pack_direct" (fun s -> s.pack.finds.from_pack_direct);
+      pb "pack.finds.from_pack_indexed" (fun s ->
+          s.pack.finds.from_pack_indexed);
+      pb "pack.finds.missing" (fun s -> s.pack.finds.missing);
+      pb "pack.finds.cache_miss" (fun s -> s.pack.finds.cache_miss);
       pb "pack.appended_hashes" (fun s -> s.pack.appended_hashes);
       pb "pack.appended_offsets" (fun s -> s.pack.appended_offsets);
+      pb "pack.inode_add" (fun s -> s.pack.inode_add);
+      pb "pack.inode_remove" (fun s -> s.pack.inode_remove);
+      pb "pack.inode_of_seq" (fun s -> s.pack.inode_of_seq);
+      pb "pack.inode_of_raw" (fun s -> s.pack.inode_of_raw);
+      pb "pack.inode_rec_add" (fun s -> s.pack.inode_rec_add);
+      pb "pack.inode_rec_remove" (fun s -> s.pack.inode_rec_remove);
+      pb "pack.inode_to_binv" (fun s -> s.pack.inode_to_binv);
+      pb "pack.inode_decode_bin" (fun s -> s.pack.inode_decode_bin);
+      pb "pack.inode_encode_bin" (fun s -> s.pack.inode_encode_bin);
       `Spacer;
       pb "tree.contents_hash" (fun s -> s.tree.contents_hash);
       pb "tree.contents_find" (fun s -> s.tree.contents_find);
@@ -867,11 +882,32 @@ module Table4 = struct
       ps ~f:`Ri "Disk write count per sec *LA *N" (fun s -> s.index.nb_writes);
       ps ~f:`Ri "Disk both  count per sec *LA *N" (fun s -> s.index.nb_both);
       `Spacer;
-      pb "pack.finds per block *LA" (fun s -> s.pack.finds);
-      pb "pack.cache_misses per block *LA" (fun s -> s.pack.cache_misses);
       pb "pack.appended_hashes per block *LA" (fun s -> s.pack.appended_hashes);
       pb "pack.appended_offsets per block *LA" (fun s ->
           s.pack.appended_offsets);
+      pb "pack.finds per block *LA" (fun s -> s.pack.finds.total);
+      pb "pack.finds.from_staging per block *LA" (fun s ->
+          s.pack.finds.from_staging);
+      pb "pack.finds.from_lru per block *LA" (fun s -> s.pack.finds.from_lru);
+      pb "pack.finds.from_pack_direct per block *LA" (fun s ->
+          s.pack.finds.from_pack_direct);
+      pb "pack.finds.from_pack_indexed per block *LA" (fun s ->
+          s.pack.finds.from_pack_indexed);
+      pb "pack.finds.missing per block *LA" (fun s -> s.pack.finds.missing);
+      pb "pack.finds.cache_miss per block *LA" (fun s ->
+          s.pack.finds.cache_miss);
+      pb "pack.inode_add per block *LA" (fun s -> s.pack.inode_add);
+      pb "pack.inode_remove per block *LA" (fun s -> s.pack.inode_remove);
+      pb "pack.inode_of_seq per block *LA" (fun s -> s.pack.inode_of_seq);
+      pb "pack.inode_of_raw per block *LA" (fun s -> s.pack.inode_of_raw);
+      pb "pack.inode_rec_add per block *LA" (fun s -> s.pack.inode_rec_add);
+      pb "pack.inode_rec_remove per block *LA" (fun s ->
+          s.pack.inode_rec_remove);
+      pb "pack.inode_to_binv per block *LA" (fun s -> s.pack.inode_to_binv);
+      pb "pack.inode_decode_bin per block *LA" (fun s ->
+          s.pack.inode_decode_bin);
+      pb "pack.inode_encode_bin per block *LA" (fun s ->
+          s.pack.inode_encode_bin);
       `Spacer;
       pb "tree.contents_hash per block *LA" (fun s -> s.tree.contents_hash);
       pb "tree.contents_find per block *LA" (fun s -> s.tree.contents_find);

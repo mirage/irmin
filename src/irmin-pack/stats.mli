@@ -47,7 +47,9 @@ type t = {
 [@@deriving irmin]
 (** The type for stats for a store S.
 
-    - [finds] is the number of calls to [S.find];
+    - [finds] stores the total number of calls to [S.find], and tracks the
+      source locations of successful finds (i.e. whether the value was recovered
+      from the staging table, LRU, or the pack file);
     - [appended_hashes] is the number of times a hash was appended, during calls
       to [add];
     - [appended_offsets] is the number of times an offset was appended, during

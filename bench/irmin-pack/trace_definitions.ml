@@ -160,9 +160,9 @@ end
     version. *)
 module Stat_trace = struct
   module V0 = struct
-    type float32 = int32 [@@deriving repr]
-
     let version = 0
+
+    type float32 = int32 [@@deriving repr]
 
     type pack = {
       finds : int;
@@ -228,8 +228,8 @@ module Stat_trace = struct
     [@@deriving repr]
     (** Stats extracted from filesystem. Requires the path to the irmin store. *)
 
-    type bag_of_stats = {
-      pack : pack;
+    type 'pack_stats bag_of_stats_base = {
+      pack : 'pack_stats;
       tree : tree;
       index : index;
       gc : gc;
@@ -269,16 +269,16 @@ module Stat_trace = struct
         the commit, when the inode has been reconstructed and that [Tree.length]
         is now innexpensive to perform. *)
 
-    type commit = {
+    type 'pack_stats commit_base = {
       duration : float32;
-      before : bag_of_stats;
-      after : bag_of_stats;
+      before : 'pack_stats bag_of_stats_base;
+      after : 'pack_stats bag_of_stats_base;
       store_before : store_before;
       store_after : store_after;
     }
     [@@deriving repr]
 
-    type row =
+    type 'pack_stats row_base =
       [ `Add of float32
       | `Remove of float32
       | `Find of float32
@@ -286,8 +286,10 @@ module Stat_trace = struct
       | `Mem_tree of float32
       | `Checkout of float32
       | `Copy of float32
-      | `Commit of commit ]
+      | `Commit of 'pack_stats commit_base ]
     [@@deriving repr]
+
+    type row = pack row_base [@@deriving repr]
     (** Stats gathered while running an operation.
 
         {3 Operation durations}
@@ -320,14 +322,16 @@ module Stat_trace = struct
     }
     [@@deriving repr]
 
-    type header = {
+    type 'pack_stats header_base = {
       config : config;
       hostname : string;
       timeofday : float;
       word_size : int;
-      initial_stats : bag_of_stats;
+      initial_stats : 'pack_stats bag_of_stats_base;
     }
     [@@deriving repr]
+
+    type header = pack header_base [@@deriving repr]
     (** File header.
 
         {3 Timestamps}
@@ -344,9 +348,110 @@ module Stat_trace = struct
         [stats.timestamp_cpu] may originate from [Sys.time].
 
         It would be great to be able to record the library/sources versions. *)
+
+    type commit = pack commit_base [@@deriving repr]
+    type bag_of_stats = pack bag_of_stats_base [@@deriving repr]
   end
 
-  module Latest = V0
+  module V1 = struct
+    include V0
+
+    let version = 1
+
+    type finds = {
+      total : int;
+      from_staging : int;
+      from_lru : int;
+      from_pack_direct : int;
+      from_pack_indexed : int;
+    }
+    [@@deriving repr]
+    (** Stats extracted from [Irmin_pack.Stats.get ()]. *)
+
+    type pack = {
+      finds : finds;
+      appended_hashes : int;
+      appended_offsets : int;
+      inode_add : int;
+      inode_remove : int;
+      inode_of_seq : int;
+      inode_of_raw : int;
+      inode_rec_add : int;
+      inode_rec_remove : int;
+      inode_to_binv : int;
+      inode_decode_bin : int;
+      inode_encode_bin : int;
+    }
+    [@@deriving repr]
+    (** Stats extracted from [Irmin_pack.Stats.get ()]. *)
+
+    type commit = pack commit_base [@@deriving repr]
+    type bag_of_stats = pack bag_of_stats_base [@@deriving repr]
+    type row = pack row_base [@@deriving repr]
+    type header = pack header_base [@@deriving repr]
+
+    (* [v0.cache_misses] is lost *)
+    let v1pack_of_v0pack (v0 : V0.pack) : pack =
+      {
+        finds =
+          {
+            total = v0.finds;
+            from_staging = 0;
+            from_lru = 0;
+            from_pack_direct = 0;
+            from_pack_indexed = 0;
+          };
+        appended_hashes = v0.appended_hashes;
+        appended_offsets = v0.appended_offsets;
+        inode_add = 0;
+        inode_remove = 0;
+        inode_of_seq = 0;
+        inode_of_raw = 0;
+        inode_rec_add = 0;
+        inode_rec_remove = 0;
+        inode_to_binv = 0;
+        inode_decode_bin = 0;
+        inode_encode_bin = 0;
+      }
+
+    let v1bos_of_v0bos (v0 : V0.bag_of_stats) : bag_of_stats =
+      {
+        pack = v1pack_of_v0pack v0.pack;
+        tree = v0.tree;
+        index = v0.index;
+        gc = v0.gc;
+        disk = v0.disk;
+        timestamp_wall = v0.timestamp_wall;
+        timestamp_cpu = v0.timestamp_cpu;
+      }
+
+    let v1commit_of_v0commit (v0 : V0.commit) : commit =
+      {
+        duration = v0.duration;
+        before = v1bos_of_v0bos v0.before;
+        after = v1bos_of_v0bos v0.after;
+        store_before = v0.store_before;
+        store_after = v0.store_after;
+      }
+
+    let v1row_of_v0row (v0 : V0.row) : row =
+      match v0 with
+      | `Commit payload -> `Commit (v1commit_of_v0commit payload)
+      | ( `Add _ | `Remove _ | `Find _ | `Mem _ | `Mem_tree _ | `Checkout _
+        | `Copy _ ) as v0 ->
+          v0
+
+    let v1header_of_v0header (v0 : V0.header) : header =
+      {
+        config = v0.config;
+        hostname = v0.hostname;
+        timeofday = v0.timeofday;
+        word_size = v0.word_size;
+        initial_stats = v1bos_of_v0bos v0.initial_stats;
+      }
+  end
+
+  module Latest = V1
   include Latest
 
   let watched_nodes : watched_node list =
@@ -384,6 +489,14 @@ module Stat_trace = struct
             {
               header_t = V0.header_t;
               row_t = V0.row_t;
+              upgrade_header = v1header_of_v0header;
+              upgrade_row = v1row_of_v0row;
+            }
+      | 1 ->
+          Trace_common.Version_converter
+            {
+              header_t = V1.header_t;
+              row_t = V1.row_t;
               upgrade_header = Fun.id;
               upgrade_row = Fun.id;
             }
