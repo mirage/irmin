@@ -14,9 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Find : sig
+  type location = Staging | Lru | Pack | Not_found [@@deriving irmin]
+
+  type t = {
+    mutable total : int;
+    mutable from_staging : int;
+    mutable from_lru : int;
+    mutable from_pack : int;
+  }
+  [@@deriving irmin]
+
+  val cache_misses : t -> int
+end
+
 type t = {
-  mutable finds : int;
-  mutable cache_misses : int;
+  finds : Find.t;
   mutable appended_hashes : int;
   mutable appended_offsets : int;
   mutable inode_add : int;
@@ -32,9 +45,9 @@ type t = {
 [@@deriving irmin]
 (** The type for stats for a store S.
 
-    - [finds] is the number of calls to [S.find];
-    - [cache_misses] is the number of times a cache miss occured during calls to
-      [S.find];
+    - [finds] stores the total number of calls to [S.find], and tracks the
+      source locations of successful finds (i.e. whether the value was recovered
+      from the staging table, LRU, or the pack file);
     - [appended_hashes] is the number of times a hash was appended, during calls
       to [add];
     - [appended_offsets] is the number of times an offset was appended, during
@@ -49,8 +62,7 @@ type t = {
 
 val reset_stats : unit -> unit
 val get : unit -> t
-val incr_finds : unit -> unit
-val incr_cache_misses : unit -> unit
+val report_find : location:Find.location -> unit
 val incr_appended_hashes : unit -> unit
 val incr_appended_offsets : unit -> unit
 val incr_inode_add : unit -> unit
