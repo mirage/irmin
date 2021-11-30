@@ -95,16 +95,7 @@ module Branch =
   Irmin_pack.Atomic_write.Make_persistent
     (Irmin_pack.Version.V2)
     (Irmin.Branch.String)
-    (struct
-      include Schema.Hash
-
-      (* XXX: provide an unsafe coercion function on hashes *)
-      let null =
-        let buf = String.make hash_size '\000' in
-        match Irmin.Type.(unstage (of_bin_string t)) buf with
-        | Ok x -> x
-        | Error (`Msg _) -> assert false
-    end)
+    (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 
 module Make_context (Config : sig
   val root : string

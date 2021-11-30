@@ -445,7 +445,7 @@ module Test_corrupted_inode = struct
     let module S = V1 () in
     let* rw = S.Repo.v (config ~fresh:false root) in
     let get_head c =
-      match Irmin.Type.of_string S.hash_t c with
+      match Irmin.Type.of_string S.Hash.t c with
       | Ok x -> (
           let* commit = S.Commit.of_hash rw x in
           match commit with
