@@ -10,7 +10,7 @@ module Stats : sig
   val missing_hash : t -> unit
   val pp : t Fmt.t
 end = struct
-  open Pack_value.Kind
+  module Kind = Pack_value.Kind
 
   type t = {
     pack_values : int array;
@@ -19,31 +19,28 @@ end = struct
   }
 
   let empty () =
-    let pack_values = Array.make 4 0 in
+    let pack_values = Array.make (List.length Kind.all) 0 in
     { pack_values; duplicates = 0; missing_hashes = 0 }
 
   let incr t n = t.pack_values.(n) <- t.pack_values.(n) + 1
-
-  let add t = function
-    | Contents -> incr t 0
-    | Commit -> incr t 1
-    | Node -> incr t 2
-    | Inode -> incr t 3
-
+  let add t k = incr t (Kind.to_enum k)
   let duplicate_entry t = t.duplicates <- t.duplicates + 1
   let missing_hash t = t.missing_hashes <- t.missing_hashes + 1
 
   let pp =
     let open Fmt.Dump in
+    let pack_values =
+      ListLabels.map Kind.all ~f:(fun k ->
+          let name = Fmt.str "%a" Kind.pp k in
+          let index = Kind.to_enum k in
+          field name (fun t -> t.pack_values.(index)) Fmt.int)
+    in
     record
-      [
-        field "Contents" (fun t -> t.pack_values.(0)) Fmt.int;
-        field "Commit" (fun t -> t.pack_values.(1)) Fmt.int;
-        field "Node" (fun t -> t.pack_values.(2)) Fmt.int;
-        field "Inode" (fun t -> t.pack_values.(3)) Fmt.int;
-        field "Duplicated entries" (fun t -> t.duplicates) Fmt.int;
-        field "Missing entries" (fun t -> t.missing_hashes) Fmt.int;
-      ]
+      (pack_values
+      @ [
+          field "Duplicated entries" (fun t -> t.duplicates) Fmt.int;
+          field "Missing entries" (fun t -> t.missing_hashes) Fmt.int;
+        ])
 end
 
 module type Args = sig
@@ -83,13 +80,8 @@ end = struct
 
   let pp_binding ppf x =
     let off, len, kind = x.data in
-    Fmt.pf ppf "@[<v 0>%s with hash %a@,pack offset = %a, length = %d@]"
-      (match kind with
-      | Pack_value.Kind.Contents -> "Contents"
-      | Commit -> "Commit"
-      | Node -> "Node"
-      | Inode -> "Inode")
-      pp_key x.key Int63.pp off len
+    Fmt.pf ppf "@[<v 0>%a with hash %a@,pack offset = %a, length = %d@]"
+      Pack_value.Kind.pp kind pp_key x.key Int63.pp off len
 
   module Index_reconstructor = struct
     let create ~dest config =

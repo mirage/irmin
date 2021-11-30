@@ -17,8 +17,17 @@ module Kind = struct
     | 'N' -> Node
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
-  let t = Irmin.Type.(map char) of_magic_exn to_magic
-  let pp = Fmt.using to_magic Fmt.char
+  let all = [ Commit; Contents; Inode; Node ]
+  let to_enum = function Commit -> 0 | Contents -> 1 | Inode -> 2 | Node -> 3
+
+  let pp =
+    Fmt.of_to_string (function
+      | Commit -> "Commit"
+      | Contents -> "Contents"
+      | Inode -> "Inode"
+      | Node -> "Node")
+
+  let t = Irmin.Type.map ~pp Irmin.Type.char of_magic_exn to_magic
 end
 
 type ('h, 'a) value = { hash : 'h; kind : Kind.t; v : 'a } [@@deriving irmin]
