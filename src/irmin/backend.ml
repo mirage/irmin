@@ -19,6 +19,7 @@ open Store_properties
 
 open struct
   module type Node_portable = Node.Portable.S
+  module type Commit_portable = Commit.Portable.S
 end
 
 module type S = sig
@@ -54,6 +55,12 @@ module type S = sig
     Commit.Store
       with type hash = Hash.t
        and type Val.node_key = Node.key
+       and module Info = Schema.Info
+
+  module Commit_portable :
+    Commit_portable
+      with type commit := Commit.value
+       and type hash := Hash.t
        and module Info = Schema.Info
 
   (** Backend branch store. *)

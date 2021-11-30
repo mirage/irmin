@@ -70,22 +70,19 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       module Commit = struct
         module Value = struct
           include Schema.Commit (Node.Key) (XKey)
+          module Info = Schema.Info
 
           type hash = Hash.t [@@deriving irmin]
         end
 
-        module Pack_value =
-          Pack_value.Of_commit (H) (XKey)
-            (struct
-              module Info = Schema.Info
-              include Value
-            end)
-
+        module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
         module CA = Pack.Make (Pack_value)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
       end
+
+      module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.Value)
 
       module Branch = struct
         module Key = B

@@ -274,6 +274,7 @@ struct
       module Commit = struct
         module V = struct
           include Dummy.Commit.Val
+          module Info = Schema.Info
 
           type hash = Hash.t [@@deriving irmin]
         end
@@ -281,6 +282,8 @@ struct
         module CA = CA (Hash) (V)
         include Irmin.Commit.Store (Info) (Node) (CA) (Hash) (V)
       end
+
+      module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.V)
 
       module Branch = struct
         module Key = Dummy.Branch.Key
