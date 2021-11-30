@@ -55,6 +55,8 @@ struct
     include Irmin.Commit.Store (Schema.Info) (Node) (S) (S.Hash) (S.Val)
   end
 
+  module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.S.Val)
+
   module Branch = struct
     module Key = Schema.Branch
     module Val = Commit_key

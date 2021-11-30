@@ -493,6 +493,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
         module Val = struct
           include S.Backend.Commit.Val
+          module Info = S.Info
 
           type hash = S.Hash.t [@@deriving irmin]
         end
@@ -506,6 +507,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let v ?ctx config = X.v ?ctx config "commit" "commits"
     end
 
+    module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.X.Val)
     module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
     module Remote = Irmin.Backend.Remote.None (Hash) (S.Branch)
 

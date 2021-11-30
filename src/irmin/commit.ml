@@ -28,13 +28,11 @@ module Maker_generic_key (I : Info.S) = struct
   module Make
       (H : Type.S)
       (N : Key.S with type hash = H.t)
-      (C : Key.S with type hash = H.t) :
-    S_generic_key
-      with type node_key = N.t
-       and type commit_key = C.t
-       and module Info = Info = struct
+      (C : Key.S with type hash = H.t) =
+  struct
     module Info = I
 
+    type hash = H.t [@@deriving irmin ~compare]
     type node_key = N.t [@@deriving irmin ~compare]
     type commit_key = C.t [@@deriving irmin]
 
@@ -44,12 +42,38 @@ module Maker_generic_key (I : Info.S) = struct
     let parents t = t.parents
     let node t = t.node
     let info t = t.info
-    let compare_hash = Type.(unstage (compare H.t))
-    let compare_commit x y = compare_hash (C.to_hash x) (C.to_hash y)
+    let compare_commit_key x y = compare_hash (C.to_hash x) (C.to_hash y)
 
     let v ~info ~node ~parents =
-      let parents = List.fast_sort compare_commit parents in
+      let parents = List.fast_sort compare_commit_key parents in
       { node; parents; info }
+
+    module Portable = struct
+      module Info = I
+
+      type commit = t
+
+      type t = { node : hash; parents : hash list; info : Info.t }
+      [@@deriving irmin]
+
+      type commit_key = H.t [@@deriving irmin]
+      type node_key = H.t [@@deriving irmin]
+      type hash = H.t [@@deriving irmin]
+
+      let parents t = t.parents
+      let node t = t.node
+      let info t = t.info
+
+      let v ~info ~node ~parents =
+        let parents = List.fast_sort compare_hash parents in
+        { node; parents; info }
+
+      let of_commit : commit -> t =
+       fun { node; parents; info } ->
+        let node = N.to_hash node in
+        let parents = List.map C.to_hash parents in
+        { node; parents; info }
+    end
   end
 end
 
@@ -57,8 +81,6 @@ module Maker (Info : Info.S) = struct
   include Maker_generic_key (Info)
 
   module Make (H : Type.S) = struct
-    type hash = H.t [@@deriving irmin]
-
     module Key = Key.Of_hash (H)
     include Make (H) (Key) (Key)
   end
@@ -159,6 +181,16 @@ module Generic_key = struct
   module Maker = Maker_generic_key
   module Store = Store_generic_key
   include Maker (Info.Default)
+end
+
+module Portable = struct
+  module Of_commit (X : S) = struct
+    include X
+
+    let of_commit t = t
+  end
+
+  module type S = Portable
 end
 
 module Store
