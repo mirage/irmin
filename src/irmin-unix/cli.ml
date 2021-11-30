@@ -115,7 +115,7 @@ let init =
     man = [];
     term =
       (let init (S (_, _store, _)) = run Lwt.return_unit in
-       Term.(mk init $ store));
+       Term.(mk init $ store ()));
   }
 
 (* HTTP *)
@@ -175,7 +175,7 @@ let http =
                   ~mode:(`TCP (`Port port))
                   spec)
        in
-       Term.(mk init $ store $ uri));
+       Term.(mk init $ store () $ uri));
   }
 
 let print fmt = Fmt.kstr print_endline fmt
@@ -209,7 +209,7 @@ let get =
                 print "%a" (Irmin.Type.pp S.Contents.t) v;
                 Lwt.return_unit)
        in
-       Term.(mk get $ store $ path));
+       Term.(mk get $ store () $ path));
   }
 
 (* LIST *)
@@ -238,7 +238,7 @@ let list =
             List.iter (print "%a" pp) paths;
             Lwt.return_unit)
        in
-       Term.(mk list $ store $ path_or_empty));
+       Term.(mk list $ store () $ path_or_empty));
   }
 
 (* TREE *)
@@ -297,7 +297,7 @@ let tree =
               all;
             Lwt.return_unit)
        in
-       Term.(mk tree $ store));
+       Term.(mk tree $ store ()));
   }
 
 let author =
@@ -328,7 +328,7 @@ let set =
             let value = value S.Contents.t v in
             S.set_exn t ~info:(info (module S) ?author "%s" message) path value)
        in
-       Term.(mk set $ store $ author $ message $ path $ v));
+       Term.(mk set $ store () $ author $ message $ path $ v));
   }
 
 (* REMOVE *)
@@ -349,7 +349,7 @@ let remove =
               ~info:(info (module S) ?author "%s" message)
               (key S.Path.t path))
        in
-       Term.(mk remove $ store $ author $ message $ path));
+       Term.(mk remove $ store () $ author $ message $ path));
   }
 
 let apply e f =
@@ -376,7 +376,7 @@ let clone =
             | Ok `Empty -> Lwt.return_unit
             | Error (`Msg e) -> failwith e)
        in
-       Term.(mk clone $ store $ remote $ depth));
+       Term.(mk clone $ store () $ remote $ depth));
   }
 
 (* FETCH *)
@@ -397,7 +397,7 @@ let fetch =
             let* _ = Sync.pull_exn t (apply r f) `Set in
             Lwt.return_unit)
        in
-       Term.(mk fetch $ store $ remote));
+       Term.(mk fetch $ store () $ remote));
   }
 
 (* MERGE *)
@@ -429,7 +429,7 @@ let merge =
          let doc = Arg.info ~docv:"BRANCH" ~doc:"Branch to merge from." [] in
          Arg.(required & pos 0 (some string) None & doc)
        in
-       Term.(mk merge $ store $ author $ message $ branch_name));
+       Term.(mk merge $ store () $ author $ message $ branch_name));
   }
 
 (* PULL *)
@@ -452,7 +452,7 @@ let pull =
             in
             Lwt.return_unit)
        in
-       Term.(mk pull $ store $ author $ message $ remote));
+       Term.(mk pull $ store () $ author $ message $ remote));
   }
 
 (* PUSH *)
@@ -471,7 +471,7 @@ let push =
             let* _ = Sync.push_exn t (apply r f) in
             Lwt.return_unit)
        in
-       Term.(mk push $ store $ remote));
+       Term.(mk push $ store () $ remote));
   }
 
 (* SNAPSHOT *)
@@ -489,7 +489,7 @@ let snapshot =
             print "%a" S.Commit.pp_hash k;
             Lwt.return_unit)
        in
-       Term.(mk snapshot $ store));
+       Term.(mk snapshot $ store ()));
   }
 
 (* REVERT *)
@@ -515,7 +515,7 @@ let revert =
             | Some s -> S.Head.set t s
             | None -> failwith "invalid commit")
        in
-       Term.(mk revert $ store $ snapshot));
+       Term.(mk revert $ store () $ snapshot));
   }
 
 (* WATCH *)
@@ -563,7 +563,7 @@ let watch =
             let t, _ = Lwt.task () in
             t)
        in
-       Term.(mk watch $ store $ path));
+       Term.(mk watch $ store () $ path));
   }
 
 (* DOT *)
@@ -634,7 +634,7 @@ let dot =
               if i <> 0 then [%logs.err "The %s.dot is corrupted" basename]);
             Lwt.return_unit)
        in
-       Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full));
+       Term.(mk dot $ store () $ basename $ depth $ no_dot_call $ full));
   }
 
 let config_man =
@@ -749,7 +749,7 @@ let graphql =
              ~mode:(`TCP (`Port port))
              server)
        in
-       Term.(mk graphql $ store $ port $ addr));
+       Term.(mk graphql $ store () $ port $ addr));
   }
 
 let options =
@@ -776,7 +776,7 @@ let options =
                Fmt.pr "%s: %s\n\t%s\n" name ty doc)
            (Conf.Spec.keys spec)
        in
-       Term.(mk options $ Store.term));
+       Term.(mk options $ Store.term ()));
   }
 
 let branches =
@@ -792,7 +792,7 @@ let branches =
             let+ branches = S.Branch.list (S.repo t) in
             List.iter (Fmt.pr "%a\n" (Irmin.Type.pp S.branch_t)) branches)
        in
-       Term.(mk branches $ store));
+       Term.(mk branches $ store ()));
   }
 
 let weekday Unix.{ tm_wday; _ } =
@@ -874,7 +874,7 @@ let log =
                       Lwt.return_unit
                   | exn -> raise exn))
        in
-       Term.(mk commits $ store $ plain $ pager));
+       Term.(mk commits $ store () $ plain $ pager));
   }
 
 let default =

@@ -11,6 +11,10 @@
    - Improved the performance of Index encode and decode operations by
      eliminating intermediate allocations. (#1577, @CraigFe)
 
+- **irmin-unix**
+  - Fix terms that can be manipulated at runtime by delaying computation
+    (#1645, @zshipko)
+
 ### Added
 
 - **irmin**
