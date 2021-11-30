@@ -39,9 +39,9 @@ module type S = sig
 
   (** {1 Constructors} *)
 
-  val empty : t
-  (** [empty] is the empty tree. The empty tree does not have associated backend
-      configuration values, as they can perform in-memory operation,
+  val empty : unit -> t
+  (** [empty ()] is the empty tree. The empty tree does not have associated
+      backend configuration values, as they can perform in-memory operation,
       independently of any given backend. *)
 
   val of_contents : ?metadata:metadata -> contents -> t

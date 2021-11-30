@@ -38,7 +38,7 @@ let init config =
 module Trees = Generate_trees (Store)
 
 let init_commit repo =
-  Store.Commit.v repo ~info:(info ()) ~parents:[] Store.Tree.empty
+  Store.Commit.v repo ~info:(info ()) ~parents:[] (Store.Tree.empty ())
 
 let checkout_and_commit config repo c nb =
   Store.Commit.of_hash repo c >>= function

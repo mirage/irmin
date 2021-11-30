@@ -12,14 +12,17 @@ type t2 = { x : string; y : t1 }
 type t = t2 list
 
 let tree_of_t t =
-  Lwt_list.fold_left_s
-    (fun (v, i) t2 ->
-      let si = string_of_int i in
-      let* v = Tree.add v [ si; "x" ] t2.x in
-      let+ v = Tree.add v [ si; "y" ] (string_of_int t2.y) in
-      (v, i + 1))
-    (Tree.empty, 0) t
-  >|= fst
+  let+ tree, _ =
+    Lwt_list.fold_left_s
+      (fun (v, i) t2 ->
+        let si = string_of_int i in
+        let* v = Tree.add v [ si; "x" ] t2.x in
+        let+ v = Tree.add v [ si; "y" ] (string_of_int t2.y) in
+        (v, i + 1))
+      (Tree.empty (), 0)
+      t
+  in
+  tree
 
 let t_of_tree v =
   let aux acc i =

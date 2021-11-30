@@ -35,6 +35,16 @@ module Alcotest = struct
       b_lwt
       >>= Tree.to_concrete
       >|= Alcotest.check ?pos concrete_tree msg expected
+
+  let inspect =
+    Alcotest.testable
+      (fun ppf -> function
+        | `Contents -> Fmt.string ppf "contents"
+        | `Node `Hash -> Fmt.string ppf "hash"
+        | `Node `Map -> Fmt.string ppf "map"
+        | `Node `Value -> Fmt.string ppf "value"
+        | `Node `Pruned -> Fmt.string ppf "pruned")
+      ( = )
 end
 
 let check_exn_lwt ~exn_type pos f =
@@ -142,6 +152,36 @@ let test_diff _ () =
         "Changed metadata"
         [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
 
+let test_empty _ () =
+  let* () =
+    Alcotest.check_tree_lwt "The empty tree is empty" ~expected:(`Tree [])
+      (Lwt.return (Tree.empty ()))
+  in
+
+  (* Ensure that different [empty] values have disjoint cache state.
+
+     This is a regression test for a bug in which all [Tree.empty] values had
+     shared cache state and any keys obtained from [export] were discarded (to
+     avoid sharing keys from different repositories). *)
+  let* () =
+    let* repo = Store.Repo.v (Irmin_mem.config ()) in
+    let empty_exported = Tree.empty () and empty_not_exported = Tree.empty () in
+    let+ () =
+      Store.Private.Repo.batch repo (fun c n _ ->
+          Store.save_tree repo c n empty_exported >|= ignore)
+    in
+    Alcotest.(check inspect)
+      "The exported empty tree is now in Key form"
+      (`Node `Hash)
+      (Tree.inspect empty_exported);
+    Alcotest.(check inspect)
+      "The non-exported empty tree should still be represented as a Map"
+      (`Node `Map)
+      (Tree.inspect empty_not_exported)
+  in
+
+  Lwt.return_unit
+
 let test_add _ () =
   let sample_tree ?(ab = "ab_v") ?ac () : Tree.concrete =
     let ac = match ac with Some ac -> [ ("ac", ac) ] | None -> [] in
@@ -151,7 +191,7 @@ let test_add _ () =
   let* () =
     Alcotest.check_tree_lwt "Adding a root value to an empty tree"
       ~expected:(c "1")
-      (Tree.add Tree.empty [] "1")
+      (Tree.add (Tree.empty ()) [] "1")
   in
 
   let* () =
@@ -194,7 +234,7 @@ let test_remove _ () =
   in
 
   let* () =
-    let t = Tree.empty in
+    let t = Tree.empty () in
     let+ t' = Tree.remove t [] in
     Alcotest.assert_ "Removing in an empty tree preserves physical equality"
       (t == t')
@@ -362,7 +402,7 @@ let test_update _ () =
       "Updating at a path in an empty tree creates the necessary intermediate \
        nodes with the new contents."
       ~expected:(`Tree [ ("a", `Tree [ ("b", `Tree [ ("c", c "1") ]) ]) ])
-      (Tree.update Tree.empty [ "a"; "b"; "c" ] (None --> Some "1"))
+      (Tree.update (Tree.empty ()) [ "a"; "b"; "c" ] (None --> Some "1"))
   in
 
   let* () =
@@ -374,7 +414,7 @@ let test_update _ () =
   in
 
   let* () =
-    let t = Tree.empty in
+    let t = Tree.empty () in
     let+ t' = Tree.update t [] (None --> None) in
     Alcotest.assert_ "Removing from an empty tree preserves physical equality"
       (t == t')
@@ -383,7 +423,7 @@ let test_update _ () =
   let* () =
     let+ abc1' =
       Tree.update_tree abc1 [ "a"; "b"; "d" ] (function
-        | None -> Some Tree.empty
+        | None -> Some (Tree.empty ())
         | Some _ -> assert false)
     in
     Alcotest.assert_
@@ -403,27 +443,14 @@ let persist_tree : Store.tree -> Store.tree Lwt.t =
   let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
   Store.tree store
 
-let inspect =
-  Alcotest.testable
-    (fun ppf -> function
-      | `Contents -> Fmt.string ppf "contents"
-      | `Node `Hash -> Fmt.string ppf "hash"
-      | `Node `Map -> Fmt.string ppf "map"
-      | `Node `Value -> Fmt.string ppf "value"
-      | `Node `Pruned -> Fmt.string ppf "pruned")
-    ( = )
-
-type key = Store.Key.t [@@deriving irmin]
-
-let pp_key = Irmin.Type.pp key_t
-let equal_key = Irmin.Type.(unstage (equal key_t))
+type key = Store.Key.t [@@deriving irmin ~pp ~equal]
 
 let test_clear _ () =
   (* 1. Build a tree *)
   let size = 830829 in
   let* t =
     List.init size string_of_int
-    |> Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) Tree.empty
+    |> Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) (Tree.empty ())
   in
   (* Check the state of the root and root/42 *)
   Alcotest.(check inspect) "Before clear, root" (`Node `Map) (Tree.inspect t);
@@ -487,7 +514,7 @@ let test_fold_force _ () =
      and that [f] is called the correct number of times. *)
   let* () =
     let* tree =
-      Lwt.return Tree.empty
+      Lwt.return (Tree.empty ())
       >>= with_binding [ "existing"; "subtree" ] (Tree.of_contents "value")
       >>= with_binding [ "dangling"; "subtree"; "hash" ] invalid_tree
       >>= with_binding [ "other"; "lazy"; "path" ] invalid_tree
@@ -602,8 +629,10 @@ module Broken = struct
       [ ("shallow", shallow_of_ptr); ("pruned", pruned_of_ptr) ]
     and&* path = [ []; [ "k" ] ] in
     let* leaf_broken = operation leaf_ptr in
-    let* hash_actual = Tree.(add_tree empty) path leaf >|= Tree.hash in
-    let+ hash_expected = Tree.(add_tree empty) path leaf_broken >|= Tree.hash in
+    let* hash_actual = Tree.(add_tree (empty ())) path leaf >|= Tree.hash in
+    let+ hash_expected =
+      Tree.(add_tree (empty ())) path leaf_broken >|= Tree.hash
+    in
     Alcotest.(gcheck Store.Hash.t)
       (Fmt.str
          "Hashing a %s %s value at path %a is equivalent to hashing the \
@@ -618,12 +647,16 @@ module Broken = struct
       Logs.app (fun l ->
           l "Testing operations on a tree with a broken position at %a" pp_key
             path);
-      let* broken_leaf = Tree.(add_tree empty) path broken_contents in
-      let* broken_node = Tree.(add_tree empty) path broken_node in
+      let* broken_leaf = Tree.(add_tree (empty ())) path broken_contents in
+      let* broken_node = Tree.(add_tree (empty ())) path broken_node in
       let beneath = path @ [ "a"; "b"; "c" ] in
       let blob = "v" in
-      let* singleton_at_path = Tree.(add empty path blob >>= to_concrete) in
-      let* singleton_beneath = Tree.(add empty beneath blob >>= to_concrete) in
+      let* singleton_at_path =
+        Tree.(add (empty ()) path blob >>= to_concrete)
+      in
+      let* singleton_beneath =
+        Tree.(add (empty ()) beneath blob >>= to_concrete)
+      in
 
       (* [add] on broken nodes/contents replaces the broken position. *)
       let* () =
@@ -675,7 +708,7 @@ module Broken = struct
   let test_pruned_fold _ () =
     let&* _, ptr = [ random_contents (); random_node () ]
     and&* path = [ []; [ "k" ] ] in
-    let* tree = Tree.(add_tree empty) path (Tree.pruned ptr) in
+    let* tree = Tree.(add_tree (empty ())) path (Tree.pruned ptr) in
 
     (* Folding over a pruned tree with [force:`True] should fail: *)
     let* () =
@@ -714,7 +747,8 @@ let test_generic_equality _ () =
   let* tree = persist_tree (tree [ ("k", c "v") ]) in
   let+ should_be_empty = Tree.remove tree [ "k" ] in
   Alcotest.(gcheck Store.tree_t)
-    "Modified empty tree is equal to [Tree.empty]" Tree.empty should_be_empty
+    "Modified empty tree is equal to [(Tree.empty ())]" (Tree.empty ())
+    should_be_empty
 
 let test_is_empty _ () =
   (* Test for equivalence against an [is_equal] derived from generic equality,
@@ -722,14 +756,14 @@ let test_is_empty _ () =
   let is_empty =
     let equal = Type.unstage (Type.equal Store.tree_t) in
     fun t ->
-      let reference = equal t Tree.empty in
+      let reference = equal t (Tree.empty ()) in
       let candidate = Tree.is_empty t in
       Alcotest.(check bool)
-        "`equal Tree.empty` agrees with `is_empty`" reference candidate;
+        "`equal (Tree.empty ())` agrees with `is_empty`" reference candidate;
       candidate
   in
   let kv = tree [ ("k", c "v") ] in
-  let () = Alcotest.(check bool) "empty tree" true (is_empty Tree.empty) in
+  let () = Alcotest.(check bool) "empty tree" true (is_empty (Tree.empty ())) in
   let () = Alcotest.(check bool) "non-empty tree" false (is_empty kv) in
   let* () =
     let+ tree = Tree.remove kv [ "k" ] in
@@ -737,7 +771,7 @@ let test_is_empty _ () =
   in
   let* repo = Store.Repo.v (Irmin_mem.config ()) in
   let () =
-    let shallow_empty = Tree.(shallow repo (`Node (hash empty))) in
+    let shallow_empty = Tree.(shallow repo (`Node (hash (empty ())))) in
     Alcotest.(check bool) "shallow empty tree" true (is_empty shallow_empty)
   in
   let () =
@@ -771,6 +805,7 @@ let suite =
     Alcotest_lwt.test_case "bindings" `Quick test_bindings;
     Alcotest_lwt.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest_lwt.test_case "diff" `Quick test_diff;
+    Alcotest_lwt.test_case "empty" `Quick test_empty;
     Alcotest_lwt.test_case "add" `Quick test_add;
     Alcotest_lwt.test_case "remove" `Quick test_remove;
     Alcotest_lwt.test_case "update" `Quick test_update;

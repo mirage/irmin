@@ -5,6 +5,11 @@
 - *irmin*
   - Conversion between proofs and trees are now done in CPS (#1624, @samoht)
 
+### Changed
+
+- **irmin**
+  - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
+
 ## 2.9.0 (2021-11-15)
 
 ### Fixed

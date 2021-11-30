@@ -491,7 +491,7 @@ struct
             let* info, retries, allow_empty, parents = txn_args s i in
             Lwt.catch
               (fun () ->
-                let tree = Store.Tree.empty in
+                let tree = Store.Tree.empty () in
                 let* tree = to_tree tree items in
                 Store.set_tree t ?retries ?allow_empty ?parents ~info k tree
                 >>= function
@@ -515,7 +515,9 @@ struct
                 Store.with_tree t ?retries ?allow_empty ?parents k ~info
                   (fun tree ->
                     let tree =
-                      match tree with Some t -> t | None -> Store.Tree.empty
+                      match tree with
+                      | Some t -> t
+                      | None -> Store.Tree.empty ()
                     in
                     to_tree tree items >>= Lwt.return_some)
                 >>= function
@@ -538,7 +540,7 @@ struct
             let* tree =
               Store.find_tree t k >>= function
               | Some tree -> Lwt.return tree
-              | None -> Lwt.return Store.Tree.empty
+              | None -> Lwt.return (Store.Tree.empty ())
             in
             let* tree = Store.Tree.add tree k ?metadata:m v in
             Store.set_tree t ?retries ?allow_empty ?parents k tree ~info
@@ -622,14 +624,14 @@ struct
             let* old =
               match old with
               | Some old ->
-                  let tree = Store.Tree.empty in
+                  let tree = Store.Tree.empty () in
                   to_tree tree old >>= Lwt.return_some
               | None -> Lwt.return_none
             in
             let* value =
               match value with
               | Some value ->
-                  let tree = Store.Tree.empty in
+                  let tree = Store.Tree.empty () in
                   to_tree tree value >>= Lwt.return_some
               | None -> Lwt.return_none
             in
