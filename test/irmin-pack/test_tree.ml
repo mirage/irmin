@@ -21,6 +21,12 @@ let root = Filename.concat "_build" "test-tree"
 
 module Hash = Irmin.Hash.SHA1
 
+type ('key, 'value) op =
+  | Add of 'key * 'value
+  | Del of 'key
+  | Find of 'key
+  | Find_tree of 'key
+
 module Make (Conf : Irmin_pack.Conf.S) = struct
   module Store = struct
     module P = Irmin.Path.String_list
@@ -73,13 +79,26 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
     in
     persist_tree tree
 
-  let touch tree ops =
-    Lwt_list.iter_s (fun k -> Tree.find_tree tree k >|= ignore) ops
+  let find_tree tree k =
+    let+ t = Tree.find_tree tree k in
+    match t with None -> tree | Some t -> t
 
-  let proof_of_ops tree ops =
-    Store.Tree.clear tree;
-    let+ () = touch tree ops in
-    Tree.Proof.of_tree tree
+  let find tree k =
+    let+ _ = Tree.find tree k in
+    tree
+
+  let run_one tree = function
+    | Add (k, v) -> Tree.add tree k v
+    | Del k -> Tree.remove tree k
+    | Find k -> find tree k
+    | Find_tree k -> find_tree tree k
+
+  let run ops tree = Lwt_list.fold_left_s run_one tree ops
+
+  let proof_of_ops repo hash ops : Store.Tree.Proof.t Lwt.t =
+    Store.Tree.produce_proof repo hash (run ops)
+
+  let bin_of_proof = Irmin.Type.(unstage (to_bin_string Tree.Proof.t))
 end
 
 module Default = Make (Conf)
@@ -170,57 +189,38 @@ let test_fold_undefined () =
   let expected = List.map fst bindings in
   test_fold ~order:`Undefined bindings expected
 
-let bin_of_proof = Irmin.Type.(unstage (to_bin_string Tree.Proof.t))
-
 let proof_of_bin s =
   match Irmin.Type.(unstage (of_bin_string Tree.Proof.t)) s with
   | Ok s -> s
   | Error (`Msg e) -> Alcotest.fail e
 
-let check_completeness proof ops =
-  Lwt_list.iter_s
-    (fun k ->
-      Tree.find_tree proof k >|= function
-      | None -> Alcotest.failf "cannot read %a" Fmt.(Dump.list string) k
-      | Some _ -> ())
-    ops
-
-let get_tree tree k =
-  Tree.find_tree tree k >|= function
-  | Some t -> t
-  | None ->
-      Alcotest.failf "unexpected empty tree at %a" Fmt.(Dump.list string) k
-
-let check_equivalence tree proof (op, k, v) =
+let check_equivalence tree proof op =
   match op with
-  | `Add ->
+  | Add (k, v) ->
       let* tree = Tree.add tree k v in
       let+ proof = Tree.add proof k v in
       Alcotest.(check_repr Store.Hash.t)
         (Fmt.str "same hash add %a" Fmt.(Dump.list string) k)
         (Tree.hash tree) (Tree.hash proof);
       (tree, proof)
-  | `Del ->
+  | Del k ->
       let* tree = Tree.remove tree k in
       let+ proof = Tree.remove proof k in
       Alcotest.(check_repr Store.Hash.t)
         (Fmt.str "same hash del %a" Fmt.(Dump.list string) k)
         (Tree.hash tree) (Tree.hash proof);
       (tree, proof)
-  | `Find ->
+  | Find k ->
       let* v_tree = Tree.find tree k in
       let+ v_proof = Tree.find proof k in
       Alcotest.(check (option string))
-        (Fmt.str "expected value in tree at %a" Fmt.(Dump.list string) k)
-        v_tree (Some v);
-      Alcotest.(check (option string))
-        (Fmt.str "expected value in proof at %a" Fmt.(Dump.list string) k)
-        v_proof (Some v);
+        (Fmt.str "same value at %a" Fmt.(Dump.list string) k)
+        v_tree v_proof;
       (tree, proof)
-  | `Find_tree ->
-      let* v_tree = get_tree tree k in
-      let+ v_proof = get_tree tree k in
-      Alcotest.(check_repr Store.tree_t)
+  | Find_tree k ->
+      let* v_tree = Tree.find_tree tree k in
+      let+ v_proof = Tree.find_tree tree k in
+      Alcotest.(check_repr [%typ: Store.tree option])
         (Fmt.str "same tree at %a" Fmt.(Dump.list string) k)
         v_tree v_proof;
       (tree, proof)
@@ -230,7 +230,7 @@ let test_proofs ctxt ops =
   let hash = Tree.hash tree in
 
   (* Create a compressed parital Merle proof for ops *)
-  let* proof = proof_of_ops tree ops in
+  let* proof = proof_of_ops ctxt.repo (`Node hash) ops in
 
   (* test encoding *)
   let enc = bin_of_proof proof in
@@ -240,7 +240,6 @@ let test_proofs ctxt ops =
   (* test equivalence *)
   let tree_proof = Tree.Proof.to_tree proof in
 
-  let* () = check_completeness tree_proof ops in
   Alcotest.(check_repr Store.Hash.t)
     "same initial hash" hash (Tree.hash tree_proof);
 
@@ -249,13 +248,15 @@ let test_proofs ctxt ops =
       (fun (tree, proof) op -> check_equivalence tree proof op)
       (tree, tree_proof)
       [
-        (`Add, [ "00" ], "0");
-        (`Add, [ "00" ], "1");
-        (`Del, [ "00" ], "0");
-        (`Add, [ "00" ], "0");
-        (`Add, [ "00" ], "1");
-        (`Find, [ "00" ], "1");
-        (`Find_tree, [ "01" ], zero);
+        Add ([ "00" ], "0");
+        Add ([ "00" ], "1");
+        Del [ "00" ];
+        Find [ "00" ];
+        Add ([ "00" ], "0");
+        Add ([ "00" ], "1");
+        Find [ "00" ];
+        Find_tree [ "01" ];
+        Find_tree [ "z"; "o"; "o" ];
       ]
   in
   Lwt.return_unit
@@ -263,7 +264,7 @@ let test_proofs ctxt ops =
 let test_large_inode () =
   let bindings = bindings steps in
   let* ctxt = init_tree bindings in
-  let ops = [ [ "00" ]; [ "01" ] ] in
+  let ops = [ Add ([ "00" ], "3"); Del [ "01" ] ] in
   test_proofs ctxt ops
 
 let fewer_steps =
@@ -275,7 +276,7 @@ let fewer_steps =
 let test_small_inode () =
   let bindings = bindings fewer_steps in
   let* ctxt = init_tree bindings in
-  let ops = [ [ "00" ]; [ "01" ] ] in
+  let ops = [ Add ([ "00" ], ""); Del [ "01" ] ] in
   test_proofs ctxt ops
 
 let test_deeper_proof () =
@@ -298,7 +299,12 @@ let test_deeper_proof () =
     persist_tree level_three
   in
   let ops =
-    [ [ "1g"; "0g"; "00" ]; [ "1g"; "0g"; "01" ]; [ "02" ]; [ "1g"; "02" ] ]
+    [
+      Find [ "1g"; "0g"; "00" ];
+      Del [ "1g"; "0g"; "01" ];
+      Find [ "02" ];
+      Find_tree [ "1g"; "02" ];
+    ]
   in
   test_proofs ctxt ops
 
@@ -312,19 +318,25 @@ let test_large_proofs () =
   (* Build a proof on a large store (branching factor = 32) *)
   let bindings = init_bindings 100_000 in
   let ops n =
-    bindings |> List.to_seq |> Seq.take n |> Seq.map fst |> List.of_seq
+    bindings
+    |> List.to_seq
+    |> Seq.take n
+    |> Seq.map (fun (s, _) -> Find_tree s)
+    |> List.of_seq
   in
   let* ctxt = init_tree bindings in
 
   let compare_proofs n =
     let ops = ops n in
-    let* proof = proof_of_ops ctxt.tree ops in
+    let* proof = proof_of_ops ctxt.repo (`Node (Tree.hash ctxt.tree)) ops in
     let enc_32 = bin_of_proof proof in
 
     (* Build a proof on a large store (branching factor = 2) *)
     let* ctxt = Binary.init_tree bindings in
-    let* proof = Binary.proof_of_ops ctxt.tree ops in
-    let enc_2 = bin_of_proof proof in
+    let* proof =
+      Binary.proof_of_ops ctxt.repo (`Node (Binary.Tree.hash ctxt.tree)) ops
+    in
+    let enc_2 = Binary.bin_of_proof proof in
 
     Lwt.return (n, String.length enc_32 / 1024, String.length enc_2 / 1024)
   in

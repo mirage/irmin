@@ -149,12 +149,18 @@ module Make (P : Private.S) = struct
   let pp_step = Type.pp Path.step_t
   let pp_path = Type.pp Path.t
 
-  module Hashes = Hashtbl.Make (struct
-    type t = hash
+  module Hashes = struct
+    include Hashtbl.Make (struct
+      type t = hash
 
-    let hash = P.Hash.short_hash
-    let equal = Type.(unstage (equal P.Hash.t))
-  end)
+      let hash = P.Hash.short_hash
+      let equal = Type.(unstage (equal P.Hash.t))
+    end)
+
+    let of_list l = of_seq (List.to_seq l)
+    let to_list t = List.of_seq (to_seq t)
+    let t elt_t = Type.map [%typ: (P.Hash.t * elt) list] of_list to_list
+  end
 
   let dummy_marks = Hashes.create 0
 
@@ -198,9 +204,89 @@ module Make (P : Private.S) = struct
     | Error (`Pruned_hash hash) -> raise_pruned context hash
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
+  module Env = struct
+    (* Keep track of read effects happening during a computation using
+       sets. This does not keep track of the ordering of the reads. *)
+    type read_set = {
+      nodes : P.Node.Val.t Hashes.t;
+      contents : P.Contents.Val.t Hashes.t;
+    }
+    [@@deriving irmin]
+
+    type t = read_set option ref
+
+    let t = Type.map [%typ: read_set option] ref ( ! )
+
+    let length (t : t) =
+      match !t with
+      | None -> 0
+      | Some t -> Hashes.length t.contents + Hashes.length t.nodes
+
+    let empty () : t = ref None
+    let is_empty (t : t) = !t = None
+    let read_set (t : t) = !t
+
+    let track_reads_as_sets () =
+      let c = { contents = Hashes.create 13; nodes = Hashes.create 13 } in
+      ref (Some c)
+
+    let contents (t : t) =
+      match !t with None -> None | Some s -> Some s.contents
+
+    let find_contents (t : t) h =
+      match (contents t, h) with
+      | Some env, Some h -> Hashes.find_opt env h
+      | _ -> None
+
+    let add_contents (t : t) h v =
+      match (contents t, h, v) with
+      | Some env, Some h, Some v -> Hashes.add env h v
+      | _ -> ()
+
+    let find_node (t : t) h =
+      match (!t, h) with
+      | Some env, Some h -> Hashes.find_opt env.nodes h
+      | _ -> None
+
+    let add_node (t : t) h i =
+      match (!t, h) with
+      | Some env, Some h -> Hashes.replace env.nodes h i
+      | _ -> ()
+
+    (* r = x union y *)
+    let merge_hashes x ~into:y =
+      if x == y then ()
+      else
+        Hashes.iter
+          (fun h v ->
+            match Hashes.find_opt y h with
+            | None -> Hashes.add y h v
+            | Some v' -> assert (v == v'))
+          x
+
+    (* x' = y' <- x union y *)
+    let merge (x : t) (y : t) =
+      match (!x, !y) with
+      | None, None -> ()
+      | None, (Some _ as y) -> x := y
+      | (Some _ as x), None -> y := x
+      | Some a, Some b ->
+          if a == b then ()
+          else (
+            merge_hashes a.nodes ~into:b.nodes;
+            merge_hashes a.contents ~into:b.contents;
+            x := !y)
+  end
+
   module Contents = struct
     type v = Hash of repo option * hash | Value of contents
-    type info = { mutable hash : hash option; mutable value : contents option }
+
+    type info = {
+      mutable hash : hash option;
+      mutable value : contents option;
+      env : Env.t;
+    }
+
     type t = { mutable v : v; info : info }
 
     let info_is_empty i = i.hash = None && i.value = None
@@ -216,15 +302,18 @@ module Make (P : Private.S) = struct
     let clear_info i =
       if not (info_is_empty i) then (
         i.value <- None;
-        i.hash <- None)
+        i.hash <- None;
+        i.env := None)
 
     let clear t = clear_info t.info
 
-    let of_v v =
-      let hash, value =
-        match v with Hash (_, k) -> (Some k, None) | Value v -> (None, Some v)
+    let of_v ~env v =
+      let hash = match v with Hash (_, k) -> Some k | _ -> None in
+      let value =
+        match v with Value v -> Some v | _ -> Env.find_contents env hash
       in
-      let info = { hash; value } in
+      let info = { hash; value; env } in
+      Env.add_contents env hash value;
       { v; info }
 
     let export ?clear:(c = true) repo t k =
@@ -252,11 +341,14 @@ module Make (P : Private.S) = struct
 
     let cached_value t =
       match (t.v, t.info.value) with
-      | Value v, None ->
-          let v = Some v in
-          t.info.value <- v;
-          v
-      | _, v -> v
+      | Value v, None -> Some v
+      | _, (Some _ as v) -> v
+      | _ -> (
+          match Env.find_contents t.info.env (cached_hash t) with
+          | Some _ as v ->
+              t.info.value <- v;
+              v
+          | v -> v)
 
     let hash ?(cache = true) c =
       match cached_hash c with
@@ -275,7 +367,9 @@ module Make (P : Private.S) = struct
       P.Contents.find (P.Repo.contents_t repo) k >|= function
       | None -> Error (`Dangling_hash k)
       | Some v as some_v ->
-          if cache then t.info.value <- some_v;
+          if cache then (
+            t.info.value <- some_v;
+            Env.add_contents t.info.env (Some k) some_v);
           Ok v
 
     let to_value_aux ~cache ~value_of_hash ~return t =
@@ -312,7 +406,9 @@ module Make (P : Private.S) = struct
       if x == y then 0
       else compare_hash (hash ~cache:true x) (hash ~cache:true y)
 
-    let t = Type.map ~equal ~compare v of_v (fun t -> t.v)
+    let t =
+      let of_v v = of_v ~env:(Env.empty ()) v in
+      Type.map ~equal ~compare v of_v (fun t -> t.v)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -321,10 +417,14 @@ module Make (P : Private.S) = struct
               let+ c = to_value ~cache:true old >|= Option.of_result in
               Ok (Some c))
         in
+        let x_env = x.info.env in
+        let y_env = y.info.env in
         let* x = to_value ~cache:true x >|= Option.of_result in
         let* y = to_value ~cache:true y >|= Option.of_result in
         Merge.(f P.Contents.Val.merge) ~old x y >|= function
-        | Ok (Some c) -> Ok (of_value c)
+        | Ok (Some c) ->
+            Env.merge x_env y_env;
+            Ok (of_value ~env:x_env c)
         | Ok None -> Error (`Conflict "empty contents")
         | Error _ as e -> e
       in
@@ -357,6 +457,7 @@ module Make (P : Private.S) = struct
       mutable map : map option;
       mutable hash : hash option;
       mutable findv_cache : map option;
+      env : Env.t;
     }
 
     and v =
@@ -418,16 +519,18 @@ module Make (P : Private.S) = struct
            (fun (v, o) -> Value (None, v, o))
       |> sealv
 
-    let of_v v =
-      let hash, map, value =
+    let of_v ~env v =
+      let hash = match v with Hash (_, k) -> Some k | _ -> None in
+      let value =
         match v with
-        | Map m -> (None, Some m, None)
-        | Hash (_, k) -> (Some k, None, None)
-        | Value (_, v, None) -> (None, None, Some v)
-        | Value _ -> (None, None, None)
+        | Value (_, v, None) ->
+            Env.add_node env hash v;
+            Some v
+        | _ -> Env.find_node env hash
       in
+      let map = match v with Map m -> Some m | _ -> None in
       let findv_cache = None in
-      let info = { hash; map; value; findv_cache } in
+      let info = { hash; map; value; findv_cache; env } in
       { v; info }
 
     let of_map m = of_v (Map m)
@@ -456,7 +559,13 @@ module Make (P : Private.S) = struct
           let v = Some v in
           t.info.value <- v;
           v
-      | _, v -> v
+      | _, (Some _ as v) -> v
+      | _ -> (
+          match Env.find_node t.info.env (cached_hash t) with
+          | Some _ as v ->
+              t.info.value <- v;
+              v
+          | v -> v)
 
     let info_is_empty i =
       i.map = None && i.value = None && i.findv_cache = None && i.hash = None
@@ -466,7 +575,8 @@ module Make (P : Private.S) = struct
         i.value <- None;
         i.map <- None;
         i.hash <- None;
-        i.findv_cache <- None)
+        i.findv_cache <- None;
+        i.env := None)
 
     let rec clear_elt ~max_depth depth v =
       match v with
@@ -510,12 +620,12 @@ module Make (P : Private.S) = struct
           | None -> t.v <- Hash (repo, k)
           | Some k -> t.v <- Hash (repo, k))
 
-    let map_of_value ~cache repo (n : value) : map =
+    let map_of_value ~cache ~env repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
       let entries = P.Node.Val.seq ~cache n in
       let aux = function
-        | `Node h -> `Node (of_hash repo h)
-        | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
+        | `Node h -> `Node (of_hash ~env repo h)
+        | `Contents (c, m) -> `Contents (Contents.of_hash ~env repo c, m)
       in
       Seq.fold_left
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
@@ -586,7 +696,9 @@ module Make (P : Private.S) = struct
           P.Node.find (P.Repo.node_t repo) k >|= function
           | None -> Error (`Dangling_hash k)
           | Some v as some_v ->
-              if cache then t.info.value <- some_v;
+              if cache then (
+                t.info.value <- some_v;
+                Env.add_node t.info.env (Some k) v);
               Ok v)
 
     let to_value_aux ~cache ~value_of_hash ~return t =
@@ -607,8 +719,9 @@ module Make (P : Private.S) = struct
       match cached_map t with
       | Some m -> Lwt.return (Ok m)
       | None -> (
+          let env = t.info.env in
           let of_value repo v updates =
-            let m = map_of_value ~cache repo v in
+            let m = map_of_value ~cache ~env repo v in
             let m =
               match updates with
               | None -> m
@@ -674,7 +787,7 @@ module Make (P : Private.S) = struct
             | Some x, Some y -> if equal_node x y then True else False
             | _ -> Maybe)
 
-    let empty () = of_map StepMap.empty
+    let empty () = of_map StepMap.empty ~env:(Env.empty ())
     let empty_hash = hash ~cache:false (empty ())
 
     (** Does [um] empties [v]?
@@ -729,15 +842,16 @@ module Make (P : Private.S) = struct
     let findv_aux ~cache ~value_of_hash ~return ~bind ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
+        let env = t.info.env in
         match P.Node.Val.find ~cache v step with
         | None -> None
         | Some (`Contents (c, m)) ->
-            let c = Contents.of_hash repo c in
+            let c = Contents.of_hash ~env repo c in
             let (v : elt) = `Contents (c, m) in
             if cache then add_to_findv_cache t step v;
             Some v
         | Some (`Node n) ->
-            let n = of_hash repo n in
+            let n = of_hash ~env repo n in
             let v = `Node n in
             if cache then add_to_findv_cache t step v;
             Some v
@@ -779,31 +893,33 @@ module Make (P : Private.S) = struct
       in
       StepMap.to_seq m |> Seq.drop offset |> take
 
-    let seq_of_value repo ?offset ?length ~cache v : (step * elt) Seq.t =
+    let seq_of_value ~env repo ?offset ?length ~cache v : (step * elt) Seq.t =
       cnt.node_val_list <- cnt.node_val_list + 1;
       let seq = P.Node.Val.seq ?offset ?length ~cache v in
       Seq.map
         (fun (k, v) ->
           match v with
           | `Node n ->
-              let n = `Node (of_hash repo n) in
+              let n = `Node (of_hash ~env repo n) in
               (k, n)
           | `Contents (c, m) ->
-              let c = Contents.of_hash repo c in
+              let c = Contents.of_hash ~env repo c in
               (k, `Contents (c, m)))
         seq
 
     let seq ?offset ?length ~cache t : (step * elt) Seq.t or_error Lwt.t =
+      let env = t.info.env in
       match cached_map t with
       | Some m -> ok (seq_of_map ?offset ?length m)
       | None -> (
           match t.v with
           | Value (repo, n, None) ->
-              ok (seq_of_value ?offset ?length ~cache repo n)
+              ok (seq_of_value ~env ?offset ?length ~cache repo n)
           | Hash (Some repo, h) -> (
               value_of_hash ~cache t repo h >>= function
               | Error _ as e -> Lwt.return e
-              | Ok v -> ok (seq_of_value ?offset ?length ~cache (Some repo) v))
+              | Ok v ->
+                  ok (seq_of_value ~env ?offset ?length ~cache (Some repo) v))
           | _ -> (
               to_map ~cache t >>= function
               | Error _ as e -> Lwt.return e
@@ -855,6 +971,7 @@ module Make (P : Private.S) = struct
         acc Lwt.t =
      fun ~order ~force ~cache ~uniq ~pre ~post ~path ?depth ~node ~contents
          ~tree t acc ->
+      let env = t.info.env in
       let marks =
         match uniq with
         | `False -> dummy_marks
@@ -957,8 +1074,8 @@ module Make (P : Private.S) = struct
           type r. (repo option * value * updatemap option, acc, r) folder =
        fun ~path acc d (repo, v, updates) k ->
         let to_elt = function
-          | `Node n -> `Node (of_hash repo n)
-          | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
+          | `Node n -> `Node (of_hash ~env repo n)
+          | `Contents (c, m) -> `Contents (Contents.of_hash ~env repo c, m)
         in
         let bindings =
           P.Node.Val.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
@@ -978,17 +1095,19 @@ module Make (P : Private.S) = struct
       aux_uniq ~path acc 0 t Lwt.return
 
     let update t step up =
+      let env = t.info.env in
       let of_map m =
         let m' =
           match up with
           | Remove -> StepMap.remove step m
           | Add v -> StepMap.add step v m
         in
-        if m == m' then t else of_map m'
+        if m == m' then t else of_map ~env m'
       in
       let of_value repo n updates =
         let updates' = StepMap.add step up updates in
-        if updates == updates' then t else of_value repo n ~updates:updates'
+        if updates == updates' then t
+        else of_value ~env repo n ~updates:updates'
       in
       match t.v with
       | Map m -> Lwt.return (of_map m)
@@ -1014,7 +1133,9 @@ module Make (P : Private.S) = struct
       if x == y then 0
       else compare_hash (hash ~cache:true x) (hash ~cache:true y)
 
-    let t node = Type.map ~equal ~compare node of_v (fun t -> t.v)
+    let t node =
+      let of_v v = of_v ~env:(Env.empty ()) v in
+      Type.map ~equal ~compare node of_v (fun t -> t.v)
 
     let _, t =
       Type.mu2 (fun _ y ->
@@ -1034,6 +1155,8 @@ module Make (P : Private.S) = struct
               let+ m = to_map ~cache:true old >|= Option.of_result in
               Ok (Some m))
         in
+        let x_env = x.info.env in
+        let y_env = y.info.env in
         let* x = to_map ~cache:true x >|= Option.of_result in
         let* y = to_map ~cache:true y >|= Option.of_result in
         let m =
@@ -1041,7 +1164,9 @@ module Make (P : Private.S) = struct
               (merge_elt [@tailcall]) Merge.option)
         in
         Merge.(f @@ option m) ~old x y >|= function
-        | Ok (Some map) -> Ok (of_map map)
+        | Ok (Some map) ->
+            Env.merge x_env y_env;
+            Ok (of_map ~env:x_env map)
         | Ok None -> Error (`Conflict "empty map")
         | Error _ as e -> e
       in
@@ -1091,7 +1216,7 @@ module Make (P : Private.S) = struct
   type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin { name = "tree_t" }]
 
-  let of_private_node repo n = Node.of_value (Some repo) n
+  let of_private_node repo n = Node.of_value ~env:(Env.empty ()) (Some repo) n
   let to_private_node = Node.to_value ~cache:true
 
   let dump ppf = function
@@ -1120,18 +1245,21 @@ module Make (P : Private.S) = struct
   let of_node n = `Node n
 
   let of_contents ?(metadata = Metadata.default) c =
-    `Contents (Contents.of_value c, metadata)
+    let env = Env.empty () in
+    let c = Contents.of_value ~env c in
+    `Contents (c, metadata)
 
   let v : elt -> t = function
-    | `Contents (c, meta) -> `Contents (Contents.of_value c, meta)
+    | `Contents (c, metadata) -> of_contents ~metadata c
     | `Node n -> `Node n
 
   type kinded_hash = [ `Contents of P.Hash.t * Metadata.t | `Node of P.Hash.t ]
-  [@@deriving irmin]
+  [@@deriving irmin ~equal]
 
   let pruned : kinded_hash -> t = function
-    | `Contents (h, meta) -> `Contents (Contents.of_hash None h, meta)
-    | `Node h -> `Node (Node.of_hash None h)
+    | `Contents (h, meta) ->
+        `Contents (Contents.of_hash ~env:(Env.empty ()) None h, meta)
+    | `Node h -> `Node (Node.of_hash ~env:(Env.empty ()) None h)
 
   let destruct x = x
 
@@ -1267,6 +1395,15 @@ module Make (P : Private.S) = struct
       | `Node x, `Node y -> Node.maybe_equal x y
       | _ -> if equal x y then True else False
 
+  let get_env = function
+    | `Node n -> n.Node.info.env
+    | `Contents (c, _) -> c.Contents.info.env
+
+  let set_env n e =
+    match n with
+    | `Node n -> n.Node.info.env := !e
+    | `Contents (c, _) -> c.Contents.info.env := !e
+
   let update_tree ~cache ~f_might_return_empty_node ~f root_tree path =
     (* User-introduced empty nodes will be removed immediately if necessary. *)
     let prune_empty : node -> bool =
@@ -1275,17 +1412,15 @@ module Make (P : Private.S) = struct
     in
     match Path.rdecons path with
     | None -> (
-        let empty_tree =
-          match is_empty root_tree with
-          | true -> root_tree
-          | false -> `Node (Node.empty ())
+        let empty_tree () =
+          match is_empty root_tree with true -> root_tree | false -> empty ()
         in
         f (Some root_tree) >>= function
         (* Here we consider "deleting" a root contents value or node to consist
            of changing it to an empty node. Note that this introduces
            sensitivity to ordering of subtree operations: updating in a subtree
            and adding the subtree are not necessarily commutative. *)
-        | None -> Lwt.return empty_tree
+        | None -> Lwt.return (empty_tree ())
         | Some (`Node _ as new_root) -> (
             match maybe_equal root_tree new_root with
             | True -> Lwt.return root_tree
@@ -1297,7 +1432,7 @@ module Make (P : Private.S) = struct
     | Some (path, file) -> (
         let rec aux : type r. key -> node -> (node updated, r) cont_lwt =
          fun path parent_node k ->
-          let changed n = k (Changed n) in
+          let changed (n : node) = k (Changed n) in
           match Path.decons path with
           | None -> (
               let with_new_child t = Node.add parent_node file t >>= changed in
@@ -1353,12 +1488,14 @@ module Make (P : Private.S) = struct
         in
         aux path top_node @@ function
         | Unchanged -> Lwt.return root_tree
-        | Changed node -> Lwt.return (`Node node))
+        | Changed node ->
+            node.info.env := !(get_env root_tree);
+            Lwt.return (`Node node))
 
-  let update t k ?(metadata = Metadata.default) f =
-    let cache = true in
+  let update root k ?(metadata = Metadata.default) f =
     Log.debug (fun l -> l "Tree.update %a" pp_path k);
-    update_tree ~cache t k ~f_might_return_empty_node:false ~f:(fun t ->
+    let cache = true in
+    update_tree ~cache root k ~f_might_return_empty_node:false ~f:(fun t ->
         let+ old_contents =
           match t with
           | Some (`Node _) | None -> Lwt.return_none
@@ -1368,12 +1505,12 @@ module Make (P : Private.S) = struct
         in
         match f old_contents with
         | None -> None
-        | Some c -> Some (`Contents (Contents.of_value c, metadata)))
+        | Some c -> of_contents ~metadata c |> Option.some)
 
   let add t k ?(metadata = Metadata.default) c =
     Log.debug (fun l -> l "Tree.add %a" pp_path k);
     update_tree ~cache:true t k
-      ~f:(fun _ -> Lwt.return_some (`Contents (Contents.of_value c, metadata)))
+      ~f:(fun _ -> Lwt.return_some (of_contents ~metadata c))
       ~f_might_return_empty_node:false
 
   let add_tree t k v =
@@ -1395,17 +1532,23 @@ module Make (P : Private.S) = struct
   let import repo = function
     | `Contents (k, m) -> (
         P.Contents.mem (P.Repo.contents_t repo) k >|= function
-        | true -> Some (`Contents (Contents.of_hash (Some repo) k, m))
+        | true ->
+            let env = Env.empty () in
+            let c = Contents.of_hash ~env (Some repo) k in
+            Some (`Contents (c, m))
         | false -> None)
     | `Node k -> (
+        let env = Env.empty () in
         cnt.node_mem <- cnt.node_mem + 1;
         P.Node.mem (P.Repo.node_t repo) k >|= function
-        | true -> Some (`Node (Node.of_hash (Some repo) k))
+        | true -> Some (`Node (Node.of_hash ~env (Some repo) k))
         | false -> None)
 
-  let import_no_check repo = function
-    | `Node k -> `Node (Node.of_hash (Some repo) k)
-    | `Contents (k, m) -> `Contents (Contents.of_hash (Some repo) k, m)
+  let import_with_env ~env repo = function
+    | `Node k -> `Node (Node.of_hash ~env (Some repo) k)
+    | `Contents (k, m) -> `Contents (Contents.of_hash ~env (Some repo) k, m)
+
+  let import_no_check repo f = import_with_env ~env:(Env.empty ()) repo f
 
   let export ?clear repo contents_t node_t n =
     let cache =
@@ -1652,7 +1795,7 @@ module Make (P : Private.S) = struct
     let rec concrete : type r. concrete -> (t or_empty, r) cont =
      fun t k ->
       match t with
-      | `Contents (c, m) -> k (Non_empty (`Contents (Contents.of_value c, m)))
+      | `Contents (c, m) -> k (Non_empty (of_contents ~metadata:m c))
       | `Tree childs ->
           tree StepMap.empty childs (function
             | Empty -> k Empty
@@ -1666,7 +1809,7 @@ module Make (P : Private.S) = struct
       | [] ->
           k
             (if StepMap.is_empty map then Empty
-            else Non_empty (Node.of_map map))
+            else Non_empty (Node.of_map ~env:(Env.empty ()) map))
       | (s, n) :: t ->
           (concrete [@tailcall]) n (fun v ->
               (tree [@tailcall])
@@ -1753,9 +1896,12 @@ module Make (P : Private.S) = struct
 
   module Proof = struct
     type tree = t
-    type node_proof = P.Node.Val.proof
-    type t = (P.Hash.t, Path.step, Metadata.t) Proof.t [@@deriving irmin]
 
+    include Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
+
+    let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Tree." ^ c)
+
+    type node_proof = P.Node.Val.proof
     (** The type of tree proofs. *)
 
     let value_of_hash ~cache:_ _node _repo h = Error (`Pruned_hash h)
@@ -1769,13 +1915,20 @@ module Make (P : Private.S) = struct
         ~bind:(fun x f -> f x)
         ~cache:false ctx node
 
-    let rec proof_of_tree : type a. tree -> (t -> a) -> a =
+    let rec proof_of_tree : type a. tree -> (tree_proof -> a) -> a =
      fun tree k ->
       match tree with
-      | `Contents (c, h) -> k (Blinded_contents (Contents.hash c, h))
+      | `Contents (c, h) -> proof_of_contents c h k
       | `Node node -> proof_of_node node k
 
-    and proof_of_node : type a. node -> (t -> a) -> a =
+    and proof_of_contents :
+        type a. Contents.t -> metadata -> (tree_proof -> a) -> a =
+     fun c m k ->
+      match Contents.cached_value c with
+      | Some v -> k (Contents (v, m))
+      | None -> k (Blinded_contents (Contents.hash c, m))
+
+    and proof_of_node : type a. node -> (tree_proof -> a) -> a =
      fun node k ->
       match to_value node with
       | Error (`Dangling_hash h) -> k (Blinded_node h)
@@ -1794,7 +1947,8 @@ module Make (P : Private.S) = struct
         and instead be recomputed one value at a time, using the tag [Blinded]
         for the values non-loaded in [n], and some other tag for the values
         loaded in [n]. *)
-    and proof_of_node_proof : type a. node -> node_proof -> (t -> a) -> a =
+    and proof_of_node_proof :
+        type a. node -> node_proof -> (tree_proof -> a) -> a =
      fun node p k ->
       match p with
       | Blinded h -> k (Proof.Blinded_node h)
@@ -1802,7 +1956,8 @@ module Make (P : Private.S) = struct
       | Values vs -> proof_of_values node vs k
 
     and proof_of_inode :
-        type a. node -> int -> (int * node_proof) list -> (t -> a) -> a =
+        type a. node -> int -> (int * node_proof) list -> (tree_proof -> a) -> a
+        =
      fun node length proofs k ->
       let rec aux acc = function
         | [] -> k (Proof.Inode { length; proofs = List.rev acc })
@@ -1813,7 +1968,8 @@ module Make (P : Private.S) = struct
       aux [] proofs
 
     and proof_of_values :
-        type a. node -> (step * P.Node.Val.value) list -> (t -> a) -> a =
+        type a. node -> (step * P.Node.Val.value) list -> (tree_proof -> a) -> a
+        =
      fun node steps k ->
       let findv = findv "Proof.proof_of_values" node in
       let rec aux acc = function
@@ -1826,8 +1982,8 @@ module Make (P : Private.S) = struct
       aux [] steps
 
     let proof_steps acc p =
-      let rec aux acc : t -> (step * t) list = function
-        | Blinded_node _ | Blinded_contents _ -> List.rev acc
+      let rec aux acc : tree_proof -> (step * tree_proof) list = function
+        | Blinded_node _ | Blinded_contents _ | Contents _ -> List.rev acc
         | Inode { proofs; _ } ->
             List.fold_left (fun acc (_, p) -> aux acc p) acc proofs
         | Node vs -> List.rev_append vs acc
@@ -1843,26 +1999,30 @@ module Make (P : Private.S) = struct
 
     let of_tree t = proof_of_tree t Fun.id
 
-    let rec tree_of_proof : type a. t -> (tree -> a) -> a =
-     fun p k ->
+    let rec tree_of_proof : type a. env:_ -> tree_proof -> (tree -> a) -> a =
+     fun ~env p k ->
       match p with
-      | Blinded_node h -> k (`Node (Node.of_hash None h))
-      | Blinded_contents (c, h) -> k (`Contents (Contents.of_hash None c, h))
-      | Node n -> tree_of_node n k
-      | Inode { length; proofs } -> tree_of_inode length proofs k
+      | Blinded_node h -> k (`Node (Node.of_hash ~env None h))
+      | Node n -> tree_of_node ~env n k
+      | Inode { length; proofs } -> tree_of_inode ~env length proofs k
+      | Blinded_contents (c, h) ->
+          k (`Contents (Contents.of_hash ~env None c, h))
+      | Contents (c, m) -> k (`Contents (Contents.of_value ~env c, m))
 
-    and tree_of_node : type a. (step * t) list -> (tree -> a) -> a =
-     fun n k ->
+    and tree_of_node :
+        type a. env:_ -> (step * tree_proof) list -> (tree -> a) -> a =
+     fun ~env n k ->
       let rec aux acc = function
-        | [] -> k (`Node (Node.of_map acc))
+        | [] -> k (`Node (Node.of_map ~env acc))
         | (s, p) :: rest ->
-            tree_of_proof p (fun n -> aux (StepMap.add s n acc) rest)
+            tree_of_proof ~env p (fun n -> aux (StepMap.add s n acc) rest)
       in
       aux StepMap.empty n
 
     (** [tree_of_inode] is solely called on the root of an inode tree *)
-    and tree_of_inode : type a. int -> (int * t) list -> (tree -> a) -> a =
-     fun len proofs k ->
+    and tree_of_inode :
+        type a. env:_ -> int -> (int * tree_proof) list -> (tree -> a) -> a =
+     fun ~env len proofs k ->
       let rev_proof_steps =
         (* Recursively blow up the [Inode] level(s) and compute a list of values
            in the [Node]s found. *)
@@ -1872,40 +2032,40 @@ module Make (P : Private.S) = struct
         match proofs with
         | [] -> k acc
         | (s, p) :: rest ->
-            tree_of_proof p (fun p -> rev_elts ((s, p) :: acc) rest k)
+            tree_of_proof ~env p (fun p -> rev_elts ((s, p) :: acc) rest k)
       in
       rev_elts [] rev_proof_steps @@ fun elts ->
       let k n =
         List.iter (fun (s, elt) -> Node.add_to_findv_cache n s elt) elts;
         k (`Node n)
       in
-      if List.compare_length_with elts len = 0 then
-        (* We have a complete proof, let's build a tree node directly! *)
-        k (Node.of_map (StepMap.of_seq (List.to_seq elts)))
-      else
-        (* We have a partial proof, build a [node_proof] and then a private
-           node from it. *)
-        let rec aux acc proofs k =
-          match proofs with
-          | [] -> k (List.rev acc)
-          | (i, p) :: rest ->
-              node_proof_of_proof p (fun p -> aux ((i, p) :: acc) rest k)
-        in
-        aux [] proofs @@ fun p ->
-        let p = Irmin_node.Proof.Inode { length = len; proofs = p } in
-        let n = P.Node.Val.of_proof p in
-        k (Node.of_value None n)
+      (* We have a partial proof, build a [node_proof] and then a private
+         node from it. *)
+      let rec aux acc proofs k =
+        match proofs with
+        | [] -> k (List.rev acc)
+        | (i, p) :: rest ->
+            node_proof_of_proof p (fun p -> aux ((i, p) :: acc) rest k)
+      in
+      aux [] proofs @@ fun p ->
+      let p = Irmin_node.Proof.Inode { length = len; proofs = p } in
+      let n = P.Node.Val.of_proof p in
+      k (Node.of_value ~env None n)
 
-    and node_proof_of_proof : type a. t -> (node_proof -> a) -> a =
+    and node_proof_of_proof : type a. tree_proof -> (node_proof -> a) -> a =
      fun t k ->
       match t with
-      | Blinded_contents _ -> assert false
+      | Blinded_contents _ ->
+          bad_proof_exn
+            "Proof.to_node_proof: found Blinded_contents inside an inode"
+      | Contents _ ->
+          bad_proof_exn "Proof.to_node_proof: found Contents inside an inode"
       | Blinded_node x -> k (Blinded x)
       | Inode { length; proofs } -> node_proof_of_inode length proofs k
       | Node n -> node_proof_of_node n k
 
     and node_proof_of_inode :
-        type a. int -> (int * t) list -> (node_proof -> a) -> a =
+        type a. int -> (int * tree_proof) list -> (node_proof -> a) -> a =
      fun length proofs k ->
       let rec aux acc = function
         | [] -> k (Inode { length; proofs = List.rev acc })
@@ -1914,7 +2074,8 @@ module Make (P : Private.S) = struct
       in
       aux [] proofs
 
-    and node_proof_of_node : type a. (step * t) list -> (node_proof -> a) -> a =
+    and node_proof_of_node :
+        type a. (step * tree_proof) list -> (node_proof -> a) -> a =
      fun node k ->
       let rec aux acc = function
         | [] -> k (Values (List.rev acc))
@@ -1923,23 +2084,56 @@ module Make (P : Private.S) = struct
       in
       aux [] node
 
-    and node_value_of_proof : type a. t -> (P.Node.Val.value -> a) -> a =
+    and node_value_of_proof : type a. tree_proof -> (P.Node.Val.value -> a) -> a
+        =
      fun t k ->
       match t with
-      | Blinded_contents (c, m) -> k (`Contents (c, m))
+      | Blinded_contents (h, m) -> k (`Contents (h, m))
+      | Contents (c, m) ->
+          let h = P.Contents.Key.hash c in
+          k (`Contents (h, m))
       | t ->
           node_proof_of_proof t (fun p ->
               let h = hash_of_node_proof p in
               k (`Node h))
 
-    let to_tree p = tree_of_proof p Fun.id
-
-    let of_keys tree keys =
-      (* The following [clear] gets rid of existing backend values stored in
-         [info.value] and [info.findv_cache], but it doesn't clear the ones
-         stored in [v]. *)
-      clear tree;
-      let+ () = Lwt_list.iter_s (fun k -> find_tree tree k >|= ignore) keys in
-      of_tree tree
+    let to_tree t = tree_of_proof (proof t) Fun.id ~env:(Env.empty ())
   end
+
+  let produce_proof repo kinded_hash f =
+    let env = Env.track_reads_as_sets () in
+    let tree = import_with_env ~env repo kinded_hash in
+    let+ tree_after = f tree in
+    (* Here, we build a proof from [tree] (on not from [tree_after]!)
+       on purpose: we look at the effect on [f] on [tree]'s caches and
+       we rely on the fact that the caches are env across
+       copy-on-write copies of [tree]. *)
+    let proof = Proof.of_tree tree in
+    let after = hash tree_after in
+    (* [tree_after] and [env] are dead now, so should avoid any
+       memory leaks *)
+    set_env tree_after (Env.empty ());
+    Proof.v ~before:kinded_hash ~after proof
+
+  let verify_proof p f =
+    let before = Proof.before p in
+    let after = Proof.after p in
+    let tree = Proof.to_tree p in
+    (* first check that [before] corresponds to [tree]'s hash. *)
+    if not (equal_kinded_hash before (hash ~cache:false tree)) then
+      Proof.bad_proof_exn "verify_proof: invalid before hash";
+    Lwt.catch
+      (fun () ->
+        let+ tree_after = f tree in
+        (* then check that [after] corresponds to [tree_after]'s hash. *)
+        if not (equal_kinded_hash after (hash tree_after)) then
+          Proof.bad_proof_exn "verify_proof: invalid before hash";
+        tree_after)
+      (function
+        | Pruned_hash h ->
+            (* finaly check that [f] only access valid parts of the proof. *)
+            Fmt.kstr Proof.bad_proof_exn
+              "verify_proof: %s is trying to read through a blinded node (%a)"
+              h.context pp_hash h.hash
+        | e -> raise e)
 end

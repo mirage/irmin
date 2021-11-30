@@ -5,9 +5,20 @@
 - *irmin*
   - Conversion between proofs and trees are now done in CPS (#1624, @samoht)
 
+### Added
+
+- **irmin**
+  - Add `Tree.produce_proof` and `Tree.verify_proof` to produce and verify
+    proofs from complex computations. `produce_proof` and `verify_proof`
+    takes a callback over tree and instead of a static list of operations
+    -- this now means that the full `Tree` API can now be used in proofs,
+    including sub-tree operations, folds and paginated lists (#1625, @samoht)
+
 ### Changed
 
 - **irmin**
+  - Remove `Tree.Proof.of_keys`. Use `Tree.produce_proof` instead
+    (#1625, @samoht)
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
 
 ## 2.9.0 (2021-11-15)
