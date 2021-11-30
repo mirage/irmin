@@ -14,9 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type length_header = [ `Varint ] option
+
 module type S = sig
   val entries : int
   val stable_hash : int
+
+  val contents_length_header : length_header
+  (** Describes the length header of the user's contents values when
+      binary-encoded. Supported modes are:
+
+      - [Some `Varint]: the length header is a LEB128-encoded integer at the
+        very beginning of the encoded value.
+
+      - [None]: there is no length header, and values have unknown size. *)
 end
 
 val spec : Irmin.Backend.Conf.Spec.t

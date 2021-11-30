@@ -1,5 +1,7 @@
 open! Import
 
+type length_header = [ `Varint ] option
+
 module type S = sig
   include Irmin.Type.S
 
@@ -9,6 +11,7 @@ module type S = sig
 
   val hash : t -> hash
   val kind : t -> kind
+  val length_header : [ `Never | `Sometimes of kind -> [ `Varint ] option ]
 
   val encode_bin :
     dict:(string -> int option) ->
@@ -48,15 +51,18 @@ module type Sigs = sig
 
   module Make (_ : sig
     val selected_kind : Kind.t
+    val length_header : length_header
   end)
   (Hash : Irmin.Hash.S)
   (Key : T)
   (Data : Irmin.Type.S) : S with type hash = Hash.t and type key = Key.t
 
-  module Of_contents
-      (Hash : Irmin.Hash.S)
-      (Key : T)
-      (Contents : Irmin.Contents.S) :
+  module Of_contents (_ : sig
+    val contents_length_header : length_header
+  end)
+  (Hash : Irmin.Hash.S)
+  (Key : T)
+  (Contents : Irmin.Contents.S) :
     S with type t = Contents.t and type hash = Hash.t and type key = Key.t
 
   module Of_commit (Hash : Irmin.Hash.S) (Key : T) (Commit : Irmin.Commit.S) :

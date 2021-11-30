@@ -232,6 +232,7 @@ let store_of_config config =
   let module Conf = struct
     let entries = entries
     let stable_hash = stable_hash
+    let contents_length_header = Some `Varint
   end in
   match config.store_type with
   | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)
