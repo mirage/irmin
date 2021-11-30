@@ -49,18 +49,20 @@ module Alcotest : sig
   val check_repr : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
 end
 
-module Index : Irmin_pack.Index.S with type key = Schema.Hash.t
+module Index : module type of Irmin_pack.Index.Make (Schema.Hash)
+module Key : Irmin_pack.Pack_key.S with type hash = Schema.Hash.t
 
 module Pack :
   Irmin_pack.Pack_store.S
-    with type key = Schema.Hash.t
+    with type hash = Schema.Hash.t
+     and type key = Key.t
      and type value = string
-     and type index = Index.t
+     and type index := Index.t
 
 module P :
   Irmin_pack.Pack_store.Maker
-    with type key = Schema.Hash.t
-     and type index = Irmin_pack.Index.Make(Schema.Hash).t
+    with type hash = Schema.Hash.t
+     and type index := Irmin_pack.Index.Make(Schema.Hash).t
 
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)
 module Make_context (Config : sig

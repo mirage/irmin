@@ -32,9 +32,10 @@ let log_size = 1000
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
 module H = Schema.Hash
-module Node = Irmin.Node.Make (H) (Path) (Metadata)
+module Key = Irmin_pack.Pack_key.Make (H)
+module Node = Irmin.Node.Generic_key.Make (H) (Path) (Metadata) (Key) (Key)
 module Index = Irmin_pack.Index.Make (H)
-module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Node)
+module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
 module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
 
 module Context = struct
@@ -60,7 +61,7 @@ end
 
 open Schema
 
-type pred = [ `Contents of Hash.t | `Inode of Hash.t | `Node of Hash.t ]
+type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
 [@@deriving irmin]
 
 let pp_pred = Irmin.Type.pp pred_t

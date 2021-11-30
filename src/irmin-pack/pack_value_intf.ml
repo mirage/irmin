@@ -4,6 +4,7 @@ module type S = sig
   include Irmin.Type.S
 
   type hash
+  type key
   type kind
 
   val hash : t -> hash
@@ -11,20 +12,26 @@ module type S = sig
 
   val encode_bin :
     dict:(string -> int option) ->
-    offset:(hash -> int63 option) ->
+    offset:(key -> int63 option) ->
     t ->
     hash ->
     (string -> unit) ->
     unit
 
   val decode_bin :
-    dict:(int -> string option) ->
-    hash:(int63 -> hash) ->
-    string ->
-    int ref ->
-    t
+    dict:(int -> string option) -> hash:(int63 -> key) -> string -> int ref -> t
 
   val decode_bin_length : string -> int -> int
+end
+
+module type Persistent = sig
+  type hash
+
+  include S with type hash := hash and type key = hash Pack_key.t
+end
+
+module type T = sig
+  type t
 end
 
 module type Sigs = sig
@@ -37,16 +44,21 @@ module type Sigs = sig
   end
 
   module type S = S with type kind := Kind.t
+  module type Persistent = Persistent with type kind := Kind.t
 
   module Make (_ : sig
     val selected_kind : Kind.t
   end)
   (Hash : Irmin.Hash.S)
-  (Data : Irmin.Type.S) : S with type hash = Hash.t
+  (Key : T)
+  (Data : Irmin.Type.S) : S with type hash = Hash.t and type key = Key.t
 
-  module Of_contents (Hash : Irmin.Hash.S) (Contents : Irmin.Contents.S) :
-    S with type t = Contents.t and type hash = Hash.t
+  module Of_contents
+      (Hash : Irmin.Hash.S)
+      (Key : T)
+      (Contents : Irmin.Contents.S) :
+    S with type t = Contents.t and type hash = Hash.t and type key = Key.t
 
-  module Of_commit (Hash : Irmin.Hash.S) (Commit : Irmin.Commit.S) :
-    S with type t = Commit.t and type hash = Hash.t
+  module Of_commit (Hash : Irmin.Hash.S) (Key : T) (Commit : Irmin.Commit.S) :
+    S with type t = Commit.t and type hash = Hash.t and type key = Key.t
 end

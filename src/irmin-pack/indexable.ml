@@ -14,14 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Content_addressable_intf
+include Indexable_intf
 open! Import
 
-(* FIXME: remove code duplication with irmin/content_addressable *)
+(* FIXME: remove code duplication with irmin/indexable *)
 module Closeable (S : S) = struct
   type 'a t = { closed : bool ref; t : 'a S.t }
   type key = S.key
+  type hash = S.hash
   type value = S.value
+
+  module Key = S.Key
 
   let check_not_closed t = if !(t.closed) then raise Irmin.Closed
 
@@ -32,6 +35,14 @@ module Closeable (S : S) = struct
   let find t k =
     check_not_closed t;
     S.find t.t k
+
+  let index t h =
+    check_not_closed t;
+    S.index t.t h
+
+  let index_direct t h =
+    check_not_closed t;
+    S.index_direct t.t h
 
   let add t v =
     check_not_closed t;

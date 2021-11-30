@@ -14,14 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Maker = functor (_ : Conf.S) -> S.Maker
+module type S = S.S
 module type Specifics = S.Specifics
+module type Maker = S.Maker
+module type Maker_persistent = functor (_ : Conf.S) -> S.Maker_persistent
 
 module type Sigs = sig
   module Dict = Pack_dict
   module Index = Pack_index
   module Conf = Conf
   module Inode = Inode
+  module Pack_key = Pack_key
   module Pack_value = Pack_value
   module Pack_store = Pack_store
   module Version = Version
@@ -49,17 +52,22 @@ module type Sigs = sig
 
   exception RO_not_allowed
 
-  module Maker (_ : Version.S) : Maker
-  module V1 : Maker
-  module V2 : Maker
-
   module KV (_ : Version.S) (_ : Conf.S) :
-    Irmin.KV_maker with type metadata = unit
+    Irmin.Generic_key.KV_maker
+      with type metadata = unit
+       and type ('h, 'v) contents_key = 'h Pack_key.t
+       and type 'h node_key = 'h Pack_key.t
+       and type 'h commit_key = 'h Pack_key.t
 
-  module type S = S.S
-  module type Specifics = S.Specifics
+  module type S = S
+  module type Specifics = Specifics
+  module type Maker = Maker
+  module type Maker_persistent = Maker_persistent
 
-  module Maker_ext (_ : Version.S) (_ : Conf.S) : S.Maker
+  module Maker (_ : Version.S) : Maker_persistent
+  module Maker_ext (_ : Version.S) : Maker_persistent
+  module V1 : Maker_persistent
+  module V2 : Maker_persistent
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks
@@ -72,13 +80,8 @@ module type Sigs = sig
       attempting to use pre-migration instances of the repository after the
       migration is complete, will result in undefined behaviour. *)
 
-  module Content_addressable = Content_addressable
+  module Indexable = Indexable
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils
-
-  module type Maker = functor (_ : Conf.S) -> sig
-    include S.Maker
-    (** @inline *)
-  end
 end

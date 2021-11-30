@@ -25,15 +25,17 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   let clear_keep_generation _ = Lwt.return_unit
 end
 
-module CA_mem
+module Indexable_mem
     (Hash : Irmin.Hash.S)
-    (Value : Irmin_pack.Pack_value.S with type hash := Hash.t) =
+    (Value : Irmin_pack.Pack_value.S
+               with type hash := Hash.t
+                and type key = Hash.t) =
 struct
-  module Pack = Content_addressable.Maker (Hash)
-  module CA_mem = Pack.Make (Value)
-  include Irmin_pack.Content_addressable.Closeable (CA_mem)
+  module Pack = Indexable.Maker (Hash)
+  module Indexable_mem = Pack.Make (Value)
+  include Irmin_pack.Indexable.Closeable (Indexable_mem)
 
-  let v x = CA_mem.v x >|= make_closeable
+  let v x = Indexable_mem.v x >|= make_closeable
 end
 
 module Maker (Config : Irmin_pack.Conf.S) = struct
@@ -47,7 +49,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     module P = Schema.Path
     module M = Schema.Metadata
     module B = Schema.Branch
-    module Pack = Content_addressable.Maker (H)
+    module Pack = Indexable.Maker (H)
     module XKey = Irmin.Key.Of_hash (H)
 
     module X = struct
@@ -56,27 +58,32 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
       module Info = Schema.Info
 
       module Contents = struct
-        module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (C)
-        module CA = CA_mem (H) (Pack_value)
-        include Irmin.Contents.Store (CA) (H) (C)
+        module Pack_value = Irmin_pack.Pack_value.Of_contents (H) (XKey) (C)
+        module Indexable = Indexable_mem (H) (Pack_value)
+        include Irmin.Contents.Store_indexable (Indexable) (H) (C)
       end
 
       module Node = struct
         module Value = Schema.Node (XKey) (XKey)
 
-        module CA = struct
-          module Inter = Irmin_pack.Inode.Make_internal (Config) (H) (Value)
+        module Indexable = struct
+          module Inter =
+            Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
+
           module CA = Pack.Make (Inter.Raw)
-          include Irmin_pack.Inode.Make (H) (Value) (Inter) (CA)
+          include Irmin_pack.Inode.Make (H) (XKey) (Value) (Inter) (CA)
 
           let v = CA.v
         end
 
         include
-          Irmin.Node.Generic_key.Store (Contents) (CA) (H) (CA.Val) (M) (P)
+          Irmin.Node.Generic_key.Store (Contents) (Indexable) (H)
+            (Indexable.Val)
+            (M)
+            (P)
       end
 
-      module Node_portable = Node.CA.Val.Portable
+      module Node_portable = Node.Indexable.Val.Portable
 
       module Commit = struct
         module Value = struct
@@ -86,15 +93,16 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         end
 
         module Pack_value =
-          Irmin_pack.Pack_value.Of_commit
-            (H)
+          Irmin_pack.Pack_value.Of_commit (H) (XKey)
             (struct
               module Info = Schema.Info
               include Value
             end)
 
-        module CA = CA_mem (H) (Pack_value)
-        include Irmin.Commit.Store (Info) (Node) (CA) (H) (Value)
+        module Indexable = Indexable_mem (H) (Pack_value)
+
+        include
+          Irmin.Commit.Generic_key.Store (Info) (Node) (Indexable) (H) (Value)
       end
 
       module Branch = struct
@@ -117,9 +125,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
       module Repo = struct
         type t = {
           config : Irmin.Backend.Conf.t;
-          contents : read Contents.CA.t;
-          node : read Node.CA.t;
-          commit : read Commit.CA.t;
+          contents : read Contents.Indexable.t;
+          node : read Node.Indexable.t;
+          commit : read Commit.Indexable.t;
           branch : Branch.t;
         }
 
@@ -129,9 +137,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         let branch_t t = t.branch
 
         let batch t f =
-          Commit.CA.batch t.commit (fun commit ->
-              Node.CA.batch t.node (fun node ->
-                  Contents.CA.batch t.contents (fun contents ->
+          Commit.Indexable.batch t.commit (fun commit ->
+              Node.Indexable.batch t.node (fun node ->
+                  Contents.Indexable.batch t.contents (fun contents ->
                       let contents : 'a Contents.t = contents in
                       let node : 'a Node.t = (contents, node) in
                       let commit : 'a Commit.t = (node, commit) in
@@ -139,23 +147,24 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
         let v config =
           let root = Irmin_pack.Conf.root config in
-          let* contents = Contents.CA.v root in
-          let* node = Node.CA.v root in
-          let* commit = Commit.CA.v root in
+          let* contents = Contents.Indexable.v root in
+          let* node = Node.Indexable.v root in
+          let* commit = Commit.Indexable.v root in
           let+ branch = Branch.v () in
           { contents; node; commit; branch; config }
 
         let close t =
-          Contents.CA.close (contents_t t) >>= fun () ->
-          Node.CA.close (snd (node_t t)) >>= fun () ->
-          Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+          Contents.Indexable.close (contents_t t) >>= fun () ->
+          Node.Indexable.close (snd (node_t t)) >>= fun () ->
+          Commit.Indexable.close (snd (commit_t t)) >>= fun () ->
+          Branch.close t.branch
 
         (* An in-memory store is always in sync. *)
         let sync _ = ()
         let flush _ = ()
 
         (* Stores share instances so one clear is enough. *)
-        let clear t = Contents.CA.clear (contents_t t)
+        let clear t = Contents.Indexable.clear (contents_t t)
       end
     end
 

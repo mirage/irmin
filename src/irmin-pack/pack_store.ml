@@ -12,13 +12,22 @@ module Maker
     (V : Version.S)
     (Index : Pack_index.S)
     (K : Irmin.Hash.S with type t = Index.key) :
-  Maker with type key = K.t and type index = Index.t = struct
+  Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
   module Dict = Pack_dict.Make (V)
 
-  type index = Index.t
+  module Hash = struct
+    include K
+
+    let hash = K.short_hash
+    let equal = Irmin.Type.(unstage (equal K.t))
+  end
+
+  module Key = Pack_key.Make (K)
+
+  type hash = K.t
 
   type 'a t = {
     mutable block : IO.t;
@@ -51,8 +60,6 @@ module Maker
   let IO_cache.{ v } =
     IO_cache.memoize ~clear ~valid ~v:(fun index -> unsafe_v ~index) Layout.pack
 
-  type key = K.t
-
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
@@ -60,17 +67,12 @@ module Maker
       IO.close t.block;
       Dict.close t.dict)
 
-  module Make_without_close_checks (Val : Pack_value.S with type hash := K.t) =
+  module Make_without_close_checks
+      (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
   struct
-    module H = struct
-      include K
-
-      let hash = K.short_hash
-      let equal = Irmin.Type.(unstage (equal K.t))
-    end
-
+    module Key = Key
     module Tbl = Table (K)
-    module Lru = Irmin.Backend.Lru.Make (H)
+    module Lru = Irmin.Backend.Lru.Make (Hash)
 
     type nonrec 'a t = {
       pack : 'a t;
@@ -80,12 +82,12 @@ module Maker
       readonly : bool;
     }
 
-    type key = K.t
+    type hash = K.t [@@deriving irmin ~pp ~equal ~decode_bin]
+    type key = Key.t [@@deriving irmin ~pp ~equal]
+    type value = Val.t [@@deriving irmin ~pp]
 
-    let equal_key = Irmin.Type.(unstage (equal K.t))
-
-    type value = Val.t
-    type index = Index.t
+    let index_direct _ hash = Some hash
+    let index t hash = Lwt.return (index_direct t hash)
 
     let unsafe_clear ?keep_generation t =
       clear ?keep_generation t.pack;
@@ -136,14 +138,11 @@ module Maker
       let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
       Lwt.return t
 
-    let pp_hash = Irmin.Type.pp K.t
-    let decode_key = Irmin.Type.(unstage (decode_bin K.t))
-
     let io_read_and_decode_hash ~off t =
       let buf = Bytes.create K.hash_size in
       let n = IO.read t.pack.block ~off buf in
       assert (n = K.hash_size);
-      decode_key (Bytes.unsafe_to_string buf) (ref 0)
+      decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
 
     let unsafe_mem t k =
       [%log.debug "[pack] mem %a" pp_hash k];
@@ -153,9 +152,9 @@ module Maker
       let b = unsafe_mem t k in
       Lwt.return b
 
-    let check_key k v =
-      let k' = Val.hash v in
-      if equal_key k k' then Ok () else Error (k, k')
+    let check_hash h v =
+      let h' = Val.hash v in
+      if equal_hash h h' then Ok () else Error (h, h')
 
     exception Invalid_read
 
@@ -190,7 +189,7 @@ module Maker
                 | Some (off, len, _) ->
                     let v = io_read_and_decode ~off ~len t in
                     (if check_integrity then
-                     check_key k v |> function
+                     check_hash k v |> function
                      | Ok () -> ()
                      | Error (expected, got) ->
                          Fmt.failwith "corrupted value: got %a, expecting %a."
@@ -207,10 +206,10 @@ module Maker
 
     let cast t = (t :> read_write t)
 
-    let integrity_check ~offset ~length k t =
+    let integrity_check ~offset ~length hash t =
       try
         let value = io_read_and_decode ~off:offset ~len:length t in
-        match check_key k value with
+        match check_hash hash value with
         | Ok () -> Ok ()
         | Error _ -> Error `Wrong_hash
       with Invalid_read -> Error `Absent_value
@@ -225,7 +224,7 @@ module Maker
     let auto_flush = 1024
 
     let unsafe_append ~ensure_unique ~overcommit t k v =
-      if ensure_unique && unsafe_mem t k then ()
+      if ensure_unique && unsafe_mem t k then k
       else (
         [%log.debug "[pack] append %a" pp_hash k];
         let offset k =
@@ -244,16 +243,15 @@ module Maker
         Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
-        Lru.add t.lru k v)
+        Lru.add t.lru k v;
+        k)
 
     let add t v =
       let k = Val.hash v in
-      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
-      Lwt.return k
+      unsafe_append ~ensure_unique:true ~overcommit:false t k v |> Lwt.return
 
     let unsafe_add t k v =
-      unsafe_append ~ensure_unique:true ~overcommit:false t k v;
-      Lwt.return ()
+      unsafe_append ~ensure_unique:true ~overcommit:false t k v |> Lwt.return
 
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
@@ -304,14 +302,14 @@ module Maker
     let offset t = IO.offset t.pack.block
   end
 
-  module Make (Val : Pack_value.S with type hash := K.t) = struct
+  module Make
+      (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
+  struct
     module Inner = Make_without_close_checks (Val)
-    include Content_addressable.Closeable (Inner)
+    include Indexable.Closeable (Inner)
 
     let v ?fresh ?readonly ?lru_size ~index path =
       Inner.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
-
-    type index = Inner.index
 
     let sync ?on_generation_change t =
       Inner.sync ?on_generation_change (get_open_exn t)

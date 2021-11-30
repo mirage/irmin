@@ -14,4 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker (_ : Version.S) (_ : Conf.S) : S.Maker_persistent
+open! Import
+
+module type S = sig
+  type hash
+
+  include Irmin.Key.S with type t = hash and type hash := hash
+
+  val null : t
+end
+
+module type Sigs = sig
+  type 'hash t = 'hash
+  (** The type of {i keys} referencing values stored in the [irmin-pack]
+      backend. *)
+
+  module type S = S
+
+  module Make (Hash : Irmin.Hash.S) : S with type hash = Hash.t
+
+  module type Store_spec = sig
+    type ('h, _) contents_key = 'h t
+    type 'h node_key = 'h t
+    type 'h commit_key = 'h t
+  end
+
+  module Store_spec : Store_spec
+end
