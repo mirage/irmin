@@ -1048,6 +1048,7 @@ struct
     let step_of_bin = T.step_of_bin_string
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
+    let length_header = `Never
 
     let decode_compress_length =
       match Irmin.Type.Size.of_encoding Compress.t with
