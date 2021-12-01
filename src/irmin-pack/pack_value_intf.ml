@@ -15,14 +15,15 @@ module type S = sig
 
   val encode_bin :
     dict:(string -> int option) ->
-    offset:(key -> int63 option) ->
-    t ->
+    offset_of_key:(key -> int63 option) ->
     hash ->
-    (string -> unit) ->
-    unit
+    t Irmin.Type.encode_bin
 
   val decode_bin :
-    dict:(int -> string option) -> hash:(int63 -> key) -> string -> int ref -> t
+    dict:(int -> string option) ->
+    key_of_offset:(int63 -> key) ->
+    key_of_hash:(hash -> key) ->
+    t Irmin.Type.decode_bin
 
   val decode_bin_length : string -> int -> int
 end

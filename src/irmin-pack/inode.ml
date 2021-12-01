@@ -1170,31 +1170,31 @@ struct
       | Unknown | Static _ -> assert false
       | Dynamic f -> f
 
-    let encode_bin ~dict ~offset (t : t) k =
+    let encode_bin ~dict ~offset_of_key hash (t : t) =
       Stats.incr_inode_encode_bin ();
       let step s : Compress.name =
         let str = step_to_bin s in
         if String.length str <= 3 then Direct s
         else match dict str with Some i -> Indirect i | None -> Direct s
       in
-      let hash h : Compress.address =
-        match offset h with
-        | None -> Compress.Direct h
+      let address_of_key key : Compress.address =
+        match offset_of_key key with
+        | None -> Compress.Direct hash
         | Some off -> Compress.Indirect off
       in
       let ptr : Bin.ptr -> Compress.ptr =
        fun n ->
-        let hash = hash n.hash in
+        let hash = address_of_key n.hash in
         { index = n.index; hash }
       in
       let value : T.step * T.value -> Compress.value = function
         | s, `Contents (c, m) ->
             let s = step s in
-            let v = hash c in
+            let v = address_of_key c in
             Compress.Contents (s, v, m)
         | s, `Node n ->
             let s = step s in
-            let v = hash n in
+            let v = address_of_key n in
             Compress.Node (s, v)
       in
       (* List.map is fine here as the number of entries is small *)
@@ -1204,12 +1204,12 @@ struct
             let entries = List.map ptr entries in
             Tree { Compress.depth; length; entries }
       in
-      let t = Compress.v ~root:t.root ~hash:k (v t.v) in
+      let t = Compress.v ~root:t.root ~hash (v t.v) in
       encode_compress t
 
     exception Exit of [ `Msg of string ]
 
-    let decode_bin ~dict ~hash t off =
+    let decode_bin ~dict ~key_of_offset ~key_of_hash:_ t off =
       Stats.incr_inode_decode_bin ();
       let i = decode_compress t off in
       let step : Compress.name -> T.step = function
@@ -1223,7 +1223,7 @@ struct
                 | Ok v -> v))
       in
       let hash : Compress.address -> H.t = function
-        | Indirect off -> hash off
+        | Indirect off -> key_of_offset off
         | Direct n -> n
       in
       let ptr : Compress.ptr -> Bin.ptr =

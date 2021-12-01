@@ -87,9 +87,11 @@ struct
   let value = [%typ: (Hash.t, Data.t) value]
   let encode_value = Irmin.Type.(unstage (encode_bin value))
   let decode_value = Irmin.Type.(unstage (decode_bin value))
-  let encode_bin ~dict:_ ~offset:_ v hash = encode_value { kind; hash; v }
 
-  let decode_bin ~dict:_ ~hash:_ s off =
+  let encode_bin ~dict:_ ~offset_of_key:_ hash v f =
+    encode_value { kind; hash; v } f
+
+  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ s off =
     let t = decode_value s off in
     t.v
 
