@@ -36,25 +36,9 @@ module Irmin_pack_maker : Irmin.Maker = struct
   end)
 end
 
-module Irmin_pack_layered = struct
-  include Irmin_pack_layered.Maker (Config)
-
-  module Make (Schema : Irmin.Schema.S) = Make (struct
-    include Schema
-    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-    module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
-    module Commit = Commit_maker.Make (Hash)
-  end)
-end
-
 let suite_pack =
   let store =
     Irmin_test.store (module Irmin_pack_maker) (module Irmin.Metadata.None)
-  in
-  let layered_store =
-    Irmin_test.layered_store
-      (module Irmin_pack_layered)
-      (module Irmin.Metadata.None)
   in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
   let init () =
@@ -66,7 +50,7 @@ let suite_pack =
     Lwt.return_unit
   in
   Irmin_test.Suite.create ~name:"PACK" ~init ~store ~config ~clean
-    ~layered_store:(Some layered_store) ()
+    ~layered_store:None ()
 
 module Irmin_pack_mem_maker = struct
   include Irmin_pack_mem.Maker (Config)
@@ -679,7 +663,6 @@ let misc =
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
     ("existing stores", Test_existing_stores.tests);
-    ("layers", Layered.tests);
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);
   ]
