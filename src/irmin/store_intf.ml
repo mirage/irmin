@@ -353,16 +353,20 @@ module type S = sig
          and type contents := contents
          and type node := node
          and type hash := hash
+         and type Proof.tree_proof = (contents, hash, step, metadata) Proof.tree
 
     (** {1 Import/Export} *)
 
     val hash : ?cache:bool -> tree -> hash
-    (** [hash r c] it [c]'s hash in the repository [r]. *)
+    (** [hash c] is [c]'s hash. *)
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
     (** Hashes in the Irmin store are tagged with the type of the value they
         reference (either {!contents} or {!node}). In the [contents] case, the
         hash is paired with corresponding {!metadata}. *)
+
+    val kinded_hash : ?cache:bool -> tree -> kinded_hash
+    (** [kinded_hash t] is [c]'s kinded hash. *)
 
     val of_hash : Repo.t -> kinded_hash -> tree option Lwt.t
     (** [of_hash r h] is the the tree object in [r] having [h] as hash, or
@@ -371,6 +375,35 @@ module type S = sig
     val shallow : Repo.t -> kinded_hash -> tree
     (** [shallow r h] is the shallow tree object with the hash [h]. No check is
         performed to verify if [h] actually exists in [r]. *)
+
+    (** {1 Proofs} *)
+
+    val produce_proof :
+      repo -> kinded_hash -> (tree -> tree Lwt.t) -> Proof.t Lwt.t
+    (** [produce r h f] runs [f] on top of a real store [r], producing a proof
+        using the initial root hash [h].
+
+        The trees produced during [f]'s computation will carry the full history
+        of reads. This history will be reset when [f] is complete so subtrees
+        escaping the scope of [f] will not cause memory leaks.
+
+        It is possible to call [produce_proof] recursively. In that case, each
+        input trees will have their own history of reads and will contain only
+        the reads needed to unshallow that corresponding trees. Proof trees
+        proof should then interact as if they were all unshallowed (note: in the
+        case of nested proofs, it's unclear what [verify_proof] should do...). *)
+
+    val verify_proof : Proof.t -> (tree -> tree Lwt.t) -> tree Lwt.t
+    (** [verify t f] runs [f] in checking mode, loading data from the proof as
+        needed.
+
+        The generated tree is the tree after [f] has completed. More operations
+        can be run on that tree, but it won't be able to access the underlying
+        storage.
+
+        Reject the proof by raising [Proof.Bad_proof] unless the given
+        computation performs exactly the same state operations as the generating
+        computation, *in some order*. *)
   end
 
   (** {1 Reads} *)

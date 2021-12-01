@@ -326,20 +326,19 @@ module type S = sig
   (** {1 Proofs} *)
 
   module Proof : sig
-    type tree
-    type t = (hash, step, metadata) Proof.t [@@deriving irmin]
+    include
+      Proof.S
+        with type contents := contents
+         and type hash := hash
+         and type step := step
+         and type metadata := metadata
+         and type tree_proof = (contents, hash, step, metadata) Proof.tree
 
-    val of_tree : tree -> t
-    (** [of_tree t] is the proof representing the tree [t]. Shallow hashes will
-        be blinded. *)
+    type tree
 
     val to_tree : t -> tree
-    (** [of_proof p] is the tree representing the proof [p]. Blinded parts of
-        the proof will raise [Dangling_hash] when traversed. *)
-
-    val of_keys : tree -> key list -> t Lwt.t
-    (** [of_keys t keys] is the minimal proof that can be used to prove that
-        operations over the domain [keys] are valid with [t]. *)
+    (** [to_tree p] is the tree representing the tree proof [p]. Blinded parts
+        of the proof will raise [Dangling_hash] when traversed. *)
   end
   with type tree := t
 
@@ -372,6 +371,21 @@ module type S = sig
   val dump_counters : unit Fmt.t
   val reset_counters : unit -> unit
   val inspect : t -> [ `Contents | `Node of [ `Map | `Hash | `Value | `Pruned ] ]
+
+  (** / *)
+
+  (** Internals Useful for testing purposes only. *)
+
+  module Env : sig
+    type t [@@deriving irmin]
+    type read_set
+
+    val is_empty : t -> bool
+    val read_set : t -> read_set option
+    val length : t -> int
+  end
+
+  val get_env : t -> Env.t
 end
 
 module type Tree = sig
@@ -388,6 +402,12 @@ module type Tree = sig
          and type metadata = P.Node.Metadata.t
          and type contents = P.Contents.value
          and type hash = P.Hash.t
+         and type Proof.tree_proof =
+              ( P.Contents.value,
+                P.Hash.t,
+                P.Node.Path.step,
+                P.Node.Metadata.t )
+              Proof.tree
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
 
@@ -409,5 +429,10 @@ module type Tree = sig
     val hash : ?cache:bool -> t -> kinded_hash
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
+
+    val produce_proof :
+      P.Repo.t -> kinded_hash -> (t -> t Lwt.t) -> Proof.t Lwt.t
+
+    val verify_proof : Proof.t -> (t -> t Lwt.t) -> t Lwt.t
   end
 end

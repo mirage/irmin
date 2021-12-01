@@ -1145,7 +1145,11 @@ struct
 
       let of_proof (proof : proof) =
         let c = concrete_of_proof 0 proof in
-        of_concrete_exn c
+        match of_concrete c with
+        | Ok v -> v
+        | Error e ->
+            Fmt.kstr Irmin.Proof.bad_proof_exn "Irmin_pack.Inode.of_proof: %a"
+              Concrete.pp_error e
 
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof 0
