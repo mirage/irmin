@@ -40,7 +40,7 @@ module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
 module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
 
 module Contents_value =
-  Irmin_pack.Pack_value.Of_contents (H) (Key) (Schema.Contents)
+  Irmin_pack.Pack_value.Of_contents (Conf) (H) (Key) (Schema.Contents)
 
 module Contents_store = P.Make (Contents_value)
 
