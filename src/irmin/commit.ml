@@ -588,7 +588,8 @@ module V1 = struct
       |> sealr
   end
 
-  module Make (C : Generic_key.S with module Info := Info) = struct
+  module Make (Hash : Hash.S) (C : Generic_key.S with module Info := Info) =
+  struct
     module K (K : Type.S) = struct
       let h = Type.string_of `Int64
       let hash_to_bin_string = Type.(unstage (to_bin_string K.t))
@@ -607,16 +608,16 @@ module V1 = struct
           | Ok v -> v
           | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
 
-      type t = K.t
+      type t = K.t [@@deriving irmin ~pre_hash]
 
-      let pre_hash = Type.(unstage (pre_hash K.t))
-
-      let pre_hash t f =
-        let f x =
-          f "\000\000\000\000\000\000\000 ";
-          f x
+      let pre_hash x f =
+        let () =
+          let b = Bytes.create 8 in
+          Bytes.set_int64_be b 0 (Int64.of_int Hash.hash_size);
+          let b = Bytes.unsafe_to_string b in
+          f b
         in
-        pre_hash t f
+        pre_hash x f
 
       let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of) ~pre_hash
     end
