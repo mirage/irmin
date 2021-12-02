@@ -658,6 +658,7 @@ end
 
 let misc =
   [
+    ("hashes", Test_hashes.tests);
     ("dict-files", Dict.tests);
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
