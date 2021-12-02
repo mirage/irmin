@@ -115,8 +115,10 @@
     their hash. In particular, this includes:
     - New functions: `Store.{Commit,Contents,Tree}.of_key`.
     - Adds `Irmin.{Node,Commit}.Generic_key` modules.
-    - Adds a new type that must be provided by backends: `Node.Portable`.
+    - Adds new types that must be provided by backends: `Node.Portable` and
+      `Commit.Portable`.
     - Adds a new type of backend store: `Irmin.Indexable.S`.
+    (#1510 #1647, @CraigFe)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

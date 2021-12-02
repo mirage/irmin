@@ -51,6 +51,14 @@ module type S = sig
   include S_generic_key with type node_key = hash and type commit_key = hash
 end
 
+module type Portable = sig
+  include S
+
+  type commit
+
+  val of_commit : commit -> t
+end
+
 open struct
   module S_is_a_generic_key (X : S) : S_generic_key = X
 end
@@ -61,11 +69,16 @@ module type Maker_generic_key = sig
   module Make
       (H : Type.S)
       (N : Key.S with type hash = H.t)
-      (C : Key.S with type hash = H.t) :
-    S_generic_key
-      with type node_key = N.t
-       and type commit_key = C.t
-       and module Info = Info
+      (C : Key.S with type hash = H.t) : sig
+    include
+      S_generic_key
+        with type node_key = N.t
+         and type commit_key = C.t
+         and module Info = Info
+
+    module Portable :
+      Portable with type commit := t and type hash := H.t and module Info = Info
+  end
 end
 
 module type Maker = sig
@@ -242,6 +255,26 @@ module type Sigs = sig
       val import : C.t -> t
       val export : t -> C.t
     end
+  end
+
+  module Portable : sig
+    (** Portable form of a commit implementation that can be constructed from a
+        concrete representation and used in computing hashes. Conceptually, a
+        [Commit.Portable.t] is a [Commit.t] in which all internal keys have been
+        replaced with the hashes of the values they point to.
+
+        As with {!Node.Portable}, computations over portable values must commute
+        with those over [t]s. *)
+
+    (** A node implementation with hashes for keys is trivially portable: *)
+    module Of_commit (S : S) :
+      Portable
+        with type commit := S.t
+         and type t = S.t
+         and type hash = S.hash
+         and module Info = S.Info
+
+    module type S = Portable
   end
 
   module type Store = Store

@@ -81,10 +81,14 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
 
       module Commit = struct
         module Commit_maker = Commit.Generic_key.Maker (Schema.Info)
-        module C = Commit_maker.Make (S.Hash) (Node_key) (Commit_key)
-        module Backend = Backend.Commit_store.Make (S.Hash) (C)
-        include Commit.Generic_key.Store (S.Info) (Node) (Backend) (S.Hash) (C)
+        module Value = Commit_maker.Make (S.Hash) (Node_key) (Commit_key)
+        module Backend = Backend.Commit_store.Make (S.Hash) (Value)
+
+        include
+          Commit.Generic_key.Store (S.Info) (Node) (Backend) (S.Hash) (Value)
       end
+
+      module Commit_portable = Commit.Value.Portable
 
       module Branch = struct
         module Val = Commit.Key
