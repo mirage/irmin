@@ -247,68 +247,17 @@ module Test_reconstruct = struct
     check_repo r archive >>= fun () -> S.Repo.close r
 end
 
-module Config_layered_store = struct
-  (** the empty store is to simulate the scenario where upper0 is non existing.
-      TODO make the test pass with an actual non existing upper0. *)
-  let root_v1_archive, empty_store, root_v1, upper1, upper0, lower =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
-      v "test" / "irmin-pack" / "data" / "empty_store" |> to_string,
-      v "_build" / "test_layers_migrate_1_to_2" |> to_string,
-      v "_build" / "test_layers_migrate_1_to_2" / "upper1" |> to_string,
-      v "_build" / "test_layers_migrate_1_to_2" / "upper0" |> to_string,
-      v "_build" / "test_layers_migrate_1_to_2" / "lower" |> to_string )
-
-  let setup_test_env () =
-    goto_project_root ();
-    rm_dir root_v1;
-    let cmd = Filename.quote_command "mkdir" [ root_v1 ] in
-    exec_cmd cmd;
-    let cmd =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; upper1 ]
-    in
-    exec_cmd cmd;
-    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; empty_store; upper0 ] in
-    exec_cmd cmd;
-    let cmd =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; lower ]
-    in
-    exec_cmd cmd
-end
-
-module Make_layered = struct
-  open Irmin_pack_layered.Maker (Conf)
-  include Make (Schema)
-end
-
-module Test_layered_store = Test (Make_layered) (Config_layered_store)
-
 module Test_corrupted_stores = struct
-  let root_archive, root, root_layers, upper1, upper0, lower =
+  let root_archive, root =
     let open Fpath in
     ( v "test" / "irmin-pack" / "data" / "corrupted" |> to_string,
-      v "_build" / "test_integrity" |> to_string,
-      v "_build" / "test_integrity_layers" |> to_string,
-      v "_build" / "test_integrity_layers" / "upper1" |> to_string,
-      v "_build" / "test_integrity_layers" / "upper0" |> to_string,
-      v "_build" / "test_integrity_layers" / "lower" |> to_string )
+      v "_build" / "test_integrity" |> to_string )
 
   let setup_test_env () =
     goto_project_root ();
     rm_dir root;
     let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
     exec_cmd cmd
-
-  let setup_test_env_layered_store () =
-    rm_dir root_layers;
-    let copy_root_archive dst =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_archive; dst ] |> exec_cmd
-    in
-    let cmd = Filename.quote_command "mkdir" [ root_layers ] in
-    exec_cmd cmd;
-    copy_root_archive upper1;
-    copy_root_archive upper0;
-    copy_root_archive lower
 
   let test () =
     setup_test_env ();
@@ -327,105 +276,6 @@ module Test_corrupted_stores = struct
     | Ok `No_error -> ()
     | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
-
-  let test_layered_store () =
-    setup_test_env_layered_store ();
-    let module S = Make_layered in
-    let* rw = S.Repo.v (config ~fresh:false root_layers) in
-    [%log.app
-      "integrity check on a layered store where 3 entries are missing from the \
-       pack file of each layer"];
-    S.integrity_check ~auto_repair:false rw
-    |> List.iter (function
-         | Ok `No_error, _ ->
-             Alcotest.fail "Store is corrupted, the check should fail"
-         | Error (`Corrupted 3), _ -> ()
-         | _ -> Alcotest.fail "With auto_repair:false should not match");
-    S.integrity_check ~auto_repair:true rw
-    |> List.iter (function
-         | Ok (`Fixed 3), _ -> ()
-         | _ -> Alcotest.fail "Integrity check should repair the store");
-    S.integrity_check ~auto_repair:false rw
-    |> List.iter (function
-         | Ok `No_error, _ -> ()
-         | _ -> Alcotest.fail "Store is repaired, should return Ok");
-    S.Repo.close rw
-
-  let empty_store, root, lock_file =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "empty_store" |> to_string,
-      v "_build" / "test_freeze_lock" |> to_string,
-      v "_build" / "test_freeze_lock" / "lock" |> to_string )
-
-  let setup_test () =
-    goto_project_root ();
-    rm_dir root;
-    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; empty_store; root ] in
-    exec_cmd cmd;
-    let cmd = Filename.quote_command "touch" [ lock_file ] in
-    exec_cmd cmd
-
-  let test_freeze_lock () =
-    setup_test ();
-    let module S = Make_layered in
-    let add_commit repo k v =
-      S.Tree.singleton k v |> S.Commit.v repo ~parents:[] ~info:S.Info.empty
-    in
-    let check_commit repo commit k v =
-      commit |> S.Commit.key |> S.Commit.of_key repo >>= function
-      | None ->
-          Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash
-            commit
-      | Some commit ->
-          let tree = S.Commit.tree commit in
-          S.Tree.find tree k
-          >|= Alcotest.(check (option string))
-                (Fmt.str "Expected binding [%a ↦ %s]"
-                   Fmt.(Dump.list string)
-                   k v)
-                (Some v)
-    in
-    let check_upper repo msg exp =
-      let got = S.Backend_layer.upper_in_use repo in
-      let cast x = (x :> [ `Upper0 | `Upper1 | `Lower ]) in
-      if not (got = exp) then
-        Alcotest.failf "%s expected %a got %a" msg Irmin_layers.Layer_id.pp
-          (cast exp) Irmin_layers.Layer_id.pp (cast got)
-    in
-    let* rw = S.Repo.v (config ~fresh:false root) in
-    let* ro = S.Repo.v (config ~fresh:false ~readonly:true root) in
-    [%log.app "Open a layered store aborted during a freeze"];
-    Alcotest.(check bool) "Store needs recovery" true (S.needs_recovery rw);
-    check_upper rw "Upper before recovery" `Upper1;
-    let* c = add_commit rw [ "a" ] "x" in
-    S.sync ro;
-    check_commit ro c [ "a" ] "x" >>= fun () ->
-    [%log.app "Freeze with recovery flag set"];
-    let* () =
-      S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
-      S.Backend_layer.wait_for_freeze rw
-    in
-    Alcotest.(check bool)
-      "Store doesn't need recovery" false (S.needs_recovery rw);
-    check_upper rw "Upper after recovery" `Upper0;
-    check_commit rw c [ "a" ] "x" >>= fun () ->
-    S.sync ro;
-    check_commit ro c [ "a" ] "x" >>= fun () ->
-    check_upper ro "RO upper after recovery" `Upper0;
-    let* c = add_commit rw [ "b" ] "y" in
-    [%log.app
-      "If recovery flag is set, freeze proceeds with recovery even when it \
-       isn't needed"];
-    let* () =
-      S.freeze ~recovery:true ~max_lower:[ c ] rw >>= fun () ->
-      S.Backend_layer.wait_for_freeze rw
-    in
-    check_upper rw "Upper after freeze" `Upper1;
-    check_commit rw c [ "b" ] "y" >>= fun () ->
-    S.sync ro;
-    check_upper ro "RO upper after freeze" `Upper1;
-    let* () = check_commit ro c [ "b" ] "y" in
-    S.Repo.close rw >>= fun () -> S.Repo.close ro
 end
 
 module Test_corrupted_inode = struct
@@ -479,14 +329,8 @@ let tests =
         Lwt_main.run (Test_store.v1_to_v2 ()));
     Alcotest.test_case "Test index reconstuction" `Quick (fun () ->
         Lwt_main.run (Test_reconstruct.test_reconstruct ()));
-    Alcotest.test_case "Test layered store migration V1 to V2" `Quick (fun () ->
-        Lwt_main.run (Test_layered_store.v1_to_v2 ()));
     Alcotest.test_case "Test integrity check" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_stores.test ()));
-    Alcotest.test_case "Test integrity check on layered stores" `Quick
-      (fun () -> Lwt_main.run (Test_corrupted_stores.test_layered_store ()));
-    Alcotest.test_case "Test freeze lock on layered stores" `Quick (fun () ->
-        Lwt_main.run (Test_corrupted_stores.test_freeze_lock ()));
     Alcotest.test_case "Test integrity check for inodes" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_inode.test ()));
   ]
