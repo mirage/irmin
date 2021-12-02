@@ -168,6 +168,12 @@
   - Add new commands to CLI: `branches` for listing available branches and
     `log` which is similar to `git log` (#1609, @zshipko)
 
+### Removed
+
+- **irmin-pack**
+  - Removed the `irmin-pack.layered` library. Support for the layered store
+    will be restored on a future release of `irmin-pack`. (#1651, @CraigFe)
+
 ## 2.7.2 (2021-07-20)
 
 ### Added
