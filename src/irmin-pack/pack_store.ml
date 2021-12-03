@@ -47,6 +47,8 @@ let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 module Varint = struct
   type t = int [@@deriving irmin ~decode_bin]
 
+  (** LEB128 stores 7 bits per byte. An OCaml [int] has at most 63 bits.
+      [63 / 7] equals [9]. *)
   let max_encoded_size = 9
 end
 
@@ -292,6 +294,10 @@ module Maker
                 "invalid key %a checked for membership (read hash %a at this \
                  offset instead)"
                 pp_key k pp_hash hash;
+            (* At this point we consider the key to be contained in the pack
+               file. However, we could also be in the presence of a forged (or
+               unlucky) key that points to an offset that mimics a real pack
+               entry (e.g. in the middle of a blob). *)
             true
 
     let unsafe_mem t k =
@@ -314,7 +320,7 @@ module Maker
       let () =
         if not (IO.readonly t.pack.block) then
           let io_offset = IO.offset t.pack.block in
-          if off > io_offset then
+          if Int63.add off (Int63.of_int len) > io_offset then
             (* This is likely a store corruption. We raise [Invalid_read]
                specifically so that [integrity_check] below can handle it. *)
             invalid_read
@@ -451,8 +457,7 @@ module Maker
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset_of_key ~dict hash v (fun s ->
-            IO.append t.pack.block s);
+        Val.encode_bin ~offset_of_key ~dict hash v (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
         let () =

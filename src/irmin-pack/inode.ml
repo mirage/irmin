@@ -159,7 +159,7 @@ struct
     open T
 
     (** Distinguishes between the two possible modes of binary value. *)
-    type 'vref mode = Ptr_key : key mode | Ptr_any : Val_ref.t mode
+    type _ mode = Ptr_key : key mode | Ptr_any : Val_ref.t mode
 
     type 'vref with_index = { index : int; vref : 'vref } [@@deriving irmin]
 
@@ -1238,7 +1238,7 @@ struct
            This parameter is not exposed yet. Ideally it would be exposed and
            be forwarded from [Tree.export ?clear] through [P.Node.add].
 
-           It is currently set to true in order to preserve behaviour *)
+           It is currently set to false in order to preserve behaviour *)
         false
       in
       let iter_entries =
@@ -1392,7 +1392,10 @@ struct
       let address_of_key key : Compress.address =
         match offset_of_key key with
         | None -> Compress.Direct (Key.to_hash key)
-        | Some off -> Compress.Indirect off
+        | Some off ->
+           (* The key references an inode/contents that is not in the pack
+              file. This is highly unusual but not forbidden. *)
+           Compress.Indirect off
       in
       let ptr : T.key Bin.with_index -> Compress.ptr =
        fun n ->

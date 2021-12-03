@@ -68,7 +68,11 @@ module type Sigs = sig
 
         - the length of the binary encoding of the {i object} inside the pack
           entry (i.e. not accounting for the encoded hash and kind character);
-        - the kind of the pack object having been added. *)
+        - the kind of the pack object having been added.
+
+        Indexing more than the {!minimal} strategy only impacts performance and
+        not correctness: more indexing results in a larger index and a smaller
+        pack file. *)
 
     val always : t
     (** The strategy that indexes all objects. *)
