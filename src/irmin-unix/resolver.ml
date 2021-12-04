@@ -148,6 +148,7 @@ module Hash = struct
         ("sha256", Fixed (module Irmin.Hash.SHA256 : Irmin.Hash.S));
         ("sha384", Fixed (module Irmin.Hash.SHA384 : Irmin.Hash.S));
         ("sha512", Fixed (module Irmin.Hash.SHA512 : Irmin.Hash.S));
+        ("tezos", Fixed (module Irmin_tezos.Schema.Hash : Irmin.Hash.S));
       ]
 
   let default = ref ("blake2b", (module Irmin.Hash.BLAKE2B : Irmin.Hash.S))
@@ -281,6 +282,8 @@ module Store = struct
 
   let pack = create (module Irmin_pack.V1 (Inode_config))
 
+  let tezos = T ((module Irmin_tezos.Store), None)
+
   let all =
     ref
       [
@@ -291,6 +294,7 @@ module Store = struct
         ("http", Variable_hash (fun h c -> http (mem h c)));
         ("http.git", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
+        ("tezos", Fixed_hash (fun _ -> tezos));
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
