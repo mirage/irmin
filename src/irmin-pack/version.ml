@@ -35,3 +35,11 @@ let of_bin b =
   with Not_found -> None
 
 exception Invalid of { expected : t; found : t }
+
+let () =
+  Printexc.register_printer (function
+    | Invalid { expected; found } ->
+        Some
+          (Fmt.str "%s.Invalid { expected = %a; found = %a }" __MODULE__ pp
+             expected pp found)
+    | _ -> None)
