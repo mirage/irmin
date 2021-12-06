@@ -35,7 +35,7 @@ module Simple = struct
   module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 
   module Store = struct
-    open Irmin_pack.V2 (Conf)
+    open Irmin_pack.Maker (Conf)
     include Make (Schema)
   end
 

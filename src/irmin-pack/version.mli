@@ -16,8 +16,10 @@
 
 (** Management of disk-format versions. *)
 
-type t = [ `V1 | `V2 ]
+type t = [ `V1 ] [@@deriving irmin]
 (** The type for version numbers. *)
+
+val latest : t
 
 val pp : t Fmt.t
 (** [pp] is the pretty-format for version numbers. *)
@@ -32,10 +34,3 @@ val invalid_arg : string -> 'a
 (** [invalid_arg str] raises [Invalid_argument]. *)
 
 exception Invalid of { expected : t; found : t }
-
-module type S = sig
-  val version : t
-end
-
-module V1 : S
-module V2 : S

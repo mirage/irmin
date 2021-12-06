@@ -16,22 +16,18 @@
 
 open! Import
 
-type headers = { offset : int63; generation : int63 }
-
 module type S = sig
   type t
   type path := string
 
   val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
   val name : t -> string
-  val clear : ?keep_generation:unit -> t -> unit
   val append : t -> string -> unit
   val set : t -> off:int63 -> string -> unit
   val read : t -> off:int63 -> bytes -> int
   val read_buffer : t -> off:int63 -> buf:bytes -> len:int -> int
   val offset : t -> int63
-  val generation : t -> int63
-  val force_headers : t -> headers
+  val force_offset : t -> int63
   val readonly : t -> bool
   val version : t -> Version.t
   val flush : t -> unit
@@ -41,20 +37,10 @@ module type S = sig
 
   val truncate : t -> unit
   (** Sets the length of the underlying IO to be 0, without actually purging the
-      associated data. Not supported for stores beyond [`V1], which should use
-      {!clear} instead. *)
-
-  val migrate :
-    progress:(int63 -> unit) ->
-    t ->
-    Version.t ->
-    (unit, [> `Msg of string ]) result
-  (** @raise Invalid_arg if the migration path is not supported. *)
+      associated data. *)
 end
 
 module type Sigs = sig
-  type nonrec headers = headers
-
   module type S = S
 
   module Unix : S

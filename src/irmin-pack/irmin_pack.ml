@@ -31,19 +31,14 @@ module Maker_ext = Ext.Maker
 module Version = Version
 module Index = Pack_index
 module Conf = Conf
-
-let migrate = Migrate.run
-
 module Maker = Maker_ext
-module V1 = Maker (Version.V1)
-module V2 = Maker (Version.V2)
 
-module KV (V : Version.S) (Config : Conf.S) = struct
+module KV (Config : Conf.S) = struct
   type endpoint = unit
   type hash = Irmin.Schema.default_hash
 
   include Pack_key.Store_spec
-  module Maker = Maker (V) (Config)
+  module Maker = Maker (Config)
 
   type metadata = Metadata.t
 

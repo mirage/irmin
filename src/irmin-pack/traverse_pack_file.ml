@@ -44,7 +44,6 @@ end = struct
 end
 
 module type Args = sig
-  module Version : Version.S
   module Hash : Irmin.Hash.S
   module Index : Pack_index.S with type key := Hash.t
   module Inode : Inode.S with type hash := Hash.t
@@ -276,7 +275,8 @@ end = struct
     let root = Conf.root config in
     let pack_file = Filename.concat root "store.pack" in
     let pack =
-      IO.v ~fresh:false ~readonly:true ~version:(Some Version.version) pack_file
+      IO.v ~fresh:false ~readonly:true
+        ~version:(Some Pack_store.selected_version) pack_file
     in
     let total = IO.offset pack in
     let bar, progress =

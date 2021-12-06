@@ -24,6 +24,8 @@ module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   let hash = short_hash ?seed:None
 end)
 
+let current_version = `V1
+
 module Value = struct
   module type S = Value
 
@@ -37,8 +39,7 @@ module Value = struct
   end
 end
 
-module Make_persistent (Current : Version.S) (K : Irmin.Type.S) (V : Value) =
-struct
+module Make_persistent (K : Irmin.Type.S) (V : Value) = struct
   module Tbl = Table (K)
   module W = Irmin.Backend.Watch.Make (K) (V)
   module IO = IO.Unix
@@ -122,21 +123,8 @@ struct
 
   let sync_offset t =
     let former_offset = IO.offset t.block in
-    let former_generation = IO.generation t.block in
-    let h = IO.force_headers t.block in
-    if former_generation <> h.generation then (
-      [%log.debug "[branches] generation changed, refill buffers"];
-      IO.close t.block;
-      let io =
-        IO.v ~fresh:false ~readonly:true ~version:(Some Current.version)
-          (IO.name t.block)
-      in
-      t.block <- io;
-      Tbl.clear t.cache;
-      Tbl.clear t.index;
-      refill t ~to_:h.offset ~from:Int63.zero)
-    else if h.offset > former_offset then
-      refill t ~to_:h.offset ~from:former_offset
+    let offset = IO.force_offset t.block in
+    if offset > former_offset then refill t ~to_:offset ~from:former_offset
 
   let unsafe_find t k =
     [%log.debug "[branches] find %a" pp_key k];
@@ -163,25 +151,6 @@ struct
     unsafe_remove t k;
     W.notify t.w k None
 
-  let unsafe_clear ?keep_generation t =
-    Lwt.async (fun () -> W.clear t.w);
-    match Current.version with
-    | `V1 -> IO.truncate t.block
-    | `V2 ->
-        IO.clear ?keep_generation t.block;
-        Tbl.clear t.cache;
-        Tbl.clear t.index
-
-  let clear t =
-    [%log.debug "[branches] clear"];
-    unsafe_clear t;
-    Lwt.return_unit
-
-  let clear_keep_generation t =
-    [%log.debug "[branches] clear"];
-    unsafe_clear ~keep_generation:() t;
-    Lwt.return_unit
-
   let watches = W.v ()
 
   let valid t =
@@ -191,18 +160,24 @@ struct
     else false
 
   let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:(Some Current.version) ~readonly file in
+    let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
-    let h = IO.force_headers block in
-    refill t ~to_:h.offset ~from:Int63.zero;
+    let offset = IO.force_offset block in
+    refill t ~to_:offset ~from:Int63.zero;
     t
 
+  let clear _ = Fmt.failwith "Unsupported operation"
+
   let Cache.{ v = unsafe_v } =
-    Cache.memoize ~clear:unsafe_clear ~valid
-      ~v:(fun () -> unsafe_v)
-      Layout.branch
+    let clear t =
+      Lwt.async (fun () -> W.clear t.w);
+      Tbl.clear t.cache;
+      Tbl.clear t.index;
+      IO.truncate t.block
+    in
+    Cache.memoize ~valid ~clear ~v:(fun () -> unsafe_v) Layout.branch
 
   let v ?fresh ?readonly file = Lwt.return (unsafe_v () ?fresh ?readonly file)
 
@@ -323,8 +298,4 @@ module Closeable (AW : S) = struct
   let flush t =
     check_not_closed t;
     AW.flush t.t
-
-  let clear_keep_generation t =
-    check_not_closed t;
-    AW.clear_keep_generation t.t
 end

@@ -49,8 +49,7 @@ struct
   module Inter =
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
-  module P =
-    Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (Schema.Hash)
+  module P = Irmin_pack.Pack_store.Maker (Index) (Schema.Hash)
 
   module Inode =
     Irmin_pack.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (P)

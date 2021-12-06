@@ -20,16 +20,14 @@ module type S = sig
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 end
 
-module Make (V : Version.S) = struct
-  include Dict.Make (V) (IO.Unix)
+include Dict.Make (IO.Unix)
 
-  (* Add IO caching around Dict.v *)
-  let IO.Cache.{ v } =
-    let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
-    IO.Cache.memoize ~clear ~valid
-      ~v:(fun capacity -> v_no_cache ~capacity)
-      Layout.dict
+(* Add IO caching around Dict.v *)
+let IO.Cache.{ v } =
+  let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
+  IO.Cache.memoize ~clear:truncate ~valid
+    ~v:(fun capacity -> v_no_cache ~capacity)
+    Layout.dict
 
-  let v ?fresh ?readonly ?(capacity = 100_000) root =
-    v capacity ?fresh ?readonly root
-end
+let v ?fresh ?readonly ?(capacity = 100_000) root =
+  v capacity ?fresh ?readonly root

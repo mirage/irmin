@@ -74,32 +74,17 @@ module Maker (K : Irmin.Hash.S) = struct
     type hash = K.t
     type key = Key.t
     type value = Val.t
-
-    type 'a t = {
-      name : string;
-      mutable t : value KMap.t;
-      mutable generation : int63;
-    }
+    type 'a t = { name : string; mutable t : value KMap.t }
 
     let index_direct _ h = Some h
     let index t h = Lwt.return (index_direct t h)
-
-    let instances =
-      Pool.create ~alloc:(fun name ->
-          { name; t = KMap.empty; generation = Int63.zero })
-
+    let instances = Pool.create ~alloc:(fun name -> { name; t = KMap.empty })
     let v name = Lwt.return (Pool.take instances name)
     let equal_key = Irmin.Type.(unstage (equal K.t))
-
-    let clear_keep_generation t =
-      [%log.debug "clear_keep_generation"];
-      t.t <- KMap.empty;
-      Lwt.return_unit
 
     let clear t =
       [%log.debug "clear"];
       t.t <- KMap.empty;
-      t.generation <- Int63.succ t.generation;
       Lwt.return_unit
 
     let close t =
@@ -152,6 +137,5 @@ module Maker (K : Irmin.Hash.S) = struct
       Lwt.return (unsafe_append ~ensure_unique:true ~overcommit:true t k v)
 
     let add t v = unsafe_add t (Val.hash v) v
-    let generation t = t.generation
   end
 end

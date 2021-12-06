@@ -47,7 +47,7 @@ let check_iter iter_type (iter : 'a -> (string -> unit) -> unit) v checks =
 
 module Test (Conf : Irmin_pack.Conf.S) = struct
   module Store = struct
-    module Maker = Irmin_pack.Maker_ext (Irmin_pack.Version.V1) (Conf)
+    module Maker = Irmin_pack.Maker (Conf)
     include Maker.Make (Irmin_tezos.Schema)
   end
 

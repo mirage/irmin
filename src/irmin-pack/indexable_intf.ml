@@ -32,11 +32,6 @@ module type S = sig
 
   val unsafe_mem : 'a t -> key -> bool
   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
-
-  val generation : 'a t -> int63
-  (** The number of times that {!clear} has been called on this store. *)
-
-  val clear_keep_generation : 'a t -> unit Lwt.t
 end
 
 module type Maker = sig
