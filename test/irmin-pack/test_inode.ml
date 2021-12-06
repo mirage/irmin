@@ -581,12 +581,14 @@ module Inode_tezos = struct
         let bar = Bytes.make 10 '1'
       end)
 
-  let dict _ = None
-  let offset _ = None
-
   let encode_bin h v =
     let v1 = S.Inter.Val.to_raw v in
-    S.Inter.Raw.encode_bin ~dict ~offset v1 h
+    S.Inter.Raw.encode_bin
+      ~dict:(fun _ -> None)
+      ~offset_of_key:(fun _ -> None)
+      h v1
+
+  let hex_encode s = Hex.of_string s |> Hex.show
 
   let test_encode_bin_values () =
     rm_dir root;
@@ -594,15 +596,16 @@ module Inode_tezos = struct
     let { S.Context.foo; _ } = t in
     let v = S.Inode.Val.of_list [ ("x", normal foo); ("z", normal foo) ] in
     let h = S.Inter.Val.hash v in
-    let to_bin_string_hash =
+    let hash_to_bin_string =
       Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
     in
-    let hex_of_h = h |> to_bin_string_hash |> Hex.of_string |> Hex.show in
-    let hex_of_foo = foo |> to_bin_string_hash |> Hex.of_string |> Hex.show in
+    let hex_of_h = h |> hash_to_bin_string |> hex_encode in
+    let hex_of_foo = foo |> hash_to_bin_string |> hex_encode in
     let checks =
       [
         ("hash", hex_of_h);
-        ("magic N", "4e");
+        ("magic R", hex_encode "R");
+        ("data length", "48");
         ("Values", "00");
         ("length", "02");
         ("contents-x-dd", "09");
@@ -640,7 +643,8 @@ module Inode_tezos = struct
     let checks =
       [
         ("hash", hex_of_h);
-        ("magic I", "49");
+        ("magic R", hex_encode "R");
+        ("data length", "48");
         ("Tree", "01");
         ("depth", "00");
         ("nb of leaves", "05");
