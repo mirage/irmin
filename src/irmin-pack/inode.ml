@@ -1180,7 +1180,7 @@ struct
       in
       let address_of_key key : Compress.address =
         match offset_of_key key with
-        | None -> Compress.Direct hash
+        | None -> Compress.Direct (Key.to_hash key)
         | Some off -> Compress.Indirect off
       in
       let ptr : Bin.ptr -> Compress.ptr =
