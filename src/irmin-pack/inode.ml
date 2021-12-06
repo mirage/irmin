@@ -26,9 +26,13 @@ module Make_internal
                and type contents_key = Key.t
                and type node_key = Key.t) =
 struct
-  let () =
-    if Conf.entries > Conf.stable_hash then
-      invalid_arg "entries should be lower or equal to stable_hash"
+  (** If [should_be_stable ~length ~root] is true for an inode [i], then [i]
+      hashes the same way as a [Node.t] containings the same entries. *)
+  let should_be_stable ~length ~root =
+    if length = 0 then true
+    else if not root then false
+    else if length <= Conf.stable_hash then true
+    else false
 
   module Node = struct
     include Node
@@ -83,19 +87,19 @@ struct
           let t = v_t
         end)
 
-    type t = { hash : H.t Lazy.t; stable : bool; v : v }
+    type t = { hash : H.t Lazy.t; root : bool; v : v }
 
     let t : t Irmin.Type.t =
       let open Irmin.Type in
       let pre_hash x = pre_hash_v x.v in
-      record "Bin.t" (fun hash stable v -> { hash = lazy hash; stable; v })
+      record "Bin.t" (fun hash root v -> { hash = lazy hash; root; v })
       |+ field "hash" H.t (fun t -> Lazy.force t.hash)
-      |+ field "stable" bool (fun t -> t.stable)
+      |+ field "root" bool (fun t -> t.root)
       |+ field "v" v_t (fun t -> t.v)
       |> sealr
       |> like ~pre_hash
 
-    let v ~stable ~hash v = { stable; hash; v }
+    let v ~hash ~root v = { hash; root; v }
     let hash t = Lazy.force t.hash
   end
 
@@ -196,34 +200,164 @@ struct
       |> sealv
 
     type v = Values of value list | Tree of tree
+    [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    let v_t : v Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.v" (fun values tree -> function
-        | Values x -> values x | Tree x -> tree x)
-      |~ case1 "Values" (list value_t) (fun x -> Values x)
-      |~ case1 "Tree" tree_t (fun x -> Tree x)
-      |> sealv
+    let dynamic_size_of_v_encoding =
+      match Irmin.Type.Size.of_encoding v_t with
+      | Irmin.Type.Size.Dynamic f -> f
+      | _ -> assert false
 
-    type t = { hash : H.t; stable : bool; v : v }
+    let dynamic_size_of_v =
+      match Irmin.Type.Size.of_value v_t with
+      | Irmin.Type.Size.Dynamic f -> f
+      | _ -> assert false
 
-    let v ~stable ~hash v = { hash; stable; v }
-    let kind_node = Pack_value.Kind.Node
-    let kind_inode = Pack_value.Kind.Inode
-    let magic_node = Pack_value.Kind.to_magic kind_node
-    let magic_inode = Pack_value.Kind.to_magic kind_inode
+    type kind = Pack_value.Kind.t
+    [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
-    let stable_t : bool Irmin.Type.t =
-      Irmin.Type.(map char)
-        (fun n -> n = magic_node)
-        (function true -> magic_node | false -> magic_inode)
+    type nonrec int = int [@@deriving irmin ~encode_bin ~decode_bin]
+
+    let no_length = 0
+    let is_real_length length = not (length = 0)
+
+    type v1 = { mutable length : int; v : v } [@@deriving irmin]
+    (** [length] is the length of the binary encoding of [v]. It is not known
+        right away. [length] is [no_length] when it isn't known. Calling
+        [encode_bin] or [size_of] will make [length] known. *)
+
+    (** [tagged_v] sits between [v] and [t]. It is a variant with the header
+        binary encoded as the magic. *)
+    type tagged_v =
+      | V0_stable of v
+      | V0_unstable of v
+      | V1_root of v1
+      | V1_nonroot of v1
+    [@@deriving irmin]
+
+    let encode_bin_tv_staggered ({ v; _ } as tv) kind f =
+      (* We need to write [length] before [v], but we will know [length]
+         after [v] is encoded. The solution is to first encode [v], then write
+         [length] and then write [v]. *)
+      let l = ref [] in
+      encode_bin_v v (fun s -> l := s :: !l);
+      let length = List.fold_left (fun acc s -> acc + String.length s) 0 !l in
+      tv.length <- length;
+      encode_bin_kind kind f;
+      encode_bin_int length f;
+      List.iter f (List.rev !l)
+
+    let encode_bin_tv tv f =
+      match tv with
+      | V0_stable _ -> assert false
+      | V0_unstable _ -> assert false
+      | V1_root { length; v } when is_real_length length ->
+          encode_bin_kind Pack_value.Kind.Inode_v1_root f;
+          encode_bin_int length f;
+          encode_bin_v v f
+      | V1_nonroot { length; v } when is_real_length length ->
+          encode_bin_kind Pack_value.Kind.Inode_v1_nonroot f;
+          encode_bin_int length f;
+          encode_bin_v v f
+      | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_root f
+      | V1_nonroot tv ->
+          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_nonroot f
+
+    let decode_bin_tv s off =
+      let kind = decode_bin_kind s off in
+      match kind with
+      | Pack_value.Kind.Inode_v0_unstable ->
+          let v = decode_bin_v s off in
+          V0_unstable v
+      | Inode_v0_stable ->
+          let v = decode_bin_v s off in
+          V0_stable v
+      | Inode_v1_root ->
+          let length = decode_bin_int s off in
+          assert (is_real_length length);
+          let v = decode_bin_v s off in
+          V1_root { length; v }
+      | Inode_v1_nonroot ->
+          let length = decode_bin_int s off in
+          assert (is_real_length length);
+          let v = decode_bin_v s off in
+          V1_nonroot { length; v }
+      | Commit_v0 | Commit_v1 -> assert false
+      | Contents -> assert false
+
+    let size_of_tv =
+      let of_value tv =
+        match tv with
+        | V0_stable v | V0_unstable v -> 1 + dynamic_size_of_v v
+        | (V1_root { length; _ } | V1_nonroot { length; _ })
+          when is_real_length length ->
+            length - H.hash_size
+        | V1_root ({ v; _ } as tv) ->
+            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
+            tv.length <- length;
+            length - H.hash_size
+        | V1_nonroot ({ v; _ } as tv) ->
+            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
+            tv.length <- length;
+            length - H.hash_size
+      in
+      let of_encoding s off =
+        let offref = ref off in
+        let kind = decode_bin_kind s offref in
+        match kind with
+        | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
+            1 + dynamic_size_of_v_encoding s !offref
+        | Inode_v1_root | Inode_v1_nonroot ->
+            let len = decode_bin_int s offref in
+            len - H.hash_size
+        | Commit_v0 | Commit_v1 | Contents -> assert false
+      in
+      Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
+
+    let tagged_v_t =
+      Irmin.Type.like ~bin:(encode_bin_tv, decode_bin_tv, size_of_tv) tagged_v_t
+
+    type t = { hash : H.t; tv : tagged_v }
+
+    let v ~root ~hash v =
+      let length = no_length in
+      let tv =
+        if root then V1_root { v; length } else V1_nonroot { v; length }
+      in
+      { hash; tv }
+
+    (** The rule to determine the [is_root] property of a v0 [Value] is a bit
+        convoluted, it relies on the fact that back then the following property
+        was enforced: [Conf.stable_hash > Conf.entries].
+
+        When [t] is of tag [Values], then [t] is root iff [t] is stable.
+
+        When [t] is stable, then [t] is a root, because:
+
+        - Only 2 functions produce stable inodes: [stabilize] and [empty].
+        - Only the roots are output of [stabilize].
+        - An empty map can only be located at the root.
+
+        When [t] is a root of tag [Value], then [t] is stable, because:
+
+        - All the roots are output of [stabilize].
+        - When an unstable inode enters [stabilize], it becomes stable if it has
+          at most [Conf.stable_hash] leaves.
+        - A [Value] has at most [Conf.stable_hash] leaves because
+          [Conf.entries <= Conf.stable_hash] is enforced. *)
+    let is_root = function
+      | { tv = V0_stable (Values _); _ } -> true
+      | { tv = V0_unstable (Values _); _ } -> false
+      | { tv = V0_stable (Tree { depth; _ }); _ }
+      | { tv = V0_unstable (Tree { depth; _ }); _ } ->
+          depth = 0
+      | { tv = V1_root _; _ } -> true
+      | { tv = V1_nonroot _; _ } -> false
 
     let t =
       let open Irmin.Type in
-      record "Compress.t" (fun hash stable v -> { hash; stable; v })
+      record "Compress.t" (fun hash tv -> { hash; tv })
       |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "stable" stable_t (fun t -> t.stable)
-      |+ field "v" v_t (fun t -> t.v)
+      |+ field "tagged_v" tagged_v_t (fun t -> t.tv)
       |> sealr
   end
 
@@ -325,7 +459,7 @@ struct
 
     and 'ptr v = Values of value StepMap.t | Tree of 'ptr tree
 
-    and 'ptr t = { hash : hash Lazy.t; stable : bool; v : 'ptr v }
+    and 'ptr t = { hash : hash Lazy.t; root : bool; v : 'ptr v }
 
     module Ptr = struct
       let hash : type ptr. ptr layout -> ptr -> _ = function
@@ -462,8 +596,6 @@ struct
             0 i.entries
       | Values vs -> StepMap.cardinal vs
 
-    let stable t = t.stable
-
     type cont = off:int -> len:int -> (step * value) Seq.node
 
     let rec seq_tree layout bucket_seq ~cache : cont -> cont =
@@ -555,9 +687,12 @@ struct
           let entries = List.rev entries in
           Bin.Tree { depth = t.depth; length = t.length; entries }
 
+    let is_root t = t.root
+    let is_stable t = should_be_stable ~length:(length t) ~root:(is_root t)
+
     let to_bin layout t =
       let v = to_bin_v layout t.v in
-      Bin.v ~stable:t.stable ~hash:t.hash v
+      Bin.v ~root:(is_root t) ~hash:t.hash v
 
     module Concrete = struct
       type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
@@ -695,7 +830,7 @@ struct
                 let hash = hash v in
                 if not (equal_hash hash pointer) then
                   raise (Invalid_hash (hash, pointer, t));
-                let t = { hash = lazy pointer; stable = false; v } in
+                let t = { hash = lazy pointer; root = false; v } in
                 entries.(index) <- Some (Ptr.of_target Total t))
               tr.pointers;
             let length = Concrete.length t in
@@ -706,13 +841,13 @@ struct
       in
       let v = aux 0 t in
       let length = length_of_v v in
-      let stable, hash =
-        if length > Conf.stable_hash then (false, hash v)
-        else
+      let hash =
+        if should_be_stable ~length ~root:true then
           let node = Node.of_seq (seq_v Total v) in
-          (true, Node.hash node)
+          Node.hash node
+        else hash v
       in
-      { hash = lazy hash; stable; v }
+      { hash = lazy hash; root = true; v }
 
     let of_concrete t =
       try Ok (of_concrete_exn t) with
@@ -727,43 +862,21 @@ struct
 
     let hash t = Lazy.force t.hash
 
-    let is_root t =
-      match t.v with
-      | Tree { depth; _ } -> depth = 0
-      | Values _ ->
-          (* When [t] is of tag [Values], then [t] is root iff [t] is stable. It
-             is implied by the following.
-
-             When [t] is stable, then [t] is a root, because:
-              - Only 2 functions produce stable inodes: [stabilize] and [empty].
-              - Only the roots are output of [stabilize].
-              - An empty map can only be located at the root.
-
-             When [t] is a root of tag [Value], then [t] is stable, because:
-             - All the roots are output of [stabilize].
-             - When an unstable inode enters [stabilize], it becomes stable if
-               it has at most [Conf.stable_hash] leaves.
-             - A [Value] has at most [Conf.stable_hash] leaves because
-               [Conf.entries <= Conf.stable_hash] is enforced.
-          *)
-          t.stable
-
     let check_write_op_supported t =
       if not @@ is_root t then
         failwith "Cannot perform operation on non-root inode value."
 
-    let stabilize layout t =
-      if t.stable then t
+    let stabilize_root layout t =
+      let n = length t in
+      (* If [t] is the empty inode (i.e. [n = 0]) then is is already stable *)
+      if n > Conf.stable_hash then { t with root = true }
       else
-        let n = length t in
-        if n > Conf.stable_hash then t
-        else
-          let hash =
-            lazy
-              (let vs = seq layout t in
-               Node.hash (Node.of_seq vs))
-          in
-          { hash; stable = true; v = t.v }
+        let hash =
+          lazy
+            (let vs = seq layout t in
+             Node.hash (Node.of_seq vs))
+        in
+        { hash; v = t.v; root = true }
 
     let hash_key = Irmin.Type.(unstage (short_hash step_t))
     let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
@@ -786,12 +899,12 @@ struct
               t.entries;
             Tree { depth = t.Bin.depth; length = t.length; entries }
       in
-      { hash = t.Bin.hash; stable = t.Bin.stable; v }
+      { hash = t.Bin.hash; v; root = t.root }
 
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
       let hash = lazy (Node.hash (Node.empty ())) in
-      { stable = true; hash; v = Values StepMap.empty }
+      { hash; root = false; v = Values StepMap.empty }
 
     let values layout vs =
       let length = StepMap.cardinal vs in
@@ -799,12 +912,12 @@ struct
       else
         let v = Values vs in
         let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-        { hash; stable = false; v }
+        { hash; root = false; v }
 
     let tree layout is =
       let v = Tree is in
       let hash = lazy (Bin.V.hash (to_bin_v layout v)) in
-      { hash; stable = false; v }
+      { hash; root = false; v }
 
     let is_empty t =
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
@@ -871,13 +984,13 @@ struct
     let add layout ~copy t s v =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       match find_value ~cache:true ~depth:0 layout t s with
-      | Some v' when equal_value v v' -> stabilize layout t
+      | Some v' when equal_value v v' -> t
       | Some _ ->
           add ~depth:0 layout ~copy ~replace:true t s v Fun.id
-          |> stabilize layout
+          |> stabilize_root layout
       | None ->
           add ~depth:0 layout ~copy ~replace:false t s v Fun.id
-          |> stabilize layout
+          |> stabilize_root layout
 
     let rec remove layout ~depth t s k =
       Stats.incr_inode_rec_remove ();
@@ -917,8 +1030,8 @@ struct
     let remove layout t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       match find_value ~cache:true layout ~depth:0 t s with
-      | None -> stabilize layout t
-      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
+      | None -> t
+      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize_root layout
 
     let of_seq l =
       let t =
@@ -953,7 +1066,7 @@ struct
         in
         aux_small l StepMap.empty
       in
-      stabilize Total t
+      stabilize_root Total t
 
     let save layout ~add ~mem t =
       let clear =
@@ -1002,7 +1115,7 @@ struct
     let check_stable layout t =
       let target_of_ptr = Ptr.target ~cache:true layout in
       let rec check t any_stable_ancestor =
-        let stable = t.stable || any_stable_ancestor in
+        let stable = is_stable t || any_stable_ancestor in
         match t.v with
         | Values _ -> true
         | Tree tree ->
@@ -1011,10 +1124,11 @@ struct
                 | None -> true
                 | Some t ->
                     let t = target_of_ptr t in
-                    (if stable then not t.stable else true) && check t stable)
+                    (if stable then not (is_stable t) else true)
+                    && check t stable)
               tree.entries
       in
-      check t t.stable
+      check t (is_stable t)
 
     let contains_empty_map layout t =
       let target_of_ptr = Ptr.target ~cache:true layout in
@@ -1041,7 +1155,9 @@ struct
     let t = Bin.t
 
     let kind (t : t) =
-      if t.stable then Compress.kind_node else Compress.kind_inode
+      (* This is the kind of newly appended values, let's use v1 then *)
+      if t.root then Pack_value.Kind.Inode_v1_root
+      else Pack_value.Kind.Inode_v1_nonroot
 
     let hash t = Bin.hash t
     let step_to_bin = T.step_to_bin_string
@@ -1055,31 +1171,31 @@ struct
       | Unknown | Static _ -> assert false
       | Dynamic f -> f
 
-    let encode_bin ~dict ~offset (t : t) k =
+    let encode_bin ~dict ~offset_of_key hash (t : t) =
       Stats.incr_inode_encode_bin ();
       let step s : Compress.name =
         let str = step_to_bin s in
         if String.length str <= 3 then Direct s
         else match dict str with Some i -> Indirect i | None -> Direct s
       in
-      let hash h : Compress.address =
-        match offset h with
-        | None -> Compress.Direct h
+      let address_of_key key : Compress.address =
+        match offset_of_key key with
+        | None -> Compress.Direct hash
         | Some off -> Compress.Indirect off
       in
       let ptr : Bin.ptr -> Compress.ptr =
        fun n ->
-        let hash = hash n.hash in
+        let hash = address_of_key n.hash in
         { index = n.index; hash }
       in
       let value : T.step * T.value -> Compress.value = function
         | s, `Contents (c, m) ->
             let s = step s in
-            let v = hash c in
+            let v = address_of_key c in
             Compress.Contents (s, v, m)
         | s, `Node n ->
             let s = step s in
-            let v = hash n in
+            let v = address_of_key n in
             Compress.Node (s, v)
       in
       (* List.map is fine here as the number of entries is small *)
@@ -1089,14 +1205,14 @@ struct
             let entries = List.map ptr entries in
             Tree { Compress.depth; length; entries }
       in
-      let t = Compress.v ~stable:t.stable ~hash:k (v t.v) in
+      let t = Compress.v ~root:t.root ~hash (v t.v) in
       encode_compress t
 
     exception Exit of [ `Msg of string ]
 
-    let decode_bin ~dict ~hash t pos_ref : t =
+    let decode_bin ~dict ~key_of_offset ~key_of_hash:_ t off =
       Stats.incr_inode_decode_bin ();
-      let i = decode_compress t pos_ref in
+      let i = decode_compress t off in
       let step : Compress.name -> T.step = function
         | Direct n -> n
         | Indirect s -> (
@@ -1108,7 +1224,7 @@ struct
                 | Ok v -> v))
       in
       let hash : Compress.address -> H.t = function
-        | Indirect off -> hash off
+        | Indirect off -> key_of_offset off
         | Direct n -> n
       in
       let ptr : Compress.ptr -> Bin.ptr =
@@ -1126,13 +1242,24 @@ struct
             let hash = hash h in
             (name, `Node hash)
       in
-      let t : Compress.v -> Bin.v = function
+      let t : Compress.tagged_v -> Bin.v =
+       fun tv ->
+        let v =
+          match tv with
+          | V0_stable v -> v
+          | V0_unstable v -> v
+          | V1_root { v; _ } -> v
+          | V1_nonroot { v; _ } -> v
+        in
+        match v with
         | Values vs -> Values (List.rev_map value (List.rev vs))
         | Tree { depth; length; entries } ->
             let entries = List.map ptr entries in
             Tree { depth; length; entries }
       in
-      Bin.v ~stable:i.stable ~hash:(lazy i.hash) (t i.v)
+      let root = Compress.is_root i in
+      let v = t i.tv in
+      Bin.v ~root ~hash:(lazy i.hash) v
 
     let decode_bin_length = decode_compress_length
   end
@@ -1216,7 +1343,7 @@ struct
 
     let t : t Irmin.Type.t =
       let pre_hash x =
-        let stable = apply x { f = (fun _ v -> I.stable v) } in
+        let stable = apply x { f = (fun _ v -> I.is_stable v) } in
         if not stable then
           let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
           pre_hash_binv bin.v
@@ -1245,7 +1372,7 @@ struct
       Partial (layout, I.of_bin layout v)
 
     let to_raw t = apply t { f = (fun layout v -> I.to_bin layout v) }
-    let stable t = apply t { f = (fun _ v -> I.stable v) }
+    let stable t = apply t { f = (fun _ v -> I.is_stable v) }
     let length t = apply t { f = (fun _ v -> I.length v) }
     let clear t = apply t { f = (fun layout v -> I.clear layout v) }
     let nb_children t = apply t { f = (fun _ v -> I.nb_children v) }

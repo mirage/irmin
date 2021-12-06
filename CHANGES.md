@@ -155,6 +155,10 @@
   - The backend configuration type `Conf.S` requires a new parameter
     `contents_length_header` that (optionally) further specifies the encoding
     format used for commits in order to improve performance. (#1644, @CraigFe)
+  - Upgraded on-disk format of pack files to support more efficient lookups and
+    reduce indexing overhead.  This change is fully backwards-compatible with
+    existing stores using `irmin-pack.2.x` versions, but not
+    forwards compatible. (#1649, @CraigFe @Ngoguey42)
 
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when

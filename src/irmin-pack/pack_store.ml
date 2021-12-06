@@ -164,9 +164,12 @@ module Maker
       let buf = Bytes.create len in
       let n = IO.read t.pack.block ~off buf in
       if n <> len then raise Invalid_read;
-      let hash off = io_read_and_decode_hash ~off t in
+      let key_of_offset off = io_read_and_decode_hash ~off t in
+      let key_of_hash hash = hash in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~hash ~dict (Bytes.unsafe_to_string buf) (ref 0)
+      Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+        (Bytes.unsafe_to_string buf)
+        (ref 0)
 
     let pp_io ppf t =
       let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
@@ -227,7 +230,7 @@ module Maker
       if ensure_unique && unsafe_mem t k then k
       else (
         [%log.debug "[pack] append %a" pp_hash k];
-        let offset k =
+        let offset_of_key k =
           match Index.find t.pack.index k with
           | None ->
               Stats.incr_appended_hashes ();
@@ -238,7 +241,7 @@ module Maker
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
+        Val.encode_bin ~offset_of_key ~dict k v (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
         if Tbl.length t.staging >= auto_flush then flush t
