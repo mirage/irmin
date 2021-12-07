@@ -25,7 +25,7 @@ module type S = sig
   (** syncs a readonly dict with the file on disk. *)
 
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-  val clear : t -> unit
+  val truncate : t -> unit
   val close : t -> unit
   val valid : t -> bool
 end
@@ -33,5 +33,5 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Make (_ : Version.S) (_ : IO.S) : S
+  module Make (_ : IO.S) : S
 end

@@ -16,21 +16,11 @@
 
 module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker (V) (Irmin_tezos.Conf)
+module Maker = struct
+  module Maker = Irmin_pack.Maker (Irmin_tezos.Conf)
   include Maker.Make (Schema)
 end
 
 module Store = Irmin_pack.Checks.Make (Maker)
 
-module TzMaker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.V1 (Irmin_tezos.Conf)
-  include Maker.Make (Schema)
-end
-
-module TzStore = Irmin_pack.Checks.Make (TzMaker)
-
-let () =
-  match Sys.getenv_opt "PACK" with
-  | Some "tezos" -> ( match TzStore.cli () with _ -> .)
-  | _ -> ( match Store.cli () with _ -> .)
+let () = match Store.cli () with _ -> .

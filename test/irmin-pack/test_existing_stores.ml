@@ -55,23 +55,29 @@ let exec_cmd cmd =
          non-zero exit code %d"
         cmd n
 
-module type Migrate_store = sig
-  include
-    Irmin.Generic_key.S
-      with type Schema.Path.step = string
-       and type Schema.Path.t = string list
-       and type Schema.Contents.t = string
-       and type Schema.Branch.t = string
+module Config_store = struct
+  let root_v1_archive, root_v1, tmp =
+    let open Fpath in
+    ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
+      v "_build" / "test_pack_migrate_1_to_2" |> to_string,
+      v "_build" / "test_index_reconstruct" |> to_string )
 
-  val migrate : Irmin.config -> unit
+  let setup_test_env () =
+    goto_project_root ();
+    let cmd =
+      Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
+    in
+    [%log.info "exec: %s\n%!" cmd];
+    match Sys.command cmd with
+    | 0 -> ()
+    | n ->
+        Fmt.failwith
+          "Failed to set up the test environment: command `%s' exited with \
+           non-zero exit code %d"
+          cmd n
 end
 
-module Test
-    (S : Migrate_store) (Config : sig
-      val setup_test_env : unit -> unit
-      val root_v1 : string
-    end) =
-struct
+module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) = struct
   let check_commit repo commit bindings =
     commit |> S.Commit.key |> S.Commit.of_key repo >>= function
     | None ->
@@ -93,71 +99,6 @@ struct
        S.Branch.find repo branch >>= function
        | None -> Alcotest.failf "Couldn't find expected branch `%s'" branch
        | Some commit -> check_commit repo commit bindings
-
-  let pair_map f (a, b) = (f a, f b)
-
-  let v1_to_v2 ?(uncached_instance_check_idempotent = fun () -> ())
-      ?(uncached_instance_check_commit = fun _ -> Lwt.return_unit) () =
-    Config.setup_test_env ();
-    let conf_ro, conf_rw =
-      pair_map
-        (fun readonly -> config ~readonly ~fresh:false Config.root_v1)
-        (true, false)
-    in
-    let* () =
-      Alcotest.check_raises_lwt "Opening a V1 store should fail"
-        Irmin_pack.Version.(Invalid { expected = `V2; found = `V1 })
-        (fun () -> S.Repo.v conf_ro)
-    in
-    Alcotest.check_raises "Migrating with RO config should fail"
-      Irmin_pack.RO_not_allowed (fun () -> ignore (S.migrate conf_ro));
-    [%log.app "Running the migration with a RW config"];
-    S.migrate conf_rw;
-    [%log.app "Checking migration is idempotent (cached instance)"];
-    S.migrate conf_rw;
-    uncached_instance_check_idempotent ();
-    let* () =
-      [%log.app
-        "Checking old bindings are still reachable post-migration (cached RO \
-         instance)"];
-      let* r = S.Repo.v conf_ro in
-      check_repo r archive
-    in
-    let* new_commit =
-      let* rw = S.Repo.v conf_rw in
-      [%log.app "Checking new commits can be added to the V2 store"];
-      let* new_commit =
-        S.Tree.singleton [ "c" ] "x"
-        |> S.Commit.v rw ~parents:[] ~info:S.Info.empty
-      in
-      check_commit rw new_commit [ ([ "c" ], "x") ] >>= fun () ->
-      let+ () = S.Repo.close rw in
-      new_commit
-    in
-    uncached_instance_check_commit new_commit
-end
-
-module Config_store = struct
-  let root_v1_archive, root_v1, tmp =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
-      v "_build" / "test_pack_migrate_1_to_2" |> to_string,
-      v "_build" / "test_index_reconstruct" |> to_string )
-
-  let setup_test_env () =
-    goto_project_root ();
-    rm_dir root_v1;
-    let cmd =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
-    in
-    [%log.info "exec: %s\n%!" cmd];
-    match Sys.command cmd with
-    | 0 -> ()
-    | n ->
-        Fmt.failwith
-          "Failed to set up the test environment: command `%s' exited with \
-           non-zero exit code %d"
-          cmd n
 end
 
 module Small_conf = struct
@@ -166,43 +107,26 @@ module Small_conf = struct
   let contents_length_header = Some `Varint
 end
 
-module V1_maker = Irmin_pack.V1 (Small_conf)
-module V2_maker = Irmin_pack.V2 (Conf)
+module V1_maker = Irmin_pack.Maker (Small_conf)
+module V2_maker = Irmin_pack.Maker (Conf)
 module V1 () = V1_maker.Make (Schema)
 module V2 () = V2_maker.Make (Schema)
 
 module Test_store = struct
   module S = V2 ()
-  include Test (S) (Config_store)
-
-  let uncached_instance_check_idempotent () =
-    [%log.app "Checking migration is idempotent (uncached instance)"];
-    let module S = V2 () in
-    let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
-    S.migrate conf
-
-  let uncached_instance_check_commit new_commit =
-    [%log.app "Checking all values can be read from an uncached instance"];
-    let module S = V2 () in
-    let conf = config ~readonly:true ~fresh:false Config_store.root_v1 in
-    let* ro = S.Repo.v conf in
-    check_repo ro archive >>= fun () ->
-    check_commit ro new_commit [ ([ "c" ], "x") ] >>= fun () -> S.Repo.close ro
-
-  let v1_to_v2 =
-    v1_to_v2 ~uncached_instance_check_idempotent ~uncached_instance_check_commit
+  include Test (S)
 end
 
 module Test_reconstruct = struct
   module S = V2 ()
-  include Test (S) (Config_store)
+  include Test (S)
 
   let setup_test_env () =
     Config_store.setup_test_env ();
     rm_dir Config_store.tmp;
     let cmd =
       Filename.quote_command "cp"
-        [ "-R"; "-p"; Config_store.root_v1; Config_store.tmp ]
+        [ "-R"; "-p"; Config_store.root_v1_archive; Config_store.tmp ]
     in
     [%log.info "exec: %s\n%!" cmd];
     match Sys.command cmd with
@@ -217,7 +141,6 @@ module Test_reconstruct = struct
     let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
-    S.migrate conf;
     S.traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
       Index.v ~fresh:false ~readonly:false ~log_size:500_000 Config_store.tmp
@@ -325,9 +248,7 @@ end
 
 let tests =
   [
-    Alcotest.test_case "Test migration V1 to V2" `Quick (fun () ->
-        Lwt_main.run (Test_store.v1_to_v2 ()));
-    Alcotest.test_case "Test index reconstuction" `Quick (fun () ->
+    Alcotest.test_case "Test index reconstruction" `Quick (fun () ->
         Lwt_main.run (Test_reconstruct.test_reconstruct ()));
     Alcotest.test_case "Test integrity check" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_stores.test ()));

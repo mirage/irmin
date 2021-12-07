@@ -78,14 +78,6 @@ module Closeable (S : S) = struct
     check_not_closed t;
     S.clear t.t
 
-  let generation t =
-    check_not_closed t;
-    S.generation t.t
-
-  let clear_keep_generation t =
-    check_not_closed t;
-    S.clear_keep_generation t.t
-
   let make_closeable t = { closed = ref false; t }
 
   let get_open_exn t =

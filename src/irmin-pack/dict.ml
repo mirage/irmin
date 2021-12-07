@@ -17,7 +17,9 @@
 include Dict_intf
 open! Import
 
-module Make (V : Version.S) (IO : IO.S) : S = struct
+let version = `V1
+
+module Make (IO : IO.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
@@ -55,19 +57,8 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
 
   let sync_offset t =
     let former_offset = IO.offset t.io in
-    let former_generation = IO.generation t.io in
-    let h = IO.force_headers t.io in
-    if former_generation <> h.generation then (
-      IO.close t.io;
-      let io =
-        IO.v ~fresh:false ~readonly:true ~version:(Some V.version)
-          (IO.name t.io)
-      in
-      t.io <- io;
-      Hashtbl.clear t.cache;
-      Hashtbl.clear t.index;
-      refill ~from:Int63.zero t)
-    else if h.offset > former_offset then refill ~from:former_offset t
+    let offset = IO.force_offset t.io in
+    if offset > former_offset then refill ~from:former_offset t
 
   let sync t =
     if IO.readonly t.io then sync_offset t
@@ -93,16 +84,8 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
     let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
     v
 
-  let clear t =
-    match V.version with
-    | `V1 -> IO.truncate t.io
-    | `V2 ->
-        IO.clear t.io;
-        Hashtbl.clear t.cache;
-        Hashtbl.clear t.index
-
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = IO.v ~fresh ~version:(Some V.version) ~readonly file in
+    let io = IO.v ~version:(Some version) ~fresh ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in
@@ -122,4 +105,9 @@ module Make (V : Version.S) (IO : IO.S) : S = struct
       t.open_instances <- t.open_instances + 1;
       true)
     else false
+
+  let truncate t =
+    IO.truncate t.io;
+    Hashtbl.clear t.cache;
+    Hashtbl.clear t.index
 end

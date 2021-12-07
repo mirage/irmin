@@ -27,7 +27,6 @@ module type Sigs = sig
   module Pack_key = Pack_key
   module Pack_value = Pack_value
   module Pack_store = Pack_store
-  module Version = Version
 
   val config :
     ?fresh:bool ->
@@ -53,7 +52,7 @@ module type Sigs = sig
 
   exception RO_not_allowed
 
-  module KV (_ : Version.S) (_ : Conf.S) :
+  module KV (_ : Conf.S) :
     Irmin.Generic_key.KV_maker
       with type metadata = unit
        and type ('h, 'v) contents_key = 'h Pack_key.t
@@ -65,22 +64,10 @@ module type Sigs = sig
   module type Maker = Maker
   module type Maker_persistent = Maker_persistent
 
-  module Maker (_ : Version.S) : Maker_persistent
-  module Maker_ext (_ : Version.S) : Maker_persistent
-  module V1 : Maker_persistent
-  module V2 : Maker_persistent
+  module Maker : Maker_persistent
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks
-
-  val migrate : Irmin.config -> unit
-  (** [migrate conf] upgrades the repository with configuration [conf] to use
-      the latest storage format.
-
-      {b Note:} performing concurrent store operations during the migration, or
-      attempting to use pre-migration instances of the repository after the
-      migration is complete, will result in undefined behaviour. *)
-
   module Indexable = Indexable
   module Atomic_write = Atomic_write
   module IO = IO

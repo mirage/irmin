@@ -70,7 +70,7 @@ module type Persistent = sig
 
   include S.Checkable with type 'a t := 'a t and type hash := hash
 
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
+  val sync : 'a t -> unit
   val clear_caches : 'a t -> unit
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 end

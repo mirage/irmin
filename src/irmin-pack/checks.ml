@@ -49,25 +49,15 @@ let path =
   @@ pos 0 (some string) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-module Make (M : Maker) = struct
-  module Store_V1 = M (Version.V1)
-  module Store_V2 = M (Version.V2)
-  module Hash = Store_V1.Hash
+module Make (Store : Store) = struct
+  module Hash = Store.Hash
   module Index = Pack_index.Make (Hash)
-
-  let current_version = `V1
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct
     type size = Bytes of int [@@deriving irmin]
-    type version = [ `V1 | `V2 ] [@@deriving irmin]
 
-    type io = {
-      size : size;
-      offset : int63;
-      generation : int63;
-      version : version;
-    }
+    type io = { size : size; offset : int63; version : Version.t }
     [@@deriving irmin]
 
     type files = { pack : io option; branch : io option; dict : io option }
@@ -84,36 +74,25 @@ module Make (M : Maker) = struct
     }
     [@@deriving irmin]
 
-    let with_io : type a. Version.t -> string -> (IO.t -> a) -> a option =
-     fun version path f ->
+    let with_io : type a. string -> (IO.t -> a) -> a option =
+     fun path f ->
       match IO.exists path with
       | false -> None
       | true ->
-          let io =
-            IO.v ~fresh:false ~readonly:true ~version:(Some version) path
-          in
+          let io = IO.v ~fresh:false ~readonly:true ~version:None path in
           Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
 
-    let detect_version ~root =
-      try
-        let path = Layout.pack ~root in
-        match with_io current_version path Fun.id with
-        | None -> Fmt.failwith "cannot read pack file"
-        | Some _ -> current_version
-      with Version.Invalid { expected = _; found } -> found
-
-    let io ~version path =
-      with_io version path @@ fun io ->
+    let io path =
+      with_io path @@ fun io ->
       let offset = IO.offset io in
-      let generation = IO.generation io in
       let size = Bytes (IO.size io) in
       let version = IO.version io in
-      { size; offset; generation; version }
+      { size; offset; version }
 
-    let v ~root ~version =
-      let pack = Layout.pack ~root |> io ~version in
-      let branch = Layout.branch ~root |> io ~version in
-      let dict = Layout.dict ~root |> io ~version in
+    let v ~root =
+      let pack = Layout.pack ~root |> io in
+      let branch = Layout.branch ~root |> io in
+      let dict = Layout.dict ~root |> io in
       { pack; branch; dict }
 
     let traverse_index ~root log_size =
@@ -137,16 +116,14 @@ module Make (M : Maker) = struct
 
     let conf root = Conf.init ~readonly:true ~fresh:false root
 
-    let run_versioned_store ~root version =
+    let run ~root =
       [%logs.app "Getting statistics for store: `%s'@," root];
       let log_size = conf root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
-      let files = v ~root ~version in
+      let files = v ~root in
       { hash_size = Bytes Hash.hash_size; log_size; files; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
-
-    let run ~root = detect_version ~root |> run_versioned_store ~root
 
     let term_internal =
       Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
@@ -173,11 +150,6 @@ module Make (M : Maker) = struct
         @@ info ~doc:"Size of the index log file" [ "index-log-size" ]
 
     let run ~root ~output ?index_log_size () =
-      let (module Store : Versioned_store) =
-        match Stat.detect_version ~root with
-        | `V1 -> (module Store_V1)
-        | `V2 -> (module Store_V2)
-      in
       let conf = conf ~index_log_size root in
       match output with
       | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
@@ -200,11 +172,6 @@ module Make (M : Maker) = struct
     let conf root = Conf.init ~readonly:true ~fresh:false root
 
     let run ~root ~auto_repair () =
-      let (module Store : Versioned_store) =
-        match Stat.detect_version ~root with
-        | `V1 -> (module Store_V1)
-        | `V2 -> (module Store_V2)
-      in
       let conf = conf root in
       if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
       else Store.traverse_pack_file `Check_index conf
@@ -239,17 +206,11 @@ module Make (M : Maker) = struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run_versioned_store ~root ~auto_repair (module Store : Versioned_store)
-        =
+    let run ~root ~auto_repair =
       let conf = conf root in
       let+ repo = Store.Repo.v conf in
       Store.integrity_check ~ppf:Format.err_formatter ~auto_repair repo
       |> handle_result ?name:None
-
-    let run ~root ~auto_repair =
-      match Stat.detect_version ~root with
-      | `V1 -> run_versioned_store ~root ~auto_repair (module Store_V1)
-      | `V2 -> run_versioned_store ~root ~auto_repair (module Store_V2)
 
     let term_internal =
       let auto_repair =
@@ -276,7 +237,7 @@ module Make (M : Maker) = struct
       & opt (some (list ~sep:',' string)) None
       & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
 
-    let run_versioned_store ~root ~heads (module Store : Versioned_store) =
+    let run ~root ~heads =
       let conf = conf root in
       let* repo = Store.Repo.v conf in
       let* heads =
@@ -296,11 +257,6 @@ module Make (M : Maker) = struct
         | Error (`Msg msg) -> Fmt.failwith "Error: %s" msg
       in
       Store.Repo.close repo
-
-    let run ~root ~heads =
-      match Stat.detect_version ~root with
-      | `V1 -> run_versioned_store ~root ~heads (module Store_V1)
-      | `V2 -> run_versioned_store ~root ~heads (module Store_V2)
 
     let term_internal =
       Cmdliner.Term.(
@@ -331,8 +287,7 @@ module Make (M : Maker) = struct
       & info [ "dump_blob_paths_to" ]
           ~doc:"Print all paths to a blob in the tree in a file."
 
-    let run_versioned_store ~root ~commit ~dump_blob_paths_to
-        (module Store : Versioned_store) =
+    let run ~root ~commit ~dump_blob_paths_to () =
       let conf = conf root in
       let* repo = Store.Repo.v conf in
       let* commit =
@@ -358,15 +313,6 @@ module Make (M : Maker) = struct
       in
       let* () = Store.stats ~dump_blob_paths_to ~commit repo in
       Store.Repo.close repo
-
-    let run ~root ~commit ~dump_blob_paths_to () =
-      match Stat.detect_version ~root with
-      | `V1 ->
-          run_versioned_store ~root ~commit ~dump_blob_paths_to
-            (module Store_V1)
-      | `V2 ->
-          run_versioned_store ~root ~commit ~dump_blob_paths_to
-            (module Store_V2)
 
     let term_internal =
       Cmdliner.Term.(

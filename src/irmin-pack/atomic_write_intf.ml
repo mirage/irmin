@@ -18,7 +18,6 @@ module type S = sig
   include Irmin.Atomic_write.S
 
   val flush : t -> unit
-  val clear_keep_generation : t -> unit Lwt.t
 end
 
 module type Persistent = sig
@@ -45,7 +44,7 @@ module type Sigs = sig
     module Of_hash (X : Irmin.Hash.S) : S with type t = X.t
   end
 
-  module Make_persistent (_ : Version.S) (K : Irmin.Type.S) (V : Value.S) :
+  module Make_persistent (K : Irmin.Type.S) (V : Value.S) :
     Persistent with type key = K.t and type value = V.t
 
   module Closeable (AW : S) : sig

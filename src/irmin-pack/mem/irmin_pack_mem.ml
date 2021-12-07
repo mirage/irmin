@@ -22,7 +22,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
 
   let v () = AW.v (Irmin_mem.config ())
   let flush _t = ()
-  let clear_keep_generation _ = Lwt.return_unit
 end
 
 module Indexable_mem
@@ -166,9 +165,6 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         (* An in-memory store is always in sync. *)
         let sync _ = ()
         let flush _ = ()
-
-        (* Stores share instances so one clear is enough. *)
-        let clear t = Contents.Indexable.clear (contents_t t)
       end
     end
 
@@ -179,8 +175,6 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
 
     let sync = X.Repo.sync
-    let clear = X.Repo.clear
-    let migrate = Irmin_pack.migrate
     let flush = X.Repo.flush
     let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
     let traverse_pack_file _ _ = ()

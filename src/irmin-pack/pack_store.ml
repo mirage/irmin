@@ -52,15 +52,14 @@ module Varint = struct
   let max_encoded_size = 9
 end
 
-module Maker
-    (V : Version.S)
-    (Index : Pack_index.S)
-    (K : Irmin.Hash.S with type t = Index.key) :
+let selected_version = `V1
+
+module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
-  module Dict = Pack_dict.Make (V)
+  module Dict = Pack_dict
 
   module Hash = struct
     include K
@@ -81,15 +80,6 @@ module Maker
     mutable open_instances : int;
   }
 
-  let clear ?keep_generation t =
-    if IO.offset t.block <> Int63.zero then (
-      Index.clear t.index;
-      match V.version with
-      | `V1 -> IO.truncate t.block
-      | `V2 ->
-          IO.clear ?keep_generation t.block;
-          Dict.clear t.dict)
-
   let valid t =
     if t.open_instances <> 0 then (
       t.open_instances <- t.open_instances + 1;
@@ -99,11 +89,12 @@ module Maker
   let unsafe_v ~index ~indexing_strategy ~fresh ~readonly file =
     let root = Filename.dirname file in
     let dict = Dict.v ~fresh ~readonly root in
-    let block = IO.v ~version:(Some V.version) ~fresh ~readonly file in
+    let block = IO.v ~version:(Some selected_version) ~fresh ~readonly file in
     { block; index; indexing_strategy; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
-    IO_cache.memoize ~clear ~valid
+    IO_cache.memoize ~valid
+      ~clear:(fun t -> IO.truncate t.block)
       ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
       Layout.pack
 
@@ -142,8 +133,13 @@ module Maker
 
     let index t hash = Lwt.return (index_direct t hash)
 
-    let unsafe_clear ?keep_generation t =
-      clear ?keep_generation t.pack;
+    let clear t =
+      if IO.offset t.block <> Int63.zero then (
+        Index.clear t.index;
+        IO.truncate t.block)
+
+    let unsafe_clear t =
+      clear t.pack;
       Tbl.clear t.staging;
       Lru.clear t.lru
 
@@ -501,36 +497,17 @@ module Maker
       unsafe_clear t;
       Lwt.return_unit
 
-    let clear_keep_generation t =
-      unsafe_clear ~keep_generation:() t;
-      Lwt.return_unit
-
     let clear_caches t =
       Tbl.clear t.staging;
       Lru.clear t.lru
 
-    let sync ?(on_generation_change = Fun.id) t =
+    let sync t =
       let former_offset = IO.offset t.pack.block in
-      let former_generation = IO.generation t.pack.block in
-      let h = IO.force_headers t.pack.block in
-      if former_generation <> h.generation then (
-        [%log.debug "[pack] generation changed, refill buffers"];
-        clear_caches t;
-        on_generation_change ();
-        IO.close t.pack.block;
-        let block =
-          IO.v ~fresh:false ~version:(Some V.version) ~readonly:true
-            (IO.name t.pack.block)
-        in
-        t.pack.block <- block;
-        Dict.sync t.pack.dict;
-        Index.sync t.pack.index)
-      else if h.offset > former_offset then (
+      let offset = IO.force_offset t.pack.block in
+      if offset > former_offset then (
         Dict.sync t.pack.dict;
         Index.sync t.pack.index)
 
-    let version t = IO.version t.pack.block
-    let generation t = IO.generation t.pack.block
     let offset t = IO.offset t.pack.block
   end
 
@@ -544,13 +521,11 @@ module Maker
       Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
       >|= make_closeable
 
-    let sync ?on_generation_change t =
-      Inner.sync ?on_generation_change (get_open_exn t)
+    let sync t = Inner.sync (get_open_exn t)
 
     let flush ?index ?index_merge t =
       Inner.flush ?index ?index_merge (get_open_exn t)
 
-    let version t = Inner.version (get_open_exn t)
     let offset t = Inner.offset (get_open_exn t)
     let clear_caches t = Inner.clear_caches (get_open_exn t)
 

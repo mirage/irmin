@@ -39,14 +39,8 @@ module type S = sig
         checks. *)
 
     type size = Bytes of int [@@deriving irmin]
-    type version = [ `V1 | `V2 ] [@@deriving irmin]
 
-    type io = {
-      size : size;
-      offset : int63;
-      generation : int63;
-      version : version;
-    }
+    type io = { size : size; offset : int63; version : Version.t }
     [@@deriving irmin]
 
     type files = { pack : io option; branch : io option; dict : io option }
@@ -55,8 +49,7 @@ module type S = sig
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
 
-    val v : root:string -> version:Version.t -> files
-    val detect_version : root:string -> Version.t
+    val v : root:string -> files
     val traverse_index : root:string -> int -> objects
   end
 
@@ -115,12 +108,10 @@ module type S = sig
       [terms] defaults to the set of checks in this module. *)
 end
 
-module type Versioned_store = sig
+module type Store = sig
   include Irmin.S
   include S.S with type repo := repo and type commit := commit
 end
-
-module type Maker = functor (_ : Version.S) -> Versioned_store
 
 type integrity_error = [ `Wrong_hash | `Absent_value ]
 
@@ -133,10 +124,8 @@ module type Sigs = sig
 
   module type Subcommand = Subcommand
   module type S = S
-  module type Versioned_store = Versioned_store
-  module type Maker = Maker
 
-  module Make (_ : Maker) : S
+  module Make (_ : Store) : S
 
   module Index (Index : Pack_index.S) : sig
     val integrity_check :
