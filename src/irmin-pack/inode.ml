@@ -51,17 +51,7 @@ struct
     type contents_key = Node.contents_key [@@deriving irmin]
 
     type step = Node.step
-    [@@deriving irmin ~compare ~to_bin_string ~of_bin_string]
-
-    let short_hash_step =
-      let pre_hash =
-        Irmin.Type.(unstage (pre_hash_unboxed_primitives step_t))
-      in
-      fun ?seed x ->
-        let seed = match seed with None -> 0 | Some t -> t in
-        let h = ref seed in
-        pre_hash x (fun s -> h := Hashtbl.seeded_hash !h s);
-        !h
+    [@@deriving irmin ~compare ~to_bin_string ~of_bin_string ~short_hash]
 
     type metadata = Node.metadata [@@deriving irmin ~equal]
     type value = Node.value [@@deriving irmin ~equal]

@@ -124,11 +124,6 @@ module H_contents =
       type t = string
 
       let t = Irmin.Type.string
-
-      let pre_hash_unboxed =
-        Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
-
-      let t = Irmin.Type.like t ~pre_hash:pre_hash_unboxed
     end)
 
 let normal x = `Contents (x, Metadata.default)

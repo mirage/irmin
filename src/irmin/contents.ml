@@ -193,10 +193,6 @@ end
 module String = struct
   type t = string [@@deriving irmin]
 
-  let t =
-    let pre_hash = Type.(pre_hash_unboxed_primitives t |> unstage) in
-    Type.like t ~pre_hash
-
   let merge = Merge.idempotent Type.(option string)
 end
 

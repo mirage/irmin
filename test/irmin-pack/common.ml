@@ -40,14 +40,7 @@ module Conf = Irmin_tezos.Conf
 module Schema = struct
   open Irmin
   module Metadata = Metadata.None
-
-  module Contents = struct
-    include Contents.String
-
-    let pre_hash_v1 = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
-    let t = Irmin.Type.like t ~pre_hash:pre_hash_v1
-  end
-
+  module Contents = Contents.String
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.SHA1

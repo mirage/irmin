@@ -71,13 +71,7 @@ module Schema (M : Irmin.Metadata.S) = struct
   module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Branch = Irmin.Branch.String
   module Info = Irmin.Info.Default
-
-  module Contents = struct
-    include Irmin.Contents.String
-
-    let pre_hash_v1 = Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
-    let t = Irmin.Type.like t ~pre_hash:pre_hash_v1
-  end
+  module Contents = Irmin.Contents.String
 end
 
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
