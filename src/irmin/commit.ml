@@ -592,23 +592,22 @@ module V1 = struct
   struct
     module K (K : Type.S) = struct
       let h = Type.string_of `Int64
-      let hash_to_bin_string = Type.(unstage (to_bin_string K.t))
-      let hash_of_bin_string = Type.(unstage (of_bin_string K.t))
-      let size_of = Type.Size.using hash_to_bin_string (Type.Size.t h)
+
+      type t = K.t [@@deriving irmin ~pre_hash ~to_bin_string ~of_bin_string]
+
+      let size_of = Type.Size.using to_bin_string (Type.Size.t h)
 
       let encode_bin =
         let encode_bin = Type.(unstage (encode_bin h)) in
-        fun e k -> encode_bin (hash_to_bin_string e) k
+        fun e k -> encode_bin (to_bin_string e) k
 
       let decode_bin =
         let decode_bin = Type.(unstage (decode_bin h)) in
         fun buf pos_ref ->
           let v = decode_bin buf pos_ref in
-          match hash_of_bin_string v with
+          match of_bin_string v with
           | Ok v -> v
           | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
-
-      type t = K.t [@@deriving irmin ~pre_hash]
 
       (* Manually box hashes in V1 commits with length headers: *)
       let pre_hash =
