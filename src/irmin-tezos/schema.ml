@@ -128,7 +128,7 @@ module Commit
     (Commit_key : Irmin.Key.S with type hash = Hash.t) =
 struct
   module M = Irmin.Commit.Generic_key.Make (Hash) (Node_key) (Commit_key)
-  module V1 = Irmin.Commit.V1.Make (M)
+  module V1 = Irmin.Commit.V1.Make (Hash) (M)
   include M
 
   let pre_hash_v1_t = Irmin.Type.(unstage (pre_hash V1.t))

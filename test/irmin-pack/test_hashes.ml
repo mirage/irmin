@@ -45,10 +45,19 @@ let check_iter iter_type (iter : 'a -> (string -> unit) -> unit) v checks =
   if !counter <> List.length checks then
     Alcotest.failf "More calls to %s expected" iter_type
 
-module Test (Conf : Irmin_pack.Conf.S) = struct
+module Test
+    (Conf : Irmin_pack.Conf.S)
+    (Schema : Irmin.Schema.Extended
+                with type Contents.t = bytes
+                 and type Metadata.t = unit
+                 and type Path.t = string list
+                 and type Path.step = string
+                 and type Branch.t = string
+                 and module Info = Irmin.Info.Default) =
+struct
   module Store = struct
     module Maker = Irmin_pack.Maker (Conf)
-    include Maker.Make (Irmin_tezos.Schema)
+    include Maker.Make (Schema)
   end
 
   include Store
@@ -79,7 +88,7 @@ module Test (Conf : Irmin_pack.Conf.S) = struct
 end
 
 module Test_tezos_conf = struct
-  module Store = Test (Irmin_tezos.Conf)
+  module Store = Test (Irmin_tezos.Conf) (Irmin_tezos.Schema)
   module Contents = Store.Backend.Contents
   module Node = Store.Backend.Node
   module Commit = Store.Backend.Commit
@@ -209,7 +218,7 @@ module Test_small_conf = struct
     let contents_length_header = Some `Varint
   end
 
-  module Store = Test (Conf)
+  module Store = Test (Conf) (Irmin_tezos.Schema)
   module Node = Store.Backend.Node
 
   let many_steps = [ "00"; "01"; "02"; "03"; "04"; "05" ]
@@ -250,6 +259,51 @@ module Test_small_conf = struct
     Lwt.return_unit
 end
 
+module Test_V1 = struct
+  module Schema = struct
+    include Irmin_tezos.Schema
+
+    module Commit
+        (Node_key : Irmin.Key.S with type hash = Hash.t)
+        (Commit_key : Irmin.Key.S with type hash = Hash.t) =
+    struct
+      module M = Irmin.Commit.Generic_key.Make (Hash) (Node_key) (Commit_key)
+      module Commit = Irmin.Commit.V1.Make (Hash) (M)
+      include Commit
+    end
+  end
+
+  module Store = Test (Conf) (Schema)
+  module Commit = Store.Backend.Commit
+
+  let many_steps = [ "00"; "01"; "02"; "03"; "04"; "05" ]
+
+  let commit_hash () =
+    let* tree = Store.build_tree many_steps in
+    let* repo, _, commit = Store.persist_tree tree in
+    let commit_val = Store.to_backend_commit commit in
+    let checks =
+      [
+        ("len of node hash", "0000000000000020");
+        ( "hash of root node",
+          "3ab1c8feb08812cd1ffd8ec1ca4f861a578b700fa7dd9daab4c63d4e86638f99" );
+        ("len of parents", "0000000000000001");
+        ("len of parent hash", "0000000000000020");
+        ( "parent hash",
+          "bf50614cb5f7c3a35e613ed5abd6ea1e2619a0e832e88bbbe436b74a6151ed03" );
+        ("date", "0000000000000000");
+        ("len of author", "0000000000000005");
+        ("author", "54657a6f73");
+        ("len of message", "0000000000000000");
+        ("message", "");
+      ]
+    in
+    let encode_bin_val = Irmin.Type.(unstage (encode_bin Commit.Val.t)) in
+    check_iter "encode_bin" encode_bin_val commit_val checks;
+    let* () = Store.Repo.close repo in
+    Lwt.return_unit
+end
+
 let tests =
   let tc name f =
     Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
@@ -259,4 +313,5 @@ let tests =
     tc "inode_values hash" Test_tezos_conf.inode_values_hash;
     tc "inode_tree hash" Test_small_conf.inode_tree_hash;
     tc "commit hash" Test_tezos_conf.commit_hash;
+    tc "V1 commit hash" Test_V1.commit_hash;
   ]
