@@ -667,10 +667,12 @@ module Inode_tezos = struct
         ("length of entries", "02");
         ("index", "00");
         ("Direct", "01");
-        ( "hash of entry", "8c81eb0a729858e10a8aed80f4ad638b26e80cf713be980a83620e22516001bf" );
+        ( "hash of entry",
+          "8c81eb0a729858e10a8aed80f4ad638b26e80cf713be980a83620e22516001bf" );
         ("index", "01");
         ("Direct", "01");
-        ( "hash of entry", "461a30b373e7d98e23dc963934a417d7c5aceb14fa2fb6da6950438fd54c9aa9" );
+        ( "hash of entry",
+          "461a30b373e7d98e23dc963934a417d7c5aceb14fa2fb6da6950438fd54c9aa9" );
       ]
     in
     check_iter "encode_bin" (encode_bin h) v checks;

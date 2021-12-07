@@ -1393,9 +1393,9 @@ struct
         match offset_of_key key with
         | None -> Compress.Direct (Key.to_hash key)
         | Some off ->
-           (* The key references an inode/contents that is not in the pack
-              file. This is highly unusual but not forbidden. *)
-           Compress.Indirect off
+            (* The key references an inode/contents that is not in the pack
+               file. This is highly unusual but not forbidden. *)
+            Compress.Indirect off
       in
       let ptr : T.key Bin.with_index -> Compress.ptr =
        fun n ->
