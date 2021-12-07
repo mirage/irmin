@@ -29,7 +29,6 @@ module type S = sig
   val offset : t -> int63
   val force_offset : t -> int63
   val readonly : t -> bool
-  val version : t -> Version.t
   val flush : t -> unit
   val close : t -> unit
   val exists : string -> bool
@@ -38,6 +37,11 @@ module type S = sig
   val truncate : t -> unit
   (** Sets the length of the underlying IO to be 0, without actually purging the
       associated data. *)
+
+  (* {2 Versioning} *)
+
+  val version : t -> Version.t
+  val set_version : t -> Version.t -> unit
 end
 
 module type Sigs = sig

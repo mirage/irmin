@@ -30,7 +30,7 @@ module Unix : S = struct
     mutable offset : int63;
     mutable flushed : int63;
     readonly : bool;
-    version : Version.t;
+    mutable version : Version.t;
     buf : Buffer.t;
   }
 
@@ -101,6 +101,13 @@ module Unix : S = struct
     [%log.debug
       "[%s] version: %a" (Filename.basename t.file) Version.pp t.version];
     t.version
+
+  let set_version t v =
+    [%log.debug
+      "[%s] set_version: %a -> %a" (Filename.basename t.file) Version.pp
+        t.version Version.pp v];
+    Raw.Version.set t.raw (Version.to_bin v);
+    t.version <- v
 
   let readonly t = t.readonly
 
@@ -193,11 +200,11 @@ module Unix : S = struct
             | None -> Version.invalid_arg v_string
           in
           (match version with
-          | Some v when v <> actual_version ->
+          | Some v when Version.compare actual_version v > 0 ->
               raise (Version.Invalid { expected = v; found = actual_version })
           | _ -> ());
           let offset = Raw.Offset.get raw in
-          v ~offset ~version:`V1 raw
+          v ~offset ~version:actual_version raw
 
   let close t = Raw.close t.raw
   let exists file = Sys.file_exists file

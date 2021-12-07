@@ -16,9 +16,10 @@
 
 (** Management of disk-format versions. *)
 
-type t = [ `V1 ] [@@deriving irmin]
+type t = [ `V1 | `V2 ] [@@deriving irmin]
 (** The type for version numbers. *)
 
+val compare : t -> t -> int
 val latest : t
 
 val pp : t Fmt.t
