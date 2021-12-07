@@ -51,19 +51,6 @@ module type Specifics = sig
   (** [sync t] syncs a readonly pack with the files on disk. Raises
       [invalid_argument] if called by a read-write pack.*)
 
-  val clear : repo -> unit Lwt.t
-  (** [clear t] removes all the data persisted in [t]. This operations provides
-      snapshot isolation guarantees for read-only instances: read-only instance
-      will continue to see all the data until they explicitely call {!sync}. *)
-
-  val migrate : Irmin.config -> unit
-  (** [migrate conf] upgrades the repository with configuration [conf] to use
-      the latest storage format.
-
-      {b Note:} performing concurrent store operations during the migration, or
-      attempting to use pre-migration instances of the repository after the
-      migration is complete, will result in undefined behaviour. *)
-
   val flush : repo -> unit
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)

@@ -17,15 +17,11 @@ module type S = sig
     string ->
     read t Lwt.t
 
-  val sync : ?on_generation_change:(unit -> unit) -> 'a t -> unit
-  (** syncs a readonly instance with the files on disk. The same file instance
-      is shared between several pack instances. Therefore only the first pack
-      instance that checks a generation change, can see it.
-      [on_generation_change] is a callback for all pack instances to react to a
-      generation change. *)
+  val sync : 'a t -> unit
+  (** Syncs a readonly instance with the files on disk. The same file instance
+      is shared between several pack instances. *)
 
   val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
-  val version : _ t -> Version.t
   val offset : 'a t -> int63
 
   val clear_caches : 'a t -> unit
@@ -58,8 +54,9 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
+  val selected_version : Version.t
+
   module Maker
-      (V : Version.S)
       (Index : Pack_index.S)
       (Hash : Irmin.Hash.S with type t = Index.key) :
     Maker with type hash = Hash.t and type index := Index.t

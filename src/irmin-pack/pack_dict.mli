@@ -20,4 +20,4 @@ module type S = sig
   val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
 end
 
-module Make (_ : Version.S) : S
+include S

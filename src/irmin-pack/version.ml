@@ -17,24 +17,11 @@
 (* For every new version, update the [version] type and [versions]
    headers. *)
 
-type t = [ `V1 | `V2 ]
+type t = [ `V1 ] [@@deriving irmin]
 
-exception Invalid of { expected : t; found : t }
-
-module type S = sig
-  val version : t
-end
-
-module V1 = struct
-  let version = `V1
-end
-
-module V2 = struct
-  let version = `V2
-end
-
-let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
-let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
+let latest = `V1
+let enum = [ (`V1, "00000001") ]
+let pp = Fmt.of_to_string (function `V1 -> "v1")
 let to_bin v = List.assoc v enum
 
 let invalid_arg v =
@@ -47,10 +34,12 @@ let of_bin b =
   try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
   with Not_found -> None
 
+exception Invalid of { expected : t; found : t }
+
 let () =
   Printexc.register_printer (function
-    | Invalid v ->
+    | Invalid { expected; found } ->
         Some
-          (Fmt.str "Irmin_pack.Version.Invalid { expected:%a; found:%a }" pp
-             v.expected pp v.found)
+          (Fmt.str "%s.Invalid { expected = %a; found = %a }" __MODULE__ pp
+             expected pp found)
     | _ -> None)

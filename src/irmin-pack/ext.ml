@@ -17,7 +17,7 @@
 open! Import
 module IO = IO.Unix
 
-module Maker (V : Version.S) (Config : Conf.S) = struct
+module Maker (Config : Conf.S) = struct
   type endpoint = unit
 
   include Pack_key.Store_spec
@@ -32,8 +32,8 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
-    module Pack = Pack_store.Maker (V) (Index) (H)
-    module Dict = Pack_dict.Make (V)
+    module Pack = Pack_store.Maker (Index) (H)
+    module Dict = Pack_dict
     module XKey = Pack_key.Make (H)
 
     module X = struct
@@ -87,7 +87,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
       module Branch = struct
         module Key = B
         module Val = XKey
-        module AW = Atomic_write.Make_persistent (V) (Key) (Val)
+        module AW = Atomic_write.Make_persistent (Key) (Val)
         include Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =
@@ -159,24 +159,15 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
             (fun () -> unsafe_v config)
             (function
               | Version.Invalid { expected; found } as e
-                when expected = V.version ->
+                when expected = Version.latest ->
                   [%log.err
                     "[%s] Attempted to open store of unsupported version %a"
                       (Conf.root config) Version.pp found];
                   Lwt.fail e
               | e -> Lwt.fail e)
 
-        (** Stores share instances in memory, one sync is enough. However each
-            store has its own lru and all have to be cleared. *)
-        let sync t =
-          let on_generation_change () =
-            Node.CA.clear_caches (snd (node_t t));
-            Commit.CA.clear_caches (snd (commit_t t))
-          in
-          Contents.CA.sync ~on_generation_change (contents_t t)
-
-        (** Stores share instances so one clear is enough. *)
-        let clear t = Contents.CA.clear (contents_t t)
+        (** Stores share instances in memory, one sync is enough. *)
+        let sync t = Contents.CA.sync (contents_t t)
 
         let flush t =
           Contents.CA.flush (contents_t t);
@@ -300,12 +291,9 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
     let stats = Stats.run
     let sync = X.Repo.sync
-    let clear = X.Repo.clear
-    let migrate = Migrate.run
     let flush = X.Repo.flush
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
-      module Version = V
       module Hash = H
       module Index = Index
       module Inode = X.Node.CA

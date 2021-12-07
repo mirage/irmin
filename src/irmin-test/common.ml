@@ -99,6 +99,7 @@ type t = {
      [Store.import] to re-hydrate the keys in these slices (by tracking keys of
      added objects), then require all backends to run thee tests. *)
   import_supported : bool;
+  clear_supported : bool;
 }
 
 module Suite = struct
@@ -126,16 +127,38 @@ module Suite = struct
     Store.Repo.close repo
 
   let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
-      ~layered_store ?stats ?(import_supported = true) () =
+      ~layered_store ?stats ?(clear_supported = true) ?(import_supported = true)
+      () =
     let store = S store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
-    { name; init; clean; config; store; layered_store; stats; import_supported }
+    {
+      name;
+      init;
+      clean;
+      config;
+      store;
+      layered_store;
+      stats;
+      clear_supported;
+      import_supported;
+    }
 
   let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
-      ~config ~store ~layered_store ?stats ?(import_supported = true) () =
+      ~config ~store ~layered_store ?stats ?(clear_supported = true)
+      ?(import_supported = true) () =
     let store = Generic_key store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
-    { name; init; clean; config; store; layered_store; stats; import_supported }
+    {
+      name;
+      init;
+      clean;
+      config;
+      store;
+      layered_store;
+      stats;
+      clear_supported;
+      import_supported;
+    }
 
   let name t = t.name
   let config t = t.config

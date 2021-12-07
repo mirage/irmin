@@ -26,7 +26,7 @@ end
 let test_dir = Filename.concat "_build" "test-db-pack"
 
 module Irmin_pack_maker : Irmin.Maker = struct
-  include Irmin_pack.V2 (Config)
+  include Irmin_pack.Maker (Config)
 
   module Make (Schema : Irmin.Schema.S) = Make (struct
     include Schema
@@ -49,8 +49,8 @@ let suite_pack =
     rm_dir test_dir;
     Lwt.return_unit
   in
-  Irmin_test.Suite.create ~name:"PACK" ~init ~store ~config ~clean
-    ~layered_store:None ()
+  Irmin_test.Suite.create ~name:"PACK" ~clear_supported:false ~init ~store
+    ~config ~clean ~layered_store:None ()
 
 module Irmin_pack_mem_maker = struct
   include Irmin_pack_mem.Maker (Config)
@@ -149,67 +149,10 @@ module Dict = struct
     Dict.close dict;
     Dict.close r
 
-  let test_clear () =
-    let Context.{ dict; _ } = Context.get_dict () in
-    ignore_int (Dict.index dict "foo");
-    Dict.flush dict;
-    Alcotest.(check (option string)) "find foo" (Some "foo") (Dict.find dict 0);
-    Dict.clear dict;
-    Alcotest.(check (option string))
-      "find foo after clear" None (Dict.find dict 0);
-    Dict.close dict
-
-  (** Readonly can read old values, after a RW clear but before a sync. Set
-      ~force_refill:true for the first sync after a clear. *)
-  let readonly_find_old () =
-    let Context.{ dict; clone } = Context.get_dict () in
-    let r = clone ~readonly:true in
-    let check_find msg k i =
-      Alcotest.(check (option string)) msg k (Dict.find r i)
-    in
-    ignore_int (Dict.index dict "foo");
-    Dict.flush dict;
-    Dict.sync r;
-    check_find "find before clear" (Some "foo") 0;
-    Dict.clear dict;
-    Dict.flush dict;
-    check_find "find after clear but before sync" (Some "foo") 0;
-    Dict.sync r;
-    check_find "find after clear and sync" None 0;
-    Dict.close dict;
-    Dict.close r
-
-  (** Readonly can read old values, after RW clear and add, but before sync. Set
-      ~force_refill:true for the first sync after a clear. *)
-  let readonly_find_old_after_rewrite () =
-    let Context.{ dict; clone } = Context.get_dict () in
-    let r = clone ~readonly:true in
-    let check_find msg k i =
-      Alcotest.(check (option string)) msg k (Dict.find r i)
-    in
-    ignore_int (Dict.index dict "foo");
-    Dict.flush dict;
-    Dict.sync r;
-    check_find "find before clear" (Some "foo") 0;
-    Dict.clear dict;
-    ignore_int (Dict.index dict "bar");
-    Dict.flush dict;
-    check_find "find after clear and new values added, but before sync"
-      (Some "foo") 0;
-    Dict.sync r;
-    check_find "find new values after sync" (Some "bar") 0;
-    Dict.close dict;
-    Dict.close r
-
   let tests =
     [
       Alcotest.test_case "dict" `Quick test_dict;
       Alcotest.test_case "RO dict" `Quick test_readonly_dict;
-      Alcotest.test_case "clear" `Quick test_clear;
-      Alcotest.test_case "RO find old values after clear" `Quick
-        readonly_find_old;
-      Alcotest.test_case "RO find old values after clear and add" `Quick
-        readonly_find_old_after_rewrite;
     ]
 end
 
@@ -452,102 +395,6 @@ module Pack = struct
     test t.pack >>= fun () ->
     Context.close t.index t.pack >>= fun () -> Context.close i r
 
-  let test_clear () =
-    let* t = Context.get_pack ~lru_size:10 () in
-    let v = "foo" in
-    let k = sha1 v in
-    let (_ : Pack.key) =
-      Pack.unsafe_append ~ensure_unique:true ~overcommit:false t.pack k v
-    in
-    Pack.flush t.pack;
-    let* v1 = Pack.find t.pack k in
-    Alcotest.(check (option string)) "before clear" (Some v) v1;
-    Pack.clear t.pack >>= fun () ->
-    let* v2 = Pack.find t.pack k in
-    Alcotest.(check (option string)) "after clear" None v2;
-    Context.close t.index t.pack
-
-  (** Readonly can read old values, after a RW clear but before a sync. Old
-      values can be either in the log or in the data file. [persist] calls
-      [Index.flush] to the test for old values in log; it calls [Index.filter]
-      to force a merge, to add the values in the data file. *)
-  let readonly_find_old () =
-    let* t = Context.get_pack () in
-    let* i, r = t.clone_index_pack ~readonly:true in
-    let check h x msg =
-      let+ y = Pack.find r h in
-      Alcotest.(check (option string)) msg x y
-    in
-    let x1 = "foo" in
-    let h1 = sha1 x1 in
-    let find_before_and_after_sync persist file =
-      let (_ : Pack.key) =
-        Pack.unsafe_append ~ensure_unique:true ~overcommit:false t.pack h1 x1
-      in
-      persist ();
-      Pack.sync r;
-      Pack.clear t.pack >>= fun () ->
-      Pack.flush t.pack;
-      let* () =
-        check h1 (Some x1) ("find in " ^ file ^ " after clear but before sync")
-      in
-      Pack.sync r;
-      check h1 None ("find in " ^ file ^ " after clear and sync")
-    in
-    let* () =
-      find_before_and_after_sync (fun () -> Index.flush t.index) "log"
-    in
-    let* () =
-      find_before_and_after_sync
-        (fun () -> Index.filter t.index (fun _ -> true))
-        "data"
-    in
-    Context.close t.index t.pack >>= fun () -> Context.close i r
-
-  (** Similar to the test above, but the read-write pack adds new values after a
-      clear, and before a readonly sync. *)
-  let readonly_find_old_after_rewrite () =
-    let* t = Context.get_pack () in
-    let* i, r = t.clone_index_pack ~readonly:true in
-    let check h x msg =
-      let+ y = Pack.find r h in
-      Alcotest.(check (option string)) msg x y
-    in
-    let x1 = "foo" in
-    let h1 = sha1 x1 in
-    let x2 = "bar" in
-    let h2 = sha1 x2 in
-    let find_before_and_after_sync persist file =
-      let (_ : Pack.key) =
-        Pack.unsafe_append ~ensure_unique:true ~overcommit:false t.pack h1 x1
-      in
-      persist ();
-      Pack.sync r;
-      Pack.clear t.pack >>= fun () ->
-      let (_ : Pack.key) =
-        Pack.unsafe_append ~ensure_unique:true ~overcommit:false t.pack h2 x2
-      in
-      persist ();
-      let* () =
-        check h1 (Some x1)
-          ("find old values in " ^ file ^ " after clear but before sync")
-      in
-      Pack.sync r;
-      let* () =
-        check h1 None ("do not find old values in " ^ file ^ " after sync")
-      in
-      check h2 (Some x2) ("find new values in " ^ file ^ " after sync")
-    in
-    let* () =
-      find_before_and_after_sync (fun () -> Index.flush t.index) "log"
-    in
-    let* () =
-      find_before_and_after_sync
-        (fun () -> Index.filter t.index (fun _ -> true))
-        "data"
-    in
-    Context.close t.index t.pack >>= fun () -> Context.close i r
-
   let tests =
     [
       Alcotest.test_case "pack" `Quick (fun () -> Lwt_main.run (test_pack ()));
@@ -563,18 +410,12 @@ module Pack = struct
           Lwt_main.run (readonly_sync_index_flush ()));
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
-      Alcotest.test_case "clear" `Quick (fun () -> Lwt_main.run (test_clear ()));
-      Alcotest.test_case "readonly find old values after clear" `Quick
-        (fun () -> Lwt_main.run (readonly_find_old ()));
-      Alcotest.test_case "readonly find old values after clear and add" `Quick
-        (fun () -> Lwt_main.run (readonly_find_old_after_rewrite ()));
     ]
 end
 
 module Branch = struct
   module Branch =
     Irmin_pack.Atomic_write.Make_persistent
-      (Irmin_pack.Version.V2)
       (Irmin.Branch.String)
       (Irmin_pack.Atomic_write.Value.Of_hash (Irmin.Hash.SHA1))
 

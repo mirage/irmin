@@ -20,7 +20,7 @@ open Common
 let root = Filename.concat "_build" "test-tree"
 
 module Store = struct
-  module Maker = Irmin_pack.Maker (Irmin_pack.Version.V2) (Conf)
+  module Maker = Irmin_pack.Maker (Conf)
   include Maker.Make (Schema)
 end
 

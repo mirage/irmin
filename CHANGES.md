@@ -177,6 +177,9 @@
 - **irmin-pack**
   - Removed the `irmin-pack.layered` library. Support for the layered store
     will be restored on a future release of `irmin-pack`. (#1651, @CraigFe)
+  - Removed support for the `clear` operation in `irmin-pack`. This operation
+    is incompatible with performance optimisations made in this release.
+    (#1655, @CraigFe)
 
 ## 2.7.2 (2021-07-20)
 
