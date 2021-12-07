@@ -32,7 +32,7 @@ module type Sigs = sig
 
       Invariant: keys of the form {!Indexed} always reference values that have
       entries in the index (as otherwise these keys could not be dereferenced). *)
-  type 'hash state =
+  type 'hash state = private
     | Direct of { hash : 'hash; offset : int63; length : int }
         (** A "direct" pointer to a value stored at [offset] in the pack-file
             (with hash [hash] and length [length]). Such keys can be
