@@ -95,7 +95,9 @@
     (#1401, @samoht)
   - `Info` implementations are not part of store: use `S.Info.v`
     instead of `Irmin.Info.v` (#1400, @samoht)
-  - Rename `Commit.V1` to `Commit.V1.Make` (#1431, @CraigFe)
+  - Rename `Commit.V1` to `Commit.V1.Make`. This functor now takes separate
+    hash and key implementations as arguments. (#1431 #1634, @CraigFe
+    @icristescu)
   - Introduce a `Schema` module to hold all the types that users can
     define in an Irmin store. Use this as a parameter to every `Maker`
     functor. This is a large change which touches all the backends.

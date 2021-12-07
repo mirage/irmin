@@ -52,6 +52,9 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
     type t = hash
     [@@deriving irmin ~equal ~compare ~pre_hash ~encode_bin ~decode_bin]
 
+    let unboxed_encode_bin = Irmin.Type.(unstage (Unboxed.encode_bin t))
+    let unboxed_decode_bin = Irmin.Type.(unstage (Unboxed.decode_bin t))
+
     let encoded_size =
       match Irmin.Type.Size.of_value t with
       | Static n -> n
@@ -77,12 +80,17 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
   let compare a b = Hash.compare (to_hash a) (to_hash b) in
   let pre_hash t f = Hash.pre_hash (to_hash t) f in
   let encode_bin t f = Hash.encode_bin (to_hash t) f in
+  let unboxed_encode_bin t f = Hash.unboxed_encode_bin (to_hash t) f in
   let decode_bin buf pos_ref =
     { state = Indexed (Hash.decode_bin buf pos_ref) }
+  in
+  let unboxed_decode_bin buf pos_ref =
+    { state = Indexed (Hash.unboxed_decode_bin buf pos_ref) }
   in
   let size_of = Irmin.Type.Size.custom_static Hash.encoded_size in
   Irmin.Type.like (t hash_t) ~pre_hash ~equal ~compare
     ~bin:(encode_bin, decode_bin, size_of)
+    ~unboxed_bin:(unboxed_encode_bin, unboxed_decode_bin, size_of)
 
 let v_direct ~hash ~offset ~length = { state = Direct { hash; offset; length } }
 let v_indexed hash = { state = Indexed hash }

@@ -77,7 +77,8 @@ module Config_store = struct
           cmd n
 end
 
-module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) = struct
+module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) =
+struct
   let check_commit repo commit bindings =
     commit |> S.Commit.key |> S.Commit.of_key repo >>= function
     | None ->
