@@ -14,23 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Schema = Irmin.Schema.KV (Irmin.Contents.String)
+val tests : unit Alcotest.test_case list
 
-module Maker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.Maker (V) (Irmin_tezos.Conf)
-  include Maker.Make (Schema)
-end
-
-module Store = Irmin_pack.Checks.Make (Maker)
-
-module TzMaker (V : Irmin_pack.Version.S) = struct
-  module Maker = Irmin_pack.V1 (Irmin_tezos.Conf)
-  include Maker.Make (Schema)
-end
-
-module TzStore = Irmin_pack.Checks.Make (TzMaker)
-
-let () =
-  match Sys.getenv_opt "PACK" with
-  | Some "tezos" -> ( match TzStore.cli () with _ -> .)
-  | _ -> ( match Store.cli () with _ -> .)
+val check_iter :
+  string ->
+  ('a -> (string -> unit) -> unit) ->
+  'a ->
+  (string * string) list ->
+  unit

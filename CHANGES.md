@@ -11,6 +11,10 @@
    - Improved the performance of Index encode and decode operations by
      eliminating intermediate allocations. (#1577, @CraigFe)
 
+- **irmin-unix**
+  - Fix terms that can be manipulated at runtime by delaying computation
+    (#1645, @zshipko)
+
 ### Added
 
 - **irmin**
@@ -111,8 +115,10 @@
     their hash. In particular, this includes:
     - New functions: `Store.{Commit,Contents,Tree}.of_key`.
     - Adds `Irmin.{Node,Commit}.Generic_key` modules.
-    - Adds a new type that must be provided by backends: `Node.Portable`.
+    - Adds new types that must be provided by backends: `Node.Portable` and
+      `Commit.Portable`.
     - Adds a new type of backend store: `Irmin.Indexable.S`.
+    (#1510 #1647, @CraigFe)
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
@@ -149,6 +155,10 @@
   - The backend configuration type `Conf.S` requires a new parameter
     `contents_length_header` that (optionally) further specifies the encoding
     format used for commits in order to improve performance. (#1644, @CraigFe)
+  - Upgraded on-disk format of pack files to support more efficient lookups and
+    reduce indexing overhead.  This change is fully backwards-compatible with
+    existing stores using `irmin-pack.2.x` versions, but not
+    forwards compatible. (#1649, @CraigFe @Ngoguey42)
 
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when
@@ -161,6 +171,12 @@
     (#1575, @maiste)
   - Add new commands to CLI: `branches` for listing available branches and
     `log` which is similar to `git log` (#1609, @zshipko)
+
+### Removed
+
+- **irmin-pack**
+  - Removed the `irmin-pack.layered` library. Support for the layered store
+    will be restored on a future release of `irmin-pack`. (#1651, @CraigFe)
 
 ## 2.7.2 (2021-07-20)
 

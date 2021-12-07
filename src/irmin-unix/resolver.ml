@@ -94,7 +94,7 @@ module Contents = struct
         in
         failwith msg
 
-  let term =
+  let term () =
     let content_types = !all |> List.map (fun (name, _) -> (name, name)) in
     let kind =
       let doc =
@@ -193,7 +193,7 @@ module Hash = struct
 
   let hash_function_conv : t Cmdliner.Arg.conv = Arg.conv (of_specifier, Fmt.nop)
 
-  let term =
+  let term () =
     let kind =
       let quote s = Fmt.str "`%s'" s in
       let hash_types = !all |> List.map (fun (name, _) -> (name, name)) in
@@ -369,7 +369,7 @@ module Store = struct
 
   let remote (T { remote; _ }) = remote
 
-  let term =
+  let term () =
     let store =
       let store_types = !all |> List.map (fun (name, _) -> (name, name)) in
       let doc =
@@ -383,7 +383,7 @@ module Store = struct
       Arg.(value & opt (some (enum store_types)) None & arg_info)
     in
     let create store hash contents = (store, hash, contents) in
-    Term.(const create $ store $ Hash.term $ Contents.term)
+    Term.(const create $ store $ Hash.term () $ Contents.term ())
 end
 
 (* Config *)
@@ -598,12 +598,12 @@ let branch =
   in
   Arg.(value & opt (some string) None & doc)
 
-let store =
+let store () =
   let create store (root, config_path, opts) branch =
     let y = read_config_file config_path in
     build_irmin_config y root opts store branch
   in
-  Term.(const create $ Store.term $ config_term $ branch)
+  Term.(const create $ Store.term () $ config_term $ branch)
 
 let header_conv =
   let parse str =
@@ -668,4 +668,4 @@ let remote =
     in
     Arg.(required & pos 0 (some string) None & doc)
   in
-  Term.(const infer_remote $ Hash.term $ Contents.term $ headers $ repo)
+  Term.(const infer_remote $ Hash.term () $ Contents.term () $ headers $ repo)

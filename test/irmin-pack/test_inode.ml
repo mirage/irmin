@@ -29,58 +29,87 @@ module Conf = struct
 end
 
 let log_size = 1000
+let check_iter = Test_hashes.check_iter
 
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-module H = Schema.Hash
-module Key = Irmin_pack.Pack_key.Make (H)
-module Node = Irmin.Node.Generic_key.Make (H) (Path) (Metadata) (Key) (Key)
-module Index = Irmin_pack.Index.Make (H)
-module Inter = Irmin_pack.Inode.Make_internal (Conf) (H) (Key) (Node)
-module Inode = Irmin_pack.Inode.Make_persistent (H) (Node) (Inter) (P)
+module Inode_modules
+    (Schema : Irmin.Schema.S) (Contents : sig
+      val foo : Schema.Contents.t
+      val bar : Schema.Contents.t
+    end) =
+struct
+  module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
-module Contents_value =
-  Irmin_pack.Pack_value.Of_contents (Conf) (H) (Key) (Schema.Contents)
+  module Node =
+    Irmin.Node.Generic_key.Make (Schema.Hash) (Schema.Path) (Schema.Metadata)
+      (Key)
+      (Key)
 
-module Contents_store = P.Make (Contents_value)
+  module Index = Irmin_pack.Index.Make (Schema.Hash)
 
-module Context = struct
-  type t = {
-    index : Index.t;
-    store : read Inode.t;
-    store_contents : read Contents_store.t;
-    clone : readonly:bool -> read Inode.t Lwt.t;
-    (* Two contents values that are guaranteed to be read by {!store}: *)
-    foo : Key.t;
-    bar : Key.t;
-  }
+  module Inter =
+    Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
-  let get_store ?(lru_size = 0) () =
-    [%log.app "Constructing a fresh context for use by the test"];
-    rm_dir root;
-    let index = Index.v ~log_size ~fresh:true root in
-    let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
-    let* store = Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root in
-    let* store_contents =
-      Contents_store.v ~fresh:false ~lru_size ~index ~indexing_strategy root
-    in
-    let+ foo, bar =
-      Contents_store.batch store_contents (fun writer ->
-          let* foo = Contents_store.add writer "foo" in
-          let* bar = Contents_store.add writer "bar" in
-          Lwt.return (foo, bar))
-    in
-    let clone ~readonly =
-      Inode.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy root
-    in
-    [%log.app "Test context constructed"];
-    { index; store; store_contents; clone; foo; bar }
+  module P =
+    Irmin_pack.Pack_store.Maker (Irmin_pack.Version.V2) (Index) (Schema.Hash)
 
-  let close t =
-    Index.close t.index;
-    Inode.close t.store >>= fun () -> Contents_store.close t.store_contents
+  module Inode =
+    Irmin_pack.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (P)
+
+  module Contents_value =
+    Irmin_pack.Pack_value.Of_contents (Conf) (Schema.Hash) (Key)
+      (Schema.Contents)
+
+  module Contents_store = P.Make (Contents_value)
+
+  module Context = struct
+    type t = {
+      index : Index.t;
+      store : read Inode.t;
+      store_contents : read Contents_store.t;
+      clone : readonly:bool -> read Inode.t Lwt.t;
+      (* Two contents values that are guaranteed to be read by {!store}: *)
+      foo : Key.t;
+      bar : Key.t;
+    }
+
+    let get_store ?(lru_size = 0) () =
+      [%log.app "Constructing a fresh context for use by the test"];
+      rm_dir root;
+      let index = Index.v ~log_size ~fresh:true root in
+      let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+      let* store =
+        Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root
+      in
+      let* store_contents =
+        Contents_store.v ~fresh:false ~lru_size ~index ~indexing_strategy root
+      in
+      let+ foo, bar =
+        Contents_store.batch store_contents (fun writer ->
+            let* foo = Contents_store.add writer Contents.foo in
+            let* bar = Contents_store.add writer Contents.bar in
+            Lwt.return (foo, bar))
+      in
+      let clone ~readonly =
+        Inode.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy root
+      in
+      [%log.app "Test context constructed"];
+      { index; store; store_contents; clone; foo; bar }
+
+    let close t =
+      Index.close t.index;
+      Inode.close t.store >>= fun () -> Contents_store.close t.store_contents
+  end
 end
 
+module S =
+  Inode_modules
+    (Schema)
+    (struct
+      let foo = "foo"
+      let bar = "bar"
+    end)
+
+open S
 open Schema
 
 type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
@@ -88,21 +117,19 @@ type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
 
 let pp_pred = Irmin.Type.pp pred_t
 
-module H_contents = struct
-  include
-    Irmin.Hash.Typed
-      (Hash)
-      (struct
-        type t = string
+module H_contents =
+  Irmin.Hash.Typed
+    (Hash)
+    (struct
+      type t = string
 
-        let t = Irmin.Type.string
+      let t = Irmin.Type.string
 
-        let pre_hash_unboxed =
-          Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
+      let pre_hash_unboxed =
+        Irmin.Type.(unstage (pre_hash_unboxed_primitives t))
 
-        let t = Irmin.Type.like t ~pre_hash:pre_hash_unboxed
-      end)
-end
+      let t = Irmin.Type.like t ~pre_hash:pre_hash_unboxed
+    end)
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
@@ -556,25 +583,116 @@ let test_concrete_inodes () =
   check v;
   Context.close t
 
+module Inode_tezos = struct
+  module S =
+    Inode_modules
+      (Irmin_tezos.Schema)
+      (struct
+        let foo = Bytes.make 10 '0'
+        let bar = Bytes.make 10 '1'
+      end)
+
+  let encode_bin h v =
+    let v1 = S.Inter.Val.to_raw v in
+    S.Inter.Raw.encode_bin
+      ~dict:(fun _ -> None)
+      ~offset_of_key:(fun _ -> None)
+      h v1
+
+  let hex_encode s = Hex.of_string s |> Hex.show
+
+  let test_encode_bin_values () =
+    rm_dir root;
+    let* t = S.Context.get_store () in
+    let { S.Context.foo; _ } = t in
+    let v = S.Inode.Val.of_list [ ("x", normal foo); ("z", normal foo) ] in
+    let h = S.Inter.Val.hash v in
+    let hash_to_bin_string =
+      Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
+    in
+    let hex_of_h = h |> hash_to_bin_string |> hex_encode in
+    let hex_of_foo =
+      (* XXX(craigfe): remove Obj.magic once Repr hack has been removed *)
+      Obj.magic (Key.to_hash (Obj.magic foo))
+      |> hash_to_bin_string
+      |> hex_encode
+    in
+    let checks =
+      [
+        ("hash", hex_of_h);
+        ("magic R", hex_encode "R");
+        ("data length", "48");
+        ("Values", "00");
+        ("length", "02");
+        ("contents-x-dd", "09");
+        ("Direct", "01");
+        ("x", "78");
+        ("hash of contents", hex_of_foo);
+        ("contents-x-dd", "09");
+        ("Direct", "01");
+        ("z", "7a");
+        ("hash of contents", hex_of_foo);
+      ]
+    in
+    check_iter "encode_bin" (encode_bin h) v checks;
+    S.Context.close t
+
+  let test_encode_bin_tree () =
+    rm_dir root;
+    let* t = S.Context.get_store () in
+    let { S.Context.foo; bar; _ } = t in
+    let v =
+      S.Inode.Val.of_list
+        [
+          ("x", normal foo);
+          ("z", normal foo);
+          ("y", normal bar);
+          ("w", normal bar);
+          ("t", normal bar);
+        ]
+    in
+    let h = S.Inter.Val.hash v in
+    let to_bin_string_hash =
+      Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
+    in
+    let hex_of_h = h |> to_bin_string_hash |> Hex.of_string |> Hex.show in
+    let checks =
+      [
+        ("hash", hex_of_h);
+        ("magic R", hex_encode "R");
+        ("data length", "48");
+        ("Tree", "01");
+        ("depth", "00");
+        ("nb of leaves", "05");
+        ("length of entries", "02");
+        ("index", "00");
+        ("Direct", "01");
+        ( "hash of entry", "8c81eb0a729858e10a8aed80f4ad638b26e80cf713be980a83620e22516001bf" );
+        ("index", "01");
+        ("Direct", "01");
+        ( "hash of entry", "461a30b373e7d98e23dc963934a417d7c5aceb14fa2fb6da6950438fd54c9aa9" );
+      ]
+    in
+    check_iter "encode_bin" (encode_bin h) v checks;
+    S.Context.close t
+end
+
 let tests =
+  let tc name f =
+    Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
+  in
   (* Test disabled because it relies on being able to serialise concrete inodes,
      which is not possible following the introduction of structured keys. *)
-  let _ = test_truncated_inodes in
+  let _ = tc "test truncated inodes" test_truncated_inodes in
+  let _ = tc "test encode bin of trees" Inode_tezos.test_encode_bin_tree in
   [
-    Alcotest.test_case "add values" `Quick (fun () ->
-        Lwt_main.run (test_add_values ()));
-    Alcotest.test_case "add values to inodes" `Quick (fun () ->
-        Lwt_main.run (test_add_inodes ()));
-    Alcotest.test_case "remove values" `Quick (fun () ->
-        Lwt_main.run (test_remove_values ()));
-    Alcotest.test_case "remove inodes" `Quick (fun () ->
-        Lwt_main.run (test_remove_inodes ()));
-    Alcotest.test_case "test concrete inodes" `Quick (fun () ->
-        Lwt_main.run (test_concrete_inodes ()));
-    Alcotest.test_case "test representation uniqueness" `Quick (fun () ->
-        Lwt_main.run (test_representation_uniqueness_maxdepth_3 ()));
-    (* Alcotest.test_case "test truncated inodes" `Quick (fun () ->
-     *     Lwt_main.run (test_truncated_inodes ())); *)
-    Alcotest.test_case "test intermediate inode as root" `Quick (fun () ->
-        Lwt_main.run (test_intermediate_inode_as_root ()));
+    tc "add values" test_add_values;
+    tc "add values to inodes" test_add_inodes;
+    tc "remove values" test_remove_values;
+    tc "remove inodes" test_remove_inodes;
+    tc "test concrete inodes" test_concrete_inodes;
+    tc "test representation uniqueness"
+      test_representation_uniqueness_maxdepth_3;
+    tc "test encode bin of values" Inode_tezos.test_encode_bin_values;
+    tc "test intermediate inode as root" test_intermediate_inode_as_root;
   ]

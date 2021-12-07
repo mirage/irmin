@@ -25,7 +25,7 @@ module Hash : sig
 
   val add : string -> ?default:bool -> (module Irmin.Hash.S) -> unit
   val find : string -> t
-  val term : t option Cmdliner.Term.t
+  val term : unit -> t option Cmdliner.Term.t
 end
 
 type hash = Hash.t
@@ -36,7 +36,7 @@ module Contents : sig
 
   val add : string -> ?default:bool -> (module Irmin.Contents.S) -> unit
   val find : string -> t
-  val term : string option Cmdliner.Term.t
+  val term : unit -> string option Cmdliner.Term.t
 end
 
 type contents = Contents.t
@@ -97,7 +97,9 @@ module Store : sig
   val generic_keyed : t -> (module Irmin.Generic_key.S)
   val hash_keyed : t -> (module Irmin.S) option
   val remote : t -> remote_fn option
-  val term : (string option * hash option * string option) Cmdliner.Term.t
+
+  val term :
+    unit -> (string option * hash option * string option) Cmdliner.Term.t
 end
 
 type Irmin.remote += R of Cohttp.Header.t option * string
@@ -126,5 +128,5 @@ val load_config :
 
 type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
 
-val store : store Cmdliner.Term.t
+val store : unit -> store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)

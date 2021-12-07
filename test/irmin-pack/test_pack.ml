@@ -53,23 +53,8 @@ module Irmin_pack_store : Irmin_test.Generic_key = struct
   end)
 end
 
-module Irmin_pack_layered_store : Irmin_test.Layered_store_generic_key = struct
-  open Irmin_pack_layered.Maker (Config)
-
-  include Make (struct
-    include Schema
-    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-    module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
-    module Commit = Commit_maker.Make (Hash)
-  end)
-end
-
 let suite_pack name_suffix indexing_strategy =
   let store = (module Irmin_pack_store : Irmin_test.Generic_key) in
-  let _layered_store =
-    (* TODO: re-add once the layered store is suppored by Irmin_pack. *)
-    (module Irmin_pack_layered_store : Irmin_test.Layered_store_generic_key)
-  in
   let config =
     Irmin_pack.config ~fresh:false ~lru_size:0 ~indexing_strategy test_dir
   in
@@ -81,9 +66,9 @@ let suite_pack name_suffix indexing_strategy =
     rm_dir test_dir;
     Lwt.return_unit
   in
-  Irmin_test.Suite.create_generic_key ~clear_supported:false
-    ~import_supported:false ~name:("PACK" ^ name_suffix) ~init ~store ~config
-    ~clean ~layered_store:None ()
+  Irmin_test.Suite.create_generic_key ~name:("PACK" ^ name_suffix)
+    ~clear_supported:false ~import_supported:false ~init ~store ~config ~clean
+    ~layered_store:None ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)
@@ -723,13 +708,12 @@ end
 
 let misc =
   [
+    ("hashes", Test_hashes.tests);
     ("dict-files", Dict.tests);
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
     ("existing stores", Test_existing_stores.tests);
-    (* NOTE: temporarily disabled as [clear] is no longer supported by [irmin-pack]. *)
-    (* ("layers", Layered.tests); *)
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);
   ]

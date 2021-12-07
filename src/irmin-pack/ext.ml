@@ -69,7 +69,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
 
       module Commit = struct
         module Value = struct
-          include Schema.Commit (XKey) (XKey)
+          include Schema.Commit (Node.Key) (XKey)
           (** NOTE: here we derive a serialisation format for commits that uses
               hashes for keys, matching the [Commit_v0] kind. This is safe since
               objects of this type are always indexed.

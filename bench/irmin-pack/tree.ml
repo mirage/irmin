@@ -28,7 +28,7 @@ type config = {
   store_dir : string;
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
-  store_type : [ `Pack | `Pack_layered | `Pack_mem ];
+  store_type : [ `Pack | `Pack_mem ];
   freeze_commit : int;
   commit_data_file : string;
   artefacts_dir : string;
@@ -55,7 +55,6 @@ let pp_inode_config ppf (entries, stable_hash) =
 
 let pp_store_type ppf = function
   | `Pack -> Format.fprintf ppf "[pack store]"
-  | `Pack_layered -> Format.fprintf ppf "[pack-layered store]"
   | `Pack_mem -> Format.fprintf ppf "[pack-mem store]"
 
 module Benchmark = struct
@@ -149,7 +148,8 @@ module Bench_suite (Store : Store) = struct
         store_dir = config.store_dir;
         path_conversion = config.path_conversion;
         inode_config = config.inode_config;
-        store_type = config.store_type;
+        store_type =
+          (config.store_type :> [ `Pack | `Pack_layered | `Pack_mem ]);
         commit_data_file = config.commit_data_file;
         artefacts_dir = config.artefacts_dir;
         keep_store = config.keep_store;
@@ -159,44 +159,6 @@ module Bench_suite (Store : Store) = struct
       }
     in
     Trace_replay.run config replay_config
-end
-
-module Make_store_layered (Conf : Irmin_pack.Conf.S) = struct
-  type store_config = config
-
-  module Store = struct
-    open Irmin_pack_layered.Maker (Conf)
-    include Make (Irmin_tezos.Schema)
-  end
-
-  let create_repo config =
-    let conf =
-      Irmin_pack.config ~readonly:false ~fresh:true
-        ~indexing_strategy:Irmin_pack.Pack_store.Indexing_strategy.minimal
-        config.store_dir
-    in
-    let* repo = Store.Repo.v conf in
-    let on_commit i commit_hash =
-      let* () =
-        if i = config.freeze_commit then
-          let* c = Store.Commit.of_hash repo commit_hash in
-          let c = Option.get c in
-          Store.freeze repo ~max_lower:[ c ]
-        else Lwt.return_unit
-      in
-      (* Something else than pause could be used here, like an Lwt_unix.sleep
-         or nothing. See #1293 *)
-      Lwt.pause ()
-    in
-    let on_end () = Store.Backend_layer.wait_for_freeze repo in
-    let pp ppf =
-      if Irmin_layers.Stats.get_freeze_count () = 0 then
-        Format.fprintf ppf "no freeze"
-      else Format.fprintf ppf "%t" Irmin_layers.Stats.pp_latest
-    in
-    Lwt.return (repo, on_commit, on_end, pp)
-
-  include Store
 end
 
 module Make_basic (Maker : functor (_ : Irmin_pack.Conf.S) ->
@@ -240,7 +202,6 @@ let store_of_config config =
   end in
   match config.store_type with
   | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)
-  | `Pack_layered -> (module Bench_suite (Make_store_layered (Conf)) : B)
   | `Pack_mem -> (module Bench_suite (Make_store_mem (Conf)) : B)
 
 type suite_elt = {
@@ -416,11 +377,7 @@ let inode_config =
   Arg.(value @@ opt (pair int int) (32, 256) doc)
 
 let store_type =
-  let mode =
-    [
-      ("pack", `Pack); ("pack-layered", `Pack_layered); ("pack-mem", `Pack_mem);
-    ]
-  in
+  let mode = [ ("pack", `Pack); ("pack-mem", `Pack_mem) ] in
   let doc = Arg.info ~doc:(Arg.doc_alts_enum mode) [ "store-type" ] in
   Arg.(value @@ opt (Arg.enum mode) `Pack doc)
 

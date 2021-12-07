@@ -354,6 +354,7 @@ module type Sigs = sig
     module Of_node (S : S) :
       Portable
         with type node := S.t
+         and type t = S.t
          and type step = S.step
          and type metadata = S.metadata
          and type hash = S.hash

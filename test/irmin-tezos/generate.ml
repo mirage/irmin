@@ -23,37 +23,6 @@ let rm_dir data_dir =
     let _ = Sys.command cmd in
     ())
 
-module Layered = struct
-  let data_dir = "data/layered_pack_upper"
-
-  module Schema = Irmin.Schema.KV (Irmin.Contents.String)
-
-  module Store = struct
-    open Irmin_pack_layered.Maker (Irmin_tezos.Conf)
-    include Make (Schema)
-  end
-
-  let config root =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-    Irmin_pack_layered.config ~with_lower:true conf
-
-  let info = Store.Info.empty
-
-  let create_store () =
-    rm_dir data_dir;
-    let* repo = Store.Repo.v (config data_dir) in
-    let* _t = Store.of_branch repo "master" in
-    let tree = Store.Tree.singleton [ "a"; "b"; "c" ] "x1" in
-    let* c = Store.Commit.v repo ~info ~parents:[] tree in
-    let* () = Store.freeze ~max_lower:[ c ] ~max_upper:[] repo in
-    let* () = Store.Backend_layer.wait_for_freeze repo in
-    let* tree = Store.Tree.add tree [ "a"; "b"; "d" ] "x2" in
-    let key = Store.Commit.key c in
-    let* c3 = Store.Commit.v repo ~info ~parents:[ key ] tree in
-    let* () = Store.Branch.set repo "master" c3 in
-    Store.Repo.close repo
-end
-
 module Simple = struct
   let data_dir = "data/pack"
 
@@ -91,9 +60,5 @@ module Simple = struct
     Store.Repo.close rw
 end
 
-let generate () =
-  (* XXX: the layered store is currently unsupported *)
-  let _ = Layered.create_store in
-  Simple.create_store ()
-
+let generate () = Simple.create_store ()
 let () = Lwt_main.run (generate ())

@@ -1,9 +1,9 @@
 (library
  (name test_pack)
- (modules test_pack multiple_instances test_existing_stores layered
-   test_inode test_tree import)
+ (modules test_pack multiple_instances test_existing_stores test_inode
+   test_tree test_hashes import)
  (libraries alcotest fmt common index irmin irmin-test irmin-pack
-   irmin-pack.layered irmin-pack.mem irmin-tezos logs lwt lwt.unix fpath)
+   irmin-pack.mem irmin-tezos logs lwt lwt.unix fpath hex)
  (preprocess
   (pps ppx_irmin.internal)))
 
@@ -21,6 +21,7 @@
 (library
  (name common)
  (modules common)
- (libraries alcotest index irmin irmin-test irmin-pack irmin-tezos logs lwt)
+ (libraries alcotest index irmin irmin-test irmin-pack irmin-tezos logs lwt
+   hex)
  (preprocess
   (pps ppx_irmin.internal)))

@@ -1,12 +1,12 @@
 (executables
- (names main layers)
- (public_names bench-pack bench-pack-layers)
- (modules main layers import)
+ (names main)
+ (public_names bench-pack)
+ (modules main import)
  (package irmin-bench)
  (preprocess
   (pps ppx_irmin.internal ppx_repr))
- (libraries irmin-pack irmin-pack.layered irmin-test.bench irmin-layers lwt
-   unix cmdliner logs repr ppx_repr bench_common rusage))
+ (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs
+   repr ppx_repr bench_common rusage))
 
 (library
  (name bench_common)
@@ -30,9 +30,8 @@
  (modules tree)
  (preprocess
   (pps ppx_irmin.internal ppx_repr))
- (libraries irmin-pack irmin-pack.layered irmin-pack.mem irmin-test.bench
-   irmin-layers lwt unix cmdliner logs repr ppx_repr bench_common irmin-tezos
-   irmin_traces))
+ (libraries irmin-pack irmin-pack.mem irmin-test.bench irmin-layers lwt unix
+   cmdliner logs repr ppx_repr bench_common irmin-tezos irmin_traces))
 
 (executable
  (name trace_stats)
@@ -44,5 +43,5 @@
 (rule
  (alias runtest)
  (package irmin-bench)
- (deps main.exe layers.exe tree.exe trace_stats.exe)
+ (deps main.exe tree.exe trace_stats.exe)
  (action (progn)))

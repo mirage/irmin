@@ -1382,7 +1382,7 @@ struct
         offset_of_key:(Key.t -> int63 option) ->
         hash ->
         t Irmin.Type.encode_bin =
-     fun ~dict ~offset_of_key hash (t : t) ->
+     fun ~dict ~offset_of_key hash t ->
       Stats.incr_inode_encode_bin ();
       let step s : Compress.name =
         let str = step_to_bin s in
