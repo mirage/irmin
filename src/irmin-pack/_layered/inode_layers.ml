@@ -73,15 +73,21 @@ struct
 
   let save t v =
     let add k v =
-      P.unsafe_append ~ensure_unique_indexed:true ~overcommit:false t k v
+      let (_ : P.hash) =
+        P.unsafe_append ~ensure_unique:true ~overcommit:false t k v
+      in
+      ()
     in
-    Val.save ~add ~index:(P.index_direct t) ~mem:(P.unsafe_mem t) v
+    Val.save ~add ~mem:(P.unsafe_mem t) v
 
-  let add t v = Lwt.return (save t v)
+  let add t v =
+    save t v;
+    Lwt.return (hash v)
 
   let unsafe_add t k v =
     check_hash k (hash v);
-    Lwt.return (save t v)
+    save t v;
+    Lwt.return k
 
   let clear_caches_next_upper = P.clear_caches_next_upper
 
@@ -105,7 +111,7 @@ struct
 
   let copy_from_lower ~dst t = P.copy_from_lower t "Node" ~dst
 
-  let copy : type l. l layer_type * l -> read t -> key -> key option =
+  let copy : type l. l layer_type * l -> read t -> key -> unit =
    fun (layer, dst) t ->
     match layer with
     | Lower -> P.copy (Lower, dst) t "Node"

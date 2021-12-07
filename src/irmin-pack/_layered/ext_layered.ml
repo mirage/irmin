@@ -212,12 +212,11 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
                     f contents node commit)))
 
       let unsafe_v_upper root config =
-        let fresh = Conf.Pack.fresh config
-        and lru_size = Conf.Pack.lru_size config
-        and readonly = Conf.Pack.readonly config
-        and log_size = Conf.Pack.index_log_size config
-        and throttle = Conf.Pack.merge_throttle config
-        and indexing_strategy = Conf.Pack.indexing_strategy config in
+        let fresh = Conf.Pack.fresh config in
+        let lru_size = Conf.Pack.lru_size config in
+        let readonly = Conf.Pack.readonly config in
+        let log_size = Conf.Pack.index_log_size config in
+        let throttle = Conf.Pack.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -226,27 +225,20 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
             ~fresh ~readonly ~throttle ~log_size root
         in
         let* contents =
-          Contents.CA.U.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-            root
+          Contents.CA.U.v ~fresh ~readonly ~lru_size ~index root
         in
-        let* node =
-          Node.CA.U.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
-        in
-        let* commit =
-          Commit.CA.U.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-            root
-        in
+        let* node = Node.CA.U.v ~fresh ~readonly ~lru_size ~index root in
+        let* commit = Commit.CA.U.v ~fresh ~readonly ~lru_size ~index root in
         let+ branch = Branch.U.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.U.flush ~index:false contents);
         ({ index; contents; node; commit; branch } : upper_layer)
 
       let unsafe_v_lower root config =
-        let fresh = Conf.Pack.fresh config
-        and lru_size = Conf.Pack.lru_size config
-        and readonly = Conf.Pack.readonly config
-        and log_size = Conf.Pack.index_log_size config
-        and throttle = Conf.Pack.merge_throttle config
-        and indexing_strategy = Conf.Pack.indexing_strategy config in
+        let fresh = Conf.Pack.fresh config in
+        let lru_size = Conf.Pack.lru_size config in
+        let readonly = Conf.Pack.readonly config in
+        let log_size = Conf.Pack.index_log_size config in
+        let throttle = Conf.Pack.merge_throttle config in
         let f = ref (fun () -> ()) in
         let index =
           Index.v
@@ -254,16 +246,10 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
             ~fresh ~readonly ~throttle ~log_size root
         in
         let* lcontents =
-          Contents.CA.L.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-            root
+          Contents.CA.L.v ~fresh ~readonly ~lru_size ~index root
         in
-        let* lnode =
-          Node.CA.L.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
-        in
-        let* lcommit =
-          Commit.CA.L.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-            root
-        in
+        let* lnode = Node.CA.L.v ~fresh ~readonly ~lru_size ~index root in
+        let* lcommit = Commit.CA.L.v ~fresh ~readonly ~lru_size ~index root in
         let+ lbranch = Branch.L.v ~fresh ~readonly root in
         (f := fun () -> Contents.CA.L.flush ~index:false lcontents);
         ({ lindex = index; lcontents; lnode; lcommit; lbranch } : lower_layer)
@@ -544,9 +530,7 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
          copied *)
       let commit k =
         with_cancel cancel @@ fun () ->
-        let (_ : commit_key option) =
-          X.Commit.CA.copy commits t.X.Repo.commit "Commit" k
-        in
+        X.Commit.CA.copy commits t.X.Repo.commit "Commit" k;
         Irmin_layers.Stats.freeze_yield ();
         let* () = Lwt.pause () in
         Irmin_layers.Stats.freeze_yield_end ();
@@ -554,14 +538,12 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
       in
       let node k =
         with_cancel cancel @@ fun () ->
-        let (_ : node_key option) = X.Node.CA.copy nodes t.X.Repo.node k in
+        X.Node.CA.copy nodes t.X.Repo.node k;
         Lwt.return_unit
       in
       let contents k =
         with_cancel cancel @@ fun () ->
-        let (_ : contents_key option) =
-          X.Contents.CA.copy contents t.X.Repo.contents "Contents" k
-        in
+        X.Contents.CA.copy contents t.X.Repo.contents "Contents" k;
         Lwt.return_unit
       in
       let skip_node h = skip_with_stats ~skip:skip_nodes h in
@@ -660,26 +642,16 @@ module Maker' (Config : Conf.Pack.S) (Schema : Irmin.Schema.Extended) = struct
            copied *)
         let commit k =
           with_cancel cancel @@ fun () ->
-          let+ (_ : commit_key option) =
-            X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
-          in
-          ()
+          X.Commit.CA.copy_from_lower ~dst:commits t.X.Repo.commit "Commit" k
         in
         let node k =
           with_cancel cancel @@ fun () ->
-          let+ (_ : node_key option) =
-            X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
-          in
-          ()
+          X.Node.CA.copy_from_lower ~dst:nodes t.X.Repo.node k
         in
         let contents k =
           with_cancel cancel @@ fun () ->
-          let+ (_ : contents_key option) =
-            X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
-              "Contents" k
-          in
-
-          ()
+          X.Contents.CA.copy_from_lower ~dst:contents t.X.Repo.contents
+            "Contents" k
         in
         let skip_node h = skip_with_stats ~skip:skip_nodes h in
         let skip_contents h = skip_with_stats ~skip:skip_contents h in
@@ -908,6 +880,6 @@ end
 module Maker (C : Conf.Pack.S) = struct
   type endpoint = unit
 
-  include Irmin_pack.Pack_key.Store_spec
+  include Irmin.Key.Store_spec.Hash_keyed
   module Make (S : Irmin.Schema.Extended) = Maker' (C) (S)
 end

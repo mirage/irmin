@@ -114,7 +114,7 @@ module type Indexable = sig
     | Upper : read U.t layer_type
     | Lower : read L.t layer_type
 
-  val copy : 'l layer_type * 'l -> read t -> string -> key -> key option
+  val copy : 'l layer_type * 'l -> read t -> string -> key -> unit
 
   val copy_from_lower :
     read t ->
@@ -122,7 +122,7 @@ module type Indexable = sig
     ?aux:(value -> unit Lwt.t) ->
     string ->
     key ->
-    key option Lwt.t
+    unit Lwt.t
 
   val mem_lower : 'a t -> key -> bool Lwt.t
   val mem_next : [> read ] t -> key -> bool Lwt.t
@@ -142,12 +142,7 @@ module type Indexable = sig
   val clear_caches_next_upper : 'a t -> unit
 
   val unsafe_append :
-    ensure_unique_indexed:bool ->
-    overcommit:bool ->
-    'a t ->
-    hash ->
-    value ->
-    key
+    ensure_unique:bool -> overcommit:bool -> 'a t -> hash -> value -> key
 
   val flush_next_lower : 'a t -> unit
 

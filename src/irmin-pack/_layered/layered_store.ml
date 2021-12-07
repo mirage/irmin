@@ -40,15 +40,14 @@ struct
     | None ->
         [%log.warn
           "Attempt to copy %s %a not contained in upper." str
-            (Irmin.Type.pp Key.t) k];
-        None
+            (Irmin.Type.pp Key.t) k]
     | Some v ->
         stats str;
-        let key =
-          DST.unsafe_append ~ensure_unique_indexed:false ~overcommit:true dst
+        let (_ : Key.t) =
+          DST.unsafe_append ~ensure_unique:false ~overcommit:true dst
             (Key.to_hash k) v
         in
-        Some key
+        ()
 
   let check ~src ?(some = ignore_lwt) ?(none = ignore_lwt) k =
     SRC.find src k >>= function None -> none () | Some v -> some v
@@ -131,13 +130,13 @@ struct
     if freeze then t.newies <- k :: t.newies;
     k
 
-  let unsafe_append ~ensure_unique_indexed ~overcommit t hash v =
+  let unsafe_append ~ensure_unique ~overcommit t hash v =
     let freeze = t.freeze_in_progress () in
     [%log.debug
       "unsafe_append in %a%a" pp_current_upper t pp_during_freeze freeze];
     Irmin_layers.Stats.add ();
     let upper = current_upper t in
-    let k = U.unsafe_append ~ensure_unique_indexed ~overcommit upper hash v in
+    let k = U.unsafe_append ~ensure_unique ~overcommit upper hash v in
     if freeze then t.newies <- k :: t.newies;
     k
 
@@ -326,8 +325,7 @@ struct
   let check t ?none ?some k =
     CopyUpper.check ~src:(current_upper t) ?none ?some k
 
-  let copy :
-      type l. l layer_type * l -> read t -> string -> L.key -> U.key option =
+  let copy : type l. l layer_type * l -> read t -> string -> L.key -> unit =
    fun (ltype, dst) ->
     match ltype with Lower -> copy_to_lower ~dst | Upper -> copy_to_next ~dst
 
@@ -338,13 +336,13 @@ struct
     let lower = lower t in
     let current = current_upper t in
     U.find current k >>= function
-    | Some v -> aux v >|= fun () -> None
+    | Some v -> aux v
     | None -> (
         L.find lower k >>= function
         | Some v ->
             aux v >>= fun () ->
             stats str;
-            U.unsafe_add dst (Key.to_hash k) v >|= fun key -> Some key
+            U.unsafe_add dst (Key.to_hash k) v >|= ignore
         | None -> Fmt.failwith "%s %a not found" str (Irmin.Type.pp Key.t) k)
 end
 
