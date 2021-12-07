@@ -2107,9 +2107,10 @@ let slow_suite (speed, x) =
 
 let layered_suite (speed, x) =
   ( "LAYERED_" ^ x.name,
-    match Suite.layered_store_generic_key x with
+    match x.layered_store with
     | None -> []
-    | Some (module S) ->
+    | Some layered_store ->
+        let (module S) = layered_store in
         let module T = Make (S) in
         let module TL = Layered_store.Make_Layered (S) in
         let hook repo max = S.freeze repo ~max_lower:max in

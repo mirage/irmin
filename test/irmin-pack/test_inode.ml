@@ -116,14 +116,7 @@ type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
 
 let pp_pred = Irmin.Type.pp pred_t
 
-module H_contents =
-  Irmin.Hash.Typed
-    (Hash)
-    (struct
-      type t = string
-
-      let t = Irmin.Type.string
-    end)
+module H_contents = Irmin.Hash.Typed (Hash) (Schema.Contents)
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
@@ -604,13 +597,11 @@ module Inode_tezos = struct
     let hash_to_bin_string =
       Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
     in
-    let hex_of_h = h |> hash_to_bin_string |> hex_encode in
-    let hex_of_foo =
-      (* XXX(craigfe): remove Obj.magic once Repr hack has been removed *)
-      Obj.magic (Key.to_hash (Obj.magic foo))
-      |> hash_to_bin_string
-      |> hex_encode
+    let key_to_bin_string =
+      Irmin.Type.(unstage (to_bin_string S.Inode.Key.t))
     in
+    let hex_of_h = h |> hash_to_bin_string |> hex_encode in
+    let hex_of_foo = foo |> key_to_bin_string |> hex_encode in
     let checks =
       [
         ("hash", hex_of_h);

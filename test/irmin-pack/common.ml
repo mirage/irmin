@@ -72,8 +72,6 @@ module Contents = struct
     | _ -> assert false
 end
 
-let contents_hash = Contents.H.hash
-
 module I = Index
 module Index = Irmin_pack.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)

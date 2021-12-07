@@ -21,7 +21,7 @@ let src = Logs.Src.create "test" ~doc:"Irmin layered tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make_Layered (S : Layered_store_generic_key) = struct
+module Make_Layered (S : Layered_store) = struct
   module B = S.Backend
   module Graph = Irmin.Node.Graph (B.Node)
   module History = Irmin.Commit.History (B.Commit)
