@@ -29,8 +29,7 @@ let rm_dir root =
     ())
 
 let index_log_size = Some 1_000
-
-(* let () = Random.self_init () *)
+let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
 let random_string n = String.init n (fun _i -> random_char ())
 let random_letter () = char_of_int (Char.code 'a' + Random.int 26)
@@ -64,7 +63,7 @@ module Contents = struct
 
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
-  let hash t = H.hash t
+  let hash = H.hash
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
   let length_header = `Sometimes (Fun.const (Some `Varint))

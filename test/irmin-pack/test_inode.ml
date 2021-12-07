@@ -272,7 +272,7 @@ let check_node msg v t =
   check_hash msg hash hash'
 
 let check_hardcoded_hash msg h v =
-  h |> Irmin.Type.of_string Inode.Hash.t |> function
+  h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
   | Ok hash -> check_hash msg hash (Inter.Val.hash v)
 

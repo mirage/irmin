@@ -27,7 +27,7 @@ module type S = sig
       - [Some `Varint]: the length header is a LEB128-encoded integer at the
         very beginning of the encoded value.
 
-      - [`None]: there is no length header, and values have unknown size. NOTE:
+      - [None]: there is no length header, and values have unknown size. NOTE:
         when using [irmin-pack] in this mode, the selected indexing strategy
         {i must} index all contents values (as recovering contents values from
         the store will require referring to the index for their length

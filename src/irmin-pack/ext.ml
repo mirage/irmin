@@ -173,7 +173,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
              system crash, the flush_callback might not make with the disk. In
              this case, when the store is reopened, [integrity_check] needs to be
              called to repair the store. *)
-          (f := fun () -> Commit.CA.flush ~index:false commit);
+          (f := fun () -> Contents.CA.flush ~index:false contents);
           { contents; node; commit; branch; config; index }
 
         let close t =
@@ -199,9 +199,9 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
         let sync t =
           let on_generation_change () =
             Node.CA.clear_caches (snd (node_t t));
-            Contents.CA.clear_caches (contents_t t)
+            Commit.CA.clear_caches (snd (commit_t t))
           in
-          Commit.CA.sync ~on_generation_change (snd (commit_t t))
+          Contents.CA.sync ~on_generation_change (contents_t t)
 
         exception Clear_unsupported
 
@@ -221,7 +221,7 @@ module Maker (V : Version.S) (Config : Conf.S) = struct
           raise Clear_unsupported
 
         let flush t =
-          Commit.CA.flush (snd (commit_t t));
+          Contents.CA.flush (contents_t t);
           Branch.flush t.branch
       end
     end

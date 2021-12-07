@@ -559,7 +559,7 @@ module Make (B : Backend.S) = struct
               fn @@ `Updated ((x, vx), (y, vy))))
 
   let head t =
-    let+ h =
+    let h =
       match head_ref t with
       | `Head key -> Lwt.return_some key
       | `Empty -> Lwt.return_none
@@ -568,6 +568,7 @@ module Make (B : Backend.S) = struct
           | None -> Lwt.return_none
           | Some k -> Commit.of_key t.repo k)
     in
+    let+ h = h in
     [%log.debug "Head.find -> %a" Fmt.(option Commit.pp_key) h];
     h
 

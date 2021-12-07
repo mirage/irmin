@@ -45,7 +45,7 @@ module Find = struct
 
   let cache_misses
       {
-        (* Total finds (hits + misses) *)
+        (* Total finds (hits + misses): *)
         total;
         (* In-memory hits: *)
         from_staging;
@@ -89,9 +89,6 @@ let fresh_stats () =
   }
 
 let s = fresh_stats ()
-
-let () =
-  at_exit (fun () -> Fmt.epr "\n\nStatistics: %a\n@." (Irmin.Type.pp_dump t) s)
 
 let reset_stats () =
   Find.clear s.finds;
