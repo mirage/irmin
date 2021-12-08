@@ -15,23 +15,33 @@
  *)
 
 module Find = struct
-  type location = Staging | Lru | Pack | Not_found [@@deriving irmin]
+  type location = Staging | Lru | Pack_direct | Pack_indexed | Not_found
+  [@@deriving irmin]
 
   type t = {
     mutable total : int;
     mutable from_staging : int;
     mutable from_lru : int;
-    mutable from_pack : int;
+    mutable from_pack_direct : int;
+    mutable from_pack_indexed : int;
   }
   [@@deriving irmin]
 
-  let create () = { total = 0; from_staging = 0; from_lru = 0; from_pack = 0 }
+  let create () =
+    {
+      total = 0;
+      from_staging = 0;
+      from_lru = 0;
+      from_pack_direct = 0;
+      from_pack_indexed = 0;
+    }
 
   let clear t =
     t.total <- 0;
     t.from_staging <- 0;
     t.from_lru <- 0;
-    t.from_pack <- 0
+    t.from_pack_direct <- 0;
+    t.from_pack_indexed <- 0
 
   let cache_misses
       {
@@ -40,7 +50,8 @@ module Find = struct
         (* In-memory hits: *)
         from_staging;
         from_lru;
-        from_pack = _;
+        from_pack_direct = _;
+        from_pack_indexed = _;
       } =
     total - (from_staging + from_lru)
 end
@@ -102,7 +113,8 @@ let report_find ~(location : Find.location) =
   match location with
   | Staging -> finds.from_staging <- succ finds.from_staging
   | Lru -> finds.from_lru <- succ finds.from_lru
-  | Pack -> finds.from_pack <- succ finds.from_pack
+  | Pack_direct -> finds.from_pack_direct <- succ finds.from_pack_direct
+  | Pack_indexed -> finds.from_pack_indexed <- succ finds.from_pack_indexed
   | Not_found -> ()
 
 let incr_appended_hashes () = s.appended_hashes <- succ s.appended_hashes

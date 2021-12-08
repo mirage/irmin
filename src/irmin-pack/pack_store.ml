@@ -338,13 +338,14 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     let find_in_pack_file ~check_integrity t key hash =
       let loc, { offset; length } =
         match Pack_key.inspect key with
-        | Direct { offset; length; _ } -> (Stats.Find.Pack, { offset; length })
+        | Direct { offset; length; _ } ->
+            (Stats.Find.Pack_direct, { offset; length })
         | Indexed hash ->
             let entry_span = get_entry_span_from_index_exn t hash in
             (* Cache the offset and length information in the existing key: *)
             Pack_key.promote_exn key ~offset:entry_span.offset
               ~length:entry_span.length;
-            (Stats.Find.Pack, entry_span)
+            (Stats.Find.Pack_indexed, entry_span)
       in
       let io_offset = IO.offset t.pack.block in
       if Int63.add offset (Int63.of_int length) > io_offset then (

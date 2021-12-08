@@ -15,13 +15,15 @@
  *)
 
 module Find : sig
-  type location = Staging | Lru | Pack | Not_found [@@deriving irmin]
+  type location = Staging | Lru | Pack_direct | Pack_indexed | Not_found
+  [@@deriving irmin]
 
   type t = {
     mutable total : int;
     mutable from_staging : int;
     mutable from_lru : int;
-    mutable from_pack : int;
+    mutable from_pack_direct : int;
+    mutable from_pack_indexed : int;
   }
   [@@deriving irmin]
 
