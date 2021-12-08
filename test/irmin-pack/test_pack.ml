@@ -17,11 +17,6 @@
 open! Import
 open Common
 
-(* XXX(craigfe): these tests previously use hashes as addresses. I've changed
-   them to use keys instead, which means that they're mostly reading direct offsets
-   and not going via the index anymore. TODO: ensure the indexing mechanism is
-   still properly tested. *)
-
 module Config = struct
   let entries = 2
   let stable_hash = 3
@@ -30,23 +25,11 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Schema = struct
-  (* TODO: expose Irmin_test.Metadata, or something like it *)
-  module Hash = Irmin.Hash.SHA1
-  module Commit = Irmin.Commit.Make (Hash)
-  module Path = Irmin.Path.String_list
-  module Metadata = Irmin.Metadata.None
-  module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-  module Branch = Irmin.Branch.String
-  module Info = Irmin.Info.Default
-  module Contents = Irmin.Contents.String
-end
-
 module Irmin_pack_store : Irmin_test.Generic_key = struct
   open Irmin_pack.Maker (Config)
 
   include Make (struct
-    include Schema
+    include Irmin_test.Schema
     module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
     module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
     module Commit = Commit_maker.Make (Hash)
@@ -71,7 +54,7 @@ module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)
 
   include Make (struct
-    include Schema
+    include Irmin_test.Schema
     module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
     module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
     module Commit = Commit_maker.Make (Hash)
