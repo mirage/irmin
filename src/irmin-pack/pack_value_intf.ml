@@ -74,6 +74,7 @@ module type Sigs = sig
     val to_enum : t -> int
     val to_magic : t -> char
     val of_magic_exn : char -> t
+    val version : t -> Version.t
     val pp : t Fmt.t
 
     val length_header_exn : t -> length_header

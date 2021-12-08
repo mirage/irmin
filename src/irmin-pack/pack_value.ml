@@ -60,6 +60,10 @@ module Kind = struct
       | Inode_v1_root -> "Inode_v1_root"
       | Inode_v1_nonroot -> "Inode_v1_nonroot")
 
+  let version : t -> Version.t = function
+    | Contents | Commit_v0 | Inode_v0_unstable | Inode_v0_stable -> `V1
+    | Commit_v1 | Inode_v1_root | Inode_v1_nonroot -> `V2
+
   let length_header_exn : t -> length_header =
     let some_varint = Some `Varint in
     function

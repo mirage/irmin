@@ -160,7 +160,7 @@
   - Upgraded on-disk format of pack files to support more efficient lookups and
     reduce indexing overhead.  This change is fully backwards-compatible with
     existing stores using `irmin-pack.2.x` versions, but not
-    forwards compatible. (#1649, @CraigFe @Ngoguey42)
+    forwards compatible. (#1649 #1655, @CraigFe @Ngoguey42)
 
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when
