@@ -131,16 +131,20 @@ struct
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
 
-  type proof = (hash, step, value) Proof.t [@@deriving irmin]
+  type proof =
+    [ `Blinded of hash
+    | `Values of (step * value) list
+    | `Inode of int * (int * proof) list ]
+  [@@deriving irmin]
 
   let to_proof (t : t) : proof =
     let e = List.map of_entry (entries t) in
-    Values e
+    `Values e
 
   let of_proof (t : proof) =
     match t with
-    | Blinded _ | Inode _ -> bad_proof_exn "of_proof"
-    | Values e ->
+    | `Blinded _ | `Inode _ -> bad_proof_exn "of_proof"
+    | `Values e ->
         let e = List.map to_entry e in
         of_entries e
 end
@@ -409,12 +413,9 @@ module V1 (N : S with type step = string) = struct
     let t = Type.like N.hash_t ~bin:(encode_bin, decode_bin, size_of)
   end
 
-  type step = N.step
-  type hash = N.hash [@@deriving irmin]
-  type metadata = N.metadata [@@deriving irmin]
-  type value = N.value
+  include N
+
   type t = { n : N.t; entries : (step * value) list }
-  type proof = N.proof [@@deriving irmin]
 
   let import n = { n; entries = N.list n }
   let export t = t.n

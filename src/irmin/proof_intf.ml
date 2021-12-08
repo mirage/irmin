@@ -14,10 +14,35 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type Def = sig
+module type S = sig
+  type contents
+  type hash
+  type step
+  type metadata
+
+  (** Proofs are compact representations of Irmin [trees] which can be shared
+      between an Irmin node and a client.
+
+      The protocol is the following:
+
+      - The Irmin node runs a function [f] over a tree [t]. While performing
+        this computation, the node records: the hash of [t] (called [before]
+        below), the hash of [f t] (called [after] below) and a subset of [t]
+        which is needed to replay [f] without any access to the node's storage.
+        Once done, the node packs this into a proof [p] and sends this to the
+        client.
+
+      - The client generates an initial tree [t'] from [p] and computes [f t'].
+        Once done, it compares [t']'s hash and [f t']'s hash to [before] and
+        [after]. If they match, they know that the result state [f t'] is a
+        valid state of Irmin, without having to have access to the full node's
+        storage. *)
+
   type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
-  (** The type for (internal) inode proofs. These proofs encode large
-      directories into a more efficient tree-like structure.
+  (** The type for (internal) inode proofs.
+
+      These proofs encode large directories into a more efficient tree-like
+      structure.
 
       Invariant are dependent on the backend.
 
@@ -26,10 +51,16 @@ module type Def = sig
       backend (like [irmin-pack]) to efficiently implements paginated lists.
 
       {e For [irmin-pack]}: [proofs] have a length of at most [Conf.entries]
-      entries. This list can be sparsed so every proof is indexed by their
-      position between [0 ... (Conf.entries-1)].*)
+      entries. This list can be sparse so every proof is indexed by their
+      position between [0 ... (Conf.entries-1)]. For binary trees, this boolean
+      index is a step of the left-right sequence / decision proof corresponding
+      to the path in that binary tree. *)
 
-  (** The type for tree proofs.
+  (** The type for compressed and partial Merkle tree proofs.
+
+      Tree proofs do not provide any guarantee with the ordering of
+      computations. For instance, if two effects commute, they won't be
+      distinguishable by this kind of proofs.
 
       [Blinded_node h] is a shallow pointer to a node having hash [h].
 
@@ -46,29 +77,22 @@ module type Def = sig
       and metadata [m].
 
       [Contents c] is the contents [c]. *)
-  type ('contents, 'hash, 'step, 'metadata) tree =
-    | Blinded_node of 'hash
-    | Node of ('step * ('contents, 'hash, 'step, 'metadata) tree) list
-    | Inode of ('contents, 'hash, 'step, 'metadata) tree inode
-    | Blinded_contents of 'hash * 'metadata
-    | Contents of 'contents * 'metadata
-  [@@deriving irmin]
-end
-
-module type S = sig
-  type contents
-  type hash
-  type step
-  type metadata
-  type tree_proof [@@deriving irmin]
-
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type tree =
+    | Blinded_node of hash
+    | Node of (step * tree) list
+    | Inode of tree inode
+    | Blinded_contents of hash * metadata
+    | Contents of contents * metadata
   [@@deriving irmin]
 
   type t [@@deriving irmin]
   (** The type for proofs. *)
 
-  val v : before:kinded_hash -> after:kinded_hash -> tree_proof -> t
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  [@@deriving irmin]
+  (** The type for kinded hashes. *)
+
+  val v : before:kinded_hash -> after:kinded_hash -> tree -> t
   (** [v ~before ~after p] proves that the state advanced from [before] to
       [after]. [p]'s hash is [before], and [p] contains the minimal information
       for the computation to reach [after]. *)
@@ -79,38 +103,29 @@ module type S = sig
   val after : t -> kinded_hash
   (** [after t] is the state's hash at the end of the computation. *)
 
-  val proof : t -> tree_proof
-  (** [proof t] is the tree proof needed to prove that the proven computation
-      could run without performing without I/O.
-
-      Note: proofs do not provide any guarantee with the ordering of
-      computations. For instance, if two effects commute, they won't be
-      distinguishable by this kind of proofs. *)
+  val state : t -> tree
+  (** [proof t] is a subset of the initial state needed to prove that the proven
+      computation could run without performing any I/O. *)
 end
 
 module type Proof = sig
-  include Def
-  (** @inline *)
-
-  module type S = sig
-    include S
-    (** @inline *)
-  end
-
-  val bad_proof_exn : string -> 'a
+  module type S = S
 
   exception Bad_proof of { context : string }
+
+  val bad_proof_exn : string -> 'a
 
   module Make
       (C : Type.S)
       (H : Hash.S) (P : sig
         type step [@@deriving irmin]
       end)
-      (M : Type.S) :
-    S
-      with type contents := C.t
-       and type hash := H.t
-       and type step := P.step
-       and type metadata := M.t
-       and type tree_proof = (C.t, H.t, P.step, M.t) tree
+      (M : Type.S) : sig
+    include
+      S
+        with type contents := C.t
+         and type hash := H.t
+         and type step := P.step
+         and type metadata := M.t
+  end
 end
