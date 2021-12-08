@@ -198,7 +198,9 @@ module Inode_permutations_generator = struct
     let ( ** ) a b = float_of_int a ** float_of_int b |> int_of_float in
     let steps = gen_steps entries maxdepth_of_test in
     let content_per_step =
-      List.map (fun s -> (s, H_contents.hash s |> normal)) steps
+      List.map
+        (fun s -> (s, H_contents.hash s |> Key.unfindable_of_hash |> normal))
+        steps
       |> List.to_seq
       |> StepMap.of_seq
     in
@@ -663,6 +665,10 @@ let tests =
   let tc name f =
     Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
   in
+  (* Test disabled because it relies on being able to serialise concrete inodes,
+     which is not possible following the introduction of structured keys. *)
+  let _ = tc "test truncated inodes" test_truncated_inodes in
+  let _ = tc "test encode bin of trees" Inode_tezos.test_encode_bin_tree in
   [
     tc "add values" test_add_values;
     tc "add values to inodes" test_add_inodes;
@@ -672,7 +678,5 @@ let tests =
     tc "test representation uniqueness"
       test_representation_uniqueness_maxdepth_3;
     tc "test encode bin of values" Inode_tezos.test_encode_bin_values;
-    tc "test encode bin of trees" Inode_tezos.test_encode_bin_tree;
-    tc "test truncated inodes" test_truncated_inodes;
     tc "test intermediate inode as root" test_intermediate_inode_as_root;
   ]

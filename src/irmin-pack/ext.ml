@@ -82,7 +82,21 @@ module Maker (Config : Conf.S) = struct
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
       end
 
-      module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.Value)
+      module Commit_portable = struct
+        module Hash_key = Irmin.Key.Of_hash (Hash)
+        include Schema.Commit (Hash_key) (Hash_key)
+
+        let of_commit : Commit.Value.t -> t =
+         fun t ->
+          let info = Commit.Value.info t
+          and node = Commit.Value.node t |> XKey.to_hash
+          and parents = Commit.Value.parents t |> List.map XKey.to_hash in
+          v ~info ~node ~parents
+
+        module Info = Schema.Info
+
+        type hash = Hash.t [@@deriving irmin]
+      end
 
       module Branch = struct
         module Key = B

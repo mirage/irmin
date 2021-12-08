@@ -76,7 +76,9 @@ struct
     let* init_commit = Commit.v ~parents:[] ~info:Info.empty repo empty in
     let h = Commit.hash init_commit in
     let info = Info.v ~author:"Tezos" 0L in
-    let* commit = Commit.v ~parents:[ h ] ~info repo tree in
+    let* commit =
+      Commit.v ~parents:[ Irmin_pack.Pack_key.v_indexed h ] ~info repo tree
+    in
     let tree = Commit.tree commit in
     Lwt.return (repo, tree, commit)
 
