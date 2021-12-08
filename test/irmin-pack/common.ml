@@ -118,14 +118,17 @@ struct
     let index =
       Index.v ~flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
     in
-    let+ pack = Pack.v ~fresh:true ~lru_size ~index name in
+    let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+    let+ pack = Pack.v ~fresh:true ~lru_size ~index ~indexing_strategy name in
     (f := fun () -> Pack.flush ~index:false pack);
     let clone_pack ~readonly =
-      Pack.v ~lru_size ~fresh:false ~readonly ~index name
+      Pack.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy name
     in
     let clone_index_pack ~readonly =
       let index = Index.v ~log_size ~fresh:false ~readonly name in
-      let+ pack = Pack.v ~lru_size ~fresh:false ~readonly ~index name in
+      let+ pack =
+        Pack.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy name
+      in
       (index, pack)
     in
     { index; pack; clone_pack; clone_index_pack }

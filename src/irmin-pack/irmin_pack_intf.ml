@@ -35,6 +35,7 @@ module type Sigs = sig
     ?index_log_size:int ->
     ?merge_throttle:Conf.merge_throttle ->
     ?freeze_throttle:Conf.freeze_throttle ->
+    ?indexing_strategy:Pack_store.Indexing_strategy.t ->
     string ->
     Irmin.config
   (** Configuration options for stores.

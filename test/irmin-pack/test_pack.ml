@@ -36,9 +36,11 @@ module Irmin_pack_store : Irmin_test.Generic_key = struct
   end)
 end
 
-let suite_pack =
+let suite_pack name_suffix indexing_strategy =
   let store = (module Irmin_pack_store : Irmin_test.Generic_key) in
-  let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
+  let config =
+    Irmin_pack.config ~fresh:false ~lru_size:0 ~indexing_strategy test_dir
+  in
   let init () =
     rm_dir test_dir;
     Lwt.return_unit
@@ -47,8 +49,9 @@ let suite_pack =
     rm_dir test_dir;
     Lwt.return_unit
   in
-  Irmin_test.Suite.create_generic_key ~name:"PACK" ~clear_supported:false
-    ~import_supported:false ~init ~store ~config ~clean ~layered_store:None ()
+  Irmin_test.Suite.create_generic_key ~name:("PACK" ^ name_suffix)
+    ~clear_supported:false ~import_supported:false ~init ~store ~config ~clean
+    ~layered_store:None ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)
@@ -67,7 +70,13 @@ let suite_mem =
   Irmin_test.Suite.create_generic_key ~import_supported:false ~name:"PACK MEM"
     ~store ~config ~layered_store:None ()
 
-let suite = [ suite_pack; suite_mem ]
+let suite =
+  let module Index = Irmin_pack.Pack_store.Indexing_strategy in
+  [
+    suite_pack " { index = always }" Index.always;
+    suite_pack " { index = minimal }" Index.minimal;
+    suite_mem;
+  ]
 
 module Context = Make_context (struct
   let root = test_dir
@@ -230,7 +239,10 @@ module Pack = struct
   let test_reuse_index () =
     (* index and pack with different names. However, this behaviour is not exposed by irmin_pack.*)
     let index = Index.v ~log_size:4 ~fresh:true (Context.fresh_name "index") in
-    let* w1 = Pack.v ~fresh:true ~index (Context.fresh_name "pack") in
+    let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+    let* w1 =
+      Pack.v ~fresh:true ~index ~indexing_strategy (Context.fresh_name "pack")
+    in
     let x1 = "foo" in
     let h1 = sha1 x1 in
     let k1 =

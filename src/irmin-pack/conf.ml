@@ -29,6 +29,7 @@ module Default = struct
   let readonly = false
   let merge_throttle = `Block_writes
   let freeze_throttle = `Block_writes
+  let indexing_strategy = Pack_store.Indexing_strategy.always
 end
 
 open Irmin.Backend.Conf
@@ -67,6 +68,17 @@ module Key = struct
       freeze_throttle_t Default.freeze_throttle
 
   let root = root spec
+
+  let indexing_strategy =
+    let serialisable_t = [%typ: [ `Always | `Minimal ]] in
+    key ~spec ~doc:"Strategy to use for adding objects to the index"
+      "indexing-strategy"
+      (Irmin.Type.map serialisable_t
+         (function
+           | `Always -> Pack_store.Indexing_strategy.always
+           | `Minimal -> Pack_store.Indexing_strategy.minimal)
+         (fun _ -> Fmt.failwith "Can't serialise indexing strategy"))
+      Default.indexing_strategy
 end
 
 let fresh config = get config Key.fresh
@@ -76,11 +88,13 @@ let index_log_size config = get config Key.index_log_size
 let merge_throttle config = get config Key.merge_throttle
 let freeze_throttle config = get config Key.freeze_throttle
 let root config = get config Key.root
+let indexing_strategy config = get config Key.indexing_strategy
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
-    ?(freeze_throttle = Default.freeze_throttle) root =
+    ?(freeze_throttle = Default.freeze_throttle)
+    ?(indexing_strategy = Default.indexing_strategy) root =
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.fresh fresh in
@@ -89,4 +103,5 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config = add config Key.readonly readonly in
   let config = add config Key.merge_throttle merge_throttle in
   let config = add config Key.freeze_throttle freeze_throttle in
+  let config = add config Key.indexing_strategy indexing_strategy in
   verify config
