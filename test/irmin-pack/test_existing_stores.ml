@@ -77,7 +77,8 @@ module Config_store = struct
           cmd n
 end
 
-module Test (S : Irmin.KV with type Schema.Contents.t = string) = struct
+module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) =
+struct
   let check_commit repo commit bindings =
     commit |> S.Commit.key |> S.Commit.of_key repo >>= function
     | None ->
@@ -126,7 +127,7 @@ module Test_reconstruct = struct
     rm_dir Config_store.tmp;
     let cmd =
       Filename.quote_command "cp"
-        [ "-R"; "-p"; Config_store.root_v1; Config_store.tmp ]
+        [ "-R"; "-p"; Config_store.root_v1_archive; Config_store.tmp ]
     in
     [%log.info "exec: %s\n%!" cmd];
     match Sys.command cmd with
@@ -248,7 +249,7 @@ end
 
 let tests =
   [
-    Alcotest.test_case "Test index reconstuction" `Quick (fun () ->
+    Alcotest.test_case "Test index reconstruction" `Quick (fun () ->
         Lwt_main.run (Test_reconstruct.test_reconstruct ()));
     Alcotest.test_case "Test integrity check" `Quick (fun () ->
         Lwt_main.run (Test_corrupted_stores.test ()));
