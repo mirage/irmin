@@ -52,6 +52,12 @@ module type T = sig
   type t
 end
 
+(* A subset of [Irmin_pack.Conf.S] relevant to the format of pack entries,
+   copied here to avoid cyclic dependencies. *)
+module type Config = sig
+  val contents_length_header : length_header
+end
+
 module type Sigs = sig
   module Kind : sig
     type t =
@@ -69,17 +75,21 @@ module type Sigs = sig
     val to_magic : t -> char
     val of_magic_exn : char -> t
     val pp : t Fmt.t
+
+    val length_header_exn : t -> length_header
+    (** Raises an exception on [Contents], as the availability of a length
+        header is user defined. *)
   end
 
   module type S = S with type kind := Kind.t
   module type Persistent = Persistent with type kind := Kind.t
+  module type Config = Config
 
-  module Of_contents (_ : sig
-    val contents_length_header : length_header
-  end)
-  (Hash : Irmin.Hash.S)
-  (Key : T)
-  (Contents : Irmin.Contents.S) :
+  module Of_contents
+      (_ : Config)
+      (Hash : Irmin.Hash.S)
+      (Key : T)
+      (Contents : Irmin.Contents.S) :
     S with type t = Contents.t and type hash = Hash.t and type key = Key.t
 
   module Of_commit

@@ -86,12 +86,11 @@ let get_dynamic_sizer_exn : type a. a Irmin.Type.t -> string -> int -> int =
   | Static n -> fun _ _ -> n
   | Dynamic f -> f
 
-module Of_contents (Conf : sig
-  val contents_length_header : length_header
-end)
-(Hash : Irmin.Hash.S)
-(Key : T)
-(Data : Irmin.Type.S) =
+module Of_contents
+    (Conf : Config)
+    (Hash : Irmin.Hash.S)
+    (Key : T)
+    (Data : Irmin.Type.S) =
 struct
   module Hash = Irmin.Hash.Typed (Hash) (Data)
 

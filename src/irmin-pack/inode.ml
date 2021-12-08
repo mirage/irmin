@@ -80,8 +80,8 @@ struct
     val of_hash : hash Lazy.t -> t
     val promote_exn : t -> key -> unit
     val to_hash : t -> hash
-    val to_key : t -> key option
     val to_key_exn : t -> key
+    val is_key : t -> bool
   end = struct
     open T
 
@@ -89,7 +89,12 @@ struct
         keys. Otherwise, when building in-memory inodes (e.g. via [Portable] or
         [of_concrete_exn]) lazily-computed hashes are used instead. If such
         values are persisted, the hash reference can be promoted to a key
-        reference (but [Key] values are never demoted to hashes). *)
+        reference (but [Key] values are never demoted to hashes).
+
+        NOTE: in future, we could reflect the case of this type in a type
+        parameter and refactor the [layout] types below to get static guarantees
+        that [Portable] nodes (with hashes for internal pointers) are not saved
+        without first saving their children. *)
     type v = Key of Key.t | Hash of hash Lazy.t [@@deriving irmin ~pp_dump]
 
     type t = v ref
@@ -117,7 +122,7 @@ struct
     let to_hash t =
       match !t with Hash h -> Lazy.force h | Key k -> Key.to_hash k
 
-    let to_key t = match !t with Key k -> Some k | Hash _ -> None
+    let is_key t = match !t with Key _ -> true | _ -> false
 
     let to_key_exn t =
       match !t with
@@ -555,10 +560,7 @@ struct
       v_ref : Val_ref.t;
           (** Represents what is known about [v]'s presence in a corresponding
               store. Will be a [hash] if [v] is purely in-memory, and a [key] if
-              [v] has been written to / loaded from a store.
-
-              TODO: consider reflecting the internal state of [Val_ref.t] as a
-              type parameter of [t]. *)
+              [v] has been written to / loaded from a store. *)
     }
 
     module Ptr = struct
@@ -624,14 +626,17 @@ struct
 
       let save :
           type ptr.
-          broken:(hash -> key) ->
+          broken:(hash, key) cps ->
           save_dirty:(ptr t, key) cps ->
           clear:bool ->
           ptr layout ->
           ptr ->
           unit =
        fun ~broken ~save_dirty ~clear -> function
-        (* Invariant: TODO (after return, we can get the key) *)
+        (* Invariant: after returning, we can recover the key from the saved
+           pointer (i.e. [key_exn] does not raise an exception). This is necessary
+           in order to be able to serialise a parent inode (for export) after
+           having saved its children. *)
         | Total ->
             fun (Total_ptr entry) ->
               save_dirty.f entry (fun key ->
@@ -645,7 +650,7 @@ struct
                       box.target <- Lazy_loaded entry;
                       Val_ref.promote_exn entry.v_ref key))
             | { target = Lazy_loaded entry } as box ->
-                (* TODO: Why do we save here anyway? *)
+                (* TODO(craigfe): document why we save in this case. *)
                 save_dirty.f entry (fun key ->
                     if clear then box.target <- Lazy key)
             | { target = Lazy _ } -> ())
@@ -654,15 +659,10 @@ struct
             | Intact entry ->
                 save_dirty.f entry (fun key ->
                     Val_ref.promote_exn entry.v_ref key)
-            | Broken vref -> (
-                (* TODO: add this to val_ref *)
-                match Val_ref.to_key vref with
-                | Some _ -> ()
-                | None ->
-                    let key =
-                      broken (* TODO: make tailcall? *) (Val_ref.to_hash vref)
-                    in
-                    Val_ref.promote_exn vref key))
+            | Broken vref ->
+                if not (Val_ref.is_key vref) then
+                  broken.f (Val_ref.to_hash vref) (fun key ->
+                      Val_ref.promote_exn vref key))
 
       let clear :
           type ptr.
@@ -1041,13 +1041,7 @@ struct
               t.entries;
             Tree { depth = t.Bin.depth; length = t.length; entries }
       in
-      {
-        v_ref =
-          Val_ref.of_hash t.Bin.hash
-          (* TODO: doesn't this mean [Bin] should be keeping [key]s instead? *);
-        root = t.Bin.root;
-        v;
-      }
+      { v_ref = Val_ref.of_hash t.Bin.hash root = t.Bin.root; v }
 
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
@@ -1232,7 +1226,7 @@ struct
         false
       in
       let iter_entries =
-        let broken h =
+        let broken h k =
           (* This function is called when we encounter a Broken pointer with
              Truncated layouts. *)
           match index h with
@@ -1245,10 +1239,12 @@ struct
           | Some key ->
               (* The backend already knows this target inode, there is no need to
                  traverse further down. This happens during the unit tests. *)
-              key
+              k key
         in
         fun ~save_dirty arr ->
-          let iter_ptr = Ptr.save ~broken ~save_dirty ~clear layout in
+          let iter_ptr =
+            Ptr.save ~broken:{ f = broken } ~save_dirty ~clear layout
+          in
           Array.iter (Option.iter iter_ptr) arr
       in
       let rec aux ~depth t =
@@ -1257,8 +1253,10 @@ struct
         | Values _ -> (
             let unguarded_add hash =
               let value =
+                (* NOTE: the choice of [Bin.mode] is irrelevant (and this
+                   conversion is always safe), since nodes of kind [Values _]
+                   contain no internal pointers. *)
                 to_bin layout Bin.Ptr_key t
-                (* TODO: justify why this is safe *)
               in
               let key = add hash value in
               Val_ref.promote_exn t.v_ref key;
@@ -1283,11 +1281,13 @@ struct
               k key
             in
             iter_entries ~save_dirty:{ f = save_dirty } n.entries;
-            let key =
-              add (Val_ref.to_hash t.v_ref)
-                (to_bin layout Bin.Ptr_key
-                   t (* TODO: justify why this is safe *))
+            let bin =
+              (* Serialising with [Bin.Ptr_key] is safe here because just called
+                 [Ptr.save] on any dirty children (and we never try to save
+                 [Portable] nodes). *)
+              to_bin layout Bin.Ptr_key t
             in
+            let key = add (Val_ref.to_hash t.v_ref) bin in
             Val_ref.promote_exn t.v_ref key;
             key
       in
@@ -1345,22 +1345,15 @@ struct
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
     let length_header =
-      let some_varint = Some `Varint in
       `Sometimes
         (function
-        | Pack_value.Kind.Inode_v0_unstable -> None
-        | Inode_v0_stable -> None
-        | Inode_v1_root -> some_varint
-        | Inode_v1_nonroot -> some_varint
-        | Contents ->
+        | Pack_value.Kind.Contents ->
             (* NOTE: the Node instantiation of the pack store must have access to
                the header format used by contents values in order to eagerly
                construct contents keys with length information during
                [key_of_offset]. *)
             Conf.contents_length_header
-        | Commit_v0 | Commit_v1 ->
-            (* The node store never inspects a commit object: *)
-            assert false)
+        | k -> Pack_value.Kind.length_header_exn k)
 
     let decode_compress_length =
       match Irmin.Type.Size.of_encoding Compress.t with

@@ -373,16 +373,21 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       in
       let io_offset = IO.offset t.pack.block in
       if Int63.add offset (Int63.of_int length) > io_offset then (
-        (* This key is from a different store instance, referencing an
-           offset that is not yet visible to this one. It's possible
-           that the key _is_ a valid pointer into the same store, but
-           the offset just hasn't been flushed to disk yet, so we return
-           [None]. *)
-        [%log.debug
-          "Direct store key references an unknown starting offset %a (length = \
-           %d, IO offset = %a)."
-          Int63.pp offset length Int63.pp io_offset];
-        (Stats.Find.Not_found, None))
+        (* Can't fit an entry into this suffix of the store, so this key
+           isn't (yet) valid. If we're a read-only instance, the key may
+           become valid on [sync]; otherwise we know that this key wasn't
+           constructed for this store. *)
+        match t.readonly with
+        | false ->
+            invalid_read
+              "attempt to dereference invalid key %a (IO offset = %a)" pp_key
+              key Int63.pp io_offset
+        | true ->
+            [%log.debug
+              "Direct store key references an unknown starting offset %a \
+               (length = %d, IO offset = %a)"
+              Int63.pp offset length Int63.pp io_offset];
+            (Stats.Find.Not_found, None))
       else
         let v = io_read_and_decode ~off:offset ~len:length t in
         Lru.add t.lru hash v;
