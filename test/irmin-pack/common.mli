@@ -46,7 +46,14 @@ module Alcotest : sig
 
   val int63 : Int63.t testable
   val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
-  val check_repr : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
+
+  val check_repr :
+    ?pos:Source_code_position.pos ->
+    'a Irmin.Type.t ->
+    string ->
+    'a ->
+    'a ->
+    unit
 end
 
 module Index : module type of Irmin_pack.Index.Make (Schema.Hash)

@@ -113,14 +113,7 @@ type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
 
 let pp_pred = Irmin.Type.pp pred_t
 
-module H_contents =
-  Irmin.Hash.Typed
-    (Hash)
-    (struct
-      type t = string
-
-      let t = Irmin.Type.string
-    end)
+module H_contents = Irmin.Hash.Typed (Hash) (Schema.Contents)
 
 let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
@@ -255,9 +248,10 @@ module Inode_permutations_generator = struct
 end
 
 let check_node msg v t =
-  let h = Inter.Val.hash v in
-  let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
-  check_hash msg h h'
+  let hash = Inter.Val.hash v in
+  let+ key = Inode.batch t.Context.store (fun i -> Inode.add i v) in
+  let hash' = Key.to_hash key in
+  check_hash msg hash hash'
 
 let check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
@@ -598,8 +592,11 @@ module Inode_tezos = struct
     let hash_to_bin_string =
       Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
     in
+    let key_to_bin_string =
+      Irmin.Type.(unstage (to_bin_string S.Inode.Key.t))
+    in
     let hex_of_h = h |> hash_to_bin_string |> hex_encode in
-    let hex_of_foo = foo |> hash_to_bin_string |> hex_encode in
+    let hex_of_foo = foo |> key_to_bin_string |> hex_encode in
     let checks =
       [
         ("hash", hex_of_h);
