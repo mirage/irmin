@@ -17,12 +17,14 @@
 (* For every new version, update the [version] type and [versions]
    headers. *)
 
-type t = [ `V1 ] [@@deriving irmin]
+type t = [ `V1 | `V2 ] [@@deriving irmin]
 
-let latest = `V1
-let enum = [ (`V1, "00000001") ]
-let pp = Fmt.of_to_string (function `V1 -> "v1")
+let latest = `V2
+let enum = [ (`V1, "00000001"); (`V2, "00000002") ]
+let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
 let to_bin v = List.assoc v enum
+let to_int = function `V1 -> 1 | `V2 -> 2
+let compare a b = Int.compare (to_int a) (to_int b)
 
 let invalid_arg v =
   let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in

@@ -8,7 +8,7 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-let selected_version = `V1
+let selected_version = `V2
 
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
@@ -44,7 +44,12 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   let unsafe_v ~index ~fresh ~readonly file =
     let root = Filename.dirname file in
     let dict = Dict.v ~fresh ~readonly root in
-    let block = IO.v ~version:(Some selected_version) ~fresh ~readonly file in
+    let block =
+      (* If the file already exists in V1, we will bump the generation header
+         lazily when appending a V2 entry. *)
+      let version = Some selected_version in
+      IO.v ~version ~fresh ~readonly file
+    in
     { block; index; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
@@ -237,11 +242,19 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
               Stats.incr_appended_offsets ();
               Some off
         in
+        let kind = Val.kind v in
+        let () =
+          (* Bump the pack file version header if necessary *)
+          let value_version = Pack_value.Kind.version kind
+          and io_version = IO.version t.pack.block in
+          if Version.compare value_version io_version > 0 then
+            IO.set_version t.pack.block value_version
+        in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
         Val.encode_bin ~offset_of_key ~dict k v (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
-        Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
+        Index.add ~overcommit t.pack.index k (off, len, kind);
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging k v;
         Lru.add t.lru k v;
