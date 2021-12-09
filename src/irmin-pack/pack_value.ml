@@ -115,10 +115,10 @@ struct
   let encode_value = Irmin.Type.(unstage (encode_bin value))
   let decode_value = Irmin.Type.(unstage (decode_bin value))
 
-  let encode_bin ~dict:_ ~offset_of_key:_ hash v f =
+  let encode_bin ~dict:_ ~offset_of_key:_ ~pack_offset:_ hash v f =
     encode_value { kind; hash; v } f
 
-  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ s off =
+  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ ~pack_offset:_ s off =
     let t = decode_value s off in
     t.v
 
@@ -174,7 +174,7 @@ struct
     `Sometimes
       (function Kind.Contents -> assert false | x -> Kind.length_header_exn x)
 
-  let encode_bin ~dict:_ ~offset_of_key hash v f =
+  let encode_bin ~dict:_ ~offset_of_key ~pack_offset:_ hash v f =
     let address_of_key k : Commit_direct.address =
       match offset_of_key k with
       | None -> Hash (Key.to_hash k)
@@ -189,7 +189,7 @@ struct
     let length = Commit_direct.size_of v in
     Entry.V1.encode_bin { hash; kind = Commit_v1; v = { length; v } } f
 
-  let decode_bin ~dict:_ ~key_of_offset ~key_of_hash s off =
+  let decode_bin ~dict:_ ~key_of_offset ~key_of_hash ~pack_offset:_ s off =
     let key_of_address : Commit_direct.address -> Key.t = function
       | Offset x -> key_of_offset x
       | Hash x -> key_of_hash x

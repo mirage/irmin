@@ -161,7 +161,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     exception Invalid_read
 
-    let io_read_and_decode ~off ~len t =
+    let io_read_and_decode ~off ~len t : value =
       if (not (IO.readonly t.pack.block)) && off > IO.offset t.pack.block then
         raise Invalid_read;
       let buf = Bytes.create len in
@@ -170,7 +170,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let key_of_offset off = io_read_and_decode_hash ~off t in
       let key_of_hash hash = hash in
       let dict = Dict.find t.pack.dict in
-      Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+      Val.decode_bin ~key_of_offset ~key_of_hash ~dict ~pack_offset:off
         (Bytes.unsafe_to_string buf)
         (ref 0)
 
@@ -252,7 +252,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         in
         let dict = Dict.index t.pack.dict in
         let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset_of_key ~dict k v (IO.append t.pack.block);
+        Val.encode_bin ~offset_of_key ~dict ~pack_offset:off k v
+          (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         Index.add ~overcommit t.pack.index k (off, len, kind);
         if Tbl.length t.staging >= auto_flush then flush t

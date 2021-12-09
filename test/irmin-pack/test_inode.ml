@@ -579,7 +579,7 @@ module Inode_tezos = struct
     S.Inter.Raw.encode_bin
       ~dict:(fun _ -> None)
       ~offset_of_key:(fun _ -> None)
-      h v1
+      ~pack_offset:Int63.zero h v1
 
   let hex_encode s = Hex.of_string s |> Hex.show
 

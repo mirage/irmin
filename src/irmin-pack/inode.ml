@@ -108,15 +108,17 @@ struct
     open T
 
     type name = Indirect of int | Direct of step
-    type address = Indirect of int63 | Direct of H.t
+    type int63_varint = int63 [@@deriving irmin]
 
-    let address_t : address Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.address" (fun i d -> function
-        | Indirect x -> i x | Direct x -> d x)
-      |~ case1 "Indirect" int63_t (fun x -> Indirect x)
-      |~ case1 "Direct" H.t (fun x -> Direct x)
-      |> sealv
+    let int63_varint_t =
+      let module V = Irmin.Type.Binary_codec.Varint_int63 in
+      Irmin.Type.like ~bin:(V.encode, V.decode, Obj.magic V.sizer) int63_varint_t
+
+    type address =
+      | Indirect of int63
+      | Direct of H.t
+      | Relative of int63_varint
+    [@@deriving irmin]
 
     type ptr = { index : int; hash : address }
 
@@ -160,19 +162,32 @@ struct
           contents_dd
           contents_x_dd
           node_dd
+          (* Relative offset addresses: *)
+            contents_ir
+          contents_x_ir
+          node_ir
+          contents_dr
+          contents_x_dr
+          node_dr
         -> function
         | Contents (Indirect n, Indirect h, m) ->
             if is_default m then contents_ii (n, h) else contents_x_ii (n, h, m)
-        | Node (Indirect n, Indirect h) -> node_ii (n, h)
         | Contents (Indirect n, Direct h, m) ->
             if is_default m then contents_id (n, h) else contents_x_id (n, h, m)
-        | Node (Indirect n, Direct h) -> node_id (n, h)
+        | Contents (Indirect n, Relative h, m) ->
+            if is_default m then contents_ir (n, h) else contents_x_ir (n, h, m)
         | Contents (Direct n, Indirect h, m) ->
             if is_default m then contents_di (n, h) else contents_x_di (n, h, m)
-        | Node (Direct n, Indirect h) -> node_di (n, h)
         | Contents (Direct n, Direct h, m) ->
             if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
-        | Node (Direct n, Direct h) -> node_dd (n, h))
+        | Contents (Direct n, Relative h, m) ->
+            if is_default m then contents_dr (n, h) else contents_x_dr (n, h, m)
+        | Node (Indirect n, Indirect h) -> node_ii (n, h)
+        | Node (Indirect n, Direct h) -> node_id (n, h)
+        | Node (Indirect n, Relative h) -> node_ir (n, h)
+        | Node (Direct n, Indirect h) -> node_di (n, h)
+        | Node (Direct n, Direct h) -> node_dd (n, h)
+        | Node (Direct n, Relative h) -> node_dr (n, h))
       |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
              Contents (Indirect n, Indirect i, Metadata.default))
       |~ case1 "contents-x-ii" (triple int int63_t metadata_t) (fun (n, i, m) ->
@@ -197,6 +212,18 @@ struct
              Contents (Direct n, Direct i, m))
       |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
              Node (Direct n, Direct i))
+      |~ case1 "contents-ir" (pair int Int63.t) (fun (n, i) ->
+             Contents (Indirect n, Relative i, Metadata.default))
+      |~ case1 "contents-x-ir" (triple int int63_t metadata_t) (fun (n, i, m) ->
+             Contents (Indirect n, Relative i, m))
+      |~ case1 "node-ir" (pair int Int63.t) (fun (n, i) ->
+             Node (Indirect n, Relative i))
+      |~ case1 "contents-dr" (pair step_t Int63.t) (fun (n, i) ->
+             Contents (Direct n, Relative i, Metadata.default))
+      |~ case1 "contents-x-dr" (triple step_t int63_t metadata_t)
+           (fun (n, i, m) -> Contents (Direct n, Relative i, m))
+      |~ case1 "node-dr" (pair step_t Int63.t) (fun (n, i) ->
+             Node (Direct n, Relative i))
       |> sealv
 
     type v = Values of value list | Tree of tree
@@ -1171,7 +1198,7 @@ struct
       | Unknown | Static _ -> assert false
       | Dynamic f -> f
 
-    let encode_bin ~dict ~offset_of_key hash (t : t) =
+    let encode_bin ~dict ~offset_of_key ~pack_offset hash (t : t) =
       Stats.incr_inode_encode_bin ();
       let step s : Compress.name =
         let str = step_to_bin s in
@@ -1181,7 +1208,11 @@ struct
       let address_of_key key : Compress.address =
         match offset_of_key key with
         | None -> Compress.Direct (Key.to_hash key)
-        | Some off -> Compress.Indirect off
+        | Some off ->
+            (* NOTE: we never serialise new addresses of the [Indirect] type, since
+               [Relative] is always more efficient for reasonable store sizes. TODO:
+               include calculation *)
+            Compress.Relative (Int63.sub pack_offset off)
       in
       let ptr : Bin.ptr -> Compress.ptr =
        fun n ->
@@ -1210,7 +1241,7 @@ struct
 
     exception Exit of [ `Msg of string ]
 
-    let decode_bin ~dict ~key_of_offset ~key_of_hash:_ t off =
+    let decode_bin ~dict ~key_of_offset ~key_of_hash:_ ~pack_offset t off =
       Stats.incr_inode_decode_bin ();
       let i = decode_compress t off in
       let step : Compress.name -> T.step = function
@@ -1226,6 +1257,8 @@ struct
       let hash : Compress.address -> H.t = function
         | Indirect off -> key_of_offset off
         | Direct n -> n
+        | Relative diff -> key_of_offset (Int63.sub pack_offset diff)
+        (* TODO: check this is valid *)
       in
       let ptr : Compress.ptr -> Bin.ptr =
        fun n ->

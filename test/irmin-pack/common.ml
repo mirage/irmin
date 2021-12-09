@@ -60,9 +60,10 @@ module Contents = struct
   let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
   let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
   let length_header = `Sometimes (Fun.const (Some `Varint))
-  let encode_bin ~dict:_ ~offset_of_key:_ k x = encode_pair (k, x)
+  let encode_bin ~dict:_ ~offset_of_key:_ ~pack_offset:_ k x = encode_pair (k, x)
 
-  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ x pos_ref =
+  let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ ~pack_offset:_ x
+      pos_ref =
     let _, v = decode_pair x pos_ref in
     v
 
