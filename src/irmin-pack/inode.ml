@@ -1075,13 +1075,12 @@ struct
 
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
 
-    type proof = (hash, step, value) Irmin.Private.Node.Proof.t
-    [@@deriving irmin]
+    type proof = Node.proof [@@deriving irmin]
 
     module Proof = struct
       let rec proof_of_concrete h : Concrete.t -> proof = function
-        | Blinded -> Blinded (Lazy.force h)
-        | Values vs -> Values (List.map Concrete.of_entry vs)
+        | Blinded -> `Blinded (Lazy.force h)
+        | Values vs -> `Values (List.map Concrete.of_entry vs)
         | Tree tr ->
             let proofs =
               List.fold_left
@@ -1091,14 +1090,14 @@ struct
                   e :: acc)
                 [] (List.rev tr.pointers)
             in
-            Inode { length = tr.length; proofs }
+            `Inode (tr.length, proofs)
 
       let hash_v v = Bin.V.hash (to_bin_v Truncated v)
 
       let rec hash : int -> proof -> hash =
        fun depth -> function
-        | Values l -> hash_v (Values (StepMap.of_list l))
-        | Inode { length; proofs } ->
+        | `Values l -> hash_v (Values (StepMap.of_list l))
+        | `Inode (length, proofs) ->
             let es =
               List.fold_left
                 (fun acc (index, proof) ->
@@ -1110,12 +1109,12 @@ struct
             List.iter (fun (index, ptr) -> entries.(index) <- Some ptr) es;
             let v : truncated_ptr v = Tree { depth; length; entries } in
             hash_v v
-        | Blinded h -> h
+        | `Blinded h -> h
 
       let rec concrete_of_proof depth : proof -> Concrete.t = function
-        | Blinded _ -> Concrete.Blinded
-        | Values vs -> Concrete.Values (List.map Concrete.to_entry vs)
-        | Inode { length; proofs } ->
+        | `Blinded _ -> Concrete.Blinded
+        | `Values vs -> Concrete.Values (List.map Concrete.to_entry vs)
+        | `Inode (length, proofs) ->
             let pointers =
               List.fold_left
                 (fun acc (index, proof) ->

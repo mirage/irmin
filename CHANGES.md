@@ -12,7 +12,8 @@
     proofs from complex computations. `produce_proof` and `verify_proof`
     takes a callback over tree and instead of a static list of operations
     -- this now means that the full `Tree` API can now be used in proofs,
-    including sub-tree operations, folds and paginated lists (#1625, @samoht)
+    including sub-tree operations, folds and paginated lists
+    (#1625, #1663, @samoht)
 
 ### Changed
 

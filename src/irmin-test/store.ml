@@ -1616,16 +1616,15 @@ module Make (S : S) = struct
       in
       let* p0 = S.Tree.produce_proof repo hash f0 in
       let proof ?(before = S.Tree.Proof.before p0)
-          ?(after = S.Tree.Proof.after p0) ?(contents = S.Tree.Proof.proof p0)
-          () =
-        S.Tree.Proof.v ~before ~after contents
+          ?(after = S.Tree.Proof.after p0) ?(state = S.Tree.Proof.state p0) () =
+        S.Tree.Proof.v ~before ~after state
       in
       let wrong_hash = P.Contents.Key.hash "not the right hash!" in
       let wrong_kinded_hash = `Node wrong_hash in
       let* () = check_bad_proof (proof ~before:wrong_kinded_hash ()) in
       let* () = check_bad_proof (proof ~after:wrong_kinded_hash ()) in
       let* _ = S.Tree.verify_proof (proof ()) f0 in
-      let some_contents : S.Tree.Proof.tree_proof list =
+      let some_contents : S.Tree.Proof.tree list =
         [
           Blinded_node wrong_hash;
           Node [];
@@ -1636,7 +1635,7 @@ module Make (S : S) = struct
       in
       let* () =
         Lwt_list.iter_s
-          (fun c -> check_bad_proof (proof ~contents:c ()))
+          (fun c -> check_bad_proof (proof ~state:c ()))
           some_contents
       in
       P.Repo.close repo

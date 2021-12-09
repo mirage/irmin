@@ -332,15 +332,14 @@ module type S = sig
          and type hash := hash
          and type step := step
          and type metadata := metadata
-         and type tree_proof = (contents, hash, step, metadata) Proof.tree
 
-    type tree
+    type irmin_tree
 
-    val to_tree : t -> tree
+    val to_tree : t -> irmin_tree
     (** [to_tree p] is the tree representing the tree proof [p]. Blinded parts
         of the proof will raise [Dangling_hash] when traversed. *)
   end
-  with type tree := t
+  with type irmin_tree := t
 
   (** {1 Caches} *)
 
@@ -402,12 +401,6 @@ module type Tree = sig
          and type metadata = P.Node.Metadata.t
          and type contents = P.Contents.value
          and type hash = P.Hash.t
-         and type Proof.tree_proof =
-              ( P.Contents.value,
-                P.Hash.t,
-                P.Node.Path.step,
-                P.Node.Metadata.t )
-              Proof.tree
 
     type kinded_hash := [ `Contents of hash * metadata | `Node of hash ]
 

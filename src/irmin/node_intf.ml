@@ -18,27 +18,6 @@
 open! Import
 open S
 
-module Proof = struct
-  type ('hash, 'step, 'value) t =
-    | Blinded of 'hash
-    | Values of ('step * 'value) list
-    | Inode of { length : int; proofs : (int * ('hash, 'step, 'value) t) list }
-
-  (* TODO(craigfe): fix [ppx_irmin] for recursive types with type parameters. *)
-  let t hash_t step_t value_t =
-    let open Type in
-    mu (fun t ->
-        variant "proof" (fun blinded values inode -> function
-          | Blinded x1 -> blinded x1
-          | Values x1 -> values x1
-          | Inode { length; proofs } -> inode (length, proofs))
-        |~ case1 "Blinded" hash_t (fun x1 -> Blinded x1)
-        |~ case1 "Values" [%typ: (step * value) list] (fun x1 -> Values x1)
-        |~ case1 "Inode" [%typ: int * (int * t) list] (fun (length, proofs) ->
-               Inode { length; proofs })
-        |> sealv)
-end
-
 module type S = sig
   (** {1 Node values} *)
 
@@ -122,7 +101,11 @@ module type S = sig
 
   (** {1 Proofs} *)
 
-  type proof = (hash, step, value) Proof.t [@@deriving irmin]
+  type proof =
+    [ `Blinded of hash
+    | `Values of (step * value) list
+    | `Inode of int * (int * proof) list ]
+  [@@deriving irmin]
   (** The type for proof trees. *)
 
   val to_proof : t -> proof
@@ -262,8 +245,6 @@ module type GRAPH = sig
 end
 
 module type Node = sig
-  module Proof = Proof
-
   module type S = S
   module type Maker = Maker
 
