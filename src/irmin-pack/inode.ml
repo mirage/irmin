@@ -106,6 +106,11 @@ struct
 
     let v ~stable ~hash v = { stable; hash; v }
     let hash t = Lazy.force t.hash
+
+    let depth t =
+      match t.v with
+      | Values _ -> if t.stable then Some 0 else None
+      | Tree t -> Some t.depth
   end
 
   (* Compressed binary representation *)
@@ -308,8 +313,10 @@ struct
 
     type _ layout =
       | Total : total_ptr layout
-      | Partial : (hash -> partial_ptr t option) -> partial_ptr layout
+      | Partial : find -> partial_ptr layout
       | Truncated : truncated_ptr layout
+
+    and find = expected_depth:int -> hash -> partial_ptr t option
 
     and partial_ptr_target =
       | Dirty of partial_ptr t
@@ -338,6 +345,9 @@ struct
 
     and 'ptr t = { hash : hash Lazy.t; stable : bool; v : 'ptr v }
 
+    let depth_of_v = function Values _ -> None | Tree t -> Some t.depth
+    let depth t = if t.stable then Some 0 else depth_of_v t.v
+
     module Ptr = struct
       let hash : type ptr. ptr layout -> ptr -> _ = function
         | Total -> fun (Total_ptr ptr) -> Lazy.force ptr.hash
@@ -351,8 +361,14 @@ struct
 
       let target :
           type ptr.
-          cache:bool -> force:bool -> string -> ptr layout -> ptr -> ptr t =
-       fun ~cache ~force context layout ->
+          depth:int ->
+          cache:bool ->
+          force:bool ->
+          string ->
+          ptr layout ->
+          ptr ->
+          ptr t =
+       fun ~depth ~cache ~force context layout ->
         match layout with
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
@@ -366,7 +382,7 @@ struct
                 let h = hash layout t in
                 if not force then raise (Dangling_hash { context; hash = h })
                 else
-                  match find h with
+                  match find ~expected_depth:depth h with
                   | None -> Fmt.failwith "%a: unknown key" pp_hash h
                   | Some x ->
                       if cache then t.target <- Lazy_loaded x;
@@ -470,15 +486,15 @@ struct
 
     type cont = off:int -> len:int -> (step * value) Seq.node
 
-    let rec seq_tree layout bucket_seq ~cache : cont -> cont =
+    let rec seq_tree layout bucket_seq ~depth ~cache : cont -> cont =
      fun k ~off ~len ->
       assert (off >= 0);
       assert (len > 0);
       match bucket_seq () with
       | Seq.Nil -> k ~off ~len
-      | Seq.Cons (None, rest) -> seq_tree layout rest ~cache k ~off ~len
+      | Seq.Cons (None, rest) -> seq_tree layout rest ~depth ~cache k ~off ~len
       | Seq.Cons (Some i, rest) ->
-          let trg = Ptr.target ~cache ~force:true "seq_tree" layout i in
+          let trg = Ptr.target ~depth ~cache ~force:true "seq_tree" layout i in
           let trg_len = length trg in
           if off - trg_len >= 0 then
             (* Skip a branch of the inode tree in case the user asked for a
@@ -488,9 +504,11 @@ struct
                because [seq_value] would handles the pagination value by value
                instead. *)
             let off = off - trg_len in
-            seq_tree layout rest ~cache k ~off ~len
+            seq_tree layout rest ~depth ~cache k ~off ~len
           else
-            seq_v layout trg.v ~cache (seq_tree layout rest ~cache k) ~off ~len
+            seq_v layout trg.v ~depth:(Some depth) ~cache
+              (seq_tree layout rest ~depth ~cache k)
+              ~off ~len
 
     and seq_values layout value_seq : cont -> cont =
      fun k ~off ~len ->
@@ -512,13 +530,16 @@ struct
             let off = off - 1 in
             seq_values layout rest k ~off ~len
 
-    and seq_v layout v ~cache : cont -> cont =
+    and seq_v layout v ~depth ~cache : cont -> cont =
      fun k ~off ~len ->
       assert (off >= 0);
       assert (len > 0);
-      match v with
-      | Tree t -> seq_tree layout (Array.to_seq t.entries) ~cache k ~off ~len
-      | Values vs -> seq_values layout (StepMap.to_seq vs) k ~off ~len
+      match (depth, v) with
+      | Some depth, Tree t ->
+          seq_tree layout (Array.to_seq t.entries) ~depth:(depth + 1) ~cache k
+            ~off ~len
+      | _, Values vs -> seq_values layout (StepMap.to_seq vs) k ~off ~len
+      | _ -> assert false
 
     let empty_continuation : cont = fun ~off:_ ~len:_ -> Seq.Nil
 
@@ -527,17 +548,21 @@ struct
       if off < 0 then invalid_arg "Invalid pagination offset";
       if len < 0 then invalid_arg "Invalid pagination length";
       if len = 0 then Seq.empty
-      else fun () -> seq_v layout t.v ~cache empty_continuation ~off ~len
+      else fun () ->
+        seq_v layout t.v ~depth:(depth t) ~cache empty_continuation ~off ~len
 
     let seq_tree layout ?(cache = true) i : (step * value) Seq.t =
       let off = 0 in
       let len = Int.max_int in
-      fun () -> seq_v layout (Tree i) ~cache empty_continuation ~off ~len
+      fun () ->
+        seq_v layout (Tree i) ~depth:(Some i.depth) ~cache empty_continuation
+          ~off ~len
 
     let seq_v layout ?(cache = true) v : (step * value) Seq.t =
       let off = 0 in
       let len = Int.max_int in
-      fun () -> seq_v layout v ~cache empty_continuation ~off ~len
+      fun () ->
+        seq_v layout v ~depth:(depth_of_v v) ~cache empty_continuation ~off ~len
 
     let to_bin_v layout = function
       | Values vs ->
@@ -659,8 +684,8 @@ struct
                             let pointer, tree =
                               try
                                 aux
-                                  (Ptr.target ~cache:true ~force "to_concrete"
-                                     la t)
+                                  (Ptr.target ~depth:tr.depth ~cache:true ~force
+                                     "to_concrete" la t)
                               with Dangling_hash { hash; _ } ->
                                 (hash, Concrete.Blinded)
                             in
@@ -859,7 +884,9 @@ struct
             let x = t.entries.(i) in
             match x with
             | None -> None
-            | Some i -> aux ~depth:(depth + 1) (target_of_ptr i).v)
+            | Some i ->
+                let depth = depth + 1 in
+                aux ~depth (target_of_ptr ~depth i).v)
       in
       aux ~depth t.v
 
@@ -900,7 +927,7 @@ struct
               let t =
                 (* [cache] is unimportant here as we've already called
                    [find_value] for that path.*)
-                Ptr.target ~cache:true ~force:true "add" layout n
+                Ptr.target ~depth ~cache:true ~force:true "add" layout n
               in
               (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
                 (fun target ->
@@ -941,7 +968,7 @@ struct
                 let t =
                   (* [cache] is unimportant here as we've already called
                      [find_value] for that path.*)
-                  Ptr.target ~cache:true ~force:true "remove" layout t
+                  Ptr.target ~depth ~cache:true ~force:true "remove" layout t
                 in
                 if length t = 1 then (
                   entries.(i) <- None;
@@ -1042,7 +1069,7 @@ struct
       let target_of_ptr =
         Ptr.target ~cache:true ~force:true "check_stable" layout
       in
-      let rec check t any_stable_ancestor =
+      let rec check ~depth t any_stable_ancestor =
         let stable = t.stable || any_stable_ancestor in
         match t.v with
         | Values _ -> true
@@ -1051,27 +1078,32 @@ struct
               (function
                 | None -> true
                 | Some t ->
-                    let t = target_of_ptr t in
-                    (if stable then not t.stable else true) && check t stable)
+                    let depth = depth + 1 in
+                    let t = target_of_ptr ~depth t in
+                    (if stable then not t.stable else true)
+                    && check ~depth t stable)
               tree.entries
       in
-      check t t.stable
+      check ~depth:0 t t.stable
 
     let contains_empty_map layout t =
       let target_of_ptr =
         Ptr.target ~cache:true ~force:true "contains_empty_map" layout
       in
-      let rec check_lower t =
+      let rec check_lower ~depth t =
         match t.v with
         | Values l when StepMap.is_empty l -> true
         | Values _ -> false
         | Tree inodes ->
             Array.exists
               (function
-                | None -> false | Some t -> target_of_ptr t |> check_lower)
+                | None -> false
+                | Some t ->
+                    let depth = depth + 1 in
+                    target_of_ptr ~depth t |> check_lower ~depth)
               inodes.entries
       in
-      check_lower t
+      check_lower ~depth:0 t
 
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
 
@@ -1160,6 +1192,9 @@ struct
     type t = Bin.t
 
     let t = Bin.t
+    let depth = Bin.depth
+
+    exception Invalid_depth of { expected : int; got : int; v : t }
 
     let kind (t : t) =
       if t.stable then Compress.kind_node else Compress.kind_inode
@@ -1350,8 +1385,8 @@ struct
       apply t { f }
 
     let of_raw find' v =
-      let rec find h =
-        match find' h with None -> None | Some v -> Some (I.of_bin layout v)
+      let rec find ~expected_depth h =
+        Option.map (I.of_bin layout) (find' ~expected_depth h)
       and layout = I.Partial find in
       Partial (layout, I.of_bin layout v)
 
@@ -1414,13 +1449,33 @@ struct
   type key = Key.t
   type value = Inter.Val.t
 
+  exception Invalid_depth = Inter.Raw.Invalid_depth
+
+  let pp_value = Irmin.Type.pp Inter.Raw.t
+
+  let pp_invalid_depth ppf (expected, got, v) =
+    Fmt.pf ppf "Invalid depth: got %d, expecting %d (%a)" got expected pp_value
+      v
+
+  let check_depth_opt ~expected_depth:expected = function
+    | None -> ()
+    | Some v -> (
+        match Inter.Raw.depth v with
+        | None -> ()
+        | Some got ->
+            if got <> expected then raise (Invalid_depth { expected; got; v }))
+
   let mem t k = Pack.mem t k
 
   let find t k =
     Pack.find t k >|= function
     | None -> None
     | Some v ->
-        let find = Pack.unsafe_find ~check_integrity:true t in
+        let find ~expected_depth k =
+          let v = Pack.unsafe_find ~check_integrity:true t k in
+          check_depth_opt ~expected_depth v;
+          v
+        in
         let v = Val.of_raw find v in
         Some v
 
@@ -1454,7 +1509,15 @@ struct
   let clear = Pack.clear
   let decode_bin_length = Inter.Raw.decode_bin_length
 
+  let protect_from_invalid_depth_exn f =
+    Lwt.catch f (function
+      | Invalid_depth { expected; got; v } ->
+          let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
+          Lwt.return (Error msg)
+      | e -> Lwt.fail e)
+
   let integrity_check_inodes t k =
+    protect_from_invalid_depth_exn @@ fun () ->
     find t k >|= function
     | None ->
         (* we are traversing the node graph, should find all values *)

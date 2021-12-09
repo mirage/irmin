@@ -129,6 +129,10 @@ module type S = sig
     [@@deriving irmin]
     (** The type for elements iterated over by {!iter}. *)
 
+    val default_pred_commit : t -> hash -> elt list Lwt.t
+    val default_pred_node : t -> hash -> elt list Lwt.t
+    val default_pred_contents : t -> hash -> elt list Lwt.t
+
     val iter :
       ?cache_size:int ->
       min:elt list ->

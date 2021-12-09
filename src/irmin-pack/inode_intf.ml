@@ -61,12 +61,18 @@ module type Internal = sig
 
   exception Dangling_hash of { context : string; hash : hash }
 
-  module Raw : Pack_value.S with type hash = hash
+  module Raw : sig
+    include Pack_value.S with type hash = hash
+
+    val depth : t -> int option
+
+    exception Invalid_depth of { expected : int; got : int; v : t }
+  end
 
   module Val : sig
     include Value with type hash = hash
 
-    val of_raw : (hash -> Raw.t option) -> Raw.t -> t
+    val of_raw : (expected_depth:int -> hash -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
     val save : add:(hash -> Raw.t -> unit) -> mem:(hash -> bool) -> t -> unit
     val hash : t -> hash
