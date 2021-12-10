@@ -50,6 +50,6 @@ depend on external C stubs; it aims to run everywhere, from Linux,
 to browsers and Xen unikernels.
 """
 pin-depends: [
-  [ "repr.dev" "git+https://github.com/mirage/repr#031cbb3728c3394e46b25a5e77aa5ceaa674c235" ]
-  [ "ppx_repr.dev" "git+https://github.com/mirage/repr#031cbb3728c3394e46b25a5e77aa5ceaa674c235" ]
+  [ "repr.dev" "git+https://github.com/mirage/repr#ca119f83baf2a948ef87f3a5702b5a790e29c3b9" ]
+  [ "ppx_repr.dev" "git+https://github.com/mirage/repr#ca119f83baf2a948ef87f3a5702b5a790e29c3b9" ]
 ]
