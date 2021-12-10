@@ -349,7 +349,7 @@ struct
   let clear (_, t) = S.clear t
   let add (_, t) = S.add t
   let unsafe_add (_, t) = S.unsafe_add t
-  let index _ _ = Lwt.return_none
+  let index (_, t) h = S.index t h
   let batch (c, s) f = C.batch c (fun n -> S.batch s (fun s -> f (n, s)))
 
   let close (c, s) =
