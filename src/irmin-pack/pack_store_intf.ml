@@ -30,6 +30,9 @@ module type S = sig
 
   (** @inline *)
   include S.Checkable with type 'a t := 'a t and type hash := hash
+
+  val debug_block : 'a t -> IO.Unix.t
+  (** For debug use: reveal underlying IO *)
 end
 
 module type Maker = sig

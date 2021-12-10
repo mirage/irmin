@@ -65,6 +65,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       IO.close t.block;
       Dict.close t.dict)
 
+  let debug_block t = t.block
+
   module Make_without_close_checks
       (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
   struct
@@ -79,6 +81,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       mutable open_instances : int;
       readonly : bool;
     }
+
+    let debug_block t = debug_block t.pack
 
     type hash = K.t [@@deriving irmin ~pp ~equal ~decode_bin]
     type key = Key.t [@@deriving irmin ~pp ~equal]
@@ -303,6 +307,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     module Inner = Make_without_close_checks (Val)
     include Indexable.Closeable (Inner)
 
+    let debug_block (t:'a t) = Inner.debug_block (get_open_exn t)
+
     let v ?fresh ?readonly ?lru_size ~index path =
       Inner.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
 
@@ -316,5 +322,6 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let integrity_check ~offset ~length k t =
       Inner.integrity_check ~offset ~length k (get_open_exn t)
+
   end
 end

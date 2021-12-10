@@ -502,7 +502,8 @@ let misc =
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
     ("instances", Multiple_instances.tests);
-    ("existing stores", Test_existing_stores.tests);
+    ("existing stores", Test_existing_stores.tests);   
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);
+    ("version-bump", Test_pack_version_bump.tests);
   ]
