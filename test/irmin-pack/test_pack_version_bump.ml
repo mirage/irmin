@@ -93,11 +93,18 @@ module Util = struct
 
   let value_not_in_pack = "a value, hopefully_not_present_in_pack"
 
-  (* FIXME not clear how to make changes to the pack that would trip
-     the version upgrade; Pack.unsafe_append? *)
-  let make_changes (pack:_ pack) : unit Lwt.t =
+  (* In order to force a version bump, we need a [Commit_v1] or similar:
+
+{[
+  let version : t -> Version.t = function
+    | Contents | Commit_v0 | Inode_v0_unstable | Inode_v0_stable -> `V1
+    | Commit_v1 | Inode_v1_root | Inode_v1_nonroot -> `V2
+]}
+
+To get this, we add a dummy value, then try to add a commit.
+  *)
+  let make_changes_force_v2 (pack:_ pack) : unit Lwt.t =
     Common.Pack.add pack value_not_in_pack >>= fun key -> 
-    (* FIXME we need the value_version of v to be v2, but if it is just contents... *)
     Common.Pack.unsafe_append ~ensure_unique:false ~overcommit:false pack key value_not_in_pack |> fun _key' -> 
     (* Common.Pack.flush ~index:true ~index_merge:true pack; *)
     Lwt.return ()
@@ -145,7 +152,7 @@ let test_RW_version_bump ~tmp_dir =
   assert(version store = `V1);
   (* make some changes to the store to elicit the expected version
      bump *)
-  let* () = make_changes store in
+  let* () = make_changes_force_v2 store in
   assert(version store = `V2);
   let* () = close_store store in
   Lwt.return ()

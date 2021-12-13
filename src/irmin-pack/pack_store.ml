@@ -234,8 +234,10 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     let auto_flush = 1024
 
     let unsafe_append ~ensure_unique ~overcommit t k v =
+      Printf.printf "unsafe_append called\n%!";
       if ensure_unique && unsafe_mem t k then k
       else (
+        Printf.printf "unsafe_append 1\n%!";
         [%log.debug "[pack] append %a" pp_hash k];
         let offset_of_key k =
           match Index.find t.pack.index k with
@@ -248,9 +250,11 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         in
         let kind = Val.kind v in
         let () =
+          Printf.printf "unsafe_append 2\n%!";
           (* Bump the pack file version header if necessary *)
           let value_version = Pack_value.Kind.version kind
           and io_version = IO.version t.pack.block in
+          assert(value_version = `V2);
           if Version.compare value_version io_version > 0 then
             IO.set_version t.pack.block value_version
         in
