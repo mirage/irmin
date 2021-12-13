@@ -1391,6 +1391,8 @@ module Make (S : S) = struct
     in
     run x test
 
+  let pp_proof = Irmin.Type.pp S.Tree.Proof.t
+
   let test_proofs x () =
     let test repo =
       (* Testing Merkle proof *)
@@ -1429,6 +1431,7 @@ module Make (S : S) = struct
             t)
       in
       let* p0 = to_proof c0 in
+      Log.debug (fun l -> l "p0=%a" pp_proof p0);
       let t0 = S.Tree.Proof.to_tree p0 in
       let* () =
         let+ d0 = S.Tree.diff c0 t0 in
@@ -1455,6 +1458,9 @@ module Make (S : S) = struct
         check_ls "proof tree list /dir" c0' t0'
       in
 
+      let add_noise n prefix =
+        List.map (fun k -> (prefix @ [ k ], k)) (List.init n string_of_int)
+      in
       let bindings =
         [
           ([ "foo"; "age" ], "0");
@@ -1462,12 +1468,15 @@ module Make (S : S) = struct
           ([ "bar"; "age" ], "2");
           ([ "bar"; "version" ], "3");
         ]
+        @ add_noise 100 [ "foo" ]
+        @ add_noise 10 [ "hey" ]
+        @ add_noise 50 [ "bar" ]
       in
       let increment = function
         | None -> assert false
         | Some i -> Some (int_of_string i + 1 |> string_of_int)
       in
-      let check_proof_inside p =
+      let check_proof_f0 p =
         let t = S.Tree.Proof.to_tree p in
         let* i = S.Tree.find t [ "bar"; "age" ] in
         Alcotest.(check (option string))
@@ -1483,11 +1492,14 @@ module Make (S : S) = struct
             (fun () ->
               let+ _ = S.Tree.find t [ "foo"; "version" ] in
               Alcotest.fail "inside: should have raise: pruned_hash exn")
-            (function S.Tree.Pruned_hash _ -> Lwt.return () | e -> Lwt.fail e)
+            (function
+              | S.Tree.Pruned_hash _ | P.Node.Val.Dangling_hash _ ->
+                  Lwt.return ()
+              | e -> Lwt.fail e)
         in
         ()
       in
-      let check_proof_outside p =
+      let check_proof_f1 p =
         let t = S.Tree.Proof.to_tree p in
         let+ i = S.Tree.find t [ "foo"; "version" ] in
         Alcotest.(check (option string))
@@ -1514,7 +1526,7 @@ module Make (S : S) = struct
           | `Contents (_, m) -> `Contents (h, m)
         in
         let* p0 = S.Tree.produce_proof repo hash f0 in
-        let* () = check_proof_inside p0 in
+        let* () = check_proof_f0 p0 in
         let+ v = S.Tree.get t0 [ "foo"; "version" ] in
         Alcotest.(check string) "foo/version" "1" v;
         t0
@@ -1533,10 +1545,12 @@ module Make (S : S) = struct
       let* tree = init_tree bindings in
       let hash = `Node (S.Tree.hash tree) in
       let* p = S.Tree.produce_proof repo hash f1 in
-      let* () = check_proof_outside p in
+
+      let* () = check_proof_f1 p in
 
       let check_proof f =
         let* p = S.Tree.produce_proof repo hash f in
+        Log.debug (fun l -> l "Verifying proof %a" pp_proof p);
         let+ _ = S.Tree.verify_proof p f in
         ()
       in

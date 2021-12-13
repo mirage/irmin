@@ -377,7 +377,7 @@ let test_truncated_inodes () =
     try
       ignore (f ());
       Alcotest.fail "was expecting a dangling hash failure, but got nothing"
-    with Inter.Dangling_hash _ -> ()
+    with Inode.Val.Dangling_hash _ -> ()
   in
   let s00, s01, s11, s10 =
     Inode_permutations_generator.

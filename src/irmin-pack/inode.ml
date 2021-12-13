@@ -47,6 +47,8 @@ struct
 
     let value_t = Node.value_t
     let pp_hash = Irmin.Type.(pp hash_t)
+
+    exception Dangling_hash = Node.Dangling_hash
   end
 
   module StepMap = struct
@@ -59,16 +61,7 @@ struct
     let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
   end
 
-  exception Dangling_hash of { context : string; hash : T.hash }
   exception Max_depth of int
-
-  let () =
-    Printexc.register_printer (function
-      | Dangling_hash { context; hash } ->
-          Some
-            (Fmt.str "Irmin_pack.Inode.%s: encountered dangling hash %a" context
-               T.pp_hash hash)
-      | _ -> None)
 
   (* Binary representation, useful to compute hashes *)
   module Bin = struct
@@ -383,7 +376,7 @@ struct
                 if not force then raise (Dangling_hash { context; hash = h })
                 else
                   match find ~expected_depth:depth h with
-                  | None -> Fmt.failwith "%a: unknown key" pp_hash h
+                  | None -> raise (Dangling_hash { context; hash = h })
                   | Some x ->
                       if cache then t.target <- Lazy_loaded x;
                       x))
@@ -1176,11 +1169,7 @@ struct
 
       let of_proof (proof : proof) =
         let c = concrete_of_proof 0 proof in
-        match of_concrete c with
-        | Ok v -> v
-        | Error e ->
-            Fmt.kstr Irmin.Proof.bad_proof_exn "Irmin_pack.Inode.of_proof: %a"
-              Concrete.pp_error e
+        match of_concrete c with Ok v -> Some v | Error _ -> None
 
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof 0
@@ -1427,7 +1416,30 @@ struct
     let to_proof (t : t) : proof =
       apply t { f = (fun la v -> I.Proof.to_proof la v) }
 
-    let of_proof (p : proof) = Truncated (I.Proof.of_proof p)
+    let of_proof (p : proof) =
+      Option.map (fun v -> Truncated v) (I.Proof.of_proof p)
+
+    let with_handler f_env t =
+      match t with
+      | Total _ -> t
+      | Truncated _ -> t
+      | Partial ((I.Partial find as la), v) ->
+          (* [f_env] works on [Val.t] while [find] in [Partial find] works on
+             [Val_impl.t], hence the following wrapping (before applying
+             [f_env]) and unwrapping (after [f_env]). *)
+          let find_v ~expected_depth h =
+            match find ~expected_depth h with
+            | None -> None
+            | Some v -> Some (Partial (la, v))
+          in
+          let find = f_env find_v in
+          let find_ptr ~expected_depth h =
+            match find ~expected_depth h with
+            | Some (Partial (_, v)) -> Some v
+            | _ -> None
+          in
+          let la = I.Partial find_ptr in
+          Partial (la, v)
   end
 end
 

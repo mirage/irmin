@@ -17,9 +17,6 @@
 
 open! Import
 open S
-
-let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Node." ^ c)
-
 include Node_intf
 
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
@@ -39,12 +36,10 @@ module Make
     end)
     (M : METADATA) =
 struct
-  type hash = K.t [@@deriving irmin]
+  type hash = K.t [@@deriving irmin ~pp]
   type step = P.step [@@deriving irmin]
-  type metadata = M.t [@@deriving irmin]
+  type metadata = M.t [@@deriving irmin ~equal]
   type kind = [ `Node | `Contents of M.t ]
-
-  let equal_metadata = Type.(unstage (equal M.t))
 
   let kind_t =
     let open Type in
@@ -143,10 +138,22 @@ struct
 
   let of_proof (t : proof) =
     match t with
-    | `Blinded _ | `Inode _ -> bad_proof_exn "of_proof"
+    | `Blinded _ | `Inode _ -> None
     | `Values e ->
         let e = List.map to_entry e in
-        of_entries e
+        Some (of_entries e)
+
+  let with_handler _ t = t
+
+  exception Dangling_hash of { context : string; hash : hash }
+
+  let () =
+    Printexc.register_printer (function
+      | Dangling_hash { context; hash } ->
+          Some
+            (Fmt.str "Irmin.Node.%s: encountered dangling hash %a" context
+               pp_hash hash)
+      | _ -> None)
 end
 
 module Store
@@ -420,7 +427,8 @@ module V1 (N : S with type step = string) = struct
   let import n = { n; entries = N.list n }
   let export t = t.n
   let to_proof t = N.to_proof t.n
-  let of_proof p = import (N.of_proof p)
+  let of_proof p = Option.map import (N.of_proof p)
+  let with_handler _ t = t
 
   let of_seq entries =
     let n = N.of_seq entries in

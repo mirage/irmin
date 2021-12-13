@@ -109,7 +109,26 @@ module type S = sig
   (** The type for proof trees. *)
 
   val to_proof : t -> proof
-  val of_proof : proof -> t
+  val of_proof : proof -> t option
+
+  exception Dangling_hash of { context : string; hash : hash }
+
+  (** {1 Recursive Nodes} *)
+
+  (** Some [Node] implementations (like [irmin-pack]'s inodes) can represent a
+      node as a set of nodes. One operation on such "high-level" node
+      corresponds to a sequence of recursive calls to the underlying
+      "lower-level" nodes. Note: theses [effects] are not in the Lwt monad on
+      purpose (so [Tree.hash] and [Tree.equal] are not in the Lwt monad as
+      well). *)
+
+  type effect := expected_depth:int -> hash -> t option
+  (** The type for read effects. *)
+
+  val with_handler : (effect -> effect) -> t -> t
+  (** [with_handler f] replace the current effect handler [h] by [f h]. [f h]
+      will be called for all the recursive read effects that are required by
+      recursive operations on nodes. .*)
 end
 
 module type Maker = functor

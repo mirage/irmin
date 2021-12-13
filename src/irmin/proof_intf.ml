@@ -108,8 +108,52 @@ module type S = sig
       computation could run without performing any I/O. *)
 end
 
+module type Env = sig
+  (** Environment that tracks side effects during the production/consumption of
+      proofs. *)
+
+  type hash
+  type contents
+  type node
+  type mode = Produce | Consume [@@deriving irmin]
+  type t [@@deriving irmin]
+
+  val is_empty : t -> bool
+  val merge : t -> t -> unit
+  val empty : unit -> t
+  val copy : into:t -> t -> unit
+  val mode : t -> mode option
+
+  (** {2 Construct and destruct envs}
+
+      Since env is implemented as a [ref], all its occurences are collected on
+      clear. *)
+
+  val track_reads_as_sets : mode -> (t -> 'a) -> 'a
+  val track_reads_as_sets_lwt : mode -> (t -> 'a Lwt.t) -> 'a Lwt.t
+
+  (** {2 Register a backend content to env} *)
+
+  val add_contents : t -> hash -> contents -> unit
+  val add_contents_opt : t -> hash -> contents option -> unit
+
+  (** {2 Register a backend node to env}
+
+      Also setup its hook in case it is internally represented as a recusive
+      objects. *)
+
+  val add_node : t -> hash -> node -> node
+  val add_node_opt : t -> hash -> node option -> node option
+
+  (** {2 Fetch from env} *)
+
+  val find_contents_opt : t -> hash option -> contents option
+  val find_node_opt : t -> hash option -> node option
+end
+
 module type Proof = sig
   module type S = S
+  module type Env = Env
 
   exception Bad_proof of { context : string }
 
@@ -128,4 +172,7 @@ module type Proof = sig
          and type step := P.step
          and type metadata := M.t
   end
+
+  module Env (H : Hash.S) (C : Contents.S) (N : Node.S with type hash = H.t) :
+    Env with type hash := H.t and type contents := C.t and type node := N.t
 end

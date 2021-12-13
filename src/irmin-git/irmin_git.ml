@@ -352,7 +352,11 @@ struct
       type proof = N.proof [@@deriving irmin]
 
       let to_proof t = N.to_proof (to_n t)
-      let of_proof p = of_n (N.of_proof p)
+      let of_proof p = Option.map of_n (N.of_proof p)
+
+      exception Dangling_hash of { context : string; hash : hash }
+
+      let with_handler _ n = n
     end
 
     include Content_addressable (struct
