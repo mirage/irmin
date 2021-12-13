@@ -22,8 +22,9 @@ let src = Logs.Src.create "tests.version_bump" ~doc:"Test pack version bump"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-
 module Util = struct
+
+  type mode = [`RW | `RO ]
 
   (** Following are generic utils *)
 
@@ -52,7 +53,6 @@ module Util = struct
       Fmt.failwith "Failed to set up the test env; command `%s' exited \
                     with non-zero code %d\n" cmd n      
 
-
   (** More specific utils from here *)
 
   let v1_store_archive_dir = "test/irmin-pack/data/version_1"
@@ -69,48 +69,60 @@ module Util = struct
 
   let _ = assert_project_root ()
 
-  type mode = [`RW | `RO ]
+  module Unix_ = Irmin_pack.IO.Unix
 
-  let log_size = 500_000    
-
-  let index ~mode ~dir = Common.Index.v ~readonly:(mode=`RO) ~log_size dir
-
-  type 'a pack = 'a Common.Pack.t
-
-  let open_v1_store ~(mode:mode) ~dir : _ pack Lwt.t = 
-    let index = index ~mode ~dir in
-    (* NOTE Common.Pack.v returns in lwt *)
-    let* pack = Common.Pack.v ~readonly:(mode=`RO) ~index dir in
-    Lwt.return pack
-
-  let close_store (pack:_ pack) : unit Lwt.t = Common.Pack.close pack
+  
+  (** Get the version of the underlying file; file is assumed to
+     exist; file is assumed to be an Irmin_pack.IO.Unix file *)
+  let io_get_version ~fn : [`V1 | `V2] = 
+    assert(Sys.file_exists fn);
+    Unix_.v ~version:None ~fresh:false ~readonly:true fn |> fun t ->
+    let r = Unix_.version t in
+    Unix_.close t;
+    r
     
-  let version (pack:_ pack) : [`V1 | `V2 ] = 
-    (* FIXME no version info in this intf *)
-    Common.Pack.debug_block pack |> fun io -> 
-    Irmin_pack.IO.Unix.version io |> fun ver -> 
-    ver
-
-  let value_not_in_pack = "a value, hopefully_not_present_in_pack"
-
-  (* In order to force a version bump, we need a [Commit_v1] or similar:
-
-{[
-  let version : t -> Version.t = function
-    | Contents | Commit_v0 | Inode_v0_unstable | Inode_v0_stable -> `V1
-    | Commit_v1 | Inode_v1_root | Inode_v1_nonroot -> `V2
-]}
-
-To get this, we add a dummy value, then try to add a commit.
-  *)
-  let make_changes_force_v2 (pack:_ pack) : unit Lwt.t =
-    Common.Pack.add pack value_not_in_pack >>= fun key -> 
-    Common.Pack.unsafe_append ~ensure_unique:false ~overcommit:false pack key value_not_in_pack |> fun _key' -> 
-    (* Common.Pack.flush ~index:true ~index_merge:true pack; *)
-    Lwt.return ()
-
 end
 open Util
+
+
+(** The test_RW_version_bump requires the full Irmin_pack.KV interface *)
+module Store_ = struct
+  (* Craig slack 2021-12-13@11:02
+
+module Store = Irmin_pack.KV (Common.Conf)
+
+let test () =
+  let config = Irmin_pack.config "./data/version_1" in
+  let* store = Store.Repo.v config >>= Store.main in
+  Store.set_tree_exn store [] (Store.Tree.empty ())
+  *)
+  
+  (* taken from common.ml *)
+  module Conf = Irmin_tezos.Conf 
+
+  module Store1 = Irmin_pack.KV(Common.Conf)
+  module Store2 = Store1.Make(Irmin.Contents.String)
+  module Store = Store2
+
+
+  let open_v1_store ~mode ~dir = 
+    let config : Irmin.config = Irmin_pack.config ~readonly:(mode=`RO) dir in
+    let* repo : Store.repo = Store.Repo.v config in
+    Lwt.return repo
+
+  let close_store repo = Store.Repo.close repo
+
+  let add_tree repo : unit Lwt.t = 
+    let* main = Store.main repo in
+    let info () = Store.Info.v (Int64.of_int 0) in
+    Store.set_tree_exn ~info main [] (Store.Tree.empty ())
+
+  let _ = add_tree
+
+  let force_version_bump = add_tree
+ 
+end
+open Store_
 
 
 let test_RO_no_version_bump ~tmp_dir : unit Lwt.t = 
@@ -118,14 +130,14 @@ let test_RO_no_version_bump ~tmp_dir : unit Lwt.t =
   let mode = `RO in
   rm_dir tmp_dir;
   copy_dir v1_store_archive_dir tmp_dir;
+  (* .../index/log seems to be in an incorrect format? *)
+  Sys.remove (tmp_dir ^"/index/log");
+  assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   let* store = open_v1_store ~mode ~dir:tmp_dir in
-  assert(version store = `V1);
   let* () = close_store store in
   (* maybe the version bump is only visible after closing the
      store... so check again *)
-  let* store = open_v1_store ~mode ~dir:tmp_dir in
-  assert(version store = `V1);
-  let* () = close_store store in
+  assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   Lwt.return ()
 
 let test_RW_no_version_bump ~tmp_dir : unit Lwt.t = 
@@ -133,14 +145,14 @@ let test_RW_no_version_bump ~tmp_dir : unit Lwt.t =
   let mode = `RW in
   rm_dir tmp_dir;
   copy_dir v1_store_archive_dir tmp_dir;
+  (* .../index/log seems to be in an incorrect format? *)
+  Sys.remove (tmp_dir ^"/index/log");
+  assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   let* store = open_v1_store ~mode ~dir:tmp_dir in
-  assert(version store = `V1);
   let* () = close_store store in
   (* maybe the version bump is only visible after closing the
      store... so check again *)
-  let* store = open_v1_store ~mode ~dir:tmp_dir in
-  assert(version store = `V1);
-  let* () = close_store store in
+  assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   Lwt.return ()
 
 let test_RW_version_bump ~tmp_dir = 
@@ -148,13 +160,15 @@ let test_RW_version_bump ~tmp_dir =
   let mode = `RW in
   rm_dir tmp_dir;
   copy_dir v1_store_archive_dir tmp_dir;
+  (* .../index/log seems to be in an incorrect format? *)
+  Sys.remove (tmp_dir ^"/index/log");
+  assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   let* store = open_v1_store ~mode ~dir:tmp_dir in
-  assert(version store = `V1);
-  (* make some changes to the store to elicit the expected version
-     bump *)
-  let* () = make_changes_force_v2 store in
-  assert(version store = `V2);
+  let* () = force_version_bump store in
   let* () = close_store store in
+  (* maybe the version bump is only visible after closing the
+     store... so check again *)
+  assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V2);
   Lwt.return ()
 
 
