@@ -15,6 +15,9 @@
     including sub-tree operations, folds and paginated lists
     (#1625, #1663, @samoht)
 
+- **irmin-pack**
+  - Verify inode depth invariants (#1665, @samoht)
+
 ### Changed
 
 - **irmin**

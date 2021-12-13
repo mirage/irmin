@@ -43,7 +43,7 @@ struct
     P.find t k >|= function
     | None -> None
     | Some v ->
-        let find = unsafe_find ~check_integrity:true t in
+        let find ~expected_depth:_ = unsafe_find ~check_integrity:true t in
         let v = Val.of_raw find v in
         Some v
 

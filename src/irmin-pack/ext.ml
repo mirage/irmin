@@ -187,6 +187,12 @@ struct
 
   include Irmin.Of_private (X)
 
+  let ignore_invalid_depth f t k =
+    Lwt.catch
+      (fun () -> f t k)
+      (function
+        | X.Node.CA.Inter.Raw.Invalid_depth _ -> Lwt.return [] | e -> Lwt.fail e)
+
   let integrity_check_inodes ?heads t =
     Log.debug (fun l -> l "Check integrity for inodes");
     let bar, (_, progress_nodes, progress_commits) =
@@ -194,6 +200,7 @@ struct
     in
     let errors = ref [] in
     let nodes = X.Repo.node_t t |> snd in
+    let pred_node = ignore_invalid_depth Repo.default_pred_node in
     let node k =
       progress_nodes ();
       X.Node.CA.integrity_check_inodes nodes k >|= function
@@ -209,7 +216,8 @@ struct
     in
     let hashes = List.map (fun x -> `Commit (Commit.hash x)) heads in
     let+ () =
-      Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
+      Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~pred_node ~node
+        ~commit t
     in
     Utils.Progress.finalise bar;
     let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
