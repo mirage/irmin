@@ -85,6 +85,51 @@ end
 open Util
 
 
+(** This is a dummy module, just to check opening the existing "version_1" store *)
+module Opening_existing_store() = struct
+
+  let tmp_dir = tmp_dir ()
+
+  (* Make a copy of the v1_store_archive_dir in tmp_dir *)
+  let _ =
+    assert_project_root();
+    rm_dir tmp_dir;
+    copy_dir v1_store_archive_dir tmp_dir;
+    ()  
+  
+  (* How to open the existing version_1 store? *)
+    
+  module Index_ = struct
+    
+    (* Code from test_existing_stores.ml *)
+    let config ?(readonly = false) ?(fresh = true) root =
+      Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh root
+  end
+  
+  module Store_ = struct
+    (* In test_existing_stores.ml, we have Test_reconstruct, which
+       uses S.traverse_pack_file; so S is likely the correct config
+       for the pack file. S = V2(), V2() = V2_maker.Make(Schema);
+       V2_maker = Irmin_pack.Maker(Conf); Conf is from Tezos_irmin;
+       Schema is from common *)
+    module Conf = Irmin_tezos.Conf
+                    
+    module Schema = Common.Schema (* same as Irmin_tezos.Schema? no;
+                                     tezos uses their own hash; common
+                                     has Hash.SHA1 *)
+
+    (* from test_existing_stores.ml *)
+    module V2_maker = Irmin_pack.Maker (Conf)
+    module V2 () = V2_maker.Make (Schema)          
+
+  end
+
+
+
+end
+
+
+
 (** The test_RW_version_bump requires the full Irmin_pack.KV interface *)
 module Store_ = struct
   (* Craig slack 2021-12-13@11:02
