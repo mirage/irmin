@@ -24,8 +24,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module Util = struct
 
-  type mode = [`RW | `RO ]
-
   (** Following are generic utils *)
 
   let tmp_dir () = Filename.temp_file "test_pack_version_bump_" ""
@@ -70,7 +68,6 @@ module Util = struct
   let _ = assert_project_root ()
 
   module Unix_ = Irmin_pack.IO.Unix
-
   
   (** Get the version of the underlying file; file is assumed to
      exist; file is assumed to be an Irmin_pack.IO.Unix file *)
@@ -85,10 +82,12 @@ end
 open Util
 
 
-(** This is a dummy module, just to check opening the existing "version_1" store *)
-module Opening_existing_store() = struct
+(** This sets up infrastructure to open the existing "version_1" store *)
+module With_existing_store() = struct
 
   let tmp_dir = tmp_dir ()
+
+  let _ = [%log.info "Using temporary directory %s\n%!" tmp_dir]
 
   (* Make a copy of the v1_store_archive_dir in tmp_dir *)
   let _ =
@@ -97,15 +96,7 @@ module Opening_existing_store() = struct
     copy_dir v1_store_archive_dir tmp_dir;
     ()  
   
-  (* How to open the existing version_1 store? *)
-    
-  module Index_ = struct
-    
-    (* Code from test_existing_stores.ml *)
-    let config ?(readonly = false) ?(fresh = true) root =
-      Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh root
-  end
-  
+  (** Set up modules to allow access to "version_1" store *)
   module Store_ = struct
     (* In test_existing_stores.ml, we have Test_reconstruct, which
        uses S.traverse_pack_file; so S is likely the correct config
@@ -114,117 +105,65 @@ module Opening_existing_store() = struct
        Schema is from common *)
     module Conf = Irmin_tezos.Conf
                     
-    module Schema = Common.Schema (* same as Irmin_tezos.Schema? no;
-                                     tezos uses their own hash; common
-                                     has Hash.SHA1 *)
+    module Schema = Common.Schema 
+    (* same as Irmin_tezos.Schema? no; tezos uses their own hash;
+       common has Hash.SHA1 *)
 
-    (* from test_existing_stores.ml *)
+    (* from test_existing_stores.ml; FIXME why V2? *)
     module V2_maker = Irmin_pack.Maker (Conf)
-    module V2 () = V2_maker.Make (Schema)          
-
+    module V2 = V2_maker.Make (Schema)
   end
 
-
-
+  (* [S] and [config] are the main things we use from this module *)
+  module S = Store_.V2
+      
+  (* Code copied and modified from test_existing_stores.ml; FIXME is
+     this the config of index, or pack? or both? *)
+  let config ~readonly : Irmin.config = 
+    Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh:false tmp_dir
 end
 
-
-
-(** The test_RW_version_bump requires the full Irmin_pack.KV interface *)
-module Store_ = struct
-  (* Craig slack 2021-12-13@11:02
-
-module Store = Irmin_pack.KV (Common.Conf)
-
-let test () =
-  let config = Irmin_pack.config "./data/version_1" in
-  let* store = Store.Repo.v config >>= Store.main in
-  Store.set_tree_exn store [] (Store.Tree.empty ())
-  *)
-  
-  (* taken from common.ml *)
-  module Conf = Irmin_tezos.Conf 
-
-  module Store1 = Irmin_pack.KV(Common.Conf)
-  module Store2 = Store1.Make(Irmin.Contents.String)
-  module Store = Store2
-
-
-  let open_v1_store ~mode ~dir = 
-    let config : Irmin.config = Irmin_pack.config ~readonly:(mode=`RO) dir in
-    let* repo : Store.repo = Store.Repo.v config in
-    Lwt.return repo
-
-  let close_store repo = Store.Repo.close repo
-
-  let add_tree repo : unit Lwt.t = 
-    let* main = Store.main repo in
-    let info () = Store.Info.v (Int64.of_int 0) in
-    Store.set_tree_exn ~info main [] (Store.Tree.empty ())
-
-  let _ = add_tree
-
-  let force_version_bump = add_tree
- 
-end
-open Store_
-
-
-let test_RO_no_version_bump ~tmp_dir : unit Lwt.t = 
-  [%log.info "Executing test_RO_no_version_bump in dir %s\n%!" tmp_dir];
-  let mode = `RO in
-  rm_dir tmp_dir;
-  copy_dir v1_store_archive_dir tmp_dir;
-  (* .../index/log seems to be in an incorrect format? *)
-  Sys.remove (tmp_dir ^"/index/log");
+let test_RO_no_version_bump () : unit Lwt.t = 
+  [%log.info "Executing test_RO_no_version_bump in dir\n%!"];
+  let open With_existing_store() in
   assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
-  let* store = open_v1_store ~mode ~dir:tmp_dir in
-  let* () = close_store store in
+  S.Repo.v (config ~readonly:true) >>= fun repo -> 
+  S.Repo.close repo >>= fun () ->
   (* maybe the version bump is only visible after closing the
      store... so check again *)
   assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   Lwt.return ()
 
-let test_RW_no_version_bump ~tmp_dir : unit Lwt.t = 
-  [%log.info "Executing test_RW_no_version_bump in dir %s\n%!" tmp_dir];
-  let mode = `RW in
-  rm_dir tmp_dir;
-  copy_dir v1_store_archive_dir tmp_dir;
-  (* .../index/log seems to be in an incorrect format? *)
-  Sys.remove (tmp_dir ^"/index/log");
+let test_RW_no_version_bump () : unit Lwt.t = 
+  [%log.info "Executing test_RW_no_version_bump in dir \n%!"];
+  let open With_existing_store() in
   assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
-  let* store = open_v1_store ~mode ~dir:tmp_dir in
-  let* () = close_store store in
+  S.Repo.v (config ~readonly:false (* !changed! *)) >>= fun repo -> 
+  S.Repo.close repo >>= fun () ->
   (* maybe the version bump is only visible after closing the
      store... so check again *)
   assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
   Lwt.return ()
 
-let test_RW_version_bump ~tmp_dir = 
-  [%log.info "Executing test_RW_version_bump in dir %s\n%!" tmp_dir];
-  let mode = `RW in
-  rm_dir tmp_dir;
-  copy_dir v1_store_archive_dir tmp_dir;
-  (* .../index/log seems to be in an incorrect format? *)
-  Sys.remove (tmp_dir ^"/index/log");
+let test_RW_version_bump () : unit Lwt.t = 
+  [%log.info "Executing test_RW_version_bump\n%!"];
+  let open With_existing_store() in
   assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V1);
-  let* store = open_v1_store ~mode ~dir:tmp_dir in
-  let* () = force_version_bump store in
-  let* () = close_store store in
-  (* maybe the version bump is only visible after closing the
-     store... so check again *)
+  S.Repo.v (config ~readonly:false (* !changed! *)) >>= fun repo -> 
+  (* force version bump by writing to the store *)
+  let* main = S.main repo in
+  let info () = S.Info.v (Int64.of_int 0) in
+  S.set_tree_exn ~info main [] (S.Tree.empty ()) >>= fun () -> 
+  (* close *)
+  S.Repo.close repo >>= fun () ->
   assert(io_get_version ~fn:(tmp_dir ^"/store.pack") = `V2);
   Lwt.return ()
 
-
 let tests = 
-  (* f applies g to a new tmp_dir *)
-  let f g = fun () -> 
-    Lwt_main.run @@ g ~tmp_dir:(tmp_dir()) 
-  in
+  (* following applies lwt-function-g to unit *)
+  let f g = fun () -> Lwt_main.run @@ g () in
   Alcotest.[
     test_case "test_RO_no_version_bump" `Quick (f test_RO_no_version_bump);
     test_case "test_RW_no_version_bump" `Quick (f test_RW_no_version_bump);
-    test_case "test_RW_version_bump" `Quick (f test_RW_version_bump);     
+    test_case "test_RW_version_bump"    `Quick (f test_RW_version_bump);     
   ]
-  
