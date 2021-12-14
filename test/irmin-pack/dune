@@ -1,7 +1,7 @@
 (library
  (name test_pack)
  (modules test_pack multiple_instances test_existing_stores test_inode
-   test_tree test_hashes import)
+   test_tree test_hashes import test_pack_version_bump)
  (libraries alcotest fmt common index irmin irmin-test irmin-pack
    irmin-pack.mem irmin-tezos logs lwt lwt.unix fpath hex)
  (preprocess
