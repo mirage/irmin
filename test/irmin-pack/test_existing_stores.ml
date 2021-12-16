@@ -106,6 +106,7 @@ module Small_conf = struct
   let entries = 2
   let stable_hash = 3
   let contents_length_header = Some `Varint
+  let inode_child_order = `Hash_bits
 end
 
 module V1_maker = Irmin_pack.Maker (Small_conf)

@@ -151,14 +151,14 @@ module Make (S : Generic_key) = struct
         (* check B.Node.Val.t "v" u w; *)
         ()
       in
-      let l = B.Node.Val.list u in
-      check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
+      let all = B.Node.Val.list u in
+      check_list "list all" [ ("x", k); ("y", k); ("z", k) ] all;
       let l = B.Node.Val.list ~length:1 u in
       check_list "list length=1" [ ("x", k) ] l;
       let l = B.Node.Val.list ~offset:1 u in
       check_list "list offset=1" [ ("y", k); ("z", k) ] l;
       let l = B.Node.Val.list ~offset:1 ~length:1 u in
-      check_list "list offset=1 length=1" [ ("y", k) ] l;
+      check_list "list offset=1 length=1" [ List.nth all 1 ] l;
       let u = B.Node.Val.add u "a" k in
       check_node "node: x+y+z+a" u >>= fun () ->
       let u = B.Node.Val.add u "b" k in
