@@ -468,12 +468,4 @@ struct
            the same blinded/visible coverage (i.e. the same node proof). *)
         Hashes.replace set.nodes h v
     | _ -> assert false
-
-  (* x' = y' <- x union y *)
-  let merge (x : t) (y : t) =
-    match (!x, !y) with
-    | Empty, Empty -> ()
-    | Empty, y -> x := y
-    | x, Empty -> y := x
-    | _ -> failwith "Merging two non-empty [Proof.Env.t] is forbidden"
 end

@@ -201,6 +201,12 @@ module Make (P : Private.S) = struct
 
   module Env = Proof.Env (P.Hash) (P.Contents.Val) (P.Node.Val) (Tree_proof)
 
+  let merge_env x y =
+    match (Env.is_empty x, Env.is_empty y) with
+    | true, _ -> Ok y
+    | _, true -> Ok x
+    | false, false -> Error (`Conflict "merge env")
+
   module Contents = struct
     type v = Hash of repo option * hash | Value of contents
 
@@ -342,16 +348,15 @@ module Make (P : Private.S) = struct
               let+ c = to_value ~cache:true old >|= Option.of_result in
               Ok (Some c))
         in
-        let x_env = x.info.env in
-        let y_env = y.info.env in
-        let* x = to_value ~cache:true x >|= Option.of_result in
-        let* y = to_value ~cache:true y >|= Option.of_result in
-        Merge.(f P.Contents.Val.merge) ~old x y >|= function
-        | Ok (Some c) ->
-            Env.merge x_env y_env;
-            Ok (of_value ~env:x_env c)
-        | Ok None -> Error (`Conflict "empty contents")
-        | Error _ as e -> e
+        match merge_env x.info.env y.info.env with
+        | Error _ as e -> Lwt.return e
+        | Ok env -> (
+            let* x = to_value ~cache:true x >|= Option.of_result in
+            let* y = to_value ~cache:true y >|= Option.of_result in
+            Merge.(f P.Contents.Val.merge) ~old x y >|= function
+            | Ok (Some c) -> Ok (of_value ~env c)
+            | Ok None -> Error (`Conflict "empty contents")
+            | Error _ as e -> e)
       in
       Merge.v t f
 
@@ -1076,20 +1081,19 @@ module Make (P : Private.S) = struct
               let+ m = to_map ~cache:true old >|= Option.of_result in
               Ok (Some m))
         in
-        let x_env = x.info.env in
-        let y_env = y.info.env in
-        let* x = to_map ~cache:true x >|= Option.of_result in
-        let* y = to_map ~cache:true y >|= Option.of_result in
-        let m =
-          StepMap.merge elt_t (fun _step ->
-              (merge_elt [@tailcall]) Merge.option)
-        in
-        Merge.(f @@ option m) ~old x y >|= function
-        | Ok (Some map) ->
-            Env.merge x_env y_env;
-            Ok (of_map ~env:x_env map)
-        | Ok None -> Error (`Conflict "empty map")
-        | Error _ as e -> e
+        match merge_env x.info.env y.info.env with
+        | Error _ as e -> Lwt.return e
+        | Ok env -> (
+            let* x = to_map ~cache:true x >|= Option.of_result in
+            let* y = to_map ~cache:true y >|= Option.of_result in
+            let m =
+              StepMap.merge elt_t (fun _step ->
+                  (merge_elt [@tailcall]) Merge.option)
+            in
+            Merge.(f @@ option m) ~old x y >|= function
+            | Ok (Some map) -> Ok (of_map ~env map)
+            | Ok None -> Error (`Conflict "empty map")
+            | Error _ as e -> e)
       in
       k (Merge.v t f)
 

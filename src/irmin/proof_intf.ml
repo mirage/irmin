@@ -183,7 +183,6 @@ module type Env = sig
 
   val t : t Type.ty
   val is_empty : t -> bool
-  val merge : t -> t -> unit
 
   (** {2 Construction of envs} *)
 
