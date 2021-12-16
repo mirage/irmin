@@ -1168,6 +1168,18 @@ module Make (S : S) = struct
       let* d5 = S.Tree.diff v3 v2 in
       check_diffs "diff 4" [ ([ "foo"; "bar"; "1" ], `Removed (foo1, d0)) ] d5;
 
+      (* Testing length *)
+      let check_length msg t =
+        let* n = S.Tree.length t [] in
+        let+ l = S.Tree.list t [] in
+        Alcotest.(check int) msg n (List.length l)
+      in
+      let* () = check_length "bindings1 length" v2 in
+      let* () =
+        let t = contents "foo" in
+        check_length "contents length" t
+      in
+
       (* Testing paginated lists *)
       let tree =
         let c ?(info = S.Metadata.default) blob = `Contents (blob, info) in
