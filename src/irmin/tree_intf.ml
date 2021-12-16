@@ -336,8 +336,8 @@ module type S = sig
     type irmin_tree
 
     val to_tree : t -> irmin_tree
-    (** [to_tree p] is the tree representing the tree proof [p]. Blinded parts
-        of the proof will raise [Dangling_hash] when traversed. *)
+    (** [to_tree p] is the tree [t] representing the tree proof [p]. Blinded
+        parts of the proof will raise [Dangling_hash] when traversed. *)
   end
   with type irmin_tree := t
 
@@ -377,11 +377,8 @@ module type S = sig
 
   module Env : sig
     type t [@@deriving irmin]
-    type read_set
 
     val is_empty : t -> bool
-    val read_set : t -> read_set option
-    val length : t -> int
   end
 
   val get_env : t -> Env.t

@@ -59,8 +59,6 @@ module type Internal = sig
 
   val pp_hash : hash Fmt.t
 
-  exception Dangling_hash of { context : string; hash : hash }
-
   module Raw : sig
     include Pack_value.S with type hash = hash
 

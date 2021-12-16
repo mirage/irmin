@@ -5,6 +5,10 @@
 - *irmin*
   - Conversion between proofs and trees are now done in CPS (#1624, @samoht)
 
+- *irmin-pack*
+  - Fix proofs for large inodes by tracking side-effects reads inside the
+    inode implementation (#1670, @samoht, @Ngoguey42)
+
 ### Added
 
 - **irmin**
