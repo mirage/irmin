@@ -145,8 +145,15 @@ module type S = sig
   (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
       and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
-  val length : node -> int Lwt.t
-  (** [find n] is the number of entries in [n]. *)
+  val length : t -> ?cache:bool -> path -> int Lwt.t
+  (** [length t key] is the number of files and sub-nodes stored under [key] in
+      [t].
+
+      It is equivalent to [List.length (list t k)] but backends might optimise
+      this call: for instance it's a constant time operation in [irmin-pack].
+
+      [cache] defaults to [true], see {!caching} for an explanation of the
+      parameter.*)
 
   val find : t -> path -> contents option Lwt.t
   (** [find] is similar to {!find_all} but it discards metadata. *)
