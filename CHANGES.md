@@ -28,6 +28,7 @@
   - Remove `Tree.Proof.of_keys`. Use `Tree.produce_proof` instead
     (#1625, @samoht)
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
+  - `Tree.length` now takes a tree as argument (#1676, @samoht)
 
 ## 2.9.0 (2021-11-15)
 

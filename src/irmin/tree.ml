@@ -1297,7 +1297,11 @@ module Make (P : Private.S) = struct
             | Some (`Contents _) -> Lwt.return_some `Contents
             | Some (`Node _) -> Lwt.return_some `Node))
 
-  let length = Node.length ~cache:true
+  let length t ?(cache = true) path =
+    Log.debug (fun l -> l "Tree.length %a" pp_path path);
+    sub ~cache "length" t path >>= function
+    | None -> Lwt.return 0
+    | Some n -> Node.length ~cache:true n
 
   let seq t ?offset ?length ~cache path : (step * t) Seq.t Lwt.t =
     Log.debug (fun l -> l "Tree.seq %a" pp_path path);
