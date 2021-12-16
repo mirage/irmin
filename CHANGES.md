@@ -22,6 +22,9 @@
 - **irmin-pack**
   - Verify inode depth invariants (#1665, @samoht)
 
+- **irmin-unix**
+  - Add `tezos` store type for `irmin` command-line (#1678, @zshipko)
+
 ### Changed
 
 - **irmin**
