@@ -17,6 +17,11 @@
 module type S = sig
   val entries : int
   val stable_hash : int
+
+  type inode_child_order :=
+    [ `Seeded_hash | `Hash_bits | `Custom of depth:int -> bytes -> int ]
+
+  val inode_child_order : inode_child_order
 end
 
 module Default = struct

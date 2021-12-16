@@ -311,6 +311,7 @@ let test_deeper_proof () =
 module Binary = Make (struct
   let entries = 2
   let stable_hash = 2
+  let inode_child_order = `Hash_bits
 end)
 
 (* test large compressed proofs *)

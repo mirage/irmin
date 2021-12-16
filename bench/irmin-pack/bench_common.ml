@@ -75,6 +75,7 @@ let with_progress_bar ~message ~n ~unit =
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let inode_child_order = `Hash_bits
 end
 
 let info () =
