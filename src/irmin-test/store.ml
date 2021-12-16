@@ -1391,7 +1391,8 @@ module Make (S : S) = struct
     in
     run x test
 
-  let pp_proof = Irmin.Type.pp S.Tree.Proof.t
+  let pp_proof = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.tree_t)
+  let pp_stream = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.stream_t)
 
   let test_proofs x () =
     let test repo =
@@ -1556,6 +1557,14 @@ module Make (S : S) = struct
       in
       let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
 
+      let check_stream f =
+        let* p = S.Tree.produce_stream repo hash f in
+        Log.debug (fun l -> l "Verifying stream %a" pp_stream p);
+        let+ _ = S.Tree.verify_stream p f in
+        ()
+      in
+      let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
+
       (* check env sharing *)
       let tree () =
         S.Tree.of_concrete
@@ -1652,6 +1661,49 @@ module Make (S : S) = struct
           (fun c -> check_bad_proof (proof ~state:c ()))
           some_contents
       in
+
+      (* test negative streams *)
+      let check_bad_stream p =
+        Lwt.catch
+          (fun () ->
+            let+ _ = S.Tree.verify_stream p f0 in
+            Alcotest.failf "verify_stream should have failed %a" pp_stream p)
+          (function
+            | Irmin.Proof.Bad_stream _ -> Lwt.return () | e -> Lwt.fail e)
+      in
+      let* p0 = S.Tree.produce_stream repo hash f0 in
+      let proof ?(before = S.Tree.Proof.before p0)
+          ?(after = S.Tree.Proof.after p0) ?(contents = S.Tree.Proof.state p0)
+          () =
+        S.Tree.Proof.v ~before ~after contents
+      in
+      let wrong_hash = P.Contents.Key.hash "not the right hash!" in
+      let wrong_kinded_hash = `Node wrong_hash in
+      let* () = check_bad_stream (proof ~before:wrong_kinded_hash ()) in
+      let* () = check_bad_stream (proof ~after:wrong_kinded_hash ()) in
+      let* _ = S.Tree.verify_stream (proof ()) f0 in
+      let some_contents : S.Tree.Proof.stream list =
+        let s : S.Tree.Proof.elt list -> S.Tree.Proof.stream = List.to_seq in
+        let ok = List.of_seq (S.Tree.Proof.state p0) in
+        [
+          s [];
+          s [ Empty ];
+          s [ Node [] ];
+          s [ Inode { length = 0; proofs = [] } ];
+          s [ Contents "yo" ];
+          s (ok @ [ Empty ]);
+          s (ok @ [ Node [] ]);
+        ]
+      in
+      let* () =
+        let x = ref 1 in
+        Lwt_list.iter_s
+          (fun c ->
+            incr x;
+            check_bad_stream (proof ~contents:c ()))
+          some_contents
+      in
+
       P.Repo.close repo
     in
 

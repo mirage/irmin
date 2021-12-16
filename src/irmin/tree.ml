@@ -133,6 +133,7 @@ module Make (P : Private.S) = struct
   end
 
   module Metadata = P.Node.Metadata
+  module Tree_proof = Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
 
   type key = Path.t
   type hash = P.Hash.t
@@ -198,7 +199,7 @@ module Make (P : Private.S) = struct
     | Error (`Pruned_hash hash) -> raise_pruned context hash
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
-  module Env = Proof.Env (P.Hash) (P.Contents.Val) (P.Node.Val)
+  module Env = Proof.Env (P.Hash) (P.Contents.Val) (P.Node.Val) (Tree_proof)
 
   module Contents = struct
     type v = Hash of repo option * hash | Value of contents
@@ -236,7 +237,7 @@ module Make (P : Private.S) = struct
         | _ -> None
       in
       let value =
-        match Env.find_contents_opt env hash with
+        match Env.find_contents_opt ~consume:false env hash with
         | Some _ as v -> v
         | None -> ( match v with Value v -> Some v | _ -> None)
       in
@@ -276,7 +277,9 @@ module Make (P : Private.S) = struct
       | Value v, None -> Some v
       | _, (Some _ as v) -> v
       | _ -> (
-          match Env.find_contents_opt t.info.env (cached_hash t) with
+          match
+            Env.find_contents_opt ~consume:true t.info.env (cached_hash t)
+          with
           | Some _ as v ->
               t.info.value <- v;
               v
@@ -454,7 +457,7 @@ module Make (P : Private.S) = struct
     let of_v ~env v =
       let hash = match v with Hash (_, k) -> Some k | _ -> None in
       let value =
-        match Env.find_node_opt env hash with
+        match Env.find_node_opt ~consume:false env hash with
         | Some _ as v -> v
         | None -> ( match v with Value (_, v, None) -> Some v | _ -> None)
       in
@@ -495,7 +498,7 @@ module Make (P : Private.S) = struct
       | Value (_, v, None), None -> Some v
       | _, (Some _ as v) -> v
       | _ -> (
-          match Env.find_node_opt t.info.env (cached_hash t) with
+          match Env.find_node_opt ~consume:true t.info.env (cached_hash t) with
           | Some _ as v ->
               t.info.value <- v;
               v
@@ -1470,10 +1473,10 @@ module Make (P : Private.S) = struct
         | false -> None)
 
   let import_with_env ~env repo = function
-    | `Node k -> `Node (Node.of_hash ~env (Some repo) k)
-    | `Contents (k, m) -> `Contents (Contents.of_hash ~env (Some repo) k, m)
+    | `Node k -> `Node (Node.of_hash ~env repo k)
+    | `Contents (k, m) -> `Contents (Contents.of_hash ~env repo k, m)
 
-  let import_no_check repo f = import_with_env ~env:(Env.empty ()) repo f
+  let import_no_check repo f = import_with_env ~env:(Env.empty ()) (Some repo) f
 
   let export ?clear repo contents_t node_t n =
     let cache =
@@ -1822,11 +1825,12 @@ module Make (P : Private.S) = struct
   module Proof = struct
     type irmin_tree = t
 
-    include Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
+    include Tree_proof
 
     type proof_tree = tree
 
     let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Tree." ^ c)
+    let bad_stream_exn c = Proof.bad_stream_exn ("Irmin.Tree." ^ c)
 
     type node_proof = P.Node.Val.proof
     (** The type of tree proofs. *)
@@ -2037,45 +2041,72 @@ module Make (P : Private.S) = struct
               let h = hash_of_node_proof ~env p in
               k (`Node h))
 
-    let to_tree t =
+    let with_tree t f =
       Env.track_reads_as_sets Consume @@ fun env ->
-      tree_of_proof (state t) Fun.id ~env
+      let tree = tree_of_proof (state t) Fun.id ~env in
+      f tree
+
+    let to_tree t = with_tree t Fun.id
   end
 
-  let produce_proof repo kinded_hash f =
-    Env.track_reads_as_sets_lwt Produce @@ fun env ->
-    let tree = import_with_env ~env repo kinded_hash in
-    let+ tree_after = f tree in
-    (* Here, we build a proof from [tree] (on not from [tree_after]!)
-       on purpose: we look at the effect on [f] on [tree]'s caches and
+  let produce_proof_aux ~init ~proof repo kinded_hash f =
+    init Env.Produce @@ fun env ->
+    let tree_before = import_with_env ~env (Some repo) kinded_hash in
+    let+ tree_after = f tree_before in
+    (* Here, we build a proof from [tree_before] (on not from [tree_after]!)
+       on purpose: we look at the effect on [f] on [tree_before]'s caches and
        we rely on the fact that the caches are env across
        copy-on-write copies of [tree]. *)
-    let proof = Proof.of_tree tree in
+    let proof = proof env tree_before in
     let after = hash tree_after in
     (* [tree_after] and [env] are dead now, so should avoid any
        memory leaks *)
     Proof.v ~before:kinded_hash ~after proof
 
-  let verify_proof p f =
-    Env.track_reads_as_sets Consume @@ fun env ->
+  let verify_proof_aux ~with_tree ~err ~finalize p f =
     let before = Proof.before p in
     let after = Proof.after p in
-    let tree = Proof.tree_of_proof (Proof.state p) Fun.id ~env in
+    with_tree p @@ fun tree_before ->
     (* first check that [before] corresponds to [tree]'s hash. *)
-    if not (equal_kinded_hash before (hash ~cache:false tree)) then
-      Proof.bad_proof_exn "verify_proof: invalid before hash";
+    if not (equal_kinded_hash before (hash ~cache:false tree_before)) then
+      err "invalid before hash";
     Lwt.catch
       (fun () ->
-        let+ tree_after = f tree in
+        let+ tree_after = f tree_before in
+        finalize (get_env tree_before);
         (* then check that [after] corresponds to [tree_after]'s hash. *)
         if not (equal_kinded_hash after (hash tree_after)) then
-          Proof.bad_proof_exn "verify_proof: invalid before hash";
+          err "invalid before hash";
         tree_after)
       (function
         | Pruned_hash h ->
             (* finaly check that [f] only access valid parts of the proof. *)
-            Fmt.kstr Proof.bad_proof_exn
-              "verify_proof: %s is trying to read through a blinded node (%a)"
-              h.context pp_hash h.hash
+            Fmt.kstr err "%s is trying to read through a blinded node (%a)"
+              h.context pp_hash h.hash;
+            assert false
         | e -> raise e)
+
+  let produce_proof =
+    produce_proof_aux ~init:Env.track_reads_as_sets_lwt ~proof:(fun _ tree ->
+        Proof.(of_tree tree))
+
+  let produce_stream =
+    produce_proof_aux ~init:Env.track_reads_as_stream_lwt ~proof:(fun env _ ->
+        match Env.to_stream env with Some s -> s | _ -> assert false)
+
+  let verify_proof =
+    verify_proof_aux ~with_tree:Proof.with_tree
+      ~err:(fun s -> Proof.bad_proof_exn ("verify_proof: " ^ s))
+      ~finalize:(fun _ -> ())
+
+  let verify_stream =
+    verify_proof_aux
+      ~err:(fun s -> Proof.bad_stream_exn ("verify_stream: " ^ s))
+      ~finalize:(fun env ->
+        if not (Env.is_empty_stream env) then
+          Fmt.kstr Proof.bad_stream_exn "not empty")
+      ~with_tree:(fun p f ->
+        let env = Env.of_stream (Proof.state p) in
+        let tree = import_with_env ~env None (Proof.before p) in
+        f tree)
 end

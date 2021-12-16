@@ -381,8 +381,10 @@ module type S = sig
 
     (** {1 Proofs} *)
 
+    type tree_proof := Proof.tree Proof.t
+
     val produce_proof :
-      repo -> kinded_hash -> (tree -> tree Lwt.t) -> Proof.t Lwt.t
+      repo -> kinded_hash -> (tree -> tree Lwt.t) -> tree_proof Lwt.t
     (** [produce r h f] runs [f] on top of a real store [r], producing a proof
         using the initial root hash [h].
 
@@ -396,7 +398,7 @@ module type S = sig
         proof should then interact as if they were all unshallowed (note: in the
         case of nested proofs, it's unclear what [verify_proof] should do...). *)
 
-    val verify_proof : Proof.t -> (tree -> tree Lwt.t) -> tree Lwt.t
+    val verify_proof : tree_proof -> (tree -> tree Lwt.t) -> tree Lwt.t
     (** [verify t f] runs [f] in checking mode, loading data from the proof as
         needed.
 
@@ -407,6 +409,15 @@ module type S = sig
         Reject the proof by raising [Proof.Bad_proof] unless the given
         computation performs exactly the same state operations as the generating
         computation, *in some order*. *)
+
+    type stream_proof := Proof.stream Proof.t
+
+    val produce_stream :
+      repo -> kinded_hash -> (tree -> tree Lwt.t) -> stream_proof Lwt.t
+    (** Same as {!produce_proof} but for stream proofs. *)
+
+    val verify_stream : stream_proof -> (tree -> tree Lwt.t) -> tree Lwt.t
+    (** Same as {!verify_stream} but for stream proofs. *)
   end
 
   (** {1 Reads} *)

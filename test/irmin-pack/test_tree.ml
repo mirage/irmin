@@ -95,10 +95,12 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
 
   let run ops tree = Lwt_list.fold_left_s run_one tree ops
 
-  let proof_of_ops repo hash ops : Store.Tree.Proof.t Lwt.t =
+  let proof_of_ops repo hash ops : _ Lwt.t =
     Store.Tree.produce_proof repo hash (run ops)
 
-  let bin_of_proof = Irmin.Type.(unstage (to_bin_string Tree.Proof.t))
+  let tree_proof_t = Tree.Proof.t Tree.Proof.tree_t
+  let bin_of_proof = Irmin.Type.(unstage (to_bin_string tree_proof_t))
+  let proof_of_bin = Irmin.Type.(unstage (of_bin_string tree_proof_t))
 end
 
 module Default = Make (Conf)
@@ -190,9 +192,7 @@ let test_fold_undefined () =
   test_fold ~order:`Undefined bindings expected
 
 let proof_of_bin s =
-  match Irmin.Type.(unstage (of_bin_string Tree.Proof.t)) s with
-  | Ok s -> s
-  | Error (`Msg e) -> Alcotest.fail e
+  match proof_of_bin s with Ok s -> s | Error (`Msg e) -> Alcotest.fail e
 
 let check_equivalence tree proof op =
   match op with
@@ -235,7 +235,7 @@ let test_proofs ctxt ops =
   (* test encoding *)
   let enc = bin_of_proof proof in
   let dec = proof_of_bin enc in
-  Alcotest.(check_repr Tree.Proof.t) "same proof" proof dec;
+  Alcotest.(check_repr tree_proof_t) "same proof" proof dec;
 
   (* test equivalence *)
   let tree_proof = Tree.Proof.to_tree proof in

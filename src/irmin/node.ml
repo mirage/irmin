@@ -143,6 +143,15 @@ struct
         let e = List.map to_entry e in
         Some (of_entries e)
 
+  type elt =
+    [ `Empty | `Node of (step * value) list | `Inode of int * (int * hash) list ]
+  [@@deriving irmin]
+
+  type stream = elt Seq.t [@@deriving irmin]
+
+  let to_elt t = `Node (list t)
+  let of_values ~depth:_ l = Some (of_list l)
+  let of_inode ~depth:_ ~length:_ _ = None
   let with_handler _ t = t
 
   exception Dangling_hash of { context : string; hash : hash }
@@ -429,6 +438,11 @@ module V1 (N : S with type step = string) = struct
   let to_proof t = N.to_proof t.n
   let of_proof p = Option.map import (N.of_proof p)
   let with_handler _ t = t
+  let to_elt t = N.to_elt t.n
+  let of_values ~depth t = Option.map import (N.of_values ~depth t)
+
+  let of_inode ~depth ~length p =
+    Option.map import (N.of_inode ~depth ~length p)
 
   let of_seq entries =
     let n = N.of_seq entries in

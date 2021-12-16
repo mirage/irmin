@@ -113,6 +113,16 @@ module type S = sig
 
   exception Dangling_hash of { context : string; hash : hash }
 
+  type elt =
+    [ `Empty | `Node of (step * value) list | `Inode of int * (int * hash) list ]
+  [@@deriving irmin]
+
+  type stream = elt Seq.t [@@deriving irmin]
+
+  val to_elt : t -> elt
+  val of_values : depth:int -> (step * value) list -> t option
+  val of_inode : depth:int -> length:int -> (int * hash) list -> t option
+
   (** {1 Recursive Nodes} *)
 
   (** Some [Node] implementations (like [irmin-pack]'s inodes) can represent a

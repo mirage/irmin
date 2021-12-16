@@ -781,6 +781,17 @@ struct
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
       | Blinded_root -> Error `Blinded_root
 
+    let of_inode la ~depth ~length pointers : _ t =
+      let hash v = Bin.V.hash (to_bin_v la v) in
+      let entries = Array.make Conf.entries None in
+      List.iter
+        (fun (index, hash) ->
+          let ptr = Ptr.of_hash la hash in
+          entries.(index) <- Some ptr)
+        pointers;
+      let v = Tree { depth; length; entries } in
+      { hash = lazy (hash v); stable = false; v }
+
     let hash t = Lazy.force t.hash
 
     let is_root t =
@@ -979,13 +990,13 @@ struct
       | None -> stabilize layout t
       | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize layout
 
-    let of_seq l =
+    let of_seq la l =
       let t =
         let rec aux_big seq inode =
           match seq () with
           | Seq.Nil -> inode
           | Seq.Cons ((s, v), rest) ->
-              aux_big rest (add Total ~copy:false inode s v)
+              aux_big rest (add la ~copy:false inode s v)
         in
         let len =
           (* [StepMap.cardinal] is (a bit) expensive to compute, let's track the
@@ -996,7 +1007,7 @@ struct
           match seq () with
           | Seq.Nil ->
               assert (!len <= Conf.entries);
-              values Total map
+              values la map
           | Seq.Cons ((s, v), rest) ->
               let map =
                 StepMap.update s
@@ -1007,12 +1018,16 @@ struct
                     | Some _ -> Some v)
                   map
               in
-              if !len = Conf.entries then aux_big rest (values Total map)
+              if !len = Conf.entries then aux_big rest (values la map)
               else aux_small rest map
         in
         aux_small l StepMap.empty
       in
-      stabilize Total t
+      stabilize la t
+
+    let of_values la ~depth l =
+      if depth = 0 then of_seq la (List.to_seq l)
+      else values la (StepMap.of_list l)
 
     let save layout ~add ~mem t =
       let clear =
@@ -1101,6 +1116,12 @@ struct
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
 
     type proof = Node.proof [@@deriving irmin]
+
+    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+    [@@deriving irmin]
+
+    type elt = Node.elt [@@deriving irmin]
+    type stream = elt Seq.t [@@deriving irmin]
 
     module Proof = struct
       let rec proof_of_concrete h : Concrete.t -> proof = function
@@ -1318,8 +1339,13 @@ struct
           if v == v' then t else Truncated v'
 
     let pred t = apply t { f = (fun layout v -> I.pred layout v) }
-    let of_seq l = Total (I.of_seq l)
+    let of_seq l = Total (I.of_seq Total l)
     let of_list l = of_seq (List.to_seq l)
+
+    let of_values ~depth l =
+      let find ~expected_depth:_ _ = assert false in
+      let la = I.Partial find in
+      Some (Partial (la, I.of_values la ~depth l))
 
     let seq ?offset ?length ?cache t =
       apply t { f = (fun layout v -> I.seq layout ?offset ?length ?cache v) }
@@ -1412,6 +1438,8 @@ struct
       match I.of_concrete t with Ok t -> Ok (Truncated t) | Error _ as e -> e
 
     type proof = I.proof [@@deriving irmin]
+    type elt = I.elt [@@deriving irmin]
+    type stream = I.stream [@@deriving irmin]
 
     let to_proof (t : t) : proof =
       apply t { f = (fun la v -> I.Proof.to_proof la v) }
@@ -1440,6 +1468,31 @@ struct
           in
           let la = I.Partial find_ptr in
           Partial (la, v)
+
+    let of_inode ~depth ~length entries =
+      let find ~expected_depth:_ = assert false in
+      let la = I.Partial find in
+      let v = I.of_inode la ~depth ~length entries in
+      Some (Partial (la, v))
+
+    let to_elt t =
+      let f la (v : _ I.t) =
+        if v.stable then `Node (List.of_seq (I.seq la v))
+        else
+          match v.v with
+          | I.Values n -> `Node (List.of_seq (StepMap.to_seq n))
+          | I.Tree v ->
+              let entries = ref [] in
+              for i = Array.length v.entries - 1 downto 0 do
+                match v.entries.(i) with
+                | None -> ()
+                | Some ptr ->
+                    let h = I.Ptr.hash la ptr in
+                    entries := (i, h) :: !entries
+              done;
+              `Inode (v.length, !entries)
+      in
+      apply t { f }
   end
 end
 
