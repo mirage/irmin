@@ -137,16 +137,12 @@ module type Env = sig
 
   val is_empty : t -> bool
   val is_empty_stream : t -> bool
-  val merge : t -> t -> unit
   val empty : unit -> t
   val copy : into:t -> t -> unit
   val mode : t -> mode option
   val to_stream : t -> stream option
 
-  (** {2 Construct and destruct envs}
-
-      Since env is implemented as a [ref], all its occurences are collected on
-      clear. *)
+  (** {2 Construct and destruct envs} *)
 
   val of_stream : stream -> t
   val track_reads_as_sets : mode -> (t -> 'a) -> 'a

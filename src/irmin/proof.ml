@@ -323,12 +323,4 @@ struct
   let find_node_opt ~consume t = function
     | None -> None
     | Some h -> find_node ~consume t h
-
-  (* x' = y' <- x union y *)
-  let merge (x : t) (y : t) =
-    match (!x, !y) with
-    | Empty, Empty -> ()
-    | Empty, y -> x := y
-    | x, Empty -> y := x
-    | _ -> failwith "Merging two non-empty [Proof.Env.t] is forbidden"
 end
