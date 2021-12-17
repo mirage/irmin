@@ -20,12 +20,9 @@ module type S = sig
   val hash : t -> hash
   val kind : t -> kind
 
-  val length_header : [ `Never | `Sometimes of kind -> [ `Varint ] option ]
+  val length_header : kind -> length_header
   (** Describes the length header formats for the {i data} sections of pack
-      entries.
-
-      NOTE: [`Never] is equivalent to [`Sometimes (Fun.const None)], but enables
-      a more efficient store implementation. *)
+      entries. *)
 
   val encode_bin :
     dict:(string -> int option) ->

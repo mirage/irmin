@@ -104,12 +104,7 @@ struct
 
   let hash = Hash.hash
   let kind = Kind.Contents
-
-  let length_header =
-    match Conf.contents_length_header with
-    | None -> `Never
-    | Some _ as x -> `Sometimes (Fun.const x)
-
+  let length_header = Fun.const Conf.contents_length_header
   let value = [%typ: (Hash.t, Data.t) value]
   let encode_value = Irmin.Type.(unstage (encode_bin value))
   let decode_value = Irmin.Type.(unstage (decode_bin value))
@@ -169,9 +164,9 @@ struct
     end
   end
 
-  let length_header =
-    `Sometimes
-      (function Kind.Contents -> assert false | x -> Kind.length_header_exn x)
+  let length_header = function
+    | Kind.Contents -> assert false
+    | x -> Kind.length_header_exn x
 
   let encode_bin ~dict:_ ~offset_of_key hash v f =
     let address_of_key k : Commit_direct.address =

@@ -1352,16 +1352,14 @@ struct
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
     let decode_compress = Irmin.Type.(unstage (decode_bin Compress.t))
 
-    let length_header =
-      `Sometimes
-        (function
-        | Pack_value.Kind.Contents ->
-            (* NOTE: the Node instantiation of the pack store must have access to
-               the header format used by contents values in order to eagerly
-               construct contents keys with length information during
-               [key_of_offset]. *)
-            Conf.contents_length_header
-        | k -> Pack_value.Kind.length_header_exn k)
+    let length_header = function
+      | Pack_value.Kind.Contents ->
+          (* NOTE: the Node instantiation of the pack store must have access to
+             the header format used by contents values in order to eagerly
+             construct contents keys with length information during
+             [key_of_offset]. *)
+          Conf.contents_length_header
+      | k -> Pack_value.Kind.length_header_exn k
 
     let decode_compress_length =
       match Irmin.Type.Size.of_encoding Compress.t with

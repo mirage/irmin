@@ -212,22 +212,19 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
       let value_length =
-        match Val.length_header with
-        | `Never -> None
-        | `Sometimes has_length_header -> (
+        match Val.length_header kind with
+        | None -> None
+        | Some `Varint ->
             let length_header_start = Entry_prefix.min_length in
-            match has_length_header kind with
-            | None -> None
-            | Some `Varint ->
-                (* The bytes starting at [length_header_start] are a
-                   variable-length length field (if they exist / were read
-                   correctly): *)
-                let pos_ref = ref length_header_start in
-                let length_header =
-                  Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
-                in
-                let length_header_length = !pos_ref - length_header_start in
-                Some (length_header_length + length_header))
+            (* The bytes starting at [length_header_start] are a
+               variable-length length field (if they exist / were read
+               correctly): *)
+            let pos_ref = ref length_header_start in
+            let length_header =
+              Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
+            in
+            let length_header_length = !pos_ref - length_header_start in
+            Some (length_header_length + length_header)
       in
       { Entry_prefix.hash; kind; value_length }
 
