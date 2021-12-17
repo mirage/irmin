@@ -3,72 +3,72 @@ include Pack_value_intf
 
 module Kind = struct
   type t =
-    | Commit_v0
     | Commit_v1
+    | Commit_v2
     | Contents
-    | Inode_v0_unstable
-    | Inode_v0_stable
-    | Inode_v1_root
-    | Inode_v1_nonroot
+    | Inode_v1_unstable
+    | Inode_v1_stable
+    | Inode_v2_root
+    | Inode_v2_nonroot
 
   let to_magic = function
-    | Commit_v0 -> 'C'
-    | Commit_v1 -> 'D'
+    | Commit_v1 -> 'C'
+    | Commit_v2 -> 'D'
     | Contents -> 'B'
-    | Inode_v0_unstable -> 'I'
-    | Inode_v0_stable -> 'N'
-    | Inode_v1_root -> 'R'
-    | Inode_v1_nonroot -> 'O'
+    | Inode_v1_unstable -> 'I'
+    | Inode_v1_stable -> 'N'
+    | Inode_v2_root -> 'R'
+    | Inode_v2_nonroot -> 'O'
 
   let of_magic_exn = function
-    | 'C' -> Commit_v0
-    | 'D' -> Commit_v1
+    | 'C' -> Commit_v1
+    | 'D' -> Commit_v2
     | 'B' -> Contents
-    | 'I' -> Inode_v0_unstable
-    | 'N' -> Inode_v0_stable
-    | 'R' -> Inode_v1_root
-    | 'O' -> Inode_v1_nonroot
+    | 'I' -> Inode_v1_unstable
+    | 'N' -> Inode_v1_stable
+    | 'R' -> Inode_v2_root
+    | 'O' -> Inode_v2_nonroot
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
   let all =
     [
-      Commit_v0;
       Commit_v1;
+      Commit_v2;
       Contents;
-      Inode_v0_unstable;
-      Inode_v0_stable;
-      Inode_v1_root;
-      Inode_v1_nonroot;
+      Inode_v1_unstable;
+      Inode_v1_stable;
+      Inode_v2_root;
+      Inode_v2_nonroot;
     ]
 
   let to_enum = function
-    | Commit_v0 -> 0
-    | Commit_v1 -> 1
+    | Commit_v1 -> 0
+    | Commit_v2 -> 1
     | Contents -> 2
-    | Inode_v0_unstable -> 3
-    | Inode_v0_stable -> 4
-    | Inode_v1_root -> 5
-    | Inode_v1_nonroot -> 6
+    | Inode_v1_unstable -> 3
+    | Inode_v1_stable -> 4
+    | Inode_v2_root -> 5
+    | Inode_v2_nonroot -> 6
 
   let pp =
     Fmt.of_to_string (function
-      | Commit_v0 -> "Commit_v0"
       | Commit_v1 -> "Commit_v1"
+      | Commit_v2 -> "Commit_v2"
       | Contents -> "Contents"
-      | Inode_v0_unstable -> "Inode_v0_unstable"
-      | Inode_v0_stable -> "Inode_v0_stable"
-      | Inode_v1_root -> "Inode_v1_root"
-      | Inode_v1_nonroot -> "Inode_v1_nonroot")
+      | Inode_v1_unstable -> "Inode_v1_unstable"
+      | Inode_v1_stable -> "Inode_v1_stable"
+      | Inode_v2_root -> "Inode_v2_root"
+      | Inode_v2_nonroot -> "Inode_v2_nonroot")
 
   let version : t -> Version.t = function
-    | Contents | Commit_v0 | Inode_v0_unstable | Inode_v0_stable -> `V1
-    | Commit_v1 | Inode_v1_root | Inode_v1_nonroot -> `V2
+    | Contents | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> `V1
+    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot -> `V2
 
   let length_header_exn : t -> length_header =
     let some_varint = Some `Varint in
     function
-    | Commit_v0 | Inode_v0_unstable | Inode_v0_stable -> None
-    | Commit_v1 | Inode_v1_root | Inode_v1_nonroot -> some_varint
+    | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> None
+    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot -> some_varint
     | Contents ->
         Fmt.failwith
           "Can't determine length header for user-defined codec Contents"
@@ -140,7 +140,7 @@ struct
   type hash = Hash.t [@@deriving irmin ~encode_bin ~decode_bin]
 
   let hash = Hash.hash
-  let kind _ = Kind.Commit_v1
+  let kind _ = Kind.Commit_v2
 
   (* A commit implementation that uses integer offsets for addresses where possible. *)
   module Commit_direct = struct
@@ -187,7 +187,7 @@ struct
       { Commit_direct.node_offset; parent_offsets; info }
     in
     let length = Commit_direct.size_of v in
-    Entry.V1.encode_bin { hash; kind = Commit_v1; v = { length; v } } f
+    Entry.V1.encode_bin { hash; kind = Commit_v2; v = { length; v } } f
 
   let decode_bin ~dict:_ ~key_of_offset ~key_of_hash s off =
     let key_of_address : Commit_direct.address -> Key.t = function
@@ -195,8 +195,8 @@ struct
       | Hash x -> key_of_hash x
     in
     match Kind.of_magic_exn s.[!off + Hash.hash_size] with
-    | Commit_v0 -> (Entry.V0.decode_bin s off).v
-    | Commit_v1 ->
+    | Commit_v1 -> (Entry.V0.decode_bin s off).v
+    | Commit_v2 ->
         let { v = { Entry.V1.v = commit; _ }; _ } = Entry.V1.decode_bin s off in
         let info = commit.info in
         let node = key_of_address commit.node_offset in
@@ -209,7 +209,7 @@ struct
     and of_v1_entry = get_dynamic_sizer_exn Entry.V1.t in
     fun s off ->
       match Kind.of_magic_exn s.[off + Hash.hash_size] with
-      | Commit_v0 -> of_v0_entry s off
-      | Commit_v1 -> of_v1_entry s off
+      | Commit_v1 -> of_v0_entry s off
+      | Commit_v2 -> of_v1_entry s off
       | _ -> assert false
 end

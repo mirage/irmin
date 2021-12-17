@@ -251,37 +251,37 @@ struct
       | V0_stable _ -> assert false
       | V0_unstable _ -> assert false
       | V1_root { length; v } when is_real_length length ->
-          encode_bin_kind Pack_value.Kind.Inode_v1_root f;
+          encode_bin_kind Pack_value.Kind.Inode_v2_root f;
           encode_bin_int length f;
           encode_bin_v v f
       | V1_nonroot { length; v } when is_real_length length ->
-          encode_bin_kind Pack_value.Kind.Inode_v1_nonroot f;
+          encode_bin_kind Pack_value.Kind.Inode_v2_nonroot f;
           encode_bin_int length f;
           encode_bin_v v f
-      | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_root f
+      | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_root f
       | V1_nonroot tv ->
-          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v1_nonroot f
+          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_nonroot f
 
     let decode_bin_tv s off =
       let kind = decode_bin_kind s off in
       match kind with
-      | Pack_value.Kind.Inode_v0_unstable ->
+      | Pack_value.Kind.Inode_v1_unstable ->
           let v = decode_bin_v s off in
           V0_unstable v
-      | Inode_v0_stable ->
+      | Inode_v1_stable ->
           let v = decode_bin_v s off in
           V0_stable v
-      | Inode_v1_root ->
+      | Inode_v2_root ->
           let length = decode_bin_int s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_root { length; v }
-      | Inode_v1_nonroot ->
+      | Inode_v2_nonroot ->
           let length = decode_bin_int s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V1_nonroot { length; v }
-      | Commit_v0 | Commit_v1 -> assert false
+      | Commit_v1 | Commit_v2 -> assert false
       | Contents -> assert false
 
     let size_of_tv =
@@ -304,12 +304,12 @@ struct
         let offref = ref off in
         let kind = decode_bin_kind s offref in
         match kind with
-        | Pack_value.Kind.Inode_v0_unstable | Inode_v0_stable ->
+        | Pack_value.Kind.Inode_v1_unstable | Inode_v1_stable ->
             1 + dynamic_size_of_v_encoding s !offref
-        | Inode_v1_root | Inode_v1_nonroot ->
+        | Inode_v2_root | Inode_v2_nonroot ->
             let len = decode_bin_int s offref in
             len - H.hash_size
-        | Commit_v0 | Commit_v1 | Contents -> assert false
+        | Commit_v1 | Commit_v2 | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
 
@@ -1156,8 +1156,8 @@ struct
 
     let kind (t : t) =
       (* This is the kind of newly appended values, let's use v1 then *)
-      if t.root then Pack_value.Kind.Inode_v1_root
-      else Pack_value.Kind.Inode_v1_nonroot
+      if t.root then Pack_value.Kind.Inode_v2_root
+      else Pack_value.Kind.Inode_v2_nonroot
 
     let hash t = Bin.hash t
     let step_to_bin = T.step_to_bin_string
