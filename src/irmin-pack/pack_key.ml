@@ -61,23 +61,19 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
       | Dynamic _ | Unknown ->
           Fmt.failwith "Hash must have a fixed-width binary encoding"
   end in
+  (* Equality and ordering on keys respects {i structural} equality semantics,
+     meaning two objects (containing keys) are considered equal even if their
+     children are stored at different offsets (either as duplicates in the same
+     pack file, or inside different pack files), or with different lengths (in
+     the event that the encoding environments were different). *)
+  let equal a b = Hash.equal (to_hash a) (to_hash b) in
+  let compare a b = Hash.compare (to_hash a) (to_hash b) in
   (* The pre-hash image of a key is just the hash of the corresponding value.
 
      NOTE: it's particularly important that we discard the file offset when
      computing hashes of structured values (e.g. inodes), so that this hashing
      process is reproducible in different stores (w/ different offsets for the
      values). *)
-  let equal a b =
-    let result = Hash.equal (to_hash a) (to_hash b) in
-    assert (
-      if not result then true
-      else
-        match (a.state, b.state) with
-        | Direct a, Direct b -> a.length = b.length
-        | _, _ -> true);
-    result
-  in
-  let compare a b = Hash.compare (to_hash a) (to_hash b) in
   let pre_hash t f = Hash.pre_hash (to_hash t) f in
   let encode_bin t f = Hash.encode_bin (to_hash t) f in
   let unboxed_encode_bin t f = Hash.unboxed_encode_bin (to_hash t) f in
