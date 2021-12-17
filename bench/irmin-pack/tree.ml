@@ -323,11 +323,7 @@ end
 
 module Hash = Irmin.Hash.SHA1
 
-module Bench_suite (Conf : sig
-  val entries : int
-  val stable_hash : int
-end) =
-struct
+module Bench_suite (Conf : Irmin_pack.Conf.S) = struct
   module Store =
     Irmin_pack.Make (Irmin_pack.Version.V1) (Conf) (Irmin.Metadata.None)
       (Irmin.Contents.String)
@@ -436,6 +432,7 @@ module Bench_inodes_32 = Bench_suite (Conf)
 module Bench_inodes_2 = Bench_suite (struct
   let entries = 2
   let stable_hash = 5
+  let inode_child_order = `Hash_bits
 end)
 
 type mode_elt = [ `Read_trace | `Chains | `Large ]

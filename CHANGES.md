@@ -33,6 +33,10 @@
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
   - `Tree.length` now takes a tree as argument (#1676, @samoht)
 
+- **irmin-pack**
+  - irmin-pack: add an option to configure the index function and pick
+    the relevant bits in cryptographic a hash by default (#1677, @samoht)
+
 ## 2.9.0 (2021-11-15)
 
 ### Fixed

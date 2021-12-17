@@ -146,14 +146,14 @@ module Make (S : S) = struct
       check_values u;
       let w = P.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
       check P.Node.Val.t "v" u w;
-      let l = P.Node.Val.list u in
-      check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
+      let all = P.Node.Val.list u in
+      check_list "list all" [ ("x", k); ("y", k); ("z", k) ] all;
       let l = P.Node.Val.list ~length:1 u in
       check_list "list length=1" [ ("x", k) ] l;
       let l = P.Node.Val.list ~offset:1 u in
       check_list "list offset=1" [ ("y", k); ("z", k) ] l;
       let l = P.Node.Val.list ~offset:1 ~length:1 u in
-      check_list "list offset=1 length=1" [ ("y", k) ] l;
+      check_list "list offset=1 length=1" [ List.nth all 1 ] l;
       let u = P.Node.Val.add u "a" k in
       check_node "node: x+y+z+a" u >>= fun () ->
       let u = P.Node.Val.add u "b" k in

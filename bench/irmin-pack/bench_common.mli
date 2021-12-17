@@ -10,10 +10,7 @@ val with_progress_bar :
 val info : unit -> Irmin.Info.t
 val random_blob : unit -> string
 
-module Conf : sig
-  val entries : int
-  val stable_hash : int
-end
+module Conf : Irmin_pack.Conf.S
 
 module FSHelper : sig
   val rm_dir : string -> unit

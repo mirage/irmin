@@ -27,6 +27,7 @@ let index_log_size = Some 1_000
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let inode_child_order = `Hash_bits
 end
 
 module Hash = Irmin.Hash.SHA1

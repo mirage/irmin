@@ -35,6 +35,7 @@ let index_log_size = Some 4
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let inode_child_order = `Hash_bits
   let lower_root = "_lower"
   let upper0_root = "0"
   let with_lower = true

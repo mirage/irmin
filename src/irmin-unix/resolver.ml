@@ -279,6 +279,7 @@ module Store = struct
   module Inode_config = struct
     let entries = 32
     let stable_hash = 256
+    let inode_child_order = `Hash_bits
   end
 
   let pack = create (module Irmin_pack.V1 (Inode_config))

@@ -24,6 +24,7 @@ end
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let inode_child_order = `Seeded_hash
 end
 
 module Maker = Irmin_pack.Make_ext (V1) (Conf) (Node) (Commit)

@@ -23,6 +23,7 @@ module Commit = Irmin.Private.Commit.Make
 module Conf = struct
   let entries = 32
   let stable_hash = 256
+  let inode_child_order = `Hash_bits
 end
 
 module Maker (V : Irmin_pack.Version.S) =
