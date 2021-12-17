@@ -1103,52 +1103,86 @@ struct
     type proof = Node.proof [@@deriving irmin]
 
     module Proof = struct
-      let rec proof_of_concrete h : Concrete.t -> proof = function
-        | Blinded -> `Blinded (Lazy.force h)
-        | Values vs -> `Values (List.map Concrete.of_entry vs)
+      let rec proof_of_concrete :
+          type a. hash Lazy.t -> Concrete.t -> (proof -> a) -> a =
+       fun h proof k ->
+        match proof with
+        | Blinded -> k (`Blinded (Lazy.force h))
+        | Values vs -> k (`Values (List.map Concrete.of_entry vs))
         | Tree tr ->
             let proofs =
               List.fold_left
                 (fun acc (e : _ Concrete.pointer) ->
-                  let p = proof_of_concrete (lazy e.pointer) e.tree in
-                  let e = (e.index, p) in
-                  e :: acc)
+                  let hash = lazy e.pointer in
+                  proof_of_concrete hash e.tree (fun proof ->
+                      let e =
+                        match proof with
+                        | `Inode (_, [ (i, p) ]) -> (e.index :: i, p)
+                        | _ -> ([ e.index ], proof)
+                      in
+                      e :: acc))
                 [] (List.rev tr.pointers)
             in
-            `Inode (tr.length, proofs)
+            k (`Inode (tr.length, proofs))
 
       let hash_v v = Bin.V.hash (to_bin_v Truncated v)
+      let hash_values l = hash_v (Values (StepMap.of_list l))
 
-      let rec hash : int -> proof -> hash =
-       fun depth -> function
-        | `Values l -> hash_v (Values (StepMap.of_list l))
-        | `Inode (length, proofs) ->
-            let es =
-              List.fold_left
-                (fun acc (index, proof) ->
-                  let pointer = hash (depth + 1) proof in
-                  (index, Broken pointer) :: acc)
-                [] proofs
-            in
-            let entries = Array.make Conf.entries None in
-            List.iter (fun (index, ptr) -> entries.(index) <- Some ptr) es;
-            let v : truncated_ptr v = Tree { depth; length; entries } in
-            hash_v v
-        | `Blinded h -> h
+      let hash_inode ~depth ~length es =
+        let entries = Array.make Conf.entries None in
+        List.iter (fun (index, ptr) -> entries.(index) <- Some ptr) es;
+        let v : truncated_ptr v = Tree { depth; length; entries } in
+        hash_v v
 
-      let rec concrete_of_proof depth : proof -> Concrete.t = function
-        | `Blinded _ -> Concrete.Blinded
-        | `Values vs -> Concrete.Values (List.map Concrete.to_entry vs)
-        | `Inode (length, proofs) ->
-            let pointers =
-              List.fold_left
-                (fun acc (index, proof) ->
-                  let tree = concrete_of_proof (depth + 1) proof in
-                  let pointer = hash (depth + 1) proof in
-                  { Concrete.tree; pointer; index } :: acc)
-                [] (List.rev proofs)
-            in
-            Concrete.Tree { depth; length; pointers }
+      let length_of_proof = function
+        | `Blinded _ -> 1
+        | `Values ls -> List.length ls
+        | `Inode (len, _) -> len
+
+      let rec concrete_of_proof :
+          type a. int -> proof -> (hash -> Concrete.t -> a) -> a =
+       fun depth proof k ->
+        match proof with
+        | `Blinded h -> k h Concrete.Blinded
+        | `Values vs ->
+            let hash = hash_values vs in
+            let c = Concrete.Values (List.map Concrete.to_entry vs) in
+            k hash c
+        | `Inode (length, proofs) -> concrete_of_inode ~length ~depth proofs k
+
+      and concrete_of_inode :
+          type a.
+          length:int ->
+          depth:int ->
+          (int list * proof) list ->
+          (hash -> Concrete.t -> a) ->
+          a =
+       fun ~length ~depth proofs k ->
+        let rec aux ps es = function
+          | [] ->
+              let c = Concrete.Tree { depth; length; pointers = ps } in
+              let hash = hash_inode ~depth ~length es in
+              k hash c
+          | (index, proof) :: proofs -> (
+              match index with
+              | [ index ] ->
+                  concrete_of_proof (depth + 1) proof (fun pointer tree ->
+                      let ps = { Concrete.tree; pointer; index } :: ps in
+                      let es = (index, Broken pointer) :: es in
+                      aux ps es proofs)
+              | index :: rest ->
+                  let length = length_of_proof proof in
+                  concrete_of_inode ~length ~depth:(depth + 1) [ (rest, proof) ]
+                    (fun pointer tree ->
+                      let ps = { Concrete.tree; pointer; index } :: ps in
+                      let es = (index, Broken pointer) :: es in
+                      aux ps es proofs)
+              | [] -> assert false)
+        in
+        aux [] [] (List.rev proofs)
+
+      let proof_of_concrete h p = proof_of_concrete h p Fun.id
+      let concrete_of_proof d p = concrete_of_proof d p (fun _ t -> t)
 
       let to_proof la t =
         let p =

@@ -38,7 +38,8 @@ module type S = sig
         valid state of Irmin, without having to have access to the full node's
         storage. *)
 
-  type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
+  type 'a inode = { length : int; proofs : (int list * 'a) list }
+  [@@deriving irmin]
   (** The type for (internal) inode proofs.
 
       These proofs encode large directories into a more efficient tree-like
@@ -46,15 +47,20 @@ module type S = sig
 
       Invariant are dependent on the backend.
 
-      [len] is the total number of entries in the chidren of the inode. E.g. the
-      size of the "flattened" version of that inode. This is used by some
+      [length] is the total number of entries in the chidren of the inode. E.g.
+      the size of the "flattened" version of that inode. This is used by some
       backend (like [irmin-pack]) to efficiently implements paginated lists.
 
+      This list can be sparse so every proof is indexed by their position
+      between [0 ... (Conf.entries-1)]. For binary trees, this boolean index is
+      a step of the left-right sequence / decision proof corresponding to the
+      path in that binary tree.
+
+      Paths of singleton inodes are compacted into a single inode addressed by
+      that path (hence the [int list] indexing).
+
       {e For [irmin-pack]}: [proofs] have a length of at most [Conf.entries]
-      entries. This list can be sparse so every proof is indexed by their
-      position between [0 ... (Conf.entries-1)]. For binary trees, this boolean
-      index is a step of the left-right sequence / decision proof corresponding
-      to the path in that binary tree. *)
+      entries. *)
 
   (** The type for compressed and partial Merkle tree proofs.
 
