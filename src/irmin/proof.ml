@@ -76,7 +76,7 @@ struct
   type read_set = { nodes : N.t Hashes.t; contents : C.t Hashes.t }
   [@@deriving irmin]
 
-  type mode = Produce | Consume [@@deriving irmin]
+  type mode = Produce | Serialise | Deserialise | Consume [@@deriving irmin]
   type set_effects = { mode : mode; set : read_set } [@@deriving irmin]
   type v = Empty | Set of set_effects [@@deriving irmin]
   type t = v ref
@@ -88,73 +88,115 @@ struct
   let copy ~into t = into := !t
   let mode t = match !t with Empty -> None | Set { mode; _ } -> Some mode
 
-  let reads_as_set mode =
-    let set = empty_set () in
-    ref (Set { mode; set })
+  let to_mode t mode =
+    match (!t, mode) with
+    | Empty, Produce | Empty, Deserialise ->
+        let set = empty_set () in
+        t := Set { mode; set }
+    | Set { mode = Produce; set }, Serialise
+    | Set { mode = Deserialise; set }, Consume ->
+        t := Set { mode; set }
+    | _ -> assert false
 
-  let track_reads_as_sets_lwt mode f =
-    let t = reads_as_set mode in
-    let+ res = f t in
-    t := Empty;
-    res
-
-  let track_reads_as_sets mode f =
-    let t = reads_as_set mode in
-    let res = f t in
-    t := Empty;
+  let with_mode t mode f =
+    let before = !t in
+    to_mode t mode;
+    let+ res = f () in
+    t := before;
     res
 
   let find_contents t h =
     match !t with
-    | Set { set; _ } -> Hashes.find_opt set.contents h
     | Empty -> None
+    | Set { mode = Produce; set } ->
+        (* Sharing of contents is not strictly needed during this phase. It
+           could be disabled. *)
+        Hashes.find_opt set.contents h
+    | Set { mode = Serialise; set } ->
+        (* This is needed in order to differenciate between blinded contents
+           from others. *)
+        Hashes.find_opt set.contents h
+    | Set { mode = Deserialise; _ } ->
+        (* This phase only fills the env, it should search for anything *)
+        assert false
+    | Set { mode = Consume; set } ->
+        (* This is needed in order to read non-blinded contents. *)
+        Hashes.find_opt set.contents h
 
-  let add_contents t h v =
-    match !t with Set { set; _ } -> Hashes.add set.contents h v | Empty -> ()
-
-  let add_contents_opt t h = function
-    | Some v -> add_contents t h v
-    | None -> ()
-
-  let add_node_to_set t h v =
-    match !t with Set { set; _ } -> Hashes.add set.nodes h v | _ -> ()
-
-  let find_node t ?depth:_ h =
+  let add_contents_from_store t h v =
     match !t with
-    | Set { set; _ } -> Hashes.find_opt set.nodes h
+    | Empty -> ()
+    | Set { mode = Produce; set } ->
+        (* Registering in [set] for traversal during [Serialise]. *)
+        assert (not (Hashes.mem set.contents h));
+        Hashes.add set.contents h v
+    | Set { mode = Serialise; _ } ->
+        (* There shouldn't be new contents during this phase *)
+        assert false
+    | Set { mode = Deserialise; _ } ->
+        (* This phase has no repo pointer *)
+        assert false
+    | Set { mode = Consume; _ } ->
+        (* This phase has no repo pointer *)
+        assert false
+
+  let find_node t h =
+    match !t with
     | Empty -> None
+    | Set { mode = Produce; set } ->
+        (* This is needed in order to achieve sharing on inode's pointers. In
+           other words, each node present in the [before] tree should have a
+           single [P.Node.Val.t] representative that will witness all the lazy
+           inode loadings. *)
+        Hashes.find_opt set.nodes h
+    | Set { mode = Serialise; set } ->
+        (* This is needed in order to follow loaded paths in the [before]
+           tree. *)
+        Hashes.find_opt set.nodes h
+    | Set { mode = Deserialise; _ } ->
+        (* This phase only fills the env, it should search for anything *)
+        assert false
+    | Set { mode = Consume; set } ->
+        (* This is needed in order to read non-blinded nodes. *)
+        Hashes.find_opt set.nodes h
 
-  (* Wrap backend's [find] function in order to handle its side effects *)
-  let rec handle : t -> 'a -> 'a =
-   fun t find ->
-    let find' ~expected_depth h =
-      match !t with
-      | Empty -> find ~expected_depth h
-      | Set { mode = Consume; _ } ->
-          (* [find'] should never hit the storage in [Consume] mode, it should
-             only hit the env. *)
-          find_node ~depth:expected_depth t h
-      | Set { mode = Produce; _ } ->
-          (* Call the backend's [find] function and push the result into the
-             env before returning the value back to the backend. *)
-          find ~expected_depth h |> add_node_opt t h
-    in
-    find'
+  let add_contents_from_proof t h v =
+    match !t with
+    | Set { mode = Deserialise; set } ->
+        (* Using [replace] because there could be several instances of this
+           contents in the proof, we will not share as this is not strictly
+           needed. *)
+        Hashes.replace set.contents h v
+    | _ -> assert false
 
-  and add_node (t : t) h v =
-    let tracked_v = N.with_handler (handle t) v in
-    add_node_to_set t h tracked_v;
-    tracked_v
+  let add_node_from_store t h v =
+    match !t with
+    | Empty -> ()
+    | Set { mode = Produce; set } ->
+        (* Registering in [set] for sharing during [Produce] and traversal
+           during [Serialise]. *)
+        assert (not (Hashes.mem set.nodes h));
+        Hashes.add set.nodes h v
+    | Set { mode = Serialise; _ } ->
+        (* There shouldn't be new nodes during this phase *)
+        assert false
+    | Set { mode = Deserialise; _ } ->
+        (* This phase has no repo pointer *)
+        assert false
+    | Set { mode = Consume; _ } ->
+        (* This phase has no repo pointer *)
+        assert false
 
-  and add_node_opt t h = function
-    | None -> None
-    | Some v -> Some (add_node t h v)
-
-  let find_contents_opt t = function
-    | None -> None
-    | Some h -> find_contents t h
-
-  let find_node_opt t = function None -> None | Some h -> find_node t h
+  let add_node_from_proof t h v =
+    match !t with
+    | Set { mode = Deserialise; set } ->
+        (* Using [replace] because there could be several instances of this
+           node in the proof, we will not share as this is not strictly
+           needed.
+           All the occurences of this node in the proof are expected to have
+           the same blinded/visible coverage (i.e. the same node proof). *)
+        Hashes.replace set.nodes h v
+    | _ -> assert false
 
   (* x' = y' <- x union y *)
   let merge (x : t) (y : t) =

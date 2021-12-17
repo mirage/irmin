@@ -51,16 +51,14 @@ module type S = sig
       the size of the "flattened" version of that inode. This is used by some
       backend (like [irmin-pack]) to efficiently implements paginated lists.
 
-      This list can be sparse so every proof is indexed by their position
-      between [0 ... (Conf.entries-1)]. For binary trees, this boolean index is
-      a step of the left-right sequence / decision proof corresponding to the
-      path in that binary tree.
-
       Paths of singleton inodes are compacted into a single inode addressed by
       that path (hence the [int list] indexing).
 
       {e For [irmin-pack]}: [proofs] have a length of at most [Conf.entries]
-      entries. *)
+      entries. This list can be sparse so every proof is indexed by their
+      position between [0 ... (Conf.entries-1)]. For binary trees, this boolean
+      index is a step of the left-right sequence / decision proof corresponding
+      to the path in that binary tree. *)
 
   (** The type for compressed and partial Merkle tree proofs.
 
@@ -114,47 +112,85 @@ module type S = sig
       computation could run without performing any I/O. *)
 end
 
+(** Environment that tracks side effects during the production/consumption of
+    proofs.
+
+    {1 The merkle proof construction algorithm}
+
+    This description assumes that the large nodes are represented by the backend
+    as a tree structure (i.e. inodes). There are 4 distinct phases when working
+    with Irmin's merkle proofs: [Produce | Serialise | Deserialise | Consume].
+
+    {2 [Produce]}
+
+    In this phase the Irmin user builds an [after] tree from a [before] tree
+    that has been setup with an [Env] that records every backend reads into two
+    hash tables.
+
+    During the next phase (i.e. [Serialise]) the cleared [before] tree will be
+    traversed from root to stems only following the paths that are referenced in
+    [Env].
+
+    In practice [Env] doesn't exactly records the reads, it keeps track of all
+    the [hash -> backend node] and [hash -> backend contents] mappings that are
+    directly output of the backend stores through [P.Node.find] and
+    [P.Contents.find]. This is obviously enough to remember the contents, the
+    nodes and the inodes tips, but the inner inodes are not directly referenced
+    in the hash tables.
+
+    The inner inodes are in fact referenced in their inode tip which is itself
+    referenced in [Env]'s hash tables. Since an inode shares its lazy pointers
+    with the inodes derived from it, even the inner inodes that are loaded from
+    the derived tips will be available from the original inode tip.
+
+    {2 [Serialise]}
+
+    In this phase the [Env] contains everything necessary for the computation of
+    a merkle proof from a cleared [before]. The [Env] now affects
+    [Node.cached_value] and [Contents.cached_value] allowing for the discovery
+    of the cached closure.
+
+    {2 [Deserialise]}
+
+    In this phase the [Env] is filled by recursively destructing the proof and
+    filling it before the [Consume] phase.
+
+    {2 [Consume]}
+
+    In this last phase the [Env] is again made accessible through
+    [Node.cached_value] and [Contents.cached_value], making it possible for the
+    user to reference by [hash] everything that was contained in the proof. *)
 module type Env = sig
-  (** Environment that tracks side effects during the production/consumption of
-      proofs. *)
-
+  type mode = Produce | Serialise | Deserialise | Consume
+  type v
+  type t
   type hash
-  type contents
   type node
-  type mode = Produce | Consume [@@deriving irmin]
-  type t [@@deriving irmin]
+  type contents
 
+  val t : t Type.ty
   val is_empty : t -> bool
   val merge : t -> t -> unit
+
+  (** {2 Construction of envs} *)
+
   val empty : unit -> t
   val copy : into:t -> t -> unit
+
+  (** {2 Modes} *)
+
   val mode : t -> mode option
+  val to_mode : t -> mode -> unit
+  val with_mode : t -> mode -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 
-  (** {2 Construct and destruct envs}
+  (** {2 In/out backend objects with [Tree]} *)
 
-      Since env is implemented as a [ref], all its occurences are collected on
-      clear. *)
-
-  val track_reads_as_sets : mode -> (t -> 'a) -> 'a
-  val track_reads_as_sets_lwt : mode -> (t -> 'a Lwt.t) -> 'a Lwt.t
-
-  (** {2 Register a backend content to env} *)
-
-  val add_contents : t -> hash -> contents -> unit
-  val add_contents_opt : t -> hash -> contents option -> unit
-
-  (** {2 Register a backend node to env}
-
-      Also setup its hook in case it is internally represented as a recusive
-      objects. *)
-
-  val add_node : t -> hash -> node -> node
-  val add_node_opt : t -> hash -> node option -> node option
-
-  (** {2 Fetch from env} *)
-
-  val find_contents_opt : t -> hash option -> contents option
-  val find_node_opt : t -> hash option -> node option
+  val add_contents_from_store : t -> hash -> contents -> unit
+  val add_node_from_store : t -> hash -> node -> unit
+  val add_contents_from_proof : t -> hash -> contents -> unit
+  val add_node_from_proof : t -> hash -> node -> unit
+  val find_contents : t -> hash -> contents option
+  val find_node : t -> hash -> node option
 end
 
 module type Proof = sig
