@@ -148,6 +148,7 @@ module Hash = struct
         ("sha256", Fixed (module Irmin.Hash.SHA256 : Irmin.Hash.S));
         ("sha384", Fixed (module Irmin.Hash.SHA384 : Irmin.Hash.S));
         ("sha512", Fixed (module Irmin.Hash.SHA512 : Irmin.Hash.S));
+        ("tezos", Fixed (module Irmin_tezos.Schema.Hash : Irmin.Hash.S));
       ]
 
   let default = ref ("blake2b", (module Irmin.Hash.BLAKE2B : Irmin.Hash.S))
@@ -250,6 +251,7 @@ module Store = struct
   type store_functor =
     | Fixed_hash of (contents -> t)
     | Variable_hash of (hash -> contents -> t)
+    | Fixed of t
 
   module type G = sig
     include Irmin.S
@@ -280,6 +282,7 @@ module Store = struct
   end
 
   let pack = create (module Irmin_pack.V1 (Inode_config))
+  let tezos = T ((module Irmin_tezos.Store), None)
 
   let all =
     ref
@@ -291,6 +294,7 @@ module Store = struct
         ("http", Variable_hash (fun h c -> http (mem h c)));
         ("http.git", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
+        ("tezos", Fixed tezos);
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
@@ -408,6 +412,12 @@ let from_config_file_with_defaults path (store, hash, contents) config branch :
         (* error if a hash function has been passed *)
         match (hash, assoc "hash" Hash.find) with
         | None, None -> s contents
+        | _ ->
+            Fmt.failwith
+              "Cannot customize the hash function for the given store")
+    | Fixed s -> (
+        match hash with
+        | None -> s
         | _ ->
             Fmt.failwith
               "Cannot customize the hash function for the given store")

@@ -53,6 +53,7 @@ module Store : sig
   type store_functor =
     | Fixed_hash of (contents -> t)
     | Variable_hash of (hash -> contents -> t)
+    | Fixed of t
 
   type remote_fn =
     ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
