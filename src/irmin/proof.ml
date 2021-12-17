@@ -28,7 +28,9 @@ struct
   type hash = H.t [@@deriving irmin]
   type step = S.step [@@deriving irmin]
   type metadata = M.t [@@deriving irmin]
-  type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
+
+  type 'a inode = { length : int; proofs : (int list * 'a) list }
+  [@@deriving irmin]
 
   type kinded_hash = [ `Node of hash | `Contents of hash * metadata ]
   [@@deriving irmin]

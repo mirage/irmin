@@ -1887,8 +1887,7 @@ module Make (P : Private.S) = struct
       | `Values vs -> proof_of_values node vs k
 
     and proof_of_inode :
-        type a. node -> int -> (int * node_proof) list -> (proof_tree -> a) -> a
-        =
+        type a. node -> int -> (_ * node_proof) list -> (proof_tree -> a) -> a =
      fun node length proofs k ->
       let rec aux acc = function
         | [] -> k (Inode { length; proofs = List.rev acc })
@@ -1960,8 +1959,8 @@ module Make (P : Private.S) = struct
 
     (** [tree_of_inode] is solely called on the root of an inode tree *)
     and tree_of_inode :
-        type a.
-        env:_ -> int -> (int * proof_tree) list -> (irmin_tree -> a) -> a =
+        type a. env:_ -> int -> (_ * proof_tree) list -> (irmin_tree -> a) -> a
+        =
      fun ~env len proofs k ->
       let rev_proof_steps =
         (* Recursively blow up the [Inode] level(s) and compute a list of values
@@ -2007,8 +2006,8 @@ module Make (P : Private.S) = struct
       | Node n -> node_proof_of_node ~env n k
 
     and node_proof_of_inode :
-        type a.
-        env:_ -> int -> (int * proof_tree) list -> (node_proof -> a) -> a =
+        type a. env:_ -> int -> (_ * proof_tree) list -> (node_proof -> a) -> a
+        =
      fun ~env length proofs k ->
       let rec aux acc = function
         | [] -> k (`Inode (length, List.rev acc))
