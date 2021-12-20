@@ -133,6 +133,7 @@ module Make (P : Private.S) = struct
   end
 
   module Metadata = P.Node.Metadata
+  module Tree_proof = Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
 
   type key = Path.t
   type hash = P.Hash.t
@@ -198,7 +199,7 @@ module Make (P : Private.S) = struct
     | Error (`Pruned_hash hash) -> raise_pruned context hash
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
-  module Env = Proof.Env (P.Hash) (P.Contents.Val) (P.Node.Val)
+  module Env = Proof.Env (P.Hash) (P.Contents.Val) (P.Node.Val) (Tree_proof)
 
   module Contents = struct
     type v = Hash of repo option * hash | Value of contents
@@ -596,6 +597,9 @@ module Make (P : Private.S) = struct
             if cache then t.info.value <- Some acc;
             k acc
         | (k, Add e) :: rest ->
+            (* Detail about proofs: There is no need to register that new backend
+               node to Env because it is expected to reused the wrapped read
+               function from [acc] *)
             value_of_elt ~cache e (fun e -> aux (P.Node.Val.add acc k e) rest)
         | (k, Remove) :: rest -> aux (P.Node.Val.remove acc k) rest
       in
@@ -609,7 +613,9 @@ module Make (P : Private.S) = struct
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
           let+ some_v = P.Node.find (P.Repo.node_t repo) k in
-          Option.iter (Env.add_node_from_store t.info.env k) some_v;
+          let some_v =
+            Option.map (Env.add_node_from_store t.info.env k) some_v
+          in
           if cache then t.info.value <- some_v;
           match some_v with None -> Error (`Dangling_hash k) | Some v -> Ok v)
 
@@ -1458,11 +1464,11 @@ module Make (P : Private.S) = struct
         | true -> Some (`Node (Node.of_hash ~env (Some repo) k))
         | false -> None)
 
-  let import_with_env ~env repo = function
-    | `Node k -> `Node (Node.of_hash ~env (Some repo) k)
-    | `Contents (k, m) -> `Contents (Contents.of_hash ~env (Some repo) k, m)
+  let import_with_env ~env repo_opt = function
+    | `Node k -> `Node (Node.of_hash ~env repo_opt k)
+    | `Contents (k, m) -> `Contents (Contents.of_hash ~env repo_opt k, m)
 
-  let import_no_check repo f = import_with_env ~env:(Env.empty ()) repo f
+  let import_no_check repo f = import_with_env ~env:(Env.empty ()) (Some repo) f
 
   let export ?clear repo contents_t node_t n =
     let cache =
@@ -1811,11 +1817,12 @@ module Make (P : Private.S) = struct
   module Proof = struct
     type irmin_tree = t
 
-    include Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
+    include Tree_proof
 
     type proof_tree = tree
 
     let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Tree." ^ c)
+    let bad_stream_exn c = Proof.bad_stream_exn ("Irmin.Tree." ^ c) ""
 
     type node_proof = P.Node.Val.proof
     (** The type of tree proofs. *)
@@ -1989,39 +1996,45 @@ module Make (P : Private.S) = struct
 
     let to_tree p =
       let env = Env.empty () in
-      Env.to_mode env Deserialise;
+      Env.set_mode env Env.Set Env.Deserialise;
       let h = load_proof ~env (state p) Fun.id in
       let tree =
         match h with
         | `Contents (h, meta) -> `Contents (Contents.of_hash ~env None h, meta)
         | `Node h -> `Node (Node.of_hash ~env None h)
       in
-      Env.to_mode env Consume;
-      Fmt.epr "to_tree to Consume\n%!";
+      Env.set_mode env Env.Set Env.Consume;
       tree
   end
 
   let produce_proof repo kinded_hash f =
-    let env = Env.empty () in
-    let tree = import_with_env ~env repo kinded_hash in
-    Env.with_mode env Produce @@ fun () ->
+    Env.with_set_produce @@ fun env ~start_serialise ->
+    let tree = import_with_env ~env (Some repo) kinded_hash in
     let* tree_after = f tree in
     let after = hash tree_after in
     (* Here, we build a proof from [tree] (not from [tree_after]!), on purpose:
        we look at the effect on [f] on [tree]'s caches and we rely on the fact
        that the caches are env across copy-on-write copies of [tree]. *)
     clear tree;
-    Env.with_mode env Serialise @@ fun () ->
+    start_serialise ();
     let proof = Proof.of_tree tree in
     (* [env] will be purged when leaving the scope, that should avoid any memory
        leaks *)
     Proof.v ~before:kinded_hash ~after proof |> Lwt.return
 
+  let produce_stream repo kinded_hash f =
+    Env.with_stream_produce @@ fun env ~to_stream ->
+    let tree = import_with_env ~env (Some repo) kinded_hash in
+    let+ tree_after = f tree in
+    let after = hash tree_after in
+    clear tree;
+    let proof = to_stream () in
+    Proof.v ~before:kinded_hash ~after proof
+
   let verify_proof p f =
-    let env = Env.empty () in
+    Env.with_set_consume @@ fun env ~stop_deserialise ->
     let before = Proof.before p in
     let after = Proof.after p in
-    Env.with_mode env Deserialise @@ fun () ->
     (* First convert to proof to [Env] *)
     let h = Proof.(load_proof ~env (state p) Fun.id) in
     (* Then check that the consistency of the proof *)
@@ -2034,19 +2047,41 @@ module Make (P : Private.S) = struct
     in
     Lwt.catch
       (fun () ->
-        Env.with_mode env Consume @@ fun () ->
+        stop_deserialise ();
         (* Then apply [f] on a cleaned tree, an exception will be raised if [f]
            reads out of the proof. *)
         let+ tree_after = f tree in
         (* then check that [after] corresponds to [tree_after]'s hash. *)
         if not (equal_kinded_hash after (hash tree_after)) then
-          Proof.bad_proof_exn "verify_proof: invalid before hash";
+          Proof.bad_proof_exn "verify_proof: invalid after hash";
         tree_after)
       (function
         | Pruned_hash h ->
             (* finaly check that [f] only access valid parts of the proof. *)
             Fmt.kstr Proof.bad_proof_exn
               "verify_proof: %s is trying to read through a blinded node or \
+               object (%a)"
+              h.context pp_hash h.hash
+        | e -> raise e)
+
+  let verify_stream p f =
+    let before = Proof.before p in
+    let after = Proof.after p in
+    let stream = Proof.state p in
+    Env.with_stream_consume stream @@ fun env ~is_empty ->
+    let tree = import_with_env ~env None before in
+    Lwt.catch
+      (fun () ->
+        let+ tree_after = f tree in
+        if not (is_empty ()) then
+          Proof.bad_stream_exn "verify_stream: did not consume the full stream";
+        if not (equal_kinded_hash after (hash tree_after)) then
+          Proof.bad_stream_exn "verify_stream: invalid after hash";
+        tree_after)
+      (function
+        | Pruned_hash h ->
+            Fmt.kstr Proof.bad_stream_exn
+              "verify_stream: %s is trying to read through a blinded node or \
                object (%a)"
               h.context pp_hash h.hash
         | e -> raise e)
