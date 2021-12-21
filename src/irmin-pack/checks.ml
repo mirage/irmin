@@ -103,10 +103,10 @@ module Make (Store : Store) = struct
       let f _ (_, _, (kind : Pack_value.Kind.t)) =
         match kind with
         | Contents -> progress_contents ()
-        | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot
+        | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
           ->
             progress_nodes ()
-        | Commit_v0 | Commit_v1 -> progress_commits ()
+        | Commit_v1 | Commit_v2 -> progress_commits ()
       in
       Index.iter f index;
       let nb_commits, nb_nodes, nb_contents =
@@ -382,11 +382,11 @@ module Index (Index : Pack_index.S) = struct
       | Contents ->
           progress_contents ();
           check ~kind:`Contents ~offset ~length k
-      | Inode_v0_stable | Inode_v0_unstable | Inode_v1_root | Inode_v1_nonroot
+      | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
         ->
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
-      | Commit_v0 | Commit_v1 ->
+      | Commit_v1 | Commit_v2 ->
           progress_commits ();
           check ~kind:`Commit ~offset ~length k
     in

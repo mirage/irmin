@@ -41,13 +41,13 @@ end
 module type Sigs = sig
   module Kind : sig
     type t =
-      | Commit_v0
       | Commit_v1
+      | Commit_v2
       | Contents
-      | Inode_v0_unstable
-      | Inode_v0_stable
-      | Inode_v1_root
-      | Inode_v1_nonroot
+      | Inode_v1_unstable
+      | Inode_v1_stable
+      | Inode_v2_root
+      | Inode_v2_nonroot
     [@@deriving irmin]
 
     val all : t list
