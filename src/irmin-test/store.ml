@@ -1441,9 +1441,9 @@ module Make (S : S) = struct
         in
         S.Tree.produce_proof repo hash (fun t ->
             let+ () = aux [] t in
-            t)
+            (t, ()))
       in
-      let* p0 = to_proof c0 in
+      let* p0, () = to_proof c0 in
       Log.debug (fun l -> l "p0=%a" pp_proof p0);
       let t0 = S.Tree.Proof.to_tree p0 in
       let* () =
@@ -1529,7 +1529,8 @@ module Make (S : S) = struct
         let* t5 = S.Tree.add_tree t [ "dir1"; "dir2" ] t4 in
         let* v = S.Tree.get t5 [ "dir1"; "dir2"; "bar"; "age" ] in
         Alcotest.(check string) "dir1/dir2/bar/age" "3" v;
-        S.Tree.remove t4 [ "bar" ]
+        let+ t = S.Tree.remove t4 [ "bar" ] in
+        (t, ())
       in
       let f1 t0 =
         let hash =
@@ -1538,11 +1539,11 @@ module Make (S : S) = struct
           | `Node _ -> `Node h
           | `Contents (_, m) -> `Contents (h, m)
         in
-        let* p0 = S.Tree.produce_proof repo hash f0 in
+        let* p0, () = S.Tree.produce_proof repo hash f0 in
         let* () = check_proof_f0 p0 in
         let+ v = S.Tree.get t0 [ "foo"; "version" ] in
         Alcotest.(check string) "foo/version" "1" v;
-        t0
+        (t0, ())
       in
       let init_tree bindings =
         let tree = S.Tree.empty () in
@@ -1557,22 +1558,22 @@ module Make (S : S) = struct
       in
       let* tree = init_tree bindings in
       let hash = `Node (S.Tree.hash tree) in
-      let* p = S.Tree.produce_proof repo hash f1 in
+      let* p, () = S.Tree.produce_proof repo hash f1 in
 
       let* () = check_proof_f1 p in
 
       let check_proof f =
-        let* p = S.Tree.produce_proof repo hash f in
+        let* p, () = S.Tree.produce_proof repo hash f in
         Log.debug (fun l -> l "Verifying proof %a" pp_proof p);
-        let+ _ = S.Tree.verify_proof p f in
+        let+ _, () = S.Tree.verify_proof p f in
         ()
       in
       let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
 
       let check_stream f =
-        let* p = S.Tree.produce_stream repo hash f in
+        let* p, () = S.Tree.produce_stream repo hash f in
         Log.debug (fun l -> l "Verifying stream %a" pp_stream p);
-        let+ _ = S.Tree.verify_stream p f in
+        let+ _, () = S.Tree.verify_stream p f in
         ()
       in
       let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
@@ -1635,7 +1636,7 @@ module Make (S : S) = struct
             let* t3 = S.Tree.get_tree t [ "foo"; "age" ] in
             check_env "5: t3's env should be the same as t's" t3 t;
 
-            Lwt.return t)
+            Lwt.return (t, ()))
       in
       let t = match !x with Some t -> t | None -> assert false in
       check_env_empty "env is unset outside of the proof)" t true;
@@ -1649,7 +1650,7 @@ module Make (S : S) = struct
           (function
             | Irmin.Proof.Bad_proof _ -> Lwt.return () | e -> Lwt.fail e)
       in
-      let* p0 = S.Tree.produce_proof repo hash f0 in
+      let* p0, () = S.Tree.produce_proof repo hash f0 in
       let proof ?(before = S.Tree.Proof.before p0)
           ?(after = S.Tree.Proof.after p0) ?(state = S.Tree.Proof.state p0) () =
         S.Tree.Proof.v ~before ~after state
@@ -1683,7 +1684,7 @@ module Make (S : S) = struct
           (function
             | Irmin.Proof.Bad_stream _ -> Lwt.return () | e -> Lwt.fail e)
       in
-      let* p0 = S.Tree.produce_stream repo hash f0 in
+      let* p0, () = S.Tree.produce_stream repo hash f0 in
       let proof ?(before = S.Tree.Proof.before p0)
           ?(after = S.Tree.Proof.after p0) ?(contents = S.Tree.Proof.state p0)
           () =

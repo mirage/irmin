@@ -2014,7 +2014,7 @@ module Make (P : Private.S) = struct
   let produce_proof repo kinded_hash f =
     Env.with_set_produce @@ fun env ~start_serialise ->
     let tree = import_with_env ~env (Some repo) kinded_hash in
-    let* tree_after = f tree in
+    let+ tree_after, result = f tree in
     let after = hash tree_after in
     (* Here, we build a proof from [tree] (not from [tree_after]!), on purpose:
        we look at the effect on [f] on [tree]'s caches and we rely on the fact
@@ -2024,16 +2024,16 @@ module Make (P : Private.S) = struct
     let proof = Proof.of_tree tree in
     (* [env] will be purged when leaving the scope, that should avoid any memory
        leaks *)
-    Proof.v ~before:kinded_hash ~after proof |> Lwt.return
+    (Proof.v ~before:kinded_hash ~after proof, result)
 
   let produce_stream repo kinded_hash f =
     Env.with_stream_produce @@ fun env ~to_stream ->
     let tree = import_with_env ~env (Some repo) kinded_hash in
-    let+ tree_after = f tree in
+    let+ tree_after, result = f tree in
     let after = hash tree_after in
     clear tree;
     let proof = to_stream () in
-    Proof.v ~before:kinded_hash ~after proof
+    (Proof.v ~before:kinded_hash ~after proof, result)
 
   let verify_proof p f =
     Env.with_set_consume @@ fun env ~stop_deserialise ->
@@ -2044,21 +2044,17 @@ module Make (P : Private.S) = struct
     (* Then check that the consistency of the proof *)
     if not (equal_kinded_hash before h) then
       Proof.bad_proof_exn "verify_proof: invalid before hash";
-    let tree =
-      match h with
-      | `Contents (h, meta) -> `Contents (Contents.of_hash ~env None h, meta)
-      | `Node h -> `Node (Node.of_hash ~env None h)
-    in
+    let tree = import_with_env ~env None h in
     Lwt.catch
       (fun () ->
         stop_deserialise ();
         (* Then apply [f] on a cleaned tree, an exception will be raised if [f]
            reads out of the proof. *)
-        let+ tree_after = f tree in
+        let+ tree_after, result = f tree in
         (* then check that [after] corresponds to [tree_after]'s hash. *)
         if not (equal_kinded_hash after (hash tree_after)) then
           Proof.bad_proof_exn "verify_proof: invalid after hash";
-        tree_after)
+        (tree_after, result))
       (function
         | Pruned_hash h ->
             (* finaly check that [f] only access valid parts of the proof. *)
@@ -2076,12 +2072,12 @@ module Make (P : Private.S) = struct
     let tree = import_with_env ~env None before in
     Lwt.catch
       (fun () ->
-        let+ tree_after = f tree in
+        let+ tree_after, result = f tree in
         if not (is_empty ()) then
           Proof.bad_stream_exn "verify_stream: did not consume the full stream";
         if not (equal_kinded_hash after (hash tree_after)) then
           Proof.bad_stream_exn "verify_stream: invalid after hash";
-        tree_after)
+        (tree_after, result))
       (function
         | Pruned_hash h ->
             Fmt.kstr Proof.bad_stream_exn
