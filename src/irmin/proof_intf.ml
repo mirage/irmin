@@ -89,25 +89,36 @@ module type S = sig
     | Contents of contents * metadata
   [@@deriving irmin]
 
-  type t [@@deriving irmin]
-  (** The type for proofs. *)
-
   type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
   [@@deriving irmin]
   (** The type for kinded hashes. *)
 
-  val v : before:kinded_hash -> after:kinded_hash -> tree -> t
+  type elt =
+    | Node of (step * kinded_hash) list
+    | Inode of hash inode
+    | Contents of contents
+  [@@deriving irmin]
+
+  type stream = elt Seq.t [@@deriving irmin]
+  (** The type for stream proofs. Stream poofs provides stronger ordering
+      guarantees as the read effects have to happen in the exact same order and
+      they are easier to verify. *)
+
+  type 'a t [@@deriving irmin]
+  (** The type for proofs. *)
+
+  val v : before:kinded_hash -> after:kinded_hash -> 'a -> 'a t
   (** [v ~before ~after p] proves that the state advanced from [before] to
       [after]. [p]'s hash is [before], and [p] contains the minimal information
       for the computation to reach [after]. *)
 
-  val before : t -> kinded_hash
+  val before : 'a t -> kinded_hash
   (** [before t] it the state's hash at the beginning of the computation. *)
 
-  val after : t -> kinded_hash
+  val after : 'a t -> kinded_hash
   (** [after t] is the state's hash at the end of the computation. *)
 
-  val state : t -> tree
+  val state : 'a t -> 'a
   (** [proof t] is a subset of the initial state needed to prove that the proven
       computation could run without performing any I/O. *)
 end
@@ -161,16 +172,17 @@ end
     [Node.cached_value] and [Contents.cached_value], making it possible for the
     user to reference by [hash] everything that was contained in the proof. *)
 module type Env = sig
+  type kind = Set | Stream
   type mode = Produce | Serialise | Deserialise | Consume
   type v
   type t
   type hash
   type node
   type contents
+  type stream
 
   val t : t Type.ty
   val is_empty : t -> bool
-  val merge : t -> t -> unit
 
   (** {2 Construction of envs} *)
 
@@ -180,13 +192,28 @@ module type Env = sig
   (** {2 Modes} *)
 
   val mode : t -> mode option
-  val to_mode : t -> mode -> unit
-  val with_mode : t -> mode -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+  val set_mode : t -> kind -> mode -> unit
+
+  val with_set_produce :
+    (t -> start_serialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
+
+  val with_set_consume :
+    (t -> stop_deserialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
+
+  val with_stream_produce :
+    (t -> to_stream:(unit -> stream) -> 'a Lwt.t) -> 'a Lwt.t
+
+  val with_stream_consume :
+    stream -> (t -> is_empty:(unit -> bool) -> 'a Lwt.t) -> 'a Lwt.t
 
   (** {2 In/out backend objects with [Tree]} *)
 
   val add_contents_from_store : t -> hash -> contents -> unit
-  val add_node_from_store : t -> hash -> node -> unit
+
+  val add_node_from_store : t -> hash -> node -> node
+  (** [add_node_from_store] returns a [node] and not [unit] because [Env] may
+      take the opportunity to wrap the input node in [Node.Val.with_handler]. *)
+
   val add_contents_from_proof : t -> hash -> contents -> unit
   val add_node_from_proof : t -> hash -> node -> unit
   val find_contents : t -> hash -> contents option
@@ -198,8 +225,10 @@ module type Proof = sig
   module type Env = Env
 
   exception Bad_proof of { context : string }
+  exception Bad_stream of { context : string; reason : string }
 
   val bad_proof_exn : string -> 'a
+  val bad_stream_exn : string -> string -> 'a
 
   module Make
       (C : Type.S)
@@ -215,6 +244,18 @@ module type Proof = sig
          and type metadata := M.t
   end
 
-  module Env (H : Hash.S) (C : Contents.S) (N : Node.S with type hash = H.t) :
-    Env with type hash := H.t and type contents := C.t and type node := N.t
+  module Env
+      (H : Hash.S)
+      (C : Contents.S)
+      (N : Node.S with type hash = H.t)
+      (P : S
+             with type contents := C.t
+              and type hash := H.t
+              and type step := N.step
+              and type metadata := N.metadata) :
+    Env
+      with type hash := H.t
+       and type contents := C.t
+       and type node := N.t
+       and type stream := P.stream
 end

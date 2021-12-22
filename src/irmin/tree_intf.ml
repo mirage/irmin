@@ -342,7 +342,7 @@ module type S = sig
 
     type irmin_tree
 
-    val to_tree : t -> irmin_tree
+    val to_tree : tree t -> irmin_tree
     (** [to_tree p] is the tree [t] representing the tree proof [p]. Blinded
         parts of the proof will raise [Dangling_hash] when traversed. *)
   end
@@ -427,9 +427,18 @@ module type Tree = sig
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
 
-    val produce_proof :
-      P.Repo.t -> kinded_hash -> (t -> t Lwt.t) -> Proof.t Lwt.t
+    type tree_proof := Proof.tree Proof.t
 
-    val verify_proof : Proof.t -> (t -> t Lwt.t) -> t Lwt.t
+    val produce_proof :
+      P.Repo.t -> kinded_hash -> (t -> t Lwt.t) -> tree_proof Lwt.t
+
+    val verify_proof : tree_proof -> (t -> t Lwt.t) -> t Lwt.t
+
+    type stream_proof := Proof.stream Proof.t
+
+    val produce_stream :
+      P.Repo.t -> kinded_hash -> (t -> t Lwt.t) -> stream_proof Lwt.t
+
+    val verify_stream : stream_proof -> (t -> t Lwt.t) -> t Lwt.t
   end
 end
