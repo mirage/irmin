@@ -381,12 +381,13 @@ module type S = sig
 
     (** {1 Proofs} *)
 
-    type tree_proof := Proof.tree Proof.t
-
-    val produce_proof :
-      repo -> kinded_hash -> (tree -> tree Lwt.t) -> tree_proof Lwt.t
+    type ('proof, 'result) producer :=
+      repo ->
+      kinded_hash ->
+      (tree -> (tree * 'result) Lwt.t) ->
+      ('proof * 'result) Lwt.t
     (** [produce r h f] runs [f] on top of a real store [r], producing a proof
-        using the initial root hash [h].
+        and a reulst using the initial root hash [h].
 
         The trees produced during [f]'s computation will carry the full history
         of reads. This history will be reset when [f] is complete so subtrees
@@ -398,7 +399,8 @@ module type S = sig
         proof should then interact as if they were all unshallowed (note: in the
         case of nested proofs, it's unclear what [verify_proof] should do...). *)
 
-    val verify_proof : tree_proof -> (tree -> tree Lwt.t) -> tree Lwt.t
+    type ('proof, 'result) verifier :=
+      'proof -> (tree -> (tree * 'result) Lwt.t) -> (tree * 'result) Lwt.t
     (** [verify t f] runs [f] in checking mode, loading data from the proof as
         needed.
 
@@ -406,18 +408,32 @@ module type S = sig
         can be run on that tree, but it won't be able to access the underlying
         storage.
 
-        Reject the proof by raising [Proof.Bad_proof] unless the given
-        computation performs exactly the same state operations as the generating
-        computation, *in some order*. *)
+        Raise [Proof.Bad_proof] when the proof is rejected. *)
+
+    type tree_proof := Proof.tree Proof.t
+    (** The type for tree proofs.
+
+        Guarantee that the given computation performs exactly the same state
+        operations as the generating computation, *in some order*. *)
+
+    val produce_proof : (tree_proof, 'a) producer
+    (** [produce_proof] is the producer of tree proofs. *)
+
+    val verify_proof : (tree_proof, 'a) verifier
+    (** [verify_proof] is the verifier of tree proofs. *)
 
     type stream_proof := Proof.stream Proof.t
+    (** The type for stream proofs.
 
-    val produce_stream :
-      repo -> kinded_hash -> (tree -> tree Lwt.t) -> stream_proof Lwt.t
-    (** Same as {!produce_proof} but for stream proofs. *)
+        Guarantee that the given computation performs exactly the same state
+        operations as the generating computation, in the exact same order.*in
+        some order*. *)
 
-    val verify_stream : stream_proof -> (tree -> tree Lwt.t) -> tree Lwt.t
-    (** Same as {!verify_proof} but for stream proofs. *)
+    val produce_stream : (stream_proof, 'a) producer
+    (** [produce_stream] is the producer of stream proofs. *)
+
+    val verify_stream : (stream_proof, 'a) verifier
+    (** [verify_stream] is the verifier of stream proofs. *)
   end
 
   (** {1 Reads} *)

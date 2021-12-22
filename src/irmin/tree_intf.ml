@@ -427,18 +427,23 @@ module type Tree = sig
     val of_private_node : P.Repo.t -> P.Node.value -> node
     val to_private_node : node -> P.Node.value or_error Lwt.t
 
+    type ('proof, 'result) producer :=
+      P.Repo.t ->
+      kinded_hash ->
+      (t -> (t * 'result) Lwt.t) ->
+      ('proof * 'result) Lwt.t
+
+    type ('proof, 'result) verifier :=
+      'proof -> (t -> (t * 'result) Lwt.t) -> (t * 'result) Lwt.t
+
     type tree_proof := Proof.tree Proof.t
 
-    val produce_proof :
-      P.Repo.t -> kinded_hash -> (t -> t Lwt.t) -> tree_proof Lwt.t
-
-    val verify_proof : tree_proof -> (t -> t Lwt.t) -> t Lwt.t
+    val produce_proof : (tree_proof, 'a) producer
+    val verify_proof : (tree_proof, 'a) verifier
 
     type stream_proof := Proof.stream Proof.t
 
-    val produce_stream :
-      P.Repo.t -> kinded_hash -> (t -> t Lwt.t) -> stream_proof Lwt.t
-
-    val verify_stream : stream_proof -> (t -> t Lwt.t) -> t Lwt.t
+    val produce_stream : (stream_proof, 'a) producer
+    val verify_stream : (stream_proof, 'a) verifier
   end
 end

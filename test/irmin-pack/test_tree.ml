@@ -93,10 +93,13 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
     | Find k -> find tree k
     | Find_tree k -> find_tree tree k
 
-  let run ops tree = Lwt_list.fold_left_s run_one tree ops
+  let run ops tree =
+    let+ t = Lwt_list.fold_left_s run_one tree ops in
+    (t, ())
 
   let proof_of_ops repo hash ops : _ Lwt.t =
-    Store.Tree.produce_proof repo hash (run ops)
+    let+ t, () = Store.Tree.produce_proof repo hash (run ops) in
+    t
 
   let tree_proof_t = Tree.Proof.t Tree.Proof.tree_t
   let bin_of_proof = Irmin.Type.(unstage (to_bin_string tree_proof_t))
