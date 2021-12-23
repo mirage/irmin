@@ -25,11 +25,11 @@ end
 
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_maker : Irmin.Maker = struct
-  include Irmin_pack.Maker (Config)
+module Irmin_pack_store : Irmin_test.Generic_key = struct
+  open Irmin_pack.Maker (Config)
 
-  module Make (Schema : Irmin.Schema.S) = Make (struct
-    include Schema
+  include Make (struct
+    include Irmin_test.Schema
     module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
     module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
     module Commit = Commit_maker.Make (Hash)
@@ -37,9 +37,7 @@ module Irmin_pack_maker : Irmin.Maker = struct
 end
 
 let suite_pack =
-  let store =
-    Irmin_test.store (module Irmin_pack_maker) (module Irmin.Metadata.None)
-  in
+  let store = (module Irmin_pack_store : Irmin_test.Generic_key) in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
   let init () =
     rm_dir test_dir;
@@ -49,14 +47,14 @@ let suite_pack =
     rm_dir test_dir;
     Lwt.return_unit
   in
-  Irmin_test.Suite.create ~name:"PACK" ~clear_supported:false ~init ~store
-    ~config ~clean ~layered_store:None ()
+  Irmin_test.Suite.create_generic_key ~name:"PACK" ~clear_supported:false
+    ~import_supported:false ~init ~store ~config ~clean ~layered_store:None ()
 
-module Irmin_pack_mem_maker = struct
-  include Irmin_pack_mem.Maker (Config)
+module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
+  open Irmin_pack_mem.Maker (Config)
 
-  module Make (Schema : Irmin.Schema.S) = Make (struct
-    include Schema
+  include Make (struct
+    include Irmin_test.Schema
     module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
     module Commit_maker = Irmin.Commit.Generic_key.Maker (Info)
     module Commit = Commit_maker.Make (Hash)
@@ -64,11 +62,10 @@ module Irmin_pack_mem_maker = struct
 end
 
 let suite_mem =
-  let store =
-    Irmin_test.store (module Irmin_pack_mem_maker) (module Irmin.Metadata.None)
-  in
+  let store = (module Irmin_pack_mem_maker : Irmin_test.Generic_key) in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
-  Irmin_test.Suite.create ~name:"PACK MEM" ~store ~config ~layered_store:None ()
+  Irmin_test.Suite.create_generic_key ~import_supported:false ~name:"PACK MEM"
+    ~store ~config ~layered_store:None ()
 
 let suite = [ suite_pack; suite_mem ]
 
@@ -316,11 +313,9 @@ module Pack = struct
     (*close index while in use*)
     let* i, r = t.clone_index_pack ~readonly:false in
     Index.close i;
-    Lwt.catch
-      (fun () ->
-        let* _ = Pack.find r h1 in
-        Alcotest.fail "Add after closing the index should not be allowed")
-      (function I.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+    (* [find] after Index [close] is OK, provided we still have the key *)
+    let* () = Pack.find r k1 >|= get >|= Alcotest.(check string) "x1.2" x1 in
+    Lwt.return_unit
 
   (** Index can be flushed to disk independently of pack, we simulate this in
       the tests using [Index.filter] and [Index.flush]. Regression test for PR

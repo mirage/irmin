@@ -49,7 +49,12 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     module M = Schema.Metadata
     module B = Schema.Branch
     module Pack = Indexable.Maker (H)
-    module XKey = Irmin.Key.Of_hash (H)
+
+    module XKey = struct
+      include Irmin.Key.Of_hash (H)
+
+      let unfindable_of_hash x = x
+    end
 
     module X = struct
       module Schema = Schema

@@ -316,7 +316,7 @@ module Store = struct
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
-  module Irmin_pack_maker : Irmin.Maker = struct
+  module Irmin_pack_maker : Irmin.Generic_key.Maker = struct
     include Irmin_pack.Maker (Irmin_tezos.Conf)
 
     module Make (Schema : Irmin.Schema.S) = Make (struct
@@ -327,7 +327,14 @@ module Store = struct
     end)
   end
 
-  let pack = create Irmin_pack.Conf.spec (module Irmin_pack_maker)
+  let pack : hash -> contents -> t =
+   fun (module H) (module C) ->
+    let module Schema = struct
+      include Irmin.Schema.KV (C)
+      module Hash = H
+    end in
+    v_generic Irmin_pack.Conf.spec (module Irmin_pack_maker.Make (Schema))
+
   let tezos = v_generic Irmin_pack.Conf.spec (module Irmin_tezos.Store)
 
   let all =
@@ -340,7 +347,6 @@ module Store = struct
         ("mem-http", Variable_hash (fun h c -> http (mem h c)));
         ("git-http", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
-        ("pack-http", Variable_hash (fun h c -> http (pack h c)));
         ("tezos", Fixed tezos);
       ]
 

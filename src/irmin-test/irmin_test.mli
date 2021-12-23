@@ -57,6 +57,9 @@ module Suite : sig
 end
 
 val line : string -> unit
+
+module Schema = Common.Schema
+
 val store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S)
 
 val layered_store :

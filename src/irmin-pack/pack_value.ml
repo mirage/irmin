@@ -90,12 +90,11 @@ let get_dynamic_sizer_exn : type a. a Irmin.Type.t -> string -> int -> int =
   | Static n -> fun _ _ -> n
   | Dynamic f -> f
 
-module Of_contents (Conf : sig
-  val contents_length_header : length_header
-end)
-(Hash : Irmin.Hash.S)
-(Key : T)
-(Data : Irmin.Type.S) =
+module Of_contents
+    (Conf : Config)
+    (Hash : Irmin.Hash.S)
+    (Key : T)
+    (Data : Irmin.Type.S) =
 struct
   module Hash = Irmin.Hash.Typed (Hash) (Data)
 
@@ -105,12 +104,7 @@ struct
 
   let hash = Hash.hash
   let kind = Kind.Contents
-
-  let length_header =
-    match Conf.contents_length_header with
-    | None -> `Never
-    | Some _ as x -> `Sometimes (Fun.const x)
-
+  let length_header = Fun.const Conf.contents_length_header
   let value = [%typ: (Hash.t, Data.t) value]
   let encode_value = Irmin.Type.(unstage (encode_bin value))
   let decode_value = Irmin.Type.(unstage (decode_bin value))
@@ -170,9 +164,9 @@ struct
     end
   end
 
-  let length_header =
-    `Sometimes
-      (function Kind.Contents -> assert false | x -> Kind.length_header_exn x)
+  let length_header = function
+    | Kind.Contents -> assert false
+    | x -> Kind.length_header_exn x
 
   let encode_bin ~dict:_ ~offset_of_key hash v f =
     let address_of_key k : Commit_direct.address =

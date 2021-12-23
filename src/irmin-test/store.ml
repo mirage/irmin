@@ -145,8 +145,12 @@ module Make (S : Generic_key) = struct
         check_val "find xx" None (B.Node.Val.find u "xx")
       in
       check_values u;
-      let w = B.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
-      check B.Node.Val.t "v" u w;
+      let () =
+        let _w = B.Node.Val.of_list [ ("y", k); ("z", k); ("x", k) ] in
+        (* XXX: this isn't a valid check. [u] is not concrete, and [w] is. *)
+        (* check B.Node.Val.t "v" u w; *)
+        ()
+      in
       let l = B.Node.Val.list u in
       check_list "list all" [ ("x", k); ("y", k); ("z", k) ] l;
       let l = B.Node.Val.list ~length:1 u in

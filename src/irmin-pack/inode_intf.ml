@@ -89,7 +89,14 @@ module type Internal = sig
 
     val of_raw : (key -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
-    val save : add:(hash -> Raw.t -> unit) -> mem:(key -> bool) -> t -> unit
+
+    val save :
+      add:(hash -> Raw.t -> key) ->
+      index:(hash -> key option) ->
+      mem:(key -> bool) ->
+      t ->
+      key
+
     val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
@@ -102,14 +109,18 @@ module type Internal = sig
       (** {1 Concrete trees} *)
 
       (** The type for pointer kinds. *)
-      type kind = Contents | Contents_x of metadata | Node [@@deriving irmin]
+      type kinded_key =
+        | Contents of contents_key
+        | Contents_x of metadata * contents_key
+        | Node of node_key
+      [@@deriving irmin]
 
-      type entry = { name : step; kind : kind; hash : hash } [@@deriving irmin]
-      (** The type for entries. *)
+      type entry = { name : step; key : kinded_key } [@@deriving irmin]
+      (** The type of entries. *)
 
       type 'a pointer = { index : int; pointer : hash; tree : 'a }
       [@@deriving irmin]
-      (** The type for pointers. *)
+      (** The type for internal pointers between concrete {!tree}s. *)
 
       type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
       [@@deriving irmin]
@@ -152,8 +163,11 @@ module type Sigs = sig
 
   module Make_internal
       (Conf : Conf.S)
-      (H : Irmin.Hash.S)
-      (Key : Irmin.Key.S with type hash = H.t and type t = H.t)
+      (H : Irmin.Hash.S) (Key : sig
+        include Irmin.Key.S with type hash = H.t
+
+        val unfindable_of_hash : hash -> t
+      end)
       (Node : Irmin.Node.Generic_key.S
                 with type hash = H.t
                  and type contents_key = Key.t
@@ -166,7 +180,7 @@ module type Sigs = sig
 
   module Make
       (H : Irmin.Hash.S)
-      (Key : Irmin.Key.S with type hash = H.t and type t = H.t)
+      (Key : Irmin.Key.S with type hash = H.t)
       (Node : Irmin.Node.Generic_key.S
                 with type hash = H.t
                  and type contents_key = Key.t

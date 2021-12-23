@@ -152,6 +152,9 @@
     (#1369, @samoht)
 
 - **irmin-pack**
+  - Changed the implementation of backend store keys to use direct pointers to
+    store contents (by offset in the pack file) when possible, rather than
+    querying the index on each lookup. (#1659, @CraigFe @ngoguey42 @icristescu)
   - The `Irmin_pack.Maker` module type now no longer takes a `Conf` argument.
     (#1641, @CraigFe)
   - The backend configuration type `Conf.S` requires a new parameter

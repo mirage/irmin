@@ -56,11 +56,11 @@ module type Layered_store =
      and type Schema.Contents.t = string
      and type Schema.Branch.t = string
 
-module Schema (M : Irmin.Metadata.S) = struct
+module Schema = struct
   module Hash = Irmin.Hash.SHA1
   module Commit = Irmin.Commit.Make (Hash)
   module Path = Irmin.Path.String_list
-  module Metadata = M
+  module Metadata = Irmin.Metadata.None
   module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
   module Branch = Irmin.Branch.String
   module Info = Irmin.Info.Default
@@ -69,7 +69,12 @@ end
 
 let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
  fun (module B) (module M) ->
-  let module S = B.Make (Schema (M)) in
+  let module Schema = struct
+    include Schema
+    module Metadata = M
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+  end in
+  let module S = B.Make (Schema) in
   (module S)
 
 let layered_store :
@@ -77,7 +82,12 @@ let layered_store :
     (module Irmin.Metadata.S) ->
     (module Layered_store) =
  fun (module B) (module M) ->
-  let module S = B.Make (Schema (M)) in
+  let module Schema = struct
+    include Schema
+    module Metadata = M
+    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
+  end in
+  let module S = B.Make (Schema) in
   (module S)
 
 type store = S of (module S) | Generic_key of (module Generic_key)
