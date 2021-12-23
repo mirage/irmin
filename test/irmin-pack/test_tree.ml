@@ -366,13 +366,25 @@ module Custom = Make (struct
   let inode_child_order = `Custom index
 end)
 
-let pp_stream = Irmin.Type.pp (Custom.Tree.Proof.t Custom.Tree.Proof.stream_t)
+module P = Custom.Tree.Proof
+
+let pp_stream = Irmin.Type.pp (P.t P.stream_t)
+
+let check_hash h s =
+  let s' = Irmin.Type.(to_string Hash.t) h in
+  Alcotest.(check string) "check hash" s s'
+
+let check_contents_hash h s =
+  match h with
+  | `Node _ -> Alcotest.failf "Expected kinded hash to be contents"
+  | `Contents (h, ()) ->
+      let s' = Irmin.Type.(to_string Hash.t) h in
+      Alcotest.(check string) "check hash" s s'
+
+let bindings = [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
 
 let test_extenders () =
-  let bindings1 =
-    [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
-  in
-  let bindings2 = ([ "10000" ], "x1") :: bindings1 in
+  let bindings2 = ([ "10000" ], "x1") :: bindings in
   let bindings3 = ([ "10001" ], "y") :: bindings2 in
 
   let check_stream bindings =
@@ -390,7 +402,47 @@ let test_extenders () =
     | Ok (_, ()) -> ()
     | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
   in
-  Lwt_list.iter_s check_stream [ bindings1; bindings2; bindings3 ]
+  Lwt_list.iter_s check_stream [ bindings; bindings2; bindings3 ]
+
+let test_hardcoded_stream () =
+  let fail elt =
+    Alcotest.failf "Unexpected elt in stream %a" (Irmin.Type.pp P.elt_t) elt
+  in
+  let* ctxt = Custom.init_tree bindings in
+  let hash = `Node (Custom.Tree.hash ctxt.tree) in
+  let f t =
+    let+ v = Custom.Tree.get t [ "00000" ] in
+    Alcotest.(check string) "00000" "x" v;
+    (t, ())
+  in
+  let* p, () = Custom.Tree.produce_stream ctxt.repo hash f in
+  let state = P.state p in
+  let counter = ref 0 in
+  Seq.iter
+    (fun elt ->
+      (match !counter with
+      | 0 | 1 | 2 -> (
+          match elt with
+          | P.Inode { length; _ } when length = 3 -> ()
+          | _ -> fail elt)
+      | 3 -> (
+          match elt with
+          | P.Inode { length; proofs = [ ([ 1 ], h0); ([ 0 ], h1) ] }
+            when length = 3 ->
+              check_hash h0 "4295267989ab4c4a036eb78f0610a57042e2b49f";
+              check_hash h1 "59fcb82bd392247a02237c716df77df35e885699"
+          | _ -> fail elt)
+      | 4 -> (
+          match elt with
+          | P.Node [ ("00000", h0); ("00001", h1) ] ->
+              check_contents_hash h0 "11f6ad8ec52a2984abaafd7c3b516503785c2072";
+              check_contents_hash h1 "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
+          | _ -> fail elt)
+      | 5 -> ( match elt with P.Contents "x" -> () | _ -> fail elt)
+      | _ -> fail elt);
+      incr counter)
+    state;
+  Lwt.return_unit
 
 let tests =
   [
@@ -410,4 +462,6 @@ let tests =
         Lwt_main.run (test_large_proofs ()));
     Alcotest.test_case "test extenders in stream proof" `Quick (fun () ->
         Lwt_main.run (test_extenders ()));
+    Alcotest.test_case "test hardcoded stream proof" `Quick (fun () ->
+        Lwt_main.run (test_hardcoded_stream ()));
   ]
