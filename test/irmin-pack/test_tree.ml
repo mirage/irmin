@@ -421,27 +421,29 @@ let test_hardcoded_stream () =
   Seq.iter
     (fun elt ->
       (match !counter with
-      | 0 | 1 | 2 -> (
+      | 0 -> (
           match elt with
-          | P.Inode { length; _ } when length = 3 -> ()
+          | P.Inode { length; proofs = [ ([ 0; 0; 0 ], h) ] } when length = 3 ->
+              check_hash h "77f92acef70dd91a9f5b260dc0bf249e6644d76b"
           | _ -> fail elt)
-      | 3 -> (
+      | 1 -> (
           match elt with
           | P.Inode { length; proofs = [ ([ 1 ], h0); ([ 0 ], h1) ] }
             when length = 3 ->
               check_hash h0 "4295267989ab4c4a036eb78f0610a57042e2b49f";
               check_hash h1 "59fcb82bd392247a02237c716df77df35e885699"
           | _ -> fail elt)
-      | 4 -> (
+      | 2 -> (
           match elt with
           | P.Node [ ("00000", h0); ("00001", h1) ] ->
               check_contents_hash h0 "11f6ad8ec52a2984abaafd7c3b516503785c2072";
               check_contents_hash h1 "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
           | _ -> fail elt)
-      | 5 -> ( match elt with P.Contents "x" -> () | _ -> fail elt)
+      | 3 -> ( match elt with P.Contents "x" -> () | _ -> fail elt)
       | _ -> fail elt);
       incr counter)
     state;
+  if !counter <> 4 then Alcotest.fail "Not enough elements in the stream";
   Lwt.return_unit
 
 let tests =
