@@ -1,6 +1,38 @@
 open! Import
 include Pack_store_intf
 
+module Indexing_strategy = struct
+  type t = value_length:int -> Pack_value.Kind.t -> bool
+
+  let always ~value_length:_ _ = true
+
+  let minimal : t =
+   fun ~value_length:_ -> function
+    | Commit_v2 ->
+        (* Commits must be indexed as the branch store contains only their
+           hashes. All {i internal} references to V1 commits are via offset
+           (from other V1 commit objects). *)
+        true
+    | Inode_v2_root ->
+        (* It's safe not to index V1 root inodes because they are never
+           referenced by V0 commit objects (only V1 commit objects, which
+           contain direct pointers rather than hashes).*)
+        false
+    | Inode_v2_nonroot -> false
+    | Contents -> false
+    | Commit_v1 | Inode_v1_unstable | Inode_v1_stable ->
+        (* We never append new V0 values, so this choice is irrelevant to the
+           store implementation, but we do assume that existing V0 objects are
+           indexed (as they may be referenced via hash by other V0 objects), and
+           this must be accounted for when reconstructing the index. *)
+        true
+
+  let default = always
+end
+
+module type S = S with type indexing_strategy := Indexing_strategy.t
+module type Maker = Maker with type indexing_strategy := Indexing_strategy.t
+
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
@@ -45,6 +77,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   type 'a t = {
     mutable block : IO.t;
     index : Index.t;
+    indexing_strategy : Indexing_strategy.t;
     dict : Dict.t;
     mutable open_instances : int;
   }
@@ -55,7 +88,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       true)
     else false
 
-  let unsafe_v ~index ~fresh ~readonly file =
+  let unsafe_v ~index ~indexing_strategy ~fresh ~readonly file =
     let root = Filename.dirname file in
     let dict = Dict.v ~fresh ~readonly root in
     let block =
@@ -64,12 +97,12 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let version = Some selected_version in
       IO.v ~version ~fresh ~readonly file
     in
-    { block; index; dict; open_instances = 1 }
+    { block; index; indexing_strategy; dict; open_instances = 1 }
 
   let IO_cache.{ v } =
     IO_cache.memoize ~valid
       ~clear:(fun t -> IO.truncate t.block)
-      ~v:(fun index -> unsafe_v ~index)
+      ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
       Layout.pack
 
   let close t =
@@ -132,17 +165,18 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       if index_merge then Index.merge t.pack.index;
       Dict.flush t.pack.dict;
       IO.flush t.pack.block;
-      if index then Index.flush ~no_callback:() t.pack.index;
+      if index then Index.flush t.pack.index;
       Tbl.clear t.staging
 
-    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root =
-      let pack = v index ~fresh ~readonly root in
+    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+        root =
+      let pack = v (index, indexing_strategy) ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack; open_instances = 1; readonly }
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
-        ~index root =
+        ~index ~indexing_strategy root =
       try
         let t = Hashtbl.find roots (root, readonly) in
         if valid t then (
@@ -152,13 +186,18 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
           Hashtbl.remove roots (root, readonly);
           raise Not_found)
       with Not_found ->
-        let t = unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index root in
+        let t =
+          unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+            root
+        in
         if fresh then unsafe_clear t;
         Hashtbl.add roots (root, readonly) t;
         t
 
-    let v ?fresh ?readonly ?lru_size ~index root =
-      let t = unsafe_v ?fresh ?readonly ?lru_size ~index root in
+    let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy root =
+      let t =
+        unsafe_v ?fresh ?readonly ?lru_size ~index ~indexing_strategy root
+      in
       Lwt.return t
 
     let io_read_and_decode_hash ~off t =
@@ -445,7 +484,12 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         Val.encode_bin ~offset_of_key ~dict hash v (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
-        Index.add ~overcommit t.pack.index hash (off, len, kind);
+        let () =
+          let kind = Val.kind v in
+          let should_index = t.pack.indexing_strategy ~value_length:len kind in
+          if should_index then
+            Index.add ~overcommit t.pack.index hash (off, len, kind)
+        in
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging hash v;
         Lru.add t.lru hash v;
@@ -500,8 +544,9 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     module Inner = Make_without_close_checks (Val)
     include Indexable.Closeable (Inner)
 
-    let v ?fresh ?readonly ?lru_size ~index path =
-      Inner.v ?fresh ?readonly ?lru_size ~index path >|= make_closeable
+    let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path =
+      Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
+      >|= make_closeable
 
     let sync t = Inner.sync (get_open_exn t)
 

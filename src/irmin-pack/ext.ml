@@ -136,12 +136,13 @@ module Maker (Config : Conf.S) = struct
                       f contents node commit)))
 
         let unsafe_v config =
-          let root = Conf.root config in
-          let fresh = Conf.fresh config in
-          let lru_size = Conf.lru_size config in
-          let readonly = Conf.readonly config in
-          let log_size = Conf.index_log_size config in
-          let throttle = Conf.merge_throttle config in
+          let root = Conf.root config
+          and fresh = Conf.fresh config
+          and lru_size = Conf.lru_size config
+          and readonly = Conf.readonly config
+          and log_size = Conf.index_log_size config
+          and throttle = Conf.merge_throttle config
+          and indexing_strategy = Conf.indexing_strategy config in
           let f = ref (fun () -> ()) in
           let index =
             Index.v
@@ -150,10 +151,16 @@ module Maker (Config : Conf.S) = struct
               ~fresh ~readonly ~throttle ~log_size root
           in
           let* contents =
-            Contents.CA.v ~fresh ~readonly ~lru_size ~index root
+            Contents.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+              root
           in
-          let* node = Node.CA.v ~fresh ~readonly ~lru_size ~index root in
-          let* commit = Commit.CA.v ~fresh ~readonly ~lru_size ~index root in
+          let* node =
+            Node.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
+          in
+          let* commit =
+            Commit.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
+              root
+          in
           let+ branch = Branch.v ~fresh ~readonly root in
           (* Stores share instances in memory, one flush is enough. In case of a
              system crash, the flush_callback might not make with the disk. In

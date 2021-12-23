@@ -75,9 +75,12 @@ struct
       [%log.app "Constructing a fresh context for use by the test"];
       rm_dir root;
       let index = Index.v ~log_size ~fresh:true root in
-      let* store = Inode.v ~fresh:true ~lru_size ~index root in
+      let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+      let* store =
+        Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root
+      in
       let* store_contents =
-        Contents_store.v ~fresh:false ~lru_size ~index root
+        Contents_store.v ~fresh:false ~lru_size ~index ~indexing_strategy root
       in
       let+ foo, bar =
         Contents_store.batch store_contents (fun writer ->
@@ -86,7 +89,7 @@ struct
             Lwt.return (foo, bar))
       in
       let clone ~readonly =
-        Inode.v ~lru_size ~fresh:false ~readonly ~index root
+        Inode.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy root
       in
       [%log.app "Test context constructed"];
       { index; store; store_contents; clone; foo; bar }

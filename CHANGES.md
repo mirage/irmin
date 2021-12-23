@@ -164,6 +164,11 @@
     reduce indexing overhead.  This change is fully backwards-compatible with
     existing stores using `irmin-pack.2.x` versions, but not
     forwards compatible. (#1649 #1655, @CraigFe @Ngoguey42)
+  - Added support for user-specified indexing strategies. The default strategy
+    is to index all objects appended to the pack file (as before), but users may
+    now choose to index fewer objects in order to improve the write performance
+    of the store, at the cost of introducing potential duplicate values to the
+    pack file. (#1664, @CraigFe)
 
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when

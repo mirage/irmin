@@ -35,6 +35,7 @@ module type Sigs = sig
     ?index_log_size:int ->
     ?merge_throttle:Conf.merge_throttle ->
     ?freeze_throttle:Conf.freeze_throttle ->
+    ?indexing_strategy:Pack_store.Indexing_strategy.t ->
     string ->
     Irmin.config
   (** Configuration options for stores.
@@ -47,7 +48,10 @@ module type Sigs = sig
         the strategy to use when the index cache is full and an async
         [Index.merge] in already in progress. [Block_writes] (the default)
         blocks any new writes until the merge is completed. [Overcommit_memory]
-        does not block but indefinitely expands the in-memory cache. *)
+        does not block but indefinitely expands the in-memory cache.
+      @param indexing_strategy
+        The {{!Pack_store.Indexing_strategy} indexing strategy} of the backend
+        store. Defaults to {!Pack_store.Indexing_strategy.default}. *)
 
   exception RO_not_allowed
 

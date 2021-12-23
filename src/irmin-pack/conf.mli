@@ -27,7 +27,11 @@ module type S = sig
       - [Some `Varint]: the length header is a LEB128-encoded integer at the
         very beginning of the encoded value.
 
-      - [None]: there is no length header, and values have unknown size. *)
+      - [None]: there is no length header, and values have unknown size. NOTE:
+        when using [irmin-pack] in this mode, the selected indexing strategy
+        {i must} index all contents values (as recovering contents values from
+        the store will require referring to the index for their length
+        information). *)
 end
 
 val spec : Irmin.Backend.Conf.Spec.t
@@ -43,6 +47,7 @@ module Key : sig
   val root : string Irmin.Backend.Conf.key
   val merge_throttle : merge_throttle Irmin.Backend.Conf.key
   val freeze_throttle : freeze_throttle Irmin.Backend.Conf.key
+  val indexing_strategy : Pack_store.Indexing_strategy.t Irmin.Backend.Conf.key
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
@@ -52,6 +57,7 @@ val readonly : Irmin.Backend.Conf.t -> bool
 val merge_throttle : Irmin.Backend.Conf.t -> merge_throttle
 val freeze_throttle : Irmin.Backend.Conf.t -> freeze_throttle
 val root : Irmin.Backend.Conf.t -> string
+val indexing_strategy : Irmin.Backend.Conf.t -> Pack_store.Indexing_strategy.t
 
 val init :
   ?fresh:bool ->
@@ -60,5 +66,6 @@ val init :
   ?index_log_size:int ->
   ?merge_throttle:merge_throttle ->
   ?freeze_throttle:freeze_throttle ->
+  ?indexing_strategy:Pack_store.Indexing_strategy.t ->
   string ->
   Irmin.config
