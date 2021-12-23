@@ -661,6 +661,8 @@ struct
             | { target = Lazy _ } -> ())
         | Truncated -> (
             function
+            (* TODO: this branch is currently untested: we never attempt to
+               save a truncated node as part of the unit tests. *)
             | Intact entry ->
                 save_dirty.f entry (fun key ->
                     Val_ref.promote_exn entry.v_ref key)
