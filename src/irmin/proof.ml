@@ -147,10 +147,10 @@ struct
   let rec forward_lookup h singleton_inodes : (int list * hash) list option =
     match Hashes.find_opt singleton_inodes h with
     | None -> None
-    | Some (i, h') -> (
+    | Some (i', h') -> (
         match forward_lookup h' singleton_inodes with
-        | None -> Some [ (i, h') ]
-        | Some l -> Some ((i, h') :: l))
+        | None -> Some [ (i', h') ]
+        | Some l -> Some ((i', h') :: l))
 
   let rec extenders (indexes, h) = function
     | (i', h') :: rest -> extenders (i' @ indexes, h') rest
@@ -162,7 +162,12 @@ struct
         match forward_lookup h singleton_inodes with
         | None -> (i, h) :: proofs
         | Some ls ->
-            List.iter (fun (_, h) -> Hashes.add skips h ()) ls;
+            let () =
+              (* Push all hashes except the last one into [skips] *)
+              match List.rev ((i, h) :: ls) with
+              | [] | [ _ ] -> failwith "idk"
+              | _ :: tl -> List.iter (fun (_, h) -> Hashes.add skips h ()) tl
+            in
             let extended = extenders (i, h) ls in
             extended :: proofs)
       []
@@ -459,7 +464,7 @@ struct
   let add_recnode_from_store t find ~expected_depth h =
     assert (expected_depth > 0);
     match !t with
-    | Stream (Produce { set; rev_elts; _ }) -> (
+    | Stream (Produce { set; rev_elts; singleton_inodes }) -> (
         (* Registering when seen for the first time, there is no need
            for sharing. *)
         match find ~expected_depth h with
@@ -468,6 +473,12 @@ struct
             if not @@ Hashes.mem set h then (
               Hashes.add set h ();
               let elt = dehydrate_stream_node v in
+              let () =
+                match elt with
+                | Inode { proofs = [ bucket ]; _ } ->
+                    Hashes.add singleton_inodes h bucket
+                | _ -> ()
+              in
               rev_elts := (h, elt) :: !rev_elts);
             Some v)
     | _ -> assert false

@@ -1091,7 +1091,7 @@ struct
       if depth = 0 then assert (length > Conf.stable_hash);
       let hash v = Bin.V.hash (to_bin_v la v) in
       let new_entries () = Array.make Conf.entries None in
-      let rec aux entries proofs k =
+      let rec aux depth entries proofs k =
         match proofs with
         | [] ->
             let v = Tree { depth; length; entries } in
@@ -1102,15 +1102,14 @@ struct
             | [ index ] ->
                 let ptr = Ptr.of_hash la hash in
                 entries.(index) <- Some ptr;
-                aux entries proofs k
+                aux depth entries proofs k
             | index :: rest ->
-                let entries = new_entries () in
-                aux entries [ (rest, hash) ] (fun t ->
+                aux (depth + 1) (new_entries ()) [ (rest, hash) ] (fun t ->
                     let ptr = Ptr.of_target la t in
                     entries.(index) <- Some ptr;
-                    aux entries proofs k))
+                    aux depth entries proofs k))
       in
-      aux (new_entries ()) proofs Fun.id
+      aux depth (new_entries ()) proofs Fun.id
 
     let of_elt la ~depth e =
       match e with
