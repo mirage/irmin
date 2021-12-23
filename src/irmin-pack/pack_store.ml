@@ -187,14 +187,24 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       type t = {
         hash : hash;
         kind : Pack_value.Kind.t;
-        value_length : int option;
-            (** Length of the value segment including the length header (if it
-                exists). *)
+        size_of_value_and_length_header : int option;
+            (** Remaining bytes in the entry after reading the hash and the kind
+                (i.e. the length of the length header + the value of the length
+                header), if the entry has a length header (otherwise [None]).
+
+                NOTE: the length stored in the index and in direct pack keys is
+                the {!total_entry_length} (including the hash and the kind). See
+                [pack_value.mli] for a description. *)
       }
       [@@deriving irmin ~pp_dump]
 
       let min_length = K.hash_size + 1
       let max_length = K.hash_size + 1 + Varint.max_encoded_size
+
+      let total_entry_length t =
+        Option.map
+          (fun len -> min_length + len)
+          t.size_of_value_and_length_header
     end
 
     let io_read_and_decode_entry_prefix ~off t =
@@ -211,7 +221,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
           Int63.pp off bytes_read;
       let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
-      let value_length =
+      let size_of_value_and_length_header =
         match Val.length_header kind with
         | None -> None
         | Some `Varint ->
@@ -226,15 +236,15 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
             let length_header_length = !pos_ref - length_header_start in
             Some (length_header_length + length_header)
       in
-      { Entry_prefix.hash; kind; value_length }
+      { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
     let pack_file_contains_key t k =
       let key = Pack_key.inspect k in
       match key with
       | Indexed hash -> Index.mem t.pack.index hash
       | Direct { offset; _ } ->
-          let minimal_entry_length = Hash.hash_size + 1 in
           let io_offset = IO.offset t.pack.block in
+          let minimal_entry_length = Entry_prefix.min_length in
           if
             Int63.compare
               (Int63.add offset (Int63.of_int minimal_entry_length))
@@ -302,20 +312,17 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         [%log.debug "key_of_offset: %a" Int63.pp offset];
         (* Attempt to eagerly read the length at the same time as reading the
            hash in order to save an extra IO read when dereferencing the key: *)
-        let { Entry_prefix.hash; value_length; _ } =
-          io_read_and_decode_entry_prefix ~off:offset t
-        in
-        match value_length with
-        | Some value_length ->
-            let length = Hash.hash_size + 1 + value_length in
-            Pack_key.v_direct ~hash ~offset ~length
+        let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
+        match Entry_prefix.total_entry_length entry_prefix with
+        | Some length ->
+            Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
         | None ->
             (* NOTE: we could store [offset] in this key, but since we know the
                entry doesn't have a length header we'll need to check the index
                when dereferencing this key anyway. {i Not} storing the offset
                avoids doing another failed check in the pack file for the length
                header during [find]. *)
-            Pack_key.v_indexed hash
+            Pack_key.v_indexed entry_prefix.hash
       in
       let key_of_hash = Pack_key.v_indexed in
       let dict = Dict.find t.pack.dict in

@@ -1,13 +1,5 @@
 open! Import
 
-(** This module defines abstractions over entries in the pack file, which are
-    encoded as the following sequence:
-
-    - the (fixed-length) hash of the data stored in this entry;
-    - the {i kind} of data being stored (contents, nodes, blob etc.);
-    - the data itself, optionally with a length header that contains the encoded
-      size of the data section (excluding the header itself). *)
-
 type length_header = [ `Varint ] option
 
 module type S = sig
