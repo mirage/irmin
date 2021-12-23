@@ -650,7 +650,12 @@ struct
                       box.target <- Lazy_loaded entry;
                       Val_ref.promote_exn entry.v_ref key))
             | { target = Lazy_loaded entry } as box ->
-                (* TODO(craigfe): document why we save in this case. *)
+                (* In this case, [entry.v_ref] is a [Hash h] such that [mem t
+                   (index t h) = true]. We "save" the entry in order to trigger
+                   the [index] lookup and recover the key, in order to meet the
+                   return invariant above.
+
+                   TODO: refactor this case to be more precise. *)
                 save_dirty.f entry (fun key ->
                     if clear then box.target <- Lazy key)
             | { target = Lazy _ } -> ())
