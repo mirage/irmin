@@ -29,7 +29,7 @@ module Default = struct
   let readonly = false
   let merge_throttle = `Block_writes
   let freeze_throttle = `Block_writes
-  let indexing_strategy = Pack_store.Indexing_strategy.always
+  let indexing_strategy = Pack_store.Indexing_strategy.default
 end
 
 open Irmin.Backend.Conf

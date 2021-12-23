@@ -26,6 +26,8 @@ module Indexing_strategy = struct
            indexed (as they may be referenced via hash by other V0 objects), and
            this must be accounted for when reconstructing the index. *)
         true
+
+  let default = always
 end
 
 module type S = S with type indexing_strategy := Indexing_strategy.t
