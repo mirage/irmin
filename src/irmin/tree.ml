@@ -133,6 +133,7 @@ module Make (P : Private.S) = struct
   end
 
   module Metadata = P.Node.Metadata
+  module Irmin_proof = Proof
   module Tree_proof = Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
 
   type key = Path.t
@@ -1827,7 +1828,7 @@ module Make (P : Private.S) = struct
     type proof_inode = inode_tree
 
     let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Tree." ^ c)
-    let bad_stream_exn c = Proof.bad_stream_exn ("Irmin.Tree." ^ c) ""
+    let bad_stream_exn c r = Proof.bad_stream_exn ("Irmin.Tree." ^ c) r
 
     type node_proof = P.Node.Val.proof
     (** The type of tree proofs. *)
@@ -2068,7 +2069,7 @@ module Make (P : Private.S) = struct
     let proof = to_stream () in
     (Proof.v ~before:kinded_hash ~after proof, result)
 
-  let verify_proof p f =
+  let verify_proof_exn p f =
     Env.with_set_consume @@ fun env ~stop_deserialise ->
     let before = Proof.before p in
     let after = Proof.after p in
@@ -2097,7 +2098,16 @@ module Make (P : Private.S) = struct
               h.context pp_hash h.hash
         | e -> raise e)
 
-  let verify_stream p f =
+  let verify_proof p f =
+    Lwt.catch
+      (fun () ->
+        let+ r = verify_proof_exn p f in
+        Ok r)
+      (function
+        | Irmin_proof.Bad_proof e -> Lwt.return (Error (`Msg e.context))
+        | e -> Lwt.fail e)
+
+  let verify_stream_exn p f =
     let before = Proof.before p in
     let after = Proof.after p in
     let stream = Proof.state p in
@@ -2107,15 +2117,24 @@ module Make (P : Private.S) = struct
       (fun () ->
         let+ tree_after, result = f tree in
         if not (is_empty ()) then
-          Proof.bad_stream_exn "verify_stream: did not consume the full stream";
+          Proof.bad_stream_exn "verify_stream" "did not consume the full stream";
         if not (equal_kinded_hash after (hash tree_after)) then
-          Proof.bad_stream_exn "verify_stream: invalid after hash";
+          Proof.bad_stream_exn "verify_stream" "invalid after hash";
         (tree_after, result))
       (function
         | Pruned_hash h ->
-            Fmt.kstr Proof.bad_stream_exn
-              "verify_stream: %s is trying to read through a blinded node or \
-               object (%a)"
+            Fmt.kstr
+              (Proof.bad_stream_exn "verify_stream")
+              "%s is trying to read through a blinded node or object (%a)"
               h.context pp_hash h.hash
         | e -> raise e)
+
+  let verify_stream p f =
+    Lwt.catch
+      (fun () ->
+        let+ r = verify_stream_exn p f in
+        Ok r)
+      (function
+        | Irmin_proof.Bad_stream e -> Lwt.return (Error (`Msg e.context))
+        | e -> Lwt.fail e)
 end

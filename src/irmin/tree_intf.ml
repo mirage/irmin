@@ -434,7 +434,9 @@ module type Tree = sig
       ('proof * 'result) Lwt.t
 
     type ('proof, 'result) verifier :=
-      'proof -> (t -> (t * 'result) Lwt.t) -> (t * 'result) Lwt.t
+      'proof ->
+      (t -> (t * 'result) Lwt.t) ->
+      (t * 'result, [ `Msg of string ]) result Lwt.t
 
     type tree_proof := Proof.tree Proof.t
 
