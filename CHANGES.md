@@ -32,6 +32,8 @@
     (#1625, @samoht)
   - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
   - `Tree.length` now takes a tree as argument (#1676, @samoht)
+  - `Tree.Proof.t` now uses a more precise datatype to encode value
+    invariants (#1688, @samoht)
 
 - **irmin-pack**
   - irmin-pack: add an option to configure the index function and pick
