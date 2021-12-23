@@ -362,7 +362,8 @@ module Stat_trace = struct
       total : int;
       from_staging : int;
       from_lru : int;
-      from_pack : int;
+      from_pack_direct : int;
+      from_pack_indexed : int;
     }
     [@@deriving repr]
     (** Stats extracted from [Irmin_pack.Stats.get ()]. *)
@@ -393,7 +394,13 @@ module Stat_trace = struct
     let v1pack_of_v0pack (v0 : V0.pack) : pack =
       {
         finds =
-          { total = v0.finds; from_staging = 0; from_lru = 0; from_pack = 0 };
+          {
+            total = v0.finds;
+            from_staging = 0;
+            from_lru = 0;
+            from_pack_direct = 0;
+            from_pack_indexed = 0;
+          };
         appended_hashes = v0.appended_hashes;
         appended_offsets = v0.appended_offsets;
         inode_add = 0;

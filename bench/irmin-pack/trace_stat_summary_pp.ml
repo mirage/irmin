@@ -394,7 +394,9 @@ module Table2 = struct
       pb "pack.finds" (fun s -> s.pack.finds.total);
       pb "pack.finds.from_staging" (fun s -> s.pack.finds.from_staging);
       pb "pack.finds.from_lru" (fun s -> s.pack.finds.from_lru);
-      pb "pack.finds.from_pack" (fun s -> s.pack.finds.from_pack);
+      pb "pack.finds.from_pack_direct" (fun s -> s.pack.finds.from_pack_direct);
+      pb "pack.finds.from_pack_indexed" (fun s ->
+          s.pack.finds.from_pack_indexed);
       pb "pack.finds.missing" (fun s -> s.pack.finds.missing);
       pb "pack.finds.cache_miss" (fun s -> s.pack.finds.cache_miss);
       pb "pack.appended_hashes" (fun s -> s.pack.appended_hashes);
@@ -887,7 +889,10 @@ module Table4 = struct
       pb "pack.finds.from_staging per block *LA" (fun s ->
           s.pack.finds.from_staging);
       pb "pack.finds.from_lru per block *LA" (fun s -> s.pack.finds.from_lru);
-      pb "pack.finds.from_pack per block *LA" (fun s -> s.pack.finds.from_pack);
+      pb "pack.finds.from_pack_direct per block *LA" (fun s ->
+          s.pack.finds.from_pack_direct);
+      pb "pack.finds.from_pack_indexed per block *LA" (fun s ->
+          s.pack.finds.from_pack_indexed);
       pb "pack.finds.missing per block *LA" (fun s -> s.pack.finds.missing);
       pb "pack.finds.cache_miss per block *LA" (fun s ->
           s.pack.finds.cache_miss);

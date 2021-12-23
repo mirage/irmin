@@ -215,7 +215,8 @@ type finds = {
   total : bag_stat;
   from_staging : bag_stat;
   from_lru : bag_stat;
-  from_pack : bag_stat;
+  from_pack_direct : bag_stat;
+  from_pack_indexed : bag_stat;
   missing : bag_stat;
   cache_miss : bag_stat;
 }
@@ -781,8 +782,17 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
   in
 
   let finds_folder =
-    let construct total from_staging from_lru from_pack missing cache_miss =
-      { total; from_staging; from_lru; from_pack; missing; cache_miss }
+    let construct total from_staging from_lru from_pack_direct from_pack_indexed
+        missing cache_miss =
+      {
+        total;
+        from_staging;
+        from_lru;
+        from_pack_direct;
+        from_pack_indexed;
+        missing;
+        cache_miss;
+      }
     in
     let acc0 =
       let open Utils.Parallel_folders in
@@ -792,11 +802,19 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       |+ bs_folder_of_bag_getter (fun bag ->
              ofi bag.Def.pack.finds.from_staging)
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds.from_lru)
-      |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds.from_pack)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             ofi bag.Def.pack.finds.from_pack_direct)
+      |+ bs_folder_of_bag_getter (fun bag ->
+             ofi bag.Def.pack.finds.from_pack_indexed)
       |+ bs_folder_of_bag_getter (fun bag ->
              let open Def in
              let v = bag.pack.finds in
-             v.total - v.from_staging - v.from_lru - v.from_pack |> ofi)
+             v.total
+             - v.from_staging
+             - v.from_lru
+             - v.from_pack_direct
+             - v.from_pack_indexed
+             |> ofi)
       |+ bs_folder_of_bag_getter (fun bag ->
              let open Def in
              let v = bag.pack.finds in

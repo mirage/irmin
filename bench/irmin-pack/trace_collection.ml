@@ -47,7 +47,8 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
             total = v.finds.total;
             from_staging = v.finds.from_staging;
             from_lru = v.finds.from_lru;
-            from_pack = v.finds.from_pack;
+            from_pack_direct = v.finds.from_pack_direct;
+            from_pack_indexed = v.finds.from_pack_indexed;
           }
       in
       Def.

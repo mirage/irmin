@@ -160,7 +160,8 @@ let create_raw_results2 s : result list =
       ("finds", s.pack.finds.total);
       ("finds.from_staging", s.pack.finds.from_staging);
       ("finds.from_lru", s.pack.finds.from_lru);
-      ("finds.from_pack", s.pack.finds.from_pack);
+      ("finds.from_pack_direct", s.pack.finds.from_pack_direct);
+      ("finds.from_pack_indexed", s.pack.finds.from_pack_indexed);
       ("finds.missing", s.pack.finds.missing);
       ("finds.cache_miss", s.pack.finds.cache_miss);
       ("appended_hashes", s.pack.appended_hashes);
