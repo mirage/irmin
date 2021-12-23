@@ -75,7 +75,8 @@ module type S = sig
 
       [Inode i] is an optimized representation of a node as a tree. Pointers in
       that trees would refer to blinded nodes, nodes or to other inodes. E.g.
-      Blinded content is not expected to appear directly in an inodes.
+      Blinded content nor contents is not expected to appear directly in an
+      inodes.
 
       [Blinded_contents (h, m)] is a shallow pointer to contents having hash [h]
       and metadata [m].
@@ -84,9 +85,15 @@ module type S = sig
   type tree =
     | Blinded_node of hash
     | Node of (step * tree) list
-    | Inode of tree inode
+    | Inode of inode_tree inode
     | Blinded_contents of hash * metadata
     | Contents of contents * metadata
+  [@@deriving irmin]
+
+  and inode_tree =
+    | Blinded_inode of hash
+    | Inode_values of (step * tree) list
+    | Inode_tree of inode_tree inode
   [@@deriving irmin]
 
   type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
