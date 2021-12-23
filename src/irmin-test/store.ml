@@ -1565,16 +1565,20 @@ module Make (S : S) = struct
       let check_proof f =
         let* p, () = S.Tree.produce_proof repo hash f in
         Log.debug (fun l -> l "Verifying proof %a" pp_proof p);
-        let+ _, () = S.Tree.verify_proof p f in
-        ()
+        let+ r = S.Tree.verify_proof p f in
+        match r with
+        | Ok (_, ()) -> ()
+        | Error (`Msg e) -> Alcotest.failf "check_proof: %s" e
       in
       let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
 
       let check_stream f =
         let* p, () = S.Tree.produce_stream repo hash f in
         Log.debug (fun l -> l "Verifying stream %a" pp_stream p);
-        let+ _, () = S.Tree.verify_stream p f in
-        ()
+        let+ r = S.Tree.verify_stream p f in
+        match r with
+        | Ok (_, ()) -> ()
+        | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
       in
       let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
 
@@ -1643,12 +1647,10 @@ module Make (S : S) = struct
 
       (* test negative proofs *)
       let check_bad_proof p =
-        Lwt.catch
-          (fun () ->
-            let+ _ = S.Tree.verify_proof p f0 in
-            Alcotest.fail "verify should have failed")
-          (function
-            | Irmin.Proof.Bad_proof _ -> Lwt.return () | e -> Lwt.fail e)
+        let+ r = S.Tree.verify_proof p f0 in
+        match r with
+        | Ok _ -> Alcotest.fail "verify should have failed"
+        | Error _ -> ()
       in
       let* p0, () = S.Tree.produce_proof repo hash f0 in
       let proof ?(before = S.Tree.Proof.before p0)
@@ -1677,12 +1679,11 @@ module Make (S : S) = struct
 
       (* test negative streams *)
       let check_bad_stream p =
-        Lwt.catch
-          (fun () ->
-            let+ _ = S.Tree.verify_stream p f0 in
-            Alcotest.failf "verify_stream should have failed %a" pp_stream p)
-          (function
-            | Irmin.Proof.Bad_stream _ -> Lwt.return () | e -> Lwt.fail e)
+        let+ r = S.Tree.verify_stream p f0 in
+        match r with
+        | Ok _ ->
+            Alcotest.failf "verify_stream should have failed %a" pp_stream p
+        | Error _ -> ()
       in
       let* p0, () = S.Tree.produce_stream repo hash f0 in
       let proof ?(before = S.Tree.Proof.before p0)

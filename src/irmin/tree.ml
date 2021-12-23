@@ -133,6 +133,7 @@ module Make (P : Private.S) = struct
   end
 
   module Metadata = P.Node.Metadata
+  module Irmin_proof = Proof
   module Tree_proof = Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
 
   type key = Path.t
@@ -1824,9 +1825,10 @@ module Make (P : Private.S) = struct
     include Tree_proof
 
     type proof_tree = tree
+    type proof_inode = inode_tree
 
     let bad_proof_exn c = Proof.bad_proof_exn ("Irmin.Tree." ^ c)
-    let bad_stream_exn c = Proof.bad_stream_exn ("Irmin.Tree." ^ c) ""
+    let bad_stream_exn c r = Proof.bad_stream_exn ("Irmin.Tree." ^ c) r
 
     type node_proof = P.Node.Val.proof
     (** The type of tree proofs. *)
@@ -1882,13 +1884,33 @@ module Make (P : Private.S) = struct
       | `Inode (length, proofs) -> proof_of_inode node length proofs k
       | `Values vs -> proof_of_values node vs k
 
+    and proof_inode_of_node_proof :
+        type a. node -> node_proof -> (proof_inode -> a) -> a =
+     fun node p k ->
+      match p with
+      | `Blinded h -> k (Blinded_inode h)
+      | `Inode (length, proofs) -> proof_inode_of_inode node length proofs k
+      | `Values vs -> proof_inode_of_values node vs k
+
     and proof_of_inode :
         type a. node -> int -> (_ * node_proof) list -> (proof_tree -> a) -> a =
      fun node length proofs k ->
       let rec aux acc = function
         | [] -> k (Inode { length; proofs = List.rev acc })
         | (index, proof) :: rest ->
-            proof_of_node_proof node proof (fun proof ->
+            proof_inode_of_node_proof node proof (fun proof ->
+                aux ((index, proof) :: acc) rest)
+      in
+      aux [] proofs
+
+    and proof_inode_of_inode :
+        type a. node -> int -> (_ * node_proof) list -> (proof_inode -> a) -> a
+        =
+     fun node length proofs k ->
+      let rec aux acc = function
+        | [] -> k (Inode_tree { length; proofs = List.rev acc })
+        | (index, proof) :: rest ->
+            proof_inode_of_node_proof node proof (fun proof ->
                 aux ((index, proof) :: acc) rest)
       in
       aux [] proofs
@@ -1900,6 +1922,22 @@ module Make (P : Private.S) = struct
       let findv = findv "Proof.proof_of_values" node in
       let rec aux acc = function
         | [] -> k (Node (List.rev acc))
+        | (step, _) :: rest -> (
+            match findv step with
+            | None -> assert false
+            | Some t ->
+                let k p = aux ((step, p) :: acc) rest in
+                proof_of_tree t k)
+      in
+      aux [] steps
+
+    and proof_inode_of_values :
+        type a.
+        node -> (step * P.Node.Val.value) list -> (proof_inode -> a) -> a =
+     fun node steps k ->
+      let findv = findv "Proof.proof_of_values" node in
+      let rec aux acc = function
+        | [] -> k (Inode_values (List.rev acc))
         | (step, _) :: rest -> (
             match findv step with
             | None -> assert false
@@ -1941,8 +1979,8 @@ module Make (P : Private.S) = struct
 
     (* Recontruct private node from [P.Node.Val.proof] *)
     and load_inode_proof :
-        type a. env:_ -> int -> (_ * proof_tree) list -> (kinded_hash -> a) -> a
-        =
+        type a.
+        env:_ -> int -> (_ * proof_inode) list -> (kinded_hash -> a) -> a =
      fun ~env len proofs k ->
       let rec aux : _ list -> _ list -> a =
        fun acc proofs ->
@@ -1965,20 +2003,16 @@ module Make (P : Private.S) = struct
       aux [] proofs
 
     and node_proof_of_proof :
-        type a. env:_ -> proof_tree -> (node_proof -> a) -> a =
+        type a. env:_ -> proof_inode -> (node_proof -> a) -> a =
      fun ~env t k ->
       match t with
-      | Blinded_contents _ ->
-          bad_proof_exn
-            "Proof.to_node_proof: found Blinded_contents inside an inode"
-      | Contents _ ->
-          bad_proof_exn "Proof.to_node_proof: found Contents inside an inode"
-      | Blinded_node x -> k (`Blinded x)
-      | Inode { length; proofs } -> node_proof_of_inode ~env length proofs k
-      | Node n -> node_proof_of_node ~env n k
+      | Blinded_inode x -> k (`Blinded x)
+      | Inode_tree { length; proofs } ->
+          node_proof_of_inode ~env length proofs k
+      | Inode_values n -> node_proof_of_node ~env n k
 
     and node_proof_of_inode :
-        type a. env:_ -> int -> (_ * proof_tree) list -> (node_proof -> a) -> a
+        type a. env:_ -> int -> (_ * proof_inode) list -> (node_proof -> a) -> a
         =
      fun ~env length proofs k ->
       let rec aux acc = function
@@ -2035,7 +2069,7 @@ module Make (P : Private.S) = struct
     let proof = to_stream () in
     (Proof.v ~before:kinded_hash ~after proof, result)
 
-  let verify_proof p f =
+  let verify_proof_exn p f =
     Env.with_set_consume @@ fun env ~stop_deserialise ->
     let before = Proof.before p in
     let after = Proof.after p in
@@ -2064,7 +2098,16 @@ module Make (P : Private.S) = struct
               h.context pp_hash h.hash
         | e -> raise e)
 
-  let verify_stream p f =
+  let verify_proof p f =
+    Lwt.catch
+      (fun () ->
+        let+ r = verify_proof_exn p f in
+        Ok r)
+      (function
+        | Irmin_proof.Bad_proof e -> Lwt.return (Error (`Msg e.context))
+        | e -> Lwt.fail e)
+
+  let verify_stream_exn p f =
     let before = Proof.before p in
     let after = Proof.after p in
     let stream = Proof.state p in
@@ -2074,15 +2117,24 @@ module Make (P : Private.S) = struct
       (fun () ->
         let+ tree_after, result = f tree in
         if not (is_empty ()) then
-          Proof.bad_stream_exn "verify_stream: did not consume the full stream";
+          Proof.bad_stream_exn "verify_stream" "did not consume the full stream";
         if not (equal_kinded_hash after (hash tree_after)) then
-          Proof.bad_stream_exn "verify_stream: invalid after hash";
+          Proof.bad_stream_exn "verify_stream" "invalid after hash";
         (tree_after, result))
       (function
         | Pruned_hash h ->
-            Fmt.kstr Proof.bad_stream_exn
-              "verify_stream: %s is trying to read through a blinded node or \
-               object (%a)"
+            Fmt.kstr
+              (Proof.bad_stream_exn "verify_stream")
+              "%s is trying to read through a blinded node or object (%a)"
               h.context pp_hash h.hash
         | e -> raise e)
+
+  let verify_stream p f =
+    Lwt.catch
+      (fun () ->
+        let+ r = verify_stream_exn p f in
+        Ok r)
+      (function
+        | Irmin_proof.Bad_stream e -> Lwt.return (Error (`Msg e.context))
+        | e -> Lwt.fail e)
 end

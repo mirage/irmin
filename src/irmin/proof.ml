@@ -38,9 +38,15 @@ struct
   type tree =
     | Blinded_node of hash
     | Node of (step * tree) list
-    | Inode of tree inode
+    | Inode of inode_tree inode
     | Blinded_contents of hash * metadata
     | Contents of contents * metadata
+  [@@deriving irmin]
+
+  and inode_tree =
+    | Blinded_inode of hash
+    | Inode_values of (step * tree) list
+    | Inode_tree of inode_tree inode
   [@@deriving irmin]
 
   type elt =

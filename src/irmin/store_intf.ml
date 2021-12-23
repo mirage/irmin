@@ -400,15 +400,18 @@ module type S = sig
         case of nested proofs, it's unclear what [verify_proof] should do...). *)
 
     type ('proof, 'result) verifier :=
-      'proof -> (tree -> (tree * 'result) Lwt.t) -> (tree * 'result) Lwt.t
+      'proof ->
+      (tree -> (tree * 'result) Lwt.t) ->
+      (tree * 'result, [ `Msg of string ]) result Lwt.t
     (** [verify t f] runs [f] in checking mode, loading data from the proof as
         needed.
 
-        The generated tree is the tree after [f] has completed. More operations
-        can be run on that tree, but it won't be able to access the underlying
-        storage.
+        When the result is [Ok (t, r)], [t] is the generated tree after [f] has
+        completed and [r] is the result of the computation. More operations can
+        be run on [t], but it won't be able to access the underlying storage and
+        will raise [Dangling_hash] when trying to read unloaded parts of [t].
 
-        Raise [Proof.Bad_proof] when the proof is rejected. *)
+        When the result is [Error msg], the proof is rejected. *)
 
     type tree_proof := Proof.tree Proof.t
     (** The type for tree proofs.
