@@ -1088,6 +1088,7 @@ struct
       else values la (StepMap.of_list l)
 
     let of_inode la ~depth ~length proofs =
+      if depth = 0 then assert (length > Conf.stable_hash);
       let hash v = Bin.V.hash (to_bin_v la v) in
       let new_entries () = Array.make Conf.entries None in
       let rec aux entries proofs k =
