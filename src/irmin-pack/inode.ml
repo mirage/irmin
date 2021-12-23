@@ -850,14 +850,27 @@ struct
 
     let of_inode la ~depth ~length pointers : _ t =
       let hash v = Bin.V.hash (to_bin_v la v) in
-      let entries = Array.make Conf.entries None in
-      List.iter
-        (fun (index, hash) ->
-          let ptr = Ptr.of_hash la hash in
-          entries.(index) <- Some ptr)
-        pointers;
-      let v = Tree { depth; length; entries } in
-      { hash = lazy (hash v); stable = false; v }
+      let new_entries () = Array.make Conf.entries None in
+      let rec aux entries pointers k =
+        match pointers with
+        | [] ->
+            let v = Tree { depth; length; entries } in
+            k { hash = lazy (hash v); stable = false; v }
+        | (index, hash) :: pointers -> (
+            match index with
+            | [] -> assert false
+            | [ index ] ->
+                let ptr = Ptr.of_hash la hash in
+                entries.(index) <- Some ptr;
+                aux entries pointers k
+            | index :: rest ->
+                let entries = new_entries () in
+                aux entries [ (rest, hash) ] (fun t ->
+                    let ptr = Ptr.of_target la t in
+                    entries.(index) <- Some ptr;
+                    aux entries pointers k))
+      in
+      aux (new_entries ()) pointers Fun.id
 
     let hash t = Lazy.force t.hash
 
@@ -1570,6 +1583,13 @@ struct
       let v = I.of_inode la ~depth ~length entries in
       Some (Partial (la, v))
 
+    let classify entries =
+      let r = ref [] in
+      for i = Array.length entries - 1 downto 0 do
+        match entries.(i) with None -> () | Some ptr -> r := (i, ptr) :: !r
+      done;
+      match !r with [ (i, ptr) ] -> `Singleton (i, ptr) | l -> `Entries l
+
     let to_elt t =
       let f la (v : _ I.t) =
         if v.stable then `Node (List.of_seq (I.seq la v))
@@ -1577,15 +1597,22 @@ struct
           match v.v with
           | I.Values n -> `Node (List.of_seq (StepMap.to_seq n))
           | I.Tree v ->
-              let entries = ref [] in
-              for i = Array.length v.entries - 1 downto 0 do
-                match v.entries.(i) with
-                | None -> ()
-                | Some ptr ->
-                    let h = I.Ptr.hash la ptr in
-                    entries := (i, h) :: !entries
-              done;
-              `Inode (v.length, !entries)
+              let target = I.Ptr.target ~cache:false ~force:false "to_elt" in
+              let return (i, ptr) = ([ i ], I.Ptr.hash la ptr) in
+              let rec aux : type a. _ I.tree -> (_ list -> a) -> a =
+               fun v k ->
+                match classify v.entries with
+                | `Entries es -> k (List.map return es)
+                | `Singleton (i, ptr) -> (
+                    let v = target ~depth:(v.depth + 1) la ptr in
+                    match v.v with
+                    | I.Tree v ->
+                        aux v (function
+                          | [ (index, entries) ] -> k [ (i :: index, entries) ]
+                          | entries -> k entries)
+                    | _ -> k [ return (i, ptr) ])
+              in
+              aux v (fun entries -> `Inode (v.length, entries))
       in
       apply t { f }
   end

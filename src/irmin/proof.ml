@@ -220,9 +220,7 @@ struct
   let dehydrate_stream_node v =
     match N.to_elt v with
     | `Node l -> P.Node l
-    | `Inode (length, proofs) ->
-        let proofs = List.map (fun (index, k) -> ([ index ], k)) proofs in
-        P.Inode { length; proofs }
+    | `Inode (length, proofs) -> P.Inode { length; proofs }
 
   let rehydrate_stream_node ~depth (elt : P.elt) h =
     match elt with
@@ -241,21 +239,6 @@ struct
                  depth pp_hash h)
         | Some v -> v)
     | Inode { length; proofs } ->
-        let proofs =
-          List.map
-            (fun (index, k) ->
-              let index =
-                match index with
-                | [ i ] -> i
-                | _ ->
-                    bad_stream_exn "rehydrate_stream_node"
-                      (Fmt.str
-                         "extender problem at depth %d when looking for hash %a"
-                         depth pp_hash h)
-              in
-              (index, k))
-            proofs
-        in
         let v =
           match N.of_inode ~depth ~length proofs with
           | None ->
