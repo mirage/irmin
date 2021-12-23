@@ -18,6 +18,8 @@
     -- this now means that the full `Tree` API can now be used in proofs,
     including sub-tree operations, folds and paginated lists
     (#1625, #1663, #1683, @samoht, @Ngoguey42)
+  - Add `Tree.produce_stream` and `Tree.verify_stream` to produce and
+    verify stream proofs (#1684, #1686, @samoht, @Ngoguey42, @icristescu)
 
 - **irmin-pack**
   - Verify inode depth invariants (#1665, @samoht)

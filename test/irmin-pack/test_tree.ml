@@ -355,6 +355,43 @@ let test_large_proofs () =
       Fmt.pr "- binary Merkle trees         : %dkB\n%!" k2)
     [ a; b; c; d ]
 
+module Custom = Make (struct
+  let entries = 2
+  let stable_hash = 2
+
+  let index ~depth step =
+    let ascii_code = Bytes.get step depth |> Char.code in
+    ascii_code - 48
+
+  let inode_child_order = `Custom index
+end)
+
+let pp_stream = Irmin.Type.pp (Custom.Tree.Proof.t Custom.Tree.Proof.stream_t)
+
+let test_extenders () =
+  let bindings1 =
+    [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
+  in
+  let bindings2 = ([ "10000" ], "x1") :: bindings1 in
+  let bindings3 = ([ "10001" ], "y") :: bindings2 in
+
+  let check_stream bindings =
+    let* ctxt = Custom.init_tree bindings in
+    let hash = `Node (Custom.Tree.hash ctxt.tree) in
+    let f t =
+      let+ v = Custom.Tree.get t [ "00000" ] in
+      Alcotest.(check string) "00000" "x" v;
+      (t, ())
+    in
+    let* p, () = Custom.Tree.produce_stream ctxt.repo hash f in
+    Logs.debug (fun l -> l "Verifying stream %a" pp_stream p);
+    let+ r = Custom.Tree.verify_stream p f in
+    match r with
+    | Ok (_, ()) -> ()
+    | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
+  in
+  Lwt_list.iter_s check_stream [ bindings1; bindings2; bindings3 ]
+
 let tests =
   [
     Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
@@ -371,4 +408,6 @@ let tests =
         Lwt_main.run (test_deeper_proof ()));
     Alcotest.test_case "test large Merkle proof" `Slow (fun () ->
         Lwt_main.run (test_large_proofs ()));
+    Alcotest.test_case "test extenders in stream proof" `Quick (fun () ->
+        Lwt_main.run (test_extenders ()));
   ]

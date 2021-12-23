@@ -848,17 +848,6 @@ struct
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
       | Blinded_root -> Error `Blinded_root
 
-    let of_inode la ~depth ~length pointers : _ t =
-      let hash v = Bin.V.hash (to_bin_v la v) in
-      let entries = Array.make Conf.entries None in
-      List.iter
-        (fun (index, hash) ->
-          let ptr = Ptr.of_hash la hash in
-          entries.(index) <- Some ptr)
-        pointers;
-      let v = Tree { depth; length; entries } in
-      { hash = lazy (hash v); stable = false; v }
-
     let hash t = Lazy.force t.hash
 
     let is_root t =
@@ -1097,6 +1086,35 @@ struct
     let of_values la ~depth l =
       if depth = 0 then of_seq la (List.to_seq l)
       else values la (StepMap.of_list l)
+
+    let of_inode la ~depth ~length proofs =
+      let hash v = Bin.V.hash (to_bin_v la v) in
+      let new_entries () = Array.make Conf.entries None in
+      let rec aux entries proofs k =
+        match proofs with
+        | [] ->
+            let v = Tree { depth; length; entries } in
+            k { hash = lazy (hash v); stable = false; v }
+        | (index, hash) :: proofs -> (
+            match index with
+            | [] -> assert false
+            | [ index ] ->
+                let ptr = Ptr.of_hash la hash in
+                entries.(index) <- Some ptr;
+                aux entries proofs k
+            | index :: rest ->
+                let entries = new_entries () in
+                aux entries [ (rest, hash) ] (fun t ->
+                    let ptr = Ptr.of_target la t in
+                    entries.(index) <- Some ptr;
+                    aux entries proofs k))
+      in
+      aux (new_entries ()) proofs Fun.id
+
+    let of_elt la ~depth e =
+      match e with
+      | `Node n -> Some (of_values la ~depth n)
+      | `Inode (length, proofs) -> Some (of_inode la ~length ~depth proofs)
 
     let save layout ~add ~mem t =
       let clear =
@@ -1439,11 +1457,6 @@ struct
     let of_seq l = Total (I.of_seq Total l)
     let of_list l = of_seq (List.to_seq l)
 
-    let of_values ~depth l =
-      let find ~expected_depth:_ _ = assert false in
-      let la = I.Partial find in
-      Some (Partial (la, I.of_values la ~depth l))
-
     let seq ?offset ?length ?cache t =
       apply t { f = (fun layout v -> I.seq layout ?offset ?length ?cache v) }
 
@@ -1564,11 +1577,11 @@ struct
           let la = I.Partial find_ptr in
           Partial (la, v)
 
-    let of_inode ~depth ~length entries =
+    let of_elt ~depth entries =
       let find ~expected_depth:_ = assert false in
       let la = I.Partial find in
-      let v = I.of_inode la ~depth ~length entries in
-      Some (Partial (la, v))
+      let v = I.of_elt la ~depth entries in
+      Option.map (fun v -> Partial (la, v)) v
 
     let to_elt t =
       let f la (v : _ I.t) =
@@ -1583,7 +1596,7 @@ struct
                 | None -> ()
                 | Some ptr ->
                     let h = I.Ptr.hash la ptr in
-                    entries := (i, h) :: !entries
+                    entries := ([ i ], h) :: !entries
               done;
               `Inode (v.length, !entries)
       in

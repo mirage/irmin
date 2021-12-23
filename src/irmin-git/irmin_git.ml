@@ -358,8 +358,7 @@ struct
 
       let with_handler _ n = n
       let to_elt t = `Node (list t)
-      let of_values ~depth:_ l = Some (of_list l)
-      let of_inode ~depth:_ ~length:_ _ = None
+      let of_elt ~depth:_ = function `Node l -> Some (of_list l) | _ -> None
     end
 
     include Content_addressable (struct

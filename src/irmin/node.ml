@@ -144,8 +144,7 @@ struct
         Some (of_entries e)
 
   let to_elt t = `Node (list t)
-  let of_values ~depth:_ l = Some (of_list l)
-  let of_inode ~depth:_ ~length:_ _ = None
+  let of_elt ~depth:_ = function `Node l -> Some (of_list l) | _ -> None
   let with_handler _ t = t
 
   exception Dangling_hash of { context : string; hash : hash }
@@ -433,10 +432,7 @@ module V1 (N : S with type step = string) = struct
   let of_proof p = Option.map import (N.of_proof p)
   let with_handler _ t = t
   let to_elt t = N.to_elt t.n
-  let of_values ~depth t = Option.map import (N.of_values ~depth t)
-
-  let of_inode ~depth ~length p =
-    Option.map import (N.of_inode ~depth ~length p)
+  let of_elt ~depth t = Option.map import (N.of_elt ~depth t)
 
   let of_seq entries =
     let n = N.of_seq entries in
