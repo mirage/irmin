@@ -383,9 +383,7 @@ let test_extenders () =
       Alcotest.(check string) "00000" "x" v;
       (t, ())
     in
-    let* p, () =
-      Custom.Tree.produce_stream ~with_extenders:true ctxt.repo hash f
-    in
+    let* p, () = Custom.Tree.produce_stream ctxt.repo hash f in
     Logs.debug (fun l -> l "Verifying stream %a" pp_stream p);
     let+ _, () = Custom.Tree.verify_stream p f in
     ()
@@ -408,4 +406,6 @@ let tests =
         Lwt_main.run (test_deeper_proof ()));
     Alcotest.test_case "test large Merkle proof" `Slow (fun () ->
         Lwt_main.run (test_large_proofs ()));
+    Alcotest.test_case "test extenders" `Quick (fun () ->
+        Lwt_main.run (test_extenders ()));
   ]
