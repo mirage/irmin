@@ -15,7 +15,15 @@
  *)
 
 module Find : sig
-  type location = Staging | Lru | Pack_direct | Pack_indexed | Not_found
+  type location =
+    | Staging  (** Found in the store's write buffer. *)
+    | Lru  (** Found in the store's LRU of recent [find] results. *)
+    | Pack_direct
+        (** Decoded directly from the pack file (via a direct key). *)
+    | Pack_indexed
+        (** Binding recovered from the pack file after first checking the index
+            for its offset and length (via an indexed key). *)
+    | Not_found  (** Find returned [None]. *)
   [@@deriving irmin]
 
   type t = {
