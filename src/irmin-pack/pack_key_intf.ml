@@ -60,6 +60,27 @@ module type Sigs = sig
             Such keys result from decoding pointers to other store objects
             (nodes or commits) from commits or from the branch store. *)
 
+  (** {2 Undereferencable keys}
+
+      A key [k] is "undereferencable" with respect to some store handle [t] if
+      [find t k <> Some _]. Such keys should not arise during regular operation
+      of a single Irmin repository, but are still technically constructible in
+      the following ways:
+
+      - {b storage corruption}. When decoding a key from disk, we may not
+        immediately check that it is dereferenceable for performance reasons. In
+        this case, any corruption to the key (or the referenced section of the
+        store) will be discovered on attempted [find] (or [mem]).
+
+      - {b passing keys between store handles}. Read-only handles on a pack
+        store must explicitly {i sync} to observe recent writes to the store.
+        This means that any keys built by a read-write instance and passed to a
+        read-only instance will be undereferencable until that reader has
+        synced.
+
+      - {b passing keys between repositories}. Keys created for one Irmin
+        repository may not be dereferenced with respect to another by design. *)
+
   val inspect : 'hash t -> 'hash state
   val v_direct : hash:'h -> offset:int63 -> length:int -> 'h t
   val v_indexed : 'h -> 'h t
