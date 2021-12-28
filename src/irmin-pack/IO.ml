@@ -26,7 +26,7 @@ module Unix : S = struct
 
   type t = {
     file : string;
-    mutable raw : Raw.t;
+    raw : Raw.t;
     mutable offset : int63;
     mutable flushed : int63;
     readonly : bool;

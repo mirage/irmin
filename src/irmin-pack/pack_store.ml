@@ -75,7 +75,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   type hash = K.t
 
   type 'a t = {
-    mutable block : IO.t;
+    block : IO.t;
     index : Index.t;
     indexing_strategy : Indexing_strategy.t;
     dict : Dict.t;
