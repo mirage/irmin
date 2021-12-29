@@ -89,7 +89,7 @@ module Closeable (AW : S) = struct
     check_not_closed t;
     AW.clear t.t
 
-  let flush t =
+  let sync t =
     check_not_closed t;
-    AW.flush t.t
+    AW.sync t.t
 end

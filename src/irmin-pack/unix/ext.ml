@@ -129,6 +129,8 @@ module Maker (Config : Conf.S) = struct
         let branch_t t = t.branch
 
         let batch t f =
+          let readonly = Conf.readonly t.config in
+          if readonly then failwith "Can't batch an RO pack store";
           Commit.CA.batch t.commit (fun commit ->
               Node.CA.batch t.node (fun node ->
                   Contents.CA.batch t.contents (fun contents ->
@@ -171,12 +173,6 @@ module Maker (Config : Conf.S) = struct
           (f := fun () -> Contents.CA.flush ~index:false contents);
           { contents; node; commit; branch; config; index }
 
-        let close t =
-          Index.close t.index;
-          Contents.CA.close (contents_t t) >>= fun () ->
-          Node.CA.close (snd (node_t t)) >>= fun () ->
-          Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
-
         let v config =
           Lwt.catch
             (fun () -> unsafe_v config)
@@ -189,12 +185,64 @@ module Maker (Config : Conf.S) = struct
                   Lwt.fail e
               | e -> Lwt.fail e)
 
-        (** Stores share instances in memory, one sync is enough. *)
-        let sync t = Contents.CA.sync (contents_t t)
+        (** For crash consistency and SWMR consistency, the order in which we
+            [flush], [sync] and [clear] the various files should carefuly chosen
+            in order to avoid introducing dangling references from file to file.
+
+            There are 4 types of files (called components below), the ones in
+            index, the dict, the pack file and the branch one. Here are the
+            relations between them:
+
+            - the branch store references commit hashes in index,
+            - index references pack entries,
+            - the pack file references dict entries and
+            - the dict references nothing.
+
+            In case of crash (or an ro instance that concurrently syncs), the
+            [clear] the order should be: branch, index, pack and dict.
+
+            In case an rw instance concurrently flushes, the [sync] the order
+            should be: branch, index, pack and dict.
+
+            In case of new data in the 4 components that reference one another
+            and in case of crash (or an ro instance that concurrently syncs),
+            the [flush] order should be: dict, pack, index and branch.
+
+            It is expected that the branch store is always in a flushed state
+            and that it doesn't reference commits that weren't flushed to index.
+            For each operation:
+
+            - Irmin core should ensure that [clear] is applied on the branch
+              store before the others.
+            - [sync] below ensures that the branch store is synced before the
+              others.
+            - Irmin core should ensure that the branch store never [flush]es
+              during a [batch] (because we only add entries to the 3 other
+              components during [batch] and because we flush them at the end of
+              it). *)
+        let sync t =
+          let readonly = Conf.readonly t.config in
+          if not readonly then failwith "Can't sync a RW pack store";
+          Branch.sync t.branch;
+          (* Contents/Commit/Node stores share instances in memory, one sync is
+             enough. *)
+          Contents.CA.sync (contents_t t)
 
         let flush t =
-          Contents.CA.flush (contents_t t);
-          Branch.flush t.branch
+          let readonly = Conf.readonly t.config in
+          if readonly then failwith "Can't flush an RO pack store";
+          (* Contents/Commit/Node stores share instances in memory, one flush is
+             enough. *)
+          Contents.CA.flush (contents_t t)
+
+        let close t =
+          let readonly = Conf.readonly t.config in
+          if not readonly then flush t;
+          (* As we've flushed, close order doesn't matter *)
+          Index.close t.index;
+          Contents.CA.close (contents_t t) >>= fun () ->
+          Node.CA.close (snd (node_t t)) >>= fun () ->
+          Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
       end
     end
 

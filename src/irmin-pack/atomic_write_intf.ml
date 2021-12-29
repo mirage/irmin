@@ -17,7 +17,7 @@
 module type S = sig
   include Irmin.Atomic_write.S
 
-  val flush : t -> unit
+  val sync : t -> unit
 end
 
 module type Persistent = sig

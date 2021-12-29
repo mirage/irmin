@@ -93,9 +93,9 @@ module Make (IO : IO.S) : S = struct
     t
 
   let close t =
+    (* If called from ext, flush was already called *)
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.io) then flush t;
       IO.close t.io;
       Hashtbl.reset t.cache;
       Hashtbl.reset t.index)

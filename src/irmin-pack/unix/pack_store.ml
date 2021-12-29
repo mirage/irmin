@@ -84,9 +84,13 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.block) then IO.flush t.block;
-      IO.close t.block;
-      Dict.close t.dict)
+      Dict.close t.dict;
+      IO.close t.block)
+
+  let clear t =
+    Index.clear t.index;
+    IO.truncate t.block;
+    Dict.truncate t.dict
 
   module Make_without_close_checks
       (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
@@ -116,11 +120,6 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let index t hash = Lwt.return (index_direct t hash)
 
-    let clear t =
-      if IO.offset t.block <> Int63.zero then (
-        Index.clear t.index;
-        IO.truncate t.block)
-
     let unsafe_clear t =
       clear t.pack;
       Tbl.clear t.staging;
@@ -144,9 +143,9 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       else false
 
     let flush ?(index = true) ?(index_merge = false) t =
-      if index_merge then Index.merge t.pack.index;
       Dict.flush t.pack.dict;
       IO.flush t.pack.block;
+      if index_merge then Index.merge t.pack.index;
       if index then Index.flush t.pack.index;
       Tbl.clear t.staging
 
@@ -431,6 +430,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let* r = f (cast t) in
       if Tbl.length t.staging = 0 then Lwt.return r
       else (
+        (* Since [batch] doesn't act on the branch store, it is ok to flush
+           here without worrying about it. *)
         flush t;
         Lwt.return r)
 
@@ -499,6 +500,11 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         close t.pack)
 
     let close t =
+      (* It is expected that a flush was performed before [close]. Otherwise
+         data is lost. (ext takes care about it).
+
+         This function does not flush because index is expected to already be
+         closed. *)
       unsafe_close t;
       Lwt.return_unit
 
@@ -514,8 +520,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let former_offset = IO.offset t.pack.block in
       let offset = IO.force_offset t.pack.block in
       if offset > former_offset then (
-        Dict.sync t.pack.dict;
-        Index.sync t.pack.index)
+        Index.sync t.pack.index;
+        Dict.sync t.pack.dict)
 
     let offset t = IO.offset t.pack.block
   end

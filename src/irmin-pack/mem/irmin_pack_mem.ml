@@ -21,7 +21,7 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Hash.S) = struct
   include AW
 
   let v () = AW.v (Irmin_mem.config ())
-  let flush _t = ()
+  let sync _t = ()
 end
 
 module Indexable_mem

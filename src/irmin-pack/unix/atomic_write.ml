@@ -92,14 +92,8 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     in
     aux ()
 
-  let sync_offset t =
-    let former_offset = IO.offset t.block in
-    let offset = IO.force_offset t.block in
-    if offset > former_offset then refill t ~to_:offset ~from:former_offset
-
   let unsafe_find t k =
     [%log.debug "[branches] find %a" pp_key k];
-    if IO.readonly t.block then sync_offset t;
     try Some (Tbl.find t.cache k) with Not_found -> None
 
   let find t k = Lwt.return (unsafe_find t k)
@@ -205,5 +199,9 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     else Lwt.return_unit
 
   let close t = unsafe_close t
-  let flush t = IO.flush t.block
+
+  let sync t =
+    let former_offset = IO.offset t.block in
+    let offset = IO.force_offset t.block in
+    if offset > former_offset then refill t ~to_:offset ~from:former_offset
 end
