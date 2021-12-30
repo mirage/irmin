@@ -142,6 +142,7 @@
     - `Irmin_git.dot_git` is now `Irmin_git.Conf.dot_git`
    (#1347, @samoht)
   - Renamed `Irmin_git.Make` into `Irmin_git.Maker` (#1369, @samoht)
+  -  Require at least `git.3.7.0` in the codebase (#1632, @dinosaure)
 
 - **irmin-graphql**:
   - Changed the name of the default branch node from `master` to `main` in the
