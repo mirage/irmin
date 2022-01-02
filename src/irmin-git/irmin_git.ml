@@ -352,14 +352,12 @@ struct
       type proof = N.proof [@@deriving irmin]
 
       let to_proof t = N.to_proof (to_n t)
-      let of_proof p = Option.map of_n (N.of_proof p)
+      let of_proof ~depth p = Option.map of_n (N.of_proof ~depth p)
 
       exception Dangling_hash of { context : string; hash : hash }
 
       let with_handler _ n = n
-      let to_elt t = `Node (list t)
-      let of_values ~depth:_ l = Some (of_list l)
-      let of_inode ~depth:_ ~length:_ _ = None
+      let head t = `Node (list t)
     end
 
     include Content_addressable (struct

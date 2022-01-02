@@ -58,7 +58,8 @@ let check_exn_lwt ~exn_type pos f =
         | `Pruned_hash -> "Pruned_hash"))
     (fun exn ->
       match (exn_type, exn) with
-      | `Dangling_hash, Tree.Dangling_hash _ -> Lwt.return_unit
+      | `Dangling_hash, Store.Private.Node.Val.Dangling_hash _ ->
+          Lwt.return_unit
       | `Pruned_hash, Tree.Pruned_hash _ -> Lwt.return_unit
       | _ -> Lwt.fail exn)
 

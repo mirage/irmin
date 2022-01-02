@@ -136,16 +136,15 @@ struct
     let e = List.map of_entry (entries t) in
     `Values e
 
-  let of_proof (t : proof) =
+  let of_proof ~depth (t : proof) =
+    assert (depth = 0);
     match t with
     | `Blinded _ | `Inode _ -> None
     | `Values e ->
         let e = List.map to_entry e in
         Some (of_entries e)
 
-  let to_elt t = `Node (list t)
-  let of_values ~depth:_ l = Some (of_list l)
-  let of_inode ~depth:_ ~length:_ _ = None
+  let head t = `Node (list t)
   let with_handler _ t = t
 
   exception Dangling_hash of { context : string; hash : hash }
@@ -153,9 +152,7 @@ struct
   let () =
     Printexc.register_printer (function
       | Dangling_hash { context; hash } ->
-          Some
-            (Fmt.str "Irmin.Node.%s: encountered dangling hash %a" context
-               pp_hash hash)
+          Some (Fmt.str "%s: encountered dangling hash %a" context pp_hash hash)
       | _ -> None)
 end
 
@@ -430,13 +427,9 @@ module V1 (N : S with type step = string) = struct
   let import n = { n; entries = N.list n }
   let export t = t.n
   let to_proof t = N.to_proof t.n
-  let of_proof p = Option.map import (N.of_proof p)
+  let of_proof ~depth p = Option.map import (N.of_proof ~depth p)
   let with_handler _ t = t
-  let to_elt t = N.to_elt t.n
-  let of_values ~depth t = Option.map import (N.of_values ~depth t)
-
-  let of_inode ~depth ~length p =
-    Option.map import (N.of_inode ~depth ~length p)
+  let head t = N.head t.n
 
   let of_seq entries =
     let n = N.of_seq entries in

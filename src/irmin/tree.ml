@@ -177,28 +177,28 @@ module Make (P : Private.S) = struct
   let equal_node = Type.(unstage (equal P.Node.Val.t))
 
   exception Pruned_hash of { context : string; hash : hash }
-  exception Dangling_hash of { context : string; hash : hash }
 
   let () =
     Printexc.register_printer (function
-      | Dangling_hash { context; hash } ->
-          Some
-            (Fmt.str "Irmin.Tree.%s: encountered dangling hash %a" context
-               pp_hash hash)
       | Pruned_hash { context; hash } ->
-          Some
-            (Fmt.str "Irmin.Tree.%s: encountered pruned hash %a" context pp_hash
-               hash)
+          Some (Fmt.str "%s: encountered pruned hash %a" context pp_hash hash)
       | _ -> None)
 
   let err_pruned h = Error (`Pruned_hash h)
-  let raise_pruned context hash = raise (Pruned_hash { context; hash })
+
+  let raise_pruned_hash c hash =
+    let context = "Irmin.Tree." ^ c in
+    raise (Pruned_hash { context; hash })
+
+  let raise_dangling_hash c hash =
+    let context = "Irmin.Tree." ^ c in
+    raise (P.Node.Val.Dangling_hash { context; hash })
 
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
     | Ok x -> x
-    | Error (`Pruned_hash hash) -> raise_pruned context hash
-    | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
+    | Error (`Pruned_hash hash) -> raise_pruned_hash context hash
+    | Error (`Dangling_hash hash) -> raise_dangling_hash context hash
 
   module Env = Proof.Env (P.Hash) (P.Contents.Val) (P.Node.Val) (Tree_proof)
 
@@ -319,10 +319,8 @@ module Make (P : Private.S) = struct
     let force_exn t =
       force t >|= function
       | Ok v -> v
-      | Error (`Pruned_hash hash) ->
-          raise (Pruned_hash { context = "force_exn"; hash })
-      | Error (`Dangling_hash hash) ->
-          raise (Dangling_hash { context = "force_exn"; hash })
+      | Error (`Pruned_hash hash) -> raise_pruned_hash "force_exn" hash
+      | Error (`Dangling_hash hash) -> raise_dangling_hash "force_exn" hash
 
     let equal (x : t) (y : t) =
       x == y
@@ -365,7 +363,7 @@ module Make (P : Private.S) = struct
       match force with
       | `True ->
           let* c = to_value ~cache t in
-          f_value path (get_ok "fold" c) acc >>= f_tree path
+          f_value path (get_ok "Contents.fold" c) acc >>= f_tree path
       | `False skip -> (
           match cached_value t with
           | None -> skip path acc
@@ -742,7 +740,7 @@ module Make (P : Private.S) = struct
       | Some m -> StepMap.cardinal m |> Lwt.return
       | None ->
           let+ v = to_value ~cache t in
-          get_ok "length" v |> P.Node.Val.length
+          get_ok "Node.length" v |> P.Node.Val.length
 
     let is_empty ~cache t =
       match cached_map t with
@@ -794,7 +792,7 @@ module Make (P : Private.S) = struct
             | Some v -> return (of_value repo v)
             | None -> (
                 match repo with
-                | None -> raise_pruned "Node.find" h
+                | None -> raise_pruned_hash "Node.find" h
                 | Some repo ->
                     bind (value_of_hash ~cache t repo h) (fun v ->
                         let v = get_ok ctx v in
@@ -927,18 +925,18 @@ module Make (P : Private.S) = struct
           | `True -> (
               match (order, t.v) with
               | `Random state, _ ->
-                  let* m = to_map ~cache t >|= get_ok "fold" in
+                  let* m = to_map ~cache t >|= get_ok "Node.fold" in
                   let arr = StepMap.to_array m in
                   let () = shuffle state arr in
                   let s = Array.to_seq arr in
                   (seq [@tailcall]) ~path acc d s k
               | `Sorted, _ | `Undefined, Map _ ->
-                  let* m = to_map ~cache t >|= get_ok "fold" in
+                  let* m = to_map ~cache t >|= get_ok "Node.fold" in
                   (map [@tailcall]) ~path acc d (Some m) k
               | `Undefined, Value (repo, v, updates) ->
                   (value [@tailcall]) ~path acc d (repo, v, updates) k
               | `Undefined, Hash (repo, _) ->
-                  let* v = to_value ~cache t >|= get_ok "fold" in
+                  let* v = to_value ~cache t >|= get_ok "Node.fold" in
                   (value [@tailcall]) ~path acc d (repo, v, None) k)
           | `False skip -> (
               match cached_map t with
@@ -1046,10 +1044,10 @@ module Make (P : Private.S) = struct
           | _, Some m -> Lwt.return (of_map m)
           | None, None -> (
               match repo with
-              | None -> raise_pruned "update" h
+              | None -> raise_pruned_hash "Node.update" h
               | Some repo ->
                   let+ v =
-                    value_of_hash ~cache:true t repo h >|= get_ok "update"
+                    value_of_hash ~cache:true t repo h >|= get_ok "Node.update"
                   in
                   of_value (Some repo) v StepMap.empty))
 
@@ -1494,10 +1492,10 @@ module Make (P : Private.S) = struct
     in
     let rec on_node (`Node n) k =
       match n.Node.v with
-      | Node.Hash (None, h) -> raise_pruned "export.node" h
+      | Node.Hash (None, h) -> raise_pruned_hash "export.node" h
       | Node.Value (None, _, _) ->
           let h = Node.hash ~cache:false n in
-          raise_pruned "export" h
+          raise_pruned_hash "export" h
       | Node.Hash (Some _, h) ->
           Node.export ?clear (Some repo) n h;
           k ()
@@ -1542,7 +1540,7 @@ module Make (P : Private.S) = struct
               k ())
     and on_contents (`Contents (c, _)) k =
       match c.Contents.v with
-      | Contents.Hash (None, h) -> raise_pruned "export.contents" h
+      | Contents.Hash (None, h) -> raise_pruned_hash "export.contents" h
       | Contents.Hash (Some repo, key) ->
           Contents.export ?clear repo c key;
           k ()
@@ -1987,7 +1985,7 @@ module Make (P : Private.S) = struct
         match proofs with
         | [] ->
             let np = `Inode (len, List.rev acc) in
-            let v = P.Node.Val.of_proof np in
+            let v = P.Node.Val.of_proof ~depth:0 np in
             let v =
               match v with
               | None -> Proof.bad_proof_exn "Invalid proof"
@@ -2135,6 +2133,9 @@ module Make (P : Private.S) = struct
         let+ r = verify_stream_exn p f in
         Ok r)
       (function
-        | Irmin_proof.Bad_stream e -> Lwt.return (Error (`Msg e.context))
+        | Irmin_proof.Bad_stream e ->
+            Fmt.kstr
+              (fun e -> Lwt.return (Error (`Msg e)))
+              "Bad_stream %s: %s" e.context e.reason
         | e -> Lwt.fail e)
 end

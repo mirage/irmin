@@ -109,17 +109,15 @@ module type S = sig
   (** The type for proof trees. *)
 
   val to_proof : t -> proof
-  val of_proof : proof -> t option
+  val of_proof : depth:int -> proof -> t option
 
   exception Dangling_hash of { context : string; hash : hash }
 
-  type elt :=
+  type head :=
     [ `Node of (step * value) list | `Inode of int * (int * hash) list ]
   [@@deriving irmin]
 
-  val to_elt : t -> elt
-  val of_values : depth:int -> (step * value) list -> t option
-  val of_inode : depth:int -> length:int -> (int * hash) list -> t option
+  val head : t -> head
 
   (** {1 Recursive Nodes} *)
 

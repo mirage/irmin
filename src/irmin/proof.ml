@@ -209,22 +209,22 @@ struct
   module Contents_hash = Hash.Typed (H) (C)
   module Node_hash = Hash.Typed (H) (N)
 
-  let bad_stream_exn s = bad_stream_exn ("Proof.Env." ^ s)
+  let bad_stream_exn s fmt = Fmt.kstr (bad_stream_exn ("Proof.Env." ^ s)) fmt
 
   let check_contents_integrity v h =
     let h' = Contents_hash.hash v in
     if not (equal_hash h' h) then
-      bad_stream_exn "check_contents_integrity"
-        (Fmt.str "got %a expected %a" pp_hash h' pp_hash h)
+      bad_stream_exn "check_contents_integrity" "got %a expected %a" pp_hash h'
+        pp_hash h
 
   let check_node_integrity v h =
     let h' = Node_hash.hash v in
     if not (equal_hash h' h) then
-      bad_stream_exn "check_node_integrity"
-        (Fmt.str "got %a expected %a" pp_hash h' pp_hash h)
+      bad_stream_exn "check_node_integrity" "got %a expected %a" pp_hash h'
+        pp_hash h
 
   let dehydrate_stream_node v =
-    match N.to_elt v with
+    match N.head v with
     | `Node l -> P.Node l
     | `Inode (length, proofs) ->
         let proofs = List.map (fun (index, k) -> ([ index ], k)) proofs in
@@ -234,17 +234,14 @@ struct
     match elt with
     | Contents _ ->
         bad_stream_exn "rehydrate_stream_node"
-          (Fmt.str
-             "found contents at depth %d when looking for node with hash %a"
-             depth pp_hash h)
+          "found contents at depth %d when looking for node with hash %a" depth
+          pp_hash h
     | Node l -> (
-        match N.of_values ~depth l with
+        match N.of_proof ~depth (`Values l) with
         | None ->
             bad_stream_exn "rehydrate_stream_node"
-              (Fmt.str
-                 "could not deserialise Node at depth %d when looking for hash \
-                  %a"
-                 depth pp_hash h)
+              "could not deserialise Node at depth %d when looking for hash %a"
+              depth pp_hash h
         | Some v -> v)
     | Inode { length; proofs } ->
         let proofs =
@@ -252,24 +249,22 @@ struct
             (fun (index, k) ->
               let index =
                 match index with
-                | [ i ] -> i
+                | [ i ] -> [ i ]
                 | _ ->
                     bad_stream_exn "rehydrate_stream_node"
-                      (Fmt.str
-                         "extender problem at depth %d when looking for hash %a"
-                         depth pp_hash h)
+                      "extender problem at depth %d when looking for hash %a"
+                      depth pp_hash h
               in
-              (index, k))
+              (index, `Blinded k))
             proofs
         in
         let v =
-          match N.of_inode ~depth ~length proofs with
+          match N.of_proof ~depth (`Inode (length, proofs)) with
           | None ->
               bad_stream_exn "rehydrate_stream_node"
-                (Fmt.str
-                   "could not deserialise Inode at depth %d when looking for \
-                    hash %a"
-                   depth pp_hash h)
+                "could not deserialise Inode at depth %d when looking for hash \
+                 %a"
+                depth pp_hash h
           | Some v -> v
         in
         v
@@ -278,10 +273,10 @@ struct
     match elt with
     | Node _ ->
         bad_stream_exn "find_contents"
-          (Fmt.str "found Node when looking Contents with hash %a" pp_hash h)
+          "found Node when looking Contents with hash %a" pp_hash h
     | Inode _ ->
         bad_stream_exn "find_contents"
-          (Fmt.str "found Inode when looking Contents with hash %a" pp_hash h)
+          "found Inode when looking Contents with hash %a" pp_hash h
     | Contents v -> v
 
   let find_contents t h =
@@ -312,7 +307,7 @@ struct
             match !stream () with
             | Seq.Nil ->
                 bad_stream_exn "find_contents"
-                  (Fmt.str "empty stream when looking for hash %a" pp_hash h)
+                  "empty stream when looking for hash %a" pp_hash h
             | Cons (elt, rest) ->
                 let v = rehydrate_stream_contents elt h in
                 check_contents_integrity v h;
@@ -366,7 +361,7 @@ struct
             match !stream () with
             | Seq.Nil ->
                 bad_stream_exn "find_recnode"
-                  (Fmt.str "empty stream when looking for hash %a" pp_hash h)
+                  "empty stream when looking for hash %a" pp_hash h
             | Cons (v, rest) ->
                 let v = rehydrate_stream_node ~depth:expected_depth v h in
                 (* There is no need to apply [with_handler] here because there
@@ -407,7 +402,7 @@ struct
             match !stream () with
             | Seq.Nil ->
                 bad_stream_exn "find_node"
-                  (Fmt.str "empty stream when looking for hash %a" pp_hash h)
+                  "empty stream when looking for hash %a" pp_hash h
             | Cons (v, rest) ->
                 (* [depth] is 0 because this context deals with root nodes *)
                 let v = rehydrate_stream_node ~depth:0 v h in
