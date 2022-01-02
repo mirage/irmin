@@ -57,19 +57,19 @@ module Make
     (P : Irmin.Path.S)
     (B : Irmin.Branch.S) =
 struct
-  include Irmin_git.Make (G) (Git.Mem.Sync (G) (Git_paf)) (C) (P) (B)
+  include Irmin_git.Make (G) (Git.Mem.Sync (G)) (C) (P) (B)
 
   let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module Ref (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.Ref (G) (Git.Mem.Sync (G) (Git_paf)) (C)
+  include Irmin_git.Ref (G) (Git.Mem.Sync (G)) (C)
 
   let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end
 
 module KV (G : Irmin_git.G) (C : Irmin.Contents.S) = struct
-  include Irmin_git.KV (G) (Git.Mem.Sync (G) (Git_paf)) (C)
+  include Irmin_git.KV (G) (Git.Mem.Sync (G)) (C)
 
   let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
 end

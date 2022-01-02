@@ -39,6 +39,9 @@
   - irmin-pack: add an option to configure the index function and pick
     the relevant bits in cryptographic a hash by default (#1677, @samoht)
 
+- **irmin-git**
+  -  Require at least `git.3.7.0` in the codebase (#1637, @dinosaure)
+
 ## 2.9.0 (2021-11-15)
 
 ### Fixed

@@ -27,7 +27,6 @@ depends: [
   "logs"
   "lwt"        {>= "5.3.0"}
   "uri"
-  "git-cohttp-unix" {with-test}
   "irmin-test" {with-test & = version}
   "git-unix"   {with-test}
   "mtime"      {with-test & >= "1.0.0"}
