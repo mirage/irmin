@@ -1666,7 +1666,7 @@ module Make (S : S) = struct
         [
           Blinded_node wrong_hash;
           Node [];
-          Inode { length = 0; proofs = [] };
+          Inode { length = 1024; proofs = [] };
           Blinded_contents (wrong_hash, S.Metadata.default);
           Contents ("yo", S.Metadata.default);
         ]
@@ -1702,7 +1702,7 @@ module Make (S : S) = struct
         [
           s [];
           s [ Node [] ];
-          s [ Inode { length = 0; proofs = [] } ];
+          s [ Inode { length = 1024; proofs = [] } ];
           s [ Contents "yo" ];
           s (ok @ [ Node [] ]);
         ]

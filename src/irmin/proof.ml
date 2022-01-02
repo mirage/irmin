@@ -28,31 +28,38 @@ struct
   type hash = H.t [@@deriving irmin]
   type step = S.step [@@deriving irmin]
   type metadata = M.t [@@deriving irmin]
+  type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
 
-  type 'a inode = { length : int; proofs : (int list * 'a) list }
+  type 'a inode_extender = { length : int; segments : int list; proof : 'a }
   [@@deriving irmin]
 
   type kinded_hash = [ `Node of hash | `Contents of hash * metadata ]
   [@@deriving irmin]
 
   type tree =
-    | Blinded_node of hash
-    | Node of (step * tree) list
-    | Inode of inode_tree inode
-    | Blinded_contents of hash * metadata
     | Contents of contents * metadata
+    | Blinded_contents of hash * metadata
+    | Node of (step * tree) list
+    | Blinded_node of hash
+    | Inode of inode_tree inode
+    | Extender of inode_tree inode_extender
   [@@deriving irmin]
 
   and inode_tree =
     | Blinded_inode of hash
     | Inode_values of (step * tree) list
     | Inode_tree of inode_tree inode
+    | Inode_extender of inode_tree inode_extender
+  [@@deriving irmin]
+
+  type elt_segment = Simple of int | Extender of int * int list
   [@@deriving irmin]
 
   type elt =
+    | Contents of contents
     | Node of (step * kinded_hash) list
     | Inode of hash inode
-    | Contents of contents
+    | Inode_extender of hash inode_extender
   [@@deriving irmin]
 
   type stream = elt Seq.t [@@deriving irmin]
@@ -112,7 +119,11 @@ struct
   module Stream = struct
     let ref_t v = Type.map v ref ( ! )
 
-    type produce = { set : unit Hashes.t; rev_elts : P.elt list ref }
+    type produce = {
+      set : unit Hashes.t;
+      singleton_inodes : (int * H.t) Hashes.t;
+      rev_elts : (H.t * P.elt) list ref;
+    }
     [@@deriving irmin]
 
     type consume = {
@@ -123,6 +134,12 @@ struct
     [@@deriving irmin]
 
     type t = Produce of produce | Consume of consume [@@deriving irmin]
+
+    let producer () =
+      let set = Hashes.create 13 in
+      let singleton_inodes = Hashes.create 13 in
+      let rev_elts = ref [] in
+      Produce { set; singleton_inodes; rev_elts }
   end
 
   type v = Empty | Set of Set.t | Stream of Stream.t [@@deriving irmin]
@@ -132,9 +149,65 @@ struct
   let empty () : t = ref Empty
   let is_empty t = !t = Empty
 
+  type hash = H.t [@@deriving irmin ~equal ~pp]
+
+  let rec forward_lookup h singleton_inodes : (int * hash) list option =
+    match Hashes.find_opt singleton_inodes h with
+    | None -> None
+    | Some (i', h') -> (
+        match forward_lookup h' singleton_inodes with
+        | None -> Some [ (i', h') ]
+        | Some l -> Some ((i', h') :: l))
+
+  let rec extenders (indexes, h) = function
+    | (i', h') :: rest -> extenders (i' :: indexes, h') rest
+    | [] -> (indexes, h)
+
+  let apply_extenders ~length singleton_inodes skips proofs =
+    let inode = P.Inode { length; proofs } in
+    match proofs with
+    | [ (i, h) ] -> (
+        match forward_lookup h singleton_inodes with
+        | None -> inode
+        | Some ls -> (
+            let () =
+              (* Push all hashes except the last one into [skips] *)
+              match List.rev ((i, h) :: ls) with
+              | [] | [ _ ] -> failwith "idk"
+              | _ :: tl -> List.iter (fun (_, h) -> Hashes.add skips h ()) tl
+            in
+            let i, h = extenders ([ i ], h) ls in
+            match i with
+            | [] | [ _ ] -> assert false
+            | segments -> P.Inode_extender { length; segments; proof = h }))
+    | _ -> inode
+
+  let post_processing singleton_inodes (stream : (hash * P.elt) list) :
+      P.elt list =
+    let skips = Hashes.create 13 in
+    (* [skips] are the elements of the [stream] that are included in the
+       extenders, they will be removed from the final stream. *)
+    let rec aux rev_elts = function
+      | [] -> List.rev rev_elts
+      | (h, elt) :: rest ->
+          if Hashes.mem skips h then aux rev_elts rest
+          else
+            let elt' : P.elt =
+              match (elt : P.elt) with
+              | P.Inode { length; proofs } ->
+                  apply_extenders ~length singleton_inodes skips proofs
+              | Node ls -> Node ls
+              | Contents c -> Contents c
+              | Inode_extender _ -> assert false
+            in
+            aux (elt' :: rev_elts) rest
+    in
+    aux [] stream
+
   let to_stream t =
     match !t with
-    | Stream (Produce { rev_elts; _ }) -> List.rev !rev_elts |> List.to_seq
+    | Stream (Produce { rev_elts; singleton_inodes; _ }) ->
+        List.rev !rev_elts |> post_processing singleton_inodes |> List.to_seq
     | _ -> assert false
 
   let is_empty_stream t =
@@ -166,8 +239,7 @@ struct
         | _ -> assert false)
     | Stream -> (
         match (!t, mode) with
-        | Empty, Produce ->
-            t := Stream (Produce { set = Hashes.create 13; rev_elts = ref [] })
+        | Empty, Produce -> t := Stream (Stream.producer ())
         | _ -> assert false)
 
   let with_set_consume f =
@@ -204,8 +276,6 @@ struct
     t := Empty;
     res
 
-  type hash = H.t [@@deriving irmin ~equal ~pp]
-
   module Contents_hash = Hash.Typed (H) (C)
   module Node_hash = Hash.Typed (H) (N)
 
@@ -226,57 +296,61 @@ struct
   let dehydrate_stream_node v =
     match N.head v with
     | `Node l -> P.Node l
-    | `Inode (length, proofs) ->
-        let proofs = List.map (fun (index, k) -> ([ index ], k)) proofs in
-        P.Inode { length; proofs }
+    | `Inode (length, proofs) -> P.Inode { length; proofs }
 
   let rehydrate_stream_node ~depth (elt : P.elt) h =
+    let bad_stream_exn = bad_stream_exn "rehydrate_stream_node" in
     match elt with
     | Contents _ ->
-        bad_stream_exn "rehydrate_stream_node"
+        bad_stream_exn
           "found contents at depth %d when looking for node with hash %a" depth
           pp_hash h
     | Node l -> (
         match N.of_proof ~depth (`Values l) with
+        | Some v -> v
         | None ->
-            bad_stream_exn "rehydrate_stream_node"
+            bad_stream_exn
               "could not deserialise Node at depth %d when looking for hash %a"
-              depth pp_hash h
-        | Some v -> v)
+              depth pp_hash h)
     | Inode { length; proofs } ->
-        let proofs =
-          List.map
-            (fun (index, k) ->
-              let index =
-                match index with
-                | [ i ] -> [ i ]
-                | _ ->
-                    bad_stream_exn "rehydrate_stream_node"
-                      "extender problem at depth %d when looking for hash %a"
-                      depth pp_hash h
-              in
-              (index, `Blinded k))
-            proofs
-        in
+        let proofs = List.map (fun (i, h) -> (i, `Blinded h)) proofs in
+        let inode = `Inode (length, proofs) in
         let v =
-          match N.of_proof ~depth (`Inode (length, proofs)) with
+          match N.of_proof ~depth inode with
+          | Some v -> v
           | None ->
-              bad_stream_exn "rehydrate_stream_node"
+              bad_stream_exn
                 "could not deserialise Inode at depth %d when looking for hash \
                  %a"
                 depth pp_hash h
+        in
+        v
+    | Inode_extender { length; segments; proof } ->
+        let elt =
+          List.fold_left
+            (fun acc i -> `Inode (length, [ (i, acc) ]))
+            (`Blinded proof) (List.rev segments)
+        in
+        let v =
+          match N.of_proof ~depth elt with
           | Some v -> v
+          | None ->
+              bad_stream_exn
+                "could not deserialise Inode at depth %d when looking for hash \
+                 %a"
+                depth pp_hash h
         in
         v
 
   let rehydrate_stream_contents (elt : P.elt) h =
+    let err k =
+      bad_stream_exn "find_contents"
+        "found %s when looking Contents with hash %a" k pp_hash h
+    in
     match elt with
-    | Node _ ->
-        bad_stream_exn "find_contents"
-          "found Node when looking Contents with hash %a" pp_hash h
-    | Inode _ ->
-        bad_stream_exn "find_contents"
-          "found Inode when looking Contents with hash %a" pp_hash h
+    | Node _ -> err "Node"
+    | Inode _ -> err "Inode"
+    | Inode_extender _ -> err "Inode"
     | Contents v -> v
 
   let find_contents t h =
@@ -331,11 +405,11 @@ struct
     | Set { mode = Consume; _ } ->
         (* This phase has no repo pointer *)
         assert false
-    | Stream (Produce { set; rev_elts }) ->
+    | Stream (Produce { set; rev_elts; _ }) ->
         (* Registering when seen for the first time *)
         if not @@ Hashes.mem set h then (
           Hashes.add set h ();
-          let elt : P.elt = Contents v in
+          let elt : hash * P.elt = (h, Contents v) in
           rev_elts := elt :: !rev_elts)
     | Stream (Consume _) ->
         (* This phase has no repo pointer *)
@@ -415,7 +489,7 @@ struct
   let add_recnode_from_store t find ~expected_depth h =
     assert (expected_depth > 0);
     match !t with
-    | Stream (Produce { set; rev_elts }) -> (
+    | Stream (Produce { set; rev_elts; singleton_inodes }) -> (
         (* Registering when seen for the first time, there is no need
            for sharing. *)
         match find ~expected_depth h with
@@ -424,7 +498,13 @@ struct
             if not @@ Hashes.mem set h then (
               Hashes.add set h ();
               let elt = dehydrate_stream_node v in
-              rev_elts := elt :: !rev_elts);
+              let () =
+                match elt with
+                | Inode { proofs = [ bucket ]; _ } ->
+                    Hashes.add singleton_inodes h bucket
+                | _ -> ()
+              in
+              rev_elts := (h, elt) :: !rev_elts);
             Some v)
     | _ -> assert false
 
@@ -446,13 +526,19 @@ struct
     | Set { mode = Consume; _ } ->
         (* This phase has no repo pointer *)
         assert false
-    | Stream (Produce { set; rev_elts }) ->
+    | Stream (Produce { set; rev_elts; singleton_inodes }) ->
         (* Registering when seen for the first time and wrap its [find]
            function. *)
         if not @@ Hashes.mem set h then (
           Hashes.add set h ();
           let elt = dehydrate_stream_node v in
-          rev_elts := elt :: !rev_elts);
+          let () =
+            match elt with
+            | Inode { proofs = [ bucket ]; _ } ->
+                Hashes.add singleton_inodes h bucket
+            | _ -> ()
+          in
+          rev_elts := (h, elt) :: !rev_elts);
         let v = N.with_handler (add_recnode_from_store t) v in
         v
     | Stream (Consume _) ->

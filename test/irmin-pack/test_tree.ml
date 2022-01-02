@@ -355,6 +355,152 @@ let test_large_proofs () =
       Fmt.pr "- binary Merkle trees         : %dkB\n%!" k2)
     [ a; b; c; d ]
 
+module Custom = Make (struct
+  let entries = 2
+  let stable_hash = 2
+
+  let index ~depth step =
+    let ascii_code = Bytes.get step depth |> Char.code in
+    ascii_code - 48
+
+  let inode_child_order = `Custom index
+end)
+
+module P = Custom.Tree.Proof
+
+let pp_proof = Irmin.Type.pp (P.t P.tree_t)
+let pp_stream = Irmin.Type.pp (P.t P.stream_t)
+
+let check_hash h s =
+  let s' = Irmin.Type.(to_string Hash.t) h in
+  Alcotest.(check string) "check hash" s s'
+
+let check_contents_hash h s =
+  match h with
+  | `Node _ -> Alcotest.failf "Expected kinded hash to be contents"
+  | `Contents (h, ()) ->
+      let s' = Irmin.Type.(to_string Hash.t) h in
+      Alcotest.(check string) "check hash" s s'
+
+let bindings = [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
+
+let test_extenders () =
+  let bindings2 = ([ "10000" ], "x1") :: bindings in
+  let bindings3 = ([ "10001" ], "y") :: bindings2 in
+
+  let f t =
+    let+ v = Custom.Tree.get t [ "00000" ] in
+    Alcotest.(check string) "00000" "x" v;
+    (t, ())
+  in
+
+  let check_proof bindings =
+    let* ctxt = Custom.init_tree bindings in
+    let hash = `Node (Custom.Tree.hash ctxt.tree) in
+    let* p, () = Custom.Tree.produce_proof ctxt.repo hash f in
+    Logs.debug (fun l -> l "Verifying proof %a" pp_proof p);
+    let+ r = Custom.Tree.verify_proof p f in
+    match r with
+    | Ok (_, ()) -> ()
+    | Error (`Msg e) -> Alcotest.failf "check_proof: %s" e
+  in
+  let* () = Lwt_list.iter_s check_proof [ bindings; bindings2; bindings3 ] in
+
+  let check_stream bindings =
+    let* ctxt = Custom.init_tree bindings in
+    let hash = `Node (Custom.Tree.hash ctxt.tree) in
+    let* p, () = Custom.Tree.produce_stream ctxt.repo hash f in
+    Logs.debug (fun l -> l "Verifying stream %a" pp_stream p);
+    let+ r = Custom.Tree.verify_stream p f in
+    match r with
+    | Ok (_, ()) -> ()
+    | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
+  in
+  Lwt_list.iter_s check_stream [ bindings; bindings2; bindings3 ]
+
+let test_hardcoded_stream () =
+  let fail elt =
+    Alcotest.failf "Unexpected elt in stream %a" (Irmin.Type.pp P.elt_t) elt
+  in
+  let* ctxt = Custom.init_tree bindings in
+  let hash = `Node (Custom.Tree.hash ctxt.tree) in
+  let f t =
+    let+ v = Custom.Tree.get t [ "00000" ] in
+    Alcotest.(check string) "00000" "x" v;
+    (t, ())
+  in
+  let* p, () = Custom.Tree.produce_stream ctxt.repo hash f in
+  let state = P.state p in
+  let counter = ref 0 in
+  Seq.iter
+    (fun elt ->
+      (match !counter with
+      | 0 -> (
+          match elt with
+          | P.Inode_extender { length; segments = [ 0; 0; 0 ]; proof = h }
+            when length = 3 ->
+              check_hash h "77f92acef70dd91a9f5b260dc0bf249e6644d76b"
+          | _ -> fail elt)
+      | 1 -> (
+          match elt with
+          | P.Inode { length; proofs = [ (0, h1); (1, h0) ] } when length = 3 ->
+              check_hash h0 "4295267989ab4c4a036eb78f0610a57042e2b49f";
+              check_hash h1 "59fcb82bd392247a02237c716df77df35e885699"
+          | _ -> fail elt)
+      | 2 -> (
+          match elt with
+          | P.Node [ ("00000", h0); ("00001", h1) ] ->
+              check_contents_hash h0 "11f6ad8ec52a2984abaafd7c3b516503785c2072";
+              check_contents_hash h1 "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
+          | _ -> fail elt)
+      | 3 -> ( match elt with P.Contents "x" -> () | _ -> fail elt)
+      | _ -> fail elt);
+      incr counter)
+    state;
+  if !counter <> 4 then Alcotest.fail "Not enough elements in the stream";
+  Lwt.return_unit
+
+let test_hardcoded_proof () =
+  let fail_with_tree elt =
+    Alcotest.failf "Unexpected elt in proof %a" (Irmin.Type.pp P.tree_t) elt
+  in
+  let fail_with_inode_tree elt =
+    Alcotest.failf "Unexpected elt in proof %a"
+      (Irmin.Type.pp P.inode_tree_t)
+      elt
+  in
+  let* ctxt = Custom.init_tree bindings in
+  let hash = `Node (Custom.Tree.hash ctxt.tree) in
+  let f t =
+    let+ v = Custom.Tree.get t [ "00000" ] in
+    Alcotest.(check string) "00000" "x" v;
+    (t, ())
+  in
+  let* p, () = Custom.Tree.produce_proof ctxt.repo hash f in
+  let state = P.state p in
+
+  let check_depth_2 = function
+    | P.Inode_values
+        [ ("00000", Contents ("x", ())); ("00001", Blinded_contents (h1, ())) ]
+      ->
+        check_hash h1 "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
+    | t -> fail_with_inode_tree t
+  in
+  let check_depth_1 = function
+    | P.Inode_tree { length = 3; proofs = [ (0, t); (1, P.Blinded_inode h1) ] }
+      ->
+        check_hash h1 "4295267989ab4c4a036eb78f0610a57042e2b49f";
+        check_depth_2 t
+    | t -> fail_with_inode_tree t
+  in
+  let () =
+    match (state : P.tree) with
+    | P.Extender { length = 3; segments = [ 0; 0; 0 ]; proof = t } ->
+        check_depth_1 t
+    | _ -> fail_with_tree state
+  in
+  Lwt.return_unit
+
 let tests =
   [
     Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
@@ -371,4 +517,10 @@ let tests =
         Lwt_main.run (test_deeper_proof ()));
     Alcotest.test_case "test large Merkle proof" `Slow (fun () ->
         Lwt_main.run (test_large_proofs ()));
+    Alcotest.test_case "test extenders in stream proof" `Quick (fun () ->
+        Lwt_main.run (test_extenders ()));
+    Alcotest.test_case "test hardcoded stream proof" `Quick (fun () ->
+        Lwt_main.run (test_hardcoded_stream ()));
+    Alcotest.test_case "test hardcoded proof" `Quick (fun () ->
+        Lwt_main.run (test_hardcoded_proof ()));
   ]

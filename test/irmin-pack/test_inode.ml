@@ -515,61 +515,6 @@ let test_concrete_inodes () =
   check v;
   Context.close t
 
-(* Note: this is genrating random hashes - don't use this to verify
-   proof consistency *)
-let wrap index tree =
-  let dummy_hash = Inter.Val.hash Inter.Val.empty in
-  Inter.Val.Concrete.Tree
-    {
-      depth = 0;
-      length = 3;
-      pointers = [ { index; tree; pointer = dummy_hash } ];
-    }
-
-let peek_tree (c : Inter.Val.Concrete.t) =
-  match c with
-  | Tree { pointers = [ { index; tree; _ } ]; _ } -> (index, tree)
-  | Tree _ -> Alcotest.fail "pick tree"
-  | Values _ -> Alcotest.fail "pick values"
-  | Blinded -> Alcotest.fail "pick blinded"
-
-let peek_tree_n n c =
-  let rec aux acc n c =
-    if n = 0 then List.rev acc
-    else
-      let i, c = peek_tree c in
-      aux (i :: acc) (n - 1) c
-  in
-  aux [] n c
-
-let test_proof_extenders () =
-  let is = [ 0; 0; 0; 1; 1; 0; 1 ] in
-  let concrete : Inter.Val.Concrete.t =
-    let v =
-      Inode.Val.of_list
-        [ ("x", normal foo); ("z", normal foo); ("y", node bar) ]
-    in
-    let c = Inter.Val.to_concrete v in
-    List.fold_left (fun c i -> wrap i c) c (List.rev is)
-  in
-  let index = peek_tree_n (List.length is + 2) concrete in
-  Alcotest.(check (list int)) "index" (is @ [ 1; 0 ]) index;
-
-  let proof = Inter.Val.Proof.of_concrete concrete in
-  let ext_index =
-    match proof with
-    | `Inode (_, [ (index, _) ]) -> index
-    | `Inode _ -> Alcotest.fail "proof inoode"
-    | `Blinded _ -> Alcotest.fail "proof blinded"
-    | `Values _ -> Alcotest.fail "proof values"
-  in
-  Fmt.epr "XXX ext_index=%a\n" Fmt.(Dump.list int) ext_index;
-  Alcotest.(check (list int)) "ext_index" index ext_index;
-
-  let concrete' = Inter.Val.Proof.to_concrete proof in
-  let index' = peek_tree_n (List.length is + 2) concrete' in
-  Alcotest.(check (list int)) "index'" index index'
-
 let tests =
   [
     Alcotest.test_case "add values" `Quick (fun () ->
@@ -588,5 +533,4 @@ let tests =
         Lwt_main.run (test_truncated_inodes ()));
     Alcotest.test_case "test intermediate inode as root" `Quick (fun () ->
         Lwt_main.run (test_intermediate_inode_as_root ()));
-    Alcotest.test_case "test proof extenders" `Quick test_proof_extenders;
   ]

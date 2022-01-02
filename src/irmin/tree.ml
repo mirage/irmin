@@ -1842,6 +1842,12 @@ module Make (P : Private.S) = struct
         ~bind:(fun x f -> f x)
         ~cache:false ctx node
 
+    let proof_of_iproof : proof_inode -> proof_tree = function
+      | Blinded_inode h -> Blinded_node h
+      | Inode_values l -> Node l
+      | Inode_tree i -> Inode i
+      | Inode_extender ext -> Extender ext
+
     let rec proof_of_tree : type a. irmin_tree -> (proof_tree -> a) -> a =
      fun tree k ->
       match tree with
@@ -1864,72 +1870,59 @@ module Make (P : Private.S) = struct
 
     (** [of_node_proof n np] is [p] (of type [Tree.Proof.t]) which is very
         similar to [np] (of type [P.Node.Val.proof]) except that the values
-        loaded in [n] have been expanded.
-
-        If [np] is of tag [Inode], [of_node_proof] will be called recursively
-        for each of the proofs [np'] in [p.proofs], using [n] again (i.e.
-        [of_node_proof n np']).
-
-        If [np] is of tag [Values], the proofs contained in it will be ignored
-        and instead be recomputed one value at a time, using the tag [Blinded]
-        for the values non-loaded in [n], and some other tag for the values
-        loaded in [n]. *)
+        loaded in [n] have been expanded. *)
     and proof_of_node_proof :
         type a. node -> node_proof -> (proof_tree -> a) -> a =
      fun node p k ->
       match p with
       | `Blinded h -> k (Blinded_node h)
-      | `Inode (length, proofs) -> proof_of_inode node length proofs k
-      | `Values vs -> proof_of_values node vs k
+      | `Inode (length, proofs) ->
+          iproof_of_inode node length proofs (fun p -> proof_of_iproof p |> k)
+      | `Values vs -> iproof_of_values node vs (fun p -> proof_of_iproof p |> k)
 
-    and proof_inode_of_node_proof :
+    and iproof_of_node_proof :
         type a. node -> node_proof -> (proof_inode -> a) -> a =
      fun node p k ->
       match p with
       | `Blinded h -> k (Blinded_inode h)
-      | `Inode (length, proofs) -> proof_inode_of_inode node length proofs k
-      | `Values vs -> proof_inode_of_values node vs k
+      | `Inode (length, proofs) -> iproof_of_inode node length proofs k
+      | `Values vs -> iproof_of_values node vs k
 
-    and proof_of_inode :
-        type a. node -> int -> (_ * node_proof) list -> (proof_tree -> a) -> a =
-     fun node length proofs k ->
-      let rec aux acc = function
-        | [] -> k (Inode { length; proofs = List.rev acc })
-        | (index, proof) :: rest ->
-            proof_inode_of_node_proof node proof (fun proof ->
-                aux ((index, proof) :: acc) rest)
-      in
-      aux [] proofs
-
-    and proof_inode_of_inode :
+    and iproof_of_inode :
         type a. node -> int -> (_ * node_proof) list -> (proof_inode -> a) -> a
         =
      fun node length proofs k ->
       let rec aux acc = function
         | [] -> k (Inode_tree { length; proofs = List.rev acc })
         | (index, proof) :: rest ->
-            proof_inode_of_node_proof node proof (fun proof ->
+            iproof_of_node_proof node proof (fun proof ->
                 aux ((index, proof) :: acc) rest)
       in
-      aux [] proofs
+      (* We are dealing with an inode A.
+         Its children are Bs.
+         The children of Bs are Cs.
+      *)
+      match proofs with
+      | [ (index, proof) ] ->
+          (* A has 1 child. *)
+          iproof_of_node_proof node proof (function
+            | Inode_tree { length = length'; proofs = [ (i, p) ] } ->
+                (* B is an inode with 1 child, C isn't. *)
+                assert (length = length');
+                k
+                  (Inode_extender { length; segments = [ index; i ]; proof = p })
+            | Inode_extender { length = length'; segments; proof } ->
+                (* B is an inode with 1 child, so is C. *)
+                assert (length = length');
+                k
+                  (Inode_extender
+                     { length; segments = index :: segments; proof })
+            | (Blinded_inode _ | Inode_values _ | Inode_tree _) as p ->
+                (* B is not an inode with 1 child. *)
+                k (Inode_tree { length; proofs = [ (index, p) ] }))
+      | _ -> aux [] proofs
 
-    and proof_of_values :
-        type a. node -> (step * P.Node.Val.value) list -> (proof_tree -> a) -> a
-        =
-     fun node steps k ->
-      let findv = findv "Proof.proof_of_values" node in
-      let rec aux acc = function
-        | [] -> k (Node (List.rev acc))
-        | (step, _) :: rest -> (
-            match findv step with
-            | None -> assert false
-            | Some t ->
-                let k p = aux ((step, p) :: acc) rest in
-                proof_of_tree t k)
-      in
-      aux [] steps
-
-    and proof_inode_of_values :
+    and iproof_of_values :
         type a.
         node -> (step * P.Node.Val.value) list -> (proof_inode -> a) -> a =
      fun node steps k ->
@@ -1959,6 +1952,30 @@ module Make (P : Private.S) = struct
           let h = P.Contents.Key.hash v in
           Env.add_contents_from_proof env h v;
           k (`Contents (h, m))
+      | Extender { length; segments; proof } ->
+          load_extender_proof ~env length segments proof k
+
+    (* Recontruct private node from [P.Node.Val.proof] *)
+    and load_extender_proof :
+        type a.
+        env:_ -> int -> int list -> proof_inode -> (kinded_hash -> a) -> a =
+     fun ~env len segments p k ->
+      node_proof_of_proof ~env p (fun p ->
+          let np = proof_of_extender len segments p in
+          let v = P.Node.Val.of_proof ~depth:0 np in
+          let v =
+            match v with
+            | None -> Proof.bad_proof_exn "Invalid proof"
+            | Some v -> v
+          in
+          let h = P.Node.Key.hash v in
+          Env.add_node_from_proof env h v;
+          k (`Node h))
+
+    and proof_of_extender len segments p : node_proof =
+      List.fold_left
+        (fun acc index -> `Inode (len, [ (index, acc) ]))
+        p (List.rev segments)
 
     (* Recontruct private node from [P.Node.Val.empty] *)
     and load_node_proof :
@@ -2008,6 +2025,9 @@ module Make (P : Private.S) = struct
       | Inode_tree { length; proofs } ->
           node_proof_of_inode ~env length proofs k
       | Inode_values n -> node_proof_of_node ~env n k
+      | Inode_extender { length; segments; proof } ->
+          node_proof_of_proof ~env proof (fun p ->
+              k (proof_of_extender length segments p))
 
     and node_proof_of_inode :
         type a. env:_ -> int -> (_ * proof_inode) list -> (node_proof -> a) -> a
