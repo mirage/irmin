@@ -17,6 +17,8 @@
 open! Import
 include Inode_intf
 
+exception Max_depth of int
+
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S) (Key : sig
@@ -68,8 +70,6 @@ struct
         let t = T.step_t
       end)
 
-  exception Max_depth of int
-
   module Child_ordering : Child_ordering with type step := T.step = struct
     open T
 
@@ -97,10 +97,12 @@ struct
        When [n] is not a power of 2, [hash_bits] needs to handle
        unaligned reads properly. *)
     let hash_bits ~depth k =
+      assert (Bytes.length k = Step.hash_size);
       let byte = 8 in
-      let n = depth * log_entry / byte in
-      let r = depth * log_entry mod byte in
-      if n >= Bytes.length k then raise (Max_depth depth);
+      let initial_bit_pos = log_entry * depth in
+      let n = initial_bit_pos / byte in
+      let r = initial_bit_pos mod byte in
+      if n >= Step.hash_size then raise (Max_depth depth);
       if r + log_entry <= byte then
         let i = Bytes.get_uint8 k n in
         let e0 = i lsr (byte - log_entry - r) in
@@ -112,7 +114,7 @@ struct
         let rest = log_entry - to_read in
         let mask = (1 lsl to_read) - 1 in
         let r0 = (i0 land mask) lsl rest in
-        if n + 1 >= Bytes.length k then raise (Max_depth depth);
+        if n + 1 >= Step.hash_size then raise (Max_depth depth);
         let i1 = Bytes.get_uint8 k (n + 1) in
         let r1 = i1 lsr (byte - rest) in
         r0 + r1

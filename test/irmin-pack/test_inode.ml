@@ -22,17 +22,11 @@ let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Conf = struct
-  let entries = 2
-  let stable_hash = 3
-  let contents_length_header = Some `Varint
-  let inode_child_order = `Seeded_hash
-end
-
 let log_size = 1000
 let check_iter = Test_hashes.check_iter
 
 module Inode_modules
+    (Conf : Irmin_pack.Conf.S)
     (Schema : Irmin.Schema.S) (Contents : sig
       val foo : Schema.Contents.t
       val bar : Schema.Contents.t
@@ -101,14 +95,19 @@ struct
   end
 end
 
-module S =
-  Inode_modules
-    (Schema)
-    (struct
-      let foo = "foo"
-      let bar = "bar"
-    end)
+module Conf = struct
+  let entries = 2
+  let stable_hash = 3
+  let contents_length_header = Some `Varint
+  let inode_child_order = `Seeded_hash
+end
 
+module String_contents = struct
+  let foo = "foo"
+  let bar = "bar"
+end
+
+module S = Inode_modules (Conf) (Schema) (String_contents)
 open S
 open Schema
 
@@ -123,6 +122,9 @@ let normal x = `Contents (x, Metadata.default)
 let node x = `Node x
 let check_hash = Alcotest.check_repr Inode.Val.hash_t
 let check_values = Alcotest.check_repr Inode.Val.t
+
+let check_int pos ?(msg = "") ~expected actual =
+  Alcotest.(check ~pos int) msg expected actual
 
 (* Exhaustive inode structure generator *)
 module Inode_permutations_generator = struct
@@ -573,8 +575,7 @@ let test_concrete_inodes () =
 
 module Inode_tezos = struct
   module S =
-    Inode_modules
-      (Irmin_tezos.Schema)
+    Inode_modules (Conf) (Irmin_tezos.Schema)
       (struct
         let foo = Bytes.make 10 '0'
         let bar = Bytes.make 10 '1'
@@ -665,10 +666,145 @@ module Inode_tezos = struct
     S.Context.close t
 end
 
+module Child_ordering = struct
+  (** Tests of the relative ordering of Inode children (which can be configured
+      by the user). *)
+
+  module Step = struct
+    type t = Schema.Path.step [@@deriving irmin ~short_hash]
+
+    module Hash =
+      Irmin.Hash.Typed
+        (Schema.Hash)
+        (struct
+          type nonrec t = t
+
+          let t = t
+        end)
+
+    type nonrec hash = Hash.t [@@deriving irmin ~to_bin_string]
+
+    let hash : t -> string = fun s -> hash_to_bin_string (Hash.hash s)
+  end
+
+  module type S = Irmin_pack.Inode.Child_ordering with type step := Step.t
+
+  let make ?entries:(entries' = Irmin_tezos.Conf.entries)
+      (t : Irmin_pack.Conf.inode_child_order) : (module S) =
+    let module Conf = struct
+      include Irmin_tezos.Conf
+
+      let entries = entries'
+      let inode_child_order = t
+    end in
+    let module T = Inode_modules (Conf) (Schema) (String_contents) in
+    (module T.Inter.Child_ordering)
+
+  let check_child_index pos (module Order : S) ~reference ~step ~depth =
+    let msg =
+      Fmt.str "Short hash of child at { depth = %d; step = %S }" depth step
+    in
+    let expected = reference ~depth step in
+    let actual = Order.key step |> Order.index ~depth in
+    check_int pos ~msg ~expected actual
+
+  let check_max_depth_exception pos (module Order : S) ~step ~depth =
+    match Order.key step |> Order.index ~depth with
+    | index ->
+        Alcotest.failf ~pos
+          "Expected [Max_depth %d] to be raised, but got a computed index of \
+           %d instead"
+          depth index
+    | exception Irmin_pack.Inode.Max_depth _ -> ()
+
+  (* Get the bit at index [n] in a string: *)
+  let get_bit str n =
+    let chosen_byte = Bytes.get_uint8 (Bytes.unsafe_of_string str) (n / 8) in
+    let bit_index_in_byte = n mod 8 in
+    (* Selects only the chosen bit from our byte: *)
+    let mask = 1 lsl (7 - bit_index_in_byte) in
+    let masked_byte = chosen_byte land mask in
+    let chosen_bit = masked_byte lsr (7 - bit_index_in_byte) in
+    assert (chosen_bit = 0 || chosen_bit = 1);
+    chosen_bit
+
+  let test_seeded_hash () =
+    let entries = Irmin_tezos.Conf.entries in
+    let reference ~depth step =
+      abs (Step.short_hash ~seed:depth step) mod entries
+    in
+    let (module Order) = make `Seeded_hash in
+    for _ = 1 to 1_000 do
+      let step = random_string 8 and depth = Random.int 10 in
+      check_child_index __POS__ (module Order) ~reference ~step ~depth
+    done
+
+  let hash_bits_max_depth ~log2_entries =
+    (* For a given [depth], the final bit of the corresponding index is at
+     * position [log2_entries * depth + log2_entries - 1] in the hash. If this
+     * is out-of-bounds in the hash, then we expect computing the ordering to
+     * fail (since we don't use modular indexing of the hash). *)
+    let rec aux depth =
+      if log2_entries * (depth + 1) > 8 * Hash.hash_size then depth - 1
+      else aux (succ depth)
+    in
+    aux 0
+
+  let test_hash_bits () =
+    (* [entries] is required to be a power of 2 greater than 1 and less than
+       2048, so we test every possible value here: *)
+    for log2_entries = 1 to 10 do
+      let entries = 1 lsl log2_entries in
+      let max_depth = hash_bits_max_depth ~log2_entries in
+      let (module Order) = make ~entries `Hash_bits in
+      [%log.app
+        "Testing hash_bits with { log_entries = %d; entries = %d; max_depth = \
+         %d }"
+        log2_entries entries max_depth];
+
+      (* Index is computed by reading [log2_entries] consecutive bits from the
+         hash of the step, starting at the [log2_entries * depth]-th byte. *)
+      let reference ~depth step =
+        let hash = Step.hash step in
+        let index = ref 0 in
+        for i = 0 to log2_entries - 1 do
+          let selected_bit = get_bit hash ((log2_entries * depth) + i) in
+          index := (!index lsl 1) lor selected_bit
+        done;
+        !index
+      in
+
+      for _ = 1 to 100 do
+        let step = random_string 8 in
+        (* We compute the valid index for this step at every depth up to
+           [max_depth]: *)
+        for depth = 0 to max_depth do
+          check_child_index __POS__ (module Order) ~reference ~step ~depth
+        done;
+        (* Beyond [max_depth], the index computation should fail: *)
+        check_max_depth_exception __POS__
+          (module Order)
+          ~step ~depth:(max_depth + 1)
+      done
+    done
+
+  let test_custom () =
+    let entries = 16 in
+    let reference ~depth step = (depth + int_of_string step) mod entries in
+    let (module Order) =
+      make ~entries
+        (`Custom (fun ~depth s -> reference ~depth (Bytes.to_string s)))
+    in
+    let check pos = check_child_index pos (module Order) ~reference in
+    check __POS__ ~depth:1 ~step:"1";
+    check __POS__ ~depth:2 ~step:"2";
+    check __POS__ ~depth:3 ~step:"3";
+    ()
+end
+
 let tests =
-  let tc name f =
-    Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
-  in
+  let tc_sync name f = Alcotest.test_case name `Quick f in
+  let tc name f = tc_sync name (fun () -> Lwt_main.run (f ())) in
   (* Test disabled because it relies on being able to serialise concrete inodes,
      which is not possible following the introduction of structured keys. *)
   let _ = tc "test truncated inodes" test_truncated_inodes in
@@ -683,4 +819,7 @@ let tests =
       test_representation_uniqueness_maxdepth_3;
     tc "test encode bin of values" Inode_tezos.test_encode_bin_values;
     tc "test intermediate inode as root" test_intermediate_inode_as_root;
+    tc_sync "Child_ordering.seeded_hash" Child_ordering.test_seeded_hash;
+    tc_sync "Child_ordering.hash_bits" Child_ordering.test_hash_bits;
+    tc_sync "Child_ordering.custom" Child_ordering.test_custom;
   ]

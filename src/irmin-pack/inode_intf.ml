@@ -171,6 +171,9 @@ module type Sigs = sig
   module type S = S
   module type Persistent = Persistent
   module type Internal = Internal
+  module type Child_ordering = Child_ordering
+
+  exception Max_depth of int
 
   module Make_internal
       (Conf : Conf.S)
