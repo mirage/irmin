@@ -78,7 +78,10 @@ struct
     let log_entry = int_of_float (log (float Conf.entries) /. log 2.)
 
     let () =
-      assert (log_entry <> 0);
+      assert (log_entry >= 1);
+      (* NOTE: the [`Hash_bits] mode is restricted to inodes with at most 1024
+         entries in order to simplify the implementation (see below). *)
+      assert ((not (Conf.inode_child_order = `Hash_bits)) || log_entry <= 10);
       assert (Conf.entries = int_of_float (2. ** float log_entry))
 
     let key =
@@ -98,17 +101,24 @@ struct
        unaligned reads properly. *)
     let hash_bits ~depth k =
       assert (Bytes.length k = Step.hash_size);
+      (* We require above that the child indices have at most 10 bits to ensure
+         that they span no more than 2 bytes of the step hash. The 3 byte case
+         (with [1 + 8 + 1]) does not happen for 10-bit indices because 10 is
+         even, but [2 + 8 + 1] would occur with 11-byte indices (e.g. when
+         [depth=2]). *)
       let byte = 8 in
       let initial_bit_pos = log_entry * depth in
       let n = initial_bit_pos / byte in
       let r = initial_bit_pos mod byte in
       if n >= Step.hash_size then raise (Max_depth depth);
       if r + log_entry <= byte then
+        (* The index is contained in a single character of the hash *)
         let i = Bytes.get_uint8 k n in
         let e0 = i lsr (byte - log_entry - r) in
         let r0 = e0 land (Conf.entries - 1) in
         r0
       else
+        (* The index spans two characters of the hash *)
         let i0 = Bytes.get_uint8 k n in
         let to_read = byte - r in
         let rest = log_entry - to_read in
