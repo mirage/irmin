@@ -106,6 +106,21 @@ module Make (K : Key) (G : Git.S) = struct
   let git_of_branch r = Git.Reference.v (Fmt.to_to_string K.pp_ref r)
   let pp_key = Irmin.Type.pp Key.t
 
+  let ref_read_opt t head =
+    (* Make a best-effort attempt to check that the reference actually
+       exists before [read]-ing it, since the [Error `Reference_not_found]
+       case causes a spurious warning to be logged inside [ocaml-git]. *)
+    G.Ref.mem t head >>= function
+    | false -> Lwt.return_none
+    | true -> (
+        let* r = G.Ref.read t head in
+        match r with
+        | Ok r -> Lwt.return_some r
+        | Error (`Reference_not_found _ | `Not_found _) ->
+            (* We may still hit this case due to a race condition, but it's very unlikely. *)
+            Lwt.return_none
+        | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e)
+
   let mem { t; _ } r =
     [%log.debug "mem %a" pp_key r];
     G.Ref.mem t (git_of_branch r)
@@ -170,12 +185,9 @@ module Make (K : Key) (G : Git.S) = struct
       match head with
       | Some h -> write_head h
       | None -> (
-          let* r = G.Ref.read t Git.Reference.head in
-          match r with
-          | Error (`Reference_not_found _ | `Not_found _) ->
-              write_head (git_of_branch K.main)
-          | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
-          | Ok r -> Lwt.return r)
+          ref_read_opt t Git.Reference.head >>= function
+          | None -> write_head (git_of_branch K.main)
+          | Some head -> Lwt.return head)
     in
     let w =
       try Hashtbl.find watches (G.dotgit t)
@@ -243,13 +255,7 @@ module Make (K : Key) (G : Git.S) = struct
       true
     in
     Lwt_mutex.with_lock t.m (fun () ->
-        let* x =
-          let* x = G.Ref.read t.t gr in
-          match x with
-          | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
-          | Ok x -> Lwt.return_some x
-          | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
-        in
+        let* x = ref_read_opt t.t gr in
         let* b =
           if not (eq_head_contents_opt x (c test)) then Lwt.return_false
           else
