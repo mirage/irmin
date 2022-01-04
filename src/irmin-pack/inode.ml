@@ -70,12 +70,7 @@ struct
 
   exception Max_depth of int
 
-  module Index : sig
-    type key
-
-    val key : T.step -> key
-    val index : depth:int -> key -> int
-  end = struct
+  module Child_ordering : Child_ordering with type step := T.step = struct
     open T
 
     type key = bytes
@@ -1100,7 +1095,7 @@ struct
         in
         { v_ref; v = t.v; root = true }
 
-    let index ~depth k = Index.index ~depth k
+    let index ~depth k = Child_ordering.index ~depth k
 
     (** This function shouldn't be called with the [Total] layout. In the
         future, we could add a polymorphic variant to the GADT parameter to
@@ -1149,7 +1144,7 @@ struct
 
     let find_value ~cache layout ~depth t s =
       let target_of_ptr = Ptr.target ~cache layout in
-      let key = Index.key s in
+      let key = Child_ordering.key s in
       let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
@@ -1179,7 +1174,7 @@ struct
                   { length = 0; depth; entries = Array.make Conf.entries None }
               in
               let aux t (s', v) =
-                let key' = Index.key s' in
+                let key' = Child_ordering.key s' in
                 (add [@tailcall]) layout ~depth ~copy:false ~replace t s' key' v
                   (fun x -> x)
               in
@@ -1210,7 +1205,7 @@ struct
 
     let add layout ~copy t s v =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
-      let k = Index.key s in
+      let k = Child_ordering.key s in
       match find_value ~cache:true ~depth:0 layout t s with
       | Some v' when equal_value v v' -> t
       | Some _ ->
@@ -1257,7 +1252,7 @@ struct
 
     let remove layout t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
-      let k = Index.key s in
+      let k = Child_ordering.key s in
       match find_value ~cache:true layout ~depth:0 t s with
       | None -> t
       | Some _ -> remove layout ~depth:0 t s k Fun.id |> stabilize_root layout
@@ -1687,7 +1682,7 @@ struct
     let length t = apply t { f = (fun _ v -> I.length v) }
     let clear t = apply t { f = (fun layout v -> I.clear layout v) }
     let nb_children t = apply t { f = (fun _ v -> I.nb_children v) }
-    let index ~depth s = I.index ~depth (Index.key s)
+    let index ~depth s = I.index ~depth (Child_ordering.key s)
 
     let integrity_check t =
       let f layout v =
