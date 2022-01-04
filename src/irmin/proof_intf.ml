@@ -38,8 +38,7 @@ module type S = sig
         valid state of Irmin, without having to have access to the full node's
         storage. *)
 
-  type 'a inode = { length : int; proofs : (int list * 'a) list }
-  [@@deriving irmin]
+  type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]
   (** The type for (internal) inode proofs.
 
       These proofs encode large directories into a more efficient tree-like
@@ -49,16 +48,18 @@ module type S = sig
 
       [length] is the total number of entries in the chidren of the inode. E.g.
       the size of the "flattened" version of that inode. This is used by some
-      backend (like [irmin-pack]) to efficiently implements paginated lists.
-
-      Paths of singleton inodes are compacted into a single inode addressed by
-      that path (hence the [int list] indexing).
+      backend (like [irmin-pack]) to efficiently implements paginated lists and
+      an optimized [lenght] function.
 
       {e For [irmin-pack]}: [proofs] have a length of at most [Conf.entries]
       entries. This list can be sparse so every proof is indexed by their
       position between [0 ... (Conf.entries-1)]. For binary trees, this boolean
       index is a step of the left-right sequence / decision proof corresponding
       to the path in that binary tree. *)
+
+  type 'a inode_extender = { length : int; segments : int list; proof : 'a }
+  [@@deriving irmin]
+  (** The type for inode extenders. *)
 
   (** The type for compressed and partial Merkle tree proofs.
 
@@ -83,17 +84,19 @@ module type S = sig
 
       [Contents c] is the contents [c]. *)
   type tree =
-    | Blinded_node of hash
-    | Node of (step * tree) list
-    | Inode of inode_tree inode
-    | Blinded_contents of hash * metadata
     | Contents of contents * metadata
+    | Blinded_contents of hash * metadata
+    | Node of (step * tree) list
+    | Blinded_node of hash
+    | Inode of inode_tree inode
+    | Extender of inode_tree inode_extender
   [@@deriving irmin]
 
   and inode_tree =
     | Blinded_inode of hash
     | Inode_values of (step * tree) list
     | Inode_tree of inode_tree inode
+    | Inode_extender of inode_tree inode_extender
   [@@deriving irmin]
 
   type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
@@ -101,9 +104,10 @@ module type S = sig
   (** The type for kinded hashes. *)
 
   type elt =
+    | Contents of contents
     | Node of (step * kinded_hash) list
     | Inode of hash inode
-    | Contents of contents
+    | Inode_extender of hash inode_extender
   [@@deriving irmin]
 
   type stream = elt Seq.t [@@deriving irmin]

@@ -1189,12 +1189,7 @@ struct
                 (fun acc (e : _ Concrete.pointer) ->
                   let hash = lazy e.pointer in
                   proof_of_concrete hash e.tree (fun proof ->
-                      let e =
-                        match proof with
-                        | `Inode (_, [ (i, p) ]) -> (e.index :: i, p)
-                        | _ -> ([ e.index ], proof)
-                      in
-                      e :: acc))
+                      (e.index, proof) :: acc))
                 [] (List.rev tr.pointers)
             in
             k (`Inode (tr.length, proofs))
@@ -1215,11 +1210,6 @@ struct
         let v : truncated_ptr v = Tree { depth; length; entries } in
         hash_v v
 
-      let length_of_proof = function
-        | `Blinded _ -> 1
-        | `Values ls -> List.length ls
-        | `Inode (len, _) -> len
-
       let rec concrete_of_proof :
           type a. depth:int -> proof -> (hash -> Concrete.t -> a) -> a =
        fun ~depth proof k ->
@@ -1235,7 +1225,7 @@ struct
           type a.
           length:int ->
           depth:int ->
-          (int list * proof) list ->
+          (int * proof) list ->
           (hash -> Concrete.t -> a) ->
           a =
        fun ~length ~depth proofs k ->
@@ -1244,22 +1234,11 @@ struct
               let c = Concrete.Tree { depth; length; pointers = ps } in
               let hash = hash_inode ~depth ~length es in
               k hash c
-          | (index, proof) :: proofs -> (
-              match index with
-              | [ index ] ->
-                  concrete_of_proof ~depth:(depth + 1) proof
-                    (fun pointer tree ->
-                      let ps = { Concrete.tree; pointer; index } :: ps in
-                      let es = (index, Broken pointer) :: es in
-                      aux ps es proofs)
-              | index :: rest ->
-                  let length = length_of_proof proof in
-                  concrete_of_inode ~length ~depth:(depth + 1) [ (rest, proof) ]
-                    (fun pointer tree ->
-                      let ps = { Concrete.tree; pointer; index } :: ps in
-                      let es = (index, Broken pointer) :: es in
-                      aux ps es proofs)
-              | [] -> assert false)
+          | (index, proof) :: proofs ->
+              concrete_of_proof ~depth:(depth + 1) proof (fun pointer tree ->
+                  let ps = { Concrete.tree; pointer; index } :: ps in
+                  let es = (index, Broken pointer) :: es in
+                  aux ps es proofs)
         in
         aux [] [] (List.rev proofs)
 

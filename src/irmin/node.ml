@@ -129,7 +129,7 @@ struct
   type proof =
     [ `Blinded of hash
     | `Values of (step * value) list
-    | `Inode of int * (int list * proof) list ]
+    | `Inode of int * (int * proof) list ]
   [@@deriving irmin]
 
   let to_proof (t : t) : proof =
