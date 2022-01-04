@@ -52,7 +52,7 @@ module type S = sig
   (** {1 Value Types} *)
 
   val t : t Type.t
-  (** [t] is the value type for {!t}. *)
+  (** [t] is the value type for {!type-t}. *)
 
   val step_t : step Type.t
   (** [step_t] is the value type for {!step}. *)

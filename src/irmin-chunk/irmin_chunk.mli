@@ -73,8 +73,8 @@ val config :
   Irmin.config ->
   Irmin.config
 (** [config ?config ?size ?min_size ()] is the configuration value extending the
-    optional [config] with bindings associating {{!chunk_size} chunk_size} to
-    [size].
+    optional [config] with bindings associating {{!Conf.Key.chunk_size}
+    chunk_size} to [size].
 
     If [chunking] is [Best_fit] (the default), the size of new chunks will be of
     maximum [max_size] but could be smaller if they don't need to be chunked. If

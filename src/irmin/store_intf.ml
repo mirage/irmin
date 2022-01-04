@@ -26,8 +26,8 @@ module type S_generic_key = sig
       without having to rely on a global state. In a way very similar to version
       control systems, Irmin local states are called {i branches}.
 
-      There are two kinds of store in Irmin: the ones based on {{!persistent}
-      persistent} named branches and the ones based {{!temporary} temporary}
+      There are two kinds of store in Irmin: the ones based on {{!of_branch}
+      persistent} named branches and the ones based {{!of_commit} temporary}
       detached heads. These exist relative to a local, larger (and shared)
       store, and have some (shared) contents. This is exactly the same as usual
       version control systems, that the informed user can see as an implicit
@@ -42,7 +42,7 @@ module type S_generic_key = sig
   (** The type for Irmin stores. *)
 
   type step = Schema.Path.step [@@deriving irmin]
-  (** The type for {!key} steps. *)
+  (** The type for {!type-key} steps. *)
 
   type path = Schema.Path.t [@@deriving irmin]
   (** The type for store keys. A key is a sequence of {!step}s. *)
@@ -83,7 +83,7 @@ module type S_generic_key = sig
       ancestors *)
 
   type ff_error = [ `No_change | `Rejected | lca_error ] [@@deriving irmin]
-  (** The type for errors for {!fast_forward}. *)
+  (** The type for errors for {!Head.fast_forward}. *)
 
   module Info : sig
     include Info.S with type t = info
@@ -230,7 +230,7 @@ module type S_generic_key = sig
 
   val of_branch : repo -> branch -> t Lwt.t
   (** [of_branch r name] is a persistent store based on the branch [name].
-      Similar to [main], but use [name] instead {!Branch.S.main}. *)
+      Similar to {!main}, but use [name] instead of {!Irmin.Branch.S.main}. *)
 
   val of_commit : commit -> t Lwt.t
   (** [of_commit c] is a temporary store, based on the commit [c].
@@ -254,7 +254,7 @@ module type S_generic_key = sig
     (** The type for store status. *)
 
     val t : repo -> t Type.t
-    (** [t] is the value type for {!t}. *)
+    (** [t] is the value type for {!type-t}. *)
 
     val pp : t Fmt.t
     (** [pp] is the pretty-printer for store status. *)
@@ -288,8 +288,8 @@ module type S_generic_key = sig
 
     val fast_forward :
       t -> ?max_depth:int -> ?n:int -> commit -> (unit, ff_error) result Lwt.t
-    (** [fast_forward t h] is similar to {!update} but the [t]'s head is updated
-        to [h] only if [h] is stricly in the future of [t]'s current head.
+    (** [fast_forward t h] is similar to {!set} but the [t]'s head is updated to
+        [h] only if [h] is stricly in the future of [t]'s current head.
         [max_depth] or [n] are used to limit the search space of the lowest
         common ancestors (see {!lcas}).
 
@@ -304,8 +304,8 @@ module type S_generic_key = sig
 
     val test_and_set :
       t -> test:commit option -> set:commit option -> bool Lwt.t
-    (** Same as {!update_head} but check that the value is [test] before
-        updating to [set]. Use {!update} or {!merge} instead if possible. *)
+    (** Same as {!set} but check that the value is [test] before updating to
+        [set]. Use {!set} or {!val-merge} instead if possible. *)
 
     val merge :
       into:t ->
@@ -330,7 +330,7 @@ module type S_generic_key = sig
     (** The type for store commits. *)
 
     val t : repo -> t Type.t
-    (** [t] is the value type for {!t}. *)
+    (** [t] is the value type for {!type-t}. *)
 
     val pp_hash : t Fmt.t
     (** [pp] is the pretty-printer for commit. Display only the hash. *)
@@ -367,8 +367,8 @@ module type S_generic_key = sig
     (** [of_hash r h] is the commit object in [r] with hash [h], or [None] if no
         such commit object is indexed in [r].
 
-        {b Note:} in stores for which {!commit_key} = {!hash}, this function has
-        identical behaviour to {!of_key}. *)
+        {b Note:} in stores for which {!commit_key} = {!type-hash}, this
+        function has identical behaviour to {!of_key}. *)
   end
 
   (** [Contents] provides base functions for the store's contents. *)
@@ -388,8 +388,8 @@ module type S_generic_key = sig
     (** [of_hash r h] is the contents object in [r] with hash [h], or [None] if
         no such contents object is indexed in [r].
 
-        {b Note:} in stores for which {!contents_key} = {!hash}, this function
-        has identical behaviour to {!of_key}. *)
+        {b Note:} in stores for which {!contents_key} = {!type-hash}, this
+        function has identical behaviour to {!of_key}. *)
   end
 
   (** Managing store's trees. *)
@@ -443,8 +443,8 @@ module type S_generic_key = sig
     (** [of_hash r h] is the tree object in [r] with hash [h], or [None] if no
         such tree object is indexed in [r].
 
-        {b Note:} in stores for which {!node_key} = {!contents_key} = {!hash},
-        this function has identical behaviour to {!of_key}. *)
+        {b Note:} in stores for which {!node_key} = {!contents_key} =
+        {!type-hash}, this function has identical behaviour to {!of_key}. *)
   end
 
   (** {1 Reads} *)
@@ -671,7 +671,7 @@ module type S_generic_key = sig
     path ->
     contents option ->
     unit Lwt.t
-  (** [merge_exn] is like {!merge} but raise [Failure _] instead of using a
+  (** [merge_exn] is like {!val-merge} but raise [Failure _] instead of using a
       result type. *)
 
   val merge_tree :
@@ -723,8 +723,9 @@ module type S_generic_key = sig
         [k].
       - if [strategy = `Test_and_set] (default), use {!test_and_set} and ensure
         that no concurrent operations are updating [k].
-      - if [strategy = `Merge], use {!merge} and ensure that concurrent updates
-        and merged with the values present at the beginning of the transaction.
+      - if [strategy = `Merge], use {!val-merge} and ensure that concurrent
+        updates and merged with the values present at the beginning of the
+        transaction.
 
       {b Note:} Irmin transactions provides
       {{:https://en.wikipedia.org/wiki/Snapshot_isolation} snapshot isolation}
@@ -791,10 +792,10 @@ module type S_generic_key = sig
       independent. Similar to [git merge <branch>]. *)
 
   val merge_with_branch : t -> branch merge
-  (** Same as {!merge} but with a branch ID. *)
+  (** Same as {!val-merge} but with a branch ID. *)
 
   val merge_with_commit : t -> commit merge
-  (** Same as {!merge} but with a commit_id. *)
+  (** Same as {!val-merge} but with a commit_id. *)
 
   val lcas :
     ?max_depth:int -> ?n:int -> t -> t -> (commit list, lca_error) result Lwt.t

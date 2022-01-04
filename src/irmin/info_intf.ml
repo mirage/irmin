@@ -29,12 +29,12 @@ module type S = sig
   val date : t -> int64
   (** [date t] is [t]'s commit date.
 
-      The date provided by the user when calling the {{!Info.v} create}
-      function. Rounding [Unix.gettimeofday ()] (when available) is a good value
-      for such date. On more esoteric platforms, any monotonic counter is a fine
-      value as well. On the Git backend, the date is translated into the commit
-      {e Date} field and is expected to be the number of POSIX seconds (thus not
-      counting leap seconds) since the Epoch. *)
+      The date provided by the user when calling the {!v} function. Rounding
+      [Unix.gettimeofday ()] (when available) is a good value for such date. On
+      more esoteric platforms, any monotonic counter is a fine value as well. On
+      the Git backend, the date is translated into the commit {e Date} field and
+      is expected to be the number of POSIX seconds (thus not counting leap
+      seconds) since the Epoch. *)
 
   val author : t -> author
   (** [author t] is [t]'s commit author.

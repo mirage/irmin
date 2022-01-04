@@ -23,7 +23,7 @@ end
 module type S = sig
   (** The Git backend specializes a few types:
 
-      - the allowed metadata are {!Metadata.t}.
+      - the allowed metadata are {!type-Metadata.t}.
       - the hash algorithm is SHA1. *)
 
   module Git : Git.S

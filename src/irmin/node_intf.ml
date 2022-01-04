@@ -49,19 +49,7 @@ module type Core = sig
   val list :
     ?offset:int -> ?length:int -> ?cache:bool -> t -> (step * value) list
   (** [list t] is the contents of [t]. [offset] and [length] are used to
-      paginate results.
-
-      {2 caching}
-
-      [cache] regulates the caching behaviour regarding the node's internal data
-      which may be lazily loaded from the backend, depending on the node
-      implementation.
-
-      [cache] defaults to [true] which may greatly reduce the IOs and the
-      runtime but may also increase the memory consumption.
-
-      [cache = false] doesn't replace a call to [clear], it only prevents the
-      storing of new data, it doesn't discard the existing one. *)
+      paginate results. *)
 
   val of_seq : (step * value) Seq.t -> t
   (** [of_seq s] is the node [n] such that [seq n = s]. *)
@@ -88,8 +76,8 @@ module type Core = sig
   val find : ?cache:bool -> t -> step -> value option
   (** [find t s] is the value associated with [s] in [t].
 
-      A node can point to user-defined {{!Node.S.contents} contents}. The edge
-      between the node and the contents is labeled by a {{!Node.S.step} step}.
+      A node can point to user-defined {{!contents_key} contents}. The edge
+      between the node and the contents is labeled by a {!step}.
 
       See {!caching} for an explanation of the [cache] parameter *)
 
@@ -103,11 +91,25 @@ module type Core = sig
 
   module Metadata : Metadata.S with type t = metadata
   (** Metadata functions. *)
+
+  (** {2:caching caching}
+
+      [cache] regulates the caching behaviour regarding the node's internal data
+      which may be lazily loaded from the backend, depending on the node
+      implementation.
+
+      [cache] defaults to [true] which may greatly reduce the IOs and the
+      runtime but may also increase the memory consumption.
+
+      [cache = false] doesn't replace a call to [clear], it only prevents the
+      storing of new data, it doesn't discard the existing one. *)
 end
 
 module type S_generic_key = sig
   include Core
   (** @inline *)
+
+  (** {2 merging} *)
 
   val merge :
     contents:contents_key option Merge.t ->

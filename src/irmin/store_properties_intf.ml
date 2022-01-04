@@ -29,7 +29,7 @@ module type Closeable = sig
 
   val close : 'a t -> unit Lwt.t
   (** [close t] frees up all the resources associated with [t]. Any operations
-      run on a closed handle will raise {!Closed}. *)
+      run on a closed handle will raise [Closed]. *)
 end
 
 module type Of_config = sig
