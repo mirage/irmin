@@ -136,8 +136,8 @@ module With_existing_store () = struct
      appropriate config *)
   module S = Private.V2
 
-  (* Code copied and modified from test_existing_stores.ml; FIXME is
-     this the config of index, or pack? or both? *)
+  (* Code copied and modified from test_existing_stores.ml; this is
+     the config for index and pack *)
   let config ~readonly : Irmin.config =
     Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh:false tmp_dir
 end
