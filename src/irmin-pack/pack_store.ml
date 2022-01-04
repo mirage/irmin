@@ -75,7 +75,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   type hash = K.t
 
   type 'a t = {
-    mutable block : IO.t;
+    block : IO.t;
     index : Index.t;
     indexing_strategy : Indexing_strategy.t;
     dict : Dict.t;
@@ -99,7 +99,17 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     in
     { block; index; indexing_strategy; dict; open_instances = 1 }
 
-  let IO_cache.{ v } =
+  (** For a given path to a pack store and a given pack store module, an
+      instance of [_ t] is shared between all contents/node/commit stores of a
+      repo. It is also shared between all repos with the same open mode.
+
+      [get_io] stores the instances.
+
+      In practice it permits 2 things:
+
+      - for the contents/node/commit stores to use the same files and
+      - for multiple ro instance to share the same [IO.t]. *)
+  let IO_cache.{ v = get_io } =
     IO_cache.memoize ~valid
       ~clear:(fun t -> IO.truncate t.block)
       ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
@@ -150,9 +160,15 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       Tbl.clear t.staging;
       Lru.clear t.lru
 
-    (* we need another cache here, as we want to share the LRU and
-       staging caches too. *)
+    (** For a given path to a pack store and a given pack store module, an
+        instance of [_ t] is shared between all the contents store of all repos
+        with the same open mode. The same goes for the node store and the commit
+        store (i.e. one instance for each).
 
+        [roots] stores the instances.
+
+        In practice this sharing permits multiple ro instances to share the same
+        LRU. *)
     let roots = Hashtbl.create 10
 
     let valid t =
@@ -170,7 +186,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
         root =
-      let pack = v (index, indexing_strategy) ~fresh ~readonly root in
+      let pack = get_io (index, indexing_strategy) ~fresh ~readonly root in
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
       { staging; lru; pack; open_instances = 1; readonly }

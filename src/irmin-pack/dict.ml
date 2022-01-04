@@ -24,7 +24,7 @@ module Make (IO : IO.S) : S = struct
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    mutable io : IO.t;
+    io : IO.t;
     mutable open_instances : int;
   }
 

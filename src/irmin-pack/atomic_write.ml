@@ -51,7 +51,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value) = struct
   type t = {
     index : int63 Tbl.t;
     cache : V.t Tbl.t;
-    mutable block : IO.t;
+    block : IO.t;
     w : W.t;
     mutable open_instances : int;
   }
