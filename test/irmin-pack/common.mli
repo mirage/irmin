@@ -103,3 +103,6 @@ val rm_dir : string -> unit
 val index_log_size : int option
 val random_string : int -> string
 val random_letters : int -> string
+
+val exec_cmd : string -> (unit, int) result
+(** Exec a command, and return [Ok ()] or [Error n] if return code is n <> 0 *)
