@@ -48,7 +48,7 @@ module type X =
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
-  module M = Irmin_git.KV (G) (Git_unix.Sync (G) (Git_cohttp_unix))
+  module M = Irmin_git.KV (G) (Git_unix.Sync (G))
   module S = M.Make (C)
   include S
 
@@ -126,7 +126,7 @@ let test_sort_order (module S : S) =
   Lwt.return_unit
 
 module Ref (S : Irmin_git.G) = struct
-  module M = Irmin_git.Ref (S) (Git_unix.Sync (S) (Git_cohttp_unix))
+  module M = Irmin_git.Ref (S) (Git_unix.Sync (S))
   include M.Make (Irmin.Contents.String)
 end
 
