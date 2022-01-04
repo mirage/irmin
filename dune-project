@@ -2,3 +2,4 @@
 (name irmin)
 (allow_approximate_merlin)
 (cram enable)
+(using mdx 0.1)

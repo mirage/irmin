@@ -1,1 +1,5 @@
 (vendored_dirs vendors)
+
+(mdx
+ (files README.md)
+ (packages irmin irmin-unix))

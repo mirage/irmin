@@ -51,6 +51,7 @@ version and install instructions on [ocaml.org](https://ocaml.org/docs/install.h
 To install Irmin with the command-line tool and all optional dependencies using
 `opam`:
 
+<!-- $MDX skip -->
 ```bash
   opam install irmin-unix
 ```
@@ -58,6 +59,7 @@ To install Irmin with the command-line tool and all optional dependencies using
 A minimal installation containing the reference in-memory backend can be
 installed by running:
 
+<!-- $MDX skip -->
 ```bash
   opam install irmin
 ```
@@ -79,6 +81,7 @@ The following packages have been made available on `opam`:
 
 To install a specific package, simply run:
 
+<!-- $MDX skip -->
 ```bash
   opam install <package-name>
 ```
@@ -88,6 +91,7 @@ To install a specific package, simply run:
 To install the development version of Irmin in your current `opam switch`, clone
 this repository and `opam install` the packages inside:
 
+<!-- $MDX skip -->
 ```bash
   git clone https://github.com/mirage/irmin
   cd irmin/
@@ -101,12 +105,12 @@ this repository and `opam install` the packages inside:
 Below is a simple example of setting a key and getting the value out of a
 Git-based, filesystem-backed store.
 
-<!-- N.B. Any changes to the following example must be mirrored in `examples/readme.ml`. -->
+<!-- $MDX file=examples/readme.ml -->
 ```ocaml
 open Lwt.Syntax
 
 (* Irmin store with string contents *)
-module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 
 (* Database configuration *)
 let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
@@ -126,12 +130,12 @@ let main =
 
   (* Set key "foo/bar" to "testing 123" *)
   let* () =
-    Store.set_exn t ~info:(info "Updating foo/bar") ["foo"; "bar"]
+    Store.set_exn t ~info:(info "Updating foo/bar") [ "foo"; "bar" ]
       "testing 123"
   in
 
   (* Get key "foo/bar" and print it to stdout *)
-  let+ x = Store.get t ["foo"; "bar"] in
+  let+ x = Store.get t [ "foo"; "bar" ] in
   Printf.printf "foo/bar => '%s'\n" x
 
 (* Run the program *)
@@ -141,9 +145,12 @@ let () = Lwt_main.run main
 The example is contained in [examples/readme.ml](./examples/readme.ml) It can
 be compiled and executed with dune:
 
-    $ dune build examples/readme.exe
-    $ dune exec examples/readme.exe
-    foo/bar => 'testing 123'
+<!-- $MDX skip -->
+```bash
+$ dune build examples/readme.exe
+$ dune exec examples/readme.exe
+foo/bar => 'testing 123'
+```
 
 The [examples](./examples/) directory also contains more advanced examples,
 which can be executed in the same way.
@@ -153,10 +160,13 @@ which can be executed in the same way.
 The same thing can also be accomplished using `irmin`, the command-line
 application installed with `irmin-unix`, by running:
 
-    $ echo "root: ." > irmin.yml
-    $ irmin init
-    $ irmin set foo/bar "testing 123"
-    $ irmin get foo/bar
+```bash
+$ echo "root: ." > irmin.yml
+$ irmin init
+$ irmin set foo/bar "testing 123"
+$ irmin get foo/bar
+testing 123
+```
 
 `irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You
 can also set flags globally using `$HOME/.irmin/config.yml`. Run

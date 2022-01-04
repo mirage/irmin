@@ -33,6 +33,7 @@ depends: [
   "alcotest" {>= "1.1.0" & with-test}
   "alcotest-lwt" {with-test}
   "vector" {with-test}
+  "mdx" {>= "2.0.0" & with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
 ]
 
