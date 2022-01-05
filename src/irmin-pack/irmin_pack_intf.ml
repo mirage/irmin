@@ -71,4 +71,5 @@ module type Sigs = sig
   module Atomic_write = Atomic_write
   module IO = IO
   module Utils = Utils
+  module Version = Version
 end

@@ -38,9 +38,6 @@ module Util = struct
           "Failed to set up test env; command `%s' exited with non-zero code %d\n"
           cmd n
 
-  (* NOTE we try to avoid dependence on Fpath in the following, by
-     using standard OCaml functions *)
-
   (** Identify the root directory, by comparing st_dev,st_ino *)
   let is_root =
     let open Unix in
@@ -92,7 +89,7 @@ module Util = struct
 
   let alco_check_version ~pos ~expected ~actual =
     (* FIXME? Version is private in Irmin_pack *)
-    Alcotest.check_repr ~pos Irmin_pack__.Version.t "" expected actual
+    Alcotest.check_repr ~pos Irmin_pack.Version.t "" expected actual
 end
 
 open Util
