@@ -17,15 +17,6 @@ module Util = struct
   let exec_cmd = Common.exec_cmd
   let tmp_dir () = Filename.temp_file "test_pack_version_bump_" ""
 
-  (** Make a directory; dir is assumed to not exist; parent is assumed to exist *)
-  let mkdir p =
-    assert (not (Sys.file_exists p));
-    Filename.quote_command "mkdir" [ p ] |> fun cmd ->
-    exec_cmd cmd |> function
-    | Ok () -> ()
-    | Error n ->
-        Fmt.failwith "Command `%s' exited with non-zero code %d\n" cmd n
-
   (** Copy src to dst; dst is assumed to not exist *)
   let copy_dir src dst =
     assert (not (Sys.file_exists dst));
