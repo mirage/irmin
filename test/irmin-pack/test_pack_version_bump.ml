@@ -77,7 +77,7 @@ module Util = struct
           v1_store_archive_dir (Sys.getcwd ())
 
   (* Given the above, the following should always succeed *)
-  let _ = assert (Sys.file_exists (project_root ^ "/" ^ v1_store_archive_dir))
+  let () = assert (Sys.file_exists (project_root ^ "/" ^ v1_store_archive_dir))
 
   module Unix_ = Irmin_pack.IO.Unix
 
@@ -100,10 +100,10 @@ open Util
 (** This sets up infrastructure to open the existing "version_1" store *)
 module With_existing_store () = struct
   let tmp_dir = tmp_dir ()
-  let _ = [%log.info "Using temporary directory %s" tmp_dir]
+  let () = [%log.info "Using temporary directory %s" tmp_dir]
 
   (* Make a copy of the v1_store_archive_dir in tmp_dir *)
-  let _ =
+  let () =
     rm_dir tmp_dir;
     copy_dir (project_root ^ "/" ^ v1_store_archive_dir) tmp_dir;
     ()
