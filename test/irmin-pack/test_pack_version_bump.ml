@@ -88,7 +88,6 @@ module Util = struct
     r
 
   let alco_check_version ~pos ~expected ~actual =
-    (* FIXME? Version is private in Irmin_pack *)
     Alcotest.check_repr ~pos Irmin_pack.Version.t "" expected actual
 end
 
