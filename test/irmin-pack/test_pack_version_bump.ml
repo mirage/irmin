@@ -15,6 +15,7 @@ module Util = struct
   (** Following are generic utils *)
 
   let exec_cmd = Common.exec_cmd
+  let ( / ) = Filename.concat
   let tmp_dir () = Filename.temp_file "test_pack_version_bump_" ""
 
   (** Copy src to dst; dst is assumed to not exist *)
@@ -44,18 +45,19 @@ module Util = struct
       match test path with
       | true -> Ok path
       | false -> (
-          match is_root path with true -> Error () | false -> go (path ^ "/.."))
+          match is_root path with
+          | true -> Error ()
+          | false -> go (path / Filename.parent_dir_name))
     in
-    go "."
+    go Filename.current_dir_name
 
   (** More specific utils from here *)
 
-  let v1_store_archive_dir = "test/irmin-pack/data/version_1"
+  let v1_store_archive_dir = "test" / "irmin-pack" / "data" / "version_1"
 
   (** Find the project root, that contains the v1_store_archive_dir *)
   let project_root =
-    find_parent_matching (fun d ->
-        Sys.file_exists (d ^ "/" ^ v1_store_archive_dir))
+    find_parent_matching (fun d -> Sys.file_exists (d / v1_store_archive_dir))
     |> function
     | Ok s -> s
     | Error () ->
@@ -65,7 +67,7 @@ module Util = struct
           v1_store_archive_dir (Sys.getcwd ())
 
   (* Given the above, the following should always succeed *)
-  let () = assert (Sys.file_exists (project_root ^ "/" ^ v1_store_archive_dir))
+  let () = assert (Sys.file_exists (project_root / v1_store_archive_dir))
 
   module Unix_ = Irmin_pack.IO.Unix
 
@@ -92,7 +94,7 @@ module With_existing_store () = struct
   (* Make a copy of the v1_store_archive_dir in tmp_dir *)
   let () =
     rm_dir tmp_dir;
-    copy_dir (project_root ^ "/" ^ v1_store_archive_dir) tmp_dir;
+    copy_dir (project_root / v1_store_archive_dir) tmp_dir;
     ()
 
   (** Set up modules to allow access to "version_1" store *)
@@ -136,13 +138,13 @@ end
 let test_RO_no_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RO_no_version_bump"];
   let open With_existing_store () in
-  assert (io_get_version ~fn:(tmp_dir ^ "/store.pack") = `V1);
+  assert (io_get_version ~fn:(tmp_dir / "store.pack") = `V1);
   let* repo = S.Repo.v (config ~readonly:true) in
   let* () = S.Repo.close repo in
   (* maybe the version bump is only visible after closing the
      store... so check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
-    ~actual:(io_get_version ~fn:(tmp_dir ^ "/store.pack"));
+    ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
   Lwt.return ()
 
 (** test_RW_no_version_bump: open a V1 store RW mode, but don't attempt to
@@ -150,13 +152,13 @@ let test_RO_no_version_bump () : unit Lwt.t =
 let test_RW_no_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RW_no_version_bump"];
   let open With_existing_store () in
-  assert (io_get_version ~fn:(tmp_dir ^ "/store.pack") = `V1);
+  assert (io_get_version ~fn:(tmp_dir / "store.pack") = `V1);
   let* repo = S.Repo.v (config ~readonly:false (* was RO before, now RW *)) in
   let* () = S.Repo.close repo in
   (* maybe the version bump is only visible after closing the
      store... so check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
-    ~actual:(io_get_version ~fn:(tmp_dir ^ "/store.pack"));
+    ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
   Lwt.return ()
 
 (** test_RW_version_bump: open a V1 store RW mode, change something, version
@@ -164,7 +166,7 @@ let test_RW_no_version_bump () : unit Lwt.t =
 let test_RW_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RW_version_bump"];
   let open With_existing_store () in
-  assert (io_get_version ~fn:(tmp_dir ^ "/store.pack") = `V1);
+  assert (io_get_version ~fn:(tmp_dir / "store.pack") = `V1);
   let* repo = S.Repo.v (config ~readonly:false) in
   (* force version bump by writing to the store *)
   let* main = S.main repo in
@@ -173,7 +175,7 @@ let test_RW_version_bump () : unit Lwt.t =
   (* close *)
   let* () = S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V2
-    ~actual:(io_get_version ~fn:(tmp_dir ^ "/store.pack"));
+    ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
   Lwt.return ()
 
 let tests =
