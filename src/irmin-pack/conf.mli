@@ -16,6 +16,11 @@
 
 type length_header = [ `Varint ] option
 
+type inode_child_order =
+  [ `Seeded_hash  (** use a non-crypto seeded-hash of the step *)
+  | `Hash_bits  (** crypto hash the step and extract the relevant bits. *)
+  | `Custom of depth:int -> bytes -> int  (** use a custom index *) ]
+
 module type S = sig
   val entries : int
   val stable_hash : int
@@ -32,6 +37,8 @@ module type S = sig
         {i must} index all contents values (as recovering contents values from
         the store will require referring to the index for their length
         information). *)
+
+  val inode_child_order : inode_child_order
 end
 
 val spec : Irmin.Backend.Conf.Spec.t

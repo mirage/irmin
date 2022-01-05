@@ -27,9 +27,10 @@ module Simple = struct
   let data_dir = "data/pack"
 
   module Conf = struct
+    include Irmin_tezos.Conf
+
     let entries = 2
     let stable_hash = 3
-    let contents_length_header = Some `Varint
   end
 
   module Schema = Irmin.Schema.KV (Irmin.Contents.String)

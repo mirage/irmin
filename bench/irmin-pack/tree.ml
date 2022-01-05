@@ -193,11 +193,12 @@ module type B = sig
 end
 
 let store_of_config config =
-  let entries, stable_hash = config.inode_config in
+  let entries', stable_hash' = config.inode_config in
   let module Conf = struct
-    let entries = entries
-    let stable_hash = stable_hash
-    let contents_length_header = Some `Varint
+    include Irmin_tezos.Conf
+
+    let entries = entries'
+    let stable_hash = stable_hash'
   end in
   match config.store_type with
   | `Pack -> (module Bench_suite (Make_store_pack (Conf)) : B)

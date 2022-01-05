@@ -21,6 +21,7 @@ module Config = struct
   let entries = 2
   let stable_hash = 3
   let contents_length_header = Some `Varint
+  let inode_child_order = `Seeded_hash
 end
 
 let test_dir = Filename.concat "_build" "test-db-pack"

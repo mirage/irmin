@@ -16,6 +16,14 @@
 
 open! Import
 
+module type Child_ordering = sig
+  type step
+  type key
+
+  val key : step -> key
+  val index : depth:int -> key -> int
+end
+
 module type Value = sig
   type key
 
@@ -155,12 +163,17 @@ module type Internal = sig
         The result is [Error e] when a subtree tree of [c] has an integrity
         error. *)
   end
+
+  module Child_ordering : Child_ordering with type step := Val.step
 end
 
 module type Sigs = sig
   module type S = S
   module type Persistent = Persistent
   module type Internal = Internal
+  module type Child_ordering = Child_ordering
+
+  exception Max_depth of int
 
   module Make_internal
       (Conf : Conf.S)

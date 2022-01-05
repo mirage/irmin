@@ -17,6 +17,8 @@
 open! Import
 include Inode_intf
 
+exception Max_depth of int
+
 module Make_internal
     (Conf : Conf.S)
     (H : Irmin.Hash.S) (Key : sig
@@ -45,7 +47,7 @@ struct
   end
 
   module T = struct
-    type hash = H.t [@@deriving irmin ~pp ~equal]
+    type hash = H.t [@@deriving irmin ~pp ~to_bin_string ~equal]
     type key = Key.t [@@deriving irmin ~pp ~equal]
     type node_key = Node.node_key [@@deriving irmin]
     type contents_key = Node.contents_key [@@deriving irmin]
@@ -57,6 +59,84 @@ struct
     type value = Node.value [@@deriving irmin ~equal]
 
     module Metadata = Node.Metadata
+  end
+
+  module Step =
+    Irmin.Hash.Typed
+      (H)
+      (struct
+        type t = T.step
+
+        let t = T.step_t
+      end)
+
+  module Child_ordering : Child_ordering with type step := T.step = struct
+    open T
+
+    type key = bytes
+
+    let log_entry = int_of_float (log (float Conf.entries) /. log 2.)
+
+    let () =
+      assert (log_entry >= 1);
+      (* NOTE: the [`Hash_bits] mode is restricted to inodes with at most 1024
+         entries in order to simplify the implementation (see below). *)
+      assert ((not (Conf.inode_child_order = `Hash_bits)) || log_entry <= 10);
+      assert (Conf.entries = int_of_float (2. ** float log_entry))
+
+    let key =
+      match Conf.inode_child_order with
+      | `Hash_bits ->
+          fun s -> Bytes.unsafe_of_string (hash_to_bin_string (Step.hash s))
+      | `Seeded_hash | `Custom _ ->
+          fun s -> Bytes.unsafe_of_string (step_to_bin_string s)
+
+    (* Assume [k = cryto_hash(step)] (see {!key}) and [Conf.entry] can
+       can represented with [n] bits. Then, [hash_bits ~depth k] is
+       the [n]-bits integer [i] with the following binary representation:
+
+         [k(n*depth) ... k(n*depth+n-1)]
+
+       When [n] is not a power of 2, [hash_bits] needs to handle
+       unaligned reads properly. *)
+    let hash_bits ~depth k =
+      assert (Bytes.length k = Step.hash_size);
+      (* We require above that the child indices have at most 10 bits to ensure
+         that they span no more than 2 bytes of the step hash. The 3 byte case
+         (with [1 + 8 + 1]) does not happen for 10-bit indices because 10 is
+         even, but [2 + 8 + 1] would occur with 11-byte indices (e.g. when
+         [depth=2]). *)
+      let byte = 8 in
+      let initial_bit_pos = log_entry * depth in
+      let n = initial_bit_pos / byte in
+      let r = initial_bit_pos mod byte in
+      if n >= Step.hash_size then raise (Max_depth depth);
+      if r + log_entry <= byte then
+        (* The index is contained in a single character of the hash *)
+        let i = Bytes.get_uint8 k n in
+        let e0 = i lsr (byte - log_entry - r) in
+        let r0 = e0 land (Conf.entries - 1) in
+        r0
+      else
+        (* The index spans two characters of the hash *)
+        let i0 = Bytes.get_uint8 k n in
+        let to_read = byte - r in
+        let rest = log_entry - to_read in
+        let mask = (1 lsl to_read) - 1 in
+        let r0 = (i0 land mask) lsl rest in
+        if n + 1 >= Step.hash_size then raise (Max_depth depth);
+        let i1 = Bytes.get_uint8 k (n + 1) in
+        let r1 = i1 lsr (byte - rest) in
+        r0 + r1
+
+    let short_hash = Irmin.Type.(unstage (short_hash bytes))
+    let seeded_hash ~depth k = abs (short_hash ~seed:depth k) mod Conf.entries
+
+    let index =
+      match Conf.inode_child_order with
+      | `Seeded_hash -> seeded_hash
+      | `Hash_bits -> hash_bits
+      | `Custom f -> f
   end
 
   module StepMap = struct
@@ -1027,8 +1107,7 @@ struct
         in
         { v_ref; v = t.v; root = true }
 
-    let hash_key = short_hash_step
-    let index ~depth k = abs (hash_key ~seed:depth k) mod Conf.entries
+    let index ~depth k = Child_ordering.index ~depth k
 
     (** This function shouldn't be called with the [Total] layout. In the
         future, we could add a polymorphic variant to the GADT parameter to
@@ -1077,10 +1156,11 @@ struct
 
     let find_value ~cache layout ~depth t s =
       let target_of_ptr = Ptr.target ~cache layout in
+      let key = Child_ordering.key s in
       let rec aux ~depth = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
-            let i = index ~depth s in
+            let i = index ~depth key in
             let x = t.entries.(i) in
             match x with
             | None -> None
@@ -1090,7 +1170,7 @@ struct
 
     let find ?(cache = true) layout t s = find_value ~cache ~depth:0 layout t s
 
-    let rec add layout ~depth ~copy ~replace t s v k =
+    let rec add layout ~depth ~copy ~replace t s key v k =
       Stats.incr_inode_rec_add ();
       match t.v with
       | Values vs ->
@@ -1105,8 +1185,9 @@ struct
                 tree layout
                   { length = 0; depth; entries = Array.make Conf.entries None }
               in
-              let aux t (s, v) =
-                (add [@tailcall]) layout ~depth ~copy:false ~replace t s v
+              let aux t (s', v) =
+                let key' = Child_ordering.key s' in
+                (add [@tailcall]) layout ~depth ~copy:false ~replace t s' key' v
                   (fun x -> x)
               in
               List.fold_left aux empty vs
@@ -1115,7 +1196,7 @@ struct
       | Tree t -> (
           let length = if replace then t.length else t.length + 1 in
           let entries = if copy then Array.copy t.entries else t.entries in
-          let i = index ~depth s in
+          let i = index ~depth key in
           match entries.(i) with
           | None ->
               let target = values layout (StepMap.singleton s v) in
@@ -1128,24 +1209,25 @@ struct
                    [find_value] for that path.*)
                 Ptr.target ~cache:true layout n
               in
-              (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s v
-                (fun target ->
+              (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s key
+                v (fun target ->
                   entries.(i) <- Some (Ptr.of_target layout target);
                   let t = tree layout { depth; length; entries } in
                   k t))
 
     let add layout ~copy t s v =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
+      let k = Child_ordering.key s in
       match find_value ~cache:true ~depth:0 layout t s with
       | Some v' when equal_value v v' -> t
       | Some _ ->
-          add ~depth:0 layout ~copy ~replace:true t s v Fun.id
+          add ~depth:0 layout ~copy ~replace:true t s k v Fun.id
           |> stabilize_root layout
       | None ->
-          add ~depth:0 layout ~copy ~replace:false t s v Fun.id
+          add ~depth:0 layout ~copy ~replace:false t s k v Fun.id
           |> stabilize_root layout
 
-    let rec remove layout ~depth t s k =
+    let rec remove layout ~depth t s key k =
       Stats.incr_inode_rec_remove ();
       match t.v with
       | Values vs ->
@@ -1161,7 +1243,7 @@ struct
             k t
           else
             let entries = Array.copy t.entries in
-            let i = index ~depth s in
+            let i = index ~depth key in
             match entries.(i) with
             | None -> assert false
             | Some t ->
@@ -1175,16 +1257,17 @@ struct
                   let t = tree layout { depth; length = len; entries } in
                   k t)
                 else
-                  remove ~depth:(depth + 1) layout t s @@ fun target ->
+                  remove ~depth:(depth + 1) layout t s key @@ fun target ->
                   entries.(i) <- Some (Ptr.of_target layout target);
                   let t = tree layout { depth; length = len; entries } in
                   k t)
 
     let remove layout t s =
       (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
+      let k = Child_ordering.key s in
       match find_value ~cache:true layout ~depth:0 t s with
       | None -> t
-      | Some _ -> remove layout ~depth:0 t s Fun.id |> stabilize_root layout
+      | Some _ -> remove layout ~depth:0 t s k Fun.id |> stabilize_root layout
 
     let of_seq l =
       let t =
@@ -1611,7 +1694,7 @@ struct
     let length t = apply t { f = (fun _ v -> I.length v) }
     let clear t = apply t { f = (fun layout v -> I.clear layout v) }
     let nb_children t = apply t { f = (fun _ v -> I.nb_children v) }
-    let index = I.index
+    let index ~depth s = I.index ~depth (Child_ordering.key s)
 
     let integrity_check t =
       let f layout v =

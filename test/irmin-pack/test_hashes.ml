@@ -218,6 +218,7 @@ module Test_small_conf = struct
     let entries = 2
     let stable_hash = 3
     let contents_length_header = Some `Varint
+    let inode_child_order = `Seeded_hash
   end
 
   module Store = Test (Conf) (Irmin_tezos.Schema)
