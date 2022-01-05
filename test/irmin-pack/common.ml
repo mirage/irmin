@@ -270,5 +270,3 @@ end
 let exec_cmd cmd =
   [%logs.info "exec: %s" cmd];
   match Sys.command cmd with 0 -> Ok () | n -> Error n
-
-let _ = exec_cmd
