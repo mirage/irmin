@@ -56,7 +56,7 @@ module Util = struct
   let v1_store_archive_dir = "test" / "irmin-pack" / "data" / "version_1"
 
   (** Find the project root, that contains the v1_store_archive_dir *)
-  let project_root =
+  let project_root () =
     find_parent_matching (fun d -> Sys.file_exists (d / v1_store_archive_dir))
     |> function
     | Ok s -> s
@@ -65,9 +65,6 @@ module Util = struct
           "Couldn't find project root containing path to %s, after examining \
            current directory %s and ancestors"
           v1_store_archive_dir (Sys.getcwd ())
-
-  (* Given the above, the following should always succeed *)
-  let () = assert (Sys.file_exists (project_root / v1_store_archive_dir))
 
   module Unix_ = Irmin_pack.IO.Unix
 
@@ -94,7 +91,7 @@ module With_existing_store () = struct
   (* Make a copy of the v1_store_archive_dir in tmp_dir *)
   let () =
     rm_dir tmp_dir;
-    copy_dir (project_root / v1_store_archive_dir) tmp_dir;
+    copy_dir (project_root () / v1_store_archive_dir) tmp_dir;
     ()
 
   (** Set up modules to allow access to "version_1" store *)
