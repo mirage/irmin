@@ -268,3 +268,8 @@ module Filename = struct
           | None -> ""
           | Some f -> if stderr = stdout then " 2>&1" else " 2>" ^ quote f)
 end
+
+(** Exec a command, and return [Ok ()] or [Error n] if return code is n <> 0 *)
+let exec_cmd cmd =
+  [%logs.info "exec: %s" cmd];
+  match Sys.command cmd with 0 -> Ok () | n -> Error n

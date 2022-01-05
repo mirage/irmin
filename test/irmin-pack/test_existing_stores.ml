@@ -45,16 +45,6 @@ let archive =
     ("foo", [ ([ "b" ], "y") ]);
   ]
 
-let exec_cmd cmd =
-  [%log.info "exec: %s\n%!" cmd];
-  match Sys.command cmd with
-  | 0 -> ()
-  | n ->
-      Fmt.failwith
-        "Failed to set up the test environment: command `%s' exited with \
-         non-zero exit code %d"
-        cmd n
-
 module Config_store = struct
   let root_v1_archive, root_v1, tmp =
     let open Fpath in
@@ -67,10 +57,9 @@ module Config_store = struct
     let cmd =
       Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
     in
-    [%log.info "exec: %s\n%!" cmd];
-    match Sys.command cmd with
-    | 0 -> ()
-    | n ->
+    exec_cmd cmd |> function
+    | Ok () -> ()
+    | Error n ->
         Fmt.failwith
           "Failed to set up the test environment: command `%s' exited with \
            non-zero exit code %d"
@@ -130,10 +119,9 @@ module Test_reconstruct = struct
       Filename.quote_command "cp"
         [ "-R"; "-p"; Config_store.root_v1_archive; Config_store.tmp ]
     in
-    [%log.info "exec: %s\n%!" cmd];
-    match Sys.command cmd with
-    | 0 -> ()
-    | n ->
+    exec_cmd cmd |> function
+    | Ok () -> ()
+    | Error n ->
         Fmt.failwith
           "Failed to set up the test environment: command `%s' exited with \
            non-zero exit code %d"
@@ -182,7 +170,10 @@ module Test_corrupted_stores = struct
     goto_project_root ();
     rm_dir root;
     let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
-    exec_cmd cmd
+    exec_cmd cmd |> function
+    | Ok () -> ()
+    | Error n ->
+        Fmt.failwith "Failed to set up test env; cmd was %s; error was %d" cmd n
 
   let test () =
     setup_test_env ();
@@ -213,7 +204,11 @@ module Test_corrupted_inode = struct
     goto_project_root ();
     rm_dir root;
     let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
-    exec_cmd cmd
+    exec_cmd cmd |> function
+    | Ok () -> ()
+    | Error n ->
+        Fmt.failwith "Failed to set up test env; command %s failed with %d" cmd
+          n
 
   let test () =
     setup_test_env ();
