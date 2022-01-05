@@ -99,21 +99,12 @@ module With_existing_store () = struct
 
   (** Set up modules to allow access to "version_1" store *)
   module Private = struct
-    (* In test_existing_stores.ml, we have Test_reconstruct, which
-       uses S.traverse_pack_file; so S is likely the correct config
-       for the pack file. S = V2(), V2() = V2_maker.Make(Schema);
-       V2_maker = Irmin_pack.Maker(Conf); Conf is from Tezos_irmin;
-       Schema is from common. *)
-    (* Additional comment from @CraigFe: ``The specific Conf module
-       used here doesn't impact the behaviour of the test (we have two
-       flags that control the branching factor of inodes, and one that
-       opts-in to more efficient reads of contents values).'' This
-       implies that the exact Conf module used shouldn't affect the
-       tests. *)
+    (* The behaviour under test is independent of which [Conf] we pick: *)
     module Conf = Irmin_tezos.Conf
+
+    (* Note: the existing stores use a different hash from [Irmin_tezos.Schema]
+       (SHA1 rather than BLAKE2b) *)
     module Schema = Common.Schema
-    (* Note this Schema is not the same as Irmin_tezos.Schema;
-       Irmin_tezos uses their own hash; Common has Hash.SHA1 *)
 
     (* from test_existing_stores.ml; the V2 is because
        test_existing_stores defines two different configs *)
@@ -133,8 +124,7 @@ end
 
 (** {2 The tests} *)
 
-(** test_RO_no_version_bump: open a V1 store RO mode, the version should remain
-    V1 *)
+(** Open a V1 store RO mode, the version should remain V1 *)
 let test_RO_no_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RO_no_version_bump"];
   let open With_existing_store () in
@@ -147,8 +137,8 @@ let test_RO_no_version_bump () : unit Lwt.t =
     ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
   Lwt.return ()
 
-(** test_RW_no_version_bump: open a V1 store RW mode, but don't attempt to
-    mutate, version should remain V1 *)
+(** Open a V1 store RW mode but don't attempt to mutate, version should remain
+    V1 *)
 let test_RW_no_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RW_no_version_bump"];
   let open With_existing_store () in
@@ -161,8 +151,7 @@ let test_RW_no_version_bump () : unit Lwt.t =
     ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
   Lwt.return ()
 
-(** test_RW_version_bump: open a V1 store RW mode, change something, version
-    should bump to V2 *)
+(** Open a V1 store RW mode, change something, version should bump to V2 *)
 let test_RW_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RW_version_bump"];
   let open With_existing_store () in
@@ -172,14 +161,12 @@ let test_RW_version_bump () : unit Lwt.t =
   let* main = S.main repo in
   let info () = S.Info.v (Int64.of_int 0) in
   let* () = S.set_tree_exn ~info main [] (S.Tree.empty ()) in
-  (* close *)
   let* () = S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V2
     ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
   Lwt.return ()
 
 let tests =
-  (* following applies lwt-function-g to unit *)
   let f g () = Lwt_main.run @@ g () in
   Alcotest.
     [
