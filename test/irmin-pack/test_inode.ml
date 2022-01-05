@@ -700,11 +700,10 @@ module Child_ordering = struct
     let module T = Inode_modules (Conf) (Schema) (String_contents) in
     (module T.Inter.Child_ordering)
 
-  let check_child_index pos (module Order : S) ~reference ~step ~depth =
+  let check_child_index pos (module Order : S) ~expected ~step ~depth =
     let msg =
       Fmt.str "Short hash of child at { depth = %d; step = %S }" depth step
     in
-    let expected = reference ~depth step in
     let actual = Order.key step |> Order.index ~depth in
     check_int pos ~msg ~expected actual
 
@@ -734,9 +733,17 @@ module Child_ordering = struct
       abs (Step.short_hash ~seed:depth step) mod entries
     in
     let (module Order) = make `Seeded_hash in
+
+    (* Test some hard-coded samples to ensure stablility: *)
+    check_child_index __POS__ (module Order) ~expected:23 ~step:"a" ~depth:1;
+    check_child_index __POS__ (module Order) ~expected:2 ~step:"b" ~depth:2;
+    check_child_index __POS__ (module Order) ~expected:10 ~step:"foo" ~depth:42;
+
+    (* Should match reference implementation for some random samples too: *)
     for _ = 1 to 1_000 do
       let step = random_string 8 and depth = Random.int 10 in
-      check_child_index __POS__ (module Order) ~reference ~step ~depth
+      let expected = reference ~depth step in
+      check_child_index __POS__ (module Order) ~expected ~step ~depth
     done
 
   let hash_bits_max_depth ~log2_entries =
@@ -779,7 +786,8 @@ module Child_ordering = struct
         (* We compute the valid index for this step at every depth up to
            [max_depth]: *)
         for depth = 0 to max_depth do
-          check_child_index __POS__ (module Order) ~reference ~step ~depth
+          let expected = reference ~depth step in
+          check_child_index __POS__ (module Order) ~expected ~step ~depth
         done;
         (* Beyond [max_depth], the index computation should fail: *)
         check_max_depth_exception __POS__
@@ -790,15 +798,14 @@ module Child_ordering = struct
 
   let test_custom () =
     let entries = 16 in
-    let reference ~depth step = (depth + int_of_string step) mod entries in
-    let (module Order) =
-      make ~entries
-        (`Custom (fun ~depth s -> reference ~depth (Bytes.to_string s)))
+    let square_index ~depth step =
+      let a = depth and b = int_of_string (Bytes.unsafe_to_string step) in
+      a * b
     in
-    let check pos = check_child_index pos (module Order) ~reference in
-    check __POS__ ~depth:1 ~step:"1";
-    check __POS__ ~depth:2 ~step:"2";
-    check __POS__ ~depth:3 ~step:"3";
+    let (module Order) = make ~entries (`Custom square_index) in
+    check_child_index __POS__ (module Order) ~depth:1 ~step:"1" ~expected:1;
+    check_child_index __POS__ (module Order) ~depth:2 ~step:"2" ~expected:4;
+    check_child_index __POS__ (module Order) ~depth:3 ~step:"3" ~expected:9;
     ()
 end
 
