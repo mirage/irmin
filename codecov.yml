@@ -1,0 +1,4 @@
+comment:
+   layout: diff
+   behaviour: default
+   require_changes: true
