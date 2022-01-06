@@ -3,4 +3,6 @@
  (name irmin_pack_mem)
  (libraries irmin-pack irmin.mem)
  (preprocess
-  (pps ppx_irmin.internal)))
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

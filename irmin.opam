@@ -35,6 +35,7 @@ depends: [
   "vector" {with-test}
   "mdx" {>= "2.0.0" & with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
+  "bisect_ppx" {dev & >= "2.5.0"}
 ]
 
 conflicts: [

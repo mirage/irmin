@@ -2,4 +2,6 @@
  (name irmin_graphql)
  (public_name irmin-graphql)
  (libraries fmt cohttp cohttp-lwt graphql-cohttp graphql graphql-lwt
-   graphql_parser irmin lwt))
+   graphql_parser irmin lwt)
+ (instrumentation
+  (backend bisect_ppx)))

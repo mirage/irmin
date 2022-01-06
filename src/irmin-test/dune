@@ -6,7 +6,9 @@
  (preprocess
   (pps ppx_irmin.internal))
  (libraries alcotest astring fmt irmin irmin-layers jsonm logs.fmt lwt
-   lwt.unix mtime mtime.clock.os))
+   lwt.unix mtime mtime.clock.os)
+ (instrumentation
+  (backend bisect_ppx)))
 
 (library
  (foreign_stubs
@@ -16,4 +18,6 @@
  (public_name irmin-test.bench)
  (modules Irmin_bench Rusage)
  (libraries fmt.tty fmt.cli cmdliner irmin logs.fmt logs.cli lwt lwt.unix
-   metrics metrics-unix irmin-test))
+   metrics metrics-unix irmin-test)
+ (instrumentation
+  (backend bisect_ppx)))

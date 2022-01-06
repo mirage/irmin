@@ -4,4 +4,6 @@
  (public_name ppx_irmin)
  (modules ppx_irmin)
  (kind ppx_deriver)
- (libraries ppx_repr.lib))
+ (libraries ppx_repr.lib)
+ (instrumentation
+  (backend bisect_ppx)))

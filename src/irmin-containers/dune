@@ -3,4 +3,6 @@
  (public_name irmin-containers)
  (libraries irmin irmin.mem irmin-unix irmin-git mtime)
  (preprocess
-  (pps ppx_irmin.internal)))
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

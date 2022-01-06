@@ -3,4 +3,6 @@
  (public_name irmin-git)
  (libraries astring cstruct fmt fpath git irmin logs lwt uri irmin.mem)
  (preprocess
-  (pps ppx_irmin.internal)))
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))
