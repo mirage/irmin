@@ -213,8 +213,8 @@ module Maker (Config : Conf.S) = struct
 
     let integrity_check_inodes ?heads t =
       [%log.debug "Check integrity for inodes"];
-      let bar, (_, progress_nodes, progress_commits) =
-        Utils.Progress.increment ()
+      let counter, (_, progress_nodes, progress_commits) =
+        Utils.Object_counter.start ()
       in
       let errors = ref [] in
       let nodes = X.Repo.node_t t |> snd in
@@ -235,7 +235,7 @@ module Maker (Config : Conf.S) = struct
       let+ () =
         Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
       in
-      Utils.Progress.finalise bar;
+      Utils.Object_counter.finalise counter;
       let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
       if !errors = [] then
         Fmt.kstr (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads

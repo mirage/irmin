@@ -9,8 +9,8 @@
 
 (executable
  (name test)
- (modules test test_utils)
- (libraries alcotest astring irmin irmin-test test_pack))
+ (modules test)
+ (libraries irmin irmin-test test_pack))
 
 (rule
  (alias runtest)
