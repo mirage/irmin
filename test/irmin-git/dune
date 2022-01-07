@@ -11,8 +11,13 @@
  (modules test)
  (libraries alcotest irmin irmin-test test_git))
 
+; Temporary disable the tests on s390x because of
+; https://github.com/ocaml/ocaml/issues/10857
+
 (rule
  (alias runtest)
  (package irmin-git)
+ (enabled_if
+  (<> %{architecture} "s390x"))
  (action
   (run ./test.exe -q --color=always)))
