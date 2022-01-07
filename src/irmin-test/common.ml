@@ -16,7 +16,6 @@
 
 open! Import
 
-let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
 
 let random_ascii () =

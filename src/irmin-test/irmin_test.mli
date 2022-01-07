@@ -75,6 +75,7 @@ module Store : sig
   val run :
     string ->
     ?slow:bool ->
+    ?random_seed:int ->
     misc:unit Alcotest.test list ->
     (Alcotest.speed_level * Suite.t) list ->
     unit

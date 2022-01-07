@@ -2143,7 +2143,12 @@ let layered_suite (speed, x) =
         @ when_ x.import_supported
             [ ("Basic operations on slices", speed, T.test_slice ~hook x) ] )
 
-let run name ?(slow = false) ~misc tl =
+let run name ?(slow = false) ?random_seed ~misc tl =
+  let () =
+    match random_seed with
+    | Some x -> Random.init x
+    | None -> Random.self_init ()
+  in
   Printexc.record_backtrace true;
   (* Ensure that failures occuring in async lwt threads are raised. *)
   (Lwt.async_exception_hook := fun exn -> raise exn);
