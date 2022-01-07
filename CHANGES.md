@@ -8,6 +8,7 @@
 - *irmin-pack*
   - Fix proofs for large inodes by tracking side-effects reads inside the
     inode implementation (#1670, @samoht, @Ngoguey42)
+  - Flush branch store without calling `Repo.close` (#1707, @zshipko)
 
 ### Added
 
