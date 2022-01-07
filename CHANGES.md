@@ -164,6 +164,7 @@
 - **irmin-graphql**:
   - Changed the name of the default branch node from `master` to `main` in the
     GraphQL API. (#1564, @CraigFe)
+  - Updated to be compatible with generic keys (#1618, @zshipko)
 
 - **irmin-mirage**
   - Renamed `Irmin_mirage_git.Make` into `Irmin_mirage_git.Maker`
