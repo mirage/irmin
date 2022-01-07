@@ -66,9 +66,12 @@ struct
   let set_entry t ?off k v =
     let k = key_to_bin_string k in
     let buf = entry_to_bin_string (k, v) in
-    match off with
-    | None -> IO.append t.block buf
-    | Some off -> IO.set t.block buf ~off
+    let () =
+      match off with
+      | None -> IO.append t.block buf
+      | Some off -> IO.set t.block buf ~off
+    in
+    IO.flush t.block
 
   let pp_branch = Irmin.Type.pp K.t
 
