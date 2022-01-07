@@ -519,51 +519,118 @@ let revert =
   }
 
 (* WATCH *)
+
+let run_command (type a b c)
+    (module S : Irmin.Generic_key.S
+      with type Schema.Path.t = a
+       and type Schema.Contents.t = b
+       and type Schema.Metadata.t = c) diff command proc =
+  let simple_output (k, v) =
+    let x =
+      match v with `Updated _ -> "*" | `Added _ -> "+" | `Removed _ -> "-"
+    in
+    print "%s %a" x (Irmin.Type.pp S.Path.t) k;
+    Lwt.return_unit
+  in
+  (* Check if there was a command passed, if not print a simple message to stdout, if there is
+     a command pass the whole diff *)
+  match command with
+  | h :: t ->
+      let ty = [%typ: (S.path * (S.contents * S.metadata) Irmin.Diff.t) list] in
+      let s = Fmt.str "%a" (Irmin.Type.pp_json ty) diff in
+      let make_proc () =
+        (* Start new process *)
+        let p = Lwt_process.open_process_out (h, Array.of_list (h :: t)) in
+        proc := Some p;
+        p
+      in
+      let proc =
+        (* Check if process is already running, if not run it *)
+        match !proc with
+        | None -> make_proc ()
+        | Some p -> (
+            (* Determine if the subprocess completed succesfully or exited with an error,
+               if it was successful then we can restart it, otherwise report the exit code
+               the user *)
+            let status = p#state in
+            match status with
+            | Lwt_process.Running -> p
+            | Exited (Unix.WEXITED 0) -> make_proc ()
+            | Exited (Unix.WEXITED code) ->
+                Printf.printf "Subprocess exited with code %d\n" code;
+                exit code
+            | Exited (Unix.WSIGNALED code) | Exited (Unix.WSTOPPED code) ->
+                Printf.printf "Subprocess stopped with code %d\n" code;
+                exit code)
+      in
+      (* Write the diff to the subprocess *)
+      let* () = Lwt_io.write_line proc#stdin s in
+      Lwt_io.flush proc#stdin
+  | [] -> Lwt_list.iter_s simple_output diff
+
+let handle_diff (type a b)
+    (module S : Irmin.Generic_key.S
+      with type Schema.Path.t = a
+       and type commit = b) (path : a) command proc d =
+  let view (c, _) =
+    let* t = S.of_commit c in
+    S.find_tree t path >|= function None -> S.Tree.empty () | Some v -> v
+  in
+  let* x, y =
+    match d with
+    | `Updated (x, y) ->
+        let* x = view x in
+        let+ y = view y in
+        (x, y)
+    | `Added x ->
+        let+ x = view x in
+        (S.Tree.empty (), x)
+    | `Removed x ->
+        let+ x = view x in
+        (x, S.Tree.empty ())
+  in
+  let* (diff : (S.path * (S.contents * S.metadata) Irmin.Diff.t) list) =
+    S.Tree.diff x y
+  in
+  run_command
+    (module S : Irmin.Generic_key.S
+      with type Schema.Path.t = S.path
+       and type Schema.Contents.t = S.contents
+       and type Schema.Metadata.t = S.metadata)
+    diff command proc
+
 let watch =
   {
     name = "watch";
     doc = "Get notifications when values change.";
     man = [];
     term =
-      (let watch (S (impl, store, _)) path =
+      (let watch (S (impl, store, _)) path command =
          let (module S) = Store.Impl.generic_keyed impl in
          let path = key S.Path.t path in
+         let proc = ref None in
+         let () =
+           at_exit (fun () ->
+               match !proc with None -> () | Some p -> p#terminate)
+         in
          run
            (let* t = store in
             let* _ =
-              S.watch_key t path (fun d ->
-                  let pr (k, v) =
-                    let v =
-                      match v with
-                      | `Updated _ -> "*"
-                      | `Added _ -> "+"
-                      | `Removed _ -> "-"
-                    in
-                    print "%s%a" v (Irmin.Type.pp S.Path.t) k
-                  in
-                  let view (c, _) =
-                    let* t = S.of_commit c in
-                    S.find_tree t path >|= function
-                    | None -> S.Tree.empty ()
-                    | Some v -> v
-                  in
-                  let empty = Lwt.return (S.Tree.empty ()) in
-                  let x, y =
-                    match d with
-                    | `Updated (x, y) -> (view x, view y)
-                    | `Added x -> (empty, view x)
-                    | `Removed x -> (view x, empty)
-                  in
-                  let* x = x in
-                  let* y = y in
-                  let* diff = S.Tree.diff x y in
-                  List.iter pr diff;
-                  Lwt.return_unit)
+              S.watch_key t path
+                (handle_diff
+                   (module S : Irmin.Generic_key.S
+                     with type Schema.Path.t = S.path
+                      and type commit = S.commit)
+                   path command proc)
             in
             let t, _ = Lwt.task () in
             t)
        in
-       Term.(mk watch $ store () $ path));
+       let command =
+         let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
+         Arg.(value & pos_right 0 string [] & doc)
+       in
+       Term.(mk watch $ store () $ path $ command));
   }
 
 (* DOT *)

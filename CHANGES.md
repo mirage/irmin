@@ -184,6 +184,8 @@
     (#1575, @maiste)
   - Add new commands to CLI: `branches` for listing available branches and
     `log` which is similar to `git log` (#1609, @zshipko)
+  - Update `irmin watch` to take parameters to specify a command that should
+    be executed when there are new changes (#1608, @zshipko)
 
 ### Removed
 
