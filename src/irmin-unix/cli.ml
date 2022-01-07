@@ -607,11 +607,7 @@ let watch =
     term =
       (let watch (S (impl, store, _)) path command =
          let (module S) = Store.Impl.generic_keyed impl in
-         let path =
-           match path with
-           | Empty -> S.Path.empty
-           | Path str -> key S.Path.t str
-         in
+         let path = key S.Path.t path in
          let proc = ref None in
          let () =
            at_exit (fun () ->
@@ -634,7 +630,7 @@ let watch =
          let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
          Arg.(value & pos_right 0 string [] & doc)
        in
-       Term.(mk watch $ store () $ path_or_empty $ command));
+       Term.(mk watch $ store () $ path $ command));
   }
 
 (* DOT *)
