@@ -143,6 +143,46 @@ let test_get_last_modified : test_case =
     result;
   ()
 
+let test_commit : test_case =
+ fun ~set_tree:_ () ->
+  let query =
+    {|{
+        main {
+          head {
+            hash,
+            key
+          }
+        }
+    }|}
+  in
+  let* result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
+  let hash : string =
+    result
+    |> members [ "data"; "main"; "head"; "hash" ]
+    |> Yojson.Safe.Util.to_string
+  in
+  let key : string =
+    result
+    |> members [ "data"; "main"; "head"; "key" ]
+    |> Yojson.Safe.Util.to_string
+  in
+  let query =
+    Printf.sprintf
+      {|{
+        commit_of_key(key: "%s") {
+          hash
+        }
+      }|}
+      key
+  in
+  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
+  let hash' : string =
+    result
+    |> members [ "data"; "commit_of_key"; "hash" ]
+    |> Yojson.Safe.Util.to_string
+  in
+  Alcotest.(check string) "Hashes equal" hash hash'
+
 let suite ~set_tree =
   let test_case : string -> test_case -> unit Alcotest_lwt.test_case =
    fun name f -> Alcotest_lwt.test_case name `Quick (fun _ () -> f ~set_tree ())
@@ -153,6 +193,7 @@ let suite ~set_tree =
         test_case "get_contents-list" test_get_contents_list;
         test_case "get_tree-list" test_get_tree_list;
         test_case "get_last_modified" test_get_last_modified;
+        test_case "commit" test_commit;
       ] );
   ]
 

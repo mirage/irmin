@@ -267,7 +267,9 @@ struct
                 ~typ:(non_null Lazy.(force info))
                 ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.info c);
-              field "hash" ~typ:(non_null Types.Commit_key.schema_typ) ~args:[]
+              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                ~resolve:(fun _ c -> Store.Commit.hash c);
+              field "key" ~typ:(non_null Types.Commit_key.schema_typ) ~args:[]
                 ~resolve:(fun _ c -> Store.Commit.key c);
             ]))
 
@@ -784,6 +786,9 @@ struct
             ~args:Arg.[ arg "hash" ~typ:(non_null Input.commit_hash) ]
             ~resolve:(fun _ _src hash ->
               Store.Commit.of_hash s hash >|= Result.ok);
+          io_field "commit_of_key" ~typ:(Lazy.force commit)
+            ~args:Arg.[ arg "key" ~typ:(non_null Input.commit_key) ]
+            ~resolve:(fun _ _src k -> Store.Commit.of_key s k >|= Result.ok);
           io_field "branches"
             ~typ:(non_null (list (non_null Lazy.(force branch))))
             ~args:[]
