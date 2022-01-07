@@ -88,6 +88,10 @@
   - Add a new package to mirror Tezos `tezos-context.encoding` library.
     That'll simplify building benchmarks and custom tools (#1579, @samoht)
 
+- **libirmin**
+  - Create `libirmin` package providing a C interface to the irmin API
+    (#1713, @zshipko)
+
 ### Changed
 
 - **irmin**

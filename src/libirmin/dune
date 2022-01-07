@@ -1,0 +1,3 @@
+(library
+ (name libirmin_bindings)
+ (libraries irmin-unix ctypes.foreign))
