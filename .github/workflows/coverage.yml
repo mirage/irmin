@@ -1,6 +1,9 @@
 name: coverage
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
   schedule:
     # Prime the caches every Monday
