@@ -839,10 +839,16 @@ module Make (P : Private.S) = struct
         in
         Seq.append value_bindings updates
 
-    type ('v, 'acc, 'r) folder =
-      path:key -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
+    type ('v, 'acc, 'r) folder = key * 'acc * int * 'v -> ('acc, 'r) cont_lwt
     (** A ('val, 'acc, 'r) folder is a CPS, threaded fold function over values
-        of type ['v] producing an accumulator of type ['acc]. *)
+        of type ['v] producing an accumulator of type ['acc].
+
+        Note that arguments to recursive functions inside [fold] are grouped in
+        tuples. This is because the tailcall optimisation on s390x machines only
+        works when functions have a small number of arguments (see
+        https://github.com/ocaml/ocaml/issues/10857 and
+        https://github.com/mirage/irmin/issues/1693). This is fixed in
+        ocaml.4.14, and so this is a temporary hack until then. *)
 
     let fold :
         type acc.
@@ -883,7 +889,7 @@ module Make (P : Private.S) = struct
             post path s acc
       in
       let rec aux : type r. (t, acc, r) folder =
-       fun ~path acc d t k ->
+       fun (path, acc, d, t) k ->
         let apply acc = node path t acc >>= tree path (`Node t) in
         let next acc =
           match force with
@@ -894,18 +900,18 @@ module Make (P : Private.S) = struct
                   let arr = StepMap.to_array m in
                   let () = shuffle state arr in
                   let s = Array.to_seq arr in
-                  (seq [@tailcall]) ~path acc d s k
+                  (seq [@tailcall]) (path, acc, d, s) k
               | `Sorted, _ | `Undefined, Map _ ->
-                  let* m = to_map ~cache t >|= get_ok "fold" in
-                  (map [@tailcall]) ~path acc d (Some m) k
+                  let* m = to_map ~cache t >|= get_ok "Node.fold" in
+                  (map [@tailcall]) (path, acc, d, Some m) k
               | `Undefined, Value (repo, v, updates) ->
-                  (value [@tailcall]) ~path acc d (repo, v, updates) k
+                  (value [@tailcall]) (path, acc, d, (repo, v, updates)) k
               | `Undefined, Hash (repo, _) ->
-                  let* v = to_value ~cache t >|= get_ok "fold" in
-                  (value [@tailcall]) ~path acc d (repo, v, None) k)
+                  let* v = to_value ~cache t >|= get_ok "Node.fold" in
+                  (value [@tailcall]) (path, acc, d, (repo, v, None)) k)
           | `False skip -> (
               match cached_map t with
-              | Some n -> (map [@tailcall]) ~path acc d (Some n) k
+              | Some n -> (map [@tailcall]) (path, acc, d, Some n) k
               | None ->
                   (* XXX: That node is skipped if is is of tag Value *)
                   skip path acc >>= k)
@@ -921,19 +927,19 @@ module Make (P : Private.S) = struct
         | Some (`Gt depth) ->
             if d <= depth then next acc else apply acc >>= next
       and aux_uniq : type r. (t, acc, r) folder =
-       fun ~path acc d t k ->
-        if uniq = `False then (aux [@tailcall]) ~path acc d t k
+       fun (path, acc, d, t) k ->
+        if uniq = `False then (aux [@tailcall]) (path, acc, d, t) k
         else
           let h = hash ~cache t in
           if Hashes.mem marks h then k acc
           else (
             Hashes.add marks h ();
-            (aux [@tailcall]) ~path acc d t k)
+            (aux [@tailcall]) (path, acc, d, t) k)
       and step : type r. (step * elt, acc, r) folder =
-       fun ~path acc d (s, v) k ->
+       fun (path, acc, d, (s, v)) k ->
         let path = Path.rcons path s in
         match v with
-        | `Node n -> (aux_uniq [@tailcall]) ~path acc (d + 1) n k
+        | `Node n -> (aux_uniq [@tailcall]) (path, acc, d + 1, n) k
         | `Contents c -> (
             let apply () =
               let tree path = tree path (`Contents c) in
@@ -947,22 +953,22 @@ module Make (P : Private.S) = struct
             | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
             | Some (`Gt depth) -> if d >= depth then apply () else k acc)
       and steps : type r. ((step * elt) Seq.t, acc, r) folder =
-       fun ~path acc d s k ->
+       fun (path, acc, d, s) k ->
         match s () with
         | Seq.Nil -> k acc
         | Seq.Cons (h, t) ->
-            (step [@tailcall]) ~path acc d h (fun acc ->
-                (steps [@tailcall]) ~path acc d t k)
+            (step [@tailcall]) (path, acc, d, h) (fun acc ->
+                (steps [@tailcall]) (path, acc, d, t) k)
       and map : type r. (map option, acc, r) folder =
-       fun ~path acc d m k ->
+       fun (path, acc, d, m) k ->
         match m with
         | None -> k acc
         | Some m ->
             let bindings = StepMap.to_seq m in
-            seq ~path acc d bindings k
+            seq (path, acc, d, bindings) k
       and value :
           type r. (repo option * value * updatemap option, acc, r) folder =
-       fun ~path acc d (repo, v, updates) k ->
+       fun (path, acc, d, (repo, v, updates)) k ->
         let to_elt = function
           | `Node n -> `Node (of_hash repo n)
           | `Contents (c, m) -> `Contents (Contents.of_hash repo c, m)
@@ -975,14 +981,14 @@ module Make (P : Private.S) = struct
           | None -> bindings
           | Some updates -> seq_of_updates updates bindings
         in
-        seq ~path acc d bindings k
+        seq (path, acc, d, bindings) k
       and seq : type r. ((step * elt) Seq.t, acc, r) folder =
-       fun ~path acc d bindings k ->
+       fun (path, acc, d, bindings) k ->
         let* acc = pre path bindings acc in
-        (steps [@tailcall]) ~path acc d bindings (fun acc ->
+        (steps [@tailcall]) (path, acc, d, bindings) (fun acc ->
             post path bindings acc >>= k)
       in
-      aux_uniq ~path acc 0 t Lwt.return
+      aux_uniq (path, acc, 0, t) Lwt.return
 
     let update t step up =
       let of_map m =
