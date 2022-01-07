@@ -1,4 +1,6 @@
 (library
  (name irmin_mirage)
  (public_name irmin-mirage)
- (libraries fmt irmin irmin.mem mirage-clock ptime))
+ (libraries fmt irmin irmin.mem mirage-clock ptime)
+ (instrumentation
+  (backend bisect_ppx)))

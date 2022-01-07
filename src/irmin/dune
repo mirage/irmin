@@ -16,4 +16,6 @@
   uutf
   (re_export repr))
  (preprocess
-  (pps ppx_irmin.internal -- --lib "Type")))
+  (pps ppx_irmin.internal -- --lib "Type"))
+ (instrumentation
+  (backend bisect_ppx)))

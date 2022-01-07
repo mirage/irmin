@@ -19,6 +19,7 @@ depends: [
   "ppxlib" {>= "0.12.0"}
   "logs" {>= "0.5.0"}
   "fmt" {with-test & >= "0.8.0"}
+  "bisect_ppx" {dev & >= "2.5.0"}
 ]
 
 synopsis: "PPX deriver for Irmin type representations"

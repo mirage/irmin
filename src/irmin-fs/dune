@@ -3,4 +3,6 @@
  (public_name irmin-fs)
  (libraries astring irmin logs lwt)
  (preprocess
-  (pps ppx_irmin.internal)))
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

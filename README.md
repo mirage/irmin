@@ -10,6 +10,7 @@
 <br />
 
 [![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmain&logo=ocaml&style=flat-square)](https://ci.ocamllabs.io/github/mirage/irmin)
+[![codecov](https://codecov.io/gh/mirage/irmin/branch/main/graph/badge.svg?token=n4mWfgURqT)](https://codecov.io/gh/mirage/irmin)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/mirage/irmin?style=flat-square&color=09aa89)](https://github.com/mirage/irmin/releases/latest)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg?style=flat-square)](https://mirage.github.io/irmin/)
 

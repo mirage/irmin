@@ -3,4 +3,6 @@
  (name irmin_layers)
  (libraries irmin irmin.mem logs lwt mtime mtime.clock.os)
  (preprocess
-  (pps ppx_irmin.internal)))
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

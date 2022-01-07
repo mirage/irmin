@@ -1,4 +1,5 @@
 _build
+_coverage
 *~
 *.install
 *.merlin

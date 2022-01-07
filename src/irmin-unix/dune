@@ -6,4 +6,6 @@
    irmin-graphql irmin-http irmin.mem irmin-pack irmin-tezos irmin-watcher
    logs.cli logs.fmt lwt lwt.unix uri yaml)
  (preprocess
-  (pps ppx_irmin.internal)))
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))
