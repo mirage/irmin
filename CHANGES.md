@@ -1,9 +1,11 @@
-## unreleased
+## 2.10 (2021-01-07)
 
 ### Fixed
 
 - *irmin*
   - Conversion between proofs and trees are now done in CPS (#1624, @samoht)
+  - Better support for s390x to workaround https://github.com/ocaml/ocaml/issues/10857
+    (#1694, @icristescu)
 
 - *irmin-pack*
   - Fix proofs for large inodes by tracking side-effects reads inside the
