@@ -148,6 +148,10 @@ module type S_generic_key = sig
     [@@deriving irmin]
     (** The type for elements iterated over by {!iter}. *)
 
+    val default_pred_commit : t -> commit_key -> elt list Lwt.t
+    val default_pred_node : t -> node_key -> elt list Lwt.t
+    val default_pred_contents : t -> contents_key -> elt list Lwt.t
+
     val iter :
       ?cache_size:int ->
       min:elt list ->

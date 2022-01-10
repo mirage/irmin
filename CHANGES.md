@@ -49,6 +49,7 @@
   - Added new counters in `Stats` (#1570, @Ngoguey42).
   - Added an option to configure the index function and pick the relevant bits
     in a cryptographic hash by default (#1677 #1699, @samoht)
+  - Verify inode depth invariants (#1711, @Ngoguey42). Forward port of #1665.
 
 - **irmin-unix**
   - Update `irmin` CLI to raise an exception when an invalid/non-existent

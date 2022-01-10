@@ -218,6 +218,14 @@ module Maker (Config : Conf.S) = struct
       in
       let errors = ref [] in
       let nodes = X.Repo.node_t t |> snd in
+      let pred_node repo key =
+        Lwt.catch
+          (fun () -> Repo.default_pred_node repo key)
+          (fun _ ->
+            errors := "Error in repo iter" :: !errors;
+            Lwt.return [])
+      in
+
       let node k =
         progress_nodes ();
         X.Node.CA.integrity_check_inodes nodes k >|= function
@@ -233,7 +241,8 @@ module Maker (Config : Conf.S) = struct
       in
       let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
       let+ () =
-        Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~node ~commit t
+        Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~pred_node ~node
+          ~commit t
       in
       Utils.Object_counter.finalise counter;
       let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in

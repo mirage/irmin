@@ -275,6 +275,11 @@ struct
 
     let v ~hash ~root v = { hash; root; v }
     let hash t = Lazy.force t.hash
+
+    let depth t =
+      match t.v with
+      | Values _ -> if t.root then Some 0 else None
+      | Tree t -> Some t.depth
   end
 
   (* Compressed binary representation *)
@@ -605,8 +610,10 @@ struct
 
     type _ layout =
       | Total : total_ptr layout
-      | Partial : (key -> partial_ptr t option) -> partial_ptr layout
+      | Partial : find -> partial_ptr layout
       | Truncated : truncated_ptr layout
+
+    and find = expected_depth:int -> key -> partial_ptr t option
 
     and partial_ptr_target =
       | Dirty of partial_ptr t
@@ -669,8 +676,10 @@ struct
             | Broken h -> Val_ref.to_key_exn h
             | Intact ptr -> Val_ref.to_key_exn ptr.v_ref)
 
-      let target : type ptr. cache:bool -> ptr layout -> ptr -> ptr t =
-       fun ~cache layout ->
+      let target :
+          type ptr.
+          expected_depth:int -> cache:bool -> ptr layout -> ptr -> ptr t =
+       fun ~expected_depth ~cache layout ->
         match layout with
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
@@ -681,7 +690,7 @@ struct
                    users can discard using [clear]. *)
                 entry
             | { target = Lazy key } as t -> (
-                match find key with
+                match find ~expected_depth key with
                 | None -> Fmt.failwith "%a: unknown key" pp_key key
                 | Some x ->
                     if cache then t.target <- Lazy_loaded x;
@@ -816,15 +825,16 @@ struct
 
     type cont = off:int -> len:int -> (step * value) Seq.node
 
-    let rec seq_tree layout bucket_seq ~cache : cont -> cont =
+    let rec seq_tree layout bucket_seq ~depth ~cache : cont -> cont =
      fun k ~off ~len ->
       assert (off >= 0);
       assert (len > 0);
       match bucket_seq () with
       | Seq.Nil -> k ~off ~len
-      | Seq.Cons (None, rest) -> seq_tree layout rest ~cache k ~off ~len
+      | Seq.Cons (None, rest) -> seq_tree layout rest ~depth ~cache k ~off ~len
       | Seq.Cons (Some i, rest) ->
-          let trg = Ptr.target ~cache layout i in
+          let expected_depth = depth + 1 in
+          let trg = Ptr.target ~expected_depth ~cache layout i in
           let trg_len = length trg in
           if off - trg_len >= 0 then
             (* Skip a branch of the inode tree in case the user asked for a
@@ -834,9 +844,11 @@ struct
                because [seq_value] would handles the pagination value by value
                instead. *)
             let off = off - trg_len in
-            seq_tree layout rest ~cache k ~off ~len
+            seq_tree layout rest ~depth ~cache k ~off ~len
           else
-            seq_v layout trg.v ~cache (seq_tree layout rest ~cache k) ~off ~len
+            seq_v layout trg.v ~cache
+              (seq_tree layout rest ~depth ~cache k)
+              ~off ~len
 
     and seq_values layout value_seq : cont -> cont =
      fun k ~off ~len ->
@@ -863,7 +875,9 @@ struct
       assert (off >= 0);
       assert (len > 0);
       match v with
-      | Tree t -> seq_tree layout (Array.to_seq t.entries) ~cache k ~off ~len
+      | Tree t ->
+          let depth = t.depth in
+          seq_tree layout (Array.to_seq t.entries) ~depth ~cache k ~off ~len
       | Values vs -> seq_values layout (StepMap.to_seq vs) k ~off ~len
 
     let empty_continuation : cont = fun ~off:_ ~len:_ -> Seq.Nil
@@ -1001,8 +1015,9 @@ struct
                         match e with
                         | None -> (i + 1, acc)
                         | Some t ->
+                            let expected_depth = tr.depth + 1 in
                             let pointer, tree =
-                              aux (Ptr.target ~cache:true la t)
+                              aux (Ptr.target ~expected_depth ~cache:true la t)
                             in
                             (i + 1, { Concrete.index = i; tree; pointer } :: acc))
                       (0, []) tr.entries
@@ -1160,27 +1175,30 @@ struct
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
 
     let find_value ~cache layout t s =
-      let target_of_ptr = Ptr.target ~cache layout in
       let key = Child_ordering.key s in
       let rec aux = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
             let i = index ~depth:t.depth key in
             let x = t.entries.(i) in
-            match x with None -> None | Some i -> aux (target_of_ptr i).v)
+            match x with
+            | None -> None
+            | Some i ->
+                let expected_depth = t.depth + 1 in
+                aux (Ptr.target ~expected_depth ~cache layout i).v)
       in
       aux t.v
 
     let find ?(cache = true) layout t s = find_value ~cache layout t s
 
-    let rec add layout ~depth ~copy ~replace t s key v k =
+    let rec add layout ~depth ~copy ~replace parent s key v k =
       Stats.incr_inode_rec_add ();
-      match t.v with
+      match parent.v with
       | Values vs ->
           let length =
             if replace then StepMap.cardinal vs else StepMap.cardinal vs + 1
           in
-          let t =
+          let parent =
             if length <= Conf.entries then values layout (StepMap.add s v vs)
             else
               let vs = StepMap.bindings (StepMap.add s v vs) in
@@ -1195,28 +1213,30 @@ struct
               in
               List.fold_left aux empty vs
           in
-          k t
-      | Tree t -> (
-          let length = if replace then t.length else t.length + 1 in
-          let entries = if copy then Array.copy t.entries else t.entries in
+          k parent
+      | Tree tr -> (
+          assert (depth = tr.depth);
+          let length = if replace then tr.length else tr.length + 1 in
+          let entries = if copy then Array.copy tr.entries else tr.entries in
           let i = index ~depth key in
           match entries.(i) with
           | None ->
-              let target = values layout (StepMap.singleton s v) in
-              entries.(i) <- Some (Ptr.of_target layout target);
-              let t = tree layout { depth; length; entries } in
-              k t
-          | Some n ->
-              let t =
+              let child = values layout (StepMap.singleton s v) in
+              entries.(i) <- Some (Ptr.of_target layout child);
+              let parent = tree layout { tr with length; entries } in
+              k parent
+          | Some ptr ->
+              let child =
+                let expected_depth = depth + 1 in
                 (* [cache] is unimportant here as we've already called
                    [find_value] for that path.*)
-                Ptr.target ~cache:true layout n
+                Ptr.target ~expected_depth ~cache:true layout ptr
               in
-              (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace t s key
-                v (fun target ->
-                  entries.(i) <- Some (Ptr.of_target layout target);
-                  let t = tree layout { depth; length; entries } in
-                  k t))
+              (add [@tailcall]) layout ~depth:(depth + 1) ~copy ~replace child s
+                key v (fun child ->
+                  entries.(i) <- Some (Ptr.of_target layout child);
+                  let parent = tree layout { tr with length; entries } in
+                  k parent))
 
     let add layout ~copy t s v =
       let k = Child_ordering.key s in
@@ -1229,46 +1249,50 @@ struct
           add ~depth:0 layout ~copy ~replace:false t s k v Fun.id
           |> stabilize_root layout
 
-    let rec remove layout ~depth t s key k =
+    let rec remove layout parent s key k =
       Stats.incr_inode_rec_remove ();
-      match t.v with
+      match parent.v with
       | Values vs ->
-          let t = values layout (StepMap.remove s vs) in
-          k t
-      | Tree t -> (
-          let len = t.length - 1 in
+          let parent = values layout (StepMap.remove s vs) in
+          k parent
+      | Tree tr -> (
+          let depth = tr.depth in
+          let len = tr.length - 1 in
           if len <= Conf.entries then
-            let vs = seq_tree layout t in
+            let vs = seq_tree layout tr in
             let vs = StepMap.of_seq vs in
             let vs = StepMap.remove s vs in
-            let t = values layout vs in
-            k t
+            let parent = values layout vs in
+            k parent
           else
-            let entries = Array.copy t.entries in
+            let entries = Array.copy tr.entries in
             let i = index ~depth key in
             match entries.(i) with
             | None -> assert false
-            | Some t ->
-                let t =
+            | Some ptr ->
+                let child =
+                  let expected_depth = depth + 1 in
                   (* [cache] is unimportant here as we've already called
                      [find_value] for that path.*)
-                  Ptr.target ~cache:true layout t
+                  Ptr.target ~expected_depth ~cache:true layout ptr
                 in
-                if length t = 1 then (
+                if length child = 1 then (
                   entries.(i) <- None;
-                  let t = tree layout { depth; length = len; entries } in
-                  k t)
+                  let parent = tree layout { depth; length = len; entries } in
+                  k parent)
                 else
-                  remove ~depth:(depth + 1) layout t s key @@ fun target ->
-                  entries.(i) <- Some (Ptr.of_target layout target);
-                  let t = tree layout { depth; length = len; entries } in
-                  k t)
+                  (remove [@tailcall]) layout child s key (fun child ->
+                      entries.(i) <- Some (Ptr.of_target layout child);
+                      let parent =
+                        tree layout { tr with length = len; entries }
+                      in
+                      k parent))
 
     let remove layout t s =
       let k = Child_ordering.key s in
       match find_value ~cache:true layout t s with
       | None -> t
-      | Some _ -> remove layout ~depth:0 t s k Fun.id |> stabilize_root layout
+      | Some _ -> remove layout t s k Fun.id |> stabilize_root layout
 
     let of_seq l =
       let t =
@@ -1393,7 +1417,6 @@ struct
       aux ~depth:0 t
 
     let check_stable layout t =
-      let target_of_ptr = Ptr.target ~cache:true layout in
       let rec check t any_stable_ancestor =
         let stable = is_stable t || any_stable_ancestor in
         match t.v with
@@ -1403,7 +1426,8 @@ struct
               (function
                 | None -> true
                 | Some t ->
-                    let t = target_of_ptr t in
+                    let expected_depth = tree.depth + 1 in
+                    let t = Ptr.target ~expected_depth ~cache:true layout t in
                     (if stable then not (is_stable t) else true)
                     && check t stable)
               tree.entries
@@ -1411,7 +1435,6 @@ struct
       check t (is_stable t)
 
     let contains_empty_map layout t =
-      let target_of_ptr = Ptr.target ~cache:true layout in
       let rec check_lower t =
         match t.v with
         | Values l when StepMap.is_empty l -> true
@@ -1419,7 +1442,11 @@ struct
         | Tree inodes ->
             Array.exists
               (function
-                | None -> false | Some t -> target_of_ptr t |> check_lower)
+                | None -> false
+                | Some t ->
+                    let expected_depth = inodes.depth + 1 in
+                    Ptr.target ~expected_depth ~cache:true layout t
+                    |> check_lower)
               inodes.entries
       in
       check_lower t
@@ -1431,6 +1458,10 @@ struct
     type hash = H.t
     type key = Key.t
     type t = T.key Bin.t [@@deriving irmin]
+
+    let depth = Bin.depth
+
+    exception Invalid_depth of { expected : int; got : int; v : t }
 
     let kind (t : t) =
       (* This is the kind of newly appended values, let's use v1 then *)
@@ -1681,10 +1712,10 @@ struct
       in
       apply t { f }
 
-    let of_raw (find' : key -> key Bin.t option) v =
+    let of_raw (find' : expected_depth:int -> key -> key Bin.t option) v =
       Stats.incr_inode_of_raw ();
-      let rec find h =
-        match find' h with None -> None | Some v -> Some (I.of_bin layout v)
+      let rec find ~expected_depth h =
+        Option.map (I.of_bin layout) (find' ~expected_depth h)
       and layout = I.Partial find in
       Partial (layout, I.of_bin layout v)
 
@@ -1815,11 +1846,31 @@ struct
   let mem t k = Pack.mem t k
   let index t k = Pack.index t k
 
+  exception Invalid_depth = Inter.Raw.Invalid_depth
+
+  let pp_value = Irmin.Type.pp Inter.Raw.t
+
+  let pp_invalid_depth ppf (expected, got, v) =
+    Fmt.pf ppf "Invalid depth: got %d, expecting %d (%a)" got expected pp_value
+      v
+
+  let check_depth_opt ~expected_depth:expected = function
+    | None -> ()
+    | Some v -> (
+        match Inter.Raw.depth v with
+        | None -> ()
+        | Some got ->
+            if got <> expected then raise (Invalid_depth { expected; got; v }))
+
   let find t k =
     Pack.find t k >|= function
     | None -> None
     | Some v ->
-        let find = Pack.unsafe_find ~check_integrity:true t in
+        let find ~expected_depth k =
+          let v = Pack.unsafe_find ~check_integrity:true t k in
+          check_depth_opt ~expected_depth v;
+          v
+        in
         let v = Val.of_raw find v in
         Some v
 
@@ -1848,7 +1899,15 @@ struct
   let clear = Pack.clear
   let decode_bin_length = Inter.Raw.decode_bin_length
 
+  let protect_from_invalid_depth_exn f =
+    Lwt.catch f (function
+      | Invalid_depth { expected; got; v } ->
+          let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
+          Lwt.return (Error msg)
+      | e -> Lwt.fail e)
+
   let integrity_check_inodes t k =
+    protect_from_invalid_depth_exn @@ fun () ->
     find t k >|= function
     | None ->
         (* we are traversing the node graph, should find all values *)
