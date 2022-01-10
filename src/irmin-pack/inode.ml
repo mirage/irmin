@@ -1159,21 +1159,19 @@ struct
     let is_empty t =
       match t.v with Values vs -> StepMap.is_empty vs | Tree _ -> false
 
-    let find_value ~cache layout ~depth t s =
+    let find_value ~cache layout t s =
       let target_of_ptr = Ptr.target ~cache layout in
       let key = Child_ordering.key s in
-      let rec aux ~depth = function
+      let rec aux = function
         | Values vs -> ( try Some (StepMap.find s vs) with Not_found -> None)
         | Tree t -> (
-            let i = index ~depth key in
+            let i = index ~depth:t.depth key in
             let x = t.entries.(i) in
-            match x with
-            | None -> None
-            | Some i -> aux ~depth:(depth + 1) (target_of_ptr i).v)
+            match x with None -> None | Some i -> aux (target_of_ptr i).v)
       in
-      aux ~depth t.v
+      aux t.v
 
-    let find ?(cache = true) layout t s = find_value ~cache ~depth:0 layout t s
+    let find ?(cache = true) layout t s = find_value ~cache layout t s
 
     let rec add layout ~depth ~copy ~replace t s key v k =
       Stats.incr_inode_rec_add ();
@@ -1221,9 +1219,8 @@ struct
                   k t))
 
     let add layout ~copy t s v =
-      (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       let k = Child_ordering.key s in
-      match find_value ~cache:true ~depth:0 layout t s with
+      match find_value ~cache:true layout t s with
       | Some v' when equal_value v v' -> t
       | Some _ ->
           add ~depth:0 layout ~copy ~replace:true t s k v Fun.id
@@ -1268,9 +1265,8 @@ struct
                   k t)
 
     let remove layout t s =
-      (* XXX: [find_value ~depth:42] should break the unit tests. It doesn't. *)
       let k = Child_ordering.key s in
-      match find_value ~cache:true layout ~depth:0 t s with
+      match find_value ~cache:true layout t s with
       | None -> t
       | Some _ -> remove layout ~depth:0 t s k Fun.id |> stabilize_root layout
 
