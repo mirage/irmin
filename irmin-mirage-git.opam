@@ -17,9 +17,9 @@ depends: [
   "irmin-mirage" {= version}
   "irmin-git"    {= version}
   "mirage-kv"    {>= "3.0.0"}
-  "git-paf"      {>= "3.5.0"}
+  "git-paf"      {>= "3.5.0" & < "3.7.0"}
   "fmt"
-  "git"          {>= "3.5.0"}
+  "git"          {>= "3.5.0" & < "3.7.0"}
   "lwt"          {>= "5.3.0"}
   "mirage-clock"
   "uri"
