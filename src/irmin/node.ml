@@ -23,14 +23,7 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 (* Add [merge] to a [Core] implementation. *)
-module Of_core (S : Core) :
-  S_generic_key
-    with type t = S.t
-     and type hash = S.hash
-     and type metadata = S.metadata
-     and type step = S.step
-     and type contents_key = S.contents_key
-     and type node_key = S.node_key = struct
+module Of_core (S : Core) = struct
   include S
   (* Merges *)
 
@@ -304,6 +297,9 @@ struct
 
     let of_node = P.of_node
   end
+
+  let with_handler _ t = t
+  let head t = `Node (list t)
 end
 
 module Make
@@ -597,6 +593,8 @@ module V1 (N : Generic_key.S with type step = string) = struct
 
   let import n = { n; entries = N.list n }
   let export t = t.n
+  let with_handler _ t = t
+  let head t = N.head t.n
 
   let of_seq entries =
     let n = N.of_seq entries in
