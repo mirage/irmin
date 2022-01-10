@@ -1,7 +1,7 @@
 @charset "UTF-8";
 /* Copyright (c) 2016 The odoc contributors. All rights reserved.
    Distributed under the ISC license, see terms at the end of the file.
-   odoc 2.0.2 */
+   odoc 2.0.2-29-g816710ac5 */
 
 /* Fonts */
 @import url('https://fonts.googleapis.com/css?family=Fira+Mono:400,500');
@@ -153,7 +153,7 @@ body {
 }
 
 body {
-  max-width: 90ex;
+  max-width: 100ex;
   margin-left: calc(10vw + 20ex);
   margin-right: 4ex;
   margin-top: 20px;
@@ -403,6 +403,10 @@ p a > code {
   color: var(--link-color);
 }
 
+code {
+  white-space: pre-wrap;
+}
+
 /* Code blocks (e.g. Examples) */
 
 pre code {
@@ -465,6 +469,10 @@ div.def-doc>*:first-child {
 
 .odoc-include details {
   position: relative;
+}
+
+.odoc-include.shadowed-include {
+  display: none;
 }
 
 .odoc-include details:after {
