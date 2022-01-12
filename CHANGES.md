@@ -1,3 +1,11 @@
+## 2.9.1 (2022-01-10)
+
+### Fixed
+
+- **irmin**
+  - Better support for s390x to workaround
+    https://github.com/ocaml/ocaml/issues/10857 (#1694, @icristescu)
+
 ## 2.9.0 (2021-11-15)
 
 ### Fixed
