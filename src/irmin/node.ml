@@ -234,6 +234,44 @@ struct
     Type.map ~pre_hash Type.(list entry_t) of_entries entries
 end
 
+module Portable = struct
+  module Of_core (X : sig
+    type hash
+
+    include
+      Core
+        with type hash := hash
+         and type contents_key = hash
+         and type node_key = hash
+  end) =
+  struct
+    include X
+
+    let of_node t = t
+
+    type proof =
+      [ `Blinded of hash
+      | `Values of (step * value) list
+      | `Inode of int * (int * proof) list ]
+    [@@deriving irmin]
+
+    let to_proof (t : t) : proof = `Values (seq t |> List.of_seq)
+
+    let of_proof ~depth (t : proof) =
+      assert (depth = 0);
+      match t with
+      | `Blinded _ | `Inode _ -> None
+      | `Values e -> Some (of_list e)
+  end
+
+  module Of_node (X : S) = struct
+    include Of_core (X)
+    include X
+  end
+
+  module type S = Portable
+end
+
 module Make_generic_key
     (Hash : Hash.S) (Path : sig
       type step [@@deriving irmin]
@@ -242,20 +280,18 @@ module Make_generic_key
     (Contents_key : Key.S with type hash = Hash.t)
     (Node_key : Key.S with type hash = Hash.t) =
 struct
-  module M = Make_core (Hash) (Path) (Metadata) (Contents_key) (Node_key)
-  include Of_core (M)
+  module Core = Make_core (Hash) (Path) (Metadata) (Contents_key) (Node_key)
+  include Of_core (Core)
 
   module Portable = struct
-    module P = struct
-      include M
+    module Core = struct
+      include Core
 
       type contents_key = hash [@@deriving irmin]
       type node_key = hash [@@deriving irmin]
 
       type value = [ `Contents of hash * metadata | `Node of hash ]
       [@@deriving irmin]
-
-      let of_node (t : M.t) : M.t = t
 
       let to_entry name = function
         | `Node node -> Node_hash { name; node }
@@ -293,13 +329,22 @@ struct
         |> Seq.map (fun (k, v) -> (k, weaken_value v))
     end
 
-    include Of_core (P)
-
-    let of_node = P.of_node
+    include Of_core (Core)
+    include Portable.Of_core (Core)
   end
 
   let with_handler _ t = t
   let head t = `Node (list t)
+
+  exception Dangling_hash of { context : string; hash : hash }
+
+  type nonrec hash = hash [@@deriving irmin ~pp]
+
+  let () =
+    Printexc.register_printer (function
+      | Dangling_hash { context; hash } ->
+          Some (Fmt.str "%s: encountered dangling hash %a" context pp_hash hash)
+      | _ -> None)
 end
 
 module Make
@@ -375,16 +420,6 @@ module Generic_key = struct
 
   module Make = Make_generic_key
   module Store = Store_generic_key
-end
-
-module Portable = struct
-  module Of_node (X : S) = struct
-    include X
-
-    let of_node t = t
-  end
-
-  module type S = Portable
 end
 
 module Store
@@ -590,6 +625,8 @@ module V1 (N : Generic_key.S with type step = string) = struct
   type hash = N.hash [@@deriving irmin]
   type value = N.value
   type t = { n : N.t; entries : (step * value) list }
+
+  exception Dangling_hash = N.Dangling_hash
 
   let import n = { n; entries = N.list n }
   let export t = t.n

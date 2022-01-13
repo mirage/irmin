@@ -173,6 +173,8 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
     let merge = N.merge ~contents ~node in
     Irmin.Merge.like t merge to_n of_n
 
+  exception Dangling_hash of { context : string; hash : hash }
+
   let with_handler _ n = n
   let head t = `Node (list t)
 end
