@@ -68,8 +68,10 @@ __attribute__((section(".init_array"))) void (* p_irmin_init)(int,char*[],char*[
     ~prefix stubs;
   writeln h_fd
     {|
+#ifndef IRMIN_NO_AUTO
 static void _irmin_cleanup(void *p) { if (p) { irmin_free(*(Irmin**)p); p = (void*)0;} };
 #define AUTO __attribute__((cleanup(_irmin_cleanup)))
+#endif
     |};
 
   close_out h_fd;

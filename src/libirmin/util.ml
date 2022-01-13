@@ -10,6 +10,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let type_name x = Fmt.to_to_string Irmin.Type.pp_ty x
 
+  (* Handle errors and set error function, returns [return] if an exception is raised *)
   let catch return f =
     try
       let () = error_msg := None in
@@ -20,8 +21,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     [@@inline]
 
   let null t = Ctypes.coerce (ptr void) t null
+
+  (* Similar to catch but returns a null pointer *)
   let catch' t f = catch (null t) f
 
+  (* Generic free function for all rooted values *)
   let free x =
     let ptr = Ctypes.to_voidp x in
     if not (is_null ptr) then
@@ -41,6 +45,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let fn name t f = I.internal ~runtime_lock:false ("irmin_" ^ name) t f
 
+  (* Minimal executor for lwt promises *)
   let rec run x =
     Lwt.wakeup_paused ();
     match Lwt.poll x with
