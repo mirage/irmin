@@ -10,6 +10,7 @@
  (targets test.exe)
  (deps
   (file test.c)
+  (file greatest.h)
   (package libirmin))
  (action
   (run %{cc} -I../../src/libirmin/lib -o test.exe test.c -L../../src/libirmin/lib -lirmin)))

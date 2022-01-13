@@ -154,9 +154,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "tree_add"
-      (repo @-> tree @-> path @-> contents @-> metadata @-> returning void)
+      (repo @-> tree @-> path @-> contents @-> metadata @-> returning bool)
       (fun (type repo) repo tree path value metadata ->
-        catch () (fun () ->
+        catch false (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -170,13 +170,14 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               else Some (Root.get_metadata (module Store) metadata)
             in
             let t = run (Store.Tree.add tree' path value ?metadata) in
-            Root.set_tree (module Store) tree t))
+            Root.set_tree (module Store) tree t;
+            true))
 
   let () =
     fn "tree_add_tree"
-      (repo @-> tree @-> path @-> tree @-> returning void)
+      (repo @-> tree @-> path @-> tree @-> returning bool)
       (fun (type repo) repo tree path tr ->
-        catch () (fun () ->
+        catch false (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -184,20 +185,22 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let path : Store.path = Root.get_path (module Store) path in
             let value : Store.tree = Root.get_tree (module Store) tr in
             let t = run (Store.Tree.add_tree tree' path value) in
-            Root.set_tree (module Store) tree t))
+            Root.set_tree (module Store) tree t;
+            true))
 
   let () =
     fn "tree_remove"
-      (repo @-> tree @-> path @-> returning void)
+      (repo @-> tree @-> path @-> returning bool)
       (fun (type repo) repo tree path ->
-        catch () (fun () ->
+        catch false (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             let t = run (Store.Tree.remove tree' path) in
-            Root.set_tree (module Store) tree t))
+            Root.set_tree (module Store) tree t;
+            true))
 
   let () =
     fn "tree_equal"
