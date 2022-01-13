@@ -21,7 +21,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun () ->
         match !Util.error_msg with
         | Some s -> Root.create_string s
-        | None -> null)
+        | None -> null irmin_string)
 
   let () =
     fn "error_msg_is_set"
@@ -32,7 +32,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_pack"
       (string_opt @-> string_opt @-> returning config)
       (fun hash contents ->
-        catch' (fun () ->
+        catch' config (fun () ->
             let hash = Option.map Irmin_unix.Resolver.Hash.find hash in
             let c : config =
               Irmin_unix.Resolver.load_config ~store:"pack" ?hash ?contents ()
@@ -43,7 +43,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_tezos"
       (void @-> returning config)
       (fun () ->
-        catch' (fun () ->
+        catch' config (fun () ->
             let c : config =
               Irmin_unix.Resolver.load_config ~store:"tezos" ()
             in
@@ -53,7 +53,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_git"
       (string_opt @-> returning config)
       (fun contents ->
-        catch' (fun () ->
+        catch' config (fun () ->
             let c = Irmin_unix.Resolver.load_config ~store:"git" ?contents () in
             Root.create_config c))
 
@@ -61,7 +61,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_git_mem"
       (string_opt @-> returning config)
       (fun contents ->
-        catch' (fun () ->
+        catch' config (fun () ->
             let c =
               Irmin_unix.Resolver.load_config ~store:"git-mem" ?contents ()
             in
@@ -71,7 +71,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_fs"
       (string_opt @-> string_opt @-> returning config)
       (fun hash contents ->
-        catch' (fun () ->
+        catch' config (fun () ->
             let hash = Option.map Irmin_unix.Resolver.Hash.find hash in
             let c =
               Irmin_unix.Resolver.load_config ~store:"irf" ?hash ?contents ()
@@ -82,7 +82,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_mem"
       (string_opt @-> string_opt @-> returning config)
       (fun hash contents ->
-        catch' (fun () ->
+        catch' config (fun () ->
             let hash = Option.map Irmin_unix.Resolver.Hash.find hash in
             let c =
               Irmin_unix.Resolver.load_config ~store:"mem" ?hash ?contents ()

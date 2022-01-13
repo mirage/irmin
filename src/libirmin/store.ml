@@ -5,7 +5,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "main"
       (repo @-> returning store)
       (fun (type repo) repo ->
-        catch' (fun () ->
+        catch' store (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), repo
                 =
               Root.get_repo repo
@@ -19,13 +19,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "of_branch"
       (repo @-> string @-> returning store)
       (fun (type repo) repo name ->
-        catch' (fun () ->
+        catch' store (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), repo
                 =
               Root.get_repo repo
             in
             match Irmin.Type.of_string Store.Branch.t name with
-            | Error _ -> null
+            | Error _ -> null store
             | Ok branch ->
                 Root.create_store
                   (module Store)
@@ -36,13 +36,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "get_head"
       (store @-> returning commit)
       (fun (type t) store ->
-        catch' (fun () ->
+        catch' commit (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
               Root.get_store store
             in
-            let commit = run (Store.Head.find store) in
-            match commit with
-            | None -> null
+            let c = run (Store.Head.find store) in
+            match c with
+            | None -> null commit
             | Some x -> Root.create_commit (module Store) x))
 
   let () =
@@ -139,7 +139,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "set"
-      (store @-> path @-> value @-> info @-> returning bool)
+      (store @-> path @-> contents @-> info @-> returning bool)
       (fun (type t) store path value info ->
         catch false (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
@@ -160,7 +160,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "test_and_set"
-      (store @-> path @-> value @-> value @-> info @-> returning bool)
+      (store @-> path @-> contents @-> contents @-> info @-> returning bool)
       (fun (type t) store path test set info ->
         catch false (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
@@ -169,11 +169,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let info = Root.get_info (module Store) info in
             let path : Store.path = Root.get_path (module Store) path in
             let test : Store.contents option =
-              if test = null then None
+              if is_null test then None
               else Some (Root.get_contents (module Store) test)
             in
             let set : Store.contents option =
-              if set = null then None
+              if is_null set then None
               else Some (Root.get_contents (module Store) set)
             in
             let x =
@@ -198,11 +198,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let info = Root.get_info (module Store) info in
             let path : Store.path = Root.get_path (module Store) path in
             let test : Store.tree option =
-              if test = null then None
+              if is_null test then None
               else Some (Root.get_tree (module Store) test)
             in
             let set : Store.tree option =
-              if set = null then None
+              if is_null set then None
               else Some (Root.get_tree (module Store) set)
             in
             let x =
@@ -240,9 +240,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "find"
-      (store @-> path @-> returning value)
+      (store @-> path @-> returning contents)
       (fun (type t) store path ->
-        catch' (fun () ->
+        catch' contents (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
               Root.get_store store
             in
@@ -250,13 +250,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let x = run (Store.find store path) in
             match x with
             | Some x -> Root.create_contents (module Store) x
-            | None -> null))
+            | None -> null contents))
 
   let () =
     fn "find_metadata"
       (store @-> path @-> returning metadata)
       (fun (type t) store path ->
-        catch' (fun () ->
+        catch' metadata (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
               Root.get_store store
             in
@@ -264,13 +264,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let x = run (Store.find_all store path) in
             match x with
             | Some (_, m) -> Root.create_metadata (module Store) m
-            | None -> null))
+            | None -> null metadata))
 
   let () =
     fn "find_tree"
       (store @-> path @-> returning tree)
       (fun (type t) store path ->
-        catch' (fun () ->
+        catch' tree (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
               Root.get_store store
             in
@@ -278,7 +278,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let x : Store.tree option = run (Store.find_tree store path) in
             match x with
             | Some x -> Root.create_tree (module Store) x
-            | None -> null))
+            | None -> null tree))
 
   let () =
     fn "remove"
@@ -324,7 +324,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "list"
       (store @-> path @-> returning path_list)
       (fun (type t) store path ->
-        catch' (fun () ->
+        catch' path_list (fun () ->
             let (module Store : Irmin.Generic_key.S with type t = t), store =
               Root.get_store store
             in
@@ -364,7 +364,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         in
         let i = UInt64.to_int i in
         let arr = Root.get_path_list (module Store) p in
-        if i >= Array.length arr then null
+        if i >= Array.length arr then null path
         else
           let x = Array.unsafe_get arr i in
           Root.create_path (module Store) x)
@@ -378,7 +378,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         in
         let i = UInt64.to_int i in
         let arr = Root.get_commit_list (module Store) p in
-        if i >= Array.length arr then null
+        if i >= Array.length arr then null commit
         else
           let x = Array.unsafe_get arr i in
           Root.create_commit (module Store) x)

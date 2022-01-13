@@ -12,7 +12,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "tree_of_contents"
-      (repo @-> value @-> metadata @-> returning tree)
+      (repo @-> contents @-> metadata @-> returning tree)
       (fun (type repo) repo value metadata ->
         let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
           Root.get_repo repo
@@ -38,7 +38,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_hash"
       (repo @-> tree @-> returning hash)
       (fun (type repo) repo tree ->
-        catch' (fun () ->
+        catch' hash (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -57,13 +57,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         let t = run (Store.Tree.of_hash repo (`Node k)) in
         match t with
         | Some t -> Root.create_tree (module Store) t
-        | None -> null)
+        | None -> null tree)
 
   let () =
     fn "tree_key"
       (repo @-> tree @-> returning kinded_key)
       (fun (type repo) repo tree ->
-        catch' (fun () ->
+        catch' kinded_key (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -71,7 +71,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let k = Store.Tree.key tree in
             match k with
             | Some k -> Root.create_kinded_key (module Store) k
-            | _ -> null))
+            | _ -> null kinded_key))
 
   let () =
     fn "tree_of_key"
@@ -84,7 +84,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         let t = run (Store.Tree.of_key repo k) in
         match t with
         | Some t -> Root.create_tree (module Store) t
-        | None -> null)
+        | None -> null tree)
 
   let () =
     fn "tree_mem"
@@ -112,49 +112,49 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "tree_find"
-      (repo @-> tree @-> path @-> returning value)
+      (repo @-> tree @-> path @-> returning contents)
       (fun (type repo) repo tree path ->
-        catch null (fun () ->
+        catch' contents (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             match run (Store.Tree.find tree path) with
-            | None -> null
+            | None -> null contents
             | Some x -> Root.create_contents (module Store) x))
 
   let () =
     fn "tree_find_metadata"
       (repo @-> tree @-> path @-> returning metadata)
       (fun (type repo) repo tree path ->
-        catch null (fun () ->
+        catch' metadata (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             match run (Store.Tree.find_all tree path) with
-            | None -> null
+            | None -> null metadata
             | Some (_, m) -> Root.create_metadata (module Store) m))
 
   let () =
     fn "tree_find_tree"
       (repo @-> tree @-> path @-> returning tree)
-      (fun (type repo) repo tree path ->
-        catch null (fun () ->
+      (fun (type repo) repo t path ->
+        catch' tree (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
-            let tree : Store.tree = Root.get_tree (module Store) tree in
+            let t : Store.tree = Root.get_tree (module Store) t in
             let path : Store.path = Root.get_path (module Store) path in
-            match run (Store.Tree.find_tree tree path) with
-            | None -> null
+            match run (Store.Tree.find_tree t path) with
+            | None -> null tree
             | Some x -> Root.create_tree (module Store) x))
 
   let () =
     fn "tree_add"
-      (repo @-> tree @-> path @-> value @-> metadata @-> returning void)
+      (repo @-> tree @-> path @-> contents @-> metadata @-> returning void)
       (fun (type repo) repo tree path value metadata ->
         catch () (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
@@ -214,7 +214,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_list"
       (repo @-> tree @-> path @-> returning path_list)
       (fun (type repo) repo tree path ->
-        catch' (fun () ->
+        catch' path_list (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in

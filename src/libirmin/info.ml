@@ -5,7 +5,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "info_new"
       (repo @-> string_opt @-> string @-> returning info)
       (fun (type repo) repo author message ->
-        catch' (fun () ->
+        catch' info (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -28,7 +28,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "info_message"
       (repo @-> info @-> returning irmin_string)
       (fun (type repo) repo info ->
-        catch' (fun () ->
+        catch' irmin_string (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -40,7 +40,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "info_author"
       (repo @-> info @-> returning irmin_string)
       (fun (type repo) repo info ->
-        catch' (fun () ->
+        catch' irmin_string (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in

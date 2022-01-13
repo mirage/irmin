@@ -5,7 +5,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "path"
       (repo @-> ptr string_opt @-> returning path)
       (fun (type repo) repo arr ->
-        catch' (fun () ->
+        catch' path (fun () ->
             let rec loop i acc =
               if is_null arr then acc
               else
@@ -28,7 +28,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "path_of_string"
       (repo @-> ptr char @-> int64_t @-> returning path)
       (fun (type repo) repo s length ->
-        catch' (fun () ->
+        catch' path (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -38,13 +38,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             | Ok p -> Root.create_path (module Store) p
             | Error (`Msg e) ->
                 Util.error_msg := Some e;
-                null))
+                null path))
 
   let () =
     fn "path_empty"
       (repo @-> returning path)
       (fun (type repo) repo ->
-        catch' (fun () ->
+        catch' path (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -65,38 +65,38 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "path_parent"
       (repo @-> path @-> returning path)
       (fun (type repo) repo p ->
-        catch' (fun () ->
+        catch' path (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
-            let path = Root.get_path (module Store) p in
-            let path = Store.Path.rdecons path |> Option.map fst in
-            match path with
+            let p = Root.get_path (module Store) p in
+            let p = Store.Path.rdecons p |> Option.map fst in
+            match p with
             | Some p -> Root.create_path (module Store) p
-            | None -> null))
+            | None -> null path))
 
   let () =
     fn "path_append"
       (repo @-> path @-> ptr char @-> int64_t @-> returning path)
       (fun (type repo) repo p s length ->
-        catch' (fun () ->
+        catch' path (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
             let length = get_length length s in
-            let path = Root.get_path (module Store) p in
+            let p = Root.get_path (module Store) p in
             let s = string_from_ptr s ~length in
             match Irmin.Type.of_string Store.step_t s with
-            | Ok s -> Root.create_path (module Store) (Store.Path.rcons path s)
+            | Ok s -> Root.create_path (module Store) (Store.Path.rcons p s)
             | Error (`Msg e) ->
                 let () = Util.error_msg := Some e in
-                null))
+                null path))
 
   let () =
     fn "path_append_path"
       (repo @-> path @-> path @-> returning path)
       (fun (type repo) repo p s ->
-        catch' (fun () ->
+        catch' path (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
