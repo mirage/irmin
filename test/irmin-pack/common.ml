@@ -20,6 +20,7 @@ module Dict = Irmin_pack.Dict
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
+let sha1_contents x = sha1 ("B" ^ x)
 
 let rm_dir root =
   if Sys.file_exists root then (

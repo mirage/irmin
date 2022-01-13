@@ -99,6 +99,7 @@ end
 
 val get : 'a option -> 'a
 val sha1 : string -> Schema.Hash.t
+val sha1_contents : string -> Schema.Hash.t
 val rm_dir : string -> unit
 val index_log_size : int option
 val random_string : int -> string

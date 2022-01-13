@@ -275,7 +275,7 @@ let test_add_values () =
   let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
   check_node "node x+y" v2 t >>= fun () ->
-  check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
+  check_hardcoded_hash "hash v2" "c7d45d1ce5ebf54de0d2f5b7aae25814e1670bb0" v2;
   let v3 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
@@ -299,7 +299,7 @@ let test_add_inodes () =
       [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
-  check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
+  check_hardcoded_hash "hash v3" "5fb0c63eec0d7662580754367a93d56c4e4e0686" v3;
   integrity_check v1;
   integrity_check v2;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
@@ -313,7 +313,7 @@ let test_add_inodes () =
       ]
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
-  check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
+  check_hardcoded_hash "hash v4" "db91d8b4acf0d77a8ca625d5ef8be2ae2e92e8c7" v4;
   integrity_check v4 ~stable:false;
   Context.close t
 
@@ -326,7 +326,7 @@ let test_remove_values () =
   let v2 = Inode.Val.remove v1 "y" in
   let v3 = Inode.Val.of_list [ ("x", normal foo) ] in
   check_values "node x obtained two ways" v2 v3;
-  check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
+  check_hardcoded_hash "hash v2" "82b6785796efe7c7a2d0c24d570d3da8df36dfce" v2;
   let v4 = Inode.Val.remove v2 "x" in
   check_node "remove results in an empty node" (Inode.Val.empty ()) t
   >>= fun () ->
@@ -345,11 +345,11 @@ let test_remove_inodes () =
     Inode.Val.of_list
       [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
   in
-  check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
+  check_hardcoded_hash "hash v1" "5fb0c63eec0d7662580754367a93d56c4e4e0686" v1;
   let v2 = Inode.Val.remove v1 "x" in
   let v3 = Inode.Val.of_list [ ("y", normal bar); ("z", normal foo) ] in
   check_values "node y+z obtained two ways" v2 v3;
-  check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
+  check_hardcoded_hash "hash v2" "85c1087b5a7172583f8e0f344e23366029b3ff8b" v2;
   let v4 =
     Inode.Val.of_list
       [

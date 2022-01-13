@@ -193,6 +193,16 @@ end
 module String = struct
   type t = string [@@deriving irmin]
 
+  let pre_hash = Type.(unstage (pre_hash t))
+
+  (* Manually add a prefix to default contents, in order to prevent hash
+     collision between contents and nodes or commits (see
+     https://github.com/mirage/irmin/issues/1304). *)
+  let pre_hash_prefixed x f =
+    f "B";
+    pre_hash x f
+
+  let t = Type.(like t ~pre_hash:pre_hash_prefixed)
   let merge = Merge.idempotent Type.(option string)
 end
 
