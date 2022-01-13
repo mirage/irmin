@@ -1,4 +1,5 @@
 let error_msg : string option ref = ref None
+let error_lock = Mutex.create ()
 
 module Make (I : Cstubs_inverted.INTERNAL) = struct
   include Ctypes
@@ -10,13 +11,18 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let type_name x = Fmt.to_to_string Irmin.Type.pp_ty x
 
+  let update_error_msg x =
+    Mutex.lock error_lock;
+    error_msg := x;
+    Mutex.unlock error_lock
+
   (* Handle errors and set error function, returns [return] if an exception is raised *)
   let catch return f =
     try
-      let () = error_msg := None in
+      let () = update_error_msg None in
       f ()
     with exn ->
-      let () = error_msg := Some (Printexc.to_string exn) in
+      let () = update_error_msg @@ Some (Printexc.to_string exn) in
       return
     [@@inline]
 
