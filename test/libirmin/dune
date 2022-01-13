@@ -1,10 +1,14 @@
 (rule
- (alias  runtest)
+ (alias runtest)
  (package libirmin)
  (action
-  (setenv DYLD_FALLBACK_LIBRARY_PATH ../../src/libirmin/lib
-  (setenv LD_LIBRARY_PATH ../../src/libirmin/lib
-   (run ./test.exe)))))
+  (setenv
+   DYLD_FALLBACK_LIBRARY_PATH
+   ../../src/libirmin/lib
+   (setenv
+    LD_LIBRARY_PATH
+    ../../src/libirmin/lib
+    (run ./test.exe)))))
 
 (rule
  (targets test.exe)
@@ -13,4 +17,5 @@
   (file greatest.h)
   (package libirmin))
  (action
-  (run %{cc} -I../../src/libirmin/lib -o test.exe test.c -L../../src/libirmin/lib -lirmin)))
+  (run %{cc} -I../../src/libirmin/lib -o test.exe test.c
+    -L../../src/libirmin/lib -lirmin)))
