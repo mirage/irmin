@@ -89,9 +89,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "commit_parents"
-      (repo @-> commit @-> returning commit_list)
+      (repo @-> commit @-> returning commit_array)
       (fun (type repo) repo commit ->
-        catch' commit_list (fun () ->
+        catch' commit_array (fun () ->
             let open Lwt.Infix in
             let (module Store : Irmin.Generic_key.S with type repo = repo), repo
                 =
@@ -108,7 +108,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                      | Some x -> Some x)
                    parents)
             in
-            Root.create_commit_list (module Store) parents))
+            Root.create_commit_array (module Store) parents))
 
   let () =
     fn "commit_equal"
@@ -123,6 +123,32 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let b = Root.get_commit (module Store) b in
             Irmin.Type.(unstage (equal (Store.commit_t repo))) a b))
 
+  let () =
+    fn "commit_array_length"
+      (repo @-> commit_array @-> returning uint64_t)
+      (fun (type repo) repo p ->
+        catch UInt64.zero (fun () ->
+            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
+              Root.get_repo repo
+            in
+            let arr = Root.get_commit_array (module Store) p in
+            UInt64.of_int (Array.length arr)))
+
+  let () =
+    fn "commit_array_get"
+      (repo @-> commit_array @-> uint64_t @-> returning commit)
+      (fun (type repo) repo p i ->
+        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
+          Root.get_repo repo
+        in
+        let i = UInt64.to_int i in
+        let arr = Root.get_commit_array (module Store) p in
+        if i >= Array.length arr then null commit
+        else
+          let x = Array.unsafe_get arr i in
+          Root.create_commit (module Store) x)
+
+  let () = fn "commit_array_free" (commit_array @-> returning void) free
   let () = fn "commit_free" (commit @-> returning void) free
   let () = fn "commit_key_free" (commit_key @-> returning void) free
 end

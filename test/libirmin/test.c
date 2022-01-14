@@ -87,8 +87,8 @@ TEST test_irmin_store(void) {
   free(src);
 
   // List
-  IrminPathList *paths = irmin_list(store, path1);
-  ASSERT_EQ(irmin_path_list_length(repo, paths), 2);
+  IrminPathArray *paths = irmin_list(store, path1);
+  ASSERT_EQ(irmin_path_array_length(repo, paths), 2);
 
   PASS();
 }

@@ -215,9 +215,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "tree_list"
-      (repo @-> tree @-> path @-> returning path_list)
+      (repo @-> tree @-> path @-> returning path_array)
       (fun (type repo) repo tree path ->
-        catch' path_list (fun () ->
+        catch' path_array (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
@@ -225,7 +225,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let path : Store.path = Root.get_path (module Store) path in
             let items = run (Store.Tree.list tree path) in
             let items = List.map (fun (k, _v) -> Store.Path.v [ k ]) items in
-            Root.create_path_list (module Store) items))
+            Root.create_path_array (module Store) items))
 
   let () =
     fn "kinded_key_is_contents"

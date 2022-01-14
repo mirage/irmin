@@ -18,9 +18,9 @@ module type P = sig
   type hash
   type info
   type irmin_string
-  type path_list
-  type commit_list
-  type branch_list
+  type path_array
+  type commit_array
+  type branch_array
   type commit_key
   type kinded_key
 end
@@ -45,9 +45,9 @@ module type Sigs = sig
   val hash : Struct.hash ptr typ
   val info : Struct.info ptr typ
   val irmin_string : Struct.irmin_string ptr typ
-  val path_list : Struct.path_list ptr typ
-  val commit_list : Struct.commit_list ptr typ
-  val branch_list : Struct.branch_list ptr typ
+  val path_array : Struct.path_array ptr typ
+  val commit_array : Struct.commit_array ptr typ
+  val branch_array : Struct.branch_array ptr typ
   val commit_key : Struct.commit_key ptr typ
   val kinded_key : Struct.kinded_key ptr typ
 end

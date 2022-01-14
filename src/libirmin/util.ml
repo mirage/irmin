@@ -210,34 +210,34 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     let create_string (s : string) : Struct.irmin_string ptr =
       Root.create s |> of_voidp
 
-    let get_branch_list (type a)
+    let get_branch_array (type a)
         (module S : Irmin.Generic_key.S with type Schema.Branch.t = a)
-        (x : Struct.branch_list ptr) : a array =
+        (x : Struct.branch_array ptr) : a array =
       Root.get (to_voidp x)
 
-    let create_branch_list (type a)
+    let create_branch_array (type a)
         (module S : Irmin.Generic_key.S with type Schema.Branch.t = a)
-        (x : S.Branch.t list) : Struct.branch_list ptr =
+        (x : S.Branch.t list) : Struct.branch_array ptr =
       Root.create (Array.of_list x) |> of_voidp
 
-    let get_path_list (type a)
+    let get_path_array (type a)
         (module S : Irmin.Generic_key.S with type Schema.Path.t = a)
-        (x : Struct.path_list ptr) : a array =
+        (x : Struct.path_array ptr) : a array =
       Root.get (to_voidp x)
 
-    let create_path_list (type a)
+    let create_path_array (type a)
         (module S : Irmin.Generic_key.S with type Schema.Path.t = a)
-        (x : S.Path.t list) : Struct.path_list ptr =
+        (x : S.Path.t list) : Struct.path_array ptr =
       Root.create (Array.of_list x) |> of_voidp
 
-    let get_commit_list (type a)
+    let get_commit_array (type a)
         (module S : Irmin.Generic_key.S with type commit = a)
-        (x : Struct.commit_list ptr) : a array =
+        (x : Struct.commit_array ptr) : a array =
       Root.get (to_voidp x)
 
-    let create_commit_list (type a)
+    let create_commit_array (type a)
         (module S : Irmin.Generic_key.S with type commit = a) (x : a list) :
-        Struct.commit_list ptr =
+        Struct.commit_array ptr =
       Root.create (Array.of_list x) |> of_voidp
   end
 end

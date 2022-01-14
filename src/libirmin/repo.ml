@@ -16,36 +16,36 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let () =
     fn "repo_branches"
-      (repo @-> returning branch_list)
+      (repo @-> returning branch_array)
       (fun (type repo) repo ->
-        catch' branch_list (fun () ->
+        catch' branch_array (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), repo
                 =
               Root.get_repo repo
             in
             let b = run (Store.Repo.branches repo) in
-            Root.create_branch_list (module Store) b))
+            Root.create_branch_array (module Store) b))
 
   let () =
-    fn "branch_list_length"
-      (repo @-> branch_list @-> returning uint64_t)
+    fn "branch_array_length"
+      (repo @-> branch_array @-> returning uint64_t)
       (fun (type repo) repo p ->
         catch UInt64.zero (fun () ->
             let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
               Root.get_repo repo
             in
-            let arr = Root.get_branch_list (module Store) p in
+            let arr = Root.get_branch_array (module Store) p in
             UInt64.of_int (Array.length arr)))
 
   let () =
-    fn "branch_list_get"
-      (repo @-> branch_list @-> uint64_t @-> returning irmin_string)
+    fn "branch_array_get"
+      (repo @-> branch_array @-> uint64_t @-> returning irmin_string)
       (fun (type repo) repo p i ->
         let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
           Root.get_repo repo
         in
         let i = UInt64.to_int i in
-        let arr = Root.get_branch_list (module Store) p in
+        let arr = Root.get_branch_array (module Store) p in
         if i >= Array.length arr then null irmin_string
         else
           let x = Array.unsafe_get arr i in
@@ -176,7 +176,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             Root.create_metadata (module Store) Store.Metadata.default))
 
   let () = fn "hash_free" (hash @-> returning void) free
-  let () = fn "branch_list_free" (branch_list @-> returning void) free
+  let () = fn "branch_array_free" (branch_array @-> returning void) free
   let () = fn "repo_free" (repo @-> returning void) free
   let () = fn "metadata_free" (metadata @-> returning void) free
   let () = fn "contents_free" (contents @-> returning void) free
