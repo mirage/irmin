@@ -228,6 +228,19 @@ struct
     [@@deriving irmin]
 
     type t = entry list [@@deriving irmin ~pre_hash]
+
+    let pre_hash = Type.(unstage (pre_hash t))
+
+    (* Manually add a prefix to default nodes, in order to prevent hash
+       collision between contents and nodes (see
+       https://github.com/mirage/irmin/issues/1304).
+
+       Prefixing the contents is not enough to prevent the collision: the
+       prehash of a node starts with the number of its children, which can
+       coincide with the prefix of the content's prehash. *)
+    let pre_hash x f =
+      f "N";
+      pre_hash x f
   end
 
   let t =

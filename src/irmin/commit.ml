@@ -39,6 +39,20 @@ module Maker_generic_key (I : Info.S) = struct
     type t = { node : node_key; parents : commit_key list; info : Info.t }
     [@@deriving irmin]
 
+    let pre_hash = Type.(unstage (pre_hash t))
+
+    (* Manually add a prefix to default commits, in order to prevent hash
+       collision between contents and commits (see
+       https://github.com/mirage/irmin/issues/1304).
+       If we only prefix the prehash of contents, (suppose the prefix is "B"),
+       then we can have a collision with the prehash of a commit (the prehash of
+       a commit starts with the hash of the root and can start with a "B" - the
+       prefix of the contents is not enough to prevent the collision). *)
+    let pre_hash_prefixed x f =
+      f "C";
+      pre_hash x f
+
+    let t = Type.(like t ~pre_hash:pre_hash_prefixed)
     let parents t = t.parents
     let node t = t.node
     let info t = t.info
