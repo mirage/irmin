@@ -1,3 +1,168 @@
 {0 Inode}
 
-This is a test.
+
+
+{1 What is a node?}
+
+Nodes are part of core Irmin. From the file [node_intf.ml] we have: 
+
+{[
+  val of_list : (step * value) list -> t
+  (** [of_list l] is the node [n] such that [list n = l]. *)
+]}
+
+This suggests that a node is a list of (step,value) pairs, or maybe a
+finite map from step to value. Later functions support this idea.
+
+A value is defined as:
+
+{[
+  type value = [ `Node of node_key | `Contents of contents_key * metadata ]
+  [@@deriving irmin]
+  (** The type for either (node) keys or (contents) keys combined with their
+      metadata. *)
+]}
+
+That is, either a reference to another node, or a reference to some
+"contents" accompanied by some metadata.
+
+So, nodes are roughly like a directory: they map steps (names) to
+values (entries), where a value maybe contents (a file) or another
+node (subdirectory).
+
+
+
+{1 What is an inode?}
+
+FIXME check the following
+
+An inode is FIXME
+
+In [ext.ml] we see the following:
+
+{[
+    module X = struct
+      ...
+      module Contents = struct ... end
+
+      module Node = struct
+        module Value = Schema.Node (XKey) (XKey)
+
+        module CA = struct
+          module Inter = Inode.Make_internal (Config) (H) (XKey) (Value)
+          include Inode.Make_persistent (H) (Value) (Inter) (Pack)
+        end         
+        ...
+      end
+      ...
+      module Schema = struct
+        include Schema
+        module Node = Node
+      end
+]}
+
+So, inodes are something to do with nodes. Perhaps
+[Inode.Make_persistent] constructs an implementation of [Node.CA] from
+an implementation of inodes. At the bottom of the file we have:
+
+{[
+    module Traverse_pack_file = Traverse_pack_file.Make (struct
+      module Hash = H
+      module Index = Index
+      module Inode = X.Node.CA
+      module Dict = Dict
+      module Contents = X.Contents.Pack_value
+      module Commit = X.Commit.Pack_value
+    end)
+]}
+
+But this is only for {!module:Traverse_pack_file}. Interesting is that
+this makes it seem that inodes appear in the pack file, not nodes
+themselves.
+
+
+
+
+{1 Inode [Make_persistent]}
+
+In [inode_intf.ml] there is the definition:
+
+{[
+  module Make_persistent
+      (H : Irmin.Hash.S)
+      (Node : Irmin.Node.Generic_key.S
+                with type hash = H.t
+                 and type contents_key = H.t Pack_key.t
+                 and type node_key = H.t Pack_key.t)
+      (Inter : Internal
+                 with type hash = H.t
+                  and type key = H.t Pack_key.t
+                  and type Val.metadata = Node.metadata
+                  and type Val.step = Node.step)
+      (CA : Pack_store.Maker
+              with type hash = H.t
+               and type index := Pack_index.Make(H).t) :
+    Persistent
+      with type key = H.t Pack_key.t
+       and type hash = H.t
+       and type Val.metadata = Node.metadata
+       and type Val.step = Node.step
+       and type index := Pack_index.Make(H).t
+       and type value = Inter.Val.t
+]}
+
+This is the definition used in [ext.ml].  The result is a [Persistent]:
+
+{[
+module type Persistent = sig
+  include S
+
+  type index
+
+  val v :
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?lru_size:int ->
+    index:index ->
+    indexing_strategy:Pack_store.Indexing_strategy.t ->
+    string ->
+    read t Lwt.t
+
+  include S.Checkable with type 'a t := 'a t and type hash := hash
+
+  val sync : 'a t -> unit
+  val clear_caches : 'a t -> unit
+  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
+end
+]}
+
+This looks like a persistent store of inodes. There seems to be an
+associated index, and some ability to perform integrity checks. The
+module type [S] is defined immediately before:
+
+{[
+module type S = sig
+  include Irmin.Indexable.S
+  module Hash : Irmin.Hash.S with type t = hash
+
+  module Val :
+    Value
+      with type t = value
+       and type key = key
+       and type hash = Hash.t
+       and type Portable.hash := hash
+
+  val decode_bin_length : string -> int -> int
+end
+]}
+
+This looks like a sort of "indexable values" signature. 
+
+There is one further interface: [Internal]. It is presumably something to do with the internal implementation of inodes.
+
+So much for looking at the interfaces.
+
+
+{1 inode.ml}
+
+The structure of this file is 3 functors: [Make_internal], [Make] and [Make_persistent]. Of these, [Make_internal is by far the largest].
