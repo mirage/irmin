@@ -7,3 +7,7 @@
   (pps ppx_irmin.internal))
  (instrumentation
   (backend bisect_ppx)))
+
+(documentation
+ (package irmin-pack))
+

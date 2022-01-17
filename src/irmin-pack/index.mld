@@ -1,0 +1,13 @@
+{0 irmin-pack index}
+{1 Library irmin-pack}
+The entry point of this library is the module:
+{!module-Irmin_pack}.
+{1 Library irmin-pack.mem}
+The entry point of this library is the module:
+{!module-Irmin_pack_mem}.
+
+{1 Developer documentation pages}
+
+There are also some higher-level, walkthrough-style documents:
+
+{{!page-inode_doc}Inode documentation}
