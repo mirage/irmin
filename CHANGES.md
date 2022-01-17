@@ -123,6 +123,9 @@
       `Commit.Portable`.
     - Adds a new type of backend store: `Irmin.Indexable.S`.
     (#1510 #1647, @CraigFe)
+  - Cache hits in several `Tree` functions are more frequent than before.
+    (#1724, @Ngoguey42, @CraigFe)
+
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to

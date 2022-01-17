@@ -258,31 +258,23 @@ module Make (P : Backend.S) = struct
 
     let cached_hash t =
       match (t.v, t.info.ptr) with
+      | Key (_, k), _ -> Some (P.Contents.Key.to_hash k)
+      | Value _, Key k -> Some (P.Contents.Key.to_hash k)
       | Pruned h, _ -> Some h
-      | Key (_, k), (Ptr_none | Hash _) ->
-          let h = Some (P.Contents.Key.to_hash k) in
-          t.info.ptr <- Key k;
-          h
-      | _, Key k -> Some (P.Contents.Key.to_hash k)
-      | _, Hash h -> Some h
-      | _, Ptr_none -> None
+      | Value _, Hash h -> Some h
+      | Value _, Ptr_none -> None
 
     let cached_key t =
       match (t.v, t.info.ptr) with
-      | Pruned _, _ -> None
-      | Key (_, k), (Hash _ | Ptr_none) ->
-          t.info.ptr <- Key k;
-          Some k
-      | _, Key k -> Some k
-      | Value _, (Hash _ | Ptr_none) -> None
+      | Key (_, k), _ -> Some k
+      | (Value _ | Pruned _), Key k -> Some k
+      | (Value _ | Pruned _), (Hash _ | Ptr_none) -> None
 
     let cached_value t =
       match (t.v, t.info.value) with
-      | Value v, None ->
-          let v = Some v in
-          t.info.value <- v;
-          v
-      | _, v -> v
+      | Value v, None -> Some v
+      | (Key _ | Value _ | Pruned _), (Some _ as v) -> v
+      | (Key _ | Pruned _), None -> None
 
     let hash ?(cache = true) c =
       match cached_hash c with
@@ -313,7 +305,7 @@ module Make (P : Backend.S) = struct
       | Some v -> ok v
       | None -> (
           match t.v with
-          | Value v -> ok v
+          | Value _ -> assert false (* [cached_value == None] *)
           | Key (repo, k) -> value_of_key ~cache t repo k
           | Pruned h -> pruned_hash_exn "Contents.to_value" h)
 
@@ -478,20 +470,21 @@ module Make (P : Backend.S) = struct
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
       | `Node t -> clear ~max_depth (depth + 1) t
 
-    and clear_info ~max_depth ?v depth i =
+    and clear_info ~max_depth ~v depth i =
       let clear _ v = clear_elt ~max_depth depth v in
       let () =
         match v with
-        | Some (Value (_, _, Some um)) ->
+        | Value (_, _, Some um) ->
             StepMap.iter
               (fun k -> function Remove -> () | Add v -> clear k v)
               um
-        | _ -> ()
+        | Value (_, _, None) | Map _ | Key _ | Pruned _ -> ()
       in
       let () =
         match (v, i.map) with
-        | Some (Map m), _ | _, Some m -> StepMap.iter clear m
-        | _ -> ()
+        | Map m, _ | (Key _ | Value _ | Pruned _), Some m ->
+            StepMap.iter clear m
+        | (Key _ | Value _ | Pruned _), None -> ()
       in
       let () =
         match i.findv_cache with Some m -> StepMap.iter clear m | None -> ()
@@ -525,43 +518,133 @@ module Make (P : Backend.S) = struct
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
         StepMap.empty entries
 
-    let cached_hash t =
-      match (t.v, t.info.ptr) with
-      | Pruned h, _ -> Some h
-      | Key (_, k), Ptr_none ->
-          let h = Some (P.Node.Key.to_hash k) in
-          t.info.ptr <- Key k;
-          h
-      | _, Key k -> Some (P.Node.Key.to_hash k)
-      | _, Hash h -> Some h
-      | _, Ptr_none -> None
+    (** This [Scan] module contains function that scan the content of [t.v] and
+        [t.info], looking for specific patterns. *)
+    module Scan = struct
+      let iter_hash t hit miss miss_arg =
+        match (t.v, t.info.ptr) with
+        | Key (_, k), _ -> hit (P.Node.Key.to_hash k)
+        | (Map _ | Value _), Key k -> hit (P.Node.Key.to_hash k)
+        | Pruned h, _ -> hit h
+        | (Map _ | Value _), Hash h -> hit h
+        | (Map _ | Value _), Ptr_none -> miss t miss_arg
 
-    let cached_key t =
-      match (t.v, t.info.ptr) with
-      | Pruned _, _ -> None
-      | Key (_, k), (Hash _ | Ptr_none) ->
-          t.info.ptr <- Key k;
-          Some k
-      | _, Key k -> Some k
-      | (Map _ | Value _), (Hash _ | Ptr_none) -> None
+      let iter_key t hit miss miss_arg =
+        match (t.v, t.info.ptr) with
+        | Key (_, k), _ -> hit k
+        | (Map _ | Value _ | Pruned _), Key k -> hit k
+        | (Map _ | Value _ | Pruned _), (Hash _ | Ptr_none) -> miss t miss_arg
 
-    let cached_map t =
-      match (t.v, t.info.map) with
-      | Map m, None ->
-          let m = Some m in
-          t.info.map <- m;
-          m
-      | _, m -> m
+      let iter_map t hit miss miss_arg =
+        match (t.v, t.info.map) with
+        | (Key _ | Value _ | Pruned _), Some m -> hit m
+        | Map m, _ -> hit m
+        | (Key _ | Value _ | Pruned _), None -> miss t miss_arg
 
-    let cached_value t =
-      match (t.v, t.info.value) with
-      | Value (_, v, None), None ->
-          let v = Some v in
-          t.info.value <- v;
-          v
-      | _, v -> v
+      let iter_value t hit miss miss_arg =
+        match (t.v, t.info.value) with
+        | Value (_, v, None), None -> hit v
+        | (Map _ | Key _ | Value _ | Pruned _), Some v -> hit v
+        | (Map _ | Key _ | Value (_, _, Some _) | Pruned _), None ->
+            miss t miss_arg
 
-    let key t = match t.v with Key (_, k) -> Some k | _ -> None
+      let iter_repo_key t hit miss miss_arg =
+        match (t.v, t.info.ptr) with
+        | Key (repo, k), _ -> hit repo k
+        | Value (repo, _, _), Key k -> hit repo k
+        | (Map _ | Pruned _ | Value _), _ -> miss t miss_arg
+
+      let iter_repo_value t hit miss miss_arg =
+        match (t.v, t.info.value) with
+        | Value (repo, v, None), _ -> hit repo v
+        | (Value (repo, _, _) | Key (repo, _)), Some v -> hit repo v
+        | (Map _ | Pruned _ | Value (_, _, Some _) | Key _), _ ->
+            miss t miss_arg
+
+      type node = t
+
+      (** An instance of [t] is expected to be the result of a chain of [to_*]
+          function calls.
+
+          The [to_*] functions scan a [node] and look for a specific pattern.
+          The first function in the chain to match a pattern will return the
+          instance of [t] and ignore the rest of the chain.
+
+          The functions in the chain should be carefuly ordered so that the
+          computation that follows is as quick as possible (e.g. if the goal is
+          to convert a [node] to hash, [to_hash] should be checked before
+          [to_map]).
+
+          [cascade] may be used in order to build chains. *)
+
+      type _ t =
+        | Hash : hash -> [> `hash ] t
+        | Map : map -> [> `map ] t
+        | Value : value -> [> `value ] t
+        | Value_dirty : (repo * value * updatemap) -> [> `value_dirty ] t
+        | Pruned : hash -> [> `pruned ] t
+        | Repo_key : (repo * key) -> [> `repo_key ] t
+        | Repo_value : (repo * value) -> [> `repo_value ] t
+        | Any : [> `any ] t
+
+      module View_kind = struct
+        type _ t =
+          | Hash : [> `hash ] t
+          | Map : [> `map ] t
+          | Value : [> `value ] t
+          | Value_dirty : [> `value_dirty ] t
+          | Pruned : [> `pruned ] t
+          | Repo_key : [> `repo_key ] t
+          | Repo_value : [> `repo_value ] t
+          | Any : [> `any ] t
+      end
+
+      let to_hash t miss = iter_hash t (fun h -> Hash h) miss
+      let to_map t miss = iter_map t (fun m -> Map m) miss
+      let to_value t miss = iter_value t (fun v -> Value v) miss
+
+      let to_value_dirty t miss miss_arg =
+        match t.v with
+        | Value (repo, v, Some um) -> Value_dirty (repo, v, um)
+        | Map _ | Key _ | Value (_, _, None) | Pruned _ -> miss t miss_arg
+
+      let to_pruned t miss miss_arg =
+        match t.v with
+        | Pruned h -> Pruned h
+        | Map _ | Key _ | Value _ -> miss t miss_arg
+
+      let to_repo_key t miss miss_arg =
+        iter_repo_key t (fun repo k -> Repo_key (repo, k)) miss miss_arg
+
+      let to_repo_value t miss miss_arg =
+        iter_repo_value t (fun repo v -> Repo_value (repo, v)) miss miss_arg
+
+      let rec cascade : type k. node -> k View_kind.t list -> k t =
+       fun t -> function
+        | [] ->
+            (* The declared cascade doesn't cover all cases *)
+            assert false
+        | x :: xs -> (
+            match x with
+            | Hash -> to_hash t cascade xs
+            | Map -> to_map t cascade xs
+            | Value -> to_value t cascade xs
+            | Value_dirty -> to_value_dirty t cascade xs
+            | Pruned -> to_pruned t cascade xs
+            | Repo_key -> to_repo_key t cascade xs
+            | Repo_value -> to_repo_value t cascade xs
+            | Any -> Any)
+    end
+
+    let get_none _ () = None
+    let cached_hash t = Scan.iter_hash t Option.some get_none ()
+    let cached_key t = Scan.iter_key t Option.some get_none ()
+    let cached_map t = Scan.iter_map t Option.some get_none ()
+    let cached_value t = Scan.iter_value t Option.some get_none ()
+
+    let key t =
+      match t.v with Key (_, k) -> Some k | Map _ | Value _ | Pruned _ -> None
+
     let unsafe_cache_key t k = t.info.ptr <- Key k
 
     open struct
@@ -589,31 +672,27 @@ module Make (P : Backend.S) = struct
 
     let rec hash : type a. cache:bool -> t -> (hash -> a) -> a =
      fun ~cache t k ->
-      match cached_hash t with
-      | Some h -> k h
-      | None -> (
-          let a_of_hashable hash v =
-            cnt.node_hash <- cnt.node_hash + 1;
-            let hash = hash v in
-            assert (t.info.ptr = Ptr_none);
-            if cache then t.info.ptr <- Hash hash;
-            k hash
-          in
-          match cached_value t with
-          | Some v -> a_of_hashable P.Node.Hash.hash v
-          | None -> (
-              match t.v with
-              | Pruned h -> k h
-              | Key (_, h) -> k (P.Node.Key.to_hash h)
-              | Value (_, v, None) -> a_of_hashable P.Node.Hash.hash v
-              | Value (_, v, Some um) ->
-                  hash_preimage_of_updates ~cache t v um (function
-                    | Node x -> a_of_hashable P.Node.Hash.hash x
-                    | Pnode x -> a_of_hashable Portable_hash.hash x)
-              | Map m ->
-                  hash_preimage_of_map ~cache t m (function
-                    | Node x -> a_of_hashable P.Node.Hash.hash x
-                    | Pnode x -> a_of_hashable Portable_hash.hash x)))
+      let a_of_hashable hash v =
+        cnt.node_hash <- cnt.node_hash + 1;
+        let hash = hash v in
+        assert (t.info.ptr = Ptr_none);
+        if cache then t.info.ptr <- Hash hash;
+        k hash
+      in
+      match
+        (Scan.cascade t [ Hash; Value; Value_dirty; Map ]
+          : [ `hash | `value | `value_dirty | `map ] Scan.t)
+      with
+      | Hash h -> k h
+      | Value v -> a_of_hashable P.Node.Hash.hash v
+      | Value_dirty (_repo, v, um) ->
+          hash_preimage_of_updates ~cache t v um (function
+            | Node x -> a_of_hashable P.Node.Hash.hash x
+            | Pnode x -> a_of_hashable Portable_hash.hash x)
+      | Map m ->
+          hash_preimage_of_map ~cache t m (function
+            | Node x -> a_of_hashable P.Node.Hash.hash x
+            | Pnode x -> a_of_hashable Portable_hash.hash x)
 
     and hash_preimage_of_map :
         type r. cache:bool -> t -> map -> (hash_preimage, r) cont =
@@ -724,68 +803,72 @@ module Make (P : Backend.S) = struct
               Ok v)
 
     let to_value ~cache t =
-      match cached_value t with
-      | Some v -> ok v
-      | None -> (
-          match t.v with
-          | Value (_, v, None) -> ok v
-          | Key (repo, h) -> value_of_key ~cache t repo h
-          | Pruned h -> pruned_hash_exn "Node.to_value" h
-          | Value (_, _, Some _) | Map _ ->
-              invalid_arg
-                "Tree.Node.to_value: the supplied node has not been written to \
-                 disk. Either export it or convert it to a portable value \
-                 instead.")
+      match
+        (Scan.cascade t [ Value; Repo_key; Pruned; Any ]
+          : [ `value | `repo_key | `pruned | `any ] Scan.t)
+      with
+      | Value v -> ok v
+      | Repo_key (repo, k) -> value_of_key ~cache t repo k
+      | Pruned h -> pruned_hash_exn "Node.to_value" h
+      | Any ->
+          invalid_arg
+            "Tree.Node.to_value: the supplied node has not been written to \
+             disk. Either export it or convert it to a portable value instead."
 
-    let to_portable_value ~cache t =
-      match cached_value t with
-      | Some v -> ok (P.Node_portable.of_node v)
-      | None -> (
-          match t.v with
-          | Value (_, v, None) -> ok (P.Node_portable.of_node v)
-          | Value (_, v, Some um) ->
-              hash_preimage_of_updates ~cache t v um (function
-                | Node x -> ok (Portable.of_node x)
-                | Pnode x -> ok x)
-          | Map m ->
-              hash_preimage_of_map ~cache t m (function
-                | Node x -> ok (Portable.of_node x)
-                | Pnode x -> ok x)
-          | Key (repo, h) ->
-              value_of_key ~cache t repo h
-              |> Lwt_result.map P.Node_portable.of_node
-          | Pruned h -> pruned_hash_exn "Node.to_portable_value" h)
+    let to_portable_value_aux ~cache ~value_of_key ~return ~bind:( let* ) t =
+      let ok x = return (Ok x) in
+      match
+        (Scan.cascade t [ Value; Repo_key; Value_dirty; Map; Pruned ]
+          : [ `value | `repo_key | `value_dirty | `map | `pruned ] Scan.t)
+      with
+      | Value v -> ok (P.Node_portable.of_node v)
+      | Repo_key (repo, k) ->
+          let* value_res = value_of_key ~cache t repo k in
+          Result.map P.Node_portable.of_node value_res |> return
+      | Value_dirty (_repo, v, um) ->
+          hash_preimage_of_updates ~cache t v um (function
+            | Node x -> ok (Portable.of_node x)
+            | Pnode x -> ok x)
+      | Map m ->
+          hash_preimage_of_map ~cache t m (function
+            | Node x -> ok (Portable.of_node x)
+            | Pnode x -> ok x)
+      | Pruned h -> pruned_hash_exn "Node.to_portable_value" h
+
+    let to_portable_value =
+      to_portable_value_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
 
     let to_map ~cache t =
-      match cached_map t with
-      | Some m -> ok m
-      | None -> (
-          let of_value repo v updates =
-            let m = map_of_value ~cache repo v in
-            let m =
-              match updates with
-              | None -> m
-              | Some updates ->
-                  StepMap.stdlib_merge
-                    (fun _ left right ->
-                      match (left, right) with
-                      | None, None -> assert false
-                      | (Some _ as v), None -> v
-                      | _, Some (Add v) -> Some v
-                      | _, Some Remove -> None)
-                    m updates
-            in
-            if cache then t.info.map <- Some m;
-            m
-          in
-          match t.v with
-          | Map m -> ok m
-          | Value (repo, v, m) -> ok (of_value repo v m)
-          | Key (repo, k) -> (
-              value_of_key ~cache t repo k >|= function
-              | Error _ as e -> e
-              | Ok v -> Ok (of_value repo v None))
-          | Pruned h -> pruned_hash_exn "Node.to_map" h)
+      let of_value repo v updates =
+        let m = map_of_value ~cache repo v in
+        let m =
+          match updates with
+          | None -> m
+          | Some updates ->
+              StepMap.stdlib_merge
+                (fun _ left right ->
+                  match (left, right) with
+                  | None, None -> assert false
+                  | (Some _ as v), None -> v
+                  | _, Some (Add v) -> Some v
+                  | _, Some Remove -> None)
+                m updates
+        in
+        if cache then t.info.map <- Some m;
+        m
+      in
+      match
+        (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Hash ]
+          : [ `hash | `map | `repo_key | `repo_value | `value_dirty ] Scan.t)
+      with
+      | Map m -> ok m
+      | Repo_value (repo, v) -> ok (of_value repo v None)
+      | Repo_key (repo, k) -> (
+          value_of_key ~cache t repo k >|= function
+          | Error _ as e -> e
+          | Ok v -> Ok (of_value repo v None))
+      | Value_dirty (repo, v, um) -> ok (of_value repo v (Some um))
+      | Hash h -> pruned_hash_exn "Node.to_map" h
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
@@ -853,46 +936,36 @@ module Make (P : Backend.S) = struct
             Seq.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
     let length ~cache t =
-      match cached_map t with
-      | Some m -> StepMap.cardinal m |> Lwt.return
-      | None -> (
-          match cached_value t with
-          | Some v -> P.Node.Val.length v |> Lwt.return
-          | None -> (
-              match t.v with
-              | Map m -> StepMap.cardinal m |> Lwt.return
-              | Key (r, k) ->
-                  value_of_key ~cache t r k
-                  >|= get_ok "length"
-                  >|= P.Node.Val.length
-              | Value (_, v, None) -> P.Node.Val.length v |> Lwt.return
-              | Value (_, v, Some u) ->
-                  hash_preimage_of_updates ~cache t v u (function
-                    | Node x -> P.Node.Val.length x |> Lwt.return
-                    | Pnode x -> P.Node_portable.length x |> Lwt.return)
-              | Pruned h -> pruned_hash_exn "length" h))
+      match
+        (Scan.cascade t [ Map; Value; Repo_key; Value_dirty; Pruned ]
+          : [ `map | `value | `repo_key | `value_dirty | `pruned ] Scan.t)
+      with
+      | Map m -> StepMap.cardinal m |> Lwt.return
+      | Value v -> P.Node.Val.length v |> Lwt.return
+      | Repo_key (repo, k) ->
+          value_of_key ~cache t repo k >|= get_ok "length" >|= P.Node.Val.length
+      | Value_dirty (_repo, v, um) ->
+          hash_preimage_of_updates ~cache t v um (function
+            | Node x -> P.Node.Val.length x |> Lwt.return
+            | Pnode x -> P.Node_portable.length x |> Lwt.return)
+      | Pruned h -> pruned_hash_exn "length" h
 
     let is_empty ~cache t =
-      match cached_map t with
-      | Some m -> StepMap.is_empty m
-      | None -> (
-          match cached_value t with
-          | Some v -> P.Node.Val.is_empty v
-          | None -> (
-              match t.v with
-              | Value (_, v, Some um) -> is_empty_after_updates ~cache v um
-              | Key (_, key) -> equal_hash (P.Node.Key.to_hash key) empty_hash
-              | Pruned h -> equal_hash h empty_hash
-              | Map _ -> assert false (* [cached_map <> None] *)
-              | Value (_, _, None) -> assert false (* [cached_value <> None] *))
-          )
+      match
+        (Scan.cascade t [ Map; Value; Hash; Value_dirty ]
+          : [ `map | `value | `hash | `value_dirty ] Scan.t)
+      with
+      | Map m -> StepMap.is_empty m
+      | Value v -> P.Node.Val.is_empty v
+      | Hash h -> equal_hash h empty_hash
+      | Value_dirty (_repo, v, um) -> is_empty_after_updates ~cache v um
 
     let add_to_findv_cache t step v =
       match t.info.findv_cache with
       | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
       | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
 
-    let findv ~cache ctx t step =
+    let findv_aux ~cache ~value_of_key ~return ~bind:( let* ) ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
         match P.Node.Val.find ~cache v step with
@@ -909,31 +982,29 @@ module Make (P : Backend.S) = struct
             Some v
       in
       let of_t () =
-        match t.v with
-        | Map m -> Lwt.return (of_map m)
-        | Value (repo, v, None) -> Lwt.return (of_value repo v)
-        | Value (repo, v, Some um) -> (
+        match
+          (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
+            : [ `map | `repo_value | `repo_key | `value_dirty | `pruned ] Scan.t)
+        with
+        | Map m -> return (of_map m)
+        | Repo_value (repo, v) -> return (of_value repo v)
+        | Repo_key (repo, k) ->
+            let* v = value_of_key ~cache t repo k in
+            let v = get_ok ctx v in
+            return (of_value repo v)
+        | Value_dirty (repo, v, um) -> (
             match StepMap.find_opt step um with
-            | Some (Add v) -> Lwt.return (Some v)
-            | Some Remove -> Lwt.return None
-            | None -> Lwt.return (of_value repo v))
-        | Key (repo, h) -> (
-            match cached_value t with
-            | Some v -> Lwt.return (of_value repo v)
-            | None ->
-                let+ v = value_of_key ~cache t repo h >|= get_ok ctx in
-                of_value repo v)
-        | Pruned h -> pruned_hash_exn "Node.find" h
+            | Some (Add v) -> return (Some v)
+            | Some Remove -> return None
+            | None -> return (of_value repo v))
+        | Pruned h -> pruned_hash_exn ctx h
       in
-      match cached_map t with
-      | Some m -> Lwt.return (of_map m)
-      | None -> (
-          match t.info.findv_cache with
-          | None -> of_t ()
-          | Some m -> (
-              match of_map m with
-              | None -> of_t ()
-              | Some _ as r -> Lwt.return r))
+      match t.info.findv_cache with
+      | None -> of_t ()
+      | Some m -> (
+          match of_map m with None -> of_t () | Some _ as r -> return r)
+
+    let findv = findv_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
 
     let seq_of_map ?(offset = 0) ?length m : (step * elt) Seq.t =
       let take seq =
@@ -956,20 +1027,20 @@ module Make (P : Backend.S) = struct
         seq
 
     let seq ?offset ?length ~cache t : (step * elt) Seq.t or_error Lwt.t =
-      match cached_map t with
-      | Some m -> ok (seq_of_map ?offset ?length m)
-      | None -> (
-          match t.v with
-          | Value (repo, n, None) ->
-              ok (seq_of_value ?offset ?length ~cache repo n)
-          | Key (repo, h) -> (
-              value_of_key ~cache t repo h >>= function
-              | Error _ as e -> Lwt.return e
-              | Ok v -> ok (seq_of_value ?offset ?length ~cache repo v))
-          | _ -> (
-              to_map ~cache t >>= function
-              | Error _ as e -> Lwt.return e
-              | Ok m -> ok (seq_of_map ?offset ?length m)))
+      match
+        (Scan.cascade t [ Map; Repo_value; Repo_key; Any ]
+          : [ `map | `repo_value | `repo_key | `any ] Scan.t)
+      with
+      | Map m -> ok (seq_of_map ?offset ?length m)
+      | Repo_value (repo, v) -> ok (seq_of_value ?offset ?length ~cache repo v)
+      | Repo_key (repo, k) -> (
+          value_of_key ~cache t repo k >>= function
+          | Error _ as e -> Lwt.return e
+          | Ok v -> ok (seq_of_value ?offset ?length ~cache repo v))
+      | Any -> (
+          to_map ~cache t >>= function
+          | Error _ as e -> Lwt.return e
+          | Ok m -> ok (seq_of_map ?offset ?length m))
 
     let bindings ~cache t =
       (* XXX: If [t] is value, no need to [to_map]. Let's remove and inline
@@ -1043,22 +1114,36 @@ module Make (P : Backend.S) = struct
         let next acc =
           match force with
           | `True -> (
-              match (order, t.v) with
-              | `Random state, _ ->
+              match order with
+              | `Random state ->
                   let* m = to_map ~cache t >|= get_ok "fold" in
                   let arr = StepMap.to_array m in
                   let () = shuffle state arr in
                   let s = Array.to_seq arr in
                   (seq [@tailcall]) ~path acc d s k
-              | `Sorted, _ | `Undefined, Map _ ->
+              | `Sorted ->
                   let* m = to_map ~cache t >|= get_ok "fold" in
                   (map [@tailcall]) ~path acc d (Some m) k
-              | `Undefined, Value (repo, v, updates) ->
-                  (value [@tailcall]) ~path acc d (repo, v, updates) k
-              | `Undefined, Key (repo, _) ->
-                  let* v = to_value ~cache t >|= get_ok "fold" in
-                  (value [@tailcall]) ~path acc d (repo, v, None) k
-              | `Undefined, Pruned h -> pruned_hash_exn "fold" h)
+              | `Undefined -> (
+                  match
+                    (Scan.cascade t
+                       [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
+                      : [ `map
+                        | `repo_value
+                        | `repo_key
+                        | `value_dirty
+                        | `pruned ]
+                        Scan.t)
+                  with
+                  | Map m -> (map [@tailcall]) ~path acc d (Some m) k
+                  | Repo_value (repo, v) ->
+                      (value [@tailcall]) ~path acc d (repo, v, None) k
+                  | Repo_key (repo, _key) ->
+                      let* v = to_value ~cache t >|= get_ok "fold" in
+                      (value [@tailcall]) ~path acc d (repo, v, None) k
+                  | Value_dirty (repo, v, um) ->
+                      (value [@tailcall]) ~path acc d (repo, v, Some um) k
+                  | Pruned h -> pruned_hash_exn "fold" h))
           | `False skip -> (
               match cached_map t with
               | Some n -> (map [@tailcall]) ~path acc d (Some n) k
@@ -1153,17 +1238,16 @@ module Make (P : Backend.S) = struct
         let updates' = StepMap.add step up updates in
         if updates == updates' then t else of_value repo n ~updates:updates'
       in
-      match t.v with
+      match
+        (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
+          : [ `map | `repo_value | `repo_key | `value_dirty | `pruned ] Scan.t)
+      with
       | Map m -> Lwt.return (of_map m)
-      | Value (repo, n, None) -> Lwt.return (of_value repo n StepMap.empty)
-      | Value (repo, n, Some um) -> Lwt.return (of_value repo n um)
-      | Key (repo, h) -> (
-          match (cached_value t, cached_map t) with
-          | Some v, _ -> Lwt.return (of_value repo v StepMap.empty)
-          | _, Some m -> Lwt.return (of_map m)
-          | None, None ->
-              let+ v = value_of_key ~cache:true t repo h >|= get_ok "update" in
-              of_value repo v StepMap.empty)
+      | Repo_value (repo, v) -> Lwt.return (of_value repo v StepMap.empty)
+      | Repo_key (repo, k) ->
+          let+ v = value_of_key ~cache:true t repo k >|= get_ok "update" in
+          of_value repo v StepMap.empty
+      | Value_dirty (repo, v, um) -> Lwt.return (of_value repo v um)
       | Pruned h -> pruned_hash_exn "update" h
 
     let remove t step = update t step Remove
@@ -1717,7 +1801,7 @@ module Make (P : Backend.S) = struct
           Node.export ?clear repo n key;
           k ()
       | Pruned h -> pruned_hash_exn "export" h
-      | _ -> (
+      | Map _ | Value _ -> (
           skip n >>= function
           | true -> k ()
           | false -> (
