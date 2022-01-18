@@ -31,7 +31,9 @@ module Server = struct
               and type contents := S.contents
               and type hash := S.hash
               and type branch := S.branch
-              and type commit_key := S.commit_key) =
+              and type commit_key := S.commit_key
+              and type contents_key := S.contents_key
+              and type node_key := S.node_key) =
     Irmin_graphql.Server.Make_ext
       (Cohttp_lwt_unix.Server)
       (struct
