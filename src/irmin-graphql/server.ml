@@ -436,16 +436,25 @@ struct
                   Store.Contents.hash contents);
             ]))
 
-  and contents_key_item :
+  and contents_key_value :
       ('ctx, (Store.contents_key * Store.metadata) option) Schema.typ Lazy.t =
     lazy
       Schema.(
-        obj "ContentsKeyItem" ~fields:(fun _contents ->
+        obj "ContentsKeyValue" ~fields:(fun _contents ->
             [
               field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
                 ~args:[] ~resolve:(fun _ (_, metadata) -> metadata);
               field "key" ~typ:(non_null Types.Contents_key.schema_typ) ~args:[]
                 ~resolve:(fun _ (key, _) -> key);
+            ]))
+
+  and node_key_value : ('ctx, Store.node_key option) Schema.typ Lazy.t =
+    lazy
+      Schema.(
+        obj "NodeKeyValue" ~fields:(fun _ ->
+            [
+              field "key" ~typ:(non_null Types.Node_key.schema_typ) ~args:[]
+                ~resolve:(fun _ x -> x);
             ]))
 
   and node = Schema.union "Node"
@@ -454,10 +463,10 @@ struct
   and kinded_key = Schema.union "KindedKey"
 
   and node_key_as_kinded_key =
-    lazy (Schema.add_type kinded_key Types.Node_key.schema_typ)
+    lazy (Schema.add_type kinded_key (Lazy.force node_key_value))
 
   and contents_key_as_kinded_key =
-    lazy (Schema.add_type kinded_key (Lazy.force contents_key_item))
+    lazy (Schema.add_type kinded_key (Lazy.force contents_key_value))
 
   [@@@ocaml.warning "-5"]
 
