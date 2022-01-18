@@ -27,3 +27,5 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/mirage/irmin.git"
+
+available: [ arch != "arm64" ] # disabled because of SEGFAULT
