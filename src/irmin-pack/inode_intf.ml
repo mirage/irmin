@@ -14,6 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** The main inode (internal node) interfaces.
+
+As nodes get larger, we need a way to handle them efficiently. For
+   this reason, we represent a single node as a tree of inodes. The
+   way inodes are constructed is based on ideas from Patricia trees.
+
+Usually, there is a maximum branching factor for inodes.
+
+*)
+
 open! Import
 
 module type Child_ordering = sig
