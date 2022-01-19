@@ -831,24 +831,36 @@ module Make (P : Private.S) = struct
 
     let seq ?offset ?length ~cache t : (step * elt) Seq.t or_error Lwt.t =
       let env = t.info.env in
+      let of_value repo_opt v =
+        ok (seq_of_value ~env ?offset ?length ~cache repo_opt v)
+      in
+      let of_hash repo h =
+        value_of_hash ~cache t repo h >>= function
+        | Error _ as e -> Lwt.return e
+        | Ok v -> ok (seq_of_value ~env ?offset ?length ~cache (Some repo) v)
+      in
       match cached_map t with
       | Some m -> ok (seq_of_map ?offset ?length m)
       | None -> (
-          match cached_value t with
-          | Some n -> ok (seq_of_value ~env ?offset ?length ~cache None n)
+          match (t.v, cached_value t) with
+          | Hash ((Some _ as repo_opt), _), Some v
+          | Value ((Some _ as repo_opt), _, _), Some v ->
+              (* Some repo, some cached value *)
+              of_value repo_opt v
           | _ -> (
-              match t.v with
-              | Hash (Some repo, h) -> (
-                  value_of_hash ~cache t repo h >>= function
-                  | Error _ as e -> Lwt.return e
-                  | Ok v ->
-                      ok
-                        (seq_of_value ~env ?offset ?length ~cache (Some repo) v)
-                  )
+              match (t.v, cached_hash t) with
+              | (Hash (Some repo, _) | Value (Some repo, _, _)), Some h ->
+                  (* Some repo, some cached hash *)
+                  of_hash repo h
               | _ -> (
-                  to_map ~cache t >>= function
-                  | Error _ as e -> Lwt.return e
-                  | Ok m -> ok (seq_of_map ?offset ?length m))))
+                  match (t.v, cached_value t) with
+                  | (Hash (None, _) | Value (None, _, _)), Some v ->
+                      (* No repo, some cached value *)
+                      of_value None v
+                  | _ -> (
+                      to_map ~cache t >>= function
+                      | Error _ as e -> Lwt.return e
+                      | Ok m -> ok (seq_of_map ?offset ?length m)))))
 
     let bindings ~cache t =
       (* XXX: If [t] is value, no need to [to_map]. Let's remove and inline
