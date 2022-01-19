@@ -557,7 +557,7 @@ let get_branch (type a)
     | Some x -> (
         match Irmin.Type.of_string S.Branch.t x with
         | Ok x -> Some x
-        | _ -> None)
+        | _ -> invalid_arg "invalid branch")
     | None -> None
   in
   match branch with
@@ -569,10 +569,32 @@ let get_branch (type a)
       of_string br
   | Some t -> of_string (Some t)
 
-let build_irmin_config config root opts (store, hash, contents) branch : store =
+let get_commit (type a b)
+    (module S : Irmin.Generic_key.S
+      with type commit = a
+       and type Schema.Hash.t = b) config commit =
+  let of_string = function
+    | Some x -> (
+        match Irmin.Type.of_string S.Hash.t x with
+        | Ok h -> Some h
+        | _ -> invalid_arg "invalid commit")
+    | None -> None
+  in
+  match commit with
+  | None ->
+      let c =
+        Yaml.Util.find_exn "commit" config
+        |> Option.map (fun x -> string_value x)
+      in
+      of_string c
+  | Some t -> of_string (Some t)
+
+let build_irmin_config config root opts (store, hash, contents) branch commit :
+    store =
   let (T { impl; spec; remote }) = get_store config (store, hash, contents) in
   let (module S) = Store.Impl.generic_keyed impl in
   let branch = get_branch (module S) config branch in
+  let commit = get_commit (module S) config commit in
   let config = parse_config ?root config spec in
   let config =
     List.fold_left
@@ -594,9 +616,18 @@ let build_irmin_config config root opts (store, hash, contents) branch : store =
       config (List.flatten opts)
   in
   let spec =
-    match branch with
-    | None -> S.Repo.v config >>= S.main
-    | Some b -> S.Repo.v config >>= fun repo -> S.of_branch repo b
+    match (branch, commit) with
+    | Some _, Some _ ->
+        invalid_arg
+          "both --commit and --branch were set, only one can be used at a time"
+    | None, Some hash -> (
+        S.Repo.v config >>= fun repo ->
+        let* commit = S.Commit.of_hash repo hash in
+        match commit with
+        | None -> invalid_arg "unknown commit"
+        | Some c -> S.of_commit c)
+    | None, None -> S.Repo.v config >>= S.main
+    | Some b, None -> S.Repo.v config >>= fun repo -> S.of_branch repo b
   in
   S (impl, spec, remote)
 
@@ -607,12 +638,19 @@ let branch =
   in
   Arg.(value & opt (some string) None & doc)
 
-let store () =
-  let create store (root, config_path, opts) branch =
-    let y = read_config_file config_path in
-    build_irmin_config y root opts store branch
+let commit =
+  let doc =
+    Arg.info ~doc:"The store's head commit. This cannot be used with --branch."
+      ~docs:global_option_section ~docv:"COMMIT" [ "commit" ]
   in
-  Term.(const create $ Store.term () $ config_term $ branch)
+  Arg.(value & opt (some string) None & doc)
+
+let store () =
+  let create store (root, config_path, opts) branch commit =
+    let y = read_config_file config_path in
+    build_irmin_config y root opts store branch commit
+  in
+  Term.(const create $ Store.term () $ config_term $ branch $ commit)
 
 let header_conv =
   let parse str =
