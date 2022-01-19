@@ -33,6 +33,20 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                     run (Store.of_branch repo branch) )))
 
   let () =
+    fn "of_commit"
+      (repo @-> commit @-> returning store)
+      (fun (type repo) repo commit ->
+        catch' store (fun () ->
+            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
+              Root.get_repo repo
+            in
+            let commit = Root.get_commit (module Store) commit in
+            Root.create_store
+              (module Store)
+              ( (module Store : Irmin.Generic_key.S with type t = Store.t),
+                run (Store.of_commit commit) )))
+
+  let () =
     fn "get_head"
       (store @-> returning commit)
       (fun (type t) store ->
