@@ -550,43 +550,27 @@ let load_config ?root ?config_path ?store ?hash ?contents () =
 
 let string_value = function `String s -> s | _ -> raise Not_found
 
+let find_key config name =
+  Yaml.Util.find_exn name config |> Option.map (fun x -> string_value x)
+
+let handle_decode_err err t x =
+  match Irmin.Type.of_string t x with Ok h -> h | _ -> invalid_arg err
+
 let get_branch (type a)
     (module S : Irmin.Generic_key.S with type Schema.Branch.t = a) config branch
     =
-  let of_string = function
-    | Some x -> (
-        match Irmin.Type.of_string S.Branch.t x with
-        | Ok x -> Some x
-        | _ -> invalid_arg "invalid branch")
-    | None -> None
-  in
+  let of_string = Option.map (handle_decode_err "invalid branch" S.Branch.t) in
   match branch with
-  | None ->
-      let br =
-        Yaml.Util.find_exn "branch" config
-        |> Option.map (fun x -> string_value x)
-      in
-      of_string br
+  | None -> of_string (find_key config "branch")
   | Some t -> of_string (Some t)
 
 let get_commit (type a b)
     (module S : Irmin.Generic_key.S
       with type commit = a
        and type Schema.Hash.t = b) config commit =
-  let of_string = function
-    | Some x -> (
-        match Irmin.Type.of_string S.Hash.t x with
-        | Ok h -> Some h
-        | _ -> invalid_arg "invalid commit")
-    | None -> None
-  in
+  let of_string = Option.map (handle_decode_err "invalid commit" S.Hash.t) in
   match commit with
-  | None ->
-      let c =
-        Yaml.Util.find_exn "commit" config
-        |> Option.map (fun x -> string_value x)
-      in
-      of_string c
+  | None -> of_string (find_key config "commit")
   | Some t -> of_string (Some t)
 
 let build_irmin_config config root opts (store, hash, contents) branch commit :
@@ -617,10 +601,7 @@ let build_irmin_config config root opts (store, hash, contents) branch commit :
   in
   let spec =
     match (branch, commit) with
-    | Some _, Some _ ->
-        invalid_arg
-          "both --commit and --branch were set, only one can be used at a time"
-    | None, Some hash -> (
+    | _, Some hash -> (
         S.Repo.v config >>= fun repo ->
         let* commit = S.Commit.of_hash repo hash in
         match commit with
@@ -640,7 +621,8 @@ let branch =
 
 let commit =
   let doc =
-    Arg.info ~doc:"The store's head commit. This cannot be used with --branch."
+    Arg.info
+      ~doc:"The store's head commit. This will take precedence over --branch."
       ~docs:global_option_section ~docv:"COMMIT" [ "commit" ]
   in
   Arg.(value & opt (some string) None & doc)
