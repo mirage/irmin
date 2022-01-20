@@ -88,7 +88,7 @@ let test_bindings _ () =
   let* () = Tree.list tree [] >|= (List.map fst >> check_sorted) in
 
   (* Make sure that a [Hash (Some repo, _)] node with a cached value doesn't
-     produce a list of pruned children. See #1720 *)
+     produce a list of pruned children. *)
   let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
   let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
   let tree = Tree.shallow (Store.repo store) (`Node (Tree.hash tree)) in
