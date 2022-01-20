@@ -85,7 +85,20 @@ let test_bindings _ () =
       "Bindings are reported in lexicographic order" [ "a"; "aa"; "ab"; "b" ]
   in
   (* [Tree.list] returns all keys in lexicographic order *)
-  Tree.list tree [] >|= (List.map fst >> check_sorted)
+  let* () = Tree.list tree [] >|= (List.map fst >> check_sorted) in
+
+  (* Make sure that a [Hash (Some repo, _)] node with a cached value doesn't
+     produce a list of pruned children. *)
+  let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
+  let* () = Store.set_tree_exn ~info:Irmin.Info.none store [] tree in
+  let tree = Tree.shallow (Store.repo store) (`Node (Tree.hash tree)) in
+  let _ = Tree.find tree [ "aa" ] in
+  let* children = Tree.list tree [] in
+  Lwt_list.iter_s
+    (fun (_step, tree) ->
+      let+ (_ : string option) = Tree.find tree [] in
+      ())
+    children
 
 let test_paginated_bindings _ () =
   let tree =

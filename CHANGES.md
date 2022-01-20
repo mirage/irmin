@@ -1,3 +1,11 @@
+## Unreleased
+
+### Fixed
+
+- *irmin*
+  - Fix bug introduced in #1683 which causes `Tree.seq` and `Tree.list` to
+    produce pruned children (#1720, @Ngoguey42)
+
 ## 2.10.0 (2021-01-07)
 
 ### Fixed
