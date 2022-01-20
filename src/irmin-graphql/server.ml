@@ -444,8 +444,8 @@ struct
             [
               field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
                 ~args:[] ~resolve:(fun _ (_, metadata) -> metadata);
-              field "key" ~typ:(non_null Types.Contents_key.schema_typ) ~args:[]
-                ~resolve:(fun _ (key, _) -> key);
+              field "contents" ~typ:(non_null Types.Contents_key.schema_typ)
+                ~args:[] ~resolve:(fun _ (key, _) -> key);
             ]))
 
   and node_key_value : ('ctx, Store.node_key option) Schema.typ Lazy.t =
@@ -453,7 +453,7 @@ struct
       Schema.(
         obj "NodeKeyValue" ~fields:(fun _ ->
             [
-              field "key" ~typ:(non_null Types.Node_key.schema_typ) ~args:[]
+              field "node" ~typ:(non_null Types.Node_key.schema_typ) ~args:[]
                 ~resolve:(fun _ x -> x);
             ]))
 
