@@ -57,6 +57,10 @@ Remove g in ./test
 List keys under g in ./test
   $ irmin list g
 
+Load snapshot commit as store
+  $ irmin get --commit $SNAPSHOT g/h/i
+  789
+
 Restore snapshot
   $ irmin revert $SNAPSHOT
 

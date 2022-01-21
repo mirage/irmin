@@ -57,6 +57,8 @@
 - **irmin-unix**
   - Update `irmin` CLI to raise an exception when an invalid/non-existent
     config file is specified (#1413, @zshipko)
+  - Add `--commit` flag to CLI to load a store from a specific commit hash
+    (#1721, @zshipko)
 
 - **irmin-tezos**
   - Added a new package to mirror Tezos `tezos-context.encoding` library.
