@@ -25,6 +25,9 @@
     (#1345, @samoht)
   - Add a function `Store.Tree.singleton` for building trees with a single
     contents binding. (#1567, @CraigFe)
+  - Add `with_handler` and `head` to `Store.Backend.Node` to working with
+    recursive node structure from irmin core. (#1712 @Ngoguey42). Forward
+    port of #1692 and #1670.
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

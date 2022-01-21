@@ -1814,6 +1814,53 @@ struct
 
     let of_concrete t =
       match I.of_concrete t with Ok t -> Ok (Total t) | Error _ as e -> e
+
+    let with_handler f_env t =
+      match t with
+      | Total _ -> t
+      | Truncated _ -> t
+      | Partial ((I.Partial find as la), v) ->
+          (* [f_env] works on [Val.t] while [find] in [Partial find] works on
+             [Val_impl.t], hence the following wrapping (before applying
+             [f_env]) and unwrapping (after [f_env]). *)
+          let find_v ~expected_depth h =
+            match find ~expected_depth h with
+            | None -> None
+            | Some v -> Some (Partial (la, v))
+          in
+          let find = f_env find_v in
+          let find_ptr ~expected_depth h =
+            match find ~expected_depth h with
+            | Some (Partial (_, v)) -> Some v
+            | _ -> None
+          in
+          let la = I.Partial find_ptr in
+          Partial (la, v)
+
+    let head t =
+      let f la (v : _ I.t) =
+        if Val_impl.is_stable v then
+          let elts =
+            I.seq la v
+            |> List.of_seq
+            |> List.fast_sort (fun (x, _) (y, _) -> compare_step x y)
+          in
+          `Node elts
+        else
+          match v.v with
+          | I.Values n -> `Node (List.of_seq (StepMap.to_seq n))
+          | I.Tree v ->
+              let entries = ref [] in
+              for i = Array.length v.entries - 1 downto 0 do
+                match v.entries.(i) with
+                | None -> ()
+                | Some ptr ->
+                    let h = I.Ptr.val_ref la ptr |> Val_ref.to_hash in
+                    entries := (i, h) :: !entries
+              done;
+              `Inode (v.length, !entries)
+      in
+      apply t { f }
   end
 end
 

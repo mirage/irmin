@@ -116,6 +116,33 @@ module type S_generic_key = sig
     node:node_key option Merge.t ->
     t Merge.t
   (** [merge] is the merge function for nodes. *)
+
+  (** {1 Recursive Nodes} *)
+
+  (** Some [Node] implementations (like [irmin-pack]'s inodes) can represent a
+      node as a set of nodes. One operation on such "high-level" node
+      corresponds to a sequence of recursive calls to the underlying
+      "lower-level" nodes. Note: theses [effects] are not in the Lwt monad on
+      purpose (so [Tree.hash] and [Tree.equal] are not in the Lwt monad as
+      well). *)
+
+  type effect := expected_depth:int -> node_key -> t option
+  (** The type for read effects. *)
+
+  val with_handler : (effect -> effect) -> t -> t
+  (** [with_handler f] replace the current effect handler [h] by [f h]. [f h]
+      will be called for all the recursive read effects that are required by
+      recursive operations on nodes. .*)
+
+  type head :=
+    [ `Node of (step * value) list | `Inode of int * (int * hash) list ]
+  [@@deriving irmin]
+
+  val head : t -> head
+  (** Reveal the shallow internal structure of the node.
+
+      Only hashes and not keys are revealed in the [`Inode] case, this is
+      because these inodes might not be keyed yet. *)
 end
 
 module type S = sig
@@ -130,11 +157,26 @@ module type S = sig
 end
 
 module type Portable = sig
-  include S
+  type hash
+
+  (** @inline *)
+  include
+    Core
+      with type hash := hash
+       and type contents_key = hash
+       and type node_key = hash
 
   type node
 
   val of_node : node -> t
+
+  (** {2 merging} *)
+
+  val merge :
+    contents:contents_key option Merge.t ->
+    node:node_key option Merge.t ->
+    t Merge.t
+  (** [merge] is the merge function for nodes. *)
 end
 
 open struct

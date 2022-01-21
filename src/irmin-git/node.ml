@@ -172,6 +172,9 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
   let merge ~contents ~node =
     let merge = N.merge ~contents ~node in
     Irmin.Merge.like t merge to_n of_n
+
+  let with_handler _ n = n
+  let head t = `Node (list t)
 end
 
 module Store (G : Git.S) (P : Irmin.Path.S) = struct
