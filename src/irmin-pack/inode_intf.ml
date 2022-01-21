@@ -91,12 +91,18 @@ module type Internal = sig
 
   val pp_hash : hash Fmt.t
 
-  module Raw : Pack_value.S with type hash = hash and type key = key
+  module Raw : sig
+    include Pack_value.S with type hash = hash and type key = key
+
+    val depth : t -> int option
+
+    exception Invalid_depth of { expected : int; got : int; v : t }
+  end
 
   module Val : sig
     include Value with type hash = hash and type key = key
 
-    val of_raw : (key -> Raw.t option) -> Raw.t -> t
+    val of_raw : (expected_depth:int -> key -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
 
     val save :
