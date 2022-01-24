@@ -903,7 +903,22 @@ let log =
          let doc = Arg.info ~doc:"Specify pager program to use" [ "pager" ] in
          Arg.(value & opt string "pager" & doc)
        in
-       let commits (S (impl, store, _)) plain pager =
+       let num =
+         let doc =
+           Arg.info ~doc:"Number of entries to show" [ "n"; "max-count" ]
+         in
+         Arg.(value & opt (some int) None & doc)
+       in
+       let skip =
+         let doc = Arg.info ~doc:"Number of entries to skip" [ "skip" ] in
+         Arg.(value & opt (some int) None & doc)
+       in
+       let reverse =
+         let doc = Arg.info ~doc:"Print in reverse order" [ "reverse" ] in
+         Arg.(value & flag & doc)
+       in
+       let exception Return in
+       let commits (S (impl, store, _)) plain pager num skip reverse =
          let (module S) = Store.Impl.generic_keyed impl in
          run
            (let* t = store in
@@ -913,27 +928,45 @@ let log =
                 (date.tm_year + 1900)
             in
             let repo = S.repo t in
+            let skip = ref (Option.value ~default:0 skip) in
+            let num = Option.value ~default:0 num in
+            let num_count = ref 0 in
             let commit formatter key =
-              let+ commit = S.Commit.of_key repo key >|= Option.get in
-              let hash = S.Backend.Commit.Key.to_hash key in
-              let info = S.Commit.info commit in
-              let date = S.Info.date info in
-              let author = S.Info.author info in
-              let message = S.Info.message info in
-              let date = Unix.localtime (Int64.to_float date) in
-              Fmt.pf formatter "commit %a\nAuthor: %s\nDate: %a\n\n%s\n\n%!"
-                (Irmin.Type.pp S.hash_t) hash author fmt date message
+              if num > 0 && !num_count >= num then raise Return
+              else if !skip > 0 then
+                let () = decr skip in
+                Lwt.return_unit
+              else
+                let+ commit = S.Commit.of_key repo key >|= Option.get in
+                let hash = S.Backend.Commit.Key.to_hash key in
+                let info = S.Commit.info commit in
+                let date = S.Info.date info in
+                let author = S.Info.author info in
+                let message = S.Info.message info in
+                let date = Unix.localtime (Int64.to_float date) in
+                let () =
+                  Fmt.pf formatter "commit %a\nAuthor: %s\nDate: %a\n\n%s\n\n%!"
+                    (Irmin.Type.pp S.hash_t) hash author fmt date message
+                in
+                incr num_count
             in
             let* max = S.Head.get t >|= fun x -> [ `Commit (S.Commit.key x) ] in
+            let iter ~commit ~max repo =
+              Lwt.catch
+                (fun () ->
+                  if reverse then S.Repo.iter ~commit ~min:[] ~max repo
+                  else S.Repo.breadth_first_traversal ~commit ~max repo)
+                (function Return -> Lwt.return_unit | exn -> raise exn)
+            in
             if plain then
               let commit = commit Format.std_formatter in
-              S.Repo.breadth_first_traversal ~commit ~max repo
+              iter ~commit ~max repo
             else
               Lwt.catch
                 (fun () ->
                   let out = Unix.open_process_out pager in
                   let commit = commit (Format.formatter_of_out_channel out) in
-                  let+ () = S.Repo.breadth_first_traversal ~commit ~max repo in
+                  let+ () = iter ~commit ~max repo in
                   let _ = Unix.close_process_out out in
                   ())
                 (function
@@ -941,7 +974,7 @@ let log =
                       Lwt.return_unit
                   | exn -> raise exn))
        in
-       Term.(mk commits $ store () $ plain $ pager));
+       Term.(mk commits $ store () $ plain $ pager $ num $ skip $ reverse));
   }
 
 let default =
