@@ -145,7 +145,8 @@ module Make (S : Generic_key) = struct
         >>= fun () ->
         visited := [];
         skipped := [];
-        test_skip ~max:[ k1 ] ~to_skip:[ `Node k1 ]
+        test_skip ~max:[ k1 ]
+          ~to_skip:[ `Node k1 ]
           ~not_visited:[ `Contents foo_k ]
       in
       let test3 () =
@@ -177,7 +178,8 @@ module Make (S : Generic_key) = struct
         visited := [];
         skipped := [];
         let* () =
-          test_skip ~max:[ kc ] ~to_skip:[ `Node ka1; `Node ka2 ]
+          test_skip ~max:[ kc ]
+            ~to_skip:[ `Node ka1; `Node ka2 ]
             ~not_visited:[ `Node kb1 ]
         in
         visited := [];

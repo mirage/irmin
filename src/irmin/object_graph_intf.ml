@@ -132,8 +132,8 @@ module type Sigs = sig
       (Branch : Type.S) :
     S
       with type V.t =
-            [ `Contents of Contents_key.t
-            | `Node of Node_key.t
-            | `Commit of Commit_key.t
-            | `Branch of Branch.t ]
+        [ `Contents of Contents_key.t
+        | `Node of Node_key.t
+        | `Commit of Commit_key.t
+        | `Branch of Branch.t ]
 end

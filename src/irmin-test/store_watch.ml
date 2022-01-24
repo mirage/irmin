@@ -296,8 +296,10 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
       in
       let* main = S.Branch.get repo "main" in
       let* u =
-        S.Branch.watch_all ~init:[ ("main", main) ] repo (fun _ ->
-            State.process state)
+        S.Branch.watch_all
+          ~init:[ ("main", main) ]
+          repo
+          (fun _ -> State.process state)
       in
       add true (0, 0, 0) 10 ~first:true >>= fun () ->
       remove true (10, 0, 0) 5 >>= fun () ->

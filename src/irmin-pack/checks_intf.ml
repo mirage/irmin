@@ -56,11 +56,11 @@ module type S = sig
   module Reconstruct_index :
     Subcommand
       with type run :=
-            root:string ->
-            output:string option ->
-            ?index_log_size:int ->
-            unit ->
-            unit
+        root:string ->
+        output:string option ->
+        ?index_log_size:int ->
+        unit ->
+        unit
   (** Rebuilds an index for an existing pack file *)
 
   (** Checks the integrity of a store *)
@@ -95,11 +95,11 @@ module type S = sig
     include
       Subcommand
         with type run :=
-              root:string ->
-              commit:string option ->
-              dump_blob_paths_to:string option ->
-              unit ->
-              unit Lwt.t
+          root:string ->
+          commit:string option ->
+          dump_blob_paths_to:string option ->
+          unit ->
+          unit Lwt.t
   end
 
   val cli :

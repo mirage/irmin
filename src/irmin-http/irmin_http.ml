@@ -230,13 +230,15 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
   let val_of_str = Irmin.Type.of_string V.t
 
   let find t key =
-    HTTP.map_call `GET t.uri t.ctx ~keep_alive:false [ t.item; key_str key ]
+    HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
+      [ t.item; key_str key ]
       (fun ((r, _) as x) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_none
         else HTTP.map_string_response val_of_str x >|= Option.some)
 
   let mem t key =
-    HTTP.map_call `GET t.uri t.ctx ~keep_alive:false [ t.item; key_str key ]
+    HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
+      [ t.item; key_str key ]
       (fun (r, _) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
@@ -331,7 +333,8 @@ functor
 
     let remove t key =
       HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
-        [ RO.item t.t; key_str key ] (fun (r, b) ->
+        [ RO.item t.t; key_str key ]
+        (fun (r, b) ->
           match Cohttp.Response.status r with
           | `Not_found | `OK -> Lwt.return_unit
           | _ ->
