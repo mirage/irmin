@@ -28,6 +28,8 @@
   - Add `with_handler` and `head` to `Store.Backend.Node` to working with
     recursive node structure from irmin core. (#1712 @Ngoguey42). Forward
     port of #1692 and #1670.
+  - Add `proof`, `to_proof` and `of_proof` to `Store.Backend.Node_portable`
+    (#1716, @Ngoguey42). Forward port from #1583.
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

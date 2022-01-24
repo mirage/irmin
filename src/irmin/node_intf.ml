@@ -134,6 +134,8 @@ module type S_generic_key = sig
       will be called for all the recursive read effects that are required by
       recursive operations on nodes. .*)
 
+  exception Dangling_hash of { context : string; hash : hash }
+
   type head :=
     [ `Node of (step * value) list | `Inode of int * (int * hash) list ]
   [@@deriving irmin]
@@ -177,6 +179,18 @@ module type Portable = sig
     node:node_key option Merge.t ->
     t Merge.t
   (** [merge] is the merge function for nodes. *)
+
+  (** {1 Proofs} *)
+
+  type proof =
+    [ `Blinded of hash
+    | `Values of (step * value) list
+    | `Inode of int * (int * proof) list ]
+  [@@deriving irmin]
+  (** The type for proof trees. *)
+
+  val to_proof : t -> proof
+  val of_proof : depth:int -> proof -> t option
 end
 
 open struct
