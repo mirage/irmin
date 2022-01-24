@@ -7,7 +7,7 @@ license: "ISC"
 homepage: "https://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
-  "dune" {> "2.0"}
+  "dune" {> "2.7"}
   "ctypes" {>= "0.19"}
   "ctypes-foreign" {>= "0.18"}
   "irmin-unix" {= version}
