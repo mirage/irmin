@@ -103,19 +103,6 @@ module type Core = sig
 
       [cache = false] doesn't replace a call to [clear], it only prevents the
       storing of new data, it doesn't discard the existing one. *)
-end
-
-module type S_generic_key = sig
-  include Core
-  (** @inline *)
-
-  (** {2 merging} *)
-
-  val merge :
-    contents:contents_key option Merge.t ->
-    node:node_key option Merge.t ->
-    t Merge.t
-  (** [merge] is the merge function for nodes. *)
 
   (** {1 Recursive Nodes} *)
 
@@ -134,8 +121,6 @@ module type S_generic_key = sig
       will be called for all the recursive read effects that are required by
       recursive operations on nodes. .*)
 
-  exception Dangling_hash of { context : string; hash : hash }
-
   type head :=
     [ `Node of (step * value) list | `Inode of int * (int * hash) list ]
   [@@deriving irmin]
@@ -145,6 +130,21 @@ module type S_generic_key = sig
 
       Only hashes and not keys are revealed in the [`Inode] case, this is
       because these inodes might not be keyed yet. *)
+end
+
+module type S_generic_key = sig
+  include Core
+  (** @inline *)
+
+  (** {2 merging} *)
+
+  val merge :
+    contents:contents_key option Merge.t ->
+    node:node_key option Merge.t ->
+    t Merge.t
+  (** [merge] is the merge function for nodes. *)
+
+  exception Dangling_hash of { context : string; hash : hash }
 end
 
 module type S = sig

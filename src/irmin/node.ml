@@ -258,6 +258,17 @@ struct
       Hash_preimage.pre_hash entries f
     in
     Type.map ~pre_hash Type.(list entry_t) of_entries entries
+
+  let with_handler _ t = t
+
+  let head_entries t =
+    let l = seq_entries ~offset:0 t |> List.of_seq in
+    `Node l
+
+  let head t =
+    let (`Node l) = head_entries t in
+    let l = List.map (fun (_, e) -> inspect_nonportable_entry_exn e) l in
+    `Node l
 end
 
 module Portable = struct
@@ -343,14 +354,16 @@ struct
 
       let list ?offset ?length ?cache t =
         List.of_seq (seq ?offset ?length ?cache t)
+
+      let head t =
+        let (`Node l) = head_entries t in
+        let l = List.map (fun (_, e) -> weak_of_entry e) l in
+        `Node l
     end
 
     include Of_core (Core)
     include Portable.Of_core (Core)
   end
-
-  let with_handler _ t = t
-  let head t = `Node (list t)
 
   exception Dangling_hash of { context : string; hash : hash }
 
