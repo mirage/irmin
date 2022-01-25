@@ -21,9 +21,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     try
       let () = update_error_msg None in
       f ()
-    with exn ->
-      let () = update_error_msg @@ Some (Printexc.to_string exn) in
-      return
+    with
+    | Failure msg ->
+        let () = update_error_msg (Some msg) in
+        return
+    | exn ->
+        let () = update_error_msg @@ Some (Printexc.to_string exn) in
+        return
     [@@inline]
 
   let null t = Ctypes.coerce (ptr void) t null
@@ -62,7 +66,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   module Root = struct
     let to_voidp x = Obj.magic x
-    let of_voidp x = Obj.magic x
+    let of_voidp x = if is_null x then failwith "null pointer" else Obj.magic x
 
     let get_repo (type a) (x : Struct.repo ptr) : a repo = Root.get (to_voidp x)
       [@@inline]
