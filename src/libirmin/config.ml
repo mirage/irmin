@@ -112,4 +112,25 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             in
             Root.set_config c (s, config);
             ok))
+
+  let () =
+    fn "config_set_root"
+      (config @-> string @-> returning bool)
+      (fun c path ->
+        catch false (fun () ->
+            let (s, config) : config = Root.get_config c in
+            let (module S) = Irmin_unix.Resolver.Store.generic_keyed s in
+            let k = find_config_key config "root" in
+            let ok, config =
+              match k with
+              | None -> (false, config)
+              | Some (Irmin.Backend.Conf.K k) ->
+                  let path =
+                    Irmin.Type.of_string (Irmin.Backend.Conf.ty k) path
+                    |> Result.get_ok
+                  in
+                  (true, Irmin.Backend.Conf.add config k path)
+            in
+            Root.set_config c (s, config);
+            ok))
 end
