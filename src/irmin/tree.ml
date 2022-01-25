@@ -712,17 +712,8 @@ module Make (P : Backend.S) = struct
           bindings
           |> Seq.map (fun (step, v) ->
                  match v with
-                 | `Contents (c, m) ->
-                     let hash =
-                       match Contents.key c with
-                       | Some key -> P.Contents.Key.to_hash key
-                       | None -> Contents.hash c
-                     in
-                     (step, `Contents (hash, m))
-                 | `Node n -> (
-                     match key n with
-                     | Some key -> (step, `Node (P.Node.Key.to_hash key))
-                     | None -> hash ~cache n (fun k -> (step, `Node k))))
+                 | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
+                 | `Node n -> hash ~cache n (fun k -> (step, `Node k)))
           |> Portable.of_seq
         in
         k (Pnode pnode)
@@ -745,7 +736,7 @@ module Make (P : Backend.S) = struct
                          assert false))
           |> P.Node.Val.of_seq
         in
-        t.info.value <- Some node;
+        if cache then t.info.value <- Some node;
         k (Node node)
 
     and hash_preimage_value_of_elt :
@@ -764,10 +755,13 @@ module Make (P : Backend.S) = struct
     and hash_preimage_of_updates :
         type r. cache:bool -> t -> value -> updatemap -> (hash_preimage, r) cont
         =
-     fun ~cache _t v updates k ->
+     fun ~cache t v updates k ->
       let updates = StepMap.bindings updates in
       let rec aux acc = function
-        | [] -> k acc
+        | [] ->
+            (if cache then
+             match acc with Node n -> t.info.value <- Some n | Pnode _ -> ());
+            k acc
         | (k, Add e) :: rest ->
             hash_preimage_value_of_elt ~cache e (fun e ->
                 let acc =
@@ -788,7 +782,7 @@ module Make (P : Backend.S) = struct
             in
             aux acc rest
       in
-      aux (Pnode (P.Node_portable.of_node v)) updates
+      aux (Node v) updates
 
     let hash ~cache k = hash ~cache k (fun x -> x)
 
@@ -859,8 +853,8 @@ module Make (P : Backend.S) = struct
         m
       in
       match
-        (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Hash ]
-          : [ `hash | `map | `repo_key | `repo_value | `value_dirty ] Scan.t)
+        (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
+          : [ `map | `repo_key | `repo_value | `value_dirty | `pruned ] Scan.t)
       with
       | Map m -> ok m
       | Repo_value (repo, v) -> ok (of_value repo v None)
@@ -869,7 +863,7 @@ module Make (P : Backend.S) = struct
           | Error _ as e -> e
           | Ok v -> Ok (of_value repo v None))
       | Value_dirty (repo, v, um) -> ok (of_value repo v (Some um))
-      | Hash h -> err_pruned_hash h |> Lwt.return
+      | Pruned h -> err_pruned_hash h |> Lwt.return
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
