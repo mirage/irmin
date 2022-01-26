@@ -20,6 +20,6 @@ depends: [
 ]
 build: [
   ["dune" "subst"] {dev}
-  ["dune" "build" "-p" name "-j" jobs "@runtest" {with-test}]
+  ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test}]
 ]
 dev-repo: "git+https://github.com/mirage/irmin.git"
