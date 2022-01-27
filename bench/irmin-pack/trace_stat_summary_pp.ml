@@ -30,8 +30,6 @@ module Summary = Trace_stat_summary
 module Pb = struct
   include PrintBox
 
-  let () = PrintBox_unicode.setup ()
-
   (* Some utilities to work with lists instead of array *)
 
   let transpose_matrix l =

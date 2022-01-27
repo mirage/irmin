@@ -36,7 +36,8 @@ depends: [
   "rusage"
   "uutf"
   "uucp"
-  "printbox"
+  "printbox"     {>= "0.6"}
+  "printbox-text"
 ]
 
 synopsis: "Irmin benchmarking suite"

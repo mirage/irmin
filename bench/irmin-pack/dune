@@ -25,7 +25,7 @@
  (preprocess
   (pps ppx_irmin.internal ppx_repr ppx_deriving.enum))
  (libraries irmin irmin-pack unix lwt repr ppx_repr bentov mtime printbox
-   uucp uutf printbox.unicode mtime.clock.os bench_common)
+   printbox-text mtime.clock.os bench_common)
  (instrumentation
   (backend bisect_ppx)))
 
