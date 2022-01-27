@@ -1148,6 +1148,7 @@ struct
       let length = length_of_v v in
       let hash =
         if should_be_stable ~length ~root:(depth = 0) then
+          (* [seq_v] may call [find], even if some branches are blinded *)
           let node = Node.of_seq (seq_v la v) in
           Node.hash node
         else hash v
@@ -1581,6 +1582,7 @@ struct
         | `Blinded h -> k h Concrete.Blinded
         | `Values vs ->
             let vs = List.map strengthen_step_value vs in
+            assert (List.compare_length_with vs Conf.entries <= 0);
             let hash = hash_values ~depth vs in
             let c = Concrete.Values (List.map Concrete.to_entry vs) in
             k hash c
@@ -1628,9 +1630,46 @@ struct
         in
         proof_of_concrete (lazy (Val_ref.to_hash t.v_ref)) p
 
-      let of_proof la ~depth (proof : t) =
-        let c = concrete_of_proof ~depth proof in
-        match of_concrete la ~depth c with Ok v -> Some v | Error _ -> None
+      let of_proof (Partial _ as la) ~depth (proof : t) =
+        match proof with
+        | `Values vs when List.compare_length_with vs Conf.entries > 0 -> (
+            if depth <> 0 then None
+            else
+              (* [proof] is a big stable inode that was unshallowed and encoded
+                 in a [Values], it needs to be converted back to a [Tree]
+                 shallowed. *)
+              let t =
+                of_seq Total (List.map strengthen_step_value vs |> List.to_seq)
+              in
+              (* Compute the hash right away (not lazily) *)
+              let hash = hash t in
+              let v_ref = Val_ref.of_hash (lazy hash) in
+              match t.v with
+              | Values _ -> assert false
+              | Tree { depth; length; entries } ->
+                  let ptr_of_key = Ptr.of_key la in
+                  let entries =
+                    Array.map
+                      (function
+                        | None -> None
+                        | Some ptr ->
+                            let hash =
+                              Ptr.val_ref Total ptr |> Val_ref.to_hash
+                            in
+                            (* Since [of_proof] is only called in the context of
+                               Portable inodes, [unfindable_of_hash] is safe. *)
+                            let key = Key.unfindable_of_hash hash in
+                            Some (ptr_of_key key))
+                      entries
+                  in
+                  let v = Tree { depth; length; entries } in
+                  let t = { v_ref; v; root = true } in
+                  Some t)
+        | _ -> (
+            let c = concrete_of_proof ~depth proof in
+            match of_concrete la ~depth c with
+            | Ok v -> Some v
+            | Error _ -> None)
 
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof ~depth:0
