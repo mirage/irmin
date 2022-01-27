@@ -76,7 +76,7 @@ module Make (H : Hashtbl.HashedType) (V : Weighted) = struct
   }
 
   let weight t = t.w
-  let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
+  let create cap = { cap; w = 0; ht = HT.create 1000; q = Q.create () }
 
   let drop_lru t =
     match t.q.first with
