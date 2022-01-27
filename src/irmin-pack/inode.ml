@@ -1376,11 +1376,11 @@ struct
 
     module Weighted = struct
       type data = t
-      type t = data
+      type t = data * int
 
-      let weight _ = 1
-      let data d = d
-      let weighted_value d _ = d
+      let weight (_, w) = w
+      let data (d, _) = d
+      let weighted_value d w = (d, w)
     end
   end
 
