@@ -208,14 +208,14 @@ module Inode_permutations_generator = struct
 end
 
 let check_node msg v t =
-  let h = Inter.Val.hash v in
+  let h = Inter.Val.hash_exn v in
   let+ h' = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   check_hash msg h h'
 
 let check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
-  | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+  | Ok hash -> check_hash msg hash (Inter.Val.hash_exn v)
 
 (** Test add values from an empty node. *)
 let test_add_values () =

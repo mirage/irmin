@@ -864,6 +864,10 @@ struct
 
     let hash t = Lazy.force t.hash
 
+    let hash_exn ?(force = true) t =
+      if force = false && (not @@ Lazy.is_val t.hash) then raise Not_found
+      else Lazy.force t.hash
+
     let is_root t =
       match t.v with
       | Tree { depth; _ } -> depth = 0
@@ -1508,7 +1512,7 @@ struct
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
         (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
 
-    let hash t = apply t { f = (fun _ v -> I.hash v) }
+    let hash_exn ?force t = apply t { f = (fun _ v -> I.hash_exn ?force v) }
 
     let save ~add ~mem t =
       let f layout v =
@@ -1670,11 +1674,11 @@ struct
     in
     Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Val.hash v
+  let hash_exn = Val.hash_exn
 
   let add t v =
     save t v;
-    Lwt.return (hash v)
+    Lwt.return (hash_exn v)
 
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
@@ -1685,7 +1689,7 @@ struct
         expected Inter.pp_hash got
 
   let unsafe_add t k v =
-    check_hash k (hash v);
+    check_hash k (hash_exn v);
     save t v;
     Lwt.return_unit
 

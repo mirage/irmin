@@ -277,7 +277,6 @@ struct
     res
 
   module Contents_hash = Hash.Typed (H) (C)
-  module Node_hash = Hash.Typed (H) (N)
 
   let bad_stream_exn s fmt = Fmt.kstr (bad_stream_exn ("Proof.Env." ^ s)) fmt
 
@@ -288,7 +287,16 @@ struct
         pp_hash h
 
   let check_node_integrity v h =
-    let h' = Node_hash.hash v in
+    let h' =
+      try N.hash_exn ~force:false v
+      with Not_found ->
+        (* [v] is out of [of_proof], it is supposed to have its hash available
+           without IOs.
+
+           If these IOs were to occur, it would corrupt the stream being read.
+        *)
+        assert false
+    in
     if not (equal_hash h' h) then
       bad_stream_exn "check_node_integrity" "got %a expected %a" pp_hash h'
         pp_hash h

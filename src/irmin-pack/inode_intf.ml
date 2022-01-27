@@ -73,7 +73,6 @@ module type Internal = sig
     val of_raw : (expected_depth:int -> hash -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
     val save : add:(hash -> Raw.t -> unit) -> mem:(hash -> bool) -> t -> unit
-    val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
     val index : depth:int -> step -> int
