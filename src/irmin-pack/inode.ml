@@ -791,9 +791,9 @@ struct
       let check_entries t es =
         if es = [] then raise Empty;
         let s = sort_entries es in
-        let len = List.length es in
-        if len > Conf.entries then raise (Too_large_values t);
-        if List.length s <> len then raise (Duplicated_entries t);
+        if List.compare_length_with es Conf.entries > 0 then
+          raise (Too_large_values t);
+        if List.compare_lengths s es <> 0 then raise (Duplicated_entries t);
         if s <> es then raise (Unsorted_entries t)
       in
       let check_pointers t ps =
@@ -841,6 +841,7 @@ struct
       in
       let length = length_of_v v in
       let stable, hash =
+        (* [hash] may call [find], even if some branches are blinded *)
         if length > Conf.stable_hash || depth > 0 then (false, hash v)
         else
           let node = Node.of_seq (seq_v la v) in
@@ -1224,6 +1225,7 @@ struct
         match proof with
         | `Blinded h -> k h Concrete.Blinded
         | `Values vs ->
+            assert (List.compare_length_with vs Conf.entries <= 0);
             let hash = hash_values ~depth vs in
             let c = Concrete.Values (List.map Concrete.to_entry vs) in
             k hash c
@@ -1270,9 +1272,45 @@ struct
         in
         proof_of_concrete t.hash p
 
-      let of_proof la ~depth (proof : proof) =
-        let c = concrete_of_proof ~depth proof in
-        match of_concrete ~depth la c with Ok v -> Some v | Error _ -> None
+      let of_proof (Partial _ as la) ~depth (proof : proof) =
+        match proof with
+        | `Values vs when List.compare_length_with vs Conf.entries > 0 -> (
+            if depth <> 0 then None
+            else
+              (* [proof] is a big stable inode that was unshallowed and encoded
+                 in a [Values], it needs to be converted back to a [Tree]
+                 shallowed. *)
+              let t = of_seq Total (List.to_seq vs) in
+              let hash =
+                (* Compute the hash right away (not lazily) to allow for a
+                   quicker garbage collection of [t]. *)
+                let x = hash t in
+                lazy x
+              in
+              match t.v with
+              | Values _ -> assert false
+              | Tree { depth; length; entries } ->
+                  let entries =
+                    Array.map
+                      (function
+                        | None -> None
+                        | Some (Total_ptr ptr) ->
+                            let hash = Lazy.force ptr.hash in
+                            let ptr =
+                              (* [la] is Partial, no risk of fail*)
+                              Ptr.of_hash la hash
+                            in
+                            Some ptr)
+                      entries
+                  in
+                  let v = Tree { depth; length; entries } in
+                  let t = { hash; v; stable = true } in
+                  Some t)
+        | _ -> (
+            let c = concrete_of_proof ~depth proof in
+            match of_concrete la ~depth c with
+            | Ok v -> Some v
+            | Error _ -> None)
 
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof ~depth:0
@@ -1460,7 +1498,10 @@ struct
           let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
           pre_hash_binv bin.v
         else
-          let vs = seq x in
+          let vs =
+            (* If [x] is shallow, this [seq] call will perform IOs. *)
+            seq x
+          in
           pre_hash_node (Node.of_seq vs)
       in
       Irmin.Type.map ~pre_hash Bin.t
