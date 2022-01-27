@@ -113,6 +113,7 @@ module type Internal = sig
         | `Unsorted_entries of t
         | `Unsorted_pointers of t
         | `Blinded_root
+        | `Too_large_values of t
         | `Empty ]
       [@@deriving irmin]
       (** The type for errors. *)

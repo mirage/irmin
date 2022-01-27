@@ -690,6 +690,7 @@ struct
         | `Unsorted_entries of t
         | `Unsorted_pointers of t
         | `Blinded_root
+        | `Too_large_values of t
         | `Empty ]
       [@@deriving irmin]
 
@@ -726,6 +727,9 @@ struct
         | `Unsorted_pointers t ->
             Fmt.pf ppf "pointers should be sorted: %a" pp t
         | `Blinded_root -> Fmt.pf ppf "blinded root"
+        | `Too_large_values t ->
+            Fmt.pf ppf "A Values should have at most Conf.entries elements: %a"
+              pp t
         | `Empty -> Fmt.pf ppf "concrete subtrees cannot be empty"
     end
 
@@ -773,6 +777,7 @@ struct
     exception Unsorted_entries of Concrete.t
     exception Unsorted_pointers of Concrete.t
     exception Blinded_root
+    exception Too_large_values of Concrete.t
 
     let hash_equal = Irmin.Type.(unstage (equal hash_t))
 
@@ -786,7 +791,9 @@ struct
       let check_entries t es =
         if es = [] then raise Empty;
         let s = sort_entries es in
-        if List.length s <> List.length es then raise (Duplicated_entries t);
+        let len = List.length es in
+        if len > Conf.entries then raise (Too_large_values t);
+        if List.length s <> len then raise (Duplicated_entries t);
         if s <> es then raise (Unsorted_entries t)
       in
       let check_pointers t ps =
@@ -851,6 +858,7 @@ struct
       | Duplicated_pointers t -> Error (`Duplicated_pointers t)
       | Unsorted_entries t -> Error (`Unsorted_entries t)
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
+      | Too_large_values t -> Error (`Too_large_values t)
       | Blinded_root -> Error `Blinded_root
 
     let hash t = Lazy.force t.hash
