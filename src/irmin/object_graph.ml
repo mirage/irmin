@@ -65,7 +65,15 @@ module Make (Hash : HASH) (Branch : Type.S) = struct
     val add : t -> X.t -> int -> unit
     val mem : t -> X.t -> bool
   end = struct
-    module Lru = Lru.Make (X)
+    module Lru =
+      Lru.Make
+        (X)
+        (struct
+          type t = int
+
+          let weight _ = 1
+        end)
+
     module Tbl = Hashtbl.Make (X)
 
     type t = L of int Lru.t | T of int Tbl.t

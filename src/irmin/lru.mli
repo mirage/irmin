@@ -13,12 +13,18 @@
 (* Extracted from https://github.com/pqwy/lru
    Copyright (c) 2016 David Kaloper Meršinjak *)
 
-module Make (H : Hashtbl.HashedType) : sig
+module type Weighted = sig
+  type t
+
+  val weight : t -> int
+end
+
+module Make (H : Hashtbl.HashedType) (V : Weighted) : sig
   type 'a t
 
-  val create : int -> 'a t
-  val add : 'a t -> H.t -> 'a -> unit
-  val find : 'a t -> H.t -> 'a
-  val mem : 'a t -> H.t -> bool
-  val clear : 'a t -> unit
+  val create : int -> V.t t
+  val add : V.t t -> H.t -> V.t -> unit
+  val find : V.t t -> H.t -> V.t
+  val mem : V.t t -> H.t -> bool
+  val clear : V.t t -> unit
 end

@@ -61,6 +61,15 @@ module S = struct
     match Irmin.Type.(Size.of_encoding (pair H.t t)) with
     | Dynamic f -> f
     | _ -> assert false
+
+  module Weighted = struct
+    type data = t
+    type t = data * int
+
+    let weight (_, w) = w
+    let data (d, _) = d
+    let weighted_value d w = (d, w)
+  end
 end
 
 module H = Irmin.Hash.SHA1

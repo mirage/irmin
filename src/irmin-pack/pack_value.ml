@@ -27,6 +27,12 @@ module type S = S with type kind := Kind.t
 
 module Make (Config : sig
   val selected_kind : Kind.t
+end) (Weighted : sig
+  type 'a t
+
+  val weight : 'a t -> int
+  val data : 'a t -> 'a
+  val weighted_value : 'a -> int -> 'a t
 end)
 (Hash : Irmin.Hash.S)
 (Data : Irmin.Type.S) =
@@ -56,12 +62,39 @@ struct
     | Dynamic f -> f
 
   let kind _ = Config.selected_kind
+
+  module Weighted = struct
+    type data = Data.t
+    type t = data Weighted.t
+
+    let weight = Weighted.weight
+    let data = Weighted.data
+    let weighted_value = Weighted.weighted_value
+  end
 end
 
-module Of_contents = Make (struct
-  let selected_kind = Kind.Contents
-end)
+module Of_contents =
+  Make
+    (struct
+      let selected_kind = Kind.Contents
+    end)
+    (struct
+      type 'a t = 'a * int
 
-module Of_commit = Make (struct
-  let selected_kind = Kind.Commit
-end)
+      let weight (_, w) = w
+      let data (d, _) = d
+      let weighted_value d w = (d, w)
+    end)
+
+module Of_commit =
+  Make
+    (struct
+      let selected_kind = Kind.Commit
+    end)
+    (struct
+      type 'a t = 'a
+
+      let weight _ = 1
+      let data d = d
+      let weighted_value d _ = d
+    end)

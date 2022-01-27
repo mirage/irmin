@@ -1,5 +1,14 @@
 open! Import
 
+module type Weighted = sig
+  type data
+  type t
+
+  val weight : t -> int
+  val data : t -> data
+  val weighted_value : data -> int -> t
+end
+
 module type S = sig
   include Irmin.Type.S
 
@@ -25,6 +34,8 @@ module type S = sig
     int * t
 
   val decode_bin_length : string -> int -> int
+
+  module Weighted : Weighted with type data = t
 end
 
 module type Sigs = sig
@@ -40,6 +51,12 @@ module type Sigs = sig
 
   module Make (_ : sig
     val selected_kind : Kind.t
+  end) (Weighted : sig
+    type 'a t
+
+    val weight : 'a t -> int
+    val data : 'a t -> 'a
+    val weighted_value : 'a -> int -> 'a t
   end)
   (Hash : Irmin.Hash.S)
   (Data : Irmin.Type.S) : S with type hash = Hash.t

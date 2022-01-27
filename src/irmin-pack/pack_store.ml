@@ -70,12 +70,12 @@ module Maker
     end
 
     module Tbl = Table (K)
-    module Lru = Irmin.Private.Lru.Make (H)
+    module Lru = Irmin.Private.Lru.Make (H) (Val.Weighted)
 
     type nonrec 'a t = {
       pack : 'a t;
-      lru : Val.t Lru.t;
-      staging : Val.t Tbl.t;
+      lru : Val.Weighted.t Lru.t;
+      staging : Val.Weighted.t Tbl.t;
       mutable open_instances : int;
       readonly : bool;
     }
@@ -181,10 +181,10 @@ module Maker
       match Tbl.find t.staging k with
       | v ->
           Lru.add t.lru k v;
-          Some v
+          Some (Val.Weighted.data v)
       | exception Not_found -> (
           match Lru.find t.lru k with
-          | v -> Some v
+          | v -> Some (Val.Weighted.data v)
           | exception Not_found -> (
               Stats.incr_cache_misses ();
               match Index.find t.pack.index k with
@@ -197,7 +197,8 @@ module Maker
                    | Error (expected, got) ->
                        Fmt.failwith "corrupted value: got %a, expecting %a."
                          pp_hash got pp_hash expected);
-                  Lru.add t.lru k v;
+                  let w = Val.Weighted.weighted_value v len in
+                  Lru.add t.lru k w;
                   Some v))
 
     let find t k =
@@ -241,9 +242,10 @@ module Maker
         Val.encode_bin ~offset ~dict v k (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         Index.add ~overcommit t.pack.index k (off, len, Val.kind v);
+        let w = Val.Weighted.weighted_value v len in
         if Tbl.length t.staging >= auto_flush then flush t
-        else Tbl.add t.staging k v;
-        Lru.add t.lru k v)
+        else Tbl.add t.staging k w;
+        Lru.add t.lru k w)
 
     let add t v =
       let k = Val.hash v in

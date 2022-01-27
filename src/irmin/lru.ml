@@ -13,7 +13,13 @@
 (* Extracted from https://github.com/pqwy/lru
    Copyright (c) 2016 David Kaloper Meršinjak *)
 
-module Make (H : Hashtbl.HashedType) = struct
+module type Weighted = sig
+  type t
+
+  val weight : t -> int
+end
+
+module Make (H : Hashtbl.HashedType) (V : Weighted) = struct
   module HT = Hashtbl.Make (H)
 
   module Q = struct
@@ -75,15 +81,17 @@ module Make (H : Hashtbl.HashedType) = struct
   let drop_lru t =
     match t.q.first with
     | None -> ()
-    | Some ({ Q.value = k, _; _ } as n) ->
-        t.w <- t.w - 1;
+    | Some ({ Q.value = k, v; _ } as n) ->
+        let w = V.weight v in
+        t.w <- t.w - w;
         HT.remove t.ht k;
         Q.detach t.q n
 
   let remove t k =
     try
       let n = HT.find t.ht k in
-      t.w <- t.w - 1;
+      let w = V.weight (snd n.value) in
+      t.w <- t.w - w;
       HT.remove t.ht k;
       Q.detach t.q n
     with Not_found -> ()
@@ -93,7 +101,8 @@ module Make (H : Hashtbl.HashedType) = struct
     else (
       remove t k;
       let n = Q.node (k, v) in
-      t.w <- t.w + 1;
+      let w = V.weight v in
+      t.w <- t.w + w;
       if weight t > t.cap then drop_lru t;
       HT.add t.ht k n;
       Q.append t.q n)

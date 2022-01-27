@@ -1373,6 +1373,15 @@ struct
       (off, t)
 
     let decode_bin_length = decode_compress_length
+
+    module Weighted = struct
+      type data = t
+      type t = data
+
+      let weight _ = 1
+      let data d = d
+      let weighted_value d _ = d
+    end
   end
 
   type hash = T.hash
