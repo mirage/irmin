@@ -38,7 +38,7 @@ let equal_slist ~msg l1 l2 =
 
 type context = { repo : Store.repo; tree : Store.tree }
 
-let persist_tree tree =
+let export_tree_to_store tree =
   let* repo = Store.Repo.v (config root) in
   let* store = Store.empty repo in
   let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
@@ -47,8 +47,8 @@ let persist_tree tree =
 
 let close { repo; _ } = Store.Repo.close repo
 
-let fold ~order t ~init ~f =
-  Tree.fold ~order ~force:`True ~cache:false ~uniq:`False
+let fold ~order ~force t ~init ~f =
+  Tree.fold ~order ~force ~cache:false ~uniq:`False
     ~contents:(fun k _v acc -> if k = [] then Lwt.return acc else f k acc)
     t init
 
@@ -95,14 +95,23 @@ let bindings steps =
   let zero = String.make 10 '0' in
   List.map (fun x -> ([ x ], zero)) steps
 
-let test_fold ~order bindings expected =
+let test_fold ?(persist_tree = true) ~order bindings expected =
   let tree = Tree.empty () in
   let* tree =
     Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
   in
-  let* ctxt = persist_tree tree in
+  let* close =
+    match persist_tree with
+    | true ->
+        let+ ctxt = export_tree_to_store tree in
+        fun () -> close ctxt
+    | false -> Lwt.return Lwt.return
+  in
   let* keys =
-    fold ~order ctxt.tree ~init:[] ~f:(fun k acc -> Lwt.return (k :: acc))
+    fold
+      ~force:(if persist_tree then `True else `False (Fun.const Lwt.return))
+      ~order tree ~init:[]
+      ~f:(fun k acc -> Lwt.return (k :: acc))
   in
   let keys = List.rev keys in
   let msg, equal_lists =
@@ -112,7 +121,7 @@ let test_fold ~order bindings expected =
     | `Undefined -> ("undefined", equal_slist)
   in
   equal_lists ~msg:(Fmt.str "Visit elements in %s order" msg) expected keys;
-  close ctxt
+  close ()
 
 let test_fold_sorted () =
   let bindings = bindings steps in
@@ -124,7 +133,18 @@ let test_fold_random () =
   let state = Random.State.make [| 0 |] in
   let* () = test_fold ~order:(`Random state) bindings some_random_steps in
   let state = Random.State.make [| 1 |] in
-  test_fold ~order:(`Random state) bindings another_random_steps
+  let* () = test_fold ~order:(`Random state) bindings another_random_steps in
+
+  (* Random fold order should still be respected if [~force:`False]. This is a
+     regression test for a bug in which the fold order of in-memory nodes during
+     a non-forcing traversal was always sorted. *)
+  let state = Random.State.make [| 1 |] in
+  let* () =
+    test_fold ~order:(`Random state) ~persist_tree:false bindings
+      another_random_steps
+  in
+
+  Lwt.return_unit
 
 let test_fold_undefined () =
   let bindings = bindings steps in
