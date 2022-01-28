@@ -1,12 +1,11 @@
 (library
  (name irmin_test)
  (public_name irmin-test)
- (modules Irmin_test Node Store Store_graph Store_watch Common Layered_store
-   Import)
+ (modules Irmin_test Node Store Store_graph Store_watch Common Import)
  (preprocess
   (pps ppx_irmin.internal))
- (libraries alcotest astring fmt irmin irmin-layers jsonm logs.fmt lwt
-   lwt.unix mtime mtime.clock.os)
+ (libraries alcotest astring fmt irmin jsonm logs.fmt lwt lwt.unix mtime
+   mtime.clock.os)
  (instrumentation
   (backend bisect_ppx)))
 

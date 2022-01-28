@@ -25,6 +25,4 @@ let clean () = Lwt.return_unit
 let store =
   Irmin_test.store (module Irmin_fs.Maker (IO)) (module Irmin.Metadata.None)
 
-let suite =
-  Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean
-    ~layered_store:None ()
+let suite = Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean ()

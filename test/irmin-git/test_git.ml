@@ -78,16 +78,14 @@ let suite =
   let store = (module S : Irmin_test.S) in
   let init () = S.init () in
   let clean () = S.init () in
-  Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean
-    ~layered_store:None ()
+  Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ()
 
 let suite_generic =
   let module S = Generic (Irmin.Contents.String) in
   let store = (module S : Irmin_test.S) in
   let clean () = S.clean () in
   let init () = S.init () in
-  Irmin_test.Suite.create ~name:"GIT.generic" ~init ~store ~config ~clean
-    ~layered_store:None ()
+  Irmin_test.Suite.create ~name:"GIT.generic" ~init ~store ~config ~clean ()
 
 let get = function Some x -> x | None -> Alcotest.fail "get"
 

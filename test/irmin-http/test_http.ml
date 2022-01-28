@@ -215,7 +215,7 @@ let suite i server =
     ~config:
       (Irmin_http.config uri (Irmin.Backend.Conf.empty Irmin_http.Conf.spec))
     ~store:(http_store id (get_store server))
-    ~layered_store:None ()
+    ()
 
 let suites servers =
   if Sys.os_type = "Win32" then

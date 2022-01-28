@@ -207,6 +207,9 @@
     is incompatible with performance optimisations made in this release.
     (#1655, @CraigFe)
 
+- **irmin-layers**
+  - This experimental package has been removed.
+
 ## 2.7.2 (2021-07-20)
 
 ### Added

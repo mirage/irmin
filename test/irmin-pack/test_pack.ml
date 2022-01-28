@@ -52,7 +52,7 @@ let suite_pack name_suffix indexing_strategy =
   in
   Irmin_test.Suite.create_generic_key ~name:("PACK" ^ name_suffix)
     ~clear_supported:false ~import_supported:false ~init ~store ~config ~clean
-    ~layered_store:None ()
+    ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
   open Irmin_pack_mem.Maker (Config)
@@ -69,7 +69,7 @@ let suite_mem =
   let store = (module Irmin_pack_mem_maker : Irmin_test.Generic_key) in
   let config = Irmin_pack.config ~fresh:false ~lru_size:0 test_dir in
   Irmin_test.Suite.create_generic_key ~import_supported:false ~name:"PACK MEM"
-    ~store ~config ~layered_store:None ()
+    ~store ~config ()
 
 let suite =
   let module Index = Irmin_pack.Pack_store.Indexing_strategy in

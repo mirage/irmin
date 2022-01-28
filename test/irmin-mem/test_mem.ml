@@ -17,7 +17,4 @@
 let store = Irmin_test.store (module Irmin_mem) (module Irmin.Metadata.None)
 let config = Irmin_mem.config ()
 let init () = Lwt.return_unit
-
-let suite =
-  Irmin_test.Suite.create ~name:"MEM" ~init ~store ~config ~layered_store:None
-    ()
+let suite = Irmin_test.Suite.create ~name:"MEM" ~init ~store ~config ()

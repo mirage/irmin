@@ -2099,50 +2099,6 @@ let slow_suite (speed, x) =
     ]
     (speed, x)
 
-let layered_suite (speed, x) =
-  ( "LAYERED_" ^ x.name,
-    match x.layered_store with
-    | None -> []
-    | Some layered_store ->
-        let (module S) = layered_store in
-        let module T = Make (S) in
-        let module TL = Layered_store.Make_Layered (S) in
-        let hook repo max = S.freeze repo ~max_lower:max in
-        let _ =
-          (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1383. *)
-          ("Test commits and graphs", speed, TL.test_graph_and_history x)
-        in
-        [
-          ("Basic operations on branches", speed, T.test_branches ~hook x);
-          ("Basic merge operations", speed, T.test_simple_merges ~hook x);
-          ("Complex histories", speed, T.test_history ~hook x);
-          ("Empty stores", speed, T.test_empty ~hook x);
-          ("Backend node manipulation", speed, T.test_backend_nodes ~hook x);
-          ("High-level store merges", speed, T.test_merge ~hook x);
-          ("Unrelated merges", speed, T.test_merge_unrelated ~hook x);
-          ("Update branches after freeze", speed, TL.test_fail_branch x);
-          ("Test operations on set", speed, TL.test_set x);
-          ("Test operations on set tree", speed, TL.test_set_tree x);
-          ("Gc and tree operations", speed, TL.test_gc x);
-          ( "Merge into deleted branch",
-            speed,
-            TL.test_merge_into_deleted_branch x );
-          ( "Merge with deleted branch",
-            speed,
-            TL.test_merge_with_deleted_branch x );
-          ("Freeze with squash", speed, TL.test_squash x);
-          ("Branches with squash", speed, TL.test_branch_squash x);
-          ("Consecutive freezes", speed, TL.test_consecutive_freeze x);
-          ("Test find tree after freeze", speed, TL.test_freeze_tree x);
-          ("Keep max and copy from upper", speed, TL.test_copy_in_upper x);
-          ("Keep max and heads after max", speed, TL.test_keep_heads x);
-          ("Test find during freeze", speed, TL.test_find_during_freeze x);
-          ("Test add during freeze", speed, TL.test_add_during_freeze x);
-          ("Adds again objects deleted by freeze", speed, TL.test_add_again x);
-        ]
-        @ when_ x.import_supported
-            [ ("Basic operations on slices", speed, T.test_slice ~hook x) ] )
-
 let run name ?(slow = false) ?random_seed ~misc tl =
   let () =
     match random_seed with
@@ -2154,5 +2110,4 @@ let run name ?(slow = false) ?random_seed ~misc tl =
   (Lwt.async_exception_hook := fun exn -> raise exn);
   let tl1 = List.map suite tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
-  let tl2 = List.map layered_suite tl in
-  Alcotest.run name (misc @ tl1 @ tl2)
+  Alcotest.run name (misc @ tl1)
