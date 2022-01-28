@@ -146,7 +146,7 @@ struct
           Contents { name = k; contents = h }
         else Contents_m { metadata = m; name = k; contents = h }
 
-  let of_entry : entry -> step * value = function
+  let inspect_nonportable_entry_exn : entry -> step * value = function
     | Node n -> (n.name, `Node n.node)
     | Contents c -> (c.name, `Contents (c.contents, Metadata.default))
     | Contents_m c -> (c.name, `Contents (c.contents, c.metadata))
@@ -185,13 +185,16 @@ struct
     StepMap.to_seq t |> Seq.drop offset |> take
 
   let seq ?(offset = 0) ?length ?cache:_ (t : t) =
-    seq_entries ~offset ?length t |> Seq.map (fun (_, e) -> of_entry e)
+    seq_entries ~offset ?length t
+    |> Seq.map (fun (_, e) -> inspect_nonportable_entry_exn e)
 
   let list ?offset ?length ?cache:_ t = List.of_seq (seq ?offset ?length t)
   let find_entry ?cache:_ (t : t) s = StepMap.find_opt s t
 
-  let find ?cache t s =
-    Option.map (fun e -> snd (of_entry e)) (find_entry ?cache t s)
+  let find ?cache (t : t) s =
+    Option.map
+      (fun e -> snd (inspect_nonportable_entry_exn e))
+      (find_entry ?cache t s)
 
   let empty = Fun.const StepMap.empty
   let is_empty e = StepMap.is_empty e
