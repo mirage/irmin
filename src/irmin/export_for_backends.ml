@@ -15,4 +15,5 @@
  *)
 
 module Store_properties = S.Store_properties
+module Reversed_list = Reversed_list
 include Import
