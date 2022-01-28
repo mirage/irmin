@@ -475,7 +475,7 @@ let test_hardcoded_stream () =
       (match !counter with
       | 0 -> (
           match elt with
-          | P.Inode_extender { length; segments = [ 1; 0; 0 ]; proof = h }
+          | P.Inode_extender { length; segments = [ 0; 0; 1 ]; proof = h }
             when length = 3 ->
               check_hash h "25c1a3d3bb7e5124cf61954851d0c9ccf5113d4e"
           | _ -> fail elt)

@@ -16,4 +16,5 @@
 
 module Store_properties = Store_properties
 module Logging = Logging
+module Reversed_list = Reversed_list
 include Import
