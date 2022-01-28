@@ -167,15 +167,16 @@ let test_commit : test_case =
     |> Yojson.Safe.Util.to_string
   in
   let query =
-    Printf.sprintf
-      {|{
-        commit_of_key(key: "%s") {
+    {|{
+        commit_of_key(key: $key) {
           hash
         }
       }|}
-      key
   in
-  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
+  let vars = [ ("key", `String key) ] in
+  let+ result =
+    send_query ~vars query >|= assert_ok >|= Yojson.Safe.from_string
+  in
   let hash' : string =
     result
     |> members [ "data"; "commit_of_key"; "hash" ]

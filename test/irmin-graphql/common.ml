@@ -91,11 +91,15 @@ let rec retry n f =
 
 (** Issue a query to the localhost server and return the body of the response
     message *)
-let send_query : string -> (string, [ `Msg of string ]) result Lwt.t =
- fun query ->
+let send_query :
+    ?vars:(string * Yojson.Safe.t) list ->
+    string ->
+    (string, [ `Msg of string ]) result Lwt.t =
+ fun ?(vars = []) query ->
   let headers = Cohttp.Header.init_with "Content-Type" "application/json"
   and body =
-    Yojson.Safe.to_string (`Assoc [ ("query", `String query) ])
+    Yojson.Safe.to_string
+      (`Assoc [ ("query", `String query); ("variables", `Assoc vars) ])
     |> Cohttp_lwt.Body.of_string
   in
   let* response, body =
