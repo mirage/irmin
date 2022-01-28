@@ -685,15 +685,15 @@ module Make (P : Backend.S) = struct
           : [ `hash | `value | `value_dirty | `map ] Scan.t)
       with
       | Hash h -> k h
-      | Value v -> a_of_hashable P.Node.Hash.hash v
+      | Value v -> a_of_hashable P.Node.Val.hash_exn v
       | Value_dirty (_repo, v, um) ->
           hash_preimage_of_updates ~cache t v um (function
-            | Node x -> a_of_hashable P.Node.Hash.hash x
-            | Pnode x -> a_of_hashable Portable_hash.hash x)
+            | Node x -> a_of_hashable P.Node.Val.hash_exn x
+            | Pnode x -> a_of_hashable P.Node_portable.hash_exn x)
       | Map m ->
           hash_preimage_of_map ~cache t m (function
-            | Node x -> a_of_hashable P.Node.Hash.hash x
-            | Pnode x -> a_of_hashable Portable_hash.hash x)
+            | Node x -> a_of_hashable P.Node.Val.hash_exn x
+            | Pnode x -> a_of_hashable P.Node_portable.hash_exn x)
 
     and hash_preimage_of_map :
         type r. cache:bool -> t -> map -> (hash_preimage, r) cont =
