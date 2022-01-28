@@ -400,11 +400,6 @@ struct
       | Irmin.Type.Size.Dynamic f -> f
       | _ -> assert false
 
-    let dynamic_size_of_v =
-      match Irmin.Type.Size.of_value v_t with
-      | Irmin.Type.Size.Dynamic f -> f
-      | _ -> assert false
-
     type kind = Pack_value.Kind.t
     [@@deriving irmin ~encode_bin ~decode_bin ~size_of]
 
@@ -478,21 +473,6 @@ struct
       | Contents -> assert false
 
     let size_of_tv =
-      let of_value tv =
-        match tv with
-        | V0_stable v | V0_unstable v -> 1 + dynamic_size_of_v v
-        | (V1_root { length; _ } | V1_nonroot { length; _ })
-          when is_real_length length ->
-            length - H.hash_size
-        | V1_root ({ v; _ } as tv) ->
-            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
-            tv.length <- length;
-            length - H.hash_size
-        | V1_nonroot ({ v; _ } as tv) ->
-            let length = H.hash_size + 1 + 4 + dynamic_size_of_v v in
-            tv.length <- length;
-            length - H.hash_size
-      in
       let of_encoding s off =
         let offref = ref off in
         let kind = decode_bin_kind s offref in
@@ -504,7 +484,7 @@ struct
             len - H.hash_size
         | Commit_v1 | Commit_v2 | Contents -> assert false
       in
-      Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
+      Irmin.Type.Size.custom_dynamic ~of_encoding ()
 
     let tagged_v_t =
       Irmin.Type.like ~bin:(encode_bin_tv, decode_bin_tv, size_of_tv) tagged_v_t
