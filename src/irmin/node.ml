@@ -121,6 +121,9 @@ struct
   type t = entry StepMap.t
   type value = [ `Contents of contents_key * metadata | `Node of node_key ]
 
+  type weak_value = [ `Contents of hash * metadata | `Node of hash ]
+  [@@deriving irmin]
+
   (* FIXME:  special-case the default metadata in the default signature? *)
   let value_t =
     let open Type in
@@ -143,13 +146,32 @@ struct
           Contents { name = k; contents = h }
         else Contents_m { metadata = m; name = k; contents = h }
 
-  let of_entry : entry -> step * value = function
+  let inspect_nonportable_entry_exn : entry -> step * value = function
     | Node n -> (n.name, `Node n.node)
     | Contents c -> (c.name, `Contents (c.contents, Metadata.default))
     | Contents_m c -> (c.name, `Contents (c.contents, c.metadata))
     | Node_hash _ | Contents_hash _ | Contents_m_hash _ ->
         (* Not reachable after [Portable.of_node]. See invariant on {!entry}. *)
         assert false
+
+  let step_of_entry : entry -> step = function
+    | Node { name; _ }
+    | Node_hash { name; _ }
+    | Contents { name; _ }
+    | Contents_m { name; _ }
+    | Contents_hash { name; _ }
+    | Contents_m_hash { name; _ } ->
+        name
+
+  let weak_of_entry : entry -> step * weak_value = function
+    | Node n -> (n.name, `Node (Node_key.to_hash n.node))
+    | Node_hash n -> (n.name, `Node n.node)
+    | Contents c ->
+        (c.name, `Contents (Contents_key.to_hash c.contents, Metadata.default))
+    | Contents_m c ->
+        (c.name, `Contents (Contents_key.to_hash c.contents, c.metadata))
+    | Contents_hash c -> (c.name, `Contents (c.contents, Metadata.default))
+    | Contents_m_hash c -> (c.name, `Contents (c.contents, c.metadata))
 
   let of_seq l =
     Seq.fold_left
@@ -158,20 +180,21 @@ struct
 
   let of_list l = of_seq (List.to_seq l)
 
-  let seq ?(offset = 0) ?length ?cache:_ (t : t) =
+  let seq_entries ~offset ?length (t : t) =
     let take seq = match length with None -> seq | Some n -> Seq.take n seq in
-    StepMap.to_seq t
-    |> Seq.drop offset
-    |> take
-    |> Seq.map (fun (_, e) -> of_entry e)
+    StepMap.to_seq t |> Seq.drop offset |> take
+
+  let seq ?(offset = 0) ?length ?cache:_ (t : t) =
+    seq_entries ~offset ?length t
+    |> Seq.map (fun (_, e) -> inspect_nonportable_entry_exn e)
 
   let list ?offset ?length ?cache:_ t = List.of_seq (seq ?offset ?length t)
+  let find_entry ?cache:_ (t : t) s = StepMap.find_opt s t
 
-  let find ?cache:_ t s =
-    try
-      let _, v = of_entry (StepMap.find s t) in
-      Some v
-    with Not_found -> None
+  let find ?cache (t : t) s =
+    Option.map
+      (fun e -> snd (inspect_nonportable_entry_exn e))
+      (find_entry ?cache t s)
 
   let empty = Fun.const StepMap.empty
   let is_empty e = StepMap.is_empty e
@@ -189,7 +212,10 @@ struct
     add_entry t k e
 
   let remove t k = StepMap.remove k t
-  let of_entries e = of_list (List.rev_map of_entry e)
+
+  let of_entries es =
+    List.to_seq es |> Seq.map (fun e -> (step_of_entry e, e)) |> StepMap.of_seq
+
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
 
   module Hash_preimage = struct
@@ -289,9 +315,7 @@ struct
 
       type contents_key = hash [@@deriving irmin]
       type node_key = hash [@@deriving irmin]
-
-      type value = [ `Contents of hash * metadata | `Node of hash ]
-      [@@deriving irmin]
+      type value = weak_value [@@deriving irmin]
 
       let to_entry name = function
         | `Node node -> Node_hash { name; node }
@@ -299,10 +323,6 @@ struct
             if equal_metadata metadata Metadata.default then
               Contents_hash { name; contents }
             else Contents_m_hash { name; contents; metadata }
-
-      let weaken_value = function
-        | `Node key -> `Node (Node_key.to_hash key)
-        | `Contents (key, m) -> `Contents (Contents_key.to_hash key, m)
 
       let of_seq s =
         Seq.fold_left
@@ -315,18 +335,14 @@ struct
         let entry = to_entry name v in
         add_entry t name entry
 
-      let find ?cache t k =
-        match find ?cache t k with
-        | None -> None
-        | Some value -> Some (weaken_value value)
+      let find ?cache t s =
+        Option.map (fun e -> snd (weak_of_entry e)) (find_entry ?cache t s)
+
+      let seq ?(offset = 0) ?length ?cache:_ (t : t) =
+        seq_entries ~offset ?length t |> Seq.map (fun (_, e) -> weak_of_entry e)
 
       let list ?offset ?length ?cache t =
-        list ?offset ?length ?cache t
-        |> List.map (fun (k, v) -> (k, weaken_value v))
-
-      let seq ?offset ?length ?cache t =
-        seq ?offset ?length ?cache t
-        |> Seq.map (fun (k, v) -> (k, weaken_value v))
+        List.of_seq (seq ?offset ?length ?cache t)
     end
 
     include Of_core (Core)
