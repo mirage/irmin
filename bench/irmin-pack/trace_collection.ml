@@ -222,16 +222,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
   let create_store_after tree =
     let* watched_nodes_length =
       Lwt_list.map_s
-        (fun (_, steps) ->
-          let* tree = Store.Tree.find_tree tree steps in
-          match tree with
-          | None -> Lwt.return 0
-          | Some tree -> (
-              match Store.Tree.destruct tree with
-              | `Node tree ->
-                  let* length = Store.Tree.length tree in
-                  Lwt.return length
-              | `Contents _ -> Lwt.return 0))
+        (fun (_, steps) -> Store.Tree.length tree steps)
         Def.step_list_per_watched_node
     in
     Lwt.return Def.{ watched_nodes_length }
