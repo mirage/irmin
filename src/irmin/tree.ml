@@ -164,7 +164,8 @@ module Make (P : Backend.S) = struct
   type contents = P.Contents.Val.t [@@deriving irmin ~equal ~pp]
   type repo = P.Repo.t
   type marks = unit Hashes.t
-  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
+  type error = [ `Dangling_hash of hash | `Pruned_hash of hash ]
+  type 'a or_error = ('a, error) result
   type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
   type uniq = [ `False | `True | `Marks of marks ]
   type 'a node_fn = path -> step list -> 'a -> 'a Lwt.t
@@ -190,11 +191,14 @@ module Make (P : Backend.S) = struct
                hash)
       | _ -> None)
 
+  let err_pruned_hash h = Error (`Pruned_hash h)
   let pruned_hash_exn context hash = raise (Pruned_hash { context; hash })
+  let err_dangling_hash h = Error (`Dangling_hash h)
 
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
     | Ok x -> x
+    | Error (`Pruned_hash hash) -> pruned_hash_exn context hash
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
 
   type 'key ptr_option = Key of 'key | Hash of hash | Ptr_none
@@ -295,7 +299,7 @@ module Make (P : Backend.S) = struct
     let value_of_key ~cache t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
       P.Contents.find (P.Repo.contents_t repo) k >|= function
-      | None -> Error (`Dangling_hash (P.Contents.Key.to_hash k))
+      | None -> err_dangling_hash (P.Contents.Key.to_hash k)
       | Some v as some_v ->
           if cache then t.info.value <- some_v;
           Ok v
@@ -307,7 +311,7 @@ module Make (P : Backend.S) = struct
           match t.v with
           | Value _ -> assert false (* [cached_value == None] *)
           | Key (repo, k) -> value_of_key ~cache t repo k
-          | Pruned h -> pruned_hash_exn "Contents.to_value" h)
+          | Pruned h -> err_pruned_hash h |> Lwt.return)
 
     let force = to_value ~cache:true
 
@@ -794,7 +798,7 @@ module Make (P : Backend.S) = struct
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
           P.Node.find (P.Repo.node_t repo) k >|= function
-          | None -> Error (`Dangling_hash (P.Node.Key.to_hash k))
+          | None -> err_dangling_hash (P.Node.Key.to_hash k)
           | Some v as some_v ->
               if cache then t.info.value <- some_v;
               Ok v)
@@ -806,7 +810,7 @@ module Make (P : Backend.S) = struct
       with
       | Value v -> ok v
       | Repo_key (repo, k) -> value_of_key ~cache t repo k
-      | Pruned h -> pruned_hash_exn "Node.to_value" h
+      | Pruned h -> err_pruned_hash h |> Lwt.return
       | Any ->
           invalid_arg
             "Tree.Node.to_value: the supplied node has not been written to \
@@ -830,7 +834,7 @@ module Make (P : Backend.S) = struct
           hash_preimage_of_map ~cache t m (function
             | Node x -> ok (Portable.of_node x)
             | Pnode x -> ok x)
-      | Pruned h -> pruned_hash_exn "Node.to_portable_value" h
+      | Pruned h -> err_pruned_hash h |> return
 
     let to_portable_value =
       to_portable_value_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
@@ -865,7 +869,7 @@ module Make (P : Backend.S) = struct
           | Error _ as e -> e
           | Ok v -> Ok (of_value repo v None))
       | Value_dirty (repo, v, um) -> ok (of_value repo v (Some um))
-      | Hash h -> pruned_hash_exn "Node.to_map" h
+      | Hash h -> err_pruned_hash h |> Lwt.return
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
       x1 == x2 || (Contents.equal c1 c2 && equal_metadata m1 m2)
@@ -1913,7 +1917,8 @@ module Make (P : Backend.S) = struct
   let diff_force_result (type a b) ~(empty : b) ~(diff_ok : a * a -> b)
       (x : a or_error) (y : a or_error) : b =
     match (x, y) with
-    | Error (`Dangling_hash h1), Error (`Dangling_hash h2) -> (
+    | ( Error (`Dangling_hash h1 | `Pruned_hash h1),
+        Error (`Dangling_hash h2 | `Pruned_hash h2) ) -> (
         match equal_hash h1 h2 with true -> empty | false -> assert false)
     | Error _, Ok _ -> assert false
     | Ok _, Error _ -> assert false

@@ -89,10 +89,6 @@ module type S = sig
 
   (** {1 Manipulating Contents} *)
 
-  type 'a or_error = ('a, [ `Dangling_hash of hash ]) result
-  (** Operations on lazy nodes can fail if the underlying store does not contain
-      the expected hash. *)
-
   exception Dangling_hash of { context : string; hash : hash }
   (** The exception raised by functions that can force lazy tree nodes but do
       not return an explicit {!or_error}. *)
@@ -100,6 +96,9 @@ module type S = sig
   exception Pruned_hash of { context : string; hash : hash }
   (** The exception raised by functions that attempt to load {!pruned} tree
       nodes. *)
+
+  type error = [ `Dangling_hash of hash | `Pruned_hash of hash ]
+  type 'a or_error = ('a, error) result
 
   (** Operations on lazy tree contents. *)
   module Contents : sig
