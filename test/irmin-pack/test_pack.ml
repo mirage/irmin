@@ -17,16 +17,10 @@
 open! Import
 open Common
 
-module Config = struct
-  let entries = 2
-  let stable_hash = 3
-  let contents_length_header = Some `Varint
-  let inode_child_order = `Seeded_hash
-end
-
 let test_dir = Filename.concat "_build" "test-db-pack"
 
-module Irmin_pack_store : Irmin_test.Generic_key = struct
+module Irmin_pack_store (Config : Irmin_pack.Conf.S) : Irmin_test.Generic_key =
+struct
   open Irmin_pack.Maker (Config)
 
   include Make (struct
@@ -37,8 +31,9 @@ module Irmin_pack_store : Irmin_test.Generic_key = struct
   end)
 end
 
-let suite_pack name_suffix indexing_strategy =
-  let store = (module Irmin_pack_store : Irmin_test.Generic_key) in
+let suite_pack name_suffix indexing_strategy (module Config : Irmin_pack.Conf.S)
+    =
+  let store = (module Irmin_pack_store (Config) : Irmin_test.Generic_key) in
   let config =
     Irmin_pack.config ~fresh:false ~lru_size:0 ~indexing_strategy test_dir
   in
@@ -55,7 +50,7 @@ let suite_pack name_suffix indexing_strategy =
     ~layered_store:None ()
 
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
-  open Irmin_pack_mem.Maker (Config)
+  open Irmin_pack_mem.Maker (Irmin_tezos.Conf)
 
   include Make (struct
     include Irmin_test.Schema
@@ -73,9 +68,16 @@ let suite_mem =
 
 let suite =
   let module Index = Irmin_pack.Pack_store.Indexing_strategy in
+  let module Conf_small_nodes = struct
+    (* Parameters chosen to be different from those in [Irmin_tezos.Conf]: *)
+    let entries = 2
+    let stable_hash = 3
+    let contents_length_header = None
+    let inode_child_order = `Hash_bits
+  end in
   [
-    suite_pack " { index = always }" Index.always;
-    suite_pack " { index = minimal }" Index.minimal;
+    suite_pack " { Tezos }" Index.minimal (module Irmin_tezos.Conf);
+    suite_pack " { Small_nodes }" Index.always (module Conf_small_nodes);
     suite_mem;
   ]
 
