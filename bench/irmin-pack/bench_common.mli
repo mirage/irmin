@@ -36,7 +36,6 @@ module Schema : Irmin.Schema.S
 module FSHelper : sig
   val rm_dir : string -> unit
   val get_size : string -> int
-  val print_size_layers : string -> unit
 end
 
 module Generate_trees

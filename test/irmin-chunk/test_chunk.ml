@@ -74,6 +74,4 @@ let store =
     (module Irmin.Metadata.None)
 
 let config = Irmin_chunk.config (Irmin_mem.config ())
-
-let suite =
-  Irmin_test.Suite.create ~name:"CHUNK" ~store ~config ~layered_store:None ()
+let suite = Irmin_test.Suite.create ~name:"CHUNK" ~store ~config ()

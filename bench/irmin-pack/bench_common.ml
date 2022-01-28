@@ -128,15 +128,6 @@ module FSHelper = struct
   let size root = dict root + pack root + index root
   let get_size root = size root
 
-  let print_size_layers root =
-    let dt = now_s () in
-    let upper1 = Filename.concat root "upper1" in
-    let upper0 = Filename.concat root "upper0" in
-    let lower = Filename.concat root "lower" in
-    [%logs.app
-      "%+04.0fus: upper1 = %d M, upper0 = %d M, lower = %d M\n%!" dt
-        (size upper1) (size upper0) (size lower)]
-
   let rm_dir root =
     if Sys.file_exists root then (
       let cmd = Printf.sprintf "rm -rf %s" root in

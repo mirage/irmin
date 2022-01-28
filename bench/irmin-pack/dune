@@ -5,8 +5,8 @@
  (package irmin-bench)
  (preprocess
   (pps ppx_irmin.internal ppx_repr))
- (libraries irmin-pack irmin-test.bench irmin-layers lwt unix cmdliner logs
-   repr ppx_repr bench_common rusage))
+ (libraries irmin-pack irmin-test.bench lwt unix cmdliner logs repr ppx_repr
+   bench_common rusage))
 
 (library
  (name bench_common)
@@ -34,8 +34,8 @@
  (modules tree)
  (preprocess
   (pps ppx_irmin.internal ppx_repr))
- (libraries irmin-pack irmin-pack.mem irmin-test.bench irmin-layers lwt unix
-   cmdliner logs repr ppx_repr bench_common irmin-tezos irmin_traces))
+ (libraries irmin-pack irmin-pack.mem irmin-test.bench lwt unix cmdliner logs
+   repr ppx_repr bench_common irmin-tezos irmin_traces))
 
 (executable
  (name trace_stats)

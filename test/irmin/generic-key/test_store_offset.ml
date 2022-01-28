@@ -169,4 +169,4 @@ let suite =
   let store = (module Store : Irmin_test.Generic_key) in
   let config = Irmin_mem.config () in
   Irmin_test.Suite.create_generic_key ~name:"store_offset" ~store ~config
-    ~layered_store:None ~import_supported:false ()
+    ~import_supported:false ()

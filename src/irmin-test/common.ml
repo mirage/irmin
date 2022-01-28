@@ -48,13 +48,6 @@ module type Generic_key =
      and type Schema.Contents.t = string
      and type Schema.Branch.t = string
 
-module type Layered_store =
-  Irmin_layers.S
-    with type Schema.Path.step = string
-     and type Schema.Path.t = string list
-     and type Schema.Contents.t = string
-     and type Schema.Branch.t = string
-
 module Schema = struct
   module Hash = Irmin.Hash.SHA1
   module Commit = Irmin.Commit.Make (Hash)
@@ -76,19 +69,6 @@ let store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S) =
   let module S = B.Make (Schema) in
   (module S)
 
-let layered_store :
-    (module Irmin_layers.Maker) ->
-    (module Irmin.Metadata.S) ->
-    (module Layered_store) =
- fun (module B) (module M) ->
-  let module Schema = struct
-    include Schema
-    module Metadata = M
-    module Node = Irmin.Node.Generic_key.Make (Hash) (Path) (Metadata)
-  end in
-  let module S = B.Make (Schema) in
-  (module S)
-
 type store = S of (module S) | Generic_key of (module Generic_key)
 
 type t = {
@@ -97,7 +77,6 @@ type t = {
   clean : unit -> unit Lwt.t;
   config : Irmin.config;
   store : store;
-  layered_store : (module Layered_store) option;
   stats : (unit -> int * int) option;
   (* Certain store implementations currently don't support implementing
      repository state from a slice, because their slice formats contain
@@ -136,8 +115,7 @@ module Suite = struct
     Store.Repo.close repo
 
   let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
-      ~layered_store ?stats ?(clear_supported = true) ?(import_supported = true)
-      () =
+      ?stats ?(clear_supported = true) ?(import_supported = true) () =
     let store = S store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
     {
@@ -146,15 +124,14 @@ module Suite = struct
       clean;
       config;
       store;
-      layered_store;
       stats;
       clear_supported;
       import_supported;
     }
 
   let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
-      ~config ~store ~layered_store ?stats ?(clear_supported = true)
-      ?(import_supported = true) () =
+      ~config ~store ?stats ?(clear_supported = true) ?(import_supported = true)
+      () =
     let store = Generic_key store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
     {
@@ -163,7 +140,6 @@ module Suite = struct
       clean;
       config;
       store;
-      layered_store;
       stats;
       clear_supported;
       import_supported;

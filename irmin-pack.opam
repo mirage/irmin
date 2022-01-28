@@ -16,7 +16,6 @@ depends: [
   "ocaml"        {>= "4.08.0"}
   "dune"         {>= "2.7.0"}
   "irmin"        {= version}
-  "irmin-layers" {= version}
   "ppx_irmin"    {= version}
   "index"        {>= "1.3.0"}
   "fmt"

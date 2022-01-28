@@ -16,7 +16,6 @@
 
 module type S = Common.S
 module type Generic_key = Common.Generic_key
-module type Layered_store = Common.Layered_store
 
 val reporter : ?prefix:string -> unit -> Logs.reporter
 
@@ -29,7 +28,6 @@ module Suite : sig
     ?clean:(unit -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module S) ->
-    layered_store:(module Layered_store) option ->
     ?stats:(unit -> int * int) ->
     ?clear_supported:bool ->
     ?import_supported:bool ->
@@ -42,7 +40,6 @@ module Suite : sig
     ?clean:(unit -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module Generic_key) ->
-    layered_store:(module Layered_store) option ->
     ?stats:(unit -> int * int) ->
     ?clear_supported:bool ->
     ?import_supported:bool ->
@@ -61,12 +58,6 @@ val line : string -> unit
 module Schema = Common.Schema
 
 val store : (module Irmin.Maker) -> (module Irmin.Metadata.S) -> (module S)
-
-val layered_store :
-  (module Irmin_layers.Maker) ->
-  (module Irmin.Metadata.S) ->
-  (module Layered_store)
-
 val testable : 'a Irmin.Type.t -> 'a Alcotest.testable
 val check : 'a Irmin.Type.t -> string -> 'a -> 'a -> unit
 val checks : 'a Irmin.Type.t -> string -> 'a list -> 'a list -> unit
