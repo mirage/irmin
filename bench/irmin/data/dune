@@ -1,0 +1,3 @@
+(executable
+ (name bench_fixed_size_string_set)
+ (libraries irmin.data mtime mtime.clock.os))
