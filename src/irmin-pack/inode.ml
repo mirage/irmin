@@ -300,17 +300,10 @@ struct
   module Compress = struct
     open T
 
-    type name = Indirect of int | Direct of step
-    type address = Indirect of int63 | Direct of H.t
-
-    let address_t : address Irmin.Type.t =
-      let open Irmin.Type in
-      variant "Compress.address" (fun i d -> function
-        | Indirect x -> i x | Direct x -> d x)
-      |~ case1 "Indirect" int63_t (fun x -> Indirect x)
-      |~ case1 "Direct" H.t (fun x -> Direct x)
-      |> sealv
-
+    type dict_key = int [@@deriving irmin]
+    type pack_offset = int63 [@@deriving irmin]
+    type name = Indirect of dict_key | Direct of step
+    type address = Offset of pack_offset | Hash of H.t [@@deriving irmin]
     type ptr = { index : int; hash : address }
 
     let ptr_t : ptr Irmin.Type.t =
@@ -337,59 +330,62 @@ struct
 
     let is_default = T.(equal_metadata Metadata.default)
 
-    let value_t : value Irmin.Type.t =
+    (* We distribute products over sums in the type representation of [value]
+       in order to pack many possible cases into a single tag character in the
+       encoded representation.
+
+       - whether the referenced value is a [Node] or a [Contents] value;
+
+       - in the [Contents] case, whether the associated metadata is [default]
+         (in which case the serialised representation elides it), or if it is
+         included;
+
+       - whether the [name] of the entry is provided inline [Direct], or is
+         stored in the dict and refernced via a dict key [Indirect];
+
+       - whether the [address] of the entry is a pack offset or a hash to be
+         indexed *)
+    let[@ocamlformat "disable"] value_t : value Irmin.Type.t =
+      let module Payload = struct
+          (* Different payload types that can appear after packed tags: *)
+          let io  = [%typ: dict_key * pack_offset]
+          let ih  = [%typ: dict_key * H.t]
+          let do_ = [%typ: step * pack_offset]
+          let dh  = [%typ: step * H.t]
+          (* As above but for contents values with non-default metadata: *)
+          let x_io = [%typ: dict_key * pack_offset * metadata]
+          let x_ih = [%typ: dict_key * H.t * metadata]
+          let x_do = [%typ: step * pack_offset * metadata]
+          let x_dh = [%typ: step * H.t * metadata]
+      end in
       let open Irmin.Type in
       variant "Compress.value"
         (fun
-          contents_ii
-          contents_x_ii
-          node_ii
-          contents_id
-          contents_x_id
-          node_id
-          contents_di
-          contents_x_di
-          node_di
-          contents_dd
-          contents_x_dd
-          node_dd
+          (* The ordering of these arguments determines which tags are assigned
+             to the cases, so should not be changed: *)
+          contents_io contents_x_io node_io contents_ih contents_x_ih node_ih
+          contents_do contents_x_do node_do contents_dh contents_x_dh node_dh
         -> function
-        | Contents (Indirect n, Indirect h, m) ->
-            if is_default m then contents_ii (n, h) else contents_x_ii (n, h, m)
-        | Node (Indirect n, Indirect h) -> node_ii (n, h)
-        | Contents (Indirect n, Direct h, m) ->
-            if is_default m then contents_id (n, h) else contents_x_id (n, h, m)
-        | Node (Indirect n, Direct h) -> node_id (n, h)
-        | Contents (Direct n, Indirect h, m) ->
-            if is_default m then contents_di (n, h) else contents_x_di (n, h, m)
-        | Node (Direct n, Indirect h) -> node_di (n, h)
-        | Contents (Direct n, Direct h, m) ->
-            if is_default m then contents_dd (n, h) else contents_x_dd (n, h, m)
-        | Node (Direct n, Direct h) -> node_dd (n, h))
-      |~ case1 "contents-ii" (pair int Int63.t) (fun (n, i) ->
-             Contents (Indirect n, Indirect i, Metadata.default))
-      |~ case1 "contents-x-ii" (triple int int63_t metadata_t) (fun (n, i, m) ->
-             Contents (Indirect n, Indirect i, m))
-      |~ case1 "node-ii" (pair int Int63.t) (fun (n, i) ->
-             Node (Indirect n, Indirect i))
-      |~ case1 "contents-id" (pair int H.t) (fun (n, h) ->
-             Contents (Indirect n, Direct h, Metadata.default))
-      |~ case1 "contents-x-id" (triple int H.t metadata_t) (fun (n, h, m) ->
-             Contents (Indirect n, Direct h, m))
-      |~ case1 "node-id" (pair int H.t) (fun (n, h) ->
-             Node (Indirect n, Direct h))
-      |~ case1 "contents-di" (pair step_t Int63.t) (fun (n, i) ->
-             Contents (Direct n, Indirect i, Metadata.default))
-      |~ case1 "contents-x-di" (triple step_t int63_t metadata_t)
-           (fun (n, i, m) -> Contents (Direct n, Indirect i, m))
-      |~ case1 "node-di" (pair step_t Int63.t) (fun (n, i) ->
-             Node (Direct n, Indirect i))
-      |~ case1 "contents-dd" (pair step_t H.t) (fun (n, i) ->
-             Contents (Direct n, Direct i, Metadata.default))
-      |~ case1 "contents-x-dd" (triple step_t H.t metadata_t) (fun (n, i, m) ->
-             Contents (Direct n, Direct i, m))
-      |~ case1 "node-dd" (pair step_t H.t) (fun (n, i) ->
-             Node (Direct n, Direct i))
+        | Node (Indirect n, Offset o) -> node_io (n, o)
+        | Node (Indirect n, Hash h)   -> node_ih (n, h)
+        | Node (Direct n,   Offset o) -> node_do (n, o)
+        | Node (Direct n,   Hash h)   -> node_dh (n, h)
+        | Contents (Indirect n, Offset o, m) -> if is_default m then contents_io (n, o) else contents_x_io (n, o, m)
+        | Contents (Indirect n, Hash h,   m) -> if is_default m then contents_ih (n, h) else contents_x_ih (n, h, m)
+        | Contents (Direct n,   Offset o, m) -> if is_default m then contents_do (n, o) else contents_x_do (n, o, m)
+        | Contents (Direct n,   Hash h,   m) -> if is_default m then contents_dh (n, h) else contents_x_dh (n, h, m))
+      |~ case1 "contents-io"   Payload.io   (fun (n, o)    -> Contents (Indirect n, Offset o, Metadata.default))
+      |~ case1 "contents-x-io" Payload.x_io (fun (n, i, m) -> Contents (Indirect n, Offset i, m))
+      |~ case1 "node-io"       Payload.io   (fun (n, i)    -> Node (Indirect n, Offset i))
+      |~ case1 "contents-ih"   Payload.ih   (fun (n, h)    -> Contents (Indirect n, Hash h, Metadata.default))
+      |~ case1 "contents-x-ih" Payload.x_ih (fun (n, h, m) -> Contents (Indirect n, Hash h, m))
+      |~ case1 "node-ih"       Payload.ih   (fun (n, h)    -> Node (Indirect n, Hash h))
+      |~ case1 "contents-do"   Payload.do_  (fun (n, i)    -> Contents (Direct n, Offset i, Metadata.default))
+      |~ case1 "contents-x-do" Payload.x_do (fun (n, i, m) -> Contents (Direct n, Offset i, m))
+      |~ case1 "node-do"       Payload.do_  (fun (n, i)    -> Node (Direct n, Offset i))
+      |~ case1 "contents-dh"   Payload.dh   (fun (n, i)    -> Contents (Direct n, Hash i, Metadata.default))
+      |~ case1 "contents-x-dh" Payload.x_dh (fun (n, i, m) -> Contents (Direct n, Hash i, m))
+      |~ case1 "node-dd"       Payload.dh   (fun (n, i)    -> Node (Direct n, Hash i))
       |> sealv
 
     type v = Values of value list | Tree of tree
@@ -1666,11 +1662,11 @@ struct
       in
       let address_of_key key : Compress.address =
         match offset_of_key key with
-        | Some off -> Compress.Indirect off
+        | Some off -> Compress.Offset off
         | None ->
             (* The key references an inode/contents that is not in the pack
                 file. This is highly unusual but not forbidden. *)
-            Compress.Direct (Key.to_hash key)
+            Compress.Hash (Key.to_hash key)
       in
       let ptr : T.key Bin.with_index -> Compress.ptr =
        fun n ->
@@ -1718,8 +1714,8 @@ struct
                 | Ok v -> v))
       in
       let key : Compress.address -> T.key = function
-        | Indirect off -> key_of_offset off
-        | Direct n -> key_of_hash n
+        | Offset off -> key_of_offset off
+        | Hash n -> key_of_hash n
       in
       let ptr : Compress.ptr -> T.key Bin.with_index =
        fun n ->
