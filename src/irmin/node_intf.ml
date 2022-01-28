@@ -70,6 +70,17 @@ module type Core = sig
   val length : t -> int
   (** [length t] is the number of entries in [t]. *)
 
+  val hash_exn : ?force:bool -> t -> hash
+  (** [hash_exn t] is the hash of [t].
+
+      Another way of computing it is [Hash.Typed(Hash)(Node).hash t] which
+      computes the pre-hash of [t] before hashing it using [Hash]. [hash_exn]
+      might be faster because the it may be optimised (e.g. it may use caching).
+
+      [hash_exn t] is [hash_exn ~force:true t] which is not expected to raise an
+      exception. [hash_exn ~force:false t] will raise [Not_found] if the hash
+      requires IOs to be computed. *)
+
   val clear : t -> unit
   (** Cleanup internal caches. *)
 

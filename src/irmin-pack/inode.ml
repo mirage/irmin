@@ -1147,6 +1147,9 @@ struct
       in
       let length = length_of_v v in
       let hash =
+        (* Compute the hash right away (not lazily) so that
+           [hash_exn ~force:false] is possible on the result of
+           [of_proof]. *)
         if should_be_stable ~length ~root:(depth = 0) then
           (* [seq_v] may call [find], even if some branches are blinded *)
           let node = Node.of_seq (seq_v la v) in
@@ -1169,6 +1172,12 @@ struct
       | Blinded_root -> Error `Blinded_root
 
     let hash t = Val_ref.to_hash t.v_ref
+
+    let hash_exn ?(force = true) t =
+      match Val_ref.inspect t.v_ref with
+      | Key k -> Key.to_hash k
+      | Hash h ->
+          if Lazy.is_val h || force then Lazy.force h else raise Not_found
 
     let check_write_op_supported t =
       if not @@ is_root t then
@@ -1641,8 +1650,12 @@ struct
               let t =
                 of_seq Total (List.map strengthen_step_value vs |> List.to_seq)
               in
-              (* Compute the hash right away (not lazily) *)
-              let hash = hash t in
+              let hash =
+                (* Compute the hash right away (not lazily) so that
+                   [hash_exn ~force:false] is possible on the result of
+                   [of_proof]. *)
+                hash t
+              in
               let v_ref = Val_ref.of_hash (lazy hash) in
               match t.v with
               | Values _ -> assert false
@@ -1901,7 +1914,10 @@ struct
           in
           pre_hash_binv bin.v
         else
-          let vs = seq x in
+          let vs =
+            (* If [x] is shallow, this [seq] call will perform IOs. *)
+            seq x
+          in
           pre_hash_node (Node.of_seq vs)
       in
       let module Ptr_any = struct
@@ -1925,7 +1941,7 @@ struct
         (fun x ->
           apply x { f = (fun layout v -> I.to_bin layout Bin.Ptr_key v) })
 
-    let hash t = apply t { f = (fun _ v -> I.hash v) }
+    let hash_exn ?force t = apply t { f = (fun _ v -> I.hash_exn ?force v) }
 
     let save ~add ~index ~mem t =
       let f layout v =
@@ -2181,7 +2197,7 @@ struct
     in
     Val.save ~add ~index:(Pack.index_direct t) ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Val.hash v
+  let hash_exn = Val.hash_exn
   let add t v = Lwt.return (save t v)
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
@@ -2192,7 +2208,7 @@ struct
         expected Inter.pp_hash got
 
   let unsafe_add t k v =
-    check_hash k (hash v);
+    check_hash k (hash_exn v);
     Lwt.return (save t v)
 
   let batch = Pack.batch

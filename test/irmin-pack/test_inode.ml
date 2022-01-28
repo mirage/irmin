@@ -256,7 +256,7 @@ module Inode_permutations_generator = struct
 end
 
 let check_node msg v t =
-  let hash = Inter.Val.hash v in
+  let hash = Inter.Val.hash_exn v in
   let+ key = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   let hash' = Key.to_hash key in
   check_hash msg hash hash'
@@ -264,7 +264,7 @@ let check_node msg v t =
 let check_hardcoded_hash msg h v =
   h |> Irmin.Type.of_string Inode.Val.hash_t |> function
   | Error (`Msg str) -> Alcotest.failf "hash of string failed: %s" str
-  | Ok hash -> check_hash msg hash (Inter.Val.hash v)
+  | Ok hash -> check_hash msg hash (Inter.Val.hash_exn v)
 
 (** Test add values from an empty node. *)
 let test_add_values () =
@@ -595,7 +595,7 @@ module Inode_tezos = struct
     let* t = S.Context.get_store () in
     let { S.Context.foo; _ } = t in
     let v = S.Inode.Val.of_list [ ("x", normal foo); ("z", normal foo) ] in
-    let h = S.Inter.Val.hash v in
+    let h = S.Inter.Val.hash_exn v in
     let hash_to_bin_string =
       Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
     in
@@ -638,7 +638,7 @@ module Inode_tezos = struct
           ("t", normal bar);
         ]
     in
-    let h = S.Inter.Val.hash v in
+    let h = S.Inter.Val.hash_exn v in
     let to_bin_string_hash =
       Irmin.Type.(unstage (to_bin_string S.Inode.Val.hash_t))
     in
