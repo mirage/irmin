@@ -154,6 +154,15 @@ struct
         (* Not reachable after [Portable.of_node]. See invariant on {!entry}. *)
         assert false
 
+  let step_of_entry : entry -> step = function
+    | Node { name; _ }
+    | Node_hash { name; _ }
+    | Contents { name; _ }
+    | Contents_m { name; _ }
+    | Contents_hash { name; _ }
+    | Contents_m_hash { name; _ } ->
+        name
+
   let weak_of_entry : entry -> step * weak_value = function
     | Node n -> (n.name, `Node (Node_key.to_hash n.node))
     | Node_hash n -> (n.name, `Node n.node)
@@ -200,7 +209,10 @@ struct
     add_entry t k e
 
   let remove t k = StepMap.remove k t
-  let of_entries e = of_list (List.rev_map of_entry e)
+
+  let of_entries es =
+    List.to_seq es |> Seq.map (fun e -> (step_of_entry e, e)) |> StepMap.of_seq
+
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
 
   module Hash_preimage = struct

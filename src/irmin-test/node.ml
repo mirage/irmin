@@ -24,6 +24,12 @@ end
 module Suite (Map : Map) = struct
   type key = string [@@deriving irmin]
 
+  let random_bindings n =
+    List.init n (fun i -> (string_of_int i, Map.random_data ()))
+
+  let map_of_bindings kvs =
+    List.fold_left (fun t (k, v) -> Map.add t k v) (Map.empty ()) kvs
+
   let test_empty () =
     check __POS__ [%typ: bool] ~expected:true Map.(is_empty (empty ()));
     check __POS__ [%typ: int] ~expected:0 Map.(length (empty ()));
@@ -42,16 +48,32 @@ module Suite (Map : Map) = struct
       Map.(remove (empty ()) "foo")
 
   let test_find () =
-    let bindings =
-      List.init 256 (fun i -> (string_of_int i, Map.random_data ()))
-    in
-    let node =
-      List.fold_left (fun t (k, v) -> Map.add t k v) (Map.empty ()) bindings
-    in
+    let bindings = random_bindings 256 in
+    let node = map_of_bindings bindings in
     bindings
     |> List.iter (fun (k, v) ->
            check __POS__ [%typ: Map.data option] ~expected:(Some v)
              (Map.find node k))
+
+  let test_equal () =
+    let module Map = struct
+      include Map
+
+      type nonrec t = t [@@deriving irmin ~equal ~to_bin_string ~of_bin_string]
+    end in
+    let bindings = random_bindings 256 in
+    let m = map_of_bindings bindings in
+
+    let m_rev = map_of_bindings (List.rev bindings) in
+    check __POS__ [%typ: bool] ~expected:true (Map.equal m m_rev);
+
+    let m_subset = map_of_bindings (List.tl bindings) in
+    check __POS__ [%typ: bool] ~expected:false (Map.equal m m_subset);
+
+    let m_serialised =
+      m |> Map.to_bin_string |> Map.of_bin_string |> Result.get_ok
+    in
+    check __POS__ [%typ: bool] ~expected:true (Map.equal m m_serialised)
 
   let suite =
     [
@@ -59,6 +81,7 @@ module Suite (Map : Map) = struct
       ("add", test_add);
       ("remove", test_remove);
       ("find", test_find);
+      ("equal", test_equal);
     ]
 end
 
