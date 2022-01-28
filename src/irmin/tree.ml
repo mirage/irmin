@@ -1143,7 +1143,15 @@ module Make (P : Backend.S) = struct
                   | Pruned h -> pruned_hash_exn "fold" h))
           | `False skip -> (
               match cached_map t with
-              | Some n -> (map [@tailcall]) ~path acc d (Some n) k
+              | Some n -> (
+                  match order with
+                  | `Sorted | `Undefined ->
+                      (map [@tailcall]) ~path acc d (Some n) k
+                  | `Random state ->
+                      let arr = StepMap.to_array n in
+                      shuffle state arr;
+                      let s = Array.to_seq arr in
+                      (seq [@tailcall]) ~path acc d s k)
               | None ->
                   (* XXX: That node is skipped if is is of tag Value *)
                   skip path acc >>= k)
