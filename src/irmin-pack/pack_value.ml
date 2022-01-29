@@ -94,7 +94,7 @@ module Of_commit =
     (struct
       type 'a t = 'a
 
-      let weight _ = 1
+      let weight _ = 1000
       let data d = d
       let weighted_value d _ = d
     end)
