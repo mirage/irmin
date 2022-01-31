@@ -19,13 +19,6 @@ open Common
 
 type concrete = Store.Tree.concrete
 
-let members keys json =
-  List.fold_left (fun key json -> Yojson.Safe.Util.member json key) json keys
-
-let assert_ok : type a. (a, [ `Msg of string ]) result -> a = function
-  | Ok x -> x
-  | Error (`Msg msg) -> Alcotest.fail msg
-
 module Alcotest = struct
   include Alcotest
 
@@ -42,29 +35,26 @@ let strees : string list -> concrete -> concrete = List.fold_right stree
 
 let contents v = `Contents (v, ())
 
-type test_case = set_tree:(concrete -> unit Lwt.t) -> unit -> unit Lwt.t
-(** Test cases consume a setter for updating the server state *)
+let set_tree store tree =
+  Store.Tree.of_concrete tree
+  |> Store.set_tree_exn ~info:Store.Info.none store []
+
+type test_case = Store.t -> unit Lwt.t
 
 let test_get_contents_list : test_case =
- fun ~set_tree () ->
+ fun store ->
   let data = strees [ "a"; "b"; "c" ] (contents "data")
   and query =
-    {|{
-  main {
-    tree {
-      get_contents(path: "/a/b/c") {
-        path
-        __typename
-      }
-    }
-  }
-}|}
+    query
+    @@ func "main"
+    @@ func "tree"
+    @@ func "get_contents"
+         ~params:[ ("path", string "a/b/c") ]
+         (list [ field "path"; field "__typename" ])
   in
-  set_tree data >>= fun () ->
-  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
-  let result : (string * Yojson.Safe.t) list =
-    let open Yojson.Safe.Util in
-    result |> members [ "data"; "main"; "tree"; "get_contents" ] |> to_assoc
+  set_tree store data >>= fun () ->
+  let+ (result : (string * Yojson.Safe.t) list) =
+    exec query Yojson.Safe.Util.to_assoc
   in
   Alcotest.(check (list (pair string yojson)))
     "Returned entry data is valid"
@@ -73,33 +63,21 @@ let test_get_contents_list : test_case =
   ()
 
 let test_get_tree_list : test_case =
- fun ~set_tree () ->
+ fun store ->
   let data =
     strees [ "a"; "b"; "c" ]
       (`Tree
         [ ("leaf", contents "data1"); ("branch", stree "f" (contents "data2")) ])
   and query =
-    {|{
-  main {
-    tree {
-      get_tree(path: "/a/b/c") {
-        list {
-          path
-          __typename
-        }
-      }
-    }
-  }
-}|}
+    query
+    @@ func "main"
+    @@ func "tree"
+    @@ func "get_tree" ~params:[ ("path", string "a/b/c") ]
+    @@ func "list" (list [ field "path"; field "__typename" ])
   in
-  set_tree data >>= fun () ->
-  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
-  let path_data : (string * Yojson.Safe.t) list list =
-    let open Yojson.Safe.Util in
-    result
-    |> members [ "data"; "main"; "tree"; "get_tree"; "list" ]
-    |> to_list
-    |> List.map to_assoc
+  set_tree store data >>= fun () ->
+  let+ path_data =
+    exec query Yojson.Safe.Util.(fun x -> to_list x |> List.map to_assoc)
   in
   Alcotest.(check (list (list (pair string yojson))))
     "Returned entry data is valid"
@@ -111,31 +89,21 @@ let test_get_tree_list : test_case =
   ()
 
 let test_get_last_modified : test_case =
- fun ~set_tree () ->
+ fun store ->
   let data = stree "a" (contents "data")
   and query =
-    {|{
-        main {
-          last_modified(path: "a", n: 1, depth:1) {
-            tree {
-              get_contents(path: "a") {
-                value,
-                __typename
-              }
-            }
-          }
-        }
-    }|}
+    query
+    @@ func "main"
+    @@ func "last_modified"
+         ~params:[ ("path", string "a"); ("n", int 1); ("depth", int 1) ]
+    @@ func "tree"
+    @@ func "get_contents"
+         ~params:[ ("path", string "a") ]
+         (list [ field "value"; field "__typename" ])
   in
-  set_tree data >>= fun () ->
-  let+ result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
-  let result : (string * Yojson.Safe.t) list list =
-    let open Yojson.Safe.Util in
-    result
-    |> members [ "data"; "main"; "last_modified" ]
-    |> to_list
-    |> List.map (members [ "tree"; "get_contents" ])
-    |> List.map to_assoc
+  set_tree store data >>= fun () ->
+  let+ result =
+    exec query Yojson.Safe.Util.(fun m -> to_list m |> List.map to_assoc)
   in
   Alcotest.(check (list (list (pair string yojson))))
     "Returned entry data is valid "
@@ -144,49 +112,43 @@ let test_get_last_modified : test_case =
   ()
 
 let test_commit : test_case =
- fun ~set_tree:_ () ->
-  let query =
-    {|{
-        main {
-          head {
-            hash,
-            key
-          }
-        }
-    }|}
+ fun _ ->
+  let query0 =
+    query @@ func "main" @@ func "head" (list [ field "hash"; field "key" ])
   in
-  let* result = send_query query >|= assert_ok >|= Yojson.Safe.from_string in
-  let hash : string =
-    result
-    |> members [ "data"; "main"; "head"; "hash" ]
-    |> Yojson.Safe.Util.to_string
-  in
-  let key : string =
-    result
-    |> members [ "data"; "main"; "head"; "key" ]
-    |> Yojson.Safe.Util.to_string
-  in
-  let query =
-    {|{
-        commit_of_key(key: $key) {
-          hash
-        }
-      }|}
+  let* result = exec query0 Yojson.Safe.Util.to_assoc in
+  let hash = List.assoc "hash" result |> Yojson.Safe.Util.to_string in
+  let key = List.assoc "key" result |> Yojson.Safe.Util.to_string in
+  let query1 =
+    query @@ func "commit_of_key" ~params:[ ("key", var "key") ] @@ field "hash"
   in
   let vars = [ ("key", `String key) ] in
-  let+ result =
-    send_query ~vars query >|= assert_ok >|= Yojson.Safe.from_string
-  in
-  let hash' : string =
-    result
-    |> members [ "data"; "commit_of_key"; "hash" ]
-    |> Yojson.Safe.Util.to_string
-  in
+  let+ hash' = exec ~vars query1 Yojson.Safe.Util.to_string in
   Alcotest.(check string) "Hashes equal" hash hash'
 
-let suite ~set_tree =
+let test_mutation : test_case =
+ fun store ->
+  let m =
+    mutation
+    @@ func "set" ~params:[ ("path", string "foo"); ("value", string "bar") ]
+    @@ field "hash"
+  in
+  let* _hash = exec m Yojson.Safe.Util.to_string in
+  let q =
+    query
+    @@ func "main"
+    @@ func "tree"
+    @@ func "get_contents" ~params:[ ("path", string "foo") ]
+    @@ field "value"
+  in
+  let* value = Store.get store [ "foo" ] in
+  let+ result' = exec q Yojson.Safe.Util.to_string in
+  Alcotest.(check string) "Contents equal" "bar" result';
+  Alcotest.(check string) "Contents equal stored value" "bar" value
+
+let suite store =
   let test_case : string -> test_case -> unit Alcotest_lwt.test_case =
-   fun name f -> Alcotest_lwt.test_case name `Quick (fun _ () -> f ~set_tree ())
+   fun name f -> Alcotest_lwt.test_case name `Quick (fun _ () -> f store)
   in
   [
     ( "GRAPHQL",
@@ -195,6 +157,7 @@ let suite ~set_tree =
         test_case "get_tree-list" test_get_tree_list;
         test_case "get_last_modified" test_get_last_modified;
         test_case "commit" test_commit;
+        test_case "mutation" test_mutation;
       ] );
   ]
 
@@ -203,7 +166,7 @@ let () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Debug);
   let main =
-    let* { event_loop; set_tree } = spawn_graphql_server () in
-    Lwt.pick [ event_loop; Alcotest_lwt.run "irmin-graphql" (suite ~set_tree) ]
+    let* { event_loop; store } = spawn_graphql_server () in
+    Lwt.pick [ event_loop; Alcotest_lwt.run "irmin-graphql" (suite store) ]
   in
   Lwt_main.run main

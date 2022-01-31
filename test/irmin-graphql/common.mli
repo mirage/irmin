@@ -25,15 +25,63 @@ module Store :
 type server = {
   event_loop : 'a. 'a Lwt.t;
       (** The server runtime. Cancelling this thread terminates the server. *)
-  set_tree : Store.Tree.concrete -> unit Lwt.t;
-      (** Set the state of the [main] branch in the underlying store. *)
+  store : Store.t;  (** The store used by the server *)
 }
 
 val spawn_graphql_server : unit -> server Lwt.t
 (** Initialise a GraphQL server. At most one server may be running concurrently. *)
+
+type query
+(** GraphQL query *)
+
+type param
+(** Parameter to GraphQL function *)
+
+val query : query -> query
+(** Start a query *)
+
+val mutation : query -> query
+(** Start a mutation *)
+
+val list : query list -> query
+(** List of [field] or [func] *)
+
+val func : string -> ?params:(string * param) list -> query -> query
+(** GraphQL method *)
+
+val field : string -> query
+(** Named field *)
+
+val var : string -> param
+(** Variable parameter *)
+
+val string : string -> param
+(** String parameter *)
+
+val int : int -> param
+(** Int parameter *)
+
+val float : float -> param
+(** Float parameter *)
+
+val string_of_query : query -> string
+(** Convert [query] to [string] *)
 
 val send_query :
   ?vars:(string * Yojson.Safe.t) list ->
   string ->
   (string, [ `Msg of string ]) result Lwt.t
 (** Send a GraphQL query string to the currently running test GraphQL instance. *)
+
+val members : string list -> Yojson.Safe.t -> Yojson.Safe.t
+(** Get key from JSON object *)
+
+val parse_result : string list -> (Yojson.Safe.t -> 'a) -> Yojson.Safe.t -> 'a
+(** Get key from JSON object and apply conversion function *)
+
+val exec :
+  ?vars:(string * Yojson.Safe.t) list ->
+  query ->
+  (Yojson.Safe.t -> 'a) ->
+  'a Lwt.t
+(** Send a [query] to the running GraphQL instance and parse the results *)

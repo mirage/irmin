@@ -64,21 +64,14 @@ let server_of_repo : type a. Store.repo -> a Lwt.t =
   Cohttp_lwt_unix.Server.create ~on_exn ~mode server >>= fun () ->
   Lwt.fail_with "GraphQL server terminated unexpectedly"
 
-type server = {
-  event_loop : 'a. 'a Lwt.t;
-  set_tree : Store.Tree.concrete -> unit Lwt.t;
-}
+type server = { event_loop : 'a. 'a Lwt.t; store : Store.t }
 
 let spawn_graphql_server () =
   let config = Irmin_mem.config () in
   let* repo = Store.Repo.v config in
   let+ main = Store.main repo in
-  let event_loop = server_of_repo repo
-  and set_tree tree =
-    Store.Tree.of_concrete tree
-    |> Store.set_tree_exn ~info:Store.Info.none main []
-  in
-  { event_loop; set_tree }
+  let event_loop = server_of_repo repo in
+  { event_loop; store = main }
 
 let rec retry n f =
   let retries = ref 0 in
@@ -88,6 +81,72 @@ let rec retry n f =
         Lwt_unix.sleep (0.1 *. float !retries) >>= fun () ->
         incr retries;
         retry (n + 1) f)
+
+type param = Var of string | String of string | Int of int | Float of float
+
+type query =
+  | Mutation of query
+  | Query of query
+  | List of query list
+  | Func of string * (string * param) list * query
+  | Field of string
+
+let rec string_of_query = function
+  | Query q -> Printf.sprintf "query { %s }" (string_of_query q)
+  | Mutation q -> Printf.sprintf "mutation { %s }" (string_of_query q)
+  | List ql -> String.concat "\n" (List.map string_of_query ql)
+  | Func (name, params, query) -> (
+      match params with
+      | [] -> Printf.sprintf "%s { %s }" name (string_of_query query)
+      | args ->
+          Printf.sprintf "%s (%s) { %s }" name (string_of_args args)
+            (string_of_query query))
+  | Field s -> s
+
+and string_of_args args =
+  List.map
+    (fun (k, v) ->
+      let v =
+        match v with
+        | Var s -> "$" ^ s
+        | String s -> "\"" ^ s ^ "\""
+        | Int i -> string_of_int i
+        | Float f -> string_of_float f
+      in
+      k ^ ": " ^ v)
+    args
+  |> String.concat ", "
+
+let query q = Query q
+let mutation q = Mutation q
+let list l = List l
+let func name ?(params = []) q = Func (name, params, q)
+let field s = Field s
+let string s = String s
+let var s = Var s
+let int i = Int i
+let float f = Float f
+
+let find_result res x =
+  let rec aux (res : Yojson.Safe.t) x =
+    match res with
+    | `List l -> `List (List.map (fun res -> aux res x) l)
+    | `Assoc _ -> (
+        match x with
+        | Query q | Mutation q -> aux (Yojson.Safe.Util.member "data" res) q
+        | Func (name, _, q) -> aux (Yojson.Safe.Util.member name res) q
+        | Field name -> Yojson.Safe.Util.member name res
+        | List l ->
+            `Assoc
+              (List.map
+                 (function
+                   | Field name as item -> (name, aux res item)
+                   | Func (name, _, _) as item -> (name, aux res item)
+                   | _ -> assert false)
+                 l))
+    | x -> x
+  in
+  aux res x
 
 (** Issue a query to the localhost server and return the body of the response
     message *)
@@ -118,3 +177,20 @@ let send_query :
           body
       in
       Error (`Msg msg)
+
+let members keys json =
+  List.fold_left (fun key json -> Yojson.Safe.Util.member json key) json keys
+
+let parse_result k f res = f (members k res)
+
+(** Issue a query to the localhost server, parse the response object and convert
+    it using [f] *)
+let exec ?vars query f =
+  let* res = send_query ?vars (string_of_query query) in
+  match res with
+  | Error (`Msg e) -> Alcotest.fail e
+  | Ok res ->
+      let res = Yojson.Safe.from_string res in
+      let value = find_result res query in
+      print_endline (Yojson.Safe.to_string value);
+      Lwt.return (f value)
