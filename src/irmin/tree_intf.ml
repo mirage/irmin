@@ -339,6 +339,24 @@ module type S = sig
   val to_concrete : t -> concrete Lwt.t
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
 
+  (** {1 Proofs} *)
+
+  module Proof : sig
+    include
+      Proof.S
+        with type contents := contents
+         and type hash := hash
+         and type step := step
+         and type metadata := metadata
+
+    type irmin_tree
+
+    val to_tree : tree t -> irmin_tree
+    (** [to_tree p] is the tree [t] representing the tree proof [p]. Blinded
+        parts of the proof will raise [Dangling_hash] when traversed. *)
+  end
+  with type irmin_tree := t
+
   (** {1 Caches} *)
 
   val clear : ?depth:int -> t -> unit
@@ -373,6 +391,16 @@ module type S = sig
   val inspect :
     t ->
     [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+
+  module Private : sig
+    module Env : sig
+      type t [@@deriving irmin]
+
+      val is_empty : t -> bool
+    end
+
+    val get_env : t -> Env.t
+  end
 end
 
 module type Sigs = sig
@@ -413,5 +441,26 @@ module type Sigs = sig
     val to_backend_node : node -> B.Node.Val.t Lwt.t
     val to_backend_portable_node : node -> B.Node_portable.t Lwt.t
     val of_backend_node : B.Repo.t -> B.Node.value -> node
+
+    type ('proof, 'result) producer :=
+      B.Repo.t ->
+      kinded_key ->
+      (t -> (t * 'result) Lwt.t) ->
+      ('proof * 'result) Lwt.t
+
+    type ('proof, 'result) verifier :=
+      'proof ->
+      (t -> (t * 'result) Lwt.t) ->
+      (t * 'result, [ `Msg of string ]) result Lwt.t
+
+    type tree_proof := Proof.tree Proof.t
+
+    val produce_proof : (tree_proof, 'a) producer
+    val verify_proof : (tree_proof, 'a) verifier
+
+    type stream_proof := Proof.stream Proof.t
+
+    val produce_stream : (stream_proof, 'a) producer
+    val verify_stream : (stream_proof, 'a) verifier
   end
 end

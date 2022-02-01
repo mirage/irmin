@@ -80,6 +80,19 @@ module List = struct
   let rec rev_append_map : type a b. (a -> b) -> a list -> b list -> b list =
    fun f xs ys ->
     match xs with [] -> ys | x :: xs -> rev_append_map f xs (f x :: ys)
+
+  let insert_exn : type a. a list -> int -> a -> a list =
+   fun l idx v ->
+    (* [list_insert l 0 v] is [v :: l] *)
+    assert (idx >= 0);
+    let rec aux l i acc =
+      if i = 0 then List.rev_append acc (v :: l)
+      else
+        match l with
+        | [] -> failwith "list_insert: input list too short"
+        | hd :: tl -> aux tl (i - 1) (hd :: acc)
+    in
+    aux l idx []
 end
 
 module Seq = struct

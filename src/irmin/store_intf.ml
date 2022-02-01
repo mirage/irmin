@@ -449,6 +449,88 @@ module type S_generic_key = sig
 
         {b Note:} in stores for which {!node_key} = {!contents_key} =
         {!type-hash}, this function has identical behaviour to {!of_key}. *)
+
+    (** {1 Proofs} *)
+
+    type ('proof, 'result) producer :=
+      repo ->
+      kinded_key ->
+      (tree -> (tree * 'result) Lwt.t) ->
+      ('proof * 'result) Lwt.t
+    (** [produce r h f] runs [f] on top of a real store [r], producing a proof
+        and a result using the initial root hash [h].
+
+        The trees produced during [f]'s computation will carry the full history
+        of reads. This history will be reset when [f] is complete so subtrees
+        escaping the scope of [f] will not cause memory leaks.
+
+        Calling [produce_proof] recursively has an undefined behaviour. *)
+
+    type ('proof, 'result) verifier :=
+      'proof ->
+      (tree -> (tree * 'result) Lwt.t) ->
+      (tree * 'result, [ `Msg of string ]) result Lwt.t
+    (** [verify p f] runs [f] in checking mode. [f] is a function that takes a
+        tree as input and returns a new version of the tree and a result. [p] is
+        a proof, that is a minimal representation of the tree that contains what
+        [f] should be expecting.
+
+        Therefore, contrary to trees found in a storage, the contents of the
+        trees passed to [f] may not be available. For this reason, looking up a
+        value at some [path] can now produce three distinct outcomes:
+
+        - A value [v] is present in the proof [p] and returned :
+          [find tree path] is a promise returning [Some v];
+        - [path] is known to have no value in [tree] : [find tree path] is a
+          promise returning [None]; and
+        - [path] is known to have a value in [tree] but [p] does not provide it
+          because [f] should not need it: [verify] returns an error classifying
+          [path] as an invalid path (see below).
+
+        The same semantics apply to all operations on the tree [t] passed to [f]
+        and on all operations on the trees built from [f].
+
+        The generated tree is the tree after [f] has completed. That tree is
+        disconnected from the backend. It is possible to run operations on it as
+        long as they don't require loading shallowed subtrees, otherwise it
+        would raise [Dangling_hash].
+
+        The result is [Error _] if the proof is rejected:
+
+        - For tree proofs: when [p.before] is different from the hash of
+          [p.state];
+        - For tree and stream proofs: when [p.after] is different from the hash
+          of [f p.state];
+        - For tree and stream proofs: when [f p.state] tries to access paths
+          invalid paths in [p.state];
+        - For stream proofs: when the proof is not empty once [f] is done. *)
+
+    type tree_proof := Proof.tree Proof.t
+    (** The type for tree proofs.
+
+        Guarantee that the given computation performs exactly the same state
+        operations as the generating computation, *in some order*. *)
+
+    val produce_proof : (tree_proof, 'a) producer
+    (** [produce_proof] is the producer of tree proofs. *)
+
+    val verify_proof : (tree_proof, 'a) verifier
+    (** [verify_proof] is the verifier of tree proofs. *)
+
+    type stream_proof := Proof.stream Proof.t
+    (** The type for stream proofs.
+
+        Guarantee that the given computation performs exactly the same state
+        operations as the generating computation, in the exact same order.
+
+        Calling [fold] with [order = `Undefined] during the
+        production/verification of streamed proofs is undefined. *)
+
+    val produce_stream : (stream_proof, 'a) producer
+    (** [produce_stream] is the producer of stream proofs. *)
+
+    val verify_stream : (stream_proof, 'a) verifier
+    (** [verify_stream] is the verifier of stream proofs. *)
   end
 
   (** {1 Reads} *)

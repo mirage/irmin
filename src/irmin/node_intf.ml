@@ -201,7 +201,12 @@ module type Portable = sig
   (** The type for proof trees. *)
 
   val to_proof : t -> proof
+
   val of_proof : depth:int -> proof -> t option
+  (** [of_proof ~depth p] is [None] if [p] is corrupted or incompatible with
+      [depth]. It is [Some t] when [t] is a node if the operation succeeded.
+
+      [hash_exn t] never raises [Not_found] *)
 end
 
 open struct
