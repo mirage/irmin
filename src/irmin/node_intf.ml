@@ -360,6 +360,7 @@ module type Sigs = sig
   module Generic_key : sig
     module type S = S_generic_key
     module type Maker = Maker_generic_key
+    module type Core = Core
 
     module Make : Maker
 

@@ -1011,6 +1011,7 @@ module Make (S : Generic_key) = struct
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value"
+        | `Node `Portable_dirty -> Fmt.string ppf "portable_dirty"
         | `Node `Pruned -> Fmt.string ppf "pruned")
       ( = )
 
