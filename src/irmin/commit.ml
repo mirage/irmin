@@ -39,6 +39,8 @@ module Maker_generic_key (I : Info.S) = struct
     type t = { node : node_key; parents : commit_key list; info : Info.t }
     [@@deriving irmin]
 
+    type t_not_prefixed = t [@@deriving irmin]
+
     let pre_hash = Type.(unstage (pre_hash t))
 
     (* Manually add a prefix to default commits, in order to prevent hash
@@ -87,6 +89,25 @@ module Maker_generic_key (I : Info.S) = struct
         let node = N.to_hash node in
         let parents = List.map C.to_hash parents in
         { node; parents; info }
+    end
+  end
+
+  module Make_v2
+      (H : Type.S)
+      (N : Key.S with type hash = H.t)
+      (C : Key.S with type hash = H.t) =
+  struct
+    include Make (H) (N) (C)
+
+    type t = t_not_prefixed [@@deriving irmin]
+
+    module Portable = struct
+      include (
+        Portable :
+          Portable
+            with type hash = hash
+             and type commit = t
+             and module Info = Info)
     end
   end
 end

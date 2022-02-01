@@ -100,8 +100,21 @@ end
 
 module V1_maker = Irmin_pack.Maker (Small_conf)
 module V2_maker = Irmin_pack.Maker (Conf)
-module V1 () = V1_maker.Make (Schema)
-module V2 () = V2_maker.Make (Schema)
+
+module Schema_v2 = struct
+  open Irmin
+  module Metadata = Metadata.None
+  module Contents = Contents.String_v2
+  module Path = Path.String_list
+  module Branch = Branch.String
+  module Hash = Hash.SHA1
+  module Node = Node.Generic_key.Make_v2 (Hash) (Path) (Metadata)
+  module Commit = Commit.Generic_key.Make_v2 (Hash)
+  module Info = Info.Default
+end
+
+module V1 () = V1_maker.Make (Schema_v2)
+module V2 () = V2_maker.Make (Schema_v2)
 
 module Test_store = struct
   module S = V2 ()

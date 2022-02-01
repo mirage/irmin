@@ -369,6 +369,10 @@ module type Sigs = sig
 
     module Make : Maker
 
+    module Make_v2 : Maker
+    (** [Make_v2] provides a similar implementation as [Make] but the hash
+        computation is compatible with versions older than irmin.3.0 *)
+
     module Store
         (C : Contents.Store)
         (S : Indexable.S)

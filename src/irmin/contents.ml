@@ -190,6 +190,12 @@ module Json = struct
     Merge.(option (alist Type.string Json_value.t (fun _ -> Json_value.merge)))
 end
 
+module String_v2 = struct
+  type t = string [@@deriving irmin]
+
+  let merge = Merge.idempotent Type.(option string)
+end
+
 module String = struct
   type t = string [@@deriving irmin]
 

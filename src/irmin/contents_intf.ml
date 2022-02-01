@@ -54,6 +54,10 @@ module type Sigs = sig
       merge strategy: assume that update operations are idempotent and conflict
       iff values are modified concurrently. *)
 
+  module String_v2 : S with type t = string
+  (** Similar to [String] above, but the hash computation is compatible with
+      versions older than irmin.3.0 *)
+
   type json =
     [ `Null
     | `Bool of bool
