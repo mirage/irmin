@@ -6,6 +6,9 @@
   - Fix the implementation of comparison on `Irmin.Tree` objects to use the
     comparison defined on hashes. The previous implementation was unstable.
     (#1519, @CraigFe)
+  - Default implementation for contents, nodes and commits can no longer trigger
+    pre_hash collisions. This changes their hash. (#1715, @Ngoguey42,
+    @icristescu)
 
  - **irmin-pack**
    - Improved the performance of Index encode and decode operations by
@@ -35,6 +38,9 @@
     (#TODO, @Ngoguey42) Forward ported from #1741.
   - Add a `Store.Tree.kinded_hash` function. (#1767, @Ngoguey) Forward ported
     from #1625.
+  - Add `Contents.String_v2`, `Node.Generic_key.Make_v2` and
+    `Commit.Generic_key.Make_v2` for backward compatibility with older stores.
+    (#1715, @icristescu)
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
