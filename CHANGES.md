@@ -1,4 +1,16 @@
-## Unreleased
+## 2.10.2 (2021-02-02)
+
+## Fixed
+
+- *irmin*
+  - Fixed a bug causing stream proof extender nodes to have their segments be
+    returned in reverse order (i.e. bottom to top, rather then top-down).
+    (#1742, @CraigFe)
+
+  - Fixed a bug that allowed the creation of overly-large stable inodes via
+    stream proofs. (#1741, @Ngoguey42)
+
+## Added
 
 - *irmin*
   - Add `Store.Private.Node.Val.hash_exn` (#1741, @Ngoguey42)
