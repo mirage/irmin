@@ -133,7 +133,8 @@
     (#1510 #1647, @CraigFe)
   - Cache hits in several `Tree` functions are more frequent than before.
     (#1724, @Ngoguey42, @CraigFe)
-
+  - Add a new `Pruned_hash` tag to the error case of several `Store.Tree`
+    functions (#1744 @Ngoguey42). Forward ported from #1583.
 
 - **irmin-containers**
   - Removed `Irmin_containers.Store_maker`; this is now equivalent to
