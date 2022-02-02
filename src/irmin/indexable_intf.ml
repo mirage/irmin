@@ -65,7 +65,6 @@ module type S = sig
       values they reference. *)
 
   include S_without_key_impl (* @inline *)
-
   module Key : Key.S with type t = key and type hash = hash
 end
 

@@ -197,8 +197,7 @@ let test_empty _ () =
           Store.save_tree repo c n empty_exported >|= ignore)
     in
     Alcotest.(check inspect)
-      "The exported empty tree is now in Key form"
-      (`Node `Key)
+      "The exported empty tree is now in Key form" (`Node `Key)
       (Tree.inspect empty_exported);
     Alcotest.(check inspect)
       "The non-exported empty tree should still be represented as a Map"
@@ -769,14 +768,10 @@ let test_kind_empty_path _ () =
   let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
   let* k = Tree.kind cont [] in
   Alcotest.(check (option (gtestable kind_t)))
-    "Kind of empty path in content"
-    (Some `Contents)
-    k;
+    "Kind of empty path in content" (Some `Contents) k;
   let* k = Tree.kind tree [] in
   Alcotest.(check (option (gtestable kind_t)))
-    "Kind of empty path in tree"
-    (Some `Node)
-    k;
+    "Kind of empty path in tree" (Some `Node) k;
   Lwt.return_unit
 
 let test_generic_equality _ () =
