@@ -123,6 +123,7 @@ struct
       set : unit Hashes.t;
       singleton_inodes : (int * H.t) Hashes.t;
       rev_elts : (H.t * P.elt) list ref;
+      rev_elts_size : int ref;
     }
     [@@deriving irmin]
 
@@ -139,7 +140,24 @@ struct
       let set = Hashes.create 13 in
       let singleton_inodes = Hashes.create 13 in
       let rev_elts = ref [] in
-      Produce { set; singleton_inodes; rev_elts }
+      let rev_elts_size = ref 0 in
+      Produce { set; singleton_inodes; rev_elts; rev_elts_size }
+
+    let list_insert l idx v =
+      (* [list_insert l 0 v] is [v :: l] *)
+      assert (idx >= 0);
+      let rec aux l i acc =
+        if i = 0 then List.rev_append acc (v :: l)
+        else
+          match l with
+          | [] -> failwith "list_insert: input list too short"
+          | hd :: tl -> aux tl (i - 1) (hd :: acc)
+      in
+      aux l idx []
+
+    let push { rev_elts; rev_elts_size; _ } h_elt index =
+      incr rev_elts_size;
+      rev_elts := list_insert !rev_elts index h_elt
   end
 
   type v = Empty | Set of Set.t | Stream of Stream.t [@@deriving irmin]
@@ -277,7 +295,6 @@ struct
     res
 
   module Contents_hash = Hash.Typed (H) (C)
-  module Node_hash = Hash.Typed (H) (N)
 
   let bad_stream_exn s fmt = Fmt.kstr (bad_stream_exn ("Proof.Env." ^ s)) fmt
 
@@ -288,12 +305,26 @@ struct
         pp_hash h
 
   let check_node_integrity v h =
-    let h' = Node_hash.hash v in
+    let h' =
+      try N.hash_exn ~force:false v
+      with Not_found ->
+        (* [v] is out of [of_proof], it is supposed to have its hash available
+           without IOs.
+
+           If these IOs were to occur, it would corrupt the stream being read.
+        *)
+        assert false
+    in
     if not (equal_hash h' h) then
       bad_stream_exn "check_node_integrity" "got %a expected %a" pp_hash h'
         pp_hash h
 
   let dehydrate_stream_node v =
+    (* [v] is fresh out of the node store, meaning that if it is represented
+       recursively it is still in a shallow state.
+
+       [N.head v] might trigger IOs. These will be recorded because [v] is
+       already wrapped with [with_handler]. *)
     match N.head v with
     | `Node l -> P.Node l
     | `Inode (length, proofs) -> P.Inode { length; proofs }
@@ -405,12 +436,12 @@ struct
     | Set { mode = Consume; _ } ->
         (* This phase has no repo pointer *)
         assert false
-    | Stream (Produce { set; rev_elts; _ }) ->
+    | Stream (Produce ({ set; _ } as cache)) ->
         (* Registering when seen for the first time *)
         if not @@ Hashes.mem set h then (
           Hashes.add set h ();
-          let elt : hash * P.elt = (h, Contents v) in
-          rev_elts := elt :: !rev_elts)
+          let h_elt : hash * P.elt = (h, Contents v) in
+          Stream.push cache h_elt 0)
     | Stream (Consume _) ->
         (* This phase has no repo pointer *)
         assert false
@@ -463,13 +494,15 @@ struct
         (* This phase only fills the env, it should search for anything *)
         assert false
     | Set { mode = Consume; set } ->
-        (* Use the Env to feed the values during consume *)
+        (* [set] has been filled during deserialise. Using it to provide values
+           during consume. *)
         Hashes.find_opt set.nodes h
     | Stream (Produce _) ->
         (* There is no need for sharing with stream proofs *)
         None
     | Stream (Consume { nodes; stream; _ }) -> (
-        (* Use the Env to feed the values during consume *)
+        (* Use the Env to provide the values during consume. Since all hashes
+           are unique in [stream], [nodes] provides a hash-based sharing. *)
         match Hashes.find_opt nodes h with
         | Some v -> Some v
         | None -> (
@@ -478,18 +511,33 @@ struct
                 bad_stream_exn "find_node"
                   "empty stream when looking for hash %a" pp_hash h
             | Cons (v, rest) ->
-                (* [depth] is 0 because this context deals with root nodes *)
-                let v = rehydrate_stream_node ~depth:0 v h in
-                let v = N.with_handler (find_recnode t) v in
-                check_node_integrity v h;
+                (* Shorten [stream] before calling [head] as it might itself
+                   perform reads. *)
                 stream := rest;
+                let v =
+                  (* [depth] is 0 because this context deals with root nodes *)
+                  rehydrate_stream_node ~depth:0 v h
+                in
+                let v =
+                  (* Call [with_handler] before [head] because the later might
+                     perform reads *)
+                  N.with_handler (find_recnode t) v
+                in
+                let (_ : [ `Node of _ | `Inode of _ ]) =
+                  (* At produce time [dehydrate_stream_node] called [head] which
+                     might have performed IOs. If it did then we must consume
+                     the stream accordingly right now in order to preserve
+                     stream ordering. *)
+                  N.head v
+                in
+                check_node_integrity v h;
                 Hashes.add nodes h v;
                 Some v))
 
   let add_recnode_from_store t find ~expected_depth h =
     assert (expected_depth > 0);
     match !t with
-    | Stream (Produce { set; rev_elts; singleton_inodes }) -> (
+    | Stream (Produce ({ set; singleton_inodes; _ } as cache)) -> (
         (* Registering when seen for the first time, there is no need
            for sharing. *)
         match find ~expected_depth h with
@@ -504,7 +552,7 @@ struct
                     Hashes.add singleton_inodes h bucket
                 | _ -> ()
               in
-              rev_elts := (h, elt) :: !rev_elts);
+              Stream.push cache (h, elt) 0);
             Some v)
     | _ -> assert false
 
@@ -513,7 +561,8 @@ struct
     | Empty -> v
     | Set { mode = Produce; set } ->
         (* Registering in [set] for sharing during [Produce] and traversal
-           during [Serialise]. *)
+           during [Serialise]. This assertion is guarenteed because
+           [add_node_from_store] is guarded by a call to [find_node] in tree. *)
         assert (not (Hashes.mem set.nodes h));
         Hashes.add set.nodes h v;
         v
@@ -526,20 +575,40 @@ struct
     | Set { mode = Consume; _ } ->
         (* This phase has no repo pointer *)
         assert false
-    | Stream (Produce { set; rev_elts; singleton_inodes }) ->
+    | Stream (Produce ({ set; rev_elts_size; singleton_inodes; _ } as cache)) ->
         (* Registering when seen for the first time and wrap its [find]
-           function. *)
-        if not @@ Hashes.mem set h then (
+           function. Since there is no sharing during the production of
+           streamed proofs, the hash may already have been seened. *)
+        let new_hash = not @@ Hashes.mem set h in
+        let v =
+          (* In all case [v] should be wrapped.
+
+             If [not new_hash] then wrap it for future IOs on it.
+
+             If [new_hash] then it additionally should be wrapped before
+             calling [dehydrate_stream_node] as this call may trigger IOs. *)
+          N.with_handler (add_recnode_from_store t) v
+        in
+        if new_hash then (
           Hashes.add set h ();
+          let len0 = !rev_elts_size in
           let elt = dehydrate_stream_node v in
+          let len1 = !rev_elts_size in
+          let delta =
+            (* [delta] is the number of reads that were performed by
+               [dehydrate_stream_node]. *)
+            len1 - len0
+          in
           let () =
             match elt with
             | Inode { proofs = [ bucket ]; _ } ->
                 Hashes.add singleton_inodes h bucket
             | _ -> ()
           in
-          rev_elts := (h, elt) :: !rev_elts);
-        let v = N.with_handler (add_recnode_from_store t) v in
+          (* if [delta = 0] then push the pair at the head of the list.
+
+             if [delta > 0] then insert it before the calls that it triggered. *)
+          Stream.push cache (h, elt) delta);
         v
     | Stream (Consume _) ->
         (* This phase has no repo pointer *)

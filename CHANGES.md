@@ -1,3 +1,8 @@
+## Unreleased
+
+- *irmin*
+  - Add `Store.Private.Node.Val.hash_exn` (#1741, @Ngoguey42)
+
 ## 2.10.1 (2021-01-20)
 
 ### Fixed

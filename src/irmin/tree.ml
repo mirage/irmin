@@ -1884,7 +1884,10 @@ module Make (P : Private.S) = struct
       match to_value node with
       | Error (`Dangling_hash h) -> k (Blinded_node h)
       | Error (`Pruned_hash h) -> k (Blinded_node h)
-      | Ok v -> proof_of_node_proof node (P.Node.Val.to_proof v) k
+      | Ok v ->
+          (* [to_proof] may trigger reads. This is fine. *)
+          let node_proof = P.Node.Val.to_proof v in
+          proof_of_node_proof node node_proof k
 
     (** [of_node_proof n np] is [p] (of type [Tree.Proof.t]) which is very
         similar to [np] (of type [P.Node.Val.proof]) except that the values

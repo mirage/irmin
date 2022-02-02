@@ -31,7 +31,7 @@ module No_metadata = struct
 end
 
 module Make
-    (K : Type.S) (P : sig
+    (K : Hash.S) (P : sig
       type step [@@deriving irmin]
     end)
     (M : METADATA) =
@@ -125,6 +125,15 @@ struct
   let of_entries e = of_list (List.rev_map of_entry e)
   let entries e = List.rev_map (fun (_, e) -> e) (StepMap.bindings e)
   let t = Type.map Type.(list entry_t) of_entries entries
+
+  module Ht =
+    Hash.Typed
+      (K)
+      (struct
+        type nonrec t = t [@@deriving irmin]
+      end)
+
+  let hash_exn ?force:_ = Ht.hash
 
   type proof =
     [ `Blinded of hash
@@ -448,6 +457,7 @@ module V1 (N : S with type step = string) = struct
   let empty = { n = N.empty; entries = [] }
   let is_empty t = t.entries = []
   let length e = N.length e.n
+  let hash_exn ?force e = N.hash_exn ?force e.n
   let clear _ = ()
   let default = N.default
   let find ?cache t k = N.find ?cache t.n k

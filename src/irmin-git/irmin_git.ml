@@ -349,6 +349,15 @@ struct
       let t =
         Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) N.t of_n to_n
 
+      module Ht =
+        Irmin.Hash.Typed
+          (H)
+          (struct
+            type nonrec t = t [@@deriving irmin]
+          end)
+
+      let hash_exn ?force:_ = Ht.hash
+
       type proof = N.proof [@@deriving irmin]
 
       let to_proof t = N.to_proof (to_n t)

@@ -47,7 +47,7 @@ struct
         let v = Val.of_raw find v in
         Some v
 
-  let hash v = Val.hash v
+  let hash v = Val.hash_exn v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =

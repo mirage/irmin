@@ -690,6 +690,7 @@ struct
         | `Unsorted_entries of t
         | `Unsorted_pointers of t
         | `Blinded_root
+        | `Too_large_values of t
         | `Empty ]
       [@@deriving irmin]
 
@@ -726,6 +727,9 @@ struct
         | `Unsorted_pointers t ->
             Fmt.pf ppf "pointers should be sorted: %a" pp t
         | `Blinded_root -> Fmt.pf ppf "blinded root"
+        | `Too_large_values t ->
+            Fmt.pf ppf "A Values should have at most Conf.entries elements: %a"
+              pp t
         | `Empty -> Fmt.pf ppf "concrete subtrees cannot be empty"
     end
 
@@ -773,6 +777,7 @@ struct
     exception Unsorted_entries of Concrete.t
     exception Unsorted_pointers of Concrete.t
     exception Blinded_root
+    exception Too_large_values of Concrete.t
 
     let hash_equal = Irmin.Type.(unstage (equal hash_t))
 
@@ -786,7 +791,9 @@ struct
       let check_entries t es =
         if es = [] then raise Empty;
         let s = sort_entries es in
-        if List.length s <> List.length es then raise (Duplicated_entries t);
+        if List.compare_length_with es Conf.entries > 0 then
+          raise (Too_large_values t);
+        if List.compare_lengths s es <> 0 then raise (Duplicated_entries t);
         if s <> es then raise (Unsorted_entries t)
       in
       let check_pointers t ps =
@@ -834,6 +841,7 @@ struct
       in
       let length = length_of_v v in
       let stable, hash =
+        (* [hash] may call [find], even if some branches are blinded *)
         if length > Conf.stable_hash || depth > 0 then (false, hash v)
         else
           let node = Node.of_seq (seq_v la v) in
@@ -851,9 +859,14 @@ struct
       | Duplicated_pointers t -> Error (`Duplicated_pointers t)
       | Unsorted_entries t -> Error (`Unsorted_entries t)
       | Unsorted_pointers t -> Error (`Unsorted_pointers t)
+      | Too_large_values t -> Error (`Too_large_values t)
       | Blinded_root -> Error `Blinded_root
 
     let hash t = Lazy.force t.hash
+
+    let hash_exn ?(force = true) t =
+      if force = false && (not @@ Lazy.is_val t.hash) then raise Not_found
+      else Lazy.force t.hash
 
     let is_root t =
       match t.v with
@@ -1216,6 +1229,7 @@ struct
         match proof with
         | `Blinded h -> k h Concrete.Blinded
         | `Values vs ->
+            assert (List.compare_length_with vs Conf.entries <= 0);
             let hash = hash_values ~depth vs in
             let c = Concrete.Values (List.map Concrete.to_entry vs) in
             k hash c
@@ -1262,9 +1276,45 @@ struct
         in
         proof_of_concrete t.hash p
 
-      let of_proof la ~depth (proof : proof) =
-        let c = concrete_of_proof ~depth proof in
-        match of_concrete ~depth la c with Ok v -> Some v | Error _ -> None
+      let of_proof (Partial _ as la) ~depth (proof : proof) =
+        match proof with
+        | `Values vs when List.compare_length_with vs Conf.entries > 0 -> (
+            if depth <> 0 then None
+            else
+              (* [proof] is a big stable inode that was unshallowed and encoded
+                 in a [Values], it needs to be converted back to a [Tree]
+                 shallowed. *)
+              let t = of_seq Total (List.to_seq vs) in
+              let hash =
+                (* Compute the hash right away (not lazily) to allow for a
+                   quicker garbage collection of [t]. *)
+                let x = hash t in
+                lazy x
+              in
+              match t.v with
+              | Values _ -> assert false
+              | Tree { depth; length; entries } ->
+                  let entries =
+                    Array.map
+                      (function
+                        | None -> None
+                        | Some (Total_ptr ptr) ->
+                            let hash = Lazy.force ptr.hash in
+                            let ptr =
+                              (* [la] is Partial, no risk of fail*)
+                              Ptr.of_hash la hash
+                            in
+                            Some ptr)
+                      entries
+                  in
+                  let v = Tree { depth; length; entries } in
+                  let t = { hash; v; stable = true } in
+                  Some t)
+        | _ -> (
+            let c = concrete_of_proof ~depth proof in
+            match of_concrete la ~depth c with
+            | Ok v -> Some v
+            | Error _ -> None)
 
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof ~depth:0
@@ -1452,14 +1502,17 @@ struct
           let bin = apply x { f = (fun layout v -> I.to_bin layout v) } in
           pre_hash_binv bin.v
         else
-          let vs = seq x in
+          let vs =
+            (* If [x] is shallow, this [seq] call will perform IOs. *)
+            seq x
+          in
           pre_hash_node (Node.of_seq vs)
       in
       Irmin.Type.map ~pre_hash Bin.t
         (fun bin -> Truncated (I.of_bin I.Truncated bin))
         (fun x -> apply x { f = (fun layout v -> I.to_bin layout v) })
 
-    let hash t = apply t { f = (fun _ v -> I.hash v) }
+    let hash_exn ?force t = apply t { f = (fun _ v -> I.hash_exn ?force v) }
 
     let save ~add ~mem t =
       let f layout v =
@@ -1621,11 +1674,11 @@ struct
     in
     Val.save ~add ~mem:(Pack.unsafe_mem t) v
 
-  let hash v = Val.hash v
+  let hash_exn = Val.hash_exn
 
   let add t v =
     save t v;
-    Lwt.return (hash v)
+    Lwt.return (hash_exn v)
 
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
@@ -1636,7 +1689,7 @@ struct
         expected Inter.pp_hash got
 
   let unsafe_add t k v =
-    check_hash k (hash v);
+    check_hash k (hash_exn v);
     save t v;
     Lwt.return_unit
 
