@@ -159,11 +159,11 @@ struct
         | None -> Some [ (i', h') ]
         | Some l -> Some ((i', h') :: l))
 
-  let rec extenders (indexes, h) = function
-    | (i', h') :: rest -> extenders (i' :: indexes, h') rest
-    | [] -> (indexes, h)
-
   let apply_extenders ~length singleton_inodes skips proofs =
+    let rec accumulate_segments ~(acc : int Reversed_list.t) h = function
+      | [] -> (Reversed_list.rev acc, h)
+      | (i', h') :: rest -> accumulate_segments ~acc:(i' :: acc) h' rest
+    in
     let inode = P.Inode { length; proofs } in
     match proofs with
     | [ (i, h) ] -> (
@@ -176,7 +176,7 @@ struct
               | [] | [ _ ] -> failwith "idk"
               | _ :: tl -> List.iter (fun (_, h) -> Hashes.add skips h ()) tl
             in
-            let i, h = extenders ([ i ], h) ls in
+            let i, h = accumulate_segments ~acc:[ i ] h ls in
             match i with
             | [] | [ _ ] -> assert false
             | segments -> P.Inode_extender { length; segments; proof = h }))

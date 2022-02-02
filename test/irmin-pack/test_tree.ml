@@ -382,9 +382,10 @@ let check_contents_hash h s =
       let s' = Irmin.Type.(to_string Hash.t) h in
       Alcotest.(check string) "check hash" s s'
 
-let bindings = [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
-
 let test_extenders () =
+  let bindings =
+    [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
+  in
   let bindings2 = ([ "10000" ], "x1") :: bindings in
   let bindings3 = ([ "10001" ], "y") :: bindings2 in
 
@@ -419,14 +420,18 @@ let test_extenders () =
   Lwt_list.iter_s check_stream [ bindings; bindings2; bindings3 ]
 
 let test_hardcoded_stream () =
+  let bindings =
+    [ ([ "00100" ], "x"); ([ "00101" ], "y"); ([ "00110" ], "z") ]
+  in
   let fail elt =
     Alcotest.failf "Unexpected elt in stream %a" (Irmin.Type.pp P.elt_t) elt
   in
   let* ctxt = Custom.init_tree bindings in
   let hash = `Node (Custom.Tree.hash ctxt.tree) in
   let f t =
-    let+ v = Custom.Tree.get t [ "00000" ] in
-    Alcotest.(check string) "00000" "x" v;
+    let path = [ "00100" ] in
+    let+ v = Custom.Tree.get t path in
+    Alcotest.(check ~pos:__POS__ string) "" (List.assoc path bindings) v;
     (t, ())
   in
   let* p, () = Custom.Tree.produce_stream ctxt.repo hash f in
@@ -437,19 +442,19 @@ let test_hardcoded_stream () =
       (match !counter with
       | 0 -> (
           match elt with
-          | P.Inode_extender { length; segments = [ 0; 0; 0 ]; proof = h }
+          | P.Inode_extender { length; segments = [ 0; 0; 1 ]; proof = h }
             when length = 3 ->
-              check_hash h "77f92acef70dd91a9f5b260dc0bf249e6644d76b"
+              check_hash h "25c1a3d3bb7e5124cf61954851d0c9ccf5113d4e"
           | _ -> fail elt)
       | 1 -> (
           match elt with
           | P.Inode { length; proofs = [ (0, h1); (1, h0) ] } when length = 3 ->
-              check_hash h0 "4295267989ab4c4a036eb78f0610a57042e2b49f";
-              check_hash h1 "59fcb82bd392247a02237c716df77df35e885699"
+              check_hash h0 "8410f4d1be1d571f0d63638927d42c7c1c6f3df1";
+              check_hash h1 "580c8955c438ca5b1f94d2f4eb712a85e2634b70"
           | _ -> fail elt)
       | 2 -> (
           match elt with
-          | P.Node [ ("00000", h0); ("00001", h1) ] ->
+          | P.Node [ ("00100", h0); ("00101", h1) ] ->
               check_contents_hash h0 "11f6ad8ec52a2984abaafd7c3b516503785c2072";
               check_contents_hash h1 "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
           | _ -> fail elt)
@@ -461,6 +466,9 @@ let test_hardcoded_stream () =
   Lwt.return_unit
 
 let test_hardcoded_proof () =
+  let bindings =
+    [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
+  in
   let fail_with_tree elt =
     Alcotest.failf "Unexpected elt in proof %a" (Irmin.Type.pp P.tree_t) elt
   in
