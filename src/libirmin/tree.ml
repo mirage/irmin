@@ -5,43 +5,40 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_new"
       (repo @-> returning tree)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_tree (module Store) (Store.Tree.empty ()))
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_tree (module Store) (Store.Tree.empty ())))
 
   let () =
     fn "tree_of_contents"
       (repo @-> contents @-> metadata @-> returning tree)
       (fun (type repo) repo value metadata ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        let metadata =
-          if is_null metadata then None
-          else Some (Root.get_metadata (module Store) metadata)
-        in
-        let value = Root.get_contents (module Store) value in
-        Root.create_tree (module Store) (Store.Tree.of_contents ?metadata value))
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            let metadata =
+              if is_null metadata then None
+              else Some (Root.get_metadata (module Store) metadata)
+            in
+            let value = Root.get_contents (module Store) value in
+            Root.create_tree
+              (module Store)
+              (Store.Tree.of_contents ?metadata value)))
 
   let () =
     fn "tree_clone"
       (repo @-> tree @-> returning tree)
-      (fun (type repo) repo tree ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        let tree : Store.tree = Root.get_tree (module Store) tree in
-        Root.create_tree (module Store) tree)
+      (fun (type repo) repo tr ->
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            let tree : Store.tree = Root.get_tree (module Store) tr in
+            Root.create_tree (module Store) tree))
 
   let () =
     fn "tree_hash"
       (repo @-> tree @-> returning hash)
       (fun (type repo) repo tree ->
-        catch' hash (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo hash
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let k = Store.Tree.hash tree in
             Root.create_hash (module Store) k))
@@ -50,23 +47,21 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_of_hash"
       (repo @-> hash @-> returning tree)
       (fun (type repo) repo k ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), repo =
-          Root.get_repo repo
-        in
-        let k = Root.get_hash (module Store) k in
-        let t = run (Store.Tree.of_hash repo (`Node k)) in
-        match t with
-        | Some t -> Root.create_tree (module Store) t
-        | None -> null tree)
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
+            let k = Root.get_hash (module Store) k in
+            let t = run (Store.Tree.of_hash repo (`Node k)) in
+            match t with
+            | Some t -> Root.create_tree (module Store) t
+            | None -> null tree))
 
   let () =
     fn "tree_key"
       (repo @-> tree @-> returning kinded_key)
       (fun (type repo) repo tree ->
-        catch' kinded_key (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo kinded_key
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let k = Store.Tree.key tree in
             match k with
@@ -77,23 +72,21 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_of_key"
       (repo @-> kinded_key @-> returning tree)
       (fun (type repo) repo k ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), repo =
-          Root.get_repo repo
-        in
-        let k = Root.get_kinded_key (module Store) k in
-        let t = run (Store.Tree.of_key repo k) in
-        match t with
-        | Some t -> Root.create_tree (module Store) t
-        | None -> null tree)
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
+            let k = Root.get_kinded_key (module Store) k in
+            let t = run (Store.Tree.of_key repo k) in
+            match t with
+            | Some t -> Root.create_tree (module Store) t
+            | None -> null tree))
 
   let () =
     fn "tree_mem"
       (repo @-> tree @-> path @-> returning bool)
       (fun (type repo) repo tree path ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             run (Store.Tree.mem tree path)))
@@ -102,10 +95,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_mem_tree"
       (repo @-> tree @-> path @-> returning bool)
       (fun (type repo) repo tree path ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             run (Store.Tree.mem_tree tree path)))
@@ -114,10 +105,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_find"
       (repo @-> tree @-> path @-> returning contents)
       (fun (type repo) repo tree path ->
-        catch' contents (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo contents
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             match run (Store.Tree.find tree path) with
@@ -128,10 +117,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_find_metadata"
       (repo @-> tree @-> path @-> returning metadata)
       (fun (type repo) repo tree path ->
-        catch' metadata (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo metadata
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             match run (Store.Tree.find_all tree path) with
@@ -142,10 +129,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_find_tree"
       (repo @-> tree @-> path @-> returning tree)
       (fun (type repo) repo t path ->
-        catch' tree (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let t : Store.tree = Root.get_tree (module Store) t in
             let path : Store.path = Root.get_path (module Store) path in
             match run (Store.Tree.find_tree t path) with
@@ -156,10 +141,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_add"
       (repo @-> tree @-> path @-> contents @-> metadata @-> returning bool)
       (fun (type repo) repo tree path value metadata ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             let value : Store.contents =
@@ -177,10 +160,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_add_tree"
       (repo @-> tree @-> path @-> tree @-> returning bool)
       (fun (type repo) repo tree path tr ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             let value : Store.tree = Root.get_tree (module Store) tr in
@@ -192,10 +173,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_remove"
       (repo @-> tree @-> path @-> returning bool)
       (fun (type repo) repo tree path ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             let t = run (Store.Tree.remove tree' path) in
@@ -206,21 +185,18 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "tree_equal"
       (repo @-> tree @-> tree @-> returning bool)
       (fun (type repo) repo a b ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        let a = Root.get_tree (module Store) a in
-        let b = Root.get_tree (module Store) b in
-        Irmin.Type.(unstage (equal Store.tree_t)) a b)
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            let a = Root.get_tree (module Store) a in
+            let b = Root.get_tree (module Store) b in
+            Irmin.Type.(unstage (equal Store.tree_t)) a b))
 
   let () =
     fn "tree_list"
       (repo @-> tree @-> path @-> returning path_array)
       (fun (type repo) repo tree path ->
-        catch' path_array (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo path_array
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             let items = run (Store.Tree.list tree path) in
@@ -231,10 +207,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "kinded_key_is_contents"
       (repo @-> kinded_key @-> returning bool)
       (fun (type repo) repo k ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let k = Root.get_kinded_key (module Store) k in
             match k with `Contents _ -> true | _ -> false))
 
@@ -242,10 +216,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "kinded_key_is_node"
       (repo @-> kinded_key @-> returning bool)
       (fun (type repo) repo k ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let k = Root.get_kinded_key (module Store) k in
             match k with `Node _ -> true | _ -> false))
 

@@ -1,6 +1,3 @@
-let error_msg : string option ref = ref None
-let error_lock = Mutex.create ()
-
 module Make (I : Cstubs_inverted.INTERNAL) = struct
   include Ctypes
   include Types
@@ -11,35 +8,10 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let type_name x = Fmt.to_to_string Irmin.Type.pp_ty x
 
-  let update_error_msg x =
-    Mutex.lock error_lock;
-    error_msg := x;
-    Mutex.unlock error_lock
-
-  (* Handle errors and set error function, returns [return] if an exception is raised *)
-  let catch return f =
-    try
-      let () = update_error_msg None in
-      f ()
-    with
-    | Failure msg ->
-        let () = update_error_msg (Some msg) in
-        return
-    | exn ->
-        let () = update_error_msg @@ Some (Printexc.to_string exn) in
-        return
-    [@@inline]
-
-  let null t = Ctypes.coerce (ptr void) t null
-
-  (* Similar to catch but returns a null pointer *)
-  let catch' t f = catch (null t) f
-
   (* Generic free function for all rooted values *)
   let free x =
     let ptr = Ctypes.to_voidp x in
-    if not (is_null ptr) then
-      (fun x -> catch () (fun () -> Ctypes.Root.release x)) ptr
+    if not (is_null ptr) then (fun x -> Ctypes.Root.release x) ptr
 
   let strlen ptr =
     if is_null ptr then 0
@@ -251,4 +223,42 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         Struct.commit_array ptr =
       Root.create (Array.of_list x) |> of_voidp commit_array
   end
+
+  (* Handle errors and set error function, returns [return] if an exception is raised *)
+  let with_repo (repo : Struct.repo ptr) return f =
+    let repo = Root.get_repo repo in
+    try
+      repo.error <- None;
+      f repo.repo_mod repo.repo
+    with
+    | Failure msg ->
+        repo.error <- Some msg;
+        return
+    | exn ->
+        repo.error <- Some (Printexc.to_string exn);
+        return
+    [@@inline]
+
+  let null t = Ctypes.coerce (ptr void) t null
+
+  (* Similar to [with_repo] but returns a null pointer *)
+  let with_repo' (repo : Struct.repo ptr) t f = with_repo repo (null t) f
+
+  let with_store (store : Struct.store ptr) return f =
+    let store = Root.get_store store in
+    let ctx = Root.get_repo (Root.of_voidp repo store.repo) in
+    try
+      ctx.error <- None;
+      f store.store_mod store.store
+    with
+    | Failure msg ->
+        ctx.error <- Some msg;
+        return
+    | exn ->
+        ctx.error <- Some (Printexc.to_string exn);
+        return
+    [@@inline]
+
+  (* Similar to [with_store] but returns a null pointer *)
+  let with_store' (store : Struct.store ptr) t f = with_store store (null t) f
 end

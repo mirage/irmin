@@ -1,8 +1,18 @@
 open Ctypes
 
 type config = Irmin_unix.Resolver.Store.t * Irmin.config
-type 'a repo = (module Irmin.Generic_key.S with type repo = 'a) * 'a
-type 'a store = (module Irmin.Generic_key.S with type t = 'a) * 'a
+
+type 'a repo = {
+  mutable error : string option;
+  repo_mod : (module Irmin.Generic_key.S with type repo = 'a);
+  repo : 'a;
+}
+
+type 'a store = {
+  repo : unit ptr;
+  store_mod : (module Irmin.Generic_key.S with type t = 'a);
+  store : 'a;
+}
 
 module type P = sig
   type config

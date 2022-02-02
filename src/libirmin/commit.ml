@@ -5,10 +5,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_info"
       (repo @-> commit @-> returning info)
       (fun (type repo) repo commit ->
-        catch' info (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo info
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let commit = Root.get_commit (module Store) commit in
             Root.create_info (module Store) (Store.Commit.info commit)))
 
@@ -16,10 +14,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_hash"
       (repo @-> commit @-> returning hash)
       (fun (type repo) repo commit ->
-        catch' hash (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo hash
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let commit = Root.get_commit (module Store) commit in
             Root.create_hash (module Store) (Store.Commit.hash commit)))
 
@@ -27,10 +23,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_key"
       (repo @-> commit @-> returning commit_key)
       (fun (type repo) repo commit ->
-        catch' commit_key (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo' repo commit_key
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let commit = Root.get_commit (module Store) commit in
             Root.create_commit_key (module Store) (Store.Commit.key commit)))
 
@@ -38,11 +32,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_of_hash"
       (repo @-> hash @-> returning commit)
       (fun (type repo) repo hash ->
-        catch' commit (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), repo
-                =
-              Root.get_repo repo
-            in
+        with_repo' repo commit
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
             let hash = Root.get_hash (module Store) hash in
             let c = run (Store.Commit.of_hash repo hash) in
             match c with
@@ -53,11 +45,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_of_key"
       (repo @-> commit_key @-> returning commit)
       (fun (type repo) repo hash ->
-        catch' commit (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), repo
-                =
-              Root.get_repo repo
-            in
+        with_repo' repo commit
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
             let hash = Root.get_commit_key (module Store) hash in
             let c = run (Store.Commit.of_key repo hash) in
             match c with
@@ -68,12 +58,10 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_new"
       (repo @-> ptr commit @-> uint64_t @-> tree @-> info @-> returning commit)
       (fun (type repo) repo parents n tree info ->
-        catch' commit (fun () ->
+        with_repo' repo commit
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
             let n = UInt64.to_int n in
-            let (module Store : Irmin.Generic_key.S with type repo = repo), repo
-                =
-              Root.get_repo repo
-            in
             let parents =
               if is_null parents || n = 0 then []
               else
@@ -88,15 +76,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             Root.create_commit (module Store) commit))
 
   let () =
+    let open Lwt.Infix in
     fn "commit_parents"
       (repo @-> commit @-> returning commit_array)
       (fun (type repo) repo commit ->
-        catch' commit_array (fun () ->
-            let open Lwt.Infix in
-            let (module Store : Irmin.Generic_key.S with type repo = repo), repo
-                =
-              Root.get_repo repo
-            in
+        with_repo' repo commit_array
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
             let commit = Root.get_commit (module Store) commit in
             let parents = Store.Commit.parents commit in
             let parents =
@@ -114,23 +100,28 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_equal"
       (repo @-> commit @-> commit @-> returning bool)
       (fun (type repo) repo a b ->
-        catch false (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), repo
-                =
-              Root.get_repo repo
-            in
+        with_repo repo false
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          ->
             let a = Root.get_commit (module Store) a in
             let b = Root.get_commit (module Store) b in
             Irmin.Type.(unstage (equal (Store.commit_t repo))) a b))
 
   let () =
+    fn "commit_tree"
+      (repo @-> commit @-> returning tree)
+      (fun (type repo) repo commit ->
+        with_repo' repo tree
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            let commit = Root.get_commit (module Store) commit in
+            Root.create_tree (module Store) (Store.Commit.tree commit)))
+
+  let () =
     fn "commit_array_length"
       (repo @-> commit_array @-> returning uint64_t)
       (fun (type repo) repo p ->
-        catch UInt64.zero (fun () ->
-            let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-              Root.get_repo repo
-            in
+        with_repo repo UInt64.zero
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let arr = Root.get_commit_array (module Store) p in
             UInt64.of_int (Array.length arr)))
 
@@ -138,15 +129,14 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "commit_array_get"
       (repo @-> commit_array @-> uint64_t @-> returning commit)
       (fun (type repo) repo p i ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        let i = UInt64.to_int i in
-        let arr = Root.get_commit_array (module Store) p in
-        if i >= Array.length arr then null commit
-        else
-          let x = Array.unsafe_get arr i in
-          Root.create_commit (module Store) x)
+        with_repo' repo commit
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            let i = UInt64.to_int i in
+            let arr = Root.get_commit_array (module Store) p in
+            if i >= Array.length arr then null commit
+            else
+              let x = Array.unsafe_get arr i in
+              Root.create_commit (module Store) x))
 
   let () = fn "commit_array_free" (commit_array @-> returning void) free
   let () = fn "commit_free" (commit @-> returning void) free

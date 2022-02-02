@@ -8,16 +8,11 @@
 TEST test_irmin_value_json(void) {
   AUTO IrminType *json = irmin_type_json();
   IrminValue *j1 = irmin_value_of_string(json, "{\"a\": 1}", -1);
-
-  IrminString *err0 = irmin_error_msg();
-  ASSERT_EQ(err0, NULL);
   ASSERT_NEQ(j1, NULL);
   irmin_value_free(j1);
 
   IrminValue *j2 = irmin_value_of_string(json, "{\"a\": 1", -1);
   ASSERT_EQ(j2, NULL);
-  AUTO IrminString *err = irmin_error_msg();
-  ASSERT_NEQ(err, NULL);
 
   PASS();
 }
@@ -135,6 +130,8 @@ TEST test_irmin_tree(void) {
 
   AUTO IrminType *ty1 = irmin_type_tree(repo);
   ASSERT(irmin_value_equal(ty1, (IrminValue *)tree1, (IrminValue *)tree2));
+
+  ASSERT_FALSE(irmin_repo_has_error(repo));
 
   PASS();
 }

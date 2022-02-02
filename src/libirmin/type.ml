@@ -66,91 +66,81 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "type_path"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.path_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.path_t))
 
   let () =
     fn "type_commit"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), repo =
-          Root.get_repo repo
-        in
-        Root.create_ty (Store.commit_t repo))
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
+          -> Root.create_ty (Store.commit_t repo)))
 
   let () =
     fn "type_metadata"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.metadata_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.metadata_t))
 
   let () =
     fn "type_tree"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.tree_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.tree_t))
 
   let () =
     fn "type_hash"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.hash_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.hash_t))
 
   let () =
     fn "type_commit_key"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.commit_key_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.commit_key_t))
 
   let () =
     fn "type_contents_key"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.contents_key_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.contents_key_t))
 
   let () =
     fn "type_node_key"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.node_key_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.node_key_t))
 
   let () =
     fn "type_kinded_key"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.Tree.kinded_key_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.Tree.kinded_key_t))
 
   let () =
     fn "type_contents"
       (repo @-> returning ty)
       (fun (type repo) repo ->
-        let (module Store : Irmin.Generic_key.S with type repo = repo), _ =
-          Root.get_repo repo
-        in
-        Root.create_ty Store.contents_t)
+        with_repo' repo ty
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            Root.create_ty Store.contents_t))
 
   let () =
     fn "type_pair"
