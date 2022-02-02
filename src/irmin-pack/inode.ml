@@ -1912,6 +1912,55 @@ struct
       let to_node t = of_seq (Node.seq t) in
       let of_node n = Node.of_seq (seq n) in
       Irmin.Merge.like t merge of_node to_node
+
+    let with_handler f_env t =
+      match t with
+      | Total _ -> t
+      | Truncated _ -> t
+      | Partial ((I.Partial find as la), v) ->
+          (* [f_env] works on [Val.t] while [find] in [Partial find] works on
+             [Val_impl.t], hence the following wrapping (before applying
+             [f_env]) and unwrapping (after [f_env]). *)
+          let find_v ~expected_depth h =
+            match find ~expected_depth h with
+            | None -> None
+            | Some v -> Some (Partial (la, v))
+          in
+          let find = f_env find_v in
+          let find_ptr ~expected_depth h =
+            match find ~expected_depth h with
+            | Some (Partial (_, v)) -> Some v
+            | _ -> None
+          in
+          let la = I.Partial find_ptr in
+          Partial (la, v)
+
+    let head t =
+      let f la (v : _ I.t) =
+        if Val_impl.is_stable v then
+          (* To preserve the stable hash, the proof needs to contain
+             all the underlying values. *)
+          let elts =
+            I.seq la v
+            |> List.of_seq
+            |> List.fast_sort (fun (x, _) (y, _) -> compare_step x y)
+          in
+          `Node elts
+        else
+          match v.v with
+          | I.Values n -> `Node (List.of_seq (StepMap.to_seq n))
+          | I.Tree v ->
+              let entries = ref [] in
+              for i = Array.length v.entries - 1 downto 0 do
+                match v.entries.(i) with
+                | None -> ()
+                | Some ptr ->
+                    let h = I.Ptr.val_ref la ptr |> Val_ref.to_hash in
+                    entries := (i, h) :: !entries
+              done;
+              `Inode (v.length, !entries)
+      in
+      apply t { f }
   end
 
   module Val = struct
@@ -1970,6 +2019,24 @@ struct
 
       let of_proof ~depth (p : proof) =
         Option.map (fun v -> Truncated v) (I.Proof.of_proof ~depth p)
+
+      type 'a find = expected_depth:int -> 'a -> t option
+
+      let with_handler : (hash find -> hash find) -> t -> t =
+        let to_hash : key find -> hash find =
+         fun find ~expected_depth h ->
+          find ~expected_depth (Key.unfindable_of_hash h)
+        in
+        let to_key : hash find -> key find =
+         fun find ~expected_depth k -> find ~expected_depth (Key.to_hash k)
+        in
+        fun f_env t ->
+          with_handler (fun find -> find |> to_hash |> f_env |> to_key) t
+
+      let head t =
+        match head t with
+        | `Inode _ as x -> x
+        | `Node l -> `Node (List.map Proof.weaken_step_value l)
     end
 
     let to_concrete t =
@@ -1979,53 +2046,6 @@ struct
       match I.of_concrete ~depth:0 t with
       | Ok t -> Ok (Truncated t)
       | Error _ as e -> e
-
-    let with_handler f_env t =
-      match t with
-      | Total _ -> t
-      | Truncated _ -> t
-      | Partial ((I.Partial find as la), v) ->
-          (* [f_env] works on [Val.t] while [find] in [Partial find] works on
-             [Val_impl.t], hence the following wrapping (before applying
-             [f_env]) and unwrapping (after [f_env]). *)
-          let find_v ~expected_depth h =
-            match find ~expected_depth h with
-            | None -> None
-            | Some v -> Some (Partial (la, v))
-          in
-          let find = f_env find_v in
-          let find_ptr ~expected_depth h =
-            match find ~expected_depth h with
-            | Some (Partial (_, v)) -> Some v
-            | _ -> None
-          in
-          let la = I.Partial find_ptr in
-          Partial (la, v)
-
-    let head t =
-      let f la (v : _ I.t) =
-        if Val_impl.is_stable v then
-          let elts =
-            I.seq la v
-            |> List.of_seq
-            |> List.fast_sort (fun (x, _) (y, _) -> compare_step x y)
-          in
-          `Node elts
-        else
-          match v.v with
-          | I.Values n -> `Node (List.of_seq (StepMap.to_seq n))
-          | I.Tree v ->
-              let entries = ref [] in
-              for i = Array.length v.entries - 1 downto 0 do
-                match v.entries.(i) with
-                | None -> ()
-                | Some ptr ->
-                    let h = I.Ptr.val_ref la ptr |> Val_ref.to_hash in
-                    entries := (i, h) :: !entries
-              done;
-              `Inode (v.length, !entries)
-      in
-      apply t { f }
   end
 end
 

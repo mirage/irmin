@@ -174,6 +174,7 @@ module type Internal = sig
         error. *)
 
     module Portable : sig
+      (* Extend to the portable signature *)
       include module type of Portable
 
       module Proof : sig
