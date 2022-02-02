@@ -31,6 +31,8 @@
     port of #1692 and #1670.
   - Add `proof`, `to_proof` and `of_proof` to `Store.Backend.Node_portable`
     (#1716, @Ngoguey42). Forward port from #1583.
+  - Add `hash_exn` to `Store.Backend.Node.Val` and `Store.Backend.Node_portable`
+    (#TODO, @Ngoguey42) Forward ported from #1741.
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

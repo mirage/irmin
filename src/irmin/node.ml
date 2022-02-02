@@ -73,6 +73,8 @@ module Of_core (S : Core) = struct
     Merge.like S.t merge explode implode
 end
 
+module Irmin_hash = Hash
+
 (* A [Make] implementation providing the subset of [S] that can be implemented
    over abstract [key] types. *)
 module Make_core
@@ -269,6 +271,15 @@ struct
     let (`Node l) = head_entries t in
     let l = List.map (fun (_, e) -> inspect_nonportable_entry_exn e) l in
     `Node l
+
+  module Ht =
+    Irmin_hash.Typed
+      (Hash)
+      (struct
+        type nonrec t = t [@@deriving irmin]
+      end)
+
+  let hash_exn ?force:_ = Ht.hash
 end
 
 module Portable = struct
@@ -660,6 +671,7 @@ module V1 (N : Generic_key.S with type step = string) = struct
   let import n = { n; entries = N.list n }
   let export t = t.n
   let with_handler _ t = t
+  let hash_exn ?force t = N.hash_exn ?force t.n
   let head t = N.head t.n
 
   let of_seq entries =

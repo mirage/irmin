@@ -112,7 +112,6 @@ module type Internal = sig
       t ->
       key
 
-    val hash : t -> hash
     val stable : t -> bool
     val length : t -> int
     val index : depth:int -> step -> int

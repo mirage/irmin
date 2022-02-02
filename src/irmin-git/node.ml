@@ -177,6 +177,15 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
 
   let with_handler _ n = n
   let head t = `Node (list t)
+
+  module Ht =
+    Irmin.Hash.Typed
+      (Hash)
+      (struct
+        type nonrec t = t [@@deriving irmin]
+      end)
+
+  let hash_exn ?force:_ = Ht.hash
 end
 
 module Store (G : Git.S) (P : Irmin.Path.S) = struct
