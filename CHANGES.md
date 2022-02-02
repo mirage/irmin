@@ -1,6 +1,6 @@
 ## 2.10.2 (2021-02-02)
 
-## Fixed
+### Fixed
 
 - *irmin*
   - Fixed a bug causing stream proof extender nodes to have their segments be
@@ -10,7 +10,7 @@
   - Fixed a bug that allowed the creation of overly-large stable inodes via
     stream proofs. (#1741, @Ngoguey42)
 
-## Added
+### Added
 
 - *irmin*
   - Add `Store.Private.Node.Val.hash_exn` (#1741, @Ngoguey42)
