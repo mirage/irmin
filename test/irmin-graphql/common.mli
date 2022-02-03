@@ -32,5 +32,8 @@ type server = {
 val spawn_graphql_server : unit -> server Lwt.t
 (** Initialise a GraphQL server. At most one server may be running concurrently. *)
 
-val send_query : string -> (string, [ `Msg of string ]) result Lwt.t
+val send_query :
+  ?vars:(string * Yojson.Safe.t) list ->
+  string ->
+  (string, [ `Msg of string ]) result Lwt.t
 (** Send a GraphQL query string to the currently running test GraphQL instance. *)
