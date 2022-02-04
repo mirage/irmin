@@ -109,9 +109,11 @@ metadata is stored elsewhere, in meta.nnnn
     let control = Control.make ~generation:0 in
     let objects = Obj_store.create ~root ~name:control.objects_dir in
     let suffix = Suffix.create ~root ~name:control.suffix_dir in
-    let meta = Meta.create ~root ~name:control.meta_fn in
+    let meta = Meta.create ~root ~name:control.meta_fn in    
     Control.save control Fn.(root / control_s);
+    (* FIXME and also create the file_containing_pointer_to_subdir *)
     { fn; root; objects; suffix; control; meta }
+    
 
   let open_ ~fn:_ = failwith ""
 
