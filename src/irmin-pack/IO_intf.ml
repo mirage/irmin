@@ -21,13 +21,25 @@ module type S = sig
   type path := string
 
   val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
-  val name : t -> string
+  val name : t -> string 
+  (** [name t] returns the name of the underlying file, using the path string that was
+      used when the [t] was created FIXME tjr: I think the name is somehow used for
+      caching purposes, and to enable sharing with other store instances???  *)
+
   val append : t -> string -> unit
   val set : t -> off:int63 -> string -> unit
   val read : t -> off:int63 -> bytes -> int
   val read_buffer : t -> off:int63 -> buf:bytes -> len:int -> int
   val offset : t -> int63
   val force_offset : t -> int63
+  (** The underlying implementation uses a {!Index_unix.Private.Raw} value which wraps a
+      file descriptor and allows to get/set 4 bits of metadata which are stored at the
+      beginning of the fille: offset, version, generation and fan. [force_offset t] forces
+      the offset of [t] at which new data is written to be that last set in the metadata
+      and also returns the value to the user. Any data after this is potentially
+      considered garbage because it was not successfully flushed to disk. [force_offset]
+      is used when recovering from a previous crash, for example. It is also used by RO instances- if the offset has changed in the underlying file, an RO instance can detect this by calling force_offset. This typically happens in the [sync] function of a pack store, for example. *)
+
   val readonly : t -> bool
   val flush : t -> unit
   val close : t -> unit
@@ -39,6 +51,11 @@ module type S = sig
       associated data. *)
 
   (* {2 Versioning} *)
+
+  (** A [t] is like a file, but also includes metadata; at the moment, this metadata
+      consists of a "version", see {!Version}. FIXME what does this affect, in terms of
+      this interface? Or is it just that some users of [t] will behave differently
+      depending on the version? *)
 
   val version : t -> Version.t
   val set_version : t -> Version.t -> unit

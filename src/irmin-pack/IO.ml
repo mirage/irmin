@@ -22,7 +22,10 @@ let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module Unix : S = struct
-  module Raw = Index_unix.Private.Raw
+  module Raw = Index_unix.Private.Raw 
+  (* FIXME what is this??? See {!Index_unix.Private.Raw}; wraps an fd with a header
+     consisting of 4 ints: offset, version, generation, fan; IO goes via this intf;
+     probably we don't need this for layered *)
 
   type t = {
     file : string;

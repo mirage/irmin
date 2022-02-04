@@ -56,10 +56,53 @@ end
 
 let selected_version = `V2
 
+(* Identify the subsignature of IO.Unix that is actually used by {!Maker} *)
+module IO' : sig 
+  type t
+    
+  (* What is the meaning of [version]? if it is set, does it have to agree with the
+     underlying impl? At the moment, files are always opened with [version:`V2] (see
+     selected_version below), and an existing `V1 file will be upgraded silently when
+     things are written to it. So, we should have version metadata with the file and
+     simulate this behaviour. *)
+  (* val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t *)
+
+  (* following are file-like *)
+  val truncate : t -> unit
+  val readonly : t -> bool
+  val flush : t -> unit
+  val close : t -> unit
+  val offset : t -> int63
+  val read : t -> off:int63 -> bytes -> int
+  val append : t -> string -> unit
+  (* NOTE this is an append-only file *)
+
+  (* These are not file-like; some doc added in {!IO_intf}. *)
+  val version : t -> Version.t
+  (* We can probably support a "version" in our metadata *)
+  val set_version : t -> Version.t -> unit
+  val name : t -> string
+  (* This is just the "filename"/path used when opening the IO instance *)
+  val force_offset : t -> int63 
+  (* We probably have something like this for the layers: the suffix file likely contains
+     metadata for the last synced position. NOTE there are various bits of metadata, some
+     of which we consult more often than others; for example, the layered store has a
+     "generation" incremented on each GC; but we also have "version" which changes rarely,
+     and "max_flushed_offset" which probably changes quite a lot. If these are all in the
+     same file, then potentially changes to eg "max_flushed_offset" are detected as "some
+     change to metadata" and RO instances then reload the entire metadata. This is a bit
+     inefficient. We really want to detect changes to one piece of metadata independently
+     of another piece. The best way to do this is with an mmap'ed file for the per-file
+     changes (version, max_flushed_offset, etc) and only change the control file when the
+     generation changes. *)
+end = struct
+  include IO.Unix
+end
+
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
-  module IO = IO.Unix
+  module IO = IO'
   module Tbl = Table (K)
   module Dict = Pack_dict
 
@@ -546,6 +589,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let sync t =
       let former_offset = IO.offset t.pack.block in
+      (* NOTE this is where [force_offset] is used *)
       let offset = IO.force_offset t.pack.block in
       if offset > former_offset then (
         Dict.sync t.pack.dict;
