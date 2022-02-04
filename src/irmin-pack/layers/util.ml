@@ -94,65 +94,6 @@ end
 
 module Int_map = Map.Make(Int)
 
-(*
-(** A small (fits into memory), non-volatile, int->int map *)
-module UNUSED_Small_int_int_map = struct
-  module Map_ = Int_map
-  type t = int Map_.t
-
-  let empty : t = Map_.empty
-  let add = Map_.add
-  let find_opt = Map_.find_opt
-  let iter = Map_.iter
-  let bindings = Map_.bindings
-  let find_last_opt = Map_.find_last_opt
-
-  (** Load the map from a file; assume the file consists of (int->int) bindings *)
-  let load: string -> t = fun fn -> 
-    let sz = Unix.(stat fn |> fun st -> st.st_size) in      
-    (* check that the size is a multiple of 16 bytes, then mmap and
-       read from array *)
-    ignore(sz mod 16 = 0 || failwith "File size is not a multiple of 16");
-    let ints = Small_int_file_v1.load fn in
-    (* now iterate through, constructing the map *)
-    (ints,Map_.empty) |> iter_k (fun ~k (i,m) -> 
-        match i < len with
-        | false -> m
-        | true -> 
-          let m = Map_.add mmap.{ i } mmap.{ i+1 } m in
-          k (i+2,m))
-    |> fun m ->
-    Unix.close fd;
-    m
-
-  (** Save the map to file *)
-  let save: t -> string -> unit = fun m fn ->
-    let ints = 
-      let x = ref [] in
-      m |> Map_.iter (fun k v -> x:=k::v::!x);
-      !x
-    in
-    Small_int_file_v1.save ints fn
-
-  (* FIXME test currently failing *)
-  module Test() = struct
-    let _ = 
-      let size = 1_000_000 in
-      let fn = Filename.temp_file "test" ".tmp" in
-      let kvs = random_int_list ~size |> List.rev_map (fun x -> (x,x+1)) in
-      let m = Map_.of_seq (List.to_seq kvs) in
-      let kvs = Map_.bindings m in
-      save m fn;
-      let m = load fn in
-      let bs = Map_.bindings m in
-      assert(bs = kvs);
-      ()
-  end
-
-end
-*)
-
-
 module Add_load_save_funs(S:sig type t[@@deriving sexp] end) = struct
   open S
 
@@ -180,7 +121,9 @@ end
 
 (** Common strings for filenames *)
 let control_s = "control" (** The control file is always called "control" *)
-let sparse_dot_map = "sparse.map"
-let sparse_dot_data = "sparse.data"
-let upper_dot_offset = "upper.offset"
-let upper_dot_data = "upper.data"
+
+
+include struct
+  open Bigarray
+  type int_bigarray = (int,int_elt,c_layout) Array1.t
+end
