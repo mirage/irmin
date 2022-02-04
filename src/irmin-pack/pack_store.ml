@@ -65,10 +65,14 @@ module IO' : sig
      selected_version below), and an existing `V1 file will be upgraded silently when
      things are written to it. So, we should have version metadata with the file and
      simulate this behaviour. *)
-  (* val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t *)
+  val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t
 
   (* following are file-like *)
   val truncate : t -> unit
+  (* NOTE this is used only for clear operation, which we don't have for layers? either
+     remove this from API, or implement by just discarding objstore+suffix and starting
+     with a clean slate *)
+
   val readonly : t -> bool
   val flush : t -> unit
   val close : t -> unit

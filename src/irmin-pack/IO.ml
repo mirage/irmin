@@ -217,6 +217,8 @@ end
 module Cache = struct
   type ('a, 'v) t = { v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v }
 
+  (** This creates a "constructor" of type [('a,'v)t], which is like the existing
+      constructor, but memoized *)
   let memoize ~v ~clear ~valid file =
     let files = Hashtbl.create 13 in
     let cached_constructor extra_args ?(fresh = false) ?(readonly = false) root
@@ -248,4 +250,10 @@ module Cache = struct
         t
     in
     { v = cached_constructor }
+
+  let memoize : 
+    v:('a -> fresh:bool -> readonly:bool -> string -> 'b) ->
+    clear:('b -> unit) ->
+    valid:('b -> bool) -> (root:string -> string) -> ('a, 'b) t 
+    = memoize
 end
