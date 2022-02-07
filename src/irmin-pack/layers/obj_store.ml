@@ -49,6 +49,9 @@ end
 
 module Private_map = struct
 
+  (* FIXME another option for implementing the map is to store the length data in the data
+     file rather than in the map file *)
+
   type map = (int * int) Int_map.t
 
   include Int_map
@@ -128,7 +131,7 @@ module Private = struct
     Int_map.find_opt virt_off t.map |> function
     | None -> `Error
     | Some (off,len) ->
-      `Ok (File.read_string ~fd:t.data ~off ~len)
+      `Ok (File.read_string ~fd:t.data ~off:(ref off) ~len)
 
 end
 

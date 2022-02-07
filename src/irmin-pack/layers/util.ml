@@ -190,15 +190,29 @@ module File = struct
     let fd = Unix.(openfile path [O_RDWR;O_CLOEXEC] 0o660) in
     fd
 
+  let pread fd ~off ~len ~buf =
+    assert(len <= Bytes.length buf);
+    ignore(Unix.lseek fd !off SEEK_SET);    
+    let pos =
+      0 |> iter_k (fun ~k pos -> 
+          match pos=len with 
+          | true -> pos
+          | false -> 
+            let n = Unix.read fd buf pos (len - pos) in
+            if n = 0 then pos else k (pos+n))
+    in
+    pos                
+
   let read_string ~fd ~off ~len = 
     let buf = Bytes.create len in
-    ignore(Unix.(lseek fd off SEEK_SET));
-    0 |> iter_k (fun ~k pos -> 
-        match pos = len with 
-        | true -> ()
-        | false -> 
-          let n = Unix.read fd buf pos (len - pos) in
-          k (pos+n));
-    Bytes.unsafe_to_string buf
+    let n = pread fd ~off ~len ~buf in
+    Bytes.unsafe_to_string (Bytes.sub buf 0 n)
+
+  let pwrite fd ~off buf =
+    ignore(Unix.lseek fd !off SEEK_SET);    
+    let len = Bytes.length buf in
+    let n = Unix.write fd buf 0 len in
+    assert(n=len);
+    ()    
     
 end

@@ -127,7 +127,8 @@ metadata is stored elsewhere, in meta.nnnn
       t
     in
     let objects = Obj_store.create ~root:Fn.(root / Control.(objects_name control)) in
-    let suffix = Suffix.create ~root ~name:Control.(suffix_name control) in
+    (* NOTE in the following, the initial suffix_offset is 0 *)
+    let suffix = Suffix.create ~root:Fn.(root / Control.(suffix_name control)) ~suffix_offset:0 in
     (* FIXME make sure to sync all above *)
     (* finally create the pointer to the subdir *)
     File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
@@ -143,7 +144,7 @@ metadata is stored elsewhere, in meta.nnnn
     let root = Fn.(dir / layers_dot_nnnn) in
     let control = Control.open_ ~root ~name:control_s in
     let objects = Obj_store.open_ro ~root:Fn.(root / Control.(objects_name control)) in
-    let suffix = Suffix.open_ ~root ~name:Control.(suffix_name control) in
+    let suffix = Suffix.open_ ~root:Fn.(root / Control.(suffix_name control)) in
     (* FIXME when we open, we should take into account meta.last_synced_offset *)
     { fn=fn0; root; objects; suffix; control; readonly }
     
