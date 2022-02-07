@@ -120,8 +120,8 @@ metadata is stored elsewhere, in meta.nnnn
     let root = Fn.(dir / layers_dot_nnnn) in
     let control = 
       let t = Control.create ~root ~name:control_s in
-      Control.(set t generation 1234);
-      Control.(set t last_synced_offset 0);
+      Control.(set t generation_field 1234);
+      Control.(set t last_synced_offset_field 0);
       Control.fsync t;
       t
     in

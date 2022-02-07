@@ -32,11 +32,11 @@ module Private = struct
       don't create your own *)
   type field = int
 
-  let generation : field = 1
+  let generation_field : field = 1
 
-  let version : field = 2
+  let version_field : field = 2
 
-  let last_synced_offset : field = 3
+  let last_synced_offset_field : field = 3
 
 
   (** [length] is the number of metadata fields, and hence the size of the array *)
@@ -50,7 +50,7 @@ module Private = struct
     let ok = not (Sys.file_exists Fn.(root / name)) in
     assert(ok);
     let t = Int_mmap.create ~dir:root ~name ~sz:2 in
-    set t version default_version;
+    set t version_field default_version;
     t
 
   let open_ ~root ~name = 
@@ -65,19 +65,19 @@ module Private = struct
      msync FIXME perhaps use msync instead *)
   let fsync (t:t) = Unix.fsync t.fd
 
-  let get_generation t = get t generation
+  let get_generation t = get t generation_field
 
-  let suffix_name t = "suffix."^(get t generation |> string_of_int)
+  let suffix_name t = "suffix."^(get t generation_field |> string_of_int)
 
-  let objects_name t = "objects."^(get t generation |> string_of_int)
+  let objects_name t = "objects."^(get t generation_field |> string_of_int)
 end
 
 include (Private : sig
   type t
   type field
-  val generation : field
-  val version : field
-  val last_synced_offset : field
+  val generation_field : field
+  val version_field : field
+  val last_synced_offset_field : field
   val length : field
   val set : t -> field -> int -> unit
   val get : t -> field -> int
@@ -85,8 +85,8 @@ include (Private : sig
   val open_ : root:string -> name:string -> t
   val fsync : t -> unit
   val close : t -> unit
-  val get_generation : t -> field
-  (** Convenience *)
+  val get_generation : t -> int
+  (** Convenience; just [get t generation] *)
   val suffix_name : t -> string
   (** Default name for suffix subdir; "suffix.nnnn" where nnnn is the generation number *)
   val objects_name : t -> string

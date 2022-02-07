@@ -6,8 +6,6 @@ module Suffix = Suffix
 
 module Obj_store = Obj_store
 
-module Meta = Meta
-
 module Control = Control
 
 
