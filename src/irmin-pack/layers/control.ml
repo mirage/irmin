@@ -38,9 +38,7 @@ module Private = struct
 
   let last_synced_offset_field : field = 2
 
-
-  (** [length] is the number of metadata fields, and hence the size of the array *)
-  let length = 3
+  let max_field = last_synced_offset_field
 
   let set t index v = t.Int_mmap.arr.{ index } <- v
 
@@ -49,14 +47,14 @@ module Private = struct
   let create ~root ~name = 
     let ok = not (Sys.file_exists Fn.(root / name)) in
     assert(ok);
-    let t = Int_mmap.create ~dir:root ~name ~sz:2 in
+    let t = Int_mmap.create ~dir:root ~name ~sz:(max_field+1) in
     set t version_field default_version;
     t
 
   let open_ ~root ~name = 
     let ok = Sys.file_exists Fn.(root / name) in
     assert(ok);
-    let t = Int_mmap.open_ ~dir:root ~name ~sz:2 in
+    let t = Int_mmap.open_ ~dir:root ~name ~sz:(max_field+1) in
     t
 
   let close t = Int_mmap.close t
@@ -78,7 +76,6 @@ include (Private : sig
   val generation_field : field
   val version_field : field
   val last_synced_offset_field : field
-  val length : field
   val set : t -> field -> int -> unit
   val get : t -> field -> int
   val create : root:string -> name:string -> t
