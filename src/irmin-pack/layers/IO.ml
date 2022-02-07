@@ -85,6 +85,7 @@ module Private = struct
     objects : Obj_store.t;
     suffix  : Suffix.t;
     control : Control.t;
+    readonly: bool;
   }
 
 (*
@@ -125,15 +126,15 @@ metadata is stored elsewhere, in meta.nnnn
       Control.fsync t;
       t
     in
-    let objects = Obj_store.create ~root ~name:Control.(objects_name control) in
+    let objects = Obj_store.create ~root:Fn.(root / Control.(objects_name control)) in
     let suffix = Suffix.create ~root ~name:Control.(suffix_name control) in
     (* FIXME make sure to sync all above *)
     (* finally create the pointer to the subdir *)
     File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
-    { fn=fn0; root; objects; suffix; control }
+    { fn=fn0; root; objects; suffix; control; readonly=false }
     
 
-  let open_ ~fn:fn0 = 
+  let open_ ~readonly ~fn:fn0 = 
     assert(Sys.file_exists fn0);
     let dir,base = Filename.dirname fn0,Filename.basename fn0 in
     let layers_dot_nnnn = 
@@ -141,10 +142,10 @@ metadata is stored elsewhere, in meta.nnnn
     in
     let root = Fn.(dir / layers_dot_nnnn) in
     let control = Control.open_ ~root ~name:control_s in
-    let objects = Obj_store.open_ ~root ~name:Control.(objects_name control) in
+    let objects = Obj_store.open_ro ~root:Fn.(root / Control.(objects_name control)) in
     let suffix = Suffix.open_ ~root ~name:Control.(suffix_name control) in
     (* FIXME when we open, we should take into account meta.last_synced_offset *)
-    { fn=fn0; root; objects; suffix; control }
+    { fn=fn0; root; objects; suffix; control; readonly }
     
 
 

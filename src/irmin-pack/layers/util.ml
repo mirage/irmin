@@ -169,3 +169,36 @@ include struct
   open Bigarray
   type int_bigarray = (int,int_elt,c_layout) Array1.t
 end
+
+
+let mkdir ~path = 
+  let ok = not (Sys.file_exists path) in
+  assert(ok);  
+  Unix.mkdir path 0o770;
+  ()
+
+module File = struct
+  let create ~path =
+    let ok = not (Sys.file_exists path) in
+    assert(ok);
+    let fd = Unix.(openfile path [O_CREAT;O_RDWR;O_EXCL;O_CLOEXEC] 0o660) in
+    fd
+
+  let open_ ~path =
+    let ok = Sys.file_exists path in
+    assert(ok);
+    let fd = Unix.(openfile path [O_RDWR;O_CLOEXEC] 0o660) in
+    fd
+
+  let read_string ~fd ~off ~len = 
+    let buf = Bytes.create len in
+    ignore(Unix.(lseek fd off SEEK_SET));
+    0 |> iter_k (fun ~k pos -> 
+        match pos = len with 
+        | true -> ()
+        | false -> 
+          let n = Unix.read fd buf pos (len - pos) in
+          k (pos+n));
+    Bytes.unsafe_to_string buf
+    
+end
