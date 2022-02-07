@@ -201,7 +201,8 @@ module File = struct
             let n = Unix.read fd buf pos (len - pos) in
             if n = 0 then pos else k (pos+n))
     in
-    pos                
+    off := !off + pos;
+    pos   
 
   let read_string ~fd ~off ~len = 
     let buf = Bytes.create len in
@@ -213,6 +214,7 @@ module File = struct
     let len = Bytes.length buf in
     let n = Unix.write fd buf 0 len in
     assert(n=len);
+    off := !off + n;
     ()    
     
 end
