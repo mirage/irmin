@@ -32,11 +32,11 @@ module Private = struct
       don't create your own *)
   type field = int
 
-  let generation_field : field = 1
+  let generation_field : field = 0
 
-  let version_field : field = 2
+  let version_field : field = 1
 
-  let last_synced_offset_field : field = 3
+  let last_synced_offset_field : field = 2
 
 
   (** [length] is the number of metadata fields, and hence the size of the array *)
