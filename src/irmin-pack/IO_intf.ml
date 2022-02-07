@@ -33,12 +33,16 @@ module type S = sig
   val offset : t -> int63
   val force_offset : t -> int63
   (** The underlying implementation uses a {!Index_unix.Private.Raw} value which wraps a
-      file descriptor and allows to get/set 4 bits of metadata which are stored at the
-      beginning of the fille: offset, version, generation and fan. [force_offset t] forces
-      the offset of [t] at which new data is written to be that last set in the metadata
-      and also returns the value to the user. Any data after this is potentially
+      file descriptor and allows to get/set 4 fields of metadata which are stored at the
+      beginning of the file: offset, version, generation and fan. The "offset" is the
+      "offset of [t] at which new data is written". [force_offset t] forces the file seek
+      offset to be that last set in the metadata (so, potentially before the actual end of
+      the file) and also returns the value to the user. Any data after this is potentially
       considered garbage because it was not successfully flushed to disk. [force_offset]
-      is used when recovering from a previous crash, for example. It is also used by RO instances- if the offset has changed in the underlying file, an RO instance can detect this by calling force_offset. This typically happens in the [sync] function of a pack store, for example. *)
+      is used when recovering from a previous crash, for example. It is also used by RO
+      instances- if the offset has changed in the underlying file, an RO instance can
+      detect this by calling force_offset. This typically happens in the [sync] function
+      of a pack store, for example. *)
 
   val readonly : t -> bool
   val flush : t -> unit

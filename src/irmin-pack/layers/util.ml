@@ -13,6 +13,12 @@ let iter_k f (x:'a) =
   let rec k x = f ~k x in
   k x  
 
+(** This module provides the infix [/] operator for string concat *)
+module Fn = struct
+  let ( / ) = Filename.concat
+end
+
+
 (** Printf abbreviations *)
 module P = struct
   include Printf
@@ -29,6 +35,47 @@ let random_int_list ~size =
           k (len+1,(Random.int (1024 * 1024 * 1024 -1))::xs))
   in
   ints
+
+module Int_mmap : 
+sig 
+  type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
+  type t = private { fd:Unix.file_descr; mutable arr: int_bigarray }
+  val create : dir:string -> name:string -> sz:int -> t
+  val open_  : dir:string -> name:string -> sz:int -> t
+  val close  : t -> unit
+end      
+= struct
+  type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
+  type t = { fd:Unix.file_descr; mutable arr: int_bigarray }
+
+  (* NOTE both following are shared *)
+  let shared = true
+
+  let create ~dir ~name ~sz =
+    assert(not (Sys.file_exists Fn.(dir / name)));
+    let fd = Unix.(openfile Fn.(dir / name) [O_CREAT;O_RDWR;O_TRUNC;O_EXCL;O_CLOEXEC] 0o660) in
+    let arr = 
+      let open Bigarray in
+      Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
+    in
+    { fd; arr }
+
+  let open_ ~dir ~name ~sz =
+    assert(Sys.file_exists Fn.(dir / name));
+    let fd = Unix.(openfile Fn.(dir / name) [O_RDWR] 0o660) in
+    let arr = 
+      let open Bigarray in
+      Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
+    in
+    { fd; arr }
+
+  let close t = 
+    Unix.close t.fd;
+    (* following tries to make the array unreachable, so GC'able; however, no guarantee
+       that arr actually is unreachable *)
+    t.arr <- Bigarray.(Array1.create Int c_layout 0);
+    ()
+end
 
 
 (** A small (easily held in memory) file containing just ints; loaded
@@ -112,11 +159,6 @@ module Add_load_save_funs(S:sig type t[@@deriving sexp] end) = struct
 
   let of_bytes bs = bs |> Bytes.unsafe_to_string |> of_string
 
-end
-
-(** This module provides the infix [/] operator for string concat *)
-module Fn = struct
-  let ( / ) = Filename.concat
 end
 
 (** Common strings for filenames *)

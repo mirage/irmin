@@ -1,4 +1,8 @@
-(** Alternative IO interface for pack_store *)
+(** Alternative IO interface for pack_store.
+
+This uses the object store, suffix file, control and meta to implement the normal
+irmin-pack [IO] interface. 
+*)
 
 open! Import
 open Util
@@ -40,17 +44,17 @@ module type S = sig
   val name : t -> string
   (* This is just the "filename"/path used when opening the IO instance *)
   val force_offset : t -> int63 
-  (* We probably have something like this for the layers: the suffix file likely contains
-     metadata for the last synced position. NOTE there are various bits of metadata, some
-     of which we consult more often than others; for example, the layered store has a
-     "generation" incremented on each GC; but we also have "version" which changes rarely,
-     and "max_flushed_offset" which probably changes quite a lot. If these are all in the
-     same file, then potentially changes to eg "max_flushed_offset" are detected as "some
-     change to metadata" and RO instances then reload the entire metadata. This is a bit
-     inefficient. We really want to detect changes to one piece of metadata independently
-     of another piece. The best way to do this is with an mmap'ed file for the per-file
-     changes (version, max_flushed_offset, etc) and only change the control file when the
-     generation changes. *)
+  (* See doc in ../IO_intf.ml We probably have something like this for the layers: the
+     suffix file likely contains metadata for the last synced position. NOTE there are
+     various bits of metadata, some of which we consult more often than others; for
+     example, the layered store has a "generation" incremented on each GC; but we also
+     have "version" which changes rarely, and "max_flushed_offset" which probably changes
+     quite a lot. If these are all in the same file, then potentially changes to eg
+     "max_flushed_offset" are detected as "some change to metadata" and RO instances then
+     reload the entire metadata. This is a bit inefficient. We really want to detect
+     changes to one piece of metadata independently of another piece. The best way to do
+     this is with an mmap'ed file for the per-file changes (version, max_flushed_offset,
+     etc) and only change the control file when the generation changes. *)
 end
 
 (** Private implementation *)
@@ -81,7 +85,6 @@ module Private = struct
     objects : Obj_store.t;
     suffix  : Suffix.t;
     control : Control.t;
-    meta    : Meta.t; (** metadata *)
   }
 
 (*
@@ -92,12 +95,21 @@ maybe just points to the relevant files, and is updated by atomic rename; then t
 metadata is stored elsewhere, in meta.nnnn
 *)
 
-  let create ~fn =
-    assert(not (Sys.file_exists fn));
-    let dir = Filename.dirname fn in
+  (** [create ~fn] create the IO instance using [fn] as the "pointer file", which points
+      to a subdirectory containing various other files.
+
+      If [fn] is [/path/to/some/file], then we expect to create a "root" subdirectory
+      [/path/to/some/layers.nnnn], where nnnn is some integer to make the root name
+      fresh.
+      
+      Within the root, there will be a control file, object store, suffix, and meta.
+  *) 
+  let create ~fn:fn0 =
+    assert(not (Sys.file_exists fn0));
+    let dir,base = Filename.dirname fn0,Filename.basename fn0 in    
     (* now we need a subdirectory to work within; we check for a free name of the form
-       "layers.nnn"; this is relative to [dir] *)
-    let subdir = 
+       "layers.nnnn"; this is relative to [dir] *)
+    let layers_dot_nnnn = 
       0 |> iter_k (fun ~k n -> 
           let subdir = "layers." ^ (string_of_int n) in
           match Sys.file_exists Fn.(dir / subdir) with
@@ -105,17 +117,35 @@ metadata is stored elsewhere, in meta.nnnn
           | false -> k (n+1))
     in    
     (* now create the initial contents of the layers directory *)
-    let root = Fn.(dir / subdir) in
-    let control = Control.make ~generation:0 in
-    let objects = Obj_store.create ~root ~name:control.objects_dir in
-    let suffix = Suffix.create ~root ~name:control.suffix_dir in
-    let meta = Meta.create ~root ~name:control.meta_fn in    
-    Control.save control Fn.(root / control_s);
-    (* FIXME and also create the file_containing_pointer_to_subdir *)
-    { fn; root; objects; suffix; control; meta }
+    let root = Fn.(dir / layers_dot_nnnn) in
+    let control = 
+      let t = Control.create ~root ~name:control_s in
+      Control.(set t generation 1234);
+      Control.(set t last_synced_offset 0);
+      Control.fsync t;
+      t
+    in
+    let objects = Obj_store.create ~root ~name:Control.(objects_name control) in
+    let suffix = Suffix.create ~root ~name:Control.(suffix_name control) in
+    (* FIXME make sure to sync all above *)
+    (* finally create the pointer to the subdir *)
+    File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
+    { fn=fn0; root; objects; suffix; control }
     
 
-  let open_ ~fn:_ = failwith ""
+  let open_ ~fn:fn0 = 
+    assert(Sys.file_exists fn0);
+    let dir,base = Filename.dirname fn0,Filename.basename fn0 in
+    let layers_dot_nnnn = 
+      File_containing_pointer_to_subdir.load Fn.(dir/base) |> fun x -> x.subdir_name 
+    in
+    let root = Fn.(dir / layers_dot_nnnn) in
+    let control = Control.open_ ~root ~name:control_s in
+    let objects = Obj_store.open_ ~root ~name:Control.(objects_name control) in
+    let suffix = Suffix.open_ ~root ~name:Control.(suffix_name control) in
+    (* FIXME when we open, we should take into account meta.last_synced_offset *)
+    { fn=fn0; root; objects; suffix; control }
+    
 
 
 end
