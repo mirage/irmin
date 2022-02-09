@@ -28,15 +28,25 @@ module Unix : S = struct
     file : string;
     raw : Raw.t;
     mutable offset : int63;
+    (** [offset] is the virtual offset of the end of the file. If we {!append} data, it is
+        written at [offset]. Note that data first goes into [buf] before being flushed to
+        file. *)
+
     mutable flushed : int63;
+    (** [flushed] is the "maximum last flushed offset"; it is updated in {!unsafe_flush}
+        and {!truncate} *)
+
     readonly : bool;
     mutable version : Version.t;
     buf : Buffer.t;
+    (** When data is written to a file, it is first held in a buffer, which is flushed to
+        disk when the amount of data exceeds [auto_flush_limit]. *)
   }
 
   let name t = t.file
   let header_size = (* offset + version *) Int63.of_int 16
 
+  (* FIXME what is unsafe? *)
   let unsafe_flush t =
     [%log.debug "IO flush %s" t.file];
     let buf = Buffer.contents t.buf in
@@ -45,6 +55,7 @@ module Unix : S = struct
       let offset = t.offset in
       Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf 0 (String.length buf);
+      (* NOTE this is the only place where [Raw.Offset.set] is called *)
       Raw.Offset.set t.raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -94,6 +105,10 @@ module Unix : S = struct
   let offset t = t.offset
 
   let force_offset t =
+    (* Raw.Offset.set is called only for {!unsafe_flush}; so this sets [t.offset] to the
+       value of [Raw.Offset.get t.raw], which should be the last offset at which a flush
+       occurred. FIXME it is not clear what this is supposed to do for a read/write
+       instance. Probably this should only be used when [t] is readonly. *) 
     t.offset <- Raw.Offset.get t.raw;
     t.offset
 
@@ -122,6 +137,9 @@ module Unix : S = struct
   let protect f x = try f x with e -> protect_unix_exn e
   let safe f x = try f x with e -> ignore_enoent e
 
+  (** [mkdir pth] creates the directory [pth]; if there is already a directory, then
+      [mkdir] is a no-op; if [pth] points to a file, then the file is unlinked; parent
+      directories are created if needed *)
   let mkdir dirname =
     let rec aux dir k =
       if Sys.file_exists dir && Sys.is_directory dir then k ()
@@ -148,6 +166,7 @@ module Unix : S = struct
     Buffer.clear t.buf
 
   let v ~version ~fresh ~readonly file =
+    (* check the version is [Some _]; fail if not *)
     let get_version () =
       match version with
       | Some v -> v
@@ -169,9 +188,11 @@ module Unix : S = struct
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
+    (* ensure the parent directory exists *)
     mkdir (Filename.dirname file);
     match Sys.file_exists file with
     | false ->
+      (* if the file does not exist, then the version must be provided, otherwise fail *)
         let version = get_version () in
         let raw =
           raw
@@ -199,6 +220,7 @@ module Unix : S = struct
             | Some v -> v
             | None -> Version.invalid_arg v_string
           in
+          (* f. raises if the actual version is greater than the [version] supplied *)
           (match version with
           | Some v when Version.compare actual_version v > 0 ->
               raise (Version.Invalid { expected = v; found = actual_version })
@@ -208,6 +230,8 @@ module Unix : S = struct
 
   let close t = Raw.close t.raw
   let exists file = Sys.file_exists file
+  (** FIXME why include this in the interface? *)
+
   let size { raw; _ } = (Raw.fstat raw).st_size
 end
 
