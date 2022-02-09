@@ -124,6 +124,25 @@ module Make (P : Backend.S) = struct
 
   module Metadata = P.Node.Metadata
 
+  module Env = struct
+    (* Placeholder module until proofs are implemented *)
+    type t = Empty [@@deriving irmin]
+
+    let is_empty Empty = true
+    let empty () = Empty
+    let find_node _ _ = None
+    let find_contents _ _ = None
+    let add_node_from_store _ _ v = v
+    let add_contents_from_store _ _ _ = ()
+    let copy ~into:_ _ = ()
+  end
+
+  let merge_env x y =
+    match (Env.is_empty x, Env.is_empty y) with
+    | true, _ -> Ok y
+    | _, true -> Ok x
+    | false, false -> Error (`Conflict "merge env")
+
   module Hashes = Hashtbl.Make (struct
     type t = P.Hash.t
 
@@ -209,7 +228,13 @@ module Make (P : Backend.S) = struct
     type key = P.Contents.Key.t [@@deriving irmin]
     type v = Key of repo * key | Value of contents | Pruned of hash
     type nonrec ptr_option = key ptr_option
-    type info = { mutable ptr : ptr_option; mutable value : contents option }
+
+    type info = {
+      mutable ptr : ptr_option;
+      mutable value : contents option;
+      env : Env.t;
+    }
+
     type t = { mutable v : v; info : info }
 
     let info_is_empty i = i.ptr = Ptr_none && i.value = None
@@ -233,14 +258,14 @@ module Make (P : Backend.S) = struct
 
     let clear t = clear_info t.info
 
-    let of_v (v : v) =
+    let of_v ~env (v : v) =
       let ptr, value =
         match v with
         | Key (_, k) -> ((Key k : ptr_option), None)
         | Value v -> (Ptr_none, Some v)
         | Pruned _ -> (Ptr_none, None)
       in
-      let info = { ptr; value } in
+      let info = { ptr; value; env } in
       { v; info }
 
     let export ?clear:(c = true) repo t k =
@@ -278,7 +303,13 @@ module Make (P : Backend.S) = struct
       match (t.v, t.info.value) with
       | Value v, None -> Some v
       | (Key _ | Value _ | Pruned _), (Some _ as v) -> v
-      | (Key _ | Pruned _), None -> None
+      | (Key _ | Pruned _), None -> (
+          match cached_hash t with
+          | None -> None
+          | Some h -> (
+              match Env.find_contents t.info.env h with
+              | None -> None
+              | Some c -> Some c))
 
     let hash ?(cache = true) c =
       match cached_hash c with
@@ -298,10 +329,13 @@ module Make (P : Backend.S) = struct
 
     let value_of_key ~cache t repo k =
       cnt.contents_find <- cnt.contents_find + 1;
-      P.Contents.find (P.Repo.contents_t repo) k >|= function
-      | None -> err_dangling_hash (P.Contents.Key.to_hash k)
-      | Some v as some_v ->
-          if cache then t.info.value <- some_v;
+      let h = P.Contents.Key.to_hash k in
+      let+ v_opt = P.Contents.find (P.Repo.contents_t repo) k in
+      Option.iter (Env.add_contents_from_store t.info.env h) v_opt;
+      match v_opt with
+      | None -> err_dangling_hash h
+      | Some v ->
+          if cache then t.info.value <- v_opt;
           Ok v
 
     let to_value ~cache t =
@@ -333,7 +367,9 @@ module Make (P : Backend.S) = struct
       if x == y then 0
       else compare_hash (hash ~cache:true x) (hash ~cache:true y)
 
-    let t = Type.map ~equal ~compare v of_v (fun t -> t.v)
+    let t =
+      let of_v v = of_v ~env:(Env.empty ()) v in
+      Type.map ~equal ~compare v of_v (fun t -> t.v)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -342,12 +378,15 @@ module Make (P : Backend.S) = struct
               let+ c = to_value ~cache:true old >|= Option.of_result in
               Ok (Some c))
         in
-        let* x = to_value ~cache:true x >|= Option.of_result in
-        let* y = to_value ~cache:true y >|= Option.of_result in
-        Merge.(f P.Contents.Val.merge) ~old x y >|= function
-        | Ok (Some c) -> Ok (of_value c)
-        | Ok None -> Error (`Conflict "empty contents")
-        | Error _ as e -> e
+        match merge_env x.info.env y.info.env with
+        | Error _ as e -> Lwt.return e
+        | Ok env -> (
+            let* x = to_value ~cache:true x >|= Option.of_result in
+            let* y = to_value ~cache:true y >|= Option.of_result in
+            Merge.(f P.Contents.Val.merge) ~old x y >|= function
+            | Ok (Some c) -> Ok (of_value ~env c)
+            | Ok None -> Error (`Conflict "empty contents")
+            | Error _ as e -> e)
       in
       Merge.v t f
 
@@ -377,6 +416,7 @@ module Make (P : Backend.S) = struct
       mutable map : map option;
       mutable ptr : ptr_option;
       mutable findv_cache : map option;
+      env : Env.t;
     }
 
     and v =
@@ -439,7 +479,7 @@ module Make (P : Backend.S) = struct
       |~ case1 "pruned" hash_t (fun h -> Pruned h)
       |> sealv
 
-    let of_v v =
+    let of_v ~env v =
       let ptr, map, value =
         match v with
         | Map m -> (Ptr_none, Some m, None)
@@ -448,7 +488,7 @@ module Make (P : Backend.S) = struct
         | Value _ | Pruned _ -> (Ptr_none, None, None)
       in
       let findv_cache = None in
-      let info = { ptr; map; value; findv_cache } in
+      let info = { ptr; map; value; findv_cache; env } in
       { v; info }
 
     let of_map m = of_v (Map m)
@@ -508,12 +548,12 @@ module Make (P : Backend.S) = struct
           (* The main export function never exports a pruned position. *)
           assert false
 
-    let map_of_value ~cache repo (n : value) : map =
+    let map_of_value ~cache ~env repo (n : value) : map =
       cnt.node_val_list <- cnt.node_val_list + 1;
       let entries = P.Node.Val.seq ~cache n in
       let aux = function
-        | `Node h -> `Node (of_key repo h)
-        | `Contents (c, m) -> `Contents (Contents.of_key repo c, m)
+        | `Node h -> `Node (of_key ~env repo h)
+        | `Contents (c, m) -> `Contents (Contents.of_key ~env repo c, m)
       in
       Seq.fold_left
         (fun acc (k, v) -> StepMap.add k (aux v) acc)
@@ -547,7 +587,13 @@ module Make (P : Backend.S) = struct
         | Value (_, v, None), None -> hit v
         | (Map _ | Key _ | Value _ | Pruned _), Some v -> hit v
         | (Map _ | Key _ | Value (_, _, Some _) | Pruned _), None ->
-            miss t miss_arg
+            iter_hash t
+              (fun h ->
+                (* The need for [t], [miss] and [miss_arg] allocates a closure *)
+                match Env.find_node t.info.env h with
+                | None -> miss t miss_arg
+                | Some v -> hit v)
+              miss miss_arg
 
       let iter_repo_key t hit miss miss_arg =
         match (t.v, t.info.ptr) with
@@ -559,8 +605,14 @@ module Make (P : Backend.S) = struct
         match (t.v, t.info.value) with
         | Value (repo, v, None), _ -> hit repo v
         | (Value (repo, _, _) | Key (repo, _)), Some v -> hit repo v
-        | (Map _ | Pruned _ | Value (_, _, Some _) | Key _), _ ->
-            miss t miss_arg
+        | (Value (repo, _, _) | Key (repo, _)), None ->
+            iter_hash t
+              (fun h ->
+                match Env.find_node t.info.env h with
+                | None -> miss t miss_arg
+                | Some v -> hit repo v)
+              miss miss_arg
+        | (Map _ | Pruned _), _ -> miss t miss_arg
 
       type node = t
 
@@ -791,10 +843,13 @@ module Make (P : Backend.S) = struct
       | Some v -> ok v
       | None -> (
           cnt.node_find <- cnt.node_find + 1;
-          P.Node.find (P.Repo.node_t repo) k >|= function
-          | None -> err_dangling_hash (P.Node.Key.to_hash k)
-          | Some v as some_v ->
-              if cache then t.info.value <- some_v;
+          let+ v_opt = P.Node.find (P.Repo.node_t repo) k in
+          let h = P.Node.Key.to_hash k in
+          let v_opt = Option.map (Env.add_node_from_store t.info.env h) v_opt in
+          match v_opt with
+          | None -> err_dangling_hash h
+          | Some v ->
+              if cache then t.info.value <- v_opt;
               Ok v)
 
     let to_value ~cache t =
@@ -835,7 +890,8 @@ module Make (P : Backend.S) = struct
 
     let to_map ~cache t =
       let of_value repo v updates =
-        let m = map_of_value ~cache repo v in
+        let env = t.info.env in
+        let m = map_of_value ~cache ~env repo v in
         let m =
           match updates with
           | None -> m
@@ -903,7 +959,7 @@ module Make (P : Backend.S) = struct
             | Some x, Some y -> if equal_value x y then True else False
             | _ -> Maybe)
 
-    let empty () = of_map StepMap.empty
+    let empty () = of_map StepMap.empty ~env:(Env.empty ())
     let empty_hash = hash ~cache:false (empty ())
     let singleton k v = of_map (StepMap.singleton k v)
 
@@ -963,15 +1019,16 @@ module Make (P : Backend.S) = struct
     let findv_aux ~cache ~value_of_key ~return ~bind:( let* ) ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value repo v =
+        let env = t.info.env in
         match P.Node.Val.find ~cache v step with
         | None -> None
         | Some (`Contents (c, m)) ->
-            let c = Contents.of_key repo c in
+            let c = Contents.of_key ~env repo c in
             let (v : elt) = `Contents (c, m) in
             if cache then add_to_findv_cache t step v;
             Some v
         | Some (`Node n) ->
-            let n = of_key repo n in
+            let n = of_key repo ~env n in
             let v = `Node n in
             if cache then add_to_findv_cache t step v;
             Some v
@@ -1007,31 +1064,33 @@ module Make (P : Backend.S) = struct
       in
       StepMap.to_seq m |> Seq.drop offset |> take
 
-    let seq_of_value repo ?offset ?length ~cache v : (step * elt) Seq.t =
+    let seq_of_value ~env repo ?offset ?length ~cache v : (step * elt) Seq.t =
       cnt.node_val_list <- cnt.node_val_list + 1;
       let seq = P.Node.Val.seq ?offset ?length ~cache v in
       Seq.map
         (fun (k, v) ->
           match v with
           | `Node n ->
-              let n = `Node (of_key repo n) in
+              let n = `Node (of_key ~env repo n) in
               (k, n)
           | `Contents (c, m) ->
-              let c = Contents.of_key repo c in
+              let c = Contents.of_key ~env repo c in
               (k, `Contents (c, m)))
         seq
 
     let seq ?offset ?length ~cache t : (step * elt) Seq.t or_error Lwt.t =
+      let env = t.info.env in
       match
         (Scan.cascade t [ Map; Repo_value; Repo_key; Any ]
           : [ `map | `repo_value | `repo_key | `any ] Scan.t)
       with
       | Map m -> ok (seq_of_map ?offset ?length m)
-      | Repo_value (repo, v) -> ok (seq_of_value ?offset ?length ~cache repo v)
+      | Repo_value (repo, v) ->
+          ok (seq_of_value ~env ?offset ?length ~cache repo v)
       | Repo_key (repo, k) -> (
           value_of_key ~cache t repo k >>= function
           | Error _ as e -> Lwt.return e
-          | Ok v -> ok (seq_of_value ?offset ?length ~cache repo v))
+          | Ok v -> ok (seq_of_value ~env ?offset ?length ~cache repo v))
       | Any -> (
           to_map ~cache t >>= function
           | Error _ as e -> Lwt.return e
@@ -1083,6 +1142,7 @@ module Make (P : Backend.S) = struct
         acc Lwt.t =
      fun ~order ~force ~cache ~uniq ~pre ~post ~path ?depth ~node ~contents
          ~tree t acc ->
+      let env = t.info.env in
       let marks =
         match uniq with
         | `False -> dummy_marks
@@ -1207,8 +1267,8 @@ module Make (P : Backend.S) = struct
       and value : type r. (repo * value * updatemap option, acc, r) folder =
        fun ~path acc d (repo, v, updates) k ->
         let to_elt = function
-          | `Node n -> `Node (of_key repo n)
-          | `Contents (c, m) -> `Contents (Contents.of_key repo c, m)
+          | `Node n -> `Node (of_key ~env repo n)
+          | `Contents (c, m) -> `Contents (Contents.of_key ~env repo c, m)
         in
         let bindings =
           cnt.node_val_list <- cnt.node_val_list + 1;
@@ -1229,17 +1289,19 @@ module Make (P : Backend.S) = struct
       aux_uniq ~path acc 0 t Lwt.return
 
     let update t step up =
+      let env = t.info.env in
       let of_map m =
         let m' =
           match up with
           | Remove -> StepMap.remove step m
           | Add v -> StepMap.add step v m
         in
-        if m == m' then t else of_map m'
+        if m == m' then t else of_map ~env m'
       in
       let of_value repo n updates =
         let updates' = StepMap.add step up updates in
-        if updates == updates' then t else of_value repo n ~updates:updates'
+        if updates == updates' then t
+        else of_value ~env repo n ~updates:updates'
       in
       match
         (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
@@ -1260,7 +1322,9 @@ module Make (P : Backend.S) = struct
       if x == y then 0
       else compare_hash (hash ~cache:true x) (hash ~cache:true y)
 
-    let t node = Type.map ~equal ~compare node of_v (fun t -> t.v)
+    let t node =
+      let of_v v = of_v ~env:(Env.empty ()) v in
+      Type.map ~equal ~compare node of_v (fun t -> t.v)
 
     let _, t =
       Type.mu2 (fun _ y ->
@@ -1280,16 +1344,19 @@ module Make (P : Backend.S) = struct
               let+ m = to_map ~cache:true old >|= Option.of_result in
               Ok (Some m))
         in
-        let* x = to_map ~cache:true x >|= Option.of_result in
-        let* y = to_map ~cache:true y >|= Option.of_result in
-        let m =
-          StepMap.merge elt_t (fun _step ->
-              (merge_elt [@tailcall]) Merge.option)
-        in
-        Merge.(f @@ option m) ~old x y >|= function
-        | Ok (Some map) -> Ok (of_map map)
-        | Ok None -> Error (`Conflict "empty map")
-        | Error _ as e -> e
+        match merge_env x.info.env y.info.env with
+        | Error _ as e -> Lwt.return e
+        | Ok env -> (
+            let* x = to_map ~cache:true x >|= Option.of_result in
+            let* y = to_map ~cache:true y >|= Option.of_result in
+            let m =
+              StepMap.merge elt_t (fun _step ->
+                  (merge_elt [@tailcall]) Merge.option)
+            in
+            Merge.(f @@ option m) ~old x y >|= function
+            | Ok (Some map) -> Ok (of_map ~env map)
+            | Ok None -> Error (`Conflict "empty map")
+            | Error _ as e -> e)
       in
       k (Merge.v t f)
 
@@ -1339,7 +1406,7 @@ module Make (P : Backend.S) = struct
   [@@deriving irmin]
 
   type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
-  [@@deriving irmin]
+  [@@deriving irmin ~equal]
 
   type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin]
@@ -1350,7 +1417,9 @@ module Make (P : Backend.S) = struct
   let to_backend_portable_node n =
     Node.to_portable_value ~cache:true n >|= get_ok "to_backend_portable_node"
 
-  let of_backend_node repo n = Node.of_value repo n
+  let of_backend_node repo n =
+    let env = Env.empty () in
+    Node.of_value ~env repo n
 
   let dump ppf = function
     | `Node n -> Fmt.pf ppf "node: %a" Node.dump n
@@ -1378,15 +1447,21 @@ module Make (P : Backend.S) = struct
   let of_node n = `Node n
 
   let of_contents ?(metadata = Metadata.default) c =
-    `Contents (Contents.of_value c, metadata)
+    let env = Env.empty () in
+    let c = Contents.of_value ~env c in
+    `Contents (c, metadata)
 
   let v : elt -> t = function
-    | `Contents (c, meta) -> `Contents (Contents.of_value c, meta)
+    | `Contents (c, metadata) -> of_contents ~metadata c
     | `Node n -> `Node n
 
-  let pruned : kinded_hash -> t = function
-    | `Contents (h, meta) -> `Contents (Contents.pruned h, meta)
-    | `Node h -> `Node (Node.pruned h)
+  let pruned_with_env ~env = function
+    | `Contents (h, meta) -> `Contents (Contents.pruned ~env h, meta)
+    | `Node h -> `Node (Node.pruned ~env h)
+
+  let pruned h =
+    let env = Env.empty () in
+    pruned_with_env ~env h
 
   let destruct x = x
 
@@ -1513,9 +1588,10 @@ module Make (P : Backend.S) = struct
 
   let singleton k ?(metadata = Metadata.default) c =
     [%log.debug "Tree.singleton %a" pp_path k];
-    let base_tree = `Contents (Contents.of_value c, metadata) in
+    let env = Env.empty () in
+    let base_tree = `Contents (Contents.of_value ~env c, metadata) in
     Path.fold_right k
-      ~f:(fun step child -> `Node (Node.singleton step child))
+      ~f:(fun step child -> `Node (Node.singleton ~env step child))
       ~init:base_tree
 
   (** During recursive updates, we keep track of whether or not we've made a
@@ -1530,6 +1606,10 @@ module Make (P : Backend.S) = struct
       | `Node x, `Node y -> Node.maybe_equal x y
       | _ -> if equal x y then True else False
 
+  let get_env = function
+    | `Node n -> n.Node.info.env
+    | `Contents (c, _) -> c.Contents.info.env
+
   let update_tree ~cache ~f_might_return_empty_node ~f root_tree path =
     (* User-introduced empty nodes will be removed immediately if necessary. *)
     let prune_empty : node -> bool =
@@ -1541,7 +1621,7 @@ module Make (P : Backend.S) = struct
         let empty_tree =
           match is_empty root_tree with
           | true -> root_tree
-          | false -> `Node (Node.of_map StepMap.empty)
+          | false -> `Node (Node.empty ())
         in
         f (Some root_tree) >>= function
         (* Here we consider "deleting" a root contents value or node to consist
@@ -1616,7 +1696,9 @@ module Make (P : Backend.S) = struct
         in
         aux path top_node @@ function
         | Unchanged -> Lwt.return root_tree
-        | Changed node -> Lwt.return (`Node node))
+        | Changed node ->
+            Env.copy ~into:node.info.env (get_env root_tree);
+            Lwt.return (`Node node))
 
   let update t k ?(metadata = Metadata.default) f =
     let cache = true in
@@ -1631,12 +1713,12 @@ module Make (P : Backend.S) = struct
         in
         match f old_contents with
         | None -> None
-        | Some c -> Some (`Contents (Contents.of_value c, metadata)))
+        | Some c -> of_contents ~metadata c |> Option.some)
 
   let add t k ?(metadata = Metadata.default) c =
     [%log.debug "Tree.add %a" pp_path k];
     update_tree ~cache:true t k
-      ~f:(fun _ -> Lwt.return_some (`Contents (Contents.of_value c, metadata)))
+      ~f:(fun _ -> Lwt.return_some (of_contents ~metadata c))
       ~f_might_return_empty_node:false
 
   let add_tree t k v =
@@ -1659,17 +1741,25 @@ module Make (P : Backend.S) = struct
     | `Contents (k, m) -> (
         cnt.contents_mem <- cnt.contents_mem + 1;
         P.Contents.mem (P.Repo.contents_t repo) k >|= function
-        | true -> Some (`Contents (Contents.of_key repo k, m))
+        | true ->
+            let env = Env.empty () in
+            Some (`Contents (Contents.of_key ~env repo k, m))
         | false -> None)
     | `Node k -> (
         cnt.node_mem <- cnt.node_mem + 1;
         P.Node.mem (P.Repo.node_t repo) k >|= function
-        | true -> Some (`Node (Node.of_key repo k))
+        | true ->
+            let env = Env.empty () in
+            Some (`Node (Node.of_key ~env repo k))
         | false -> None)
 
-  let import_no_check repo = function
-    | `Node k -> `Node (Node.of_key repo k)
-    | `Contents (k, m) -> `Contents (Contents.of_key repo k, m)
+  let import_with_env ~env repo = function
+    | `Node k -> `Node (Node.of_key ~env repo k)
+    | `Contents (k, m) -> `Contents (Contents.of_key ~env repo k, m)
+
+  let import_no_check repo f =
+    let env = Env.empty () in
+    import_with_env ~env repo f
 
   (* Given an arbitrary tree value, persist its contents to the given contents
      and node stores via a depth-first {i post-order} traversal. We must export
@@ -2028,7 +2118,7 @@ module Make (P : Backend.S) = struct
     let rec concrete : type r. concrete -> (t or_empty, r) cont =
      fun t k ->
       match t with
-      | `Contents (c, m) -> k (Non_empty (`Contents (Contents.of_value c, m)))
+      | `Contents (c, m) -> k (Non_empty (of_contents ~metadata:m c))
       | `Tree childs ->
           tree StepMap.empty childs (function
             | Empty -> k Empty
@@ -2042,7 +2132,7 @@ module Make (P : Backend.S) = struct
       | [] ->
           k
             (if StepMap.is_empty map then Empty
-            else Non_empty (Node.of_map map))
+            else Non_empty (Node.of_map ~env:(Env.empty ()) map))
       | (s, n) :: t ->
           (concrete [@tailcall]) n (fun v ->
               (tree [@tailcall])
