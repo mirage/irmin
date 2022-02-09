@@ -82,7 +82,12 @@ let rec retry n f =
         incr retries;
         retry (n + 1) f)
 
-type param = Var of string | String of string | Int of int | Float of float
+type param =
+  | Var of string
+  | Raw of string
+  | String of string
+  | Int of int
+  | Float of float
 
 type query =
   | Mutation of query
@@ -110,6 +115,7 @@ and string_of_args args =
         match v with
         | Var s -> "$" ^ s
         | String s -> "\"" ^ s ^ "\""
+        | Raw s -> s
         | Int i -> string_of_int i
         | Float f -> string_of_float f
       in
@@ -123,6 +129,7 @@ let list l = List l
 let func name ?(params = []) q = Func (name, params, q)
 let field s = Field s
 let string s = String s
+let raw s = Raw s
 let var s = Var s
 let int i = Int i
 let float f = Float f
