@@ -131,6 +131,7 @@ module Make (P : Backend.S) = struct
     let is_empty Empty = true
     let empty () = Empty
     let find_node _ _ = None
+    let find_pnode _ _ = None
     let find_contents _ _ = None
     let add_node_from_store _ _ v = v
     let add_contents_from_store _ _ _ = ()
@@ -183,7 +184,10 @@ module Make (P : Backend.S) = struct
   type contents = P.Contents.Val.t [@@deriving irmin ~equal ~pp]
   type repo = P.Repo.t
   type marks = unit Hashes.t
-  type error = [ `Dangling_hash of hash | `Pruned_hash of hash ]
+
+  type error =
+    [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
+
   type 'a or_error = ('a, error) result
   type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
   type uniq = [ `False | `True | `Marks of marks ]
@@ -197,6 +201,7 @@ module Make (P : Backend.S) = struct
 
   exception Pruned_hash of { context : string; hash : hash }
   exception Dangling_hash of { context : string; hash : hash }
+  exception Portable_value of { context : string }
 
   let () =
     Printexc.register_printer (function
@@ -208,17 +213,24 @@ module Make (P : Backend.S) = struct
           Some
             (Fmt.str "Irmin.Tree.%s: encountered pruned hash %a" context pp_hash
                hash)
+      | Portable_value { context } ->
+          Some
+            (Fmt.str "Irmin.Tree.%s: unsupported operation on portable tree."
+               context)
       | _ -> None)
 
   let err_pruned_hash h = Error (`Pruned_hash h)
-  let pruned_hash_exn context hash = raise (Pruned_hash { context; hash })
   let err_dangling_hash h = Error (`Dangling_hash h)
+  let err_portable_value = Error `Portable_value
+  let pruned_hash_exn context hash = raise (Pruned_hash { context; hash })
+  let portable_value_exn context = raise (Portable_value { context })
 
   let get_ok : type a. string -> a or_error -> a =
    fun context -> function
     | Ok x -> x
     | Error (`Pruned_hash hash) -> pruned_hash_exn context hash
     | Error (`Dangling_hash hash) -> raise (Dangling_hash { context; hash })
+    | Error `Portable_value -> portable_value_exn context
 
   type 'key ptr_option = Key of 'key | Hash of hash | Ptr_none
   (* NOTE: given the choice, we prefer caching [Key] over [Hash] as it can
@@ -406,6 +418,13 @@ module Make (P : Backend.S) = struct
     type key = P.Node.Key.t [@@deriving irmin]
     type nonrec ptr_option = key ptr_option
 
+    open struct
+      module Portable = P.Node_portable
+    end
+
+    type portable = Portable.t [@@deriving irmin ~equal ~pp]
+
+    (* [elt] is a tree *)
     type elt = [ `Node of t | `Contents of Contents.t * Metadata.t ]
     and update = Add of elt | Remove
     and updatemap = update StepMap.t
@@ -423,6 +442,7 @@ module Make (P : Backend.S) = struct
       | Map of map
       | Key of repo * key
       | Value of repo * value * updatemap option
+      | Portable_dirty of portable * updatemap
       | Pruned of hash
 
     and t = { mutable v : v; info : info }
@@ -468,15 +488,18 @@ module Make (P : Backend.S) = struct
       let m = stepmap_t elt in
       let um = stepmap_t (update_t elt) in
       let open Type in
-      variant "Node.node" (fun map key value pruned -> function
+      variant "Node.node" (fun map key value pruned portable_dirty -> function
         | Map m -> map m
         | Key (_, y) -> key y
         | Value (_, v, m) -> value (v, m)
-        | Pruned h -> pruned h)
+        | Pruned h -> pruned h
+        | Portable_dirty (v, m) -> portable_dirty (v, m))
       |~ case1 "map" m (fun m -> Map m)
       |~ case1 "key" P.Node.Key.t (fun _ -> assert false)
       |~ case1 "value" (pair P.Node.Val.t (option um)) (fun _ -> assert false)
       |~ case1 "pruned" hash_t (fun h -> Pruned h)
+      |~ case1 "portable_dirty" (pair portable_t um) (fun (v, m) ->
+             Portable_dirty (v, m))
       |> sealv
 
     let of_v ~env v =
@@ -485,7 +508,7 @@ module Make (P : Backend.S) = struct
         | Map m -> (Ptr_none, Some m, None)
         | Key (_, k) -> (Key k, None, None)
         | Value (_, v, None) -> (Ptr_none, None, Some v)
-        | Value _ | Pruned _ -> (Ptr_none, None, None)
+        | Value _ | Portable_dirty _ | Pruned _ -> (Ptr_none, None, None)
       in
       let findv_cache = None in
       let info = { ptr; map; value; findv_cache; env } in
@@ -494,10 +517,16 @@ module Make (P : Backend.S) = struct
     let of_map m = of_v (Map m)
     let of_key repo k = of_v (Key (repo, k))
     let of_value ?updates repo v = of_v (Value (repo, v, updates))
+    let of_portable_dirty p updates = of_v (Portable_dirty (p, updates))
     let pruned h = of_v (Pruned h)
 
     let info_is_empty i =
       i.map = None && i.value = None && i.findv_cache = None && i.ptr = Ptr_none
+
+    let add_to_findv_cache t step v =
+      match t.info.findv_cache with
+      | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
+      | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
 
     let clear_info_fields i =
       if not (info_is_empty i) then (
@@ -519,13 +548,13 @@ module Make (P : Backend.S) = struct
             StepMap.iter
               (fun k -> function Remove -> () | Add v -> clear k v)
               um
-        | Value (_, _, None) | Map _ | Key _ | Pruned _ -> ()
+        | Value (_, _, None) | Map _ | Key _ | Portable_dirty _ | Pruned _ -> ()
       in
       let () =
         match (v, i.map) with
-        | Map m, _ | (Key _ | Value _ | Pruned _), Some m ->
+        | Map m, _ | (Key _ | Value _ | Portable_dirty _ | Pruned _), Some m ->
             StepMap.iter clear m
-        | (Key _ | Value _ | Pruned _), None -> ()
+        | (Key _ | Value _ | Portable_dirty _ | Pruned _), None -> ()
       in
       let () =
         match i.findv_cache with Some m -> StepMap.iter clear m | None -> ()
@@ -544,20 +573,86 @@ module Make (P : Backend.S) = struct
           match ptr with
           | Ptr_none | Hash _ -> t.v <- Key (repo, k)
           | Key k -> t.v <- Key (repo, k))
-      | Pruned _ ->
+      | Portable_dirty _ | Pruned _ ->
           (* The main export function never exports a pruned position. *)
           assert false
 
-    let map_of_value ~cache ~env repo (n : value) : map =
-      cnt.node_val_list <- cnt.node_val_list + 1;
-      let entries = P.Node.Val.seq ~cache n in
-      let aux = function
-        | `Node h -> `Node (of_key ~env repo h)
-        | `Contents (c, m) -> `Contents (Contents.of_key ~env repo c, m)
-      in
-      Seq.fold_left
-        (fun acc (k, v) -> StepMap.add k (aux v) acc)
-        StepMap.empty entries
+    module Core_value
+        (N : Node.Generic_key.Core
+               with type step := step
+                and type hash := hash
+                and type metadata := metadata)
+        (To_elt : sig
+          type repo
+
+          val t : env:Env.t -> repo -> N.value -> elt
+        end) =
+    struct
+      let to_map ~cache ~env repo t =
+        cnt.node_val_list <- cnt.node_val_list + 1;
+        let entries = N.seq ~cache t in
+        Seq.fold_left
+          (fun acc (k, v) -> StepMap.add k (To_elt.t ~env repo v) acc)
+          StepMap.empty entries
+
+      (** Does [um] empties [v]?
+
+          Gotcha: Some [Remove] entries in [um] might not be in [v]. *)
+      let is_empty_after_updates ~cache t um =
+        let any_add =
+          StepMap.to_seq um
+          |> Seq.exists (function _, Remove -> false | _, Add _ -> true)
+        in
+        if any_add then false
+        else
+          let val_is_empty = N.is_empty t in
+          if val_is_empty then true
+          else
+            let remove_count = StepMap.cardinal um in
+            if (not val_is_empty) && remove_count = 0 then false
+            else if N.length t > remove_count then false
+            else (
+              (* Starting from this point the function is expensive, but there is
+                 no alternative. *)
+              cnt.node_val_list <- cnt.node_val_list + 1;
+              let entries = N.seq ~cache t in
+              Seq.for_all (fun (step, _) -> StepMap.mem step um) entries)
+
+      let findv ~cache ~env step node repo t =
+        match N.find ~cache t step with
+        | None -> None
+        | Some v ->
+            let tree = To_elt.t ~env repo v in
+            if cache then add_to_findv_cache node step tree;
+            Some tree
+
+      let seq ~env ?offset ?length ~cache repo v =
+        cnt.node_val_list <- cnt.node_val_list + 1;
+        let seq = N.seq ?offset ?length ~cache v in
+        Seq.map (fun (k, v) -> (k, To_elt.t ~env repo v)) seq
+    end
+
+    module Regular_value =
+      Core_value
+        (P.Node.Val)
+        (struct
+          type nonrec repo = repo
+
+          let t ~env repo = function
+            | `Node k -> `Node (of_key ~env repo k)
+            | `Contents (k, m) -> `Contents (Contents.of_key ~env repo k, m)
+        end)
+
+    module Portable_value =
+      Core_value
+        (P.Node_portable)
+        (struct
+          type repo = unit
+
+          let t ~env () = function
+            | `Node h -> `Node (pruned ~env h)
+            | `Contents (h, m) -> `Contents (Contents.pruned ~env h, m)
+        end)
 
     (** This [Scan] module contains function that scan the content of [t.v] and
         [t.info], looking for specific patterns. *)
@@ -565,28 +660,34 @@ module Make (P : Backend.S) = struct
       let iter_hash t hit miss miss_arg =
         match (t.v, t.info.ptr) with
         | Key (_, k), _ -> hit (P.Node.Key.to_hash k)
-        | (Map _ | Value _), Key k -> hit (P.Node.Key.to_hash k)
+        | (Map _ | Value _ | Portable_dirty _), Key k ->
+            hit (P.Node.Key.to_hash k)
         | Pruned h, _ -> hit h
-        | (Map _ | Value _), Hash h -> hit h
-        | (Map _ | Value _), Ptr_none -> miss t miss_arg
+        | (Map _ | Value _ | Portable_dirty _), Hash h -> hit h
+        | (Map _ | Value _ | Portable_dirty _), Ptr_none -> miss t miss_arg
 
       let iter_key t hit miss miss_arg =
         match (t.v, t.info.ptr) with
         | Key (_, k), _ -> hit k
-        | (Map _ | Value _ | Pruned _), Key k -> hit k
-        | (Map _ | Value _ | Pruned _), (Hash _ | Ptr_none) -> miss t miss_arg
+        | (Map _ | Value _ | Portable_dirty _ | Pruned _), Key k -> hit k
+        | (Map _ | Value _ | Portable_dirty _ | Pruned _), (Hash _ | Ptr_none)
+          ->
+            miss t miss_arg
 
       let iter_map t hit miss miss_arg =
         match (t.v, t.info.map) with
-        | (Key _ | Value _ | Pruned _), Some m -> hit m
+        | (Key _ | Value _ | Portable_dirty _ | Pruned _), Some m -> hit m
         | Map m, _ -> hit m
-        | (Key _ | Value _ | Pruned _), None -> miss t miss_arg
+        | (Key _ | Value _ | Portable_dirty _ | Pruned _), None ->
+            miss t miss_arg
 
       let iter_value t hit miss miss_arg =
         match (t.v, t.info.value) with
         | Value (_, v, None), None -> hit v
-        | (Map _ | Key _ | Value _ | Pruned _), Some v -> hit v
-        | (Map _ | Key _ | Value (_, _, Some _) | Pruned _), None ->
+        | (Map _ | Key _ | Value _ | Portable_dirty _ | Pruned _), Some v ->
+            hit v
+        | ( (Map _ | Key _ | Value (_, _, Some _) | Portable_dirty _ | Pruned _),
+            None ) ->
             iter_hash t
               (fun h ->
                 (* The need for [t], [miss] and [miss_arg] allocates a closure *)
@@ -595,11 +696,22 @@ module Make (P : Backend.S) = struct
                 | Some v -> hit v)
               miss miss_arg
 
+      let iter_portable t hit miss miss_arg =
+        match t.v with
+        | Pruned h -> (
+            match Env.find_pnode t.info.env h with
+            | None -> miss t miss_arg
+            | Some v -> hit v)
+        | Map _ | Key _ | Value _ | Portable_dirty _ ->
+            (* No need to peek in [env]in these cases because [env]
+               is in practice expected to only hit on [Pruned]. *)
+            miss t miss_arg
+
       let iter_repo_key t hit miss miss_arg =
         match (t.v, t.info.ptr) with
         | Key (repo, k), _ -> hit repo k
         | Value (repo, _, _), Key k -> hit repo k
-        | (Map _ | Pruned _ | Value _), _ -> miss t miss_arg
+        | (Map _ | Portable_dirty _ | Pruned _ | Value _), _ -> miss t miss_arg
 
       let iter_repo_value t hit miss miss_arg =
         match (t.v, t.info.value) with
@@ -612,7 +724,7 @@ module Make (P : Backend.S) = struct
                 | None -> miss t miss_arg
                 | Some v -> hit repo v)
               miss miss_arg
-        | (Map _ | Pruned _), _ -> miss t miss_arg
+        | (Map _ | Portable_dirty _ | Pruned _), _ -> miss t miss_arg
 
       type node = t
 
@@ -635,6 +747,8 @@ module Make (P : Backend.S) = struct
         | Map : map -> [> `map ] t
         | Value : value -> [> `value ] t
         | Value_dirty : (repo * value * updatemap) -> [> `value_dirty ] t
+        | Portable : portable -> [> `portable ] t
+        | Portable_dirty : (portable * updatemap) -> [> `portable_dirty ] t
         | Pruned : hash -> [> `pruned ] t
         | Repo_key : (repo * key) -> [> `repo_key ] t
         | Repo_value : (repo * value) -> [> `repo_value ] t
@@ -646,6 +760,8 @@ module Make (P : Backend.S) = struct
           | Map : [> `map ] t
           | Value : [> `value ] t
           | Value_dirty : [> `value_dirty ] t
+          | Portable : [> `portable ] t
+          | Portable_dirty : [> `portable_dirty ] t
           | Pruned : [> `pruned ] t
           | Repo_key : [> `repo_key ] t
           | Repo_value : [> `repo_value ] t
@@ -655,16 +771,23 @@ module Make (P : Backend.S) = struct
       let to_hash t miss = iter_hash t (fun h -> Hash h) miss
       let to_map t miss = iter_map t (fun m -> Map m) miss
       let to_value t miss = iter_value t (fun v -> Value v) miss
+      let to_portable t miss = iter_portable t (fun v -> Portable v) miss
 
       let to_value_dirty t miss miss_arg =
         match t.v with
         | Value (repo, v, Some um) -> Value_dirty (repo, v, um)
-        | Map _ | Key _ | Value (_, _, None) | Pruned _ -> miss t miss_arg
+        | Map _ | Key _ | Value (_, _, None) | Portable_dirty _ | Pruned _ ->
+            miss t miss_arg
+
+      let to_portable_dirty t miss miss_arg =
+        match t.v with
+        | Portable_dirty (v, um) -> Portable_dirty (v, um)
+        | Map _ | Key _ | Value _ | Pruned _ -> miss t miss_arg
 
       let to_pruned t miss miss_arg =
         match t.v with
         | Pruned h -> Pruned h
-        | Map _ | Key _ | Value _ -> miss t miss_arg
+        | Map _ | Key _ | Value _ | Portable_dirty _ -> miss t miss_arg
 
       let to_repo_key t miss miss_arg =
         iter_repo_key t (fun repo k -> Repo_key (repo, k)) miss miss_arg
@@ -683,6 +806,8 @@ module Make (P : Backend.S) = struct
             | Map -> to_map t cascade xs
             | Value -> to_value t cascade xs
             | Value_dirty -> to_value_dirty t cascade xs
+            | Portable -> to_portable t cascade xs
+            | Portable_dirty -> to_portable_dirty t cascade xs
             | Pruned -> to_pruned t cascade xs
             | Repo_key -> to_repo_key t cascade xs
             | Repo_value -> to_repo_value t cascade xs
@@ -694,16 +819,14 @@ module Make (P : Backend.S) = struct
     let cached_key t = Scan.iter_key t Option.some get_none ()
     let cached_map t = Scan.iter_map t Option.some get_none ()
     let cached_value t = Scan.iter_value t Option.some get_none ()
+    let cached_portable t = Scan.iter_portable t Option.some get_none ()
 
     let key t =
-      match t.v with Key (_, k) -> Some k | Map _ | Value _ | Pruned _ -> None
+      match t.v with
+      | Key (_, k) -> Some k
+      | Map _ | Value _ | Portable_dirty _ | Pruned _ -> None
 
     let unsafe_cache_key t k = t.info.ptr <- Key k
-
-    open struct
-      module Portable = P.Node_portable
-      module Portable_hash = Hash.Typed (P.Hash) (P.Node_portable)
-    end
 
     (* When computing hashes of nodes, we try to use [P.Node.Val.t] as a
        pre-image if possible so that this intermediate value can be cached
@@ -733,13 +856,17 @@ module Make (P : Backend.S) = struct
         k hash
       in
       match
-        (Scan.cascade t [ Hash; Value; Value_dirty; Map ]
-          : [ `hash | `value | `value_dirty | `map ] Scan.t)
+        (Scan.cascade t [ Hash; Value; Value_dirty; Portable_dirty; Map ]
+          : [ `hash | `value | `value_dirty | `portable_dirty | `map ] Scan.t)
       with
       | Hash h -> k h
       | Value v -> a_of_hashable P.Node.Val.hash_exn v
       | Value_dirty (_repo, v, um) ->
-          hash_preimage_of_updates ~cache t v um (function
+          hash_preimage_of_updates ~cache t (Node v) um (function
+            | Node x -> a_of_hashable P.Node.Val.hash_exn x
+            | Pnode x -> a_of_hashable P.Node_portable.hash_exn x)
+      | Portable_dirty (p, um) ->
+          hash_preimage_of_updates ~cache t (Pnode p) um (function
             | Node x -> a_of_hashable P.Node.Val.hash_exn x
             | Pnode x -> a_of_hashable P.Node_portable.hash_exn x)
       | Map m ->
@@ -805,7 +932,8 @@ module Make (P : Backend.S) = struct
           | None -> hash ~cache n (fun hash -> k (Pnode_value (`Node hash))))
 
     and hash_preimage_of_updates :
-        type r. cache:bool -> t -> value -> updatemap -> (hash_preimage, r) cont
+        type r.
+        cache:bool -> t -> hash_preimage -> updatemap -> (hash_preimage, r) cont
         =
      fun ~cache t v updates k ->
       let updates = StepMap.bindings updates in
@@ -834,7 +962,7 @@ module Make (P : Backend.S) = struct
             in
             aux acc rest
       in
-      aux (Node v) updates
+      aux v updates
 
     let hash ~cache k = hash ~cache k (fun x -> x)
 
@@ -854,29 +982,49 @@ module Make (P : Backend.S) = struct
 
     let to_value ~cache t =
       match
-        (Scan.cascade t [ Value; Repo_key; Pruned; Any ]
-          : [ `value | `repo_key | `pruned | `any ] Scan.t)
+        (Scan.cascade t [ Value; Repo_key; Any ]
+          : [ `value | `repo_key | `any ] Scan.t)
       with
       | Value v -> ok v
       | Repo_key (repo, k) -> value_of_key ~cache t repo k
-      | Pruned h -> err_pruned_hash h |> Lwt.return
-      | Any ->
-          invalid_arg
-            "Tree.Node.to_value: the supplied node has not been written to \
-             disk. Either export it or convert it to a portable value instead."
+      | Any -> (
+          match t.v with
+          | Key _ | Value (_, _, None) -> assert false
+          | Pruned h -> err_pruned_hash h |> Lwt.return
+          | Portable_dirty _ -> err_portable_value |> Lwt.return
+          | Map _ | Value (_, _, Some _) ->
+              invalid_arg
+                "Tree.Node.to_value: the supplied node has not been written to \
+                 disk. Either export it or convert it to a portable value \
+                 instead.")
 
     let to_portable_value_aux ~cache ~value_of_key ~return ~bind:( let* ) t =
       let ok x = return (Ok x) in
       match
-        (Scan.cascade t [ Value; Repo_key; Value_dirty; Map; Pruned ]
-          : [ `value | `repo_key | `value_dirty | `map | `pruned ] Scan.t)
+        (Scan.cascade t
+           [
+             Portable; Value; Repo_key; Portable_dirty; Value_dirty; Map; Pruned;
+           ]
+          : [ `portable
+            | `value
+            | `repo_key
+            | `portable_dirty
+            | `value_dirty
+            | `map
+            | `pruned ]
+            Scan.t)
       with
+      | Portable p -> ok p
       | Value v -> ok (P.Node_portable.of_node v)
+      | Portable_dirty (p, um) ->
+          hash_preimage_of_updates ~cache t (Pnode p) um (function
+            | Node _ -> assert false
+            | Pnode x -> ok x)
       | Repo_key (repo, k) ->
           let* value_res = value_of_key ~cache t repo k in
           Result.map P.Node_portable.of_node value_res |> return
       | Value_dirty (_repo, v, um) ->
-          hash_preimage_of_updates ~cache t v um (function
+          hash_preimage_of_updates ~cache t (Node v) um (function
             | Node x -> ok (Portable.of_node x)
             | Pnode x -> ok x)
       | Map m ->
@@ -889,9 +1037,7 @@ module Make (P : Backend.S) = struct
       to_portable_value_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
 
     let to_map ~cache t =
-      let of_value repo v updates =
-        let env = t.info.env in
-        let m = map_of_value ~cache ~env repo v in
+      let of_maps m updates =
         let m =
           match updates with
           | None -> m
@@ -908,9 +1054,35 @@ module Make (P : Backend.S) = struct
         if cache then t.info.map <- Some m;
         m
       in
+      let of_value repo v um =
+        let env = t.info.env in
+        let m = Regular_value.to_map ~env ~cache repo v in
+        of_maps m um
+      in
+      let of_portable_value v um =
+        let env = t.info.env in
+        let m = Portable_value.to_map ~env ~cache () v in
+        of_maps m um
+      in
       match
-        (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
-          : [ `map | `repo_key | `repo_value | `value_dirty | `pruned ] Scan.t)
+        (Scan.cascade t
+           [
+             Map;
+             Repo_value;
+             Repo_key;
+             Value_dirty;
+             Portable;
+             Portable_dirty;
+             Pruned;
+           ]
+          : [ `map
+            | `repo_key
+            | `repo_value
+            | `value_dirty
+            | `portable
+            | `portable_dirty
+            | `pruned ]
+            Scan.t)
       with
       | Map m -> ok m
       | Repo_value (repo, v) -> ok (of_value repo v None)
@@ -919,6 +1091,8 @@ module Make (P : Backend.S) = struct
           | Error _ as e -> e
           | Ok v -> Ok (of_value repo v None))
       | Value_dirty (repo, v, um) -> ok (of_value repo v (Some um))
+      | Portable p -> ok (of_portable_value p None)
+      | Portable_dirty (p, um) -> ok (of_portable_value p (Some um))
       | Pruned h -> err_pruned_hash h |> Lwt.return
 
     let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
@@ -943,9 +1117,12 @@ module Make (P : Backend.S) = struct
           match (cached_value x, cached_value y) with
           | Some x, Some y -> equal_value x y
           | _ -> (
-              match (cached_map x, cached_map y) with
-              | Some x, Some y -> map_equal x y
-              | _ -> equal_hash (hash ~cache:true x) (hash ~cache:true y)))
+              match (cached_portable x, cached_portable y) with
+              | Some x, Some y -> equal_portable x y
+              | _ -> (
+                  match (cached_map x, cached_map y) with
+                  | Some x, Some y -> map_equal x y
+                  | _ -> equal_hash (hash ~cache:true x) (hash ~cache:true y))))
 
     (* same as [equal] but do not compare in-memory maps
        recursively. *)
@@ -957,86 +1134,90 @@ module Make (P : Backend.S) = struct
         | _ -> (
             match (cached_value x, cached_value y) with
             | Some x, Some y -> if equal_value x y then True else False
-            | _ -> Maybe)
+            | _ -> (
+                match (cached_portable x, cached_portable y) with
+                | Some x, Some y -> if equal_portable x y then True else False
+                | _ -> Maybe))
 
     let empty () = of_map StepMap.empty ~env:(Env.empty ())
     let empty_hash = hash ~cache:false (empty ())
     let singleton k v = of_map (StepMap.singleton k v)
 
-    (** Does [um] empties [v]?
-
-        Gotcha: Some [Remove] entries in [um] might not be in [v]. *)
-    let is_empty_after_updates ~cache v um =
-      let any_add =
-        StepMap.to_seq um
-        |> Seq.exists (function _, Remove -> false | _, Add _ -> true)
-      in
-      if any_add then false
-      else
-        let val_is_empty = P.Node.Val.is_empty v in
-        if val_is_empty then true
-        else
-          let remove_count = StepMap.cardinal um in
-          if (not val_is_empty) && remove_count = 0 then false
-          else if P.Node.Val.length v > remove_count then false
-          else (
-            (* Starting from this point the function is expensive, but there is
-               no alternative. *)
-            cnt.node_val_list <- cnt.node_val_list + 1;
-            let entries = P.Node.Val.seq ~cache v in
-            Seq.for_all (fun (step, _) -> StepMap.mem step um) entries)
-
     let length ~cache t =
       match
-        (Scan.cascade t [ Map; Value; Repo_key; Value_dirty; Pruned ]
-          : [ `map | `value | `repo_key | `value_dirty | `pruned ] Scan.t)
+        (Scan.cascade t
+           [
+             Map; Value; Portable; Repo_key; Value_dirty; Portable_dirty; Pruned;
+           ]
+          : [ `map
+            | `value
+            | `portable
+            | `repo_key
+            | `value_dirty
+            | `portable_dirty
+            | `pruned ]
+            Scan.t)
       with
       | Map m -> StepMap.cardinal m |> Lwt.return
       | Value v -> P.Node.Val.length v |> Lwt.return
+      | Portable p -> P.Node_portable.length p |> Lwt.return
       | Repo_key (repo, k) ->
           value_of_key ~cache t repo k >|= get_ok "length" >|= P.Node.Val.length
       | Value_dirty (_repo, v, um) ->
-          hash_preimage_of_updates ~cache t v um (function
+          hash_preimage_of_updates ~cache t (Node v) um (function
             | Node x -> P.Node.Val.length x |> Lwt.return
+            | Pnode x -> P.Node_portable.length x |> Lwt.return)
+      | Portable_dirty (p, um) ->
+          hash_preimage_of_updates ~cache t (Pnode p) um (function
+            | Node _ -> assert false
             | Pnode x -> P.Node_portable.length x |> Lwt.return)
       | Pruned h -> pruned_hash_exn "length" h
 
     let is_empty ~cache t =
       match
-        (Scan.cascade t [ Map; Value; Hash; Value_dirty ]
-          : [ `map | `value | `hash | `value_dirty ] Scan.t)
+        (Scan.cascade t
+           [ Map; Value; Portable; Hash; Value_dirty; Portable_dirty ]
+          : [ `map
+            | `value
+            | `portable
+            | `hash
+            | `value_dirty
+            | `portable_dirty ]
+            Scan.t)
       with
       | Map m -> StepMap.is_empty m
       | Value v -> P.Node.Val.is_empty v
+      | Portable p -> P.Node_portable.is_empty p
       | Hash h -> equal_hash h empty_hash
-      | Value_dirty (_repo, v, um) -> is_empty_after_updates ~cache v um
-
-    let add_to_findv_cache t step v =
-      match t.info.findv_cache with
-      | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
-      | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
+      | Value_dirty (_repo, v, um) ->
+          Regular_value.is_empty_after_updates ~cache v um
+      | Portable_dirty (p, um) ->
+          Portable_value.is_empty_after_updates ~cache p um
 
     let findv_aux ~cache ~value_of_key ~return ~bind:( let* ) ctx t step =
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
-      let of_value repo v =
-        let env = t.info.env in
-        match P.Node.Val.find ~cache v step with
-        | None -> None
-        | Some (`Contents (c, m)) ->
-            let c = Contents.of_key ~env repo c in
-            let (v : elt) = `Contents (c, m) in
-            if cache then add_to_findv_cache t step v;
-            Some v
-        | Some (`Node n) ->
-            let n = of_key repo ~env n in
-            let v = `Node n in
-            if cache then add_to_findv_cache t step v;
-            Some v
-      in
+      let of_value = Regular_value.findv ~cache ~env:t.info.env step t in
+      let of_portable = Portable_value.findv ~cache ~env:t.info.env step t () in
       let of_t () =
         match
-          (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
-            : [ `map | `repo_value | `repo_key | `value_dirty | `pruned ] Scan.t)
+          (Scan.cascade t
+             [
+               Map;
+               Repo_value;
+               Repo_key;
+               Value_dirty;
+               Portable;
+               Portable_dirty;
+               Pruned;
+             ]
+            : [ `map
+              | `repo_key
+              | `repo_value
+              | `value_dirty
+              | `portable
+              | `portable_dirty
+              | `pruned ]
+              Scan.t)
         with
         | Map m -> return (of_map m)
         | Repo_value (repo, v) -> return (of_value repo v)
@@ -1049,6 +1230,12 @@ module Make (P : Backend.S) = struct
             | Some (Add v) -> return (Some v)
             | Some Remove -> return None
             | None -> return (of_value repo v))
+        | Portable p -> return (of_portable p)
+        | Portable_dirty (p, um) -> (
+            match StepMap.find_opt step um with
+            | Some (Add v) -> return (Some v)
+            | Some Remove -> return None
+            | None -> return (of_portable p))
         | Pruned h -> pruned_hash_exn ctx h
       in
       match t.info.findv_cache with
@@ -1064,37 +1251,41 @@ module Make (P : Backend.S) = struct
       in
       StepMap.to_seq m |> Seq.drop offset |> take
 
-    let seq_of_value ~env repo ?offset ?length ~cache v : (step * elt) Seq.t =
-      cnt.node_val_list <- cnt.node_val_list + 1;
-      let seq = P.Node.Val.seq ?offset ?length ~cache v in
-      Seq.map
-        (fun (k, v) ->
-          match v with
-          | `Node n ->
-              let n = `Node (of_key ~env repo n) in
-              (k, n)
-          | `Contents (c, m) ->
-              let c = Contents.of_key ~env repo c in
-              (k, `Contents (c, m)))
-        seq
-
     let seq ?offset ?length ~cache t : (step * elt) Seq.t or_error Lwt.t =
       let env = t.info.env in
       match
-        (Scan.cascade t [ Map; Repo_value; Repo_key; Any ]
-          : [ `map | `repo_value | `repo_key | `any ] Scan.t)
+        (Scan.cascade t
+           [
+             Map;
+             Repo_value;
+             Repo_key;
+             Value_dirty;
+             Portable;
+             Portable_dirty;
+             Pruned;
+           ]
+          : [ `map
+            | `repo_key
+            | `repo_value
+            | `value_dirty
+            | `portable
+            | `portable_dirty
+            | `pruned ]
+            Scan.t)
       with
       | Map m -> ok (seq_of_map ?offset ?length m)
       | Repo_value (repo, v) ->
-          ok (seq_of_value ~env ?offset ?length ~cache repo v)
+          ok (Regular_value.seq ~env ?offset ?length ~cache repo v)
       | Repo_key (repo, k) -> (
           value_of_key ~cache t repo k >>= function
           | Error _ as e -> Lwt.return e
-          | Ok v -> ok (seq_of_value ~env ?offset ?length ~cache repo v))
-      | Any -> (
+          | Ok v -> ok (Regular_value.seq ~env ?offset ?length ~cache repo v))
+      | Value_dirty _ | Portable_dirty _ -> (
           to_map ~cache t >>= function
           | Error _ as e -> Lwt.return e
           | Ok m -> ok (seq_of_map ?offset ?length m))
+      | Portable p -> ok (Portable_value.seq ~env ?offset ?length ~cache () p)
+      | Pruned h -> err_pruned_hash h |> Lwt.return
 
     let bindings ~cache t =
       (* XXX: If [t] is value, no need to [to_map]. Let's remove and inline
@@ -1182,11 +1373,21 @@ module Make (P : Backend.S) = struct
               | `Undefined -> (
                   match
                     (Scan.cascade t
-                       [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
+                       [
+                         Map;
+                         Repo_value;
+                         Repo_key;
+                         Value_dirty;
+                         Portable;
+                         Portable_dirty;
+                         Pruned;
+                       ]
                       : [ `map
-                        | `repo_value
                         | `repo_key
+                        | `repo_value
                         | `value_dirty
+                        | `portable
+                        | `portable_dirty
                         | `pruned ]
                         Scan.t)
                   with
@@ -1198,6 +1399,9 @@ module Make (P : Backend.S) = struct
                       (value [@tailcall]) ~path acc d (repo, v, None) k
                   | Value_dirty (repo, v, um) ->
                       (value [@tailcall]) ~path acc d (repo, v, Some um) k
+                  | Portable p -> (portable [@tailcall]) ~path acc d (p, None) k
+                  | Portable_dirty (p, um) ->
+                      (portable [@tailcall]) ~path acc d (p, Some um) k
                   | Pruned h -> pruned_hash_exn "fold" h))
           | `False skip -> (
               match cached_map t with
@@ -1266,14 +1470,16 @@ module Make (P : Backend.S) = struct
             seq ~path acc d bindings k
       and value : type r. (repo * value * updatemap option, acc, r) folder =
        fun ~path acc d (repo, v, updates) k ->
-        let to_elt = function
-          | `Node n -> `Node (of_key ~env repo n)
-          | `Contents (c, m) -> `Contents (Contents.of_key ~env repo c, m)
-        in
+        let bindings = Regular_value.seq ~env ~cache repo v in
         let bindings =
-          cnt.node_val_list <- cnt.node_val_list + 1;
-          P.Node.Val.seq v |> Seq.map (fun (s, v) -> (s, to_elt v))
+          match updates with
+          | None -> bindings
+          | Some updates -> seq_of_updates updates bindings
         in
+        seq ~path acc d bindings k
+      and portable : type r. (portable * updatemap option, acc, r) folder =
+       fun ~path acc d (v, updates) k ->
+        let bindings = Portable_value.seq ~env ~cache () v in
         let bindings =
           match updates with
           | None -> bindings
@@ -1303,9 +1509,29 @@ module Make (P : Backend.S) = struct
         if updates == updates' then t
         else of_value ~env repo n ~updates:updates'
       in
+      let of_portable n updates =
+        let updates' = StepMap.add step up updates in
+        if updates == updates' then t else of_portable_dirty ~env n updates'
+      in
       match
-        (Scan.cascade t [ Map; Repo_value; Repo_key; Value_dirty; Pruned ]
-          : [ `map | `repo_value | `repo_key | `value_dirty | `pruned ] Scan.t)
+        (Scan.cascade t
+           [
+             Map;
+             Repo_value;
+             Repo_key;
+             Value_dirty;
+             Portable;
+             Portable_dirty;
+             Pruned;
+           ]
+          : [ `map
+            | `repo_key
+            | `repo_value
+            | `value_dirty
+            | `portable
+            | `portable_dirty
+            | `pruned ]
+            Scan.t)
       with
       | Map m -> Lwt.return (of_map m)
       | Repo_value (repo, v) -> Lwt.return (of_value repo v StepMap.empty)
@@ -1313,6 +1539,8 @@ module Make (P : Backend.S) = struct
           let+ v = value_of_key ~cache:true t repo k >|= get_ok "update" in
           of_value repo v StepMap.empty
       | Value_dirty (repo, v, um) -> Lwt.return (of_value repo v um)
+      | Portable p -> Lwt.return (of_portable p StepMap.empty)
+      | Portable_dirty (p, um) -> Lwt.return (of_portable p um)
       | Pruned h -> pruned_hash_exn "update" h
 
     let remove t step = update t step Remove
@@ -1898,6 +2126,7 @@ module Make (P : Backend.S) = struct
           Node.export ?clear repo n key;
           k ()
       | Pruned h -> pruned_hash_exn "export" h
+      | Portable_dirty _ -> portable_value_exn "export"
       | Map _ | Value _ -> (
           skip n >>= function
           | true -> k ()
@@ -1912,8 +2141,9 @@ module Make (P : Backend.S) = struct
                            | _, Remove -> None)
                   | Map m -> StepMap.to_seq m
                   | Value (_, _, None) -> Seq.empty
-                  | Key _ | Pruned _ ->
-                      (* [n.v = (Key _ | Pruned _)] is excluded above. *)
+                  | Key _ | Portable_dirty _ | Pruned _ ->
+                      (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is excluded
+                         above. *)
                       assert false
                 in
                 Seq.map (fun (_, x) -> x) seq
@@ -1923,8 +2153,9 @@ module Make (P : Backend.S) = struct
               | Map x, _ -> add_node_map n x k
               | Value (_, v, None), None | _, Some v -> add_node n v k
               | Value (_, v, Some um), _ -> add_updated_node n v um k
-              | (Key _ | Pruned _), _ ->
-                  (* [n.v = (Key _ | Pruned _)] is excluded above. *)
+              | (Key _ | Portable_dirty _ | Pruned _), _ ->
+                  (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is excluded
+                     above. *)
                   assert false))
     and on_contents :
         type r. [ `Contents of Contents.t * metadata ] -> (unit, r) cont_lwt =
@@ -2007,6 +2238,7 @@ module Make (P : Backend.S) = struct
     | Error _, Ok _ -> assert false
     | Ok _, Error _ -> assert false
     | Ok x, Ok y -> diff_ok (x, y)
+    | Error _, Error _ -> assert false
 
   let diff_contents x y =
     if Node.contents_equal x y then Lwt.return_nil
@@ -2226,5 +2458,6 @@ module Make (P : Backend.S) = struct
           | Map _ -> `Map
           | Value _ -> `Value
           | Key _ -> `Key
+          | Portable_dirty _ -> `Portable_dirty
           | Pruned _ -> `Pruned)
 end

@@ -457,6 +457,7 @@ end
 module Generic_key = struct
   module type S = S_generic_key
   module type Maker = Maker_generic_key
+  module type Core = Core
 
   module Make = Make_generic_key
   module Store = Store_generic_key

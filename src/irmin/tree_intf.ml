@@ -94,10 +94,16 @@ module type S = sig
       not return an explicit {!or_error}. *)
 
   exception Pruned_hash of { context : string; hash : hash }
-  (** The exception raised by functions that attempt to load {!pruned} tree
+  (** The exception raised by functions that attempts to load {!pruned} tree
       nodes. *)
 
-  type error = [ `Dangling_hash of hash | `Pruned_hash of hash ]
+  exception Portable_value of { context : string }
+  (** The exception raised by functions that attemps to perform IO on a portable
+      tree. *)
+
+  type error =
+    [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
+
   type 'a or_error = ('a, error) result
 
   (** Operations on lazy tree contents. *)
@@ -363,7 +369,10 @@ module type S = sig
   val counters : unit -> counters
   val dump_counters : unit Fmt.t
   val reset_counters : unit -> unit
-  val inspect : t -> [ `Contents | `Node of [ `Map | `Key | `Value | `Pruned ] ]
+
+  val inspect :
+    t ->
+    [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
 end
 
 module type Sigs = sig
