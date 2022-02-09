@@ -172,8 +172,13 @@ struct
     include Make (Irmin_tezos.Schema)
   end
 
+  let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.minimal
+
   let create_repo config =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true config.store_dir in
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy
+        config.store_dir
+    in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
@@ -336,6 +341,9 @@ let main () ncommits ncommits_trace suite_filter inode_config store_type
   in
   Printexc.record_backtrace true;
   Random.self_init ();
+  (* Enforce the older allocation policy, for consistency of the existing
+     results. *)
+  Gc.set { (Gc.get ()) with Gc.allocation_policy = 0 };
   FSHelper.rm_dir config.store_dir;
   let suite = get_suite suite_filter in
   let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
