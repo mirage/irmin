@@ -33,9 +33,15 @@ module Unix : S = struct
     mutable version : Version.t;
     buf : Buffer.t;
   }
+  (* NOTE we only use two fields of the {!Raw} header: version and offset *)
+
 
   let name t = t.file
+
   let header_size = (* offset + version *) Int63.of_int 16
+  (* NOTE when reading and writing data (not the header) using the {!Raw.t} instance, we
+     take care to work modulo [header_size]: "virtual offset" 0 is real offset
+     [header_size] etc. *)
 
   let unsafe_flush t =
     [%log.debug "IO flush %s" t.file];
@@ -45,6 +51,7 @@ module Unix : S = struct
       let offset = t.offset in
       Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf 0 (String.length buf);
+      (* NOTE f. is the only place we call [Raw.Offset.set] *)
       Raw.Offset.set t.raw offset;
       (* concurrent append might happen so here t.offset might differ
          from offset *)
@@ -209,6 +216,8 @@ module Unix : S = struct
   let close t = Raw.close t.raw
   let exists file = Sys.file_exists file
   let size { raw; _ } = (Raw.fstat raw).st_size
+  (* NOTE this returns the size of the underlying raw file, which includes the space used
+     by the header data *)
 end
 
 module Cache = struct
