@@ -3,25 +3,27 @@
 
 open Util
 
-module Test_data = struct
+module Private = struct
   open struct module BA1 = Bigarray.Array1 end
 
-  let n = 30_000_000
+  let number_of_entries = 30_000_000 (* 30M reachable objs *)
 
   (* each entry consists of [step] ints *)
   let step = 2
 
-  let lim = Int.max_int
+  let lim = 50_000_000_000 (* 50GB of pack store *)
 
   let fill_with_test_data ~arr = 
     let sz = BA1.dim arr in
     0 |> iter_k (fun ~k:kont off -> 
         if off >= sz then () else
           let k = Random.nativeint (Nativeint.of_int lim) |> Nativeint.to_int in 
-          let v = Random.int 400 in 
+          let v = Random.int 200 in  (* avg obj len 200 *)
           arr.{ off } <- k;
           arr.{ off +1} <- v;
           kont (off+2))
+
+  (* NOTE above allows objs to overlap, so not an accurate simulation *)
 
 
   (* stupid implementation: read chunk sized amounts of ints as a list of tuples, sort the
@@ -44,7 +46,7 @@ module Test_data = struct
             let sz = min chunk_sz (arr_sz - off) in
             (* read in as a list FIXME we may prefer to sort an array *)
             assert(sz mod step = 0);
-            let xs = List.init (sz / step) (fun i -> (arr.{off+i}, arr.{off+i +1})) in
+            let xs = List.init (sz / step) (fun i -> (arr.{off+2*i}, arr.{off+2*i +1})) in
             (* sort list *)
             let xs = List.sort (fun (k,_) (k',_) -> Int.compare k k') xs in
             (* write back out *)
@@ -143,27 +145,80 @@ module Test_data = struct
           match prev <= curr with
           | true -> k (off+2,curr)
           | false -> false)            
-          
+
+  let print_entries ~arr ~n =
+    for i = 0 to n-1 do
+      P.p "(%d,%d)\n%!" arr.{2*i} arr.{2*i+1}
+    done
+
+
+  (** [calculate_extents ~src ~dst] takes {b sorted} [(off,len)] data from [src], combines
+      adjacent extents, and outputs a minimal set of (sorted) extents to [dst]; the return
+      value is the length of the part of [dst] that was filled *)
+  let calculate_extents ~src ~dst = 
+    let src_sz,dst_sz = BA1.dim src, BA1.dim dst in    
+    let _ = 
+      assert(src_sz >= 2);
+      assert(src_sz mod step = 0);
+      assert(dst_sz >= src_sz);      
+      ()
+    in    
+    let (off,len) = src.{0},src.{1} in
+    let regions_combined = ref 0 in
+    let dst_off =
+      (* iterate over entries in src, combining adjacent entries *)
+      (2,0,off,len) |> iter_k (fun ~k (src_off,dst_off,off,len) -> 
+          match src_off >= src_sz with
+          | true -> 
+            (* write out "current" extent *)
+            dst.{dst_off} <- off;
+            dst.{dst_off+1} <- len;
+            dst_off+2 (* return the length of dst *)
+          | false ->
+            (* check if we can combine the next region *)
+            let off',len' = src.{src_off},src.{src_off+1} in
+            assert(off <= off');
+            match off' <= off+len with
+            | false -> 
+              (* we can't, so write out current extent and move to next *)
+              dst.{dst_off} <- off;
+              dst.{dst_off+1} <- len;
+              k (src_off+2,dst_off+2,off',len')
+            | true ->               
+              (* we can combine *)
+              incr regions_combined;
+              (if false &&  off' < off+len then P.p "Offset %d occured within existing region (%d,%d)\n%!" off' off len);
+              assert(off <= off'); (* offs are sorted *)
+              let len = max len (off'+len' - off) in
+              k (src_off+2,dst_off,off,len))
+    in
+    P.p "Regions combined: %d\n%!" (!regions_combined);
+    dst_off          
           
 end
 
 
 module Test() = struct
+  open Private
 
-  let sz = 30_000_000 * 2
+  let sz = (number_of_entries * step)
 
   let unsorted = 
     let fn = "/home/tom/tmp/unsorted.map" in
     (try Unix.unlink fn with _ -> ());
     Int_mmap.create ~fn ~sz
 
+  let time f = 
+    let c = Mtime_clock.counter() in
+    let r = f () in
+    let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c) in
+    r    
+
   let _ = Printf.printf "Filling with test data\n%!"
 
-  let c = Mtime_clock.counter()
+  let _ = time (fun () -> fill_with_test_data ~arr:unsorted.arr)
 
-  let _ = Test_data.fill_with_test_data ~arr:unsorted.arr
-
-  let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c)
+  let _ = print_entries ~arr:unsorted.arr ~n:100
 
   let entries_per_MB = 1_000_000 / 16 (* two ints *)
 
@@ -172,9 +227,7 @@ module Test() = struct
 
   let _ = Printf.printf "Sorting chunks\n%!"
 
-  let c = Mtime_clock.counter()
-  let _ = Test_data.sort_chunks ~arr:unsorted.arr ~chunk_sz
-  let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c)
+  let _ = time (fun () -> sort_chunks ~arr:unsorted.arr ~chunk_sz)
 
   let sorted = 
     let fn = "/home/tom/tmp/sorted.map" in
@@ -183,17 +236,24 @@ module Test() = struct
 
   let _ = Printf.printf "Merging chunks\n%!"
 
-  let c = Mtime_clock.counter()
-  let _ = Test_data.merge_chunks ~src:unsorted.arr ~chunk_sz ~dst:sorted.arr
-  let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c)
+  let _ = time (fun () -> merge_chunks ~src:unsorted.arr ~chunk_sz ~dst:sorted.arr)
 
-  let _ = Printf.printf "Checking is_sorted\n%!"
-  
-  let c = Mtime_clock.counter()
-  let _ = assert(Test_data.is_sorted ~arr:sorted.arr)
-  let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c)
+  let _ = Printf.printf "Checking is_sorted\n%!"  
+  let _ = time (fun () -> assert(is_sorted ~arr:sorted.arr))
+
+  let _ = print_entries ~arr:sorted.arr ~n:100
+
+  let extents = 
+    let fn = "/home/tom/tmp/extents.map" in
+    (try Unix.unlink fn with _ -> ());
+    Int_mmap.create ~fn ~sz
+
+  let _ = Printf.printf "Calculating extents\n%!"  
+  let _ = 
+    let dst_off = time @@ fun () -> calculate_extents ~src:sorted.arr ~dst:extents.arr in
+    P.p "Final dst_off was %d\n%!" dst_off
     
-  let _ = Int_mmap.close unsorted; Int_mmap.close sorted; ()
+  let _ = Int_mmap.close unsorted; Int_mmap.close sorted; Int_mmap.close extents; ()
 
 (* unsorted.map is 480M bytes; chunk_sz 10*...; output:
 
