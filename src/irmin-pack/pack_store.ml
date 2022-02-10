@@ -27,6 +27,14 @@ module Indexing_strategy = struct
            this must be accounted for when reconstructing the index. *)
         true
 
+  let minimal_with_contents : t =
+   fun ~value_length:_ -> function
+    | Commit_v2 -> true
+    | Inode_v2_root -> false
+    | Inode_v2_nonroot -> false
+    | Contents -> true
+    | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> true
+
   let default = always
 end
 
