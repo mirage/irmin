@@ -47,14 +47,14 @@ module Private = struct
   let create ~root ~name = 
     let ok = not (Sys.file_exists Fn.(root / name)) in
     assert(ok);
-    let t = Int_mmap.create ~dir:root ~name ~sz:(max_field+1) in
+    let t = Int_mmap.create ~fn:Fn.(root / name) ~sz:(max_field+1) in
     set t version_field default_version;
     t
 
   let open_ ~root ~name = 
     let ok = Sys.file_exists Fn.(root / name) in
     assert(ok);
-    let t = Int_mmap.open_ ~dir:root ~name ~sz:(max_field+1) in
+    let t = Int_mmap.open_ ~fn:Fn.(root / name) ~sz:(max_field+1) in
     t
 
   let close t = Int_mmap.close t

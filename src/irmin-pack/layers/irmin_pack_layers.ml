@@ -1,5 +1,7 @@
 (** Top-level interface to library [irmin_pack_layers]. *)
 
+module External_sort = External_sort
+
 (** {1 Suffix file, object store, and control file} *)
 
 module Suffix = Suffix

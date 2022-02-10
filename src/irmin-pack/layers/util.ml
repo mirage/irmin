@@ -36,12 +36,14 @@ let random_int_list ~size =
   in
   ints
 
+type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
+
 module Int_mmap : 
 sig 
   type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
   type t = private { fd:Unix.file_descr; mutable arr: int_bigarray }
-  val create : dir:string -> name:string -> sz:int -> t
-  val open_  : dir:string -> name:string -> sz:int -> t
+  val create : fn:string -> sz:int -> t
+  val open_  : fn:string -> sz:int -> t
   val close  : t -> unit
 end      
 = struct
@@ -51,18 +53,18 @@ end
   (* NOTE both following are shared *)
   let shared = true
 
-  let create ~dir ~name ~sz =
-    assert(not (Sys.file_exists Fn.(dir / name)));
-    let fd = Unix.(openfile Fn.(dir / name) [O_CREAT;O_RDWR;O_TRUNC;O_EXCL;O_CLOEXEC] 0o660) in
+  let create ~fn ~sz =
+    assert(not (Sys.file_exists fn));
+    let fd = Unix.(openfile fn [O_CREAT;O_RDWR;O_TRUNC;O_EXCL;O_CLOEXEC] 0o660) in
     let arr = 
       let open Bigarray in
       Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
     in
     { fd; arr }
 
-  let open_ ~dir ~name ~sz =
-    assert(Sys.file_exists Fn.(dir / name));
-    let fd = Unix.(openfile Fn.(dir / name) [O_RDWR] 0o660) in
+  let open_ ~fn ~sz =
+    assert(Sys.file_exists fn);
+    let fd = Unix.(openfile fn [O_RDWR] 0o660) in
     let arr = 
       let open Bigarray in
       Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
@@ -165,10 +167,6 @@ end
 let control_s = "control" (** The control file is always called "control" *)
 
 
-include struct
-  open Bigarray
-  type int_bigarray = (int,int_elt,c_layout) Array1.t
-end
 
 
 let mkdir ~path = 

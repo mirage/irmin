@@ -2,24 +2,28 @@
 
 This uses the object store, suffix file, control and meta to implement the normal
 irmin-pack [IO] interface. 
+
+6GB snapshot size, 30M objects, 6000/30 = 200 bytes average object size; 
+
+
+
+
 *)
 
 open! Import
 open Util
 
+(** NOTE this interface is documented also in https://github.com/mirage/irmin/pull/1758 *)
 module type S = sig 
   type t
     
-  (* What is the meaning of [version]? if it is set, does it have to agree with the
-     underlying impl? At the moment, files are always opened with [version:`V2] (see
-     selected_version below), and an existing `V1 file will be upgraded silently when
-     things are written to it. So, we should have version metadata with the file and
-     simulate this behaviour. *)
   val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t
+  (** Handling of version is a bit subtle in the existing implementation in IO.ml; eg
+      opening a V2 with V1 fails! *)
 
-  (* FIXME note that there is a kind of caching of IO.t instances in irmin-pack, and this
-     may assume that an IO.t has a name that refers to a non-directory file; for this
-     reason, we might want to implement our layers via a control file, rather than storing
+  (* NOTE that there is a kind of caching of IO.t instances in irmin-pack, and this may
+     assume that an IO.t has a name that refers to a non-directory file; for this reason,
+     we might want to implement our layers via a control file, rather than storing
      everything in a subdir; but since a subdir is so much cleaner, let's just patch up
      the caching if it is broken *)
 
@@ -30,6 +34,8 @@ module type S = sig
      have to implement it; OK; just start from a fresh instance *)
 
   val readonly : t -> bool
+
+
   val flush : t -> unit
   val close : t -> unit
   val offset : t -> int63
@@ -43,8 +49,14 @@ module type S = sig
   val set_version : t -> Version.t -> unit
   val name : t -> string
   (* This is just the "filename"/path used when opening the IO instance *)
+
   val force_offset : t -> int63 
-  (* See doc in ../IO_intf.ml We probably have something like this for the layers: the
+  (* 
+I think this is for readonly instances, to allow them to detect that there is more data to
+read.
+
+     
+See doc in ../IO_intf.ml We probably have something like this for the layers: the
      suffix file likely contains metadata for the last synced position. NOTE there are
      various bits of metadata, some of which we consult more often than others; for
      example, the layered store has a "generation" incremented on each GC; but we also
@@ -127,8 +139,11 @@ metadata is stored elsewhere, in meta.nnnn
       t
     in
     let objects = Obj_store.create ~root:Fn.(root / Control.(objects_name control)) in
-    (* NOTE in the following, the initial suffix_offset is 0 *)
-    let suffix = Suffix.create ~root:Fn.(root / Control.(suffix_name control)) ~suffix_offset:0 in
+    let suffix = 
+      (* NOTE in the following, the initial suffix_offset is 0 *)
+      let suffix_offset = 0 in
+      Suffix.create ~root:Fn.(root / Control.(suffix_name control)) ~suffix_offset 
+    in
     (* FIXME make sure to sync all above *)
     (* finally create the pointer to the subdir *)
     File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
@@ -148,6 +163,19 @@ metadata is stored elsewhere, in meta.nnnn
     (* FIXME when we open, we should take into account meta.last_synced_offset *)
     { fn=fn0; root; objects; suffix; control; readonly }
     
+  let readonly t = t.readonly
+
+  (* FIXME the existing IO implementation uses a buffer for writes, and flush is used to
+     actually flush the data to disk (with an fsync? FIXME); this presumably improves
+     performance; do we want to do that here? an alternative is to use OCaml's native
+     channels *)
+  let flush t = 
+    Suffix.fsync t.suffix;
+    (* NOTE the last_synced_offset_field is the "virtual" size of the suffix *)
+    Control.(set t.control last_synced_offset_field (Suffix.size t.suffix));
+    (* FIXME may want to flush here *)
+    ()
+
 
 
 end

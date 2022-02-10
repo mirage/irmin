@@ -20,11 +20,14 @@ module type S = sig
       number of bytes, unless there are not that many bytes in the file; returns the
       number of bytes actually read *)
 
-  val pwrite: t -> off:int ref -> bytes -> unit
-  (** [pwrite t ~off buf] writes the bytes into the data file at offset [off -
+  val pwrite: worker_only:unit -> t -> off:int ref -> bytes -> unit
+  (** [pwrite ~worker_only t ~off buf] writes the bytes into the data file at offset [off -
       suffix_offset]; [off] is updated; file seek pointer altered as a side effect.
 
       Requires off >= suffix_offset. 
+
+      For our usecase, this function should only be used by the worker (hence the
+      [worker_only] argument).
   *)
 
   val append: t -> string -> unit
@@ -78,13 +81,14 @@ module Private = struct
     off:=!off + n;
     n
 
-  let pwrite t ~off buf =
+  let pwrite ~worker_only t ~off buf =
+    ignore(worker_only);
     assert(!off >= t.suffix_offset);
     File.pwrite t.data ~off:(ref (!off - t.suffix_offset)) buf;
     off:=!off + Bytes.length buf;
     ()
 
-  let append t s = pwrite t ~off:(ref (size t)) (Bytes.unsafe_of_string s)
+  let append t s = pwrite ~worker_only:() t ~off:(ref (size t)) (Bytes.unsafe_of_string s)
 end
 
 
