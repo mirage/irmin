@@ -77,6 +77,10 @@ module type Sigs = sig
     (** The strategy that indexes as few objects as possible while still
         maintaing store integrity. *)
 
+    val minimal_with_contents : t
+    (** The strategy that is similar to the minimal strategy but it also indexes
+        contents objects. *)
+
     val default : t
     (** [default] is the indexing strategy used by [irmin-pack] instances that
         do not explicitly set an indexing strategy in {!Irmin_pack.config}.

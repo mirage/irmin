@@ -190,7 +190,7 @@
     is to index all objects appended to the pack file (as before), but users may
     now choose to index fewer objects in order to improve the write performance
     of the store, at the cost of introducing potential duplicate values to the
-    pack file. (#1664, @CraigFe)
+    pack file. (#1664, #1761, @CraigFe, @maiste)
 
 - **irmin-unix**
   - Clean up command line interface. Allow config file to be specified when
