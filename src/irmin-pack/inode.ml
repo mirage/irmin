@@ -1156,7 +1156,7 @@ struct
           Node.hash node
         else hash v
       in
-      { v_ref = Val_ref.of_hash (lazy hash); root = depth = 0; v }
+      { v_ref = Val_ref.of_hash (Lazy.from_val hash); root = depth = 0; v }
 
     let of_concrete ~depth la t =
       try Ok (of_concrete_exn ~depth la t) with
@@ -1656,7 +1656,7 @@ struct
                    [of_proof]. *)
                 hash t
               in
-              let v_ref = Val_ref.of_hash (lazy hash) in
+              let v_ref = Val_ref.of_hash (Lazy.from_val hash) in
               match t.v with
               | Values _ -> assert false
               | Tree { depth; length; entries } ->

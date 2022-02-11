@@ -1045,6 +1045,10 @@ module Make (S : Generic_key) = struct
 
   let pp_depth = Irmin.Type.pp S.Tree.depth_t
   let pp_key = Irmin.Type.pp S.Path.t
+  let contents_t = T.pair S.contents_t S.metadata_t
+  let diff_t = T.(pair S.path_t (Irmin.Diff.t contents_t))
+  let check_diffs = checks diff_t
+  let check_ls = checks T.(pair S.step_t S.tree_t)
 
   let test_trees x () =
     let test repo =
@@ -1409,6 +1413,355 @@ module Make (S : Generic_key) = struct
       in
       let* vx' = S.find_all t [ "a" ] in
       check_val "update file as tree" (normal vx) vx';
+      B.Repo.close repo
+    in
+    run x test
+
+  let pp_proof = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.tree_t)
+  let pp_stream = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.stream_t)
+
+  let test_proofs x () =
+    let test repo =
+      (* Testing Merkle proof *)
+      let large_dir =
+        List.init 1000 (fun i ->
+            let v = string_of_int i in
+            ([ "dir"; v ], "BLOB:" ^ v))
+      in
+      let* c0 =
+        Lwt.return (S.Tree.empty ())
+        >>= with_binding [ "foo"; "a" ] "1"
+        >>= with_binding [ "foo"; "b"; "c" ] "2"
+        >>= with_binding [ "bar"; "d" ] "3"
+        >>= with_binding [ "e" ] "4"
+        >>= fun t ->
+        Lwt_list.fold_left_s (fun acc (k, v) -> S.Tree.add acc k v) t large_dir
+      in
+      let to_proof t =
+        let* store = S.empty repo in
+        let* () = S.set_tree_exn ~info:(infof "to_proof") store [] t in
+        let key =
+          match S.Tree.key t with None -> assert false | Some k -> k
+        in
+        let rec aux p t =
+          let* bindings =
+            Lwt.catch
+              (fun () -> S.Tree.list t [])
+              (function
+                | S.Tree.Pruned_hash _ -> Lwt.return [] | e -> Lwt.fail e)
+          in
+          Lwt_list.iter_s (fun (s, v) -> aux (p @ [ s ]) v) bindings
+        in
+        S.Tree.produce_proof repo key (fun t ->
+            let+ () = aux [] t in
+            (t, ()))
+      in
+      let* p0, () = to_proof c0 in
+      [%log.debug "p0=%a" pp_proof p0];
+      let t0 = S.Tree.Proof.to_tree p0 in
+      let* () =
+        let+ d0 = S.Tree.diff c0 t0 in
+        check_diffs "proof roundtrip" [] d0
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [] in
+        let+ t0' = S.Tree.list t0 [] in
+        check_ls "proof list /" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "foo" ] in
+        let+ t0' = S.Tree.list t0 [ "foo" ] in
+        check_ls "proof tree list /foo" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "bar"; "d" ] in
+        let+ t0' = S.Tree.list t0 [ "bar"; "d" ] in
+        check_ls "proof tree list /bar/d" c0' t0'
+      in
+      let* () =
+        let* c0' = S.Tree.list c0 [ "dir" ] in
+        let+ t0' = S.Tree.list t0 [ "dir" ] in
+        check_ls "proof tree list /dir" c0' t0'
+      in
+      let add_noise n prefix =
+        List.map (fun k -> (prefix @ [ k ], k)) (List.init n string_of_int)
+      in
+      let bindings =
+        [
+          ([ "foo"; "age" ], "0");
+          ([ "foo"; "version" ], "1");
+          ([ "bar"; "age" ], "2");
+          ([ "bar"; "version" ], "3");
+        ]
+        @ add_noise 100 [ "foo" ]
+        @ add_noise 10 [ "hey" ]
+        @ add_noise 50 [ "bar" ]
+      in
+      let increment = function
+        | None -> assert false
+        | Some i -> Some (int_of_string i + 1 |> string_of_int)
+      in
+      let check_proof_f0 p =
+        let t = S.Tree.Proof.to_tree p in
+        let* i = S.Tree.find t [ "bar"; "age" ] in
+        Alcotest.(check (option string))
+          "inside: find bar/age in proof" (Some "2") i;
+        let* i = S.Tree.find t [ "bar"; "version" ] in
+        Alcotest.(check (option string))
+          "inside: find bar/version in proof" (Some "3") i;
+        let* i = S.Tree.find t [ "hello"; "there" ] in
+        Alcotest.(check (option string))
+          "inside: do not find hello/there in proof" None i;
+        let+ () =
+          Lwt.catch
+            (fun () ->
+              let+ _ = S.Tree.find t [ "foo"; "version" ] in
+              Alcotest.fail "inside: should have raise: pruned_hash exn")
+            (function
+              | S.Tree.Pruned_hash _ | B.Node.Val.Dangling_hash _ ->
+                  Lwt.return ()
+              | e -> Lwt.fail e)
+        in
+        ()
+      in
+
+      let check_proof_f1 p =
+        let t = S.Tree.Proof.to_tree p in
+        let+ i = S.Tree.find t [ "foo"; "version" ] in
+        Alcotest.(check (option string))
+          "outside: find foo/version" (Some "1") i
+      in
+
+      let init_tree bindings =
+        let tree = S.Tree.empty () in
+        let* tree =
+          Lwt_list.fold_left_s
+            (fun tree (k, v) -> S.Tree.add tree k v)
+            tree bindings
+        in
+        let* store = S.empty repo in
+        let* () = S.set_tree_exn ~info:(infof "init_tree") store [] tree in
+        S.tree store
+      in
+      let* tree = init_tree bindings in
+      let key =
+        match S.Tree.key tree with None -> assert false | Some k -> k
+      in
+
+      let f0 t0 =
+        let* t1 = S.Tree.update t0 [ "foo"; "age" ] increment in
+        let* t2 = S.Tree.update t1 [ "bar"; "age" ] increment in
+        let* t3 = S.Tree.get_tree t2 [ "bar" ] in
+        let* t4 = S.Tree.add_tree t2 [ "hello"; "there" ] t3 in
+        let* v = S.Tree.get t4 [ "hello"; "there"; "version" ] in
+        Alcotest.(check string) "hello/there/version" "3" v;
+        let t = S.Tree.empty () in
+        let* t5 = S.Tree.add_tree t [ "dir1"; "dir2" ] t4 in
+        let* v = S.Tree.get t5 [ "dir1"; "dir2"; "bar"; "age" ] in
+        Alcotest.(check string) "dir1/dir2/bar/age" "3" v;
+        let* t = S.Tree.remove t4 [ "bar" ] in
+
+        (* Trigger certain paths in [S.Tree] during "verify" *)
+        let portable =
+          (* During "verify" [portable] is [Pruned] with [portable] in env *)
+          t0
+        in
+        let portable_dirty = t in
+        let trigger_node_to_map t =
+          S.Tree.fold ~depth:(`Eq 1) ~order:`Sorted ~force:`True t ()
+        in
+        let* () = trigger_node_to_map portable in
+        let* () = trigger_node_to_map portable_dirty in
+        let trigger_node_length t =
+          let+ (_ : int) = S.Tree.length t [] in
+          ()
+        in
+        let* () = trigger_node_length portable in
+        let* () = trigger_node_length portable_dirty in
+        let trigger_node_fold_undefined t =
+          S.Tree.fold ~depth:(`Eq 1) ~order:`Undefined ~force:`True t ()
+        in
+        let* () = trigger_node_fold_undefined portable in
+        let* () = trigger_node_fold_undefined portable_dirty in
+        let (_ : bool) = S.Tree.is_empty portable in
+        let trigger_node_to_backend_portable t =
+          match S.Tree.destruct t with
+          | `Contents _ -> assert false
+          | `Node n ->
+              let+ _ = S.to_backend_portable_node n in
+              ()
+        in
+        let* () = trigger_node_to_backend_portable portable_dirty in
+
+        Lwt.return (t, ())
+      in
+      let f1 t0 =
+        let* p0, () = S.Tree.produce_proof repo key f0 in
+        let* () = check_proof_f0 p0 in
+        let+ v = S.Tree.get t0 [ "foo"; "version" ] in
+        Alcotest.(check string) "foo/version" "1" v;
+        (t0, ())
+      in
+      let* p, () = S.Tree.produce_proof repo key f1 in
+
+      let* () = check_proof_f1 p in
+
+      let check_proof f =
+        let* p, () = S.Tree.produce_proof repo key f in
+        [%log.debug "Verifying proof %a" pp_proof p];
+        let+ r = S.Tree.verify_proof p f in
+        match r with
+        | Ok (_, ()) -> ()
+        | Error (`Msg e) -> Alcotest.failf "check_proof: %s" e
+      in
+      let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
+
+      let check_stream f =
+        let* p, () = S.Tree.produce_stream repo key f in
+        [%log.debug "Verifying stream %a" pp_stream p];
+        let+ r = S.Tree.verify_stream p f in
+        match r with
+        | Ok (_, ()) -> ()
+        | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
+      in
+      let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
+
+      (* check env sharing *)
+      let tree () =
+        S.Tree.of_concrete
+          (`Tree [ ("foo", `Contents ("bar", S.Metadata.default)) ])
+      in
+      let contents () =
+        S.Tree.of_concrete (`Contents ("bar", S.Metadata.default))
+      in
+      let check_env_empty msg t b =
+        let env = S.Tree.Private.get_env t in
+        Alcotest.(check bool) msg b (S.Tree.Private.Env.is_empty env)
+      in
+      let check_env msg t t' =
+        let env = S.Tree.Private.get_env t in
+        let env' = S.Tree.Private.get_env t' in
+        check S.Tree.Private.Env.t msg env env'
+      in
+      let x = ref None in
+      let* _ =
+        S.Tree.produce_proof repo key (fun t ->
+            check_env_empty "env should be set inside the proof" t false;
+            x := Some t;
+
+            let t0 = tree () in
+            check_env_empty "env should not be set for fresh trees" t0 true;
+
+            (* test changing subtress: check that envirnoment is
+               attached only the tree roots *)
+            let* t1 = S.Tree.add_tree t [ "foo" ] t0 in
+            check_env_empty "1: t's env should not change" t false;
+            check_env_empty "1: t0's env should not change" t0 true;
+            check_env "1: t1's env should be the same as t's" t1 t;
+
+            let t0 = contents () in
+            let* t1 = S.Tree.add_tree t [ "foo" ] t0 in
+            check_env_empty "2: t's env should not change" t false;
+            check_env_empty "2: t0's env should not change" t0 true;
+            check_env "2: t1's env should be the same as t's" t1 t;
+
+            (* test changing roots *)
+            let t0 = tree () in
+            let* t1 = S.Tree.add_tree t [] t0 in
+            check_env_empty "3: t's env should not change" t false;
+            check_env_empty "3: t0's env should not change" t0 true;
+            check_env "3: t1's env should be the same as t0's" t1 t0;
+
+            let t0 = contents () in
+            let* t1 = S.Tree.add_tree t [] t0 in
+            check_env_empty "4: t's env should not change" t false;
+            check_env_empty "4: t0's env should not change" t0 true;
+            check_env "4: t1's env should be the same as t0's" t1 t0;
+
+            (* check subtrees *)
+            let* t2 = S.Tree.get_tree t [ "foo" ] in
+            check_env "5: t2's env should be the same as t's" t2 t;
+            let* t3 = S.Tree.get_tree t [ "foo"; "age" ] in
+            check_env "5: t3's env should be the same as t's" t3 t;
+
+            Lwt.return (t, ()))
+      in
+      let t = match !x with Some t -> t | None -> assert false in
+      check_env_empty "env is unset outside of the proof)" t true;
+
+      (* test negative proofs *)
+      let check_bad_proof p =
+        let+ r = S.Tree.verify_proof p f0 in
+        match r with
+        | Ok _ -> Alcotest.fail "verify should have failed"
+        | Error _ -> ()
+      in
+
+      let* p0, () = S.Tree.produce_proof repo key f0 in
+      let proof ?(before = S.Tree.Proof.before p0)
+          ?(after = S.Tree.Proof.after p0) ?(state = S.Tree.Proof.state p0) () =
+        S.Tree.Proof.v ~before ~after state
+      in
+      let wrong_hash = B.Contents.Hash.hash "not the right hash!" in
+      let wrong_kinded_hash = `Node wrong_hash in
+      let* () = check_bad_proof (proof ~before:wrong_kinded_hash ()) in
+      let* () = check_bad_proof (proof ~after:wrong_kinded_hash ()) in
+      let* _ = S.Tree.verify_proof (proof ()) f0 in
+      let some_contents : S.Tree.Proof.tree list =
+        [
+          Blinded_node wrong_hash;
+          Node [];
+          Inode { length = 1024; proofs = [] };
+          Blinded_contents (wrong_hash, S.Metadata.default);
+          Contents ("yo", S.Metadata.default);
+        ]
+      in
+      let* () =
+        Lwt_list.iter_s
+          (fun c -> check_bad_proof (proof ~state:c ()))
+          some_contents
+      in
+
+      (* test negative streams *)
+      let check_bad_stream p =
+        let+ r = S.Tree.verify_stream p f0 in
+        match r with
+        | Ok _ ->
+            Alcotest.failf "verify_stream should have failed %a" pp_stream p
+        | Error _ -> ()
+      in
+
+      let* p0, () = S.Tree.produce_stream repo key f0 in
+      let proof ?(before = S.Tree.Proof.before p0)
+          ?(after = S.Tree.Proof.after p0) ?(contents = S.Tree.Proof.state p0)
+          () =
+        S.Tree.Proof.v ~before ~after contents
+      in
+      let wrong_hash = B.Contents.Hash.hash "not the right hash!" in
+      let wrong_kinded_hash = `Node wrong_hash in
+      let* () = check_bad_stream (proof ~before:wrong_kinded_hash ()) in
+      let* () = check_bad_stream (proof ~after:wrong_kinded_hash ()) in
+      let* _ = S.Tree.verify_stream (proof ()) f0 in
+      let some_contents : S.Tree.Proof.stream list =
+        let s : S.Tree.Proof.elt list -> S.Tree.Proof.stream = List.to_seq in
+        let ok = List.of_seq (S.Tree.Proof.state p0) in
+        [
+          s [];
+          s [ Node [] ];
+          s [ Inode { length = 1024; proofs = [] } ];
+          s [ Contents "yo" ];
+          s (ok @ [ Node [] ]);
+        ]
+      in
+      let* () =
+        let x = ref 1 in
+        Lwt_list.iter_s
+          (fun c ->
+            incr x;
+            check_bad_stream (proof ~contents:c ()))
+          some_contents
+      in
+
       B.Repo.close repo
     in
     run x test
@@ -2077,6 +2430,7 @@ let suite (speed, x) =
        ("Basic merge operations", speed, T.test_simple_merges x);
        ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
        ("Tree caches and hashconsing", speed, T.test_tree_caches x);
+       ("Tree proofs", speed, T.test_proofs x);
        ("Complex histories", speed, T.test_history x);
        ("Empty stores", speed, T.test_empty x);
        ("Backend node manipulation", speed, T.test_backend_nodes x);

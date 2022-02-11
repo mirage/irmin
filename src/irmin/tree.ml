@@ -123,20 +123,9 @@ module Make (P : Backend.S) = struct
   end
 
   module Metadata = P.Node.Metadata
-
-  module Env = struct
-    (* Placeholder module until proofs are implemented *)
-    type t = Empty [@@deriving irmin]
-
-    let is_empty Empty = true
-    let empty () = Empty
-    let find_node _ _ = None
-    let find_pnode _ _ = None
-    let find_contents _ _ = None
-    let add_node_from_store _ _ v = v
-    let add_contents_from_store _ _ _ = ()
-    let copy ~into:_ _ = ()
-  end
+  module Irmin_proof = Proof
+  module Tree_proof = Proof.Make (P.Contents.Val) (P.Hash) (Path) (Metadata)
+  module Env = Proof.Env (P) (Tree_proof)
 
   let merge_env x y =
     match (Env.is_empty x, Env.is_empty y) with
@@ -2460,4 +2449,356 @@ module Make (P : Backend.S) = struct
           | Key _ -> `Key
           | Portable_dirty _ -> `Portable_dirty
           | Pruned _ -> `Pruned)
+
+  module Proof = struct
+    type irmin_tree = t
+
+    include Tree_proof
+
+    type proof_tree = tree
+    type proof_inode = inode_tree
+    type node_proof = P.Node_portable.proof
+
+    let proof_of_iproof : proof_inode -> proof_tree = function
+      | Blinded_inode h -> Blinded_node h
+      | Inode_values l -> Node l
+      | Inode_tree i -> Inode i
+      | Inode_extender ext -> Extender ext
+
+    let rec proof_of_tree : type a. irmin_tree -> (proof_tree -> a) -> a =
+     fun tree k ->
+      match tree with
+      | `Contents (c, h) -> proof_of_contents c h k
+      | `Node node -> proof_of_node node k
+
+    and proof_of_contents :
+        type a. Contents.t -> metadata -> (proof_tree -> a) -> a =
+     fun c m k ->
+      match Contents.cached_value c with
+      | Some v -> k (Contents (v, m))
+      | None -> k (Blinded_contents (Contents.hash c, m))
+
+    and proof_of_node : type a. node -> (proof_tree -> a) -> a =
+     fun node k ->
+      (* Let's convert [node] to [node_proof].
+
+         As [node] might not be exported, we can only turn it into a portable
+         node. *)
+      let to_portable_value =
+        let value_of_key ~cache:_ _node _repo k =
+          let h = P.Node.Key.to_hash k in
+          err_dangling_hash h
+        in
+        Node.to_portable_value_aux ~cache:false ~value_of_key ~return:Fun.id
+          ~bind:(fun x f -> f x)
+      in
+      match to_portable_value node with
+      | Error (`Dangling_hash h) -> k (Blinded_node h)
+      | Error (`Pruned_hash h) -> k (Blinded_node h)
+      | Ok v ->
+          (* [to_proof] may trigger reads. This is fine. *)
+          let node_proof = P.Node_portable.to_proof v in
+          proof_of_node_proof node node_proof k
+
+    (** [of_node_proof n np] is [p] (of type [Tree.Proof.t]) which is very
+        similar to [np] (of type [P.Node.Val.proof]) except that the values
+        loaded in [n] have been expanded. *)
+    and proof_of_node_proof :
+        type a. node -> node_proof -> (proof_tree -> a) -> a =
+     fun node p k ->
+      match p with
+      | `Blinded h -> k (Blinded_node h)
+      | `Inode (length, proofs) ->
+          iproof_of_inode node length proofs (fun p -> proof_of_iproof p |> k)
+      | `Values vs -> iproof_of_values node vs (fun p -> proof_of_iproof p |> k)
+
+    and iproof_of_node_proof :
+        type a. node -> node_proof -> (proof_inode -> a) -> a =
+     fun node p k ->
+      match p with
+      | `Blinded h -> k (Blinded_inode h)
+      | `Inode (length, proofs) -> iproof_of_inode node length proofs k
+      | `Values vs -> iproof_of_values node vs k
+
+    and iproof_of_inode :
+        type a. node -> int -> (_ * node_proof) list -> (proof_inode -> a) -> a
+        =
+     fun node length proofs k ->
+      let rec aux acc = function
+        | [] -> k (Inode_tree { length; proofs = List.rev acc })
+        | (index, proof) :: rest ->
+            iproof_of_node_proof node proof (fun proof ->
+                aux ((index, proof) :: acc) rest)
+      in
+      (* We are dealing with an inode A.
+         Its children are Bs.
+         The children of Bs are Cs.
+      *)
+      match proofs with
+      | [ (index, proof) ] ->
+          (* A has 1 child. *)
+          iproof_of_node_proof node proof (function
+            | Inode_tree { length = length'; proofs = [ (i, p) ] } ->
+                (* B is an inode with 1 child, C isn't. *)
+                assert (length = length');
+                k
+                  (Inode_extender { length; segments = [ index; i ]; proof = p })
+            | Inode_extender { length = length'; segments; proof } ->
+                (* B is an inode with 1 child, so is C. *)
+                assert (length = length');
+                k
+                  (Inode_extender
+                     { length; segments = index :: segments; proof })
+            | (Blinded_inode _ | Inode_values _ | Inode_tree _) as p ->
+                (* B is not an inode with 1 child. *)
+                k (Inode_tree { length; proofs = [ (index, p) ] }))
+      | _ -> aux [] proofs
+
+    and iproof_of_values :
+        type a.
+        node -> (step * Node.pnode_value) list -> (proof_inode -> a) -> a =
+      let findv =
+        let value_of_key ~cache:_ _node _repo k =
+          let h = P.Node.Key.to_hash k in
+          err_dangling_hash h
+        in
+        Node.findv_aux ~value_of_key ~return:Fun.id ~bind:(fun x f -> f x)
+      in
+      fun node steps k ->
+        let rec aux acc = function
+          | [] -> k (Inode_values (List.rev acc))
+          | (step, _) :: rest -> (
+              match findv ~cache:false "Proof.iproof_of_values" node step with
+              | None -> assert false
+              | Some t ->
+                  let k p = aux ((step, p) :: acc) rest in
+                  proof_of_tree t k)
+        in
+        aux [] steps
+
+    let of_tree t = proof_of_tree t Fun.id
+
+    let rec load_proof : type a. env:_ -> proof_tree -> (kinded_hash -> a) -> a
+        =
+     fun ~env p k ->
+      match p with
+      | Blinded_node h -> k (`Node h)
+      | Node n -> load_node_proof ~env n k
+      | Inode { length; proofs } -> load_inode_proof ~env length proofs k
+      | Blinded_contents (h, m) -> k (`Contents (h, m))
+      | Contents (v, m) ->
+          let h = P.Contents.Hash.hash v in
+          Env.add_contents_from_proof env h v;
+          k (`Contents (h, m))
+      | Extender { length; segments; proof } ->
+          load_extender_proof ~env length segments proof k
+
+    (* Recontruct private node from [P.Node.Val.proof] *)
+    and load_extender_proof :
+        type a.
+        env:_ -> int -> int list -> proof_inode -> (kinded_hash -> a) -> a =
+     fun ~env len segments p k ->
+      node_proof_of_proof ~env p (fun p ->
+          let np = proof_of_extender len segments p in
+          let v = P.Node_portable.of_proof ~depth:0 np in
+          let v =
+            match v with
+            | None -> Proof.bad_proof_exn "Invalid proof"
+            | Some v -> v
+          in
+          let h = P.Node_portable.hash_exn v in
+          Env.add_pnode_from_proof env h v;
+          k (`Node h))
+
+    and proof_of_extender len segments p : node_proof =
+      List.fold_left
+        (fun acc index -> `Inode (len, [ (index, acc) ]))
+        p (List.rev segments)
+
+    (* Recontruct private node from [P.Node.Val.empty] *)
+    and load_node_proof :
+        type a. env:_ -> (step * proof_tree) list -> (kinded_hash -> a) -> a =
+     fun ~env n k ->
+      let rec aux acc = function
+        | [] ->
+            let h = P.Node_portable.hash_exn acc in
+            Env.add_pnode_from_proof env h acc;
+            k (`Node h)
+        | (s, p) :: rest ->
+            let k h = aux (P.Node_portable.add acc s h) rest in
+            load_proof ~env p k
+      in
+      aux (P.Node_portable.empty ()) n
+
+    (* Recontruct private node from [P.Node.Val.proof] *)
+    and load_inode_proof :
+        type a.
+        env:_ -> int -> (_ * proof_inode) list -> (kinded_hash -> a) -> a =
+     fun ~env len proofs k ->
+      let rec aux : _ list -> _ list -> a =
+       fun acc proofs ->
+        match proofs with
+        | [] ->
+            let np = `Inode (len, List.rev acc) in
+            let v = P.Node_portable.of_proof ~depth:0 np in
+            let v =
+              match v with
+              | None -> Proof.bad_proof_exn "Invalid proof"
+              | Some v -> v
+            in
+            let h = P.Node_portable.hash_exn v in
+            Env.add_pnode_from_proof env h v;
+            k (`Node h)
+        | (i, p) :: rest ->
+            let k p = aux ((i, p) :: acc) rest in
+            node_proof_of_proof ~env p k
+      in
+      aux [] proofs
+
+    and node_proof_of_proof :
+        type a. env:_ -> proof_inode -> (node_proof -> a) -> a =
+     fun ~env t k ->
+      match t with
+      | Blinded_inode x -> k (`Blinded x)
+      | Inode_tree { length; proofs } ->
+          node_proof_of_inode ~env length proofs k
+      | Inode_values n -> node_proof_of_node ~env n k
+      | Inode_extender { length; segments; proof } ->
+          node_proof_of_proof ~env proof (fun p ->
+              k (proof_of_extender length segments p))
+
+    and node_proof_of_inode :
+        type a. env:_ -> int -> (_ * proof_inode) list -> (node_proof -> a) -> a
+        =
+     fun ~env length proofs k ->
+      let rec aux acc = function
+        | [] -> k (`Inode (length, List.rev acc))
+        | (i, p) :: rest ->
+            node_proof_of_proof ~env p (fun p -> aux ((i, p) :: acc) rest)
+      in
+      aux [] proofs
+
+    and node_proof_of_node :
+        type a. env:_ -> (step * proof_tree) list -> (node_proof -> a) -> a =
+     fun ~env node k ->
+      let rec aux acc = function
+        | [] -> k (`Values (List.rev acc))
+        | (s, p) :: rest ->
+            load_proof ~env p (fun n -> aux ((s, n) :: acc) rest)
+      in
+      aux [] node
+
+    let to_tree p =
+      let env = Env.empty () in
+      Env.set_mode env Env.Set Env.Deserialise;
+      let h = load_proof ~env (state p) Fun.id in
+      let tree = pruned_with_env ~env h in
+      Env.set_mode env Env.Set Env.Consume;
+      tree
+  end
+
+  let produce_proof repo kinded_key f =
+    Env.with_set_produce @@ fun env ~start_serialise ->
+    let tree = import_with_env ~env repo kinded_key in
+    let+ tree_after, result = f tree in
+    let after = hash tree_after in
+    (* Here, we build a proof from [tree] (not from [tree_after]!), on purpose:
+       we look at the effect on [f] on [tree]'s caches and we rely on the fact
+       that the caches are env across copy-on-write copies of [tree]. *)
+    clear tree;
+    start_serialise ();
+    let proof = Proof.of_tree tree in
+    (* [env] will be purged when leaving the scope, that should avoid any memory
+       leaks *)
+    let kinded_hash = Node.weaken_value kinded_key in
+    (Proof.v ~before:kinded_hash ~after proof, result)
+
+  let produce_stream repo kinded_key f =
+    Env.with_stream_produce @@ fun env ~to_stream ->
+    let tree = import_with_env ~env repo kinded_key in
+    let+ tree_after, result = f tree in
+    let after = hash tree_after in
+    clear tree;
+    let proof = to_stream () in
+    let kinded_hash = Node.weaken_value kinded_key in
+    (Proof.v ~before:kinded_hash ~after proof, result)
+
+  let verify_proof_exn p f =
+    Env.with_set_consume @@ fun env ~stop_deserialise ->
+    let before = Proof.before p in
+    let after = Proof.after p in
+    (* First convert to proof to [Env] *)
+    let h = Proof.(load_proof ~env (state p) Fun.id) in
+    (* Then check that the consistency of the proof *)
+    if not (equal_kinded_hash before h) then
+      Irmin_proof.bad_proof_exn "verify_proof: invalid before hash";
+    let tree = pruned_with_env ~env h in
+    Lwt.catch
+      (fun () ->
+        stop_deserialise ();
+        (* Then apply [f] on a cleaned tree, an exception will be raised if [f]
+           reads out of the proof. *)
+        let+ tree_after, result = f tree in
+        (* then check that [after] corresponds to [tree_after]'s hash. *)
+        if not (equal_kinded_hash after (hash tree_after)) then
+          Irmin_proof.bad_proof_exn "verify_proof: invalid after hash";
+        (tree_after, result))
+      (function
+        | Pruned_hash h ->
+            (* finaly check that [f] only access valid parts of the proof. *)
+            Fmt.kstr Irmin_proof.bad_proof_exn
+              "verify_proof: %s is trying to read through a blinded node or \
+               object (%a)"
+              h.context pp_hash h.hash
+        | e -> raise e)
+
+  let verify_proof p f =
+    Lwt.catch
+      (fun () ->
+        let+ r = verify_proof_exn p f in
+        Ok r)
+      (function
+        | Irmin_proof.Bad_proof e -> Lwt.return (Error (`Msg e.context))
+        | e -> Lwt.fail e)
+
+  let verify_stream_exn p f =
+    let before = Proof.before p in
+    let after = Proof.after p in
+    let stream = Proof.state p in
+    Env.with_stream_consume stream @@ fun env ~is_empty ->
+    let tree = pruned_with_env ~env before in
+    Lwt.catch
+      (fun () ->
+        let+ tree_after, result = f tree in
+        if not (is_empty ()) then
+          Irmin_proof.bad_stream_exn "verify_stream"
+            "did not consume the full stream";
+        if not (equal_kinded_hash after (hash tree_after)) then
+          Irmin_proof.bad_stream_exn "verify_stream" "invalid after hash";
+        (tree_after, result))
+      (function
+        | Pruned_hash h ->
+            Fmt.kstr
+              (Irmin_proof.bad_stream_exn "verify_stream")
+              "%s is trying to read through a blinded node or object (%a)"
+              h.context pp_hash h.hash
+        | e -> raise e)
+
+  let verify_stream p f =
+    Lwt.catch
+      (fun () ->
+        let+ r = verify_stream_exn p f in
+        Ok r)
+      (function
+        | Irmin_proof.Bad_stream e ->
+            Fmt.kstr
+              (fun e -> Lwt.return (Error (`Msg e)))
+              "Bad_stream %s: %s" e.context e.reason
+        | e -> Lwt.fail e)
+
+  module Private = struct
+    let get_env = get_env
+
+    module Env = Env
+  end
 end
