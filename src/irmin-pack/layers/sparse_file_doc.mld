@@ -1,0 +1,142 @@
+NOTE copied from https://github.com/tomjridge/sparse-file/blob/master/src/sparse_file.ml
+
+{1 Introduction}
+
+A sparse file is a concept from file systems, where a file may have "gaps" which don't
+consume space on disk; see e.g. {{: https://en.wikipedia.org/wiki/Sparse_file}wikipedia}.
+
+What does generic mean? Usually sparse files only allow blocks within the file to be
+sparse; it is not possible to have a sparse region with a size less than a block for
+example. In order to implement GC for Irmin, we want a "generic sparse file", where
+objects on disk that are unreachable are replaced with sparse gaps, which are typically
+small regions of 100 to 200 bytes. Thus, block-level sparse files are not sufficient, and
+we need to allow small regions to be sparse.
+
+{1 Irmin usecase}
+
+The Irmin usecase requires, given a file and a list of live regions (where a region is
+denoted by an offset, length pair [(off,len)]), to construct a sparse version of the file
+containing only the data for the live regions, but still allowing each live region to be
+accessed by the original offset. Once a sparse file is created, it is accessed in RDONLY
+mode (so, no updates are made after initial creation of the sparse file).
+
+{1 Example}
+
+Suppose we have the original file, which stores objects:
+
+{v File: [aaa][bbb][ccc][ddd] v}
+
+Suppose object [bbb] is not live. Then the sparse file might look like:
+
+{v Sparse file: [aaa][000][ccc][ddd] v}
+
+Here, the gap is represented by [000].
+
+
+{1 Implementation}
+
+The implementation of a sparse file involves two underlying files: the sparse-data file
+and the sparse-map file. 
+
+{b sparse-data:} This consists of regions of the original file. Continuing the example
+above, we might have: 
+
+{v 
+sparse-file: [aaa][000][ccc][ddd]
+
+  is implemented by 
+
+sparse-data: [ccc][aaa][ddd] 
+sparse-map: ...
+v}
+
+Note that the two original adjacent regions c and d are no longer adjacent in the
+sparse-data file. This is because regions may be added to the sparse file in arbitrary
+order, and no constraints are made that regions must first be coalesced (for example).
+
+{b sparse-map:} This maintains a mapping from "original offset", to "offset in
+sparse-data".
+
+For example, our original file was:
+
+{v
+[aaa][bbb][ccc][ddd] 
+^    ^    ^    ^
+offa |    offc |
+     offb      offd
+v}
+
+Where region a starts at [offa], region b at [offb] etc. In the sparse-data, we might have:
+
+{v
+[ccc][aaa][ddd] 
+^    ^    ^
+oc   oa   od
+v}
+
+i.e., region c starts at real offset [oc] in the sparse-data file, etc.
+
+The sparse-map contains the entries:
+
+{v
+Original offset | Real offset in sparse-data
+--------------------------------------------
+offa            | oa
+offc            | oc
+offd            | od
+v}
+
+Actually, the sparse-map also includes region length information. So, for example, [offa]
+maps to [(oa,lena)], where [lena] is the length of region a. This is so that the sparse
+file can enforce various properties like "don't read across regions" (see below).
+
+
+{1 Creating the sparse file}
+
+From an initially empty sparse file, there is a function {!val:append_region}. See the
+documentation for that function. When finished, the sparse-map must be written to a
+separate file using {!val:save_map}. Then the sparse-data file can be closed.
+
+
+{1 Restrictions on reading from the sparse file}
+
+{b Don't touch gaps:} The basic restriction for our sparse file implementation is that we
+should never attempt to read from the gaps. Thus, if we read from the "a" region, we can
+either start at the beginning, or somewhere in the middle, and copy up to the end, but we
+should never copy bytes from the following "0" region.
+
+{b Don't read across regions:} Consider the region [ [ccc][ddd] ] in the original file,
+which is actually made up of two regions in the sparse file. At the moment, we do not
+enforce that the two regions are stored adjacent in the sparse file: maybe region c is
+added at one point, and much later region d is also added; in this case, region c and
+region d may be stored non-adjacent in the sparse-data file. Thus, attempting to read from
+the beginning of the c region to the end of the d region might naively include lots of
+unexpected data; fixing this might be non-trivial to implement. However, for the Irmin
+usecase, we can simply forbid this. We allow reading within a region, but we do not allow
+reading across regions, even if the regions may have been adjacent in the original file.
+
+{1 Problems with the Irmin usecase}
+
+One problem with Irmin is that objects can be stored without explicit length
+information. Then trying to decode an object involves starting with a read of [n] bytes,
+trying to decode, and if decoding fails, reading [2*n] bytes etc. until we have enough
+bytes to successfully decode an object. For the sparse file, it may well be that even this
+initial attempt to read [n] bytes cannot succeed: [n] bytes is much greater than the
+length of the region holding the object.
+
+The restrictions above (don't touch gaps; don't read across regions) are clearly difficult
+to enforce if the decoder doesn't know the length of the object it is trying to decode.
+
+One possible solution is just to return 0 bytes when attempting to read beyond a
+particular sparse region. Obviously this is not really "semantically correct", but since
+the object should be decoded without touching the zero bytes, no harm should arise.
+
+Consider the example:
+
+{v 
+sparse-data: [ccc][aaa][ddd] 
+v}
+
+If we start trying to read from the beginning of [aaa], we can read [lena] bytes without
+problem. If we read [lena+n] bytes, we should actually receive bytes which look like: [
+[aaa][000] ], i.e., the last [n] bytes are just [0].

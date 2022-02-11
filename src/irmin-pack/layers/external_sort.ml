@@ -16,8 +16,6 @@ end
 module Private = struct
   [@@@warning "-27"](* FIXME *)
 
-  open struct module BA1 = Bigarray.Array1 end
-
   (** [fill_with_test_data ~max_k ~max_v ~arr] fills [arr] with random [(k,v)] ints
       (bounded by [max_k,max_v]), where each key and value is stored successively in the
       array (so, the array cannot have a length that is an odd number). *)

@@ -1,3 +1,15 @@
+(** Utilities *)
+
+
+(** {1 Logging} *)
+
+let src = Logs.Src.create "irmin.layers.io" ~doc:"IO for irmin-layers"
+
+module Log = (val Logs.src_log src : Logs.LOG)
+
+include Log
+
+
 (** Essentially the Y combinator; useful for anonymous recursive
     functions. The k argument is the recursive callExample:
 
@@ -18,6 +30,9 @@ module Fn = struct
   let ( / ) = Filename.concat
 end
 
+
+(** Abbrev *)
+module BA1 = Bigarray.Array1
 
 (** Printf abbreviations *)
 module P = struct
@@ -214,6 +229,8 @@ module File = struct
     assert(n=len);
     off := !off + n;
     ()    
+
+  let size fn = Unix.((stat fn).st_size)
     
 end
 
