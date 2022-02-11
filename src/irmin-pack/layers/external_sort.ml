@@ -3,40 +3,49 @@
 
 open Util
 
-module Private = struct
-  open struct module BA1 = Bigarray.Array1 end
+type int_bigarray = Util.int_bigarray
 
-  let number_of_entries = 30_000_000 (* 30M reachable objs *)
-
+open struct
   (* each entry consists of [step] ints *)
   let step = 2
 
-  let lim = 50_000_000_000 (* 50GB of pack store *)
+end
 
-  let fill_with_test_data ~arr = 
+
+
+module Private = struct
+  [@@@warning "-27"](* FIXME *)
+
+  open struct module BA1 = Bigarray.Array1 end
+
+  (** [fill_with_test_data ~max_k ~max_v ~arr] fills [arr] with random [(k,v)] ints
+      (bounded by [max_k,max_v]), where each key and value is stored successively in the
+      array (so, the array cannot have a length that is an odd number). *)
+  let fill_with_test_data ~max_k ~max_v ~(arr:int_bigarray) = 
     let sz = BA1.dim arr in
     0 |> iter_k (fun ~k:kont off -> 
         if off >= sz then () else
-          let k = Random.nativeint (Nativeint.of_int lim) |> Nativeint.to_int in 
-          let v = Random.int 200 in  (* avg obj len 200 *)
+          let k = Random.nativeint (Nativeint.of_int max_k) |> Nativeint.to_int in 
+          let v = Random.int max_v in
           arr.{ off } <- k;
           arr.{ off +1} <- v;
           kont (off+2))
+  (* NOTE this code allows objs to overlap, so not an accurate simulation *)
+      
 
-  (* NOTE above allows objs to overlap, so not an accurate simulation *)
+  (** [sort_chunks ~arr ~chunk_sz]  sorts each chunk in the bigarray [arr].
 
+      The [arr] should contain [(k,v)] integer pairs stored successively in the array. The
+      last chunk may have size less than [chunk_sz] - we don't require the [arr] to be
+      sized as a multiple of [chunk_sz].
 
-  (* stupid implementation: read chunk sized amounts of ints as a list of tuples, sort the
-     list, and write back out; chunk_sz must be a multiple of step
-     
-     chunk_sz is the number of ints that are kept in memory, and so the overall memory
-     usage is 8 * chunk_sz; if we limit to 80MB (say), chunk_sz can be 10M; then we end up
-     with 6 sorted regions that we need to merge, which isn't too bad (we are dealing with
-     500MB of ints, so this isn't surprising)
+      The implementation reads chunk-sized amounts of ints into memory as a list of
+      tuples, sorts the list, and writes the list back out.
 
-     FIXME maybe chunk_sz should be the number of entries?
-  *)
-  let sort_chunks ~arr ~chunk_sz = 
+      [chunk_sz] is the number of ints that are kept in memory, and so the overall memory
+      usage is something like [8 * chunk_sz] (with some overhead for the list.. FIXME
+      perhaps an array would be better) *)
+  let sort_chunks ~(arr:int_bigarray) ~chunk_sz = 
     let arr_sz = Bigarray.Array1.dim arr in
     begin
       0 |> iter_k (fun ~k:kont1 off -> 
@@ -64,11 +73,9 @@ module Private = struct
     end;
     ()
 
-    
-  [@@@warning "-27"]
-
-  (* perform n-way merge on the n sorted chunks in [src] *)
-  let merge_chunks ~src ~chunk_sz ~dst =
+  (* [merge_chunks ~src ~chunk_sz ~dst] takes previously sorted chunks of [(k,v)] data in
+     [src] and performs an n-way merge into [dst]. *)
+  let merge_chunks ~(src:int_bigarray) ~chunk_sz ~(dst:int_bigarray) =
     let src_sz,dst_sz = BA1.dim src, BA1.dim dst in
     let _initial_checks =
       assert(step = 2); (* could generalize further *)
@@ -131,10 +138,18 @@ module Private = struct
     assert(dst_off = src_sz);
     ()
 
+  (** [sort ~chunk_sz ~src ~dst] sorts the (key,value) integer data in [src] and places it
+      in [dst]; [chunk_sz] is the number of integers that are held in memory when sorting
+      in memory. *)
+  let sort ~chunk_sz ~(src:int_bigarray) ~(dst:int_bigarray) = 
+    sort_chunks ~arr:src ~chunk_sz;
+    merge_chunks ~src ~chunk_sz ~dst;
+    ()
+
   (** [is_sorted ~arr] returns true iff the array is sorted; we also want the extra data
       in each entry to be related to the initial entries of course, but we don't check
       that at the moment *)
-  let is_sorted ~arr =
+  let is_sorted ~(arr:int_bigarray) =
     let sz = BA1.dim arr in
     assert(sz > 0);
     (2,arr.{0}) |> iter_k (fun ~k (off,prev) -> 
@@ -146,16 +161,11 @@ module Private = struct
           | true -> k (off+2,curr)
           | false -> false)            
 
-  let print_entries ~arr ~n =
-    for i = 0 to n-1 do
-      P.p "(%d,%d)\n%!" arr.{2*i} arr.{2*i+1}
-    done
-
 
   (** [calculate_extents ~src ~dst] takes {b sorted} [(off,len)] data from [src], combines
       adjacent extents, and outputs a minimal set of (sorted) extents to [dst]; the return
       value is the length of the part of [dst] that was filled *)
-  let calculate_extents ~src ~dst = 
+  let calculate_extents ~(src_is_sorted:unit) ~(src:int_bigarray) ~(dst:int_bigarray) = 
     let src_sz,dst_sz = BA1.dim src, BA1.dim dst in    
     let _ = 
       assert(src_sz >= 2);
@@ -197,9 +207,30 @@ module Private = struct
           
 end
 
+include (Private : sig
+  val sort : chunk_sz:int -> src:int_bigarray -> dst:int_bigarray -> unit
+  val is_sorted : arr:int_bigarray -> bool
+  val calculate_extents :
+    src_is_sorted:unit -> src:int_bigarray -> dst:int_bigarray -> int
+end)
+
 
 module Test() = struct
   open Private
+
+  let print_entries_flag = false
+
+  let print_entries ~arr ~n =
+    if print_entries_flag then 
+      for i = 0 to n-1 do
+        P.p "(%d,%d)\n%!" arr.{2*i} arr.{2*i+1}
+      done
+
+  let number_of_entries = 30_000_000 (* 30M reachable objs *)
+
+  let max_k = 50_000_000_000
+
+  let max_v = 400
 
   let sz = (number_of_entries * step)
 
@@ -216,7 +247,7 @@ module Test() = struct
 
   let _ = Printf.printf "Filling with test data\n%!"
 
-  let _ = time (fun () -> fill_with_test_data ~arr:unsorted.arr)
+  let _ = time (fun () -> fill_with_test_data ~max_k ~max_v ~arr:unsorted.arr)
 
   let _ = print_entries ~arr:unsorted.arr ~n:100
 
@@ -250,44 +281,30 @@ module Test() = struct
 
   let _ = Printf.printf "Calculating extents\n%!"  
   let _ = 
-    let dst_off = time @@ fun () -> calculate_extents ~src:sorted.arr ~dst:extents.arr in
+    let dst_off = time @@ fun () -> calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
     P.p "Final dst_off was %d\n%!" dst_off
     
   let _ = Int_mmap.close unsorted; Int_mmap.close sorted; Int_mmap.close extents; ()
 
-(* unsorted.map is 480M bytes; chunk_sz 10*...; output:
+(* 
 
 Filling with test data
-Finished in 1.998s
+Finished in 1.662s
 Sorting chunks
-Finished in 18.615s
+Finished in 8.39s
 Merging chunks
-Finished in 3.476s
+Finished in 6.438s
 Checking is_sorted
-Finished in 451ms
+Finished in 117ms
+Calculating extents
+Regions combined: 3393607
+Finished in 461ms
+Final dst_off was 53212786
 
-chunk_sz 100*; output:
-Filling with test data
-Finished in 2s
-Sorting chunks
-Finished in 28.499s
-Merging chunks
-Finished in 2.759s
-Checking is_sorted
-Finished in 453ms
-
-chunk_sz 1*; output:
-Filling with test data
-Finished in 1.996s
-Sorting chunks
-Finished in 8.712s
-Merging chunks
-Finished in 4.601s
-Checking is_sorted
-Finished in 452ms
-
-Conclusion: the merging is so good that it doesn't matter if we have a large number of
-chunks to merge; so we should have relatively small chunks to reduce the overall time.
+For a 500MB file, we can choose chunk size even as low as 1MB. Then we have to perform a
+500-way merge, but this is fast and doesn't consume much process memory (the cache
+presumably has to hold 500 blocks to make this fast, but that is [500*4k = 2MB], so fairly
+small).
 *)
 
 end

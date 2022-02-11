@@ -216,3 +216,16 @@ module File = struct
     ()    
     
 end
+
+
+module Pwrite = struct
+  type t = {
+    pwrite: off:int ref -> bytes -> unit;
+  }
+end
+
+module Pread = struct
+  type t = {
+    pread : off:int ref -> len:int -> buf:bytes -> int; 
+  }
+end
