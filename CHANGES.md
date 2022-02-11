@@ -10,9 +10,9 @@
     pre_hash collisions. This changes their hash. (#1715, @Ngoguey42,
     @icristescu)
 
- - **irmin-pack**
-   - Improved the performance of Index encode and decode operations by
-     eliminating intermediate allocations. (#1577, @CraigFe)
+- **irmin-pack**
+  - Improve the performance of Index encode and decode operations by
+    eliminating intermediate allocations. (#1577, @CraigFe)
 
 - **irmin-unix**
   - Fix terms that can be manipulated at runtime by delaying computation
@@ -21,7 +21,7 @@
 ### Added
 
 - **irmin**
-  - Added `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
+  - Add `Read_only.S` and `Read_only.Maker` module types (#1343, @samoht)
   - Append-only and content-addressable backend implementations have to
     provide `close` and `batch` functions (#1345, @samoht)
   - Atomic-write backend implementations have to provide a `close` function
@@ -57,13 +57,13 @@
       - Enable replay in CB (#1441, @Ngoguey42)
 
 - **irmin-mem**
-  - Added `Irmin_mem.Content_addressable` (#1369, @samoht)
+  - Add `Irmin_mem.Content_addressable` (#1369, @samoht)
 
 - **irmin-pack**
-  - Added a `stat-store` command to `irmin-fsck` to output stats on the tree
+  - Add a `stat-store` command to `irmin-fsck` to output stats on the tree
     under a specified commit (#1391, @icristescu, @Ngoguey42, @CraigFe).
-  - Added new counters in `Stats` (#1570, @Ngoguey42).
-  - Added an option to configure the index function and pick the relevant bits
+  - Add new counters in `Stats` (#1570, @Ngoguey42).
+  - Add an option to configure the index function and pick the relevant bits
     in a cryptographic hash by default (#1677 #1699, @samoht)
   - Verify inode depth invariants (#1711, @Ngoguey42). Forward port of #1665.
 
@@ -74,7 +74,7 @@
     (#1721, @zshipko)
 
 - **irmin-tezos**
-  - Added a new package to mirror Tezos `tezos-context.encoding` library.
+  - Add a new package to mirror Tezos `tezos-context.encoding` library.
     That'll simplify building benchmarks and custom tools (#1579, @samoht)
 
 ### Changed
@@ -225,6 +225,159 @@
 
 - **irmin-layers**
   - This experimental package has been removed.
+
+## 2.10.2 (2021-02-02)
+
+### Fixed
+
+- **irmin**
+  - Fixed a bug causing stream proof extender nodes to have their segments be
+    returned in reverse order (i.e. bottom to top, rather then top-down).
+    (#1742, @CraigFe)
+
+  - Fixed a bug that allowed the creation of overly-large stable inodes via
+    stream proofs. (#1741, @Ngoguey42)
+
+### Added
+
+- **irmin**
+  - Add `Store.Private.Node.Val.hash_exn` (#1741, @Ngoguey42)
+
+## 2.10.1 (2021-01-20)
+
+### Fixed
+
+- **irmin**
+  - Fix bug introduced in #1683 which causes `Tree.seq` and `Tree.list` to
+    produce pruned children (#1720, @Ngoguey42)
+
+## 2.10.0 (2021-01-07)
+
+### Fixed
+
+- **irmin**
+  - Conversion between proofs and trees are now done in CPS (#1624, @samoht)
+  - Better support for s390x to workaround https://github.com/ocaml/ocaml/issues/10857
+    (#1694, @icristescu)
+
+- **irmin-pack**
+  - Fix proofs for large inodes by tracking side-effects reads inside the
+    inode implementation (#1670, @samoht, @Ngoguey42)
+  - Flush branch store without calling `Repo.close` (#1707, @zshipko)
+
+### Added
+
+- **irmin**
+  - Add `Tree.produce_proof` and `Tree.verify_proof` to produce and verify
+    proofs from complex computations. `produce_proof` and `verify_proof`
+    takes a callback over tree and instead of a static list of operations
+    -- this now means that the full `Tree` API can now be used in proofs,
+    including sub-tree operations, folds and paginated lists
+    (#1625, #1663, #1683, @samoht, @Ngoguey42)
+  - Add `Tree.produce_stream` and `Tree.verify_stream` to produce and
+    verify stream proofs (#1684, #1692, #1691, @samoht, @Ngoguey42, @icristescu)
+
+- **irmin-pack**
+  - Verify inode depth invariants (#1665, @samoht)
+
+- **irmin-unix**
+  - Add `tezos` store type for `irmin` command-line (#1678, @zshipko)
+
+### Changed
+
+- **irmin**
+  - Remove `Tree.Proof.of_keys`. Use `Tree.produce_proof` instead
+    (#1625, @samoht)
+  - `Tree.empty` now takes a unit argument. (#1566, @CraigFe)
+  - `Tree.length` now takes a tree as argument (#1676, @samoht)
+  - `Tree.Proof.t` now uses a more precise datatype to encode value
+    invariants (#1688, @samoht)
+
+- **irmin-pack**
+  - irmin-pack: add an option to configure the index function and pick
+    the relevant bits in cryptographic a hash by default (#1677, @samoht)
+
+- **irmin-git**
+  -  Require at least `git.3.7.0` in the codebase (#1637, @dinosaure)
+
+## 2.9.1 (2022-01-10)
+
+### Fixed
+
+- **irmin**
+  - Better support for s390x to workaround
+    https://github.com/ocaml/ocaml/issues/10857 (#1694, @icristescu)
+
+## 2.9.0 (2021-11-15)
+
+### Fixed
+
+- **irmin-pack**
+   - Improved the performance of Index encode and decode operations by
+     eliminating intermediate allocations (up to 5% fewer minor words
+     allocated) (#1577, @CraigFe)
+   - Reduce the number of backend nodes built during export
+     (up to 20% fewer minor words allocated) (#1553, @Ngoguey42)
+
+### Added
+
+- **irmin**
+  - Add Merkle Proofs and expose function to convert a proof to and from a tree.
+    Once converted, normal tree operations can be performed on the proof, as
+    long at it access values contained in the proof.
+    (#1583, @samoht, @Ngoguey42, @icristescu)
+
+### Changed
+
+- **irmin-pack**
+  - Limit inode depth (#1596, #samoht)
+  - Adapt to index 1.5.0 (#1593, @icristescu)
+
+## 2.8.0 (2021-10-15)
+
+### Fixed
+
+- **irmin**
+  - `Tree` operations now raise a `Dangling_hash` exception when called with a
+    path that contains dangling hashes in the underlying store, rather than
+    interpreting such paths as ending with empty nodes (#1477, @CraigFe)
+  - Fix the pre-hashing function for big-endian architectures. (#1505,
+    @Ngoguey42, @dinosaure)
+  - Fix a bug in `Tree.export` where nodes could be exported before
+    some of their contents, resulting in indirect hashes in irmin-pack
+    (#1508, @Ngoguey42)
+
+### Added
+
+- **irmin**
+  - `Node.seq` and `Node.of_seq` are added to avoid allocating intermediate
+    lists when it is not necessary (#1508, @samoht)
+  - New optional `cache` parameter to `Tree.hash`, `Tree.Contents.hash`,
+    `Tree.list`, `Node.list`, `Node.seq` and `Node.find` to control the storing
+    of lazily loaded data (#1526, @Ngoguey42)
+  - Add `Node.clear` to clear internal caches (#1526, @Ngoguey42)
+  - Added a `tree` argument to `Tree.fold` to manipulate the subtrees (#1527,
+    @icristescu, @Ngoguey42)
+  - Add a function `Store.Tree.pruned` for building purely in-memory tree
+    objects with known hashes. (#1537, @CraigFe)
+  - Added a `order` argument to specify the order of traversal in `Tree.fold`
+    (#1548, @icristescu, @CraigFe)
+
+### Changed
+
+- **irmin**
+  - `Node.v` is renamed to `Node.of_list` (#1508, @samoht)
+  - Rewrite `Tree.export` in order to minimise the memory footprint.
+    (#1508, @Ngoguey42)
+  - Remove the ``~force:`And_clear`` case parameter from `Tree.fold`,
+    ``~force:`True ~cache:false`` is the new equivalent. (#1526, @Ngoguey42)
+  - `` `Tree.fold ~force:`True`` and `` `Tree.fold ~force:`False`` don't
+    cache the lazily loaded data any more. Pass `~cache:true` to enable it
+    again. (#1526, @Ngoguey42)
+  - Do not allocate large lists in `Irmin.Tree.clear` (#1515, @samoht)
+
+- **irmin-git**
+  - Upgrade `irmin-git` to `git.3.5.0`. (#1495, @dinosaure)
 
 ## 2.7.2 (2021-07-20)
 
