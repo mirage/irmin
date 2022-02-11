@@ -190,7 +190,7 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
   type real_region = 
     | Within of { real_off:int }
     | Starts_in_gap
-    | Extends_beyond of { real_off:int; len:int }
+    | Extends_beyond of { real_off:int; real_len:int }
 
   let translate_vreg map ~virt_off ~len = 
     Map_.find_last_opt (fun off' -> off' <= virt_off) map |> function
@@ -204,7 +204,7 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
         match virt_off + len <= voff' + len' with
         | true -> Within { real_off=roff'+(virt_off - voff') }
         | false -> 
-          Extends_beyond { real_off=roff'+(virt_off - voff'); len=voff'+len'-virt_off }
+          Extends_beyond { real_off=roff'+(virt_off - voff'); real_len=voff'+len'-virt_off }
   (* FIXME should check above calculations *)
 
   (** This will throw an error if you attempt to read beyond a particular region *)
@@ -223,7 +223,7 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       Bytes.fill buf 0 len (Char.chr 0);
       off:=!off+len;
       len
-    | Extends_beyond { real_off; len=real_len } -> 
+    | Extends_beyond { real_off; real_len } -> 
       (* first fill buf with 0s *)
       Bytes.fill buf 0 len (Char.chr 0);
       (* copy the data that we can *)
