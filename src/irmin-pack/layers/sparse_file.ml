@@ -64,26 +64,42 @@ module Private_map = struct
 
   include Int_map
   let load fn = 
-    let ints = Small_int_file_v1.load fn in
-    let ok = List.length ints mod 3 = 0 in
+    let sz_bytes = File.size fn in
+    let ok = sz_bytes mod (3*8) = 0 in
     let _check_ints_size = 
       if not ok then 
         failwith (P.s "%s: file %s did not contain 3*n ints" __FILE__ fn)
     in
     assert(ok);
-    (ints,empty) |> iter_k (fun ~k (ints,m) -> 
-        match ints with 
-        | [] -> m
-        | voff::off::len::rest ->
-          (* each set of 3 ints corresponds to voff (virtual offset), off and len *)
-          let m = add voff (off,len) m in
-          k (rest,m)
-        | _ -> failwith "impossible")
+    let sz = sz_bytes / 8 in
+    let mmap = Int_mmap.open_ ~fn ~sz:(sz_bytes / 8) in
+    let arr = mmap.arr in
+    let m = 
+      (0,empty) |> iter_k (fun ~k (i,m) ->         
+          match i < sz with 
+          | true -> m
+          | false ->
+            let voff,off,len = arr.{i},arr.{i+1},arr.{i+2} in
+            let m = add voff (off,len) m in
+            k (i+3,m))
+    in
+    m
 
   let save t fn = 
-    let x = ref [] in
-    t |> bindings |> List.iter (fun (voff,(off,len)) -> x:= voff::off::len::!x);
-    Small_int_file_v1.save !x fn
+    let sz_keys = cardinal t in
+    let dir = Filename.dirname fn in
+    let tmp = Filename.temp_file ~temp_dir:dir "sparse." ".map" in
+    let mmap = Int_mmap.create ~fn:tmp ~sz:(sz_keys * 3) in
+    let arr = mmap.arr in
+    let i = ref 0 in
+    t |> iter (fun voff (roff,len) -> 
+        arr.{!i} <- voff;
+        arr.{!i+1} <- roff;
+        arr.{!i+2} <- len;
+        i:=!i+3);
+    Int_mmap.close mmap;
+    Unix.rename tmp fn;
+    ()
 
 end
 
