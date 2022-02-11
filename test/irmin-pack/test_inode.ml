@@ -35,7 +35,7 @@ struct
   module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
   module Node =
-    Irmin.Node.Generic_key.Make (Schema.Hash) (Schema.Path) (Schema.Metadata)
+    Irmin.Node.Generic_key.Make_v2 (Schema.Hash) (Schema.Path) (Schema.Metadata)
       (Key)
       (Key)
 

@@ -79,6 +79,20 @@ module type Maker_generic_key = sig
     module Portable :
       Portable with type commit := t and type hash := H.t and module Info = Info
   end
+
+  module Make_v2
+      (H : Type.S)
+      (N : Key.S with type hash = H.t)
+      (C : Key.S with type hash = H.t) : sig
+    include
+      S_generic_key
+        with type node_key = N.t
+         and type commit_key = C.t
+         and module Info = Info
+
+    module Portable :
+      Portable with type commit := t and type hash := H.t and module Info = Info
+  end
 end
 
 module type Maker = sig

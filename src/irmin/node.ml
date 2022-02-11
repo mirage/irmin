@@ -228,37 +228,51 @@ struct
     [@@deriving irmin]
 
     type t = entry list [@@deriving irmin ~pre_hash]
+    type t_not_prefixed = t [@@deriving irmin ~pre_hash]
+
+    let pre_hash = Type.(unstage (pre_hash t))
+
+    (* Manually add a prefix to default nodes, in order to prevent hash
+       collision between contents and nodes (see
+       https://github.com/mirage/irmin/issues/1304).
+
+       Prefixing the contents is not enough to prevent the collision: the
+       prehash of a node starts with the number of its children, which can
+       coincide with the prefix of the content's prehash. *)
+    let pre_hash x f =
+      f "N";
+      pre_hash x f
   end
 
-  let t =
-    let pre_hash t f =
-      let entries : Hash_preimage.t =
-        StepMap.to_seq t
-        |> Seq.map (fun (_, v) ->
-               match v with
-               (* Weaken keys to hashes *)
-               | Node { name; node } ->
-                   Hash_preimage.Node_hash
-                     { name; node = Node_key.to_hash node }
-               | Contents { name; contents } ->
-                   Contents_hash
-                     { name; contents = Contents_key.to_hash contents }
-               | Contents_m { metadata; name; contents } ->
-                   Contents_m_hash
-                     {
-                       metadata;
-                       name;
-                       contents = Contents_key.to_hash contents;
-                     }
-               | Node_hash { name; node } -> Node_hash { name; node }
-               | Contents_hash { name; contents } ->
-                   Contents_hash { name; contents }
-               | Contents_m_hash { metadata; name; contents } ->
-                   Contents_m_hash { metadata; name; contents })
-        |> Seq.fold_left (fun xs x -> x :: xs) []
-      in
-      Hash_preimage.pre_hash entries f
+  let pre_hash pre_hash t f =
+    let entries : Hash_preimage.t =
+      StepMap.to_seq t
+      |> Seq.map (fun (_, v) ->
+             match v with
+             (* Weaken keys to hashes *)
+             | Node { name; node } ->
+                 Hash_preimage.Node_hash { name; node = Node_key.to_hash node }
+             | Contents { name; contents } ->
+                 Contents_hash
+                   { name; contents = Contents_key.to_hash contents }
+             | Contents_m { metadata; name; contents } ->
+                 Contents_m_hash
+                   { metadata; name; contents = Contents_key.to_hash contents }
+             | Node_hash { name; node } -> Node_hash { name; node }
+             | Contents_hash { name; contents } ->
+                 Contents_hash { name; contents }
+             | Contents_m_hash { metadata; name; contents } ->
+                 Contents_m_hash { metadata; name; contents })
+      |> Seq.fold_left (fun xs x -> x :: xs) []
     in
+    pre_hash entries f
+
+  let t =
+    let pre_hash = pre_hash Hash_preimage.pre_hash in
+    Type.map ~pre_hash Type.(list entry_t) of_entries entries
+
+  let t_not_prefixed =
+    let pre_hash = pre_hash Hash_preimage.pre_hash_t_not_prefixed in
     Type.map ~pre_hash Type.(list entry_t) of_entries entries
 
   let with_handler _ t = t
@@ -329,6 +343,7 @@ module Make_generic_key
     (Node_key : Key.S with type hash = Hash.t) =
 struct
   module Core = Make_core (Hash) (Path) (Metadata) (Contents_key) (Node_key)
+  include Core
   include Of_core (Core)
 
   module Portable = struct
@@ -385,6 +400,25 @@ struct
       | Dangling_hash { context; hash } ->
           Some (Fmt.str "%s: encountered dangling hash %a" context pp_hash hash)
       | _ -> None)
+end
+
+module Make_generic_key_v2
+    (Hash : Hash.S) (Path : sig
+      type step [@@deriving irmin]
+    end)
+    (Metadata : Metadata.S)
+    (Contents_key : Key.S with type hash = Hash.t)
+    (Node_key : Key.S with type hash = Hash.t) =
+struct
+  include Make_generic_key (Hash) (Path) (Metadata) (Contents_key) (Node_key)
+
+  let t = t_not_prefixed
+
+  module Portable = struct
+    include Portable
+
+    let t = t_not_prefixed
+  end
 end
 
 module Make
@@ -461,6 +495,7 @@ module Generic_key = struct
 
   module Make = Make_generic_key
   module Store = Store_generic_key
+  module Make_v2 = Make_generic_key_v2
 end
 
 module Store

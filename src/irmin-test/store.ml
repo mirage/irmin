@@ -2399,6 +2399,72 @@ module Make (S : Generic_key) = struct
       B.Repo.close repo
     in
     run x test
+
+  let test_pre_hash_collisions x () =
+    let pre_hash_of ty =
+      let f = Irmin.Type.(pre_hash ty |> unstage) in
+      fun x ->
+        let buf = Buffer.create 0 in
+        f x (Buffer.add_string buf);
+        Buffer.contents buf
+    in
+    let rec add_entries acc = function
+      | 0 -> Lwt.return acc
+      | i ->
+          let s = string_of_int i in
+          let* acc = S.Tree.add acc [ s ] s in
+          add_entries acc (i - 1)
+    in
+    let equal_hash = Irmin.Type.(equal S.Hash.t |> unstage) in
+    let test create_tree repo =
+      let* tree = create_tree () in
+      let* c = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
+
+      let* node_b =
+        S.Tree.destruct tree
+        |> (function `Contents _ -> assert false | `Node n -> n)
+        |> S.to_backend_node
+      in
+      let node_ph = pre_hash_of S.Backend.Node.Val.t node_b in
+      let node_h = S.Backend.Node.Hash.hash node_b in
+
+      let commit_b = S.to_backend_commit c in
+      let commit_ph = pre_hash_of S.Backend.Commit.Val.t commit_b in
+      let commit_h = S.Backend.Commit.Hash.hash commit_b in
+
+      let* blob_k =
+        with_contents repo (fun t -> S.Backend.Contents.add t node_ph)
+      in
+      let blob_h = S.Backend.Contents.Key.to_hash blob_k in
+      if equal_hash node_h blob_h then
+        Alcotest.failf
+          "node pre-hash attack succeeded. pre-hash is \"%s\". backend node is \
+           %a."
+          (String.escaped node_ph)
+          (Irmin.Type.pp S.Backend.Node.Val.t)
+          node_b;
+
+      let* blob_k =
+        with_contents repo (fun t -> S.Backend.Contents.add t commit_ph)
+      in
+      let blob_h = S.Backend.Contents.Key.to_hash blob_k in
+      if equal_hash commit_h blob_h then
+        Alcotest.failf
+          "commit pre-hash attack succeeded. pre-hash is \"%s\". backend \
+           commit is %a."
+          (String.escaped commit_ph)
+          (Irmin.Type.pp S.Backend.Commit.Val.t)
+          commit_b;
+
+      S.Backend.Repo.close repo
+    in
+    (* Test collisions with the empty node (and its commit), *)
+    run x (test @@ fun () -> S.Tree.empty () |> Lwt.return);
+    (* with a length one node, *)
+    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1);
+    (* and with a length >256 node (which is the threshold for unstable inodes
+       in irmin pack). *)
+    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 260)
 end
 
 let suite' l ?(prefix = "") (_, x) =
@@ -2443,6 +2509,7 @@ let suite (speed, x) =
        ("Concurrent merges", speed, T.test_concurrent_merges x);
        ("Shallow objects", speed, T.test_shallow_objects x);
        ("Closure with disconnected commits", speed, T.test_closure x);
+       ("Prehash collisions", speed, T.test_pre_hash_collisions x);
      ]
     @ when_ x.clear_supported [ ("Clear", speed, T.test_clear x) ]
     @ when_ x.import_supported

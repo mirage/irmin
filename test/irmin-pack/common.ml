@@ -20,6 +20,7 @@ module Dict = Irmin_pack.Dict
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
+let sha1_contents x = sha1 ("B" ^ x)
 
 let rm_dir root =
   if Sys.file_exists root then (
@@ -40,12 +41,12 @@ module Conf = Irmin_tezos.Conf
 module Schema = struct
   open Irmin
   module Metadata = Metadata.None
-  module Contents = Contents.String
+  module Contents = Contents.String_v2
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.SHA1
-  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
-  module Commit = Commit.Generic_key.Make (Hash)
+  module Node = Node.Generic_key.Make_v2 (Hash) (Path) (Metadata)
+  module Commit = Commit.Generic_key.Make_v2 (Hash)
   module Info = Info.Default
 end
 

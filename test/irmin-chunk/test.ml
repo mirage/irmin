@@ -27,6 +27,7 @@ let run f () =
   flush stdout
 
 let hash x = Test_chunk.Key.hash (fun l -> l x)
+let hash_contents x = hash ("B" ^ x)
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))
 
 let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
@@ -37,7 +38,7 @@ let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
     let* k = AO.batch t (fun t -> AO.add t v) in
     (if stable then
      let str = value_to_bin v in
-     Alcotest.(check key_t) (name ^ " is stable") k (hash str));
+     Alcotest.(check key_t) (name ^ " is stable") k (hash_contents str));
     let+ v' = AO.find t k in
     Alcotest.(check @@ option value_t) name (Some v) v'
   in
