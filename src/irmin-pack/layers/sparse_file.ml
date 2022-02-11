@@ -10,6 +10,9 @@ NOTE also that if we write n bytes at off1, and then different data at off1+m, w
 we record both lots of data in the sparse file, and each lot of data is accessible, even
 though this sparse file does not correspond to any proper original file; again we could
 add runtime checking to detect this
+
+The size of the map component may be large, in which case we may want to use mmap rather
+than loading the map upfront
 *)
 
 
@@ -25,7 +28,8 @@ module type SPARSE = sig
 
   val create: path:string -> t
   (** [create ~path] creates an empty sparse file; requires [path] is non-existent;
-      creates directory [path] and files [path/data] and [path/map] *)
+      creates directory [path] and files [path/data] to hold the data and [path/map] to
+      hold the mapping from virtual offset to (real offset and length) *)
 
   (** [open_ro ~dir] opens the sparse file located in [dir] *)
   val open_ro : dir:string -> t
@@ -46,6 +50,12 @@ module type SPARSE = sig
       explicitly for these kinds of problems?
   *)
   val append_region: t -> src:Pread.t -> src_off:int -> len:int -> virt_off:int -> unit
+
+  (** [pread t ~off ~len ~buf] reads [len] bytes from virtual offset [off] into [buf]; a
+      read that extends beyond the end of a data region will be supplemented with dummy
+      bytes ([chr 0]); a read that starts in an empty region will result in an exception
+      being thrown. *)
+  val pread : t -> off:int ref -> len:int -> buf:bytes -> int
 
 end
 
@@ -99,8 +109,6 @@ module Private = struct
 
   (* Construction functions ---- *)
 
-  (* We create the file as fn.tmp and fn.map.tmp while constructing,
-     then promote when finished *)
   let create ~path = 
     let ok = not (Sys.file_exists path) in
     assert(ok);
@@ -135,6 +143,7 @@ module Private = struct
         | false -> ()
         | true -> 
           src.pread ~off ~len:(min buf_sz len) ~buf |> fun n' -> 
+          (* FIXME we should add error messages for situations where asserts fail *)
           assert(n' > 0);
           assert(Unix.write t.fd buf 0 n' = n');
           k (len - n'));
@@ -142,6 +151,86 @@ module Private = struct
     map_add t ~virt_off ~real_off ~len;
     ()
 
+  (** 
+
+When we try to find a (virt_off,len) region within the sparse file, there are various
+possibilities. We first find the largest voff' for which there exists entry
+[(voff',(roff',len'))] in the map. Then we have the following possibilities:
+
+
+- No entry found: The first data region starts beyond [virt_off]; this is "starts in gap"
+
+- Within: (line shows relative relationships between 4 positions)
+
+{v
+----------------------------------------------
+  ^voff'  ^virt_off  ^virt_off+len  ^voff'+len'
+v}
+
+In this case we can safely read the entirety of the data.
+
+- Starts in gap:
+
+{v
+----------------------------------------
+  ^voff' ^voff'+len' ^virt_off
+v}
+
+- Extends beyond:
+
+{v
+----------------------------------------------
+  ^voff'  ^virt_off  ^voff'+len'  ^virt_off+len 
+v}
+
+In this case, we can only read some of the data, and we pad the rest with dummy bytes.
+
+
+ *)
+  type real_region = 
+    | Within of { real_off:int }
+    | Starts_in_gap
+    | Extends_beyond of { real_off:int; len:int }
+
+  let translate_vreg map ~virt_off ~len = 
+    Map_.find_last_opt (fun off' -> off' <= virt_off) map |> function
+    | None ->
+      Log.err (fun m -> m "%s: No virtual offset found <= %d" __FILE__ virt_off);
+      Starts_in_gap
+    | Some (voff',(roff',len')) -> 
+      match voff' + len' <= virt_off with
+      | true -> Starts_in_gap
+      | false -> 
+        match virt_off + len <= voff' + len' with
+        | true -> Within { real_off=roff'+(virt_off - voff') }
+        | false -> 
+          Extends_beyond { real_off=roff'+(virt_off - voff'); len=voff'+len'-virt_off }
+  (* FIXME should check above calculations *)
+
+  (** This will throw an error if you attempt to read beyond a particular region *)
+  let pread t ~off ~len ~buf =
+    (* translate the virtual offset to a real offset *)
+    let real = translate_vreg t.map ~virt_off:!off ~len in
+    match real with
+    | Within { real_off } -> 
+      let n = File.pread t.fd ~off:(ref real_off) ~len ~buf in
+      assert(n=len);
+      off:=!off+n;
+      n
+    | Starts_in_gap -> 
+      Log.err (fun m -> m "%s: attempt to read from gap" __FILE__);
+      (* fill buf with 0s *)
+      Bytes.fill buf 0 len (Char.chr 0);
+      off:=!off+len;
+      len
+    | Extends_beyond { real_off; len=real_len } -> 
+      (* first fill buf with 0s *)
+      Bytes.fill buf 0 len (Char.chr 0);
+      (* copy the data that we can *)
+      let n = File.pread t.fd ~off:(ref real_off) ~len:real_len ~buf in
+      assert(n=real_len);
+      off:=!off+len;
+      len
 end
 
 include (Private : SPARSE)
