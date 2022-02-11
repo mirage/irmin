@@ -228,7 +228,7 @@ struct
     [@@deriving irmin]
 
     type t = entry list [@@deriving irmin ~pre_hash]
-    type t_not_prefixed = t [@@deriving irmin]
+    type t_not_prefixed = t [@@deriving irmin ~pre_hash]
 
     let pre_hash = Type.(unstage (pre_hash t))
 
@@ -269,6 +269,10 @@ struct
 
   let t =
     let pre_hash = pre_hash Hash_preimage.pre_hash in
+    Type.map ~pre_hash Type.(list entry_t) of_entries entries
+
+  let t_not_prefixed =
+    let pre_hash = pre_hash Hash_preimage.pre_hash_t_not_prefixed in
     Type.map ~pre_hash Type.(list entry_t) of_entries entries
 
   let with_handler _ t = t
@@ -408,27 +412,12 @@ module Make_generic_key_v2
 struct
   include Make_generic_key (Hash) (Path) (Metadata) (Contents_key) (Node_key)
 
-  module Hash_preimage = struct
-    include Hash_preimage
-
-    type t = t_not_prefixed [@@deriving irmin ~pre_hash]
-  end
-
-  let t =
-    let pre_hash = pre_hash Hash_preimage.pre_hash in
-    Type.map ~pre_hash Type.(list entry_t) of_entries entries
-
-  module P = Portable
+  let t = t_not_prefixed
 
   module Portable = struct
-    include (
-      Portable :
-        Portable
-          with type t = t
-           and type node := t
-           and type metadata := metadata
-           and type hash := hash
-           and type step := step)
+    include Portable
+
+    let t = t_not_prefixed
   end
 end
 

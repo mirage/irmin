@@ -72,6 +72,16 @@ module Maker_generic_key (I : Info.S) = struct
       type t = { node : hash; parents : hash list; info : Info.t }
       [@@deriving irmin]
 
+      type t_not_prefixed = t [@@deriving irmin]
+
+      let pre_hash = Type.(unstage (pre_hash t))
+
+      let pre_hash_prefixed x f =
+        f "C";
+        pre_hash x f
+
+      let t = Type.(like t ~pre_hash:pre_hash_prefixed)
+
       type commit_key = H.t [@@deriving irmin]
       type node_key = H.t [@@deriving irmin]
       type hash = H.t [@@deriving irmin]
@@ -99,15 +109,12 @@ module Maker_generic_key (I : Info.S) = struct
   struct
     include Make (H) (N) (C)
 
-    type t = t_not_prefixed [@@deriving irmin]
+    let t = t_not_prefixed_t
 
     module Portable = struct
-      include (
-        Portable :
-          Portable
-            with type hash = hash
-             and type commit = t
-             and module Info = Info)
+      include Portable
+
+      let t = t_not_prefixed_t
     end
   end
 end

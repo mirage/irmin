@@ -41,12 +41,12 @@ module Conf = Irmin_tezos.Conf
 module Schema = struct
   open Irmin
   module Metadata = Metadata.None
-  module Contents = Contents.String
+  module Contents = Contents.String_v2
   module Path = Path.String_list
   module Branch = Branch.String
   module Hash = Hash.SHA1
-  module Node = Node.Generic_key.Make (Hash) (Path) (Metadata)
-  module Commit = Commit.Generic_key.Make (Hash)
+  module Node = Node.Generic_key.Make_v2 (Hash) (Path) (Metadata)
+  module Commit = Commit.Generic_key.Make_v2 (Hash)
   module Info = Info.Default
 end
 

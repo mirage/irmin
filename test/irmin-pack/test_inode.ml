@@ -35,7 +35,7 @@ struct
   module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 
   module Node =
-    Irmin.Node.Generic_key.Make (Schema.Hash) (Schema.Path) (Schema.Metadata)
+    Irmin.Node.Generic_key.Make_v2 (Schema.Hash) (Schema.Path) (Schema.Metadata)
       (Key)
       (Key)
 
@@ -275,7 +275,7 @@ let test_add_values () =
   let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
   check_node "node x+y" v2 t >>= fun () ->
-  check_hardcoded_hash "hash v2" "c7f712f1be10dc0aedf53e63f077f878bf0eb183" v2;
+  check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
   let v3 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
@@ -299,7 +299,7 @@ let test_add_inodes () =
       [ ("x", normal foo); ("z", normal foo); ("y", normal bar) ]
   in
   check_values "add x+y+z vs v x+z+y" v2 v3;
-  check_hardcoded_hash "hash v3" "bce58c3d82f74526c3efe2860bba20083f7812d5" v3;
+  check_hardcoded_hash "hash v3" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v3;
   integrity_check v1;
   integrity_check v2;
   let v4 = Inode.Val.add v2 "a" (normal foo) in
@@ -313,7 +313,7 @@ let test_add_inodes () =
       ]
   in
   check_values "add x+y+z+a vs v x+z+a+y" v4 v5;
-  check_hardcoded_hash "hash v4" "db91d8b4acf0d77a8ca625d5ef8be2ae2e92e8c7" v4;
+  check_hardcoded_hash "hash v4" "c330c08571d088141dfc82f644bffcfcf6696539" v4;
   integrity_check v4 ~stable:false;
   Context.close t
 
@@ -326,13 +326,13 @@ let test_remove_values () =
   let v2 = Inode.Val.remove v1 "y" in
   let v3 = Inode.Val.of_list [ ("x", normal foo) ] in
   check_values "node x obtained two ways" v2 v3;
-  check_hardcoded_hash "hash v2" "e1168f832d223676aca295dcc047eaae9473dd40" v2;
+  check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
   let v4 = Inode.Val.remove v2 "x" in
   check_node "remove results in an empty node" (Inode.Val.empty ()) t
   >>= fun () ->
   let v5 = Inode.Val.remove v4 "x" in
   check_values "remove on an already empty node" v4 v5;
-  check_hardcoded_hash "hash v4" "e42e8bb820d4f7550a0f04619f4e15fdc56943b9" v4;
+  check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;
   Alcotest.(check bool) "v5 is empty" (Inode.Val.is_empty v5) true;
   Context.close t
 
@@ -345,11 +345,11 @@ let test_remove_inodes () =
     Inode.Val.of_list
       [ ("x", normal foo); ("y", normal bar); ("z", normal foo) ]
   in
-  check_hardcoded_hash "hash v1" "bce58c3d82f74526c3efe2860bba20083f7812d5" v1;
+  check_hardcoded_hash "hash v1" "46fe6c68a11a6ecd14cbe2d15519b6e5f3ba2864" v1;
   let v2 = Inode.Val.remove v1 "x" in
   let v3 = Inode.Val.of_list [ ("y", normal bar); ("z", normal foo) ] in
   check_values "node y+z obtained two ways" v2 v3;
-  check_hardcoded_hash "hash v2" "13667c467db76311bef78d77dee178fb9f3df6ff" v2;
+  check_hardcoded_hash "hash v2" "ea22a2936eed53978bde62f0185cee9d8bbf9489" v2;
   let v4 =
     Inode.Val.of_list
       [
