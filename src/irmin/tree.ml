@@ -133,12 +133,7 @@ module Make (P : Backend.S) = struct
     | _, true -> Ok x
     | false, false -> Error (`Conflict "merge env")
 
-  module Hashes = Hashtbl.Make (struct
-    type t = P.Hash.t
-
-    let hash x = P.Hash.short_hash x
-    let equal = Type.(unstage (equal P.Hash.t))
-  end)
+  module Hashes = Hash.Set.Make (P.Hash)
 
   module StepMap = struct
     module X = struct
@@ -172,7 +167,7 @@ module Make (P : Backend.S) = struct
   type step = Path.step [@@deriving irmin ~pp ~compare]
   type contents = P.Contents.Val.t [@@deriving irmin ~equal ~pp]
   type repo = P.Repo.t
-  type marks = unit Hashes.t
+  type marks = Hashes.t
 
   type error =
     [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
@@ -185,8 +180,8 @@ module Make (P : Backend.S) = struct
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
 
-  let dummy_marks = Hashes.create 0
-  let empty_marks () = Hashes.create 39
+  let dummy_marks = Hashes.create ~initial_capacity:0 ()
+  let empty_marks () = Hashes.create ~initial_capacity:39 ()
 
   exception Pruned_hash of { context : string; hash : hash }
   exception Dangling_hash of { context : string; hash : hash }
@@ -1422,10 +1417,9 @@ module Make (P : Backend.S) = struct
         if uniq = `False then (aux [@tailcall]) ~path acc d t k
         else
           let h = hash ~cache t in
-          if Hashes.mem marks h then k acc
-          else (
-            Hashes.add marks h ();
-            (aux [@tailcall]) ~path acc d t k)
+          match Hashes.add marks h with
+          | `Duplicate -> k acc
+          | `Ok -> (aux [@tailcall]) ~path acc d t k
       and step : type r. (step * elt, acc, r) folder =
        fun ~path acc d (s, v) k ->
         let path = Path.rcons path s in

@@ -2,6 +2,7 @@
  (name irmin)
  (public_name irmin)
  (libraries
+  irmin.data
   astring
   bheap
   digestif

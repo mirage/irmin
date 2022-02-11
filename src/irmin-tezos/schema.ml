@@ -45,12 +45,16 @@ module Hash : Irmin.Hash.S = struct
       Repr.(string_of (`Fixed H.digest_size))
       ~short_hash H.of_raw_string H.to_raw_string
 
-  let short_hash =
-    let f = short_hash_string ?seed:None in
-    fun t -> f (H.to_raw_string t)
-
+  let short_hash_string = short_hash_string ?seed:None
+  let short_hash t = short_hash_string (H.to_raw_string t)
   let hash_size = H.digest_size
+
+  let short_hash_substring t ~off =
+    short_hash_string (Bigstringaf.substring t ~off ~len:hash_size)
+
   let hash = H.digesti_string
+  let to_raw_string = H.to_raw_string
+  let unsafe_of_raw_string = H.of_raw_string
 end
 
 module Info = Irmin.Info.Default
