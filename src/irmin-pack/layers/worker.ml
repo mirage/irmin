@@ -49,7 +49,7 @@ let calculate_extents ~working_dir ~reachable_fn =
 
 (* FIXME at the moment we ignore max_pos, which should be the pos at which we split the
    file *)  
-let create_sparse_file ~(extents_fn:string) ~(src:Pread.t) ~fn : unit = 
+let create_sparse_file ~(extents_fn:string) ~(src:Pread.t) ~fn : Sparse_file.t = 
   let _ = 
     assert(Sys.file_exists extents_fn);
     assert(File.size extents_fn mod 16 = 0);
@@ -70,8 +70,16 @@ let create_sparse_file ~(extents_fn:string) ~(src:Pread.t) ~fn : unit =
   in
   let _ = Int_mmap.close extents in
   let _ = Sparse_file.close sparse in
-  ()
+  Sparse_file.open_ro ~dir:fn
 
 
-  
+let create_suffix_file ~(src:Pread.t) ~src_off ~len ~dst_path : Suffix.t =
+  (* create empty suffix *)
+  let suff = Suffix.create ~root:dst_path ~suffix_offset:src_off in
+  (* copy from src to suffix *)
+  let dst = Pwrite.{pwrite=Suffix.pwrite ~worker_only:() suff} in  
+  let _do_copy = copy ~src ~src_off ~dst ~dst_off:src_off ~len in
+  suff
+
+
 
