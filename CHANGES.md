@@ -33,6 +33,8 @@
     (#1716, @Ngoguey42). Forward port from #1583.
   - Add `hash_exn` to `Store.Backend.Node.Val` and `Store.Backend.Node_portable`
     (#TODO, @Ngoguey42) Forward ported from #1741.
+  - Add a `Store.Tree.kinded_hash` function. (#1767, @Ngoguey) Forward ported
+    from #1625.
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

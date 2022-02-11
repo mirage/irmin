@@ -90,6 +90,7 @@ module Make (B : Backend.S) = struct
           | Some k -> of_key r (`Contents (k, m)))
 
     let shallow r h = import_no_check r h
+    let kinded_hash = hash
 
     let hash : ?cache:bool -> t -> hash =
      fun ?cache tr ->
