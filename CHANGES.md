@@ -1,4 +1,4 @@
-## Unreleased
+## 3.0.0 (2022-02-11)
 
 ### Fixed
 
@@ -226,7 +226,7 @@
 - **irmin-layers**
   - This experimental package has been removed.
 
-## 2.10.2 (2021-02-02)
+## 2.10.2 (2022-02-02)
 
 ### Fixed
 
@@ -243,7 +243,7 @@
 - **irmin**
   - Add `Store.Private.Node.Val.hash_exn` (#1741, @Ngoguey42)
 
-## 2.10.1 (2021-01-20)
+## 2.10.1 (2022-01-20)
 
 ### Fixed
 
@@ -251,7 +251,7 @@
   - Fix bug introduced in #1683 which causes `Tree.seq` and `Tree.list` to
     produce pruned children (#1720, @Ngoguey42)
 
-## 2.10.0 (2021-01-07)
+## 2.10.0 (2022-01-07)
 
 ### Fixed
 
