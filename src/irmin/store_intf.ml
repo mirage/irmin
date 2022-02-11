@@ -443,6 +443,9 @@ module type S_generic_key = sig
     (** Like {!kinded_key}, but with hashes as value references rather than
         keys. *)
 
+    val kinded_hash : ?cache:bool -> tree -> kinded_hash
+    (** [kinded_hash t] is [c]'s kinded hash. *)
+
     val of_hash : Repo.t -> kinded_hash -> tree option Lwt.t
     (** [of_hash r h] is the tree object in [r] with hash [h], or [None] if no
         such tree object is indexed in [r].
