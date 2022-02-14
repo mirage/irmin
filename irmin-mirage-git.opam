@@ -13,7 +13,7 @@ build: [
 ]
 
 depends: [
-  "dune"         {>= "2.7.0"}
+  "dune"         {>= "2.9.0"}
   "irmin-mirage" {= version}
   "irmin-git"    {= version}
   "mirage-kv"    {>= "3.0.0"}

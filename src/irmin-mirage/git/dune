@@ -1,7 +1,15 @@
 (library
  (name irmin_mirage_git)
  (public_name irmin-mirage-git)
- (libraries fmt git irmin irmin-mirage irmin-git lwt mirage-clock mirage-kv
-   uri)
+ (libraries
+  fmt
+  git
+  irmin
+  irmin-mirage
+  irmin-git
+  lwt
+  mirage-clock
+  mirage-kv
+  uri)
  (instrumentation
   (backend bisect_ppx)))

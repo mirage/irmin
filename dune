@@ -2,4 +2,5 @@
 
 (mdx
  (files README.md)
+ (package irmin-unix)
  (packages irmin irmin-unix))

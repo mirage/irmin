@@ -1,7 +1,14 @@
 (library
  (name irmin_mirage_graphql)
  (public_name irmin-mirage-graphql)
- (libraries git.nss.git cohttp-lwt irmin irmin-mirage irmin-graphql lwt
-   mirage-clock uri)
+ (libraries
+  git.nss.git
+  cohttp-lwt
+  irmin
+  irmin-mirage
+  irmin-graphql
+  lwt
+  mirage-clock
+  uri)
  (instrumentation
   (backend bisect_ppx)))

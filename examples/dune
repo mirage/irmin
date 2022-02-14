@@ -1,18 +1,50 @@
 (executables
- (names readme trees sync process deploy irmin_git_store custom_merge push
-   custom_graphql)
- (libraries astring cohttp fmt git irmin irmin-git irmin-unix ppx_irmin lwt
-   lwt.unix)
+ (names
+  readme
+  trees
+  sync
+  process
+  deploy
+  irmin_git_store
+  custom_merge
+  push
+  custom_graphql)
+ (libraries
+  astring
+  cohttp
+  fmt
+  git
+  irmin
+  irmin-git
+  irmin-unix
+  ppx_irmin
+  lwt
+  lwt.unix)
  (preprocess
   (pps ppx_irmin)))
 
 (alias
  (name examples)
- (deps readme.exe trees.exe sync.exe process.exe deploy.exe push.exe
-   irmin_git_store.exe custom_merge.exe custom_graphql.exe))
+ (deps
+  readme.exe
+  trees.exe
+  sync.exe
+  process.exe
+  deploy.exe
+  push.exe
+  irmin_git_store.exe
+  custom_merge.exe
+  custom_graphql.exe))
 
 (alias
  (name runtest)
  (package irmin-unix)
- (deps readme.exe trees.exe sync.exe process.exe deploy.exe push.exe
-   irmin_git_store.exe custom_merge.exe))
+ (deps
+  readme.exe
+  trees.exe
+  sync.exe
+  process.exe
+  deploy.exe
+  push.exe
+  irmin_git_store.exe
+  custom_merge.exe))

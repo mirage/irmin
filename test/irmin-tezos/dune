@@ -15,10 +15,8 @@
   (run %{exe:generate.exe})))
 
 (cram
- (enabled_if
-  (= %{profile} dev))
+ (package irmin-tezos)
  (deps
-  (package irmin-tezos)
   (file irmin_fsck.exe)
   (file data)
   (alias generate-cli-test-data)))

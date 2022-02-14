@@ -1,5 +1,4 @@
-(lang dune 2.7)
+(lang dune 2.9)
 (name irmin)
-(allow_approximate_merlin)
 (cram enable)
 (using mdx 0.1)

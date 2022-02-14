@@ -1,8 +1,18 @@
 (library
  (name test_git)
  (modules test_git)
- (libraries alcotest fmt fpath irmin irmin-test irmin.mem irmin-git git
-   git-unix lwt lwt.unix)
+ (libraries
+  alcotest
+  fmt
+  fpath
+  irmin
+  irmin-test
+  irmin.mem
+  irmin-git
+  git
+  git-unix
+  lwt
+  lwt.unix)
  (preprocess
   (pps ppx_irmin ppx_irmin.internal)))
 

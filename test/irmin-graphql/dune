@@ -1,8 +1,16 @@
 (executable
  (name test)
  (modules test common import)
- (libraries alcotest alcotest-lwt yojson irmin irmin-graphql irmin.mem
-   cohttp-lwt-unix logs.fmt logs))
+ (libraries
+  alcotest
+  alcotest-lwt
+  yojson
+  irmin
+  irmin-graphql
+  irmin.mem
+  cohttp-lwt-unix
+  logs.fmt
+  logs))
 
 (rule
  (alias runtest)
