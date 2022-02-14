@@ -356,7 +356,7 @@ If [path] does not exist:
             let ver0 = Option.get ver0 in
             (* if fresh, then we want to bump the generation number and switch to a new
                suffix/sparse *)
-            let gen' = Control.get_generation t.control in
+            let gen' = Control.get_generation t.control +1 in
             let sparse = Sparse.create ~path:(sparse_name ~generation:gen') in
             let suffix = 
               let suffix_offset = 0 in
