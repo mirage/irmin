@@ -34,7 +34,8 @@
 
 (rule
  (alias runtest)
- (package irmin-pack)
+ ;; Attached to `irmin-tezos` to avoid a cyclic dependency with `irmin-pack`
+ (package irmin-tezos)
  (action
   (run ./test.exe -q --color=always)))
 
