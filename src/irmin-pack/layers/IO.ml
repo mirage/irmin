@@ -278,64 +278,99 @@ metadata is stored elsewhere, in meta.nnnn
      is this allowed?
      
      is fresh,version allowed?
+
+     Documentation from IO_intf:
+
+If [path] exists: 
+  if [fresh]:
+    - version must be (Some _)
+    - version meta is updated to match that supplied as argument (even if this results in a
+      downgrade of the version from [`V2] to [`V1]; even in readonly mode)
+    - the offset is positioned at zero (the intent is probably to make the file appear
+      truncated, but this is not what actually happens)
+  if [not fresh]:
+    - meta version is loaded
+    - if meta version is > than that supplied as argument, fail
+    
+If [path] does not exist:
+  - version must be (Some _)
+  - instance is created with the supplied version (even if readonly is true)
+
   *)
   let v ~version:(ver0:Lyr_version.t option) ~fresh ~readonly path t = 
     let exists = Sys.file_exists path in
     let ( --> ) a b = (not a) || b in
     assert(not exists --> Option.is_some ver0);
-    assert(not (readonly && fresh)); 
+    assert(not (readonly && fresh)); (* FIXME this is allowed in the existing code *)
     match exists with 
     | false -> (
         assert(not exists);
-        assert(ver0 <> None);
+        assert(Option.is_some ver0);
         ignore(fresh);
         match readonly with
         | true -> 
+          (* FIXME in the existing code, opening readonly will create the file if it
+             doesn't exist *)
           Fmt.failwith 
             "%s: Cannot open a non-existent file %s in readonly mode." __FILE__ path
         | false -> 
-          (* create a new file, ignoring version FIXME perhaps we should allow creating a
-             new file with version=`V1 (ie not default_version)? *)
-          ignore(version);
+          assert(not exists);
+          assert(not readonly);
+          assert(Option.is_some ver0);
           let t = create ~fn:path in
-          let ver = 
-            match ver0 with | Some x -> x | None -> failwith "impossible" 
-          in
-          let _ = set_version t ver in
+          let ver0 = Option.get ver0 in
+          let _ = set_version t ver0 in
           let _ = flush t in
           t)
     | true -> (
+        assert(exists);
+        assert(fresh --> Option.is_some ver0);        
         let t = open_ ~readonly ~fn:path in
-        let _handle_version = 
-          match ver0 with
-          | None -> ()
-          | Some `V1 -> 
+        (* handle fresh and ver0 *)
+        begin 
+          match fresh with
+          | false -> 
+            assert(exists);
+            assert(not fresh);
             assert(List.mem (version t) [`V1;`V2]);
-            if version t = `V2 then 
-              Fmt.failwith 
-                "%s: attempt to open V2 format file %s using V1 version" __FILE__ path 
-            else ()
-          | Some `V2 -> 
-            assert(List.mem (version t) [`V1;`V2]);
-            if version t = `V1 then () (* the file will be upgraded on write? *)
-            else ()
-        in
-        let _handle_fresh =
-          assert(not readonly);
-          (* if fresh, then we want to bump the generation number and switch to a new
-             suffix/sparse *)
-          let gen' = Control.get_generation t.control in
-          let sparse = Sparse.create ~path:(sparse_name ~generation:gen') in
-          let suffix = Suffix.create ~root:(suffix_name ~generation:gen') ~suffix_offset:0 in
-          t.sparse <- sparse;
-          t.suffix <- suffix;
-          Control.(set t.control generation_field gen');
-          (* FIXME potential problem if update to generation is seen without the update to
-             last_synced_offset_field? *)
-          Control.(set t.control last_synced_offset_field 0); 
-          Control.fsync t.control;
-          (* FIXME delete old generation sparse+suffix here *)
-        in
+            let _check_versions =
+              let version_lt v1 v2 = Lyr_version.compare v1 v2 < 0 in
+              match ver0 with
+              | None -> ()
+              | Some ver0 -> 
+                match version_lt ver0 (version t) with
+                | true ->
+                  Fmt.failwith 
+                    "%s: attempt to open %s, V%d file, using older V%d version" __FILE__ 
+                    path 
+                    (version t |> Lyr_version.to_int) 
+                    (ver0 |> Lyr_version.to_int)
+                | false -> ()
+            in
+            ()
+          | true -> 
+            assert(exists);
+            assert(fresh);
+            assert(not readonly); (* FIXME *)
+            assert(Option.is_some ver0);
+            let ver0 = Option.get ver0 in
+            (* if fresh, then we want to bump the generation number and switch to a new
+               suffix/sparse *)
+            let gen' = Control.get_generation t.control in
+            let sparse = Sparse.create ~path:(sparse_name ~generation:gen') in
+            let suffix = 
+              let suffix_offset = 0 in
+              Suffix.create ~root:(suffix_name ~generation:gen') ~suffix_offset in
+            t.sparse <- sparse;
+            t.suffix <- suffix;
+            Control.(set t.control generation_field gen');
+            (* FIXME potential problem if update to generation is seen without the update to
+               last_synced_offset_field? *)
+            Control.(set t.control last_synced_offset_field 0); 
+            set_version t ver0; (* use the provided version, not any in the existing file *)
+            Control.fsync t.control;
+            (* FIXME delete old generation sparse+suffix here *)
+        end;
         t)
 
 end (* Private *)
