@@ -197,7 +197,8 @@ metadata is stored elsewhere, in meta.nnnn
     (* FIXME probably want to take into account the "last_synced_offset" for the suffix *)
     let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
     let readonly_offset = Control.(get control last_synced_offset_field) in
-    (* FIXME when we open, we should take into account meta.last_synced_offset *)
+    (* FIXME when we open, we should take into account meta.last_synced_offset; FIXME
+       should also maybe truncate suffix to last_synced_offset *)
     { fn=fn0; root; sparse; suffix; control; readonly; readonly_offset }
     
   let readonly t = t.readonly
@@ -212,7 +213,7 @@ metadata is stored elsewhere, in meta.nnnn
     (* NOTE the last_synced_offset_field is the "virtual" size of the suffix FIXME
        shouldn't Suffix.fsync update this field? *)
     Control.(set t.control last_synced_offset_field (Suffix.size t.suffix));
-    (* FIXME may want to flush here *)
+    (* FIXME may want to fsync control here *)
     ()
     
   let close t = 
@@ -244,12 +245,8 @@ metadata is stored elsewhere, in meta.nnnn
   (* [version] and [set_version] need to be changed when more versions are added. If a new
      version is added, we will get a type mismatch for these functions, which will trigger
      the programmer to rewrite them. *)
-  let version t : Lyr_version.t = Control.(get t.control version_field) |> function
-    | 1 -> `V1
-    | 2 -> `V2
-    | ver -> 
-      Log.err (fun m -> m "Unrecognized version: %d" ver);
-      Fmt.(failwith "Unrecognized version: %d" ver)
+  let version t : Lyr_version.t = 
+    Control.(get t.control version_field) |> Lyr_version.of_int
 
   let set_version t (ver:Lyr_version.t) = 
     assert(not t.readonly);
