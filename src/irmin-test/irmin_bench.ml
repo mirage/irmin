@@ -170,15 +170,15 @@ struct
     let t = { t with root } in
     Lwt_main.run (init t config >>= fun () -> run t config size)
 
-  let main_term config size = Term.(const main $ t $ pure config $ pure size)
+  let main_term config size = Term.(const main $ t $ const config $ const size)
 
   let () =
     at_exit (fun () ->
         Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
   let run ~config ~size =
-    let info = Term.info "Simple benchmark for trees" in
-    Term.exit @@ Term.eval (main_term config size, info)
+    let info = Cmd.info "Simple benchmark for trees" in
+    exit @@ Cmd.eval (Cmd.v info (main_term config size))
 end
 
 let () =

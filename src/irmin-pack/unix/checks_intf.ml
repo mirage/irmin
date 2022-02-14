@@ -26,7 +26,7 @@ module type Subcommand = sig
   val term_internal : (unit -> unit) Cmdliner.Term.t
   (** A pre-packaged [Cmdliner] term for executing {!run}. *)
 
-  val term : unit Cmdliner.Term.t * Cmdliner.Term.info
+  val term : unit Cmdliner.Term.t * Cmdliner.Cmd.info
   (** [term] is {!term_internal} plus documentation and logs initialisation *)
 end
 
@@ -103,7 +103,7 @@ module type S = sig
   end
 
   val cli :
-    ?terms:(unit Cmdliner.Term.t * Cmdliner.Term.info) list -> unit -> empty
+    ?terms:(unit Cmdliner.Term.t * Cmdliner.Cmd.info) list -> unit -> empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.
       [terms] defaults to the set of checks in this module. *)
 end

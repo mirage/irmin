@@ -16,7 +16,7 @@
 
 (** CLI commands. *)
 
-type command = unit Cmdliner.Term.t * Cmdliner.Term.info
+type command = unit Cmdliner.Term.t * Cmdliner.Cmd.info
 (** [Cmdliner] commands. *)
 
 val default : command

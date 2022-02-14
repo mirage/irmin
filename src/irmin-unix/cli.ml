@@ -45,12 +45,12 @@ let setup_log style_renderer level =
 let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let term_info title ~doc ~man =
+let cmd_info title ~doc ~man =
   let man = man @ help_sections in
-  Term.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man
+  Cmd.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man
     title
 
-type command = unit Term.t * Term.info
+type command = unit Term.t * Cmd.info
 
 type sub = {
   name : string;
@@ -61,7 +61,7 @@ type sub = {
 
 let create_command c =
   let man = [ `S "DESCRIPTION"; `P c.doc ] @ c.man in
-  (c.term, term_info c.name ~doc:c.doc ~man)
+  (c.term, cmd_info c.name ~doc:c.doc ~man)
 
 (* Converters *)
 
@@ -771,7 +771,7 @@ let help =
                       config_man)
              | `Ok t -> `Help (man_format, Some t))
        in
-       Term.(ret (mk help $ Term.man_format $ Term.choice_names $ topic)));
+       Term.(ret (mk help $ Arg.man_format $ Term.choice_names $ topic)));
   }
 
 (* GRAPHQL *)
@@ -1019,9 +1019,9 @@ let default =
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
       graphql.doc http.doc options.doc branches.doc log.doc
   in
-  ( Term.(mk usage $ const ()),
-    Term.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc
-      ~man )
+  let info = Cmd.info "irmin" ~version:Irmin.version ~sdocs:global_option_section
+               ~doc ~man in
+  Term.(mk usage $ const ()), info
 
 let commands =
   List.map create_command
@@ -1049,5 +1049,7 @@ let commands =
       log;
     ]
 
-let run ~default:x y =
-  match Cmdliner.Term.eval_choice x y with `Error _ -> exit 1 | _ -> ()
+let run ~default commands =
+  let default, info = default in
+  let commands = List.map (fun (term, info) -> Cmd.v info term) commands in
+  exit @@ Cmdliner.Cmd.eval (Cmd.group ~default info commands)

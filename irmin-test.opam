@@ -26,7 +26,7 @@ depends: [
   "lwt"          {>= "5.3.0"}
   "metrics-unix"
   "ocaml-syntax-shims"
-  "cmdliner"     {< "1.1.0"}
+  "cmdliner"     {>= "1.1.0"}
   "metrics" {>= "0.2.0"}
   "hex" {with-test & >= "1.4.0"}
   "vector" {with-test & >= "1.0.0"}

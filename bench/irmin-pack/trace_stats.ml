@@ -165,7 +165,7 @@ let term_cb =
 let () =
   let man = [] in
   let i =
-    Term.info ~man ~doc:"Processing of stat traces and stat trace summaries."
+    Cmd.info ~man ~doc:"Processing of stat traces and stat trace summaries."
       "trace_stats"
   in
 
@@ -176,7 +176,7 @@ let () =
       `P "trace_stats.exe summarise run0.repr > run0.json";
     ]
   in
-  let j = Term.info ~man ~doc:"Stat Trace to Summary" "summarise" in
+  let j = Cmd.info ~man ~doc:"Stat Trace to Summary" "summarise" in
 
   let man =
     [
@@ -200,10 +200,10 @@ let () =
       `P "trace_stats.exe pp -f r0,run0.json -f r1,run1.repr";
     ]
   in
-  let k = Term.info ~man ~doc:"Comparative Pretty Printing" "pp" in
+  let k = Cmd.info ~man ~doc:"Comparative Pretty Printing" "pp" in
   let l =
-    Term.info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb"
+    Cmd.info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb"
   in
-  Term.exit
-  @@ Term.eval_choice (term_summarise, i)
-       [ (term_summarise, j); (term_pp, k); (term_cb, l) ]
+  let commands = List.map (fun (term, info) -> Cmd.v info term)
+                   [ (term_summarise, j); (term_pp, k); (term_cb, l) ] in
+  exit @@ Cmd.eval (Cmd.group ~default:term_summarise i commands)

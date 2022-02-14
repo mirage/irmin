@@ -130,7 +130,8 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Print high-level statistics about the store." in
-      Cmdliner.Term.(term_internal $ setup_log, info ~doc "stat")
+      let info = Cmdliner.Cmd.info ~doc "stat" in
+      Cmdliner.Term.(term_internal $ setup_log), info
   end
 
   module Reconstruct_index = struct
@@ -165,7 +166,8 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Reconstruct index from an existing pack file." in
-      Cmdliner.Term.(term_internal $ setup_log, info ~doc "reconstruct-index")
+      let info = Cmdliner.Cmd.info ~doc "reconstruct-index" in
+      Cmdliner.Term.(term_internal $ setup_log), info
   end
 
   module Integrity_check_index = struct
@@ -189,8 +191,8 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Check index integrity." in
-      Cmdliner.Term.
-        (term_internal $ setup_log, info ~doc "integrity-check-index")
+      let info = Cmdliner.Cmd.info ~doc "integrity-check-index" in
+      Cmdliner.Term.(term_internal $ setup_log), info
   end
 
   module Integrity_check = struct
@@ -225,7 +227,8 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Check integrity of an existing store." in
-      Cmdliner.Term.(term_internal $ setup_log, info ~doc "integrity-check")
+      let info = Cmdliner.Cmd.info ~doc "integrity-check" in
+      Cmdliner.Term.(term_internal $ setup_log), info
   end
 
   module Integrity_check_inodes = struct
@@ -266,8 +269,8 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Check integrity of inodes in an existing store." in
-      Cmdliner.Term.
-        (term_internal $ setup_log, info ~doc "integrity-check-inodes")
+      let info = Cmdliner.Cmd.info ~doc "integrity-check-inodes" in
+      Cmdliner.Term.(term_internal $ setup_log), info
   end
 
   module Stats_commit = struct
@@ -327,7 +330,8 @@ module Make (Store : Store) = struct
         "Traverse one commit, specified with the --commit argument, in the \
          store for stats. If no commit is specified the current head is used."
       in
-      Cmdliner.Term.(term_internal $ setup_log, info ~doc "stat-store")
+      let info = Cmdliner.Cmd.info ~doc "stat-store" in
+      Cmdliner.Term.(term_internal $ setup_log), info
   end
 
   module Cli = struct
@@ -343,15 +347,12 @@ module Make (Store : Store) = struct
             Integrity_check_index.term;
             Stats_commit.term;
           ]) () : empty =
-      let default =
-        let default_info =
-          let doc = "Check Irmin data-stores." in
-          Term.info ~doc "irmin-fsck"
-        in
-        Term.(ret (const (`Help (`Auto, None))), default_info)
+      let info =
+        let doc = "Check Irmin data-stores." in
+        Cmd.info ~doc "irmin-fsck"
       in
-      Term.(eval_choice default terms |> (exit : unit result -> _));
-      assert false
+      let terms = List.map (fun (term, info) -> Cmdliner.Cmd.v info term) terms in
+      exit @@ Cmd.eval (Cmd.group info terms)
   end
 
   let cli = Cli.main

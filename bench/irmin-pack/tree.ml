@@ -548,5 +548,5 @@ let () =
          http://data.tarides.com/irmin/data_1343496commits.repr";
     ]
   in
-  let info = Term.info ~man ~doc:"Benchmarks for tree operations" "tree" in
-  Term.exit @@ Term.eval (main_term, info)
+  let info = Cmd.info ~man ~doc:"Benchmarks for tree operations" "tree" in
+  exit @@ Cmd.eval (Cmd.v info main_term)
