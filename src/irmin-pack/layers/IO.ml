@@ -28,11 +28,6 @@ module type S = sig
      the caching if it is broken *)
 
   (* following are file-like *)
-  val truncate : t -> unit
-  (* FIXME not clear that we can implement this using layers; removing for time being as
-     probably not needed? Although if we allow "fresh" as an open option, we presumably do
-     have to implement it; OK; just start from a fresh instance *)
-
   val readonly : t -> bool
 
 
@@ -43,9 +38,13 @@ module type S = sig
   val append : t -> string -> unit
   (* NOTE this is an append-only file *)
 
+  val truncate : t -> unit
+  (* FIXME not clear that we can implement this using layers; removing for time being as
+     probably not needed? Although if we allow "fresh" as an open option, we presumably do
+     have to implement it; OK; just start from a fresh instance *)
+
   (* These are not file-like; some doc added in {!IO_intf}. *)
   val version : t -> Version.t
-  (* We can probably support a "version" in our metadata *)
   val set_version : t -> Version.t -> unit
   val name : t -> string
   (* This is just the "filename"/path used when opening the IO instance *)
@@ -72,6 +71,10 @@ end
 (** Private implementation *)
 module Private = struct
 
+  open struct
+    module Sparse = Sparse_file
+  end
+
   (** We want to store the control file, and all other files and directories related to
       layers, in a subdirectory; however, the existing code expects to be working with a
       single file; so we have a single file that points to the directory that holds all
@@ -88,17 +91,28 @@ module Private = struct
     include Add_load_save_funs(T)
   end
 
-  let create_object_store ~root:_ : unit = failwith "FIXME"
-  let create_suffix_file ~root:_ : unit = failwith "FIXME"
-
   type t = {
     fn      : string; (** file containing a pointer to a subdir *)
     root    : string; (** subdirectory where we store the files *)
-    objects : Obj_store.t;
+    (* objects : Obj_store.t; *)
+    sparse  : Sparse.t;
     suffix  : Suffix.t;
     control : Control.t;
     readonly: bool;
   }
+
+  let suffix_name ~generation = "suffix."^(generation |> string_of_int)
+  (** Default name for suffix subdir; "suffix.nnnn" where nnnn is the generation number *)
+
+(*
+  let objects_name ~generation = "objects."^(generation |> string_of_int)
+  (** Default name for objects subdir; "objects.nnnn" where nnnn is the generation number *)
+*)
+
+  let sparse_name ~generation = "objects."^(generation |> string_of_int)
+  (** Default name for sparse subdir; "sparse.nnnn" where nnnn is the generation number *)
+
+
 
 (*
 FIXME are meta and control the same? we want some cheap way to indicate that RO instances
@@ -131,23 +145,28 @@ metadata is stored elsewhere, in meta.nnnn
     in    
     (* now create the initial contents of the layers directory *)
     let root = Fn.(dir / layers_dot_nnnn) in
+    let init_gen = 1234 (* FIXME *) in
     let control = 
       let t = Control.create ~root ~name:control_s in
-      Control.(set t generation_field 1234);
+      Control.(set t generation_field init_gen);
       Control.(set t last_synced_offset_field 0);
       Control.fsync t;
       t
     in
-    let objects = Obj_store.create ~root:Fn.(root / Control.(objects_name control)) in
+    (*
+    let objects = 
+      Obj_store.create ~root:Fn.(root / objects_name ~generation:init_gen) in
+    *)
+    let sparse = Sparse.create ~path:Fn.(root / sparse_name ~generation:init_gen) in
     let suffix = 
       (* NOTE in the following, the initial suffix_offset is 0 *)
       let suffix_offset = 0 in
-      Suffix.create ~root:Fn.(root / Control.(suffix_name control)) ~suffix_offset 
+      Suffix.create ~root:Fn.(root / suffix_name ~generation:init_gen) ~suffix_offset 
     in
     (* FIXME make sure to sync all above *)
     (* finally create the pointer to the subdir *)
     File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
-    { fn=fn0; root; objects; suffix; control; readonly=false }
+    { fn=fn0; root; sparse; suffix; control; readonly=false }
     
 
   let open_ ~readonly ~fn:fn0 = 
@@ -158,10 +177,13 @@ metadata is stored elsewhere, in meta.nnnn
     in
     let root = Fn.(dir / layers_dot_nnnn) in
     let control = Control.open_ ~root ~name:control_s in
-    let objects = Obj_store.open_ro ~root:Fn.(root / Control.(objects_name control)) in
-    let suffix = Suffix.open_ ~root:Fn.(root / Control.(suffix_name control)) in
+    let generation = Control.get_generation control in
+    let sparse = Sparse.open_ro ~dir:Fn.(root / sparse_name ~generation) in
+    (* let objects = Obj_store.open_ro ~root:Fn.(root / objects_name ~generation) in *)
+    (* FIXME probably want to take into account the "last_synced_offset" for the suffix *)
+    let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
     (* FIXME when we open, we should take into account meta.last_synced_offset *)
-    { fn=fn0; root; objects; suffix; control; readonly }
+    { fn=fn0; root; sparse; suffix; control; readonly }
     
   let readonly t = t.readonly
 
@@ -175,7 +197,6 @@ metadata is stored elsewhere, in meta.nnnn
     Control.(set t.control last_synced_offset_field (Suffix.size t.suffix));
     (* FIXME may want to flush here *)
     ()
-
 
 
 end

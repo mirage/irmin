@@ -65,9 +65,6 @@ module Private = struct
 
   let get_generation t = get t generation_field
 
-  let suffix_name t = "suffix."^(get t generation_field |> string_of_int)
-
-  let objects_name t = "objects."^(get t generation_field |> string_of_int)
 end
 
 include (Private : sig
@@ -84,8 +81,4 @@ include (Private : sig
   val close : t -> unit
   val get_generation : t -> int
   (** Convenience; just [get t generation] *)
-  val suffix_name : t -> string
-  (** Default name for suffix subdir; "suffix.nnnn" where nnnn is the generation number *)
-  val objects_name : t -> string
-  (** Default name for objects subdir; "objects.nnnn" where nnnn is the generation number *)
 end)
