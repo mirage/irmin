@@ -28,6 +28,9 @@ depends: [
   "ocaml-syntax-shims"
   "cmdliner"
   "metrics" {>= "0.2.0"}
+  "hex" {with-test & >= "1.4.0"}
+  "vector" {with-test & >= "1.0.0"}
+  "alcotest-lwt" {with-test & >= "1.5.0"}
 ]
 
 synopsis: "Irmin test suite"
