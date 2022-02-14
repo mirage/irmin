@@ -17,6 +17,7 @@ depends: [
   "fmt"
   "yojson"
   "alcotest" {with-test}
+  "irmin-test" {with-test & = version}
 ]
 build: [
   ["dune" "subst"] {dev}
