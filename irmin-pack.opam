@@ -26,7 +26,6 @@ depends: [
   "optint"       {>= "0.1.0"}
   "hex"          {with-test & >= "1.4.0"}
   "irmin-test"   {with-test & = version}
-  "irmin-tezos"  {with-test & = version}
   "alcotest-lwt" {with-test}
   "astring"      {with-test}
   "fpath"        {with-test}
