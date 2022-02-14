@@ -194,7 +194,7 @@ let add t elt =
   if String.equal elt t.empty_slot then
     Fmt.invalid_arg "%s.add: cannot write null value to hashset" __MODULE__;
 
-  if Float.compare (load_factor t) max_load_factor > 0 then resize t;
+  if Float.compare (load_factor t) max_load_factor >= 0 then resize t;
   let slot = Slot.of_elt t elt in
   let result = unguarded_add t slot elt in
   if result = `Ok then t.cardinal <- t.cardinal + 1;

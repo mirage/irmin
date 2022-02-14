@@ -49,6 +49,8 @@ val create :
 include Hashset.S with type t := t and type elt := elt
 
 val invariant : (elt -> unit) -> t -> unit
+(** [invariant f t] checks the internal invariants of [t] and calls [f] on every
+    element contained within. Exposed for testing. *)
 
 val reachable_words : t -> int
 (** [reachable_words t] is the total number of words of data kept alive by [t]
