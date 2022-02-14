@@ -24,6 +24,8 @@ open Util
 
 module Private = struct
 
+  (* FIXME fragile - when versions change/ the default version changes, we need to adjust
+     this code *)
   let default_version = 2
 
   type t  = Int_mmap.t

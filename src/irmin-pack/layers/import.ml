@@ -28,7 +28,3 @@ let ( ++ ) = Int63.add
 let ( -- ) = Int63.sub
 
 
-(* duplicate a minimal Version module here, to avoid dependency on irmin-pack *)
-module Version = struct
-  type t = [ `V1 | `V2 ]
-end

@@ -31,6 +31,9 @@ module type S = sig
   *)
 
   val append: t -> string -> unit
+
+  val private_suffix_offset : t -> int
+  (** The virtial offset from which this suffix file stores data *) 
 end
 
 module Private = struct
@@ -89,6 +92,8 @@ module Private = struct
     ()
 
   let append t s = pwrite ~worker_only:() t ~off:(ref (size t)) (Bytes.unsafe_of_string s)
+
+  let private_suffix_offset t = t.suffix_offset
 end
 
 

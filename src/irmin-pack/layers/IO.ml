@@ -10,6 +10,8 @@ irmin-pack [IO] interface.
 
 *)
 
+[@@@warning "-27"]
+
 open! Import
 open Util
 
@@ -17,7 +19,7 @@ open Util
 module type S = sig 
   type t
     
-  val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t
+  val v : version:Lyr_version.t option -> fresh:bool -> readonly:bool -> string -> t
   (** Handling of version is a bit subtle in the existing implementation in IO.ml; eg
       opening a V2 with V1 fails! *)
 
@@ -34,6 +36,9 @@ module type S = sig
   val flush : t -> unit
   val close : t -> unit
   val offset : t -> int63
+  (** For readonly instances, offset is the last offset returned by force_offset; this is
+      used to trigger updates to the dictionary and index *)
+
   val read : t -> off:int63 -> bytes -> int
   val append : t -> string -> unit
   (* NOTE this is an append-only file *)
@@ -44,15 +49,16 @@ module type S = sig
      have to implement it; OK; just start from a fresh instance *)
 
   (* These are not file-like; some doc added in {!IO_intf}. *)
-  val version : t -> Version.t
-  val set_version : t -> Version.t -> unit
+  val version : t -> Lyr_version.t
+  val set_version : t -> Lyr_version.t -> unit
   val name : t -> string
   (* This is just the "filename"/path used when opening the IO instance *)
 
   val force_offset : t -> int63 
   (* 
 I think this is for readonly instances, to allow them to detect that there is more data to
-read.
+read... except that RO instances only read from particular offsets - there is no need for
+them to "keep up with" a log file, for example. Instead, it is used to indicate to the RO instance that it needs to resync the dict and index
 
      
 See doc in ../IO_intf.ml We probably have something like this for the layers: the
@@ -95,11 +101,18 @@ module Private = struct
     fn      : string; (** file containing a pointer to a subdir *)
     root    : string; (** subdirectory where we store the files *)
     (* objects : Obj_store.t; *)
-    sparse  : Sparse.t;
-    suffix  : Suffix.t;
+    mutable sparse  : Sparse.t;
+    mutable suffix  : Suffix.t;
     control : Control.t;
     readonly: bool;
+    mutable readonly_offset: int;
+    (** This offset is maintained by readonly instances; when the RW instance appends data
+        to the pack file, the RO instance detects the new data (via force_offset) which
+        triggers the RO instance to resync the index and the dictionary *)
   }
+
+  (* FIXME need to examine the force_offset function and its affect on readonly
+     instances *)
 
   let suffix_name ~generation = "suffix."^(generation |> string_of_int)
   (** Default name for suffix subdir; "suffix.nnnn" where nnnn is the generation number *)
@@ -166,7 +179,8 @@ metadata is stored elsewhere, in meta.nnnn
     (* FIXME make sure to sync all above *)
     (* finally create the pointer to the subdir *)
     File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
-    { fn=fn0; root; sparse; suffix; control; readonly=false }
+    let readonly_offset = 0 in
+    { fn=fn0; root; sparse; suffix; control; readonly=false; readonly_offset; }
     
 
   let open_ ~readonly ~fn:fn0 = 
@@ -182,8 +196,9 @@ metadata is stored elsewhere, in meta.nnnn
     (* let objects = Obj_store.open_ro ~root:Fn.(root / objects_name ~generation) in *)
     (* FIXME probably want to take into account the "last_synced_offset" for the suffix *)
     let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
+    let readonly_offset = Control.(get control last_synced_offset_field) in
     (* FIXME when we open, we should take into account meta.last_synced_offset *)
-    { fn=fn0; root; sparse; suffix; control; readonly }
+    { fn=fn0; root; sparse; suffix; control; readonly; readonly_offset }
     
   let readonly t = t.readonly
 
@@ -192,11 +207,135 @@ metadata is stored elsewhere, in meta.nnnn
      performance; do we want to do that here? an alternative is to use OCaml's native
      channels *)
   let flush t = 
+    assert(not t.readonly);
     Suffix.fsync t.suffix;
-    (* NOTE the last_synced_offset_field is the "virtual" size of the suffix *)
+    (* NOTE the last_synced_offset_field is the "virtual" size of the suffix FIXME
+       shouldn't Suffix.fsync update this field? *)
     Control.(set t.control last_synced_offset_field (Suffix.size t.suffix));
     (* FIXME may want to flush here *)
     ()
+    
+  let close t = 
+    (if not t.readonly then flush t);
+    Suffix.close t.suffix;
+    Sparse.close t.sparse;
+    Control.close t.control;
+    ()
 
+  let offset t = 
+    match t.readonly with
+    | false -> 
+      Suffix.size t.suffix
+    | true -> 
+      (* FIXME this is only used to trigger RO updates to dict and index? *)
+      t.readonly_offset 
+  
+  let read t ~off buf =
+    match off >= Suffix.private_suffix_offset t.suffix with
+    | true -> 
+      (* read from suffix *)
+      Suffix.pread t.suffix ~off:(ref off) ~len:(Bytes.length buf) ~buf
+    | false -> 
+      (* read from sparse *)
+      Sparse.pread t.sparse ~off:(ref off) ~len:(Bytes.length buf) ~buf
 
-end
+  let append t s = Suffix.append t.suffix s
+
+  (* [version] and [set_version] need to be changed when more versions are added. If a new
+     version is added, we will get a type mismatch for these functions, which will trigger
+     the programmer to rewrite them. *)
+  let version t : Lyr_version.t = Control.(get t.control version_field) |> function
+    | 1 -> `V1
+    | 2 -> `V2
+    | ver -> 
+      Log.err (fun m -> m "Unrecognized version: %d" ver);
+      Fmt.(failwith "Unrecognized version: %d" ver)
+
+  let set_version t (ver:Lyr_version.t) = 
+    assert(not t.readonly);
+    let ver_i = match ver with `V1 -> 1 | `V2 -> 2 in
+    Control.(set t.control version_field ver_i)
+
+  let name t = t.fn
+
+  (* The semantics of [force_offset] in the original implementation is a bit unclear. Here
+     we assume that it is used only for readonly instances. It accesses the
+     "last_synced_offset" of the underlying RW instance, and updates [readonly_offset]
+     from that. This is then used by the RO instance to trigger a reload of dictionary and
+     index. *)
+  let force_offset t = 
+    assert(t.readonly);
+    t.readonly_offset <- Control.(get t.control last_synced_offset_field);
+    t.readonly_offset
+
+  let truncate t = 
+    assert(not t.readonly);    
+    Fmt.failwith "%s: truncate not supported (the only user in pack_store.ml should be \
+                  clear, which is also not supported)" __FILE__
+
+  
+  (* FIXME is fresh=true ever used in the codebase? what about fresh=true, readonly=true?
+     is this allowed?
+     
+     is fresh,version allowed?
+  *)
+  let v ~version:(ver0:Lyr_version.t option) ~fresh ~readonly path t = 
+    let exists = Sys.file_exists path in
+    let ( --> ) a b = (not a) || b in
+    assert(not exists --> Option.is_some ver0);
+    assert(not (readonly && fresh)); 
+    match exists with 
+    | false -> (
+        assert(not exists);
+        assert(ver0 <> None);
+        ignore(fresh);
+        match readonly with
+        | true -> 
+          Fmt.failwith 
+            "%s: Cannot open a non-existent file %s in readonly mode." __FILE__ path
+        | false -> 
+          (* create a new file, ignoring version FIXME perhaps we should allow creating a
+             new file with version=`V1 (ie not default_version)? *)
+          ignore(version);
+          let t = create ~fn:path in
+          let ver = 
+            match ver0 with | Some x -> x | None -> failwith "impossible" 
+          in
+          let _ = set_version t ver in
+          let _ = flush t in
+          t)
+    | true -> (
+        let t = open_ ~readonly ~fn:path in
+        let _handle_version = 
+          match ver0 with
+          | None -> ()
+          | Some `V1 -> 
+            assert(List.mem (version t) [`V1;`V2]);
+            if version t = `V2 then 
+              Fmt.failwith 
+                "%s: attempt to open V2 format file %s using V1 version" __FILE__ path 
+            else ()
+          | Some `V2 -> 
+            assert(List.mem (version t) [`V1;`V2]);
+            if version t = `V1 then () (* the file will be upgraded on write? *)
+            else ()
+        in
+        let _handle_fresh =
+          assert(not readonly);
+          (* if fresh, then we want to bump the generation number and switch to a new
+             suffix/sparse *)
+          let gen' = Control.get_generation t.control in
+          let sparse = Sparse.create ~path:(sparse_name ~generation:gen') in
+          let suffix = Suffix.create ~root:(suffix_name ~generation:gen') ~suffix_offset:0 in
+          t.sparse <- sparse;
+          t.suffix <- suffix;
+          Control.(set t.control generation_field gen');
+          (* FIXME potential problem if update to generation is seen without the update to
+             last_synced_offset_field? *)
+          Control.(set t.control last_synced_offset_field 0); 
+          Control.fsync t.control;
+          (* FIXME delete old generation sparse+suffix here *)
+        in
+        t)
+
+end (* Private *)

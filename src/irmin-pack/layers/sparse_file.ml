@@ -54,7 +54,8 @@ module type SPARSE = sig
   (** [pread t ~off ~len ~buf] reads [len] bytes from virtual offset [off] into [buf]; a
       read that extends beyond the end of a data region will be supplemented with dummy
       bytes ([chr 0]); a read that starts in an empty region will result in an exception
-      being thrown. *)
+      being thrown. FIXME we should take care to avoid the "buf extends forever with 0
+      bytes" case - perhaps have a max buf size? *)
   val pread : t -> off:int ref -> len:int -> buf:bytes -> int
 
 end
