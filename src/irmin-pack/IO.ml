@@ -204,6 +204,7 @@ module Unix : S = struct
         let x = Unix.openfile file Unix.[ O_EXCL; mode; O_CLOEXEC ] 0o644 in
         let raw = Raw.v x in
         if fresh then (
+          (* if [fresh] then version must be Some _ *)
           let version = get_version () in
           let header =
             {
@@ -211,9 +212,11 @@ module Unix : S = struct
               offset = Int63.zero;
             }
           in
+          (* header is updated to match version *)
           Raw.Header_prefix.set raw header;
           v ~offset:Int63.zero ~version raw)
         else
+          (* if not [fresh] then check the actual version against that supplied *)
           let actual_version =
             let v_string = Raw.Version.get raw in
             match Version.of_bin v_string with

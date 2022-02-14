@@ -26,20 +26,40 @@ module type S = sig
   type path := string
 
   val v : version:Version.t option -> fresh:bool -> readonly:bool -> path -> t
-  (** [v ~version ~fresh ~readonly pth] creates a new IO instance. [version] must be
-      [Some] if the [pth] does not point to a file. If the file exists, then [fresh] will
-      cause all data to be discarded (except for metadata); if [fresh] is false, and the
-      version of the file is greater than [version], an exception is thrown. [readonly]
-      indicates that operations like {!append} which change the file data or metadata
-      should be disallowed. 
+  (** [v ~version ~fresh ~readonly path] creates a new IO instance; [version] is the
+      desired version for new files (for existing files, see below); [fresh] indicates
+      that the file should be truncated if it exists; [readonly] indicates the file should
+      be opened in readonly mode.
 
       In order to store the metadata, a [header_size] of 16 bytes is reserved at the
       beginning of the file; reads and writes to the file at offset [off] will be
-      translated to offset [off+header_size].  
+      translated to offset [off+header_size]. To avoid using the phrase [off+header_size]
+      we instead refer to "{b data offset} [off]".
 
-      For a given [pth], there should be at most one read/write instance. There can be
+      For a given path, there should be at most one read/write instance. There can be
       multiple readonly instances, but only one read/write instance is allowed. This is
-      not currently enforced (but could be, using lock files for example).  *)
+      not currently enforced (but could be, using lock files for example).
+
+The relationship between [version,fresh,readonly] and whether [path] resolves to an object
+or not ("path exists") is:
+
+{v
+If [path] exists: 
+  if [fresh]:
+    - version must be (Some _)
+    - version meta is updated to match that supplied as argument (even if this results in a
+      downgrade of the version from [`V2] to [`V1]; even in readonly mode)
+    - the offset is positioned at zero (the intent is probably to make the file appear
+      truncated, but this is not what actually happens)
+  if [not fresh]:
+    - meta version is loaded
+    - if meta version is > than that supplied as argument, fail
+    
+If [path] does not exist:
+  - version must be (Some _)
+  - instance is created with the supplied version (even if readonly is true)
+v}
+  *)
 
   val name : t -> string
   (** [name t] is the [path] argument provided to {!v} when [t] was created *)  
@@ -53,37 +73,39 @@ module type S = sig
       metadata operations. *)
 
   val set : t -> off:int63 -> string -> unit
-  (** [set t ~off s] writes the string [s] at offset [off+header_size]. *)
+  (** [set t ~off s] writes the string [s] at {b data offset} off. *)
 
   val read : t -> off:int63 -> bytes -> int
-  (** [read t ~off buf] tries to read [Bytes.length buf] bytes from [t] at offset [off +
-      header_size]; it returns the number of bytes actually read, which may be less than
+  (** [read t ~off buf] tries to read [Bytes.length buf] bytes from [t] at {b data offset}
+      [off]; it returns the number of bytes actually read, which may be less than
       requested if we are near the end of the file *)
 
   val read_buffer : t -> off:int63 -> buf:bytes -> len:int -> int
-  (** [read_buffer t ~off ~buf ~len] tries to read [len] bytes from [t] at offset
-      [off+header_size] *)
+  (** [read_buffer t ~off ~buf ~len] tries to read [len] bytes from [t] at {b data offset}
+      [off] *)
 
   val offset : t -> int63
   (** [offset t] returns the offset field of [t], which for the read/write instance is the
-      position at which data is written using {!append}. *)
+      position at which data is written using {!append}. For a readonly instance, the
+      offset is "the offset at which the instance last called [force_offset]"; it is used
+      to trigger a resync of the index and dictionary when more data is detected. *)
 
   val force_offset : t -> int63
   (** [force_offset t] returns the last offset for data that was reliably synced to disk
       from the internal buffer, and as a side effect it updates the [t.offset] field to
       this value. This should {b only} be called for read-only instances, where it enables
-      the instance to detect that there is more data to read. It does not make sense to
-      call this function for the read-write instance, but this is not currently
-      enforced. *)
+      the instance to detect that the data has been updated, and then to trigger a reload
+      of the dictionary and index. It does not make sense to call this function for the
+      read-write instance, but this is not currently enforced. *)
 
   val readonly : t -> bool
   val flush : t -> unit
   val close : t -> unit
 
   val exists : string -> bool
-  (** [exists pth] is just [Sys.file_exists pth]; it does not check that the [pth] points
-      to a valid backing file that can be opened with {!v}. FIXME why include in the
-      interface? *)
+  (** [exists path] checks whether the [path] corresponds to a file (or directory) or not;
+      it {b does not} check that the [path] points to a valid object that can be opened
+      with {!v}. *)
 
   val size : t -> int
   (** Returns the real size of the underlying file, including the header data. *)
