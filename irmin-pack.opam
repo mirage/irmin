@@ -24,11 +24,9 @@ depends: [
   "mtime"
   "cmdliner"     {< "1.1.0"}
   "optint"       {>= "0.1.0"}
-  "hex"          {with-test & >= "1.4.0"}
   "irmin-test"   {with-test & = version}
   "alcotest-lwt" {with-test}
   "astring"      {with-test}
-  "fpath"        {with-test}
   "alcotest"     {with-test}
 ]
 

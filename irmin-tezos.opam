@@ -17,6 +17,8 @@ depends: [
   "fmt"
   "yojson"
   "alcotest" {with-test}
+  "hex" {with-test & >= "1.4.0"}
+  "fpath" {with-test}
   "irmin-test" {with-test & = version}
 ]
 build: [
