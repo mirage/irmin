@@ -358,6 +358,7 @@ If [path] does not exist:
             let suffix = 
               let suffix_offset = 0 in
               Suffix.create ~root:(suffix_name ~generation:gen') ~suffix_offset in
+            let old_sparse,old_suffix = t.sparse,t.suffix in
             t.sparse <- sparse;
             t.suffix <- suffix;
             Control.(set t.control generation_field gen');
@@ -366,7 +367,9 @@ If [path] does not exist:
             Control.(set t.control last_synced_offset_field 0); 
             set_version t ver0; (* use the provided version, not any in the existing file *)
             Control.fsync t.control;
-            (* FIXME delete old generation sparse+suffix here *)
+            Sparse.close old_sparse;
+            Suffix.close old_suffix;
+            (* FIXME delete old generation sparse+suffix here *)            
         end;
         t)
 
