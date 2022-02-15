@@ -101,11 +101,6 @@ module Store : sig
     unit -> (string option * hash option * string option) Cmdliner.Term.t
 end
 
-type Irmin.remote += R of Cohttp.Header.t option * string
-
-val remote : Irmin.remote Lwt.t Cmdliner.Term.t
-(** Parse a remote store location. *)
-
 (** {1 Stores} *)
 
 val load_config :
@@ -129,3 +124,8 @@ type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
 
 val store : unit -> store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)
+
+type Irmin.remote += R of Cohttp.Header.t option * string
+
+val remote : unit -> (store * Irmin.remote Lwt.t) Cmdliner.Term.t
+(** Parse a remote store location. *)

@@ -365,7 +365,7 @@ let clone =
     doc = "Copy a remote respository to a local store";
     man = [];
     term =
-      (let clone (S (impl, store, f)) remote depth =
+      (let clone (S (impl, store, f), remote) depth =
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run
@@ -376,7 +376,7 @@ let clone =
             | Ok `Empty -> Lwt.return_unit
             | Error (`Msg e) -> failwith e)
        in
-       Term.(mk clone $ store () $ remote $ depth));
+       Term.(mk clone $ remote () $ depth));
   }
 
 (* FETCH *)
@@ -386,7 +386,7 @@ let fetch =
     doc = "Download objects and refs from another repository.";
     man = [];
     term =
-      (let fetch (S (impl, store, f)) remote =
+      (let fetch (S (impl, store, f), remote) =
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run
@@ -397,7 +397,7 @@ let fetch =
             let* _ = Sync.pull_exn t (apply r f) `Set in
             Lwt.return_unit)
        in
-       Term.(mk fetch $ store () $ remote));
+       Term.(mk fetch $ remote ()));
   }
 
 (* MERGE *)
@@ -439,7 +439,7 @@ let pull =
     doc = "Fetch and merge with another repository.";
     man = [];
     term =
-      (let pull (S (impl, store, f)) author message remote =
+      (let pull (S (impl, store, f), remote) author message =
          let (module S) = Store.Impl.generic_keyed impl in
          let message = match message with Some s -> s | None -> "pull" in
          let module Sync = Irmin.Sync.Make (S) in
@@ -452,7 +452,7 @@ let pull =
             in
             Lwt.return_unit)
        in
-       Term.(mk pull $ store () $ author $ message $ remote));
+       Term.(mk pull $ remote () $ author $ message));
   }
 
 (* PUSH *)
@@ -462,7 +462,7 @@ let push =
     doc = "Update remote references along with associated objects.";
     man = [];
     term =
-      (let push (S (impl, store, f)) remote =
+      (let push (S (impl, store, f), remote) =
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run
@@ -471,7 +471,7 @@ let push =
             let* _ = Sync.push_exn t (apply r f) in
             Lwt.return_unit)
        in
-       Term.(mk push $ store () $ remote));
+       Term.(mk push $ remote ()));
   }
 
 (* SNAPSHOT *)
