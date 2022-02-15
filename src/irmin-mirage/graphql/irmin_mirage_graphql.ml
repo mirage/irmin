@@ -56,7 +56,7 @@ module Server = struct
                       ~some:(!Smart_git.Endpoint.with_headers_if_http edn)
                       headers
                   in
-                  Store.E edn
+                  Lwt.return (Store.E edn)
               | Ok _ -> Fmt.invalid_arg "invalid remote: %s" uri
               | Error (`Msg err) -> Fmt.invalid_arg "invalid remote: %s" err)
       end in

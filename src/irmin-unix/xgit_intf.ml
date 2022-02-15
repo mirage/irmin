@@ -26,7 +26,7 @@ module type S = sig
       with type Backend.Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   val remote :
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
 end
 
 module type Backend = sig

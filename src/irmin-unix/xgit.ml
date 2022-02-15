@@ -14,13 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Syntax
 include Xgit_intf
 
 let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let remote ?(ctx = Mimic.empty) ?headers uri =
+let remote ?ctx ?headers uri =
+  let+ ctx =
+    match ctx with
+    | Some x -> Lwt.return x
+    | None -> Git_unix.ctx (Happy_eyeballs_lwt.create ())
+  in
   let ( ! ) f a b = f b a in
   let headers = Option.map Cohttp.Header.to_list headers in
   match Smart_git.Endpoint.of_string uri with
@@ -52,19 +58,25 @@ module Maker (G : Irmin_git.G) = struct
   struct
     include Maker.S.Make (S)
 
-    let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+    let remote ?ctx ?headers uri =
+      let+ e = remote ?ctx ?headers uri in
+      E e
   end
 
   module KV (C : Irmin.Contents.S) = struct
     include Maker.KV.Make (C)
 
-    let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+    let remote ?ctx ?headers uri =
+      let+ e = remote ?ctx ?headers uri in
+      E e
   end
 
   module Ref (C : Irmin.Contents.S) = struct
     include Maker.Ref.Make (C)
 
-    let remote ?ctx ?headers uri = E (remote ?ctx ?headers uri)
+    let remote ?ctx ?headers uri =
+      let+ e = remote ?ctx ?headers uri in
+      E e
   end
 end
 

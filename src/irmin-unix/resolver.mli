@@ -60,7 +60,7 @@ module Store : sig
   end
 
   type remote_fn =
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
 
   type t
   (** The type for store configurations. A configuration value contains: the

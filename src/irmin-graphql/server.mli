@@ -42,7 +42,7 @@ end
 module type CONFIG = sig
   type info
 
-  val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
+  val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t) option
 
   val info :
     ?author:string -> ('a, Format.formatter, unit, unit -> info) format4 -> 'a

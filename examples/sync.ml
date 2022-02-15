@@ -25,13 +25,12 @@ let path =
 module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
 module Sync = Irmin.Sync.Make (Store)
 
-let upstream = Store.remote path
-
 let test () =
   Config.init ();
   let config = Irmin_git.config Config.root in
   let* repo = Store.Repo.v config in
-  let* t = Store.main repo in
+  let* t = Store.of_branch repo "master" in
+  let* upstream = Store.remote path in
   let* _ = Sync.pull_exn t upstream `Set in
   let* readme = Store.get t [ "README.md" ] in
   let* tree = Store.get_tree t [] in
