@@ -36,13 +36,14 @@ let _ =
     of the file (which will be within [working_dir]) that holds the extent data; other
     intermediate files are deleted (FIXME not during testing) *)
 let calculate_extents ~working_dir ~reachable_fn = 
-  let reachable  = Int_mmap.open_ ~fn:reachable_fn ~sz:(File.size reachable_fn / 8) in
+  let reachable  = Int_mmap.open_ ~fn:reachable_fn ~sz:(-1) in
   let chunk_sz   = 1_000_000 / 8 in
   let _          = assert(chunk_sz mod 2 = 0) in (* needs to be a multiple of 2 *)
   let sorted_fn  = Filename.temp_file ~temp_dir:working_dir "sorted." ".tmp" in
-  let sorted     = Int_mmap.open_ ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr) in
+  let sorted     = Int_mmap.create ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr) in
   let _          = External_sort.sort ~chunk_sz ~src:reachable.arr ~dst:sorted.arr in
   let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
+  (* NOTE we open extents with a size that is at least as big as the number of extents *)
   let extents    = Int_mmap.open_ ~fn:extents_fn ~sz:(BA1.dim sorted.Int_mmap.arr) in
   let n          = External_sort.calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
   (* NOTE ftruncate is apparently safe provided we don't try to access past the new end

@@ -56,14 +56,17 @@ type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
 module Int_mmap : 
 sig 
   type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-  type t = private { fd:Unix.file_descr; mutable arr: int_bigarray }
+  type t = private { fn:string; fd:Unix.file_descr; mutable arr: int_bigarray }
   val create : fn:string -> sz:int -> t
+    
+  (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size of the
+      underlying file *)
   val open_  : fn:string -> sz:int -> t
   val close  : t -> unit
 end      
 = struct
   type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-  type t = { fd:Unix.file_descr; mutable arr: int_bigarray }
+  type t = { fn:string; fd:Unix.file_descr; mutable arr: int_bigarray }
 
   (* NOTE both following are shared *)
   let shared = true
@@ -75,8 +78,10 @@ end
       let open Bigarray in
       Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
     in
-    { fd; arr }
+    { fn; fd; arr }
 
+  (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
+     different size (eg because we want the file to grow) we can provide it explicitly *)
   let open_ ~fn ~sz =
     assert(Sys.file_exists fn);
     let fd = Unix.(openfile fn [O_RDWR] 0o660) in
@@ -84,7 +89,7 @@ end
       let open Bigarray in
       Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
     in
-    { fd; arr }
+    { fn; fd; arr }
 
   let close t = 
     Unix.close t.fd;
@@ -93,6 +98,57 @@ end
     t.arr <- Bigarray.(Array1.create Int c_layout 0);
     ()
 end
+
+
+(** Growable int mmap
+
+If [arr] is the mmap'ed bigarray, then rather than accessing [arr.{i}] directly, we check
+if it is within the arr bounds; if not, we grow the mmap in [chunk_sz] amounts. When we
+close, we truncate so that the file doesn't contain any extra zero entries in the last
+chunk.
+*)
+module Growable_int_mmap : sig
+  type t 
+  val create : fn:string -> sz:int -> t
+  val open_ : fn:string -> sz:int -> t
+  val grow : t -> int -> unit
+  val set : t -> int -> int -> unit
+  val close : t -> unit
+end = struct
+
+type t = { mutable mmap: Int_mmap.t; mutable real_sz:int } 
+(* real size of written portion of underlying file in ints *)
+
+let create ~fn ~sz = Int_mmap.create ~fn ~sz |> fun mmap -> {mmap;real_sz=0}
+
+let open_ ~fn ~sz = Int_mmap.open_ ~fn ~sz |> fun mmap -> {mmap;real_sz=BA1.dim mmap.arr}
+
+(* Amount (in ints) we grow the mmap each time *)
+let chunk_sz = 10 * (4096 (* blk sz *) / 8 (* bytes per int *))
+
+(** Grow the underlying mmap so that we can write at the index position [i] *)
+let grow t i = 
+  let sz = Bigarray.Array1.dim t.mmap.arr in
+  match i < sz with
+  | true -> ()
+  | false -> 
+    let n_chunks = 1+(sz / chunk_sz) in
+    Int_mmap.close t.mmap;
+    t.mmap <- Int_mmap.open_ ~fn:t.mmap.fn ~sz:(n_chunks * chunk_sz);
+    ()
+
+let set t i v = 
+  grow t i;
+  t.real_sz <- max i t.real_sz;
+  t.mmap.arr.{ i } <- v
+
+let close t =
+  Unix.ftruncate t.mmap.fd (t.real_sz * 8 (* bytes per int *));
+  Int_mmap.close t.mmap;
+  ()
+
+end
+
 
 
 (** A small (easily held in memory) file containing just ints; loaded
