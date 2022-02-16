@@ -15,7 +15,7 @@ build: [
 
 depends: [
   "ocaml"      {>= "4.02.3"}
-  "dune"       {>= "2.7.0"}
+  "dune"       {>= "2.9.0"}
   "irmin"      {= version}
   "ppx_irmin"  {= version}
   "git"        {>= "3.7.0"}

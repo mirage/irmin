@@ -1,9 +1,29 @@
 (library
  (name test_pack)
- (modules test_pack multiple_instances test_existing_stores test_inode
-   test_tree test_hashes import test_pack_version_bump)
- (libraries alcotest fmt common index irmin irmin-test irmin-pack
-   irmin-pack.mem irmin-tezos logs lwt lwt.unix fpath hex)
+ (modules
+  test_pack
+  multiple_instances
+  test_existing_stores
+  test_inode
+  test_tree
+  test_hashes
+  import
+  test_pack_version_bump)
+ (libraries
+  alcotest
+  fmt
+  common
+  index
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.mem
+  irmin-tezos
+  logs
+  lwt
+  lwt.unix
+  fpath
+  hex)
  (preprocess
   (pps ppx_irmin.internal)))
 
@@ -14,14 +34,23 @@
 
 (rule
  (alias runtest)
- (package irmin-pack)
+ ;; Attached to `irmin-tezos` to avoid a cyclic dependency with `irmin-pack`
+ (package irmin-tezos)
  (action
   (run ./test.exe -q --color=always)))
 
 (library
  (name common)
  (modules common)
- (libraries alcotest index irmin irmin-test irmin-pack irmin-tezos logs lwt
-   hex)
+ (libraries
+  alcotest
+  index
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-tezos
+  logs
+  lwt
+  hex)
  (preprocess
   (pps ppx_irmin.internal)))

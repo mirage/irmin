@@ -1,7 +1,16 @@
 (test
  (name test)
- (package irmin)
+ ;; Attached to `irmin-test` to avoid a cyclic dependency with `irmin`
+ (package irmin-test)
  (preprocess
   (pps ppx_irmin.internal))
- (libraries irmin irmin.mem irmin-test alcotest alcotest-lwt lwt hex logs
-   logs.fmt))
+ (libraries
+  irmin
+  irmin.mem
+  irmin-test
+  alcotest
+  alcotest-lwt
+  lwt
+  hex
+  logs
+  logs.fmt))

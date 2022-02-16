@@ -4,8 +4,17 @@
  (modules Irmin_test Node Store Store_graph Store_watch Common Import)
  (preprocess
   (pps ppx_irmin.internal))
- (libraries alcotest astring fmt irmin jsonm logs.fmt lwt lwt.unix mtime
-   mtime.clock.os)
+ (libraries
+  alcotest
+  astring
+  fmt
+  irmin
+  jsonm
+  logs.fmt
+  lwt
+  lwt.unix
+  mtime
+  mtime.clock.os)
  (instrumentation
   (backend bisect_ppx)))
 
@@ -16,7 +25,17 @@
  (name irmin_bench)
  (public_name irmin-test.bench)
  (modules Irmin_bench Rusage)
- (libraries fmt.tty fmt.cli cmdliner irmin logs.fmt logs.cli lwt lwt.unix
-   metrics metrics-unix irmin-test)
+ (libraries
+  fmt.tty
+  fmt.cli
+  cmdliner
+  irmin
+  logs.fmt
+  logs.cli
+  lwt
+  lwt.unix
+  metrics
+  metrics-unix
+  irmin-test)
  (instrumentation
   (backend bisect_ppx)))

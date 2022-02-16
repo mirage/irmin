@@ -7,16 +7,19 @@ license: "MIT"
 homepage: "https://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
-  "dune" {>= "2.7"}
+  "dune" {>= "2.9.0"}
   "irmin" {>= version}
   "irmin-pack" {= version}
   "ppx_irmin" {= version}
   "tezos-base58"
   "digestif" {>= "0.7"}
-  "cmdliner"
+  "cmdliner" {< "1.1.0"}
   "fmt"
   "yojson"
   "alcotest" {with-test}
+  "hex" {with-test & >= "1.4.0"}
+  "fpath" {with-test}
+  "irmin-test" {with-test & = version}
 ]
 build: [
   ["dune" "subst"] {dev}
