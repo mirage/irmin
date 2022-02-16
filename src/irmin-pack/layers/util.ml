@@ -143,6 +143,33 @@ module Int_mmap_test() = struct
 
 end
 
+module Output_channel_extra = struct
+
+  let _ = Sys.word_size = 64
+
+  (* FIXME check that mmap on big-endian archs uses big-endian format; perhaps have a
+     test for this *)
+
+  (** [output_int_ne oc i] writes [i] to [oc] using native endian format, suitable for
+      reading by mmap; not thread safe - shared buffer *)
+  let output_int_ne = 
+    let buf = Bytes.create 8 in
+    fun oc i -> 
+      Bytes.set_int64_ne buf 0 (Int64.of_int i);
+      (* NOTE Stdlib.output_binary_int always uses big-endian, but mmap is (presumably)
+         arch dependent, hence we use set_int64_ne *)
+      Stdlib.output_bytes oc buf;
+      ()
+
+  let input_int_ne = 
+    let buf = Bytes.create 8 in
+    fun ic -> 
+      Stdlib.input ic buf 0 8 |> fun nread -> 
+      assert(nread=8);
+      Bytes.get_int64_ne buf 0 |> Int64.to_int
+
+end
+
 (* NOTE we can just use an output channel and write ints in big endian format
 (** Growable int mmap
 
