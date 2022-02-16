@@ -2,7 +2,7 @@
  (public_name irmin-pack)
  (name irmin_pack)
  (libraries fmt index index.unix irmin logs lwt lwt.unix mtime ppx_irmin
-   cmdliner optint)
+   cmdliner optint irmin_pack_layers)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

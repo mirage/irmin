@@ -144,7 +144,7 @@ module Int_mmap_test() = struct
 
 end
 
-module Output_channel_extra = struct
+module Out_channel_extra = struct
 
   let _ = Sys.word_size = 64
 
