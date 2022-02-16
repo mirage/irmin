@@ -8,6 +8,8 @@ name clashes
 
 (** {1 Utils *)
 
+module Util = Util
+
 module External_sort = External_sort
 
 (** {1 Suffix file, object store, and control file} *)
