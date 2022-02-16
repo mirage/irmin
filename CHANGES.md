@@ -9,6 +9,12 @@
     side-effect of this update is that the `remote` function now returns an Lwt
     promise. (#1778, @zshipko)
 
+### Added
+
+- **libirmin**
+  - Create `libirmin` package providing a C interface to the irmin API
+    (#1713, @zshipko)
+
 ## 3.0.0 (2022-02-11)
 
 ### Fixed
@@ -87,10 +93,6 @@
 - **irmin-tezos**
   - Add a new package to mirror Tezos `tezos-context.encoding` library.
     That'll simplify building benchmarks and custom tools (#1579, @samoht)
-
-- **libirmin**
-  - Create `libirmin` package providing a C interface to the irmin API
-    (#1713, @zshipko)
 
 ### Changed
 
