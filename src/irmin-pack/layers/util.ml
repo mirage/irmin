@@ -136,8 +136,9 @@ module Int_mmap_test() = struct
     done;
     for i = 0 to len-1 do
       Printf.printf "%d\n"
-        (* x86 is little endian; presumably bigendian is used on some other archs *)
-        (Bytes.get_int64_le arr.(i) 0 |> Int64.to_int)
+        (* x86 is little endian; presumably bigendian is used on some other archs; so use
+           "native endian" *)
+        (Bytes.get_int64_ne arr.(i) 0 |> Int64.to_int)
     done
 
 
