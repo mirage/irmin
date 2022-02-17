@@ -20,7 +20,7 @@ open Irmin_traces
 
 type config = {
   ncommits : int;
-  ncommits_trace : int;
+  number_of_commits_to_replay : int;
   depth : int;
   nchain_trees : int;
   width : int;
@@ -30,8 +30,8 @@ type config = {
   inode_config : int * int;
   store_type : [ `Pack | `Pack_mem ];
   freeze_commit : int;
-  commit_data_file : string;
-  artefacts_dir : string;
+  replay_trace_path : string;
+  artefacts_path : string;
   keep_store : bool;
   keep_stat_trace : bool;
   no_summary : bool;
@@ -45,9 +45,9 @@ module type Store = sig
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
-  type pp := Format.formatter -> unit
 
-  val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
+  val create_repo :
+    root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -103,7 +103,8 @@ module Bench_suite (Store : Store) = struct
 
   let run_large config =
     reset_stats ();
-    let* repo, on_commit, on_end, repo_pp = Store.create_repo config in
+    let root = config.store_dir in
+    let* repo, on_commit, on_end = Store.create_repo ~root config in
     let* result, () =
       Trees.add_large_trees config.width config.nlarge_trees
       |> add_commits ~message:"Playing large mode" repo config.ncommits
@@ -115,15 +116,15 @@ module Bench_suite (Store : Store) = struct
       Format.fprintf ppf
         "Large trees mode on inode config %a, %a: %d commits, each consisting \
          of %d large trees of %d entries@\n\
-         %t@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
-        config.ncommits config.nlarge_trees config.width repo_pp
-        Benchmark.pp_results result
+        config.ncommits config.nlarge_trees config.width Benchmark.pp_results
+        result
 
   let run_chains config =
     reset_stats ();
-    let* repo, on_commit, on_end, repo_pp = Store.create_repo config in
+    let root = config.store_dir in
+    let* repo, on_commit, on_end = Store.create_repo ~root config in
     let* result, () =
       Trees.add_chain_trees config.depth config.nchain_trees
       |> add_commits ~message:"Playing chain mode" repo config.ncommits
@@ -135,30 +136,41 @@ module Bench_suite (Store : Store) = struct
       Format.fprintf ppf
         "Chain trees mode on inode config %a, %a: %d commits, each consisting \
          of %d chains of depth %d@\n\
-         %t@\n\
          %a"
         pp_inode_config config.inode_config pp_store_type config.store_type
-        config.ncommits config.nchain_trees config.depth repo_pp
-        Benchmark.pp_results result
+        config.ncommits config.nchain_trees config.depth Benchmark.pp_results
+        result
 
   let run_read_trace config =
-    let replay_config : Irmin_traces.Trace_replay.config =
+    let replay_config : _ Irmin_traces.Trace_replay.config =
       {
-        ncommits_trace = config.ncommits_trace;
-        store_dir = config.store_dir;
+        number_of_commits_to_replay = config.number_of_commits_to_replay;
         path_conversion = config.path_conversion;
         inode_config = config.inode_config;
         store_type =
           (config.store_type :> [ `Pack | `Pack_layered | `Pack_mem ]);
-        commit_data_file = config.commit_data_file;
-        artefacts_dir = config.artefacts_dir;
+        replay_trace_path = config.replay_trace_path;
+        artefacts_path = config.artefacts_path;
         keep_store = config.keep_store;
         keep_stat_trace = config.keep_stat_trace;
-        no_summary = config.no_summary;
         empty_blobs = config.empty_blobs;
+        return_type = Summary;
       }
     in
-    Trace_replay.run config replay_config
+    if config.no_summary then
+      let+ () =
+        Trace_replay.run config { replay_config with return_type = Unit }
+      in
+      fun _ppf -> ()
+    else
+      let+ summary = Trace_replay.run config replay_config in
+      fun ppf ->
+        if not config.no_summary then (
+          let p = Filename.concat config.artefacts_path "stat_summary.json" in
+          Trace_stat_summary.save_to_json summary p;
+          Format.fprintf ppf "%a"
+            (Trace_stat_summary_pp.pp 5)
+            ([ "" ], [ summary ]))
 end
 
 module Make_basic (Maker : functor (_ : Irmin_pack.Conf.S) ->
@@ -174,16 +186,14 @@ struct
 
   let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.minimal
 
-  let create_repo config =
+  let create_repo ~root _config =
     let conf =
-      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy
-        config.store_dir
+      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
     in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
-    let pp _ = () in
-    Lwt.return (repo, on_commit, on_end, pp)
+    Lwt.return (repo, on_commit, on_end)
 
   include Store
 end
@@ -312,27 +322,29 @@ let get_suite suite_filter =
           false)
     suite
 
-let main () ncommits ncommits_trace suite_filter inode_config store_type
-    freeze_commit path_conversion depth width nchain_trees nlarge_trees
-    commit_data_file artefacts_dir keep_store keep_stat_trace no_summary
-    empty_blobs =
+let main () ncommits number_of_commits_to_replay suite_filter inode_config
+    store_type freeze_commit path_conversion depth width nchain_trees
+    nlarge_trees replay_trace_path artefacts_path keep_store keep_stat_trace
+    no_summary empty_blobs =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
-  let ncommits_trace = Option.value ~default ncommits_trace in
+  let number_of_commits_to_replay =
+    Option.value ~default number_of_commits_to_replay
+  in
   let config =
     {
       ncommits;
-      ncommits_trace;
-      store_dir = Filename.concat artefacts_dir "store";
+      number_of_commits_to_replay;
+      store_dir = Filename.concat artefacts_path "store";
       path_conversion;
       depth;
       width;
       nchain_trees;
       nlarge_trees;
-      commit_data_file;
+      replay_trace_path;
       inode_config;
       store_type;
       freeze_commit;
-      artefacts_dir;
+      artefacts_path;
       keep_store;
       keep_stat_trace;
       no_summary;
@@ -411,7 +423,7 @@ let ncommits =
   in
   Arg.(value @@ opt int 2 doc)
 
-let ncommits_trace =
+let number_of_commits_to_replay =
   let doc =
     Arg.info ~doc:"Number of commits to read from trace." [ "ncommits-trace" ]
   in
@@ -480,13 +492,13 @@ let nlarge_trees =
   in
   Arg.(value @@ opt int 1 doc)
 
-let commit_data_file =
+let replay_trace_path =
   let doc =
     Arg.info ~docv:"PATH" ~doc:"Trace of Tezos operations to be replayed." []
   in
   Arg.(required @@ pos 0 (some string) None doc)
 
-let artefacts_dir =
+let artefacts_path =
   let doc =
     Arg.info ~docv:"PATH" ~doc:"Destination of the bench artefacts."
       [ "artefacts" ]
@@ -501,7 +513,7 @@ let main_term =
     const main
     $ setup_log
     $ ncommits
-    $ ncommits_trace
+    $ number_of_commits_to_replay
     $ mode
     $ inode_config
     $ store_type
@@ -511,8 +523,8 @@ let main_term =
     $ width
     $ nchain_trees
     $ nlarge_trees
-    $ commit_data_file
-    $ artefacts_dir
+    $ replay_trace_path
+    $ artefacts_path
     $ keep_store
     $ keep_stat_trace
     $ no_summary

@@ -10,17 +10,16 @@ let check t = Alcotest.check (testable t)
 module Conf = Irmin_tezos.Conf
 
 module Store = struct
-  type store_config = string
+  type store_config = unit
 
   module Store = Irmin_tezos.Store
 
-  let create_repo store_dir =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in
+  let create_repo ~root () =
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
-    let pp _ = () in
-    Lwt.return (repo, on_commit, on_end, pp)
+    Lwt.return (repo, on_commit, on_end)
 
   include Store
 end
@@ -60,24 +59,23 @@ let replay_1_commit () =
     let _ = Sys.command cmd in
     ());
 
-  let store_dir = Filename.concat test_dir "store" in
-  let replay_config : Irmin_traces.Trace_replay.config =
+  let replay_config : _ Replay.config =
     {
-      ncommits_trace = 1;
-      store_dir;
+      number_of_commits_to_replay = 1;
       path_conversion = `None;
       inode_config = (Conf.entries, Conf.stable_hash);
       store_type = `Pack;
-      commit_data_file = trace_path;
-      artefacts_dir = test_dir;
+      replay_trace_path = trace_path;
+      artefacts_path = test_dir;
       keep_store = false;
       keep_stat_trace = false;
-      no_summary = false;
       empty_blobs = false;
+      return_type = Summary;
     }
   in
-  let+ pp_result = Replay.run store_dir replay_config in
-  [%logs.debug "%t" pp_result];
+  let+ summary = Replay.run () replay_config in
+  [%logs.debug
+    "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   let got = Irmin_pack.Stats.get () in
   let expected =
     Irmin_pack.Stats.
@@ -107,18 +105,17 @@ let replay_1_commit () =
   ()
 
 module Store_mem = struct
-  type store_config = string
+  type store_config = unit
 
   module Maker = Irmin_pack_mem.Maker (Conf)
   module Store = Maker.Make (Irmin_tezos.Schema)
 
-  let create_repo store_dir =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true store_dir in
+  let create_repo ~root () =
+    let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
-    let pp _ = () in
-    Lwt.return (repo, on_commit, on_end, pp)
+    Lwt.return (repo, on_commit, on_end)
 
   include Store
 end
@@ -139,24 +136,23 @@ let replay_1_commit_mem () =
     let _ = Sys.command cmd in
     ());
 
-  let store_dir = Filename.concat test_dir "store_mem" in
-  let replay_config : Irmin_traces.Trace_replay.config =
+  let replay_config : _ Irmin_traces.Trace_replay.config =
     {
-      ncommits_trace = 1;
-      store_dir;
+      number_of_commits_to_replay = 1;
       path_conversion = `None;
       inode_config = (Conf.entries, Conf.stable_hash);
       store_type = `Pack;
-      commit_data_file = trace_path;
-      artefacts_dir = test_dir;
+      replay_trace_path = trace_path;
+      artefacts_path = test_dir;
       keep_store = false;
       keep_stat_trace = false;
-      no_summary = false;
       empty_blobs = false;
+      return_type = Summary;
     }
   in
-  let+ pp_result = Replay_mem.run store_dir replay_config in
-  [%logs.debug "%t" pp_result];
+  let+ summary = Replay_mem.run () replay_config in
+  [%logs.debug
+    "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   ()
 
 let test_cases =

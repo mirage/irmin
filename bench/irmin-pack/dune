@@ -19,6 +19,7 @@
 
 (library
  (name bench_common)
+ (public_name irmin-bench.common)
  (modules bench_common)
  (libraries irmin-pack irmin-tezos unix progress uuidm)
  (preprocess
@@ -28,6 +29,7 @@
 
 (library
  (name irmin_traces)
+ (public_name irmin-bench.traces)
  (modules
   trace_common
   trace_definitions

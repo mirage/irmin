@@ -146,6 +146,7 @@ let open_commit_sequence max_ncommits path_conversion path : Def.row list Seq.t
   Seq.unfold aux (ops_seq, 0, [])
 
 module Make (Store : Store) = struct
+  include Config
   module Stat_collector = Trace_collection.Make_stat (Store)
 
   type context = { tree : Store.tree }
@@ -343,7 +344,8 @@ module Make (Store : Store) = struct
     in
     aux commit_seq 0
 
-  let run ext_config config =
+  let run : type a. _ -> a config -> a Lwt.t =
+   fun ext_config config ->
     let check_hash =
       config.path_conversion = `None
       && config.inode_config = (32, 256)
@@ -353,12 +355,13 @@ module Make (Store : Store) = struct
       "Will %scheck commit hashes against reference."
         (if check_hash then "" else "NOT ")];
     let commit_seq =
-      open_commit_sequence config.ncommits_trace config.path_conversion
-        config.commit_data_file
+      open_commit_sequence config.number_of_commits_to_replay
+        config.path_conversion config.replay_trace_path
     in
-    let* repo, on_commit, on_end, repo_pp = Store.create_repo ext_config in
-    prepare_artefacts_dir config.artefacts_dir;
-    let stat_path = Filename.concat config.artefacts_dir "stat_trace.repr" in
+    let root = Filename.concat config.artefacts_path "root" in
+    let* repo, on_commit, on_end = Store.create_repo ~root ext_config in
+    prepare_artefacts_dir config.artefacts_path;
+    let stat_path = Filename.concat config.artefacts_path "stat_trace.repr" in
     let c =
       let entries, stable_hash = config.inode_config in
       Trace_definitions.Stat_trace.
@@ -367,42 +370,32 @@ module Make (Store : Store) = struct
             `Replay
               {
                 path_conversion = config.path_conversion;
-                artefacts_dir = config.artefacts_dir;
+                artefacts_dir = config.artefacts_path;
               };
           inode_config = (entries, entries, stable_hash);
           store_type = config.store_type;
         }
     in
-    let stats = Stat_collector.create_file stat_path c config.store_dir in
+    let stats = Stat_collector.create_file stat_path c root in
     Irmin_pack.Stats.reset_stats ();
-    let+ summary_opt =
-      Lwt.finalize
-        (fun () ->
-          let* block_count =
-            add_commits repo config.ncommits_trace commit_seq on_commit on_end
-              stats check_hash config.empty_blobs
-          in
-          [%logs.app "Closing repo..."];
-          let+ () = Store.Repo.close repo in
-          Stat_collector.close stats;
-          if not config.no_summary then (
+    Lwt.finalize
+      (fun () ->
+        let* block_count =
+          add_commits repo config.number_of_commits_to_replay commit_seq
+            on_commit on_end stats check_hash config.empty_blobs
+        in
+        [%logs.app "Closing repo..."];
+        let+ () = Store.Repo.close repo in
+        Stat_collector.close stats;
+        match config.return_type with
+        | Unit -> (() : a)
+        | Summary ->
             [%logs.app "Computing summary..."];
-            Some (Trace_stat_summary.summarise ~block_count stat_path))
-          else None)
-        (fun () ->
-          if config.keep_stat_trace then (
-            [%logs.app "Stat trace kept at %s" stat_path];
-            Unix.chmod stat_path 0o444;
-            Lwt.return_unit)
-          else Lwt.return (Stat_collector.remove stats))
-    in
-    match summary_opt with
-    | Some summary ->
-        let p = Filename.concat config.artefacts_dir "stat_summary.json" in
-        Trace_stat_summary.save_to_json summary p;
-        fun ppf ->
-          Format.fprintf ppf "\n%t\n%a" repo_pp
-            (Trace_stat_summary_pp.pp 5)
-            ([ "" ], [ summary ])
-    | None -> fun ppf -> Format.fprintf ppf "\n%t\n" repo_pp
+            Trace_stat_summary.summarise ~block_count stat_path)
+      (fun () ->
+        if config.keep_stat_trace then (
+          [%logs.app "Stat trace kept at %s" stat_path];
+          Unix.chmod stat_path 0o444;
+          Lwt.return_unit)
+        else Lwt.return (Stat_collector.remove stats))
 end
