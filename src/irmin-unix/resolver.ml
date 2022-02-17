@@ -61,9 +61,6 @@ let root_term =
 let ( / ) = Filename.concat
 let global_config_path = "irmin" / "config.yml"
 
-let add_opt k v config =
-  match v with None -> config | Some _ -> Conf.add config k v
-
 (* Contents *)
 
 module Contents = struct
@@ -654,7 +651,7 @@ type Irmin.remote += R of Cohttp.Header.t option * string
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
    alias. *)
-let infer_remote hash contents headers str =
+let infer_remote hash contents branch headers str =
   let hash = match hash with None -> snd !Hash.default | Some c -> c in
   let contents =
     match contents with
@@ -664,15 +661,13 @@ let infer_remote hash contents headers str =
   if Sys.file_exists str then
     let r =
       if Sys.file_exists (str / ".git") then Store.git contents
+      else if Sys.file_exists (str / "store.dict") then Store.pack hash contents
       else Store.irf hash contents
     in
     match r with
     | Store.T { impl; spec; _ } ->
         let (module R) = Store.Impl.generic_keyed impl in
-        let config =
-          Conf.empty spec
-          |> add_opt Irmin_http.Conf.Key.uri (Some (Uri.of_string str))
-        in
+        let config = Conf.empty spec in
         let config =
           match Conf.Spec.find_key spec "root" with
           | Some (K r) ->
@@ -681,7 +676,12 @@ let infer_remote hash contents headers str =
           | _ -> config
         in
         let* repo = R.Repo.v config in
-        let+ r = R.main repo in
+        let branch =
+          match branch with
+          | Some b -> Irmin.Type.of_string R.branch_t b |> Result.get_ok
+          | None -> R.Branch.main
+        in
+        let+ r = R.of_branch repo branch in
         Irmin.remote_store (module R) r
   else
     let headers =
@@ -689,7 +689,7 @@ let infer_remote hash contents headers str =
     in
     Lwt.return (R (headers, str))
 
-let remote =
+let remote () =
   let repo =
     let doc =
       Arg.info ~docv:"REMOTE"
@@ -697,4 +697,20 @@ let remote =
     in
     Arg.(required & pos 0 (some string) None & doc)
   in
-  Term.(const infer_remote $ Hash.term () $ Contents.term () $ headers $ repo)
+  let create (store, hash, contents) (root, config_path, opts) branch commit
+      headers str =
+    let y = read_config_file config_path in
+    let store =
+      build_irmin_config y root opts (store, hash, contents) branch commit
+    in
+    let remote = infer_remote hash contents branch headers str in
+    (store, remote)
+  in
+  Term.(
+    const create
+    $ Store.term ()
+    $ config_term
+    $ branch
+    $ commit
+    $ headers
+    $ repo)

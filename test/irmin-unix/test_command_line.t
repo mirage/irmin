@@ -88,3 +88,8 @@ Check mismatched hash function
   irmin: [ERROR] Irmin_fs.value invalid hash size
   ERROR: (Invalid_argument "Irmin.head: no head")
   [1]
+
+Clone a local repo
+  $ irmin clone --root ./cloned ./test
+  $ irmin get --root ./cloned a/b/c
+  123

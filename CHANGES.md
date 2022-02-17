@@ -1,3 +1,11 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-unix**
+  - Fix conflicting command line arguments for `push`, `pull`, `fetch` and
+    `clone` (#1776, @zshipko)
+
 ## 3.0.0 (2022-02-11)
 
 ### Fixed
