@@ -43,6 +43,7 @@ depends: [
   "cohttp-lwt-unix"
   "fmt"
   "git"           {>= "3.7.0"}
+  "happy-eyeballs-lwt"
   "lwt"           {>= "5.3.0"}
   "irmin-test"    {with-test & = version}
   "alcotest"      {with-test}

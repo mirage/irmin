@@ -13,6 +13,7 @@
   fmt.tty
   git
   git-unix
+  happy-eyeballs-lwt
   irmin
   irmin-fs
   irmin-git
