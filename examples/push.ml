@@ -31,13 +31,12 @@ let headers =
   let e = Cohttp.Header.of_list [] in
   Cohttp.Header.add_authorization e (`Basic (user, token))
 
-let remote = Store.remote ~headers url
-
 let test () =
   Config.init ();
   let config = Irmin_git.config Config.root in
   let* repo = Store.Repo.v config in
   let* t = Store.main repo in
+  let* remote = Store.remote ~headers url in
   let* _ = Sync.pull_exn t remote `Set in
   let* readme = Store.get t [ "README.md" ] in
   let* tree = Store.get_tree t [] in

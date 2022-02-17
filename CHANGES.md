@@ -5,6 +5,9 @@
 - **irmin-unix**
   - Fix conflicting command line arguments for `push`, `pull`, `fetch` and
     `clone` (#1776, @zshipko)
+  - Fix issues with Sync functions by provided a better default `Mimic.ctx`. A
+    side-effect of this update is that the `remote` function now returns an Lwt
+    promise. (#1778, @zshipko)
 
 ## 3.0.0 (2022-02-11)
 

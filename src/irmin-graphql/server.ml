@@ -53,7 +53,7 @@ end
 module type CONFIG = sig
   type info
 
-  val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote) option
+  val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t) option
 
   val info :
     ?author:string -> ('a, Format.formatter, unit, unit -> info) format4 -> 'a
@@ -493,6 +493,7 @@ struct
                   ]
               ~resolve:(fun _ _src branch remote ->
                 let* t = mk_branch s branch in
+                let* remote = remote in
                 Sync.fetch t remote >>= function
                 | Ok (`Head d) -> Store.Head.set t d >|= fun () -> Ok (Some d)
                 | Ok `Empty -> Lwt.return (Ok None)
@@ -507,6 +508,7 @@ struct
                   ]
               ~resolve:(fun _ _src branch remote depth ->
                 let* t = mk_branch s branch in
+                let* remote = remote in
                 Sync.push t ?depth remote >>= function
                 | Ok (`Head commit) -> Lwt.return (Ok (Some commit))
                 | Ok `Empty -> Lwt.return (Ok None)
@@ -531,6 +533,7 @@ struct
                       `Merge info
                   | None -> Lwt.return `Set
                 in
+                let* remote = remote in
                 strategy >>= Sync.pull ?depth t remote >>= function
                 | Ok (`Head h) -> Lwt.return (Ok (Some h))
                 | Ok `Empty -> Lwt.return (Ok None)

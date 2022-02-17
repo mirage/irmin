@@ -1,7 +1,7 @@
 (library
  (name irmin_git)
  (public_name irmin-git)
- (libraries astring cstruct fmt fpath git irmin logs lwt uri irmin.mem)
+ (libraries astring cstruct fmt fpath git irmin logs lwt uri irmin.mem mimic)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

@@ -356,7 +356,7 @@ let apply e f =
   match (e, f) with
   | R (h, e), Some f -> f ?ctx:None ?headers:h e
   | R _, None -> Fmt.failwith "invalid remote for that kind of store"
-  | r, _ -> r
+  | r, _ -> Lwt.return r
 
 (* CLONE *)
 let clone =
@@ -371,7 +371,8 @@ let clone =
          run
            (let* t = store in
             let* r = remote in
-            Sync.fetch t ?depth (apply r f) >>= function
+            let* x = apply r f in
+            Sync.fetch t ?depth x >>= function
             | Ok (`Head d) -> S.Head.set t d
             | Ok `Empty -> Lwt.return_unit
             | Error (`Msg e) -> failwith e)
@@ -394,7 +395,8 @@ let fetch =
             let* r = remote in
             let branch = branch S.Branch.t "import" in
             let* t = S.of_branch (S.repo t) branch in
-            let* _ = Sync.pull_exn t (apply r f) `Set in
+            let* x = apply r f in
+            let* _ = Sync.pull_exn t x `Set in
             Lwt.return_unit)
        in
        Term.(mk fetch $ remote ()));
@@ -446,9 +448,9 @@ let pull =
          run
            (let* t = store in
             let* r = remote in
+            let* x = apply r f in
             let* _ =
-              Sync.pull_exn t (apply r f)
-                (`Merge (info (module S) ?author "%s" message))
+              Sync.pull_exn t x (`Merge (info (module S) ?author "%s" message))
             in
             Lwt.return_unit)
        in
@@ -468,7 +470,8 @@ let push =
          run
            (let* t = store in
             let* r = remote in
-            let* _ = Sync.push_exn t (apply r f) in
+            let* x = apply r f in
+            let* _ = Sync.push_exn t x in
             Lwt.return_unit)
        in
        Term.(mk push $ remote ()));
