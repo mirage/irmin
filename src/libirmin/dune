@@ -1,0 +1,5 @@
+(library
+ (name libirmin_bindings)
+ (libraries irmin-unix ctypes.foreign)
+ (instrumentation
+  (backend bisect_ppx)))

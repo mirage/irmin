@@ -1,0 +1,31 @@
+(rule
+ (targets irmin_bindings.ml irmin.c irmin.h)
+ (deps
+  (:gen ../gen/generate.exe))
+ (action
+  (run %{gen} .)))
+
+(executable
+ (name libirmin)
+ (package libirmin)
+ (public_name libirmin)
+ (libraries libirmin_bindings)
+ (modes
+  (native shared_object)
+  native)
+ (modules libirmin irmin_bindings)
+ (foreign_stubs
+  (language c)
+  (names irmin)))
+
+(install
+ (package libirmin)
+ (section lib)
+ (files
+  (irmin.h as include/irmin.h)
+  (libirmin.so as lib/libirmin.so)))
+
+(env
+ (dev
+  (flags
+   (:standard -w -unused-var-strict))))
