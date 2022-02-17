@@ -19,7 +19,7 @@ TEST test_irmin_value_json(void) {
 
 TEST test_irmin_store(void) {
   // Setup config
-  AUTO IrminConfig *config = irmin_config_mem(NULL, NULL);
+  AUTO IrminConfig *config = irmin_config_git_mem(NULL);
 
   // Initialize repo and store
   AUTO IrminRepo *repo = irmin_repo_new(config);
@@ -61,8 +61,8 @@ TEST test_irmin_store(void) {
   ASSERT(irmin_tree_mem(repo, t, path2));
 
   // Commit updated tree
-  AUTO IrminInfo *info1 = irmin_info_new(repo, "test", "tree");
-  irmin_set_tree(store, path1, t, info1);
+  info = irmin_realloc(info, irmin_info_new(repo, "test", "tree"));
+  irmin_set_tree(store, path1, t, info);
 
   // Ensure the store contains a/b/d
   AUTO IrminPath *path3 = irmin_path_of_string(repo, "a/b/d", -1);
@@ -84,6 +84,22 @@ TEST test_irmin_store(void) {
   // List
   IrminPathArray *paths = irmin_list(store, path1);
   ASSERT_EQ(irmin_path_array_length(repo, paths), 2);
+
+  // Fetch
+  AUTO IrminRepo *repo1 = irmin_repo_new(config);
+  AUTO Irmin *store1 = irmin_main(repo1);
+  AUTO IrminRemote *remote = irmin_remote_store(store);
+  AUTO IrminCommit *c = irmin_fetch(store1, -1, remote);
+  ASSERT(c);
+  ASSERT(irmin_mem(store1, path3));
+
+  // Push
+  info = irmin_realloc(info, irmin_info_new(repo1, "test", "push"));
+  ASSERT(irmin_remove(store1, path3, info));
+  c = irmin_realloc(c, irmin_push(store1, -1, remote));
+  ASSERT(c);
+
+  ASSERT_FALSE(irmin_mem(store1, path3));
 
   PASS();
 }

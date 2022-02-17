@@ -20,6 +20,7 @@ module Struct = struct
   type branch_array = unit
   type commit_key = unit
   type kinded_key = unit
+  type remote = unit
 end
 
 let config : Struct.config ptr typ = ptr (typedef void "IrminConfig")
@@ -34,6 +35,7 @@ let tree : Struct.tree ptr typ = ptr (typedef void "IrminTree")
 let commit : Struct.commit ptr typ = ptr (typedef void "IrminCommit")
 let hash : Struct.hash ptr typ = ptr (typedef void "IrminHash")
 let info : Struct.info ptr typ = ptr (typedef void "IrminInfo")
+let remote : Struct.remote ptr typ = ptr (typedef void "IrminRemote")
 
 let irmin_string : Struct.irmin_string ptr typ =
   ptr (typedef void "IrminString")

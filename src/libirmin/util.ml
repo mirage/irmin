@@ -222,6 +222,12 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         (module S : Irmin.Generic_key.S with type commit = a) (x : a list) :
         Struct.commit_array ptr =
       Root.create (Array.of_list x) |> of_voidp commit_array
+
+    let get_remote (x : Struct.remote ptr) : Irmin.remote =
+      Root.get (to_voidp remote x)
+
+    let create_remote (x : Irmin.remote) : Struct.remote ptr =
+      Root.create x |> of_voidp remote
   end
 
   (* Handle errors and set error function, returns [return] if an exception is raised *)
@@ -231,7 +237,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       repo.error <- None;
       f repo.repo_mod repo.repo
     with
-    | Failure msg ->
+    | Failure msg | Invalid_argument msg ->
         repo.error <- Some msg;
         return
     | exn ->
@@ -251,7 +257,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       ctx.error <- None;
       f store.store_mod store.store
     with
-    | Failure msg ->
+    | Failure msg | Invalid_argument msg ->
         ctx.error <- Some msg;
         return
     | exn ->

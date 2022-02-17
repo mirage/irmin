@@ -6,6 +6,7 @@ type 'a repo = {
   mutable error : string option;
   repo_mod : (module Irmin.Generic_key.S with type repo = 'a);
   repo : 'a;
+  remote : Irmin_unix.Resolver.Store.remote_fn option;
 }
 
 type 'a store = {
@@ -33,6 +34,7 @@ module type P = sig
   type branch_array
   type commit_key
   type kinded_key
+  type remote
 end
 
 module type Sigs = sig
@@ -60,4 +62,5 @@ module type Sigs = sig
   val branch_array : Struct.branch_array ptr typ
   val commit_key : Struct.commit_key ptr typ
   val kinded_key : Struct.kinded_key ptr typ
+  val remote : Struct.remote ptr typ
 end

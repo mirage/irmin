@@ -7,6 +7,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun config ->
         let (s, config) : config = Root.get_config config in
         let (module Store) = Irmin_unix.Resolver.Store.generic_keyed s in
+        let remote = Irmin_unix.Resolver.Store.remote s in
         let repo : Store.repo = run (Store.Repo.v config) in
         Root.create_repo
           (module Store)
@@ -15,6 +16,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             repo_mod =
               (module Store : Irmin.Generic_key.S with type repo = Store.repo);
             repo;
+            remote;
           })
 
   let () =
@@ -44,7 +46,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let i = UInt64.to_int i in
             let arr = Root.get_branch_array (module Store) p in
-            if i >= Array.length arr then null irmin_string
+            if i >= Array.length arr then failwith "index out of bounds"
             else
               let x = Array.unsafe_get arr i in
               Root.create_string (Irmin.Type.to_string Store.Branch.t x)))

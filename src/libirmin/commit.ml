@@ -133,7 +133,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let i = UInt64.to_int i in
             let arr = Root.get_commit_array (module Store) p in
-            if i >= Array.length arr then null commit
+            if i >= Array.length arr then failwith "index out of bounds"
             else
               let x = Array.unsafe_get arr i in
               Root.create_commit (module Store) x))

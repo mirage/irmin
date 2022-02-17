@@ -21,6 +21,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun x -> Root.create_value (Root.get_value x))
 
   let () =
+    fn "realloc"
+      (ptr void @-> ptr void @-> returning (ptr void))
+      (fun src dest ->
+        Ctypes.Root.set src (Ctypes.Root.get dest);
+        src)
+
+  let () =
     fn "value_get_string"
       (value @-> returning irmin_string)
       (fun value ->

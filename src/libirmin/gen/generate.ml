@@ -59,6 +59,7 @@ __attribute__((section(".init_array"))) void (*p_irmin_init)(void) = irmin_init;
       "IrminPathArray";
       "IrminCommitArray";
       "IrminBranchArray";
+      "IrminRemote";
     ];
   writeln h_fd "void caml_startup(char *argv[]);";
   writeln h_fd "void caml_shutdown();";

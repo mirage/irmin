@@ -27,7 +27,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
             match Irmin.Type.of_string Store.Branch.t name with
-            | Error _ -> null store
+            | Error (`Msg err) -> failwith err
             | Ok branch ->
                 Root.create_store
                   (module Store)
@@ -328,11 +328,107 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let i = UInt64.to_int i in
             let arr = Root.get_path_array (module Store) p in
-            if i >= Array.length arr then null path
+            if i >= Array.length arr then failwith "index out of bounds"
             else
               let x = Array.unsafe_get arr i in
               Root.create_path (module Store) x))
 
+  let () =
+    fn "remote_store"
+      (store @-> returning remote)
+      (fun (type t) store ->
+        with_store' store remote
+          (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
+            Root.create_remote (Irmin.remote_store (module Store) store)))
+
+  let () =
+    fn "remote"
+      (repo @-> string @-> returning remote)
+      (fun (type repo) repo url ->
+        let r = Root.get_repo repo in
+        let remote_fn = r.remote in
+        with_repo' repo remote
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            match remote_fn with
+            | None ->
+                failwith "sync is not implemented for the selected backend"
+            | Some f -> Root.create_remote (run (f url))))
+
+  let () =
+    fn "remote_with_auth"
+      (repo @-> string @-> string @-> string_opt @-> returning remote)
+      (fun (type repo) repo url user token ->
+        let r = Root.get_repo repo in
+        let remote_fn = r.remote in
+        with_repo' repo remote
+          (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
+            match remote_fn with
+            | None ->
+                failwith "sync is not implemented for the selected backend"
+            | Some f ->
+                let headers = Cohttp.Header.init () in
+                let headers =
+                  match token with
+                  | Some token ->
+                      Cohttp.Header.add_authorization headers
+                        (`Basic (user, token))
+                  | _ -> Cohttp.Header.add_authorization headers (`Other user)
+                in
+                Root.create_remote (run (f ~headers url))))
+
+  let () =
+    fn "fetch"
+      (store @-> int @-> remote @-> returning commit)
+      (fun (type t) store depth remote ->
+        with_store' store commit
+          (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
+            let module Sync = Irmin.Sync.Make (Store) in
+            let remote =
+              if is_null remote then failwith "Invalid remote"
+              else Root.get_remote remote
+            in
+            let depth = if depth <= 0 then None else Some depth in
+            match run (Sync.fetch_exn ?depth store remote) with
+            | `Empty -> null commit
+            | `Head head -> Root.create_commit (module Store) head))
+
+  let () =
+    fn "pull"
+      (store @-> int @-> remote @-> info @-> returning commit)
+      (fun (type t) store depth remote info ->
+        with_store' store commit
+          (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
+            let module Sync = Irmin.Sync.Make (Store) in
+            let remote =
+              if is_null remote then failwith "Invalid remote"
+              else Root.get_remote remote
+            in
+            let x =
+              if is_null info then `Set
+              else `Merge (fun () -> Root.get_info (module Store) info)
+            in
+            let depth = if depth <= 0 then None else Some depth in
+            match run (Sync.pull_exn ?depth store remote x) with
+            | `Empty -> null commit
+            | `Head head -> Root.create_commit (module Store) head))
+
+  let () =
+    fn "push"
+      (store @-> int @-> remote @-> returning commit)
+      (fun (type t) store depth remote ->
+        with_store' store commit
+          (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
+            let module Sync = Irmin.Sync.Make (Store) in
+            let remote =
+              if is_null remote then failwith "Invalid remote"
+              else Root.get_remote remote
+            in
+            let depth = if depth <= 0 then None else Some depth in
+            match run (Sync.push_exn ?depth store remote) with
+            | `Empty -> null commit
+            | `Head head -> Root.create_commit (module Store) head))
+
+  let () = fn "remote_free" (remote @-> returning void) free
   let () = fn "path_array_free" (path_array @-> returning void) free
   let () = fn "free" (store @-> returning void) free
 end
