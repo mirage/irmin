@@ -101,6 +101,7 @@ module IO' : sig
      generation changes. *)
 
   (* FIXME could also just change [v] to create a logged instance, rather than allowing set and unset *)
+    [@@@warning "-32"]
   val set_read_logger: t -> out_channel -> unit
   val unset_read_logger: t -> unit
 end = struct
@@ -128,16 +129,17 @@ end = struct
   let offset t = offset t.base
 
   let read t ~off buf = 
+    let len = read t.base ~off buf in
     let _maybe_log = 
       match t.read_logger with 
       | None -> ()
       | Some oc -> 
         Irmin_pack_layers.Util.Out_channel_extra.(
-          output_int_ne oc (Int63.to_int off); 
-          output_int_ne oc (Bytes.length buf);
+          output_int_ne oc (Int63.to_int off);
+          output_int_ne oc len;
           ())
     in
-    read t.base ~off buf
+    len
 
   let append t s = append t.base s
 

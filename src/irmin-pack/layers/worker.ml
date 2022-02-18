@@ -44,14 +44,21 @@ let calculate_extents ~working_dir ~reachable_fn =
   let _          = External_sort.sort ~chunk_sz ~src:reachable.arr ~dst:sorted.arr in
   let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
   (* NOTE we open extents with a size that is at least as big as the number of extents *)
-  let extents    = Int_mmap.open_ ~fn:extents_fn ~sz:(BA1.dim sorted.Int_mmap.arr) in
+(*  let extents    = Int_mmap.open_ ~fn:extents_fn ~sz:(BA1.dim sorted.Int_mmap.arr) in
   let n          = External_sort.calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
   (* NOTE ftruncate is apparently safe provided we don't try to access past the new end
      via the mmap *)
   Unix.ftruncate extents.fd (n * 8); (* 8 bytes per int *)
+  Int_mmap.close extents;
+*)
+  let _create_extents = 
+    let oc = Stdlib.open_out_bin extents_fn in
+    External_sort.calculate_extents_oc ~src_is_sorted:() ~src:sorted.arr ~dst:oc;
+    Stdlib.close_out_noerr oc; (* FIXME maybe close and check for error *)
+    ()
+  in
   Int_mmap.close reachable;
   Int_mmap.close sorted;
-  Int_mmap.close extents;
   extents_fn
 
 

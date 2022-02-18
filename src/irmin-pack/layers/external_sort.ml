@@ -202,7 +202,54 @@ module Private = struct
     in
     P.p "Regions combined: %d\n%!" (!regions_combined);
     dst_off          
-          
+
+
+  (* NOTE as above, but dst is an out_channel *)
+  (** [calculate_extents_oc ~src ~dst] takes {b sorted} [(off,len)] data from [src],
+      combines adjacent extents, and outputs a minimal set of (sorted) extents to
+      [dst:out_channel]; the return value is the length of the part of [dst] that was
+      filled *)
+  let calculate_extents_oc ~(src_is_sorted:unit) ~(src:int_bigarray) ~(dst:out_channel) : unit = 
+    let src_sz = BA1.dim src in    
+    let _ = 
+      assert(src_sz >= 2);
+      assert(src_sz mod step = 0);
+      ()
+    in    
+    let output_dst ~off ~len = Util.Out_channel_extra.(
+        output_int_ne dst off;
+        output_int_ne dst len;
+        ())
+    in
+    let (off,len) = src.{0},src.{1} in
+    let regions_combined = ref 0 in
+    let dst_off =
+      (* iterate over entries in src, combining adjacent entries *)
+      (2,off,len) |> iter_k (fun ~k (src_off,off,len) -> 
+          match src_off >= src_sz with
+          | true -> 
+            (* write out "current" extent *)
+            output_dst ~off ~len;
+            ()
+          | false ->
+            (* check if we can combine the next region *)
+            let off',len' = src.{src_off},src.{src_off+1} in
+            assert(off <= off');
+            match off' <= off+len with
+            | false -> 
+              (* we can't, so write out current extent and move to next *)
+              output_dst ~off ~len;
+              k (src_off+2,off',len')
+            | true ->               
+              (* we can combine *)
+              incr regions_combined;
+              (if false &&  off' < off+len then P.p "Offset %d occured within existing region (%d,%d)\n%!" off' off len);
+              assert(off <= off'); (* offs are sorted *)
+              let len = max len (off'+len' - off) in
+              k (src_off+2,off,len))
+    in
+    P.p "Regions combined: %d\n%!" (!regions_combined);
+    dst_off           
 end
 
 include (Private : sig
@@ -210,6 +257,8 @@ include (Private : sig
   val is_sorted : arr:int_bigarray -> bool
   val calculate_extents :
     src_is_sorted:unit -> src:int_bigarray -> dst:int_bigarray -> int
+  val calculate_extents_oc :
+    src_is_sorted:unit -> src:int_bigarray -> dst:out_channel -> unit
 end)
 
 
