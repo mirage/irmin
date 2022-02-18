@@ -60,7 +60,7 @@ let selected_version = `V2
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
-  module IO = Pack_store_intf.Pack_store_IO
+  module IO = Pack_store_IO
   module Tbl = Table (K)
   module Dict = Pack_dict
 
@@ -115,6 +115,8 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       ~clear:(fun t -> IO.truncate t.block)
       ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
       Layout.pack
+
+  let _ = get_io
 
   let close t =
     t.open_instances <- t.open_instances - 1;

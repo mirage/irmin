@@ -333,5 +333,9 @@ module Maker (Config : Conf.S) = struct
     end)
 
     let traverse_pack_file = Traverse_pack_file.run
+
+    module Layers = struct 
+      (* let set_read_logger (t: t) opt =  *)
+    end
   end
 end

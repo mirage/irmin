@@ -1,55 +1,5 @@
 open! Import
 
-module Pack_store_IO : Irmin_pack_layers.IO.S = struct
-  include IO.Unix
-
-  type t = { base:IO.Unix.t; mutable read_logger: out_channel option }
-           
-  (* now we need to lift all the funs to work with this new type; OO has an advantage here
-     in that classes can be easily extended with additional fields, whereas here we have
-     to lift the existing functions *)
-
-  (* default value *)
-  let read_logger = None
-
-  let v ~version ~fresh ~readonly path = { base=v ~version ~fresh ~readonly path; read_logger}
-
-  let truncate t = truncate t.base
-
-  let readonly t = readonly t.base
-
-  let flush t = flush t.base
-
-  let close t = close t.base
-      
-  let offset t = offset t.base
-
-  let read t ~off buf = 
-    let len = read t.base ~off buf in
-    let _maybe_log = 
-      match t.read_logger with 
-      | None -> ()
-      | Some oc -> 
-        Irmin_pack_layers.Util.Out_channel_extra.(
-          output_int_ne oc (Int63.to_int off);
-          output_int_ne oc len;
-          ())
-    in
-    len
-
-  let append t s = append t.base s
-
-  let version t = version t.base
-
-  let set_version t = set_version t.base
-
-  let name t = name t.base
-
-  let force_offset t = force_offset t.base
-
-  let set_read_logger t opt = t.read_logger <- opt
-
-end
 
 (** A [Pack_store.S] is a closeable, persistent implementation of {!Indexable.S}
     that uses an append-only file of variable-length data blocks.

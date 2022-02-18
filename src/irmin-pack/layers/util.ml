@@ -41,6 +41,12 @@ module P = struct
   let p = printf
 end
 
+module F = struct
+  include Format
+  let s = sprintf 
+  let p = printf
+end
+
 
 (** For testing *)
 let random_int_list ~size = 

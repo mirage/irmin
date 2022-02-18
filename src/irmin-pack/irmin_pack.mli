@@ -16,3 +16,6 @@
 
 include Irmin_pack_intf.Sigs
 (** @inline *)
+
+
+val close_any_read_logger: unit -> unit

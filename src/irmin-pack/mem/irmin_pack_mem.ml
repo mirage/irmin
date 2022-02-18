@@ -179,5 +179,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
     let traverse_pack_file _ _ = ()
     let stats ~dump_blob_paths_to:_ ~commit:_ _ = Lwt.return_unit
+
+    module Layers = struct end
   end
 end

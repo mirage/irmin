@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Ext
+(* include Ext (\* single Maker functor; rebound to Maker_ext below, then rebound again to Maker; so not actually needed *\) *)
 include Irmin_pack_intf
 
 let config = Conf.init
@@ -53,3 +53,7 @@ module IO = IO
 module Pack_key = Pack_key
 module Pack_value = Pack_value
 module Pack_store = Pack_store
+
+let close_any_read_logger () = match !Pack_store_IO.Private.read_logger with
+  | None -> ()
+  | Some oc -> (close_out_noerr oc; Pack_store_IO.Private.read_logger:=None)

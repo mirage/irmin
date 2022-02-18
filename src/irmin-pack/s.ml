@@ -74,6 +74,14 @@ module type S = sig
 
   val stats :
     dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
+
+  module Layers : sig 
+    (** only available on pack_store impls *)
+    (* val set_read_logger: t -> out_channel option -> [ `Ok | `Mem_noop ] *)
+    (** Expose the pack_store IO instance; not available for the memory store... FIXME
+        this appears somewhat tricky given current deps between interfaces *)
+    (* val get_pack_store_io: t -> [ `Ok of Irmin_pack_layers.IO.Pack_store_IO.t | `Mem_store ] *)
+  end
 end
 
 module S_is_a_store (X : S) : Irmin.Generic_key.S = X
