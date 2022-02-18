@@ -72,6 +72,8 @@ See doc in ../IO_intf.ml We probably have something like this for the layers: th
      changes to one piece of metadata independently of another piece. The best way to do
      this is with an mmap'ed file for the per-file changes (version, max_flushed_offset,
      etc) and only change the control file when the generation changes. *)
+
+  val set_read_logger: t -> out_channel option -> unit  
 end
 
 (** Private implementation *)

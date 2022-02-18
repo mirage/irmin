@@ -31,6 +31,12 @@ module type S = sig
   (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
       are not removed. *)
 
+  (** [set_read_logger t (Some oc)] logs (off,len) data from the underlying [IO.t]
+      instance to the out channel [oc]; this is needed by layered when computing
+      reachability information; [set_read_logger t None] unsets the logger. NOTE probably
+      this should only be used by the layered implementation. *)
+  val set_read_logger: 'a t -> out_channel option -> unit
+
   (** @inline *)
   include S.Checkable with type 'a t := 'a t and type hash := hash
 end

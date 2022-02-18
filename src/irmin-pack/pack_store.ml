@@ -57,54 +57,7 @@ end
 let selected_version = `V2
 
 (* Identify the subsignature of IO.Unix that is actually used by {!Maker} *)
-module IO' : sig 
-  type t
-    
-  (* What is the meaning of [version]? if it is set, does it have to agree with the
-     underlying impl? At the moment, files are always opened with [version:`V2] (see
-     selected_version below), and an existing `V1 file will be upgraded silently when
-     things are written to it. So, we should have version metadata with the file and
-     simulate this behaviour. *)
-  val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t
-
-  (* following are file-like *)
-  val truncate : t -> unit
-  (* NOTE this is used only for clear operation, which we don't have for layers? either
-     remove this from API, or implement by just discarding objstore+suffix and starting
-     with a clean slate *)
-
-  val readonly : t -> bool
-  val flush : t -> unit
-  val close : t -> unit
-  val offset : t -> int63
-  val read : t -> off:int63 -> bytes -> int
-  val append : t -> string -> unit
-  (* NOTE this is an append-only file *)
-
-  (* These are not file-like; some doc added in {!IO_intf}. *)
-  val version : t -> Version.t
-  (* We can probably support a "version" in our metadata *)
-  val set_version : t -> Version.t -> unit
-  val name : t -> string
-  (* This is just the "filename"/path used when opening the IO instance *)
-  val force_offset : t -> int63 
-  (* We probably have something like this for the layers: the suffix file likely contains
-     metadata for the last synced position. NOTE there are various bits of metadata, some
-     of which we consult more often than others; for example, the layered store has a
-     "generation" incremented on each GC; but we also have "version" which changes rarely,
-     and "max_flushed_offset" which probably changes quite a lot. If these are all in the
-     same file, then potentially changes to eg "max_flushed_offset" are detected as "some
-     change to metadata" and RO instances then reload the entire metadata. This is a bit
-     inefficient. We really want to detect changes to one piece of metadata independently
-     of another piece. The best way to do this is with an mmap'ed file for the per-file
-     changes (version, max_flushed_offset, etc) and only change the control file when the
-     generation changes. *)
-
-  (* FIXME could also just change [v] to create a logged instance, rather than allowing set and unset *)
-    [@@@warning "-32"]
-  val set_read_logger: t -> out_channel -> unit
-  val unset_read_logger: t -> unit
-end = struct
+module IO' : Irmin_pack_layers.IO.S = struct
   include IO.Unix
 
   type t = { base:IO.Unix.t; mutable read_logger: out_channel option }
@@ -151,9 +104,7 @@ end = struct
 
   let force_offset t = force_offset t.base
 
-  let set_read_logger t oc = t.read_logger <- Some oc
-
-  let unset_read_logger t = t.read_logger <- None
+  let set_read_logger t opt = t.read_logger <- opt
   
 end
 
@@ -676,5 +627,13 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let integrity_check ~offset ~length k t =
       Inner.integrity_check ~offset ~length k (get_open_exn t)
+
+    (* rather than expose this, we can expose set_read_logger; this has the advantage of requiring less rearrangement of existing interfaces *)
+    let get_block (t:'a t) : IO'.t = 
+      get_open_exn t |> fun t -> 
+      t.pack.block
+
+    let set_read_logger t opt = 
+      get_block t |> fun t -> IO'.set_read_logger t opt
   end
 end
