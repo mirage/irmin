@@ -257,6 +257,9 @@ include (Private : sig
   val is_sorted : arr:int_bigarray -> bool
   val calculate_extents :
     src_is_sorted:unit -> src:int_bigarray -> dst:int_bigarray -> int
+
+  (* NOTE the following is about twice as slow as using the mmap via [calculate_extents]
+     above; but this probably doesn't make much difference *)
   val calculate_extents_oc :
     src_is_sorted:unit -> src:int_bigarray -> dst:out_channel -> unit
 end)
@@ -321,6 +324,8 @@ module Test() = struct
 
   let _ = print_entries ~arr:sorted.arr ~n:100
 
+
+(*
   let extents = 
     let fn = "/home/tom/tmp/extents.map" in
     (try Unix.unlink fn with _ -> ());
@@ -330,8 +335,18 @@ module Test() = struct
   let _ = 
     let dst_off = time @@ fun () -> calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
     P.p "Final dst_off was %d\n%!" dst_off
+*)
+  let extents = 
+    let fn = "/home/tom/tmp/extents.map" in
+    (try Unix.unlink fn with _ -> ());
+    Stdlib.open_out_bin fn
+  let _ = Printf.printf "Calculating extents\n%!"  
+  let _ = 
+    time @@ fun () -> calculate_extents_oc ~src_is_sorted:() ~src:sorted.arr ~dst:extents 
+
+      
     
-  let _ = Int_mmap.close unsorted; Int_mmap.close sorted; Int_mmap.close extents; ()
+  let _ = Int_mmap.close unsorted; Int_mmap.close sorted; Stdlib.close_out_noerr extents; ()
 
 (* 
 
