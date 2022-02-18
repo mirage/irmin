@@ -82,6 +82,8 @@
   - Add `Contents.String_v2`, `Node.Generic_key.Make_v2` and
     `Commit.Generic_key.Make_v2` for backward compatibility with older stores.
     (#1715, @icristescu)
+  - Add `Store.Snapshot` to expose the inodes for tezos snapshots (#1757,
+    @icristescu).
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:

@@ -24,6 +24,24 @@ module type Child_ordering = sig
   val index : depth:int -> key -> int
 end
 
+module type Snapshot = sig
+  type hash
+  type metadata
+
+  type kinded_hash = Contents of hash * metadata | Node of hash
+  [@@deriving irmin]
+
+  type entry = { step : string; hash : kinded_hash } [@@deriving irmin]
+
+  type inode_tree = { depth : int; length : int; pointers : (int * hash) list }
+  [@@deriving irmin]
+
+  type v = Inode_tree of inode_tree | Inode_value of entry list
+  [@@deriving irmin]
+
+  type inode = { v : v; root : bool } [@@deriving irmin]
+end
+
 module type Value = sig
   type key
 
@@ -48,6 +66,21 @@ module type Value = sig
   val nb_children : t -> int
 end
 
+module type Raw = sig
+  include Pack_value.S
+
+  val depth : t -> int option
+
+  exception Invalid_depth of { expected : int; got : int; v : t }
+
+  val decode_children_offsets :
+    entry_of_offset:(int63 -> 'a) ->
+    entry_of_hash:(hash -> 'a) ->
+    string ->
+    int ref ->
+    'a list
+end
+
 module type S = sig
   include Irmin.Indexable.S
   module Hash : Irmin.Hash.S with type t = hash
@@ -61,6 +94,7 @@ module type S = sig
 
   val decode_bin_length : string -> int -> int
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
+  val save : ?allow_non_root:bool -> 'a t -> value -> key
 end
 
 module type Persistent = sig
@@ -82,6 +116,25 @@ module type Persistent = sig
   val sync : 'a t -> unit
   val clear_caches : 'a t -> unit
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
+
+  module Pack :
+    Pack_store.S
+      with type index := index
+       and type key := hash Pack_key.t
+       and type hash := hash
+       and type 'a t = 'a t
+
+  module Raw :
+    Raw
+      with type t = Pack.value
+       and type hash := hash
+       and type key := hash Pack_key.t
+
+  module Snapshot :
+    Snapshot with type hash = hash and type metadata = Val.metadata
+
+  val to_snapshot : Raw.t -> Snapshot.inode
+  val of_snapshot : 'a t -> index:(hash -> key) -> Snapshot.inode -> value
 end
 
 (** Unstable internal API agnostic about the underlying storage. Use it only to
@@ -92,21 +145,21 @@ module type Internal = sig
 
   val pp_hash : hash Fmt.t
 
-  module Raw : sig
-    include Pack_value.S with type hash = hash and type key = key
-
-    val depth : t -> int option
-
-    exception Invalid_depth of { expected : int; got : int; v : t }
-  end
+  module Snapshot : Snapshot with type hash = hash
+  module Raw : Raw with type hash = hash and type key = key
 
   module Val : sig
-    include Value with type hash = hash and type key = key
+    include
+      Value
+        with type hash = hash
+         and type key = key
+         and type metadata = Snapshot.metadata
 
     val of_raw : (expected_depth:int -> key -> Raw.t option) -> Raw.t -> t
     val to_raw : t -> Raw.t
 
     val save :
+      ?allow_non_root:bool ->
       add:(hash -> Raw.t -> key) ->
       index:(hash -> key option) ->
       mem:(key -> bool) ->
@@ -185,7 +238,15 @@ module type Internal = sig
         (** This function produces unfindable keys. Only use in tests *)
       end
     end
+
+    val of_snapshot :
+      Snapshot.inode ->
+      index:(hash -> key) ->
+      (expected_depth:int -> key -> Raw.t option) ->
+      t
   end
+
+  val to_snapshot : Raw.t -> Snapshot.inode
 
   module Child_ordering : Child_ordering with type step := Val.step
 end
@@ -212,7 +273,7 @@ module type Sigs = sig
     Internal
       with type hash = H.t
        and type key = Key.t
-       and type Val.metadata = Node.metadata
+       and type Snapshot.metadata = Node.metadata
        and type Val.step = Node.step
 
   module Make
@@ -225,7 +286,7 @@ module type Sigs = sig
       (Inter : Internal
                  with type hash = H.t
                   and type key = Key.t
-                  and type Val.metadata = Node.metadata
+                  and type Snapshot.metadata = Node.metadata
                   and type Val.step = Node.step)
       (Pack : Indexable.S
                 with type key = Key.t

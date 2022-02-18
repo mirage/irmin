@@ -1687,12 +1687,69 @@ struct
       let of_concrete t = proof_of_concrete (lazy (failwith "blinded root")) t
       let to_concrete = concrete_of_proof ~depth:0
     end
+
+    module Snapshot = struct
+      include T
+
+      type kinded_hash = Contents of hash * metadata | Node of hash
+      [@@deriving irmin]
+
+      type entry = { step : string; hash : kinded_hash } [@@deriving irmin]
+
+      type inode_tree = {
+        depth : int;
+        length : int;
+        pointers : (int * hash) list;
+      }
+      [@@deriving irmin]
+
+      type v = Inode_tree of inode_tree | Inode_value of entry list
+      [@@deriving irmin]
+
+      type inode = { v : v; root : bool } [@@deriving irmin]
+    end
+
+    let of_entry ~index e : step * Node.value =
+      let step =
+        match T.step_of_bin_string e.Snapshot.step with
+        | Ok s -> s
+        | Error (`Msg m) -> Fmt.failwith "step of bin error: %s" m
+      in
+      ( step,
+        match e.hash with
+        | Snapshot.Contents (hash, m) ->
+            let key = index hash in
+            `Contents (key, m)
+        | Node hash ->
+            let key = index hash in
+            `Node key )
+
+    let of_inode_tree ~index layout tr =
+      let entries = Array.make Conf.entries None in
+      let ptr_of_key hash =
+        let key = index hash in
+        Ptr.of_key layout key
+      in
+      List.iter
+        (fun (index, pointer) -> entries.(index) <- Some (ptr_of_key pointer))
+        tr.Snapshot.pointers;
+      { depth = tr.depth; length = tr.length; entries }
+
+    let of_snapshot ~index layout (v : Snapshot.inode) =
+      let t =
+        match v.v with
+        | Inode_value vs ->
+            values layout (StepMap.of_list (List.map (of_entry ~index) vs))
+        | Inode_tree tr -> tree layout (of_inode_tree ~index layout tr)
+      in
+      if v.root then stabilize_root layout t else t
   end
 
   module Raw = struct
-    type hash = H.t
+    type hash = H.t [@@deriving irmin]
     type key = Key.t
     type t = T.key Bin.t [@@deriving irmin]
+    type metadata = T.metadata [@@deriving irmin]
 
     let depth = Bin.depth
 
@@ -1827,7 +1884,72 @@ struct
       Bin.v ~root ~hash:(lazy i.hash) v
 
     let decode_bin_length = decode_compress_length
+
+    let decode_children_offsets ~entry_of_offset ~entry_of_hash t pos_ref =
+      let i = decode_compress t pos_ref in
+      let { Compress.tv; _ } = i in
+      let v =
+        match tv with
+        | V0_stable v | V0_unstable v -> v
+        | V1_root { v; _ } | V1_nonroot { v; _ } -> v
+      in
+      let entry_of_address = function
+        | Compress.Offset offset -> entry_of_offset offset
+        | Hash h -> entry_of_hash h
+      in
+      match v with
+      | Values ls ->
+          List.map
+            (function
+              | Compress.Contents (_, address, _) | Node (_, address) ->
+                  entry_of_address address)
+            ls
+      | Tree { entries; _ } ->
+          List.map
+            (function ({ hash; _ } : Compress.ptr) -> entry_of_address hash)
+            entries
+
+    module Snapshot = Val_impl.Snapshot
+
+    let to_entry : T.step * Node.value -> Snapshot.entry =
+     fun (name, v) ->
+      let step = step_to_bin name in
+      match v with
+      | `Contents (contents_key, m) ->
+          let h = Key.to_hash contents_key in
+          { Snapshot.step; hash = Contents (h, m) }
+      | `Node node_key ->
+          let h = Key.to_hash node_key in
+          { step; hash = Node h }
+
+    (* The implementation of [of_snapshot] is in the module [Val]. This is
+       because we cannot compute the hash of a root from [Bin]. *)
+    let to_snapshot : t -> Snapshot.inode =
+     fun t ->
+      match t.v with
+      | Bin.Tree tree ->
+          let inode_tree =
+            {
+              Snapshot.depth = tree.depth;
+              length = tree.length;
+              pointers =
+                List.map
+                  (fun { Bin.index; vref } ->
+                    let hash = Key.to_hash vref in
+                    (index, hash))
+                  tree.entries;
+            }
+          in
+          { v = Inode_tree inode_tree; root = t.root }
+      | Values vs ->
+          let vs = List.map to_entry vs in
+          let v = Snapshot.Inode_value vs in
+          { v; root = t.root }
   end
+
+  module Snapshot = Val_impl.Snapshot
+
+  let to_snapshot = Raw.to_snapshot
 
   type hash = T.hash
   type key = Key.t
@@ -1943,13 +2065,13 @@ struct
 
     let hash_exn ?force t = apply t { f = (fun _ v -> I.hash_exn ?force v) }
 
-    let save ~add ~index ~mem t =
+    let save ?(allow_non_root = false) ~add ~index ~mem t =
       if Conf.forbid_empty_dir_persistence && is_empty t then
         failwith
           "Persisting an empty node is forbidden by the configuration of the \
            irmin-pack store";
       let f layout v =
-        I.check_write_op_supported v;
+        if not allow_non_root then I.check_write_op_supported v;
         I.save layout ~add ~index ~mem v
       in
       apply t { f }
@@ -1986,8 +2108,6 @@ struct
         check_stable () && not (contains_empty_map_non_root ())
       in
       apply t { f }
-
-    module Concrete = I.Concrete
 
     let merge ~contents ~node : t Irmin.Merge.t =
       let merge = Node.merge ~contents ~node in
@@ -2135,6 +2255,17 @@ struct
       match I.of_concrete Truncated ~depth:0 t with
       | Ok t -> Ok (Truncated t)
       | Error _ as e -> e
+
+    module Snapshot = I.Snapshot
+    module Concrete = I.Concrete
+
+    let of_snapshot t ~index find' =
+      let rec find ~expected_depth h =
+        match find' ~expected_depth h with
+        | None -> None
+        | Some v -> Some (I.of_bin layout v)
+      and layout = I.Partial find in
+      Partial (layout, I.of_snapshot layout t ~index)
   end
 end
 
@@ -2148,7 +2279,7 @@ module Make
     (Inter : Internal
                with type hash = H.t
                 and type key = Key.t
-                and type Val.metadata = Node.metadata
+                and type Snapshot.metadata = Node.metadata
                 and type Val.step = Node.step)
     (Pack : Indexable.S
               with type hash = H.t
@@ -2195,11 +2326,12 @@ struct
         let v = Val.of_raw find v in
         Some v
 
-  let save t v =
+  let save ?allow_non_root t v =
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
-    Val.save ~add ~index:(Pack.index_direct t) ~mem:(Pack.unsafe_mem t) v
+    Val.save ?allow_non_root ~add ~index:(Pack.index_direct t)
+      ~mem:(Pack.unsafe_mem t) v
 
   let hash_exn = Val.hash_exn
   let add t v = Lwt.return (save t v)

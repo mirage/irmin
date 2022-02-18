@@ -8,7 +8,8 @@
   test_tree
   test_hashes
   import
-  test_pack_version_bump)
+  test_pack_version_bump
+  test_snapshot)
  (libraries
   alcotest
   fmt

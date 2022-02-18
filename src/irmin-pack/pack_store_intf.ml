@@ -33,6 +33,29 @@ module type S = sig
 
   (** @inline *)
   include S.Checkable with type 'a t := 'a t and type hash := hash
+
+  module Entry_prefix : sig
+    type t = {
+      hash : hash;
+      kind : Pack_value.Kind.t;
+      size_of_value_and_length_header : int option;
+          (** Remaining bytes in the entry after reading the hash and the kind
+              (i.e. the length of the length header + the value of the length
+              header), if the entry has a length header (otherwise [None]).
+
+              NOTE: the length stored in the index and in direct pack keys is
+              the {!total_entry_length} (including the hash and the kind). *)
+    }
+
+    val total_entry_length : t -> int option
+  end
+
+  val read_and_decode_entry_prefix :
+    off:int63 -> io_read:(off:int63 -> bytes -> int) -> Entry_prefix.t
+  (** Read the entry prefix at offset [off]. *)
+
+  val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
+  (** Returns the key and the kind of an object indexed by hash. *)
 end
 
 module type Maker = sig

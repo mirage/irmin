@@ -44,7 +44,13 @@ module Maker (Config : Conf.S) = struct
 
       module Contents = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
-        module CA = Pack.Make (Pack_value)
+
+        module CA = struct
+          include Pack.Make (Pack_value)
+
+          type index = Index.t
+        end
+
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
@@ -56,6 +62,8 @@ module Maker (Config : Conf.S) = struct
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
           include Inode.Make_persistent (H) (Value) (Inter) (Pack)
+
+          type index = Index.t
         end
 
         include
@@ -335,5 +343,60 @@ module Maker (Config : Conf.S) = struct
     end)
 
     let traverse_pack_file = Traverse_pack_file.run
+
+    module Snapshot = struct
+      include X.Node.CA.Snapshot
+
+      type t = Inode of inode | Blob of Backend.Contents.Val.t
+      [@@deriving irmin]
+
+      module S = Snapshot.Make (struct
+        module Hash = H
+        module Inode = X.Node.CA
+        module Contents_pack = X.Contents.CA
+      end)
+
+      include S
+
+      module Export = struct
+        let iter ?on_disk repo f ~root_key =
+          [%log.debug "Iterate over a tree"];
+          let contents = X.Repo.contents_t repo in
+          let nodes = X.Repo.node_t repo |> snd in
+          let root = Conf.root repo.config in
+          let log_size = Conf.index_log_size repo.config in
+          let export = S.Export.v root log_size contents nodes in
+          let f_contents x = f (Blob x) in
+          let f_nodes x = f (Inode x) in
+          match root_key with
+          | `Contents _ -> Fmt.failwith "[root_key] cannot be of type contents"
+          | `Node key ->
+              let* total =
+                Export.run ?on_disk export f_contents f_nodes
+                  (key, Pack_value.Kind.Inode_v2_root)
+              in
+              Export.close export;
+              Lwt.return total
+      end
+
+      let export = Export.iter
+
+      module Import = struct
+        type process = Import.t
+
+        let v ?on_disk repo =
+          let contents = X.Repo.contents_t repo in
+          let nodes = X.Repo.node_t repo |> snd in
+          let log_size = Conf.index_log_size repo.config in
+          Import.v ?on_disk log_size contents nodes
+
+        let save_elt process elt =
+          match elt with
+          | Blob x -> Import.save_contents process x
+          | Inode x -> Import.save_inodes process x
+
+        let close process = Import.close process
+      end
+    end
   end
 end
