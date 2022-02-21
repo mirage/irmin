@@ -160,6 +160,181 @@ module Private = struct
           | false -> false)            
 
 
+  (** [calculate_extents_oc ~src_is_sorted ~gap_tolerance ~src ~dst] takes {b sorted}
+      [(off,len)] data from [src], combines adjacent extents, and outputs a minimal set of
+      (sorted) extents to [dst:out_channel]; the return value is the length of the part of
+      [dst] that was filled. [gap_tolerance] is used to provide some looseness when
+      combining extents: if the next extent starts within [gap_tolerance] of the end of
+      the previous extent, then it is combined with the previous (the data in the gap,
+      which is not originally part of an extent, will be counted as part of the resulting
+      extent). This can reduce the number of extents significantly, at a cost of including
+      gaps where the data is not actually needed. *)
+  let calculate_extents_oc ~(src_is_sorted:unit) ~gap_tolerance ~(src:int_bigarray) ~(dst:out_channel) : unit = 
+    ignore(src_is_sorted);
+    let src_sz = BA1.dim src in    
+    let _ = 
+      assert(src_sz >= 2);
+      assert(src_sz mod step = 0);
+      ()
+    in    
+    let output_dst ~off ~len = Util.Out_channel_extra.(
+        output_int_ne dst off;
+        output_int_ne dst len;
+        ())
+    in
+    let (off,len) = src.{0},src.{1} in
+    let regions_combined = ref 0 in
+    let dst_off =
+      (* iterate over entries in src, combining adjacent entries *)
+      (2,off,len) |> iter_k (fun ~k (src_off,off,len) -> 
+          match src_off >= src_sz with
+          | true -> 
+            (* write out "current" extent *)
+            output_dst ~off ~len;
+            ()
+          | false ->
+            (* check if we can combine the next region *)
+            let off',len' = src.{src_off},src.{src_off+1} in
+            assert(off <= off');
+            match off' <= off+len+gap_tolerance with
+            | false -> 
+              (* we can't, so write out current extent and move to next *)
+              output_dst ~off ~len;
+              k (src_off+2,off',len')
+            | true ->               
+              (* we can combine *)
+              incr regions_combined;
+              (if false &&  off' < off+len then P.p "Offset %d occured within existing region (%d,%d)\n%!" off' off len);
+              assert(off <= off'); (* offs are sorted *)
+              let len = max len (off'+len' - off) in
+              k (src_off+2,off,len))
+    in
+    P.p "Regions combined: %d\n%!" (!regions_combined);
+    dst_off           
+end
+
+include (Private : sig
+  val sort : chunk_sz:int -> src:int_bigarray -> dst:int_bigarray -> unit
+  val is_sorted : arr:int_bigarray -> bool
+
+  (* NOTE the following is about twice as slow as using the mmap via [calculate_extents]
+     above; but this probably doesn't make much difference *)
+  val calculate_extents_oc :
+    src_is_sorted:unit -> gap_tolerance:int -> src:int_bigarray -> dst:out_channel -> unit
+end)
+
+
+module Test() = struct
+  open Private
+
+  let print_entries_flag = false
+
+  let print_entries ~arr ~n =
+    if print_entries_flag then 
+      for i = 0 to n-1 do
+        P.p "(%d,%d)\n%!" arr.{2*i} arr.{2*i+1}
+      done
+
+  let number_of_entries = 30_000_000 (* 30M reachable objs *)
+
+  let max_k = 50_000_000_000
+
+  let max_v = 400
+
+  let sz = (number_of_entries * step)
+
+  let unsorted = 
+    let fn = "/home/tom/tmp/unsorted.map" in
+    (try Unix.unlink fn with _ -> ());
+    Int_mmap.create ~fn ~sz
+
+  let time f = 
+    let c = Mtime_clock.counter() in
+    let r = f () in
+    let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c) in
+    r    
+
+  let _ = Printf.printf "Filling with test data\n%!"
+
+  let _ = time (fun () -> fill_with_test_data ~max_k ~max_v ~arr:unsorted.arr)
+
+  let _ = print_entries ~arr:unsorted.arr ~n:100
+
+  let entries_per_MB = 1_000_000 / 16 (* two ints *)
+
+  (** Use at most 1MB of memory for each chunk, which will result in 480 chunks *)
+  let chunk_sz = 1 * entries_per_MB
+
+  let _ = Printf.printf "Sorting chunks\n%!"
+
+  let _ = time (fun () -> sort_chunks ~arr:unsorted.arr ~chunk_sz)
+
+  let sorted = 
+    let fn = "/home/tom/tmp/sorted.map" in
+    (try Unix.unlink fn with _ -> ());
+    Int_mmap.create ~fn ~sz
+
+  let _ = Printf.printf "Merging chunks\n%!"
+
+  let _ = time (fun () -> merge_chunks ~src:unsorted.arr ~chunk_sz ~dst:sorted.arr)
+
+  let _ = Printf.printf "Checking is_sorted\n%!"  
+  let _ = time (fun () -> assert(is_sorted ~arr:sorted.arr))
+
+  let _ = print_entries ~arr:sorted.arr ~n:100
+
+
+(*
+  let extents = 
+    let fn = "/home/tom/tmp/extents.map" in
+    (try Unix.unlink fn with _ -> ());
+    Int_mmap.create ~fn ~sz
+
+  let _ = Printf.printf "Calculating extents\n%!"  
+  let _ = 
+    let dst_off = time @@ fun () -> calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
+    P.p "Final dst_off was %d\n%!" dst_off
+*)
+  let extents = 
+    let fn = "/home/tom/tmp/extents.map" in
+    (try Unix.unlink fn with _ -> ());
+    Stdlib.open_out_bin fn
+  let _ = Printf.printf "Calculating extents\n%!"  
+  let _ = 
+    time @@ fun () -> calculate_extents_oc ~src_is_sorted:() ~gap_tolerance:0 ~src:sorted.arr ~dst:extents 
+
+      
+    
+  let _ = Int_mmap.close unsorted; Int_mmap.close sorted; Stdlib.close_out_noerr extents; ()
+
+(* 
+
+Filling with test data
+Finished in 1.662s
+Sorting chunks
+Finished in 8.39s
+Merging chunks
+Finished in 6.438s
+Checking is_sorted
+Finished in 117ms
+Calculating extents
+Regions combined: 3393607
+Finished in 461ms
+Final dst_off was 53212786
+
+For a 500MB file, we can choose chunk size even as low as 1MB. Then we have to perform a
+500-way merge, but this is fast and doesn't consume much process memory (the cache
+presumably has to hold 500 blocks to make this fast, but that is [500*4k = 2MB], so fairly
+small).
+*)
+
+end
+
+
+module Old() = struct
+
+  [@@@warning "-27"](* FIXME *)
+
   (** [calculate_extents ~src ~dst] takes {b sorted} [(off,len)] data from [src], combines
       adjacent extents, and outputs a minimal set of (sorted) extents to [dst]; the return
       value is the length of the part of [dst] that was filled *)
@@ -250,123 +425,5 @@ module Private = struct
     in
     P.p "Regions combined: %d\n%!" (!regions_combined);
     dst_off           
-end
-
-include (Private : sig
-  val sort : chunk_sz:int -> src:int_bigarray -> dst:int_bigarray -> unit
-  val is_sorted : arr:int_bigarray -> bool
-  val calculate_extents :
-    src_is_sorted:unit -> src:int_bigarray -> dst:int_bigarray -> int
-
-  (* NOTE the following is about twice as slow as using the mmap via [calculate_extents]
-     above; but this probably doesn't make much difference *)
-  val calculate_extents_oc :
-    src_is_sorted:unit -> src:int_bigarray -> dst:out_channel -> unit
-end)
-
-
-module Test() = struct
-  open Private
-
-  let print_entries_flag = false
-
-  let print_entries ~arr ~n =
-    if print_entries_flag then 
-      for i = 0 to n-1 do
-        P.p "(%d,%d)\n%!" arr.{2*i} arr.{2*i+1}
-      done
-
-  let number_of_entries = 30_000_000 (* 30M reachable objs *)
-
-  let max_k = 50_000_000_000
-
-  let max_v = 400
-
-  let sz = (number_of_entries * step)
-
-  let unsorted = 
-    let fn = "/home/tom/tmp/unsorted.map" in
-    (try Unix.unlink fn with _ -> ());
-    Int_mmap.create ~fn ~sz
-
-  let time f = 
-    let c = Mtime_clock.counter() in
-    let r = f () in
-    let _ = Format.printf "Finished in %a\n%!" Mtime.Span.pp (Mtime_clock.count c) in
-    r    
-
-  let _ = Printf.printf "Filling with test data\n%!"
-
-  let _ = time (fun () -> fill_with_test_data ~max_k ~max_v ~arr:unsorted.arr)
-
-  let _ = print_entries ~arr:unsorted.arr ~n:100
-
-  let entries_per_MB = 1_000_000 / 16 (* two ints *)
-
-  (** Use at most 1MB of memory for each chunk, which will result in 480 chunks *)
-  let chunk_sz = 1 * entries_per_MB
-
-  let _ = Printf.printf "Sorting chunks\n%!"
-
-  let _ = time (fun () -> sort_chunks ~arr:unsorted.arr ~chunk_sz)
-
-  let sorted = 
-    let fn = "/home/tom/tmp/sorted.map" in
-    (try Unix.unlink fn with _ -> ());
-    Int_mmap.create ~fn ~sz
-
-  let _ = Printf.printf "Merging chunks\n%!"
-
-  let _ = time (fun () -> merge_chunks ~src:unsorted.arr ~chunk_sz ~dst:sorted.arr)
-
-  let _ = Printf.printf "Checking is_sorted\n%!"  
-  let _ = time (fun () -> assert(is_sorted ~arr:sorted.arr))
-
-  let _ = print_entries ~arr:sorted.arr ~n:100
-
-
-(*
-  let extents = 
-    let fn = "/home/tom/tmp/extents.map" in
-    (try Unix.unlink fn with _ -> ());
-    Int_mmap.create ~fn ~sz
-
-  let _ = Printf.printf "Calculating extents\n%!"  
-  let _ = 
-    let dst_off = time @@ fun () -> calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
-    P.p "Final dst_off was %d\n%!" dst_off
-*)
-  let extents = 
-    let fn = "/home/tom/tmp/extents.map" in
-    (try Unix.unlink fn with _ -> ());
-    Stdlib.open_out_bin fn
-  let _ = Printf.printf "Calculating extents\n%!"  
-  let _ = 
-    time @@ fun () -> calculate_extents_oc ~src_is_sorted:() ~src:sorted.arr ~dst:extents 
-
-      
-    
-  let _ = Int_mmap.close unsorted; Int_mmap.close sorted; Stdlib.close_out_noerr extents; ()
-
-(* 
-
-Filling with test data
-Finished in 1.662s
-Sorting chunks
-Finished in 8.39s
-Merging chunks
-Finished in 6.438s
-Checking is_sorted
-Finished in 117ms
-Calculating extents
-Regions combined: 3393607
-Finished in 461ms
-Final dst_off was 53212786
-
-For a 500MB file, we can choose chunk size even as low as 1MB. Then we have to perform a
-500-way merge, but this is fast and doesn't consume much process memory (the cache
-presumably has to hold 500 blocks to make this fast, but that is [500*4k = 2MB], so fairly
-small).
-*)
 
 end
