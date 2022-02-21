@@ -53,7 +53,7 @@ let calculate_extents ~working_dir ~reachable_fn =
 *)
   let _create_extents = 
     let oc = Stdlib.open_out_bin extents_fn in
-    External_sort.calculate_extents_oc ~src_is_sorted:() ~src:sorted.arr ~dst:oc;
+    External_sort.calculate_extents_oc ~src_is_sorted:() ~gap_tolerance:100 ~src:sorted.arr ~dst:oc;
     Stdlib.close_out_noerr oc; (* FIXME maybe close and check for error *)
     ()
   in

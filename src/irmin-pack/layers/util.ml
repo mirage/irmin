@@ -403,3 +403,24 @@ include struct
             pwrite ~off:dst_off (Bytes.sub buf 0 n);
             k (len - n))
 end
+
+
+module Binary_search = struct
+
+  (* Based on https://en.wikipedia.org/wiki/Binary_search_algorithm, the first pseudocode;
+     could replace arr,get with just get *)
+  let binary_search ~arr ~get ~lo ~hi ~key =
+    (lo,hi) |> iter_k (fun ~k:kont (lo,hi) -> 
+        match lo <= hi with
+        | false -> None
+        | true -> 
+          let mid = (lo+hi)/2 in
+          let arr_mid = get arr mid in
+          match Stdlib.compare arr_mid key with
+          | x when x < 0 -> kont (mid+1,hi)
+          | x when x > 0 -> kont (lo,mid-1)
+          | _ (* when x=0 *) -> Some mid (* NOTE returns the index, not the value *))    
+    
+  let _ : arr:'a -> get:('a -> int -> 'b) -> lo:int -> hi:int -> key:'b -> int option = binary_search
+
+end
