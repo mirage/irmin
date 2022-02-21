@@ -211,6 +211,12 @@ module Private = struct
     in
     P.p "Regions combined: %d\n%!" (!regions_combined);
     dst_off           
+
+  (** Verify that each (off,len) in reachable data is contained in a single extent;
+      reachable is not necessarily sorted *)
+  let verify_extents_against_reachability ~(reachable:int_bigarray) ~(extents:int_bigarray) = 
+    ()
+    
 end
 
 include (Private : sig

@@ -423,4 +423,69 @@ module Binary_search = struct
     
   let _ : arr:'a -> get:('a -> int -> 'b) -> lo:int -> hi:int -> key:'b -> int option = binary_search
 
+
+  let binary_search_with_predicate (type arr) ~(arr:arr) ~(get:arr -> int -> 'v) ~lo ~hi ~pred =
+    (lo,hi) |> iter_k (fun ~k:kont (lo,hi) -> 
+        assert(lo <= hi);
+        match pred ~arr ~get ~lo ~hi with
+        | `Finished x -> x 
+        | `Recurse (lo',hi') -> 
+          assert(lo <= lo' && lo' <= hi' && hi' <= hi && (hi' - lo' < hi - lo));
+          kont (lo',hi'))
+
+  let _ : 
+arr:'arr ->
+get:('arr -> int -> 'v) ->
+lo:int ->
+hi:int ->
+pred:(arr:'arr ->
+      get:('arr -> int -> 'v) ->
+      lo:int -> hi:int -> [ `Finished of 'a | `Recurse of int * int ]) ->
+'a
+    = binary_search_with_predicate
+
+  (* NOTE following is probably more complicated than just writing the code directly *)
+  let nearest_leq ~arr ~get ~lo ~hi ~key = 
+    assert(get arr lo <= key);
+    binary_search_with_predicate ~arr ~get ~lo ~hi 
+      ~pred:(fun ~arr ~get ~lo ~hi -> 
+          match lo=hi with 
+          | true -> 
+            assert(get arr lo <= key); 
+            `Finished lo
+          | false -> 
+            assert(lo<hi);
+            match lo+1 = hi with
+            | true -> 
+              if get arr hi <= key then `Finished hi else (
+                assert(get arr lo <= key);
+                `Finished lo)
+            | false -> 
+              let mid = (lo+hi)/2 in
+              (* NOTE mid could be lo *)
+              let arr_mid = get arr mid in
+              match arr_mid <= key with 
+              | true -> `Recurse (mid,hi)
+              | false -> 
+                (* key < arr_mid *)
+                `Recurse (lo,mid-1))
+
+  let test () = 
+    let arr = Array.of_list [1;3;5;7] in
+    let get arr i = arr.(i) in
+    let lo,hi = 0,Array.length arr -1 in
+    let nearest_leq_ key = nearest_leq ~arr ~get ~lo ~hi ~key in
+    (* it is illegal to call nearest_leq if the lowest elt is > key assert(nearest_leq_ 0 = 0); *)
+    assert(nearest_leq_ 1 = 0);
+    assert(nearest_leq_ 2 = 0);
+    assert(nearest_leq_ 3 = 1);
+    assert(nearest_leq_ 3 = 1);
+    assert(nearest_leq_ 4 = 1);
+    assert(nearest_leq_ 5 = 2);
+    assert(nearest_leq_ 6 = 2);
+    assert(nearest_leq_ 7 = 3);
+    assert(nearest_leq_ 8 = 3);
+    assert(nearest_leq_ 100 = 3);
+    ()
+    
 end
