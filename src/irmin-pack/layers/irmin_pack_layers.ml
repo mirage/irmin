@@ -25,6 +25,11 @@ module Control = Control
 
 module IO = IO
 
+(** {1 Worker, for computing reachability and constructing next versions of suffix and
+    sparse} *)
+
+module Worker = Worker
+
 
 (** {1 Testing} *)
 
@@ -32,11 +37,11 @@ type commit_hash_s = string
 
 (** Setting this to Some will trigger GC on the next IO operation (this is just for
     initial testing) *)
-let trigger_gc : commit_hash_s option ref = ref None
+let trigger_gc : commit_hash_s option ref = IO.trigger_gc
 
 module Private = struct
   module Obj_store = Obj_store
-  module Worker = Worker
+  (* module Worker = Worker *)
 end
 
 

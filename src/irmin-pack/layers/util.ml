@@ -462,3 +462,9 @@ module Binary_search = struct
     
     
 end
+
+(** Currently used for logging where we get to in the code *)
+let create_marks ~__FILE__ (xs:string list) = 
+  let arr = Array.of_list xs in
+  let mark i = Printf.printf "%s: mark: %s\n%!" __FILE__ arr.(i) in
+  mark,(List.mapi (fun i _ -> i) xs)

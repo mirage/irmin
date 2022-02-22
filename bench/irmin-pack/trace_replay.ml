@@ -250,7 +250,7 @@ module Make (Store : Store) = struct
 
   (* for layers, we want to initiate a GC after every [layers_n] commits *)
   let layers_counter = ref 0
-  let layers_n = 5000
+  let layers_n = 2000
 
   let exec_commit t stats repo h_trace date message parents_trace in_ctx_id
       check_hash =

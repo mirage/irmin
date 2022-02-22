@@ -30,3 +30,7 @@ type int63 = Int63.t [@@deriving irmin]
 
 let ( ++ ) = Int63.add
 let ( -- ) = Int63.sub
+
+(** abbrev *)
+
+module Layers = Irmin_pack_layers

@@ -13,7 +13,18 @@ irmin-pack [IO] interface.
 [@@@warning "-27"]
 
 open! Import
-open Util
+(* open Util *)
+
+open struct
+  module Sparse = Sparse_file
+end
+
+type commit_hash_s = string
+
+(** Setting this to Some will trigger GC on the next IO operation (this is just for
+    initial testing) *)
+let trigger_gc : commit_hash_s option ref = ref None
+
 
 (** NOTE this interface is documented also in https://github.com/mirage/irmin/pull/1758 *)
 module type S = sig 
@@ -73,204 +84,15 @@ See doc in ../IO_intf.ml We probably have something like this for the layers: th
      this is with an mmap'ed file for the per-file changes (version, max_flushed_offset,
      etc) and only change the control file when the generation changes. *)
 
-  val set_read_logger: t -> out_channel option -> unit  
+  (* val set_read_logger: t -> out_channel option -> unit   *)
+
 end
+
 
 (** Private implementation *)
 module Private = struct
 
-  open struct
-    module Sparse = Sparse_file
-  end
-
-  (** We want to store the control file, and all other files and directories related to
-      layers, in a subdirectory; however, the existing code expects to be working with a
-      single file; so we have a single file that points to the directory that holds all
-      the underlying files. *)
-  module File_containing_pointer_to_subdir = struct
-    module T = struct
-      open Sexplib.Std
-      type t = { 
-        subdir_name:string;
-        (** The name of the subdir. *)
-      }[@@deriving sexp]
-    end
-    include T
-    include Add_load_save_funs(T)
-  end
-
-  type t = {
-    fn      : string; (** file containing a pointer to a subdir *)
-    root    : string; (** subdirectory where we store the files *)
-    (* objects : Obj_store.t; *)
-    mutable sparse  : Sparse.t;
-    mutable suffix  : Suffix.t;
-    control : Control.t;
-    readonly: bool;
-    mutable readonly_offset: int;
-    (** This offset is maintained by readonly instances; when the RW instance appends data
-        to the pack file, the RO instance detects the new data (via force_offset) which
-        triggers the RO instance to resync the index and the dictionary *)
-  }
-
-  (* FIXME need to examine the force_offset function and its affect on readonly
-     instances *)
-
-  let suffix_name ~generation = "suffix."^(generation |> string_of_int)
-  (** Default name for suffix subdir; "suffix.nnnn" where nnnn is the generation number *)
-
-(*
-  let objects_name ~generation = "objects."^(generation |> string_of_int)
-  (** Default name for objects subdir; "objects.nnnn" where nnnn is the generation number *)
-*)
-
-  let sparse_name ~generation = "objects."^(generation |> string_of_int)
-  (** Default name for sparse subdir; "sparse.nnnn" where nnnn is the generation number *)
-
-
-
-(*
-FIXME are meta and control the same? we want some cheap way to indicate that RO instances
-should switch, but we don't want them repeatedly reading the control file; and we also
-want to record some metadata which should also be easily accessible; so the control file
-maybe just points to the relevant files, and is updated by atomic rename; then the
-metadata is stored elsewhere, in meta.nnnn
-*)
-
-  (** [create ~fn] create the IO instance using [fn] as the "pointer file", which points
-      to a subdirectory containing various other files.
-
-      If [fn] is [/path/to/some/file], then we expect to create a "root" subdirectory
-      [/path/to/some/layers.nnnn], where nnnn is some integer to make the root name
-      fresh.
-      
-      Within the root, there will be a control file, object store, suffix, and meta.
-  *) 
-  let create ~fn:fn0 =
-    assert(not (Sys.file_exists fn0));
-    let dir,base = Filename.dirname fn0,Filename.basename fn0 in    
-    (* now we need a subdirectory to work within; we check for a free name of the form
-       "layers.nnnn"; this is relative to [dir] *)
-    let layers_dot_nnnn = 
-      0 |> iter_k (fun ~k n -> 
-          let subdir = "layers." ^ (string_of_int n) in
-          match Sys.file_exists Fn.(dir / subdir) with
-          | true -> subdir
-          | false -> k (n+1))
-    in    
-    (* now create the initial contents of the layers directory *)
-    let root = Fn.(dir / layers_dot_nnnn) in
-    let init_gen = 1234 (* FIXME *) in
-    let control = 
-      let t = Control.create ~root ~name:control_s in
-      Control.(set t generation_field init_gen);
-      Control.(set t last_synced_offset_field 0);
-      Control.fsync t;
-      t
-    in
-    (*
-    let objects = 
-      Obj_store.create ~root:Fn.(root / objects_name ~generation:init_gen) in
-    *)
-    let sparse = Sparse.create ~path:Fn.(root / sparse_name ~generation:init_gen) in
-    let suffix = 
-      (* NOTE in the following, the initial suffix_offset is 0 *)
-      let suffix_offset = 0 in
-      Suffix.create ~root:Fn.(root / suffix_name ~generation:init_gen) ~suffix_offset 
-    in
-    (* FIXME make sure to sync all above *)
-    (* finally create the pointer to the subdir *)
-    File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
-    let readonly_offset = 0 in
-    { fn=fn0; root; sparse; suffix; control; readonly=false; readonly_offset; }
-    
-
-  let open_ ~readonly ~fn:fn0 = 
-    assert(Sys.file_exists fn0);
-    let dir,base = Filename.dirname fn0,Filename.basename fn0 in
-    let layers_dot_nnnn = 
-      File_containing_pointer_to_subdir.load Fn.(dir/base) |> fun x -> x.subdir_name 
-    in
-    let root = Fn.(dir / layers_dot_nnnn) in
-    let control = Control.open_ ~root ~name:control_s in
-    let generation = Control.get_generation control in
-    let sparse = Sparse.open_ro ~dir:Fn.(root / sparse_name ~generation) in
-    (* let objects = Obj_store.open_ro ~root:Fn.(root / objects_name ~generation) in *)
-    (* FIXME probably want to take into account the "last_synced_offset" for the suffix *)
-    let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
-    let readonly_offset = Control.(get control last_synced_offset_field) in
-    (* FIXME when we open, we should take into account meta.last_synced_offset; FIXME
-       should also maybe truncate suffix to last_synced_offset *)
-    { fn=fn0; root; sparse; suffix; control; readonly; readonly_offset }
-    
-  let readonly t = t.readonly
-
-  (* FIXME the existing IO implementation uses a buffer for writes, and flush is used to
-     actually flush the data to disk (with an fsync? FIXME); this presumably improves
-     performance; do we want to do that here? an alternative is to use OCaml's native
-     channels *)
-  let flush t = 
-    assert(not t.readonly);
-    Suffix.fsync t.suffix;
-    (* NOTE the last_synced_offset_field is the "virtual" size of the suffix FIXME
-       shouldn't Suffix.fsync update this field? *)
-    Control.(set t.control last_synced_offset_field (Suffix.size t.suffix));
-    (* FIXME may want to fsync control here *)
-    ()
-    
-  let close t = 
-    (if not t.readonly then flush t);
-    Suffix.close t.suffix;
-    Sparse.close t.sparse;
-    Control.close t.control;
-    ()
-
-  let offset t = 
-    match t.readonly with
-    | false -> 
-      Suffix.size t.suffix
-    | true -> 
-      (* FIXME this is only used to trigger RO updates to dict and index? *)
-      t.readonly_offset 
-  
-  let read t ~off buf =
-    match off >= Suffix.private_suffix_offset t.suffix with
-    | true -> 
-      (* read from suffix *)
-      Suffix.pread t.suffix ~off:(ref off) ~len:(Bytes.length buf) ~buf
-    | false -> 
-      (* read from sparse *)
-      Sparse.pread t.sparse ~off:(ref off) ~len:(Bytes.length buf) ~buf
-
-  let append t s = Suffix.append t.suffix s
-
-  (* [version] and [set_version] need to be changed when more versions are added. If a new
-     version is added, we will get a type mismatch for these functions, which will trigger
-     the programmer to rewrite them. *)
-  let version t : Lyr_version.t = 
-    Control.(get t.control version_field) |> Lyr_version.of_int
-
-  let set_version t (ver:Lyr_version.t) = 
-    assert(not t.readonly);
-    let ver_i = match ver with `V1 -> 1 | `V2 -> 2 in
-    Control.(set t.control version_field ver_i)
-
-  let name t = t.fn
-
-  (* The semantics of [force_offset] in the original implementation is a bit unclear. Here
-     we assume that it is used only for readonly instances. It accesses the
-     "last_synced_offset" of the underlying RW instance, and updates [readonly_offset]
-     from that. This is then used by the RO instance to trigger a reload of dictionary and
-     index. *)
-  let force_offset t = 
-    assert(t.readonly);
-    t.readonly_offset <- Control.(get t.control last_synced_offset_field);
-    t.readonly_offset
-
-  let truncate t = 
-    assert(not t.readonly);    
-    Fmt.failwith "%s: truncate not supported (the only user in pack_store.ml should be \
-                  clear, which is also not supported)" __FILE__
+  include Pre_io.Private
 
   
   (* FIXME is fresh=true ever used in the codebase? what about fresh=true, readonly=true?
@@ -296,7 +118,7 @@ If [path] does not exist:
   - instance is created with the supplied version (even if readonly is true)
 
   *)
-  let v ~version:(ver0:Lyr_version.t option) ~fresh ~readonly path t = 
+  let v ~version:(ver0:Lyr_version.t option) ~fresh ~readonly path = 
     let exists = Sys.file_exists path in
     let ( --> ) a b = (not a) || b in
     assert(not exists --> Option.is_some ver0);
@@ -375,4 +197,9 @@ If [path] does not exist:
         end;
         t)
 
+
 end (* Private *)
+
+module _  = (Private : S) (* check it matches the intf *)
+
+include (Private (*: S *)) (* expose the underlying impl for now *)

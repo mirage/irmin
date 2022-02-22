@@ -3,9 +3,12 @@ open! Import
 (* NOTE moved from pack_store_intf.ml, to break cycle with S.ml *)
 
 module Private (* : Irmin_pack_layers.IO.S *) = struct
-  include IO.Unix
+  (* include IO.Unix *)
+  
+  module IO_impl = Irmin_pack_layers.IO (* IO.Unix *)
+  include IO_impl
 
-  type t = { base:IO.Unix.t; mutable read_logger: out_channel option }
+  type t = { base:IO_impl.t; mutable read_logger: out_channel option }
            
   (* now we need to lift all the funs to work with this new type; OO has an advantage here
      in that classes can be easily extended with additional fields, whereas here we have
@@ -20,6 +23,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
   let read_logger = ref None
 
   let v ~version ~fresh ~readonly path = 
+    Printf.printf "%s: v called\n%!" __FILE__;
     let read_logger =       
       match !check_envvar with 
       | true -> (
@@ -52,7 +56,28 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
     in
     len
 
-  let append t s = append t.base s
+(* FIXME
+  let check_trigger_maybe_fork_worker (t:IO_impl.t) = 
+    match !trigger_gc with
+    | None -> ()
+    | Some commit_hash_s ->       
+      let open Irmin_pack_layers.Worker in
+      let worker_args : worker_args = {
+        working_dir=IO_impl.get_working_dir t;
+        src=failwith "";
+        src_off=failwith "";
+        src_len=failwith "";
+        calc_rch_objs=failwith "";
+        sparse_dir="";
+        suffix_dir="";
+      }
+      in
+      let `Pid pid = fork_worker ~worker_args
+*)
+
+  let append t s = 
+    (* check_trigger_maybe_fork_worker t; *)
+    append t.base s
 
   let version t = version t.base
 
@@ -62,7 +87,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
 
   let force_offset t = force_offset t.base
 
-  let set_read_logger t opt = t.read_logger <- opt
+  (* let set_read_logger t opt = t.read_logger <- opt *)
 
 end
 

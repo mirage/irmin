@@ -31,6 +31,9 @@ let _ =
   (* 64 bit ints; FIXME are we still trying to maintain 32bit archs? *)
   assert(Sys.word_size = 8) 
 
+let gap_tolerance = 1000 (* FIXME config? although note that we can't just increase this
+                            and expect it to work with existing stores *)
+
 (** [calculate_extents] takes the reachable data in [reachable_fn], sorts it, and
     calculates the extents; uses [working_dir] for intermediate results; returns the name
     of the file (which will be within [working_dir]) that holds the extent data; other
@@ -43,17 +46,9 @@ let calculate_extents ~working_dir ~reachable_fn =
   let sorted     = Int_mmap.create ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr) in
   let _          = External_sort.sort ~chunk_sz ~src:reachable.arr ~dst:sorted.arr in
   let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
-  (* NOTE we open extents with a size that is at least as big as the number of extents *)
-(*  let extents    = Int_mmap.open_ ~fn:extents_fn ~sz:(BA1.dim sorted.Int_mmap.arr) in
-  let n          = External_sort.calculate_extents ~src_is_sorted:() ~src:sorted.arr ~dst:extents.arr in
-  (* NOTE ftruncate is apparently safe provided we don't try to access past the new end
-     via the mmap *)
-  Unix.ftruncate extents.fd (n * 8); (* 8 bytes per int *)
-  Int_mmap.close extents;
-*)
   let _create_extents = 
     let oc = Stdlib.open_out_bin extents_fn in
-    External_sort.calculate_extents_oc ~src_is_sorted:() ~gap_tolerance:100 ~src:sorted.arr ~dst:oc;
+    External_sort.calculate_extents_oc ~src_is_sorted:() ~gap_tolerance ~src:sorted.arr ~dst:oc;
     Stdlib.close_out_noerr oc; (* FIXME maybe close and check for error *)
     ()
   in
@@ -105,26 +100,32 @@ type calculate_reachable_objects_t = (reachable_fn:string -> unit)
 
 
 type worker_args = {
-  working_dir   :string; (** where we place temporary files; they end in ".tmp" *)
-  src           :Pread.t; (** current sparse+suffix that we read from *)
-  src_off       :int; (** where we split src for the next sparse+suffix *)
-  src_len       :unit -> int; (** get the current length of src *)
-  calc_rch_objs :calculate_reachable_objects_t;
-  sparse_dir    :string; (** path to the next sparse dir *)
-  suffix_dir    :string; (** path to the next suffix dir *)
+  working_dir   : string; (** where we place temporary files; they end in ".tmp" *)
+  src           : string; 
+  (** [src] is the path to the current IO instance; this will be opened readonly by the
+      worker *)
+  src_off       : int; (** where we split src for the next sparse+suffix *)
+  calc_rch_objs : calculate_reachable_objects_t;
+  sparse_dir    : string; (** path to the next sparse dir *)
+  suffix_dir    : string; (** path to the next suffix dir *)
 }
 
 
-let run_worker ~worker_args = 
-  let {working_dir;src;src_off;src_len;calc_rch_objs;sparse_dir;suffix_dir} = worker_args in
+let run_worker ~worker_args = ()
+(* FIXME
+  let {working_dir;src;src_off;calc_rch_objs;sparse_dir;suffix_dir} = worker_args in
   let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
   calc_rch_objs ~reachable_fn;
   let extents_fn = calculate_extents ~working_dir ~reachable_fn in
+  let src = 
+    (* the IO depends on the worker; but here we want the worker to be able to open an IO;
+       to break the circle, we just need a pread from the existing sparse+suffix *)
+    
   let _ = create_sparse_file ~extents_fn ~src ~fn:sparse_dir in
   let _ = create_suffix_file ~src ~src_off ~len:(src_len()) ~dst_path:suffix_dir in
   Log.info (fun m -> m "Worker terminating");
   ()
-
+*)
 
 let fork_worker ~worker_args = 
   Stdlib.flush_all ();
