@@ -248,5 +248,3 @@ let truncate t =
    make: *** [Makefile.local:75: run_m] Error 125
 *)
 
-let get_working_dir t = t.root
-

@@ -2,13 +2,53 @@ open! Import
 
 (* NOTE moved from pack_store_intf.ml, to break cycle with S.ml *)
 
+open struct
+  (** Printf abbreviations *)
+  module P = struct
+    include Printf
+    let s = sprintf 
+    let p = printf
+  end
+
+  module F = struct
+    include Format
+    let s = sprintf 
+    let p = printf
+  end
+end
+
+type trigger_gc_t = {
+  commit_hash_s: string;
+  (** The commit hash, as a string; used for debugging *)
+
+  create_reachable: reachable_fn:string -> unit
+  (** The function the IO layer should use to calculate the initial reachability data;
+      this will be called in another process, so it should not use any file descriptors
+      from the parent; instead, it should open the repository in readonly mode and then
+      call Repo.iter *)
+}
+
+(* to calculate the reachable extents, we open the Store in readonly mode, with
+   read_logger set to write to the given file *)
+
+
+(** Setting this to Some will trigger GC on the next IO operation (this is just for
+    initial testing) *)
+let trigger_gc : trigger_gc_t option ref = ref None
+
 module Private (* : Irmin_pack_layers.IO.S *) = struct
   (* include IO.Unix *)
   
-  module IO_impl = Irmin_pack_layers.IO (* IO.Unix *)
-  include IO_impl
+  open struct 
+    module IO_impl = Irmin_pack_layers.IO (* IO.Unix *)
+  end
+  open IO_impl
 
-  type t = { base:IO_impl.t; mutable read_logger: out_channel option }
+  type t = { 
+    base:IO_impl.t; 
+    mutable read_logger: out_channel option; 
+    mutable worker_pid:int option 
+  }
            
   (* now we need to lift all the funs to work with this new type; OO has an advantage here
      in that classes can be easily extended with additional fields, whereas here we have
@@ -31,7 +71,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
           | None -> None | Some fn -> (check_envvar:=false; read_logger:=Some (open_out_bin fn); !read_logger))
       | false -> None
     in
-    { base=v ~version ~fresh ~readonly path; read_logger}
+    { base=v ~version ~fresh ~readonly path; read_logger; worker_pid=None}
 
   let truncate t = truncate t.base
 
@@ -56,24 +96,51 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
     in
     len
 
-(* FIXME
-  let check_trigger_maybe_fork_worker (t:IO_impl.t) = 
-    match !trigger_gc with
-    | None -> ()
-    | Some commit_hash_s ->       
-      let open Irmin_pack_layers.Worker in
-      let worker_args : worker_args = {
-        working_dir=IO_impl.get_working_dir t;
-        src=failwith "";
-        src_off=failwith "";
-        src_len=failwith "";
-        calc_rch_objs=failwith "";
-        sparse_dir="";
-        suffix_dir="";
-      }
-      in
-      let `Pid pid = fork_worker ~worker_args
-*)
+  include struct
+    open Irmin_pack_layers
+    open Irmin_pack_layers.Worker
+
+    let check_trigger_maybe_fork_worker (t0:t) = 
+      let t = t0.base in
+      match !trigger_gc with
+      | None -> ()
+      | Some { commit_hash_s=_; create_reachable } ->       
+        let generation = 1+Control.get_generation t.control in
+        let worker_args : worker_args = {
+          working_dir=t.root;
+          src=t.fn;
+          create_reachable;
+          sparse_dir=Pre_io.sparse_name ~generation;
+          suffix_dir=Pre_io.suffix_name ~generation;
+        }
+        in
+        let `Pid pid = fork_worker ~worker_args in
+        t0.worker_pid <- Some pid;
+        ()
+
+    let handle_worker_termination (_t:t) = 
+      (* FIXME switch to the new sparse+suffix *)
+      ()
+
+    let check_worker_status (t:t) =
+      match t.worker_pid with 
+      | None -> ()
+      | Some pid -> 
+        let pid0,status = Unix.(waitpid [WNOHANG] pid) in
+        match pid0 with
+        | 0 -> 
+          (* worker still processing *)
+          ()
+        | _ when pid0=pid -> (
+            (* worker has terminated *)
+            match status with 
+            | WEXITED 0 -> handle_worker_termination t
+            | WEXITED n -> failwith (P.s "Worker terminated unsuccessfully with %d" n)
+            | _ -> failwith "Worker terminated abnormally")
+        | _ -> failwith (P.s "Unexpected pid0 value %d" pid0)
+        
+        
+  end
 
   let append t s = 
     (* check_trigger_maybe_fork_worker t; *)

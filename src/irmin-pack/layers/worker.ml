@@ -96,7 +96,7 @@ let create_suffix_file ~(src:Pread.t) ~src_off ~len ~dst_path : unit =
 (* for [run_worker], there are questions: 1) how does this get called? 2) does layers
    depend on irmin-pack, or vice versa? probably irmin-pack depends on layers, and we pass
    in [calculate_reachable_objects] *)
-type calculate_reachable_objects_t = (reachable_fn:string -> unit)
+type create_reachable_t = (reachable_fn:string -> unit)
 
 
 type worker_args = {
@@ -107,7 +107,7 @@ type worker_args = {
   (** [src] is the path to the current IO instance; this will be opened readonly by the
       worker using {!Pre_io} *)
 
-  calc_rch_objs : calculate_reachable_objects_t; 
+  create_reachable : create_reachable_t;
   (** function to invoke to produce live extent data; the worker (and the IO layer as a
       whole) does not know about Irmin repositories etc; instead, we provide the worker
       with this function; this function takes a path (where to write the data) and likely
@@ -126,9 +126,9 @@ type worker_args = {
    break the circle, we just need a pread from the existing sparse+suffix *)
 
 let run_worker ~worker_args = 
-  let {working_dir;src;calc_rch_objs;sparse_dir;suffix_dir} = worker_args in
+  let {working_dir;src;create_reachable;sparse_dir;suffix_dir} = worker_args in
   let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
-  let _ = calc_rch_objs ~reachable_fn in
+  let _ = create_reachable ~reachable_fn in
   let extents_fn = calculate_extents ~working_dir ~reachable_fn in
   let offset_of_last_extent = 
     let mmap = Int_mmap.open_ ~fn:Fn.(working_dir / extents_fn) ~sz:(-1) in

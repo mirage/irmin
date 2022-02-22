@@ -19,12 +19,6 @@ open struct
   module Sparse = Sparse_file
 end
 
-type commit_hash_s = string
-
-(** Setting this to Some will trigger GC on the next IO operation (this is just for
-    initial testing) *)
-let trigger_gc : commit_hash_s option ref = ref None
-
 
 (** NOTE this interface is documented also in https://github.com/mirage/irmin/pull/1758 *)
 module type S = sig 
