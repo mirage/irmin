@@ -248,6 +248,10 @@ module Make (Store : Store) = struct
     if h_trace <> h_store then
       Fmt.failwith "hash replay %s, hash trace %s" h_store h_trace
 
+  (* for layers, we want to initiate a GC after every [layers_n] commits *)
+  let layers_counter = ref 0
+  let layers_n = 5000
+
   let exec_commit t stats repo h_trace date message parents_trace in_ctx_id
       check_hash =
     let parents_store =
@@ -273,7 +277,19 @@ module Make (Store : Store) = struct
      * re-commiting the same thing, hence the [.replace] below. *)
     Hashtbl.replace t.hash_corresps (unscope h_trace) k_store;
     maybe_forget_hash t h_trace;
-    t.latest_commit <- Some h_store
+    t.latest_commit <- Some h_store;
+    let _for_layers = 
+      (* for layers, we want to initiate a gc every so often *)
+      incr layers_counter;
+      match !layers_counter mod layers_n = 0 with
+      | false -> ()
+      | true -> 
+        let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
+        Irmin_pack_layers.trigger_gc := Some hash_as_string;
+        Printf.printf "Called GC for commit %s\n%!" hash_as_string;
+        ()
+    in
+    ()
 
   let add_operations t repo operations n stats check_hash empty_blobs =
     let rec aux l i =
