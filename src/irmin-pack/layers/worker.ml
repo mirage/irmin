@@ -100,32 +100,53 @@ type calculate_reachable_objects_t = (reachable_fn:string -> unit)
 
 
 type worker_args = {
-  working_dir   : string; (** where we place temporary files; they end in ".tmp" *)
+  working_dir   : string; 
+  (** where we place temporary files and the new sparse and suffix; they end in ".tmp" *)
+
   src           : string; 
   (** [src] is the path to the current IO instance; this will be opened readonly by the
-      worker *)
-  src_off       : int; (** where we split src for the next sparse+suffix *)
-  calc_rch_objs : calculate_reachable_objects_t;
-  sparse_dir    : string; (** path to the next sparse dir *)
-  suffix_dir    : string; (** path to the next suffix dir *)
+      worker using {!Pre_io} *)
+
+  calc_rch_objs : calculate_reachable_objects_t; 
+  (** function to invoke to produce live extent data; the worker (and the IO layer as a
+      whole) does not know about Irmin repositories etc; instead, we provide the worker
+      with this function; this function takes a path (where to write the data) and likely
+      calls [Repo.iter] with read logging enabled, to determine the reachable data *)
+
+  sparse_dir    : string; 
+  (** name of the next sparse dir (a simple name, which will be located in working_dir) *)
+
+  suffix_dir    : string; 
+  (** name of the next suffix dir *)
 }
+(* FIXME perhaps we want to pass split_offset rather than using the offset of the last
+   extent *)
 
+(* the IO depends on the worker; but here we want the worker to be able to open an IO; to
+   break the circle, we just need a pread from the existing sparse+suffix *)
 
-let run_worker ~worker_args = ()
-(* FIXME
-  let {working_dir;src;src_off;calc_rch_objs;sparse_dir;suffix_dir} = worker_args in
+let run_worker ~worker_args = 
+  let {working_dir;src;calc_rch_objs;sparse_dir;suffix_dir} = worker_args in
   let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
-  calc_rch_objs ~reachable_fn;
+  let _ = calc_rch_objs ~reachable_fn in
   let extents_fn = calculate_extents ~working_dir ~reachable_fn in
-  let src = 
-    (* the IO depends on the worker; but here we want the worker to be able to open an IO;
-       to break the circle, we just need a pread from the existing sparse+suffix *)
-    
+  let offset_of_last_extent = 
+    let mmap = Int_mmap.open_ ~fn:Fn.(working_dir / extents_fn) ~sz:(-1) in
+    let sz = BA1.dim mmap.arr in
+    assert(sz mod 2 = 0 && sz >= 2); (* FIXME ensure this is the case; perhaps bail if not *)
+    let off = mmap.arr.{sz-2} in
+    Int_mmap.close mmap;
+    Printf.printf "%s: last extent offset is: %d\n%!" __FILE__ off;
+    off
+  in
+  let src_io = Pre_io.open_ ~readonly:true ~fn:src in  
+  let src : Pread.t = { pread=(Pre_io.pread src_io) } in
+  (* FIXME do we want to limit the sparse file to extents < offset_of_last_extent?
+     probably yes *)
   let _ = create_sparse_file ~extents_fn ~src ~fn:sparse_dir in
-  let _ = create_suffix_file ~src ~src_off ~len:(src_len()) ~dst_path:suffix_dir in
+  let _ = create_suffix_file ~src ~src_off:offset_of_last_extent ~len:(Pre_io.size src_io) ~dst_path:suffix_dir in
   Log.info (fun m -> m "Worker terminating");
   ()
-*)
 
 let fork_worker ~worker_args = 
   Stdlib.flush_all ();

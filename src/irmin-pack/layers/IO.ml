@@ -92,7 +92,7 @@ end
 (** Private implementation *)
 module Private = struct
 
-  include Pre_io.Private
+  include Pre_io
 
   
   (* FIXME is fresh=true ever used in the codebase? what about fresh=true, readonly=true?
