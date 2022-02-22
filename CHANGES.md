@@ -2,6 +2,9 @@
 
 ### Fixed
 
+- **irmin-pack**
+  - Drop unnecessary runtime dependency on `ppx_irmin`. (#1782, @hhugo)
+
 - **irmin-unix**
   - Fix conflicting command line arguments for `push`, `pull`, `fetch` and
     `clone` (#1776, @zshipko)
