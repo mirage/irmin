@@ -1,0 +1,11 @@
+(executable
+ (name "test")
+  (modules Test)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "create_reachability")
+ (modules Create_reachability)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)

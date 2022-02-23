@@ -40,10 +40,11 @@ module type S = sig
   val set_read_logger: 'a t -> out_channel option -> unit
 *)
 
+(*
   (** Layers operates at the IO level; we expose this here in order to provide access to
       the [Pack_store_IO.t] instance, and hence to GC functions etc. *)
   val get_io: 'a t -> Pack_store_IO.t
-
+*)
   (** @inline *)
   include S.Checkable with type 'a t := 'a t and type hash := hash
 end

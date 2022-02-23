@@ -60,7 +60,7 @@ let selected_version = `V2
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
-  module IO = Pack_store_IO
+  module IO : Irmin_pack_layers.IO.S = Pack_store_IO
   module Tbl = Table (K)
   module Dict = Pack_dict
 
@@ -579,10 +579,11 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     let integrity_check ~offset ~length k t =
       Inner.integrity_check ~offset ~length k (get_open_exn t)
 
+(*
     let get_io (t:'a t) : IO.t = 
       get_open_exn t |> fun t -> 
       t.pack.block
-
+*)
 (*
     let set_read_logger t opt = 
       get_block t |> fun t -> IO'.set_read_logger t opt
