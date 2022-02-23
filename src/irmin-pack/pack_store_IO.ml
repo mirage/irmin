@@ -105,6 +105,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
       match !trigger_gc with
       | None -> ()
       | Some { commit_hash_s=_; create_reachable } ->       
+        let _ = trigger_gc := None in 
         let generation = 1+Control.get_generation t.control in
         let worker_args : worker_args = {
           working_dir=t.root;
@@ -120,7 +121,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
 
     let handle_worker_termination (_t:t) = 
       (* FIXME switch to the new sparse+suffix *)
-      ()
+      failwith "FIXME handle_worker_termination"
 
     let check_worker_status (t:t) =
       match t.worker_pid with 
@@ -143,7 +144,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
   end
 
   let append t s = 
-    (* check_trigger_maybe_fork_worker t; *)
+    check_trigger_maybe_fork_worker t;
     append t.base s
 
   let version t = version t.base

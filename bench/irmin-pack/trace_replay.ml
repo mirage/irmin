@@ -299,7 +299,7 @@ module Make (Store : Store) = struct
                   | None -> failwith (Printf.sprintf "No %s envvar in env" envvar)
                 in
                 let envvar = Printf.sprintf "IRMIN_PACK_LOG_READS=%s" reachable_fn in
-                let ret = Sys.command (Filename.quote_command "" [envvar; exe; path_to_ctxt; hash_as_string]) in
+                let ret = Sys.command (String.concat " " [envvar;exe;path_to_ctxt; hash_as_string]) in (* FIXME needs quoting? *)
                 let _ = assert(ret = 0) in
                 ())
           });
