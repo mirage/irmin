@@ -9,3 +9,9 @@
  (modules Create_reachability)
  (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
 )
+
+(executable
+ (name "convert_old_store_dot_pack")
+ (modules Convert_old_store_dot_pack)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
