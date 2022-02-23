@@ -78,7 +78,8 @@ end
   let shared = true
 
   let create ~fn ~sz =
-    assert(not (Sys.file_exists fn));
+    assert(not (Sys.file_exists fn) || begin
+        Printf.printf "File exists: %s\n%!" fn; false end);
     let fd = Unix.(openfile fn [O_CREAT;O_RDWR;O_TRUNC;O_EXCL;O_CLOEXEC] 0o660) in
     let arr = 
       let open Bigarray in

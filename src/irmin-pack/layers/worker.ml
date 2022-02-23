@@ -43,7 +43,7 @@ let calculate_extents ~working_dir ~reachable_fn =
   let chunk_sz   = 1_000_000 / 8 in
   let _          = assert(chunk_sz mod 2 = 0) in (* needs to be a multiple of 2 *)
   let sorted_fn  = Filename.temp_file ~temp_dir:working_dir "sorted." ".tmp" in
-  let sorted     = Int_mmap.create ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr) in
+  let sorted     = Int_mmap.open_ ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr) in
   let _          = External_sort.sort ~chunk_sz ~src:reachable.arr ~dst:sorted.arr in
   let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
   let _create_extents = 

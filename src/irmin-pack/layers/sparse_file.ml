@@ -90,7 +90,7 @@ module Private_map = struct
     let sz_keys = cardinal t in
     let dir = Filename.dirname fn in
     let tmp = Filename.temp_file ~temp_dir:dir "sparse." ".map" in
-    let mmap = Int_mmap.create ~fn:tmp ~sz:(sz_keys * 3) in
+    let mmap = Int_mmap.open_ ~fn:tmp ~sz:(sz_keys * 3) in
     let arr = mmap.arr in
     let i = ref 0 in
     t |> iter (fun voff (roff,len) -> 
@@ -273,6 +273,7 @@ module Test() = struct
     in
     (* open sparse file *)
     let fn2 = Filename.temp_file "" ".tmp" in
+    let _ = Unix.unlink fn2 in
     Printf.printf "(time %f) Opening sparse file %s\n%!" (elapsed()) fn2;
     let t = Sparse.create ~path:fn2 in
     (* now copy n bytes every delta bytes *)
