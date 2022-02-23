@@ -285,7 +285,7 @@ module Make (Store : Store) = struct
       | false -> ()
       | true -> 
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
-        Irmin_pack_layers.trigger_gc := Some hash_as_string;
+        Irmin_pack.Pack_store_IO.(trigger_gc := Some {commit_hash_s=hash_as_string; create_reachable=(fun ~reachable_fn:_ -> failwith "FIXME")});
         Printf.printf "Called GC for commit %s\n%!" hash_as_string;
         ()
     in

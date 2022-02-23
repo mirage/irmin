@@ -15,7 +15,7 @@ open struct
     let s = sprintf 
     let p = printf
   end
-end
+end[@@warning "-32"]
 
 type trigger_gc_t = {
   commit_hash_s: string;

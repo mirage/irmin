@@ -29,7 +29,7 @@ let calculate_reachable_objects ~(pack_with_commit:(module Pack_with_commit)) ~r
 
 let _ = 
   (* 64 bit ints; FIXME are we still trying to maintain 32bit archs? *)
-  assert(Sys.word_size = 8) 
+  assert(Sys.word_size = 64) 
 
 let gap_tolerance = 1000 (* FIXME config? although note that we can't just increase this
                             and expect it to work with existing stores *)
