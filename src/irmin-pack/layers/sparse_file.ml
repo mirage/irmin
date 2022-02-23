@@ -77,9 +77,9 @@ module Private_map = struct
     let arr = mmap.arr in
     let m = 
       (0,empty) |> iter_k (fun ~k (i,m) ->         
-          match i < sz with 
-          | true -> m
-          | false ->
+          match i+2 < sz with 
+          | false -> m
+          | true ->
             let voff,off,len = arr.{i},arr.{i+1},arr.{i+2} in
             let m = add voff (off,len) m in
             k (i+3,m))

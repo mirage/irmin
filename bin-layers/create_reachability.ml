@@ -19,7 +19,9 @@ let fn = context_path
 
 let config = Irmin_pack.config ~readonly:true fn
 
-let repo = S.Repo.v config
+let repo = 
+  Printf.printf "Opening repo %s\n%!" fn;
+  S.Repo.v config
 
 let Ok hash = Irmin.Type.of_string S.hash_t commit_hash_s[@@warning "-8"]
 
