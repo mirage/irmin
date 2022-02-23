@@ -142,7 +142,7 @@ module Private = struct
     { dir; fd; map; readonly=true }
 
   let close t = 
-    (if not t.readonly then Map_.save t.map Fn.(t.dir / data_fn));
+    (if not t.readonly then Map_.save t.map Fn.(t.dir / map_fn));
     Unix.close t.fd
 
   let map_add t ~virt_off ~real_off ~len = t.map <- Map_.add virt_off (real_off,len) t.map

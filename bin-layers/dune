@@ -11,7 +11,13 @@
 )
 
 (executable
- (name "convert_old_store_dot_pack")
- (modules Convert_old_store_dot_pack)
+ (name "convert_store_dot_pack")
+ (modules Convert_store_dot_pack)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "print_control")
+ (modules Print_control)
  (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
 )

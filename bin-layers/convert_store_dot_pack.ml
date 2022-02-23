@@ -37,20 +37,21 @@ let _ = Pre_io.set_version new_io version
 (* copy data *)
 
 let _do_copy = 
-  let size = IO.size old_io in
+  Printf.printf "Starting copy...\n%!";
+  (* let size = IO.size old_io in *)
+  (* NOTE unfortunately the size is the real size, but we can actually only read (size -
+     16) bytes of data-non-metadata; so instead we just copy till no more bytes can be
+     read *)
   let buf_len = 5 * 4096 in
   let buf = Bytes.create buf_len in
   begin 
     0 |> iter_k (fun ~k off -> 
-        match off < size with
-        | true -> (
-            let nread = IO.read old_io ~off:(Optint.Int63.of_int off) buf in
-            assert(nread > 0);
-            Pre_io.append new_io (Bytes.sub_string buf 0 nread);
-            k (off + nread))
-        | false -> 
-          ())
+        let nread = IO.read old_io ~off:(Optint.Int63.of_int off) buf in
+        (* assert(nread > 0); - may hold at end of file *)
+        Pre_io.append new_io (Bytes.sub_string buf 0 nread);
+        if nread > 0 then k (off + nread) else ())
   end;
+  Printf.printf "Finished copy\n%!";
   IO.close old_io;
   Pre_io.close new_io;          
   ()

@@ -54,7 +54,7 @@ let suffix_name ~generation = "suffix."^(generation |> string_of_int)
   (** Default name for objects subdir; "objects.nnnn" where nnnn is the generation number *)
 *)
 
-let sparse_name ~generation = "objects."^(generation |> string_of_int)
+let sparse_name ~generation = "sparse."^(generation |> string_of_int)
 (** Default name for sparse subdir; "sparse.nnnn" where nnnn is the generation number *)
 
 
@@ -76,7 +76,7 @@ metadata is stored elsewhere, in meta.nnnn
     [/path/to/some/layers.nnnn], where nnnn is some integer to make the root name
     fresh.
 
-    Within the root, there will be a control file, object store, suffix, and meta.
+    Within the root, there will be a control file, sparse/object store, suffix, and meta.
 *) 
 let create ~fn:fn0 =
   assert(not (Sys.file_exists fn0));

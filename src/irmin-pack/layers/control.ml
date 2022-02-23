@@ -67,6 +67,11 @@ module Private = struct
 
   let get_generation t = get t generation_field
 
+  let to_string c = Printf.sprintf "(generation: %d; version: %d; last_synced_offset: %d)"
+      (get c generation_field)
+      (get c version_field)
+      (get c last_synced_offset_field)
+
 end
 
 include (Private : sig
@@ -83,4 +88,6 @@ include (Private : sig
   val close : t -> unit
   val get_generation : t -> int
   (** Convenience; just [get t generation] *)
+
+  val to_string: t -> string
 end)
