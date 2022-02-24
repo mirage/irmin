@@ -246,11 +246,13 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       n
     | Starts_in_gap -> 
       Log.err (fun m -> m "%s: attempt to read from gap" __FILE__);
+      Printf.printf "%s: attempt to read from gap, voff=%d, len=%d\n%!" __FILE__ !off len;
       (* fill buf with 0s *)
       Bytes.fill buf 0 len (Char.chr 0);
       off:=!off+len;
       len
     | Extends_beyond { real_off; real_len } -> 
+      Printf.printf "%s: attempt to read beyond; real_off=%d real_len=%d\n%!" __FILE__ real_off real_len;
       (* first fill buf with 0s *)
       Bytes.fill buf 0 len (Char.chr 0);
       (* copy the data that we can *)

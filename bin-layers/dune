@@ -21,3 +21,9 @@
  (modules Print_control)
  (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
 )
+
+(executable
+ (name "print_extents")
+ (modules Print_extents)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
