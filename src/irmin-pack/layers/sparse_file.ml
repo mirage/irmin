@@ -126,12 +126,18 @@ module Private = struct
 
   (* Construction functions ---- *)
 
+  let save_map t = Map_.save t.map Fn.(t.dir / map_fn)
+
   let create ~path = 
     let ok = not (Sys.file_exists path) in
     assert(ok);
     mkdir ~path;
     let fd = Unix.(openfile Fn.(path / data_fn) [O_RDWR;O_CREAT;O_TRUNC] 0o660) in
-    { dir=path; fd; map=Map_.empty; readonly=false }
+    let t = { dir=path; fd; map=Map_.empty; readonly=false } in
+    (* we also create an initially empty map file; we can't open in future if the map file
+       doesn't exist *)
+    let _ = save_map t in
+    t
 
   let open_ro ~dir = 
     assert(Sys.file_exists dir);
@@ -141,8 +147,12 @@ module Private = struct
     let map = Map_.load Fn.(dir / map_fn) in
     { dir; fd; map; readonly=true }
 
+  let flush t = 
+    (if not t.readonly then save_map t);
+    Unix.fsync t.fd
+
   let close t = 
-    (if not t.readonly then Map_.save t.map Fn.(t.dir / map_fn));
+    flush t;
     Unix.close t.fd
 
   let map_add t ~virt_off ~real_off ~len = t.map <- Map_.add virt_off (real_off,len) t.map

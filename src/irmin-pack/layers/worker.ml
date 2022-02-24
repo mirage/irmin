@@ -38,14 +38,12 @@ let gap_tolerance = 1000 (* FIXME config? although note that we can't just incre
     calculates the extents; uses [working_dir] for intermediate results; returns the name
     of the file (which will be within [working_dir]) that holds the extent data; other
     intermediate files are deleted (FIXME not during testing) *)
-let calculate_extents ~working_dir ~reachable_fn = 
+let calculate_extents ~reachable_fn ~sorted_fn ~extents_fn = 
   let reachable  = Int_mmap.open_ ~fn:reachable_fn ~sz:(-1) in
   let chunk_sz   = 1_000_000 / 8 in
   let _          = assert(chunk_sz mod 2 = 0) in (* needs to be a multiple of 2 *)
-  let sorted_fn  = Filename.temp_file ~temp_dir:working_dir "sorted." ".tmp" in
   let sorted     = Int_mmap.open_ ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr) in
   let _          = External_sort.sort ~chunk_sz ~src:reachable.arr ~dst:sorted.arr in
-  let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
   let _create_extents = 
     let oc = Stdlib.open_out_bin extents_fn in
     External_sort.calculate_extents_oc ~src_is_sorted:() ~gap_tolerance ~src:sorted.arr ~dst:oc;
@@ -101,7 +99,7 @@ type create_reachable_t = (reachable_fn:string -> unit)
 
 type worker_args = {
   working_dir   : string; 
-  (** where we place temporary files and the new sparse and suffix; they end in ".tmp" *)
+  (** where we place temporary files (ending in ".tmp") and the new sparse and suffix *)
 
   src           : string; 
   (** [src] is the path to the current IO instance; this will be opened readonly by the
@@ -114,10 +112,10 @@ type worker_args = {
       calls [Repo.iter] with read logging enabled, to determine the reachable data *)
 
   sparse_dir    : string; 
-  (** name of the next sparse dir (a simple name, which will be located in working_dir) *)
+  (** name (in [working_dir]) of the next sparse dir (a simple name, which will be located in working_dir) *)
 
   suffix_dir    : string; 
-  (** name of the next suffix dir *)
+  (** name (in [working_dir]) of the next suffix dir *)
 }
 (* FIXME perhaps we want to pass split_offset rather than using the offset of the last
    extent *)
@@ -125,13 +123,25 @@ type worker_args = {
 (* the IO depends on the worker; but here we want the worker to be able to open an IO; to
    break the circle, we just need a pread from the existing sparse+suffix *)
 
+let mark i = Printf.printf "Mark: %d\n%!" i
+
 let run_worker ~worker_args = 
+  mark 1;
   let {working_dir;src;create_reachable;sparse_dir;suffix_dir} = worker_args in
+  let _ = Printf.printf 
+      "(worker args: working_dir:%s; src: %s; sparse_dir: %s; suffix_dir: %s)\n%!" 
+      working_dir src sparse_dir suffix_dir
+  in
   let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
+  mark 2;
   let _ = create_reachable ~reachable_fn in
-  let extents_fn = calculate_extents ~working_dir ~reachable_fn in
+  mark 3;
+  let sorted_fn = Filename.temp_file ~temp_dir:working_dir "sorted." ".tmp" in
+  let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
+  let extents_fn = calculate_extents ~reachable_fn ~sorted_fn ~extents_fn in
+  mark 4;
   let offset_of_last_extent = 
-    let mmap = Int_mmap.open_ ~fn:Fn.(working_dir / extents_fn) ~sz:(-1) in
+    let mmap = Int_mmap.open_ ~fn:extents_fn ~sz:(-1) in
     let sz = BA1.dim mmap.arr in
     assert(sz mod 2 = 0 && sz >= 2); (* FIXME ensure this is the case; perhaps bail if not *)
     let off = mmap.arr.{sz-2} in
@@ -139,12 +149,18 @@ let run_worker ~worker_args =
     Printf.printf "%s: last extent offset is: %d\n%!" __FILE__ off;
     off
   in
+  mark 5;
   let src_io = Pre_io.open_ ~readonly:true ~fn:src in  
   let src : Pread.t = { pread=(Pre_io.pread src_io) } in
   (* FIXME do we want to limit the sparse file to extents < offset_of_last_extent?
      probably yes *)
-  let _ = create_sparse_file ~extents_fn ~src ~fn:sparse_dir in
-  let _ = create_suffix_file ~src ~src_off:offset_of_last_extent ~len:(Pre_io.size src_io) ~dst_path:suffix_dir in
+  mark 6;
+  let _ = create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) in
+  mark 7;
+  let _ = 
+    let src_off = offset_of_last_extent in
+    create_suffix_file ~src ~src_off ~len:(Pre_io.size src_io - src_off) ~dst_path:Fn.(working_dir / suffix_dir)
+  in
   Log.info (fun m -> m "Worker terminating");
   ()
 

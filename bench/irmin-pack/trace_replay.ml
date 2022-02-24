@@ -281,7 +281,8 @@ module Make (Store : Store) = struct
     let _for_layers = 
       (* for layers, we want to initiate a gc every so often *)
       incr layers_counter;
-      match !layers_counter mod layers_n = 0 with
+      assert(layers_n > 100);
+      match !layers_counter mod layers_n = 100 with
       | false -> ()
       | true -> 
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
@@ -299,7 +300,9 @@ module Make (Store : Store) = struct
                   | None -> failwith (Printf.sprintf "No %s envvar in env" envvar)
                 in
                 let envvar = Printf.sprintf "IRMIN_PACK_LOG_READS=%s" reachable_fn in
-                let ret = Sys.command (String.concat " " [envvar;exe;path_to_ctxt; hash_as_string]) in (* FIXME needs quoting? *)
+                let cmd = String.concat " " [envvar;exe;path_to_ctxt; hash_as_string] in (* FIXME needs quoting? *)
+                let _ = Printf.printf "About to run command %S\n%!" cmd in    
+                let ret = Sys.command cmd in
                 let _ = assert(ret = 0) in
                 ())
           });
