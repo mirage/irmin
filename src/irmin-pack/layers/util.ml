@@ -325,6 +325,18 @@ let mkdir ~path =
   Unix.mkdir path 0o770;
   ()
 
+module Pwrite = struct
+  type t = {
+    pwrite: off:int ref -> bytes -> unit;
+  }
+end
+
+module Pread = struct
+  type t = {
+    pread : off:int ref -> len:int -> buf:bytes -> int; 
+  }
+end
+
 module File = struct
   let create ~path =
     let ok = not (Sys.file_exists path) in
@@ -366,30 +378,12 @@ module File = struct
     ()    
 
   let size fn = Unix.((stat fn).st_size)
-    
-end
 
-
-module Pwrite = struct
-  type t = {
-    pwrite: off:int ref -> bytes -> unit;
-  }
-end
-
-module Pread = struct
-  type t = {
-    pread : off:int ref -> len:int -> buf:bytes -> int; 
-  }
-end
-
-include struct
-  open Pwrite
-  open Pread
   let copy ~(src:Pread.t) ~(dst:Pwrite.t) ~src_off ~len ~dst_off = 
     match len = 0 with
     | true -> ()
     | false -> 
-      let {pread},{pwrite} = src,dst in
+      let Pread.{pread},Pwrite.{pwrite} = src,dst in
       let src_off = ref src_off in
       let dst_off = ref dst_off in
       let buf_sz = 8192 in
@@ -404,6 +398,10 @@ include struct
             pwrite ~off:dst_off (Bytes.sub buf 0 n);
             k (len - n))
 end
+
+
+
+
 
 
 module Binary_search = struct

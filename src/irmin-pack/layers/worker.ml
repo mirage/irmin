@@ -86,7 +86,7 @@ let create_suffix_file ~(src:Pread.t) ~src_off ~len ~dst_path : unit =
   let suff = Suffix.create ~root:dst_path ~suffix_offset:src_off in
   (* copy from src to suffix *)
   let dst = Pwrite.{pwrite=Suffix.pwrite ~worker_only:() suff} in  
-  let _do_copy = copy ~src ~src_off ~dst ~dst_off:src_off ~len in
+  let _do_copy = File.copy ~src ~src_off ~dst ~dst_off:src_off ~len in
   let _ = Suffix.close suff in
   ()
 

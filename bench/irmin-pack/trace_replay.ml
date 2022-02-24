@@ -250,7 +250,7 @@ module Make (Store : Store) = struct
 
   (* for layers, we want to initiate a GC after every [layers_n] commits *)
   let layers_counter = ref 0
-  let layers_n = 2000
+  let layers_n = 500
 
   let exec_commit t stats repo h_trace date message parents_trace in_ctx_id
       check_hash =
@@ -281,8 +281,7 @@ module Make (Store : Store) = struct
     let _for_layers = 
       (* for layers, we want to initiate a gc every so often *)
       incr layers_counter;
-      assert(layers_n > 100);
-      match !layers_counter mod layers_n = 100 with
+      match !layers_counter mod layers_n = 0 with
       | false -> ()
       | true -> 
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
