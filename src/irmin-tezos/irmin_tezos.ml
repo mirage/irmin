@@ -23,5 +23,5 @@ module Conf = struct
   let inode_child_order = `Seeded_hash
 end
 
-module Maker = Irmin_pack.Maker (Conf)
+module Maker = Irmin_pack_unix.Maker (Conf)
 module Store = Maker.Make (Schema)

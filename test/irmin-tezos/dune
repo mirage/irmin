@@ -1,12 +1,12 @@
 (executable
  (name irmin_fsck)
  (modules irmin_fsck)
- (libraries irmin-pack irmin-tezos))
+ (libraries irmin-pack irmin-pack.unix irmin-tezos))
 
 (executable
  (name generate)
  (modules generate)
- (libraries irmin-tezos irmin-pack))
+ (libraries irmin-tezos irmin-pack irmin-pack.unix))
 
 (rule
  (alias generate-cli-test-data)

@@ -16,8 +16,8 @@
 
 open Irmin.Perms
 module Int63 = Optint.Int63
-module Dict : Irmin_pack.Dict.S
-module I = Index
+module Dict : Irmin_pack_unix.Dict.S
+module I = Irmin_pack_unix.Index
 module Conf : Irmin_pack.Conf.S
 
 module Schema :
@@ -56,7 +56,7 @@ module Alcotest : sig
     unit
 end
 
-module Index : module type of Irmin_pack.Index.Make (Schema.Hash)
+module Index : module type of Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key : Irmin_pack.Pack_key.S with type hash = Schema.Hash.t
 
 module Pack :
@@ -69,7 +69,7 @@ module Pack :
 module P :
   Irmin_pack.Pack_store.Maker
     with type hash = Schema.Hash.t
-     and type index := Irmin_pack.Index.Make(Schema.Hash).t
+     and type index := Irmin_pack_unix.Index.Make(Schema.Hash).t
 
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)
 module Make_context (Config : sig

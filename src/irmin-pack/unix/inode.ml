@@ -25,5 +25,4 @@ struct
   let sync = Pack.sync
   let integrity_check = Pack.integrity_check
   let clear_caches = Pack.clear_caches
-  let integrity_check_inodes _ _ = (* fixme *) assert false
 end

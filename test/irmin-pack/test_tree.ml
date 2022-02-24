@@ -31,7 +31,7 @@ type ('key, 'value) op =
 
 module Make (Conf : Irmin_pack.Conf.S) = struct
   module Store = struct
-    module Maker = Irmin_pack.Maker (Conf)
+    module Maker = Irmin_pack_unix.Maker (Conf)
     include Maker.Make (Schema)
   end
 

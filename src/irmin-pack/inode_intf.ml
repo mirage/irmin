@@ -60,6 +60,7 @@ module type S = sig
        and type Portable.hash := hash
 
   val decode_bin_length : string -> int -> int
+  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 end
 
 module type Persistent = sig

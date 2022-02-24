@@ -25,7 +25,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let index_log_size = Some 1_000
 
 module S = struct
-  module Maker = Irmin_pack.Maker (Conf)
+  module Maker = Irmin_pack_unix.Maker (Conf)
   include Maker.Make (Schema)
 end
 

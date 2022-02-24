@@ -66,7 +66,7 @@ module Util = struct
            current directory %s and ancestors"
           v1_store_archive_dir (Sys.getcwd ())
 
-  module Unix_ = Irmin_pack.IO.Unix
+  module Unix_ = Irmin_pack_unix.IO.Unix
 
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)
@@ -105,7 +105,7 @@ module With_existing_store () = struct
 
     (* from test_existing_stores.ml; the V2 is because
        test_existing_stores defines two different configs *)
-    module V2_maker = Irmin_pack.Maker (Conf)
+    module V2_maker = Irmin_pack_unix.Maker (Conf)
     module V2 = V2_maker.Make (Schema)
   end
 

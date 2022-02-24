@@ -39,15 +39,15 @@ struct
       (Key)
       (Key)
 
-  module Index = Irmin_pack.Index.Make (Schema.Hash)
+  module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 
   module Inter =
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
-  module P = Irmin_pack.Pack_store.Maker (Index) (Schema.Hash)
+  module P = Irmin_pack_unix.Pack_store.Maker (Index) (Schema.Hash)
 
   module Inode =
-    Irmin_pack.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (P)
+    Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (P)
 
   module Contents_value =
     Irmin_pack.Pack_value.Of_contents (Conf) (Schema.Hash) (Key)
