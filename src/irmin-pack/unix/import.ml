@@ -16,7 +16,7 @@
 
 include Irmin.Export_for_backends
 
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
+let src = Logs.Src.create "irmin-pack.unix" ~doc:"irmin-pack unix backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
