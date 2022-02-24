@@ -14,4 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker (_ : Conf.S) : S.Maker_persistent
+open! Import
+module Maker (_ : Irmin_pack.Conf.S) : Irmin_pack.Maker_persistent

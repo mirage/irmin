@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c)2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,23 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin_pack_intf
+include Irmin.Export_for_backends
 
-let config = Conf.init
+let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
 
-exception RO_not_allowed = S.RO_not_allowed
+module Log = (val Logs.src_log src : Logs.LOG)
 
-module Indexable = Indexable
-module Atomic_write = Atomic_write
-module Hash = Irmin.Hash.BLAKE2B
-module Path = Irmin.Path.String_list
-module Metadata = Irmin.Metadata.None
-module Version = Version
-module Conf = Conf
-module Stats = Stats
-module Layout = Layout
-module Inode = Inode
-module IO = IO
-module Pack_key = Pack_key
-module Pack_value = Pack_value
-module Pack_store = Pack_store
+module Int63 = struct
+  include Optint.Int63
+
+  let t = Irmin.Type.int63
+end
+
+type int63 = Int63.t [@@deriving irmin]
+
+let ( ++ ) = Int63.add
+let ( -- ) = Int63.sub
+
+module Pack_value = Irmin_pack.Pack_value
+module Version = Irmin_pack.Version
+
+module type S = Irmin_pack.S
+
+module Conf = Irmin_pack.Conf
+module Layout = Irmin_pack.Layout
+module Pack_key = Irmin_pack.Pack_key
+module Stats = Irmin_pack.Stats
+module Indexable = Irmin_pack.Indexable

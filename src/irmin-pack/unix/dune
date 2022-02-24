@@ -1,0 +1,19 @@
+(library
+ (public_name irmin-pack.unix)
+ (name irmin_pack_unix)
+ (libraries
+  fmt
+  index
+  index.unix
+  irmin
+  irmin-pack
+  logs
+  lwt
+  lwt.unix
+  mtime
+  cmdliner
+  optint)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

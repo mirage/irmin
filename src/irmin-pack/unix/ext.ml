@@ -52,7 +52,9 @@ module Maker (Config : Conf.S) = struct
         module Value = Schema.Node (XKey) (XKey)
 
         module CA = struct
-          module Inter = Inode.Make_internal (Config) (H) (XKey) (Value)
+          module Inter =
+            Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
+
           include Inode.Make_persistent (H) (Value) (Inter) (Pack)
         end
 

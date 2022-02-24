@@ -17,11 +17,9 @@
 module type S = S.S
 module type Specifics = S.Specifics
 module type Maker = S.Maker
-module type Maker_persistent = functor (_ : Conf.S) -> S.Maker_persistent
+module type Maker_persistent = S.Maker_persistent
 
 module type Sigs = sig
-  module Dict = Pack_dict
-  module Index = Pack_index
   module Conf = Conf
   module Inode = Inode
   module Pack_key = Pack_key
@@ -55,22 +53,13 @@ module type Sigs = sig
 
   exception RO_not_allowed
 
-  module KV (_ : Conf.S) :
-    Irmin.Generic_key.KV_maker
-      with type metadata = unit
-       and type ('h, 'v) contents_key = 'h Pack_key.t
-       and type 'h node_key = 'h Pack_key.t
-       and type 'h commit_key = 'h Pack_key.t
-
   module type S = S
   module type Specifics = Specifics
   module type Maker = Maker
   module type Maker_persistent = Maker_persistent
 
-  module Maker : Maker_persistent
   module Stats = Stats
   module Layout = Layout
-  module Checks = Checks
   module Indexable = Indexable
   module Atomic_write = Atomic_write
   module IO = IO

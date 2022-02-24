@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Dict_intf
 open! Import
+include Dict_intf
 
 let version = `V1
 
@@ -73,7 +73,7 @@ module Make (IO : IO.S) : S = struct
       let id = Hashtbl.length t.cache in
       if id > t.capacity then None
       else (
-        if IO.readonly t.io then raise S.RO_not_allowed;
+        if IO.readonly t.io then raise Irmin_pack.RO_not_allowed;
         append_string t v;
         Hashtbl.add t.cache v id;
         Hashtbl.add t.index id v;

@@ -91,9 +91,4 @@ module type Sigs = sig
   module type Maker = Maker with type indexing_strategy := Indexing_strategy.t
 
   val selected_version : Version.t
-
-  module Maker
-      (Index : Pack_index.S)
-      (Hash : Irmin.Hash.S with type t = Index.key) :
-    Maker with type hash = Hash.t and type index := Index.t
 end
