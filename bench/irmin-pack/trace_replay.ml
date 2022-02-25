@@ -305,6 +305,9 @@ module Make (Store : Store) = struct
                 let _ = assert(ret = 0) in
                 ())
           });
+        (* clear pack_store caches so that no objects that are not reachable from the GC
+           commit are referenced by some later commit *)
+        (!Irmin_pack.Pack_store.global_clear_caches) ();
         Printf.printf "Called GC for commit %s\n%!" hash_as_string;
         ()
     in

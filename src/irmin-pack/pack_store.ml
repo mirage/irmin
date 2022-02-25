@@ -27,7 +27,7 @@ module Indexing_strategy = struct
            this must be accounted for when reconstructing the index. *)
         true
 
-  let default = always
+  let default = minimal
 end
 
 module type S = S with type indexing_strategy := Indexing_strategy.t
