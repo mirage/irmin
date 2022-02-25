@@ -56,6 +56,9 @@ end
 
 let selected_version = `V2
 
+(** A global hook to clear caches in all pack store instances FIXME replace with something
+    better *)
+let global_clear_caches = ref (fun () -> ())
 
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
@@ -564,9 +567,18 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     module Inner = Make_without_close_checks (Val)
     include Indexable.Closeable (Inner)
 
+    let clear_caches t = Inner.clear_caches (get_open_exn t)
+
     let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path =
-      Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
-      >|= make_closeable
+      let* t = 
+        Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
+        >|= make_closeable
+      in
+      let _ = 
+        let f = !global_clear_caches in
+        global_clear_caches := fun () -> (clear_caches t; f ())
+      in
+      Lwt.return t
 
     let sync t = Inner.sync (get_open_exn t)
 
@@ -574,7 +586,6 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       Inner.flush ?index ?index_merge (get_open_exn t)
 
     let offset t = Inner.offset (get_open_exn t)
-    let clear_caches t = Inner.clear_caches (get_open_exn t)
 
     let integrity_check ~offset ~length k t =
       Inner.integrity_check ~offset ~length k (get_open_exn t)
