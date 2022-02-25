@@ -314,7 +314,7 @@ module Store = struct
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
   module Irmin_pack_maker : Irmin.Generic_key.Maker = struct
-    include Irmin_pack.Maker (Irmin_tezos.Conf)
+    include Irmin_pack_unix.Maker (Irmin_tezos.Conf)
 
     module Make (Schema : Irmin.Schema.S) = Make (struct
       include Schema

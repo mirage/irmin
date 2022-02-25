@@ -47,8 +47,6 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Unix : S
-
   module Cache : sig
     type ('a, 'v) t = {
       v : 'a -> ?fresh:bool -> ?readonly:bool -> string -> 'v;

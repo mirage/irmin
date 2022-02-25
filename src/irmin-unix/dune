@@ -21,6 +21,7 @@
   irmin-http
   irmin.mem
   irmin-pack
+  irmin-pack.unix
   irmin-tezos
   irmin-watcher
   logs.cli

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c)2018-2021 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,14 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Schema = Schema
+include Irmin.Export_for_backends
 
-module Conf = struct
-  let entries = 32
-  let stable_hash = 256
-  let contents_length_header = Some `Varint
-  let inode_child_order = `Seeded_hash
+let src = Logs.Src.create "irmin-pack.unix" ~doc:"irmin-pack unix backend"
+
+module Log = (val Logs.src_log src : Logs.LOG)
+
+module Int63 = struct
+  include Optint.Int63
+
+  let t = Irmin.Type.int63
 end
 
-module Maker = Irmin_pack_unix.Maker (Conf)
-module Store = Maker.Make (Schema)
+type int63 = Int63.t [@@deriving irmin]
+
+let ( ++ ) = Int63.add
+let ( -- ) = Int63.sub
+
+module Pack_value = Irmin_pack.Pack_value
+module Version = Irmin_pack.Version
+
+module type S = Irmin_pack.S
+
+module Conf = Irmin_pack.Conf
+module Layout = Irmin_pack.Layout
+module Pack_key = Irmin_pack.Pack_key
+module Stats = Irmin_pack.Stats
+module Indexable = Irmin_pack.Indexable

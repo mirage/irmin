@@ -44,9 +44,6 @@ module type Sigs = sig
     module Of_hash (X : Irmin.Hash.S) : S with type t = X.t
   end
 
-  module Make_persistent (K : Irmin.Type.S) (V : Value.S) :
-    Persistent with type key = K.t and type value = V.t
-
   module Closeable (AW : S) : sig
     include
       S

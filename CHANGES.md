@@ -4,6 +4,7 @@
 
 - **irmin-pack**
   - Drop unnecessary runtime dependency on `ppx_irmin`. (#1782, @hhugo)
+  - Split the unix part of irmin-pack into irmin-pack.unix (#1783, @hhugo)
 
 - **irmin-unix**
   - Fix conflicting command line arguments for `push`, `pull`, `fetch` and

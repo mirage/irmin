@@ -189,7 +189,7 @@ struct
 end
 
 module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
-module Make_store_pack = Make_basic (Irmin_pack.Maker)
+module Make_store_pack = Make_basic (Irmin_pack_unix.Maker)
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t

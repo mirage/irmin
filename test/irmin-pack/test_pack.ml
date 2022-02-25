@@ -21,7 +21,7 @@ let test_dir = Filename.concat "_build" "test-db-pack"
 
 module Irmin_pack_store (Config : Irmin_pack.Conf.S) : Irmin_test.Generic_key =
 struct
-  open Irmin_pack.Maker (Config)
+  open Irmin_pack_unix.Maker (Config)
 
   include Make (struct
     include Irmin_test.Schema
@@ -423,7 +423,7 @@ end
 
 module Branch = struct
   module Branch =
-    Irmin_pack.Atomic_write.Make_persistent
+    Irmin_pack_unix.Atomic_write.Make_persistent
       (Irmin.Branch.String)
       (Irmin_pack.Atomic_write.Value.Of_hash (Irmin.Hash.SHA1))
 

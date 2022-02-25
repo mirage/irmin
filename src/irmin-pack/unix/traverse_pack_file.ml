@@ -91,7 +91,7 @@ end = struct
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
-            if Conf.readonly config then raise S.RO_not_allowed;
+            if Conf.readonly config then raise Irmin_pack.RO_not_allowed;
             Conf.root config
       in
       let log_size = Conf.index_log_size config in

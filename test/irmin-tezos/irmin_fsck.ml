@@ -17,10 +17,10 @@
 module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 
 module Maker = struct
-  module Maker = Irmin_pack.Maker (Irmin_tezos.Conf)
+  module Maker = Irmin_pack_unix.Maker (Irmin_tezos.Conf)
   include Maker.Make (Schema)
 end
 
-module Store = Irmin_pack.Checks.Make (Maker)
+module Store = Irmin_pack_unix.Checks.Make (Maker)
 
 let () = match Store.cli () with _ -> .

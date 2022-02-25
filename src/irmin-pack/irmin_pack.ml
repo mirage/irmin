@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Ext
 include Irmin_pack_intf
 
 let config = Conf.init
@@ -23,31 +22,13 @@ exception RO_not_allowed = S.RO_not_allowed
 
 module Indexable = Indexable
 module Atomic_write = Atomic_write
-module Dict = Pack_dict
 module Hash = Irmin.Hash.BLAKE2B
 module Path = Irmin.Path.String_list
 module Metadata = Irmin.Metadata.None
-module Maker_ext = Ext.Maker
 module Version = Version
-module Index = Pack_index
 module Conf = Conf
-module Maker = Maker_ext
-
-module KV (Config : Conf.S) = struct
-  type endpoint = unit
-  type hash = Irmin.Schema.default_hash
-
-  include Pack_key.Store_spec
-  module Maker = Maker (Config)
-
-  type metadata = Metadata.t
-
-  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
-end
-
 module Stats = Stats
 module Layout = Layout
-module Checks = Checks
 module Inode = Inode
 module IO = IO
 module Pack_key = Pack_key

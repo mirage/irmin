@@ -16,7 +16,7 @@
 
 open Irmin.Export_for_backends
 module Int63 = Optint.Int63
-module Dict = Irmin_pack.Dict
+module Dict = Irmin_pack_unix.Dict
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
@@ -73,14 +73,14 @@ module Contents = struct
     | _ -> assert false
 end
 
-module I = Index
-module Index = Irmin_pack.Index.Make (Schema.Hash)
+module I = Irmin_pack_unix.Index
+module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
-module P = Irmin_pack.Pack_store.Maker (Index) (Schema.Hash)
+module P = Irmin_pack_unix.Pack_store.Maker (Index) (Schema.Hash)
 module Pack = P.Make (Contents)
 
 module Branch =
-  Irmin_pack.Atomic_write.Make_persistent
+  Irmin_pack_unix.Atomic_write.Make_persistent
     (Irmin.Branch.String)
     (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 

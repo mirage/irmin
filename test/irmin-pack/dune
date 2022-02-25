@@ -48,6 +48,7 @@
   irmin
   irmin-test
   irmin-pack
+  irmin-pack.unix
   irmin-tezos
   logs
   lwt

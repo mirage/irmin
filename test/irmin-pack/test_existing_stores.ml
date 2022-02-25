@@ -98,8 +98,8 @@ module Small_conf = struct
   let inode_child_order = `Hash_bits
 end
 
-module V1_maker = Irmin_pack.Maker (Small_conf)
-module V2_maker = Irmin_pack.Maker (Conf)
+module V1_maker = Irmin_pack_unix.Maker (Small_conf)
+module V2_maker = Irmin_pack_unix.Maker (Conf)
 
 module Schema_v2 = struct
   open Irmin

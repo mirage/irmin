@@ -24,7 +24,7 @@ module Config = struct
 end
 
 module KV = struct
-  module Maker = Irmin_pack.KV (Config)
+  module Maker = Irmin_pack_unix.KV (Config)
   include Maker.Make (Irmin.Contents.String)
 end
 
