@@ -13,19 +13,60 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-type config = {
-  ncommits_trace : int;
-  store_dir : string;
-  path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
-  inode_config : int * int;
-  store_type : [ `Pack | `Pack_layered | `Pack_mem ];
-  commit_data_file : string;
-  artefacts_dir : string;
-  keep_store : bool;
-  keep_stat_trace : bool;
-  no_summary : bool;
-  empty_blobs : bool;
-}
+
+module Config = struct
+  type _ return_type =
+    | Unit : unit return_type
+    | Summary : Trace_stat_summary.t return_type
+
+  type 'a config = {
+    number_of_commits_to_replay : int;
+    path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
+    inode_config : int * int;
+    store_type : [ `Pack | `Pack_layered | `Pack_mem ];
+    replay_trace_path : string;
+    artefacts_path : string;
+    keep_store : bool;
+    keep_stat_trace : bool;
+    empty_blobs : bool;
+    return_type : 'a return_type;
+  }
+  (** Replay configuration
+
+      [replay_trace_path] points to a specific file that describes the sequence
+      of operations to replay. You may download one of the following URLs. The
+      smaller ones are prefix of the larger ones.
+
+      - http://data.tarides.com/irmin/data4_10310commits.repr (0.3GB)
+      - http://data.tarides.com/irmin/data4_100066commits.repr (2.9GB)
+      - http://data.tarides.com/irmin/data_1343496commits.repr (102GB)
+
+      [number_of_commits_to_replay] is the wished number of commits to replay.
+      If the value is too high, the replay will stop when reaching the end of
+      [replay_trace_path]. Pick a number of commits depending on the wished
+      runtime. Here are some reference runtimes that were true for irmin 3.0:
+
+      - [60_457] commits take 3 minutes
+      - [500_000] commits take 1 hour
+      - [1_343_496] commits take 5 hours
+
+      [artefacts_path] is the destination for the stats trace and the store. If
+      both [keep_store] and [keep_stat_trace] are false, the destination will be
+      emptied at the end of the replay.
+
+      [path_conversion] is the strategy for shortening the paths while
+      replaying. Was useful when benchmarking irmin on flattened Tezos paths.
+
+      [empty_blobs] make the replay to push the empty string as in all the
+      blobs, instead of their actual value read in the trace.
+
+      [inode_config] is a pair of ints that will be stored in the results of the
+      replay. *)
+end
+
+module type Config = module type of Config
+
+include Config
 
 module type Store = sig
   type store_config
@@ -34,17 +75,25 @@ module type Store = sig
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
-  type pp := Format.formatter -> unit
 
-  val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
+  val create_repo :
+    root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 end
 
 module type Sigs = sig
-  type nonrec config = config
+  include
+    Config
+      with type 'a return_type = 'a return_type
+       and type 'a config = 'a config
 
   module type Store = Store
 
   module Make (Store : Store) : sig
-    val run : Store.store_config -> config -> (Format.formatter -> unit) Lwt.t
+    include
+      Config
+        with type 'a return_type = 'a return_type
+         and type 'a config = 'a config
+
+    val run : Store.store_config -> 'a config -> 'a Lwt.t
   end
 end

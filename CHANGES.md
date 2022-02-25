@@ -19,6 +19,11 @@
   - Create `libirmin` package providing a C interface to the irmin API
     (#1713, @zshipko)
 
+### Changed
+
+- **irmin-bench**
+  - Make trace replay API public and simpler (#1781, @Ngoguey42)
+
 ## 3.0.0 (2022-02-11)
 
 ### Fixed
