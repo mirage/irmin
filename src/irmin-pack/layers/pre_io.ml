@@ -189,13 +189,12 @@ let append t s =
 (* [version] and [set_version] need to be changed when more versions are added. If a new
    version is added, we will get a type mismatch for these functions, which will trigger
    the programmer to rewrite them. *)
-let version t : Lyr_version.t = 
-  Control.(get t.control version_field) |> Lyr_version.of_int
+let version t : int = 
+  Control.(get t.control version_field) 
 
-let set_version t (ver:Lyr_version.t) = 
+let set_version t (ver:int) = 
   assert(not t.readonly);
-  let ver_i = match ver with `V1 -> 1 | `V2 -> 2 in
-  Control.(set t.control version_field ver_i)
+  Control.(set t.control version_field ver)
 
 let name t = t.fn
 

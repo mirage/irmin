@@ -63,7 +63,7 @@ let global_clear_caches = ref (fun () -> ())
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
-  module IO : Irmin_pack_layers.IO.S = Pack_store_IO
+  module IO : Pack_store_IO.S = Pack_store_IO
   module Tbl = Table (K)
   module Dict = Pack_dict
 

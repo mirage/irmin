@@ -1,80 +1,230 @@
+(** This implements the "layered" version of the pack store IO. It builds on package
+    [irmin-pack.layers]. That package provides the clean implementations of individual
+    modules. In this module, we integrate those parts with the rest of [irmin-pack]. *)
+
 open! Import
 
-(* NOTE moved from pack_store_intf.ml, to break cycle with S.ml *)
+
+(** This is the original interface that the [Pack_store] IO needed to provide. It is based
+    on {!IO_intf} but omits those functions that are not actually used by the pack
+    store. NOTE The original {!IO_intf} was not fully documented; further documentation is
+    in a pull request: https://github.com/mirage/irmin/pull/1758 *)
+module type S = sig 
+  type t
+
+  val v : version:Version.t option -> fresh:bool -> readonly:bool -> string -> t
+  (* NOTE Handling of version is a bit subtle in the existing implementation in IO.ml; eg
+     opening a V2 with V1 fails. *)
+
+  val readonly : t -> bool
+
+  val flush : t -> unit
+  val close : t -> unit
+  val offset : t -> int63
+  (** For readonly instances, offset is the last offset returned by force_offset; this is
+      used to trigger updates to the dictionary and index *)
+
+  val read : t -> off:int63 -> bytes -> int
+  val append : t -> string -> unit
+  (* NOTE this is an append-only file *)
+
+  val truncate : t -> unit
+
+  val version : t -> Version.t
+  val set_version : t -> Version.t -> unit
+  val name : t -> string
+  (* This is just the "filename"/path used when opening the IO instance *)
+
+  val force_offset : t -> int63 
+end
+
+(** {!Irmin_pack_layers.Pre_io} provides a basic implementation of {!S}, but without
+    conforming exactly to the interface above: for example, some types such as
+    {!Version.t} are not known in [layers]. Here we add a shim layer so that we conform to
+    {!S} exactly. *)
+module Private_io_impl = struct
+
+  open Irmin_pack_layers
+  include Irmin_pack_layers.Pre_io
+
+  let default_version = `V2
+
+  let set_version t (ver:Version.t) = 
+    let i = 
+      match ver with 
+      | `V1 -> 1
+      | `V2 -> 2
+    in
+    set_version t i
+
+  let version t = 
+    version t |> function
+    | 1 -> `V1
+    | 2 -> `V2
+    | _ -> default_version
+
+  (* FIXME is fresh=true ever used in the codebase? what about fresh=true, readonly=true?
+     is this allowed?
+
+     is fresh,version allowed?
+
+     Documentation from IO_intf:
+
+     If [path] exists: 
+     if [fresh]:
+     - version must be (Some _)
+     - version meta is updated to match that supplied as argument (even if this results in a
+       downgrade of the version from [`V2] to [`V1]; even in readonly mode)
+     - the offset is positioned at zero (the intent is probably to make the file appear
+       truncated, but this is not what actually happens)
+       if [not fresh]:
+     - meta version is loaded
+     - if meta version is > than that supplied as argument, fail
+
+     If [path] does not exist:
+     - version must be (Some _)
+     - instance is created with the supplied version (even if readonly is true)
+
+  *)
+  (* NOTE This function is complicated because it attempts to replicate precisely the
+     current behaviour of the [IO.ml] implementation (but some of that may be unintended
+     behaviour that we don't need to model so precisely) *)
+  let v ~version:(ver0:Version.t option) ~fresh ~readonly path = 
+    let exists = Sys.file_exists path in
+    let ( --> ) a b = (not a) || b in
+    assert(not exists --> Option.is_some ver0);
+    assert(not (readonly && fresh)); (* FIXME this is allowed in the existing code *)
+    match exists with 
+    | false -> (
+        assert(not exists);
+        assert(Option.is_some ver0);
+        ignore(fresh);
+        match readonly with
+        | true -> 
+          (* FIXME in the existing code, opening readonly will create the file if it
+             doesn't exist *)
+          Fmt.failwith 
+            "%s: Cannot open a non-existent file %s in readonly mode." __FILE__ path
+        | false -> 
+          assert(not exists);
+          assert(not readonly);
+          assert(Option.is_some ver0);
+          let t = create ~fn:path in
+          let ver0 = Option.get ver0 in
+          let _ = set_version t ver0 in
+          let _ = flush t in
+          t)
+    | true -> (
+        assert(exists);
+        assert(fresh --> Option.is_some ver0);        
+        let t = open_ ~readonly ~fn:path in
+        (* handle fresh and ver0 *)
+        begin 
+          match fresh with
+          | false -> 
+            assert(exists);
+            assert(not fresh);
+            let _check_versions =
+              let version_lt v1 v2 = Version.compare v1 v2 < 0 in
+              match ver0 with
+              | None -> ()
+              | Some ver0 -> 
+                match version_lt ver0 (version t) with
+                | true ->
+                  Fmt.failwith 
+                    "%s: attempt to open %s, version %a file, using older %a version" __FILE__ 
+                    path 
+                    Version.pp 
+                    (version t)
+                    Version.pp
+                    (ver0)
+                | false -> ()
+            in
+            ()
+          | true -> 
+            assert(exists);
+            assert(fresh);
+            assert(not readonly); (* FIXME *)
+            assert(Option.is_some ver0);
+            let ver0 = Option.get ver0 in
+            (* if fresh, then we want to bump the generation number and switch to a new
+               suffix/sparse *)
+            let gen' = Control.get_generation t.control +1 in
+            let sparse = Sparse_file.create ~path:(sparse_name ~generation:gen') in
+            let suffix = 
+              let suffix_offset = 0 in
+              Suffix.create ~root:(suffix_name ~generation:gen') ~suffix_offset in
+            let old_sparse,old_suffix = t.sparse,t.suffix in
+            t.sparse <- sparse;
+            t.suffix <- suffix;
+            Control.(set t.control generation_field gen');
+            (* FIXME potential problem if update to generation is seen without the update to
+               last_synced_offset_field? *)
+            Control.(set t.control last_synced_offset_field 0); 
+            set_version t ver0; (* use the provided version, not any in the existing file *)
+            Control.fsync t.control;
+            Sparse_file.close old_sparse;
+            Suffix.close old_suffix;
+            (* FIXME delete old generation sparse+suffix here *)            
+        end;
+        t)
+end
 
 open struct
-  (** Printf abbreviations *)
-  module P = struct
-    include Printf
-    let s = sprintf 
-    let p = printf
-  end
-
-  module F = struct
-    include Format
-    let s = sprintf 
-    let p = printf
-  end
-
-  
-end[@@warning "-32"]
-
-type trigger_gc_t = {
-  commit_hash_s: string;
-  (** The commit hash, as a string; used for debugging *)
-
-  create_reachable: reachable_fn:string -> unit
-  (** The function the IO layer should use to calculate the initial reachability data;
-      this will be called in another process, so it should not use any file descriptors
-      from the parent; instead, it should open the repository in readonly mode and then
-      call Repo.iter *)
-}
-
-(* to calculate the reachable extents, we open the Store in readonly mode, with
-   read_logger set to write to the given file *)
+  (* Verify that IO_impl does have signature S; we don't want to seal IO_impl because we
+       want to be able to access fields such as [t.control] etc *)
+  module _ : S = Private_io_impl
+end
 
 
-(** Setting this to Some will trigger GC on the next IO operation (this is just for
-    initial testing) *)
-let trigger_gc : trigger_gc_t option ref = ref None
+(** Currently we trigger GC by setting a global reference. FIXME this is just for testing,
+    and should be replaced with a proper interface. *)
+module Trigger_gc = struct
+  type trigger_gc_t = {
+    commit_hash_s: string;
+    (** The commit hash, as a string; used for debugging *)
 
-module Private (* : Irmin_pack_layers.IO.S *) = struct
-  (* include IO.Unix *)
-  
+    create_reachable: reachable_fn:string -> unit
+    (** The function the IO layer should use to calculate the initial reachability data;
+        this will be called in another process, so it should not use any file descriptors
+        from the parent; instead, it should open the repository in readonly mode and then
+        call Repo.iter *)
+  }
+
+  (** Setting this to Some will trigger GC on the next IO operation (this is just for
+      initial testing) *)
+  let trigger_gc : trigger_gc_t option ref = ref None
+end
+include Trigger_gc
+
+(** We need to compute the reachable regions in a pack store. Currently this is done as a
+    hack: we open a pack store in "logging mode" (so that all reads are logged to file),
+    then call [Repo.iter] with a given commit. FIXME this is just for testing and needs to
+    be replaced with a proper mechanism. *)
+module Read_loggers = struct
+  (** We want to ensure any read logger is properly closed. *)
+  let close_read_loggers_hook = ref (fun () -> ())
+end
+include Read_loggers
+
+(** This further wraps {!Private_io_impl}, in order to handle forking the worker, and
+    dealing with the worker when it terminates. *)
+module Private (* : S *) = struct
   open struct 
-    module IO_impl = Irmin_pack_layers.IO (* IO.Unix *)
+    module IO_impl = Private_io_impl (* was IO.Unix *)
   end
   open IO_impl
 
+  (** Wrap {!IO_impl.t} with two additional fields: [read_logger] which, if set, logs all
+      reads; and [worker_pid_and_args] for dealing with the worker. *)
   type t = { 
     base:IO_impl.t; 
     mutable read_logger: out_channel option; 
     mutable worker_pid_and_args: (int * Irmin_pack_layers.Worker.worker_args) option 
   }
            
-  (* now we need to lift all the funs to work with this new type; OO has an advantage here
-     in that classes can be easily extended with additional fields, whereas here we have
-     to lift the existing functions *)
-
-  (* we may check an envvar to see whether we need to log reads; typically this is set to
-     false after the first instance is created; so we hope this is the right instance to
-     log *)
-  let check_envvar = ref true 
-
-  (* expose a reference so we can close when finished *)
-  let read_logger = ref None
-
-  let v ~version ~fresh ~readonly path = 
-    Printf.printf "%s: v called\n%!" __FILE__;
-    let read_logger =       
-      match !check_envvar with 
-      | true -> (
-          match Sys.getenv_opt "IRMIN_PACK_LOG_READS" with 
-          | None -> None | Some fn -> (check_envvar:=false; read_logger:=Some (open_out_bin fn); !read_logger))
-      | false -> None
-    in
-    { base=v ~version ~fresh ~readonly path; read_logger; worker_pid_and_args=None}
-
+  (** NOTE most of the functions that follow simply lift the underlying functionality *)
+ 
   let truncate t = truncate t.base
 
   let readonly t = readonly t.base
@@ -85,6 +235,43 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
       
   let offset t = offset t.base
 
+  let version t = version t.base
+
+  let set_version t = set_version t.base
+
+  let name t = name t.base
+
+  let force_offset t = force_offset t.base
+
+
+  (** In order to calculate the reachable parts of a pack store, we implement a simple
+      hack: for the {b first} pack store opened, we log to all reads to a file if envvar
+      [IRMIN_PACK_LOG_READS] is set. FIXME this is just for testing and needs to be
+      replaced with a proper mechanism. *)
+  let check_envvar = ref true 
+
+  (** [v] is as {!Private_io_impl.v}, except that, if envvar [IRMIN_PACK_LOG_READS] is set
+      to filename [fn], then we log all reads to that filename. *)
+  let v ~version ~fresh ~readonly path = 
+    Printf.printf "%s: v called\n%!" __FILE__;
+    let read_logger =       
+      match !check_envvar with 
+      | true -> (
+          match Sys.getenv_opt "IRMIN_PACK_LOG_READS" with 
+          | None -> None 
+          | Some fn -> begin
+              check_envvar:=false; 
+              let it = open_out_bin fn in
+              let f = !close_read_loggers_hook in
+              close_read_loggers_hook := (fun () -> close_out_noerr it; f ());
+              Some it                
+            end)
+      | false -> None
+    in
+    { base=v ~version ~fresh ~readonly path; read_logger; worker_pid_and_args=None}
+
+  (** [read] is as {!Private_io_impl.read}, except that, if [is_some t.read_logger] then
+      we log reads. *)
   let read t ~off buf = 
     let len = read t.base ~off buf in
     let _maybe_log = 
@@ -97,6 +284,8 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
           ())
     in
     len
+
+  (** The following concern the worker. *)
 
   open struct
     open Irmin_pack_layers
@@ -167,7 +356,7 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
       let old_sparse, old_suffix = t.base.sparse,t.base.suffix in
       t.base.sparse <- next_sparse;
       t.base.suffix <- next_suffix;
-      Sparse_file.close old_sparse; (* FIXME use Sparse_file and Suffix_file, with sparse and suffix as abbrevs *)
+      Sparse_file.close old_sparse; 
       Suffix.close old_suffix;
       (* increment generation *)
       let _ = 
@@ -194,28 +383,25 @@ module Private (* : Irmin_pack_layers.IO.S *) = struct
             (* worker has terminated *)
             match status with 
             | WEXITED 0 -> handle_worker_termination t
-            | WEXITED n -> failwith (P.s "Worker terminated unsuccessfully with %d" n)
-            | _ -> failwith "Worker terminated abnormally")
-        | _ -> failwith (P.s "Unexpected pid0 value %d" pid0)
-        
-        
+            | WEXITED n -> 
+              (* FIXME we should handle this case by, for example, issuing a warning to
+                 the node owner *)
+              failwith (P.s "Worker terminated unsuccessfully with %d" n)
+            | _ -> 
+              (* FIXME we should handle this case by, for example, issuing a warning to
+                 the node owner *)
+              failwith "Worker terminated abnormally")
+        | _ -> failwith (P.s "Unexpected pid0 value %d" pid0)        
   end
 
+  (** [append] is as {!Private_io_impl.append}, except that we use this point to 1) fork a
+      worker if required; 2) handle a terminated worker, if any. *)
   let append t s = 
     check_trigger_maybe_fork_worker t;
     check_worker_status t;
     append t.base s
 
-  let version t = version t.base
-
-  let set_version t = set_version t.base
-
-  let name t = name t.base
-
-  let force_offset t = force_offset t.base
-
-  (* let set_read_logger t opt = t.read_logger <- opt *)
 
 end
 
-include (Private : Irmin_pack_layers.IO.S)
+include (Private : S)

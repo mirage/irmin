@@ -25,8 +25,6 @@ module Control = Control
 
 module Pre_io = Pre_io
 
-module IO = IO
-
 (** {1 Worker, for computing reachability and constructing next versions of suffix and
     sparse} *)
 
@@ -35,10 +33,6 @@ module Worker = Worker
 
 (** {1 Testing} *)
 
-
-module Private = struct
-  module Obj_store = Obj_store
-  (* module Worker = Worker *)
-end
+module Test = Test
 
 

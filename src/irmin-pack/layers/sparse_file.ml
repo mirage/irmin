@@ -181,9 +181,9 @@ module Private = struct
   (** 
 
 When we try to find a (virt_off,len) region within the sparse file, there are various
-possibilities. We first find the largest voff' for which there exists entry
-[(voff',(roff',len'))] in the map. Then we have the following possibilities:
-
+possibilities. We first find the largest voff' smaller-or-equal-to virt_off for which
+there exists entry [(voff',(roff',len'))] in the map. Then we have the following
+possibilities:
 
 - No entry found: The first data region starts beyond [virt_off]; this is "starts in gap"
 
@@ -220,7 +220,7 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
     | Extends_beyond of { real_off:int; real_len:int }
 
   let translate_vreg map ~virt_off ~len = 
-    Map_.find_last_opt (fun off' -> off' <= virt_off) map |> function
+    Map_.find_last_opt (fun voff' -> voff' <= virt_off) map |> function
     | None ->
       Log.err (fun m -> m "%s: No virtual offset found <= %d" __FILE__ virt_off);
       Starts_in_gap
@@ -252,9 +252,9 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       off:=!off+len;
       len
     | Extends_beyond { real_off; real_len } -> 
-      Printf.printf "%s: attempt to read beyond; real_off=%d real_len=%d\n%!" __FILE__ real_off real_len;
-      (* first fill buf with 0s *)
-      Bytes.fill buf 0 len (Char.chr 0);
+      Printf.printf "%s: attempt to read beyond; off=%d, len=%d, real_off=%d real_len=%d\n%!" __FILE__ (!off) len real_off real_len;
+      (* first fill buf with 0s (or something else) *)
+      Bytes.fill buf 0 len '!' (*(Char.chr 0)*);
       (* copy the data that we can *)
       let n = File.pread t.fd ~off:(ref real_off) ~len:real_len ~buf in
       assert(n=real_len);

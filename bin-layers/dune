@@ -27,3 +27,9 @@
  (modules Print_extents)
  (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
 )
+
+(executable
+ (name "print_sparse_map")
+ (modules Print_sparse_map)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)

@@ -20,7 +20,7 @@ let old_io = IO.v ~version:None ~fresh:false ~readonly:true store_dot_pack_path
 
 let _ = Printf.printf "Opened old store.pack %s\n%!" store_dot_pack_path
 
-let version = IO.version old_io
+let version = IO.version old_io |> function `V1 -> 1 | `V2 -> 2
 
 (* now create new sparse+suffix *)
 
