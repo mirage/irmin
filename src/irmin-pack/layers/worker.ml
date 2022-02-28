@@ -1,43 +1,19 @@
 (** Worker process, responsible for calculating the reachable objects and constructing the
-    next versions of the sparse file + suffix. 
-
-FIXME worker logging probably shouldn't use the same mechanism as the main process -
-worried about shared fds etc.
-
+    next versions of the sparse and suffix.
 *)
-
-[@@@warning "-33"]
 
 open Util
-
-[@@@warning "-27"]
-
-(*
-module type Pack_with_commit = sig
-  module S : Irmin_pack.S
-               
-  val commit : S.commit
-end
-
-(** Calculate [(off,len)] data for reachable objects and write them to the file
-    [reachable_fn] in the same format that is used by {!Int_mmap}. *)
-let calculate_reachable_objects ~(pack_with_commit:(module Pack_with_commit)) ~reachable_fn = ()
-(* NOTE at the moment I am not quite sure how to traverse the store - Repo.iter? Also, we
-   need to grow the mmap as the reachable objects become more numerous... but we are only
-   appending to fn so we can just buffer some data, then mmap and write out *)
-*)
 
 let _ = 
   (* 64 bit ints; FIXME are we still trying to maintain 32bit archs? *)
   assert(Sys.word_size = 64) 
 
-let gap_tolerance = 1000 (* FIXME config? although note that we can't just increase this
-                            and expect it to work with existing stores *)
+let gap_tolerance = 1000 
+(* FIXME config? although note that we can't just increase this and expect it to work with
+   existing stores *)
 
 (** [calculate_extents] takes the reachable data in [reachable_fn], sorts it, and
-    calculates the extents; uses [working_dir] for intermediate results; returns the name
-    of the file (which will be within [working_dir]) that holds the extent data; other
-    intermediate files are deleted (FIXME not during testing) *)
+    calculates the extents; uses [working_dir] for intermediate results *)
 let calculate_extents ~reachable_fn ~sorted_fn ~extents_fn = 
   let reachable  = Int_mmap.open_ ~fn:reachable_fn ~sz:(-1) in
   let chunk_sz   = 1_000_000 / 8 in
@@ -52,11 +28,11 @@ let calculate_extents ~reachable_fn ~sorted_fn ~extents_fn =
   in
   Int_mmap.close reachable;
   Int_mmap.close sorted;
-  extents_fn
+  ()
 
-
-(* FIXME at the moment we ignore max_pos, which should be the pos at which we split the
-   file *)  
+(** [create_sparse_file ~extents_fn ~src ~fn] creates a new sparse file [fn]; extent data
+    [(off,len)] is read from [extents_fn]; [src] is the current pack store; each extent
+    [(off,len)] in [src] is read and recorded in the new sparse file. *)
 let create_sparse_file ~(extents_fn:string) ~(src:Pread.t) ~fn : unit = 
   let _ = 
     assert(Sys.file_exists extents_fn);
@@ -64,7 +40,7 @@ let create_sparse_file ~(extents_fn:string) ~(src:Pread.t) ~fn : unit =
     assert(not (Sys.file_exists fn));
   in
   let sparse = Sparse_file.create ~path:fn in
-  let extents = Int_mmap.open_ ~fn:extents_fn ~sz:(File.size extents_fn / 8) in
+  let extents = Int_mmap.open_ ~fn:extents_fn ~sz:(-1) in
   let arr = extents.arr in
   let arr_sz = BA1.dim arr in
   let _write_extents_to_sparse = 
@@ -80,14 +56,21 @@ let create_sparse_file ~(extents_fn:string) ~(src:Pread.t) ~fn : unit =
   let _ = Sparse_file.close sparse in
   ()
 
-
+(** [create_suffix_file ~src ~src_off ~len ~dst_path] creates a new suffix file
+    [dst_path], starting at virtual offset [src_off]; to create the suffix file, [len]
+    bytes of data is read from [src], starting from [src_off], and placed in the new
+    suffix file. It is expected that [src_off + len] is the end of the existing [src]
+    file, but because the [src] is continually being extended, there may actually be more
+    than [len] bytes available at the time the copy is done. To account for this, the main
+    process may further append to the new suffix file when the worker terminates (see
+    function [handle_worker_termination], which may be located in [pack_store_IO.ml]). *)
 let create_suffix_file ~(src:Pread.t) ~src_off ~len ~dst_path : unit =
   (* create empty suffix *)
   let suff = Suffix.create ~root:dst_path ~suffix_offset:src_off in
   (* copy from src to suffix *)
   let dst = Pwrite.{pwrite=Suffix.pwrite ~worker_only:() suff} in  
   let _do_copy = File.copy ~src ~src_off ~dst ~dst_off:src_off ~len in
-  let _ = Suffix.close suff in
+  let () = Suffix.close suff in
   ()
 
 
@@ -96,7 +79,12 @@ let create_suffix_file ~(src:Pread.t) ~src_off ~len ~dst_path : unit =
    in [calculate_reachable_objects] *)
 type create_reachable_t = (reachable_fn:string -> unit)
 
-
+(** When the worker process is forked, it needs to know: 
+- where it should place the new suffix and sparse files
+- how to read the existing data in the pack store
+- how to calculate the regions in the pack store that are reachable from a given commit
+- the names of the new sparse and suffix
+*)
 type worker_args = {
   working_dir   : string; 
   (** where we place temporary files (ending in ".tmp") and the new sparse and suffix *)
@@ -106,39 +94,38 @@ type worker_args = {
       worker using {!Pre_io} *)
 
   create_reachable : create_reachable_t;
-  (** function to invoke to produce live extent data; the worker (and the IO layer as a
-      whole) does not know about Irmin repositories etc; instead, we provide the worker
-      with this function; this function takes a path (where to write the data) and likely
-      calls [Repo.iter] with read logging enabled, to determine the reachable data *)
+  (** function to invoke to produce the "reachable regions" data; the worker (and the IO
+      layer as a whole) does not know about Irmin repositories etc; instead, we provide
+      the worker with this function; this function takes a path (where to write the data)
+      and likely calls [Repo.iter] with read logging enabled, to determine the reachable
+      data *)
 
   sparse_dir    : string; 
-  (** name (in [working_dir]) of the next sparse dir (a simple name, which will be located in working_dir) *)
+  (** name (in [working_dir]) of the next sparse dir (a simple name, which will be located
+      in working_dir) *)
 
   suffix_dir    : string; 
   (** name (in [working_dir]) of the next suffix dir *)
 }
-(* FIXME perhaps we want to pass split_offset rather than using the offset of the last
-   extent *)
 
-(* the IO depends on the worker; but here we want the worker to be able to open an IO; to
-   break the circle, we just need a pread from the existing sparse+suffix *)
-
+(* debugging *)
 let mark i = Printf.printf "Mark: %d\n%!" i
 
 let run_worker ~worker_args = 
   mark 1;
   let {working_dir;src;create_reachable;sparse_dir;suffix_dir} = worker_args in
-  let _ = Printf.printf 
+  let _ = 
+    Printf.printf 
       "(worker args: working_dir:%s; src: %s; sparse_dir: %s; suffix_dir: %s)\n%!" 
       working_dir src sparse_dir suffix_dir
   in
   let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
   mark 2;
-  let _ = create_reachable ~reachable_fn in
+  let () = create_reachable ~reachable_fn in
   mark 3;
   let sorted_fn = Filename.temp_file ~temp_dir:working_dir "sorted." ".tmp" in
   let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
-  let extents_fn = calculate_extents ~reachable_fn ~sorted_fn ~extents_fn in
+  let _create_extents : unit = calculate_extents ~reachable_fn ~sorted_fn ~extents_fn in
   mark 4;
   let offset_of_last_extent = 
     let mmap = Int_mmap.open_ ~fn:extents_fn ~sz:(-1) in
@@ -155,9 +142,9 @@ let run_worker ~worker_args =
   (* FIXME do we want to limit the sparse file to extents < offset_of_last_extent?
      probably yes *)
   mark 6;
-  let _ = create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) in
+  let _create_sparse : unit = create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) in
   mark 7;
-  let _ = 
+  let _create_suffix : unit = 
     let src_off = offset_of_last_extent in
     create_suffix_file ~src ~src_off ~len:(Pre_io.size src_io - src_off) ~dst_path:Fn.(working_dir / suffix_dir)
   in

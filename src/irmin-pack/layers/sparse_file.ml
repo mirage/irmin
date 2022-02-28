@@ -1,27 +1,9 @@
 (** Implementation of sparse files; see documentation in [FIXME sparse_file_doc.mld] *)
 
-(* pending issues
-
-NOTE if we write data at off1, and then rewrite some different data at off1, both lots of
-data will be recorded in the sparse file, but only the second lot of data will be
-accessible at off1; we could add runtime checking to detect this
-
-NOTE also that if we write n bytes at off1, and then different data at off1+m, where m<n,
-we record both lots of data in the sparse file, and each lot of data is accessible, even
-though this sparse file does not correspond to any proper original file; again we could
-add runtime checking to detect this
-
-The size of the map component may be large, in which case we may want to use mmap rather
-than loading the map upfront
-*)
-
-
-
 open Util
 
+(** Signature that we implement *)
 module type SPARSE = sig
-
-  type map
 
   (** The type of sparse files. *)
   type t
@@ -34,8 +16,7 @@ module type SPARSE = sig
   (** [open_ro ~dir] opens the sparse file located in [dir] *)
   val open_ro : dir:string -> t
 
-  (** [close t] closes the underlying fd; this does not ensure the map is saved; use
-      [save_map] for that. *)
+  (** [close t] saves the sparse map and closes the underlying file descriptor *)
   val close: t -> unit
 
   (** [append_region t ~src ~src_off ~len ~virt_off] appends len bytes from fd [src] at
@@ -46,16 +27,17 @@ module type SPARSE = sig
 
       NOTE [len] must not be 0; no other validity checks are made on off and len. It is
       possible to add the same region multiple times for example, or add overlapping
-      regions, etc. {b These usages should be avoided.} FIXME perhaps we should check
-      explicitly for these kinds of problems?
+      regions, etc. {b These usages should be avoided.} 
   *)
   val append_region: t -> src:Pread.t -> src_off:int -> len:int -> virt_off:int -> unit
 
   (** [pread t ~off ~len ~buf] reads [len] bytes from virtual offset [off] into [buf]; a
       read that extends beyond the end of a data region will be supplemented with dummy
-      bytes ([chr 0]); a read that starts in an empty region will result in an exception
-      being thrown. FIXME we should take care to avoid the "buf extends forever with 0
-      bytes" case - perhaps have a max buf size? *)
+      bytes (this scenario is allowed because often the user does not know how many bytes
+      to read, so they read more than is stricly necessary and then examine the bytes they
+      have read); a read that starts in an empty region will fill the buffer with dummy
+      bytes (this scenario is almost certainly an error case, so we should probably
+      instead throw an exception).  *)
   val pread : t -> off:int ref -> len:int -> buf:bytes -> int
 
 end
@@ -106,7 +88,6 @@ end
 
 
 module Private = struct
-  open Private_map
   open struct
     module Map_ = Private_map
   end
@@ -115,7 +96,7 @@ module Private = struct
   let map_fn = "map"
 
 
-  type nonrec map = map
+  type nonrec map = Map_.map
 
   type t = { 
     dir         : string;
@@ -170,7 +151,7 @@ module Private = struct
         | false -> ()
         | true -> 
           src.pread ~off ~len:(min buf_sz len) ~buf |> fun n' -> 
-          (* FIXME we should add error messages for situations where asserts fail *)
+          (* we could add error messages for situations where asserts fail *)
           assert(n' > 0);
           assert(Unix.write t.fd buf 0 n' = n');
           k (len - n'));
@@ -232,9 +213,7 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
         | true -> Within { real_off=roff'+(virt_off - voff') }
         | false -> 
           Extends_beyond { real_off=roff'+(virt_off - voff'); real_len=voff'+len'-virt_off }
-  (* FIXME should check above calculations *)
 
-  (** This will throw an error if you attempt to read beyond a particular region *)
   let pread t ~off ~len ~buf =
     (* translate the virtual offset to a real offset *)
     let real = translate_vreg t.map ~virt_off:!off ~len in
@@ -246,15 +225,20 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       n
     | Starts_in_gap -> 
       Log.err (fun m -> m "%s: attempt to read from gap" __FILE__);
+      (* FIXME we should probably consider this an error case *)
       Printf.printf "%s: attempt to read from gap, voff=%d, len=%d\n%!" __FILE__ !off len;
       (* fill buf with 0s *)
       Bytes.fill buf 0 len (Char.chr 0);
       off:=!off+len;
       len
     | Extends_beyond { real_off; real_len } -> 
+      (* NOTE we need to allow this case, because a user may read more bytes than they
+         need into a buffer, then attempt to decode what they have read; we want to allow
+         this usage *)
       Printf.printf "%s: attempt to read beyond; off=%d, len=%d, real_off=%d real_len=%d\n%!" __FILE__ (!off) len real_off real_len;
+      assert(real_len < len);
       (* first fill buf with 0s (or something else) *)
-      Bytes.fill buf 0 len '!' (*(Char.chr 0)*);
+      Bytes.fill buf real_len len '!';
       (* copy the data that we can *)
       let n = File.pread t.fd ~off:(ref real_off) ~len:real_len ~buf in
       assert(n=real_len);
@@ -263,66 +247,4 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
 end
 
 include (Private : SPARSE)
-
-module Test() = struct
-
-  module Sparse = Private
-
-  (* performance test *)
-  let perf_test () =
-    let elapsed () = Mtime_clock.elapsed () |> Mtime.Span.to_s in
-    (* copy 100 bytes every 100 bytes from a huge file *)
-    let fn = Filename.temp_file "" ".tmp" in
-    Printf.printf "(time %f) Creating huge 1GB file %s\n%!" (elapsed()) fn;
-    let large_file = 
-      (* create *)
-      assert(Sys.command (Filename.quote_command "touch" [fn]) = 0);
-      (* make huge *)
-      assert(Sys.command (Filename.quote_command "truncate" ["--size=1GB";fn]) = 0);
-      (* open *)
-      let fd = Unix.(openfile fn [O_RDONLY] 0) in
-      fd
-    in
-    (* open sparse file *)
-    let fn2 = Filename.temp_file "" ".tmp" in
-    let _ = Unix.unlink fn2 in
-    Printf.printf "(time %f) Opening sparse file %s\n%!" (elapsed()) fn2;
-    let t = Sparse.create ~path:fn2 in
-    (* now copy n bytes every delta bytes *)
-    Printf.printf "(time %f) Copying to sparse file\n%!" (elapsed());
-    let len,delta = 100,500 in
-    let count = ref 0 in
-    let src = Pread.{pread=File.pread large_file} in
-    0 |> iter_k (fun ~k src_off -> 
-        match src_off+len < 1_000_000_000 with
-        | true -> 
-          Sparse.append_region t ~src ~src_off ~len ~virt_off:src_off;
-          incr count;
-          k (src_off+delta)
-        | false -> ());
-    Printf.printf "(time %f) Finished; number of regions: %d\n%!" (elapsed()) !count;
-    Printf.printf "(time %f) Closing sparse file\n%!" (elapsed());
-    Sparse.close t;
-    Printf.printf "(time %f) Finished\n%!" (elapsed());
-    ()
-
-  (* typical run: 
-
-     dune exec test/test.exe
-     (time 0.000106) Creating huge 1GB file /tmp/8f53c9.tmp
-     (time 0.002654) Opening sparse file /tmp/e6de54.tmp
-     (time 0.002677) Copying to sparse file
-     (time 12.xxxxx) Finished; number of regions: 2000000
-     (time 12.329643) Closing sparse file
-     (time 12.589131) Finished
-
-     ls -al /tmp/
-     -rw-rw----  1 tom  tom  191M Jan 14 17:15 e6de54.tmp
-     -rw-rw----  1 tom  tom   31M Jan 14 17:15 e6de54.tmp.map
-
-  *)
-
-end
-
-
 

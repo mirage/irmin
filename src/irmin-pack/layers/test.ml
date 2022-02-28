@@ -123,3 +123,63 @@ small).
 end
 
 
+module Test_sparse_file() = struct
+
+  (* performance test *)
+  let perf_test () =
+    let elapsed () = Mtime_clock.elapsed () |> Mtime.Span.to_s in
+    (* copy 100 bytes every 100 bytes from a huge file *)
+    let fn = Filename.temp_file "" ".tmp" in
+    Printf.printf "(time %f) Creating huge 1GB file %s\n%!" (elapsed()) fn;
+    let large_file = 
+      (* create *)
+      assert(Sys.command (Filename.quote_command "touch" [fn]) = 0);
+      (* make huge *)
+      assert(Sys.command (Filename.quote_command "truncate" ["--size=1GB";fn]) = 0);
+      (* open *)
+      let fd = Unix.(openfile fn [O_RDONLY] 0) in
+      fd
+    in
+    (* open sparse file *)
+    let fn2 = Filename.temp_file "" ".tmp" in
+    let _ = Unix.unlink fn2 in
+    Printf.printf "(time %f) Opening sparse file %s\n%!" (elapsed()) fn2;
+    let t = Sparse_file.create ~path:fn2 in
+    (* now copy n bytes every delta bytes *)
+    Printf.printf "(time %f) Copying to sparse file\n%!" (elapsed());
+    let len,delta = 100,500 in
+    let count = ref 0 in
+    let src = Pread.{pread=File.pread large_file} in
+    0 |> iter_k (fun ~k src_off -> 
+        match src_off+len < 1_000_000_000 with
+        | true -> 
+          Sparse_file.append_region t ~src ~src_off ~len ~virt_off:src_off;
+          incr count;
+          k (src_off+delta)
+        | false -> ());
+    Printf.printf "(time %f) Finished; number of regions: %d\n%!" (elapsed()) !count;
+    Printf.printf "(time %f) Closing sparse file\n%!" (elapsed());
+    Sparse_file.close t;
+    Printf.printf "(time %f) Finished\n%!" (elapsed());
+    ()
+
+  (* typical run: 
+
+     dune exec test/test.exe
+     (time 0.000106) Creating huge 1GB file /tmp/8f53c9.tmp
+     (time 0.002654) Opening sparse file /tmp/e6de54.tmp
+     (time 0.002677) Copying to sparse file
+     (time 12.xxxxx) Finished; number of regions: 2000000
+     (time 12.329643) Closing sparse file
+     (time 12.589131) Finished
+
+     ls -al /tmp/
+     -rw-rw----  1 tom  tom  191M Jan 14 17:15 e6de54.tmp
+     -rw-rw----  1 tom  tom   31M Jan 14 17:15 e6de54.tmp.map
+
+  *)
+
+end
+
+
+

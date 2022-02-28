@@ -1,7 +1,7 @@
-(** Pre-io is like {!IO}, but only deals with the sparse+suffix+control; there is no
-    dependency on the worker. This means that the worker can use the functions here to
-    interact with an existing "IO" instance, without introducing a circularity
-    IO<->Worker. We also do not include functions here that are really something to do
+(** Pre-io is like {!Irmin_pack.IO}, but only deals with the sparse+suffix+control; there
+    is no dependency on the worker. This means that the worker can use the functions here
+    to interact with an existing store instance, without introducing a circularity
+    IO<->Worker. We also {b do not} include functions here that are really something to do
     with irmin-pack. *)
 
 open! Import
@@ -49,25 +49,9 @@ type t = {
 let suffix_name ~generation = "suffix."^(generation |> string_of_int)
 (** Default name for suffix subdir; "suffix.nnnn" where nnnn is the generation number *)
 
-(*
-  let objects_name ~generation = "objects."^(generation |> string_of_int)
-  (** Default name for objects subdir; "objects.nnnn" where nnnn is the generation number *)
-*)
-
 let sparse_name ~generation = "sparse."^(generation |> string_of_int)
 (** Default name for sparse subdir; "sparse.nnnn" where nnnn is the generation number *)
 
-
-
-(* let mark,[na;nb;nc;nd;ne;nf;ng] = Util.create_marks ~__FILE__ ["na";"nb";"nc";"nd";"ne";"nf";"ng"] [@@warning "-8"] *)
-
-(*
-FIXME are meta and control the same? we want some cheap way to indicate that RO instances
-should switch, but we don't want them repeatedly reading the control file; and we also
-want to record some metadata which should also be easily accessible; so the control file
-maybe just points to the relevant files, and is updated by atomic rename; then the
-metadata is stored elsewhere, in meta.nnnn
-*)
 
 (** [create ~fn] create the IO instance using [fn] as the "pointer file", which points
     to a subdirectory containing various other files.
@@ -76,7 +60,7 @@ metadata is stored elsewhere, in meta.nnnn
     [/path/to/some/layers.nnnn], where nnnn is some integer to make the root name
     fresh.
 
-    Within the root, there will be a control file, sparse/object store, suffix, and meta.
+    Within the root, there will be a control file, sparse file and suffix file.
 *) 
 let create ~fn:fn0 =
   assert(not (Sys.file_exists fn0));
@@ -94,7 +78,8 @@ let create ~fn:fn0 =
   let _ = mkdir ~path:Fn.(dir / layers_dot_nnnn) in
   (* now create the initial contents of the layers directory *)
   let root = Fn.(dir / layers_dot_nnnn) in
-  let init_gen = 1234 (* FIXME *) in
+  (* use 1234 as initial generation, just for testing *)
+  let init_gen = 1234 in
   let control = 
     let t = Control.create ~root ~name:control_s in
     Control.(set t generation_field init_gen);
@@ -102,15 +87,12 @@ let create ~fn:fn0 =
     Control.fsync t;
     t
   in
-    (*
-    let objects = 
-      Obj_store.create ~root:Fn.(root / objects_name ~generation:init_gen) in
-    *)
   let sparse = Sparse.create ~path:Fn.(root / sparse_name ~generation:init_gen) in
   let suffix = 
-    (* NOTE in the following, the initial suffix_offset is 0 *)
-    let suffix_offset = 0 in
-    Suffix.create ~root:Fn.(root / suffix_name ~generation:init_gen) ~suffix_offset 
+    let init_suffix_offset = 0 in
+    Suffix.create 
+      ~root:Fn.(root / suffix_name ~generation:init_gen) 
+      ~suffix_offset:init_suffix_offset
   in
   (* FIXME make sure to sync all above *)
   (* finally create the pointer to the subdir *)
@@ -129,12 +111,10 @@ let open_ ~readonly ~fn:fn0 =
   let control = Control.open_ ~root ~name:control_s in
   let generation = Control.get_generation control in
   let sparse = Sparse.open_ro ~dir:Fn.(root / sparse_name ~generation) in
-  (* let objects = Obj_store.open_ro ~root:Fn.(root / objects_name ~generation) in *)
-  (* FIXME probably want to take into account the "last_synced_offset" for the suffix *)
+  (* FIXME probably want to take into account the "last_synced_offset" for the suffix, eg
+     by truncating the suffix to this *)
   let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
   let readonly_offset = Control.(get control last_synced_offset_field) in
-  (* FIXME when we open, we should take into account meta.last_synced_offset; FIXME
-     should also maybe truncate suffix to last_synced_offset *)
   { fn=fn0; root; sparse; suffix; control; readonly; readonly_offset }
 
 let readonly t = t.readonly
