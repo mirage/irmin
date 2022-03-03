@@ -136,8 +136,8 @@ depends: [
   "mmap" {= "1.1.0"}
   "mtime" {= "1.3.0+dune"}
   "num" {= "1.3+dune"}
-  "ocaml" {= "4.14.0"}
-  "ocaml-base-compiler" {= "4.14.0~alpha2"}
+  "ocaml" {= "4.13.1"}
+  "ocaml-base-compiler" {= "4.13.1"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
   "ocaml-options-vanilla" {= "1"}
