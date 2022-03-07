@@ -41,7 +41,6 @@ depends: [
   "conf-gmp" {= "4"}
   "conf-gmp-powm-sec" {= "3"}
   "conf-gnuplot" {= "0.1"}
-  "conf-libffi" {= "2.0.0"}
   "conf-pkg-config" {= "2"}
   "cppo" {= "1.6.8"}
   "crunch" {= "3.2.0"}
@@ -50,8 +49,8 @@ depends: [
   "cstruct-lwt" {= "6.0.1"}
   "cstruct-sexp" {= "6.0.1"}
   "cstruct-unix" {= "6.0.1"}
-  "ctypes" {= "0.17.1+dune"}
-  "ctypes-foreign" {= "0.18.0"}
+  "ctypes" {= "dev"}
+  "ctypes-foreign" {= "dev"}
   "decompress" {= "1.4.2"}
   "digestif" {= "1.1.0"}
   "dispatch" {= "0.5.0"}
@@ -215,16 +214,15 @@ depexts: [
   ["gnuplot"] {os-family = "suse"}
   ["gnuplot"] {os = "macos" & os-distribution = "homebrew"}
   ["gnuplot-x11"] {os-family = "debian"}
-  ["libffi"] {os = "freebsd"}
   ["libffi"] {os = "macos" & os-distribution = "homebrew"}
   ["libffi"] {os = "macos" & os-distribution = "macports"}
   ["libffi"] {os = "win32" & os-distribution = "cygwinports"}
   ["libffi-dev"] {os-distribution = "alpine"}
-  ["libffi-dev"] {os-family = "debian"}
+  ["libffi-dev"] {os-distribution = "debian"}
+  ["libffi-dev"] {os-distribution = "ubuntu"}
   ["libffi-devel"] {os-distribution = "centos"}
   ["libffi-devel"] {os-distribution = "fedora"}
-  ["libffi-devel"] {os-distribution = "mageia"}
-  ["libffi-devel"] {os-distribution = "ol"}
+  ["libffi-devel"] {os-distribution = "oraclelinux"}
   ["libffi-devel"] {os-family = "suse"}
   ["libgmp-dev"] {os-family = "debian"}
   ["libgmp-dev"] {os-family = "ubuntu"}
@@ -323,15 +321,15 @@ pin-depends: [
   ]
   [
     "carton.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "carton-git.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "carton-lwt.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "cf.0.4"
@@ -402,8 +400,12 @@ pin-depends: [
     "https://github.com/mirage/ocaml-cstruct/releases/download/v6.0.1/cstruct-v6.0.1.tbz"
   ]
   [
-    "ctypes.0.17.1+dune"
-    "git+https://github.com/avsm/ocaml-ctypes.git#84711d6a7ed6ccec6e6f1b80f71580a2c289709c"
+    "ctypes.dev"
+    "git+https://github.com/avsm/ocaml-ctypes#3621e05d033a394c47c3fbe3649cced30ad22123"
+  ]
+  [
+    "ctypes-foreign.dev"
+    "git+https://github.com/avsm/ocaml-ctypes#3621e05d033a394c47c3fbe3649cced30ad22123"
   ]
   [
     "decompress.1.4.2"
@@ -495,19 +497,19 @@ pin-depends: [
   ]
   [
     "git.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "git-mirage.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "git-paf.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "git-unix.dev"
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
   ]
   [
     "gmap.0.3.0"
@@ -923,7 +925,7 @@ pin-depends: [
   ]
   [
     "yaml.dev"
-    "git+https://github.com/TheLortex/ocaml-yaml.git#7e1f117645ea10fbec2bd3dbbf0d8f581cce891f"
+    "git+https://github.com/TheLortex/ocaml-yaml#3658b337eae4da65c86a26eae08d79bd5c1cea51"
   ]
   [
     "yojson.1.7.0"
@@ -960,6 +962,10 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
+    "git+https://github.com/TheLortex/ocaml-yaml#3658b337eae4da65c86a26eae08d79bd5c1cea51"
+    "ocaml-yaml"
+  ]
+  [
     "https://github.com/aantron/bisect_ppx/archive/2.8.0.tar.gz"
     "bisect_ppx"
     ["md5=ba8c80cd2bf6b86537296736a4c6ba89"]
@@ -986,12 +992,8 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
-    "git+https://github.com/avsm/ocaml-ctypes.git#84711d6a7ed6ccec6e6f1b80f71580a2c289709c"
+    "git+https://github.com/avsm/ocaml-ctypes#3621e05d033a394c47c3fbe3649cced30ad22123"
     "ocaml-ctypes"
-  ]
-  [
-    "git+https://github.com/TheLortex/ocaml-yaml.git#7e1f117645ea10fbec2bd3dbbf0d8f581cce891f"
-    "ocaml-yaml"
   ]
   [
     "https://github.com/backtracking/bheap/releases/download/2.0.0/bheap-2.0.0.tbz"
@@ -1313,6 +1315,18 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
+    "git+https://github.com/maiste/index#4decebdff182cd101fb0246b651c260b82a951e3"
+    "index"
+  ]
+  [
+    "git+https://github.com/maiste/ocaml-git#6a73820bfdaaca1c0fee4e2ff2ff83f5dc2f8c16"
+    "ocaml-git"
+  ]
+  [
+    "git+https://github.com/maiste/repr#401e6f3391d26bd389aeea6e6a62b31cfaaf2fa8"
+    "repr"
+  ]
+  [
     "https://github.com/mirage/alcotest/releases/download/1.5.0/alcotest-js-1.5.0.tbz"
     "alcotest"
     [
@@ -1423,10 +1437,6 @@ x-opam-monorepo-duniverse-dirs: [
       "sha256=e95974f6363bd21e995a1c72ca03d09674c32ed2fbffada5aa82f096ee460929"
       "sha512=171d061b16f2e00b9caa3dfc1cd9b5b358d380e892281ac5c137dc2a3119c3fa288ea927dcb4e9efbcf4850f6857ed0d4b754f56dbb248c1c6150779e57d24e4"
     ]
-  ]
-  [
-    "git+https://github.com/maiste/index#4decebdff182cd101fb0246b651c260b82a951e3"
-    "index"
   ]
   [
     "https://github.com/mirage/io-page/releases/download/v2.4.0/io-page-v2.4.0.tbz"
@@ -1629,10 +1639,6 @@ x-opam-monorepo-duniverse-dirs: [
     ]
   ]
   [
-    "git+https://github.com/maiste/ocaml-git#fix-fmt-deps"
-    "ocaml-git"
-  ]
-  [
     "https://github.com/mirage/ocaml-hex/releases/download/v1.4.0/hex-v1.4.0.tbz"
     "ocaml-hex"
     ["md5=57103ff33e70f14171c46d88f5452d11"]
@@ -1676,10 +1682,6 @@ x-opam-monorepo-duniverse-dirs: [
       "sha256=a9d2b7da444c83b20f879f6c3b7fc911d08ac1e6245ad7105437504f9394e5c7"
       "sha512=8cae31da1fcb8b684a949846b1668131de244fbb89faf7421761da208f87092523a9e184e91a04c26739e6793501307b30ed255d540dcb268b171b7a56b56e24"
     ]
-  ]
-  [
-    "git+https://github.com/maiste/repr#401e6f3391d26bd389aeea6e6a62b31cfaaf2fa8"
-    "repr"
   ]
   [
     "https://github.com/mirage/semaphore-compat/releases/download/1.0.1/semaphore-compat-1.0.1.tbz"
@@ -1909,6 +1911,7 @@ x-opam-monorepo-root-packages: [
   "irmin-test"
   "irmin-tezos"
   "irmin-unix"
+  "libirmin"
   "ppx_irmin"
 ]
 x-opam-monorepo-version: "0.2"
