@@ -393,6 +393,7 @@ module Private (* : S *) = struct
               failwith "Worker terminated abnormally")
         | _ -> failwith (P.s "Unexpected pid0 value %d" pid0)        
   end
+      
 
   (** [append] is as {!Private_io_impl.append}, except that we use this point to 1) fork a
       worker if required; 2) handle a terminated worker, if any. *)

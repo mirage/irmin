@@ -250,7 +250,7 @@ module Make (Store : Store) = struct
 
   (* for layers, we want to initiate a GC after every [layers_n] commits *)
   let layers_counter = ref 0
-  let layers_n = 500
+  let layers_n = 400
 
   let exec_commit t stats repo h_trace date message parents_trace in_ctx_id
       check_hash =
@@ -277,13 +277,27 @@ module Make (Store : Store) = struct
      * re-commiting the same thing, hence the [.replace] below. *)
     Hashtbl.replace t.hash_corresps (unscope h_trace) k_store;
     maybe_forget_hash t h_trace;
-    t.latest_commit <- Some h_store;
+    t.latest_commit <- Some h_store;        
+    (* let _ = 
+      (* clear the caches more often than perform GC; we suspect clearing the caches triggers a bug *)
+      match !layers_counter mod (layers_n / 3) = 0 with
+      | true -> 
+        Printf.printf "%s: clearing caches\n%!" __FILE__;
+        (!Irmin_pack.Pack_store.global_clear_caches) ()
+      | false -> ()
+    in *)
     let _for_layers = 
+      (* print out the hash of each commit *)
+      let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
+      Printf.printf "%s: processing commit %s\n%!" __FILE__ hash_as_string;
       (* for layers, we want to initiate a gc every so often *)
       incr layers_counter;
       match !layers_counter mod layers_n = 0 with
       | false -> ()
       | true -> 
+        (* clear pack_store caches so that no objects that are not reachable from the GC
+           commit are referenced by some later commit *)
+        (* (!Irmin_pack.Pack_store.global_clear_caches) (); *)
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
         Irmin_pack.Pack_store_IO.(trigger_gc := Some {
             commit_hash_s=hash_as_string; 
@@ -305,12 +319,11 @@ module Make (Store : Store) = struct
                 let _ = assert(ret = 0) in
                 ())
           });
-        (* clear pack_store caches so that no objects that are not reachable from the GC
-           commit are referenced by some later commit *)
-        (!Irmin_pack.Pack_store.global_clear_caches) ();
         Printf.printf "Called GC for commit %s\n%!" hash_as_string;
         ()
     in
+    (* clear the caches on every commit! *)
+    (!Irmin_pack.Pack_store.global_clear_caches) ();
     ()
 
   let add_operations t repo operations n stats check_hash empty_blobs =

@@ -238,7 +238,7 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       Printf.printf "%s: attempt to read beyond; off=%d, len=%d, real_off=%d real_len=%d\n%!" __FILE__ (!off) len real_off real_len;
       assert(real_len < len);
       (* first fill buf with 0s (or something else) *)
-      Bytes.fill buf real_len len '!';
+      Bytes.fill buf real_len (len-real_len) '!';
       (* copy the data that we can *)
       let n = File.pread t.fd ~off:(ref real_off) ~len:real_len ~buf in
       assert(n=real_len);

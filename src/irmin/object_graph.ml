@@ -107,6 +107,7 @@ struct
 
   let iter ?cache_size ?(depth = max_int) ~pred ~min ~max ~node ?edge ~skip ~rev
       () =
+    Printf.printf "%s: Repo.iter called\n%!" __FILE__;
     [%log.debug
       "@[<2>iter:@ %arev=%b,@ min=%a,@ max=%a@, cache=%a@]" pp_depth depth rev
         pp_vertices min pp_vertices max
@@ -124,7 +125,7 @@ struct
         [] min
     in
     let min = Set.of_list min in
-    let has_mark key = Table.mem marks key in
+    let has_mark key = ignore(key); false (* Table.mem marks key FIXME for layers we override has_mark, to ensure all objects are visited *)in
     List.iter (fun k -> Stack.push (Visit (k, 0)) todo) max;
     let treat key =
       [%log.debug "TREAT %a" Type.(pp X.t) key];

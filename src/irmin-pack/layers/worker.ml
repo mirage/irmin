@@ -8,7 +8,7 @@ let _ =
   (* 64 bit ints; FIXME are we still trying to maintain 32bit archs? *)
   assert(Sys.word_size = 64) 
 
-let gap_tolerance = 1000 
+let gap_tolerance = 0 
 (* FIXME config? although note that we can't just increase this and expect it to work with
    existing stores *)
 
@@ -110,6 +110,35 @@ type worker_args = {
 
 (* debugging *)
 let mark i = Printf.printf "Mark: %d\n%!" i
+
+(* without cruft; for presenting on slides *)
+
+let run_worker' ~worker_args = 
+  let {working_dir;src;create_reachable;sparse_dir;suffix_dir} = worker_args in
+  let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
+  let _create_reachable : unit = create_reachable ~reachable_fn in
+  let sorted_fn = Filename.temp_file ~temp_dir:working_dir "sorted." ".tmp" in
+  let extents_fn = Filename.temp_file ~temp_dir:working_dir "extents." ".tmp" in
+  let _create_extents : unit = calculate_extents ~reachable_fn ~sorted_fn ~extents_fn in
+  let offset_of_last_extent = 
+    let mmap = Int_mmap.open_ ~fn:extents_fn ~sz:(-1) in
+    let sz = BA1.dim mmap.arr in
+    assert(sz mod 2 = 0 && sz >= 2); (* FIXME ensure this is the case; perhaps bail if not *)
+    let off = mmap.arr.{sz-2} in
+    Int_mmap.close mmap;
+    Printf.printf "%s: last extent offset is: %d\n%!" __FILE__ off;
+    off
+  in
+  let src_io = Pre_io.open_ ~readonly:true ~fn:src in  
+  let src : Pread.t = { pread=(Pre_io.pread src_io) } in
+  let _create_sparse : unit = create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) in
+  let _create_suffix : unit = 
+    let src_off = offset_of_last_extent in
+    create_suffix_file ~src ~src_off ~len:(Pre_io.size src_io - src_off) ~dst_path:Fn.(working_dir / suffix_dir)
+  in
+  Log.info (fun m -> m "Worker terminating");
+  ()
+
 
 let run_worker ~worker_args = 
   mark 1;

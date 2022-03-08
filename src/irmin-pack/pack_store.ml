@@ -60,6 +60,28 @@ let selected_version = `V2
     better *)
 let global_clear_caches = ref (fun () -> ())
 
+
+(* for layers testing, if an envvar is set we log object appends to a file *)
+let log_appends_oc = 
+  match Sys.getenv_opt "IRMIN_PACK_LOG_APPENDS" with 
+  | None -> None 
+  | Some dir -> begin
+      let fn,it = Filename.open_temp_file ~temp_dir:dir "append." ".log" in
+      Printf.printf "Logging to file %s\n%!" fn;
+      output_string it "(log_appends started)\n";
+      (* we assume this is in main, so we don't need to explicitly flush *)
+      Some it                
+    end
+
+let maybe_log_append ~hash_s ~off ~len = 
+  match log_appends_oc with
+  | None -> ()
+  | Some oc -> 
+    output_string oc (Printf.sprintf "(hash=%S off=%d len=%d)\n%!" hash_s off len);
+    Stdlib.flush oc;
+    ()
+
+
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
@@ -147,11 +169,13 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     type key = Key.t [@@deriving irmin ~pp]
     type value = Val.t [@@deriving irmin ~pp]
 
+    (* NOTE this only returns Direct keys *)
     let index_direct t hash =
       [%log.debug "index %a" pp_hash hash];
       match Index.find t.pack.index hash with
       | None -> None
       | Some (offset, length, _) ->
+        Fmt.pr "Index found hash %a\n%!" pp_hash hash;
           Some (Pack_key.v_direct ~hash ~offset ~length)
 
     let index t hash = Lwt.return (index_direct t hash)
@@ -474,6 +498,11 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         flush t;
         Lwt.return r)
 
+    (* FIXME setting auto_flush to 0 (or <=20, or <=80) seems to hang everything; for 0,
+       examining the files involved, store.dict seems to grow continually, but nothing
+       else makes progress; for 1 the same pattern is observed; for 20, same thing, but
+       store.dict grows much faster; at about 1.2M, the trace replay proper seems to
+       start *)
     let auto_flush = 1024
 
     let unsafe_append ~ensure_unique ~overcommit t hash v =
@@ -506,11 +535,14 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         Val.encode_bin ~offset_of_key ~dict hash v (IO.append t.pack.block);
         let len = Int63.to_int (IO.offset t.pack.block -- off) in
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
+        let _ = maybe_log_append ~hash_s:(Fmt.str "%a" pp_hash hash) ~off:(Int63.to_int off) ~len in
         let () =
           let kind = Val.kind v in
           let should_index = t.pack.indexing_strategy ~value_length:len kind in
-          if should_index then
-            Index.add ~overcommit t.pack.index hash (off, len, kind)
+          if should_index then (
+            (* for layers testing, we are using minimal indexing, so only indexing commit_v2 *)
+            assert(kind = Pack_value.Kind.Commit_v2);
+            Index.add ~overcommit t.pack.index hash (off, len, kind))
         in
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging hash v;
@@ -570,6 +602,9 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     let clear_caches t = Inner.clear_caches (get_open_exn t)
 
     let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path =
+      (* FIXME force minimal indexing for layers testing *)
+      ignore(indexing_strategy);
+      let indexing_strategy = Indexing_strategy.minimal in
       let* t = 
         Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
         >|= make_closeable
