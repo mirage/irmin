@@ -334,7 +334,6 @@ module Maker (Config : Conf.S) = struct
 
     let traverse_pack_file = Traverse_pack_file.run
 
-    module Layers = struct 
       (* we start with a value of type repo, ie X.Repo.t;
 
          from this, we want to get the pack_store instance, then the pack_store_IO
@@ -369,15 +368,14 @@ module Maker (Config : Conf.S) = struct
 *)
 
 
-      module Contents_CA = X.Contents.CA
-      (* let set_read_logger (t: t) opt =  *)
-      let get_pack_store_io: repo -> [ `Present of Pack_store_IO.t | `Error_mem_store ] = fun repo -> 
-        (* repo -> Contents.CA -> pack_store -> pack_store_IO? *)
-        let contents : read X.Contents.t = repo.contents in
-        let contents : read X.Contents.CA.t = contents in
-        let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
-        `Present io
-        
-    end
+    module Contents_CA = X.Contents.CA
+    (* let set_read_logger (t: t) opt =  *)
+    let get_pack_store_io: repo -> Pack_store_IO.t = fun repo -> 
+      (* repo -> Contents.CA -> pack_store -> pack_store_IO? *)
+      let contents : read X.Contents.t = repo.contents in
+      let contents : read X.Contents.CA.t = contents in
+      let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
+      io
+
   end
 end

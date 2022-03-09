@@ -18,14 +18,19 @@ module Schema = Schema
 module Conf : Irmin_pack.Conf.S
 
 module Store :
-  Irmin.Generic_key.S
-    with type Schema.Hash.t = Schema.Hash.t
-     and type Schema.Branch.t = Schema.Branch.t
-     and type Schema.Metadata.t = Schema.Metadata.t
-     and type Schema.Path.t = Schema.Path.t
-     and type Schema.Path.step = Schema.Path.step
-     and type Schema.Contents.t = Schema.Contents.t
-     and type Backend.Remote.endpoint = unit
-     and type contents_key = Schema.Hash.t Irmin_pack.Pack_key.t
-     and type node_key = Schema.Hash.t Irmin_pack.Pack_key.t
-     and type commit_key = Schema.Hash.t Irmin_pack.Pack_key.t
+  sig 
+    include Irmin.Generic_key.S
+      with type Schema.Hash.t = Schema.Hash.t
+       and type Schema.Branch.t = Schema.Branch.t
+       and type Schema.Metadata.t = Schema.Metadata.t
+       and type Schema.Path.t = Schema.Path.t
+       and type Schema.Path.step = Schema.Path.step
+       and type Schema.Contents.t = Schema.Contents.t
+       and type Backend.Remote.endpoint = unit
+       and type contents_key = Schema.Hash.t Irmin_pack.Pack_key.t
+       and type node_key = Schema.Hash.t Irmin_pack.Pack_key.t
+       and type commit_key = Schema.Hash.t Irmin_pack.Pack_key.t
+
+    (* from layers *)
+    val get_pack_store_io: repo -> Irmin_pack.Pack_store_IO.t 
+  end

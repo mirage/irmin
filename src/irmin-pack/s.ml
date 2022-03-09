@@ -30,6 +30,17 @@ module type Checkable = sig
     (unit, [ `Wrong_hash | `Absent_value ]) result
 end
 
+(** This module type should be included where appropriate, with [type repo := repo] *)
+module type Layers = sig
+  type repo 
+  (** only available on pack_store impls *)
+  (* val set_read_logger: t -> out_channel option -> [ `Ok | `Mem_noop ] *)
+  (** Expose the pack_store IO instance; not available for the memory store... FIXME
+      this appears somewhat tricky given current deps between interfaces *)
+  (* val get_pack_store_io: t -> [ `Ok of Irmin_pack_layers.IO.Pack_store_IO.t | `Mem_store ] *)
+  val get_pack_store_io: repo -> Pack_store_IO.t 
+end
+
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
 module type Specifics = sig
   type repo
@@ -75,6 +86,7 @@ module type S = sig
   val stats :
     dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
 
+(*
   module Layers : sig 
     (** only available on pack_store impls *)
     (* val set_read_logger: t -> out_channel option -> [ `Ok | `Mem_noop ] *)
@@ -83,6 +95,7 @@ module type S = sig
     (* val get_pack_store_io: t -> [ `Ok of Irmin_pack_layers.IO.Pack_store_IO.t | `Mem_store ] *)
     val get_pack_store_io: repo -> [ `Present of Pack_store_IO.t | `Error_mem_store ]
   end
+*)
 end
 
 module S_is_a_store (X : S) : Irmin.Generic_key.S = X
@@ -115,6 +128,31 @@ end
 
 module type Maker_persistent =
   Maker
-    with type ('h, _) contents_key = 'h Pack_key.t
-     and type 'h node_key = 'h Pack_key.t
-     and type 'h commit_key = 'h Pack_key.t
+  with type ('h, _) contents_key = 'h Pack_key.t
+   and type 'h node_key = 'h Pack_key.t
+   and type 'h commit_key = 'h Pack_key.t
+
+(** Exactly as {!Maker_persistent}, but the result of {!Make} is augmented with an extra function for layers *)
+module type Maker_persistent' = sig
+  include Maker_persistent
+
+  module Make (Schema : Irmin.Schema.Extended) :
+    (sig include S include Layers with type repo:=repo end)
+    (* We can't have `with module Schema = Schema` here, since the Schema
+       on the RHS contains more information than the one on the LHS. We _want_
+       to do something like `with module Schema = (Schema : Irmin.Schema.S)`,
+       but this isn't supported.
+
+       TODO: extract these extensions as a separate functor argument instead. *)
+      with type Schema.Hash.t = Schema.Hash.t
+       and type Schema.Branch.t = Schema.Branch.t
+       and type Schema.Metadata.t = Schema.Metadata.t
+       and type Schema.Path.t = Schema.Path.t
+       and type Schema.Path.step = Schema.Path.step
+       and type Schema.Contents.t = Schema.Contents.t
+       and type Schema.Info.t = Schema.Info.t
+       and type contents_key = (Schema.Hash.t, Schema.Contents.t) contents_key
+       and type node_key = Schema.Hash.t node_key
+       and type commit_key = Schema.Hash.t commit_key
+       and type Backend.Remote.endpoint = endpoint
+end

@@ -37,6 +37,8 @@ module type Store = sig
   type pp := Format.formatter -> unit
 
   val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
+
+  val get_pack_store_io: repo -> Irmin_pack.Pack_store_IO.t
 end
 
 module type Sigs = sig

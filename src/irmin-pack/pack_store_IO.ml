@@ -4,6 +4,26 @@
 
 open! Import
 
+(** This module defines a record type with fields that are used when triggering a GC from
+    a particular commit. *)
+module Trigger_gc = struct
+  type t = {
+    commit_hash_s: string;
+    (** The commit hash, as a string; used for debugging *)
+
+    create_reachable: reachable_fn:string -> unit
+    (** The function the IO layer should use to calculate the initial reachability data;
+        this will be called in another process, so it should not use any file descriptors
+        from the parent; instead, it should open the repository in readonly mode and then
+        call Repo.iter *)
+  }
+
+  (* (\** Setting this to Some will trigger GC on the next IO operation (this is just for *)
+  (*     initial testing) *\) *)
+  (* let trigger_gc : trigger_gc_t option ref = ref None *)
+end
+(* include Trigger_gc *)
+
 
 (** This is the original interface that the [Pack_store] IO needed to provide. It is based
     on {!IO_intf} but omits those functions that are not actually used by the pack
@@ -36,7 +56,27 @@ module type S = sig
   (* This is just the "filename"/path used when opening the IO instance *)
 
   val force_offset : t -> int63 
+
 end
+
+module type S_with_trigger_gc = sig
+  include S
+
+  (** [gc_worker_status t] returns the status of the GC worker process for [t], if any *)
+  val gc_worker_status: t -> [ `Running of int (* pid *) | `None ]
+
+  (** [trigger_gc t args] triggers a layers-GC for [t]; [args] is of type type
+      {!Trigger_gc.t}. 
+
+      If the trigger is already set, but no GC has started, the trigger will be
+      overwritten and GC will not occur for the previous value of the trigger.
+
+      If there is already a GC running, then when the main process checks the trigger, it
+      will simply unset it. So you should check that {!gc_worker_status} is [`None] before
+      calling {!trigger_gc}. *)
+  val trigger_gc: t -> Trigger_gc.t -> unit
+end
+
 
 (** {!Irmin_pack_layers.Pre_io} provides a basic implementation of {!S}, but without
     conforming exactly to the interface above: for example, some types such as
@@ -177,25 +217,6 @@ open struct
 end
 
 
-(** Currently we trigger GC by setting a global reference. FIXME this is just for testing,
-    and should be replaced with a proper interface. *)
-module Trigger_gc = struct
-  type trigger_gc_t = {
-    commit_hash_s: string;
-    (** The commit hash, as a string; used for debugging *)
-
-    create_reachable: reachable_fn:string -> unit
-    (** The function the IO layer should use to calculate the initial reachability data;
-        this will be called in another process, so it should not use any file descriptors
-        from the parent; instead, it should open the repository in readonly mode and then
-        call Repo.iter *)
-  }
-
-  (** Setting this to Some will trigger GC on the next IO operation (this is just for
-      initial testing) *)
-  let trigger_gc : trigger_gc_t option ref = ref None
-end
-include Trigger_gc
 
 (** We need to compute the reachable regions in a pack store. Currently this is done as a
     hack: we open a pack store in "logging mode" (so that all reads are logged to file),
@@ -219,6 +240,7 @@ module Private (* : S *) = struct
       reads; and [worker_pid_and_args] for dealing with the worker. *)
   type t = { 
     base:IO_impl.t; 
+    mutable trigger_gc: Trigger_gc.t option;
     mutable read_logger: out_channel option; 
     mutable worker_pid_and_args: (int * Irmin_pack_layers.Worker.worker_args) option 
   }
@@ -268,7 +290,7 @@ module Private (* : S *) = struct
             end)
       | false -> None
     in
-    { base=v ~version ~fresh ~readonly path; read_logger; worker_pid_and_args=None}
+    { base=v ~version ~fresh ~readonly path; trigger_gc=None; read_logger; worker_pid_and_args=None}
 
   (** [read] is as {!Private_io_impl.read}, except that, if [is_some t.read_logger] then
       we log reads. *)
@@ -294,17 +316,17 @@ module Private (* : S *) = struct
 
     let check_trigger_maybe_fork_worker (t0:t) = 
       let t = t0.base in
-      match !trigger_gc with
+      match t0.trigger_gc with
       | None -> ()
       | Some _ when Option.is_some t0.worker_pid_and_args -> 
         let (pid,_args) = Option.get t0.worker_pid_and_args in
         Printf.printf "%s: warning: GC triggered but a worker %d is already running for a \
                        previous GC; ignoring" __FILE__ pid;
-        trigger_gc := None;
+        t0.trigger_gc <- None;
         ()        
       | Some { commit_hash_s=_; create_reachable } ->        
         assert(t0.worker_pid_and_args = None); (* is_some case above *)
-        let _ = trigger_gc := None in 
+        let _ = t0.trigger_gc <- None in 
         let generation = 1+Control.get_generation t.control in
         let worker_args : Worker.worker_args = {
           working_dir=t.root;
@@ -402,7 +424,14 @@ module Private (* : S *) = struct
     check_worker_status t;
     append t.base s
 
+  let gc_worker_status t = 
+    match t.worker_pid_and_args with
+    | None -> `None
+    | Some (pid,_) -> `Running pid
+
+  let trigger_gc t trig =
+    t.trigger_gc <- Some trig
 
 end
 
-include (Private : S)
+include (Private : S_with_trigger_gc)

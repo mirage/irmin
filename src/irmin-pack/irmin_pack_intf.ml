@@ -18,6 +18,7 @@ module type S = S.S
 module type Specifics = S.Specifics
 module type Maker = S.Maker
 module type Maker_persistent = functor (_ : Conf.S) -> S.Maker_persistent
+module type Maker_persistent' = functor (_ : Conf.S) -> S.Maker_persistent'
 
 module type Sigs = sig
   module Dict = Pack_dict
@@ -67,7 +68,7 @@ module type Sigs = sig
   module type Maker = Maker
   module type Maker_persistent = Maker_persistent
 
-  module Maker : Maker_persistent
+  module Maker : Maker_persistent'
   module Stats = Stats
   module Layout = Layout
   module Checks = Checks
