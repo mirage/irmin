@@ -194,7 +194,7 @@ module Maker (Config : Conf.S) = struct
           Contents.CA.flush (contents_t t);
           Branch.flush t.branch
       end
-    end
+    end (* X *)
 
     let integrity_check ?ppf ~auto_repair t =
       let module Checks = Checks.Index (Index) in
@@ -317,7 +317,7 @@ module Maker (Config : Conf.S) = struct
         Printexc.record_backtrace true;
         let key = `Commit (Commit.key commit) in
         traverse_inodes ~dump_blob_paths_to key repo
-    end
+    end (* Stats *)
 
     let stats = Stats.run
     let sync = X.Repo.sync
@@ -335,7 +335,49 @@ module Maker (Config : Conf.S) = struct
     let traverse_pack_file = Traverse_pack_file.run
 
     module Layers = struct 
+      (* we start with a value of type repo, ie X.Repo.t;
+
+         from this, we want to get the pack_store instance, then the pack_store_IO
+         instance
+
+         the components of repo are eg contents store, node store, commit store...
+
+         take the first component: the contents store
+
+         this is defiend in X.Contents.CA (not X.Contents... the type of the component is
+         [read Contents.CA.t]), and parameterized by Pack: Contents.CA = Pack.Make(_)
+         
+         So, Contents.CA.v likely calls the pack constructor and wraps it somehow; the
+         pack constructor is presumably all cached in Pack module (before Pack.Make?)
+         
+         Contents.CA.v has the expected type
+
+         So, what are the components of 'a Contents.CA.t? [type 'a t = 'a
+         Pack_store.Maker(Index)(Hash).Make(Pack_value).t]. This is an abstract type
+         defined in Pack_store_intf.S.t, but we could expose a method there to get the IO
+         (we seem to have done this in the past); done.
+         
+         Now we can call: [let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents]
+
+      *)
+
+(*      
+      let _ = 
+        (* equal types *)
+        let _f (x1:repo) (x2:X.Repo.t) = x1 = x2 in
+        ()
+*)
+
+
+      module Contents_CA = X.Contents.CA
       (* let set_read_logger (t: t) opt =  *)
+      let get_pack_store_io: repo -> [ `Present of Pack_store_IO.t | `Error_mem_store ] = fun repo -> 
+        (* repo -> Contents.CA -> pack_store -> pack_store_IO? *)
+        let contents : read X.Contents.t = repo.contents in
+        let contents : read X.Contents.CA.t = contents in
+        let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
+        `Present io
+        
     end
   end
 end

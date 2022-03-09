@@ -180,6 +180,10 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     let traverse_pack_file _ _ = ()
     let stats ~dump_blob_paths_to:_ ~commit:_ _ = Lwt.return_unit
 
-    module Layers = struct end
+    module Layers = struct 
+      (** [get_pack_store_io repo] returns [`Error_mem_store] for {!Irmin_pack_mem} *)
+      let get_pack_store_io: repo -> [> `Error_mem_store ] = 
+        fun _r -> `Error_mem_store
+    end
   end
 end

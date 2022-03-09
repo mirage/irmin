@@ -81,6 +81,7 @@ module type S = sig
     (** Expose the pack_store IO instance; not available for the memory store... FIXME
         this appears somewhat tricky given current deps between interfaces *)
     (* val get_pack_store_io: t -> [ `Ok of Irmin_pack_layers.IO.Pack_store_IO.t | `Mem_store ] *)
+    val get_pack_store_io: repo -> [ `Present of Pack_store_IO.t | `Error_mem_store ]
   end
 end
 
