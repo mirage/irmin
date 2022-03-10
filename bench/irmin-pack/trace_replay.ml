@@ -288,34 +288,37 @@ module Make (Store : Store) = struct
       | false -> ()
       | true -> 
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
-        let _trigger_gc = 
-          let io = Store.get_pack_store_io repo in
-          let trigger_gc_args = Irmin_pack.Pack_store_IO.Trigger_gc.{
-              commit_hash_s=hash_as_string; 
-              create_reachable=(fun ~reachable_fn -> 
-                  (* FIXME following needs to be replaced with something better *)
-                  let exe = "/tmp/create_reachability.exe" in
-                  let path_to_ctxt = 
-                    (* FIXME we need the store.pack corresponding to the current repo; fudge
-                       by passing in as an envvar *)
-                    let envvar = "TRACE_REPLAY_CONTEXT" in
-                    Sys.getenv_opt envvar  |> function
-                    | Some s -> s
-                    | None -> failwith (Printf.sprintf "No %s envvar in env" envvar)
-                  in
-                  let envvar = Printf.sprintf "IRMIN_PACK_LOG_READS=%s" reachable_fn in
-                  let cmd = String.concat " " [envvar;exe;path_to_ctxt; hash_as_string] in 
-                  (* FIXME needs quoting? *)
-                  let _ = Printf.printf "About to run command %S\n%!" cmd in    
-                  let ret = Sys.command cmd in
-                  let _ = assert(ret = 0) in
-                  ())
-            }
+        match Store.get_pack_store_io with
+        | None -> ()
+        | Some get_pack_store_io -> 
+          let io = get_pack_store_io repo in
+          let _trigger_gc = 
+            let trigger_gc_args = Irmin_pack.Pack_store_IO.Trigger_gc.{
+                commit_hash_s=hash_as_string; 
+                create_reachable=(fun ~reachable_fn -> 
+                    (* FIXME following needs to be replaced with something better *)
+                    let exe = "/tmp/create_reachability.exe" in
+                    let path_to_ctxt = 
+                      (* FIXME we need the store.pack corresponding to the current repo; fudge
+                         by passing in as an envvar *)
+                      let envvar = "TRACE_REPLAY_CONTEXT" in
+                      Sys.getenv_opt envvar  |> function
+                      | Some s -> s
+                      | None -> failwith (Printf.sprintf "No %s envvar in env" envvar)
+                    in
+                    let envvar = Printf.sprintf "IRMIN_PACK_LOG_READS=%s" reachable_fn in
+                    let cmd = String.concat " " [envvar;exe;path_to_ctxt; hash_as_string] in 
+                    (* FIXME needs quoting? *)
+                    let _ = Printf.printf "About to run command %S\n%!" cmd in    
+                    let ret = Sys.command cmd in
+                    let _ = assert(ret = 0) in
+                    ())
+              }
+            in
+            Irmin_pack.Pack_store_IO.trigger_gc io trigger_gc_args
           in
-          Irmin_pack.Pack_store_IO.trigger_gc io trigger_gc_args
-        in
-        Printf.printf "Called GC for commit %s\n%!" hash_as_string;
-        ()
+          Printf.printf "Called GC for commit %s\n%!" hash_as_string;
+          ()
     in
     (* clear the caches on every commit! *)
     (!Irmin_pack.Pack_store.global_clear_caches) ();

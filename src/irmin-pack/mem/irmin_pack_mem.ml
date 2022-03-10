@@ -187,5 +187,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         fun _r -> `Error_mem_store
     end
 *)
+                                                    
+    let get_pack_store_io = None
   end
 end

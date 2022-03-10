@@ -38,6 +38,7 @@ type config = {
   empty_blobs : bool;
 }
 
+(* FIXME isn't this duplicated from trace_replay_intf? yes, but with a different config; we can't just add get_pack_store_io because it isn't available for mem *)
 module type Store = sig
   type store_config = config
 
@@ -48,6 +49,8 @@ module type Store = sig
   type pp := Format.formatter -> unit
 
   val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
+
+  val get_pack_store_io: (repo -> Irmin_pack.Pack_store_IO.t) option
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -162,7 +165,7 @@ module Bench_suite (Store : Store) = struct
 end
 
 module Make_basic (Maker : functor (_ : Irmin_pack.Conf.S) ->
-  Irmin_pack.Maker)
+  Irmin_pack.Maker) (* NOTE this is Irmin_pack.Maker, but we expect to use with Irmin_pack_mem; OK; so Irmin_pack.Maker is common to mem and real impl; so should extend this with get_pack_store_io option *)
 (Conf : Irmin_pack.Conf.S) =
 struct
   type store_config = config

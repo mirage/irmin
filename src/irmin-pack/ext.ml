@@ -369,13 +369,11 @@ module Maker (Config : Conf.S) = struct
 
 
     module Contents_CA = X.Contents.CA
-    (* let set_read_logger (t: t) opt =  *)
-    let get_pack_store_io: repo -> Pack_store_IO.t = fun repo -> 
-      (* repo -> Contents.CA -> pack_store -> pack_store_IO? *)
-      let contents : read X.Contents.t = repo.contents in
-      let contents : read X.Contents.CA.t = contents in
-      let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
-      io
+    let get_pack_store_io: (repo -> Pack_store_IO.t) option = Some (fun repo -> 
+        let contents : read X.Contents.t = repo.contents in
+        let contents : read X.Contents.CA.t = contents in
+        let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
+        io)
 
   end
 end

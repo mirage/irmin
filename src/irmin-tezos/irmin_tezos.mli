@@ -31,6 +31,7 @@ module Store :
        and type node_key = Schema.Hash.t Irmin_pack.Pack_key.t
        and type commit_key = Schema.Hash.t Irmin_pack.Pack_key.t
 
-    (* from layers *)
-    val get_pack_store_io: repo -> Irmin_pack.Pack_store_IO.t 
+    (* from layers; for Tezos, we always use irmin-pack, not irmin-pack-mem, so this is
+       always [Some _]; so perhaps we should refine the type *)
+    val get_pack_store_io: (repo -> Irmin_pack.Pack_store_IO.t) option
   end

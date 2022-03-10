@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Maker (_ : Conf.S) : S.Maker_persistent'
+module Maker (_ : Conf.S) : S.Maker_persistent
