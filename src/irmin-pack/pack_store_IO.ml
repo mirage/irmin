@@ -266,30 +266,34 @@ module Private (* : S *) = struct
   let force_offset t = force_offset t.base
 
 
-  (** In order to calculate the reachable parts of a pack store, we implement a simple
-      hack: for the {b first} pack store opened, we log to all reads to a file if envvar
-      [IRMIN_PACK_LOG_READS] is set. FIXME this is just for testing and needs to be
-      replaced with a proper mechanism. *)
-  let check_envvar = ref true 
 
-  (** [v] is as {!Private_io_impl.v}, except that, if envvar [IRMIN_PACK_LOG_READS] is set
-      to filename [fn], then we log all reads to that filename. *)
+  module For_create_reach_exe = struct
+
+    let already_done = ref false
+
+    (** Optional output channel for logging reads; normally this is [None]; only used for
+        [create_reach.exe]; only one IO instance will be logged. We assume it is the first
+        one that is opened by [create_reach.exe]. See [create_reach.ml],
+        INV_CREATE_REACH_1 *)
+    let get_reach_oc () =
+      match !already_done with 
+      | true -> None
+      | false -> 
+        match !Irmin_pack_layers.running_create_reach_exe with 
+        | None -> None
+        | Some fn -> 
+          (* NOTE only return [Some _] if [running_create_reach_exe] is set *)
+          let it = open_out_bin fn in
+          already_done := true;
+          Some it
+  end
+      
+
+  (** [v] is as {!Private_io_impl.v}, except that, if [create_reach.exe] is running, then
+      we log all reads. *)
   let v ~version ~fresh ~readonly path = 
     Printf.printf "%s: v called\n%!" __FILE__;
-    let read_logger =       
-      match !check_envvar with 
-      | true -> (
-          match Sys.getenv_opt "IRMIN_PACK_LOG_READS" with 
-          | None -> None 
-          | Some fn -> begin
-              check_envvar:=false; 
-              let it = open_out_bin fn in
-              let f = !close_read_loggers_hook in
-              close_read_loggers_hook := (fun () -> close_out_noerr it; f ());
-              Some it                
-            end)
-      | false -> None
-    in
+    let read_logger = For_create_reach_exe.get_reach_oc () in
     { base=v ~version ~fresh ~readonly path; trigger_gc=None; read_logger; worker_pid_and_args=None}
 
   (** [read] is as {!Private_io_impl.read}, except that, if [is_some t.read_logger] then

@@ -2,14 +2,21 @@
     work around various problems in the irmin-pack code, such as the caching of the block
     IOs. 
 
-Call as: IRMIN_PACK_LOG_READS=<output_file> create_reachability.exe <context_path> <commit_hash>
+Call as: create_reach.exe <context path> <commit hash> <output file>
+
+Invariant INV_CREATE_REACH_1: the first Pack_store_IO instance opened by this executable
+is the one that needs to have reads logged in order to create the reachability data.
 *)
 
-let context_path,commit_hash_s = Sys.argv |> Array.to_list |> List.tl |> function
-  | [context_path;commit_hash] -> context_path,commit_hash
-  | _ -> failwith "Usage: create_reachability.exe <context_path> <commit_hash>"
+let context_path,commit_hash_s,output_path = Sys.argv |> Array.to_list |> List.tl |> function
+  | [context_path;commit_hash;output_path] -> context_path,commit_hash,output_path
+  | _ -> failwith "Usage: create_reachability.exe <context path> <commit hash> <output path>"
 
 let _ = assert(Sys.file_exists context_path)
+
+(* Before doing anything else, we set a global variable which controls various other
+   aspects of the code (see doc for [running_create_reach_exe]) *)
+let _ = Irmin_pack_layers.running_create_reach_exe := Some output_path
 
 open Lwt.Infix
 
@@ -54,13 +61,14 @@ max:S.Repo.elt list ->
 ?rev:bool -> S.repo -> unit Lwt.t
 *)
 
+(*
 (* We want to force Repo.iter to visit every node; we worry that there is more than one
    node with the same hash, so Repo.iter visits the first, then for the second it revisits
    the first *)
 let flush_caches = fun _ -> 
   (!Irmin_pack.Pack_store.global_clear_caches)();
   Lwt.return ()
-
+*)
 
 (* NOTE cb abbrev. callback *)
 
@@ -75,17 +83,17 @@ let iter =
   let commit_cb = fun ck -> 
     S.Commit.of_key repo ck >>= function
     | None -> failwith ""
-    | Some commit -> ignore commit; flush_caches() >>= fun () -> Lwt.return ()
+    | Some commit -> (ignore commit; Lwt.return ())
   in
   let contents_cb = fun ck -> 
     S.Contents.of_key repo ck >>= function
     | None -> failwith ""
-    | Some contents -> ignore contents; flush_caches() >>= fun () -> Lwt.return ()
+    | Some contents -> (ignore contents; Lwt.return ())
   in
   let node_cb = fun nk -> 
     S.Tree.of_key repo (`Node nk) >>= function
     | None -> failwith ""
-    | Some tree -> ignore tree; flush_caches() >>= fun () -> Lwt.return ()
+    | Some tree -> (ignore tree; Lwt.return ())
   in
   S.Repo.iter
     ~cache_size:0
@@ -98,3 +106,9 @@ let iter =
     repo
 
 let _ = Lwt_main.run iter
+
+(* pack store reads are logged to the output file; we don't have a handle on the
+   [out_channel], so we can't directly close the channel; likely the channel is flushed
+   and closed on termination anway, but just to make sure, we flush all out channels at
+   this point, just before termination *)
+let _ = Stdlib.flush_all ()

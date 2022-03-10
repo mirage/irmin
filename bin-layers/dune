@@ -5,8 +5,8 @@
 )
 
 (executable
- (name "create_reachability")
- (modules Create_reachability)
+ (name "create_reach")
+ (modules Create_reach)
  (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
 )
 

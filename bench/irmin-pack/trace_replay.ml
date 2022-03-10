@@ -297,7 +297,7 @@ module Make (Store : Store) = struct
                 commit_hash_s=hash_as_string; 
                 create_reachable=(fun ~reachable_fn -> 
                     (* FIXME following needs to be replaced with something better *)
-                    let exe = "/tmp/create_reachability.exe" in
+                    let exe = "/tmp/create_reach.exe" in
                     let path_to_ctxt = 
                       (* FIXME we need the store.pack corresponding to the current repo; fudge
                          by passing in as an envvar *)
@@ -306,8 +306,7 @@ module Make (Store : Store) = struct
                       | Some s -> s
                       | None -> failwith (Printf.sprintf "No %s envvar in env" envvar)
                     in
-                    let envvar = Printf.sprintf "IRMIN_PACK_LOG_READS=%s" reachable_fn in
-                    let cmd = String.concat " " [envvar;exe;path_to_ctxt; hash_as_string] in 
+                    let cmd = String.concat " " [exe; path_to_ctxt; hash_as_string; reachable_fn] in 
                     (* FIXME needs quoting? *)
                     let _ = Printf.printf "About to run command %S\n%!" cmd in    
                     let ret = Sys.command cmd in
@@ -320,8 +319,6 @@ module Make (Store : Store) = struct
           Printf.printf "Called GC for commit %s\n%!" hash_as_string;
           ()
     in
-    (* clear the caches on every commit! *)
-    (!Irmin_pack.Pack_store.global_clear_caches) ();
     ()
 
   let add_operations t repo operations n stats check_hash empty_blobs =
