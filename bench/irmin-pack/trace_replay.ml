@@ -321,7 +321,8 @@ module Make (Store : Store) = struct
     in
     (* NOTE this is absolutely crucial to prevent any carry over of objects indexed by
        hash (which may not be recorded by [create_reach.exe]) *)
-    (!Irmin_pack.Pack_store.global_clear_caches)();
+    (* (!Irmin_pack.Pack_store.global_clear_caches)(); *)
+    Irmin_pack.Pack_store.clear_all_caches ();
     ()
 
   let add_operations t repo operations n stats check_hash empty_blobs =

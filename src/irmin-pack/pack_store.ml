@@ -1,6 +1,47 @@
 open! Import
 include Pack_store_intf
 
+(** With the layered store, it is very important that we do not get caches carrying stale
+    information about objects from before a GC point to after. The pack store has two
+    caches: [lru] and [staging]. It is important that we can flush these caches when
+    required. This module tracks the liveness of individual pack stores, and maintains a
+    list of callbacks, each of which clears the caches of a live pack store. *)
+module Private_cache_management = struct
+
+  let counter = ref 0
+
+  let callbacks = ref []
+
+  (* returns a unique identifier which can be used to remove the "clear_cache" function
+     from the global list when the pack store is closed *)
+  let add_clear_cache: clear_cache:(unit -> unit) -> int =
+    fun ~clear_cache -> 
+    let c = !counter in
+    incr counter;
+    callbacks := ((c,clear_cache)::!callbacks);
+    c
+
+  let remove_clear_cache: int -> unit = fun c -> 
+    callbacks := List.filter (fun (c',_) -> c' <> c) !callbacks
+    
+
+  let clear_all_caches () =
+    !callbacks |> List.iter (fun (_,f) -> 
+        try 
+          f () 
+        with _ -> 
+          begin
+            Printf.printf "%s: WARNING!!! callback threw exception; this should not happen" __FILE__; 
+            ()
+          end)  
+
+end
+
+(* NOTE this is the only cache management function exposed in the .mli *)
+let clear_all_caches = Private_cache_management.clear_all_caches
+
+
+
 module Indexing_strategy = struct
   type t = value_length:int -> Pack_value.Kind.t -> bool
 
@@ -58,7 +99,7 @@ let selected_version = `V2
 
 (** A global hook to clear caches in all pack store instances FIXME replace with something
     better *)
-let global_clear_caches = ref (fun () -> ())
+(* let global_clear_caches = ref (fun () -> ()) *)
 
 
 (* for layers testing, if an envvar is set we log object appends to a file *)
@@ -157,6 +198,10 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     module Tbl = Table (K)
     module Lru = Irmin.Backend.Lru.Make (Hash)
 
+    type hash = K.t [@@deriving irmin ~pp ~equal ~decode_bin]
+    type key = Key.t [@@deriving irmin ~pp]
+    type value = Val.t [@@deriving irmin ~pp]
+
     type nonrec 'a t = {
       pack : 'a t;
       lru : Val.t Lru.t;
@@ -164,6 +209,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       mutable open_instances : int;
       readonly : bool;
       running_create_reach_disable_lru: bool;
+      mutable cache_management_id: int; (* initially unset, then set once *)
     }
     (* When running [create_reach.exe] we want to disable the lru cache (the staging cache
        should always be empty during [create_reach.exe]) *)
@@ -173,9 +219,9 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     let lru_add t k v =
       if not t.running_create_reach_disable_lru then Lru.add t.lru k v
 
-    type hash = K.t [@@deriving irmin ~pp ~equal ~decode_bin]
-    type key = Key.t [@@deriving irmin ~pp]
-    type value = Val.t [@@deriving irmin ~pp]
+    let clear_caches t =
+      Tbl.clear t.staging;
+      Lru.clear t.lru
 
     (* NOTE this only returns Direct keys *)
     let index_direct t hash =
@@ -235,7 +281,14 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         | None -> false
         | Some _ -> true
       in
-      { staging; lru; pack; open_instances = 1; readonly; running_create_reach_disable_lru }
+      let t = { staging; lru; pack; open_instances = 1; readonly; running_create_reach_disable_lru; cache_management_id=(-1) } in
+      let cache_management_id = 
+        let clear_cache = fun () -> clear_caches t in
+        Private_cache_management.add_clear_cache ~clear_cache 
+      in
+      t.cache_management_id <- cache_management_id;
+      t
+      
 
     let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
         ~index ~indexing_strategy root =
@@ -584,6 +637,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         [%log.debug "[pack] close %s" (IO.name t.pack.block)];
         Tbl.clear t.staging;
         Lru.clear t.lru;
+        Private_cache_management.remove_clear_cache t.cache_management_id;
         close t.pack)
 
     let close t =
@@ -593,10 +647,6 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     let clear t =
       unsafe_clear t;
       Lwt.return_unit
-
-    let clear_caches t =
-      Tbl.clear t.staging;
-      Lru.clear t.lru
 
     let sync t =
       let former_offset = IO.offset t.pack.block in
@@ -625,10 +675,12 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
         >|= make_closeable
       in
+(*
       let _ = 
         let f = !global_clear_caches in
         global_clear_caches := fun () -> (clear_caches t; f ())
       in
+*)
       Lwt.return t
 
     let sync t = Inner.sync (get_open_exn t)

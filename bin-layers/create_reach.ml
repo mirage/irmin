@@ -66,7 +66,7 @@ max:S.Repo.elt list ->
    node with the same hash, so Repo.iter visits the first, then for the second it revisits
    the first *)
 let flush_caches = fun _ -> 
-  (!Irmin_pack.Pack_store.global_clear_caches)();
+  Irmin_pack.Pack_store.clear_all_caches();
   Lwt.return ()
 
 (* NOTE cb abbrev. callback *)
