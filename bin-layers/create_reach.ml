@@ -61,16 +61,17 @@ max:S.Repo.elt list ->
 ?rev:bool -> S.repo -> unit Lwt.t
 *)
 
-(*
+
 (* We want to force Repo.iter to visit every node; we worry that there is more than one
    node with the same hash, so Repo.iter visits the first, then for the second it revisits
    the first *)
 let flush_caches = fun _ -> 
   (!Irmin_pack.Pack_store.global_clear_caches)();
   Lwt.return ()
-*)
 
 (* NOTE cb abbrev. callback *)
+
+let finish_cb () = flush_caches ()
 
 let iter = 
   repo >>= fun repo -> 
@@ -83,17 +84,17 @@ let iter =
   let commit_cb = fun ck -> 
     S.Commit.of_key repo ck >>= function
     | None -> failwith ""
-    | Some commit -> (ignore commit; Lwt.return ())
+    | Some _commit -> finish_cb ()
   in
   let contents_cb = fun ck -> 
     S.Contents.of_key repo ck >>= function
     | None -> failwith ""
-    | Some contents -> (ignore contents; Lwt.return ())
+    | Some _contents -> finish_cb ()
   in
   let node_cb = fun nk -> 
     S.Tree.of_key repo (`Node nk) >>= function
     | None -> failwith ""
-    | Some tree -> (ignore tree; Lwt.return ())
+    | Some _tree -> finish_cb()
   in
   S.Repo.iter
     ~cache_size:0
