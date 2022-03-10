@@ -71,7 +71,9 @@ let flush_caches = fun _ ->
 
 (* NOTE cb abbrev. callback *)
 
-let finish_cb () = flush_caches ()
+(* let finish_cb () = flush_caches () *)
+
+let finish_cb () = Lwt.return ()
 
 let iter = 
   repo >>= fun repo -> 
