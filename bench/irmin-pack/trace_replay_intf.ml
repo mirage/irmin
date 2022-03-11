@@ -38,7 +38,7 @@ module type Store = sig
 
   val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
 
-  val get_pack_store_io: (repo -> Irmin_pack.Pack_store_IO.t) option
+  val trigger_gc: (repo -> string -> unit) option
 end
 
 module type Sigs = sig

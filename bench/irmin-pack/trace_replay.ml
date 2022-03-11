@@ -288,34 +288,10 @@ module Make (Store : Store) = struct
       | false -> ()
       | true -> 
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
-        match Store.get_pack_store_io with
+        match Store.trigger_gc with
         | None -> ()
-        | Some get_pack_store_io -> 
-          let io = get_pack_store_io repo in
-          let _trigger_gc = 
-            let trigger_gc_args = Irmin_pack.Pack_store_IO.Trigger_gc.{
-                commit_hash_s=hash_as_string; 
-                create_reachable=(fun ~reachable_fn -> 
-                    (* FIXME following needs to be replaced with something better *)
-                    let exe = "/tmp/create_reach.exe" in
-                    let path_to_ctxt = 
-                      (* FIXME we need the store.pack corresponding to the current repo; fudge
-                         by passing in as an envvar *)
-                      let envvar = "TRACE_REPLAY_CONTEXT" in
-                      Sys.getenv_opt envvar  |> function
-                      | Some s -> s
-                      | None -> failwith (Printf.sprintf "No %s envvar in env" envvar)
-                    in
-                    let cmd = String.concat " " [exe; path_to_ctxt; hash_as_string; reachable_fn] in 
-                    (* FIXME needs quoting? *)
-                    let _ = Printf.printf "About to run command %S\n%!" cmd in    
-                    let ret = Sys.command cmd in
-                    let _ = assert(ret = 0) in
-                    ())
-              }
-            in
-            Irmin_pack.Pack_store_IO.trigger_gc io trigger_gc_args
-          in
+        | Some trigger_gc -> 
+          trigger_gc repo hash_as_string;
           Printf.printf "Called GC for commit %s\n%!" hash_as_string;
           ()
     in

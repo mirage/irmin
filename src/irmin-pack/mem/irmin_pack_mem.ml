@@ -191,5 +191,8 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     let get_pack_store_io = None
 
     let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
+
+    let trigger_gc = None
+
   end
 end

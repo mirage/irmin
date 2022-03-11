@@ -38,10 +38,16 @@ module type Layers = sig
   (** Expose the pack_store IO instance; not available for the memory store... FIXME
       this appears somewhat tricky given current deps between interfaces *)
   (* val get_pack_store_io: t -> [ `Ok of Irmin_pack_layers.IO.Pack_store_IO.t | `Mem_store ] *)
-  val get_pack_store_io: (repo -> Pack_store_IO.t) option
+  type 'a only_for_irmin_pack := 'a option
+
+  val get_pack_store_io: (repo -> Pack_store_IO.t) only_for_irmin_pack
 
   (** Supported by irmin-pack and irmin-pack.mem *)
   val get_config: repo -> Irmin.Backend.Conf.t
+
+  type commit_hash_s := string
+
+  val trigger_gc: (repo -> commit_hash_s -> unit) only_for_irmin_pack
 end
 
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)

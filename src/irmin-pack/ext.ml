@@ -370,13 +370,45 @@ module Maker (Config : Conf.S) = struct
 
     module Contents_CA = X.Contents.CA
 
-    let get_pack_store_io: (repo -> Pack_store_IO.t) option = Some (fun repo -> 
-        let contents : read X.Contents.t = repo.contents in
-        let contents : read X.Contents.CA.t = contents in
-        let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
-        io)
+    let get_pack_store_io' : repo -> Pack_store_IO.t = fun repo -> 
+      let contents : read X.Contents.t = repo.contents in
+      let contents : read X.Contents.CA.t = contents in
+      let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
+      io
+
+    let get_pack_store_io: (repo -> Pack_store_IO.t) option = Some get_pack_store_io'
 
     let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
 
+    open struct
+      (* module Conf = Irmin.Backend.Conf *)
+      module Conf_ip = Conf
+    end
+
+    let trigger_gc' (repo:repo) commit_hash_s =
+      let io = get_pack_store_io' repo in
+      let args = Pack_store_IO.Trigger_gc.{
+          commit_hash_s;
+          create_reachable=(fun ~reachable_fn -> 
+              (* FIXME following needs to be replaced with something better *)
+              let exe = "/tmp/create_reach.exe" in
+              (* use config to get the path to the context *)
+              let path_to_ctxt = 
+                let config = get_config repo in
+                Conf.root config 
+              in
+              let cmd = String.concat " " [exe; path_to_ctxt; commit_hash_s; reachable_fn] in
+              (* FIXME prev needs quoting? *)
+              let _ = Printf.printf "About to run command %S\n%!" cmd in    
+              let ret = Sys.command cmd in
+              let _ = assert(ret = 0) in
+              ())}
+      in
+      Pack_store_IO.trigger_gc io args;
+      Pack_store.clear_all_caches ();
+      ()
+
+    let trigger_gc = Some trigger_gc'
+        
   end
 end

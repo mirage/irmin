@@ -38,7 +38,7 @@ type config = {
   empty_blobs : bool;
 }
 
-(* FIXME isn't this duplicated from trace_replay_intf? yes, but with a different config; we can't just add get_pack_store_io because it isn't available for mem *)
+(* FIXME isn't this duplicated from trace_replay_intf? yes, but with a different config *)
 module type Store = sig
   type store_config = config
 
@@ -50,7 +50,7 @@ module type Store = sig
 
   val create_repo : store_config -> (Repo.t * on_commit * on_end * pp) Lwt.t
 
-  val get_pack_store_io: (repo -> Irmin_pack.Pack_store_IO.t) option
+  val trigger_gc: (repo -> string -> unit) option
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
