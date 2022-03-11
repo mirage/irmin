@@ -263,7 +263,7 @@ module Private (* : S *) = struct
     (** Optional output channel for logging reads; normally this is [None]; only used for
         [create_reach.exe]; only one IO instance will be logged. We assume it is the first
         one that is opened by [create_reach.exe]. See [create_reach.ml],
-        INV_CREATE_REACH_1 *)
+        INV_CREATE_REACH *)
     let get_reach_oc () =
       match !already_done with 
       | true -> None

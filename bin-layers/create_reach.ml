@@ -1,10 +1,8 @@
-(** A single binary to calculate reachability from a particular commit. This is a hack to
-    work around various problems in the irmin-pack code, such as the caching of the block
-    IOs. 
+(** A single binary to calculate reachability from a particular commit, for layers/GC.
 
 Call as: create_reach.exe <context path> <commit hash> <output file>
 
-Invariant INV_CREATE_REACH_1: the first Pack_store_IO instance opened by this executable
+Invariant INV_CREATE_REACH: the first Pack_store_IO instance opened by this executable
 is the one that needs to have reads logged in order to create the reachability data.
 *)
 

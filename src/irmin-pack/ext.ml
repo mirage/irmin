@@ -369,11 +369,14 @@ module Maker (Config : Conf.S) = struct
 
 
     module Contents_CA = X.Contents.CA
+
     let get_pack_store_io: (repo -> Pack_store_IO.t) option = Some (fun repo -> 
         let contents : read X.Contents.t = repo.contents in
         let contents : read X.Contents.CA.t = contents in
         let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
         io)
+
+    let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
 
   end
 end

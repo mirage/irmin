@@ -39,6 +39,9 @@ module type Layers = sig
       this appears somewhat tricky given current deps between interfaces *)
   (* val get_pack_store_io: t -> [ `Ok of Irmin_pack_layers.IO.Pack_store_IO.t | `Mem_store ] *)
   val get_pack_store_io: (repo -> Pack_store_IO.t) option
+
+  (** Supported by irmin-pack and irmin-pack.mem *)
+  val get_config: repo -> Irmin.Backend.Conf.t
 end
 
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
