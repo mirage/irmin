@@ -1,4 +1,12 @@
+## Unreleased
+
+### Added
+
 ## 3.1.0 (2022-02-25)
+
+- **irmin-pack**
+  - Add `forbid_empty_dir_persistence` in store configuration. (#1789,
+    @ngoguey42)
 
 ### Fixed
 

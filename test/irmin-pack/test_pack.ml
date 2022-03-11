@@ -49,8 +49,15 @@ let suite_pack name_suffix indexing_strategy (module Config : Irmin_pack.Conf.S)
     ~clear_supported:false ~import_supported:false ~init ~store ~config ~clean
     ()
 
+module Irmin_tezos_conf = struct
+  include Irmin_tezos.Conf
+
+  (* The generic test suite relies a lot on the empty tree. Let's allow it. *)
+  let forbid_empty_dir_persistence = false
+end
+
 module Irmin_pack_mem_maker : Irmin_test.Generic_key = struct
-  open Irmin_pack_mem.Maker (Irmin_tezos.Conf)
+  open Irmin_pack_mem.Maker (Irmin_tezos_conf)
 
   include Make (struct
     include Irmin_test.Schema
@@ -74,9 +81,10 @@ let suite =
     let stable_hash = 3
     let contents_length_header = None
     let inode_child_order = `Hash_bits
+    let forbid_empty_dir_persistence = false
   end in
   [
-    suite_pack " { Tezos }" Index.minimal (module Irmin_tezos.Conf);
+    suite_pack " { Tezos }" Index.minimal (module Irmin_tezos_conf);
     suite_pack " { Small_nodes }" Index.always (module Conf_small_nodes);
     suite_mem;
   ]

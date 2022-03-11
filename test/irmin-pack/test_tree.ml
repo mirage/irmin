@@ -339,6 +339,7 @@ module Binary = Make (struct
   let stable_hash = 2
   let inode_child_order = `Hash_bits
   let contents_length_header = Some `Varint
+  let forbid_empty_dir_persistence = false
 end)
 
 (* test large compressed proofs *)
@@ -397,6 +398,7 @@ module Custom = Make (struct
 
   let inode_child_order = `Custom index
   let contents_length_header = Some `Varint
+  let forbid_empty_dir_persistence = false
 end)
 
 module P = Custom.Tree.Proof

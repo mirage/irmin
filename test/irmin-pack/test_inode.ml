@@ -100,6 +100,7 @@ module Conf = struct
   let stable_hash = 3
   let contents_length_header = Some `Varint
   let inode_child_order = `Seeded_hash
+  let forbid_empty_dir_persistence = false
 end
 
 module String_contents = struct

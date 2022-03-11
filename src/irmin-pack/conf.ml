@@ -24,6 +24,7 @@ module type S = sig
   val stable_hash : int
   val contents_length_header : length_header
   val inode_child_order : inode_child_order
+  val forbid_empty_dir_persistence : bool
 end
 
 module Default = struct
