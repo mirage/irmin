@@ -26,6 +26,7 @@ module type Sigs = sig
   module Inode = Inode
   module Pack_key = Pack_key
   module Pack_value = Pack_value
+  module Pack_store_IO = Pack_store_IO
   module Pack_store = Pack_store
 
   val config :

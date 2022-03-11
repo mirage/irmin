@@ -217,17 +217,6 @@ open struct
 end
 
 
-
-(** We need to compute the reachable regions in a pack store. Currently this is done as a
-    hack: we open a pack store in "logging mode" (so that all reads are logged to file),
-    then call [Repo.iter] with a given commit. FIXME this is just for testing and needs to
-    be replaced with a proper mechanism. *)
-module Read_loggers = struct
-  (** We want to ensure any read logger is properly closed. *)
-  let close_read_loggers_hook = ref (fun () -> ())
-end
-include Read_loggers
-
 (** This further wraps {!Private_io_impl}, in order to handle forking the worker, and
     dealing with the worker when it terminates. *)
 module Private (* : S *) = struct

@@ -96,6 +96,11 @@ module Varint = struct
 end
 
 let selected_version = `V2
+let _ = 
+  (* We want the default version in layers (as an int) to match the [selected_version];
+     V2=2 according to the version mapping in {!Pack_store_IO}. It would perhaps be better
+     to expose [to_int,of_int] in {!Version}. *)
+  assert(Irmin_pack_layers.Control.default_version = 2)
 
 (** A global hook to clear caches in all pack store instances FIXME replace with something
     better *)

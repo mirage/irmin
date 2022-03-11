@@ -1,8 +1,8 @@
-(** Pre-io is like {!Irmin_pack.IO}, but only deals with the sparse+suffix+control; there
-    is no dependency on the worker. This means that the worker can use the functions here
-    to interact with an existing store instance, without introducing a circularity
-    IO<->Worker. We also {b do not} include functions here that are really something to do
-    with irmin-pack. *)
+(** [Pre_io] is like {!Irmin_pack.Pack_store_IO}, but only deals with the
+    sparse+suffix+control; there is no dependency on the worker. This means that the
+    worker can use the functions here to interact with an existing store instance, without
+    introducing a circularity IO<->Worker. We also {b do not} include functionality in
+    [Pre_io] that is really something to do with irmin-pack. *)
 
 open! Import
 open Util
@@ -166,9 +166,6 @@ let read t ~off buf =
 let append t s = 
   Suffix.append t.suffix s
 
-(* [version] and [set_version] need to be changed when more versions are added. If a new
-   version is added, we will get a type mismatch for these functions, which will trigger
-   the programmer to rewrite them. *)
 let version t : int = 
   Control.(get t.control version_field) 
 

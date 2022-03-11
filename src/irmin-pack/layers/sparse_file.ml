@@ -1,9 +1,17 @@
-(** Implementation of sparse files; see documentation in [FIXME sparse_file_doc.mld] *)
+(** A sparse file is "a file containing gaps"; the gaps do not take up space on disk.
+
+The implementation uses a normal "data" file for the non-gap data, and a "map" file, which
+is used to translate "addresses in the sparse file" (aka "virtual addresses") to
+"addresses in the data file".
+
+The prototype, which includes extensive documentation, can be found at {{: https://github.com/tomjridge/sparse-file/}}.
+
+*)
 
 open Util
 
-(** Signature that we implement *)
-module type SPARSE = sig
+(** Signature for sparse files; file-like with [append_region] and [pread] *)
+module type S = sig
 
   (** The type of sparse files. *)
   type t
@@ -16,32 +24,37 @@ module type SPARSE = sig
   (** [open_ro ~dir] opens the sparse file located in [dir] *)
   val open_ro : dir:string -> t
 
-  (** [close t] saves the sparse map and closes the underlying file descriptor *)
+  (** [close t] saves the sparse map and closes the underlying file descriptor for the
+      sparse data file *)
   val close: t -> unit
 
-  (** [append_region t ~src ~src_off ~len ~virt_off] appends len bytes from fd [src] at
-      offset [src_off], to the end of sparse file t.
+  (** [append_region t ~src ~src_off ~len ~virt_off] appends len bytes from [src] at
+      offset [src_off], to the end of sparse file [t].
 
-      A new map entry [virt_off -> (real_off,len)] is added, where real_off was the real
-      offset of the end of the sparse file before the copy took place.
+      A new map entry [virt_off -> (real_off,len)] is added, where [real_off] is the
+      offset of the end of the sparse data file before the append took place.
 
-      NOTE [len] must not be 0; no other validity checks are made on off and len. It is
-      possible to add the same region multiple times for example, or add overlapping
-      regions, etc. {b These usages should be avoided.} 
-  *)
+      NOTE [len] must not be 0; no other validity checks are made on [off] and [len]. It
+      is possible to add the same region multiple times for example, or add overlapping
+      regions, etc. {b These usages should be avoided.}  *)
   val append_region: t -> src:Pread.t -> src_off:int -> len:int -> virt_off:int -> unit
 
-  (** [pread t ~off ~len ~buf] reads [len] bytes from virtual offset [off] into [buf]; a
-      read that extends beyond the end of a data region will be supplemented with dummy
-      bytes (this scenario is allowed because often the user does not know how many bytes
-      to read, so they read more than is stricly necessary and then examine the bytes they
-      have read); a read that starts in an empty region will fill the buffer with dummy
-      bytes (this scenario is almost certainly an error case, so we should probably
-      instead throw an exception).  *)
+  (** [pread t ~off ~len ~buf] reads [len] bytes from virtual offset [off] into [buf],
+      updating [off] and returning the number of bytes read.
+
+      A read that extends beyond the end of a data region will be supplemented with dummy
+      bytes (this scenario is allowed with irmin-pack because often the user does not know
+      how many bytes to read, so they read more than is strictly necessary and then
+      examine the bytes they have read to try to decode an object).
+
+      A read that starts in an empty region will fill the buffer with dummy bytes (this
+      scenario is almost certainly an error case, so we could instead throw an
+      exception).  *)
   val pread : t -> off:int ref -> len:int -> buf:bytes -> int
 
 end
 
+(** Private implementation of the "map" file *)
 module Private_map = struct
   type map = (int * int) Int_map.t
 
@@ -86,7 +99,7 @@ module Private_map = struct
 
 end
 
-
+(** Private implementation of sparse files *)
 module Private = struct
   open struct
     module Map_ = Private_map
@@ -246,5 +259,5 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       len
 end
 
-include (Private : SPARSE)
+include (Private : S)
 

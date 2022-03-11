@@ -1,3 +1,11 @@
+(** A suffix file is "the contents of a file, starting from a given offset (the suffix
+    offset)"; reading and writing after the offset behave the same as a normal file;
+    reading and writing before the offset is forbidden.
+
+    The implementation uses a plain file and translates offsets when reading and writing:
+    e.g. if the suffix offset is [n] then reading from position [n] will actually read
+    from position 0 in the underlying file. *)
+
 open Util
 
 (** Interface provided by a suffix file; file-like, except that we take account of the
@@ -33,7 +41,7 @@ module type S = sig
   val append: t -> string -> unit
 
   val private_suffix_offset : t -> int
-  (** The virtial offset from which this suffix file stores data *) 
+  (** The virtual offset from which this suffix file stores data *) 
 end
 
 module Private = struct

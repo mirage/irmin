@@ -1,4 +1,4 @@
-(** Utilities *)
+(** Miscellaneous small utilities *)
 
 
 (** {1 Logging} *)

@@ -16,10 +16,3 @@
 
 include Irmin_pack_intf.Sigs
 (** @inline *)
-
-
-(* extra cruft from here *)
-
-val close_any_read_logger: unit -> unit
-
-module Pack_store_IO = Pack_store_IO

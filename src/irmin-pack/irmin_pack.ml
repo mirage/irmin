@@ -54,8 +54,4 @@ module Pack_key = Pack_key
 module Pack_value = Pack_value
 module Pack_store = Pack_store
 
-(* extra cruft from here *)
-
-let close_any_read_logger () = (!Pack_store_IO.close_read_loggers_hook)()
-
 module Pack_store_IO = Pack_store_IO

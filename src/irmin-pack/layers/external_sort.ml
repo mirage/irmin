@@ -9,15 +9,15 @@ in the sparse file should also be read.
 
 Usage: We start with a file containing [(off,len)] pairs. These describe which regions of
 a file contain data that we need when creating a sparse file. We first sort these by
-offset. We then combine adjacent extents. For example, a region [(10,10)] and a region
-[(20,10)] will be combined into the single extent [(10,20)]. When combining extents, we
-also want to allow some flexibility if two regions are "almost adjacent". For example, a
-region [(10,10)] and a region [(21,10)] will be combined into the single extent [(10,21)],
-even though there is a single byte at offset 20 that we do not actually need. The
-parameter [gap_tolerance] defines how large this gap between regions can be for them to be
-combined in this way. The reason for doing this is that we want the sparse file to have a
-small map if possible, and we are happy to include some unneeded data in the sparse data
-file if this will make the map smaller.
+offset, using {!sort}. We then combine adjacent extents using {!calculate_extents_oc}. For
+example, a region [(10,10)] and a region [(20,10)] will be combined into the single extent
+[(10,20)]. When combining extents, we also want to allow some flexibility if two regions
+are "almost adjacent". For example, a region [(10,10)] and a region [(21,10)] will be
+combined into the single extent [(10,21)], even though there is a single byte at offset 20
+that we do not actually need. The parameter [gap_tolerance] defines how large this gap
+between regions can be for them to be combined in this way. The reason for doing this is
+that we want the sparse file to have a small map if possible, and we are happy to include
+some unneeded data in the sparse data file if this will make the map smaller.
 *)
 
 open Util

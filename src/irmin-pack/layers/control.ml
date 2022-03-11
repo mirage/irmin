@@ -1,5 +1,5 @@
-(** The control file records various metadata: generation, version, last flushed
-    offset.
+(** The control file records various metadata: generation, version, last flushed offset;
+    in particular, the generation is used to determine the current sparse+suffix.
 
     The generation is an integer that is incremented every time we switch to a
     new sparse+suffix. Essentially it is used as a pointer to the current
@@ -14,8 +14,11 @@
 open Util
 
 module Private = struct
-  (* FIXME fragile - when versions change/ the default version changes, we need to adjust
-     this code *)
+  (* At the moment, users in irmin-pack always set the version explicitly anyway, so this
+     [default_version] is only used on initial creation, before it is explicitly set by
+     irmin-pack. It is only exposed if there is a crash before it is updated by
+     irmin-pack. In this case, this [default_version] should match the one in irmin-pack,
+     but no explicit check for this is made. *)
   let default_version = 2
 
   type t = Int_mmap.t
@@ -72,6 +75,9 @@ include (
       val open_ : root:string -> name:string -> t
       val fsync : t -> unit
       val close : t -> unit
+
+      val default_version: int 
+      (** Exposed so that we can check it agrees with the default version in irmin-pack *)
 
       val get_generation : t -> int
       (** Convenience; just [get t generation] *)
