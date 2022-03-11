@@ -359,32 +359,21 @@ module Maker (Config : Conf.S) = struct
          Now we can call: [let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents]
 
       *)
-
-(*      
-      let _ = 
-        (* equal types *)
-        let _f (x1:repo) (x2:X.Repo.t) = x1 = x2 in
-        ()
-*)
-
-
-    module Contents_CA = X.Contents.CA
-
     let get_pack_store_io' : repo -> Pack_store_IO.t = fun repo -> 
       let contents : read X.Contents.t = repo.contents in
       let contents : read X.Contents.CA.t = contents in
-      let io : Pack_store_IO.t = Contents_CA.get_pack_store_io contents in
+      let io : Pack_store_IO.t = X.Contents.CA.get_pack_store_io contents in
       io
 
     let get_pack_store_io: (repo -> Pack_store_IO.t) option = Some get_pack_store_io'
 
     let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
 
-    open struct
-      (* module Conf = Irmin.Backend.Conf *)
-      module Conf_ip = Conf
-    end
-
+    (* Why does the following piece of implementation belong here?
+       Pack_store_IO.trigger_gc knows nothing about [type repo] etc; so in order to
+       implement a function [: repo -> string -> unit] we need to be outside
+       Pack_store_IO; at least in this file, we have access to all the implementation
+       parts that we could need. *)
     let trigger_gc' (repo:repo) commit_hash_s =
       let io = get_pack_store_io' repo in
       let args = Pack_store_IO.Trigger_gc.{
@@ -395,6 +384,7 @@ module Maker (Config : Conf.S) = struct
               (* use config to get the path to the context *)
               let path_to_ctxt = 
                 let config = get_config repo in
+                (* NOTE Conf is Irmin_pack.Conf *)
                 Conf.root config 
               in
               let cmd = String.concat " " [exe; path_to_ctxt; commit_hash_s; reachable_fn] in
