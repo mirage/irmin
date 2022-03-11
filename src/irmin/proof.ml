@@ -71,12 +71,29 @@ struct
   let v ~before ~after state = { after; before; state }
 end
 
+type bad_stream_exn =
+  | Stream_too_long of { context : string; reason : string }
+  | Stream_too_short of { context : string; reason : string }
+  | Proof_mismatch of { context : string; reason : string }
+
 exception Bad_proof of { context : string }
-exception Bad_stream of { context : string; reason : string }
+exception Bad_stream of bad_stream_exn
 
 let bad_proof_exn context = raise (Bad_proof { context })
-let bad_stream_exn context reason = raise (Bad_stream { context; reason })
+
+let bad_stream_too_long context reason =
+  raise (Bad_stream (Stream_too_long { context; reason }))
+
+let bad_stream_too_short context reason =
+  raise (Bad_stream (Stream_too_short { context; reason }))
+
+let bad_stream_exn context reason =
+  raise (Bad_stream (Proof_mismatch { context; reason }))
+
 let bad_stream_exn_fmt s fmt = Fmt.kstr (bad_stream_exn ("Proof.Env." ^ s)) fmt
+
+let bad_stream_too_short_fmt s fmt =
+  Fmt.kstr (bad_stream_too_short ("Proof.Env." ^ s)) fmt
 
 module Env
     (B : Backend.S)
@@ -414,7 +431,7 @@ struct
         | None -> (
             match !stream () with
             | Seq.Nil ->
-                bad_stream_exn_fmt "find_contents"
+                bad_stream_too_short_fmt "find_contents"
                   "empty stream when looking for hash %a" pp_hash h
             | Cons (elt, rest) ->
                 let v = rehydrate_stream_contents elt h in
@@ -494,7 +511,7 @@ struct
         | None -> (
             match !stream () with
             | Seq.Nil ->
-                bad_stream_exn_fmt "find_recnode"
+                bad_stream_too_short_fmt "find_recnode"
                   "empty stream when looking for hash %a" pp_hash h
             | Cons (v, rest) ->
                 let v = rehydrate_stream_node ~depth:expected_depth v h in
@@ -520,7 +537,7 @@ struct
         | None -> (
             match !stream () with
             | Seq.Nil ->
-                bad_stream_exn_fmt "find_node"
+                bad_stream_too_short_fmt "find_node"
                   "empty stream when looking for hash %a" pp_hash h
             | Cons (v, rest) ->
                 (* Shorten [stream] before calling [head] as it might itself

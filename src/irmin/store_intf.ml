@@ -469,10 +469,17 @@ module type S_generic_key = sig
 
         Calling [produce_proof] recursively has an undefined behaviour. *)
 
+    type verifier_error =
+      [ `Proof_mismatch of string
+      | `Stream_too_long of string
+      | `Stream_too_short of string ]
+    [@@deriving irmin]
+    (** The type for errors associated with functions that verify proofs. *)
+
     type ('proof, 'result) verifier :=
       'proof ->
       (tree -> (tree * 'result) Lwt.t) ->
-      (tree * 'result, [ `Msg of string ]) result Lwt.t
+      (tree * 'result, verifier_error) result Lwt.t
     (** [verify p f] runs [f] in checking mode. [f] is a function that takes a
         tree as input and returns a new version of the tree and a result. [p] is
         a proof, that is a minimal representation of the tree that contains what

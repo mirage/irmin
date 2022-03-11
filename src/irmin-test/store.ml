@@ -1612,7 +1612,10 @@ module Make (S : Generic_key) = struct
         let+ r = S.Tree.verify_proof p f in
         match r with
         | Ok (_, ()) -> ()
-        | Error (`Msg e) -> Alcotest.failf "check_proof: %s" e
+        | Error e ->
+            Alcotest.failf "check_proof: %a"
+              (Irmin.Type.pp S.Tree.verifier_error_t)
+              e
       in
       let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
 
@@ -1622,7 +1625,10 @@ module Make (S : Generic_key) = struct
         let+ r = S.Tree.verify_stream p f in
         match r with
         | Ok (_, ()) -> ()
-        | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
+        | Error e ->
+            Alcotest.failf "check_stream: %a"
+              (Irmin.Type.pp S.Tree.verifier_error_t)
+              e
       in
       let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
 

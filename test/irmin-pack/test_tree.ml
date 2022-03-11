@@ -438,7 +438,10 @@ let test_extenders () =
     let+ r = Custom.Tree.verify_proof p f in
     match r with
     | Ok (_, ()) -> ()
-    | Error (`Msg e) -> Alcotest.failf "check_proof: %s" e
+    | Error e ->
+        Alcotest.failf "check_proof: %a"
+          (Irmin.Type.pp Custom.Tree.verifier_error_t)
+          e
   in
   let* () = Lwt_list.iter_s check_proof [ bindings; bindings2; bindings3 ] in
 
@@ -450,7 +453,10 @@ let test_extenders () =
     let+ r = Custom.Tree.verify_stream p f in
     match r with
     | Ok (_, ()) -> ()
-    | Error (`Msg e) -> Alcotest.failf "check_stream: %s" e
+    | Error e ->
+        Alcotest.failf "check_stream: %a"
+          (Irmin.Type.pp Custom.Tree.verifier_error_t)
+          e
   in
   Lwt_list.iter_s check_stream [ bindings; bindings2; bindings3 ]
 
@@ -544,6 +550,70 @@ let test_hardcoded_proof () =
   in
   Lwt.return_unit
 
+let tree_of_list ls =
+  let tree = Tree.empty () in
+  Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree ls
+
+let test_proof_exn _ =
+  let x = "x" in
+  let y = "y" in
+  let hx = Store.Contents.hash x in
+  let hy = Store.Contents.hash y in
+  let stream_elt1 : P.elt = Contents y in
+  let stream_elt2 : P.elt = Contents x in
+  let stream_elt3 : P.elt =
+    Node [ ("bx", `Contents (hx, ())); ("by", `Contents (hy, ())) ]
+  in
+  let* tree = tree_of_list [ ([ "bx" ], "x"); ([ "by" ], "y") ] in
+  let hash = Tree.hash tree in
+
+  let stream_all =
+    P.v ~before:(`Node hash) ~after:(`Node hash)
+      (List.to_seq [ stream_elt3; stream_elt2; stream_elt1 ])
+  in
+  let stream_short =
+    P.v ~before:(`Node hash) ~after:(`Node hash)
+      (List.to_seq [ stream_elt3; stream_elt2 ])
+  in
+  let f_all t =
+    let* _ = Custom.Tree.find t [ "bx" ] in
+    let+ _ = Custom.Tree.find t [ "by" ] in
+    (t, ())
+  in
+  let f_short t =
+    let+ _ = Custom.Tree.find t [ "bx" ] in
+    (t, ())
+  in
+  (* Test the Stream_too_long error. *)
+  let* r = Custom.Tree.verify_stream stream_all f_short in
+  let* () =
+    match r with
+    | Error (`Stream_too_long _) -> Lwt.return_unit
+    | _ -> Alcotest.fail "expected Stream_too_long error"
+  in
+  (* Test the Stream_too_short error. *)
+  let* r = Custom.Tree.verify_stream stream_short f_all in
+  let* () =
+    match r with
+    | Error (`Stream_too_short _) -> Lwt.return_unit
+    | _ -> Alcotest.fail "expected Stream_too_short error"
+  in
+  (* Test the correct usecase. *)
+  let* r = Custom.Tree.verify_stream stream_all f_all in
+  let* () =
+    match r with
+    | Ok (_, ()) -> Lwt.return_unit
+    | Error e -> (
+        match e with
+        | `Proof_mismatch str ->
+            Alcotest.failf "unexpected Proof_mismatch error: %s" str
+        | `Stream_too_long str ->
+            Alcotest.failf "unexpected Stream_too_long error: %s" str
+        | `Stream_too_short str ->
+            Alcotest.failf "unexpected Stream_too_short error: %s" str)
+  in
+  Lwt.return_unit
+
 let tests =
   [
     Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
@@ -566,4 +636,6 @@ let tests =
         Lwt_main.run (test_hardcoded_stream ()));
     Alcotest.test_case "test hardcoded proof" `Quick (fun () ->
         Lwt_main.run (test_hardcoded_proof ()));
+    Alcotest.test_case "test stream proof exn" `Quick (fun () ->
+        Lwt_main.run (test_proof_exn ()));
   ]
