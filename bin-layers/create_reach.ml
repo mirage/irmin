@@ -18,6 +18,10 @@ let _ = Irmin_pack_layers.running_create_reach_exe := Some output_path
 
 open Lwt.Infix
 
+(* NOTE this is hardcoded to use Irmin_tezos.Store; this means we cannot use it with other
+   functor instances, even though the code for that (worker etc) is already there. We
+   might prefer not to run an executable at all, but find the reachable data from within
+   the worker process. *)
 module S = Irmin_tezos.Store
 
 let config = Irmin_pack.config ~readonly:true context_path
