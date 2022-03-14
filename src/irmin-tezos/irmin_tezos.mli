@@ -35,5 +35,5 @@ module Store :
        by the .mem impl; here we know the underlying implementation is via irmin_pack, so
        we can expose it directly *)
     type commit_hash_s := string
-    val trigger_gc : repo -> commit_hash_s -> metadata
+    val trigger_gc : repo -> commit_hash_s -> unit
   end
