@@ -31,7 +31,9 @@ module Store :
        and type node_key = Schema.Hash.t Irmin_pack.Pack_key.t
        and type commit_key = Schema.Hash.t Irmin_pack.Pack_key.t
 
-    (* from layers; for Tezos, we always use irmin-pack, not irmin-pack-mem, so this is
-       always [Some _]; so perhaps we should refine the type *)
-    val get_pack_store_io: (repo -> Irmin_pack.Pack_store_IO.t) option
+    (* NOTE this is exposed as an option by Irmin_pack.Maker, because it is not supported
+       by the .mem impl; here we know the underlying implementation is via irmin_pack, so
+       we can expose it directly *)
+    type commit_hash_s := string
+    val trigger_gc : repo -> commit_hash_s -> metadata
   end
