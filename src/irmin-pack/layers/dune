@@ -1,0 +1,8 @@
+(library
+ (public_name irmin-pack.layers)
+ (name irmin_pack_layers)
+ (libraries sexplib logs optint bheap mtime mtime.clock mtime.clock.os fmt) 
+ (preprocess
+  (pps ppx_sexp_conv ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))
