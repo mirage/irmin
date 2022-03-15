@@ -184,7 +184,7 @@ struct
     include Make (Irmin_tezos.Schema)
   end
 
-  let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.minimal
+  let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
   let create_repo ~root _config =
     let conf =

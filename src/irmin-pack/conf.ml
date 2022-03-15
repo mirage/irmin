@@ -34,7 +34,7 @@ module Default = struct
   let readonly = false
   let merge_throttle = `Block_writes
   let freeze_throttle = `Block_writes
-  let indexing_strategy = Pack_store.Indexing_strategy.default
+  let indexing_strategy = Indexing_strategy.default
 end
 
 open Irmin.Backend.Conf
@@ -80,8 +80,8 @@ module Key = struct
       "indexing-strategy"
       (Irmin.Type.map serialisable_t
          (function
-           | `Always -> Pack_store.Indexing_strategy.always
-           | `Minimal -> Pack_store.Indexing_strategy.minimal)
+           | `Always -> Indexing_strategy.always
+           | `Minimal -> Indexing_strategy.minimal)
          (fun _ -> Fmt.failwith "Can't serialise indexing strategy"))
       Default.indexing_strategy
 end

@@ -107,7 +107,7 @@ module type Persistent = sig
     ?readonly:bool ->
     ?lru_size:int ->
     index:index ->
-    indexing_strategy:Pack_store.Indexing_strategy.t ->
+    indexing_strategy:Indexing_strategy.t ->
     string ->
     read t Lwt.t
 

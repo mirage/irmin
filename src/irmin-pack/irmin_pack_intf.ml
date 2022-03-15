@@ -21,10 +21,12 @@ module type Maker_persistent = S.Maker_persistent
 
 module type Sigs = sig
   module Conf = Conf
+  module Indexing_strategy = Indexing_strategy
   module Inode = Inode
   module Pack_key = Pack_key
   module Pack_value = Pack_value
-  module Pack_store = Pack_store
+  module Pack_store_intf = Pack_store_intf
+  (* module Pack_store = Pack_store *)
 
   val config :
     ?fresh:bool ->
@@ -33,7 +35,7 @@ module type Sigs = sig
     ?index_log_size:int ->
     ?merge_throttle:Conf.merge_throttle ->
     ?freeze_throttle:Conf.freeze_throttle ->
-    ?indexing_strategy:Pack_store.Indexing_strategy.t ->
+    ?indexing_strategy:Indexing_strategy.t ->
     string ->
     Irmin.config
   (** Configuration options for stores.
@@ -48,8 +50,8 @@ module type Sigs = sig
         blocks any new writes until the merge is completed. [Overcommit_memory]
         does not block but indefinitely expands the in-memory cache.
       @param indexing_strategy
-        The {{!Pack_store.Indexing_strategy} indexing strategy} of the backend
-        store. Defaults to {!Pack_store.Indexing_strategy.default}. *)
+        The {{!Indexing_strategy} indexing strategy} of the backend
+        store. Defaults to {!Indexing_strategy.default}. *)
 
   exception RO_not_allowed
 

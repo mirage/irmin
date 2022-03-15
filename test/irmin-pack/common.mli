@@ -60,14 +60,14 @@ module Index : module type of Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key : Irmin_pack.Pack_key.S with type hash = Schema.Hash.t
 
 module Pack :
-  Irmin_pack.Pack_store.S
+  Irmin_pack.Pack_store_intf.S
     with type hash = Schema.Hash.t
      and type key = Key.t
      and type value = string
      and type index := Index.t
 
 module P :
-  Irmin_pack.Pack_store.Maker
+  Irmin_pack.Pack_store_intf.Maker
     with type hash = Schema.Hash.t
      and type index := Irmin_pack_unix.Index.Make(Schema.Hash).t
 

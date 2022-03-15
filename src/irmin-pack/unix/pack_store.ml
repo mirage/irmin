@@ -1,5 +1,5 @@
 open Import
-include Irmin_pack.Pack_store
+(* include Irmin_pack.Pack_store *)
 
 module Varint = struct
   type t = int [@@deriving irmin ~decode_bin]
@@ -15,6 +15,8 @@ exception Corrupted_store of string
 let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 
+let selected_version = `V2
+
 module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
@@ -23,7 +25,7 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
 end)
 
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
-  Maker with type hash = K.t and type index := Index.t = struct
+  Irmin_pack.Pack_store_intf.Maker with type hash = K.t and type index := Index.t = struct
   module IO_cache = IO.Cache
   module IO = IO.Unix
   module Tbl = Table (K)
@@ -43,7 +45,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
   type 'a t = {
     block : IO.t;
     index : Index.t;
-    indexing_strategy : Indexing_strategy.t;
+    indexing_strategy : Irmin_pack.Indexing_strategy.t;
     dict : Dict.t;
     mutable open_instances : int;
   }

@@ -20,6 +20,7 @@ let config = Conf.init
 
 exception RO_not_allowed = S.RO_not_allowed
 
+module Indexing_strategy = Indexing_strategy
 module Indexable = Indexable
 module Atomic_write = Atomic_write
 module Hash = Irmin.Hash.BLAKE2B
@@ -33,4 +34,5 @@ module Inode = Inode
 module IO = IO
 module Pack_key = Pack_key
 module Pack_value = Pack_value
-module Pack_store = Pack_store
+module Pack_store_intf = Pack_store_intf
+(* module Pack_store = Pack_store *)

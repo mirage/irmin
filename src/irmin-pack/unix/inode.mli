@@ -14,7 +14,7 @@ module Make_persistent
                 and type key = H.t Pack_key.t
                 and type Snapshot.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (CA : Pack_store.Maker
+    (CA : Irmin_pack.Pack_store_intf.Maker
             with type hash = H.t
              and type index := Pack_index.Make(H).t) :
   Persistent
