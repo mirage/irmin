@@ -448,10 +448,16 @@ module type Sigs = sig
       (t -> (t * 'result) Lwt.t) ->
       ('proof * 'result) Lwt.t
 
+    type verifier_error =
+      [ `Proof_mismatch of string
+      | `Stream_too_long of string
+      | `Stream_too_short of string ]
+    [@@deriving irmin]
+
     type ('proof, 'result) verifier :=
       'proof ->
       (t -> (t * 'result) Lwt.t) ->
-      (t * 'result, [ `Msg of string ]) result Lwt.t
+      (t * 'result, verifier_error) result Lwt.t
 
     type tree_proof := Proof.tree Proof.t
 

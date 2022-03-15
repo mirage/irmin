@@ -314,10 +314,18 @@ module type Proof = sig
   module type Env = Env
 
   exception Bad_proof of { context : string }
-  exception Bad_stream of { context : string; reason : string }
+
+  type bad_stream_exn =
+    | Stream_too_long of { context : string; reason : string }
+    | Stream_too_short of { context : string; reason : string }
+    | Proof_mismatch of { context : string; reason : string }
+
+  exception Bad_stream of bad_stream_exn
 
   val bad_proof_exn : string -> 'a
   val bad_stream_exn : string -> string -> 'a
+  val bad_stream_too_long : string -> string -> 'a
+  val bad_stream_too_short : string -> string -> 'a
 
   module Make
       (C : Type.S)

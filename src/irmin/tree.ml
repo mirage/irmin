@@ -2752,13 +2752,20 @@ module Make (P : Backend.S) = struct
               h.context pp_hash h.hash
         | e -> raise e)
 
+  type verifier_error =
+    [ `Proof_mismatch of string
+    | `Stream_too_long of string
+    | `Stream_too_short of string ]
+  [@@deriving irmin]
+
   let verify_proof p f =
     Lwt.catch
       (fun () ->
         let+ r = verify_proof_exn p f in
         Ok r)
       (function
-        | Irmin_proof.Bad_proof e -> Lwt.return (Error (`Msg e.context))
+        | Irmin_proof.Bad_proof e ->
+            Lwt.return (Error (`Proof_mismatch e.context))
         | e -> Lwt.fail e)
 
   let verify_stream_exn p f =
@@ -2771,7 +2778,7 @@ module Make (P : Backend.S) = struct
       (fun () ->
         let+ tree_after, result = f tree in
         if not (is_empty ()) then
-          Irmin_proof.bad_stream_exn "verify_stream"
+          Irmin_proof.bad_stream_too_long "verify_stream"
             "did not consume the full stream";
         if not (equal_kinded_hash after (hash tree_after)) then
           Irmin_proof.bad_stream_exn "verify_stream" "invalid after hash";
@@ -2790,9 +2797,17 @@ module Make (P : Backend.S) = struct
         let+ r = verify_stream_exn p f in
         Ok r)
       (function
-        | Irmin_proof.Bad_stream e ->
+        | Irmin_proof.Bad_stream (Stream_too_long e) ->
             Fmt.kstr
-              (fun e -> Lwt.return (Error (`Msg e)))
+              (fun e -> Lwt.return (Error (`Stream_too_long e)))
+              "Bad_stream %s: %s" e.context e.reason
+        | Irmin_proof.Bad_stream (Stream_too_short e) ->
+            Fmt.kstr
+              (fun e -> Lwt.return (Error (`Stream_too_short e)))
+              "Bad_stream %s: %s" e.context e.reason
+        | Irmin_proof.Bad_stream (Proof_mismatch e) ->
+            Fmt.kstr
+              (fun e -> Lwt.return (Error (`Proof_mismatch e)))
               "Bad_stream %s: %s" e.context e.reason
         | e -> Lwt.fail e)
 
