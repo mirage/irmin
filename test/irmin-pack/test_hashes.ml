@@ -72,8 +72,10 @@ struct
 
   let persist_tree tree =
     let* repo = Repo.v conf in
-    let empty = Tree.empty () in
-    let* init_commit = Commit.v ~parents:[] ~info:Info.empty repo empty in
+    let* init_commit =
+      Commit.v ~parents:[] ~info:Info.empty repo
+        (Tree.singleton [ "singleton-step" ] (Bytes.of_string "singleton-val"))
+    in
     let h = Commit.hash init_commit in
     let info = Info.v ~author:"Tezos" 0L in
     let* commit =
@@ -173,14 +175,14 @@ module Test_tezos_conf = struct
     encode_bin_hash h (fun x ->
         check_string ~msg:"commit hash"
           ~expected:
-            "2c85e6014a7e6c8fb655cc0272d3d202c3610738b1e3c6fa378d633f324bb17b"
+            "c20860adda3c3d40d8d03fab22b07e889979cdac880d979711aa852a0896ae30"
           ~got:x);
     let checks =
       [
         ("hash of root node", hash_root_small_tree);
         ("len of parents", "01");
         ( "parent hash",
-          "bf50614cb5f7c3a35e613ed5abd6ea1e2619a0e832e88bbbe436b74a6151ed03" );
+          "634d894802f9032ef48bbe1253563dbeb2aad7dc684da83bdea5692fde2185ae" );
         ("date", "0000000000000000");
         ("len of author", "05");
         ("author", "54657a6f73");
@@ -197,7 +199,7 @@ module Test_tezos_conf = struct
         ("len of parents", "0000000000000001");
         ("len of parent hash", "0000000000000020");
         ( "parent hash",
-          "bf50614cb5f7c3a35e613ed5abd6ea1e2619a0e832e88bbbe436b74a6151ed03" );
+          "634d894802f9032ef48bbe1253563dbeb2aad7dc684da83bdea5692fde2185ae" );
         ("date", "0000000000000000");
         ("len of author", "0000000000000005");
         ("author", "54657a6f73");
@@ -208,7 +210,7 @@ module Test_tezos_conf = struct
     let pre_hash_val = Irmin.Type.(unstage (pre_hash Commit.Val.t)) in
     check_iter "pre_hash" pre_hash_val commit_val checks;
     Store.check_hardcoded_hash "commit hash"
-      "CoUyv8vkXeELA2aZ1qAKrBffnSKFeEP7R364T5sfAZEvkm4BsmDS" h;
+      "CoW7mALEs2vue5cfTMdJfSAjNmjmALYS1YyqSsYr9siLcNEcrvAm" h;
     let* () = Store.Repo.close repo in
     Lwt.return_unit
 end
@@ -219,6 +221,7 @@ module Test_small_conf = struct
     let stable_hash = 3
     let contents_length_header = Some `Varint
     let inode_child_order = `Seeded_hash
+    let forbid_empty_dir_persistence = true
   end
 
   module Store = Test (Conf) (Irmin_tezos.Schema)
@@ -293,7 +296,7 @@ module Test_V1 = struct
         ("len of parents", "0000000000000001");
         ("len of parent hash", "0000000000000020");
         ( "parent hash",
-          "bf50614cb5f7c3a35e613ed5abd6ea1e2619a0e832e88bbbe436b74a6151ed03" );
+          "634d894802f9032ef48bbe1253563dbeb2aad7dc684da83bdea5692fde2185ae" );
         ("date", "0000000000000000");
         ("len of author", "0000000000000005");
         ("author", "54657a6f73");

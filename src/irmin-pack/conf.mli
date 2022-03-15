@@ -39,6 +39,14 @@ module type S = sig
         information). *)
 
   val inode_child_order : inode_child_order
+
+  val forbid_empty_dir_persistence : bool
+  (** If [true], irmin-pack raises [Failure] if it is asked to save the empty
+      inode. This default is [false]. It should be set to [true] if the [Schema]
+      of the store allows a hash collision between the empty inode and this
+      string of length 1: ["\000"].
+
+      See https://github.com/mirage/irmin/issues/1304 *)
 end
 
 val spec : Irmin.Backend.Conf.Spec.t

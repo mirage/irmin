@@ -157,7 +157,10 @@ let test_RW_version_bump () : unit Lwt.t =
   (* force version bump by writing to the store *)
   let* main = S.main repo in
   let info () = S.Info.v (Int64.of_int 0) in
-  let* () = S.set_tree_exn ~info main [] (S.Tree.empty ()) in
+  let* () =
+    S.set_tree_exn ~info main []
+      (S.Tree.singleton [ "singleton-key" ] "singleton-val")
+  in
   let* () = S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V2
     ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
