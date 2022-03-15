@@ -124,7 +124,14 @@ struct
         [] min
     in
     let min = Set.of_list min in
-    let has_mark key = Table.mem marks key in
+    let has_mark =
+      (* For layers [create_reach.exe], we want to make sure we visit ALL objects
+         reachable from a commit; for this reason, we pass [cache_size=0] to [Repo.iter];
+         we then override the [has_mark] function to always return false in this case (we
+         don't want to trust that the 0 length Lru will behave correctly) *)
+      let should_disable_cache = (cache_size = Some 0) in
+      if should_disable_cache then (fun _ -> false) else (fun key -> Table.mem marks key)
+    in
     List.iter (fun k -> Stack.push (Visit (k, 0)) todo) max;
     let treat key =
       [%log.debug "TREAT %a" Type.(pp X.t) key];
