@@ -1,0 +1,35 @@
+(executable
+ (name "test")
+  (modules Test)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "create_reach")
+ (modules Create_reach)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "convert_store_dot_pack")
+ (modules Convert_store_dot_pack)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "print_control")
+ (modules Print_control)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "print_extents")
+ (modules Print_extents)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
+ (name "print_sparse_map")
+ (modules Print_sparse_map)
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
