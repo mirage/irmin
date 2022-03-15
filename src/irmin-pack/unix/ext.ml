@@ -398,5 +398,51 @@ module Maker (Config : Conf.S) = struct
         let close process = Import.close process
       end
     end
+
+    (* following for layers *)
+    include struct
+
+      let get_pack_store_io' : repo -> Pack_store_IO.t = fun repo -> 
+        let contents : read X.Contents.t = repo.contents in
+        let contents : read X.Contents.CA.t = contents in
+        let io : Pack_store_IO.t = X.Contents.CA.get_pack_store_io contents in
+        io
+
+      (* let get_pack_store_io: (repo -> Pack_store_IO.t) option = Some get_pack_store_io' *)
+
+      let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
+
+      (* Why does the following piece of implementation belong here?
+         Pack_store_IO.trigger_gc knows nothing about [type repo] etc; so in order to
+         implement a function [: repo -> string -> unit] we need to be outside
+         Pack_store_IO; at least in this file, we have access to all the implementation
+         parts that we could need. *)
+      let trigger_gc' (repo:repo) commit_hash_s =
+        let io = get_pack_store_io' repo in
+        let args = Pack_store_IO.Trigger_gc.{
+            commit_hash_s;
+            create_reachable=(fun ~reachable_fn -> 
+                (* FIXME following needs to be replaced with something better *)
+                let exe = "/tmp/create_reach.exe" in
+                (* use config to get the path to the context *)
+                let path_to_ctxt = 
+                  let config = get_config repo in
+                  (* NOTE Conf is Irmin_pack.Conf *)
+                  Conf.root config 
+                in
+                let cmd = String.concat " " [exe; path_to_ctxt; commit_hash_s; reachable_fn] in
+                (* FIXME prev needs quoting? *)
+                let _ = Printf.printf "About to run command %S\n%!" cmd in    
+                let ret = Sys.command cmd in
+                let _ = assert(ret = 0) in
+                ())}
+        in
+        Pack_store_IO.trigger_gc io args;
+        Pack_store.clear_all_caches ();
+        ()
+
+      let trigger_gc = Some trigger_gc'
+    end
+
   end
 end

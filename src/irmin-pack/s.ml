@@ -30,6 +30,21 @@ module type Checkable = sig
     (unit, [ `Wrong_hash | `Absent_value ]) result
 end
 
+(** This module type should be included where appropriate, with [type repo := repo] *)
+module type Layers = sig
+  type repo 
+
+  (** Some of the following functions are only available on pack_store impls *)
+  type 'a only_for_irmin_pack := 'a option
+
+  (** Supported by irmin-pack.unix and irmin-pack.mem *)
+  val get_config: repo -> Irmin.Backend.Conf.t
+
+  type commit_hash_s := string
+
+  val trigger_gc: (repo -> commit_hash_s -> unit) only_for_irmin_pack
+end
+
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
 module type Specifics = sig
   type repo
@@ -74,6 +89,7 @@ module type S = sig
 
   val stats :
     dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
+
 
   module Snapshot : sig
     type kinded_hash = Contents of hash * metadata | Node of hash
@@ -142,6 +158,9 @@ module type S = sig
       (** [close snapshot] close the [snaphot] instance.*)
     end
   end
+
+  include Layers with type repo := repo
+
 end
 
 module S_is_a_store (X : S) : Irmin.Generic_key.S = X
