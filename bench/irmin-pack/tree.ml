@@ -48,6 +48,8 @@ module type Store = sig
 
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+
+  val trigger_gc: (repo -> string -> unit) option
 end
 
 let pp_inode_config ppf (entries, stable_hash) =

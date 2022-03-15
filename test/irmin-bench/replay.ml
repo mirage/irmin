@@ -24,7 +24,13 @@ module Store = struct
   include Store
 end
 
-module Replay = Irmin_traces.Trace_replay.Make (Store)
+module Replay = Irmin_traces.Trace_replay.Make 
+    (struct
+      include Store
+      (* Trace_replay wants trigger_gc as an option, but Irmin_tezos exposes it directly,
+         so we add this shim *)
+      let trigger_gc = Some trigger_gc 
+    end)
 
 let rec repeat = function
   | 0 -> fun _f x -> x
