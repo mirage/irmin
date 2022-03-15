@@ -21,7 +21,7 @@ type elt := string
 
 val create :
   elt_length:int ->
-  ?initial_capacity:int ->
+  ?initial_slots:int ->
   ?hash:(elt -> int) ->
   ?hash_substring:(Bigstringaf.t -> off:int -> len:int -> int) ->
   ?null:string ->
@@ -32,8 +32,11 @@ val create :
 
     - [elt_length]: the length of each element string in bytes;
 
-    - [initial_capacity]: the number of elements that can be added to the
-      hashset without re-allocating the internal buffer;
+    - [initial_slots]: the minimum number of slots contained in the initial
+      internal buffer (NOTE: the actual number of slots will be the least power
+      of two greater than or equal to [initial_buffer]. This is not the same as
+      the number of elements that can fit inside the buffer, which also depends
+      on the maximum load factor);
 
     - [hash] / [hash_substring]: functions to use for placing elements inside
       the internal buffer (given that the element is contained in a string or a

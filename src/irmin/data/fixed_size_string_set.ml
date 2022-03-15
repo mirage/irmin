@@ -101,7 +101,7 @@ module Default = struct
   let null ~elt_length = String.make elt_length '\000'
 end
 
-let create ~elt_length ?(initial_capacity = 0) ?hash ?hash_substring ?null () =
+let create ~elt_length ?(initial_slots = 0) ?hash ?hash_substring ?null () =
   if elt_length <= 0 then
     Fmt.invalid_arg "%s.create: element length must be strictly positive"
       __MODULE__;
@@ -120,7 +120,7 @@ let create ~elt_length ?(initial_capacity = 0) ?hash ?hash_substring ?null () =
   in
   let slot_count =
     let rec aux n =
-      if n >= initial_capacity then n
+      if n >= initial_slots then n
       else if n * 2 > Sys.max_array_length then n
       else aux (n * 2)
     in

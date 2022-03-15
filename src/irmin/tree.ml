@@ -180,8 +180,8 @@ module Make (P : Backend.S) = struct
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
 
-  let dummy_marks = Hashes.create ~initial_capacity:0 ()
-  let empty_marks () = Hashes.create ~initial_capacity:39 ()
+  let dummy_marks = Hashes.create ~initial_slots:0 ()
+  let empty_marks () = Hashes.create ~initial_slots:39 ()
 
   exception Pruned_hash of { context : string; hash : hash }
   exception Dangling_hash of { context : string; hash : hash }

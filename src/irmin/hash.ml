@@ -109,11 +109,11 @@ module Set = struct
   module Make (Hash : S) = struct
     include Irmin_data.Fixed_size_string_set
 
-    let create ?(initial_capacity = 0) () =
+    let create ?(initial_slots = 0) () =
       let elt_length = Hash.hash_size
       and hash s = Hash.(short_hash (unsafe_of_raw_string s))
       and hash_substring t ~off ~len:_ = Hash.short_hash_substring t ~off in
-      create ~elt_length ~initial_capacity ~hash ~hash_substring ()
+      create ~elt_length ~initial_slots ~hash ~hash_substring ()
 
     let add t h = add t (Hash.to_raw_string h)
     let mem t h = mem t (Hash.to_raw_string h)

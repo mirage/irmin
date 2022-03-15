@@ -65,7 +65,7 @@ module Stringset_irmin : S = struct
 
   let create () =
     let open Elt in
-    T.create ~elt_length ~hash ~hash_substring ~initial_capacity:0 ()
+    T.create ~elt_length ~hash ~hash_substring ~initial_slots:0 ()
 
   let add = T.add_exn
   let reachable_words = T.reachable_words

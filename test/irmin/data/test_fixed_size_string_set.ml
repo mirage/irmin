@@ -8,7 +8,7 @@ let hash_substring : Bigstringaf.t -> off:int -> len:int -> int =
 
 let test_add_and_mem () =
   let set =
-    String_set.create ~elt_length:1 ~initial_capacity:0 ~hash ~hash_substring ()
+    String_set.create ~elt_length:1 ~initial_slots:0 ~hash ~hash_substring ()
   in
   String_set.mem set "a" |> check_bool __POS__ ~expected:false;
   String_set.add_exn set "a";
@@ -28,7 +28,7 @@ let test_add_and_mem () =
 let test_random () =
   let elt_length = 8 in
   let set =
-    String_set.create ~elt_length ~initial_capacity:31 ~hash ~hash_substring ()
+    String_set.create ~elt_length ~initial_slots:31 ~hash ~hash_substring ()
   in
   let reference_tbl = Stdlib.Hashtbl.create 0 in
   let reference_vector = Vector.create ~dummy:"" in

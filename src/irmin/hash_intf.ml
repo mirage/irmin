@@ -85,7 +85,7 @@ module type Set = sig
   type t
   type hash
 
-  val create : ?initial_capacity:int -> unit -> t
+  val create : ?initial_slots:int -> unit -> t
   val add : t -> hash -> [ `Ok | `Duplicate ]
   val mem : t -> hash -> bool
 end
