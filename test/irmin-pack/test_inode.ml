@@ -70,7 +70,7 @@ struct
       [%log.app "Constructing a fresh context for use by the test"];
       rm_dir root;
       let index = Index.v ~log_size ~fresh:true root in
-      let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+      let indexing_strategy = Irmin_pack.Indexing_strategy.always in
       let* store =
         Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root
       in

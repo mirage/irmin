@@ -1,26 +1,18 @@
-open Import
-open Irmin_pack.Inode
+(*
+ * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
-module type S = S
-
-module Make_persistent
-    (H : Irmin.Hash.S)
-    (Node : Irmin.Node.Generic_key.S
-              with type hash = H.t
-               and type contents_key = H.t Pack_key.t
-               and type node_key = H.t Pack_key.t)
-    (Inter : Internal
-               with type hash = H.t
-                and type key = H.t Pack_key.t
-                and type Snapshot.metadata = Node.metadata
-                and type Val.step = Node.step)
-    (CA : Pack_store.Maker
-            with type hash = H.t
-             and type index := Pack_index.Make(H).t) :
-  Persistent
-    with type key = H.t Pack_key.t
-     and type hash = H.t
-     and type Val.metadata = Node.metadata
-     and type Val.step = Node.step
-     and type index := Pack_index.Make(H).t
-     and type value = Inter.Val.t
+include Inode_intf.Sigs
+(** @inline *)

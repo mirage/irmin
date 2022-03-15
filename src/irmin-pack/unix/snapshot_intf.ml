@@ -20,9 +20,7 @@ module type Args = sig
   module Hash : Irmin.Hash.S
 
   module Inode :
-    Irmin_pack.Inode.Persistent
-      with type hash := Hash.t
-       and type key = Hash.t Pack_key.t
+    Inode.Persistent with type hash := Hash.t and type key = Hash.t Pack_key.t
 
   module Contents_pack :
     Pack_store.S with type hash := Hash.t and type key = Hash.t Pack_key.t
