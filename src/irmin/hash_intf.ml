@@ -30,6 +30,31 @@ module type S = sig
   val hash_size : int
   (** [hash_size] is the size of hash results, in bytes. *)
 
+  val to_raw_string : t -> string
+  (** [to_raw_string t] is the raw sequence of bytes in [t] (of length
+      {!hash_size}). *)
+
+  val unsafe_of_raw_string : string -> t
+  (** [unsafe_of_raw_string b] is the hash consisting of the raw sequence of
+      bytes [b].
+
+      {b Warning}: this function cannot guarantee that the supplied byte string
+      is a valid output of the hash process, so should only be used on strings
+      that are known to have been built with {!to_raw_string}. *)
+
+  val short_hash_substring : Bigstringaf.t -> off:int -> int
+  (** [short_hash_substring t off] computes the short-hash of the raw hash data
+      contained in [t] at offset [off]. It has behaviour equivalent to:
+
+      {[
+        Bigstringaf.substring t ~off ~len:hash_size
+        |> unsafe_of_raw_string
+        |> short_hash
+      ]}
+
+      but may be more efficient due to not needing to allocate an intermediate
+      [string]. *)
+
   (** {1 Value Types} *)
 
   val t : t Type.t
@@ -54,6 +79,15 @@ module type Typed = sig
 
   val t : t Type.t
   (** [t] is the value type for {!type-t}. *)
+end
+
+module type Set = sig
+  type t
+  type hash
+
+  val create : ?initial_slots:int -> unit -> t
+  val add : t -> hash -> [ `Ok | `Duplicate ]
+  val mem : t -> hash -> bool
 end
 
 module type Sigs = sig
@@ -90,4 +124,10 @@ module type Sigs = sig
   (** Typed hashes. *)
   module Typed (K : S) (V : Type.S) :
     Typed with type t = K.t and type value = V.t
+
+  module Set : sig
+    module Make (Hash : S) : Set with type hash := Hash.t
+
+    module type S = Set
+  end
 end
