@@ -74,10 +74,6 @@ module Closeable (S : S) = struct
     check_not_closed t;
     S.unsafe_find ~check_integrity t.t k
 
-  let clear t =
-    check_not_closed t;
-    S.clear t.t
-
   let make_closeable t = { closed = ref false; t }
 
   let get_open_exn t =

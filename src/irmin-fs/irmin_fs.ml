@@ -136,13 +136,6 @@ struct
             [%log.err "Irmin_fs.list: %s" e];
             acc)
       [] files
-
-  let clear t =
-    [%log.debug "clear"];
-    let remove_file key =
-      IO.remove_file ~lock:(lock_of_key t key) (file_of_key t key)
-    in
-    list t >>= Lwt_list.iter_p remove_file
 end
 
 module Append_only_ext

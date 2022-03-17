@@ -87,7 +87,6 @@ type t = {
      [Store.import] to re-hydrate the keys in these slices (by tracking keys of
      added objects), then require all backends to run thee tests. *)
   import_supported : bool;
-  clear_supported : bool;
 }
 
 module Suite = struct
@@ -100,50 +99,22 @@ module Suite = struct
       | S (module S) -> (module S : Generic_key)
     in
     let open Lwt.Syntax in
-    let module B = Store.Backend in
-    let clear repo =
-      Lwt.join
-        [
-          B.Commit.clear (B.Repo.commit_t repo);
-          B.Node.clear (B.Repo.node_t repo);
-          B.Contents.clear (B.Repo.contents_t repo);
-          B.Branch.clear (B.Repo.branch_t repo);
-        ]
-    in
     let* repo = Store.Repo.v config in
-    let* () = clear repo in
+    let* branches = Store.Repo.branches repo in
+    let* () = Lwt_list.iter_p (Store.Branch.remove repo) branches in
     Store.Repo.close repo
 
   let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
-      ?stats ?(clear_supported = true) ?(import_supported = true) () =
+      ?stats ?(import_supported = true) () =
     let store = S store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
-    {
-      name;
-      init;
-      clean;
-      config;
-      store;
-      stats;
-      clear_supported;
-      import_supported;
-    }
+    { name; init; clean; config; store; stats; import_supported }
 
   let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
-      ~config ~store ?stats ?(clear_supported = true) ?(import_supported = true)
-      () =
+      ~config ~store ?stats ?(import_supported = true) () =
     let store = Generic_key store in
     let clean = Option.value clean ~default:(default_clean ~config ~store) in
-    {
-      name;
-      init;
-      clean;
-      config;
-      store;
-      stats;
-      clear_supported;
-      import_supported;
-    }
+    { name; init; clean; config; store; stats; import_supported }
 
   let name t = t.name
   let config t = t.config

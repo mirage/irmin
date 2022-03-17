@@ -268,9 +268,6 @@ struct
     f (cast t)
 
   let close _ = Lwt.return_unit
-
-  let clear t =
-    HTTP.call `POST t.uri t.ctx [ "clear"; t.items ] Irmin.Type.(of_string unit)
 end
 
 module RW : S.Atomic_write.Maker =

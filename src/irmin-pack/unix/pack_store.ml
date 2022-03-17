@@ -515,10 +515,6 @@ struct
       unsafe_close t;
       Lwt.return_unit
 
-    let clear t =
-      unsafe_clear t;
-      Lwt.return_unit
-
     let clear_caches t =
       Tbl.clear t.staging;
       Lru.clear t.lru

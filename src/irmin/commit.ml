@@ -155,7 +155,6 @@ struct
   let mem (_, t) = S.mem t
   let index (_, t) = S.index t
   let find (_, t) = S.find t
-  let clear (_, t) = S.clear t
   let batch (n, s) f = N.batch n (fun n -> S.batch s (fun s -> f (n, s)))
 
   let close (n, s) =

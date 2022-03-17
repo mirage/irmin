@@ -81,8 +81,4 @@ module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
     else (
       t.closed := true;
       S.close t.t)
-
-  let clear t =
-    check_not_closed t;
-    S.clear t.t
 end

@@ -4,7 +4,7 @@ open Irmin
     keys. The store itself keeps no information, except for the bookkeeping
     needed to handle [clear]-ing the in-memory keys. *)
 module Keyed_by_value = struct
-  type (_, 'v) key = { value : 'v; clear_since_add : bool ref }
+  type (_, 'v) key = { value : 'v }
 
   module Key (Hash : Hash.S) (Value : Type.S) = struct
     type t = (Hash.t, Value.t) key
@@ -27,8 +27,7 @@ module Keyed_by_value = struct
   end
 
   module Make (Hash : Hash.S) (Value : Type.S) = struct
-    type instance = { mutable clear_signal : bool ref }
-    type _ t = { instance : instance option ref }
+    type _ t = { instance : unit option ref }
     type hash = Hash.t
     type value = Value.t
 
@@ -39,32 +38,23 @@ module Keyed_by_value = struct
     let check_not_closed t =
       match !(t.instance) with None -> raise Closed | Some t -> t
 
-    let v =
-      let singleton = { clear_signal = ref false } in
-      fun _ -> Lwt.return { instance = ref (Some singleton) }
+    let v _ = Lwt.return { instance = ref (Some ()) }
 
     let mem t _ =
       let _ = check_not_closed t in
       Lwt.return_true
 
     let unsafe_add t _ value =
-      let t = check_not_closed t in
-      Lwt.return { value; clear_since_add = t.clear_signal }
+      let _ = check_not_closed t in
+      Lwt.return { value }
 
     let add t v = unsafe_add t () v
 
     let find t k =
       let _ = check_not_closed t in
-      if !(k.clear_since_add) then Lwt.return_none else Lwt.return_some k.value
+      Lwt.return_some k.value
 
     let index _ _ = Lwt.return_none
-
-    let clear t =
-      let t = check_not_closed t in
-      t.clear_signal := true;
-      t.clear_signal <- ref false;
-      Lwt.return_unit
-
     let batch t f = f (t :> Perms.read_write t)
 
     let close t =

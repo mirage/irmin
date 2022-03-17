@@ -17,11 +17,6 @@
 open Import
 include Content_addressable_intf
 
-(** NOTE(craigfe): As of Git 2.1.3, attempting to [reset] repositories
-    concurrently can fail due to file-system race conditions. The next version
-    should fix this issue, so this global lock is a quick workaround. *)
-let reset_lock = Lwt_mutex.create ()
-
 module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
   module H = Irmin.Hash.Make (G.Hash)
 
@@ -64,10 +59,6 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
         "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
         pp_key k pp_key k'
 
-  let clear t =
-    [%log.debug "clear"];
-    Lwt_mutex.with_lock reset_lock (fun () -> G.reset t) >>= handle_git_err
-
   let batch t f = f t
   let close _ = Lwt.return ()
 end
@@ -94,10 +85,6 @@ module Check_closed (S : Irmin.Content_addressable.S) = struct
   let unsafe_add t k v =
     check_not_closed t;
     S.unsafe_add (snd t) k v
-
-  let clear t =
-    check_not_closed t;
-    S.clear (snd t)
 
   let batch t f =
     check_not_closed t;

@@ -49,9 +49,6 @@ module type S_without_key_impl = sig
         [mem t key] and [Key.to_hash key = hash]: the value may still be present
         in the store under a key that is not indexed. *)
 
-  include Clearable with type 'a t := 'a t
-  (** @inline *)
-
   include Batch with type 'a t := 'a t
   (** @inline *)
 end

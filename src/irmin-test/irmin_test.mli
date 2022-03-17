@@ -29,7 +29,6 @@ module Suite : sig
     config:Irmin.config ->
     store:(module S) ->
     ?stats:(unit -> int * int) ->
-    ?clear_supported:bool ->
     ?import_supported:bool ->
     unit ->
     t
@@ -41,7 +40,6 @@ module Suite : sig
     config:Irmin.config ->
     store:(module Generic_key) ->
     ?stats:(unit -> int * int) ->
-    ?clear_supported:bool ->
     ?import_supported:bool ->
     unit ->
     t

@@ -461,7 +461,6 @@ struct
 
   let mem (_, t) = S.mem t
   let find (_, t) = S.find t
-  let clear (_, t) = S.clear t
   let add (_, t) = S.add t
   let unsafe_add (_, t) = S.unsafe_add t
   let index (_, t) h = S.index t h

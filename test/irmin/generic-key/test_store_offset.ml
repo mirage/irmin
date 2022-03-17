@@ -24,8 +24,6 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
   type 'h key = {
     slot : int;
     hash : 'h;
-    (* Number of clears in the corresponding store when this key was created: *)
-    generation : int;
     (* Sanity check that keys are used only w/ the stores that created them: *)
     store_id : < >;
   }
@@ -51,21 +49,14 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
   end
 
   module Make (Hash : Hash.S) (Value : Type.S) = struct
-    type instance = {
-      mutable generation : int;
-      data : (Hash.t * Value.t) option Vector.t;
-      id : < >;
-    }
-
+    type instance = { data : (Hash.t * Value.t) option Vector.t; id : < > }
     type _ t = { instance : instance option ref }
 
     let v =
       (* NOTE: at time of writing, [irmin-test] relies on the fact that the
          store constructor is memoised (modulo [close] semantics, which must be
          non-memoised), so we must use a singleton here. *)
-      let singleton =
-        { generation = 0; data = Vector.create ~dummy:None; id = object end }
-      in
+      let singleton = { data = Vector.create ~dummy:None; id = object end } in
       fun _ -> Lwt.return { instance = ref (Some singleton) }
 
     type nonrec key = Hash.t key [@@deriving irmin]
@@ -103,14 +94,7 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
     let unsafe_add t hash v =
       let t = check_not_closed t in
       Vector.push t.data (Some (hash, v));
-      let key =
-        {
-          slot = Vector.length t.data - 1;
-          generation = t.generation;
-          hash;
-          store_id = t.id;
-        }
-      in
+      let key = { slot = Vector.length t.data - 1; hash; store_id = t.id } in
       Lwt.return key
 
     let add t v = unsafe_add t (Hash.hash v) v
@@ -118,33 +102,19 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
     let find t k =
       let t = check_not_closed t in
       check_key_belongs_to_store __POS__ k t;
-      if k.generation < t.generation then
-        (* Clear since this key was created *)
-        Lwt.return_none
-      else (
-        assert (t.generation = k.generation);
-        match Vector.get t.data k.slot with
-        | exception Not_found -> Lwt.return_none
-        | None ->
-            Alcotest.failf "Invalid key slot %d. No data contained here." k.slot
-        | Some (recovered_hash, data) ->
-            check_hash_is_consistent __POS__ k recovered_hash;
-            Lwt.return (Some data))
+      match Vector.get t.data k.slot with
+      | exception Not_found -> Lwt.return_none
+      | None ->
+          Alcotest.failf "Invalid key slot %d. No data contained here." k.slot
+      | Some (recovered_hash, data) ->
+          check_hash_is_consistent __POS__ k recovered_hash;
+          Lwt.return (Some data)
 
     let mem t k =
       let t = check_not_closed t in
       check_key_belongs_to_store __POS__ k t;
-      if k.generation < t.generation then Lwt.return_false
-      else (
-        assert (t.generation = k.generation);
-        assert (k.slot < Vector.length t.data);
-        Lwt.return_true)
-
-    let clear t =
-      let t = check_not_closed t in
-      Vector.clear t.data;
-      t.generation <- t.generation + 1;
-      Lwt.return_unit
+      assert (k.slot < Vector.length t.data);
+      Lwt.return_true
 
     let batch t f =
       let _ = check_not_closed t in

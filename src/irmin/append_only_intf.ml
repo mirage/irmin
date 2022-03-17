@@ -29,9 +29,6 @@ module type S = sig
   val add : [> write ] t -> key -> value -> unit Lwt.t
   (** Write the contents of a value to the store. *)
 
-  include Clearable with type 'a t := 'a t
-  (** @inline *)
-
   include Closeable with type 'a t := 'a t
   (** @inline *)
 

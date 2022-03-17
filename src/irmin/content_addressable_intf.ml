@@ -33,9 +33,6 @@ module type S = sig
       choose to discard that key and/or can be corrupt if the key scheme is not
       consistent. *)
 
-  include Clearable with type 'a t := 'a t
-  (** @inline *)
-
   include Closeable with type 'a t := 'a t
   (** @inline *)
 

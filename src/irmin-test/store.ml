@@ -2387,59 +2387,6 @@ module Make (S : Generic_key) = struct
     in
     run x test
 
-  let test_clear x () =
-    let test repo =
-      let vt = v repo and b = b repo and ct = ct repo and n = n repo in
-      let check_none msg =
-        Alcotest.(check (testable Fmt.(option (const string "<value>")) ( = )))
-          msg None
-      in
-      let check_val = check (T.option S.contents_t) in
-      let check_commit = check (T.option @@ S.commit_t repo) in
-      let* h2 = kv2 ~repo in
-      B.Contents.clear vt >>= fun () ->
-      let* () =
-        B.Contents.find vt h2 >|= check_val "v2 after clear is not found" None
-      in
-      let* h2 = kv2 ~repo in
-      let* () =
-        B.Contents.find vt h2 >|= check_val "add v2 again after clear" (Some v2)
-      in
-      let* h1 = r1 ~repo in
-      let* n1 = n1 ~repo in
-      S.Branch.set repo b1 h1 >>= fun () ->
-      let* () =
-        S.Branch.find repo b1
-        >|= check_commit "r1 before clear is found" (Some h1)
-      in
-      let* () =
-        Lwt.join [ B.Branch.clear b; B.Commit.clear ct; B.Node.clear n ]
-      in
-      let* () =
-        S.Branch.find repo b1
-        >|= check_commit "r1 after clear is not found" None
-      in
-      let* () =
-        B.Commit.find ct (S.Commit.key h1)
-        >|= check_none "after clear commit is not found"
-      in
-      let* () =
-        B.Node.find n n1 >|= check_none "after clear node is not found"
-      in
-      let* h2 = kv2 ~repo in
-      B.Contents.clear vt >>= fun () ->
-      let* () =
-        B.Contents.find vt h2 >|= check_none "v2 after clear is not found"
-      in
-      r1 ~repo >>= S.Branch.set repo b1 >>= fun () ->
-      B.Branch.clear b >>= fun () ->
-      let* () =
-        S.Branch.find repo b1 >|= check_commit "cleared twice r1" None
-      in
-      B.Repo.close repo
-    in
-    run x test
-
   let test_pre_hash_collisions x () =
     let pre_hash_of ty =
       let f = Irmin.Type.(pre_hash ty |> unstage) in
@@ -2552,7 +2499,6 @@ let suite (speed, x) =
        ("Prehash collisions", speed, T.test_pre_hash_collisions x);
        ("Re-export node", speed, T.test_reexport_node x);
      ]
-    @ when_ x.clear_supported [ ("Clear", speed, T.test_clear x) ]
     @ when_ x.import_supported
         [
           ("Basic operations on slices", speed, T.test_slice x);

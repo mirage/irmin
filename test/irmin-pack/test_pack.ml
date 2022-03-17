@@ -46,8 +46,7 @@ let suite_pack name_suffix indexing_strategy (module Config : Irmin_pack.Conf.S)
     Lwt.return_unit
   in
   Irmin_test.Suite.create_generic_key ~name:("PACK" ^ name_suffix)
-    ~clear_supported:false ~import_supported:false ~init ~store ~config ~clean
-    ()
+    ~import_supported:false ~init ~store ~config ~clean ()
 
 module Irmin_tezos_conf = struct
   include Irmin_tezos.Conf
