@@ -1881,6 +1881,14 @@ module Make (S : Generic_key) = struct
       let* () = B.Repo.close repo1 in
       (* Re-export the same tree using a different repo. *)
       let* repo2 = S.Repo.v x.config in
+      let* _ =
+        check_raises_lwt "re-export tree from another repo"
+          (Failure "Can't export the node key from another repo") (fun () ->
+            S.Backend.Repo.batch repo2 (fun c n _ -> S.save_tree repo2 c n tree))
+      in
+      let* () = B.Repo.close repo2 in
+      (* Re-export a fresh tree using a different repo. *)
+      let* repo2 = S.Repo.v x.config in
       let* tree = S.Tree.add (S.Tree.empty ()) [ "foo"; "a" ] "a" in
       let _ = S.Tree.hash tree in
       let* c1 = S.Tree.get_tree tree [ "foo" ] in
