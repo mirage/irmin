@@ -36,6 +36,7 @@ module type S = sig
   val merge : t -> unit
 
   module Stats = Index.Stats
+  module Key : Index.Key.S with type t = key
 end
 
 module type Sigs = sig

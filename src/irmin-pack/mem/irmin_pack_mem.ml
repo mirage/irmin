@@ -170,6 +170,23 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
     include Irmin.Of_backend (X)
 
+    module Snapshot = struct
+      include X.Node.Indexable.Inter.Snapshot
+
+      type t = Inode of inode | Blob of Backend.Contents.Val.t
+      [@@deriving irmin]
+
+      let export ?on_disk:_ _ _ ~root_key:_ = Fmt.failwith "not implemented"
+
+      module Import = struct
+        type process = unit
+
+        let v ?on_disk:_ _ = Fmt.failwith "not implemented"
+        let save_elt _ _ = Fmt.failwith "not implemented"
+        let close _ = Fmt.failwith "not implemented"
+      end
+    end
+
     let integrity_check_inodes ?heads:_ _ =
       Lwt.return
         (Error (`Msg "Not supported: integrity checking of in-memory inodes"))

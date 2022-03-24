@@ -107,12 +107,16 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
     type key = Key.t [@@deriving irmin ~pp]
     type value = Val.t [@@deriving irmin ~pp]
 
-    let index_direct t hash =
+    let index_direct_with_kind t hash =
       [%log.debug "index %a" pp_hash hash];
       match Index.find t.pack.index hash with
       | None -> None
-      | Some (offset, length, _) ->
-          Some (Pack_key.v_direct ~hash ~offset ~length)
+      | Some (offset, length, kind) ->
+          let key = Pack_key.v_direct ~hash ~offset ~length in
+          Some (key, kind)
+
+    let index_direct t hash =
+      index_direct_with_kind t hash |> Option.map (fun (key, _) -> key)
 
     let index t hash = Lwt.return (index_direct t hash)
 
@@ -228,9 +232,9 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
           t.size_of_value_and_length_header
     end
 
-    let io_read_and_decode_entry_prefix ~off t =
+    let read_and_decode_entry_prefix ~off ~io_read =
       let buf = Bytes.create Entry_prefix.max_length in
-      let bytes_read = IO.read t.pack.block ~off buf in
+      let bytes_read = io_read ~off buf in
       (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
          final entry in the pack file (if the data section of the entry is
          shorter than [Varint.max_encoded_size]. In this case, an invalid read
@@ -258,6 +262,10 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
             Some (length_header_length + length_header)
       in
       { Entry_prefix.hash; kind; size_of_value_and_length_header }
+
+    let io_read_and_decode_entry_prefix ~off t =
+      let io_read = IO.read t.pack.block in
+      read_and_decode_entry_prefix ~off ~io_read
 
     let pack_file_contains_key t k =
       let key = Pack_key.inspect k in
@@ -540,5 +548,10 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
 
     let integrity_check ~offset ~length k t =
       Inner.integrity_check ~offset ~length k (get_open_exn t)
+
+    module Entry_prefix = Inner.Entry_prefix
+
+    let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
+    let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
   end
 end

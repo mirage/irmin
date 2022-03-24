@@ -12,7 +12,7 @@ module Make_persistent
     (Inter : Internal
                with type hash = H.t
                 and type key = H.t Pack_key.t
-                and type Val.metadata = Node.metadata
+                and type Snapshot.metadata = Node.metadata
                 and type Val.step = Node.step)
     (CA : Pack_store.Maker
             with type hash = H.t

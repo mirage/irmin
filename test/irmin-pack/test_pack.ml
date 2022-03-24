@@ -524,4 +524,5 @@ let misc =
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);
     ("version-bump", Test_pack_version_bump.tests);
+    ("snapshot", Test_snapshot.tests);
   ]
