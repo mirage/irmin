@@ -21,19 +21,117 @@ module Store :
      and type Schema.Path.t = string list
      and type Schema.Contents.t = string
      and type Schema.Metadata.t = unit
+     and type Schema.Branch.t = string
 
 type server = {
   event_loop : 'a. 'a Lwt.t;
       (** The server runtime. Cancelling this thread terminates the server. *)
-  set_tree : Store.Tree.concrete -> unit Lwt.t;
-      (** Set the state of the [main] branch in the underlying store. *)
+  store : Store.t;  (** The store used by the server *)
 }
 
 val spawn_graphql_server : unit -> server Lwt.t
 (** Initialise a GraphQL server. At most one server may be running concurrently. *)
+
+type param
+(** Parameter to GraphQL function *)
+
+val var : string -> param
+(** Variable parameter *)
+
+val string : string -> param
+(** String parameter, a string with quotation marks added *)
+
+val raw : string -> param
+(** Raw parameter, will be sent without any modification *)
+
+val int : int -> param
+(** Int parameter *)
+
+val float : float -> param
+(** Float parameter *)
+
+type query
+(** GraphQL query
+
+    All queries will begin with either [query] or [mutation], and contain a
+    combination of [list], [func] and [field].
+
+    For example, the following query returns the latest commit hash for the
+    [main] branch:
+
+    {[ query (func "main" (field "hash")) ]}
+
+    To avoid nesting parenthesis, you can use the [@@] operator to chain
+    expressions:
+
+    {[ query @@ func "main" @@ field "hash" ]} *)
+
+val query : query -> query
+(** Start a query
+
+    In GraphQL: [query { ... }] *)
+
+val mutation : query -> query
+(** Start a mutation
+
+    In GraphQL: [mutation { ... }] *)
+
+val list : query list -> query
+(** List of [field] or [func]
+
+
+    In GraphQL: {[
+      {
+        ...
+      }
+    ]}
+*)
+
+val func : string -> ?params:(string * param) list -> query -> query
+(** GraphQL method
+
+    In GraphQL: {[
+      func(params...) {
+        ...
+      }
+    ]}
+
+    Without parameters: {[
+      func {
+        ...
+      }
+    ]}
+ *)
+
+val field : string -> query
+(** Named field/attribute
+
+    In GraphQL: {[
+      {
+        field
+      }
+    ]}
+ *)
+
+val string_of_query : query -> string
+(** Convert [query] to [string] *)
 
 val send_query :
   ?vars:(string * Yojson.Safe.t) list ->
   string ->
   (string, [ `Msg of string ]) result Lwt.t
 (** Send a GraphQL query string to the currently running test GraphQL instance. *)
+
+val members : string list -> Yojson.Safe.t -> Yojson.Safe.t
+(** Get key from JSON object *)
+
+val parse_result : string list -> (Yojson.Safe.t -> 'a) -> Yojson.Safe.t -> 'a
+(** Get key from JSON object and apply conversion function *)
+
+val exec :
+  ?vars:(string * Yojson.Safe.t) list ->
+  query ->
+  (Yojson.Safe.t -> 'a) ->
+  'a Lwt.t
+(** Send a [query] to the running GraphQL instance and parse the JSON results
+    using the provided conversion function *)
