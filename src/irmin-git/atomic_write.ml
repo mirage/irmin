@@ -127,11 +127,15 @@ module Make (K : Key) (G : Git.S) = struct
 
   let find { t; _ } r =
     [%log.debug "find %a" pp_key r];
-    let* k = G.Ref.resolve t (git_of_branch r) in
-    match k with
-    | Error (`Reference_not_found _) -> Lwt.return_none
-    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
-    | Ok k -> Lwt.return_some k
+    let b = git_of_branch r in
+    let* exists = G.Ref.mem t b in
+    if not exists then Lwt.return_none
+    else
+      let* k = G.Ref.resolve t b in
+      match k with
+      | Error (`Reference_not_found _) -> Lwt.return_none
+      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
+      | Ok k -> Lwt.return_some k
 
   let listen_dir t =
     let ( / ) = Filename.concat in
