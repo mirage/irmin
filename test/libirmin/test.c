@@ -156,7 +156,6 @@ GREATEST_MAIN_DEFS();
 
 int main(int argc, char *argv[]) {
   GREATEST_MAIN_BEGIN();
-  irmin_log_level("error");
   RUN_TEST(test_irmin_value_json);
   RUN_TEST(test_irmin_store);
   RUN_TEST(test_irmin_tree);
