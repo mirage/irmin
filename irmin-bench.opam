@@ -39,6 +39,11 @@ depends: [
   "printbox-text"
 ]
 
+available: [
+   # Disabled on 32-bit platforms due to an overly-large int literal in the source
+   arch != "arm32" & arch != "x86_32"
+]
+
 synopsis: "Irmin benchmarking suite"
 description: """
 `irmin-bench` provides access to the Irmin suite for benchmarking storage backend
