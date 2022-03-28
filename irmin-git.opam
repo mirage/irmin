@@ -10,7 +10,8 @@ doc:          "https://mirage.github.io/irmin/"
 build: [
  ["dune" "subst"] {dev}
  ["dune" "build" "-p" name "-j" jobs]
- ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+ # Tests disabled on 32-bit platforms as the Dune build fails in CI:
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test & arch != "arm32" & arch != "x86_32"}
 ]
 
 depends: [
