@@ -120,7 +120,7 @@ See [this script](https://github.com/tarides/irmin-tezos/blob/master/summarise.s
   release to `opam-repository`:
 
 ```sh
-; opam pin add odoc.2.0.0 https://github.com/ocaml/odoc.git  # Use a modern Odoc
+; opam upgrade odoc                       #  Use the latest Odoc
 
 ; dune-release tag                        #  Create appropriate Git tag by reading CHANGES.md
 ; dune-release distrib --skip-tests       #  Build release archive
