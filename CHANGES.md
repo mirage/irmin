@@ -1,10 +1,12 @@
-## Unreleased
+## 3.2.0 (2022-03-28)
 
 ### Added
 
 - **irmin-pack**
   - Add `forbid_empty_dir_persistence` in store configuration. (#1789,
     @ngoguey42)
+  - Add `Store.Snapshot` to expose the inodes for tezos snapshots (#1757,
+    @icristescu).
 
 ### Changed
 
@@ -82,8 +84,6 @@
   - Add `Contents.String_v2`, `Node.Generic_key.Make_v2` and
     `Commit.Generic_key.Make_v2` for backward compatibility with older stores.
     (#1715, @icristescu)
-  - Add `Store.Snapshot` to expose the inodes for tezos snapshots (#1757,
-    @icristescu).
 
 - **irmin-bench**
   - Many improvements to the actions trace replay:
