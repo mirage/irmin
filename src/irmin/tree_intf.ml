@@ -494,6 +494,7 @@ module type Sigs = sig
 
     val produce_proof : (tree_proof, 'a) producer
     val verify_proof : (tree_proof, 'a) verifier
+    val hash_of_proof_state : Proof.tree -> kinded_hash
 
     type stream_proof := Proof.stream Proof.t
 

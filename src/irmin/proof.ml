@@ -473,6 +473,9 @@ struct
            contents in the proof, we will not share as this is not strictly
            needed. *)
         Hashes.replace set.contents h v
+    | Empty ->
+        (* Happens during [hash_of_proof_state] *)
+        ()
     | _ -> assert false
 
   let find_node t h =
@@ -654,5 +657,8 @@ struct
            All the occurences of this node in the proof are expected to have
            the same blinded/visible coverage (i.e. the same node proof). *)
         Hashes.replace set.nodes h v
+    | Empty ->
+        (* Happens during [hash_of_proof_state] *)
+        ()
     | _ -> assert false
 end

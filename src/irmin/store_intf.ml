@@ -530,6 +530,8 @@ module type S_generic_key = sig
     val verify_proof : (tree_proof, 'a) verifier
     (** [verify_proof] is the verifier of tree proofs. *)
 
+    val hash_of_proof_state : Proof.tree -> kinded_hash
+
     type stream_proof := Proof.stream Proof.t
     (** The type for stream proofs.
 
