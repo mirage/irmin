@@ -374,15 +374,23 @@ module Private (* : S *) = struct
       Sparse_file.close old_sparse; 
       Suffix.close old_suffix;
       (* increment generation *)
-      let _ = 
-        let c = t.base.control in
+      let c = t.base.control in
+      let _increment_generation = 
         Control.(set c generation_field (1+get_generation c));
-        (* fsync, so that others can detect a generation change *)
+        (* fsync, so that others can detect a generation change, and to persist the change
+           on disk *)
         Control.(fsync c);
         ()
       in
       Printf.printf "%s: switched to new sparse+suffix\n%!" __FILE__;
-      (* FIXME and remove old files *)
+      let _remove_old_sparse_and_suffix = 
+        let (* old *) generation = (Control.get_generation c) -1 in
+        let old_sparse_fn,old_suffix_fn = 
+          Pre_io.sparse_name ~generation, Pre_io.suffix_name ~generation 
+        in
+        let root = t.base.root in
+        [old_sparse_fn;old_suffix_fn] |> List.iter (fun n -> Util.rm_rf Fn.(root / n))
+      in
       ()
 
     let check_worker_status (t:t) =
