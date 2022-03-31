@@ -119,10 +119,13 @@ let open_ ~readonly ~fn:fn0 =
   let root = Fn.(dir / layers_dot_nnnn) in
   let control = Control.open_ ~root ~name:control_s in
   let generation = Control.get_generation control in
-  (* remove any old files left over from a crashed worker *)
+  (* remove any old files left over from a crashed worker; only if RW; otherwise we hit a
+     bug where create_reach.exe deletes it's own reach.tmp file; also, it makes sense to
+     only delete from the RW process *)
   let _remove_old_files =
-    cleanup ~root 
-      ~allowed_names:[control_s; sparse_name ~generation; suffix_name ~generation ]
+    if not readonly then 
+      cleanup ~root 
+        ~allowed_names:[control_s; sparse_name ~generation; suffix_name ~generation ]
   in
   let sparse = Sparse.open_ro ~dir:Fn.(root / sparse_name ~generation) in
   (* FIXME probably want to take into account the "last_synced_offset" for the suffix, eg
