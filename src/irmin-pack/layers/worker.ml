@@ -4,6 +4,11 @@
 
 open Util
 
+(** [irmin_layers_worker_debug] is the value of the environment variable
+    [IRMIN_LAYERS_WORKER_DEBUG]; if set, this will aid debugging by e.g. not deleting
+    temporary worker files during execution *)
+let irmin_layers_worker_debug = Sys.getenv_opt "IRMIN_LAYERS_WORKER_DEBUG"
+
 type create_reachable_t = (reachable_fn:string -> unit)
 
 (** When the worker process is forked, it needs to know: 
@@ -42,6 +47,8 @@ end
 
 (** Private implementation *)
 module Private = struct
+
+  let debug_mode = irmin_layers_worker_debug <> None
 
   let _ = 
     (* 64 bit ints; FIXME are we still trying to maintain 32bit archs? *)
@@ -152,6 +159,17 @@ module Private = struct
     mark 6;
     let _create_sparse : unit = create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) in
     mark 7;
+    (* delete temporary files after they are not needed, but before creating the suffix;
+       we want [create_suffix_file] to be the last thing that runs so that the main
+       process has less to catch up with when switching; probably this doesn't make any
+       difference in reality because these deletions will likely be very quick *)
+    let _delete_tmp_files : unit = 
+      match debug_mode with 
+      | true -> ()
+      | false -> 
+        (* actually delete *)
+        [reachable_fn;sorted_fn;extents_fn] |> List.iter (fun n -> Unix.unlink n)
+    in
     let _create_suffix : unit = 
       let src_off = offset_of_last_extent in
       create_suffix_file ~src ~src_off ~len:(Pre_io.size src_io - src_off) ~dst_path:Fn.(working_dir / suffix_dir)
