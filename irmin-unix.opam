@@ -39,7 +39,7 @@ depends: [
   "conduit-lwt-unix"
   "logs"
   "uri"
-  "cmdliner"      {< "1.1.0"}
+  "cmdliner"
   "cohttp-lwt-unix"
   "fmt"
   "git"           {>= "3.7.0"}

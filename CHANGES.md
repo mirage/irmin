@@ -1,3 +1,7 @@
+## Unreleased
+
+- Support all version of cmdliner (#1803, @samoht)
+
 ## 3.2.0 (2022-03-28)
 
 ### Added

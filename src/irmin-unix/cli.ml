@@ -18,6 +18,9 @@ open! Import
 open Cmdliner
 open Resolver
 
+let deprecated_info = (Term.info [@alert "-deprecated"])
+let deprecated_man_format = (Term.man_format [@alert "-deprecated"])
+let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
 let () = Hook.init ()
 
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
@@ -47,10 +50,10 @@ let setup_log =
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
-  Term.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man
-    title
+  deprecated_info ~sdocs:global_option_section ~docs:global_option_section ~doc
+    ~man title
 
-type command = unit Term.t * Term.info
+type command = (unit Term.t * Term.info[@alert "-deprecated"])
 
 type sub = {
   name : string;
@@ -771,7 +774,7 @@ let help =
                       config_man)
              | `Ok t -> `Help (man_format, Some t))
        in
-       Term.(ret (mk help $ Term.man_format $ Term.choice_names $ topic)));
+       Term.(ret (mk help $ deprecated_man_format $ Term.choice_names $ topic)));
   }
 
 (* GRAPHQL *)
@@ -1020,8 +1023,8 @@ let default =
       graphql.doc http.doc options.doc branches.doc log.doc
   in
   ( Term.(mk usage $ const ()),
-    Term.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc
-      ~man )
+    deprecated_info "irmin" ~version:Irmin.version ~sdocs:global_option_section
+      ~doc ~man )
 
 let commands =
   List.map create_command
@@ -1050,4 +1053,4 @@ let commands =
     ]
 
 let run ~default:x y =
-  match Cmdliner.Term.eval_choice x y with `Error _ -> exit 1 | _ -> ()
+  match deprecated_eval_choice x y with `Error _ -> exit 1 | _ -> ()

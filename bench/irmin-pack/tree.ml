@@ -530,6 +530,10 @@ let main_term =
     $ no_summary
     $ empty_blobs)
 
+let deprecated_info = (Term.info [@alert "-deprecated"])
+let deprecated_exit = (Term.exit [@alert "-deprecated"])
+let deprecated_eval = (Term.eval [@alert "-deprecated"])
+
 let () =
   let man =
     [
@@ -548,5 +552,7 @@ let () =
          http://data.tarides.com/irmin/data_1343496commits.repr";
     ]
   in
-  let info = Term.info ~man ~doc:"Benchmarks for tree operations" "tree" in
-  Term.exit @@ Term.eval (main_term, info)
+  let info =
+    deprecated_info ~man ~doc:"Benchmarks for tree operations" "tree"
+  in
+  deprecated_exit @@ deprecated_eval (main_term, info)
