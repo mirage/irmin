@@ -100,6 +100,15 @@ let create ~fn:fn0 =
   let readonly_offset = 0 in
   { fn=fn0; root; sparse; suffix; control; readonly=false; readonly_offset; }
 
+(** [cleanup ~root ~allowed_names] cleans the directory [root] by deleting all entries
+    which are not in [allowed_names]; typically [allowed_names] contains the current names
+    of the control, sparse and suffix. NOTE implementation not particularly efficient:
+    [allowed_names] is expected to be small; the number of entries in [root] should be
+    small *)
+let cleanup ~root ~allowed_names = 
+  let names = Util.read_small_dir root in
+  let to_delete = names |> List.filter (fun x -> not (List.mem x allowed_names)) in
+  to_delete |> List.iter (fun n -> Util.rm_rf Fn.(root / n))
 
 let open_ ~readonly ~fn:fn0 = 
   assert(Sys.file_exists fn0);
@@ -110,6 +119,11 @@ let open_ ~readonly ~fn:fn0 =
   let root = Fn.(dir / layers_dot_nnnn) in
   let control = Control.open_ ~root ~name:control_s in
   let generation = Control.get_generation control in
+  (* remove any old files left over from a crashed worker *)
+  let _remove_old_files =
+    cleanup ~root 
+      ~allowed_names:[control_s; sparse_name ~generation; suffix_name ~generation ]
+  in
   let sparse = Sparse.open_ro ~dir:Fn.(root / sparse_name ~generation) in
   (* FIXME probably want to take into account the "last_synced_offset" for the suffix, eg
      by truncating the suffix to this *)

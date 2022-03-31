@@ -467,3 +467,12 @@ let create_marks ~__FILE__ (xs:string list) =
   let arr = Array.of_list xs in
   let mark i = Printf.printf "%s: mark: %s\n%!" __FILE__ arr.(i) in
   mark,(List.mapi (fun i _ -> i) xs)
+
+let read_small_dir root = Sys.readdir root |> Array.to_list
+
+(** [rm_rf path] recursively deletes all files/dirs/symlinks under path; symlinks are not
+    followed. NOTE uses ocaml package fileutils, [FileUtil.rm] *)
+let rm_rf path = FileUtil.(rm ~recurse:true ~force:Force [path])
+  
+  
+  
