@@ -384,12 +384,15 @@ module Private (* : S *) = struct
       in
       Printf.printf "%s: switched to new sparse+suffix\n%!" __FILE__;
       let _remove_old_sparse_and_suffix = 
-        let (* old *) generation = (Control.get_generation c) -1 in
-        let old_sparse_fn,old_suffix_fn = 
-          Pre_io.sparse_name ~generation, Pre_io.suffix_name ~generation 
-        in
-        let root = t.base.root in
-        [old_sparse_fn;old_suffix_fn] |> List.iter (fun n -> Util.rm_rf Fn.(root / n))
+        match Irmin_pack_layers.debug_mode with 
+        | true -> () (* don't delete *)
+        | false -> 
+          let (* old *) generation = (Control.get_generation c) -1 in
+          let old_sparse_fn,old_suffix_fn = 
+            Pre_io.sparse_name ~generation, Pre_io.suffix_name ~generation 
+          in
+          let root = t.base.root in
+          [old_sparse_fn;old_suffix_fn] |> List.iter (fun n -> Util.rm_rf Fn.(root / n))
       in
       ()
 
