@@ -22,7 +22,7 @@ depends: [
   "logs"
   "lwt"          {>= "5.3.0"}
   "mtime"
-  "cmdliner"     {< "1.1.0"}
+  "cmdliner"
   "optint"       {>= "0.1.0"}
   "irmin-test"   {with-test & = version}
   "alcotest-lwt" {with-test}

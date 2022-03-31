@@ -46,6 +46,10 @@ let src =
 
 open Cmdliner
 
+let deprecated_info = (Term.info [@alert "-deprecated"])
+let deprecated_exit = (Term.exit [@alert "-deprecated"])
+let deprecated_eval = (Term.eval [@alert "-deprecated"])
+
 let log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
@@ -170,15 +174,15 @@ struct
     let t = { t with root } in
     Lwt_main.run (init t config >>= fun () -> run t config size)
 
-  let main_term config size = Term.(const main $ t $ pure config $ pure size)
+  let main_term config size = Term.(const main $ t $ const config $ const size)
 
   let () =
     at_exit (fun () ->
         Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
   let run ~config ~size =
-    let info = Term.info "Simple benchmark for trees" in
-    Term.exit @@ Term.eval (main_term config size, info)
+    let info = deprecated_info "Simple benchmark for trees" in
+    deprecated_exit @@ deprecated_eval (main_term config size, info)
 end
 
 let () =
