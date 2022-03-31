@@ -50,6 +50,11 @@ let running_create_reach_exe : string option ref = ref None
 
 (** {1 Utils *)
 
+module Debug_envvar = Debug_envvar
+
+(** Lift [debug_mode] to the package interface *)
+let debug_mode = Debug_envvar.debug_mode
+
 module Util = Util
 
 module External_sort = External_sort

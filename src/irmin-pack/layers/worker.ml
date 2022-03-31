@@ -4,11 +4,6 @@
 
 open Util
 
-(** [irmin_layers_worker_debug] is the value of the environment variable
-    [IRMIN_LAYERS_WORKER_DEBUG]; if set, this will aid debugging by e.g. not deleting
-    temporary worker files during execution *)
-let irmin_layers_worker_debug = Sys.getenv_opt "IRMIN_LAYERS_WORKER_DEBUG"
-
 type create_reachable_t = (reachable_fn:string -> unit)
 
 (** When the worker process is forked, it needs to know: 
@@ -47,8 +42,6 @@ end
 
 (** Private implementation *)
 module Private = struct
-
-  let debug_mode = irmin_layers_worker_debug <> None
 
   let _ = 
     (* 64 bit ints; FIXME are we still trying to maintain 32bit archs? *)
@@ -164,7 +157,7 @@ module Private = struct
        process has less to catch up with when switching; probably this doesn't make any
        difference in reality because these deletions will likely be very quick *)
     let _delete_tmp_files : unit = 
-      match debug_mode with 
+      match Debug_envvar.debug_mode with 
       | true -> ()
       | false -> 
         (* actually delete *)
