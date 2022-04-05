@@ -23,4 +23,16 @@ end
 
 module Store = Irmin_pack_unix.Checks.Make (Maker)
 
-let () = match Store.cli () with _ -> .
+module Maker_tz = struct
+  module Maker = Irmin_pack_unix.Maker (Irmin_tezos.Conf)
+  include Maker.Make (Irmin_tezos.Schema)
+end
+
+module Store_tz = Irmin_pack_unix.Checks.Make (Maker_tz)
+
+let () =
+  try
+    let store_type = Sys.getenv "STORE" in
+    if store_type = "PACK" then match Store.cli () with _ -> .
+    else raise Not_found
+  with Not_found -> ( match Store_tz.cli () with _ -> .)
