@@ -420,10 +420,8 @@ module Table2 = struct
       pb "tree.node_val_find" (fun s -> s.tree.node_val_find);
       pb "tree.node_val_list" (fun s -> s.tree.node_val_list);
       `Spacer;
-      pb
-        ~f:(`RM, `Ri)
-        "index.cumu_data_bytes"
-        (fun s -> s.index.cumu_data_bytes);
+      pb ~f:(`RM, `Ri) "index.cumu_data_bytes" (fun s ->
+          s.index.cumu_data_bytes);
       `Spacer;
       pb ~f:(`RM, `RM) "gc.minor_words allocated" (fun s -> s.gc.minor_words);
       pb ~f:(`RM, `RM) "gc.major_words allocated" (fun s -> s.gc.major_words);

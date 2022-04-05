@@ -59,12 +59,16 @@ type query
     For example, the following query returns the latest commit hash for the
     [main] branch:
 
-    {[ query (func "main" (field "hash")) ]}
+    {[
+      query (func "main" (field "hash"))
+    ]}
 
     To avoid nesting parenthesis, you can use the [@@] operator to chain
     expressions:
 
-    {[ query @@ func "main" @@ field "hash" ]} *)
+    {[
+      query @@ func "main" @@ field "hash"
+    ]} *)
 
 val query : query -> query
 (** Start a query
