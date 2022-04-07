@@ -80,7 +80,7 @@ include (
       (** Exposed so that we can check it agrees with the default version in irmin-pack *)
 
       val get_generation : t -> int
-      (** Convenience; just [get t generation] *)
+      (** Convenience; just [get t generation_field] *)
 
       val to_string : t -> string
       (** A human-readable representation of the control, for debugging. *)
