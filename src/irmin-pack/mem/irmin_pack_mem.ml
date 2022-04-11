@@ -199,7 +199,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
     (* following for Layers *)
     let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
-    let trigger_gc = None
+    let trigger_gc = 
+      (* in-mem implementation of trigger_gc does nothing *)
+      fun _repo _commit_hash_s -> ()
 
   end
 end

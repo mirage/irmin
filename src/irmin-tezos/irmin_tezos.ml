@@ -25,13 +25,4 @@ module Conf = struct
 end
 
 module Maker = Irmin_pack_unix.Maker (Conf)
-module Store = struct
-  include Maker.Make (Schema)
-
-  let trigger_gc = match trigger_gc with
-    | None -> failwith (Printf.sprintf 
-                          "%s: impossible: trigger_gc is always [Some _] from \
-                           Irmin_pack.Maker(_).Make" __FILE__)
-    | Some x -> x
-
-end
+module Store = Maker.Make (Schema)

@@ -18,11 +18,7 @@ module Trigger_gc = struct
         call Repo.iter *)
   }
 
-  (* (\** Setting this to Some will trigger GC on the next IO operation (this is just for *)
-  (*     initial testing) *\) *)
-  (* let trigger_gc : trigger_gc_t option ref = ref None *)
 end
-(* include Trigger_gc *)
 
 
 (** This is the original interface that the [Pack_store] IO needed to provide. It is based

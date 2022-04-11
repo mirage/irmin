@@ -289,12 +289,9 @@ module Make (Store : Store) = struct
       | false -> ()
       | true -> 
         let hash_as_string = (h_store : Store.hash) |> Irmin.Type.to_string Store.hash_t in
-        match Store.trigger_gc with
-        | None -> ()
-        | Some trigger_gc -> 
-          trigger_gc repo hash_as_string;
-          Printf.printf "Called GC for commit %s\n%!" hash_as_string;
-          ()
+        Store.trigger_gc repo hash_as_string;
+        Printf.printf "Called GC for commit %s\n%!" hash_as_string;
+        ()
     in
     (* NOTE this is absolutely crucial to prevent any carry over of objects indexed by
        hash (which may not be recorded by [create_reach.exe]) *)

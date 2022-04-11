@@ -34,15 +34,14 @@ end
 module type Layers = sig
   type repo 
 
-  (** Some of the following functions are only available on pack_store impls *)
-  type 'a only_for_irmin_pack := 'a option
-
   (** Supported by irmin-pack.unix and irmin-pack.mem *)
   val get_config: repo -> Irmin.Backend.Conf.t
 
   type commit_hash_s := string
 
-  val trigger_gc: (repo -> commit_hash_s -> unit) only_for_irmin_pack
+  (** The following triggers gc for the given hash, in irmin-pack.unix; in .mem, it does
+      nothing *)
+  val trigger_gc: repo -> commit_hash_s -> unit
 end
 
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
