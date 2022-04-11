@@ -95,20 +95,41 @@ module Private = struct
     let _ = Sparse_file.close sparse in
     ()
 
-  (** [create_suffix_file ~src ~src_off ~len ~dst_path] creates a new suffix file
-      [dst_path], starting at virtual offset [src_off]; to create the suffix file, [len]
-      bytes of data is read from [src], starting from [src_off], and placed in the new
-      suffix file. It is expected that [src_off + len] is the end of the existing [src]
-      file, but because the [src] is continually being extended, there may actually be more
-      than [len] bytes available at the time the copy is done. To account for this, the main
-      process may further append to the new suffix file when the worker terminates (see
-      function [handle_worker_termination], which may be located in [pack_store_IO.ml]). *)
-  let create_suffix_file ~(src:Pread.t) ~src_off ~len ~dst_path : unit =
+
+  (** [create_suffix_file ~src ~src_off ~src_len ~dst_path] creates a new suffix file
+      [dst_path], starting at virtual offset [src_off]; to create the suffix file,
+      [src_len () - src_off] bytes of data is read from [src], starting from [src_off],
+      and placed in the new suffix file. It is expected that [src_off + len] is the end of
+      the existing [src] file, but because the [src] is continually being extended, there
+      may actually be more than [len] bytes available at the time the copy is done. So we
+      repeat the copy upto 3 times.
+
+      Even so, there may still be data at the end of src that was not copied to the end of
+      dst. To account for this, the main process may further append to the new suffix file
+      when the worker terminates (see function [handle_worker_termination], which may be
+      located in [pack_store_IO.ml]). *)
+  let create_suffix_file ~(src:Pread.t) ~src_off ~src_len ~dst_path : unit =
     (* create empty suffix *)
     let suff = Suffix.create ~root:dst_path ~suffix_offset:src_off in
-    (* copy from src to suffix *)
+    (* copy from src to suffix; because the initial copy might take some time, src can
+       grow in the meantime; so we repeatedly copy (if needed) upto 3 times *)
     let dst = Pwrite.{pwrite=Suffix.pwrite ~worker_only:() suff} in  
-    let _do_copy = File.copy ~src ~src_off ~dst ~dst_off:src_off ~len in
+    let _do_copy = 
+      let max_tries = 3 in
+      let dst_off = src_off in
+      (0,src_off,dst_off) |> iter_k (fun ~k (tries,src_off,dst_off) -> 
+          match tries < max_tries with
+          | false -> ()
+          | true -> (
+              let len = src_len () - src_off in
+              Printf.printf "tries=%d, len=%d\n%!" tries len;
+              match len = 0 with
+              | true -> ()
+              | false -> (                  
+                  File.copy ~src ~src_off ~dst ~dst_off ~len;
+                  (* and continue, in case any new data was appended to src *)
+                  k (tries+1,src_off+len,dst_off+len))))
+    in
     let () = Suffix.close suff in
     ()
 
@@ -165,7 +186,7 @@ module Private = struct
     in
     let _create_suffix : unit = 
       let src_off = offset_of_last_extent in
-      create_suffix_file ~src ~src_off ~len:(Pre_io.size src_io - src_off) ~dst_path:Fn.(working_dir / suffix_dir)
+      create_suffix_file ~src ~src_off ~src_len:(fun () -> Pre_io.size src_io) ~dst_path:Fn.(working_dir / suffix_dir)
     in
     Log.info (fun m -> m "Worker terminating");
     ()
