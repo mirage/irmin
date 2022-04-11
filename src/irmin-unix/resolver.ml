@@ -386,7 +386,7 @@ module Store = struct
       let arg_info =
         Arg.info ~doc ~docs:global_option_section [ "s"; "store" ]
       in
-      Arg.(value & opt (some (enum store_types)) None & arg_info)
+      Arg.(value & opt (some string) None & arg_info)
     in
     let create store hash contents = (store, hash, contents) in
     Term.(const create $ store $ Hash.term () $ Contents.term ())
@@ -624,12 +624,17 @@ let commit =
   in
   Arg.(value & opt (some string) None & doc)
 
+let plugin =
+  let doc = "Register new contents, store or hash types" in
+  Arg.(value & opt (some string) None & info ~doc [ "plugin" ])
+
 let store () =
-  let create store (root, config_path, opts) branch commit =
+  let create plugin store (root, config_path, opts) branch commit =
+    let () = match plugin with Some p -> Dynlink.loadfile p | None -> () in
     let y = read_config_file config_path in
     build_irmin_config y root opts store branch commit
   in
-  Term.(const create $ Store.term () $ config_term $ branch $ commit)
+  Term.(const create $ plugin $ Store.term () $ config_term $ branch $ commit)
 
 let header_conv =
   let parse str =

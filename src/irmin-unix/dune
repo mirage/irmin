@@ -2,6 +2,7 @@
  (name irmin_unix)
  (public_name irmin-unix)
  (libraries
+  dynlink
   astring
   cmdliner
   cohttp
