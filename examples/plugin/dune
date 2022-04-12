@@ -1,0 +1,11 @@
+(executable
+  (name plugin)
+  (modes plugin)
+  (modules plugin)
+  (libraries irmin-unix))
+
+(alias
+ (name runtest)
+ (package irmin-unix)
+ (deps
+  plugin.exe))
