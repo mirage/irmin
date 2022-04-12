@@ -480,7 +480,7 @@ let parse_config ?root y spec =
             Conf.add config k v
         | None, _ -> (
             match k with
-            | "contents" | "hash" | "store" -> config
+            | "contents" | "hash" | "store" | "plugin" -> config
             | _ ->
                 Fmt.invalid_arg "unknown config key for %s: %s"
                   (Conf.Spec.name spec) k)
@@ -496,7 +496,13 @@ let parse_config ?root y spec =
   in
   config
 
+let load_plugin config =
+  match Yaml.Util.find "plugin" config with
+  | Ok (Some v) -> Dynlink.loadfile_private (Yaml.Util.to_string_exn v)
+  | _ -> ()
+
 let get_store config (store, hash, contents) =
+  let () = load_plugin config in
   let store =
     match store with
     | Some s -> Store.find s
@@ -630,7 +636,9 @@ let plugin =
 
 let store () =
   let create plugin store (root, config_path, opts) branch commit =
-    let () = match plugin with Some p -> Dynlink.loadfile p | None -> () in
+    let () =
+      match plugin with Some p -> Dynlink.loadfile_private p | None -> ()
+    in
     let y = read_config_file config_path in
     build_irmin_config y root opts store branch commit
   in
