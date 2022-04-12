@@ -104,6 +104,7 @@ end
 (** {1 Stores} *)
 
 val load_config :
+  ?plugin:string ->
   ?root:string ->
   ?config_path:string ->
   ?store:string ->
@@ -112,6 +113,8 @@ val load_config :
   unit ->
   Store.t * Irmin.config
 (** Load config file from disk
+
+    [plugin] is the path to a plugin to be loaded at runtime
 
     [config_path] can be used to specify the location of a configuration file.
 

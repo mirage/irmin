@@ -9,7 +9,7 @@ module Int = struct
   let merge = Irmin.Merge.(option (idempotent t))
 end
 
-let () = Resolver.Contents.add "int" (module Int)
+let () = Resolver.Contents.add ~default:true "int" (module Int)
 
 module Schema = struct
   module Contents = Int
@@ -25,4 +25,4 @@ end
 module Store = Irmin_mem.Make (Schema)
 
 let store = Resolver.Store.v Irmin_mem.Conf.spec (module Store)
-let () = Resolver.Store.add "mem-int" (Fixed store)
+let () = Resolver.Store.add ~default:true "mem-int" (Fixed store)

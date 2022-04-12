@@ -1,7 +1,7 @@
 (executable
-  (name plugin)
-  (modes plugin)
-  (libraries irmin-unix))
+ (name plugin)
+ (modes plugin)
+ (libraries irmin-unix))
 
 (alias
  (name runtest)
