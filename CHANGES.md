@@ -1,3 +1,7 @@
+## 3.2.2 (2022-04-15)
+
+- Fix snapshot export when on-disk (#1811, @icristescu, @Ngoguey42)
+
 ## 3.2.1 (2022-04-07)
 
 - Support all version of cmdliner (#1803, @samoht)

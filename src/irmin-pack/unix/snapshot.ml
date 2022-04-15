@@ -42,6 +42,28 @@ module Make (Args : Args) = struct
     | Indexed _ -> assert false
 
   module Export = struct
+    module Key = struct
+      type t = Hash.t
+      [@@deriving irmin ~short_hash ~equal ~to_bin_string ~decode_bin]
+
+      let hash = short_hash ?seed:None
+      let hash_size = 30
+      let encode = to_bin_string
+      let encoded_size = Hash.hash_size
+
+      let decode s off =
+        let string_copy s = String.init (String.length s) (fun i -> s.[i]) in
+        let s' =
+          (* Explicitly copy [s] to [s'] because [s] is the result of a call to
+             [Bytes.unsafe_to_string] which makes it mutable. It is a problem
+             because [Value_unit.encoded_size = 0] makes [res] keep a reference
+             to [s']. *)
+          string_copy s
+        in
+        let res = decode_bin s' (ref off) in
+        res
+    end
+
     module Value_unit = struct
       type t = unit [@@deriving irmin]
 
@@ -50,8 +72,7 @@ module Make (Args : Args) = struct
       let decode _ _ = ()
     end
 
-    module Index =
-      Index_unix.Make (Pack_index.Key) (Value_unit) (Index.Cache.Unbounded)
+    module Index = Index_unix.Make (Key) (Value_unit) (Index.Cache.Unbounded)
 
     type t = {
       file : IO.t;
