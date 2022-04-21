@@ -119,7 +119,7 @@ module Make (B : Backend.S) = struct
     [ Merge.conflict | `Too_many_retries of int | `Test_was of tree option ]
 
   (* The deriver does not work here because of it cannot derive the
-     [Merge.conflit] inheritance. *)
+     [Merge.conflict] inheritance. *)
   let write_error_t =
     let open Type in
     variant "write-error" (fun c m e -> function
@@ -130,7 +130,7 @@ module Make (B : Backend.S) = struct
     |> sealv
 
   (* The deriver does not work here because of it cannot derive the
-     [lca_error[ inheritance. *)
+     [lca_error] inheritance. *)
   let ff_error_t =
     Type.enum "ff-error"
       [
