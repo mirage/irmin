@@ -114,7 +114,8 @@ val load_config :
   Store.t * Irmin.config
 (** Load config file from disk
 
-    [plugin] is the path to a plugin to be loaded at runtime
+    [plugin] is the path to an OCaml plugin in cmxs format to be loaded at
+    runtime
 
     [config_path] can be used to specify the location of a configuration file.
 
