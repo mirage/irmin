@@ -118,7 +118,7 @@ module type Persistent = sig
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 
   module Pack :
-    Pack_store.S
+    Pack_store_intf.S
       with type index := index
        and type key := hash Pack_key.t
        and type hash := hash

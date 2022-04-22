@@ -25,7 +25,7 @@ module type Args = sig
        and type key = Hash.t Pack_key.t
 
   module Contents_pack :
-    Pack_store.S with type hash := Hash.t and type key = Hash.t Pack_key.t
+    Irmin_pack.Pack_store_intf.S with type hash := Hash.t and type key = Hash.t Pack_key.t
 end
 
 module type Sigs = sig
