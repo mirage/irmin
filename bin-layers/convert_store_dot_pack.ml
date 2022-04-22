@@ -12,7 +12,13 @@ let store_dot_pack_path,new_path = Sys.argv |> Array.to_list |> List.tl |> funct
   | [store_dot_pack_path;new_path] -> store_dot_pack_path,new_path
   | _ -> failwith "Usage: convert.exe <path to store.pack> <path to new pack>"
 
-let _ = assert(Sys.file_exists store_dot_pack_path)
+let _ = assert(
+  Sys.file_exists store_dot_pack_path ||
+  failwith (Printf.sprintf "Error: Could not find existing store.pack file at path %s" store_dot_pack_path))
+
+let _ = assert(
+  not (Sys.file_exists new_path) || 
+  failwith (Printf.sprintf "Error: the destination path %s should not exist" new_path))
 
 module IO = Irmin_pack_unix.IO.Unix
 
