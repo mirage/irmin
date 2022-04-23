@@ -123,6 +123,6 @@ end = struct
   type t = int32 [@@deriving irmin]
 
   (* generates repr value *)
-  val t = Irmin.Type.int32
+  let t = Irmin.Type.int32
 end
 ```
