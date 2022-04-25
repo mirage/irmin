@@ -201,7 +201,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     let get_config (repo:repo) : Irmin.Backend.Conf.t = repo.config
     let trigger_gc = 
       (* in-mem implementation of trigger_gc does nothing *)
-      fun _repo _commit_hash_s -> ()
+      fun _repo _commit_hash_s -> 
+      [%log.warn "%s: trigger_gc called on in-mem store" __FILE__];
+      ()
 
   end
 end
