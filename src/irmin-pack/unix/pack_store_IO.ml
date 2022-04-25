@@ -401,10 +401,10 @@ module Private (* : S *) = struct
       ()
 
     let check_worker_status (t:t) =
-      [%log.info "%s: check_worker_status called" __FILE__];                
       match t.worker_pid_and_args with 
       | None -> ()
       | Some (pid,_) -> 
+        [%log.info "%s: check_worker_status called (Some case)" __FILE__]; 
         let pid0,status = Unix.(waitpid [WNOHANG] pid) in
         match pid0 with
         | 0 -> 
