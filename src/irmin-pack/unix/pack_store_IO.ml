@@ -304,7 +304,7 @@ module Private (* : S *) = struct
     (* open Irmin_pack_layers.Worker *)
 
     let check_trigger_maybe_fork_worker (t0:t) = 
-      [%log.info "%s: check_trigger_maybe_fork_worker called" __FILE__];
+      (* [%log.info "%s: check_trigger_maybe_fork_worker called" __FILE__]; - too chatty *)
       let t = t0.base in
       match t0.trigger_gc with
       | None -> ()
@@ -333,7 +333,7 @@ module Private (* : S *) = struct
         ()
 
     let handle_worker_termination (t:t) = 
-      [%log.info "%s: handle_worker_termination called" __FILE__];
+      (* [%log.info "%s: handle_worker_termination called" __FILE__]; - too chatty *)
       let open struct
         module Util = Irmin_pack_layers.Util
         module File = Util.File
@@ -431,7 +431,7 @@ module Private (* : S *) = struct
   (** [append] is as {!Private_io_impl.append}, except that we use this point to 1) fork a
       worker if required; 2) handle a terminated worker, if any. *)
   let append t s = 
-    [%log.info "%s: append called" __FILE__];
+    (* [%log.info "%s: append called" __FILE__]; - too chatty *)
     check_trigger_maybe_fork_worker t;
     check_worker_status t;
     append t.base s
