@@ -29,6 +29,17 @@ module File_containing_pointer_to_subdir = struct
   include Add_load_save_funs(T)
 end
 
+type ro_fields = {
+  mutable readonly_offset: int;
+  (** This offset is maintained by readonly instances; when the RW instance appends data
+      to the pack file, the RO instance detects the new data (via force_offset) which
+      triggers the RO instance to resync the index and the dictionary *)
+  mutable readonly_generation: int;
+  (** For a readonly instance, the generation that corresponds to the sparse+suffix in
+      use. This can be checked against the control, and if it lags, the readonly instance
+      can reload a new sparse+suffix. *)
+}
+
 type t = {
   fn      : string; (** file containing a pointer to a subdir *)
   root    : string; (** subdirectory where we store the files *)
@@ -36,11 +47,7 @@ type t = {
   mutable sparse  : Sparse.t;
   mutable suffix  : Suffix.t;
   control : Control.t;
-  readonly: bool;
-  mutable readonly_offset: int;
-  (** This offset is maintained by readonly instances; when the RW instance appends data
-      to the pack file, the RO instance detects the new data (via force_offset) which
-      triggers the RO instance to resync the index and the dictionary *)
+  readonly_fields: ro_fields option;
 }
 
 (* FIXME need to examine the force_offset function and its affect on readonly
@@ -97,8 +104,7 @@ let create ~fn:fn0 =
   (* FIXME make sure to sync all above *)
   (* finally create the pointer to the subdir *)
   File_containing_pointer_to_subdir.save {subdir_name=layers_dot_nnnn} Fn.(dir/base);
-  let readonly_offset = 0 in
-  { fn=fn0; root; sparse; suffix; control; readonly=false; readonly_offset; }
+  { fn=fn0; root; sparse; suffix; control; readonly_fields=None }
 
 (** [cleanup ~root ~allowed_names] cleans the directory [root] by deleting all entries
     which are not in [allowed_names]; typically [allowed_names] contains the current names
@@ -131,40 +137,79 @@ let open_ ~readonly ~fn:fn0 =
   (* FIXME probably want to take into account the "last_synced_offset" for the suffix, eg
      by truncating the suffix to this *)
   let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
-  let readonly_offset = Control.(get control last_synced_offset_field) in
-  { fn=fn0; root; sparse; suffix; control; readonly; readonly_offset }
+  let readonly_fields = 
+    match readonly with
+    | false -> None
+    | true -> Some {
+        readonly_offset=Control.(get control last_synced_offset_field);
+        readonly_generation=generation
+      }
+  in
+  { fn=fn0; root; sparse; suffix; control; readonly_fields }
 
-let readonly t = t.readonly
+let readonly t = Option.is_some t.readonly_fields
+
+let readwrite t = not (readonly t)
 
 (* FIXME the existing IO implementation uses a buffer for writes, and flush is used to
    actually flush the data to disk (with an fsync? FIXME); this presumably improves
    performance; do we want to do that here? an alternative is to use OCaml's native
    channels *)
 let flush t = 
-  assert(not t.readonly);
+  assert(readwrite t);
   Suffix.fsync t.suffix;
-  (* NOTE the last_synced_offset_field is the "virtual" size of the suffix FIXME
-     shouldn't Suffix.fsync update this field? *)
+  (* NOTE the last_synced_offset_field is the "virtual" size of the suffix FIXME shouldn't
+     Suffix.fsync update this field?; NOTE last_synced_offset_field is only updated here
+     in flush; used to control WHEN RO instances sync? don't want them to sync on each
+     write? *)
   Control.(set t.control last_synced_offset_field (Suffix.size t.suffix));
   (* FIXME may want to fsync control here *)
   ()
 
 let close t = 
-  (if not t.readonly then flush t);
+  (if readwrite t then flush t);
   Suffix.close t.suffix;
   Sparse.close t.sparse;
   Control.close t.control;
   ()
 
 let offset t = 
-  match t.readonly with
-  | false -> 
+  match t.readonly_fields with
+  | None -> 
     Suffix.size t.suffix |> Int63.of_int
-  | true -> 
+  | Some ro_fields -> 
     (* FIXME this is only used to trigger RO updates to dict and index? *)
-    t.readonly_offset |> Int63.of_int
+    ro_fields.readonly_offset |> Int63.of_int
+
+(** [maybe_reload_if_readonly t] reloads the sparse+suffix, if the generation has changed *)
+let maybe_reload_if_readonly t =
+  match t.readonly_fields with
+  | None -> ()
+  | Some ro_fields ->     
+    match ro_fields.readonly_generation = Control.get_generation t.control with
+    | true -> () (* no need to reload *)
+    | false ->       
+      (* generations differ; need to reload *)
+      Sparse.close t.sparse;
+      Suffix.close t.suffix;
+      let root = t.root in
+      let generation = Control.get_generation t.control in
+      [%log.info "%s: RO instance for %s reloading for generation %d" __FILE__ t.fn generation];
+      (* FIXME race condition here if generation gets bumped meanwhile *)
+      let sparse = Sparse.open_ro ~dir:Fn.(root / sparse_name ~generation) in
+      let suffix = Suffix.open_ ~root:Fn.(root / suffix_name ~generation) in
+      t.sparse <- sparse;
+      t.suffix <- suffix;
+      [%log.info "%s: RO instance for %s reloaded; updating ro_fields" __FILE__ t.fn];
+      (* NOTE following is only place where readonly_generation is changed *)
+      ro_fields.readonly_generation <- generation;
+      ro_fields.readonly_offset <- 
+        (* FIXME not sure about readonly_offset; needs checking *)
+        Control.(get t.control last_synced_offset_field);
+      ()
 
 let pread t ~off ~len ~buf = 
+  maybe_reload_if_readonly t;
   match !off >= Suffix.private_suffix_offset t.suffix with
   | true -> 
     (* read from suffix *)
@@ -181,13 +226,14 @@ let read t ~off buf =
   pread t ~off:(ref off) ~len ~buf
 
 let append t s = 
+  assert(readwrite t);
   Suffix.append t.suffix s
 
 let version t : int = 
   Control.(get t.control version_field) 
 
 let set_version t (ver:int) = 
-  assert(not t.readonly);
+  assert(readwrite t);
   Control.(set t.control version_field ver)
 
 let name t = t.fn
@@ -197,13 +243,17 @@ let name t = t.fn
    "last_synced_offset" of the underlying RW instance, and updates [readonly_offset]
    from that. This is then used by the RO instance to trigger a reload of dictionary and
    index. *)
-let force_offset t = 
-  assert(t.readonly);
-  t.readonly_offset <- Control.(get t.control last_synced_offset_field);
-  t.readonly_offset |> Int63.of_int
+let force_offset t =   
+  assert(readonly t);
+  maybe_reload_if_readonly t;
+  match t.readonly_fields with
+  | None -> failwith "impossible"
+  | Some ro_fields -> 
+    ro_fields.readonly_offset <- Control.(get t.control last_synced_offset_field);
+    ro_fields.readonly_offset |> Int63.of_int
 
 let truncate t = 
-  assert(not t.readonly);
+  assert(readwrite t);
     (*
     Fmt.failwith "%s: truncate not supported (the only user in pack_store.ml should be \
                   clear, which is also not supported) FIXME except that [v ~fresh] \

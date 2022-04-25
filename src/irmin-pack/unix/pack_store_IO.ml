@@ -443,7 +443,7 @@ module Private (* : S *) = struct
 
   let trigger_gc t trig =
     [%log.info "%s: trigger_gc called; store filename %s" __FILE__ t.base.fn];
-    if t.base.readonly then
+    if IO_impl.readonly t.base then
       [%log.warn
         "%s: trigger_gc called on readonly instance; likely this is an error"
           __FILE__];
