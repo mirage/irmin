@@ -442,7 +442,7 @@ module Private (* : S *) = struct
     | Some (pid,_) -> `Running pid
 
   let trigger_gc t trig =
-    [%log.info "%s: trigger_gc called" __FILE__];
+    [%log.info "%s: trigger_gc called; store filename %s" __FILE__ t.base.fn];
     t.trigger_gc <- Some trig
 
 end
