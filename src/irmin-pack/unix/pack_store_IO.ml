@@ -277,7 +277,7 @@ module Private (* : S *) = struct
   (** [v] is as {!Private_io_impl.v}, except that, if [create_reach.exe] is running, then
       we log all reads. *)
   let v ~version ~fresh ~readonly path = 
-    Printf.printf "%s: v called\n%!" __FILE__;
+    [%log.info "%s: v called\n%!" __FILE__];
     let read_logger = For_create_reach_exe.get_reach_oc () in
     { base=v ~version ~fresh ~readonly path; trigger_gc=None; read_logger; worker_pid_and_args=None}
 
@@ -304,16 +304,18 @@ module Private (* : S *) = struct
     (* open Irmin_pack_layers.Worker *)
 
     let check_trigger_maybe_fork_worker (t0:t) = 
+      [%log.info "%s: check_trigger_maybe_fork_worker called" __FILE__];
       let t = t0.base in
       match t0.trigger_gc with
       | None -> ()
       | Some _ when Option.is_some t0.worker_pid_and_args -> 
         let (pid,_args) = Option.get t0.worker_pid_and_args in
-        Printf.printf "%s: warning: GC triggered but a worker %d is already running for a \
-                       previous GC; ignoring" __FILE__ pid;
+        [%log.warn "%s: warning: GC triggered but a worker %d is already running for a \
+                    previous GC; ignoring" __FILE__ pid];
         t0.trigger_gc <- None;
         ()        
       | Some { commit_hash_s=_; create_reachable } ->        
+        [%log.info "%s: check_trigger_maybe_fork_worker: trigger_gc is_some ..." __FILE__];
         assert(t0.worker_pid_and_args = None); (* is_some case above *)
         let _ = t0.trigger_gc <- None in 
         let generation = 1+Control.get_generation t.control in
@@ -325,11 +327,13 @@ module Private (* : S *) = struct
           suffix_dir=Pre_io.suffix_name ~generation;
         }
         in
+        [%log.info "%s: ... calling Worker.fork_worker" __FILE__];
         let `Pid pid = Worker.fork_worker ~worker_args in
         t0.worker_pid_and_args <- Some (pid,worker_args);
         ()
 
     let handle_worker_termination (t:t) = 
+      [%log.info "%s: handle_worker_termination called" __FILE__];
       let open struct
         module Util = Irmin_pack_layers.Util
         module File = Util.File
@@ -343,6 +347,7 @@ module Private (* : S *) = struct
       (* if the current generation is 1234, then after worker termination, we expect
          "sparse.1235" and "suffix.1235" (the next versions of the sparse and suffix) to
          exist *)      
+      [%log.info "%s: checking existence of next sparse+suffix" __FILE__];
       assert(Sys.file_exists Fn.(args.working_dir / args.sparse_dir));
       assert(Sys.file_exists Fn.(args.working_dir / args.suffix_dir));
       let next_sparse = Sparse_file.open_ro ~dir:Fn.(args.working_dir / args.sparse_dir) in
@@ -350,6 +355,7 @@ module Private (* : S *) = struct
       (* between the termination of the worker, and the execution of this code in the
          parent, further data may have been written to the current suffix; we need to copy
          this across to the next suffix *)
+      [%log.info "%s: copy additional data from current suffix to next" __FILE__];
       let _ = 
         let cur_len = Pre_io.size t.base in
         let nxt_len = Suffix.size next_suffix in
@@ -364,6 +370,7 @@ module Private (* : S *) = struct
           ()
       in
       (* now we perform the switch to the next sparse and suffix *)
+      [%log.info "%s: switching to next sparse+suffix" __FILE__];
       let old_sparse, old_suffix = t.base.sparse,t.base.suffix in
       t.base.sparse <- next_sparse;
       t.base.suffix <- next_suffix;
@@ -378,8 +385,9 @@ module Private (* : S *) = struct
         Control.(fsync c);
         ()
       in
-      Printf.printf "%s: switched to new sparse+suffix\n%!" __FILE__;
+      [%log.info "%s: switched to new sparse+suffix" __FILE__];
       let _remove_old_sparse_and_suffix = 
+        [%log.info "%s: removing old files" __FILE__];
         match Irmin_pack_layers.debug_mode with 
         | true -> () (* don't delete *)
         | false -> 
@@ -393,6 +401,7 @@ module Private (* : S *) = struct
       ()
 
     let check_worker_status (t:t) =
+      [%log.info "%s: check_worker_status called" __FILE__];                
       match t.worker_pid_and_args with 
       | None -> ()
       | Some (pid,_) -> 
@@ -404,7 +413,9 @@ module Private (* : S *) = struct
         | _ when pid0=pid -> (
             (* worker has terminated *)
             match status with 
-            | WEXITED 0 -> handle_worker_termination t
+            | WEXITED 0 -> (
+                [%log.info "%s: check_worker_status: worker terminated" __FILE__];                
+                handle_worker_termination t)
             | WEXITED n -> 
               (* FIXME we should handle this case by, for example, issuing a warning to
                  the node owner *)
@@ -420,6 +431,7 @@ module Private (* : S *) = struct
   (** [append] is as {!Private_io_impl.append}, except that we use this point to 1) fork a
       worker if required; 2) handle a terminated worker, if any. *)
   let append t s = 
+    [%log.info "%s: append called" __FILE__];
     check_trigger_maybe_fork_worker t;
     check_worker_status t;
     append t.base s
@@ -430,6 +442,7 @@ module Private (* : S *) = struct
     | Some (pid,_) -> `Running pid
 
   let trigger_gc t trig =
+    [%log.info "%s: trigger_gc called" __FILE__];
     t.trigger_gc <- Some trig
 
 end

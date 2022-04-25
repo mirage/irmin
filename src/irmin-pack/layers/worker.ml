@@ -122,7 +122,7 @@ module Private = struct
           | false -> ()
           | true -> (
               let len = src_len () - src_off in
-              Printf.printf "tries=%d, len=%d\n%!" tries len;
+              [%log.debug "%s: create_suffix_file: tries=%d, len=%d\n%!" __FILE__ tries len];
               match len = 0 with
               | true -> ()
               | false -> (                  
@@ -134,19 +134,21 @@ module Private = struct
     ()
 
 
-  (* debugging *)
+  (* internal debugging; printf's are temporary and should eventually be removed, or
+     replaced with log msgs *)
   open struct
     let mark i = Printf.printf "Mark: %d\n%!" i
     (* let mark _ = () *)
   end
 
   let run_worker ~worker_args = 
+    [%log.info "%s: run_worker called" __FILE__];
     mark 1;
     let {working_dir;src;create_reachable;sparse_dir;suffix_dir} = worker_args in
     let _ = 
-      Printf.printf 
+      [%log.debug 
         "(worker args: working_dir:%s; src: %s; sparse_dir: %s; suffix_dir: %s)\n%!" 
-        working_dir src sparse_dir suffix_dir
+          working_dir src sparse_dir suffix_dir]
     in
     let reachable_fn = Filename.temp_file ~temp_dir:working_dir "reachable." ".tmp" in
     mark 2;
@@ -171,13 +173,17 @@ module Private = struct
     (* FIXME do we want to limit the sparse file to extents < offset_of_last_extent?
        probably yes *)
     mark 6;
-    let _create_sparse : unit = create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) in
+    let _create_sparse : unit = 
+      [%log.info "%s: run_worker: creating sparse file" __FILE__];
+      create_sparse_file ~extents_fn ~src ~fn:Fn.(working_dir / sparse_dir) 
+    in
     mark 7;
     (* delete temporary files after they are not needed, but before creating the suffix;
        we want [create_suffix_file] to be the last thing that runs so that the main
        process has less to catch up with when switching; probably this doesn't make any
        difference in reality because these deletions will likely be very quick *)
     let _delete_tmp_files : unit = 
+      [%log.info "%s: run_worker: deleting tmp files" __FILE__];
       match Debug_envvar.debug_mode with 
       | true -> ()
       | false -> 
@@ -185,13 +191,15 @@ module Private = struct
         [reachable_fn;sorted_fn;extents_fn] |> List.iter (fun n -> Unix.unlink n)
     in
     let _create_suffix : unit = 
+      [%log.info "%s: run_worker: creating suffix file" __FILE__];
       let src_off = offset_of_last_extent in
       create_suffix_file ~src ~src_off ~src_len:(fun () -> Pre_io.size src_io) ~dst_path:Fn.(working_dir / suffix_dir)
     in
-    Log.info (fun m -> m "Worker terminating");
+    [%log.info "%s: run_worker terminating" __FILE__];
     ()
 
   let fork_worker ~worker_args = 
+    [%log.info "%s: fork_worker called" __FILE__];
     Stdlib.flush_all ();
     let r = Unix.fork () in
     match r with 
