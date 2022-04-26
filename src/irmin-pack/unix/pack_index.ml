@@ -68,11 +68,11 @@ module Make (K : Irmin.Hash.S) = struct
   let find t k =
     match find t k with
     | exception Not_found ->
-        [%log.info "%s: find (k=%a) (result None)" __FILE__ (Repr.pp K.t) k];
+        [%log.info "%s: find (k=%a) (result=None)" __FILE__ (Repr.pp K.t) k];
         None
     | h ->
         [%log.info
-          "%s: find (k=%a) (result %a)" __FILE__ (Repr.pp K.t) k (Repr.pp Val.t)
+          "%s: find (k=%a) (result=Some %a)" __FILE__ (Repr.pp K.t) k (Repr.pp Val.t)
             h];
         Some h
 
