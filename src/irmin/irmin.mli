@@ -27,7 +27,7 @@
     OCaml and does not depend on external C stubs; it is thus very portable and
     aims to run everywhere, from Linux to browser and MirageOS unikernels.
 
-    Consult the {!basics} and {!examples} of use for a quick start. See also the
+    Consult the {!examples} of use for a quick start. See also the
     {{!Irmin_unix} documentation} for the unix backends.
 
     {e Release %%VERSION%% - %%HOMEPAGE%%} *)
