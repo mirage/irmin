@@ -59,7 +59,22 @@ module Make (K : Irmin.Hash.S) = struct
   let cache = Index.empty_cache ()
 
   let v = Index.v ~cache
-  let add ?overcommit t k v = replace ?overcommit t k v
-  let find t k = match find t k with exception Not_found -> None | h -> Some h
+
+  let add ?overcommit t k v =
+    [%log.info
+      "%s: add (k=%a) (v=%a)" __FILE__ (Repr.pp K.t) k (Repr.pp Val.t) v];
+    replace ?overcommit t k v
+
+  let find t k =
+    match find t k with
+    | exception Not_found ->
+        [%log.info "%s: find (k=%a) (result None)" __FILE__ (Repr.pp K.t) k];
+        None
+    | h ->
+        [%log.info
+          "%s: find (k=%a) (result %a)" __FILE__ (Repr.pp K.t) k (Repr.pp Val.t)
+            h];
+        Some h
+
   let close t = Index.close t
 end
