@@ -16,6 +16,7 @@
 
 open! Import
 module Type = Repr
+module Metrics = Metrics
 module Diff = Diff
 module Read_only = Read_only
 module Append_only = Append_only
