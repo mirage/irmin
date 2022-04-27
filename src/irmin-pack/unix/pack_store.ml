@@ -368,13 +368,13 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
       let loc, { offset; length } =
         match Pack_key.inspect key with
         | Direct { offset; length; _ } ->
-            (Stats.Find.Pack_direct, { offset; length })
+            (Stats.Pack_store.Pack_direct, { offset; length })
         | Indexed hash ->
             let entry_span = get_entry_span_from_index_exn t hash in
             (* Cache the offset and length information in the existing key: *)
             Pack_key.promote_exn key ~offset:entry_span.offset
               ~length:entry_span.length;
-            (Stats.Find.Pack_indexed, entry_span)
+            (Stats.Pack_store.Pack_indexed, entry_span)
       in
       let io_offset = IO.offset t.pack.block in
       if Int63.add offset (Int63.of_int length) > io_offset then (
@@ -392,7 +392,7 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
               "Direct store key references an unknown starting offset %a \
                (length = %d, IO offset = %a)"
               Int63.pp offset length Int63.pp io_offset];
-            (Stats.Find.Not_found, None))
+            (Stats.Pack_store.Not_found, None))
       else
         let v = io_read_and_decode ~off:offset ~len:length t in
         Lru.add t.lru hash v;
@@ -411,14 +411,14 @@ module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
         match Tbl.find t.staging hash with
         | v ->
             Lru.add t.lru hash v;
-            (Stats.Find.Staging, Some v)
+            (Stats.Pack_store.Staging, Some v)
         | exception Not_found -> (
             match Lru.find t.lru hash with
-            | v -> (Stats.Find.Lru, Some v)
+            | v -> (Stats.Pack_store.Lru, Some v)
             | exception Not_found -> find_in_pack_file ~check_integrity t k hash
             )
       in
-      Stats.report_find ~location;
+      Stats.report_pack_store ~field:location;
       value
 
     let find t k =

@@ -14,133 +14,103 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Find = struct
-  type location = Staging | Lru | Pack_direct | Pack_indexed | Not_found
-  [@@deriving irmin]
+module Metrics = Irmin.Metrics
+
+module Inode = struct
+  type Metrics.origin += Inode_stats
+
+  type field =
+    | Inode_add
+    | Inode_remove
+    | Inode_of_seq
+    | Inode_of_raw
+    | Inode_rec_add
+    | Inode_rec_remove
+    | Inode_to_binv
+    | Inode_decode_bin
+    | Inode_encode_bin
 
   type t = {
-    mutable total : int;
-    mutable from_staging : int;
-    mutable from_lru : int;
-    mutable from_pack_direct : int;
-    mutable from_pack_indexed : int;
+    mutable inode_add : int;
+    mutable inode_remove : int;
+    mutable inode_of_seq : int;
+    mutable inode_of_raw : int;
+    mutable inode_rec_add : int;
+    mutable inode_rec_remove : int;
+    mutable inode_to_binv : int;
+    mutable inode_decode_bin : int;
+    mutable inode_encode_bin : int;
   }
   [@@deriving irmin]
 
-  let create () =
+  type stat = t Metrics.t
+
+  let create_inode () =
     {
-      total = 0;
-      from_staging = 0;
-      from_lru = 0;
-      from_pack_direct = 0;
-      from_pack_indexed = 0;
+      inode_add = 0;
+      inode_remove = 0;
+      inode_of_seq = 0;
+      inode_of_raw = 0;
+      inode_rec_add = 0;
+      inode_rec_remove = 0;
+      inode_to_binv = 0;
+      inode_decode_bin = 0;
+      inode_encode_bin = 0;
     }
 
-  let clear t =
-    t.total <- 0;
-    t.from_staging <- 0;
-    t.from_lru <- 0;
-    t.from_pack_direct <- 0;
-    t.from_pack_indexed <- 0
+  let clear m =
+    let v = Metrics.state m in
+    v.inode_add <- 0;
+    v.inode_remove <- 0;
+    v.inode_of_seq <- 0;
+    v.inode_of_raw <- 0;
+    v.inode_rec_add <- 0;
+    v.inode_rec_remove <- 0;
+    v.inode_to_binv <- 0;
+    v.inode_decode_bin <- 0;
+    v.inode_encode_bin <- 0
 
-  let cache_misses
-      {
-        (* Total finds (hits + misses): *)
-        total;
-        (* In-memory hits: *)
-        from_staging;
-        from_lru;
-        from_pack_direct = _;
-        from_pack_indexed = _;
-      } =
-    total - (from_staging + from_lru)
+  let init () =
+    let initial_state = create_inode () in
+    Metrics.v ~origin:Inode_stats ~name:"inode_metric" ~initial_state t
+
+  let export m = Metrics.state m
+
+  let update ~field pack =
+    let f v =
+      match field with
+      | Inode_add -> v.inode_add <- succ v.inode_add
+      | Inode_remove -> v.inode_remove <- succ v.inode_remove
+      | Inode_of_seq -> v.inode_of_seq <- succ v.inode_of_seq
+      | Inode_of_raw -> v.inode_of_raw <- succ v.inode_of_raw
+      | Inode_rec_add -> v.inode_rec_add <- succ v.inode_rec_add
+      | Inode_rec_remove -> v.inode_rec_remove <- succ v.inode_rec_remove
+      | Inode_to_binv -> v.inode_to_binv <- succ v.inode_to_binv
+      | Inode_decode_bin -> v.inode_decode_bin <- succ v.inode_decode_bin
+      | Inode_encode_bin -> v.inode_encode_bin <- succ v.inode_encode_bin
+    in
+    let mut = Metrics.Mutate f in
+    Metrics.update pack mut
 end
 
-type t = {
-  finds : Find.t;
-  mutable appended_hashes : int;
-  mutable appended_offsets : int;
-  mutable inode_add : int;
-  mutable inode_remove : int;
-  mutable inode_of_seq : int;
-  mutable inode_of_raw : int;
-  mutable inode_rec_add : int;
-  mutable inode_rec_remove : int;
-  mutable inode_to_binv : int;
-  mutable inode_decode_bin : int;
-  mutable inode_encode_bin : int;
-}
-[@@deriving irmin]
+type t = { inode : Inode.stat }
 
-let fresh_stats () =
-  {
-    finds = Find.create ();
-    appended_hashes = 0;
-    appended_offsets = 0;
-    inode_add = 0;
-    inode_remove = 0;
-    inode_of_seq = 0;
-    inode_of_raw = 0;
-    inode_rec_add = 0;
-    inode_rec_remove = 0;
-    inode_to_binv = 0;
-    inode_decode_bin = 0;
-    inode_encode_bin = 0;
-  }
-
-let s = fresh_stats ()
-
-let reset_stats () =
-  Find.clear s.finds;
-  s.appended_hashes <- 0;
-  s.appended_offsets <- 0;
-  s.inode_add <- 0;
-  s.inode_remove <- 0;
-  s.inode_of_seq <- 0;
-  s.inode_of_raw <- 0;
-  s.inode_rec_add <- 0;
-  s.inode_rec_remove <- 0;
-  s.inode_to_binv <- 0;
-  s.inode_decode_bin <- 0;
-  s.inode_encode_bin <- 0;
-  ()
-
+let s = { inode = Inode.init () }
 let get () = s
+let reset_stats () = Inode.clear s.inode
+let incr_inode_add () = Inode.update ~field:Inode.Inode_add s.inode
+let incr_inode_remove () = Inode.update ~field:Inode.Inode_remove s.inode
+let incr_inode_of_seq () = Inode.update ~field:Inode.Inode_of_seq s.inode
+let incr_inode_of_raw () = Inode.update ~field:Inode.Inode_of_raw s.inode
+let incr_inode_rec_add () = Inode.update ~field:Inode.Inode_rec_add s.inode
 
-let report_find ~(location : Find.location) =
-  let finds = s.finds in
-  finds.total <- succ finds.total;
-  match location with
-  | Staging -> finds.from_staging <- succ finds.from_staging
-  | Lru -> finds.from_lru <- succ finds.from_lru
-  | Pack_direct -> finds.from_pack_direct <- succ finds.from_pack_direct
-  | Pack_indexed -> finds.from_pack_indexed <- succ finds.from_pack_indexed
-  | Not_found -> ()
+let incr_inode_rec_remove () =
+  Inode.update ~field:Inode.Inode_rec_remove s.inode
 
-let incr_appended_hashes () = s.appended_hashes <- succ s.appended_hashes
-let incr_appended_offsets () = s.appended_offsets <- succ s.appended_offsets
-let incr_inode_add () = s.inode_add <- s.inode_add + 1
-let incr_inode_remove () = s.inode_remove <- s.inode_remove + 1
-let incr_inode_of_seq () = s.inode_of_seq <- s.inode_of_seq + 1
-let incr_inode_of_raw () = s.inode_of_raw <- s.inode_of_raw + 1
-let incr_inode_rec_add () = s.inode_rec_add <- s.inode_rec_add + 1
-let incr_inode_rec_remove () = s.inode_rec_remove <- s.inode_rec_remove + 1
-let incr_inode_to_binv () = s.inode_to_binv <- s.inode_to_binv + 1
-let incr_inode_decode_bin () = s.inode_decode_bin <- s.inode_decode_bin + 1
-let incr_inode_encode_bin () = s.inode_encode_bin <- s.inode_encode_bin + 1
+let incr_inode_to_binv () = Inode.update ~field:Inode.Inode_to_binv s.inode
 
-type cache_stats = { cache_misses : float }
-type offset_stats = { offset_ratio : float; offset_significance : int }
+let incr_inode_decode_bin () =
+  Inode.update ~field:Inode.Inode_decode_bin s.inode
 
-let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b
-
-let get_cache_stats () =
-  let cache_misses = Find.cache_misses s.finds in
-  { cache_misses = div_or_zero cache_misses s.finds.total }
-
-let get_offset_stats () =
-  {
-    offset_ratio =
-      div_or_zero s.appended_offsets (s.appended_offsets + s.appended_hashes);
-    offset_significance = s.appended_offsets + s.appended_hashes;
-  }
+let incr_inode_encode_bin () =
+  Inode.update ~field:Inode.Inode_encode_bin s.inode
