@@ -191,24 +191,6 @@ let test_fold_sorted () =
   let expected = List.map fst bindings in
   test_fold ~order:`Sorted bindings expected
 
-let test_fold_random () =
-  let bindings = bindings some_steps in
-  let state = Random.State.make [| 0 |] in
-  let* () = test_fold ~order:(`Random state) bindings some_random_steps in
-  let state = Random.State.make [| 1 |] in
-  let* () = test_fold ~order:(`Random state) bindings another_random_steps in
-
-  (* Random fold order should still be respected if [~force:`False]. This is a
-     regression test for a bug in which the fold order of in-memory nodes during
-     a non-forcing traversal was always sorted. *)
-  let state = Random.State.make [| 1 |] in
-  let* () =
-    test_fold ~order:(`Random state) ~export_tree_to_store:false bindings
-      another_random_steps
-  in
-
-  Lwt.return_unit
-
 let test_fold_undefined () =
   let bindings = bindings steps in
   let expected = List.map fst bindings in
@@ -618,8 +600,6 @@ let tests =
   [
     Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
         Lwt_main.run (test_fold_sorted ()));
-    Alcotest.test_case "fold over keys in random order" `Quick (fun () ->
-        Lwt_main.run (test_fold_random ()));
     Alcotest.test_case "fold over keys in undefined order" `Quick (fun () ->
         Lwt_main.run (test_fold_undefined ()));
     Alcotest.test_case "test Merkle proof for large inodes" `Quick (fun () ->
