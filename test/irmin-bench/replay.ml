@@ -2,11 +2,6 @@ open! Import
 
 let test_dir = Filename.concat "_build" "test-pack-trace-replay"
 
-let testable t =
-  Alcotest.testable (Irmin.Type.pp_dump t) Irmin.Type.(unstage (equal t))
-
-let check t = Alcotest.check (testable t)
-
 module Conf = Irmin_tezos.Conf
 
 module Store = struct
@@ -76,33 +71,29 @@ let replay_1_commit () =
   let+ summary = Replay.run () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
-  let got = Irmin_pack.Stats.get () in
-  let expected =
-    Irmin_pack.Stats.
-      {
-        finds =
-          {
-            total = 2;
-            from_staging = 0;
-            from_lru = 2;
-            from_pack_direct = 0;
-            from_pack_indexed = 0;
-          };
-        appended_hashes = 0;
-        appended_offsets = 5;
-        inode_add = 0;
-        inode_remove = 0;
-        inode_of_seq = 2;
-        inode_of_raw = 2;
-        inode_rec_add = 0;
-        inode_rec_remove = 0;
-        inode_to_binv = 2;
-        inode_decode_bin = 0;
-        inode_encode_bin = 2;
-      }
+  let check name = Alcotest.(check int) ("Stats_counters" ^ name) in
+  let pack_got = Irmin_pack.Stats.get () in
+  let unix_got = Irmin_pack_unix.Stats.get () in
+  let pack_store =
+    Irmin_pack_unix.Stats.(Pack_store.export unix_got.pack_store)
   in
-  check Irmin_pack.Stats.t "Pack counters" expected got;
-  ()
+  let inode = Irmin_pack.Stats.(Inode.export pack_got.inode) in
+  check "appended_hashes" pack_store.appended_hashes 0;
+  check "appended_offsets" pack_store.appended_offsets 5;
+  check "total" pack_store.total 2;
+  check "from_staging" pack_store.from_staging 0;
+  check "from_lru" pack_store.from_lru 2;
+  check "from_pack_direct" pack_store.from_pack_direct 0;
+  check "from_pack_indexed" pack_store.from_pack_indexed 0;
+  check "inode_add" inode.inode_add 0;
+  check "inode_remove" inode.inode_remove 0;
+  check "inode_of_seq" inode.inode_of_seq 2;
+  check "inode_of_raw" inode.inode_of_raw 2;
+  check "inode_rec_add" inode.inode_rec_add 0;
+  check "inode_rec_remove" inode.inode_rec_remove 0;
+  check "inode_to_binv" inode.inode_to_binv 2;
+  check "inode_decode_bin" inode.inode_decode_bin 0;
+  check "inode_encode_bin" inode.inode_encode_bin 2
 
 module Store_mem = struct
   type store_config = unit

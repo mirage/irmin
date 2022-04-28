@@ -44,6 +44,9 @@ module Type = Repr
     {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
     for [ppx_irmin]})*)
 
+module Metrics = Metrics
+(** Type agnostics mechanisms to manipulate metrics. *)
+
 module Info = Info
 (** Commit info are used to keep track of the origin of write operations in the
     stores. [Info] models the metadata associated with commit objects in Git. *)

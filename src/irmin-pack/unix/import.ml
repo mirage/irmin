@@ -39,5 +39,5 @@ module type S = Irmin_pack.S
 module Conf = Irmin_pack.Conf
 module Layout = Irmin_pack.Layout
 module Pack_key = Irmin_pack.Pack_key
-module Stats = Irmin_pack.Stats
+module Stats = Stats
 module Indexable = Irmin_pack.Indexable

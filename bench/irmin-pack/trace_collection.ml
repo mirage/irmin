@@ -39,32 +39,36 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
 
   module Bag_of_stats = struct
     let pack () =
-      let open Irmin_pack.Stats in
-      let v = get () in
+      let module Pack_stats = Irmin_pack.Stats in
+      let module Unix_pack_stats = Irmin_pack_unix.Stats in
+      let pack_s = Pack_stats.get () in
+      let unix_s = Unix_pack_stats.get () in
+      let inode = Pack_stats.(Inode.export pack_s.inode) in
+      let pack_store = Unix_pack_stats.(Pack_store.export unix_s.pack_store) in
       let finds =
         Def.
           {
-            total = v.finds.total;
-            from_staging = v.finds.from_staging;
-            from_lru = v.finds.from_lru;
-            from_pack_direct = v.finds.from_pack_direct;
-            from_pack_indexed = v.finds.from_pack_indexed;
+            total = pack_store.total;
+            from_staging = pack_store.from_staging;
+            from_lru = pack_store.from_lru;
+            from_pack_direct = pack_store.from_pack_direct;
+            from_pack_indexed = pack_store.from_pack_indexed;
           }
       in
       Def.
         {
           finds;
-          appended_hashes = v.appended_hashes;
-          appended_offsets = v.appended_offsets;
-          inode_add = v.inode_add;
-          inode_remove = v.inode_remove;
-          inode_of_seq = v.inode_of_seq;
-          inode_of_raw = v.inode_of_raw;
-          inode_rec_add = v.inode_rec_add;
-          inode_rec_remove = v.inode_rec_remove;
-          inode_to_binv = v.inode_to_binv;
-          inode_decode_bin = v.inode_decode_bin;
-          inode_encode_bin = v.inode_encode_bin;
+          appended_hashes = pack_store.appended_hashes;
+          appended_offsets = pack_store.appended_offsets;
+          inode_add = inode.inode_add;
+          inode_remove = inode.inode_remove;
+          inode_of_seq = inode.inode_of_seq;
+          inode_of_raw = inode.inode_of_raw;
+          inode_rec_add = inode.inode_rec_add;
+          inode_rec_remove = inode.inode_rec_remove;
+          inode_to_binv = inode.inode_to_binv;
+          inode_decode_bin = inode.inode_decode_bin;
+          inode_encode_bin = inode.inode_encode_bin;
         }
 
     let tree () =
