@@ -17,7 +17,7 @@ depends: [
   "irmin-pack"   {= version}
   "irmin-test"   {= version}
   "irmin-tezos"  {= version}
-  "cmdliner"     {< "1.1.0"}
+  "cmdliner"
   "logs"
   "lwt"          {>= "5.3.0"}
   "memtrace"     {>= "0.1.1"}
