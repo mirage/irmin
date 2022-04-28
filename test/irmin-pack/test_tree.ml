@@ -98,9 +98,15 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
     let+ t, () = Store.Tree.produce_proof repo hash (run ops) in
     t
 
+  let stream_of_ops repo hash ops : _ Lwt.t =
+    let+ t, () = Store.Tree.produce_stream repo hash (run ops) in
+    t
+
   let tree_proof_t = Tree.Proof.t Tree.Proof.tree_t
+  let stream_proof_t = Tree.Proof.t Tree.Proof.stream_t
   let bin_of_proof = Irmin.Type.(unstage (to_bin_string tree_proof_t))
   let proof_of_bin = Irmin.Type.(unstage (of_bin_string tree_proof_t))
+  let bin_of_stream = Irmin.Type.(unstage (to_bin_string stream_proof_t))
 end
 
 module Default = Make (Conf)
@@ -368,6 +374,15 @@ let test_large_proofs () =
     let enc_32 = bin_of_proof proof in
     let* () = close ctxt in
 
+    (* Build a stream proof *)
+    let* ctxt = init_tree bindings in
+    let key =
+      match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
+    in
+    let* proof = stream_of_ops ctxt.repo (`Node key) ops in
+    let s_enc_32 = bin_of_stream proof in
+    let* () = close ctxt in
+
     (* Build a proof on a large store (branching factor = 2) *)
     let* ctxt = Binary.init_tree bindings in
     let key =
@@ -379,17 +394,35 @@ let test_large_proofs () =
     let enc_2 = Binary.bin_of_proof proof in
     let* () = Binary.close ctxt in
 
-    Lwt.return (n, String.length enc_32 / 1024, String.length enc_2 / 1024)
+    (* Build a stream proof *)
+    let* ctxt = Binary.init_tree bindings in
+    let key =
+      match Binary.Store.Tree.key ctxt.tree with
+      | Some (`Node k) -> k
+      | _ -> assert false
+    in
+    let* proof = Binary.stream_of_ops ctxt.repo (`Node key) ops in
+    let s_enc_2 = Binary.bin_of_stream proof in
+    let* () = Binary.close ctxt in
+
+    Lwt.return
+      ( n,
+        String.length enc_32 / 1024,
+        String.length s_enc_32 / 1024,
+        String.length enc_2 / 1024,
+        String.length s_enc_2 / 1024 )
   in
   let* a = compare_proofs 1 in
   let* b = compare_proofs 100 in
   let* c = compare_proofs 1_000 in
   let+ d = compare_proofs 10_000 in
   List.iter
-    (fun (n, k32, k2) ->
+    (fun (n, k32, sk32, k2, sk2) ->
       Fmt.pr "Size of Merkle proof for %d operations:\n" n;
-      Fmt.pr "- Merkle B-trees (32 children): %dkB\n%!" k32;
-      Fmt.pr "- binary Merkle trees         : %dkB\n%!" k2)
+      Fmt.pr "- Merkle B-trees (32 children)       : %dkB\n%!" k32;
+      Fmt.pr "- stream Merkle B-trees (32 children): %dkB\n%!" sk32;
+      Fmt.pr "- binary Merkle trees                : %dkB\n%!" k2;
+      Fmt.pr "- stream binary Merkle trees         : %dkB\n%!" sk2)
     [ a; b; c; d ]
 
 module Custom = Make (struct
