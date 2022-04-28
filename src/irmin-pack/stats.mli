@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -40,13 +40,6 @@ module Inode : sig
   [@@deriving irmin]
   (** The type for stats for a store S.
 
-      - [finds] stores the total number of calls to [S.find], and tracks the
-        source locations of successful finds (i.e. whether the value was
-        recovered from the staging table, LRU, or the pack file);
-      - [appended_hashes] is the number of times a hash was appended, during
-        calls to [add];
-      - [appended_offsets] is the number of times an offset was appended, during
-        calls to [add];
       - [inode_add + inode_remove + inode_of_seq + inode_of_raw] is the total
         number of [Inode.Val.t] built;
       - [inode_rec_add + inode_rec_remove] are witnesses of the quantity of work

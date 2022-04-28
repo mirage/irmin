@@ -70,9 +70,21 @@ end
 type t = { pack_store : Pack_store.stat; index : Index.stat }
 
 val reset_stats : unit -> unit
+
 val get : unit -> t
+(** [get ()] returns the {!t} that stores the satistics. If {!report_pack_store}
+    or {!report_index} is not called before, the content will be filled with
+    default value, decided at create time (most the time, [0]). *)
+
 val report_pack_store : field:Pack_store.field -> unit
+(** [report_pack_store ~field] incrementes the [field] value in the [pack_store]
+    stats. It also incrementes the [total] field in {!Pack_store.t} when the
+    field is related to [finds]. *)
+
 val report_index : unit -> unit
+(** [report_index ()] fills the [stats] with value from the {!Index.Stats}
+    module. *)
+
 val incr_appended_hashes : unit -> unit
 val incr_appended_offsets : unit -> unit
 

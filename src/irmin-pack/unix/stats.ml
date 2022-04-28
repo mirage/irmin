@@ -96,15 +96,12 @@ module Pack_store = struct
 
   let cache_misses
       {
-        appended_hashes = _;
-        appended_offsets = _;
         (* Total finds (hits + misses): *)
         total;
         (* In-memory hits: *)
         from_staging;
         from_lru;
-        from_pack_direct = _;
-        from_pack_indexed = _;
+        _;
       } =
     total - (from_staging + from_lru)
 end

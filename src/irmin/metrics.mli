@@ -32,7 +32,8 @@ val state : 'a t -> 'a
 val set_state : 'a t -> 'a -> unit
 (** [set_state m v] updates the value in the {!t} object. *)
 
-(** {!update} describes how the data will be handled by the {!produce} function.
+(** {!update_mode} describes how the data will be handled by the {!update}
+    function.
 
     - Mutate: the value and the storage are not modified but the content of the
       value can be mutate.
