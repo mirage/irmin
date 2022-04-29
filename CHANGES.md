@@ -6,6 +6,10 @@
   - Add `Metrics` module to describe metric gathering in irmin.
     (#1817, @maiste)
 
+- **irmin-unix**
+  - Add `--plugin` flag to load Dynlink plugins that can register new
+    contents, hash and store types (#1808, @zshipko)
+
 ## 3.2.1 (2022-04-07)
 
 - Support all version of cmdliner (#1803, @samoht)

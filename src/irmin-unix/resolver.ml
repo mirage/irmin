@@ -386,7 +386,7 @@ module Store = struct
       let arg_info =
         Arg.info ~doc ~docs:global_option_section [ "s"; "store" ]
       in
-      Arg.(value & opt (some (enum store_types)) None & arg_info)
+      Arg.(value & opt (some string) None & arg_info)
     in
     let create store hash contents = (store, hash, contents) in
     Term.(const create $ store $ Hash.term () $ Contents.term ())
@@ -480,7 +480,7 @@ let parse_config ?root y spec =
             Conf.add config k v
         | None, _ -> (
             match k with
-            | "contents" | "hash" | "store" -> config
+            | "contents" | "hash" | "store" | "plugin" -> config
             | _ ->
                 Fmt.invalid_arg "unknown config key for %s: %s"
                   (Conf.Spec.name spec) k)
@@ -496,7 +496,16 @@ let parse_config ?root y spec =
   in
   config
 
-let get_store config (store, hash, contents) =
+let load_plugin ?plugin config =
+  match plugin with
+  | Some p -> Dynlink.loadfile_private p
+  | None -> (
+      match Yaml.Util.find "plugin" config with
+      | Ok (Some v) -> Dynlink.loadfile_private (Yaml.Util.to_string_exn v)
+      | _ -> ())
+
+let get_store ?plugin config (store, hash, contents) =
+  let () = load_plugin ?plugin config in
   let store =
     match store with
     | Some s -> Store.find s
@@ -538,9 +547,9 @@ let get_store config (store, hash, contents) =
       | _ ->
           Fmt.failwith "Cannot customize the hash function for the given store")
 
-let load_config ?root ?config_path ?store ?hash ?contents () =
+let load_config ?plugin ?root ?config_path ?store ?hash ?contents () =
   let y = read_config_file config_path in
-  let store = get_store y (store, hash, contents) in
+  let store = get_store ?plugin y (store, hash, contents) in
   let spec = Store.spec store in
   let config = parse_config ?root y spec in
   (store, config)
@@ -570,9 +579,11 @@ let get_commit (type a b)
   | None -> of_string (find_key config "commit")
   | Some t -> of_string (Some t)
 
-let build_irmin_config config root opts (store, hash, contents) branch commit :
-    store =
-  let (T { impl; spec; remote }) = get_store config (store, hash, contents) in
+let build_irmin_config config root opts (store, hash, contents) branch commit
+    plugin : store =
+  let (T { impl; spec; remote }) =
+    get_store ?plugin config (store, hash, contents)
+  in
   let (module S) = Store.Impl.generic_keyed impl in
   let branch = get_branch (module S) config branch in
   let commit = get_commit (module S) config commit in
@@ -624,12 +635,16 @@ let commit =
   in
   Arg.(value & opt (some string) None & doc)
 
+let plugin =
+  let doc = "Register new contents, store or hash types" in
+  Arg.(value & opt (some string) None & info ~doc [ "plugin" ])
+
 let store () =
-  let create store (root, config_path, opts) branch commit =
+  let create plugin store (root, config_path, opts) branch commit =
     let y = read_config_file config_path in
-    build_irmin_config y root opts store branch commit
+    build_irmin_config y root opts store branch commit plugin
   in
-  Term.(const create $ Store.term () $ config_term $ branch $ commit)
+  Term.(const create $ plugin $ Store.term () $ config_term $ branch $ commit)
 
 let header_conv =
   let parse str =
@@ -701,7 +716,7 @@ let remote () =
       headers str =
     let y = read_config_file config_path in
     let store =
-      build_irmin_config y root opts (store, hash, contents) branch commit
+      build_irmin_config y root opts (store, hash, contents) branch commit None
     in
     let remote = infer_remote hash contents branch headers str in
     (store, remote)
