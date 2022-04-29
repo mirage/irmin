@@ -11,6 +11,7 @@
   logs
   lwt
   uri
+  unix
   webmachine)
  (preprocess
   (pps ppx_irmin.internal))
