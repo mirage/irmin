@@ -145,13 +145,21 @@ let steps =
    "r0"; "r1"; "r2"; "r3"; "r4"; "r5"; "r6"; "r7"; "r8"; "r9"; "ra";]
 [@@ocamlformat "disable"]
 
+let version =
+  let version = Sys.ocaml_version in
+  Char.code version.[0] - 48
+
 let some_steps = [ "0g"; "1g"; "0h"; "2g"; "1h"; "2h" ]
 
 let some_random_steps =
-  [ [ "2g" ]; [ "1h" ]; [ "0h" ]; [ "2h" ]; [ "0g" ]; [ "1g" ] ]
+  if version >= 5 then
+    [ [ "1g" ]; [ "0h" ]; [ "2h" ]; [ "1h" ]; [ "2g" ]; [ "0g" ] ]
+  else [ [ "2g" ]; [ "1h" ]; [ "0h" ]; [ "2h" ]; [ "0g" ]; [ "1g" ] ]
 
 let another_random_steps =
-  [ [ "1g" ]; [ "2h" ]; [ "1h" ]; [ "0g" ]; [ "0h" ]; [ "2g" ] ]
+  if version >= 5 then
+    [ [ "0g" ]; [ "0h" ]; [ "1h" ]; [ "2h" ]; [ "2g" ]; [ "1g" ] ]
+  else [ [ "1g" ]; [ "2h" ]; [ "1h" ]; [ "0g" ]; [ "0h" ]; [ "2g" ] ]
 
 let zero = String.make 10 '0'
 let bindings steps = List.map (fun x -> ([ x ], zero)) steps
