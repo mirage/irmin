@@ -237,13 +237,8 @@ In this case, we can only read some of the data, and we pad the rest with dummy 
       off:=!off+n;
       n
     | Starts_in_gap -> 
-      Log.err (fun m -> m "%s: attempt to read from gap" __FILE__);
-      (* FIXME we should probably consider this an error case *)
-      Printf.printf "%s: attempt to read from gap, voff=%d, len=%d\n%!" __FILE__ !off len;
-      (* fill buf with 0s *)
-      Bytes.fill buf 0 len (Char.chr 0);
-      off:=!off+len;
-      len
+      Log.err (fun m -> m "%s: attempt to read from gap; voff=%d, len=%d" __FILE__ !off len);
+      Fmt.failwith "%s: attempt to read from gap; voff=%d, len=%d" __FILE__ !off len
     | Extends_beyond { real_off; real_len } -> 
       (* NOTE we need to allow this case, because a user may read more bytes than they
          need into a buffer, then attempt to decode what they have read; we want to allow
