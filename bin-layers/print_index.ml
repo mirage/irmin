@@ -2,7 +2,7 @@
 
 let path = Sys.argv |> Array.to_list |> List.tl |> function
   | [path] -> path
-  | _ -> failwith "Usage: print_index.exe <path to index dir>"
+  | _ -> failwith "Usage: print_index.exe <path to context dir with index subdir>"
 
 
 module Pack_index = Irmin_pack_unix.Index
