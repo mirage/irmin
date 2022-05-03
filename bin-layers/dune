@@ -29,6 +29,13 @@
 )
 
 (executable
+ (name "print_index")
+ (modules Print_index)
+  (preprocess (pps ppx_irmin.internal))
+ (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
+)
+
+(executable
  (name "print_sparse_map")
  (modules Print_sparse_map)
  (libraries irmin-tezos irmin-pack.layers irmin-pack lwt)
