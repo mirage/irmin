@@ -42,7 +42,6 @@ module Make (B : Backend.S) = struct
   module Commits = Commit.History (B.Commit)
   module Backend = B
   module Info = B.Commit.Info
-  module H = Commit.History (B.Commit)
   module T = Tree.Make (B)
 
   module Contents = struct
