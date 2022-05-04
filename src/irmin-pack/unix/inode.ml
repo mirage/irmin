@@ -1,5 +1,6 @@
 open Import
 include Irmin_pack.Inode
+include Inode_intf
 
 module Make_persistent
     (H : Irmin.Hash.S)

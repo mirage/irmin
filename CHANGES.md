@@ -10,6 +10,13 @@
   - Add `--plugin` flag to load Dynlink plugins that can register new
     contents, hash and store types (#1808, @zshipko)
 
+### Changed
+
+- **irmin-pack**
+  - Move `Irmin_pack.Pack_store.Indexing_strategy` to
+    `Irmin_pack.Indexing_strategy` and the rest of `Pack_store`
+    to `Irmin_pack_unix` (#1833, @Ngoguey42)
+
 ## 3.2.1 (2022-04-07)
 
 - Support all version of cmdliner (#1803, @samoht)

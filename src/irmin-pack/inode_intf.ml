@@ -97,46 +97,6 @@ module type S = sig
   val save : ?allow_non_root:bool -> 'a t -> value -> key
 end
 
-module type Persistent = sig
-  include S
-
-  type index
-
-  val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
-    index:index ->
-    indexing_strategy:Pack_store.Indexing_strategy.t ->
-    string ->
-    read t Lwt.t
-
-  include S.Checkable with type 'a t := 'a t and type hash := hash
-
-  val sync : 'a t -> unit
-  val clear_caches : 'a t -> unit
-  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
-
-  module Pack :
-    Pack_store.S
-      with type index := index
-       and type key := hash Pack_key.t
-       and type hash := hash
-       and type 'a t = 'a t
-
-  module Raw :
-    Raw
-      with type t = Pack.value
-       and type hash := hash
-       and type key := hash Pack_key.t
-
-  module Snapshot :
-    Snapshot with type hash = hash and type metadata = Val.metadata
-
-  val to_snapshot : Raw.t -> Snapshot.inode
-  val of_snapshot : 'a t -> index:(hash -> key) -> Snapshot.inode -> value
-end
-
 (** Unstable internal API agnostic about the underlying storage. Use it only to
     implement or test inodes. *)
 module type Internal = sig
@@ -253,9 +213,10 @@ end
 
 module type Sigs = sig
   module type S = S
-  module type Persistent = Persistent
   module type Internal = Internal
   module type Child_ordering = Child_ordering
+  module type Raw = Raw
+  module type Snapshot = Snapshot
 
   exception Max_depth of int
 

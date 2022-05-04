@@ -74,7 +74,7 @@ let suite_mem =
     ~store ~config ()
 
 let suite =
-  let module Index = Irmin_pack.Pack_store.Indexing_strategy in
+  let module Index = Irmin_pack.Indexing_strategy in
   let module Conf_small_nodes = struct
     (* Parameters chosen to be different from those in [Irmin_tezos.Conf]: *)
     let entries = 2
@@ -250,7 +250,7 @@ module Pack = struct
   let test_reuse_index () =
     (* index and pack with different names. However, this behaviour is not exposed by irmin_pack.*)
     let index = Index.v ~log_size:4 ~fresh:true (Context.fresh_name "index") in
-    let indexing_strategy = Irmin_pack.Pack_store.Indexing_strategy.always in
+    let indexing_strategy = Irmin_pack.Indexing_strategy.always in
     let* w1 =
       Pack.v ~fresh:true ~index ~indexing_strategy (Context.fresh_name "pack")
     in
