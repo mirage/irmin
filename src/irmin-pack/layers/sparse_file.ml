@@ -79,6 +79,8 @@ module Private_map = struct
             let m = add voff (off,len) m in
             k (i+3,m))
     in
+    (* remember to close the mmap *)
+    Int_mmap.close mmap;
     m
 
   let save t fn = 
