@@ -33,6 +33,7 @@ module type Backend = sig
   (* FIXME: remove signature duplication *)
 
   module G : Irmin_git.G
+  module I : Info.S
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -41,7 +42,7 @@ module type Backend = sig
                   with type Hash.t = G.hash
                    and type Node.t = G.Value.Tree.t
                    and type Commit.t = G.Value.Commit.t
-                   and type Info.t = Irmin.Info.default) :
+                   and type Info.t = I.t) :
     S
       with module Git = G
        and type Backend.Remote.endpoint = endpoint
@@ -52,7 +53,7 @@ module type Backend = sig
       with module Git = G
        and type Schema.Contents.t = C.t
        and type Schema.Metadata.t = Irmin_git.Metadata.t
-       and type Schema.Info.t = Irmin.Info.default
+       and type Schema.Info.t = I.t
        and type Schema.Path.step = string
        and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash
@@ -64,7 +65,7 @@ module type Backend = sig
       with module Git = G
        and type Schema.Contents.t = C.t
        and type Schema.Metadata.t = Irmin_git.Metadata.t
-       and type Schema.Info.t = Irmin.Info.default
+       and type Schema.Info.t = I.t
        and type Schema.Path.step = string
        and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash

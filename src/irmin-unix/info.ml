@@ -14,10 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type S = sig
+  include Irmin.Info.S
+
+  val vf : ?author:string -> ('b, Format.formatter, unit, f) format4 -> 'b
+end
+
 module Make (I : Irmin.Info.S) = struct
   include I
 
-  let v ?author fmt =
+  let vf ?author fmt =
     Fmt.kstr
       (fun message () ->
         let date = Int64.of_float (Unix.gettimeofday ()) in
@@ -32,3 +38,5 @@ module Make (I : Irmin.Info.S) = struct
         v ~author ~message date)
       fmt
 end
+
+module Default = Make (Irmin.Info.Default)

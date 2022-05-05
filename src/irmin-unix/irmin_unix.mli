@@ -30,12 +30,10 @@
       servers} provides a high-level REST API, with 1 RTT for the
       {{!Irmin.S.Backend} private} and {{!Irmin.S} public} functions. *)
 
-module Info = Info.Make
+module Info = Info
 
 val info :
-  ?author:string ->
-  ('a, Format.formatter, unit, unit -> Irmin.Info.default) format4 ->
-  'a
+  ?author:string -> ('a, Format.formatter, unit, unit -> Info.Default.t) format4 -> 'a
 (** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.S.date}
     date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.S.author} author}
     built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
@@ -76,12 +74,12 @@ module Git : sig
   include Xgit_intf.Sigs
   (** @inline *)
 
-  module Maker (G : Irmin_git.G) : Backend with module G = G
+  module Maker (G : Irmin_git.G) : Backend with module G = G and module I = Info.Default
 
-  module FS : Backend with module G = Git_unix.Store
+  module FS : Backend with module G = Git_unix.Store and module I = Info.Default
   (** Embed an Irmin store into a local Git repository. *)
 
-  module Mem : Backend with module G = Irmin_git.Mem
+  module Mem : Backend with module G = Irmin_git.Mem and module I = Info.Default
   (** Embed an Irmin store into an in-memory Git repository. *)
 end
 

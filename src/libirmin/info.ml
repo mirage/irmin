@@ -7,8 +7,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun (type repo) repo author message ->
         with_repo' repo info
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
-            let module Info = Irmin_unix.Info (Store.Info) in
-            let info : Info.t = Info.v ?author "%s" message () in
+            let module Info = Irmin_unix.Info.Make (Store.Info) in
+            let info : Info.t = Info.vf ?author "%s" message () in
             Root.create_info (module Store) info))
 
   let () =
@@ -17,8 +17,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun (type repo) repo info author message ->
         with_repo repo ()
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
-            let module Info = Irmin_unix.Info (Store.Info) in
-            Root.set_info (module Store) info (Info.v ?author "%s" message ())))
+            let module Info = Irmin_unix.Info.Make (Store.Info) in
+            Root.set_info (module Store) info (Info.vf ?author "%s" message ())))
 
   let () =
     fn "info_message"

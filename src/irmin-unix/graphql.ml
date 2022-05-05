@@ -41,7 +41,7 @@ module Server = struct
 
         type info = S.info
 
-        let info = Info.v
+        let info = Info.vf
 
         let remote =
           match Remote.remote with
@@ -62,7 +62,7 @@ module Server = struct
 
         type info = S.info
 
-        let info = Info.v
+        let info = Info.vf
 
         let remote =
           match Remote.remote with

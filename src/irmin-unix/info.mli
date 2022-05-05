@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (I : Irmin.Info.S) : sig
-  include Irmin.Info.S with type t = I.t
+module type S = sig
+  include Irmin.Info.S
 
-  val v : ?author:string -> ('b, Format.formatter, unit, f) format4 -> 'b
+  val vf : ?author:string -> ('b, Format.formatter, unit, f) format4 -> 'b
 end
+
+module Make (I : Irmin.Info.S) : S with type t = I.t
+module Default : S with type t = Irmin.Info.Default.t

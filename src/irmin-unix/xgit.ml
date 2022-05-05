@@ -41,13 +41,14 @@ let remote ?ctx ?headers uri =
 
 module Maker (G : Irmin_git.G) = struct
   module G = G
+  module I = Info.Default
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Maker = struct
-    module S = Irmin_git.Maker (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
-    module KV = Irmin_git.KV (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
-    module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
+    module S = Irmin_git.Maker (G) (Git_unix.Sync (G)) (I)
+    module KV = Irmin_git.KV (G) (Git_unix.Sync (G)) (I)
+    module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G)) (I)
   end
 
   module Make
@@ -55,7 +56,7 @@ module Maker (G : Irmin_git.G) = struct
              with type Hash.t = G.hash
               and type Node.t = G.Value.Tree.t
               and type Commit.t = G.Value.Commit.t
-              and type Info.t = Irmin.Info.default) =
+              and type Info.t = I.t) =
   struct
     include Maker.S.Make (S)
 

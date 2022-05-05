@@ -273,7 +273,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun (type t) store path info ->
         with_store store false
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
-            let module Info = Irmin_unix.Info (Store.Info) in
+            let module Info = Irmin_unix.Info.Make (Store.Info) in
             let info = Root.get_info (module Store) info in
             let path : Store.path = Root.get_path (module Store) path in
             match run (Store.remove store path ~info:(fun () -> info)) with

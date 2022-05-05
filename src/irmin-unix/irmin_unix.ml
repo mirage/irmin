@@ -16,11 +16,9 @@
 
 let set_listen_dir_hook = Hook.init
 
-module I = Info.Make (Irmin.Info.Default)
+let info = Info.Default.vf
 
-let info = I.v
-
-module Info = Info.Make
+module Info = Info
 module Git = Xgit
 module Http = Http
 module Graphql = Graphql

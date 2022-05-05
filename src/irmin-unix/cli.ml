@@ -26,7 +26,7 @@ let () = Hook.init ()
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
     ?(author = "irmin") fmt =
   let module Info = Info.Make (S.Info) in
-  Info.v ~author fmt
+  Info.vf ~author fmt
 
 (* Help sections common to all commands *)
 let help_sections =
