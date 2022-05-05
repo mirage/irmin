@@ -33,4 +33,6 @@ module String = struct
       incr i
     done;
     !ok
+
+  let pp = Type.pp t
 end

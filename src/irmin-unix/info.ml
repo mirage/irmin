@@ -23,6 +23,20 @@ end
 module Make (I : Irmin.Info.S) = struct
   include I
 
+  let pp_date ppf t =
+    let time = t |> date |> Int64.to_float |> Unix.gmtime in
+    Fmt.pf ppf "%d-%02d-%02dT%02d:%02d:%02d.00Z" (time.tm_year + 1900)
+      (time.tm_mon + 1) time.tm_mday time.tm_hour time.tm_min time.tm_sec
+
+  let pp =
+    let open Fmt in
+    record
+      [
+        field "Date" id pp_date;
+        field "Author" id pp_author;
+        field "Message" id pp_message;
+      ]
+
   let vf ?author fmt =
     Fmt.kstr
       (fun message () ->

@@ -56,6 +56,13 @@ module type S = sig
 
   val none : f
   (** The empty info function. [none ()] is [empty] *)
+
+  (** {1 Pretty-printers} *)
+
+  val pp_date : t Fmt.t
+  val pp_message : t Fmt.t
+  val pp_author : t Fmt.t
+  val pp : t Fmt.t [@@ocaml.toplevel_printer]
 end
 
 module type Sigs = sig

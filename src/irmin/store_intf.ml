@@ -337,7 +337,11 @@ module type S_generic_key = sig
     (** [t] is the value type for {!type-t}. *)
 
     val pp_hash : t Fmt.t
-    (** [pp] is the pretty-printer for commit. Display only the hash. *)
+    (** [pp_hash] is a pretty-printer for a commit. Display only the hash. *)
+
+    val pp : t Fmt.t
+      [@@ocaml.toplevel_printer]
+    (** [pp] is a full pretty-printer for a commit. Displays all information. *)
 
     val v : repo -> info:info -> parents:commit_key list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:

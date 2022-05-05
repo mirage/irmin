@@ -64,6 +64,17 @@ module Maker_generic_key (I : Info.S) = struct
       let parents = List.fast_sort compare_commit_key parents in
       { node; parents; info }
 
+    let pp =
+      let open Fmt in
+      vbox
+        (record
+           [
+             field "Parents" parents (list (Type.pp commit_key_t));
+             field "Node" node (Type.pp node_key_t);
+           ]
+        ++ sps 1
+        ++ using info Info.pp)
+
     module Portable = struct
       module Info = I
 
@@ -93,6 +104,17 @@ module Maker_generic_key (I : Info.S) = struct
       let v ~info ~node ~parents =
         let parents = List.fast_sort compare_hash parents in
         { node; parents; info }
+
+      let pp =
+        let open Fmt in
+        vbox
+          (record
+             [
+               field "Parents" parents (list (Type.pp commit_key_t));
+               field "Node" node (Type.pp node_key_t);
+             ]
+          ++ sps 1
+          ++ using info Info.pp)
 
       let of_commit : commit -> t =
        fun { node; parents; info } ->
@@ -686,6 +708,7 @@ module V1 = struct
     let info t = C.info t.c
     let v ~info ~node ~parents = { parents; c = C.v ~node ~parents ~info }
     let make = v
+    let pp ppf t = C.pp ppf t.c
 
     let t : t Type.t =
       let open Type in

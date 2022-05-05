@@ -25,6 +25,9 @@ module type S = sig
 
   val is_valid : t -> bool
   (** Check if the branch is valid. *)
+
+  val pp : t Fmt.t [@@ocaml.toplevel_printer]
+  (** Pretty-printer *)
 end
 
 module Irmin_key = Key

@@ -186,6 +186,11 @@ module Make (B : Backend.S) = struct
     let parents t = B.Commit.Val.parents t.v
     let pp_hash ppf t = Type.pp Hash.t ppf (hash t)
     let pp_key ppf t = Type.pp B.Commit.Key.t ppf t.key
+    let pp_value ppf t = B.Commit.Val.pp ppf t.v
+
+    let pp =
+      let open Fmt in
+      vbox (record [ field "Key" id pp_key ] ++ sps 1 ++ pp_value)
 
     let of_key r key =
       B.Commit.find (B.Repo.commit_t r) key >|= function

@@ -108,6 +108,7 @@ module Make (G : Git.S) (I : Irmin.Info.S) = struct
 
   let size_of = Irmin.Type.Size.custom_dynamic ()
   let t = Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
+  let pp ppf t = C.pp ppf (to_c t)
 end
 
 module Store (G : Git.S) (I : Irmin.Info.S) = struct
@@ -125,4 +126,3 @@ module Store (G : Git.S) (I : Irmin.Info.S) = struct
 
   include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
 end
-

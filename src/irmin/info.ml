@@ -36,6 +36,18 @@ module Default = struct
   let author t = t.author
   let message t = t.message
   let none () = empty
+  let pp_date = Fmt.using date Fmt.int64
+  let pp_message = Fmt.using message Fmt.string
+  let pp_author = Fmt.using author Fmt.string
+
+  let pp =
+    let open Fmt in
+    record
+      [
+        field "Date" id pp_date;
+        field "Author" id pp_author;
+        field "Message" id pp_message;
+      ]
 end
 
 type default = Default.t

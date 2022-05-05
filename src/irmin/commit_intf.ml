@@ -42,6 +42,9 @@ module type S_generic_key = sig
 
   val info : t -> Info.t
   (** The commit info. *)
+
+  val pp : t Fmt.t [@@ocaml.toplevel_printer]
+  (** Pretty-printer *)
 end
 
 module type S = sig

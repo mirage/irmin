@@ -28,6 +28,7 @@ let pp_ref ppf = function
   | `Tag t -> Fmt.pf ppf "refs/tags/%s" t
   | `Other o -> Fmt.pf ppf "refs/%s" o
 
+let pp = pp_ref
 let path l = String.concat ~sep:"/" l
 
 let of_ref str =
