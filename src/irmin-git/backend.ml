@@ -35,6 +35,7 @@ struct
   module Key = Irmin.Key.Of_hash (Hash)
   module Commit_key = Key
   module Node_key = Key
+  module Info = Schema.Info
 
   module Contents = struct
     module S = Contents.Make (G) (Schema.Contents)
@@ -51,8 +52,8 @@ struct
   module Node_portable = Irmin.Node.Portable.Of_node (Node.Val)
 
   module Commit = struct
-    module S = Commit.Store (G)
-    include Irmin.Commit.Store (Schema.Info) (Node) (S) (S.Hash) (S.Val)
+    module S = Commit.Store (G) (Info)
+    include Irmin.Commit.Store (Info) (Node) (S) (S.Hash) (S.Val)
   end
 
   module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.S.Val)

@@ -54,6 +54,7 @@ end
     metadata) implemtations. *)
 module type Maker = sig
   module G : G
+  module I : Irmin.Info.S
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -61,7 +62,8 @@ module type Maker = sig
       (Schema : Schema.S
                   with type Hash.t = G.hash
                    and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) :
+                   and type Commit.t = G.Value.Commit.t
+                   and type Info.t = I.t) :
     S
       with module Git = G
        and module Schema := Schema
@@ -70,6 +72,7 @@ end
 
 module type KV_maker = sig
   module G : G
+  module I : Irmin.Info.S
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
   type branch
@@ -79,7 +82,7 @@ module type KV_maker = sig
       with module Git = G
        and type Schema.Contents.t = C.t
        and type Schema.Metadata.t = Metadata.t
-       and type Schema.Info.t = Irmin.Info.default
+       and type Schema.Info.t = I.t
        and type Schema.Path.step = string
        and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash
@@ -112,7 +115,7 @@ module type Sigs = sig
 
   type reference = Reference.t [@@deriving irmin]
 
-  module Content_addressable (G : Git.S) : sig
+  module Content_addressable (G : Git.S) (I : Irmin.Info.S) : sig
     (** Use Git as a content-addressable store. Values will be stored into
         [.git/objects].*)
 
@@ -132,22 +135,25 @@ module type Sigs = sig
 
   module Maker
       (G : G)
-      (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
-    Maker with module G := G
+      (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+      (I : Irmin.Info.S) : Maker with module G := G and module I := I
 
   module KV
       (G : G)
-      (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
-    KV_maker with module G := G and type branch = string
+      (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+      (I : Irmin.Info.S) :
+    KV_maker with module G := G and module I := I and type branch = string
 
   module Ref
       (G : G)
-      (S : Git.Sync.S with type hash := G.hash and type store := G.t) :
-    KV_maker with module G := G and type branch = Reference.t
+      (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+      (I : Irmin.Info.S) :
+    KV_maker with module G := G and module I := I and type branch = Reference.t
 
   module Generic_KV
       (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker) : Irmin.KV_maker with type endpoint = unit
+      (AW : Irmin.Atomic_write.Maker)
+      (I : Irmin.Info.S) : Irmin.KV_maker with type endpoint = unit
 
   (** In-memory Git store. *)
   module Mem :

@@ -48,7 +48,7 @@ module type X =
 
 module Mem (C : Irmin.Contents.S) = struct
   module G = Irmin_git.Mem
-  module M = Irmin_git.KV (G) (Git_unix.Sync (G))
+  module M = Irmin_git.KV (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
   module S = M.Make (C)
   include S
 
@@ -60,7 +60,10 @@ end
 
 module Generic (C : Irmin.Contents.S) = struct
   module CA = Irmin.Content_addressable.Make (Irmin_mem.Append_only)
-  module M = Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write)
+
+  module M =
+    Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write) (Irmin.Info.Default)
+
   include M.Make (C)
 
   let init () =
@@ -124,7 +127,7 @@ let test_sort_order (module S : S) =
   Lwt.return_unit
 
 module Ref (S : Irmin_git.G) = struct
-  module M = Irmin_git.Ref (S) (Git_unix.Sync (S))
+  module M = Irmin_git.Ref (S) (Git_unix.Sync (S)) (Irmin.Info.Default)
   include M.Make (Irmin.Contents.String)
 end
 

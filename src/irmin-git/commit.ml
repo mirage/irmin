@@ -16,8 +16,8 @@
 
 open Import
 
-module Make (G : Git.S) = struct
-  module Info = Irmin.Info.Default
+module Make (G : Git.S) (I : Irmin.Info.S) = struct
+  module Info = I
   module Raw = Git.Value.Make (G.Hash)
   module Hash = Irmin.Hash.Make (G.Hash)
   module Key = Irmin.Key.Of_hash (Hash)
@@ -81,7 +81,8 @@ module Make (G : Git.S) = struct
     let message = Option.value ~default:"" (G.Value.Commit.message g) in
     info_of_git author message
 
-  module C = Irmin.Commit.Make (Hash)
+  module M = Irmin.Commit.Maker (Info)
+  module C = M.Make (Hash)
 
   let of_c c = to_git (C.info c) (C.node c) (C.parents c)
 
@@ -109,10 +110,10 @@ module Make (G : Git.S) = struct
   let t = Irmin.Type.map ~bin:(encode_bin, decode_bin, size_of) C.t of_c to_c
 end
 
-module Store (G : Git.S) = struct
-  module Info = Irmin.Info.Default
+module Store (G : Git.S) (I : Irmin.Info.S) = struct
+  module Info = I
   module Hash = Irmin.Hash.Make (G.Hash)
-  module Val = Make (G)
+  module Val = Make (G) (Info)
 
   module V = struct
     type t = G.Value.Commit.t
@@ -124,3 +125,4 @@ module Store (G : Git.S) = struct
 
   include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
 end
+

@@ -21,7 +21,6 @@ module type S = sig
     Irmin.Schema.S
       with module Metadata = Metadata
        and module Branch := Branch
-       and type Info.t = Irmin.Info.default
        and type Path.step = string
        and type Path.t = string list
 
@@ -34,11 +33,12 @@ module type S = sig
   module Commit : Irmin.Commit.S with module Info := Info and type hash = Hash.t
 end
 
-module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) :
+module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) (I : Irmin.Info.S) :
   S
     with type Hash.t = G.hash
      and module Contents = V
      and module Branch = B
+     and module Info = I
      and type Node.t = G.Value.Tree.t
      and type Commit.t = G.Value.Commit.t = struct
   module Metadata = Metadata
@@ -47,6 +47,6 @@ module Make (G : Git.S) (V : Irmin.Contents.S) (B : Branch.S) :
   module Branch = B
   module Hash = Irmin.Hash.Make (G.Hash)
   module Node = Node.Make (G) (Path)
-  module Commit = Commit.Make (G)
-  module Info = Irmin.Info.Default
+  module Info = I
+  module Commit = Commit.Make (G) (Info)
 end

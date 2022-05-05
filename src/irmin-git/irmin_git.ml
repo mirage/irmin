@@ -28,7 +28,8 @@ type reference = Reference.t [@@deriving irmin]
 
 module Maker_ext
     (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+    (I : Irmin.Info.S) =
 struct
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -36,7 +37,8 @@ struct
       (Schema : Schema.S
                   with type Hash.t = G.hash
                    and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) =
+                   and type Commit.t = G.Value.Commit.t
+                   and type Info.t = I.t) =
   struct
     module B = Backend.Make (G) (S) (Schema)
     include Irmin.Of_backend (B)
@@ -76,9 +78,10 @@ end
 
 module Maker
     (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+    (I : Irmin.Info.S) =
 struct
-  module Maker = Maker_ext (G) (S)
+  module Maker = Maker_ext (G) (S) (I)
 
   type endpoint = Maker.endpoint
 
@@ -86,7 +89,8 @@ struct
       (Sc : Schema.S
               with type Hash.t = G.hash
                and type Node.t = G.Value.Tree.t
-               and type Commit.t = G.Value.Commit.t) =
+               and type Commit.t = G.Value.Commit.t
+               and type Info.t = I.t) =
     Maker.Make (Sc)
 end
 
@@ -103,7 +107,7 @@ module No_sync = struct
   let push ~ctx:_ _ _ ?version:_ ?capabilities:_ _ = assert false
 end
 
-module Content_addressable (G : Git.S) = struct
+module Content_addressable (G : Git.S) (I : Irmin.Info.S) = struct
   module G = struct
     include G
 
@@ -112,7 +116,7 @@ module Content_addressable (G : Git.S) = struct
 
   module type S = Irmin.Content_addressable.S with type key = G.Hash.t
 
-  module Maker = Maker_ext (G) (No_sync)
+  module Maker = Maker_ext (G) (No_sync) (I)
 
   module Make (V : Irmin.Type.S) = struct
     module V = struct
@@ -121,7 +125,7 @@ module Content_addressable (G : Git.S) = struct
       let merge = Irmin.Merge.default Irmin.Type.(option V.t)
     end
 
-    module Schema = Schema.Make (G) (V) (Reference)
+    module Schema = Schema.Make (G) (V) (Reference) (I)
     module M = Maker.Make (Schema)
     module X = M.Backend.Contents
 
@@ -181,9 +185,10 @@ end
 
 module KV
     (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+    (I : Irmin.Info.S) =
 struct
-  module Maker = Maker (G) (S)
+  module Maker = Maker (G) (S) (I)
   module Branch = Branch.Make (Irmin.Branch.String)
   include Irmin.Key.Store_spec.Hash_keyed
 
@@ -192,27 +197,30 @@ struct
   type branch = Branch.t
   type hash = G.hash
 
-  module Make (C : Irmin.Contents.S) = Maker.Make (Schema.Make (G) (C) (Branch))
+  module Make (C : Irmin.Contents.S) =
+    Maker.Make (Schema.Make (G) (C) (Branch) (I))
 end
 
 module Ref
     (G : G)
-    (S : Git.Sync.S with type hash := G.hash and type store := G.t) =
+    (S : Git.Sync.S with type hash := G.hash and type store := G.t)
+    (I : Irmin.Info.S) =
 struct
-  module Maker = Maker_ext (G) (S)
+  module Maker = Maker_ext (G) (S) (I)
 
   type endpoint = Maker.endpoint
   type branch = reference
 
   module Make (C : Irmin.Contents.S) =
-    Maker.Make (Schema.Make (G) (C) (Reference))
+    Maker.Make (Schema.Make (G) (C) (Reference) (I))
 end
 
 include Conf
 
 module Generic_KV
     (CA : Irmin.Content_addressable.Maker)
-    (AW : Irmin.Atomic_write.Maker) =
+    (AW : Irmin.Atomic_write.Maker)
+    (I : Irmin.Info.S) =
 struct
   module G = Mem
 
@@ -229,8 +237,8 @@ struct
     module Branch = Branch.Make (Irmin.Branch.String)
     module Hash = Irmin.Hash.Make (Mem.Hash)
     module Node = Node.Make (G) (Path)
-    module Commit = Commit.Make (G)
-    module Info = Irmin.Info.Default
+    module Commit = Commit.Make (G) (I)
+    module Info = I
   end
 
   module Make (C : Irmin.Contents.S) = struct
@@ -240,7 +248,7 @@ struct
        probably not necessary and we could use Git.Value.Raw instead. *)
     module Dummy = struct
       module G = Mem
-      module Maker = Maker (G) (No_sync)
+      module Maker = Maker (G) (No_sync) (Sc.Info)
       module S = Maker.Make (Sc)
       include S.Backend
     end
@@ -251,7 +259,7 @@ struct
     module X = struct
       module Schema = Sc
       module Hash = Dummy.Hash
-      module Info = Irmin.Info.Default
+      module Info = Schema.Info
       module Key = Irmin.Key.Of_hash (Hash)
 
       module Contents = struct
@@ -339,8 +347,10 @@ struct
 end
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
-module KV_is_a_KV_maker : Irmin.KV_maker = KV (Mem) (No_sync)
+module KV_is_a_KV_maker : Irmin.KV_maker =
+  KV (Mem) (No_sync) (Irmin.Info.Default)
 
 (* Enforce that {!Generic_KV} is a sub-type of {!Irmin.KV_maker}. *)
 module Generic_KV_is_a_KV_maker : Irmin.KV_maker =
   Generic_KV (Irmin_mem.Content_addressable) (Irmin_mem.Atomic_write)
+    (Irmin.Info.Default)

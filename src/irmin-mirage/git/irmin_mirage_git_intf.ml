@@ -25,6 +25,7 @@ end
 
 module type Maker = sig
   module G : Irmin_git.G
+  module I : Irmin.Info.S
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -32,7 +33,8 @@ module type Maker = sig
       (Schema : Irmin_git.Schema.S
                   with type Hash.t = G.hash
                   with type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) :
+                   and type Commit.t = G.Value.Commit.t
+                   and type Info.t = I.t) :
     S
       with module Git = G
        and type Backend.Remote.endpoint = endpoint
@@ -41,6 +43,7 @@ end
 
 module type KV_maker = sig
   module G : Irmin_git.G
+  module I : Irmin.Info.S
 
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
   type branch
@@ -50,7 +53,7 @@ module type KV_maker = sig
       with module Git = G
        and type Schema.Contents.t = C.t
        and module Schema.Metadata = Irmin_git.Metadata
-       and type Schema.Info.t = Irmin.Info.default
+       and type Schema.Info.t = I.t
        and type Schema.Path.step = string
        and type Schema.Path.t = string list
        and type Schema.Hash.t = G.hash
@@ -129,6 +132,7 @@ module type Sigs = sig
   (** Embed an Irmin store into an in-memory Git repository. *)
   module Mem : sig
     module G : Irmin_git.G
+    module I : Irmin.Info.S
 
     type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
@@ -136,7 +140,8 @@ module type Sigs = sig
         (Schema : Irmin_git.Schema.S
                     with type Hash.t = G.hash
                      and type Node.t = G.Value.Tree.t
-                     and type Commit.t = G.Value.Commit.t) :
+                     and type Commit.t = G.Value.Commit.t
+                     and type Info.t = I.t) :
       S
         with module Git = G
          and type Backend.Remote.endpoint = endpoint

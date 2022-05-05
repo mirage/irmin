@@ -40,7 +40,8 @@ module type Backend = sig
       (Schema : Irmin_git.Schema.S
                   with type Hash.t = G.hash
                    and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) :
+                   and type Commit.t = G.Value.Commit.t
+                   and type Info.t = Irmin.Info.default) :
     S
       with module Git = G
        and type Backend.Remote.endpoint = endpoint

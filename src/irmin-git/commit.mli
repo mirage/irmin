@@ -16,20 +16,20 @@
 
 (** Backend module: turn a Git store into an Irmin backend for Git commits. *)
 
-module Make (G : Git.S) :
+module Make (G : Git.S) (I : Irmin.Info.S):
   Irmin.Commit.S
     with type t = G.Value.Commit.t
      and type hash = G.hash
-     and module Info = Irmin.Info.Default
+     and module Info = I
 
-module Store (G : Git.S) : sig
+module Store (G : Git.S) (I : Irmin.Info.S) : sig
   include
     Irmin.Content_addressable.S
       with type _ t = bool ref * G.t
        and type key = G.Hash.t
        and type value = G.Value.Commit.t
 
-  module Info = Irmin.Info.Default
+  module Info : Irmin.Info.S with type t = I.t
   module Hash : Irmin.Hash.S with type t = key
 
   module Val :
@@ -38,3 +38,4 @@ module Store (G : Git.S) : sig
        and type hash = key
        and module Info = Info
 end
+

@@ -45,16 +45,17 @@ module Maker (G : Irmin_git.G) = struct
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Maker = struct
-    module S = Irmin_git.Maker (G) (Git_unix.Sync (G))
-    module KV = Irmin_git.KV (G) (Git_unix.Sync (G))
-    module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G))
+    module S = Irmin_git.Maker (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
+    module KV = Irmin_git.KV (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
+    module Ref = Irmin_git.Ref (G) (Git_unix.Sync (G)) (Irmin.Info.Default)
   end
 
   module Make
       (S : Irmin_git.Schema.S
              with type Hash.t = G.hash
               and type Node.t = G.Value.Tree.t
-              and type Commit.t = G.Value.Commit.t) =
+              and type Commit.t = G.Value.Commit.t
+              and type Info.t = Irmin.Info.default) =
   struct
     include Maker.S.Make (S)
 
