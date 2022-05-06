@@ -26,8 +26,8 @@ end)
 
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
 struct
-  module IO_cache = IO.Cache
-  module IO = IO.Unix
+  module IO_cache = Io_legacy.Cache
+  module Io_legacy = Io_legacy.Unix
   module Tbl = Table (K)
   module Dict = Pack_dict
 
@@ -43,7 +43,7 @@ struct
   type hash = K.t
 
   type 'a t = {
-    block : IO.t;
+    block : Io_legacy.t;
     index : Index.t;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     dict : Dict.t;
@@ -63,7 +63,7 @@ struct
       (* If the file already exists in V1, we will bump the generation header
          lazily when appending a V2 entry. *)
       let version = Some selected_version in
-      IO.v ~version ~fresh ~readonly file
+      Io_legacy.v ~version ~fresh ~readonly file
     in
     { block; index; indexing_strategy; dict; open_instances = 1 }
 
@@ -76,18 +76,18 @@ struct
       In practice it permits 2 things:
 
       - for the contents/node/commit stores to use the same files and
-      - for multiple ro instance to share the same [IO.t]. *)
+      - for multiple ro instance to share the same [Io_legacy.t]. *)
   let IO_cache.{ v = get_io } =
     IO_cache.memoize ~valid
-      ~clear:(fun t -> IO.truncate t.block)
+      ~clear:(fun t -> Io_legacy.truncate t.block)
       ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
       Layout.pack
 
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.block) then IO.flush t.block;
-      IO.close t.block;
+      if not (Io_legacy.readonly t.block) then Io_legacy.flush t.block;
+      Io_legacy.close t.block;
       Dict.close t.dict)
 
   module Make_without_close_checks
@@ -123,9 +123,9 @@ struct
     let index t hash = Lwt.return (index_direct t hash)
 
     let clear t =
-      if IO.offset t.block <> Int63.zero then (
+      if Io_legacy.offset t.block <> Int63.zero then (
         Index.clear t.index;
-        IO.truncate t.block)
+        Io_legacy.truncate t.block)
 
     let unsafe_clear t =
       clear t.pack;
@@ -152,7 +152,7 @@ struct
     let flush ?(index = true) ?(index_merge = false) t =
       if index_merge then Index.merge t.pack.index;
       Dict.flush t.pack.dict;
-      IO.flush t.pack.block;
+      Io_legacy.flush t.pack.block;
       if index then Index.flush t.pack.index;
       Tbl.clear t.staging
 
@@ -190,7 +190,7 @@ struct
 
     let io_read_and_decode_hash ~off t =
       let buf = Bytes.create K.hash_size in
-      let n = IO.read t.pack.block ~off buf in
+      let n = Io_legacy.read t.pack.block ~off buf in
       assert (n = K.hash_size);
       decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
 
@@ -266,7 +266,7 @@ struct
       { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
     let io_read_and_decode_entry_prefix ~off t =
-      let io_read = IO.read t.pack.block in
+      let io_read = Io_legacy.read t.pack.block in
       read_and_decode_entry_prefix ~off ~io_read
 
     let pack_file_contains_key t k =
@@ -274,7 +274,7 @@ struct
       match key with
       | Indexed hash -> Index.mem t.pack.index hash
       | Direct { offset; _ } ->
-          let io_offset = IO.offset t.pack.block in
+          let io_offset = Io_legacy.offset t.pack.block in
           let minimal_entry_length = Entry_prefix.min_length in
           if
             Int63.compare
@@ -324,8 +324,8 @@ struct
 
     let io_read_and_decode ~off ~len t =
       let () =
-        if not (IO.readonly t.pack.block) then
-          let io_offset = IO.offset t.pack.block in
+        if not (Io_legacy.readonly t.pack.block) then
+          let io_offset = Io_legacy.offset t.pack.block in
           if Int63.add off (Int63.of_int len) > io_offset then
             (* This is likely a store corruption. We raise [Invalid_read]
                specifically so that [integrity_check] below can handle it. *)
@@ -335,7 +335,7 @@ struct
               len Int63.pp off Int63.pp io_offset
       in
       let buf = Bytes.create len in
-      let n = IO.read t.pack.block ~off buf in
+      let n = Io_legacy.read t.pack.block ~off buf in
       if n <> len then
         invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp
           off len;
@@ -362,7 +362,9 @@ struct
         (ref 0)
 
     let pp_io ppf t =
-      let name = Filename.basename (Filename.dirname (IO.name t.pack.block)) in
+      let name =
+        Filename.basename (Filename.dirname (Io_legacy.name t.pack.block))
+      in
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
@@ -378,7 +380,7 @@ struct
               ~length:entry_span.length;
             (Stats.Pack_store.Pack_indexed, entry_span)
       in
-      let io_offset = IO.offset t.pack.block in
+      let io_offset = Io_legacy.offset t.pack.block in
       if Int63.add offset (Int63.of_int length) > io_offset then (
         (* Can't fit an entry into this suffix of the store, so this key
            isn't (yet) valid. If we're a read-only instance, the key may
@@ -467,14 +469,15 @@ struct
         let () =
           (* Bump the pack file version header if necessary *)
           let value_version = Pack_value.Kind.version kind
-          and io_version = IO.version t.pack.block in
+          and io_version = Io_legacy.version t.pack.block in
           if Version.compare value_version io_version > 0 then
-            IO.set_version t.pack.block value_version
+            Io_legacy.set_version t.pack.block value_version
         in
         let dict = Dict.index t.pack.dict in
-        let off = IO.offset t.pack.block in
-        Val.encode_bin ~offset_of_key ~dict hash v (IO.append t.pack.block);
-        let len = Int63.to_int (IO.offset t.pack.block -- off) in
+        let off = Io_legacy.offset t.pack.block in
+        Val.encode_bin ~offset_of_key ~dict hash v
+          (Io_legacy.append t.pack.block);
+        let len = Int63.to_int (Io_legacy.offset t.pack.block -- off) in
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
         let () =
           let kind = Val.kind v in
@@ -503,7 +506,7 @@ struct
     let unsafe_close t =
       t.open_instances <- t.open_instances - 1;
       if t.open_instances = 0 then (
-        [%log.debug "[pack] close %s" (IO.name t.pack.block)];
+        [%log.debug "[pack] close %s" (Io_legacy.name t.pack.block)];
         Tbl.clear t.staging;
         Lru.clear t.lru;
         close t.pack)
@@ -521,13 +524,13 @@ struct
       Lru.clear t.lru
 
     let sync t =
-      let former_offset = IO.offset t.pack.block in
-      let offset = IO.force_offset t.pack.block in
+      let former_offset = Io_legacy.offset t.pack.block in
+      let offset = Io_legacy.force_offset t.pack.block in
       if offset > former_offset then (
         Dict.sync t.pack.dict;
         Index.sync t.pack.index)
 
-    let offset t = IO.offset t.pack.block
+    let offset t = Io_legacy.offset t.pack.block
   end
 
   module Make

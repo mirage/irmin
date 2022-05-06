@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include IO_intf
+include Io_legacy_intf
 open! Import
 
 let src = Logs.Src.create "irmin.pack.io" ~doc:"IO for irmin-pack"

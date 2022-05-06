@@ -1,5 +1,5 @@
 open! Import
-include Irmin_pack.IO
+include Irmin_pack.Io_legacy
 
 module Unix : S = struct
   module Raw = Index_unix.Private.Raw

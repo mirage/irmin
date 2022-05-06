@@ -1,6 +1,6 @@
 open Import
 include Irmin_pack.Atomic_write
-module Cache = IO.Cache
+module Cache = Io_legacy.Cache
 
 let current_version = `V1
 
@@ -13,7 +13,7 @@ end)
 module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
   module Tbl = Table (K)
   module W = Irmin.Backend.Watch.Make (K) (V)
-  module IO = IO.Unix
+  module Io_legacy = Io_legacy.Unix
 
   type key = K.t [@@deriving irmin ~pp ~to_bin_string ~of_bin_string]
   type value = V.t [@@deriving irmin ~equal ~decode_bin ~of_bin_string]
@@ -22,7 +22,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
   type t = {
     index : int63 Tbl.t;
     cache : V.t Tbl.t;
-    block : IO.t;
+    block : Io_legacy.t;
     w : W.t;
     mutable open_instances : int;
   }
@@ -31,7 +31,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
 
   let read_length32 ~file_pos block =
     let buf = Bytes.create 4 in
-    let n = IO.read block ~off:!file_pos buf in
+    let n = Io_legacy.read block ~off:!file_pos buf in
     assert (n = 4);
     file_pos := !file_pos ++ Int63.of_int 4;
     let pos_ref = ref 0 in
@@ -47,10 +47,10 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     let buf = entry_to_bin_string (k, v) in
     let () =
       match off with
-      | None -> IO.append t.block buf
-      | Some off -> IO.set t.block buf ~off
+      | None -> Io_legacy.append t.block buf
+      | Some off -> Io_legacy.set t.block buf ~off
     in
-    IO.flush t.block
+    Io_legacy.flush t.block
 
   let value_encoded_size =
     match Irmin.Type.Size.of_value V.t with
@@ -70,7 +70,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
         let buf_size = key_encoded_size + value_encoded_size in
         let buf =
           let buf = Bytes.create buf_size in
-          let n = IO.read t.block ~off:!file_pos buf in
+          let n = Io_legacy.read t.block ~off:!file_pos buf in
           assert (n = buf_size);
           file_pos := !file_pos ++ Int63.of_int buf_size;
           Bytes.unsafe_to_string buf
@@ -93,13 +93,13 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     aux ()
 
   let sync_offset t =
-    let former_offset = IO.offset t.block in
-    let offset = IO.force_offset t.block in
+    let former_offset = Io_legacy.offset t.block in
+    let offset = Io_legacy.force_offset t.block in
     if offset > former_offset then refill t ~to_:offset ~from:former_offset
 
   let unsafe_find t k =
     [%log.debug "[branches] find %a" pp_key k];
-    if IO.readonly t.block then sync_offset t;
+    if Io_legacy.readonly t.block then sync_offset t;
     try Some (Tbl.find t.cache k) with Not_found -> None
 
   let find t k = Lwt.return (unsafe_find t k)
@@ -131,11 +131,13 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     else false
 
   let unsafe_v ~fresh ~readonly file =
-    let block = IO.v ~fresh ~version:(Some current_version) ~readonly file in
+    let block =
+      Io_legacy.v ~fresh ~version:(Some current_version) ~readonly file
+    in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
     let t = { cache; index; block; w = watches; open_instances = 1 } in
-    let offset = IO.force_offset block in
+    let offset = Io_legacy.force_offset block in
     refill t ~to_:offset ~from:Int63.zero;
     t
 
@@ -146,7 +148,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
       Lwt.async (fun () -> W.clear t.w);
       Tbl.clear t.cache;
       Tbl.clear t.index;
-      IO.truncate t.block
+      Io_legacy.truncate t.block
     in
     Cache.memoize ~valid ~clear ~v:(fun () -> unsafe_v) Layout.branch
 
@@ -158,13 +160,13 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
       Tbl.replace t.cache k v;
       set_entry t ~off k v
     with Not_found ->
-      let offset = IO.offset t.block in
+      let offset = Io_legacy.offset t.block in
       set_entry t k v;
       Tbl.add t.cache k v;
       Tbl.add t.index k offset
 
   let set t k v =
-    [%log.debug "[branches %s] set %a" (IO.name t.block) pp_key k];
+    [%log.debug "[branches %s] set %a" (Io_legacy.name t.block) pp_key k];
     unsafe_set t k v;
     W.notify t.w k (Some v)
 
@@ -199,11 +201,11 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     if t.open_instances = 0 then (
       Tbl.reset t.index;
       Tbl.reset t.cache;
-      if not (IO.readonly t.block) then IO.flush t.block;
-      IO.close t.block;
+      if not (Io_legacy.readonly t.block) then Io_legacy.flush t.block;
+      Io_legacy.close t.block;
       W.clear t.w)
     else Lwt.return_unit
 
   let close t = unsafe_close t
-  let flush t = IO.flush t.block
+  let flush t = Io_legacy.flush t.block
 end

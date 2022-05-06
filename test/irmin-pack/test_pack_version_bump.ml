@@ -66,7 +66,7 @@ module Util = struct
            current directory %s and ancestors"
           v1_store_archive_dir (Sys.getcwd ())
 
-  module Unix_ = Irmin_pack_unix.IO.Unix
+  module Unix_ = Irmin_pack_unix.Io_legacy.Unix
 
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)

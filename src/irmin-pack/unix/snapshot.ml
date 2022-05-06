@@ -15,7 +15,7 @@
  *)
 
 open! Import
-module IO = IO.Unix
+module Io_legacy = Io_legacy.Unix
 open Snapshot_intf
 
 let rm_index path =
@@ -49,7 +49,7 @@ module Make (Args : Args) = struct
       Index_unix.Make (Pack_index.Key) (Value_unit) (Index.Cache.Unbounded)
 
     type t = {
-      file : IO.t;
+      file : Io_legacy.t;
       log_size : int;
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
@@ -58,12 +58,12 @@ module Make (Args : Args) = struct
     let v root log_size contents_pack inode_pack =
       let path = Filename.concat root "store.pack" in
       let file =
-        IO.v ~fresh:false ~readonly:true
+        Io_legacy.v ~fresh:false ~readonly:true
           ~version:(Some Pack_store.selected_version) path
       in
       { file; log_size; inode_pack; contents_pack }
 
-    let close t = IO.close t.file
+    let close t = Io_legacy.close t.file
 
     let key_of_hash hash t =
       Inode_pack.index_direct_with_kind t hash |> Option.get
@@ -78,7 +78,7 @@ module Make (Args : Args) = struct
       | Direct { length; _ } -> length
 
     let io_read_and_decode_entry_prefix ~off t =
-      let io_read = IO.read t.file in
+      let io_read = Io_legacy.read t.file in
       let entry_prefix =
         Inode_pack.read_and_decode_entry_prefix ~off ~io_read
       in
@@ -95,7 +95,7 @@ module Make (Args : Args) = struct
     (* Get the childrens offsets and then read their keys at that offset. *)
     let decode_children_offsets ~off ~len t =
       let buf = Bytes.create len in
-      let n = IO.read t.file ~off buf in
+      let n = Io_legacy.read t.file ~off buf in
       if n <> len then
         Fmt.failwith "Read %d bytes (at offset %a) but expected %d" n Int63.pp
           off len;

@@ -16,7 +16,7 @@
 
 open! Import
 include Atomic_write_intf
-module Cache = IO.Cache
+module Cache = Io_legacy.Cache
 
 module Value = struct
   module type S = Value

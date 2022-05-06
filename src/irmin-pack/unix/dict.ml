@@ -19,12 +19,12 @@ include Dict_intf
 
 let version = `V1
 
-module Make (IO : IO.S) : S = struct
+module Make (Io_legacy : Io_legacy.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    io : IO.t;
+    io : Io_legacy.t;
     mutable open_instances : int;
   }
 
@@ -33,12 +33,12 @@ module Make (IO : IO.S) : S = struct
   let append_string t v =
     let len = Int32.of_int (String.length v) in
     let buf = int32_to_bin_string len ^ v in
-    IO.append t.io buf
+    Io_legacy.append t.io buf
 
   let refill ~from t =
-    let len = Int63.to_int (IO.offset t.io -- from) in
+    let len = Int63.to_int (Io_legacy.offset t.io -- from) in
     let raw = Bytes.create len in
-    let n = IO.read t.io ~off:from raw in
+    let n = Io_legacy.read t.io ~off:from raw in
     assert (n = len);
     let raw = Bytes.unsafe_to_string raw in
     let pos_ref = ref 0 in
@@ -56,15 +56,15 @@ module Make (IO : IO.S) : S = struct
     (aux [@tailcall]) (Hashtbl.length t.cache)
 
   let sync_offset t =
-    let former_offset = IO.offset t.io in
-    let offset = IO.force_offset t.io in
+    let former_offset = Io_legacy.offset t.io in
+    let offset = Io_legacy.force_offset t.io in
     if offset > former_offset then refill ~from:former_offset t
 
   let sync t =
-    if IO.readonly t.io then sync_offset t
+    if Io_legacy.readonly t.io then sync_offset t
     else invalid_arg "only a readonly instance should call this function"
 
-  let flush t = IO.flush t.io
+  let flush t = Io_legacy.flush t.io
 
   let index t v =
     [%log.debug "[dict] index %S" v];
@@ -73,7 +73,7 @@ module Make (IO : IO.S) : S = struct
       let id = Hashtbl.length t.cache in
       if id > t.capacity then None
       else (
-        if IO.readonly t.io then raise Irmin_pack.RO_not_allowed;
+        if Io_legacy.readonly t.io then raise Irmin_pack.RO_not_allowed;
         append_string t v;
         Hashtbl.add t.cache v id;
         Hashtbl.add t.index id v;
@@ -85,7 +85,7 @@ module Make (IO : IO.S) : S = struct
     v
 
   let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = IO.v ~version:(Some version) ~fresh ~readonly file in
+    let io = Io_legacy.v ~version:(Some version) ~fresh ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; io; open_instances = 1 } in
@@ -95,8 +95,8 @@ module Make (IO : IO.S) : S = struct
   let close t =
     t.open_instances <- t.open_instances - 1;
     if t.open_instances = 0 then (
-      if not (IO.readonly t.io) then flush t;
-      IO.close t.io;
+      if not (Io_legacy.readonly t.io) then flush t;
+      Io_legacy.close t.io;
       Hashtbl.reset t.cache;
       Hashtbl.reset t.index)
 
@@ -107,7 +107,7 @@ module Make (IO : IO.S) : S = struct
     else false
 
   let truncate t =
-    IO.truncate t.io;
+    Io_legacy.truncate t.io;
     Hashtbl.clear t.cache;
     Hashtbl.clear t.index
 end

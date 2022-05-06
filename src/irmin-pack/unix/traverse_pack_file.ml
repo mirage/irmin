@@ -1,5 +1,5 @@
 open! Import
-module IO = IO.Unix
+module Io_legacy = Io_legacy.Unix
 
 module Stats : sig
   type t
@@ -87,7 +87,7 @@ end = struct
       let dest =
         match dest with
         | `Output path ->
-            if IO.exists path then
+            if Io_legacy.exists path then
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
@@ -188,7 +188,7 @@ end = struct
   let ingest_data_file ~progress ~total pack iter_pack_entry =
     let buffer = ref (Bytes.create 1024) in
     let refill_buffer ~from =
-      let read = IO.read pack ~off:from !buffer in
+      let read = Io_legacy.read pack ~off:from !buffer in
       let filled = read = Bytes.length !buffer in
       let eof = Int63.equal total (Int63.add from (Int63.of_int read)) in
       if (not filled) && not eof then
@@ -275,10 +275,10 @@ end = struct
     let root = Conf.root config in
     let pack_file = Filename.concat root "store.pack" in
     let pack =
-      IO.v ~fresh:false ~readonly:true
+      Io_legacy.v ~fresh:false ~readonly:true
         ~version:(Some Pack_store.selected_version) pack_file
     in
-    let total = IO.offset pack in
+    let total = Io_legacy.offset pack in
     let stats, missing_hash =
       let bar =
         let open Progress.Line.Using_int63 in
@@ -289,7 +289,7 @@ end = struct
           ingest_data_file ~progress ~total pack iter_pack_entry)
     in
     finalise ();
-    IO.close pack;
+    Io_legacy.close pack;
     let run_duration = Mtime_clock.count run_duration in
     let store_stats fmt =
       Fmt.pf fmt "Store statistics:@,  @[<v 0>%a@]" Stats.pp stats

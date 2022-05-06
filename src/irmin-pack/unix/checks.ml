@@ -16,7 +16,7 @@
 
 open! Import
 include Checks_intf
-module IO = IO.Unix
+module Io_legacy = Io_legacy.Unix
 
 let setup_log =
   let init style_renderer level =
@@ -76,19 +76,21 @@ module Make (Store : Store) = struct
     }
     [@@deriving irmin]
 
-    let with_io : type a. string -> (IO.t -> a) -> a option =
+    let with_io : type a. string -> (Io_legacy.t -> a) -> a option =
      fun path f ->
-      match IO.exists path with
+      match Io_legacy.exists path with
       | false -> None
       | true ->
-          let io = IO.v ~fresh:false ~readonly:true ~version:None path in
-          Fun.protect ~finally:(fun () -> IO.close io) (fun () -> Some (f io))
+          let io = Io_legacy.v ~fresh:false ~readonly:true ~version:None path in
+          Fun.protect
+            ~finally:(fun () -> Io_legacy.close io)
+            (fun () -> Some (f io))
 
     let io path =
       with_io path @@ fun io ->
-      let offset = IO.offset io in
-      let size = Bytes (IO.size io) in
-      let version = IO.version io in
+      let offset = Io_legacy.offset io in
+      let size = Bytes (Io_legacy.size io) in
+      let version = Io_legacy.version io in
       { size; offset; version }
 
     let v ~root =
