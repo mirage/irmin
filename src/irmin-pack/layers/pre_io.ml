@@ -157,7 +157,9 @@ let readwrite t = not (readonly t)
    channels *)
 let flush t = 
   assert(readwrite t);
-  Suffix.fsync t.suffix;
+  (* Suffix.fsync t.suffix; NOTE the existing pack store IO did not issue fsync on flush;
+     it is safe to do so, but renders performance of eg snapshot import unusable; see
+     https://github.com/mirage/irmin/issues/1840 *)
   (* NOTE the last_synced_offset_field is the "virtual" size of the suffix FIXME shouldn't
      Suffix.fsync update this field?; NOTE last_synced_offset_field is only updated here
      in flush; used to control WHEN RO instances sync? don't want them to sync on each
