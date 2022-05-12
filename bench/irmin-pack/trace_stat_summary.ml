@@ -29,6 +29,7 @@ module Def = Trace_definitions.Stat_trace
 module Conf = Trace_stat_summary_conf
 module Utils = Trace_stat_summary_utils
 module Vs = Utils.Variable_summary
+module Seq = Trace_common.Seq
 
 (* Section 1/4 - Type of a summary. *)
 

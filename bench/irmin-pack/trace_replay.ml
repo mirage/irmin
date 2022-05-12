@@ -18,6 +18,7 @@ open Irmin.Export_for_backends
 open Bench_common
 include Trace_replay_intf
 module Def = Trace_definitions.Replayable_trace
+module Seq = Trace_common.Seq
 
 let is_hex_char = function
   | '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' -> true
