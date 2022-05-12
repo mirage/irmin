@@ -33,5 +33,13 @@ depends: [
   "logs"            {with-test}
 ]
 
+# Remove when upgrading to a new graphql release
+pin-depends: [
+  [ "graphql.dev" "git+https://github.com/andreas/ocaml-graphql-server#520ccd4013943ee0b2557aa66367b83aaa67084c" ]
+  [ "graphql-lwt.dev" "git+https://github.com/andreas/ocaml-graphql-server#520ccd4013943ee0b2557aa66367b83aaa67084c" ]
+  [ "graphql-cohttp.dev" "git+https://github.com/andreas/ocaml-graphql-server#520ccd4013943ee0b2557aa66367b83aaa67084c" ]
+  [ "graphql_parser.dev" "git+https://github.com/andreas/ocaml-graphql-server#520ccd4013943ee0b2557aa66367b83aaa67084c" ]
+]
+
 
 synopsis: "GraphQL server for Irmin"

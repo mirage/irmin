@@ -57,7 +57,8 @@ module Custom_types = struct
 
     let schema_typ =
       Schema.(
-        obj "Car" ~fields:(fun _ ->
+        obj "Car"
+          ~fields:
             [
               field "license" ~typ:(non_null string) ~args:[]
                 ~resolve:(fun _ car -> car.Car.license);
@@ -71,7 +72,7 @@ module Custom_types = struct
                 ~resolve:(fun _ car -> car.Car.license);
               field "owner" ~typ:(non_null string) ~args:[]
                 ~resolve:(fun _ car -> car.Car.owner);
-            ]))
+            ])
 
     let color = Schema.Arg.enum "Color" ~values:color_values
 
