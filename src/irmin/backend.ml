@@ -22,19 +22,19 @@ open struct
   module type Commit_portable = Commit.Portable.S
 end
 
+(** [S] is what a backend must define in order to be made an irmin store. *)
 module type S = sig
   module Schema : Schema.S
+  (** A store schema, meant to be provided by the user. *)
 
   module Hash : Hash.S with type t = Schema.Hash.t
-  (** Internal hashes. *)
+  (** Hashing implementation. *)
 
-  (** Backend content store. *)
-
+  (** A contents store. *)
   module Contents :
     Contents.Store with type hash = Hash.t and type value = Schema.Contents.t
 
-  (** Backend node store. *)
-
+  (** A node store. *)
   module Node :
     Node.Store
       with type hash = Hash.t
@@ -42,6 +42,8 @@ module type S = sig
        and module Path = Schema.Path
        and module Metadata = Schema.Metadata
 
+  (** A node abstraction that is portable from different repos. Similar to
+      [Node.Val]. *)
   module Node_portable :
     Node_portable
       with type node := Node.value
@@ -49,34 +51,37 @@ module type S = sig
        and type metadata := Schema.Metadata.t
        and type step := Schema.Path.step
 
-  (** Backend commit store. *)
-
+  (** A commit store. *)
   module Commit :
     Commit.Store
       with type hash = Hash.t
        and type Val.node_key = Node.key
        and module Info = Schema.Info
 
+  (** A commit abstraction that is portable from different repos. Similar to
+      [Commit.Val]. *)
   module Commit_portable :
     Commit_portable
       with type commit := Commit.value
        and type hash := Hash.t
        and module Info = Schema.Info
 
-  (** Backend branch store. *)
+  (** A branch store. *)
   module Branch :
     Branch.Store with type key = Schema.Branch.t and type value = Commit.key
 
-  (** Backend slices. *)
+  (** A slice abstraction. *)
   module Slice :
     Slice.S
       with type contents = Contents.hash * Contents.value
        and type node = Node.hash * Node.value
        and type commit = Commit.hash * Commit.value
 
-  (** Backend repositories. *)
+  (** A repo abstraction. *)
   module Repo : sig
     type t
+
+    (** Repo opening and closing functions *)
 
     include Of_config with type _ t := t
     (** @inline *)
@@ -84,10 +89,11 @@ module type S = sig
     include Closeable with type _ t := t
     (** @inline *)
 
+    (** Getters from repo to backend store in ro mode *)
+
     val contents_t : t -> read Contents.t
     val node_t : t -> read Node.t
     val commit_t : t -> read Commit.t
-    val branch_t : t -> Branch.t
 
     val batch :
       t ->
@@ -96,6 +102,10 @@ module type S = sig
       read_write Commit.t ->
       'a Lwt.t) ->
       'a Lwt.t
+    (** A getter from repo to backend stores in rw mode. *)
+
+    val branch_t : t -> Branch.t
+    (** A branch store getter from repo *)
   end
 
   (** URI-based low-level remote synchronisation. *)
