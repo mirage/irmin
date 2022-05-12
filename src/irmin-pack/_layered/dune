@@ -1,6 +1,0 @@
-(library
- (public_name irmin-pack.layered)
- (name irmin_pack_layered)
- (libraries irmin-pack irmin-layers)
- (preprocess
-  (pps ppx_irmin.internal)))
