@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Allow snapshot export to work on indexed root nodes (#1845, @icristescu)
+
 ## 3.2.1 (2022-04-07)
 
 - Support all version of cmdliner (#1803, @samoht)
