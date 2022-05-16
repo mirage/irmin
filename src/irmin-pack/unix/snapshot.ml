@@ -36,11 +36,6 @@ module Make (Args : Args) = struct
   let pp_kind = Irmin.Type.pp Pack_value.Kind.t
   let pp_snapshot = Irmin.Type.pp Inode.Snapshot.inode_t
 
-  let inspect_key key =
-    match Pack_key.inspect key with
-    | Direct { offset; length; _ } -> (offset, length)
-    | Indexed _ -> assert false
-
   module Export = struct
     module Value_unit = struct
       type t = unit [@@deriving irmin]
@@ -76,7 +71,10 @@ module Make (Args : Args) = struct
     let length_of_hash hash t =
       let key, _ = key_of_hash hash t in
       match Pack_key.inspect key with
-      | Indexed _ -> assert false
+      | Indexed _ ->
+          (* This case cannot happen, as [key_of_hash] converts an
+             indexed key to a direct one. *)
+          assert false
       | Direct { length; _ } -> length
 
     let io_read_and_decode_entry_prefix ~off t =
@@ -112,7 +110,7 @@ module Make (Args : Args) = struct
 
     type visit = { visited : Hash.t -> bool; set_visit : Hash.t -> unit }
 
-    let iter t v f_contents f_inodes root_key =
+    let iter t v f_contents f_inodes (root_key, root_kind) =
       let total_visited = ref 0 in
       let set_visit h =
         incr total_visited;
@@ -120,7 +118,14 @@ module Make (Args : Args) = struct
       in
       let rec aux (key, kind) =
         match Pack_key.inspect key with
-        | Indexed _ -> assert false
+        | Indexed _ ->
+            (* This case cannot happen:
+               - either the root key is indexed, in which case it converted to a
+               direct key just before the call to [aux];
+               - or one of the children of a node is indexed, in which case
+               [Inode.Raw.decode_children_offsets] converts it to a direct key
+               before the call to [aux]. *)
+            assert false
         | Direct { length; offset; hash } ->
             if v.visited hash then Lwt.return_unit
             else (
@@ -161,9 +166,19 @@ module Make (Args : Args) = struct
                       [%log.debug
                         "iter inode snapshot: %a" pp_snapshot snapshot_inode];
                       f_inodes snapshot_inode)
-              | _ -> assert false)
+              | Commit_v1 | Commit_v2 ->
+                  (* The traversal starts with a node, it never iters over
+                     commits. *)
+                  assert false)
       in
-      let* () = aux root_key in
+      (* In case the root node of a tree is indexed, we need to convert it to a
+         direct key first. *)
+      let root_key =
+        match Pack_key.inspect root_key with
+        | Indexed hash -> key_of_hash hash t.inode_pack |> fst
+        | Direct _ -> root_key
+      in
+      let* () = aux (root_key, root_kind) in
       Lwt.return !total_visited
 
     let run_in_memory t f_contents f_inodes root_key =
@@ -278,13 +293,19 @@ module Make (Args : Args) = struct
       (set_visit, visited, None)
 
     let save_on_disk log_size path =
-      (* make sure we are not reusing the same index as irmin-pack *)
+      (* Make sure we are not reusing the same index as irmin-pack. *)
       let path = path ^ "_tmp" in
       [%log.info "save on disk: %s" path];
       let index = Index.v ~fresh:true ~readonly:false ~log_size path in
 
       let set_visit h k =
-        let offset, length = inspect_key k in
+        let offset, length =
+          match Pack_key.inspect k with
+          | Direct { offset; length; _ } -> (offset, length)
+          | Indexed _ ->
+              (* Visited objects have direct keys. *)
+              assert false
+        in
         Index.replace index h (offset, length)
       in
       let visited h =
