@@ -1,9 +1,9 @@
-## Unreleased
+## 3.2.2 (2022-05-16)
 
 ### Fixed
 
 - **irmin-pack**
-  - Allow snapshot export to work on indexed root nodes (#1845, @icristescu)
+  - Allow snapshot export to work on indexed root nodes (#1846, @icristescu)
 
 ## 3.2.1 (2022-04-07)
 
