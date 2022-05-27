@@ -549,7 +549,7 @@ let test_fold_force _ () =
           "Unforced paths"
           [ [ "dangling"; "subtree"; "hash" ]; [ "other"; "lazy"; "path" ] ]
   in
-  let sample_tree =
+  let create_sample_tree () =
     Tree.of_concrete
       (`Tree
         [
@@ -564,6 +564,7 @@ let test_fold_force _ () =
 
   (* Ensure that [fold ~force:`True ~cache:true] forces all lazy trees. *)
   let* () =
+    let sample_tree = create_sample_tree () in
     let* () = clear_and_assert_lazy sample_tree in
     Tree.fold ~force:`True ~cache:true sample_tree () >>= fun () ->
     Tree.stats ~force:false sample_tree
@@ -574,6 +575,7 @@ let test_fold_force _ () =
   (* Ensure that [fold ~force:`True ~cache:false] visits all children and does
      not leave them cached. *)
   let* () =
+    let sample_tree = create_sample_tree () in
     clear_and_assert_lazy sample_tree >>= fun () ->
     let* contents =
       Tree.fold ~force:`True ~cache:false
@@ -594,6 +596,7 @@ let test_fold_force _ () =
   (* Ensure that [fold ~force:`True ~cache:false] visits newly added values and
      updated values only once and does not visit removed values. *)
   let* () =
+    let sample_tree = create_sample_tree () in
     let* () = clear_and_assert_lazy sample_tree in
     Tree.remove sample_tree [ "a"; "ab" ] >>= fun updated_tree ->
     Tree.add updated_tree [ "a"; "ad" ] "v-ad" >>= fun updated_tree ->

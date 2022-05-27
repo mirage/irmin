@@ -810,8 +810,6 @@ module Make (P : Backend.S) = struct
       | Key (_, k) -> Some k
       | Map _ | Value _ | Portable_dirty _ | Pruned _ -> None
 
-    let unsafe_cache_key t k = t.info.ptr <- Key k
-
     (* When computing hashes of nodes, we try to use [P.Node.Val.t] as a
        pre-image if possible so that this intermediate value can be cached
        within [t.info.value] (in case it is about to be written to the backend).
@@ -1986,32 +1984,6 @@ module Make (P : Backend.S) = struct
           false
       | Some false -> true
     in
-    let skip n =
-      match Node.cached_key n with
-      | Some k ->
-          cnt.node_mem <- cnt.node_mem + 1;
-          P.Node.mem node_t k
-      | None -> (
-          (* XXX: should we compute the actual hash here if it's not cached? *)
-          match Node.cached_hash n with
-          | None -> Lwt.return_false
-          | Some h -> (
-              cnt.node_index <- cnt.node_index + 1;
-              P.Node.index node_t h >>= function
-              | None ->
-                  (* NOTE: it's possible that this value already has a key in the
-                     store, but it's not indexed. If so, we're adding a duplicate
-                     here – this isn't an issue for correctness, but does waste
-                     space. *)
-                  Lwt.return_false
-              | Some k ->
-                  (* We always prefer caching keys over hashes. In this case,
-                     caching the key ensures that any yet-to-be-exported parent
-                     nodes can reference this value. *)
-                  Node.unsafe_cache_key n k;
-                  cnt.node_mem <- cnt.node_mem + 1;
-                  P.Node.mem node_t k))
-    in
 
     let add_node n v k =
       cnt.node_add <- cnt.node_add + 1;
@@ -2033,8 +2005,7 @@ module Make (P : Backend.S) = struct
                  value: %a@,\
                  computed hash: %a@]" pp_node_key key Node.pp_value v pp_hash h'
       in
-      Node.export ?clear repo n key;
-      k ()
+      k key
     in
 
     let add_node_map n (x : Node.map) k =
@@ -2093,60 +2064,131 @@ module Make (P : Backend.S) = struct
       add_node n node k
     in
 
-    let rec on_node : type r. [ `Node of node ] -> (unit, r) cont_lwt =
+    let rec on_node : type r. [ `Node of node ] -> (node_key, r) cont_lwt =
      fun (`Node n) k ->
-      (* Invariant: when [k] is called, [Node.cached_key n = Some _]. *)
-      let k () =
-        (match Node.cached_key n with
-        | None ->
-            assertion_failure "After trying to export %a, key isn't cached."
-              dump (`Node n)
-        | Some _ -> ());
-        k ()
+      let k key =
+        (* All the nodes in the exported tree should be cleaned using
+           [Node.export]. This ensures that [key] is stored in [n]. *)
+        Node.export ?clear repo n key;
+        k key
+      in
+      let has_repo =
+        match n.Node.v with
+        | Node.Key (repo', _) ->
+            if repo == repo' then true
+            else
+              (* Case 1. [n] is a key from another repo. Let's crash.
+
+                 We could also only crash if the hash in the key is unknown to
+                 [repo], or completely ignore the issue. *)
+              failwith "Can't export the node key from another repo"
+        | Value (repo', _, _) ->
+            if repo == repo' then true
+            else
+              (* Case 2. [n] is a value from another repo. Let's crash.
+
+                 We could also ignore the issue. *)
+              failwith "Can't export a node value from another repo"
+        | Pruned _ | Portable_dirty _ | Map _ -> false
       in
       match n.Node.v with
-      | Node.Key (_, key) ->
-          Node.export ?clear repo n key;
-          k ()
-      | Pruned h -> pruned_hash_exn "export" h
-      | Portable_dirty _ -> portable_value_exn "export"
-      | Map _ | Value _ -> (
-          skip n >>= function
-          | true -> k ()
-          | false -> (
-              let new_children_seq =
-                let seq =
-                  match n.Node.v with
-                  | Value (_, _, Some m) ->
-                      StepMap.to_seq m
-                      |> Seq.filter_map (function
-                           | step, Node.Add v -> Some (step, v)
-                           | _, Remove -> None)
-                  | Map m -> StepMap.to_seq m
-                  | Value (_, _, None) -> Seq.empty
-                  | Key _ | Portable_dirty _ | Pruned _ ->
-                      (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is excluded
-                         above. *)
-                      assert false
-                in
-                Seq.map (fun (_, x) -> x) seq
+      | Pruned h ->
+          (* Case 3. [n] is a pruned hash. [P.Node.index node_t h] could be
+             different than [None], but let's always crash. *)
+          pruned_hash_exn "export" h
+      | Portable_dirty _ ->
+          (* Case 4. [n] is a portable value with diffs. The hash of the
+             reconstructed portable value could be known by [repo], but let's
+             always crash. *)
+          portable_value_exn "export"
+      | Map _ | Value _ | Key _ -> (
+          match Node.cached_key n with
+          | Some key ->
+              if has_repo then
+                (* Case 5. [n] is a key that is accompanied by the [repo]. Let's
+                   assume that [P.Node.mem node_t key] is [true] for performance
+                   reason (not benched). *)
+                k key
+              else (
+                cnt.node_mem <- cnt.node_mem + 1;
+                let* mem = P.Node.mem node_t key in
+                if not mem then
+                  (* Case 6. [n] contains a key that is not known by [repo].
+                     Let's abort. *)
+                  failwith "Can't export a key unkown from the repo"
+                else
+                  (* Case 7. [n] contains a key that is known by the [repo]. *)
+                  k key)
+          | None -> (
+              let* skip_when_some =
+                match Node.cached_hash n with
+                | None ->
+                    (* No pre-computed hash. *)
+                    Lwt.return_none
+                | Some h -> (
+                    cnt.node_index <- cnt.node_index + 1;
+                    P.Node.index node_t h >>= function
+                    | None ->
+                        (* Pre-computed hash is unknown by repo.
+
+                           NOTE: it's possible that this value already has a key
+                           in the store, but it's not indexed. If so, we're
+                           adding a duplicate here – this isn't an issue for
+                           correctness, but does waste space. *)
+                        Lwt.return_none
+                    | Some key ->
+                        cnt.node_mem <- cnt.node_mem + 1;
+                        let+ mem = P.Node.mem node_t key in
+                        if mem then
+                          (* Case 8. The pre-computed hash is converted into
+                             a key *)
+                          Some key
+                        else
+                          (* The backend could produce a key from [h] but
+                             doesn't know [h]. *)
+                          None)
               in
-              on_node_seq new_children_seq @@ fun () ->
-              match (n.Node.v, Node.cached_value n) with
-              | Map x, _ -> add_node_map n x k
-              | Value (_, v, None), None | _, Some v -> add_node n v k
-              | Value (_, v, Some um), _ -> add_updated_node n v um k
-              | (Key _ | Portable_dirty _ | Pruned _), _ ->
-                  (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is excluded
-                     above. *)
-                  assert false))
+              match skip_when_some with
+              | Some key -> k key
+              | None -> (
+                  (* Only [Map _ | Value _] possible now.
+
+                     Case 9. Let's export it to the backend. *)
+                  let new_children_seq =
+                    let seq =
+                      match n.Node.v with
+                      | Value (_, _, Some m) ->
+                          StepMap.to_seq m
+                          |> Seq.filter_map (function
+                               | step, Node.Add v -> Some (step, v)
+                               | _, Remove -> None)
+                      | Map m -> StepMap.to_seq m
+                      | Value (_, _, None) -> Seq.empty
+                      | Key _ | Portable_dirty _ | Pruned _ ->
+                          (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is
+                             excluded above. *)
+                          assert false
+                    in
+                    Seq.map (fun (_, x) -> x) seq
+                  in
+                  on_node_seq new_children_seq @@ fun `Node_children_exported ->
+                  match (n.Node.v, Node.cached_value n) with
+                  | Map x, _ -> add_node_map n x k
+                  | Value (_, v, None), None | _, Some v -> add_node n v k
+                  | Value (_, v, Some um), _ -> add_updated_node n v um k
+                  | (Key _ | Portable_dirty _ | Pruned _), _ ->
+                      (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is
+                         excluded above. *)
+                      assert false)))
     and on_contents :
-        type r. [ `Contents of Contents.t * metadata ] -> (unit, r) cont_lwt =
+        type r.
+        [ `Contents of Contents.t * metadata ] ->
+        ([ `Content_exported ], r) cont_lwt =
      fun (`Contents (c, _)) k ->
       match c.Contents.v with
       | Contents.Key (_, key) ->
           Contents.export ?clear repo c key;
-          k ()
+          k `Content_exported
       | Contents.Value _ ->
           let* v = Contents.to_value ~cache c in
           let v = get_ok "export" v in
@@ -2164,25 +2206,21 @@ module Make (P : Backend.S) = struct
                 h'
           in
           Contents.export ?clear repo c key;
-          k ()
+          k `Content_exported
       | Contents.Pruned h -> pruned_hash_exn "export" h
-    and on_node_seq : type r. Node.elt Seq.t -> (unit, r) cont_lwt =
+    and on_node_seq :
+        type r. Node.elt Seq.t -> ([ `Node_children_exported ], r) cont_lwt =
      fun seq k ->
       match seq () with
       | Seq.Nil ->
           (* Have iterated on all children, let's export parent now *)
-          k ()
+          k `Node_children_exported
       | Seq.Cons ((`Node _ as n), rest) ->
-          on_node n (fun () -> on_node_seq rest k)
+          on_node n (fun _node_key -> on_node_seq rest k)
       | Seq.Cons ((`Contents _ as c), rest) ->
-          on_contents c (fun () -> on_node_seq rest k)
+          on_contents c (fun `Content_exported -> on_node_seq rest k)
     in
-    on_node (`Node n) (fun () ->
-        match Node.cached_key n with
-        | Some x -> Lwt.return x
-        | None ->
-            (* We just exported this node: it must have a key. *)
-            assert false)
+    on_node (`Node n) (fun key -> Lwt.return key)
 
   let merge : t Merge.t =
     let f ~old (x : t) y =
