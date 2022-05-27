@@ -24,8 +24,8 @@ module Suite : sig
 
   val create :
     name:string ->
-    ?init:(unit -> unit Lwt.t) ->
-    ?clean:(unit -> unit Lwt.t) ->
+    ?init:(config:Irmin.config -> unit Lwt.t) ->
+    ?clean:(config:Irmin.config -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module S) ->
     ?stats:(unit -> int * int) ->
@@ -35,8 +35,8 @@ module Suite : sig
 
   val create_generic_key :
     name:string ->
-    ?init:(unit -> unit Lwt.t) ->
-    ?clean:(unit -> unit Lwt.t) ->
+    ?init:(config:Irmin.config -> unit Lwt.t) ->
+    ?clean:(config:Irmin.config -> unit Lwt.t) ->
     config:Irmin.config ->
     store:(module Generic_key) ->
     ?stats:(unit -> int * int) ->
@@ -47,8 +47,8 @@ module Suite : sig
   val name : t -> string
   val config : t -> Irmin.config
   val store : t -> (module S) option
-  val init : t -> unit -> unit Lwt.t
-  val clean : t -> unit -> unit Lwt.t
+  val init : t -> config:Irmin.config -> unit Lwt.t
+  val clean : t -> config:Irmin.config -> unit Lwt.t
 end
 
 val line : string -> unit

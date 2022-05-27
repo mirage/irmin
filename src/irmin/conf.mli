@@ -155,3 +155,6 @@ val verify : t -> t
 
 val uri : Uri.t Type.t
 (** [uri] converts values with {!Uri.of_string}. *)
+
+val find_root : t -> string option
+(** [find_root c] is [root]'s mapping in [c], if any. *)

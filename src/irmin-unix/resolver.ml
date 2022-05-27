@@ -464,6 +464,8 @@ let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
 
 let parse_config ?root y spec =
   let config = Conf.empty spec in
+  (* Initialise root for the examples in README to pass. *)
+  let config = Conf.add config (Conf.root spec) "." in
   let config =
     List.fold_left
       (fun config k ->

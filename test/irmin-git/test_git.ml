@@ -25,7 +25,7 @@ let config =
 module type S = sig
   include Irmin_test.S
 
-  val init : unit -> unit Lwt.t
+  val init : config:Irmin.config -> unit Lwt.t
 end
 
 module type G = sig
@@ -52,7 +52,10 @@ module Mem (C : Irmin.Contents.S) = struct
   module S = M.Make (C)
   include S
 
-  let init () =
+  let init ~config =
+    let test_db =
+      Irmin.Backend.Conf.find_root config |> Option.value ~default:test_db
+    in
     Git.v (Fpath.v test_db) >>= function
     | Ok t -> S.Git.reset t >|= fun _ -> ()
     | _ -> Lwt.return_unit
@@ -63,11 +66,11 @@ module Generic (C : Irmin.Contents.S) = struct
   module M = Irmin_git.Generic_KV (CA) (Irmin_mem.Atomic_write)
   include M.Make (C)
 
-  let init () =
+  let init ~config =
     let* repo = Repo.v config in
     Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo)
 
-  let clean () =
+  let clean ~config =
     let* repo = Repo.v config in
     Repo.branches repo >>= Lwt_list.iter_p (Branch.remove repo) >>= fun () ->
     Repo.close repo
@@ -76,22 +79,23 @@ end
 let suite =
   let module S = Mem (Irmin.Contents.String) in
   let store = (module S : Irmin_test.S) in
-  let init () = S.init () in
-  let clean () = S.init () in
+  let init ~config = S.init ~config in
+  let clean ~config = S.init ~config in
   Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ()
 
 let suite_generic =
   let module S = Generic (Irmin.Contents.String) in
   let store = (module S : Irmin_test.S) in
-  let clean () = S.clean () in
-  let init () = S.init () in
+  let clean ~config = S.clean ~config in
+  let init ~config = S.init ~config in
   Irmin_test.Suite.create ~name:"GIT.generic" ~init ~store ~config ~clean ()
 
 let get = function Some x -> x | None -> Alcotest.fail "get"
 
 let test_sort_order (module S : S) =
-  S.init () >>= fun () ->
-  let* repo = S.Repo.v (Irmin_git.config test_db) in
+  let config = Irmin_git.config test_db in
+  S.init ~config >>= fun () ->
+  let* repo = S.Repo.v config in
   let commit_t = S.Backend.Repo.commit_t repo in
   let node_t = S.Backend.Repo.node_t repo in
   let head_tree_id branch =
@@ -138,8 +142,9 @@ let reference = Alcotest.testable pp_reference ( = )
 
 let test_list_refs (module S : G) =
   let module R = Ref (S.Git) in
-  S.init () >>= fun () ->
-  let* repo = R.Repo.v (Irmin_git.config test_db) in
+  let config = Irmin_git.config test_db in
+  S.init ~config >>= fun () ->
+  let* repo = R.Repo.v config in
   let* main = R.main repo in
   R.set_exn main ~info:R.Info.none [ "test" ] "toto" >>= fun () ->
   let* head = R.Head.get main in
@@ -206,9 +211,10 @@ let test_blobs (module S : S) =
 let test_import_export (module S : S) =
   let module Generic = Generic (Irmin.Contents.String) in
   let module Sync = Irmin.Sync.Make (Generic) in
-  S.init () >>= fun () ->
-  let* _ = Generic.init () in
-  let* repo = S.Repo.v (Irmin_git.config test_db) in
+  let config = Irmin_git.config test_db in
+  S.init ~config >>= fun () ->
+  let* _ = Generic.init ~config in
+  let* repo = S.Repo.v config in
   let* t = S.main repo in
   S.set_exn t ~info:S.Info.none [ "test" ] "toto" >>= fun () ->
   let remote = Irmin.remote_store (module S) t in

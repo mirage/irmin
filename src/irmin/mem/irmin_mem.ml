@@ -20,6 +20,13 @@ let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module Conf = struct
+  include Irmin.Backend.Conf
+
+  let spec = Spec.v "mem"
+  let root config = find_root config |> Option.value ~default:"."
+end
+
 module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   module KMap = Map.Make (struct
     type t = K.t
@@ -29,10 +36,23 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   type key = K.t
   type value = V.t
-  type 'a t = { mutable t : value KMap.t }
+  type 'a t = { mutable t : value KMap.t; root : string }
 
-  let map = { t = KMap.empty }
-  let v _config = Lwt.return map
+  let new_instance root = { t = KMap.empty; root }
+
+  let v =
+    let cache : (string, 'a t) Hashtbl.t = Hashtbl.create 0 in
+    fun config ->
+      let root = Conf.root config in
+      let t =
+        match Hashtbl.find_opt cache root with
+        | None ->
+            let t = new_instance root in
+            Hashtbl.add cache root t;
+            t
+        | Some t -> t
+      in
+      Lwt.return t
 
   let clear t =
     [%log.debug "clear"];
@@ -131,12 +151,6 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     updated
 
   let clear t = W.clear t.w >>= fun () -> RO.clear t.t
-end
-
-module Conf = struct
-  include Irmin.Backend.Conf
-
-  let spec = Spec.v "mem"
 end
 
 let config () = Conf.empty Conf.spec

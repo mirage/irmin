@@ -77,7 +77,7 @@ struct
   type value = V.t
   type 'a t = { path : string }
 
-  let get_path config = Conf.(get config Key.root)
+  let get_path config = Option.value Conf.(find_root config) ~default:"."
 
   let v config =
     let path = get_path config in

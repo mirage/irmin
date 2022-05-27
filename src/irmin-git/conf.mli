@@ -19,7 +19,6 @@ open Irmin.Backend.Conf
 val spec : Spec.t
 
 module Key : sig
-  val root : string key
   val head : Git.Reference.t option key
   val bare : bool key
   val level : int option key

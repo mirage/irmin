@@ -29,15 +29,22 @@ module FS = struct
   let store =
     Irmin_test.store (module Irmin_unix.FS) (module Irmin.Metadata.None)
 
-  let init () =
-    (if Sys.file_exists test_db then
-     let cmd = Printf.sprintf "rm -rf %s" test_db in
-     let _ = Sys.command cmd in
-     ());
+  let clean_dirs config =
+    let test_db =
+      Irmin.Backend.Conf.find_root config |> Option.value ~default:test_db
+    in
+    if Sys.file_exists test_db then
+      let cmd = Printf.sprintf "rm -rf %s" test_db in
+      let _ = Sys.command cmd in
+      ()
+
+  let init ~config =
+    clean_dirs config;
     Irmin_unix.set_listen_dir_hook ();
     Lwt.return_unit
 
-  let clean () =
+  let clean ~config =
+    clean_dirs config;
     Irmin.Backend.Watch.(set_listen_dir_hook none);
     Lwt.return_unit
 
@@ -50,7 +57,10 @@ end
 module Git = struct
   let test_db = Test_git.test_db
 
-  let init () =
+  let init ~config =
+    let test_db =
+      Irmin.Backend.Conf.find_root config |> Option.value ~default:test_db
+    in
     assert (test_db <> ".git");
     let+ () =
       if Sys.file_exists test_db then
@@ -70,7 +80,7 @@ module Git = struct
 
   let store = (module S : Test_git.G)
 
-  let clean () =
+  let clean ~config:_ =
     Irmin.Backend.Watch.(set_listen_dir_hook none);
     Lwt.return_unit
 
@@ -83,8 +93,8 @@ module Git = struct
     Irmin_test.Suite.create ~name:"GIT" ~init ~store ~config ~clean ~stats ()
 
   let test_non_bare () =
-    init () >>= fun () ->
     let config = Irmin_git.config ~bare:false test_db in
+    init ~config >>= fun () ->
     let info = Irmin_unix.info in
     let* repo = S.Repo.v config in
     let* t = S.main repo in

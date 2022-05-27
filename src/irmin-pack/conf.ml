@@ -92,7 +92,15 @@ let readonly config = get config Key.readonly
 let index_log_size config = get config Key.index_log_size
 let merge_throttle config = get config Key.merge_throttle
 let freeze_throttle config = get config Key.freeze_throttle
-let root config = get config Key.root
+
+let root config =
+  match find_root config with
+  | None ->
+      failwith
+        "unintialised root, call [Irmin_pack.Conf.init root] before opening \
+         the store"
+  | Some root -> root
+
 let indexing_strategy config = get config Key.indexing_strategy
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
