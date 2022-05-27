@@ -25,6 +25,22 @@ let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2")
 let to_bin v = List.assoc v enum
 let to_int = function `V1 -> 1 | `V2 -> 2
 let compare a b = Int.compare (to_int a) (to_int b)
+let encode_bin t f = to_bin t |> f
+
+let decode_bin s offref =
+  let sub = String.sub s !offref (!offref + 8) in
+  let res =
+    match sub with
+    | "00000001" -> `V1
+    | "00000002" -> `V2
+    | _ -> failwith "Couldn't decode pack version"
+  in
+  offref := !offref + 8;
+  res
+
+let size_of = Irmin.Type.Size.custom_static 8
+let bin = (encode_bin, decode_bin, size_of)
+let t = Irmin.Type.like ~bin ~compare ~pp t
 
 let invalid_arg v =
   let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in
@@ -32,9 +48,7 @@ let invalid_arg v =
     Fmt.(Dump.list pp_full_version)
     (List.map fst enum)
 
-let of_bin b =
-  try Some (List.assoc b (List.map (fun (x, y) -> (y, x)) enum))
-  with Not_found -> None
+let of_bin b = try Some (decode_bin b (ref 0)) with Failure _ -> None
 
 exception Invalid of { expected : t; found : t }
 
