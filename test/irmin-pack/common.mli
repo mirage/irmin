@@ -84,17 +84,21 @@ end) : sig
   (** Fresh, empty dict. *)
 
   type t = {
+    lru_size : int;
+    name : string;
     index : Index.t;
     pack : read Pack.t;
-    clone_pack : readonly:bool -> read Pack.t Lwt.t;
-    clone_index_pack : readonly:bool -> (Index.t * read Pack.t) Lwt.t;
+    dict : Irmin_pack_unix.Dict.t;
+    io : Irmin_pack_unix.Io_legacy.Unix.t;
   }
+
+  val clone : readonly:bool -> t -> t Lwt.t
 
   val get_pack : ?lru_size:int -> unit -> t Lwt.t
   (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
       same location, [clone_index_pack] opens a clone of the index and the pack. *)
 
-  val close : Index.t -> read Pack.t -> unit Lwt.t
+  val close : t -> unit Lwt.t
 end
 
 val get : 'a option -> 'a

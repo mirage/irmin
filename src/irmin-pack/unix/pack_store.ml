@@ -1,8 +1,6 @@
 open Import
 include Pack_store_intf
 
-let selected_version = `V2
-
 module Varint = struct
   type t = int [@@deriving irmin ~decode_bin]
 
@@ -26,7 +24,6 @@ end)
 
 module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) =
 struct
-  module IO_cache = Io_legacy.Cache
   module Io_legacy = Io_legacy.Unix
   module Tbl = Table (K)
   module Dict = Pack_dict
@@ -42,54 +39,6 @@ struct
 
   type hash = K.t
 
-  type 'a t = {
-    block : Io_legacy.t;
-    index : Index.t;
-    indexing_strategy : Irmin_pack.Indexing_strategy.t;
-    dict : Dict.t;
-    mutable open_instances : int;
-  }
-
-  let valid t =
-    if t.open_instances <> 0 then (
-      t.open_instances <- t.open_instances + 1;
-      true)
-    else false
-
-  let unsafe_v ~index ~indexing_strategy ~fresh ~readonly file =
-    let root = Filename.dirname file in
-    let dict = Dict.v ~fresh ~readonly root in
-    let block =
-      (* If the file already exists in V1, we will bump the generation header
-         lazily when appending a V2 entry. *)
-      let version = Some selected_version in
-      Io_legacy.v ~version ~fresh ~readonly file
-    in
-    { block; index; indexing_strategy; dict; open_instances = 1 }
-
-  (** For a given path to a pack store and a given pack store module, an
-      instance of [_ t] is shared between all contents/node/commit stores of a
-      repo. It is also shared between all repos with the same open mode.
-
-      [get_io] stores the instances.
-
-      In practice it permits 2 things:
-
-      - for the contents/node/commit stores to use the same files and
-      - for multiple ro instance to share the same [Io_legacy.t]. *)
-  let IO_cache.{ v = get_io } =
-    IO_cache.memoize ~valid
-      ~clear:(fun t -> Io_legacy.truncate t.block)
-      ~v:(fun (index, indexing_strategy) -> unsafe_v ~index ~indexing_strategy)
-      Layout.pack
-
-  let close t =
-    t.open_instances <- t.open_instances - 1;
-    if t.open_instances = 0 then (
-      if not (Io_legacy.readonly t.block) then Io_legacy.flush t.block;
-      Io_legacy.close t.block;
-      Dict.close t.dict)
-
   module Make_without_close_checks
       (Val : Pack_value.Persistent with type hash := K.t and type key := Key.t) =
   struct
@@ -97,12 +46,14 @@ struct
     module Tbl = Table (K)
     module Lru = Irmin.Backend.Lru.Make (Hash)
 
-    type nonrec 'a t = {
-      pack : 'a t;
+    type 'a t = {
       lru : Val.t Lru.t;
       staging : Val.t Tbl.t;
-      mutable open_instances : int;
       readonly : bool;
+      io : Io_legacy.t;
+      index : Index.t;
+      indexing_strategy : Irmin_pack.Indexing_strategy.t;
+      dict : Dict.t;
     }
 
     type hash = K.t [@@deriving irmin ~pp ~equal ~decode_bin]
@@ -111,7 +62,7 @@ struct
 
     let index_direct_with_kind t hash =
       [%log.debug "index %a" pp_hash hash];
-      match Index.find t.pack.index hash with
+      match Index.find t.index hash with
       | None -> None
       | Some (offset, length, kind) ->
           let key = Pack_key.v_direct ~hash ~offset ~length in
@@ -122,75 +73,22 @@ struct
 
     let index t hash = Lwt.return (index_direct t hash)
 
-    let clear t =
-      if Io_legacy.offset t.block <> Int63.zero then (
-        Index.clear t.index;
-        Io_legacy.truncate t.block)
-
-    let unsafe_clear t =
-      clear t.pack;
-      Tbl.clear t.staging;
-      Lru.clear t.lru
-
-    (** For a given path to a pack store and a given pack store module, an
-        instance of [_ t] is shared between all the contents store of all repos
-        with the same open mode. The same goes for the node store and the commit
-        store (i.e. one instance for each).
-
-        [roots] stores the instances.
-
-        In practice this sharing permits multiple ro instances to share the same
-        LRU. *)
-    let roots = Hashtbl.create 10
-
-    let valid t =
-      if t.open_instances <> 0 then (
-        t.open_instances <- t.open_instances + 1;
-        true)
-      else false
-
     let flush ?(index = true) ?(index_merge = false) t =
-      if index_merge then Index.merge t.pack.index;
-      Dict.flush t.pack.dict;
-      Io_legacy.flush t.pack.block;
-      if index then Index.flush t.pack.index;
+      if index_merge then Index.merge t.index;
+      Dict.flush t.dict;
+      Io_legacy.flush t.io;
+      if index then Index.flush t.index;
       Tbl.clear t.staging
 
-    let unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-        root =
-      let pack = get_io (index, indexing_strategy) ~fresh ~readonly root in
+    let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
       let staging = Tbl.create 127 in
       let lru = Lru.create lru_size in
-      { staging; lru; pack; open_instances = 1; readonly }
-
-    let unsafe_v ?(fresh = false) ?(readonly = false) ?(lru_size = 10_000)
-        ~index ~indexing_strategy root =
-      try
-        let t = Hashtbl.find roots (root, readonly) in
-        if valid t then (
-          if fresh then unsafe_clear t;
-          t)
-        else (
-          Hashtbl.remove roots (root, readonly);
-          raise Not_found)
-      with Not_found ->
-        let t =
-          unsafe_v_no_cache ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-            root
-        in
-        if fresh then unsafe_clear t;
-        Hashtbl.add roots (root, readonly) t;
-        t
-
-    let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy root =
-      let t =
-        unsafe_v ?fresh ?readonly ?lru_size ~index ~indexing_strategy root
-      in
-      Lwt.return t
+      { lru; staging; readonly; io; index; indexing_strategy; dict }
+      |> Lwt.return
 
     let io_read_and_decode_hash ~off t =
       let buf = Bytes.create K.hash_size in
-      let n = Io_legacy.read t.pack.block ~off buf in
+      let n = Io_legacy.read t.io ~off buf in
       assert (n = K.hash_size);
       decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
 
@@ -266,15 +164,15 @@ struct
       { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
     let io_read_and_decode_entry_prefix ~off t =
-      let io_read = Io_legacy.read t.pack.block in
+      let io_read = Io_legacy.read t.io in
       read_and_decode_entry_prefix ~off ~io_read
 
     let pack_file_contains_key t k =
       let key = Pack_key.inspect k in
       match key with
-      | Indexed hash -> Index.mem t.pack.index hash
+      | Indexed hash -> Index.mem t.index hash
       | Direct { offset; _ } ->
-          let io_offset = Io_legacy.offset t.pack.block in
+          let io_offset = Io_legacy.offset t.io in
           let minimal_entry_length = Entry_prefix.min_length in
           if
             Int63.compare
@@ -324,8 +222,8 @@ struct
 
     let io_read_and_decode ~off ~len t =
       let () =
-        if not (Io_legacy.readonly t.pack.block) then
-          let io_offset = Io_legacy.offset t.pack.block in
+        if not (Io_legacy.readonly t.io) then
+          let io_offset = Io_legacy.offset t.io in
           if Int63.add off (Int63.of_int len) > io_offset then
             (* This is likely a store corruption. We raise [Invalid_read]
                specifically so that [integrity_check] below can handle it. *)
@@ -335,7 +233,7 @@ struct
               len Int63.pp off Int63.pp io_offset
       in
       let buf = Bytes.create len in
-      let n = Io_legacy.read t.pack.block ~off buf in
+      let n = Io_legacy.read t.io ~off buf in
       if n <> len then
         invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp
           off len;
@@ -356,15 +254,13 @@ struct
             Pack_key.v_indexed entry_prefix.hash
       in
       let key_of_hash = Pack_key.v_indexed in
-      let dict = Dict.find t.pack.dict in
+      let dict = Dict.find t.dict in
       Val.decode_bin ~key_of_offset ~key_of_hash ~dict
         (Bytes.unsafe_to_string buf)
         (ref 0)
 
     let pp_io ppf t =
-      let name =
-        Filename.basename (Filename.dirname (Io_legacy.name t.pack.block))
-      in
+      let name = Filename.basename (Filename.dirname (Io_legacy.name t.io)) in
       let mode = if t.readonly then ":RO" else "" in
       Fmt.pf ppf "%s%s" name mode
 
@@ -380,7 +276,7 @@ struct
               ~length:entry_span.length;
             (Stats.Pack_store.Pack_indexed, entry_span)
       in
-      let io_offset = Io_legacy.offset t.pack.block in
+      let io_offset = Io_legacy.offset t.io in
       if Int63.add offset (Int63.of_int length) > io_offset then (
         (* Can't fit an entry into this suffix of the store, so this key
            isn't (yet) valid. If we're a read-only instance, the key may
@@ -457,7 +353,7 @@ struct
               Stats.incr_appended_offsets ();
               Some offset
           | Indexed hash -> (
-              match Index.find t.pack.index hash with
+              match Index.find t.index hash with
               | None ->
                   Stats.incr_appended_hashes ();
                   None
@@ -469,21 +365,20 @@ struct
         let () =
           (* Bump the pack file version header if necessary *)
           let value_version = Pack_value.Kind.version kind
-          and io_version = Io_legacy.version t.pack.block in
+          and io_version = Io_legacy.version t.io in
           if Version.compare value_version io_version > 0 then
-            Io_legacy.set_version t.pack.block value_version
+            Io_legacy.set_version t.io value_version
         in
-        let dict = Dict.index t.pack.dict in
-        let off = Io_legacy.offset t.pack.block in
-        Val.encode_bin ~offset_of_key ~dict hash v
-          (Io_legacy.append t.pack.block);
-        let len = Int63.to_int (Io_legacy.offset t.pack.block -- off) in
+        let dict = Dict.index t.dict in
+        let off = Io_legacy.offset t.io in
+        Val.encode_bin ~offset_of_key ~dict hash v (Io_legacy.append t.io);
+        let len = Int63.to_int (Io_legacy.offset t.io -- off) in
         let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
         let () =
           let kind = Val.kind v in
-          let should_index = t.pack.indexing_strategy ~value_length:len kind in
+          let should_index = t.indexing_strategy ~value_length:len kind in
           if should_index then
-            Index.add ~overcommit t.pack.index hash (off, len, kind)
+            Index.add ~overcommit t.index hash (off, len, kind)
         in
         if Tbl.length t.staging >= auto_flush then flush t
         else Tbl.add t.staging hash v;
@@ -504,29 +399,21 @@ struct
     let add t v = unsafe_add t (Val.hash v) v
 
     let unsafe_close t =
-      t.open_instances <- t.open_instances - 1;
-      if t.open_instances = 0 then (
-        [%log.debug "[pack] close %s" (Io_legacy.name t.pack.block)];
-        Tbl.clear t.staging;
-        Lru.clear t.lru;
-        close t.pack)
+      Tbl.clear t.staging;
+      Lru.clear t.lru
 
     let close t =
       unsafe_close t;
       Lwt.return_unit
 
-    let clear_caches t =
-      Tbl.clear t.staging;
-      Lru.clear t.lru
-
     let sync t =
-      let former_offset = Io_legacy.offset t.pack.block in
-      let offset = Io_legacy.force_offset t.pack.block in
+      let former_offset = Io_legacy.offset t.io in
+      let offset = Io_legacy.force_offset t.io in
       if offset > former_offset then (
-        Dict.sync t.pack.dict;
-        Index.sync t.pack.index)
+        Dict.sync t.dict;
+        Index.sync t.index)
 
-    let offset t = Io_legacy.offset t.pack.block
+    let offset t = Io_legacy.offset t.io
   end
 
   module Make
@@ -535,8 +422,8 @@ struct
     module Inner = Make_without_close_checks (Val)
     include Indexable.Closeable (Inner)
 
-    let v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path =
-      Inner.v ?fresh ?readonly ?lru_size ~index ~indexing_strategy path
+    let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
+      Inner.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
       >|= make_closeable
 
     let sync t = Inner.sync (get_open_exn t)
@@ -545,7 +432,6 @@ struct
       Inner.flush ?index ?index_merge (get_open_exn t)
 
     let offset t = Inner.offset (get_open_exn t)
-    let clear_caches t = Inner.clear_caches (get_open_exn t)
 
     let integrity_check ~offset ~length k t =
       Inner.integrity_check ~offset ~length k (get_open_exn t)

@@ -1,5 +1,5 @@
 open! Import
-include Irmin_pack.Io_legacy
+include Io_legacy_intf
 
 module Unix : S = struct
   module Raw = Index_unix.Private.Raw
@@ -121,11 +121,6 @@ module Unix : S = struct
     in
     Raw.Header_prefix.set raw header;
     raw
-
-  let truncate t =
-    t.offset <- Int63.zero;
-    t.flushed <- header_size;
-    Buffer.clear t.buf
 
   let v ~version ~fresh ~readonly file =
     let get_version () =

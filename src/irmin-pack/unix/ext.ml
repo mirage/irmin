@@ -129,6 +129,8 @@ module Maker (Config : Conf.S) = struct
           commit : read Commit.CA.t;
           branch : Branch.t;
           index : Index.t;
+          dict : Pack_dict.t;
+          io : Io_legacy.t;
         }
 
         let contents_t t : 'a Contents.t = t.contents
@@ -160,27 +162,44 @@ module Maker (Config : Conf.S) = struct
                 (* backpatching to add pack flush before an index flush *)
               ~fresh ~readonly ~throttle ~log_size root
           in
+          let dict =
+            let path = Irmin_pack.Layout.dict ~root in
+            Dict.v ~fresh ~readonly path
+          in
+          let io =
+            let path = Irmin_pack.Layout.pack ~root in
+            (* If the file already exists in V1, we will bump the generation header
+                   lazily when appending a V2 entry. *)
+            let version = Some Irmin_pack.Version.latest in
+            Io_legacy.v ~version ~fresh ~readonly path
+          in
           let* contents =
-            Contents.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-              root
+            Contents.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict
+              ~io
           in
           let* node =
-            Node.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy root
+            Node.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
           in
           let* commit =
-            Commit.CA.v ~fresh ~readonly ~lru_size ~index ~indexing_strategy
-              root
+            Commit.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
           in
-          let+ branch = Branch.v ~fresh ~readonly root in
+
+          let+ branch =
+            let path = Irmin_pack.Layout.branch ~root in
+            Branch.v ~fresh ~readonly path
+          in
           (* Stores share instances in memory, one flush is enough. In case of a
              system crash, the flush_callback might not make with the disk. In
              this case, when the store is reopened, [integrity_check] needs to be
              called to repair the store. *)
           (f := fun () -> Contents.CA.flush ~index:false contents);
-          { contents; node; commit; branch; config; index }
+          { contents; node; commit; branch; config; index; dict; io }
 
         let close t =
           Index.close t.index;
+          [%log.debug "[pack] close %s" (Io_legacy.name t.io)];
+          Io_legacy.close t.io;
+          Dict.close t.dict;
           Contents.CA.close (contents_t t) >>= fun () ->
           Node.CA.close (snd (node_t t)) >>= fun () ->
           Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch

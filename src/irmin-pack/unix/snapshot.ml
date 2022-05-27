@@ -59,7 +59,7 @@ module Make (Args : Args) = struct
       let path = Filename.concat root "store.pack" in
       let file =
         Io_legacy.v ~fresh:false ~readonly:true
-          ~version:(Some Pack_store.selected_version) path
+          ~version:(Some Irmin_pack.Version.latest) path
       in
       { file; log_size; inode_pack; contents_pack }
 

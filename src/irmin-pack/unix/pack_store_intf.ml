@@ -11,12 +11,12 @@ module type S = sig
   type index
 
   val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
+    readonly:bool ->
+    lru_size:int ->
     index:index ->
     indexing_strategy:Irmin_pack.Indexing_strategy.t ->
-    string ->
+    dict:Pack_dict.t ->
+    io:Io_legacy.Unix.t ->
     read t Lwt.t
 
   val sync : 'a t -> unit
@@ -25,10 +25,6 @@ module type S = sig
 
   val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
   val offset : 'a t -> int63
-
-  val clear_caches : 'a t -> unit
-  (** [clear_cache t] clears all the in-memory caches of [t]. Persistent data
-      are not removed. *)
 
   (** @inline *)
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
@@ -76,8 +72,6 @@ module type Maker = sig
 end
 
 module type Sigs = sig
-  val selected_version : Irmin_pack.Version.t
-
   module type S = S
   module type Maker = Maker
 

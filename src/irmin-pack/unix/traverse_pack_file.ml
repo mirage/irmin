@@ -276,7 +276,7 @@ end = struct
     let pack_file = Filename.concat root "store.pack" in
     let pack =
       Io_legacy.v ~fresh:false ~readonly:true
-        ~version:(Some Pack_store.selected_version) pack_file
+        ~version:(Some Irmin_pack.Version.latest) pack_file
     in
     let total = Io_legacy.offset pack in
     let stats, missing_hash =

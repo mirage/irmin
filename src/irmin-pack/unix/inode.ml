@@ -37,5 +37,4 @@ struct
   let v = Pack.v
   let sync = Pack.sync
   let integrity_check = Pack.integrity_check
-  let clear_caches = Pack.clear_caches
 end

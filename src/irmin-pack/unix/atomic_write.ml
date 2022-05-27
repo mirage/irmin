@@ -1,6 +1,5 @@
 open Import
 include Irmin_pack.Atomic_write
-module Cache = Io_legacy.Cache
 
 let current_version = `V1
 
@@ -24,7 +23,6 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     cache : V.t Tbl.t;
     block : Io_legacy.t;
     w : W.t;
-    mutable open_instances : int;
   }
 
   let decode_bin = Irmin.Type.(unstage (decode_bin int32))
@@ -124,35 +122,18 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
 
   let watches = W.v ()
 
-  let valid t =
-    if t.open_instances <> 0 then (
-      t.open_instances <- t.open_instances + 1;
-      true)
-    else false
-
-  let unsafe_v ~fresh ~readonly file =
+  let v ?(fresh = false) ?(readonly = false) file =
     let block =
       Io_legacy.v ~fresh ~version:(Some current_version) ~readonly file
     in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
-    let t = { cache; index; block; w = watches; open_instances = 1 } in
+    let t = { cache; index; block; w = watches } in
     let offset = Io_legacy.force_offset block in
     refill t ~to_:offset ~from:Int63.zero;
-    t
+    Lwt.return t
 
   let clear _ = Fmt.failwith "Unsupported operation"
-
-  let Cache.{ v = unsafe_v } =
-    let clear t =
-      Lwt.async (fun () -> W.clear t.w);
-      Tbl.clear t.cache;
-      Tbl.clear t.index;
-      Io_legacy.truncate t.block
-    in
-    Cache.memoize ~valid ~clear ~v:(fun () -> unsafe_v) Layout.branch
-
-  let v ?fresh ?readonly file = Lwt.return (unsafe_v () ?fresh ?readonly file)
 
   let unsafe_set t k v =
     try
@@ -197,14 +178,11 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
   let unwatch t = W.unwatch t.w
 
   let unsafe_close t =
-    t.open_instances <- t.open_instances - 1;
-    if t.open_instances = 0 then (
-      Tbl.reset t.index;
-      Tbl.reset t.cache;
-      if not (Io_legacy.readonly t.block) then Io_legacy.flush t.block;
-      Io_legacy.close t.block;
-      W.clear t.w)
-    else Lwt.return_unit
+    Tbl.reset t.index;
+    Tbl.reset t.cache;
+    if not (Io_legacy.readonly t.block) then Io_legacy.flush t.block;
+    Io_legacy.close t.block;
+    W.clear t.w
 
   let close t = unsafe_close t
   let flush t = Io_legacy.flush t.block

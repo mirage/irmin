@@ -25,7 +25,6 @@ module Make (Io_legacy : Io_legacy.S) : S = struct
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
     io : Io_legacy.t;
-    mutable open_instances : int;
   }
 
   type nonrec int32 = int32 [@@deriving irmin ~to_bin_string ~decode_bin]
@@ -88,26 +87,14 @@ module Make (Io_legacy : Io_legacy.S) : S = struct
     let io = Io_legacy.v ~version:(Some version) ~fresh ~readonly file in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
-    let t = { capacity; index; cache; io; open_instances = 1 } in
+    let t = { capacity; index; cache; io } in
     refill ~from:Int63.zero t;
     t
 
   let close t =
-    t.open_instances <- t.open_instances - 1;
-    if t.open_instances = 0 then (
-      if not (Io_legacy.readonly t.io) then flush t;
-      Io_legacy.close t.io;
-      Hashtbl.reset t.cache;
-      Hashtbl.reset t.index)
-
-  let valid t =
-    if t.open_instances <> 0 then (
-      t.open_instances <- t.open_instances + 1;
-      true)
-    else false
-
-  let truncate t =
-    Io_legacy.truncate t.io;
-    Hashtbl.clear t.cache;
-    Hashtbl.clear t.index
+    if not (Io_legacy.readonly t.io) then flush t;
+    [%log.debug "[pack] close %s" (Io_legacy.name t.io)];
+    Io_legacy.close t.io;
+    Hashtbl.reset t.cache;
+    Hashtbl.reset t.index
 end
