@@ -79,8 +79,11 @@ module Make (Args : Args) = struct
 
     let io_read_and_decode_entry_prefix ~off t =
       let io_read = Io_legacy.read t.file in
-      let entry_prefix =
-        Inode_pack.read_and_decode_entry_prefix ~off ~io_read
+      let entry_prefix : Inode_pack.Entry_prefix.t =
+        (* TODO: Fix snapshots *)
+        ignore (off, io_read);
+        assert false
+        (* Inode_pack.read_and_decode_entry_prefix ~off ~io_read *)
       in
       let length =
         match Inode_pack.Entry_prefix.total_entry_length entry_prefix with

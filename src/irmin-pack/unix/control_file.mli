@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,10 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  include Dict.S
-
-  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
-end
-
-include Dict.Make (Io_legacy.Unix)
+include Control_file_intf.Sigs
+(** @inline *)

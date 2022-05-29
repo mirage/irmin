@@ -50,14 +50,44 @@ module Make (K : Irmin.Hash.S) = struct
   end
 
   module Stats = Index.Stats
+  module I = Index
   module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)
   include Index
 
-  let v =
+  let v_exn =
     let cache = None in
     Index.v ?cache
 
+  let v ?flush_callback ?fresh ?readonly ?throttle ?lru_size ~log_size root =
+    try
+      Ok
+        (v_exn ?flush_callback ?fresh ?readonly ?throttle ?lru_size ~log_size
+           root)
+    with
+    | I.RO_not_allowed ->
+        (* Happens when [fresh = true = readonly] *)
+        assert false
+    | Index_unix.Private.Raw.Not_written ->
+        (* ¯\_(ツ)_/¯ *)
+        assert false
+    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+
   let add ?overcommit t k v = replace ?overcommit t k v
   let find t k = match find t k with exception Not_found -> None | h -> Some h
-  let close t = Index.close t
+  let close_exn t = Index.close t
+
+  let close t =
+    close_exn t;
+    (* TODO: Catch errors and set type in mli *)
+    Ok ()
+
+  let reload t =
+    Index.sync t;
+    (* TODO: Catch errors and set type in mli *)
+    Ok ()
+
+  let flush t ~with_fsync =
+    Index.flush ~no_callback:() ~with_fsync t;
+    (* TODO: Catch errors and set type in mli *)
+    Ok ()
 end

@@ -8,23 +8,13 @@ open! Import
 module type S = sig
   include Irmin_pack.Indexable.S
 
-  type index
+  type file_manager
+  type dict
 
   val v :
-    readonly:bool ->
-    lru_size:int ->
-    index:index ->
-    indexing_strategy:Irmin_pack.Indexing_strategy.t ->
-    dict:Pack_dict.t ->
-    io:Io_legacy.Unix.t ->
-    read t Lwt.t
+    config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t Lwt.t
 
-  val sync : 'a t -> unit
-  (** Syncs a readonly instance with the files on disk. The same file instance
-      is shared between several pack instances. *)
-
-  val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
-  val offset : 'a t -> int63
+  val cast : read t -> read_write t
 
   (** @inline *)
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
@@ -46,7 +36,9 @@ module type S = sig
   end
 
   val read_and_decode_entry_prefix :
-    off:int63 -> io_read:(off:int63 -> bytes -> int) -> Entry_prefix.t
+    off:int63 ->
+    io_read_at_most:(off:int63 -> len:int -> bytes -> int) ->
+    Entry_prefix.t
   (** Read the entry prefix at offset [off]. *)
 
   val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
@@ -57,14 +49,16 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (Index : Pack_index.S)
-      (Hash : Irmin.Hash.S with type t = Index.key)
-      (V : Pack_value.Persistent
-             with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) :
+      (Fm : File_manager.S)
+      (Dict : Dict.S with type file_manager = Fm.t)
+      (Hash : Irmin.Hash.S with type t = Fm.Index.key)
+      (Val : Pack_value.Persistent
+               with type hash := Hash.t
+                and type key := Hash.t Pack_key.t) :
     S
       with type key = Hash.t Pack_key.t
        and type hash = Hash.t
-       and type value = V.t
-       and type index := Index.t
+       and type value = Val.t
+       and type file_manager = Fm.t
+       and type dict = Dict.t
 end

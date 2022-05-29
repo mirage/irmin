@@ -115,8 +115,8 @@ module FSHelper = struct
   let file f =
     try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
 
-  let dict root = file (Irmin_pack.Layout.dict ~root) / 1024 / 1024
-  let pack root = file (Irmin_pack.Layout.pack ~root) / 1024 / 1024
+  let dict root = file (Irmin_pack.Layout.V1_and_v2.dict ~root) / 1024 / 1024
+  let pack root = file (Irmin_pack.Layout.V1_and_v2.pack ~root) / 1024 / 1024
 
   let index root =
     let index_dir = Filename.concat root "index" in

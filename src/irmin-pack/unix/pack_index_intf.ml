@@ -17,7 +17,19 @@
 open! Import
 
 module type S = sig
-  include Index.S with type value = int63 * int * Pack_value.Kind.t
+  type t
+  type key
+  type value = int63 * int * Pack_value.Kind.t
+
+  val v_exn :
+    ?flush_callback:(unit -> unit) ->
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?throttle:[ `Block_writes | `Overcommit_memory ] ->
+    ?lru_size:int ->
+    log_size:int ->
+    string ->
+    t
 
   val v :
     ?flush_callback:(unit -> unit) ->
@@ -27,13 +39,20 @@ module type S = sig
     ?lru_size:int ->
     log_size:int ->
     string ->
-    t
-  (** Constructor for indices, memoized by [(path, readonly)] pairs. *)
+    (t, [> Io.Unix.create_error | Io.Unix.open_error ]) result
 
+  val reload : t -> (unit, [> `Tmp ]) result
+  val close : t -> (unit, [> `Tmp ]) result
+  val close_exn : t -> unit
+  val flush : t -> with_fsync:bool -> (unit, [> `Tmp ]) result
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
-  val close : t -> unit
   val merge : t -> unit
+  val sync : t -> unit
+  val mem : t -> key -> bool
+  val iter : (key -> value -> unit) -> t -> unit
+  val filter : t -> (key * value -> bool) -> unit
+  val try_merge : t -> unit
 
   module Stats = Index.Stats
   module Key : Index.Key.S with type t = key

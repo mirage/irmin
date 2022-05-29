@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,24 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  type t
-  type file_manager
-
-  val find : t -> int -> string option
-  val index : t -> string -> int option
-
-  (* val flush : t -> unit
-   *
-   * val sync : t -> unit
-   * (\** syncs a readonly dict with the file on disk. *\) *)
-
-  val v : capacity:int -> file_manager -> t
-  val close : t -> unit
-end
-
-module type Sigs = sig
-  module type S = S
-
-  module Make (Fm : File_manager.S) : S with type file_manager = Fm.t
-end
+include File_manager_intf.Sigs
+(** @inline *)

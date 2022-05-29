@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,15 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Defines the location of the IO instances within the main [irmin-pack] store
-    directory. *)
-
-type path := root:string -> string
-
-val toplevel : string -> path
-(** A file in the top-level directory of a store *)
-
-val pack : path
-val branch : path
-val dict : path
-val stores : root:string -> string list
+include Append_only_file_intf.Sigs
+(** @inline *)

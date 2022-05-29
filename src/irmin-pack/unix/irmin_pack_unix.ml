@@ -1,4 +1,3 @@
-module Dict = Pack_dict
 module Stats = Stats
 module Index = Pack_index
 module Inode = Inode

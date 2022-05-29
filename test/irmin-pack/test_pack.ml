@@ -249,7 +249,9 @@ module Pack = struct
 
   let test_reuse_index () =
     (* index and pack with different names. However, this behaviour is not exposed by irmin_pack.*)
-    let index = Index.v ~log_size:4 ~fresh:true (Context.fresh_name "index") in
+    let index =
+      Index.v_exn ~log_size:4 ~fresh:true (Context.fresh_name "index")
+    in
     let indexing_strategy = Irmin_pack.Indexing_strategy.always in
     let dict =
       let path = Context.fresh_name "dict" in

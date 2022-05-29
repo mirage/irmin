@@ -147,10 +147,11 @@ module Test_reconstruct = struct
     let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
     S.traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
-      Index.v ~fresh:false ~readonly:false ~log_size:500_000 Config_store.tmp
+      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000
+        Config_store.tmp
     in
     let index_new =
-      Index.v ~fresh:false ~readonly:false ~log_size:500_000
+      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000
         Config_store.root_v1
     in
     Index.iter

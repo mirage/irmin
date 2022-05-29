@@ -32,7 +32,11 @@ module Maker (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
-    module Dict = Pack_dict
+    module Io = Io.Unix
+    module Control = Control_file.Make (Io)
+    module Aof = Append_only_file.Make (Io)
+    module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index)
+    module Dict = Dict.Make (File_manager)
     module XKey = Pack_key.Make (H)
 
     module X = struct
@@ -43,13 +47,7 @@ module Maker (Config : Conf.S) = struct
 
       module Contents = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
-
-        module CA = struct
-          include Pack_store.Make (Index) (H) (Pack_value)
-
-          type index = Index.t
-        end
-
+        module CA = Pack_store.Make (File_manager) (Dict) (H) (Pack_value)
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
@@ -60,10 +58,8 @@ module Maker (Config : Conf.S) = struct
           module Inter =
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
-          module Pack' = Pack_store.Make (Index) (H) (Inter.Raw)
+          module Pack' = Pack_store.Make (File_manager) (Dict) (H) (Inter.Raw)
           include Inode.Make_persistent (H) (Value) (Inter) (Pack')
-
-          type index = Index.t
         end
 
         include
@@ -86,7 +82,7 @@ module Maker (Config : Conf.S) = struct
         end
 
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
-        module CA = Pack_store.Make (Index) (H) (Pack_value)
+        module CA = Pack_store.Make (File_manager) (Dict) (H) (Pack_value)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
@@ -128,100 +124,92 @@ module Maker (Config : Conf.S) = struct
           node : read Node.CA.t;
           commit : read Commit.CA.t;
           branch : Branch.t;
-          index : Index.t;
-          dict : Pack_dict.t;
-          io : Io_legacy.t;
+          fm : File_manager.t;
+          dict : Dict.t;
         }
+
+        let batch t f =
+          let contents = Contents.CA.cast t.contents in
+          let node = Node.CA.Pack.cast t.node in
+          let commit = Commit.CA.cast t.commit in
+          let contents : 'a Contents.t = contents in
+          let node : 'a Node.t = (contents, node) in
+          let commit : 'a Commit.t = (node, commit) in
+          let on_success res =
+            File_manager.flush_exn t.fm;
+            Lwt.return res
+          in
+          let on_fail exn =
+            [%log.info "[pack] flush during batch fail"];
+            let () =
+              match File_manager.flush t.fm with
+              | Ok () -> ()
+              | Error _ ->
+                  [%log.err "[pack] silencing flush fail during batch fail"];
+                  (* TODO: Proper error message (tostring on error) *)
+                  assert false
+            in
+            raise exn
+          in
+          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
+
+        let v config =
+          let fm =
+            let readonly = Irmin_pack.Conf.readonly config in
+            (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
+            if readonly then File_manager.open_ro config |> Result.get_ok
+            else
+              let fresh = Irmin_pack.Conf.fresh config in
+              let root = Irmin_pack.Conf.root config in
+              match (Io.classify_path root, fresh) with
+              | `No_such_file_or_directory, _ ->
+                  File_manager.create_rw ~overwrite:false config
+                  |> Result.get_ok
+              | `Directory, true ->
+                  File_manager.create_rw ~overwrite:true config |> Result.get_ok
+              | `Directory, false ->
+                  File_manager.open_rw config |> Result.get_ok
+              | `File, _ ->
+                  (* TODO: Proper exception *)
+                  assert false
+          in
+          let dict =
+            (* TODO: Capacity from config? *)
+            let capacity = 100_000 in
+            Dict.v ~capacity fm
+          in
+          let* contents = Contents.CA.v ~config ~fm ~dict in
+          let* node = Node.CA.v ~config ~fm ~dict in
+          let* commit = Commit.CA.v ~config ~fm ~dict in
+          let+ branch =
+            let root = Conf.root config in
+            let fresh = Conf.fresh config in
+            let readonly = Conf.readonly config in
+            let path = Irmin_pack.Layout.V3.branch ~root in
+            Branch.v ~fresh ~readonly path
+          in
+          { config; contents; node; commit; branch; fm; dict }
+
+        let close t =
+          let () =
+            match File_manager.close t.fm with
+            | Ok () -> ()
+            | Error _ ->
+                (* TODO: Proper exception *)
+                assert false
+          in
+          Branch.close t.branch
+
+        let flush t = File_manager.flush_exn t.fm
+
+        let sync t =
+          (* TODO: Rename [sync] to [reload] absolutly everywhere *)
+          File_manager.reload_exn t.fm
 
         let contents_t t : 'a Contents.t = t.contents
         let node_t t : 'a Node.t = (contents_t t, t.node)
         let commit_t t : 'a Commit.t = (node_t t, t.commit)
         let branch_t t = t.branch
-
-        let batch t f =
-          Commit.CA.batch t.commit (fun commit ->
-              Node.CA.batch t.node (fun node ->
-                  Contents.CA.batch t.contents (fun contents ->
-                      let contents : 'a Contents.t = contents in
-                      let node : 'a Node.t = (contents, node) in
-                      let commit : 'a Commit.t = (node, commit) in
-                      f contents node commit)))
-
-        let unsafe_v config =
-          let root = Conf.root config
-          and fresh = Conf.fresh config
-          and lru_size = Conf.lru_size config
-          and readonly = Conf.readonly config
-          and log_size = Conf.index_log_size config
-          and throttle = Conf.merge_throttle config
-          and indexing_strategy = Conf.indexing_strategy config in
-          let f = ref (fun () -> ()) in
-          let index =
-            Index.v
-              ~flush_callback:(fun () -> !f ())
-                (* backpatching to add pack flush before an index flush *)
-              ~fresh ~readonly ~throttle ~log_size root
-          in
-          let dict =
-            let path = Irmin_pack.Layout.dict ~root in
-            Dict.v ~fresh ~readonly path
-          in
-          let io =
-            let path = Irmin_pack.Layout.pack ~root in
-            (* If the file already exists in V1, we will bump the generation header
-                   lazily when appending a V2 entry. *)
-            let version = Some Irmin_pack.Version.latest in
-            Io_legacy.v ~version ~fresh ~readonly path
-          in
-          let* contents =
-            Contents.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict
-              ~io
-          in
-          let* node =
-            Node.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-          in
-          let* commit =
-            Commit.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-          in
-
-          let+ branch =
-            let path = Irmin_pack.Layout.branch ~root in
-            Branch.v ~fresh ~readonly path
-          in
-          (* Stores share instances in memory, one flush is enough. In case of a
-             system crash, the flush_callback might not make with the disk. In
-             this case, when the store is reopened, [integrity_check] needs to be
-             called to repair the store. *)
-          (f := fun () -> Contents.CA.flush ~index:false contents);
-          { contents; node; commit; branch; config; index; dict; io }
-
-        let close t =
-          Index.close t.index;
-          [%log.debug "[pack] close %s" (Io_legacy.name t.io)];
-          Io_legacy.close t.io;
-          Dict.close t.dict;
-          Contents.CA.close (contents_t t) >>= fun () ->
-          Node.CA.close (snd (node_t t)) >>= fun () ->
-          Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
-
-        let v config =
-          Lwt.catch
-            (fun () -> unsafe_v config)
-            (function
-              | Version.Invalid { expected; found } as e
-                when expected = Version.latest ->
-                  [%log.err
-                    "[%s] Attempted to open store of unsupported version %a"
-                      (Conf.root config) Version.pp found];
-                  Lwt.fail e
-              | e -> Lwt.fail e)
-
-        (** Stores share instances in memory, one sync is enough. *)
-        let sync t = Contents.CA.sync (contents_t t)
-
-        let flush t =
-          Contents.CA.flush (contents_t t);
-          Branch.flush t.branch
       end
     end
 
@@ -236,7 +224,10 @@ module Maker (Config : Conf.S) = struct
         | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
-      Checks.integrity_check ?ppf ~auto_repair ~check t.index
+      ignore (ppf, auto_repair, check, t);
+      (* TODO: Fix integrity_check *)
+      assert false
+    (* Checks.integrity_check ?ppf ~auto_repair ~check t.index *)
 
     include Irmin.Of_backend (X)
 
