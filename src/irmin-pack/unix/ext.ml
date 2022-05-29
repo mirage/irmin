@@ -157,17 +157,17 @@ module Maker (Config : Conf.S) = struct
           and indexing_strategy = Conf.indexing_strategy config in
           let f = ref (fun () -> ()) in
           let index =
-            Index.v
+            Index.v_exn
               ~flush_callback:(fun () -> !f ())
                 (* backpatching to add pack flush before an index flush *)
               ~fresh ~readonly ~throttle ~log_size root
           in
           let dict =
-            let path = Irmin_pack.Layout.dict ~root in
+            let path = Irmin_pack.Layout.V1_and_v2.dict ~root in
             Dict.v ~fresh ~readonly path
           in
           let io =
-            let path = Irmin_pack.Layout.pack ~root in
+            let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
             (* If the file already exists in V1, we will bump the generation header
                    lazily when appending a V2 entry. *)
             let version = Some Irmin_pack.Version.latest in
@@ -185,7 +185,7 @@ module Maker (Config : Conf.S) = struct
           in
 
           let+ branch =
-            let path = Irmin_pack.Layout.branch ~root in
+            let path = Irmin_pack.Layout.V1_and_v2.branch ~root in
             Branch.v ~fresh ~readonly path
           in
           (* Stores share instances in memory, one flush is enough. In case of a

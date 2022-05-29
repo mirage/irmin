@@ -41,3 +41,8 @@ module Layout = Irmin_pack.Layout
 module Pack_key = Irmin_pack.Pack_key
 module Stats = Stats
 module Indexable = Irmin_pack.Indexable
+
+module Result_syntax = struct
+  let ( let+ ) res f = Result.map f res
+  let ( let* ) res f = Result.bind res f
+end

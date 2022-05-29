@@ -70,7 +70,7 @@ module Util = struct
 
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)
-  let io_get_version ~fn : [ `V1 | `V2 ] =
+  let io_get_version ~fn : [ `V1 | `V2 | `V3 ] =
     assert (Sys.file_exists fn);
     let t = Unix_.v ~version:None ~fresh:false ~readonly:true fn in
     let r = Unix_.version t in

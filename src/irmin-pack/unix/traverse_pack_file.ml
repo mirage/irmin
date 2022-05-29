@@ -98,7 +98,7 @@ end = struct
       [%log.app
         "Beginning index reconstruction with parameters: { log_size = %d }"
           log_size];
-      let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
+      let index = Index.v_exn ~fresh:true ~readonly:false ~log_size dest in
       index
 
     let iter_pack_entry index key data =
@@ -119,7 +119,7 @@ end = struct
       [%log.app
         "Beginning index checking with parameters: { log_size = %d }" log_size];
       let index =
-        Index.v ~fresh:false ~readonly:true ~log_size (Conf.root config)
+        Index.v_exn ~fresh:false ~readonly:true ~log_size (Conf.root config)
       in
       (index, ref 0)
 
@@ -142,7 +142,7 @@ end = struct
       [%log.app
         "Beginning index checking with parameters: { log_size = %d }" log_size];
       let root = Conf.root config in
-      let index = Index.v ~fresh:false ~readonly:false ~log_size root in
+      let index = Index.v_exn ~fresh:false ~readonly:false ~log_size root in
       (index, ref 0)
 
     let iter_pack_entry (index, idx_ref) key data =

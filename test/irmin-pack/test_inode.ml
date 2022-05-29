@@ -71,14 +71,14 @@ struct
     let get_store ?(lru_size = 0) () =
       [%log.app "Constructing a fresh context for use by the test"];
       rm_dir root;
-      let index = Index.v ~log_size ~fresh:true root in
+      let index = Index.v_exn ~log_size ~fresh:true root in
       let indexing_strategy = Irmin_pack.Indexing_strategy.always in
       let dict =
-        let path = Irmin_pack.Layout.dict ~root in
+        let path = Irmin_pack.Layout.V1_and_v2.dict ~root in
         Irmin_pack_unix.Dict.v ~fresh:true ~readonly:false path
       in
       let io =
-        let path = Irmin_pack.Layout.pack ~root in
+        let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
         let version = Some Irmin_pack.Version.latest in
         Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh:true ~readonly:false
           path
@@ -98,11 +98,11 @@ struct
       in
       let clone ~readonly =
         let dict =
-          let path = Irmin_pack.Layout.dict ~root in
+          let path = Irmin_pack.Layout.V1_and_v2.dict ~root in
           Irmin_pack_unix.Dict.v ~fresh:false ~readonly path
         in
         let io =
-          let path = Irmin_pack.Layout.pack ~root in
+          let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
           let version = Some Irmin_pack.Version.latest in
           Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh:false ~readonly path
         in

@@ -94,13 +94,13 @@ module Make (Store : Store) = struct
       { size; offset; version }
 
     let v ~root =
-      let pack = Layout.pack ~root |> io in
-      let branch = Layout.branch ~root |> io in
-      let dict = Layout.dict ~root |> io in
+      let pack = Layout.V1_and_v2.pack ~root |> io in
+      let branch = Layout.V1_and_v2.branch ~root |> io in
+      let dict = Layout.V1_and_v2.dict ~root |> io in
       { pack; branch; dict }
 
     let traverse_index ~root log_size =
-      let index = Index.v ~readonly:true ~fresh:false ~log_size root in
+      let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
       let bar, (progress_contents, progress_nodes, progress_commits) =
         Utils.Object_counter.start ()
       in

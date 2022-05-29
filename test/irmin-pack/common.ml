@@ -117,15 +117,17 @@ struct
   let create ~readonly ~fresh lru_size name =
     let f = ref (fun () -> ()) in
     let index =
-      Index.v ~readonly ~flush_callback:(fun () -> !f ()) ~log_size ~fresh name
+      Index.v_exn ~readonly
+        ~flush_callback:(fun () -> !f ())
+        ~log_size ~fresh name
     in
     let indexing_strategy = Irmin_pack.Indexing_strategy.always in
     let dict =
-      let path = Irmin_pack.Layout.dict ~root:name in
+      let path = Irmin_pack.Layout.V1_and_v2.dict ~root:name in
       Irmin_pack_unix.Dict.v ~fresh ~readonly path
     in
     let io =
-      let path = Irmin_pack.Layout.pack ~root:name in
+      let path = Irmin_pack.Layout.V1_and_v2.pack ~root:name in
       let version = Some Irmin_pack.Version.latest in
       Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh ~readonly path
     in

@@ -15,7 +15,23 @@
  *)
 
 let toplevel name ~root = Filename.(concat root name)
-let pack = toplevel "store.pack"
-let branch = toplevel "store.branches"
-let dict = toplevel "store.dict"
-let stores ~root = [ pack ~root; branch ~root; dict ~root ]
+
+module V1_and_v2 = struct
+  let pack = toplevel "store.pack"
+  let branch = toplevel "store.branches"
+  let dict = toplevel "store.dict"
+  let all ~root = [ pack ~root; branch ~root; dict ~root ]
+end
+
+module V3 = struct
+  let branch = toplevel "store.branches"
+  let dict = toplevel "store.dict"
+  let control = toplevel "store.control"
+
+  let suffix ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".suffix")
+
+  (* TODO layered: Add prefix and mapping *)
+  let all ~generation ~root =
+    [ suffix ~generation ~root; branch ~root; dict ~root; control ~root ]
+end
