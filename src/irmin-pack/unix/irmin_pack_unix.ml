@@ -3,7 +3,7 @@ module Stats = Stats
 module Index = Pack_index
 module Inode = Inode
 module Pack_store = Pack_store
-module IO = IO
+module Io_legacy = Io_legacy
 module Checks = Checks
 module Atomic_write = Atomic_write
 include Ext

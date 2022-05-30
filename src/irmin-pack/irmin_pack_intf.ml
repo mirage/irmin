@@ -62,7 +62,7 @@ module type Sigs = sig
   module Layout = Layout
   module Indexable = Indexable
   module Atomic_write = Atomic_write
-  module IO = IO
+  module Io_legacy = Io_legacy
   module Version = Version
   module S = S
 end

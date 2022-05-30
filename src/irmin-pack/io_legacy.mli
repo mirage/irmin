@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include IO_intf.Sigs
+include Io_legacy_intf.Sigs
 (** @inline *)
