@@ -1872,40 +1872,6 @@ module Make (S : Generic_key) = struct
     in
     run x test
 
-  let test_reexport_node x () =
-    let test repo1 =
-      let* tree = S.Tree.add (S.Tree.empty ()) [ "foo"; "a" ] "a" in
-      let* _ =
-        S.Backend.Repo.batch repo1 (fun c n _ -> S.save_tree repo1 c n tree)
-      in
-      let* () = B.Repo.close repo1 in
-      (* Re-export the same tree using a different repo. *)
-      let* repo2 = S.Repo.v x.config in
-      let* _ =
-        check_raises_lwt "re-export tree from another repo"
-          (Failure "Can't export the node key from another repo") (fun () ->
-            S.Backend.Repo.batch repo2 (fun c n _ -> S.save_tree repo2 c n tree))
-      in
-      let* () = B.Repo.close repo2 in
-      (* Re-export a fresh tree using a different repo. *)
-      let* repo2 = S.Repo.v x.config in
-      let* tree = S.Tree.add (S.Tree.empty ()) [ "foo"; "a" ] "a" in
-      let _ = S.Tree.hash tree in
-      let* c1 = S.Tree.get_tree tree [ "foo" ] in
-      let* _ =
-        S.Backend.Repo.batch repo2 (fun c n _ -> S.save_tree repo2 c n c1)
-      in
-      let* () =
-        match S.Tree.destruct c1 with
-        | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
-        | `Node node ->
-            let* _v = S.to_backend_node node in
-            Lwt.return_unit
-      in
-      B.Repo.close repo2
-    in
-    run x test
-
   module Sync = Irmin.Sync.Make (S)
 
   let test_sync x () =
@@ -2497,7 +2463,6 @@ let suite (speed, x) =
        ("Shallow objects", speed, T.test_shallow_objects x);
        ("Closure with disconnected commits", speed, T.test_closure x);
        ("Prehash collisions", speed, T.test_pre_hash_collisions x);
-       ("Re-export node", speed, T.test_reexport_node x);
      ]
     @ when_ x.import_supported
         [

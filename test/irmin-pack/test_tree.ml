@@ -651,6 +651,39 @@ let test_proof_exn _ =
   in
   Lwt.return_unit
 
+let test_reexport_node () =
+  let* tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
+  let* repo1 = Store.Repo.v (config ~fresh:true root) in
+  let* _ =
+    Store.Backend.Repo.batch repo1 (fun c n _ -> Store.save_tree repo1 c n tree)
+  in
+  let* () = Store.Repo.close repo1 in
+  (* Re-export the same tree using a different repo. *)
+  let* repo2 = Store.Repo.v (config ~fresh:false root) in
+  let* _ =
+    Alcotest.check_raises_lwt "re-export tree from another repo"
+      (Failure "Can't export the node key from another repo") (fun () ->
+        Store.Backend.Repo.batch repo2 (fun c n _ ->
+            Store.save_tree repo2 c n tree))
+  in
+  let* () = Store.Repo.close repo2 in
+  (* Re-export a fresh tree using a different repo. *)
+  let* repo2 = Store.Repo.v (config ~fresh:false root) in
+  let* tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
+  let _ = Store.Tree.hash tree in
+  let* c1 = Store.Tree.get_tree tree [ "foo" ] in
+  let* _ =
+    Store.Backend.Repo.batch repo2 (fun c n _ -> Store.save_tree repo2 c n c1)
+  in
+  let* () =
+    match Store.Tree.destruct c1 with
+    | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
+    | `Node node ->
+        let* _v = Store.to_backend_node node in
+        Lwt.return_unit
+  in
+  Store.Repo.close repo2
+
 let tests =
   [
     Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
@@ -675,4 +708,6 @@ let tests =
         Lwt_main.run (test_hardcoded_proof ()));
     Alcotest.test_case "test stream proof exn" `Quick (fun () ->
         Lwt_main.run (test_proof_exn ()));
+    Alcotest.test_case "test reexport node" `Quick (fun () ->
+        Lwt_main.run (test_reexport_node ()));
   ]
