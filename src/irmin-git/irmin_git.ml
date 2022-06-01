@@ -155,7 +155,6 @@ module Content_addressable (G : Git.S) = struct
 
     let find = with_state1 X.find
     let mem = with_state1 X.mem
-    let clear = with_state0 X.clear
     let close = with_state0 X.close
     let batch t f = f t
   end

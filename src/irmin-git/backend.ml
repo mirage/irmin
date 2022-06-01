@@ -92,7 +92,7 @@ struct
 
     let config c =
       let module C = Irmin.Backend.Conf in
-      let root = C.get c Conf.Key.root in
+      let root = C.find_root c |> Option.value ~default:"." in
       let dot_git = C.get c Conf.Key.dot_git in
       let level = C.get c Conf.Key.level in
       let head = C.get c Conf.Key.head in

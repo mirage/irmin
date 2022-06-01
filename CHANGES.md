@@ -46,6 +46,7 @@
   - Add error types in the API or proof verifiers. (#1791, @icristescu)
   - Reduced the memory footprint of ``Tree.fold ~uniq:`True`` by a factor of 2.
     (#1770, @CraigFe)
+  - Remove `clear` from all content addresssable stores. (#1794, @icristescu)
 
 ## 3.1.0 (2022-02-25)
 

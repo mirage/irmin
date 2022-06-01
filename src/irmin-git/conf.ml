@@ -19,8 +19,6 @@ open Irmin.Backend.Conf
 let spec = Spec.v "git"
 
 module Key = struct
-  let root = root spec
-
   let reference : Git.Reference.t Irmin.Type.t =
     let of_string str = Git.Reference.of_string str |> Result.get_ok in
     let to_string r = Git.Reference.to_string r in
@@ -56,7 +54,10 @@ end
 let init ?head ?bare ?level ?dot_git ?buffers root =
   let module C = Irmin.Backend.Conf in
   let config = C.empty spec in
-  let config = C.add config Key.root root in
+  (* Initialise an fresh root_key, otherwise [C.add config root_key root] has no
+     effect on current config. *)
+  let root_key = C.root spec in
+  let config = C.add config root_key root in
   let config =
     match bare with
     | None -> C.add config Key.bare (C.default Key.bare)

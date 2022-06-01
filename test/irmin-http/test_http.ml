@@ -152,8 +152,9 @@ let serve servers n id =
   let test = { name = Irmin_test.Suite.name server; id } in
   let socket = socket test in
   let server () =
-    Irmin_test.Suite.init server () >>= fun () ->
-    let* repo = Server.Repo.v (Irmin_test.Suite.config server) in
+    let config = Irmin_test.Suite.config server in
+    Irmin_test.Suite.init server ~config >>= fun () ->
+    let* repo = Server.Repo.v config in
     let* lock = lock test in
     let spec = HTTP.v repo ~strict:false in
     let* () =
@@ -188,9 +189,12 @@ let suite i server =
   in
   let socket = socket id in
   let server_pid = ref 0 in
+  let config =
+    Irmin_http.config uri (Irmin.Backend.Conf.empty Irmin_http.Conf.spec)
+  in
   Irmin_test.Suite.create
     ~name:(Printf.sprintf "HTTP.%s" (Irmin_test.Suite.name server))
-    ~init:(fun () ->
+    ~init:(fun ~config:_ ->
       remove socket;
       remove (pid_file id);
       mkdir test_http_dir >>= fun () ->
@@ -209,11 +213,10 @@ let suite i server =
       let _ = Sys.command cmd in
       let+ pid = wait_for_the_server_to_start id in
       server_pid := pid)
-    ~clean:(fun () ->
+    ~clean:(fun ~config ->
       kill_server socket !server_pid;
-      Irmin_test.Suite.clean server ())
-    ~config:
-      (Irmin_http.config uri (Irmin.Backend.Conf.empty Irmin_http.Conf.spec))
+      Irmin_test.Suite.clean server ~config)
+    ~config
     ~store:(http_store id (get_store server))
     ()
 

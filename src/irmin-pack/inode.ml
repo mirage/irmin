@@ -2349,7 +2349,6 @@ struct
 
   let batch = Pack.batch
   let close = Pack.close
-  let clear = Pack.clear
   let decode_bin_length = Inter.Raw.decode_bin_length
 
   let protect_from_invalid_depth_exn f =

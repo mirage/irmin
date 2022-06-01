@@ -73,8 +73,8 @@ type store = S of (module S) | Generic_key of (module Generic_key)
 
 type t = {
   name : string;
-  init : unit -> unit Lwt.t;
-  clean : unit -> unit Lwt.t;
+  init : config:Irmin.config -> unit Lwt.t;
+  clean : config:Irmin.config -> unit Lwt.t;
   config : Irmin.config;
   store : store;
   stats : (unit -> int * int) option;
@@ -87,63 +87,34 @@ type t = {
      [Store.import] to re-hydrate the keys in these slices (by tracking keys of
      added objects), then require all backends to run thee tests. *)
   import_supported : bool;
-  clear_supported : bool;
 }
 
 module Suite = struct
   type nonrec t = t
 
-  let default_clean ~config ~store () =
+  let default_clean ~config ~store =
     let (module Store : Generic_key) =
       match store with
       | Generic_key x -> x
       | S (module S) -> (module S : Generic_key)
     in
     let open Lwt.Syntax in
-    let module B = Store.Backend in
-    let clear repo =
-      Lwt.join
-        [
-          B.Commit.clear (B.Repo.commit_t repo);
-          B.Node.clear (B.Repo.node_t repo);
-          B.Contents.clear (B.Repo.contents_t repo);
-          B.Branch.clear (B.Repo.branch_t repo);
-        ]
-    in
     let* repo = Store.Repo.v config in
-    let* () = clear repo in
+    let* branches = Store.Repo.branches repo in
+    let* () = Lwt_list.iter_p (Store.Branch.remove repo) branches in
     Store.Repo.close repo
 
-  let create ~name ?(init = fun () -> Lwt.return_unit) ?clean ~config ~store
-      ?stats ?(clear_supported = true) ?(import_supported = true) () =
+  let create ~name ?(init = fun ~config:_ -> Lwt.return_unit) ?clean ~config
+      ~store ?stats ?(import_supported = true) () =
     let store = S store in
-    let clean = Option.value clean ~default:(default_clean ~config ~store) in
-    {
-      name;
-      init;
-      clean;
-      config;
-      store;
-      stats;
-      clear_supported;
-      import_supported;
-    }
+    let clean = Option.value clean ~default:(default_clean ~store) in
+    { name; init; clean; config; store; stats; import_supported }
 
-  let create_generic_key ~name ?(init = fun () -> Lwt.return_unit) ?clean
-      ~config ~store ?stats ?(clear_supported = true) ?(import_supported = true)
-      () =
+  let create_generic_key ~name ?(init = fun ~config:_ -> Lwt.return_unit) ?clean
+      ~config ~store ?stats ?(import_supported = true) () =
     let store = Generic_key store in
-    let clean = Option.value clean ~default:(default_clean ~config ~store) in
-    {
-      name;
-      init;
-      clean;
-      config;
-      store;
-      stats;
-      clear_supported;
-      import_supported;
-    }
+    let clean = Option.value clean ~default:(default_clean ~store) in
+    { name; init; clean; config; store; stats; import_supported }
 
   let name t = t.name
   let config t = t.config
@@ -242,13 +213,27 @@ module Make_helpers (S : Generic_key) = struct
   let ignore_thunk_errors f = Lwt.catch f (fun _ -> Lwt.return_unit)
 
   let run (x : Suite.t) test =
-    let ptr = ref None in
+    let repo_ptr = ref None in
+    let config_ptr = ref None in
     Lwt_main.run
       (Lwt.catch
          (fun () ->
-           let* () = x.init () in
-           let* repo = S.Repo.v x.config in
-           ptr := Some repo;
+           let module Conf = Irmin.Backend.Conf in
+           let generate_random_root config =
+             let id = Random.int 100 |> string_of_int in
+             let root_value =
+               match Conf.find_root config with
+               | None -> "test_" ^ id
+               | Some v -> v ^ "_" ^ id
+             in
+             let root_key = Conf.(root (spec config)) in
+             Conf.add config root_key root_value
+           in
+           let config = generate_random_root x.config in
+           config_ptr := Some config;
+           let* () = x.init ~config in
+           let* repo = S.Repo.v config in
+           repo_ptr := Some repo;
            let* () = test repo in
            let* () =
              (* [test] might have already closed the repo. That
@@ -256,17 +241,21 @@ module Make_helpers (S : Generic_key) = struct
                 support double closes. *)
              ignore_thunk_errors (fun () -> S.Repo.close repo)
            in
-           x.clean ())
+           x.clean ~config)
          (fun exn ->
            (* [test] failed, attempt an errorless cleanup and forward the right
               backtrace to the user. *)
            let bt = Printexc.get_raw_backtrace () in
            let* () =
-             match !ptr with
+             match !repo_ptr with
              | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
              | None -> Lwt.return_unit
            in
-           let+ () = ignore_thunk_errors (fun () -> x.clean ()) in
+           let+ () =
+             match !config_ptr with
+             | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
+             | None -> Lwt.return_unit
+           in
            Printexc.raise_with_backtrace exn bt))
 end
 

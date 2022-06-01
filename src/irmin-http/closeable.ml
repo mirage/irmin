@@ -54,10 +54,6 @@ module Content_addressable (S : Content_addressable.S) = struct
   let batch t f =
     check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
-
-  let clear t =
-    check_not_closed t;
-    S.clear t.t
 end
 
 module Atomic_write (S : Atomic_write.S) = struct

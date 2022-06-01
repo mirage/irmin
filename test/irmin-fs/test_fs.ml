@@ -18,9 +18,9 @@ open Lwt.Infix
 module IO = Irmin_fs.IO_mem
 
 let test_db = Filename.concat "_build" "test-db"
-let init () = IO.clear () >|= fun () -> IO.set_listen_hook ()
+let init ~config:_ = IO.clear () >|= fun () -> IO.set_listen_hook ()
 let config = Irmin_fs.config test_db
-let clean () = Lwt.return_unit
+let clean ~config:_ = Lwt.return_unit
 
 let store =
   Irmin_test.store (module Irmin_fs.Maker (IO)) (module Irmin.Metadata.None)

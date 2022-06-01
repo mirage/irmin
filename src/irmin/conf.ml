@@ -147,3 +147,10 @@ let root spec =
     ~docs:"COMMON OPTIONS" "root"
     Type.(string)
     "."
+
+let find_root (spec, d) : string option =
+  match Spec.find_key spec "root" with
+  | None -> None
+  | Some (K k) -> (
+      let v = find (spec, d) k in
+      match v with None -> None | Some v -> Some (Type.to_string k.ty v))

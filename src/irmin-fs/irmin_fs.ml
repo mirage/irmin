@@ -77,7 +77,7 @@ struct
   type value = V.t
   type 'a t = { path : string }
 
-  let get_path config = Conf.(get config Key.root)
+  let get_path config = Option.value Conf.(find_root config) ~default:"."
 
   let v config =
     let path = get_path config in
@@ -136,13 +136,6 @@ struct
             [%log.err "Irmin_fs.list: %s" e];
             acc)
       [] files
-
-  let clear t =
-    [%log.debug "clear"];
-    let remove_file key =
-      IO.remove_file ~lock:(lock_of_key t key) (file_of_key t key)
-    in
-    list t >>= Lwt_list.iter_p remove_file
 end
 
 module Append_only_ext

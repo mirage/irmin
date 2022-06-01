@@ -201,7 +201,6 @@ struct
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = Lwt.return_unit
-  let clear t = CA.clear t.db
   let batch t f = CA.batch t.db (fun db -> f { t with db })
 
   let find_leaves t key =

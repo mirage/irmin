@@ -37,17 +37,16 @@ let suite_pack name_suffix indexing_strategy (module Config : Irmin_pack.Conf.S)
   let config =
     Irmin_pack.config ~fresh:false ~lru_size:0 ~indexing_strategy test_dir
   in
-  let init () =
+  let init ~config =
+    let test_dir =
+      Irmin.Backend.Conf.find_root config |> Option.value ~default:test_dir
+    in
     rm_dir test_dir;
     Lwt.return_unit
   in
-  let clean () =
-    rm_dir test_dir;
-    Lwt.return_unit
-  in
+  let clean = init in
   Irmin_test.Suite.create_generic_key ~name:("PACK" ^ name_suffix)
-    ~clear_supported:false ~import_supported:false ~init ~store ~config ~clean
-    ()
+    ~import_supported:false ~init ~store ~config ~clean ()
 
 module Irmin_tezos_conf = struct
   include Irmin_tezos.Conf
