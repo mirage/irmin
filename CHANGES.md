@@ -16,6 +16,8 @@
   - Move `Irmin_pack.Pack_store.Indexing_strategy` to
     `Irmin_pack.Indexing_strategy` and the rest of `Pack_store`
     to `Irmin_pack_unix` (#1833, @Ngoguey42)
+  - Different repos opened using the same store module no longer share caches
+    and file descriptors (#1852, @Ngoguey42)
 
 ### Fixed
 

@@ -71,11 +71,22 @@ struct
       rm_dir root;
       let index = Index.v ~log_size ~fresh:true root in
       let indexing_strategy = Irmin_pack.Indexing_strategy.always in
+      let dict =
+        let path = Irmin_pack.Layout.dict ~root in
+        Irmin_pack_unix.Dict.v ~fresh:true ~readonly:false path
+      in
+      let io =
+        let path = Irmin_pack.Layout.pack ~root in
+        let version = Some Irmin_pack.Version.latest in
+        Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh:true ~readonly:false
+          path
+      in
       let* store =
-        Inode.v ~fresh:true ~lru_size ~index ~indexing_strategy root
+        Inode.v ~readonly:false ~lru_size ~index ~indexing_strategy ~dict ~io
       in
       let* store_contents =
-        Contents_store.v ~fresh:false ~lru_size ~index ~indexing_strategy root
+        Contents_store.v ~readonly:false ~lru_size ~index ~indexing_strategy
+          ~dict ~io
       in
       let+ foo, bar =
         Contents_store.batch store_contents (fun writer ->
@@ -84,7 +95,16 @@ struct
             Lwt.return (foo, bar))
       in
       let clone ~readonly =
-        Inode.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy root
+        let dict =
+          let path = Irmin_pack.Layout.dict ~root in
+          Irmin_pack_unix.Dict.v ~fresh:false ~readonly path
+        in
+        let io =
+          let path = Irmin_pack.Layout.pack ~root in
+          let version = Some Irmin_pack.Version.latest in
+          Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh:false ~readonly path
+        in
+        Inode.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
       in
       [%log.app "Test context constructed"];
       { index; store; store_contents; clone; foo; bar }

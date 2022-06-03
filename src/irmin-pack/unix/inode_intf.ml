@@ -7,18 +7,17 @@ module type Persistent = sig
   type index
 
   val v :
-    ?fresh:bool ->
-    ?readonly:bool ->
-    ?lru_size:int ->
+    readonly:bool ->
+    lru_size:int ->
     index:index ->
     indexing_strategy:Irmin_pack.Indexing_strategy.t ->
-    string ->
+    dict:Pack_dict.t ->
+    io:Io_legacy.Unix.t ->
     read t Lwt.t
 
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
 
   val sync : 'a t -> unit
-  val clear_caches : 'a t -> unit
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 
   module Pack :

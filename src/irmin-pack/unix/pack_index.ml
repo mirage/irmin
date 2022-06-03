@@ -53,12 +53,10 @@ module Make (K : Irmin.Hash.S) = struct
   module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)
   include Index
 
-  (** Implicit caching of Index instances. TODO: Require the user to pass Pack
-      instance caches explicitly. See
-      https://github.com/mirage/irmin/issues/1017. *)
-  let cache = Index.empty_cache ()
+  let v =
+    let cache = None in
+    Index.v ?cache
 
-  let v = Index.v ~cache
   let add ?overcommit t k v = replace ?overcommit t k v
   let find t k = match find t k with exception Not_found -> None | h -> Some h
   let close t = Index.close t

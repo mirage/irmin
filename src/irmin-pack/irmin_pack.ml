@@ -31,7 +31,6 @@ module Conf = Conf
 module Stats = Stats
 module Layout = Layout
 module Inode = Inode
-module Io_legacy = Io_legacy
 module Pack_key = Pack_key
 module Pack_value = Pack_value
 module S = S

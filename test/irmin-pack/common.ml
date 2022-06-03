@@ -105,38 +105,49 @@ struct
     { dict; clone }
 
   type t = {
+    lru_size : int;
+    name : string;
     index : Index.t;
     pack : read Pack.t;
-    clone_pack : readonly:bool -> read Pack.t Lwt.t;
-    clone_index_pack : readonly:bool -> (Index.t * read Pack.t) Lwt.t;
+    dict : Irmin_pack_unix.Dict.t;
+    io : Irmin_pack_unix.Io_legacy.Unix.t;
   }
 
   let log_size = 10_000_000
 
-  let get_pack ?(lru_size = 0) () =
-    let name = fresh_name "dict" in
+  let create ~readonly ~fresh lru_size name =
     let f = ref (fun () -> ()) in
     let index =
-      Index.v ~flush_callback:(fun () -> !f ()) ~log_size ~fresh:true name
+      Index.v ~readonly ~flush_callback:(fun () -> !f ()) ~log_size ~fresh name
     in
     let indexing_strategy = Irmin_pack.Indexing_strategy.always in
-    let+ pack = Pack.v ~fresh:true ~lru_size ~index ~indexing_strategy name in
+    let dict =
+      let path = Irmin_pack.Layout.dict ~root:name in
+      Irmin_pack_unix.Dict.v ~fresh ~readonly path
+    in
+    let io =
+      let path = Irmin_pack.Layout.pack ~root:name in
+      let version = Some Irmin_pack.Version.latest in
+      Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh ~readonly path
+    in
+    let+ pack =
+      Pack.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
+    in
     (f := fun () -> Pack.flush ~index:false pack);
-    let clone_pack ~readonly =
-      Pack.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy name
-    in
-    let clone_index_pack ~readonly =
-      let index = Index.v ~log_size ~fresh:false ~readonly name in
-      let+ pack =
-        Pack.v ~lru_size ~fresh:false ~readonly ~index ~indexing_strategy name
-      in
-      (index, pack)
-    in
-    { index; pack; clone_pack; clone_index_pack }
+    { lru_size; name; index; pack; dict; io }
 
-  let close index pack =
-    Index.close index;
-    Pack.close pack
+  let get_pack ?(lru_size = 0) () =
+    let name = fresh_name "" in
+    create ~readonly:false ~fresh:true lru_size name
+
+  let clone ~readonly { lru_size; name; _ } =
+    create ~readonly ~fresh:false lru_size name
+
+  let close t =
+    Index.close t.index;
+    Irmin_pack_unix.Dict.close t.dict;
+    Irmin_pack_unix.Io_legacy.Unix.close t.io;
+    Pack.close t.pack
 end
 
 module Alcotest = struct

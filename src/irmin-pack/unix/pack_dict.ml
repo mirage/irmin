@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Import
-
 module type S = sig
   include Dict.S
 
@@ -23,13 +21,3 @@ module type S = sig
 end
 
 include Dict.Make (Io_legacy.Unix)
-
-(* Add IO caching around Dict.v *)
-let Io_legacy.Cache.{ v } =
-  let v_no_cache ~fresh ~readonly = v ~fresh ~readonly in
-  Io_legacy.Cache.memoize ~clear:truncate ~valid
-    ~v:(fun capacity -> v_no_cache ~capacity)
-    Layout.dict
-
-let v ?fresh ?readonly ?(capacity = 100_000) root =
-  v capacity ?fresh ?readonly root

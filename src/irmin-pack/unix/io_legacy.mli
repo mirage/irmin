@@ -1,3 +1,1 @@
-open! Import
-include module type of Irmin_pack.Io_legacy
-module Unix : S
+include Io_legacy_intf.Sigs
