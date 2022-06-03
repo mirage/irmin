@@ -32,6 +32,10 @@ module Maker (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
+
+    module Control = Control_file.Make (Io.Unix)
+    module Aof = Append_only_file.Make (Io.Unix)
+    module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index)
     module Dict = Pack_dict
     module XKey = Pack_key.Make (H)
 
@@ -128,9 +132,10 @@ module Maker (Config : Conf.S) = struct
           node : read Node.CA.t;
           commit : read Commit.CA.t;
           branch : Branch.t;
-          index : Index.t;
-          dict : Pack_dict.t;
-          io : Io_legacy.t;
+          fm : File_manager.t;
+              (* index : Index.t; *)
+              (* dict : Pack_dict.t; *)
+              (* io : Io_legacy.t; *)
         }
 
         let contents_t t : 'a Contents.t = t.contents
@@ -155,45 +160,17 @@ module Maker (Config : Conf.S) = struct
           and log_size = Conf.index_log_size config
           and throttle = Conf.merge_throttle config
           and indexing_strategy = Conf.indexing_strategy config in
-          let f = ref (fun () -> ()) in
-          let index =
-            Index.v_exn
-              ~flush_callback:(fun () -> !f ())
-                (* backpatching to add pack flush before an index flush *)
-              ~fresh ~readonly ~throttle ~log_size root
+          let* contents = Contents.CA.v ~indexing_strategy ~fm in
+          let* node = Node.CA.v ~indexing_strategy ~fm in
+          let* commit = Commit.CA.v ~indexing_strategy ~fm in
+          let fm =
+            File_manager
           in
-          let dict =
-            let path = Irmin_pack.Layout.V1_and_v2.dict ~root in
-            Dict.v ~fresh ~readonly path
-          in
-          let io =
-            let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
-            (* If the file already exists in V1, we will bump the generation header
-                   lazily when appending a V2 entry. *)
-            let version = Some Irmin_pack.Version.latest in
-            Io_legacy.v ~version ~fresh ~readonly path
-          in
-          let* contents =
-            Contents.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict
-              ~io
-          in
-          let* node =
-            Node.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-          in
-          let* commit =
-            Commit.CA.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-          in
-
           let+ branch =
             let path = Irmin_pack.Layout.V1_and_v2.branch ~root in
             Branch.v ~fresh ~readonly path
           in
-          (* Stores share instances in memory, one flush is enough. In case of a
-             system crash, the flush_callback might not make with the disk. In
-             this case, when the store is reopened, [integrity_check] needs to be
-             called to repair the store. *)
-          (f := fun () -> Contents.CA.flush ~index:false contents);
-          { contents; node; commit; branch; config; index; dict; io }
+          { config; contents; node; commit; branch; fm }
 
         let close t =
           Index.close t.index;

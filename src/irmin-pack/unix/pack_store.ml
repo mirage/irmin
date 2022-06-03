@@ -22,8 +22,9 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module Make_without_close_checks
-    (Index : Pack_index.S)
+module Make
+    (File_manager : File_manager.S)
+    (* (Index : Pack_index.S) *)
     (Hash : Irmin.Hash.S with type t = Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
@@ -404,32 +405,32 @@ struct
   let offset t = Io_legacy.offset t.io
 end
 
-module Make
-    (Index : Pack_index.S)
-    (Hash : Irmin.Hash.S with type t = Index.key)
-    (Val : Pack_value.Persistent
-             with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) =
-struct
-  module Inner = Make_without_close_checks (Index) (Hash) (Val)
-  include Indexable.Closeable (Inner)
-
-  let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
-    Inner.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-    >|= make_closeable
-
-  let sync t = Inner.sync (get_open_exn t)
-
-  let flush ?index ?index_merge t =
-    Inner.flush ?index ?index_merge (get_open_exn t)
-
-  let offset t = Inner.offset (get_open_exn t)
-
-  let integrity_check ~offset ~length k t =
-    Inner.integrity_check ~offset ~length k (get_open_exn t)
-
-  module Entry_prefix = Inner.Entry_prefix
-
-  let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
-  let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
-end
+(* module Make
+ *     (Index : Pack_index.S)
+ *     (Hash : Irmin.Hash.S with type t = Index.key)
+ *     (Val : Pack_value.Persistent
+ *              with type hash := Hash.t
+ *               and type key := Hash.t Pack_key.t) =
+ * struct
+ *   module Inner = Make_without_close_checks (Index) (Hash) (Val)
+ *   include Indexable.Closeable (Inner)
+ *
+ *   let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
+ *     Inner.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
+ *     >|= make_closeable
+ *
+ *   let sync t = Inner.sync (get_open_exn t)
+ *
+ *   let flush ?index ?index_merge t =
+ *     Inner.flush ?index ?index_merge (get_open_exn t)
+ *
+ *   let offset t = Inner.offset (get_open_exn t)
+ *
+ *   let integrity_check ~offset ~length k t =
+ *     Inner.integrity_check ~offset ~length k (get_open_exn t)
+ *
+ *   module Entry_prefix = Inner.Entry_prefix
+ *
+ *   let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
+ *   let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
+ * end *)

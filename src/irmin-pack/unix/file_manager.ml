@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+include File_manager_intf
 open Import
 module Payload = Control_file.Latest_payload
 include File_manager_intf

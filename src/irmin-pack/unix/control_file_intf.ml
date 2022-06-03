@@ -160,5 +160,5 @@ module type Sigs = sig
       buffer in the user space.
 
       None of the functions raise exceptions. *)
-  module Make (Io : Io.S) : S
+  module Make (Io : Io.S) : S with module Io = Io
 end
