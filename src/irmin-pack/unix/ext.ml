@@ -32,7 +32,6 @@ module Maker (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
-    module Pack = Pack_store.Maker (Index) (H)
     module Dict = Pack_dict
     module XKey = Pack_key.Make (H)
 
@@ -46,7 +45,7 @@ module Maker (Config : Conf.S) = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
 
         module CA = struct
-          include Pack.Make (Pack_value)
+          include Pack_store.Make (Index) (H) (Pack_value)
 
           type index = Index.t
         end
@@ -61,7 +60,8 @@ module Maker (Config : Conf.S) = struct
           module Inter =
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
-          include Inode.Make_persistent (H) (Value) (Inter) (Pack)
+          module Pack' = Pack_store.Make (Index) (H) (Inter.Raw)
+          include Inode.Make_persistent (H) (Value) (Inter) (Pack')
 
           type index = Index.t
         end
@@ -86,7 +86,7 @@ module Maker (Config : Conf.S) = struct
         end
 
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
-        module CA = Pack.Make (Pack_value)
+        module CA = Pack_store.Make (Index) (H) (Pack_value)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)

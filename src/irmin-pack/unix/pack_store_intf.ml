@@ -53,28 +53,18 @@ module type S = sig
   (** Returns the key and the kind of an object indexed by hash. *)
 end
 
-module type Maker = sig
-  type hash
-  type index
-
-  (** Save multiple kind of values in the same pack file. Values will be
-      distinguished using [V.magic], so they have to all be different. *)
-
-  module Make
-      (V : Pack_value.Persistent
-             with type hash := hash
-              and type key := hash Pack_key.t) :
-    S
-      with type key = hash Pack_key.t
-       and type hash = hash
-       and type value = V.t
-       and type index := index
-end
-
 module type Sigs = sig
   module type S = S
-  module type Maker = Maker
 
-  module Maker (Index : Pack_index.S) (K : Irmin.Hash.S with type t = Index.key) :
-    Maker with type hash = K.t and type index := Index.t
+  module Make
+      (Index : Pack_index.S)
+      (Hash : Irmin.Hash.S with type t = Index.key)
+      (V : Pack_value.Persistent
+             with type hash := Hash.t
+              and type key := Hash.t Pack_key.t) :
+    S
+      with type key = Hash.t Pack_key.t
+       and type hash = Hash.t
+       and type value = V.t
+       and type index := Index.t
 end

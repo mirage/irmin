@@ -44,16 +44,18 @@ struct
   module Inter =
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
-  module P = Irmin_pack_unix.Pack_store.Maker (Index) (Schema.Hash)
+  module Pack =
+    Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Inter.Raw)
 
   module Inode =
-    Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (P)
+    Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (Pack)
 
   module Contents_value =
     Irmin_pack.Pack_value.Of_contents (Conf) (Schema.Hash) (Key)
       (Schema.Contents)
 
-  module Contents_store = P.Make (Contents_value)
+  module Contents_store =
+    Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Contents_value)
 
   module Context = struct
     type t = {
