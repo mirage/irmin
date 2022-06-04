@@ -15,5 +15,6 @@
  *)
 
 let () =
-  Irmin_test.Store.run "irmin-fs" ~slow:true ~misc:[]
-    [ (`Quick, Test_fs.suite) ]
+  Lwt_main.run
+  @@ Irmin_test.Store.run "irmin-fs" ~slow:true ~misc:[] ~sleep:Lwt_unix.sleep
+       [ (`Quick, Test_fs.suite) ]

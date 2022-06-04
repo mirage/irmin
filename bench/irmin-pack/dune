@@ -15,6 +15,7 @@
   repr
   ppx_repr
   bench_common
+  mtime
   rusage))
 
 (library

@@ -156,8 +156,8 @@ let test_open_RW () : unit Lwt.t =
   Lwt.return ()
 
 let tests =
-  let f g () = Lwt_main.run @@ g () in
-  Alcotest.
+  let f g _switch () = g () in
+  Alcotest_lwt.
     [
       test_case "test_RO_no_migration" `Quick (f test_RO_no_migration);
       test_case "test_open_RW" `Quick (f test_open_RW);

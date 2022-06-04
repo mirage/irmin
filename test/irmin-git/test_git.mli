@@ -29,5 +29,5 @@ module type G = sig
   module Git : Irmin_git.G
 end
 
-val misc : (module G) -> unit Alcotest.test_case list
+val misc : (module G) -> unit Alcotest_lwt.test_case list
 val mem : (module G)

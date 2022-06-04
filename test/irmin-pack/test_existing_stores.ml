@@ -216,10 +216,10 @@ end
 
 let tests =
   [
-    Alcotest.test_case "Test index reconstruction" `Quick (fun () ->
-        Lwt_main.run (Test_reconstruct.test_reconstruct ()));
-    Alcotest.test_case "Test integrity check" `Quick (fun () ->
-        Lwt_main.run (Test_corrupted_stores.test ()));
-    Alcotest.test_case "Test integrity check for inodes" `Quick (fun () ->
-        Lwt_main.run (Test_corrupted_inode.test ()));
+    Alcotest_lwt.test_case "Test index reconstruction" `Quick (fun _switch ->
+        Test_reconstruct.test_reconstruct);
+    Alcotest_lwt.test_case "Test integrity check" `Quick (fun _switch ->
+        Test_corrupted_stores.test);
+    Alcotest_lwt.test_case "Test integrity check for inodes" `Quick
+      (fun _switch -> Test_corrupted_inode.test);
   ]

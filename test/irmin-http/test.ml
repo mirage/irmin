@@ -16,4 +16,5 @@
 
 let () =
   Test_http.(with_server servers) (fun () ->
-      Irmin_test.Store.run "irmin-http" ~misc:[] Test_http.(suites servers))
+      Irmin_test.Store.run "irmin-http" ~misc:[] ~sleep:Lwt_unix.sleep
+        Test_http.(suites servers))

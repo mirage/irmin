@@ -65,9 +65,10 @@ module Store : sig
     string ->
     ?slow:bool ->
     ?random_seed:int ->
-    misc:unit Alcotest.test list ->
+    sleep:(float -> unit Lwt.t) ->
+    misc:unit Alcotest_lwt.test list ->
     (Alcotest.speed_level * Suite.t) list ->
-    unit
+    unit Lwt.t
 end
 
 module Node = Node

@@ -17,12 +17,16 @@
 open! Import
 open Common
 
-module Make (Log : Logs.LOG) (S : Generic_key) = struct
+module type Sleep = sig
+  val sleep : float -> unit Lwt.t
+end
+
+module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
   include Common.Make_helpers (S)
 
   let sleep ?(sleep_t = 0.01) () =
     let sleep_t = min sleep_t 1. in
-    Lwt.pause () >>= fun () -> Lwt_unix.sleep sleep_t
+    Lwt.pause () >>= fun () -> Zzz.sleep sleep_t
 
   let now_s () = Mtime.Span.to_s (Mtime_clock.elapsed ())
 
@@ -193,9 +197,7 @@ module Make (Log : Logs.LOG) (S : Generic_key) = struct
 
       let process ?sleep_t t head =
         let* () =
-          match sleep_t with
-          | None -> Lwt.return_unit
-          | Some s -> Lwt_unix.sleep s
+          match sleep_t with None -> Lwt.return_unit | Some s -> Zzz.sleep s
         in
         let () =
           match head with

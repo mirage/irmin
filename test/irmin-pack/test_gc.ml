@@ -30,7 +30,7 @@ let fresh_name =
     let name = Filename.concat test_dir ("test-gc" ^ string_of_int !c) in
     name
 
-let tc name f = Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
+let tc name f = Alcotest_lwt.test_case name `Quick (fun _switch () -> f ())
 
 include struct
   module S = struct

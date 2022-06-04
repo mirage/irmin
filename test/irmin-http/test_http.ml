@@ -233,6 +233,6 @@ let with_server servers f =
     let id = int_of_string Sys.argv.(3) in
     Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
     serve servers n id)
-  else f ()
+  else Lwt_main.run (f ())
 
 type test = Alcotest.speed_level * Irmin_test.Suite.t

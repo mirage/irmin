@@ -228,14 +228,13 @@ let misc (module S : G) =
   let s = (module S : S) in
   let g = (module S : G) in
   let generic = (module Generic (Irmin.Contents.String) : S) in
-  let run f x () = Lwt_main.run (f x) in
   [
-    ("Testing sort order", `Quick, run test_sort_order s);
-    ("Testing sort order (generic)", `Quick, run test_sort_order generic);
-    ("Testing listing refs", `Quick, run test_list_refs g);
-    ("git -> mem", `Quick, run test_import_export s);
-    ("git blobs", `Quick, run test_blobs s);
-    ("git blobs of generic", `Quick, run test_blobs s);
+    ("Testing sort order", `Quick, fun () -> test_sort_order s);
+    ("Testing sort order (generic)", `Quick, fun () -> test_sort_order generic);
+    ("Testing listing refs", `Quick, fun () -> test_list_refs g);
+    ("git -> mem", `Quick, fun () -> test_import_export s);
+    ("git blobs", `Quick, fun () -> test_blobs s);
+    ("git blobs of generic", `Quick, fun () -> test_blobs s);
   ]
 
 let mem = (module Mem (Irmin.Contents.String) : G)
