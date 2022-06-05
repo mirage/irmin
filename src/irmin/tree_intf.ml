@@ -74,7 +74,7 @@ module type S = sig
       {!Pruned_hash} exception. Attempting to export a tree containing pruned
       sub-trees to a repository will fail similarly. *)
 
-  val kind : t -> path -> [ `Contents | `Node ] option Lwt.t
+  val kind : t -> path -> [ `Contents | `Node ] option
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
@@ -84,7 +84,7 @@ module type S = sig
 
   (** {1 Diffs} *)
 
-  val diff : t -> t -> (path * (contents * metadata) Diff.t) list Lwt.t
+  val diff : t -> t -> (path * (contents * metadata) Diff.t) list
   (** [diff x y] is the difference of contents between [x] and [y]. *)
 
   (** {1 Manipulating Contents} *)
@@ -120,11 +120,11 @@ module type S = sig
     (** [key t] is the key of the {!contents} value returned when [t] is
         {!val-force}d successfully. *)
 
-    val force : t -> contents or_error Lwt.t
+    val force : t -> contents or_error
     (** [force t] forces evaluation of the lazy content value [t], or returns an
         error if no such value exists in the underlying repository. *)
 
-    val force_exn : t -> contents Lwt.t
+    val force_exn : t -> contents
     (** Equivalent to {!val-force}, but raises an exception if the lazy content
         value is not present in the underlying repository. *)
 
@@ -143,14 +143,14 @@ module type S = sig
         storing of new data, it doesn't discard the existing one. *)
   end
 
-  val mem : t -> path -> bool Lwt.t
+  val mem : t -> path -> bool
   (** [mem t k] is true iff [k] is associated to some contents in [t]. *)
 
-  val find_all : t -> path -> (contents * metadata) option Lwt.t
+  val find_all : t -> path -> (contents * metadata) option
   (** [find_all t k] is [Some (b, m)] if [k] is associated to the contents [b]
       and metadata [m] in [t] and [None] if [k] is not present in [t]. *)
 
-  val length : t -> ?cache:bool -> path -> int Lwt.t
+  val length : t -> ?cache:bool -> path -> int
   (** [length t key] is the number of files and sub-nodes stored under [key] in
       [t].
 
@@ -160,19 +160,14 @@ module type S = sig
       [cache] defaults to [true], see {!caching} for an explanation of the
       parameter.*)
 
-  val find : t -> path -> contents option Lwt.t
+  val find : t -> path -> contents option
   (** [find] is similar to {!find_all} but it discards metadata. *)
 
-  val get_all : t -> path -> (contents * metadata) Lwt.t
+  val get_all : t -> path -> contents * metadata
   (** Same as {!find_all} but raise [Invalid_arg] if [k] is not present in [t]. *)
 
   val list :
-    t ->
-    ?offset:int ->
-    ?length:int ->
-    ?cache:bool ->
-    path ->
-    (step * t) list Lwt.t
+    t -> ?offset:int -> ?length:int -> ?cache:bool -> path -> (step * t) list
   (** [list t key] is the list of files and sub-nodes stored under [k] in [t].
       The result order is not specified but is stable.
 
@@ -187,52 +182,48 @@ module type S = sig
     ?length:int ->
     ?cache:bool ->
     path ->
-    (step * t) Seq.t Lwt.t
+    (step * t) Seq.t
   (** [seq t key] follows the same behavior as {!list} but returns a sequence. *)
 
-  val get : t -> path -> contents Lwt.t
+  val get : t -> path -> contents
   (** Same as {!get_all} but ignore the metadata. *)
 
-  val add : t -> path -> ?metadata:metadata -> contents -> t Lwt.t
+  val add : t -> path -> ?metadata:metadata -> contents -> t
   (** [add t k c] is the tree where the key [k] is bound to the contents [c] but
       is similar to [t] for other bindings. *)
 
   val update :
-    t ->
-    path ->
-    ?metadata:metadata ->
-    (contents option -> contents option) ->
-    t Lwt.t
+    t -> path -> ?metadata:metadata -> (contents option -> contents option) -> t
   (** [update t k f] is the tree [t'] that is the same as [t] for all keys
       except [k], and whose binding for [k] is determined by [f (find t k)].
 
       If [k] refers to an internal node of [t], [f] is called with [None] to
       determine the value with which to replace it. *)
 
-  val remove : t -> path -> t Lwt.t
+  val remove : t -> path -> t
   (** [remove t k] is the tree where [k] bindings has been removed but is
       similar to [t] for other bindings. *)
 
   (** {1 Manipulating Subtrees} *)
 
-  val mem_tree : t -> path -> bool Lwt.t
+  val mem_tree : t -> path -> bool
   (** [mem_tree t k] is false iff [find_tree k = None]. *)
 
-  val find_tree : t -> path -> t option Lwt.t
+  val find_tree : t -> path -> t option
   (** [find_tree t k] is [Some v] if [k] is associated to [v] in [t]. It is
       [None] if [k] is not present in [t]. *)
 
-  val get_tree : t -> path -> t Lwt.t
+  val get_tree : t -> path -> t
   (** [get_tree t k] is [v] if [k] is associated to [v] in [t]. Raise
       [Invalid_arg] if [k] is not present in [t].*)
 
-  val add_tree : t -> path -> t -> t Lwt.t
+  val add_tree : t -> path -> t -> t
   (** [add_tree t k v] is the tree where the key [k] is bound to the non-empty
       tree [v] but is similar to [t] for other bindings.
 
       If [v] is empty, this is equivalent to [remove t k]. *)
 
-  val update_tree : t -> path -> (t option -> t option) -> t Lwt.t
+  val update_tree : t -> path -> (t option -> t option) -> t
   (** [update_tree t k f] is the tree [t'] that is the same as [t] for all
       subtrees except under [k], and whose subtree at [k] is determined by
       [f (find_tree t k)].
@@ -254,7 +245,7 @@ module type S = sig
   val empty_marks : unit -> marks
   (** [empty_marks ()] is an empty collection of marks. *)
 
-  type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
+  type 'a force = [ `True | `False of path -> 'a -> 'a ]
   (** The type for {!fold}'s [force] parameter. [`True] forces the fold to read
       the objects of the lazy nodes and contents. [`False f] is applying [f] on
       every lazy node and content value instead. *)
@@ -265,7 +256,7 @@ module type S = sig
       collection of marks [m] to store the cache of keys: the fold will modify
       [m]. This can be used for incremental folds. *)
 
-  type ('a, 'b) folder = path -> 'b -> 'a -> 'a Lwt.t
+  type ('a, 'b) folder = path -> 'b -> 'a -> 'a
   (** The type for {!fold}'s folders: [pre], [post], [contents], [node], and
       [tree], where ['a] is the accumulator and ['b] is the item folded. *)
 
@@ -292,7 +283,7 @@ module type S = sig
     ?tree:('a, t) folder ->
     t ->
     'a ->
-    'a Lwt.t
+    'a
   (** [fold t acc] folds over [t]'s nodes with node-specific folders:
       [contents], [node], and [tree], based on a node's {!kind}.
 
@@ -338,7 +329,7 @@ module type S = sig
   [@@deriving irmin]
   (** The type for tree stats. *)
 
-  val stats : ?force:bool -> t -> stats Lwt.t
+  val stats : ?force:bool -> t -> stats
   (** [stats ~force t] are [t]'s statistics. If [force] is true, this will force
       the reading of lazy nodes. By default it is [false]. *)
 
@@ -355,7 +346,7 @@ module type S = sig
       @raise Invalid_argument
         if [c] contains duplicate bindings for a given path. *)
 
-  val to_concrete : t -> concrete Lwt.t
+  val to_concrete : t -> concrete
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
 
   (** {1 Proofs} *)
@@ -454,7 +445,7 @@ module type Sigs = sig
       [ `Contents of B.Contents.Key.t * metadata | `Node of B.Node.Key.t ]
     [@@deriving irmin]
 
-    val import : B.Repo.t -> kinded_key -> t option Lwt.t
+    val import : B.Repo.t -> kinded_key -> t option
     val import_no_check : B.Repo.t -> kinded_key -> t
 
     val export :
@@ -463,21 +454,18 @@ module type Sigs = sig
       [> write ] B.Contents.t ->
       [> read_write ] B.Node.t ->
       node ->
-      B.Node.key Lwt.t
+      B.Node.key
 
     val dump : t Fmt.t
     val equal : t -> t -> bool
     val key : t -> kinded_key option
     val hash : ?cache:bool -> t -> kinded_hash
-    val to_backend_node : node -> B.Node.Val.t Lwt.t
-    val to_backend_portable_node : node -> B.Node_portable.t Lwt.t
+    val to_backend_node : node -> B.Node.Val.t
+    val to_backend_portable_node : node -> B.Node_portable.t
     val of_backend_node : B.Repo.t -> B.Node.value -> node
 
     type ('proof, 'result) producer :=
-      B.Repo.t ->
-      kinded_key ->
-      (t -> (t * 'result) Lwt.t) ->
-      ('proof * 'result) Lwt.t
+      B.Repo.t -> kinded_key -> (t -> t * 'result) -> 'proof * 'result
 
     type verifier_error =
       [ `Proof_mismatch of string
@@ -486,9 +474,7 @@ module type Sigs = sig
     [@@deriving irmin]
 
     type ('proof, 'result) verifier :=
-      'proof ->
-      (t -> (t * 'result) Lwt.t) ->
-      (t * 'result, verifier_error) result Lwt.t
+      'proof -> (t -> t * 'result) -> (t * 'result, verifier_error) result
 
     type tree_proof := Proof.tree Proof.t
 

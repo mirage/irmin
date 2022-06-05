@@ -24,8 +24,8 @@ module Suite : sig
 
   val create :
     name:string ->
-    ?init:(config:Irmin.config -> unit Lwt.t) ->
-    ?clean:(config:Irmin.config -> unit Lwt.t) ->
+    ?init:(config:Irmin.config -> unit) ->
+    ?clean:(config:Irmin.config -> unit) ->
     config:Irmin.config ->
     store:(module S) ->
     ?stats:(unit -> int * int) ->
@@ -35,8 +35,8 @@ module Suite : sig
 
   val create_generic_key :
     name:string ->
-    ?init:(config:Irmin.config -> unit Lwt.t) ->
-    ?clean:(config:Irmin.config -> unit Lwt.t) ->
+    ?init:(config:Irmin.config -> unit) ->
+    ?clean:(config:Irmin.config -> unit) ->
     config:Irmin.config ->
     store:(module Generic_key) ->
     ?stats:(unit -> int * int) ->
@@ -47,8 +47,8 @@ module Suite : sig
   val name : t -> string
   val config : t -> Irmin.config
   val store : t -> (module S) option
-  val init : t -> config:Irmin.config -> unit Lwt.t
-  val clean : t -> config:Irmin.config -> unit Lwt.t
+  val init : t -> config:Irmin.config -> unit
+  val clean : t -> config:Irmin.config -> unit
 end
 
 val line : string -> unit
@@ -65,10 +65,10 @@ module Store : sig
     string ->
     ?slow:bool ->
     ?random_seed:int ->
-    sleep:(float -> unit Lwt.t) ->
-    misc:unit Alcotest_lwt.test list ->
+    sleep:(float -> unit) ->
+    misc:unit Alcotest.test list ->
     (Alcotest.speed_level * Suite.t) list ->
-    unit Lwt.t
+    unit
 end
 
 module Node = Node

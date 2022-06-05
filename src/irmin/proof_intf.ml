@@ -281,18 +281,10 @@ module type Env = sig
   (** {2 Modes} *)
 
   val set_mode : t -> kind -> mode -> unit
-
-  val with_set_produce :
-    (t -> start_serialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
-
-  val with_set_consume :
-    (t -> stop_deserialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
-
-  val with_stream_produce :
-    (t -> to_stream:(unit -> stream) -> 'a Lwt.t) -> 'a Lwt.t
-
-  val with_stream_consume :
-    stream -> (t -> is_empty:(unit -> bool) -> 'a Lwt.t) -> 'a Lwt.t
+  val with_set_produce : (t -> start_serialise:(unit -> unit) -> 'a) -> 'a
+  val with_set_consume : (t -> stop_deserialise:(unit -> unit) -> 'a) -> 'a
+  val with_stream_produce : (t -> to_stream:(unit -> stream) -> 'a) -> 'a
+  val with_stream_consume : stream -> (t -> is_empty:(unit -> bool) -> 'a) -> 'a
 
   (** {2 Interactions With [Tree]} *)
 

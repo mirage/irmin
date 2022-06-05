@@ -99,11 +99,8 @@ module type S = sig
 
     val batch :
       t ->
-      (read_write Contents.t ->
-      read_write Node.t ->
-      read_write Commit.t ->
-      'a Lwt.t) ->
-      'a Lwt.t
+      (read_write Contents.t -> read_write Node.t -> read_write Commit.t -> 'a) ->
+      'a
     (** A getter from repo to backend stores in rw mode. *)
 
     val branch_t : t -> Branch.t
@@ -114,6 +111,6 @@ module type S = sig
   module Remote : sig
     include Remote.S with type commit = Commit.key and type branch = Branch.key
 
-    val v : Repo.t -> t Lwt.t
+    val v : Repo.t -> t
   end
 end

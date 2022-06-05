@@ -280,7 +280,7 @@ struct
     let t = ref Empty in
     set_mode t Set Deserialise;
     let stop_deserialise () = set_mode t Set Consume in
-    let+ res = f t ~stop_deserialise in
+    let res = f t ~stop_deserialise in
     t := Empty;
     res
 
@@ -288,7 +288,7 @@ struct
     let t = ref Empty in
     set_mode t Set Produce;
     let start_serialise () = set_mode t Set Serialise in
-    let+ res = f t ~start_serialise in
+    let res = f t ~start_serialise in
     t := Empty;
     res
 
@@ -296,14 +296,14 @@ struct
     let t = ref Empty in
     set_mode t Stream Produce;
     let to_stream () = to_stream t in
-    let+ res = f t ~to_stream in
+    let res = f t ~to_stream in
     t := Empty;
     res
 
   let with_stream_consume stream f =
     let t = Stream (Stream.consumer stream) |> ref in
     let is_empty () = is_empty_stream t in
-    let+ res = f t ~is_empty in
+    let res = f t ~is_empty in
     t := Empty;
     res
 

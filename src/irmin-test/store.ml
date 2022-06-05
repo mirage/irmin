@@ -43,19 +43,16 @@ module Make (S : Generic_key) = struct
     in
     aux [] n
 
-  let old k () = Lwt.return_ok (Some k)
-
-  let may repo commits = function
-    | None -> Lwt.return_unit
-    | Some f -> f repo commits
+  let old k () = Ok (Some k)
+  let may repo commits = function None -> () | Some f -> f repo commits
 
   let may_get_keys repo keys = function
-    | None -> Lwt.return_unit
+    | None -> ()
     | Some f ->
-        let* commits =
-          Lwt_list.map_p
+        let commits =
+          List.map
             (fun key ->
-              S.Commit.of_key repo key >|= function
+              S.Commit.of_key repo key |> function
               | None -> Alcotest.fail "Cannot read commit hash"
               | Some c -> c)
             keys
@@ -63,10 +60,10 @@ module Make (S : Generic_key) = struct
         f repo commits
 
   let may_with_branch branches repo hook =
-    let* heads =
-      Lwt_list.map_p
+    let heads =
+      List.map
         (fun branch ->
-          let+ h = S.Head.find branch in
+          let h = S.Head.find branch in
           match h with
           | None -> Alcotest.fail "Cannot read head"
           | Some head -> head)
@@ -81,28 +78,29 @@ module Make (S : Generic_key) = struct
       let t = B.Repo.contents_t repo in
       let check_key = check B.Contents.Key.t in
       let check_val = check (T.option S.contents_t) in
-      let* kv2 = kv2 ~repo in
-      let* k2' = with_contents repo (fun t -> B.Contents.add t v2) in
+      let kv2 = kv2 ~repo in
+      let k2' = with_contents repo (fun t -> B.Contents.add t v2) in
       check_key "kv2" kv2 k2';
-      let* v2' = B.Contents.find t k2' in
+      let v2' = B.Contents.find t k2' in
       check_val "v2" (Some v2) v2';
-      let* k2'' = with_contents repo (fun t -> B.Contents.add t v2) in
+      let k2'' = with_contents repo (fun t -> B.Contents.add t v2) in
       check_key "kv2" kv2 k2'';
-      let* kv1 = kv1 ~repo in
-      let* k1' = with_contents repo (fun t -> B.Contents.add t v1) in
+      let kv1 = kv1 ~repo in
+      let k1' = with_contents repo (fun t -> B.Contents.add t v1) in
       check_key "kv1" kv1 k1';
-      let* k1'' = with_contents repo (fun t -> B.Contents.add t v1) in
+      let k1'' = with_contents repo (fun t -> B.Contents.add t v1) in
       check_key "kv1" kv1 k1'';
-      let* v1' = B.Contents.find t kv1 in
+      let v1' = B.Contents.find t kv1 in
       check_val "v1" (Some v1) v1';
-      let* v2' = B.Contents.find t kv2 in
+      let v2' = B.Contents.find t kv2 in
       check_val "v2" (Some v2) v2';
-      B.Repo.close repo >>= fun () ->
-      Lwt.catch
-        (fun () ->
-          let+ _ = with_contents repo (fun t -> B.Contents.add t v2) in
-          Alcotest.fail "Add after close should not be allowed")
-        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+      B.Repo.close repo;
+      try
+        let _ = with_contents repo (fun t -> B.Contents.add t v2) in
+        Alcotest.fail "Add after close should not be allowed"
+      with
+      | Irmin.Closed -> ()
+      | exn -> raise exn
     in
     run x test
 
@@ -111,33 +109,31 @@ module Make (S : Generic_key) = struct
   let test_nodes x () =
     let test repo =
       let g = g repo and n = n repo in
-      let* k =
-        with_contents repo (fun c -> B.Contents.add c "foo") >|= normal
-      in
+      let k = with_contents repo (fun c -> B.Contents.add c "foo") |> normal in
       let check_hash = check B.Hash.t in
       let check_key = check B.Node.Key.t in
       let check_val = check [%typ: Graph.value option] in
       let check_list = checks [%typ: S.step * B.Node.Val.value] in
       let check_node msg v =
         let h' = B.Node.Hash.hash v in
-        let+ key = with_node repo (fun n -> B.Node.add n v) in
+        let key = with_node repo (fun n -> B.Node.add n v) in
         check_hash (msg ^ ": hash(v) = add(v)") (B.Node.Key.to_hash key) h'
       in
       let v = B.Node.Val.empty () in
-      check_node "empty node" v >>= fun () ->
+      check_node "empty node" v;
       let v1 = B.Node.Val.add v "x" k in
-      check_node "node: x" v1 >>= fun () ->
+      check_node "node: x" v1;
       let v2 = B.Node.Val.add v "x" k in
-      check_node "node: x (bis)" v2 >>= fun () ->
+      check_node "node: x (bis)" v2;
       check B.Node.Val.t "add x" v1 v2;
       let v0 = B.Node.Val.remove v1 "x" in
       check B.Node.Val.t "remove x" v v0;
       let v3 = B.Node.Val.add v1 "x" k in
       Alcotest.(check bool) "same same" true (v1 == v3);
       let u = B.Node.Val.add v3 "y" k in
-      check_node "node: x+y" v3 >>= fun () ->
+      check_node "node: x+y" v3;
       let u = B.Node.Val.add u "z" k in
-      check_node "node: x+y+z" u >>= fun () ->
+      check_node "node: x+y+z" u;
       let check_values u =
         check_val "find x" (Some k) (B.Node.Val.find u "x");
         check_val "find y" (Some k) (B.Node.Val.find u "y");
@@ -160,69 +156,69 @@ module Make (S : Generic_key) = struct
       let l = B.Node.Val.list ~offset:1 ~length:1 u in
       check_list "list offset=1 length=1" [ List.nth all 1 ] l;
       let u = B.Node.Val.add u "a" k in
-      check_node "node: x+y+z+a" u >>= fun () ->
+      check_node "node: x+y+z+a" u;
       let u = B.Node.Val.add u "b" k in
-      check_node "node: x+y+z+a+b" u >>= fun () ->
+      check_node "node: x+y+z+a+b" u;
       let h = B.Node.Hash.hash u in
-      let* k = with_node repo (fun n -> B.Node.add n u) in
+      let k = with_node repo (fun n -> B.Node.add n u) in
       check_hash "hash(v) = add(v)" h (B.Node.Key.to_hash k);
-      let* w = B.Node.find n k in
+      let w = B.Node.find n k in
       check_values (get w);
-      let* kv1 = kv1 ~repo in
-      let* k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
-      let* k1' = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
+      let kv1 = kv1 ~repo in
+      let k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
+      let k1' = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       check_key "k1.1" k1 k1';
-      let* t1 = B.Node.find n k1 in
+      let t1 = B.Node.find n k1 in
       let k' = B.Node.Val.find (get t1) "x" in
       check
         (Irmin.Type.option B.Node.Val.value_t)
         "find x"
         (Some (normal kv1))
         k';
-      let* k1'' = with_node repo (fun n -> B.Node.add n (get t1)) in
+      let k1'' = with_node repo (fun n -> B.Node.add n (get t1)) in
       check_key "k1.2" k1 k1'';
-      let* k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
-      let* k2' = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
+      let k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
+      let k2' = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
       check_key "k2.1" k2 k2';
-      let* t2 = B.Node.find n k2 in
-      let* k2'' = with_node repo (fun n -> B.Node.add n (get t2)) in
+      let t2 = B.Node.find n k2 in
+      let k2'' = with_node repo (fun n -> B.Node.add n (get t2)) in
       check_key "k2.2" k2 k2'';
-      let* k1''' = Graph.find g k2 [ "b" ] in
+      let k1''' = Graph.find g k2 [ "b" ] in
       check_val "k1.3" (Some (`Node k1)) k1''';
-      let* k3 = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
-      let* k3' = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
+      let k3 = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
+      let k3' = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
       check_key "k3.1" k3 k3';
-      let* t3 = B.Node.find n k3 in
-      let* k3'' = with_node repo (fun n -> B.Node.add n (get t3)) in
+      let t3 = B.Node.find n k3 in
+      let k3'' = with_node repo (fun n -> B.Node.add n (get t3)) in
       check_key "k3.2" k3 k3'';
-      let* k2'' = Graph.find g k3 [ "a" ] in
+      let k2'' = Graph.find g k3 [ "a" ] in
       check_val "k2.3" (Some (`Node k2)) k2'';
-      let* k1'''' = Graph.find g k2' [ "b" ] in
+      let k1'''' = Graph.find g k2' [ "b" ] in
       check_val "t1.2" (Some (`Node k1)) k1'''';
-      let* k1''''' = Graph.find g k3 [ "a"; "b" ] in
+      let k1''''' = Graph.find g k3 [ "a"; "b" ] in
       check_val "t1.3" (Some (`Node k1)) k1''''';
-      let* kv11 = Graph.find g k1 [ "x" ] in
+      let kv11 = Graph.find g k1 [ "x" ] in
       check_val "v1.1" (Some (normal kv1)) kv11;
-      let* kv12 = Graph.find g k2 [ "b"; "x" ] in
+      let kv12 = Graph.find g k2 [ "b"; "x" ] in
       check_val "v1.2" (Some (normal kv1)) kv12;
-      let* kv13 = Graph.find g k3 [ "a"; "b"; "x" ] in
+      let kv13 = Graph.find g k3 [ "a"; "b"; "x" ] in
       check_val "v1" (Some (normal kv1)) kv13;
-      let* kv2 = kv2 ~repo in
-      let* k4 = with_node repo (fun g -> Graph.v g [ ("x", normal kv2) ]) in
-      let* k5 =
+      let kv2 = kv2 ~repo in
+      let k4 = with_node repo (fun g -> Graph.v g [ ("x", normal kv2) ]) in
+      let k5 =
         with_node repo (fun g -> Graph.v g [ ("b", `Node k1); ("c", `Node k4) ])
       in
-      let* k6 = with_node repo (fun g -> Graph.v g [ ("a", `Node k5) ]) in
-      let* k6' =
+      let k6 = with_node repo (fun g -> Graph.v g [ ("a", `Node k5) ]) in
+      let k6' =
         with_node repo (fun g -> Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
       in
       check_key "node k6" k6 k6';
-      let* n6' = B.Node.find n k6' in
-      let* n6 = B.Node.find n k6 in
+      let n6' = B.Node.find n k6' in
+      let n6 = B.Node.find n k6 in
       check T.(option B.Node.Val.t) "node n6" n6 n6';
       let assert_no_duplicates n node =
         let names = ref [] in
-        let+ all = Graph.list g node in
+        let all = Graph.list g node in
         List.iter
           (fun (s, _) ->
             if List.mem ~equal:String.equal s !names then
@@ -230,32 +226,31 @@ module Make (S : Generic_key) = struct
             else names := s :: !names)
           all
       in
-      let* n0 = with_node repo (fun g -> Graph.v g []) in
-      let* n1 = with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) in
-      let* n2 = with_node repo (fun g -> Graph.add g n1 [ "a" ] (`Node n0)) in
-      let* n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) in
-      assert_no_duplicates "1" n3 >>= fun () ->
-      let* n1 = with_node repo (fun g -> Graph.add g n0 [ "a" ] (`Node n0)) in
-      let* n2 = with_node repo (fun g -> Graph.add g n1 [ "b" ] (`Node n0)) in
-      let* n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) in
-      assert_no_duplicates "2" n3 >>= fun () ->
-      let* n1 = with_node repo (fun g -> Graph.add g n0 [ "b" ] (normal kv1)) in
-      let* n2 = with_node repo (fun g -> Graph.add g n1 [ "a" ] (normal kv1)) in
-      let* n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (normal kv1)) in
-      assert_no_duplicates "3" n3 >>= fun () ->
-      let* n1 = with_node repo (fun g -> Graph.add g n0 [ "a" ] (normal kv1)) in
-      let* n2 = with_node repo (fun g -> Graph.add g n1 [ "b" ] (normal kv1)) in
-      let* n3 = with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1)) in
-      assert_no_duplicates "4" n3 >>= fun () ->
-      S.Repo.close repo >>= fun () ->
-      Lwt.catch
-        (fun () ->
-          let* n0 = with_node repo (fun g -> Graph.v g []) in
-          let* _ =
-            with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0))
-          in
-          Alcotest.fail "Add after close should not be allowed")
-        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+      let n0 = with_node repo (fun g -> Graph.v g []) in
+      let n1 = with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) in
+      let n2 = with_node repo (fun g -> Graph.add g n1 [ "a" ] (`Node n0)) in
+      let n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) in
+      assert_no_duplicates "1" n3;
+      let n1 = with_node repo (fun g -> Graph.add g n0 [ "a" ] (`Node n0)) in
+      let n2 = with_node repo (fun g -> Graph.add g n1 [ "b" ] (`Node n0)) in
+      let n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) in
+      assert_no_duplicates "2" n3;
+      let n1 = with_node repo (fun g -> Graph.add g n0 [ "b" ] (normal kv1)) in
+      let n2 = with_node repo (fun g -> Graph.add g n1 [ "a" ] (normal kv1)) in
+      let n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (normal kv1)) in
+      assert_no_duplicates "3" n3;
+      let n1 = with_node repo (fun g -> Graph.add g n0 [ "a" ] (normal kv1)) in
+      let n2 = with_node repo (fun g -> Graph.add g n1 [ "b" ] (normal kv1)) in
+      let n3 = with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1)) in
+      assert_no_duplicates "4" n3;
+      S.Repo.close repo;
+      try
+        let n0 = with_node repo (fun g -> Graph.v g []) in
+        let _ = with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) in
+        Alcotest.fail "Add after close should not be allowed"
+      with
+      | Irmin.Closed -> ()
+      | exn -> raise exn
     in
     run x test
 
@@ -265,46 +260,47 @@ module Make (S : Generic_key) = struct
         let message = Fmt.str "Test commit: %d" date in
         S.Info.v ~author:"test" ~message (Int64.of_int date)
       in
-      let* kv1 = kv1 ~repo in
+      let kv1 = kv1 ~repo in
       let h = h repo and c = B.Repo.commit_t repo in
       let check_val = check (T.option B.Commit.Val.t) in
       let check_key = check B.Commit.Key.t in
       let check_keys = checks B.Commit.Key.t in
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      let* kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
-      let* kt2 = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) in
-      let* kt3 = with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) in
+      let kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
+      let kt2 = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) in
+      let kt3 = with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) in
       (* r1 : t2 *)
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
-      let* kr1, _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
-      let* kr1', _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
-      let* t1 = B.Commit.find c kr1 in
-      let* t1' = B.Commit.find c kr1' in
+      let kr1, _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
+      let kr1', _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
+      let t1 = B.Commit.find c kr1 in
+      let t1' = B.Commit.find c kr1' in
       check_val "t1" t1 t1';
       check_key "kr1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
-      let* kr2, _ = with_info 4 (History.v ~node:kt3 ~parents:[ kr1 ]) in
-      let* kr2', _ = with_info 4 (History.v ~node:kt3 ~parents:[ kr1 ]) in
+      let kr2, _ = with_info 4 (History.v ~node:kt3 ~parents:[ kr1 ]) in
+      let kr2', _ = with_info 4 (History.v ~node:kt3 ~parents:[ kr1 ]) in
       check_key "kr2" kr2 kr2';
-      let* kr1s = History.closure h ~min:[] ~max:[ kr1 ] in
+      let kr1s = History.closure h ~min:[] ~max:[ kr1 ] in
       check_keys "g1" [ kr1 ] kr1s;
-      let* kr2s = History.closure h ~min:[] ~max:[ kr2 ] in
+      let kr2s = History.closure h ~min:[] ~max:[ kr2 ] in
       check_keys "g2" [ kr1; kr2 ] kr2s;
-      let* () =
-        S.Commit.of_key repo kr1 >|= function
+      let () =
+        S.Commit.of_key repo kr1 |> function
         | None -> Alcotest.fail "Cannot read commit hash"
         | Some c ->
             Alcotest.(check string)
               "author" "test"
               (S.Info.author (S.Commit.info c))
       in
-      S.Repo.close repo >>= fun () ->
-      Lwt.catch
-        (fun () ->
-          let+ _ = with_info 3 (History.v ~node:kt1 ~parents:[]) in
-          Alcotest.fail "Add after close should not be allowed")
-        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+      S.Repo.close repo;
+      try
+        let _ = with_info 3 (History.v ~node:kt1 ~parents:[]) in
+        Alcotest.fail "Add after close should not be allowed"
+      with
+      | Irmin.Closed -> ()
+      | exn -> raise exn
     in
     run x test
 
@@ -318,9 +314,9 @@ module Make (S : Generic_key) = struct
       let equal_key = Irmin.Type.(unstage (equal B.Commit.Key.t)) in
       let h = h repo in
       let initialise_nodes =
-        Lwt_list.map_p
+        List.map
           (fun i ->
-            let* kv =
+            let kv =
               with_contents repo (fun t -> B.Contents.add t (string_of_int i))
             in
             with_node repo (fun g -> Graph.v g [ (string_of_int i, normal kv) ]))
@@ -331,15 +327,15 @@ module Make (S : Generic_key) = struct
         match nodes with
         | [] -> assert false
         | node :: rest ->
-            let* kr0, _ = with_info 0 (History.v ~node ~parents:[]) in
+            let kr0, _ = with_info 0 (History.v ~node ~parents:[]) in
             let commits = Array.make 9 kr0 in
             let commit ~node ~parents i =
-              let+ kr1, _ = with_info i (History.v ~node ~parents) in
+              let kr1, _ = with_info i (History.v ~node ~parents) in
               commits.(i) <- kr1;
               i + 1
             in
-            let+ _ =
-              Lwt_list.fold_left_s
+            let _ =
+              List.fold_left
                 (fun i node ->
                   match i with
                   | 1 -> commit ~node ~parents:[ commits.(0) ] 1
@@ -359,12 +355,12 @@ module Make (S : Generic_key) = struct
             0 <- 1 <- 3 <- 5   and   7 <- 8
                   \   /
              2 <-- 4 <- 6 *)
-      let* commits = initialise_nodes >>= initialise_graph in
-      let* krs = History.closure h ~min:[ commits.(1) ] ~max:[ commits.(5) ] in
+      let commits = initialise_nodes |> initialise_graph in
+      let krs = History.closure h ~min:[ commits.(1) ] ~max:[ commits.(5) ] in
       check_keys "commits between 1 and 5"
         [ commits.(1); commits.(2); commits.(3); commits.(4); commits.(5) ]
         krs;
-      let* krs = History.closure h ~min:[] ~max:[ commits.(5) ] in
+      let krs = History.closure h ~min:[] ~max:[ commits.(5) ] in
       check_keys "all commits under 5"
         [
           commits.(0);
@@ -375,7 +371,7 @@ module Make (S : Generic_key) = struct
           commits.(5);
         ]
         krs;
-      let* krs =
+      let krs =
         History.closure h
           ~min:[ commits.(1); commits.(2) ]
           ~max:[ commits.(5); commits.(6) ]
@@ -390,7 +386,7 @@ module Make (S : Generic_key) = struct
           commits.(6);
         ]
         krs;
-      let* krs =
+      let krs =
         History.closure h
           ~min:[ commits.(1); commits.(7) ]
           ~max:[ commits.(4); commits.(8) ]
@@ -398,24 +394,24 @@ module Make (S : Generic_key) = struct
       check_keys "disconnected min and max returns a disconnected graph"
         [ commits.(1); commits.(2); commits.(7); commits.(4); commits.(8) ]
         krs;
-      let* () =
-        History.closure h ~min:[ commits.(7) ] ~max:[] >|= function
+      let () =
+        History.closure h ~min:[ commits.(7) ] ~max:[] |> function
         | [] -> ()
         | _ -> Alcotest.fail "expected empty list"
       in
-      let* () =
-        let+ ls = History.closure h ~min:[ commits.(7) ] ~max:[ commits.(6) ] in
+      let () =
+        let ls = History.closure h ~min:[ commits.(7) ] ~max:[ commits.(6) ] in
         if List.mem ~equal:equal_key commits.(7) ls then
           Alcotest.fail "disconnected node should not be in closure"
       in
-      let* krs =
+      let krs =
         History.closure h ~min:[ commits.(4) ] ~max:[ commits.(4); commits.(6) ]
       in
       check_keys "min and max have the same commit"
         [ commits.(6); commits.(4) ]
         krs;
-      let* () =
-        let+ ls =
+      let () =
+        let ls =
           History.closure h
             ~min:[ commits.(4); commits.(0) ]
             ~max:[ commits.(4); commits.(6) ]
@@ -431,33 +427,34 @@ module Make (S : Generic_key) = struct
     let test repo =
       let check_keys = checks S.Branch.t in
       let check_val = check (T.option @@ S.commit_t repo) in
-      let* kv1 = r1 ~repo in
-      let* kv2 = r2 ~repo in
+      let kv1 = r1 ~repo in
+      let kv2 = r2 ~repo in
       line "pre-update";
-      S.Branch.set repo b1 kv1 >>= fun () ->
-      may repo [ kv2 ] hook >>= fun () ->
+      S.Branch.set repo b1 kv1;
+      may repo [ kv2 ] hook;
       line "post-update";
-      let* k1' = S.Branch.find repo b1 in
+      let k1' = S.Branch.find repo b1 in
       check_val "r1" (Some kv1) k1';
-      S.Branch.set repo b2 kv2 >>= fun () ->
-      let* k2' = S.Branch.find repo b2 in
+      S.Branch.set repo b2 kv2;
+      let k2' = S.Branch.find repo b2 in
       check_val "r2" (Some kv2) k2';
-      S.Branch.set repo b1 kv2 >>= fun () ->
-      let* k2'' = S.Branch.find repo b1 in
+      S.Branch.set repo b1 kv2;
+      let k2'' = S.Branch.find repo b1 in
       check_val "r1-after-update" (Some kv2) k2'';
-      let* bs = S.Branch.list repo in
+      let bs = S.Branch.list repo in
       check_keys "list" [ b1; b2 ] bs;
-      S.Branch.remove repo b1 >>= fun () ->
-      let* empty = S.Branch.find repo b1 in
+      S.Branch.remove repo b1;
+      let empty = S.Branch.find repo b1 in
       check_val "empty" None empty;
-      let* b2' = S.Branch.list repo in
+      let b2' = S.Branch.list repo in
       check_keys "all-after-remove" [ b2 ] b2';
-      S.Repo.close repo >>= fun () ->
-      Lwt.catch
-        (fun () ->
-          let+ _ = S.Branch.set repo b1 kv1 in
-          Alcotest.fail "Add after close should not be allowed")
-        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+      S.Repo.close repo;
+      try
+        let _ = S.Branch.set repo b1 kv1 in
+        Alcotest.fail "Add after close should not be allowed"
+      with
+      | Irmin.Closed -> ()
+      | exn -> raise exn
     in
     run x test
 
@@ -465,28 +462,29 @@ module Make (S : Generic_key) = struct
     let test repo =
       let node bindings =
         with_node repo (fun g ->
-            let* empty = Graph.empty g in
-            Lwt_list.fold_left_s
+            let empty = Graph.empty g in
+            List.fold_left
               (fun t (k, v) ->
-                let* v = with_contents repo (fun t -> B.Contents.add t v) in
+                let v = with_contents repo (fun t -> B.Contents.add t v) in
                 Graph.add g t k (`Contents (v, S.Metadata.default)))
               empty bindings)
       in
       let tree bindings =
-        Lwt_list.fold_left_s
+        List.fold_left
           (fun t (k, v) -> S.Tree.add t k v)
           (S.Tree.empty ()) bindings
       in
       let check_hash msg bindings =
-        let* node = node bindings in
-        let+ tree = tree bindings in
+        let node = node bindings in
+        let tree = tree bindings in
         check B.Hash.t msg (B.Node.Key.to_hash node) (S.Tree.hash tree)
       in
-      check_hash "empty" [] >>= fun () ->
+      check_hash "empty" [];
       let bindings1 = [ ([ "a" ], "x"); ([ "b" ], "y") ] in
-      check_hash "1 level" bindings1 >>= fun () ->
+      check_hash "1 level" bindings1;
       let bindings2 = [ ([ "a"; "b" ], "x"); ([ "a"; "c" ], "y") ] in
-      check_hash "2 levels" bindings2 >>= fun () -> S.Repo.close repo
+      check_hash "2 levels" bindings2;
+      S.Repo.close repo
     in
     run x test
 
@@ -511,27 +509,27 @@ module Make (S : Generic_key) = struct
       let x = [ ("left", 2L); ("right", 0L) ] in
       let y = [ ("left", 1L); ("bar", 3L); ("skip", 0L) ] in
       let m = [ ("left", 2L); ("bar", 3L) ] in
-      Irmin.Merge.(f merge_x) ~old x y >>= function
+      Irmin.Merge.(f merge_x) ~old x y |> function
       | Error (`Conflict c) -> Alcotest.failf "conflict %s" c
       | Ok m' ->
           check dx "compound merge" m m';
-          Lwt.return_unit
+          ()
     in
     let test repo =
-      check_merge () >>= fun () ->
-      let* kv1 = kv1 ~repo in
-      let* kv2 = kv2 ~repo in
+      check_merge ();
+      let kv1 = kv1 ~repo in
+      let kv2 = kv2 ~repo in
       let result =
         T.(result (option B.Contents.Key.t) Irmin.Merge.conflict_t)
       in
       (* merge contents *)
-      let* kv1' =
+      let kv1' =
         with_contents repo (fun v ->
             Irmin.Merge.f (B.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
               (Some kv1))
       in
       check result "merge kv1" (Ok (Some kv1)) kv1';
-      let* kv2' =
+      let kv2' =
         with_contents repo (fun v ->
             Irmin.Merge.f (B.Contents.merge v) ~old:(old (Some kv1)) (Some kv1)
               (Some kv2))
@@ -541,26 +539,26 @@ module Make (S : Generic_key) = struct
       (* merge nodes *)
       let g = g repo in
       (* The empty node *)
-      let* k0 = with_node repo (fun g -> Graph.v g []) in
+      let k0 = with_node repo (fun g -> Graph.v g []) in
       (* Create the node t1 -x-> (v1) *)
-      let* k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
+      let k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
       (* Create the node t2 -b-> t1 -x-> (v1) *)
-      let* k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
+      let k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
       (* Create the node t3 -c-> t1 -x-> (v1) *)
-      let* k3 = with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) in
+      let k3 = with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) in
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      let* k4 =
+      let k4 =
         with_node repo (fun g ->
             Irmin.Merge.(f @@ B.Node.merge g)
               ~old:(old (Some k0)) (Some k2) (Some k3))
       in
-      let* k4 = merge_exn "k4" k4 in
+      let k4 = merge_exn "k4" k4 in
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
       let _ = k4 in
       let succ_t = [%typ: string * Graph.value] in
-      let* succ = Graph.list g k4 in
+      let succ = Graph.list g k4 in
       checks succ_t "k4" [ ("b", `Node k1); ("c", `Node k1) ] succ;
       let info date =
         let i = Int64.of_int date in
@@ -568,38 +566,38 @@ module Make (S : Generic_key) = struct
       in
       let c = B.Repo.commit_t repo in
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
-      let* kr0, _ = with_info 0 (History.v ~node:k0 ~parents:[]) in
-      let* kr1, _ = with_info 1 (History.v ~node:k2 ~parents:[ kr0 ]) in
-      let* kr2, _ = with_info 2 (History.v ~node:k3 ~parents:[ kr0 ]) in
-      may_get_keys repo [ kr1; kr2 ] hook >>= fun () ->
-      let* kr3 =
+      let kr0, _ = with_info 0 (History.v ~node:k0 ~parents:[]) in
+      let kr1, _ = with_info 1 (History.v ~node:k2 ~parents:[ kr0 ]) in
+      let kr2, _ = with_info 2 (History.v ~node:k3 ~parents:[ kr0 ]) in
+      may_get_keys repo [ kr1; kr2 ] hook;
+      let kr3 =
         with_info 3 (fun h ~info ->
             Irmin.Merge.f
               (History.merge h ~info:(fun () -> info))
               ~old:(old kr0) kr1 kr2)
       in
-      let* kr3 = merge_exn "kr3" kr3 in
-      may_get_keys repo [ kr3 ] hook >>= fun () ->
-      let* kr3_key' =
+      let kr3 = merge_exn "kr3" kr3 in
+      may_get_keys repo [ kr3 ] hook;
+      let kr3_key' =
         with_info 4 (fun h ~info ->
             Irmin.Merge.f
               (History.merge h ~info:(fun () -> info))
               ~old:(old kr2) kr2 kr3)
       in
-      let* kr3_key' = merge_exn "kr3_key'" kr3_key' in
+      let kr3_key' = merge_exn "kr3_key'" kr3_key' in
       let check_key = check B.Commit.Key.t in
       check_key "kr3 id with immediate parent'" kr3 kr3_key';
-      let* kr3_key =
+      let kr3_key =
         with_info 5 (fun h ~info ->
             Irmin.Merge.f
               (History.merge h ~info:(fun () -> info))
               ~old:(old kr0) kr0 kr3)
       in
-      let* kr3_key = merge_exn "kr3_key" kr3_key in
+      let kr3_key = merge_exn "kr3_key" kr3_key in
       check_key "kr3 key with old parent" kr3 kr3_key;
-      let* kr3', _ = with_info 3 @@ History.v ~node:k4 ~parents:[ kr1; kr2 ] in
-      let* r3 = B.Commit.find c kr3 in
-      let* r3' = B.Commit.find c kr3' in
+      let kr3', _ = with_info 3 @@ History.v ~node:k4 ~parents:[ kr1; kr2 ] in
+      let r3 = B.Commit.find c kr3 in
+      let r3' = B.Commit.find c kr3' in
       check T.(option B.Commit.Val.t) "r3" r3 r3';
       check_key "kr3" kr3 kr3';
       B.Repo.close repo
@@ -636,26 +634,23 @@ module Make (S : Generic_key) = struct
         checks (S.commit_t repo) msg l1 l2
       in
       let assert_lcas msg ~max_depth n a b expected =
-        let* a = S.of_commit a in
-        let* b = S.of_commit b in
-        let* lcas = S.lcas ~max_depth ~n a b in
+        let a = S.of_commit a in
+        let b = S.of_commit b in
+        let lcas = S.lcas ~max_depth ~n a b in
         assert_lcas msg expected lcas;
-        let* lcas = S.lcas ~max_depth:(max_depth - 1) ~n a b in
+        let lcas = S.lcas ~max_depth:(max_depth - 1) ~n a b in
         let msg = Printf.sprintf "%s [max-depth=%d]" msg (max_depth - 1) in
-        assert_lcas_err msg `Max_depth_reached lcas;
-        Lwt.return_unit
+        assert_lcas_err msg `Max_depth_reached lcas
       in
       let assert_last_modified msg ?depth ~n t key expected =
-        let+ last = S.last_modified ?depth ~n t key in
+        let last = S.last_modified ?depth ~n t key in
         S.repo t |> fun repo ->
         let msg = Printf.sprintf "%s [n=%d]" msg n in
         checks (S.commit_t repo) msg expected last
       in
       let assert_history_empty msg c expected =
-        let* t = S.of_commit c in
-        S.history t
-        >|= S.History.is_empty
-        >|= Alcotest.(check bool) msg expected
+        let t = S.of_commit c in
+        S.history t |> S.History.is_empty |> Alcotest.(check bool) msg expected
       in
       let tree = S.Tree.empty () in
       let k0 = random_path ~label:8 ~path:5 in
@@ -666,51 +661,40 @@ module Make (S : Generic_key) = struct
 
          0(k0, k1) -> 1(k1) -> 2(k0) -> 3(k1, k0) -> 4(k1)
       *)
-      let* tree = S.Tree.add tree k0 (random_value 1024) in
-      let* tree = S.Tree.add tree k1 (random_value 1024) in
-      let* c0 = S.Commit.v repo ~info:(info 0) ~parents:[] tree in
-      may repo [ c0 ] hook >>= fun () ->
-      assert_history_empty "nonempty 1 commit" c0 false >>= fun () ->
-      let* tree = S.Tree.add tree k1 (random_value 1024) in
-      let* c1 =
+      let tree = S.Tree.add tree k0 (random_value 1024) in
+      let tree = S.Tree.add tree k1 (random_value 1024) in
+      let c0 = S.Commit.v repo ~info:(info 0) ~parents:[] tree in
+      may repo [ c0 ] hook;
+      assert_history_empty "nonempty 1 commit" c0 false;
+      let tree = S.Tree.add tree k1 (random_value 1024) in
+      let c1 =
         S.Commit.v repo ~info:(info 1) ~parents:[ S.Commit.key c0 ] tree
       in
-      assert_history_empty "nonempty 2 commits" c0 false >>= fun () ->
-      let* tree = S.Tree.add tree k0 (random_value 1024) in
-      let* c2 =
+      assert_history_empty "nonempty 2 commits" c0 false;
+      let tree = S.Tree.add tree k0 (random_value 1024) in
+      let c2 =
         S.Commit.v repo ~info:(info 2) ~parents:[ S.Commit.key c1 ] tree
       in
-      let* tree = S.Tree.add tree k0 (random_value 1024) in
-      let* tree = S.Tree.add tree k1 (random_value 1024) in
-      let* c3 =
+      let tree = S.Tree.add tree k0 (random_value 1024) in
+      let tree = S.Tree.add tree k1 (random_value 1024) in
+      let c3 =
         S.Commit.v repo ~info:(info 3) ~parents:[ S.Commit.key c2 ] tree
       in
-      may repo [ c3 ] hook >>= fun () ->
-      let* tree = S.Tree.add tree k1 (random_value 1024) in
-      let* c4 =
+      may repo [ c3 ] hook;
+      let tree = S.Tree.add tree k1 (random_value 1024) in
+      let c4 =
         S.Commit.v repo ~info:(info 4) ~parents:[ S.Commit.key c3 ] tree
       in
-      assert_lcas "line lcas 1" ~max_depth:0 3 c3 c4 [ c3 ] >>= fun () ->
-      assert_lcas "line lcas 2" ~max_depth:1 3 c2 c4 [ c2 ] >>= fun () ->
-      assert_lcas "line lcas 3" ~max_depth:2 3 c1 c4 [ c1 ] >>= fun () ->
-      let* store = S.of_commit c4 in
-      let* () =
-        assert_last_modified "line last_modified 1" ~n:1 store k0 [ c3 ]
-      in
-      let* () =
-        assert_last_modified "line last_modified 2" ~n:2 store k0 [ c2; c3 ]
-      in
-      let* () =
-        assert_last_modified "line last_modified 3" ~n:3 store k0 [ c0; c2; c3 ]
-      in
-      let* () =
-        assert_last_modified "line last_modified 4" ~depth:1 ~n:3 store k0
-          [ c3 ]
-      in
-      assert_last_modified "line last_modified 5" ~n:1 store k2 [] >>= fun () ->
-      let* () =
-        assert_last_modified "line last_modified 5" ~depth:0 ~n:2 store k0 []
-      in
+      assert_lcas "line lcas 1" ~max_depth:0 3 c3 c4 [ c3 ];
+      assert_lcas "line lcas 2" ~max_depth:1 3 c2 c4 [ c2 ];
+      assert_lcas "line lcas 3" ~max_depth:2 3 c1 c4 [ c1 ];
+      let store = S.of_commit c4 in
+      assert_last_modified "line last_modified 1" ~n:1 store k0 [ c3 ];
+      assert_last_modified "line last_modified 2" ~n:2 store k0 [ c2; c3 ];
+      assert_last_modified "line last_modified 3" ~n:3 store k0 [ c0; c2; c3 ];
+      assert_last_modified "line last_modified 4" ~depth:1 ~n:3 store k0 [ c3 ];
+      assert_last_modified "line last_modified 5" ~n:1 store k2 [];
+      assert_last_modified "line last_modified 5" ~depth:0 ~n:2 store k0 [];
       (* test for multiple lca
 
          4(k1) -> 10 (k2) ---> 11(k0, k2) --> 13(k1) --> 15(k1, k2)
@@ -719,68 +703,66 @@ module Make (S : Generic_key) = struct
                   |          /                                   \
                   \---> 12 (k0, k1) --> 14 (k2) --> 16 (k2) --> 17 (k0)
       *)
-      let* tree = S.Tree.add tree k2 (random_value 1024) in
-      let* c10 =
+      let tree = S.Tree.add tree k2 (random_value 1024) in
+      let c10 =
         S.Commit.v repo ~info:(info 10) ~parents:[ S.Commit.key c4 ] tree
       in
-      let* tree_up = S.Tree.add tree k0 (random_value 1024) in
-      let* tree_up = S.Tree.add tree_up k2 (random_value 1024) in
-      let* c11 =
+      let tree_up = S.Tree.add tree k0 (random_value 1024) in
+      let tree_up = S.Tree.add tree_up k2 (random_value 1024) in
+      let c11 =
         S.Commit.v repo ~info:(info 11) ~parents:[ S.Commit.key c10 ] tree_up
       in
-      let* tree_down = S.Tree.add tree k0 (random_value 1024) in
-      let* tree_12 = S.Tree.add tree_down k1 (random_value 1024) in
-      let* c12 =
+      let tree_down = S.Tree.add tree k0 (random_value 1024) in
+      let tree_12 = S.Tree.add tree_down k1 (random_value 1024) in
+      let c12 =
         S.Commit.v repo ~info:(info 12) ~parents:[ S.Commit.key c10 ] tree_12
       in
-      let* tree_up = S.Tree.add tree_up k1 (random_value 1024) in
-      let* c13 =
+      let tree_up = S.Tree.add tree_up k1 (random_value 1024) in
+      let c13 =
         S.Commit.v repo ~info:(info 13) ~parents:[ S.Commit.key c11 ] tree_up
       in
-      let* tree_down = S.Tree.add tree_12 k2 (random_value 1024) in
-      let* c14 =
+      let tree_down = S.Tree.add tree_12 k2 (random_value 1024) in
+      let c14 =
         S.Commit.v repo ~info:(info 14) ~parents:[ S.Commit.key c12 ] tree_down
       in
-      let* tree_up = S.Tree.add tree_12 k1 (random_value 1024) in
-      let* tree_up = S.Tree.add tree_up k2 (random_value 1024) in
-      let* c15 =
+      let tree_up = S.Tree.add tree_12 k1 (random_value 1024) in
+      let tree_up = S.Tree.add tree_up k2 (random_value 1024) in
+      let c15 =
         S.Commit.v repo ~info:(info 15)
           ~parents:[ S.Commit.key c12; S.Commit.key c13 ]
           tree_up
       in
-      let* tree_down = S.Tree.add tree_down k2 (random_value 1024) in
-      let* c16 =
+      let tree_down = S.Tree.add tree_down k2 (random_value 1024) in
+      let c16 =
         S.Commit.v repo ~info:(info 16) ~parents:[ S.Commit.key c14 ] tree_down
       in
-      let* tree_down = S.Tree.add tree_down k0 (random_value 1024) in
-      let* c17 =
+      let tree_down = S.Tree.add tree_down k0 (random_value 1024) in
+      let c17 =
         S.Commit.v repo ~info:(info 17)
           ~parents:[ S.Commit.key c11; S.Commit.key c16 ]
           tree_down
       in
-      assert_lcas "x lcas 0" ~max_depth:0 5 c10 c10 [ c10 ] >>= fun () ->
-      assert_lcas "x lcas 1" ~max_depth:0 5 c14 c14 [ c14 ] >>= fun () ->
-      assert_lcas "x lcas 2" ~max_depth:0 5 c10 c11 [ c10 ] >>= fun () ->
-      assert_lcas "x lcas 3" ~max_depth:1 5 c12 c16 [ c12 ] >>= fun () ->
-      assert_lcas "x lcas 4" ~max_depth:1 5 c10 c13 [ c10 ] >>= fun () ->
-      assert_lcas "x lcas 5" ~max_depth:2 5 c13 c14 [ c10 ] >>= fun () ->
-      assert_lcas "x lcas 6" ~max_depth:3 5 c15 c16 [ c12 ] >>= fun () ->
-      assert_lcas "x lcas 7" ~max_depth:3 5 c15 c17 [ c11; c12 ] >>= fun () ->
-      let* store = S.of_commit c17 in
-      let* () =
+      assert_lcas "x lcas 0" ~max_depth:0 5 c10 c10 [ c10 ];
+      assert_lcas "x lcas 1" ~max_depth:0 5 c14 c14 [ c14 ];
+      assert_lcas "x lcas 2" ~max_depth:0 5 c10 c11 [ c10 ];
+      assert_lcas "x lcas 3" ~max_depth:1 5 c12 c16 [ c12 ];
+      assert_lcas "x lcas 4" ~max_depth:1 5 c10 c13 [ c10 ];
+      assert_lcas "x lcas 5" ~max_depth:2 5 c13 c14 [ c10 ];
+      assert_lcas "x lcas 6" ~max_depth:3 5 c15 c16 [ c12 ];
+      assert_lcas "x lcas 7" ~max_depth:3 5 c15 c17 [ c11; c12 ];
+      let store = S.of_commit c17 in
+      let () =
         assert_last_modified "x last_modified 1" ~n:3 store k0 [ c11; c12; c17 ]
       in
-      let* () =
-        assert_last_modified "x last_modified 2" ~n:1 store k2 [ c16 ]
-      in
-      let* () =
+      let () = assert_last_modified "x last_modified 2" ~n:1 store k2 [ c16 ] in
+      let () =
         assert_last_modified "x last_modified 3" ~n:2 store k1 [ c4; c12 ]
       in
-      let* () =
+      let () =
         assert_last_modified "x last_modified 4" ~depth:3 ~n:5 store k1
           [ c4; c12 ]
       in
-      let* () =
+      let () =
         assert_last_modified "x last_modified 5" ~depth:2 ~n:3 store k0
           [ c11; c17 ]
       in
@@ -792,50 +774,50 @@ module Make (S : Generic_key) = struct
                  |        \--|--/
                  \-----------/
       *)
-      let* c10 =
+      let c10 =
         S.Commit.v repo ~info:(info 10) ~parents:[ S.Commit.key c4 ] tree
       in
-      let* c11 =
+      let c11 =
         S.Commit.v repo ~info:(info 11) ~parents:[ S.Commit.key c10 ] tree
       in
-      let* c12 =
+      let c12 =
         S.Commit.v repo ~info:(info 12) ~parents:[ S.Commit.key c11 ] tree
       in
-      let* c13 =
+      let c13 =
         S.Commit.v repo ~info:(info 13) ~parents:[ S.Commit.key c12 ] tree
       in
-      let* c14 =
+      let c14 =
         S.Commit.v repo ~info:(info 14)
           ~parents:[ S.Commit.key c11; S.Commit.key c13 ]
           tree
       in
-      let* c15 =
+      let c15 =
         S.Commit.v repo ~info:(info 15)
           ~parents:[ S.Commit.key c13; S.Commit.key c14 ]
           tree
       in
-      let* c16 =
+      let c16 =
         S.Commit.v repo ~info:(info 16) ~parents:[ S.Commit.key c11 ] tree
       in
-      assert_lcas "weird lcas 1" ~max_depth:0 3 c14 c15 [ c14 ] >>= fun () ->
-      assert_lcas "weird lcas 2" ~max_depth:0 3 c13 c15 [ c13 ] >>= fun () ->
-      assert_lcas "weird lcas 3" ~max_depth:1 3 c12 c15 [ c12 ] >>= fun () ->
-      assert_lcas "weird lcas 4" ~max_depth:1 3 c11 c15 [ c11 ] >>= fun () ->
-      assert_lcas "weird lcas 4" ~max_depth:3 3 c15 c16 [ c11 ] >>= fun () ->
+      assert_lcas "weird lcas 1" ~max_depth:0 3 c14 c15 [ c14 ];
+      assert_lcas "weird lcas 2" ~max_depth:0 3 c13 c15 [ c13 ];
+      assert_lcas "weird lcas 3" ~max_depth:1 3 c12 c15 [ c12 ];
+      assert_lcas "weird lcas 4" ~max_depth:1 3 c11 c15 [ c11 ];
+      assert_lcas "weird lcas 4" ~max_depth:3 3 c15 c16 [ c11 ];
       (* fast-forward *)
       let ff = testable Irmin.Type.(result unit S.ff_error_t) in
-      let* t12 = S.of_commit c12 in
-      let* b1 = S.Head.fast_forward t12 c16 in
+      let t12 = S.of_commit c12 in
+      let b1 = S.Head.fast_forward t12 c16 in
       Alcotest.(check ff) "ff 1.1" (Error `Rejected) b1;
-      let* k12' = S.Head.get t12 in
+      let k12' = S.Head.get t12 in
       check (S.commit_t repo) "ff 1.2" c12 k12';
-      let* b2 = S.Head.fast_forward t12 ~n:1 c14 in
+      let b2 = S.Head.fast_forward t12 ~n:1 c14 in
       Alcotest.(check ff) "ff 2.1" (Error `Rejected) b2;
-      let* k12'' = S.Head.get t12 in
+      let k12'' = S.Head.get t12 in
       check (S.commit_t repo) "ff 2.2" c12 k12'';
-      let* b3 = S.Head.fast_forward t12 c14 in
+      let b3 = S.Head.fast_forward t12 c14 in
       Alcotest.(check ff) "ff 2.2" (Ok ()) b3;
-      let* c14' = S.Head.get t12 in
+      let c14' = S.Head.get t12 in
       check (S.commit_t repo) "ff 2.3" c14 c14';
       B.Repo.close repo
     in
@@ -843,13 +825,13 @@ module Make (S : Generic_key) = struct
 
   let test_empty ?hook x () =
     let test repo =
-      let* t = S.empty repo in
-      let* h = S.Head.find t in
+      let t = S.empty repo in
+      let h = S.Head.find t in
       check T.(option @@ S.commit_t repo) "empty" None h;
-      let* r1 = r1 ~repo in
-      may repo [ r1 ] hook >>= fun () ->
-      S.set_exn t ~info:S.Info.none [ "b"; "x" ] v1 >>= fun () ->
-      let* h = S.Head.find t in
+      let r1 = r1 ~repo in
+      may repo [ r1 ] hook;
+      S.set_exn t ~info:S.Info.none [ "b"; "x" ] v1;
+      let h = S.Head.find t in
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
       B.Repo.close repo
     in
@@ -857,13 +839,13 @@ module Make (S : Generic_key) = struct
 
   let test_slice ?hook x () =
     let test repo =
-      let* t = S.main repo in
+      let t = S.main repo in
       let a = "" in
       let b = "haha" in
-      S.set_exn t ~info:(infof "slice") [ "x"; "a" ] a >>= fun () ->
-      S.set_exn t ~info:(infof "slice") [ "x"; "b" ] b >>= fun () ->
-      may_with_branch [ t ] repo hook >>= fun () ->
-      let* slice = S.Repo.export repo in
+      S.set_exn t ~info:(infof "slice") [ "x"; "a" ] a;
+      S.set_exn t ~info:(infof "slice") [ "x"; "b" ] b;
+      may_with_branch [ t ] repo hook;
+      let slice = S.Repo.export repo in
       let str = T.to_json_string B.Slice.t slice in
       let slice' =
         match T.decode_json B.Slice.t (Jsonm.decoder (`String str)) with
@@ -880,25 +862,25 @@ module Make (S : Generic_key) = struct
       let check_val = check [%typ: S.contents option] in
       let vx = "VX" in
       let vy = "VY" in
-      let* t = S.main repo in
-      S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx >>= fun () ->
-      let* tree = S.get_tree t [ "x" ] in
-      S.set_tree_exn t ~info:(infof "update") [ "u" ] tree >>= fun () ->
-      let* vx' = S.find t [ "u"; "y"; "z" ] in
+      let t = S.main repo in
+      S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx;
+      let tree = S.get_tree t [ "x" ] in
+      S.set_tree_exn t ~info:(infof "update") [ "u" ] tree;
+      let vx' = S.find t [ "u"; "y"; "z" ] in
       check_val "vx" (Some vx) vx';
-      let* tree1 = S.get_tree t [ "u" ] in
-      S.set_exn t ~info:(infof "add u/x/y") [ "u"; "x"; "y" ] vy >>= fun () ->
-      may_with_branch [ t ] repo hook >>= fun () ->
-      let* tree2 = S.get_tree t [ "u" ] in
-      let* tree3 = S.Tree.add tree [ "x"; "z" ] vx in
-      let* v' =
+      let tree1 = S.get_tree t [ "u" ] in
+      S.set_exn t ~info:(infof "add u/x/y") [ "u"; "x"; "y" ] vy;
+      may_with_branch [ t ] repo hook;
+      let tree2 = S.get_tree t [ "u" ] in
+      let tree3 = S.Tree.add tree [ "x"; "z" ] vx in
+      let v' =
         Irmin.Merge.f S.Tree.merge ~old:(Irmin.Merge.promise tree1) tree2 tree3
-        >>= merge_exn "tree"
+        |> merge_exn "tree"
       in
-      S.set_tree_exn t ~info:(infof "merge") [ "u" ] v' >>= fun () ->
-      let* vy' = S.find t [ "u"; "x"; "y" ] in
+      S.set_tree_exn t ~info:(infof "merge") [ "u" ] v';
+      let vy' = S.find t [ "u"; "x"; "y" ] in
       check_val "vy after merge" (Some vy) vy';
-      let* vx' = S.find t [ "u"; "x"; "z" ] in
+      let vx' = S.find t [ "u"; "x"; "z" ] in
       check_val "vx after merge" (Some vx) vx';
       B.Repo.close repo
     in
@@ -908,94 +890,94 @@ module Make (S : Generic_key) = struct
     let test repo =
       let check_val = check [%typ: S.contents option] in
       let check_list = checks [%typ: S.Path.step * S.tree] in
-      let* t = S.main repo in
-      S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1 >>= fun () ->
-      let* b0 = S.mem t [ "a"; "b" ] in
+      let t = S.main repo in
+      S.set_exn t ~info:(infof "init") [ "a"; "b" ] v1;
+      let b0 = S.mem t [ "a"; "b" ] in
       Alcotest.(check bool) "mem0" true b0;
-      let* t = S.clone ~src:t ~dst:"test" in
-      let* b1 = S.mem t [ "a"; "b" ] in
+      let t = S.clone ~src:t ~dst:"test" in
+      let b1 = S.mem t [ "a"; "b" ] in
       Alcotest.(check bool) "mem1" true b1;
-      let* b2 = S.mem t [ "a" ] in
+      let b2 = S.mem t [ "a" ] in
       Alcotest.(check bool) "mem2" false b2;
-      let* v1' = S.find t [ "a"; "b" ] in
+      let v1' = S.find t [ "a"; "b" ] in
       check_val "v1.1" (Some v1) v1';
-      let* r1 = S.Head.get t in
-      let* t = S.clone ~src:t ~dst:"test" in
-      S.set_exn t ~info:(infof "update") [ "a"; "c" ] v2 >>= fun () ->
-      let* b1 = S.mem t [ "a"; "b" ] in
+      let r1 = S.Head.get t in
+      let t = S.clone ~src:t ~dst:"test" in
+      S.set_exn t ~info:(infof "update") [ "a"; "c" ] v2;
+      let b1 = S.mem t [ "a"; "b" ] in
       Alcotest.(check bool) "mem3" true b1;
-      let* b2 = S.mem t [ "a" ] in
+      let b2 = S.mem t [ "a" ] in
       Alcotest.(check bool) "mem4" false b2;
-      let* v1' = S.find t [ "a"; "b" ] in
+      let v1' = S.find t [ "a"; "b" ] in
       check_val "v1.1" (Some v1) v1';
-      let* b1 = S.mem t [ "a"; "c" ] in
+      let b1 = S.mem t [ "a"; "c" ] in
       Alcotest.(check bool) "mem5" true b1;
-      let* v2' = S.find t [ "a"; "c" ] in
+      let v2' = S.find t [ "a"; "c" ] in
       check_val "v1.1" (Some v2) v2';
-      S.remove_exn t ~info:(infof "remove") [ "a"; "b" ] >>= fun () ->
-      let* v1'' = S.find t [ "a"; "b" ] in
+      S.remove_exn t ~info:(infof "remove") [ "a"; "b" ];
+      let v1'' = S.find t [ "a"; "b" ] in
       check_val "v1.2" None v1'';
-      S.Head.set t r1 >>= fun () ->
-      let* v1'' = S.find t [ "a"; "b" ] in
+      S.Head.set t r1;
+      let v1'' = S.find t [ "a"; "b" ] in
       check_val "v1.3" (Some v1) v1'';
-      let* ks = S.list t [ "a" ] in
+      let ks = S.list t [ "a" ] in
       check_list "path" [ ("b", contents v1) ] ks;
-      let* () =
+      let () =
         S.set_exn t ~info:(infof "update2") [ "a"; long_random_ascii_string ] v1
       in
-      S.remove_exn t ~info:(infof "remove rec") [ "a" ] >>= fun () ->
-      let* dirs = S.list t [] in
+      S.remove_exn t ~info:(infof "remove rec") [ "a" ];
+      let dirs = S.list t [] in
       check_list "remove rec" [] dirs;
-      let* () =
-        Lwt.catch
-          (fun () ->
-            S.set_exn t ~info:(infof "update root") [] v1 >>= fun () ->
-            Alcotest.fail "update root")
-          (function
-            | Invalid_argument _ -> Lwt.return_unit
-            | e -> Alcotest.fail ("update root: " ^ Printexc.to_string e))
+      let () =
+        try
+          S.set_exn t ~info:(infof "update root") [] v1;
+          Alcotest.fail "update root"
+        with
+        | Invalid_argument _ -> ()
+        | e -> Alcotest.fail ("update root: " ^ Printexc.to_string e)
       in
-      let* none = S.find t [] in
+      let none = S.find t [] in
       check_val "read root" none None;
-      S.set_exn t ~info:(infof "update") [ "a" ] v1 >>= fun () ->
-      S.remove_exn t ~info:(infof "remove rec --all") [] >>= fun () ->
-      let* dirs = S.list t [] in
+      S.set_exn t ~info:(infof "update") [ "a" ] v1;
+      S.remove_exn t ~info:(infof "remove rec --all") [];
+      let dirs = S.list t [] in
       check_list "remove rec root" [] dirs;
       let a = "ok" in
       let b = "maybe?" in
-      S.set_exn t ~info:(infof "fst one") [ "fst" ] a >>= fun () ->
-      S.set_exn t ~info:(infof "snd one") [ "fst"; "snd" ] b >>= fun () ->
-      let* fst = S.find t [ "fst" ] in
+      S.set_exn t ~info:(infof "fst one") [ "fst" ] a;
+      S.set_exn t ~info:(infof "snd one") [ "fst"; "snd" ] b;
+      let fst = S.find t [ "fst" ] in
       check_val "data model 1" None fst;
-      let* snd = S.find t [ "fst"; "snd" ] in
+      let snd = S.find t [ "fst"; "snd" ] in
       check_val "data model 2" (Some b) snd;
-      S.set_exn t ~info:(infof "fst one") [ "fst" ] a >>= fun () ->
-      let* fst = S.find t [ "fst" ] in
+      S.set_exn t ~info:(infof "fst one") [ "fst" ] a;
+      let fst = S.find t [ "fst" ] in
       check_val "data model 3" (Some a) fst;
-      let* snd = S.find t [ "fst"; "snd" ] in
+      let snd = S.find t [ "fst"; "snd" ] in
       check_val "data model 4" None snd;
       let tagx = "x" in
       let tagy = "y" in
       let xy = [ "x"; "y" ] in
       let vx = "VX" in
-      let* tx = S.of_branch repo tagx in
-      S.Branch.remove repo tagx >>= fun () ->
-      S.Branch.remove repo tagy >>= fun () ->
-      S.set_exn tx ~info:(infof "update") xy vx >>= fun () ->
-      let* ty = S.clone ~src:tx ~dst:tagy in
-      let* vx' = S.find ty xy in
+      let tx = S.of_branch repo tagx in
+      S.Branch.remove repo tagx;
+      S.Branch.remove repo tagy;
+      S.set_exn tx ~info:(infof "update") xy vx;
+      let ty = S.clone ~src:tx ~dst:tagy in
+      let vx' = S.find ty xy in
       check_val "update tag" (Some vx) vx';
       S.status tx |> fun tagx' ->
       S.status ty |> fun tagy' ->
       check (S.Status.t repo) "tagx" (`Branch tagx) tagx';
       check (S.Status.t repo) "tagy" (`Branch tagy) tagy';
-      let* t = S.main repo in
-      S.Repo.close repo >>= fun () ->
-      Lwt.catch
-        (fun () ->
-          let+ _ = S.set_exn t ~info:(infof "add after close") [ "a" ] "bar" in
-          Alcotest.fail "Add after close should not be allowed")
-        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+      let t = S.main repo in
+      S.Repo.close repo;
+      try
+        let _ = S.set_exn t ~info:(infof "add after close") [ "a" ] "bar" in
+        Alcotest.fail "Add after close should not be allowed"
+      with
+      | Irmin.Closed -> ()
+      | exn -> raise exn
     in
     run x test
 
@@ -1055,16 +1037,16 @@ module Make (S : Generic_key) = struct
   let test_tree_caches x () =
     let test repo =
       let info = S.Info.none in
-      let* t1 = S.main repo in
-      S.set_exn t1 ~info [ "a"; "b" ] "foo" >>= fun () ->
+      let t1 = S.main repo in
+      S.set_exn t1 ~info [ "a"; "b" ] "foo";
       (* Testing cache *)
       S.Tree.reset_counters ();
-      let* v = S.get_tree t1 [] in
+      let v = S.get_tree t1 [] in
       Alcotest.(check inspect) "inspect" (`Node `Key) (S.Tree.inspect v);
-      let* v = S.Tree.add v [ "foo" ] "foo" in
+      let v = S.Tree.add v [ "foo" ] "foo" in
       Alcotest.(check inspect) "inspect:0" (`Node `Value) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:0" 0 (S.Tree.counters ()).node_val_v;
-      let* v = S.Tree.add v [ "bar"; "foo" ] "bar" in
+      let v = S.Tree.add v [ "bar"; "foo" ] "bar" in
       Alcotest.(check inspect) "inspect:1" (`Node `Value) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:1" 0 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:1" 0 (S.Tree.counters ()).node_val_list;
@@ -1072,7 +1054,7 @@ module Make (S : Generic_key) = struct
       Alcotest.(check inspect) "inspect:2" (`Node `Value) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:2" 1 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:2" 0 (S.Tree.counters ()).node_val_list;
-      S.set_tree_exn t1 ~info [] v >>= fun () ->
+      S.set_tree_exn t1 ~info [] v;
       Alcotest.(check inspect) "inspect:3" (`Node `Key) (S.Tree.inspect v);
       Alcotest.(check int) "val-v:3" 2 (S.Tree.counters ()).node_val_v;
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
@@ -1089,22 +1071,22 @@ module Make (S : Generic_key) = struct
 
   let test_trees x () =
     let test repo =
-      let* t = S.main repo in
+      let t = S.main repo in
       let nodes = random_nodes 100 in
       let foo1 = random_value 10 in
       let foo2 = random_value 10 in
-      let* v1 =
+      let v1 =
         S.Tree.singleton [ "foo"; "bar"; "toto" ] foo2
         |> with_binding [ "foo"; "toto" ] foo1
       in
       S.Tree.clear v1;
-      let* () =
+      let () =
         let dont_skip k =
           Alcotest.failf "should not have skipped: '%a'" pp_key k
         in
         S.Tree.fold ~depth:(`Eq 1) ~force:(`False dont_skip) v1 ()
       in
-      let* () =
+      let () =
         S.Tree.fold ~depth:(`Eq 1) ~force:`True (S.Tree.empty ()) ()
           ~contents:(fun k _ ->
             assert (List.length k = 1);
@@ -1114,10 +1096,10 @@ module Make (S : Generic_key) = struct
             Alcotest.fail "node")
       in
       let fold depth ecs ens =
-        let* cs, ns =
+        let cs, ns =
           S.Tree.fold v1 ?depth ~force:`True ~cache:false
-            ~contents:(fun path _ (cs, ns) -> Lwt.return (path :: cs, ns))
-            ~node:(fun path _ (cs, ns) -> Lwt.return (cs, path :: ns))
+            ~contents:(fun path _ (cs, ns) -> (path :: cs, ns))
+            ~node:(fun path _ (cs, ns) -> (cs, path :: ns))
             ([], [])
         in
         let paths = Alcotest.slist (testable S.Path.t) compare in
@@ -1126,56 +1108,53 @@ module Make (S : Generic_key) = struct
           ecs cs;
         Alcotest.(check paths)
           (Fmt.str "nodes depth=%a" Fmt.(Dump.option pp_depth) depth)
-          ens ns;
-        Lwt.return ()
+          ens ns
       in
-      let* () =
+      let () =
         fold None
           [ [ "foo"; "bar"; "toto" ]; [ "foo"; "toto" ] ]
           [ []; [ "foo" ]; [ "foo"; "bar" ] ]
       in
-      fold (Some (`Eq 0)) [] [ [] ] >>= fun () ->
-      fold (Some (`Eq 1)) [] [ [ "foo" ] ] >>= fun () ->
-      let* () =
-        fold (Some (`Eq 2)) [ [ "foo"; "toto" ] ] [ [ "foo"; "bar" ] ]
-      in
-      fold (Some (`Lt 2)) [] [ []; [ "foo" ] ] >>= fun () ->
-      let* () =
+      fold (Some (`Eq 0)) [] [ [] ];
+      fold (Some (`Eq 1)) [] [ [ "foo" ] ];
+      let () = fold (Some (`Eq 2)) [ [ "foo"; "toto" ] ] [ [ "foo"; "bar" ] ] in
+      fold (Some (`Lt 2)) [] [ []; [ "foo" ] ];
+      let () =
         fold
           (Some (`Le 2))
           [ [ "foo"; "toto" ] ]
           [ []; [ "foo" ]; [ "foo"; "bar" ] ]
       in
-      let* () =
+      let () =
         fold
           (Some (`Ge 2))
           [ [ "foo"; "toto" ]; [ "foo"; "bar"; "toto" ] ]
           [ [ "foo"; "bar" ] ]
       in
-      fold (Some (`Gt 2)) [ [ "foo"; "bar"; "toto" ] ] [] >>= fun () ->
-      let* v1 = S.Tree.remove v1 [ "foo"; "bar"; "toto" ] in
-      let* v = S.Tree.find v1 [ "foo"; "toto" ] in
+      fold (Some (`Gt 2)) [ [ "foo"; "bar"; "toto" ] ] [];
+      let v1 = S.Tree.remove v1 [ "foo"; "bar"; "toto" ] in
+      let v = S.Tree.find v1 [ "foo"; "toto" ] in
       Alcotest.(check (option string)) "remove" (Some foo1) v;
       let v1 = S.Tree.empty () in
-      let* s = S.Tree.stats v1 in
+      let s = S.Tree.stats v1 in
       Alcotest.(check stats_t) "empty stats" empty_stats s;
-      let* v1 = S.Tree.add v1 [ "foo"; "1" ] foo1 in
-      let* v1 = S.Tree.add v1 [ "foo"; "2" ] foo2 in
-      let* s = S.Tree.stats v1 in
+      let v1 = S.Tree.add v1 [ "foo"; "1" ] foo1 in
+      let v1 = S.Tree.add v1 [ "foo"; "2" ] foo2 in
+      let s = S.Tree.stats v1 in
       Alcotest.(check stats_t)
         "stats 1"
         { S.Tree.nodes = 2; leafs = 2; skips = 0; depth = 2; width = 2 }
         s;
-      let* v1 = S.Tree.remove v1 [ "foo"; "1" ] in
-      let* v1 = S.Tree.remove v1 [ "foo"; "2" ] in
-      let* s = S.Tree.stats v1 in
+      let v1 = S.Tree.remove v1 [ "foo"; "1" ] in
+      let v1 = S.Tree.remove v1 [ "foo"; "2" ] in
+      let s = S.Tree.stats v1 in
       Alcotest.(check stats_t) "empty stats" empty_stats s;
-      S.set_tree_exn t ~info:(infof "empty tree") [] v1 >>= fun () ->
-      let* head = S.Head.get t in
+      S.set_tree_exn t ~info:(infof "empty tree") [] v1;
+      let head = S.Head.get t in
       S.Commit.key head |> fun head ->
-      let* commit = B.Commit.find (ct repo) head in
+      let commit = B.Commit.find (ct repo) head in
       let node = B.Commit.Val.node (get commit) in
-      let* node = B.Node.find (n repo) node in
+      let node = B.Node.find (n repo) node in
       check
         T.(option B.Node.Val.t)
         "empty tree"
@@ -1193,42 +1172,42 @@ module Make (S : Generic_key) = struct
       let v0 = S.Tree.empty () in
       let v1 = S.Tree.empty () in
       let v2 = S.Tree.empty () in
-      let* v1 = S.Tree.add v1 [ "foo"; "1" ] foo1 in
-      let* f = S.Tree.find_all v1 [ "foo"; "1" ] in
+      let v1 = S.Tree.add v1 [ "foo"; "1" ] foo1 in
+      let f = S.Tree.find_all v1 [ "foo"; "1" ] in
       check_val "tree update" (normal foo1) f;
-      let* v1' = S.Tree.add v1 [ "foo"; "1" ] foo1 in
+      let v1' = S.Tree.add v1 [ "foo"; "1" ] foo1 in
       Alcotest.(check bool) "Tree.add keeps sharing" true (v1 == v1');
-      let* v1' = S.Tree.remove v1 [ "foo"; "2" ] in
+      let v1' = S.Tree.remove v1 [ "foo"; "2" ] in
       Alcotest.(check bool) "Tree.remove keeps sharing" true (v1 == v1');
-      let* v1' = S.Tree.add_tree v1 [] v1 in
+      let v1' = S.Tree.add_tree v1 [] v1 in
       Alcotest.(check bool) "Tree.add_tree keeps sharing" true (v1 == v1');
-      let* v2 = S.Tree.add v2 [ "foo"; "1" ] foo2 in
-      let* v2 = S.Tree.add v2 [ "foo"; "2" ] foo1 in
-      let* d1 = S.Tree.diff v0 v1 in
+      let v2 = S.Tree.add v2 [ "foo"; "1" ] foo2 in
+      let v2 = S.Tree.add v2 [ "foo"; "2" ] foo1 in
+      let d1 = S.Tree.diff v0 v1 in
       check_diffs "diff 1" [ ([ "foo"; "1" ], `Added (foo1, d0)) ] d1;
-      let* d2 = S.Tree.diff v1 v0 in
+      let d2 = S.Tree.diff v1 v0 in
       check_diffs "diff 2" [ ([ "foo"; "1" ], `Removed (foo1, d0)) ] d2;
-      let* d3 = S.Tree.diff v1 v2 in
+      let d3 = S.Tree.diff v1 v2 in
       check_diffs "diff 3"
         [
           ([ "foo"; "1" ], `Updated ((foo1, d0), (foo2, d0)));
           ([ "foo"; "2" ], `Added (foo1, d0));
         ]
         d3;
-      let* v3 = S.Tree.add v2 [ "foo"; "bar"; "1" ] foo1 in
-      let* d4 = S.Tree.diff v2 v3 in
+      let v3 = S.Tree.add v2 [ "foo"; "bar"; "1" ] foo1 in
+      let d4 = S.Tree.diff v2 v3 in
       check_diffs "diff 4" [ ([ "foo"; "bar"; "1" ], `Added (foo1, d0)) ] d4;
-      let* d5 = S.Tree.diff v3 v2 in
+      let d5 = S.Tree.diff v3 v2 in
       check_diffs "diff 4" [ ([ "foo"; "bar"; "1" ], `Removed (foo1, d0)) ] d5;
 
       (* Testing length *)
       let check_length msg t =
-        let* n = S.Tree.length t [] in
-        let+ l = S.Tree.list t [] in
+        let n = S.Tree.length t [] in
+        let l = S.Tree.list t [] in
         Alcotest.(check int) msg n (List.length l)
       in
-      let* () = check_length "bindings1 length" v2 in
-      let* () =
+      let () = check_length "bindings1 length" v2 in
+      let () =
         let t = contents "foo" in
         check_length "contents length" t
       in
@@ -1246,8 +1225,8 @@ module Make (S : Generic_key) = struct
               ("aaa", c "1");
             ])
       in
-      let* _ = S.set_tree_exn t ~info:(infof "add tree") [] tree in
-      let* e = S.Tree.get_tree tree [ "a" ] in
+      let _ = S.set_tree_exn t ~info:(infof "add tree") [] tree in
+      let e = S.Tree.get_tree tree [ "a" ] in
       let ls =
         [
           ("aa", contents "0");
@@ -1257,198 +1236,192 @@ module Make (S : Generic_key) = struct
           ("aaa", e);
         ]
       in
-      let* () =
-        let* l1 = S.Tree.list ~offset:0 ~length:2 tree [] in
-        let* l2 = S.Tree.list ~offset:2 ~length:2 tree [] in
-        let+ l3 = S.Tree.list ~offset:4 ~length:2 tree [] in
+      let () =
+        let l1 = S.Tree.list ~offset:0 ~length:2 tree [] in
+        let l2 = S.Tree.list ~offset:2 ~length:2 tree [] in
+        let l3 = S.Tree.list ~offset:4 ~length:2 tree [] in
         Alcotest.(check int) "size l1" 2 (List.length l1);
         Alcotest.(check int) "size l2" 2 (List.length l2);
         Alcotest.(check int) "size l3" 1 (List.length l3);
         check_ls "2 paginated list" ls (l1 @ l2 @ l3)
       in
-      let* () =
-        let* l1 = S.Tree.list ~offset:0 ~length:3 tree [] in
-        let+ l2 = S.Tree.list ~offset:3 ~length:6 tree [] in
+      let () =
+        let l1 = S.Tree.list ~offset:0 ~length:3 tree [] in
+        let l2 = S.Tree.list ~offset:3 ~length:6 tree [] in
         Alcotest.(check int) "size l1" 3 (List.length l1);
         Alcotest.(check int) "size l2" 2 (List.length l2);
         check_ls "3 paginated list" ls (l1 @ l2)
       in
-      let* () =
-        let* l1 = S.Tree.list ~offset:0 ~length:4 tree [] in
-        let+ l2 = S.Tree.list ~offset:4 ~length:4 tree [] in
+      let () =
+        let l1 = S.Tree.list ~offset:0 ~length:4 tree [] in
+        let l2 = S.Tree.list ~offset:4 ~length:4 tree [] in
         Alcotest.(check int) "size l1" 4 (List.length l1);
         Alcotest.(check int) "size l2" 1 (List.length l2);
         check_ls "4 paginated list" ls (l1 @ l2)
       in
-      let* () =
-        let* l1 = S.Tree.list ~offset:0 ~length:5 tree [] in
-        let+ l2 = S.Tree.list ~offset:5 ~length:5 tree [] in
+      let () =
+        let l1 = S.Tree.list ~offset:0 ~length:5 tree [] in
+        let l2 = S.Tree.list ~offset:5 ~length:5 tree [] in
         Alcotest.(check int) "size l1" 5 (List.length l1);
         Alcotest.(check int) "size l2" 0 (List.length l2);
         check_ls "5 paginated list" ls (l1 @ l2)
       in
-      let* c0 =
+      let c0 =
         S.Tree.singleton [ "foo"; "a" ] "1"
         |> with_binding [ "foo"; "b"; "c" ] "2"
-        >>= with_binding [ "foo"; "c" ] "3"
-        >>= with_binding [ "foo"; "d" ] "4"
+        |> with_binding [ "foo"; "c" ] "3"
+        |> with_binding [ "foo"; "d" ] "4"
       in
-      let* b = S.Tree.get_tree c0 [ "foo"; "b" ] in
-      let* ls = S.Tree.list c0 [ "foo" ] in
+      let b = S.Tree.get_tree c0 [ "foo"; "b" ] in
+      let ls = S.Tree.list c0 [ "foo" ] in
       check_ls "list all"
         [
           ("a", contents "1"); ("b", b); ("c", contents "3"); ("d", contents "4");
         ]
         ls;
-      let* ls = S.Tree.list ~offset:2 c0 [ "foo" ] in
+      let ls = S.Tree.list ~offset:2 c0 [ "foo" ] in
       check_ls "list offset=2" [ ("c", contents "3"); ("d", contents "4") ] ls;
-      let* ls = S.Tree.list ~offset:2 ~length:1 c0 [ "foo" ] in
+      let ls = S.Tree.list ~offset:2 ~length:1 c0 [ "foo" ] in
       check_ls "list offset=2 length=1" [ ("c", contents "3") ] ls;
-      let* ls = S.Tree.list ~length:1 c0 [ "foo" ] in
+      let ls = S.Tree.list ~length:1 c0 [ "foo" ] in
       check_ls "list length=1" [ ("a", contents "1") ] ls;
 
       (* Testing concrete representation *)
-      let* c0 =
-        Lwt.return (S.Tree.empty ())
-        >>= with_binding [ "foo"; "a" ] "1"
-        >>= with_binding [ "foo"; "b"; "c" ] "2"
-        >>= with_binding [ "bar"; "d" ] "3"
-        >>= with_binding [ "e" ] "4"
+      let c0 =
+        S.Tree.empty ()
+        |> with_binding [ "foo"; "a" ] "1"
+        |> with_binding [ "foo"; "b"; "c" ] "2"
+        |> with_binding [ "bar"; "d" ] "3"
+        |> with_binding [ "e" ] "4"
       in
-      let* t0 = c0 |> S.Tree.to_concrete >|= S.Tree.of_concrete in
-      let* () =
-        let+ d0 = S.Tree.diff c0 t0 in
+      let t0 = c0 |> S.Tree.to_concrete |> S.Tree.of_concrete in
+      let () =
+        let d0 = S.Tree.diff c0 t0 in
         check_diffs "concrete roundtrip" [] d0
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [] in
-        let+ t0' = S.Tree.list t0 [] in
+      let () =
+        let c0' = S.Tree.list c0 [] in
+        let t0' = S.Tree.list t0 [] in
         check_ls "concrete list /" c0' t0'
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [ "foo" ] in
-        let+ t0' = S.Tree.list t0 [ "foo" ] in
+      let () =
+        let c0' = S.Tree.list c0 [ "foo" ] in
+        let t0' = S.Tree.list t0 [ "foo" ] in
         check_ls "concrete tree list /foo" c0' t0'
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [ "bar"; "d" ] in
-        let+ t0' = S.Tree.list t0 [ "bar"; "d" ] in
+      let () =
+        let c0' = S.Tree.list c0 [ "bar"; "d" ] in
+        let t0' = S.Tree.list t0 [ "bar"; "d" ] in
         check_ls "concrete tree list /bar/d" c0' t0'
       in
 
       (* Testing other tree operations. *)
       let v0 = S.Tree.empty () in
-      let* c = S.Tree.to_concrete v0 in
+      let c = S.Tree.to_concrete v0 in
       (match c with
       | `Tree [] -> ()
       | _ -> Alcotest.fail "Excpected empty tree");
-      let* v0 = S.Tree.add v0 [] foo1 in
-      let* foo1' = S.Tree.find_all v0 [] in
+      let v0 = S.Tree.add v0 [] foo1 in
+      let foo1' = S.Tree.find_all v0 [] in
       check_val "read /" (normal foo1) foo1';
-      let* v0 = S.Tree.add v0 [ "foo"; "1" ] foo1 in
-      let* foo1' = S.Tree.find_all v0 [ "foo"; "1" ] in
+      let v0 = S.Tree.add v0 [ "foo"; "1" ] foo1 in
+      let foo1' = S.Tree.find_all v0 [ "foo"; "1" ] in
       check_val "read foo/1" (normal foo1) foo1';
-      let* v0 = S.Tree.add v0 [ "foo"; "2" ] foo2 in
-      let* foo2' = S.Tree.find_all v0 [ "foo"; "2" ] in
+      let v0 = S.Tree.add v0 [ "foo"; "2" ] foo2 in
+      let foo2' = S.Tree.find_all v0 [ "foo"; "2" ] in
       check_val "read foo/2" (normal foo2) foo2';
       let check_tree v =
-        let* ls = S.Tree.list v [ "foo" ] in
+        let ls = S.Tree.list v [ "foo" ] in
         check_ls "path1" [ ("1", contents foo1); ("2", contents foo2) ] ls;
-        let* foo1' = S.Tree.find_all v [ "foo"; "1" ] in
+        let foo1' = S.Tree.find_all v [ "foo"; "1" ] in
         check_val "foo1" (normal foo1) foo1';
-        let* foo2' = S.Tree.find_all v [ "foo"; "2" ] in
-        check_val "foo2" (normal foo2) foo2';
-        Lwt.return_unit
+        let foo2' = S.Tree.find_all v [ "foo"; "2" ] in
+        check_val "foo2" (normal foo2) foo2'
       in
-      let* v0 =
-        Lwt_list.fold_left_s (fun v0 (k, v) -> S.Tree.add v0 k v) v0 nodes
-      in
-      check_tree v0 >>= fun () ->
-      S.set_tree_exn t ~info:(infof "update_path b/") [ "b" ] v0 >>= fun () ->
-      S.set_tree_exn t ~info:(infof "update_path a/") [ "a" ] v0 >>= fun () ->
-      let* ls = S.list t [ "b"; "foo" ] in
+      let v0 = List.fold_left (fun v0 (k, v) -> S.Tree.add v0 k v) v0 nodes in
+      check_tree v0;
+      S.set_tree_exn t ~info:(infof "update_path b/") [ "b" ] v0;
+      S.set_tree_exn t ~info:(infof "update_path a/") [ "a" ] v0;
+      let ls = S.list t [ "b"; "foo" ] in
       check_ls "path2" [ ("1", contents foo1); ("2", contents foo2) ] ls;
-      let* foo1' = S.find_all t [ "b"; "foo"; "1" ] in
+      let foo1' = S.find_all t [ "b"; "foo"; "1" ] in
       check_val "foo1" (normal foo1) foo1';
-      let* foo2' = S.find_all t [ "a"; "foo"; "2" ] in
+      let foo2' = S.find_all t [ "a"; "foo"; "2" ] in
       check_val "foo2" (normal foo2) foo2';
-      let* v0 = S.get_tree t [ "b" ] in
-      check_tree v0 >>= fun () ->
-      S.set_exn t ~info:(infof "update b/x") [ "b"; "x" ] foo1 >>= fun () ->
-      let* v2 = S.get_tree t [ "b" ] in
-      let* v1 = S.Tree.add v0 [ "y" ] foo2 in
-      let* v' =
+      let v0 = S.get_tree t [ "b" ] in
+      check_tree v0;
+      S.set_exn t ~info:(infof "update b/x") [ "b"; "x" ] foo1;
+      let v2 = S.get_tree t [ "b" ] in
+      let v1 = S.Tree.add v0 [ "y" ] foo2 in
+      let v' =
         Irmin.Merge.(f S.Tree.merge ~old:(promise v0) v1 v2)
-        >>= merge_exn "merge trees"
+        |> merge_exn "merge trees"
       in
-      S.set_tree_exn t ~info:(infof "merge_path") [ "b" ] v' >>= fun () ->
-      let* foo1' = S.find_all t [ "b"; "x" ] in
-      let* foo2' = S.find_all t [ "b"; "y" ] in
+      S.set_tree_exn t ~info:(infof "merge_path") [ "b" ] v';
+      let foo1' = S.find_all t [ "b"; "x" ] in
+      let foo2' = S.find_all t [ "b"; "y" ] in
       check_val "merge: b/x" (normal foo1) foo1';
       check_val "merge: b/y" (normal foo2) foo2';
-      let* () =
-        Lwt_list.iteri_s
+      let () =
+        List.iteri
           (fun i (k, v) ->
-            let* v' = S.find_all t ("a" :: k) in
+            let v' = S.find_all t ("a" :: k) in
             check_val ("a" ^ string_of_int i) (normal v) v';
-            let* v' = S.find_all t ("b" :: k) in
-            check_val ("b" ^ string_of_int i) (normal v) v';
-            Lwt.return_unit)
+            let v' = S.find_all t ("b" :: k) in
+            check_val ("b" ^ string_of_int i) (normal v) v')
           nodes
       in
-      let* v2 = S.get_tree t [ "b" ] in
-      let* _ = S.Tree.find_all v2 [ "foo"; "1" ] in
-      let* v2 = S.Tree.add v2 [ "foo"; "1" ] foo2 in
-      S.set_tree_exn t ~info:(infof "v2") [ "b" ] v2 >>= fun () ->
-      let* foo2' = S.find_all t [ "b"; "foo"; "1" ] in
+      let v2 = S.get_tree t [ "b" ] in
+      let _ = S.Tree.find_all v2 [ "foo"; "1" ] in
+      let v2 = S.Tree.add v2 [ "foo"; "1" ] foo2 in
+      S.set_tree_exn t ~info:(infof "v2") [ "b" ] v2;
+      let foo2' = S.find_all t [ "b"; "foo"; "1" ] in
       check_val "update tree" (normal foo2) foo2';
-      let* v3 = S.get_tree t [ "b" ] in
-      let* _ = S.Tree.find_all v3 [ "foo"; "1" ] in
-      let* v3 = S.Tree.remove v3 [ "foo"; "1" ] in
-      S.set_tree_exn t ~info:(infof "v3") [ "b" ] v3 >>= fun () ->
-      let* foo2' = S.find_all t [ "b"; "foo"; "1" ] in
+      let v3 = S.get_tree t [ "b" ] in
+      let _ = S.Tree.find_all v3 [ "foo"; "1" ] in
+      let v3 = S.Tree.remove v3 [ "foo"; "1" ] in
+      S.set_tree_exn t ~info:(infof "v3") [ "b" ] v3;
+      let foo2' = S.find_all t [ "b"; "foo"; "1" ] in
       check_val "remove tree" None foo2';
-      let* r1 = r1 ~repo in
-      let* r2 = r2 ~repo in
+      let r1 = r1 ~repo in
+      let r2 = r2 ~repo in
       let i0 = S.Info.empty in
-      let* c =
+      let c =
         S.Commit.v repo ~info:S.Info.empty
           ~parents:[ S.Commit.key r1; S.Commit.key r2 ]
           v3
       in
-      S.Head.set t c >>= fun () ->
-      let* h = S.Head.get t in
+      S.Head.set t c;
+      let h = S.Head.get t in
       S.Commit.info h |> fun i ->
       check S.Info.t "commit info" i0 i;
-      let* tt = S.of_commit h in
-      let* g = S.history tt in
+      let tt = S.of_commit h in
+      let g = S.history tt in
       let pred = S.History.pred g h in
       checks (S.commit_t repo) "head" [ r1; r2 ] pred;
-      let* foo2'' = S.find_all tt [ "b"; "foo"; "1" ] in
+      let foo2'' = S.find_all tt [ "b"; "foo"; "1" ] in
       check_val "remove tt" None foo2'';
       let vx = "VX" in
       let px = [ "x"; "y"; "z" ] in
-      S.set_exn tt ~info:(infof "update") px vx >>= fun () ->
-      let* tree = S.get_tree tt [] in
+      S.set_exn tt ~info:(infof "update") px vx;
+      let tree = S.get_tree tt [] in
       S.Tree.clear tree;
-      let* s = S.Tree.stats tree in
+      let s = S.Tree.stats tree in
       Alcotest.(check stats_t)
         "lazy stats"
         { S.Tree.nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
         s;
       S.Tree.clear tree;
-      let* s = S.Tree.stats ~force:true tree in
+      let s = S.Tree.stats ~force:true tree in
       Alcotest.(check stats_t)
         "forced stats"
         { S.Tree.nodes = 404; leafs = 103; skips = 0; depth = 5; width = 103 }
         s;
-      let* vx' = S.Tree.find_all tree px in
+      let vx' = S.Tree.find_all tree px in
       check_val "updates" (normal vx) vx';
       let v = S.Tree.singleton [] vx in
-      let* () =
-        S.set_tree_exn t ~info:(infof "update file as tree") [ "a" ] v
-      in
-      let* vx' = S.find_all t [ "a" ] in
+      let () = S.set_tree_exn t ~info:(infof "update file as tree") [ "a" ] v in
+      let vx' = S.find_all t [ "a" ] in
       check_val "update file as tree" (normal vx) vx';
       B.Repo.close repo
     in
@@ -1465,59 +1438,58 @@ module Make (S : Generic_key) = struct
             let v = string_of_int i in
             ([ "dir"; v ], "BLOB:" ^ v))
       in
-      let* c0 =
-        Lwt.return (S.Tree.empty ())
-        >>= with_binding [ "foo"; "a" ] "1"
-        >>= with_binding [ "foo"; "b"; "c" ] "2"
-        >>= with_binding [ "bar"; "d" ] "3"
-        >>= with_binding [ "e" ] "4"
-        >>= fun t ->
-        Lwt_list.fold_left_s (fun acc (k, v) -> S.Tree.add acc k v) t large_dir
+      let c0 =
+        S.Tree.empty ()
+        |> with_binding [ "foo"; "a" ] "1"
+        |> with_binding [ "foo"; "b"; "c" ] "2"
+        |> with_binding [ "bar"; "d" ] "3"
+        |> with_binding [ "e" ] "4"
+        |> fun t ->
+        List.fold_left (fun acc (k, v) -> S.Tree.add acc k v) t large_dir
       in
       let to_proof t =
-        let* store = S.empty repo in
-        let* () = S.set_tree_exn ~info:(infof "to_proof") store [] t in
+        let store = S.empty repo in
+        let () = S.set_tree_exn ~info:(infof "to_proof") store [] t in
         let key =
           match S.Tree.key t with None -> assert false | Some k -> k
         in
         let rec aux p t =
-          let* bindings =
-            Lwt.catch
-              (fun () -> S.Tree.list t [])
-              (function
-                | S.Tree.Pruned_hash _ -> Lwt.return [] | e -> Lwt.fail e)
+          let bindings =
+            try S.Tree.list t [] with
+            | S.Tree.Pruned_hash _ -> []
+            | e -> raise e
           in
-          Lwt_list.iter_s (fun (s, v) -> aux (p @ [ s ]) v) bindings
+          List.iter (fun (s, v) -> aux (p @ [ s ]) v) bindings
         in
         S.Tree.produce_proof repo key (fun t ->
-            let+ () = aux [] t in
+            let () = aux [] t in
             (t, ()))
       in
-      let* p0, () = to_proof c0 in
+      let p0, () = to_proof c0 in
       [%log.debug "p0=%a" pp_proof p0];
       let t0 = S.Tree.Proof.to_tree p0 in
-      let* () =
-        let+ d0 = S.Tree.diff c0 t0 in
+      let () =
+        let d0 = S.Tree.diff c0 t0 in
         check_diffs "proof roundtrip" [] d0
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [] in
-        let+ t0' = S.Tree.list t0 [] in
+      let () =
+        let c0' = S.Tree.list c0 [] in
+        let t0' = S.Tree.list t0 [] in
         check_ls "proof list /" c0' t0'
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [ "foo" ] in
-        let+ t0' = S.Tree.list t0 [ "foo" ] in
+      let () =
+        let c0' = S.Tree.list c0 [ "foo" ] in
+        let t0' = S.Tree.list t0 [ "foo" ] in
         check_ls "proof tree list /foo" c0' t0'
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [ "bar"; "d" ] in
-        let+ t0' = S.Tree.list t0 [ "bar"; "d" ] in
+      let () =
+        let c0' = S.Tree.list c0 [ "bar"; "d" ] in
+        let t0' = S.Tree.list t0 [ "bar"; "d" ] in
         check_ls "proof tree list /bar/d" c0' t0'
       in
-      let* () =
-        let* c0' = S.Tree.list c0 [ "dir" ] in
-        let+ t0' = S.Tree.list t0 [ "dir" ] in
+      let () =
+        let c0' = S.Tree.list c0 [ "dir" ] in
+        let t0' = S.Tree.list t0 [ "dir" ] in
         check_ls "proof tree list /dir" c0' t0'
       in
       let add_noise n prefix =
@@ -1540,63 +1512,59 @@ module Make (S : Generic_key) = struct
       in
       let check_proof_f0 p =
         let t = S.Tree.Proof.to_tree p in
-        let* i = S.Tree.find t [ "bar"; "age" ] in
+        let i = S.Tree.find t [ "bar"; "age" ] in
         Alcotest.(check (option string))
           "inside: find bar/age in proof" (Some "2") i;
-        let* i = S.Tree.find t [ "bar"; "version" ] in
+        let i = S.Tree.find t [ "bar"; "version" ] in
         Alcotest.(check (option string))
           "inside: find bar/version in proof" (Some "3") i;
-        let* i = S.Tree.find t [ "hello"; "there" ] in
+        let i = S.Tree.find t [ "hello"; "there" ] in
         Alcotest.(check (option string))
           "inside: do not find hello/there in proof" None i;
-        let+ () =
-          Lwt.catch
-            (fun () ->
-              let+ _ = S.Tree.find t [ "foo"; "version" ] in
-              Alcotest.fail "inside: should have raise: pruned_hash exn")
-            (function
-              | S.Tree.Pruned_hash _ | B.Node.Val.Dangling_hash _ ->
-                  Lwt.return ()
-              | e -> Lwt.fail e)
+        let () =
+          try
+            let _ = S.Tree.find t [ "foo"; "version" ] in
+            Alcotest.fail "inside: should have raise: pruned_hash exn"
+          with
+          | S.Tree.Pruned_hash _ | B.Node.Val.Dangling_hash _ -> ()
+          | e -> raise e
         in
         ()
       in
 
       let check_proof_f1 p =
         let t = S.Tree.Proof.to_tree p in
-        let+ i = S.Tree.find t [ "foo"; "version" ] in
+        let i = S.Tree.find t [ "foo"; "version" ] in
         Alcotest.(check (option string))
           "outside: find foo/version" (Some "1") i
       in
 
       let init_tree bindings =
         let tree = S.Tree.empty () in
-        let* tree =
-          Lwt_list.fold_left_s
-            (fun tree (k, v) -> S.Tree.add tree k v)
-            tree bindings
+        let tree =
+          List.fold_left (fun tree (k, v) -> S.Tree.add tree k v) tree bindings
         in
-        let* store = S.empty repo in
-        let* () = S.set_tree_exn ~info:(infof "init_tree") store [] tree in
+        let store = S.empty repo in
+        let () = S.set_tree_exn ~info:(infof "init_tree") store [] tree in
         S.tree store
       in
-      let* tree = init_tree bindings in
+      let tree = init_tree bindings in
       let key =
         match S.Tree.key tree with None -> assert false | Some k -> k
       in
 
       let f0 t0 =
-        let* t1 = S.Tree.update t0 [ "foo"; "age" ] increment in
-        let* t2 = S.Tree.update t1 [ "bar"; "age" ] increment in
-        let* t3 = S.Tree.get_tree t2 [ "bar" ] in
-        let* t4 = S.Tree.add_tree t2 [ "hello"; "there" ] t3 in
-        let* v = S.Tree.get t4 [ "hello"; "there"; "version" ] in
+        let t1 = S.Tree.update t0 [ "foo"; "age" ] increment in
+        let t2 = S.Tree.update t1 [ "bar"; "age" ] increment in
+        let t3 = S.Tree.get_tree t2 [ "bar" ] in
+        let t4 = S.Tree.add_tree t2 [ "hello"; "there" ] t3 in
+        let v = S.Tree.get t4 [ "hello"; "there"; "version" ] in
         Alcotest.(check string) "hello/there/version" "3" v;
         let t = S.Tree.empty () in
-        let* t5 = S.Tree.add_tree t [ "dir1"; "dir2" ] t4 in
-        let* v = S.Tree.get t5 [ "dir1"; "dir2"; "bar"; "age" ] in
+        let t5 = S.Tree.add_tree t [ "dir1"; "dir2" ] t4 in
+        let v = S.Tree.get t5 [ "dir1"; "dir2"; "bar"; "age" ] in
         Alcotest.(check string) "dir1/dir2/bar/age" "3" v;
-        let* t = S.Tree.remove t4 [ "bar" ] in
+        let t = S.Tree.remove t4 [ "bar" ] in
 
         (* Trigger certain paths in [S.Tree] during "verify" *)
         let portable =
@@ -1607,46 +1575,45 @@ module Make (S : Generic_key) = struct
         let trigger_node_to_map t =
           S.Tree.fold ~depth:(`Eq 1) ~order:`Sorted ~force:`True t ()
         in
-        let* () = trigger_node_to_map portable in
-        let* () = trigger_node_to_map portable_dirty in
+        let () = trigger_node_to_map portable in
+        let () = trigger_node_to_map portable_dirty in
         let trigger_node_length t =
-          let+ (_ : int) = S.Tree.length t [] in
+          let (_ : int) = S.Tree.length t [] in
           ()
         in
-        let* () = trigger_node_length portable in
-        let* () = trigger_node_length portable_dirty in
+        let () = trigger_node_length portable in
+        let () = trigger_node_length portable_dirty in
         let trigger_node_fold_undefined t =
           S.Tree.fold ~depth:(`Eq 1) ~order:`Undefined ~force:`True t ()
         in
-        let* () = trigger_node_fold_undefined portable in
-        let* () = trigger_node_fold_undefined portable_dirty in
+        let () = trigger_node_fold_undefined portable in
+        let () = trigger_node_fold_undefined portable_dirty in
         let (_ : bool) = S.Tree.is_empty portable in
         let trigger_node_to_backend_portable t =
           match S.Tree.destruct t with
           | `Contents _ -> assert false
           | `Node n ->
-              let+ _ = S.to_backend_portable_node n in
+              let _ = S.to_backend_portable_node n in
               ()
         in
-        let* () = trigger_node_to_backend_portable portable_dirty in
-
-        Lwt.return (t, ())
+        let () = trigger_node_to_backend_portable portable_dirty in
+        (t, ())
       in
       let f1 t0 =
-        let* p0, () = S.Tree.produce_proof repo key f0 in
-        let* () = check_proof_f0 p0 in
-        let+ v = S.Tree.get t0 [ "foo"; "version" ] in
+        let p0, () = S.Tree.produce_proof repo key f0 in
+        let () = check_proof_f0 p0 in
+        let v = S.Tree.get t0 [ "foo"; "version" ] in
         Alcotest.(check string) "foo/version" "1" v;
         (t0, ())
       in
-      let* p, () = S.Tree.produce_proof repo key f1 in
+      let p, () = S.Tree.produce_proof repo key f1 in
 
-      let* () = check_proof_f1 p in
+      let () = check_proof_f1 p in
 
       let check_proof f =
-        let* p, () = S.Tree.produce_proof repo key f in
+        let p, () = S.Tree.produce_proof repo key f in
         [%log.debug "Verifying proof %a" pp_proof p];
-        let+ r = S.Tree.verify_proof p f in
+        let r = S.Tree.verify_proof p f in
         match r with
         | Ok (_, ()) -> ()
         | Error e ->
@@ -1654,12 +1621,12 @@ module Make (S : Generic_key) = struct
               (Irmin.Type.pp S.Tree.verifier_error_t)
               e
       in
-      let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
+      let () = List.iter check_proof [ f0; f1 ] in
 
       let check_stream f =
-        let* p, () = S.Tree.produce_stream repo key f in
+        let p, () = S.Tree.produce_stream repo key f in
         [%log.debug "Verifying stream %a" pp_stream p];
-        let+ r = S.Tree.verify_stream p f in
+        let r = S.Tree.verify_stream p f in
         match r with
         | Ok (_, ()) -> ()
         | Error e ->
@@ -1667,7 +1634,7 @@ module Make (S : Generic_key) = struct
               (Irmin.Type.pp S.Tree.verifier_error_t)
               e
       in
-      let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
+      let () = List.iter check_stream [ f0; f1 ] in
 
       (* check env sharing *)
       let tree () =
@@ -1687,7 +1654,7 @@ module Make (S : Generic_key) = struct
         check S.Tree.Private.Env.t msg env env'
       in
       let x = ref None in
-      let* _ =
+      let _ =
         S.Tree.produce_proof repo key (fun t ->
             check_env_empty "env should be set inside the proof" t false;
             x := Some t;
@@ -1697,59 +1664,59 @@ module Make (S : Generic_key) = struct
 
             (* test changing subtress: check that envirnoment is
                attached only the tree roots *)
-            let* t1 = S.Tree.add_tree t [ "foo" ] t0 in
+            let t1 = S.Tree.add_tree t [ "foo" ] t0 in
             check_env_empty "1: t's env should not change" t false;
             check_env_empty "1: t0's env should not change" t0 true;
             check_env "1: t1's env should be the same as t's" t1 t;
 
             let t0 = contents () in
-            let* t1 = S.Tree.add_tree t [ "foo" ] t0 in
+            let t1 = S.Tree.add_tree t [ "foo" ] t0 in
             check_env_empty "2: t's env should not change" t false;
             check_env_empty "2: t0's env should not change" t0 true;
             check_env "2: t1's env should be the same as t's" t1 t;
 
             (* test changing roots *)
             let t0 = tree () in
-            let* t1 = S.Tree.add_tree t [] t0 in
+            let t1 = S.Tree.add_tree t [] t0 in
             check_env_empty "3: t's env should not change" t false;
             check_env_empty "3: t0's env should not change" t0 true;
             check_env "3: t1's env should be the same as t0's" t1 t0;
 
             let t0 = contents () in
-            let* t1 = S.Tree.add_tree t [] t0 in
+            let t1 = S.Tree.add_tree t [] t0 in
             check_env_empty "4: t's env should not change" t false;
             check_env_empty "4: t0's env should not change" t0 true;
             check_env "4: t1's env should be the same as t0's" t1 t0;
 
             (* check subtrees *)
-            let* t2 = S.Tree.get_tree t [ "foo" ] in
+            let t2 = S.Tree.get_tree t [ "foo" ] in
             check_env "5: t2's env should be the same as t's" t2 t;
-            let* t3 = S.Tree.get_tree t [ "foo"; "age" ] in
+            let t3 = S.Tree.get_tree t [ "foo"; "age" ] in
             check_env "5: t3's env should be the same as t's" t3 t;
 
-            Lwt.return (t, ()))
+            (t, ()))
       in
       let t = match !x with Some t -> t | None -> assert false in
       check_env_empty "env is unset outside of the proof)" t true;
 
       (* test negative proofs *)
       let check_bad_proof p =
-        let+ r = S.Tree.verify_proof p f0 in
+        let r = S.Tree.verify_proof p f0 in
         match r with
         | Ok _ -> Alcotest.fail "verify should have failed"
         | Error _ -> ()
       in
 
-      let* p0, () = S.Tree.produce_proof repo key f0 in
+      let p0, () = S.Tree.produce_proof repo key f0 in
       let proof ?(before = S.Tree.Proof.before p0)
           ?(after = S.Tree.Proof.after p0) ?(state = S.Tree.Proof.state p0) () =
         S.Tree.Proof.v ~before ~after state
       in
       let wrong_hash = B.Contents.Hash.hash "not the right hash!" in
       let wrong_kinded_hash = `Node wrong_hash in
-      let* () = check_bad_proof (proof ~before:wrong_kinded_hash ()) in
-      let* () = check_bad_proof (proof ~after:wrong_kinded_hash ()) in
-      let* _ = S.Tree.verify_proof (proof ()) f0 in
+      let () = check_bad_proof (proof ~before:wrong_kinded_hash ()) in
+      let () = check_bad_proof (proof ~after:wrong_kinded_hash ()) in
+      let _ = S.Tree.verify_proof (proof ()) f0 in
       let some_contents : S.Tree.Proof.tree list =
         [
           Blinded_node wrong_hash;
@@ -1759,22 +1726,20 @@ module Make (S : Generic_key) = struct
           Contents ("yo", S.Metadata.default);
         ]
       in
-      let* () =
-        Lwt_list.iter_s
-          (fun c -> check_bad_proof (proof ~state:c ()))
-          some_contents
+      let () =
+        List.iter (fun c -> check_bad_proof (proof ~state:c ())) some_contents
       in
 
       (* test negative streams *)
       let check_bad_stream p =
-        let+ r = S.Tree.verify_stream p f0 in
+        let r = S.Tree.verify_stream p f0 in
         match r with
         | Ok _ ->
             Alcotest.failf "verify_stream should have failed %a" pp_stream p
         | Error _ -> ()
       in
 
-      let* p0, () = S.Tree.produce_stream repo key f0 in
+      let p0, () = S.Tree.produce_stream repo key f0 in
       let proof ?(before = S.Tree.Proof.before p0)
           ?(after = S.Tree.Proof.after p0) ?(contents = S.Tree.Proof.state p0)
           () =
@@ -1782,9 +1747,9 @@ module Make (S : Generic_key) = struct
       in
       let wrong_hash = B.Contents.Hash.hash "not the right hash!" in
       let wrong_kinded_hash = `Node wrong_hash in
-      let* () = check_bad_stream (proof ~before:wrong_kinded_hash ()) in
-      let* () = check_bad_stream (proof ~after:wrong_kinded_hash ()) in
-      let* _ = S.Tree.verify_stream (proof ()) f0 in
+      let () = check_bad_stream (proof ~before:wrong_kinded_hash ()) in
+      let () = check_bad_stream (proof ~after:wrong_kinded_hash ()) in
+      let _ = S.Tree.verify_stream (proof ()) f0 in
       let some_contents : S.Tree.Proof.stream list =
         let s : S.Tree.Proof.elt list -> S.Tree.Proof.stream = List.to_seq in
         let ok = List.of_seq (S.Tree.Proof.state p0) in
@@ -1796,9 +1761,9 @@ module Make (S : Generic_key) = struct
           s (ok @ [ Node [] ]);
         ]
       in
-      let* () =
+      let () =
         let x = ref 1 in
-        Lwt_list.iter_s
+        List.iter
           (fun c ->
             incr x;
             check_bad_stream (proof ~contents:c ()))
@@ -1814,50 +1779,50 @@ module Make (S : Generic_key) = struct
       let size = 500_000 in
       let c0 = S.Tree.empty () in
       let rec wide_node i c =
-        if i >= size then Lwt.return c
+        if i >= size then c
         else
-          S.Tree.add c [ "foo"; string_of_int i ] (string_of_int i) >>= fun c ->
+          S.Tree.add c [ "foo"; string_of_int i ] (string_of_int i) |> fun c ->
           wide_node (i + 1) c
       in
-      wide_node 0 c0 >>= fun c ->
-      S.Tree.list c [ "foo" ] >>= fun ls ->
+      wide_node 0 c0 |> fun c ->
+      S.Tree.list c [ "foo" ] |> fun ls ->
       Alcotest.(check int) "list wide dir" size (List.length ls);
       S.Tree.fold ~force:`True c ~uniq:`False
         ~contents:(fun k _ i ->
           Alcotest.(check int) "contents at [foo; i]" (List.length k) 2;
-          Lwt.return (i + 1))
+          i + 1)
         ~node:(fun k _ i ->
           if not (List.length k = 0 || List.length k = 1) then
             Alcotest.failf "nodes should be at [] and [foo], got %a"
               (Irmin.Type.pp S.path_t) k;
-          Lwt.return i)
+          i)
         0
-      >>= fun nb_contents ->
+      |> fun nb_contents ->
       Alcotest.(check int) "nb of contents folded over" size nb_contents;
-      S.Tree.remove c [ "foo"; "499999" ] >>= fun c1 ->
-      S.Tree.add c0 [] "499999" >>= fun c2 ->
-      S.Tree.add_tree c1 [ "foo"; "499999" ] c2 >>= fun c' ->
+      S.Tree.remove c [ "foo"; "499999" ] |> fun c1 ->
+      S.Tree.add c0 [] "499999" |> fun c2 ->
+      S.Tree.add_tree c1 [ "foo"; "499999" ] c2 |> fun c' ->
       let h' = S.Tree.hash c' in
       let h = S.Tree.hash c in
       check S.Hash.t "same tree" h h';
-      let* c1 = S.Tree.get_tree c [ "foo" ] in
-      let* _ =
+      let c1 = S.Tree.get_tree c [ "foo" ] in
+      let _ =
         S.Backend.Repo.batch repo (fun c n _ -> S.save_tree repo c n c1)
       in
       (match S.Tree.destruct c1 with
       | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
       | `Node node -> (
-          let* v = S.to_backend_node node in
+          let v = S.to_backend_node node in
           let () =
             let ls = B.Node.Val.list v in
             Alcotest.(check int) "list wide node" size (List.length ls)
           in
-          let* bar_key = with_contents repo (fun t -> B.Contents.add t "bar") in
+          let bar_key = with_contents repo (fun t -> B.Contents.add t "bar") in
           let k = normal bar_key in
           let v1 = B.Node.Val.add v "x" k in
-          let* () =
+          let () =
             let h' = B.Node.Hash.hash v1 in
-            let+ h = with_node repo (fun n -> B.Node.add n v1) in
+            let h = with_node repo (fun n -> B.Node.add n v1) in
             check B.Node.Hash.t "wide node + x: hash(v) = add(v)"
               (B.Node.Key.to_hash h) h'
           in
@@ -1869,10 +1834,10 @@ module Make (S : Generic_key) = struct
             let v0 = B.Node.Val.remove v1 "x" in
             check B.Node.Val.t "remove x" v v0
           in
-          let* () =
+          let () =
             let v3 = B.Node.Val.remove v "1" in
             let h' = B.Node.Hash.hash v3 in
-            with_node repo (fun n -> B.Node.add n v3) >|= fun h ->
+            with_node repo (fun n -> B.Node.add n v3) |> fun h ->
             check B.Node.Hash.t "wide node - 1 : hash(v) = add(v)"
               (B.Node.Key.to_hash h) h'
           in
@@ -1883,9 +1848,9 @@ module Make (S : Generic_key) = struct
               let x' = B.Contents.Hash.hash "499999" in
               check B.Contents.Hash.t "find 499999" x x');
           match B.Node.Val.find v "500000" with
-          | None -> Lwt.return_unit
-          | Some _ -> Alcotest.fail "value 500000 should not be found"))
-      >>= fun () -> B.Repo.close repo
+          | None -> ()
+          | Some _ -> Alcotest.fail "value 500000 should not be found"));
+      B.Repo.close repo
     in
     run x test
 
@@ -1894,16 +1859,15 @@ module Make (S : Generic_key) = struct
       let size = 500_000 in
       let c0 = S.Tree.empty () in
       let rec wide_node i c =
-        if i >= size then Lwt.return c
+        if i >= size then c
         else
-          S.Tree.add c [ "foo"; string_of_int i ] (string_of_int i) >>= fun c ->
+          S.Tree.add c [ "foo"; string_of_int i ] (string_of_int i) |> fun c ->
           wide_node (i + 1) c
       in
-      wide_node 0 c0 >>= fun c ->
-      S.main repo >>= fun t ->
-      S.set_tree_exn t [ "wide" ] ~info:(infof "commit_wide_nodes") c
-      >>= fun () ->
-      S.list t [ "wide"; "foo" ] >>= fun ls ->
+      wide_node 0 c0 |> fun c ->
+      S.main repo |> fun t ->
+      S.set_tree_exn t [ "wide" ] ~info:(infof "commit_wide_nodes") c;
+      S.list t [ "wide"; "foo" ] |> fun ls ->
       Alcotest.(check int) "commit wide node list" size (List.length ls);
       B.Repo.close repo
     in
@@ -1913,46 +1877,46 @@ module Make (S : Generic_key) = struct
 
   let test_sync x () =
     let test repo =
-      let* t1 = S.main repo in
-      S.set_exn t1 ~info:(infof "update a/b") [ "a"; "b" ] v1 >>= fun () ->
-      let* h = S.Head.get t1 in
-      let* _r1 = S.Head.get t1 in
-      S.set_exn t1 ~info:(infof "update a/c") [ "a"; "c" ] v2 >>= fun () ->
-      let* r2 = S.Head.get t1 in
-      S.set_exn t1 ~info:(infof "update a/d") [ "a"; "d" ] v1 >>= fun () ->
-      let* _r3 = S.Head.get t1 in
-      let* h = S.history t1 ~min:[ h ] in
+      let t1 = S.main repo in
+      S.set_exn t1 ~info:(infof "update a/b") [ "a"; "b" ] v1;
+      let h = S.Head.get t1 in
+      let _r1 = S.Head.get t1 in
+      S.set_exn t1 ~info:(infof "update a/c") [ "a"; "c" ] v2;
+      let r2 = S.Head.get t1 in
+      S.set_exn t1 ~info:(infof "update a/d") [ "a"; "d" ] v1;
+      let _r3 = S.Head.get t1 in
+      let h = S.history t1 ~min:[ h ] in
       Alcotest.(check int) "history-v" 3 (S.History.nb_vertex h);
       Alcotest.(check int) "history-e" 2 (S.History.nb_edges h);
       let remote = Irmin.remote_store (module S) t1 in
-      let* partial = Sync.fetch_exn t1 ~depth:0 remote in
+      let partial = Sync.fetch_exn t1 ~depth:0 remote in
       let partial =
         match partial with
         | `Head x -> x
         | `Empty -> failwith "no head: partial"
       in
-      let* full = Sync.fetch_exn t1 remote in
+      let full = Sync.fetch_exn t1 remote in
       let full =
         match full with `Head x -> x | `Empty -> failwith "no head: full"
       in
       (* Restart a fresh store and import everything in there. *)
       let tag = "export" in
-      let* t2 = S.of_branch repo tag in
-      S.Head.set t2 partial >>= fun () ->
-      let* b1 = S.mem t2 [ "a"; "b" ] in
+      let t2 = S.of_branch repo tag in
+      S.Head.set t2 partial;
+      let b1 = S.mem t2 [ "a"; "b" ] in
       Alcotest.(check bool) "mem-ab" true b1;
-      let* b2 = S.mem t2 [ "a"; "c" ] in
+      let b2 = S.mem t2 [ "a"; "c" ] in
       Alcotest.(check bool) "mem-ac" true b2;
-      let* b3 = S.mem t2 [ "a"; "d" ] in
+      let b3 = S.mem t2 [ "a"; "d" ] in
       Alcotest.(check bool) "mem-ad" true b3;
-      let* v1' = S.get t2 [ "a"; "d" ] in
+      let v1' = S.get t2 [ "a"; "d" ] in
       check S.contents_t "v1" v1 v1';
-      S.Head.set t2 r2 >>= fun () ->
-      let* b4 = S.mem t2 [ "a"; "d" ] in
+      S.Head.set t2 r2;
+      let b4 = S.mem t2 [ "a"; "d" ] in
       Alcotest.(check bool) "mem-ab" false b4;
-      S.Head.set t2 full >>= fun () ->
-      S.Head.set t2 r2 >>= fun () ->
-      let* b4 = S.mem t2 [ "a"; "d" ] in
+      S.Head.set t2 full;
+      S.Head.set t2 r2;
+      let b4 = S.mem t2 [ "a"; "d" ] in
       Alcotest.(check bool) "mem-ad" false b4;
       B.Repo.close repo
     in
@@ -1966,49 +1930,42 @@ module Make (S : Generic_key) = struct
       let tm = Unix.localtime (Int64.to_float d) in
       Fmt.str "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
-    Dot.output_buffer t ~date buf >>= fun () ->
+    Dot.output_buffer t ~date buf;
     let oc =
       open_out_bin
         (Filename.get_temp_dir_name () / Fmt.str "%s-%s.dot" x.name file)
     in
     output_string oc (Buffer.contents buf);
-    close_out oc;
-    Lwt.return_unit
+    close_out oc
 
   let test_merge ?hook x () =
     let test repo =
       let v1 = "X1" in
       let v2 = "X2" in
       let v3 = "X3" in
-      let* t1 = S.main repo in
-      let* () =
-        S.set_exn t1 ~info:(infof "update a/b/a") [ "a"; "b"; "a" ] v1
-      in
-      let* () =
-        S.set_exn t1 ~info:(infof "update a/b/b") [ "a"; "b"; "b" ] v2
-      in
-      let* () =
-        S.set_exn t1 ~info:(infof "update a/b/c") [ "a"; "b"; "c" ] v3
-      in
+      let t1 = S.main repo in
+      let () = S.set_exn t1 ~info:(infof "update a/b/a") [ "a"; "b"; "a" ] v1 in
+      let () = S.set_exn t1 ~info:(infof "update a/b/b") [ "a"; "b"; "b" ] v2 in
+      let () = S.set_exn t1 ~info:(infof "update a/b/c") [ "a"; "b"; "c" ] v3 in
       let test = "test" in
-      let* t2 = S.clone ~src:t1 ~dst:test in
-      let* () =
+      let t2 = S.clone ~src:t1 ~dst:test in
+      let () =
         S.set_exn t1 ~info:(infof "update main:a/b/b") [ "a"; "b"; "b" ] v1
       in
-      let* () =
+      let () =
         S.set_exn t1 ~info:(infof "update main:a/b/b") [ "a"; "b"; "b" ] v3
       in
-      let* () =
+      let () =
         S.set_exn t2 ~info:(infof "update test:a/b/c") [ "a"; "b"; "c" ] v1
       in
-      output_file x t1 "before" >>= fun () ->
-      let* m = S.merge_into ~info:(infof "merge test into main") t2 ~into:t1 in
-      merge_exn "m" m >>= fun () ->
-      may_with_branch [ t1 ] repo hook >>= fun () ->
-      output_file x t1 "after" >>= fun () ->
-      let* v1' = S.get t1 [ "a"; "b"; "c" ] in
-      let* v2' = S.get t2 [ "a"; "b"; "b" ] in
-      let* v3' = S.get t1 [ "a"; "b"; "b" ] in
+      output_file x t1 "before";
+      let m = S.merge_into ~info:(infof "merge test into main") t2 ~into:t1 in
+      merge_exn "m" m;
+      may_with_branch [ t1 ] repo hook;
+      output_file x t1 "after";
+      let v1' = S.get t1 [ "a"; "b"; "c" ] in
+      let v2' = S.get t2 [ "a"; "b"; "b" ] in
+      let v3' = S.get t1 [ "a"; "b"; "b" ] in
       check S.contents_t "v1" v1 v1';
       check S.contents_t "v2" v2 v2';
       check S.contents_t "v3" v3 v3';
@@ -2022,21 +1979,21 @@ module Make (S : Generic_key) = struct
   let test_merge_outdated_tree x () =
     let check_val = check T.(option S.contents_t) in
     let none_fail f msg =
-      f >>= function None -> Alcotest.fail msg | Some c -> Lwt.return c
+      f |> function None -> Alcotest.fail msg | Some c -> c
     in
     let test repo =
       let vx = "VX" in
       let vy = "VY" in
-      let old () = Lwt.return (Ok None) in
-      let* t = S.main repo in
-      S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx >>= fun () ->
-      let* _c1 = none_fail (S.Head.find t) "head not found" in
-      let* tree = S.get_tree t [ "x" ] in
-      S.set_exn t ~info:(infof "add u/x/y") [ "u"; "x"; "y" ] vy >>= fun () ->
-      let* c2 = none_fail (S.Head.find t) "head not found" in
-      let* tree3 = S.Tree.add tree [ "x"; "z" ] vx in
-      S.set_tree_exn t ~info:(infof "update") [ "u" ] tree3 >>= fun () ->
-      let* c3 = none_fail (S.Head.find t) "head not found" in
+      let old () = Ok None in
+      let t = S.main repo in
+      S.set_exn t ~info:(infof "add x/y/z") [ "x"; "y"; "z" ] vx;
+      let _c1 = none_fail (S.Head.find t) "head not found" in
+      let tree = S.get_tree t [ "x" ] in
+      S.set_exn t ~info:(infof "add u/x/y") [ "u"; "x"; "y" ] vy;
+      let c2 = none_fail (S.Head.find t) "head not found" in
+      let tree3 = S.Tree.add tree [ "x"; "z" ] vx in
+      S.set_tree_exn t ~info:(infof "update") [ "u" ] tree3;
+      let c3 = none_fail (S.Head.find t) "head not found" in
       let info () = S.Commit.info c3 in
       with_commit repo (fun commit_t ->
           Irmin.Merge.f
@@ -2044,14 +2001,14 @@ module Make (S : Generic_key) = struct
             ~old
             (Some (S.Commit.key c3))
             (Some (S.Commit.key c2)))
-      >>= merge_exn "commit"
-      >>= function
-      | None -> Lwt.return_unit
+      |> merge_exn "commit"
+      |> function
+      | None -> ()
       | Some c4 ->
-          let* k = none_fail (S.Commit.of_key repo c4) "of hash" in
-          S.Branch.set repo "foo" k >>= fun () ->
-          let* t = S.of_branch repo "foo" in
-          let* vy' = S.find t [ "u"; "x"; "y" ] in
+          let k = none_fail (S.Commit.of_key repo c4) "of hash" in
+          S.Branch.set repo "foo" k;
+          let t = S.of_branch repo "foo" in
+          let vy' = S.find t [ "u"; "x"; "y" ] in
           check_val "vy after merge" None vy';
           B.Repo.close repo
     in
@@ -2060,67 +2017,67 @@ module Make (S : Generic_key) = struct
   let test_merge_unrelated ?hook x () =
     run x @@ fun repo ->
     let v1 = "X1" in
-    let* foo = S.of_branch repo "foo" in
-    let* bar = S.of_branch repo "bar" in
-    S.set_exn foo ~info:(infof "update foo:a") [ "a" ] v1 >>= fun () ->
-    S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1 >>= fun () ->
-    may_with_branch [ foo; bar ] repo hook >>= fun () ->
-    let* _ =
+    let foo = S.of_branch repo "foo" in
+    let bar = S.of_branch repo "bar" in
+    S.set_exn foo ~info:(infof "update foo:a") [ "a" ] v1;
+    S.set_exn bar ~info:(infof "update bar:b") [ "b" ] v1;
+    may_with_branch [ foo; bar ] repo hook;
+    let _ =
       S.merge_into ~info:(infof "merge bar into foo") bar ~into:foo
-      >>= merge_exn "merge unrelated"
+      |> merge_exn "merge unrelated"
     in
     B.Repo.close repo
 
   let rec write fn = function
     | 0 -> []
-    | i -> (fun () -> fn i >>= Lwt.pause) :: write fn (i - 1)
+    | i -> (fun () -> fn i |> Eio.Fiber.yield) :: write fn (i - 1)
 
-  let perform l = Lwt_list.iter_p (fun f -> f ()) l
+  let perform l = List.iter (fun f -> f ()) l
 
   let rec read fn check = function
     | 0 -> []
-    | i -> (fun () -> fn i >|= fun v -> check i v) :: read fn check (i - 1)
+    | i -> (fun () -> fn i |> fun v -> check i v) :: read fn check (i - 1)
 
   let test_concurrent_low x () =
-    let test_branches repo =
+    let test_branches repo () =
       let k = b1 in
-      let* v = r1 ~repo in
+      let v = r1 ~repo in
       let write = write (fun _i -> S.Branch.set repo k v) in
       let read =
         read
-          (fun _i -> S.Branch.find repo k >|= get)
+          (fun _i -> S.Branch.find repo k |> get)
           (fun i -> check (S.commit_t repo) (Fmt.str "tag %d" i) v)
       in
-      perform (write 1) >>= fun () ->
+      perform (write 1);
       perform (write 10 @ read 10 @ write 10 @ read 10)
     in
-    let test_contents repo =
-      let* k = kv2 ~repo in
+    let test_contents repo () =
+      let k = kv2 ~repo in
       let v = v2 in
       let t = B.Repo.contents_t repo in
       let write =
         write (fun _i ->
-            let* _ = with_contents repo (fun t -> B.Contents.add t v) in
-            Lwt.return_unit)
+            let _ = with_contents repo (fun t -> B.Contents.add t v) in
+            ())
       in
       let read =
         read
-          (fun _i -> B.Contents.find t k >|= get)
+          (fun _i -> B.Contents.find t k |> get)
           (fun i -> check S.contents_t (Fmt.str "contents %d" i) v)
       in
-      perform (write 1) >>= fun () ->
+      perform (write 1);
       perform (write 10 @ read 10 @ write 10 @ read 10)
     in
     run x (fun repo ->
-        Lwt.choose [ test_branches repo; test_contents repo ] >>= fun () ->
+        Eio.Fiber.all [ test_branches repo; test_contents repo ];
         B.Repo.close repo)
 
   let test_concurrent_updates x () =
     let test_one repo =
       let k = [ "a"; "b"; "d" ] in
       let v = "X1" in
-      let* t1 = S.main repo in
-      let* t2 = S.main repo in
+      let t1 = S.main repo in
+      let t2 = S.main repo in
       let write t =
         write (fun i -> S.set_exn t ~info:(infof "update: one %d" i) k v)
       in
@@ -2129,13 +2086,14 @@ module Make (S : Generic_key) = struct
           (fun _ -> S.get t k)
           (fun i -> check S.contents_t (Fmt.str "update: one %d" i) v)
       in
-      perform (write t1 10 @ write t2 10) >>= fun () -> perform (read t1 10)
+      perform (write t1 10 @ write t2 10);
+      perform (read t1 10)
     in
     let test_multi repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
-      let* t1 = S.main repo in
-      let* t2 = S.main repo in
+      let t1 = S.main repo in
+      let t2 = S.main repo in
       let write t =
         write (fun i ->
             S.set_exn t ~info:(infof "update: multi %d" i) (k i) (v i))
@@ -2145,35 +2103,38 @@ module Make (S : Generic_key) = struct
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
-      perform (write t1 10 @ write t2 10) >>= fun () -> perform (read t1 10)
+      perform (write t1 10 @ write t2 10);
+      perform (read t1 10)
     in
     run x (fun repo ->
-        test_one repo >>= fun () ->
-        test_multi repo >>= fun () -> B.Repo.close repo)
+        test_one repo;
+        test_multi repo;
+        B.Repo.close repo)
 
   let test_concurrent_merges x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
-      let* t1 = S.main repo in
-      let* t2 = S.main repo in
+      let t1 = S.main repo in
+      let t2 = S.main repo in
       let write t n =
         write (fun i ->
             let tag = Fmt.str "tmp-%d-%d" n i in
-            let* m = S.clone ~src:t ~dst:tag in
-            S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
-            Lwt.pause () >>= fun () ->
+            let m = S.clone ~src:t ~dst:tag in
+            S.set_exn m ~info:(infof "update") (k i) (v i);
+            Eio.Fiber.yield ();
             S.merge_into ~info:(infof "update: multi %d" i) m ~into:t
-            >>= merge_exn "update: multi")
+            |> merge_exn "update: multi")
       in
       let read t =
         read
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
-      S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
-      perform (write t1 1 10 @ write t2 2 10) >>= fun () ->
-      perform (read t1 10) >>= fun () -> B.Repo.close repo
+      S.set_exn t1 ~info:(infof "update") (k 0) (v 0);
+      perform (write t1 1 10 @ write t2 2 10);
+      perform (read t1 10);
+      B.Repo.close repo
     in
     run x test
 
@@ -2182,12 +2143,12 @@ module Make (S : Generic_key) = struct
 
   let test_with_tree x () =
     let test repo =
-      let* t = S.main repo in
-      let update ?retries key strategy r w =
+      let t = S.main repo in
+      let update ?retries key strategy r w () =
         S.with_tree t ?retries ~info:(infof "with-tree") ~strategy key (fun _ ->
-            let+ v = Lwt_mvar.take r in
+            let v = Eio.Stream.take r in
             Some (S.Tree.of_contents v))
-        >>= Lwt_mvar.put w
+        |> Eio.Stream.add w
       in
       let check_ok = function
         | Ok () -> ()
@@ -2207,87 +2168,91 @@ module Make (S : Generic_key) = struct
             Alcotest.failf "an other error was expected: %a" pp_write_error e
       in
       let set () =
-        let rx = Lwt_mvar.create_empty () in
-        let wx = Lwt_mvar.create_empty () in
-        let ry = Lwt_mvar.create_empty () in
-        let wy = Lwt_mvar.create_empty () in
-        S.set_exn t ~info:(infof "init") [ "a" ] "0" >>= fun () ->
-        Lwt.join
+        let rx = Eio.Stream.create 1 in
+        let wx = Eio.Stream.create 1 in
+        let ry = Eio.Stream.create 1 in
+        let wy = Eio.Stream.create 1 in
+        S.set_exn t ~info:(infof "init") [ "a" ] "0";
+        Eio.Fiber.all
           [
             update [ "a" ] ~retries:0 `Set rx wx;
             update [ "a" ] ~retries:0 `Set ry wy;
-            ( Lwt_mvar.put rx "1" >>= fun () ->
-              Lwt_mvar.take wx >|= check_ok >>= fun () ->
-              let* a = S.get t [ "a" ] in
+            (fun () ->
+              Eio.Stream.add rx "1";
+              Eio.Stream.take wx |> check_ok;
+              let a = S.get t [ "a" ] in
               Alcotest.(check string) "set x" "1" a;
-              Lwt_mvar.put ry "2" >>= fun () ->
-              Lwt_mvar.take wy >|= check_ok >>= fun () ->
-              let+ a = S.get t [ "a" ] in
-              Alcotest.(check string) "set y" "2" a );
+              Eio.Stream.add ry "2";
+              Eio.Stream.take wy |> check_ok;
+              let a = S.get t [ "a" ] in
+              Alcotest.(check string) "set y" "2" a);
           ]
       in
       let test_and_set () =
-        let rx = Lwt_mvar.create_empty () in
-        let wx = Lwt_mvar.create_empty () in
-        let ry = Lwt_mvar.create_empty () in
-        let wy = Lwt_mvar.create_empty () in
-        let rz = Lwt_mvar.create_empty () in
-        let wz = Lwt_mvar.create_empty () in
-        S.set_exn t ~info:(infof "init") [ "a" ] "0" >>= fun () ->
-        Lwt.join
+        let rx = Eio.Stream.create 1 in
+        let wx = Eio.Stream.create 1 in
+        let ry = Eio.Stream.create 1 in
+        let wy = Eio.Stream.create 1 in
+        let rz = Eio.Stream.create 1 in
+        let wz = Eio.Stream.create 1 in
+        S.set_exn t ~info:(infof "init") [ "a" ] "0";
+        Eio.Fiber.all
           [
             update [ "a" ] ~retries:0 `Test_and_set rx wx;
             update [ "a" ] ~retries:0 `Test_and_set ry wy;
             update [ "a" ] ~retries:1 `Test_and_set rz wz;
-            ( Lwt_mvar.put rx "1" >>= fun () ->
-              Lwt_mvar.take wx >|= check_ok >>= fun () ->
-              let* a = S.get t [ "a" ] in
+            (fun () ->
+              Eio.Stream.add rx "1";
+              Eio.Stream.take wx |> check_ok;
+              let a = S.get t [ "a" ] in
               Alcotest.(check string) "test-and-set x" "1" a;
-              Lwt_mvar.put ry "2" >>= fun () ->
-              let* e = Lwt_mvar.take wy in
+              Eio.Stream.add ry "2";
+              let e = Eio.Stream.take wy in
               check_test (Some (S.Tree.of_contents "1")) e;
-              let* a = S.get t [ "a" ] in
+              let a = S.get t [ "a" ] in
               Alcotest.(check string) "test-and-set y" "1" a;
-              Lwt_mvar.put rz "3" >>= fun () ->
+              Eio.Stream.add rz "3";
               (* there's a conflict, the transaction is restarted so need to feed a
                  new value *)
-              Lwt_mvar.put rz "4" >>= fun () ->
-              Lwt_mvar.take wz >|= check_ok >>= fun () ->
-              let+ a = S.get t [ "a" ] in
-              Alcotest.(check string) "test-and-set z" "4" a );
+              Eio.Stream.add rz "4";
+              Eio.Stream.take wz |> check_ok;
+              let a = S.get t [ "a" ] in
+              Alcotest.(check string) "test-and-set z" "4" a);
           ]
       in
       let merge () =
-        let rx = Lwt_mvar.create_empty () in
-        let wx = Lwt_mvar.create_empty () in
-        let ry = Lwt_mvar.create_empty () in
-        let wy = Lwt_mvar.create_empty () in
-        let rz = Lwt_mvar.create_empty () in
-        let wz = Lwt_mvar.create_empty () in
-        S.set_exn t ~info:(infof "init") [ "a" ] "0" >>= fun () ->
-        Lwt.join
+        let rx = Eio.Stream.create 1 in
+        let wx = Eio.Stream.create 1 in
+        let ry = Eio.Stream.create 1 in
+        let wy = Eio.Stream.create 1 in
+        let rz = Eio.Stream.create 1 in
+        let wz = Eio.Stream.create 1 in
+        S.set_exn t ~info:(infof "init") [ "a" ] "0";
+        Eio.Fiber.all
           [
             update [ "a" ] ~retries:0 `Merge rx wx;
             update [ "a" ] ~retries:0 `Merge ry wy;
             update [ "a" ] ~retries:1 `Merge rz wz;
-            ( Lwt_mvar.put rx "1" >>= fun () ->
-              Lwt_mvar.take wx >|= check_ok >>= fun () ->
-              let* a = S.get t [ "a" ] in
+            (fun () ->
+              Eio.Stream.add rx "1";
+              Eio.Stream.take wx |> check_ok;
+              let a = S.get t [ "a" ] in
               Alcotest.(check string) "merge x" "1" a;
-              Lwt_mvar.put ry "2" >>= fun () ->
-              Lwt_mvar.take wy >|= check_conflict >>= fun () ->
-              let* a = S.get t [ "a" ] in
+              Eio.Stream.add ry "2";
+              Eio.Stream.take wy |> check_conflict;
+              let a = S.get t [ "a" ] in
               Alcotest.(check string) "merge y" a "1";
-              Lwt_mvar.put rz "3" >>= fun () ->
+              Eio.Stream.add rz "3";
               (* there's a conflict, the transaction is restarted so need to feed a
                  new value *)
-              Lwt_mvar.put rz "4" >>= fun () ->
-              Lwt_mvar.take wz >|= check_ok >>= fun () ->
-              let+ a = S.get t [ "a" ] in
-              Alcotest.(check string) "merge z" a "4" );
+              Eio.Stream.add rz "4";
+              Eio.Stream.take wz |> check_ok;
+              let a = S.get t [ "a" ] in
+              Alcotest.(check string) "merge z" a "4");
           ]
       in
-      set () >>= test_and_set >>= merge >>= fun () -> B.Repo.close repo
+      set () |> test_and_set |> merge;
+      B.Repo.close repo
     in
     run x test
 
@@ -2295,14 +2260,12 @@ module Make (S : Generic_key) = struct
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
-      let* t1 = S.main repo in
-      let* t2 = S.main repo in
+      let t1 = S.main repo in
+      let t2 = S.main repo in
       let retry d fn =
         let rec aux i =
-          fn () >>= function
-          | true ->
-              [%log.debug "%d: ok!" d];
-              Lwt.return_unit
+          fn () |> function
+          | true -> [%log.debug "%d: ok!" d]
           | false ->
               [%log.debug "%d: conflict, retrying (%d)." d i];
               aux (i + 1)
@@ -2312,21 +2275,23 @@ module Make (S : Generic_key) = struct
       let write t n =
         write (fun i ->
             retry i (fun () ->
-                let* test = S.Head.find t in
+                let test = S.Head.find t in
                 let tag = Fmt.str "tmp-%d-%d" n i in
-                let* m = S.clone ~src:t ~dst:tag in
-                S.set_exn m ~info:(infof "update") (k i) (v i) >>= fun () ->
-                let* set = S.Head.find m in
-                Lwt.pause () >>= fun () -> S.Head.test_and_set t ~test ~set))
+                let m = S.clone ~src:t ~dst:tag in
+                S.set_exn m ~info:(infof "update") (k i) (v i);
+                let set = S.Head.find m in
+                Eio.Fiber.yield ();
+                S.Head.test_and_set t ~test ~set))
       in
       let read t =
         read
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.str "update: multi %d" i) (v i))
       in
-      S.set_exn t1 ~info:(infof "update") (k 0) (v 0) >>= fun () ->
-      perform (write t1 1 5 @ write t2 2 5) >>= fun () ->
-      perform (read t1 5) >>= fun () -> B.Repo.close repo
+      S.set_exn t1 ~info:(infof "update") (k 0) (v 0);
+      perform (write t1 1 5 @ write t2 2 5);
+      perform (read t1 5);
+      B.Repo.close repo
     in
     run x test
 
@@ -2339,27 +2304,27 @@ module Make (S : Generic_key) = struct
           A future version of this API may support such operations (e.g. for
           constructing Merkle proofs), but until then we must synthesise test keys
           by adding test values to the correponding backend stores directly. *)
-      let contents (s : string) : S.contents_key Lwt.t =
+      let contents (s : string) : S.contents_key =
         with_contents repo (fun c -> B.Contents.add c s)
       in
-      let node (s : string) : S.node_key Lwt.t =
+      let node (s : string) : S.node_key =
         with_node repo (fun n ->
-            let* contents = contents s in
+            let contents = contents s in
             let node = B.Node.Val.(add (empty ())) s (normal contents) in
             B.Node.add n node)
       in
-      let commit (s : string) : S.commit_key Lwt.t =
+      let commit (s : string) : S.commit_key =
         with_commit repo (fun c ->
-            let* node = node s in
+            let node = node s in
             let commit = B.Commit.Val.v ~info:(info "") ~node ~parents:[] in
             B.Commit.add c commit)
       in
-      let* foo_k = node "foo" in
-      let* bar_k = node "bar" in
+      let foo_k = node "foo" in
+      let bar_k = node "bar" in
       let tree_1 = S.Tree.shallow repo (`Node foo_k) in
       let tree_2 = S.Tree.shallow repo (`Node bar_k) in
-      let* node_3 =
-        let+ contents_foo = contents "foo" in
+      let node_3 =
+        let contents_foo = contents "foo" in
         S.Backend.Node.Val.of_list
           [
             ("foo", `Contents (contents_foo, S.Metadata.default));
@@ -2367,24 +2332,24 @@ module Make (S : Generic_key) = struct
           ]
       in
       let tree_3 = S.Tree.of_node (S.of_backend_node repo node_3) in
-      let* _ =
+      let _ =
         S.Backend.Repo.batch repo (fun c n _ -> S.save_tree repo c n tree_3)
       in
       let key_3 = get_node_key (Option.get (S.Tree.key tree_3)) in
       let info () = info "shallow" in
-      let* t = S.main repo in
-      S.set_tree_exn t [ "1" ] tree_1 ~info >>= fun () ->
-      S.set_tree_exn t [ "2" ] tree_2 ~info >>= fun () ->
-      let* h = S.Head.get t in
-      let* commit_v =
-        let+ commit_foo = commit "foo" in
+      let t = S.main repo in
+      S.set_tree_exn t [ "1" ] tree_1 ~info;
+      S.set_tree_exn t [ "2" ] tree_2 ~info;
+      let h = S.Head.get t in
+      let commit_v =
+        let commit_foo = commit "foo" in
         S.Backend.Commit.Val.v ~info:(info ()) ~node:key_3
           ~parents:[ S.Commit.key h; commit_foo ]
       in
-      let* commit_key = with_commit repo (fun c -> B.Commit.add c commit_v) in
+      let commit_key = with_commit repo (fun c -> B.Commit.add c commit_v) in
       let commit = S.of_backend_commit repo commit_key commit_v in
-      S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info >>= fun () ->
-      let* t1 = S.find_tree t [ "1" ] in
+      S.set_tree_exn t [ "3" ] ~parents:[ commit ] tree_3 ~info;
+      let t1 = S.find_tree t [ "1" ] in
       Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
       B.Repo.close repo
     in
@@ -2399,18 +2364,18 @@ module Make (S : Generic_key) = struct
         Buffer.contents buf
     in
     let rec add_entries acc = function
-      | 0 -> Lwt.return acc
+      | 0 -> acc
       | i ->
           let s = string_of_int i in
-          let* acc = S.Tree.add acc [ s ] s in
+          let acc = S.Tree.add acc [ s ] s in
           add_entries acc (i - 1)
     in
     let equal_hash = Irmin.Type.(equal S.Hash.t |> unstage) in
     let test create_tree repo =
-      let* tree = create_tree () in
-      let* c = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
+      let tree = create_tree () in
+      let c = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
 
-      let* node_b =
+      let node_b =
         S.Tree.destruct tree
         |> (function `Contents _ -> assert false | `Node n -> n)
         |> S.to_backend_node
@@ -2422,7 +2387,7 @@ module Make (S : Generic_key) = struct
       let commit_ph = pre_hash_of S.Backend.Commit.Val.t commit_b in
       let commit_h = S.Backend.Commit.Hash.hash commit_b in
 
-      let* blob_k =
+      let blob_k =
         with_contents repo (fun t -> S.Backend.Contents.add t node_ph)
       in
       let blob_h = S.Backend.Contents.Key.to_hash blob_k in
@@ -2434,7 +2399,7 @@ module Make (S : Generic_key) = struct
           (Irmin.Type.pp S.Backend.Node.Val.t)
           node_b;
 
-      let* blob_k =
+      let blob_k =
         with_contents repo (fun t -> S.Backend.Contents.add t commit_ph)
       in
       let blob_h = S.Backend.Contents.Key.to_hash blob_k in
@@ -2449,9 +2414,9 @@ module Make (S : Generic_key) = struct
       S.Backend.Repo.close repo
     in
     (* Test collisions with the empty node (and its commit), *)
-    let* () = run x (test @@ fun () -> S.Tree.empty () |> Lwt.return) in
+    run x (test @@ fun () -> S.Tree.empty ());
     (* with a length one node, *)
-    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1) >>= fun () ->
+    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1);
     (* and with a length >256 node (which is the threshold for unstable inodes
        in irmin pack). *)
     run x (test @@ fun () -> add_entries (S.Tree.empty ()) 260)
@@ -2543,7 +2508,6 @@ let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
   in
   Printexc.record_backtrace true;
   (* Ensure that failures occuring in async lwt threads are raised. *)
-  (Lwt.async_exception_hook := fun exn -> raise exn);
   let tl1 = List.map (suite sleep) tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
-  Alcotest_lwt.run name (misc @ tl1)
+  Alcotest.run name (misc @ tl1)

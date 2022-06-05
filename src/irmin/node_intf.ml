@@ -290,28 +290,28 @@ module type Graph = sig
   [@@deriving irmin]
   (** The type for store values. *)
 
-  val empty : [> write ] t -> node_key Lwt.t
+  val empty : [> write ] t -> node_key
   (** The empty node. *)
 
-  val v : [> write ] t -> (step * value) list -> node_key Lwt.t
+  val v : [> write ] t -> (step * value) list -> node_key
   (** [v t n] is a new node containing [n]. *)
 
-  val list : [> read ] t -> node_key -> (step * value) list Lwt.t
+  val list : [> read ] t -> node_key -> (step * value) list
   (** [list t n] is the contents of the node [n]. *)
 
-  val find : [> read ] t -> node_key -> path -> value option Lwt.t
+  val find : [> read ] t -> node_key -> path -> value option
   (** [find t n p] is the contents of the path [p] starting form [n]. *)
 
-  val add : [> read_write ] t -> node_key -> path -> value -> node_key Lwt.t
+  val add : [> read_write ] t -> node_key -> path -> value -> node_key
   (** [add t n p v] is the node [x] such that [find t x p] is [Some v] and it
       behaves the same [n] for other operations. *)
 
-  val remove : [> read_write ] t -> node_key -> path -> node_key Lwt.t
+  val remove : [> read_write ] t -> node_key -> path -> node_key
   (** [remove t n path] is the node [x] such that [find t x] is [None] and it
       behhaves then same as [n] for other operations. *)
 
   val closure :
-    [> read ] t -> min:node_key list -> max:node_key list -> node_key list Lwt.t
+    [> read ] t -> min:node_key list -> max:node_key list -> node_key list
   (** [closure t min max] is the unordered list of nodes [n] reachable from a
       node of [max] along a path which: (i) either contains no [min] or (ii) it
       ends with a [min].
@@ -322,14 +322,14 @@ module type Graph = sig
     [> read ] t ->
     min:node_key list ->
     max:node_key list ->
-    ?node:(node_key -> unit Lwt.t) ->
-    ?contents:(contents_key -> unit Lwt.t) ->
-    ?edge:(node_key -> node_key -> unit Lwt.t) ->
-    ?skip_node:(node_key -> bool Lwt.t) ->
-    ?skip_contents:(contents_key -> bool Lwt.t) ->
+    ?node:(node_key -> unit) ->
+    ?contents:(contents_key -> unit) ->
+    ?edge:(node_key -> node_key -> unit) ->
+    ?skip_node:(node_key -> bool) ->
+    ?skip_contents:(contents_key -> bool) ->
     ?rev:bool ->
     unit ->
-    unit Lwt.t
+    unit
   (** [iter t min max node edge skip rev ()] iterates in topological order over
       the closure of [t].
 

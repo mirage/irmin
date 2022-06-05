@@ -103,7 +103,7 @@ module type S_generic_key = sig
     type t = repo
     (** The type of repository handles. *)
 
-    val v : Conf.t -> t Lwt.t
+    val v : Conf.t -> t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
     val config : t -> Conf.t
@@ -112,10 +112,10 @@ module type S_generic_key = sig
     include Closeable with type _ t := t
     (** @inline *)
 
-    val heads : t -> commit list Lwt.t
+    val heads : t -> commit list
     (** [heads] is {!Head.list}. *)
 
-    val branches : t -> branch list Lwt.t
+    val branches : t -> branch list
     (** [branches] is {!Branch.list}. *)
 
     val export :
@@ -124,7 +124,7 @@ module type S_generic_key = sig
       ?min:commit list ->
       ?max:[ `Head | `Max of commit list ] ->
       t ->
-      slice Lwt.t
+      slice
     (** [export t ~full ~depth ~min ~max] exports the store slice between [min]
         and [max], using at most [depth] history depth (starting from the max).
 
@@ -139,7 +139,7 @@ module type S_generic_key = sig
         commits, nodes and contents, is exported, otherwise it is the commit
         history graph only. *)
 
-    val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
+    val import : t -> slice -> (unit, [ `Msg of string ]) result
     (** [import t s] imports the contents of the slice [s] in [t]. Does not
         modify branches. *)
 
@@ -151,30 +151,30 @@ module type S_generic_key = sig
     [@@deriving irmin]
     (** The type for elements iterated over by {!iter}. *)
 
-    val default_pred_commit : t -> commit_key -> elt list Lwt.t
-    val default_pred_node : t -> node_key -> elt list Lwt.t
-    val default_pred_contents : t -> contents_key -> elt list Lwt.t
+    val default_pred_commit : t -> commit_key -> elt list
+    val default_pred_node : t -> node_key -> elt list
+    val default_pred_contents : t -> contents_key -> elt list
 
     val iter :
       ?cache_size:int ->
       min:elt list ->
       max:elt list ->
-      ?edge:(elt -> elt -> unit Lwt.t) ->
-      ?branch:(branch -> unit Lwt.t) ->
-      ?commit:(commit_key -> unit Lwt.t) ->
-      ?node:(node_key -> unit Lwt.t) ->
-      ?contents:(contents_key -> unit Lwt.t) ->
-      ?skip_branch:(branch -> bool Lwt.t) ->
-      ?skip_commit:(commit_key -> bool Lwt.t) ->
-      ?skip_node:(node_key -> bool Lwt.t) ->
-      ?skip_contents:(contents_key -> bool Lwt.t) ->
-      ?pred_branch:(t -> branch -> elt list Lwt.t) ->
-      ?pred_commit:(t -> commit_key -> elt list Lwt.t) ->
-      ?pred_node:(t -> node_key -> elt list Lwt.t) ->
-      ?pred_contents:(t -> contents_key -> elt list Lwt.t) ->
+      ?edge:(elt -> elt -> unit) ->
+      ?branch:(branch -> unit) ->
+      ?commit:(commit_key -> unit) ->
+      ?node:(node_key -> unit) ->
+      ?contents:(contents_key -> unit) ->
+      ?skip_branch:(branch -> bool) ->
+      ?skip_commit:(commit_key -> bool) ->
+      ?skip_node:(node_key -> bool) ->
+      ?skip_contents:(contents_key -> bool) ->
+      ?pred_branch:(t -> branch -> elt list) ->
+      ?pred_commit:(t -> commit_key -> elt list) ->
+      ?pred_node:(t -> node_key -> elt list) ->
+      ?pred_contents:(t -> contents_key -> elt list) ->
       ?rev:bool ->
       t ->
-      unit Lwt.t
+      unit
     (** [iter t] iterates in topological order over the closure graph of [t]. If
         [rev] is set (by default it is) the traversal is done in reverse order.
 
@@ -215,31 +215,31 @@ module type S_generic_key = sig
     val breadth_first_traversal :
       ?cache_size:int ->
       max:elt list ->
-      ?branch:(branch -> unit Lwt.t) ->
-      ?commit:(commit_key -> unit Lwt.t) ->
-      ?node:(node_key -> unit Lwt.t) ->
-      ?contents:(contents_key -> unit Lwt.t) ->
-      ?pred_branch:(t -> branch -> elt list Lwt.t) ->
-      ?pred_commit:(t -> commit_key -> elt list Lwt.t) ->
-      ?pred_node:(t -> node_key -> elt list Lwt.t) ->
-      ?pred_contents:(t -> contents_key -> elt list Lwt.t) ->
+      ?branch:(branch -> unit) ->
+      ?commit:(commit_key -> unit) ->
+      ?node:(node_key -> unit) ->
+      ?contents:(contents_key -> unit) ->
+      ?pred_branch:(t -> branch -> elt list) ->
+      ?pred_commit:(t -> commit_key -> elt list) ->
+      ?pred_node:(t -> node_key -> elt list) ->
+      ?pred_contents:(t -> contents_key -> elt list) ->
       t ->
-      unit Lwt.t
+      unit
   end
 
-  val empty : repo -> t Lwt.t
+  val empty : repo -> t
   (** [empty repo] is a temporary, empty store. Becomes a normal temporary store
       after the first update. *)
 
-  val main : repo -> t Lwt.t
+  val main : repo -> t
   (** [main r] is a persistent store based on [r]'s main branch. This operation
       is cheap, can be repeated multiple times. *)
 
-  val of_branch : repo -> branch -> t Lwt.t
+  val of_branch : repo -> branch -> t
   (** [of_branch r name] is a persistent store based on the branch [name].
       Similar to {!main}, but use [name] instead of {!Irmin.Branch.S.main}. *)
 
-  val of_commit : commit -> t Lwt.t
+  val of_commit : commit -> t
   (** [of_commit c] is a temporary store, based on the commit [c].
 
       Temporary stores do not have stable names: instead they can be addressed
@@ -252,7 +252,7 @@ module type S_generic_key = sig
   val repo : t -> repo
   (** [repo t] is the repository containing [t]. *)
 
-  val tree : t -> tree Lwt.t
+  val tree : t -> tree
   (** [tree t] is [t]'s current tree. Contents is not allowed at the root of the
       tree. *)
 
@@ -272,11 +272,11 @@ module type S_generic_key = sig
 
   (** Managing the store's heads. *)
   module Head : sig
-    val list : repo -> commit list Lwt.t
+    val list : repo -> commit list
     (** [list t] is the list of all the heads in local store. Similar to
         [git rev-list --all]. *)
 
-    val find : t -> commit option Lwt.t
+    val find : t -> commit option
     (** [find t] is the current head of the store [t]. This works for both
         persistent and temporary branches. In the case of a persistent branch,
         this involves getting the the head associated with the branch, so this
@@ -284,17 +284,17 @@ module type S_generic_key = sig
         current head. Returns [None] if the store has no contents. Similar to
         [git rev-parse HEAD]. *)
 
-    val get : t -> commit Lwt.t
+    val get : t -> commit
     (** Same as {!find} but raise [Invalid_argument] if the store does not have
         any contents. *)
 
-    val set : t -> commit -> unit Lwt.t
+    val set : t -> commit -> unit
     (** [set t h] updates [t]'s contents with the contents of the commit [h].
         Can cause data loss as it discards the current contents. Similar to
         [git reset --hard <hash>]. *)
 
     val fast_forward :
-      t -> ?max_depth:int -> ?n:int -> commit -> (unit, ff_error) result Lwt.t
+      t -> ?max_depth:int -> ?n:int -> commit -> (unit, ff_error) result
     (** [fast_forward t h] is similar to {!set} but the [t]'s head is updated to
         [h] only if [h] is stricly in the future of [t]'s current head.
         [max_depth] or [n] are used to limit the search space of the lowest
@@ -309,8 +309,7 @@ module type S_generic_key = sig
           useful results. In that case. the operation can be retried using
           different parameters of [n] and [max_depth] to get better results. *)
 
-    val test_and_set :
-      t -> test:commit option -> set:commit option -> bool Lwt.t
+    val test_and_set : t -> test:commit option -> set:commit option -> bool
     (** Same as {!set} but check that the value is [test] before updating to
         [set]. Use {!set} or {!val-merge} instead if possible. *)
 
@@ -320,7 +319,7 @@ module type S_generic_key = sig
       ?max_depth:int ->
       ?n:int ->
       commit ->
-      (unit, Merge.conflict) result Lwt.t
+      (unit, Merge.conflict) result
     (** [merge ~into:t ?max_head ?n commit] merges the contents of the commit
         associated to [commit] into [t]. [max_depth] is the maximal depth used
         for getting the lowest common ancestor. [n] is the maximum number of
@@ -348,7 +347,7 @@ module type S_generic_key = sig
       info:info ->
       parents:commit_key list ->
       tree ->
-      commit Lwt.t
+      commit
     (** [v r i ~parents:p t] is the commit [c] such that:
 
         - [info c = i]
@@ -375,11 +374,11 @@ module type S_generic_key = sig
     val key : commit -> commit_key
     (** [key c] is [c]'s key. *)
 
-    val of_key : repo -> commit_key -> commit option Lwt.t
+    val of_key : repo -> commit_key -> commit option
     (** [of_key r k] is the the commit object in [r] with key [k], or [None] if
         no such commit object exists. *)
 
-    val of_hash : repo -> hash -> commit option Lwt.t
+    val of_hash : repo -> hash -> commit option
     (** [of_hash r h] is the commit object in [r] with hash [h], or [None] if no
         such commit object is indexed in [r].
 
@@ -396,11 +395,11 @@ module type S_generic_key = sig
     val hash : contents -> hash
     (** [hash c] it [c]'s hash. *)
 
-    val of_key : repo -> contents_key -> contents option Lwt.t
+    val of_key : repo -> contents_key -> contents option
     (** [of_key r k] is the contents object in [r] with key [k], or [None] if no
         such contents object exists. *)
 
-    val of_hash : repo -> hash -> contents option Lwt.t
+    val of_hash : repo -> hash -> contents option
     (** [of_hash r h] is the contents object in [r] with hash [h], or [None] if
         no such contents object is indexed in [r].
 
@@ -436,11 +435,11 @@ module type S_generic_key = sig
         with {!of_concrete}) have no backend key until they are exported to a
         repository, and so will return [None]. *)
 
-    val find_key : Repo.t -> tree -> kinded_key option Lwt.t
+    val find_key : Repo.t -> tree -> kinded_key option
     (** [find_key r t] is the key of a tree object with the same hash as [t] in
         [r], if such a key exists and is indexed. *)
 
-    val of_key : Repo.t -> kinded_key -> tree option Lwt.t
+    val of_key : Repo.t -> kinded_key -> tree option
     (** [of_key r h] is the tree object in [r] having [h] as key, or [None] if
         no such tree object exists. *)
 
@@ -458,7 +457,7 @@ module type S_generic_key = sig
     val kinded_hash : ?cache:bool -> tree -> kinded_hash
     (** [kinded_hash t] is [c]'s kinded hash. *)
 
-    val of_hash : Repo.t -> kinded_hash -> tree option Lwt.t
+    val of_hash : Repo.t -> kinded_hash -> tree option
     (** [of_hash r h] is the tree object in [r] with hash [h], or [None] if no
         such tree object is indexed in [r].
 
@@ -468,10 +467,7 @@ module type S_generic_key = sig
     (** {1 Proofs} *)
 
     type ('proof, 'result) producer :=
-      repo ->
-      kinded_key ->
-      (tree -> (tree * 'result) Lwt.t) ->
-      ('proof * 'result) Lwt.t
+      repo -> kinded_key -> (tree -> tree * 'result) -> 'proof * 'result
     (** [produce r h f] runs [f] on top of a real store [r], producing a proof
         and a result using the initial root hash [h].
 
@@ -490,8 +486,8 @@ module type S_generic_key = sig
 
     type ('proof, 'result) verifier :=
       'proof ->
-      (tree -> (tree * 'result) Lwt.t) ->
-      (tree * 'result, verifier_error) result Lwt.t
+      (tree -> tree * 'result) ->
+      (tree * 'result, verifier_error) result
     (** [verify p f] runs [f] in checking mode. [f] is a function that takes a
         tree as input and returns a new version of the tree and a result. [p] is
         a proof, that is a minimal representation of the tree that contains what
@@ -559,42 +555,42 @@ module type S_generic_key = sig
 
   (** {1 Reads} *)
 
-  val kind : t -> path -> [ `Contents | `Node ] option Lwt.t
+  val kind : t -> path -> [ `Contents | `Node ] option
   (** [kind] is {!Tree.kind} applied to [t]'s root tree. *)
 
-  val list : t -> path -> (step * tree) list Lwt.t
+  val list : t -> path -> (step * tree) list
   (** [list t] is {!Tree.list} applied to [t]'s root tree. *)
 
-  val mem : t -> path -> bool Lwt.t
+  val mem : t -> path -> bool
   (** [mem t] is {!Tree.mem} applied to [t]'s root tree. *)
 
-  val mem_tree : t -> path -> bool Lwt.t
+  val mem_tree : t -> path -> bool
   (** [mem_tree t] is {!Tree.mem_tree} applied to [t]'s root tree. *)
 
-  val find_all : t -> path -> (contents * metadata) option Lwt.t
+  val find_all : t -> path -> (contents * metadata) option
   (** [find_all t] is {!Tree.find_all} applied to [t]'s root tree. *)
 
-  val find : t -> path -> contents option Lwt.t
+  val find : t -> path -> contents option
   (** [find t] is {!Tree.find} applied to [t]'s root tree. *)
 
-  val get_all : t -> path -> (contents * metadata) Lwt.t
+  val get_all : t -> path -> contents * metadata
   (** [get_all t] is {!Tree.get_all} applied on [t]'s root tree. *)
 
-  val get : t -> path -> contents Lwt.t
+  val get : t -> path -> contents
   (** [get t] is {!Tree.get} applied to [t]'s root tree. *)
 
-  val find_tree : t -> path -> tree option Lwt.t
+  val find_tree : t -> path -> tree option
   (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root tree. *)
 
-  val get_tree : t -> path -> tree Lwt.t
+  val get_tree : t -> path -> tree
   (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root tree. *)
 
   type kinded_key := [ `Contents of contents_key | `Node of node_key ]
 
-  val key : t -> path -> kinded_key option Lwt.t
+  val key : t -> path -> kinded_key option
   (** [id t k] *)
 
-  val hash : t -> path -> hash option Lwt.t
+  val hash : t -> path -> hash option
   (** [hash t k] *)
 
   (** {1 Updates} *)
@@ -619,7 +615,7 @@ module type S_generic_key = sig
     t ->
     path ->
     contents ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [set t k ~info v] sets [k] to the value [v] in [t]. Discard any previous
       results but ensure that no operation is lost in the history.
 
@@ -642,7 +638,7 @@ module type S_generic_key = sig
     t ->
     path ->
     contents ->
-    unit Lwt.t
+    unit
   (** [set_exn] is like {!set} but raise [Failure _] instead of using a result
       type. *)
 
@@ -655,7 +651,7 @@ module type S_generic_key = sig
     t ->
     path ->
     tree ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [set_tree] is like {!set} but for trees. *)
 
   val set_tree_exn :
@@ -667,7 +663,7 @@ module type S_generic_key = sig
     t ->
     path ->
     tree ->
-    unit Lwt.t
+    unit
   (** [set_tree] is like {!set_exn} but for trees. *)
 
   val remove :
@@ -678,7 +674,7 @@ module type S_generic_key = sig
     info:Info.f ->
     t ->
     path ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [remove t ~info k] remove any bindings to [k] in [t].
 
       The result is [Error `Too_many_retries] if the concurrent operations do
@@ -693,7 +689,7 @@ module type S_generic_key = sig
     info:Info.f ->
     t ->
     path ->
-    unit Lwt.t
+    unit
   (** [remove_exn] is like {!remove} but raise [Failure _] instead of a using
       result type. *)
 
@@ -707,7 +703,7 @@ module type S_generic_key = sig
     path ->
     test:contents option ->
     set:contents option ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [test_and_set ~test ~set] is like {!set} but it atomically checks that the
       tree is [test] before modifying it to [set].
 
@@ -731,7 +727,7 @@ module type S_generic_key = sig
     path ->
     test:contents option ->
     set:contents option ->
-    unit Lwt.t
+    unit
   (** [test_and_set_exn] is like {!test_and_set} but raise [Failure _] instead
       of using a result type. *)
 
@@ -745,7 +741,7 @@ module type S_generic_key = sig
     path ->
     test:tree option ->
     set:tree option ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [test_and_set_tree] is like {!test_and_set} but for trees. *)
 
   val test_and_set_tree_exn :
@@ -758,7 +754,7 @@ module type S_generic_key = sig
     path ->
     test:tree option ->
     set:tree option ->
-    unit Lwt.t
+    unit
   (** [test_and_set_tree_exn] is like {!test_and_set_exn} but for trees. *)
 
   val test_set_and_get :
@@ -771,7 +767,7 @@ module type S_generic_key = sig
     path ->
     test:contents option ->
     set:contents option ->
-    (commit option, write_error) result Lwt.t
+    (commit option, write_error) result
   (** [test_set_and_get] is like {!test_and_set} except it also returns the
       commit associated with updating the store with the new value if the
       [test_and_set] is successful. No commit is returned if there was no update
@@ -787,7 +783,7 @@ module type S_generic_key = sig
     path ->
     test:contents option ->
     set:contents option ->
-    commit option Lwt.t
+    commit option
   (** [test_set_and_get_exn] is like {!test_set_and_get} but raises [Failure _]
       instead. *)
 
@@ -801,7 +797,7 @@ module type S_generic_key = sig
     path ->
     test:tree option ->
     set:tree option ->
-    (commit option, write_error) result Lwt.t
+    (commit option, write_error) result
   (** [test_set_and_get_tree] is like {!test_set_and_get} but for a {!tree} *)
 
   val test_set_and_get_tree_exn :
@@ -814,7 +810,7 @@ module type S_generic_key = sig
     path ->
     test:tree option ->
     set:tree option ->
-    commit option Lwt.t
+    commit option
   (** [test_set_and_get_tree_exn] is like {!test_set_and_get_tree} but raises
       [Failure _] instead. *)
 
@@ -828,7 +824,7 @@ module type S_generic_key = sig
     t ->
     path ->
     contents option ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [merge ~old] is like {!set} but merge the current tree and the new tree
       using [old] as ancestor in case of conflicts.
 
@@ -852,7 +848,7 @@ module type S_generic_key = sig
     t ->
     path ->
     contents option ->
-    unit Lwt.t
+    unit
   (** [merge_exn] is like {!val-merge} but raise [Failure _] instead of using a
       result type. *)
 
@@ -866,7 +862,7 @@ module type S_generic_key = sig
     t ->
     path ->
     tree option ->
-    (unit, write_error) result Lwt.t
+    (unit, write_error) result
   (** [merge_tree] is like {!merge_tree} but for trees. *)
 
   val merge_tree_exn :
@@ -879,7 +875,7 @@ module type S_generic_key = sig
     t ->
     path ->
     tree option ->
-    unit Lwt.t
+    unit
   (** [merge_tree] is like {!merge_tree} but for trees. *)
 
   val with_tree :
@@ -891,8 +887,8 @@ module type S_generic_key = sig
     info:Info.f ->
     t ->
     path ->
-    (tree option -> tree option Lwt.t) ->
-    (unit, write_error) result Lwt.t
+    (tree option -> tree option) ->
+    (unit, write_error) result
   (** [with_tree t k ~info f] replaces {i atomically} the subtree [v] under [k]
       in the store [t] by the contents of the tree [f v], using the commit info
       [info ()].
@@ -926,14 +922,14 @@ module type S_generic_key = sig
     info:Info.f ->
     t ->
     path ->
-    (tree option -> tree option Lwt.t) ->
-    unit Lwt.t
+    (tree option -> tree option) ->
+    unit
   (** [with_tree_exn] is like {!with_tree} but raise [Failure _] instead of
       using a return type. *)
 
   (** {1 Clones} *)
 
-  val clone : src:t -> dst:branch -> t Lwt.t
+  val clone : src:t -> dst:branch -> t
   (** [clone ~src ~dst] makes [dst] points to [Head.get src]. [dst] is created
       if needed. Remove the current contents en [dst] if [src] is {!empty}. *)
 
@@ -942,7 +938,7 @@ module type S_generic_key = sig
   type watch
   (** The type for store watches. *)
 
-  val watch : t -> ?init:commit -> (commit Diff.t -> unit Lwt.t) -> watch Lwt.t
+  val watch : t -> ?init:commit -> (commit Diff.t -> unit) -> watch
   (** [watch t f] calls [f] every time the contents of [t]'s head is updated.
 
       {b Note:} even if [f] might skip some head updates, it will never be
@@ -950,16 +946,12 @@ module type S_generic_key = sig
       we ensure that the previous one ended before calling the next one. *)
 
   val watch_key :
-    t ->
-    path ->
-    ?init:commit ->
-    ((commit * tree) Diff.t -> unit Lwt.t) ->
-    watch Lwt.t
+    t -> path -> ?init:commit -> ((commit * tree) Diff.t -> unit) -> watch
   (** [watch_key t key f] calls [f] every time the [key]'s value is added,
       removed or updated. If the current branch is deleted, no signal is sent to
       the watcher. *)
 
-  val unwatch : watch -> unit Lwt.t
+  val unwatch : watch -> unit
   (** [unwatch w] disable [w]. Return once the [w] is fully disabled. *)
 
   (** {1 Merges and Common Ancestors} *)
@@ -969,7 +961,7 @@ module type S_generic_key = sig
     ?max_depth:int ->
     ?n:int ->
     'a ->
-    (unit, Merge.conflict) result Lwt.t
+    (unit, Merge.conflict) result
   (** The type for merge functions. *)
 
   val merge_into : into:t -> t merge
@@ -984,7 +976,7 @@ module type S_generic_key = sig
   (** Same as {!val-merge} but with a commit_id. *)
 
   val lcas :
-    ?max_depth:int -> ?n:int -> t -> t -> (commit list, lca_error) result Lwt.t
+    ?max_depth:int -> ?n:int -> t -> t -> (commit list, lca_error) result
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least common
       ancestors between the heads of [t1] and [t2] branches.
 
@@ -995,19 +987,11 @@ module type S_generic_key = sig
         found. *)
 
   val lcas_with_branch :
-    t ->
-    ?max_depth:int ->
-    ?n:int ->
-    branch ->
-    (commit list, lca_error) result Lwt.t
+    t -> ?max_depth:int -> ?n:int -> branch -> (commit list, lca_error) result
   (** Same as {!lcas} but takes a branch ID as argument. *)
 
   val lcas_with_commit :
-    t ->
-    ?max_depth:int ->
-    ?n:int ->
-    commit ->
-    (commit list, lca_error) result Lwt.t
+    t -> ?max_depth:int -> ?n:int -> commit -> (commit list, lca_error) result
   (** Same as {!lcas} but takes a commmit as argument. *)
 
   (** {1 History} *)
@@ -1016,12 +1000,12 @@ module type S_generic_key = sig
   (** An history is a DAG of heads. *)
 
   val history :
-    ?depth:int -> ?min:commit list -> ?max:commit list -> t -> History.t Lwt.t
+    ?depth:int -> ?min:commit list -> ?max:commit list -> t -> History.t
   (** [history ?depth ?min ?max t] is a view of the history of the store [t], of
       depth at most [depth], starting from the [t]'s head (or from [max] if the
       head is not set) and stopping at [min] if specified. *)
 
-  val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list Lwt.t
+  val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list
   (** [last_modified ?number c k] is the list of the last [number] commits that
       modified [path], in ascending order of date. [depth] is the maximum depth
       to be explored in the commit graph, if any. Default value for [number] is
@@ -1034,39 +1018,35 @@ module type S_generic_key = sig
         Manipulate relations between {{!branch} branches} and {{!commit}
         commits}. *)
 
-    val mem : repo -> branch -> bool Lwt.t
+    val mem : repo -> branch -> bool
     (** [mem r b] is true iff [b] is present in [r]. *)
 
-    val find : repo -> branch -> commit option Lwt.t
+    val find : repo -> branch -> commit option
     (** [find r b] is [Some c] iff [c] is bound to [b] in [t]. It is [None] if
         [b] is not present in [t]. *)
 
-    val get : repo -> branch -> commit Lwt.t
+    val get : repo -> branch -> commit
     (** [get t b] is similar to {!find} but raise [Invalid_argument] if [b] is
         not present in [t]. *)
 
-    val set : repo -> branch -> commit -> unit Lwt.t
+    val set : repo -> branch -> commit -> unit
     (** [set t b c] bounds [c] to [b] in [t]. *)
 
-    val remove : repo -> branch -> unit Lwt.t
+    val remove : repo -> branch -> unit
     (** [remove t b] removes [b] from [t]. *)
 
-    val list : repo -> branch list Lwt.t
+    val list : repo -> branch list
     (** [list t] is the list of branches present in [t]. *)
 
     val watch :
-      repo ->
-      branch ->
-      ?init:commit ->
-      (commit Diff.t -> unit Lwt.t) ->
-      watch Lwt.t
+      repo -> branch -> ?init:commit -> (commit Diff.t -> unit) -> watch
     (** [watch t b f] calls [f] on every change in [b]. *)
 
     val watch_all :
       repo ->
       ?init:(branch * commit) list ->
-      (branch -> commit Diff.t -> unit Lwt.t) ->
-      watch Lwt.t
+      (branch -> commit Diff.t -> unit) ->
+      watch
     (** [watch_all t f] calls [f] on every branch-related change in [t],
         including creation/deletion events. *)
 
@@ -1099,8 +1079,8 @@ module type S_generic_key = sig
   (** {2 Converters to backend types} *)
 
   val of_backend_node : repo -> Backend.Node.value -> node
-  val to_backend_node : node -> Backend.Node.value Lwt.t
-  val to_backend_portable_node : node -> Backend.Node_portable.t Lwt.t
+  val to_backend_node : node -> Backend.Node.value
+  val to_backend_portable_node : node -> Backend.Node_portable.t
 
   val to_backend_commit : commit -> Backend.Commit.value
   (** [to_backend_commit c] is the backend commit object associated with the
@@ -1111,8 +1091,7 @@ module type S_generic_key = sig
   (** [of_backend_commit r k c] is the commit associated with the backend commit
       object [c] that hash key [k] in [r]. *)
 
-  val save_contents :
-    [> write ] Backend.Contents.t -> contents -> contents_key Lwt.t
+  val save_contents : [> write ] Backend.Contents.t -> contents -> contents_key
   (** Save a content into the database *)
 
   val save_tree :
@@ -1121,7 +1100,7 @@ module type S_generic_key = sig
     [> write ] Backend.Contents.t ->
     [> read_write ] Backend.Node.t ->
     tree ->
-    kinded_key Lwt.t
+    kinded_key
   (** Save a tree into the database. Does not do any reads.
 
       When [clear] is set (the default), the tree cache is emptied upon the
@@ -1129,7 +1108,7 @@ module type S_generic_key = sig
 
   (** {Deprecated} *)
 
-  val master : repo -> t Lwt.t
+  val master : repo -> t
     [@@ocaml.deprecated "Use `main` instead."]
   (** @deprecated Use {!main} instead *)
 end
@@ -1177,17 +1156,16 @@ module type Json_tree = functor
   val to_concrete_tree : t -> Store.Tree.concrete
   val of_concrete_tree : Store.Tree.concrete -> t
 
-  val get_tree : Store.tree -> Store.path -> t Lwt.t
+  val get_tree : Store.tree -> Store.path -> t
   (** Extract a [json] value from tree at the given key. *)
 
-  val set_tree : Store.tree -> Store.path -> t -> Store.tree Lwt.t
+  val set_tree : Store.tree -> Store.path -> t -> Store.tree
   (** Project a [json] value onto a tree at the given key. *)
 
-  val get : Store.t -> Store.path -> t Lwt.t
+  val get : Store.t -> Store.path -> t
   (** Extract a [json] value from a store at the given key. *)
 
-  val set :
-    Store.t -> Store.path -> t -> info:(unit -> Store.info) -> unit Lwt.t
+  val set : Store.t -> Store.path -> t -> info:(unit -> Store.info) -> unit
   (** Project a [json] value onto a store at the given key. *)
 end
 
