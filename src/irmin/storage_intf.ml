@@ -19,33 +19,33 @@ module type S = sig
   type key
   type value
 
-  val v : Conf.t -> t Lwt.t
+  val v : Conf.t -> t
   (** [v config] initialises a storage layer, with the configuration [config]. *)
 
-  val mem : t -> key -> bool Lwt.t
+  val mem : t -> key -> bool
   (** [mem t k] is true iff [k] is present in [t]. *)
 
-  val find : t -> key -> value option Lwt.t
+  val find : t -> key -> value option
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 
-  val keys : t -> key list Lwt.t
+  val keys : t -> key list
   (** [keys t] it the list of keys in [t]. *)
 
-  val set : t -> key -> value -> unit Lwt.t
+  val set : t -> key -> value -> unit
   (** [set t k v] sets the contents of [k] to [v] in [t]. *)
 
-  val remove : t -> key -> unit Lwt.t
+  val remove : t -> key -> unit
   (** [remove t k] removes the key [k] in [t]. *)
 
-  val batch : t -> (t -> 'a Lwt.t) -> 'a Lwt.t
+  val batch : t -> (t -> 'a) -> 'a
   (** [batch t f] applies the operations in [f] in a batch. The exact guarantees
       depend on the implementation. *)
 
-  val clear : t -> unit Lwt.t
+  val clear : t -> unit
   (** [clear t] clears the storage. This operation is expected to be slow. *)
 
-  val close : t -> unit Lwt.t
+  val close : t -> unit
   (** [close t] frees up all the resources associated with [t]. *)
 end
 

@@ -221,10 +221,10 @@ module type Env = sig
   val set_mode : t -> mode -> unit
 
   val with_produce :
-    (t -> start_serialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
+    (t -> start_serialise:(unit -> unit) -> 'a) -> 'a
 
   val with_consume :
-    (t -> stop_deserialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
+    (t -> stop_deserialise:(unit -> unit) -> 'a) -> 'a
 
   (** {2 Interactions With [Tree]} *)
 

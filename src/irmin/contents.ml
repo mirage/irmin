@@ -221,11 +221,8 @@ struct
   module Hash = Hash.Typed (H) (C)
   include S
 
-  let read_opt t = function None -> Lwt.return_none | Some k -> find t k
-
-  let add_opt t = function
-    | None -> Lwt.return_none
-    | Some v -> add t v >>= Lwt.return_some
+  let read_opt t = function None -> None | Some k -> find t k
+  let add_opt t = function None -> None | Some v -> Some (add t v)
 
   let merge t =
     Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)

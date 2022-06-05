@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : unit Alcotest_lwt.test_case list
+val suite : unit Alcotest.test_case list

@@ -72,8 +72,8 @@ let test_subsequent_root_paths_duplicate () =
 
 let suite =
   [
-    Alcotest_lwt.test_case_sync "conf" `Quick test_conf;
-    Alcotest_lwt.test_case_sync "duplicate key names" `Quick
+    Alcotest.test_case_sync "conf" `Quick test_conf;
+    Alcotest.test_case_sync "duplicate key names" `Quick
       test_duplicate_key_names;
     Alcotest_lwt.test_case_sync "subsequent root paths" `Quick
       test_subsequent_root_paths;

@@ -150,7 +150,7 @@ struct
     let t = ref Empty in
     set_mode t Deserialise;
     let stop_deserialise () = set_mode t Consume in
-    let+ res = f t ~stop_deserialise in
+    let res = f t ~stop_deserialise in
     t := Empty;
     res
 
@@ -158,7 +158,7 @@ struct
     let t = ref Empty in
     set_mode t Produce;
     let start_serialise () = set_mode t Serialise in
-    let+ res = f t ~start_serialise in
+    let res = f t ~start_serialise in
     t := Empty;
     res
 

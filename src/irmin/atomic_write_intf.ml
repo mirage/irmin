@@ -30,13 +30,12 @@ module type S = sig
   include Read_only.S with type _ t := t
   (** @inline *)
 
-  val set : t -> key -> value -> unit Lwt.t
+  val set : t -> key -> value -> unit
   (** [set t k v] replaces the contents of [k] by [v] in [t]. If [k] is not
       already defined in [t], create a fresh binding. Raise [Invalid_argument]
       if [k] is the {{!Irmin.Path.S.empty} empty path}. *)
 
-  val test_and_set :
-    t -> key -> test:value option -> set:value option -> bool Lwt.t
+  val test_and_set : t -> key -> test:value option -> set:value option -> bool
   (** [test_and_set t key ~test ~set] sets [key] to [set] only if the current
       value of [key] is [test] and in that case returns [true]. If the current
       value of [key] is different, it returns [false]. [None] means that the
@@ -44,32 +43,28 @@ module type S = sig
 
       {b Note:} The operation is guaranteed to be atomic. *)
 
-  val remove : t -> key -> unit Lwt.t
+  val remove : t -> key -> unit
   (** [remove t k] remove the key [k] in [t]. *)
 
-  val list : t -> key list Lwt.t
+  val list : t -> key list
   (** [list t] it the list of keys in [t]. *)
 
   type watch
   (** The type of watch handlers. *)
 
   val watch :
-    t ->
-    ?init:(key * value) list ->
-    (key -> value diff -> unit Lwt.t) ->
-    watch Lwt.t
+    t -> ?init:(key * value) list -> (key -> value diff -> unit) -> watch
   (** [watch t ?init f] adds [f] to the list of [t]'s watch handlers and returns
       the watch handler to be used with {!unwatch}. [init] is the optional
       initial values. It is more efficient to use {!watch_key} to watch only a
       single given key.*)
 
-  val watch_key :
-    t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
+  val watch_key : t -> key -> ?init:value -> (value diff -> unit) -> watch
   (** [watch_key t k ?init f] adds [f] to the list of [t]'s watch handlers for
       the key [k] and returns the watch handler to be used with {!unwatch}.
       [init] is the optional initial value of the key. *)
 
-  val unwatch : t -> watch -> unit Lwt.t
+  val unwatch : t -> watch -> unit
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
   include Clearable with type _ t := t

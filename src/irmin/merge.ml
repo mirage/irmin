@@ -22,9 +22,9 @@ let src = Logs.Src.create "irmin.merge" ~doc:"Irmin merging"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 type conflict = [ `Conflict of string ]
-type 'a promise = unit -> ('a option, conflict) result Lwt.t
+type 'a promise = unit -> ('a option, conflict) result
 
-let promise t : 'a promise = fun () -> Lwt.return (Ok (Some t))
+let promise t : 'a promise = fun () -> Ok (Some t)
 
 let memo fn =
   let r = ref None in
@@ -32,11 +32,11 @@ let memo fn =
     match !r with
     | Some x -> x
     | None ->
-        let* x = fn () in
-        r := Some (Lwt.return x);
-        Lwt.return x
+        let x = fn () in
+        r := Some x;
+        x
 
-type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
+type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result
 type 'a t = 'a Type.t * 'a f
 
 let v t f = (t, f)
@@ -46,25 +46,25 @@ let conflict fmt =
   ksprintf
     (fun msg ->
       [%log.debug "conflict: %s" msg];
-      Lwt.return (Error (`Conflict msg)))
+      Error (`Conflict msg))
     fmt
 
-let bind x f = x >>= function Error e -> Lwt.return (Error e) | Ok x -> f x
-let map f x = x >|= function Error _ as x -> x | Ok x -> Ok (f x)
+let bind x f = match x with Error e -> Error e | Ok x -> f x
+let map f x = match x with Error _ as x -> x | Ok x -> Ok (f x)
 
 let map_promise f t () =
-  t () >|= function
+  match t () with
   | Error _ as x -> x
   | Ok None -> Ok None
   | Ok (Some a) -> Ok (Some (f a))
 
 let bind_promise t f () =
-  t () >>= function
-  | Error e -> Lwt.return (Error e)
-  | Ok None -> Lwt.return (Ok None)
+  match t () with
+  | Error e -> Error e
+  | Ok None -> Ok None
   | Ok (Some a) -> f a ()
 
-let ok x = Lwt.return (Ok x)
+let ok x = Ok x
 
 module Infix = struct
   let ( >>=* ) = bind
@@ -101,7 +101,7 @@ let seq = function
   | (t, _) :: _ as ts ->
       ( t,
         fun ~old v1 v2 ->
-          Lwt_list.fold_left_s
+          List.fold_left
             (fun acc (_, merge) ->
               match acc with Ok x -> ok x | Error _ -> merge ~old v1 v2)
             (Error (`Conflict "nothing to merge"))
@@ -114,7 +114,7 @@ let option (type a) ((a, t) : a t) : a option t =
   ( dt,
     fun ~old t1 t2 ->
       [%log.debug "some %a | %a" pp t1 pp t2];
-      f (default Type.(option a)) ~old t1 t2 >>= function
+      match f (default Type.(option a)) ~old t1 t2 with
       | Ok x -> ok x
       | Error _ -> (
           match (t1, t2) with
@@ -144,7 +144,7 @@ let pair (da, a) (db, b) =
   ( dt,
     fun ~old x y ->
       [%log.debug "pair %a | %a" pp x pp y];
-      (snd (default dt)) ~old x y >>= function
+      match (snd (default dt)) ~old x y with
       | Ok x -> ok x
       | Error _ ->
           let (a1, b1), (a2, b2) = (x, y) in
@@ -159,7 +159,7 @@ let triple (da, a) (db, b) (dc, c) =
   ( dt,
     fun ~old x y ->
       [%log.debug "triple %a | %a" pp x pp y];
-      (snd (default dt)) ~old x y >>= function
+      match (snd (default dt)) ~old x y with
       | Ok x -> ok x
       | Error _ ->
           let (a1, b1, c1), (a2, b2, c2) = (x, y) in
@@ -180,9 +180,9 @@ let merge_elt merge_v old key vs =
     | `Both (v1, v2) -> (Some v1, Some v2)
   in
   let old () = old key in
-  merge_v key ~old v1 v2 >>= function
-  | Error (`Conflict msg) -> Lwt.fail (C msg)
-  | Ok x -> Lwt.return x
+  match merge_v key ~old v1 v2 with
+  | Error (`Conflict msg) -> raise (C msg)
+  | Ok x -> x
 
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2 compare_k f l1 l2 =
@@ -209,23 +209,19 @@ let alist_iter2 compare_k f l1 l2 =
 let alist_iter2_lwt compare_k f l1 l2 =
   let l3 = ref [] in
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
-  Lwt_list.iter_p Fun.id (List.rev !l3)
+  List.iter Fun.id (List.rev !l3)
 
 (* DO NOT assume l1 and l2 are key-sorted *)
 let alist_merge_lwt compare_k f l1 l2 =
-  let open Lwt in
   let l3 = ref [] in
   let sort l = List.sort (fun (x, _) (y, _) -> compare_k x y) l in
   let l1 = sort l1 in
   let l2 = sort l2 in
   let f key data =
-    f key data >>= function
-    | None -> return_unit
-    | Some v ->
-        l3 := (key, v) :: !l3;
-        return_unit
+    match f key data with None -> () | Some v -> l3 := (key, v) :: !l3
   in
-  alist_iter2_lwt compare_k f l1 l2 >>= fun () -> return !l3
+  alist_iter2_lwt compare_k f l1 l2;
+  !l3
 
 let alist dx dy merge_v =
   let pair = Type.pair dx dy in
@@ -248,10 +244,9 @@ let alist dx dy merge_v =
             Some old
       in
       let merge_v k = f (merge_v k) in
-      Lwt.catch
-        (fun () ->
-          alist_merge_lwt compare_dx (merge_elt merge_v old) x y >>= ok)
-        (function C msg -> conflict "%s" msg | e -> Lwt.fail e) )
+      try ok @@ alist_merge_lwt compare_dx (merge_elt merge_v old) x y with
+      | C msg -> conflict "%s" msg
+      | e -> raise e )
 
 module MultiSet (K : sig
   include Set.OrderedType
@@ -322,16 +317,16 @@ struct
   let iter2 f m1 m2 =
     let m3 = ref [] in
     iter2 (fun key data -> m3 := f key data :: !m3) m1 m2;
-    Lwt_list.iter_p (fun b -> b >>= fun () -> Lwt.return_unit) (List.rev !m3)
+    (* Check iter_p *)
+    List.iter (fun b -> b ()) (List.rev !m3)
 
   let merge_maps f m1 m2 =
     let l3 = ref [] in
-    let f key data =
-      f key data >|= function None -> () | Some v -> l3 := (key, v) :: !l3
+    let f key data () =
+      match f key data with None -> () | Some v -> l3 := (key, v) :: !l3
     in
-    iter2 f m1 m2 >>= fun () ->
-    let m3 = of_alist !l3 in
-    Lwt.return m3
+    iter2 f m1 m2;
+    of_alist !l3
 
   let merge dv (merge_v : K.t -> 'a option t) =
     let pp ppf m = Type.(pp (list (pair K.t dv))) ppf @@ M.bindings m in
@@ -339,20 +334,19 @@ struct
     ( t dv,
       fun ~old m1 m2 ->
         [%log.debug "assoc %a | %a" pp m1 pp m2];
-        Lwt.catch
-          (fun () ->
-            let old key =
-              old () >>=* function
-              | None -> ok None
-              | Some old ->
-                  [%log.debug "assoc old=%a" pp old];
-                  let old =
-                    try Some (M.find key old) with Not_found -> None
-                  in
-                  ok (Some old)
-            in
-            merge_maps (merge_elt merge_v old) m1 m2 >>= ok)
-          (function C msg -> conflict "%s" msg | e -> Lwt.fail e) )
+        try
+          let old key =
+            old () >>=* function
+            | None -> ok None
+            | Some old ->
+                [%log.debug "assoc old=%a" pp old];
+                let old = try Some (M.find key old) with Not_found -> None in
+                ok (Some old)
+          in
+          ok @@ merge_maps (merge_elt merge_v old) m1 m2
+        with
+        | C msg -> conflict "%s" msg
+        | e -> raise e )
 end
 
 let like da t a_to_b b_to_a =
@@ -368,23 +362,22 @@ let like da t a_to_b b_to_a =
   in
   seq [ default da; (da, merge) ]
 
-let like_lwt (type a b) da (t : b t) (a_to_b : a -> b Lwt.t)
-    (b_to_a : b -> a Lwt.t) : a t =
+let like_lwt (type a b) da (t : b t) (a_to_b : a -> b) (b_to_a : b -> a) : a t =
   let pp = Type.pp da in
   let merge ~old a1 a2 =
     [%log.debug "biject' %a | %a" pp a1 pp a2];
     try
-      let* b1 = a_to_b a1 in
-      let* b2 = a_to_b a2 in
+      let b1 = a_to_b a1 in
+      let b2 = a_to_b a2 in
       let old =
         memo (fun () ->
             bind (old ()) @@ function
             | None -> ok None
             | Some a ->
-                let+ b = a_to_b a in
+                let b = a_to_b a in
                 Ok (Some b))
       in
-      bind ((f t) ~old b1 b2) @@ fun b3 -> b_to_a b3 >>= ok
+      bind ((f t) ~old b1 b2) @@ fun b3 -> ok (b_to_a b3)
     with Not_found -> conflict "biject'"
   in
   seq [ default da; (da, merge) ]
@@ -409,7 +402,7 @@ let counter =
 
 let with_conflict rewrite (d, f) =
   let f ~old x y =
-    f ~old x y >>= function
+    match f ~old x y with
     | Error (`Conflict msg) -> conflict "%s" (rewrite msg)
     | Ok x -> ok x
   in
