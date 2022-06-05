@@ -18,7 +18,7 @@ val run :
   string ->
   ?slow:bool ->
   ?random_seed:int ->
-  sleep:(float -> unit Lwt.t) ->
-  misc:unit Alcotest_lwt.test list ->
+  sleep:(float -> unit) ->
+  misc:unit Alcotest.test list ->
   (Alcotest.speed_level * Common.t) list ->
-  unit Lwt.t
+  unit

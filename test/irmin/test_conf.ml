@@ -43,4 +43,4 @@ let test_conf () =
   let () = Alcotest.(check (list string)) "Key list" [ "x"; "y" ] keys in
   ()
 
-let suite = [ Alcotest_lwt.test_case_sync "conf" `Quick test_conf ]
+let suite = [ Alcotest.test_case "conf" `Quick test_conf ]

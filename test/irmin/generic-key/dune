@@ -9,7 +9,4 @@
   irmin.mem
   irmin-test
   alcotest
-  alcotest-lwt
-  lwt
-  lwt.unix
   vector))

@@ -5,13 +5,14 @@
  (preprocess
   (pps ppx_irmin.internal))
  (libraries
-  alcotest-lwt
+  alcotest
   astring
   fmt
   irmin
   jsonm
   logs.fmt
-  lwt
+  eio
+  eio.unix
   mtime
   mtime.clock.os)
  (instrumentation

@@ -52,16 +52,15 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
             t
         | Some t -> t
       in
-      Lwt.return t
+      t
 
   let clear t =
     [%log.debug "clear"];
-    t.t <- KMap.empty;
-    Lwt.return_unit
+    t.t <- KMap.empty
 
   let close _ =
     [%log.debug "close"];
-    Lwt.return_unit
+    ()
 
   let cast t = (t :> read_write t)
   let batch t f = f (cast t)
@@ -69,11 +68,11 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let find { t; _ } key =
     [%log.debug "find %a" pp_key key];
-    try Lwt.return_some (KMap.find key t) with Not_found -> Lwt.return_none
+    try Some (KMap.find key t) with Not_found -> None
 
   let mem { t; _ } key =
     [%log.debug "mem %a" pp_key key];
-    Lwt.return (KMap.mem key t)
+    KMap.mem key t
 end
 
 module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
@@ -81,8 +80,7 @@ module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let add t key value =
     [%log.debug "add -> %a" pp_key key];
-    t.t <- KMap.add key value t.t;
-    Lwt.return_unit
+    t.t <- KMap.add key value t.t
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
@@ -99,10 +97,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let lock = L.v ()
 
   let v config =
-    let* t = RO.v config in
-    Lwt.return { t; w = watches; lock }
+    let t = RO.v config in
+    { t; w = watches; lock }
 
-  let close t = W.clear t.w >>= fun () -> RO.close t.t
+  let close t =
+    W.clear t.w;
+    RO.close t.t
+
   let find t = RO.find t.t
   let mem t = RO.mem t.t
   let watch_key t = W.watch_key t.w
@@ -111,33 +112,26 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let list t =
     [%log.debug "list"];
-    RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t [] |> Lwt.return
+    RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t []
 
   let set t key value =
     [%log.debug "update"];
-    let* () =
-      L.with_lock t.lock key (fun () ->
-          t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
-          Lwt.return_unit)
-    in
+    L.with_lock t.lock key (fun () ->
+        t.t.RO.t <- RO.KMap.add key value t.t.RO.t);
     W.notify t.w key (Some value)
 
   let remove t key =
     [%log.debug "remove"];
-    let* () =
-      L.with_lock t.lock key (fun () ->
-          t.t.RO.t <- RO.KMap.remove key t.t.RO.t;
-          Lwt.return_unit)
-    in
+    L.with_lock t.lock key (fun () -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t);
     W.notify t.w key None
 
   let equal_v_opt = Irmin.Type.(unstage (equal (option V.t)))
 
   let test_and_set t key ~test ~set =
     [%log.debug "test_and_set"];
-    let* updated =
+    let updated =
       L.with_lock t.lock key (fun () ->
-          let+ v = find t key in
+          let v = find t key in
           if equal_v_opt test v then
             let () =
               match set with
@@ -147,10 +141,12 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
             true
           else false)
     in
-    let+ () = if updated then W.notify t.w key set else Lwt.return_unit in
+    if updated then W.notify t.w key set;
     updated
 
-  let clear t = W.clear t.w >>= fun () -> RO.clear t.t
+  let clear t =
+    W.clear t.w;
+    RO.clear t.t
 end
 
 let config () = Conf.empty Conf.spec

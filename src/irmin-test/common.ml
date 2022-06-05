@@ -29,7 +29,7 @@ let long_random_ascii_string = random_ascii_string 1024_000
 
 let merge_exn msg x =
   match x with
-  | Ok x -> Lwt.return x
+  | Ok x -> x
   | Error (`Conflict m) -> Alcotest.failf "%s: %s" msg m
 
 open Astring
@@ -73,8 +73,8 @@ type store = S of (module S) | Generic_key of (module Generic_key)
 
 type t = {
   name : string;
-  init : config:Irmin.config -> unit Lwt.t;
-  clean : config:Irmin.config -> unit Lwt.t;
+  init : config:Irmin.config -> unit;
+  clean : config:Irmin.config -> unit;
   config : Irmin.config;
   store : store;
   stats : (unit -> int * int) option;
@@ -98,20 +98,19 @@ module Suite = struct
       | Generic_key x -> x
       | S (module S) -> (module S : Generic_key)
     in
-    let open Lwt.Syntax in
-    let* repo = Store.Repo.v config in
-    let* branches = Store.Repo.branches repo in
-    let* () = Lwt_list.iter_p (Store.Branch.remove repo) branches in
+    let repo = Store.Repo.v config in
+    let branches = Store.Repo.branches repo in
+    let () = List.iter (Store.Branch.remove repo) branches in
     Store.Repo.close repo
 
-  let create ~name ?(init = fun ~config:_ -> Lwt.return_unit) ?clean ~config
-      ~store ?stats ?(import_supported = true) () =
+  let create ~name ?(init = fun ~config:_ -> ()) ?clean ~config ~store ?stats
+      ?(import_supported = true) () =
     let store = S store in
     let clean = Option.value clean ~default:(default_clean ~store) in
     { name; init; clean; config; store; stats; import_supported }
 
-  let create_generic_key ~name ?(init = fun ~config:_ -> Lwt.return_unit) ?clean
-      ~config ~store ?stats ?(import_supported = true) () =
+  let create_generic_key ~name ?(init = fun ~config:_ -> ()) ?clean ~config
+      ~store ?stats ?(import_supported = true) () =
     let store = Generic_key store in
     let clean = Option.value clean ~default:(default_clean ~store) in
     { name; init; clean; config; store; stats; import_supported }
@@ -130,7 +129,7 @@ module Suite = struct
 end
 
 module type Store_tests = functor (S : Generic_key) -> sig
-  val tests : (string * (Suite.t -> unit -> unit Lwt.t)) list
+  val tests : (string * (Suite.t -> unit -> unit)) list
 end
 
 module Make_helpers (S : Generic_key) = struct
@@ -173,50 +172,49 @@ module Make_helpers (S : Generic_key) = struct
   let b2 = "bar/toto"
 
   let n1 ~repo =
-    let* kv1 = kv1 ~repo in
+    let kv1 = kv1 ~repo in
     with_node repo (fun t -> Graph.v t [ ("x", normal kv1) ])
 
   let n2 ~repo =
-    let* kn1 = n1 ~repo in
+    let kn1 = n1 ~repo in
     with_node repo (fun t -> Graph.v t [ ("b", `Node kn1) ])
 
   let n3 ~repo =
-    let* kn2 = n2 ~repo in
+    let kn2 = n2 ~repo in
     with_node repo (fun t -> Graph.v t [ ("a", `Node kn2) ])
 
   let n4 ~repo =
-    let* kn1 = n1 ~repo in
-    let* kv2 = kv2 ~repo in
-    let* kn4 = with_node repo (fun t -> Graph.v t [ ("x", normal kv2) ]) in
-    let* kn5 =
+    let kn1 = n1 ~repo in
+    let kv2 = kv2 ~repo in
+    let kn4 = with_node repo (fun t -> Graph.v t [ ("x", normal kv2) ]) in
+    let kn5 =
       with_node repo (fun t -> Graph.v t [ ("b", `Node kn1); ("c", `Node kn4) ])
     in
     with_node repo (fun t -> Graph.v t [ ("a", `Node kn5) ])
 
   let r1 ~repo =
-    let* kn2 = n2 ~repo in
-    S.Tree.of_key repo (`Node kn2) >>= function
+    let kn2 = n2 ~repo in
+    match S.Tree.of_key repo (`Node kn2) with
     | None -> Alcotest.fail "r1"
     | Some tree ->
         S.Commit.v repo ~info:S.Info.empty ~parents:[] (tree :> S.tree)
 
   let r2 ~repo =
-    let* kn3 = n3 ~repo in
-    let* kr1 = r1 ~repo in
-    S.Tree.of_key repo (`Node kn3) >>= function
+    let kn3 = n3 ~repo in
+    let kr1 = r1 ~repo in
+    match S.Tree.of_key repo (`Node kn3) with
     | None -> Alcotest.fail "r2"
     | Some t3 ->
         S.Commit.v repo ~info:S.Info.empty
           ~parents:[ S.Commit.key kr1 ]
           (t3 :> S.tree)
 
-  let ignore_thunk_errors f = Lwt.catch f (fun _ -> Lwt.return_unit)
+  let ignore_thunk_errors f = try f () with _ -> ()
 
   let run (x : Suite.t) test =
     let repo_ptr = ref None in
     let config_ptr = ref None in
-    Lwt.catch
-      (fun () ->
+    try
         let module Conf = Irmin.Backend.Conf in
         let generate_random_root config =
           let id = Random.int 100 |> string_of_int in
@@ -230,32 +228,32 @@ module Make_helpers (S : Generic_key) = struct
         in
         let config = generate_random_root x.config in
         config_ptr := Some config;
-        let* () = x.init ~config in
-        let* repo = S.Repo.v config in
+        let () = x.init ~config in
+        let repo = S.Repo.v config in
         repo_ptr := Some repo;
-        let* () = test repo in
-        let* () =
+        let () = test repo in
+        let () =
           (* [test] might have already closed the repo. That
              [ignore_thunk_errors] shall be removed as soon as all stores
              support double closes. *)
           ignore_thunk_errors (fun () -> S.Repo.close repo)
         in
-        x.clean ~config)
-      (fun exn ->
+        x.clean ~config
+      with exn ->
         (* [test] failed, attempt an errorless cleanup and forward the right
            backtrace to the user. *)
         let bt = Printexc.get_raw_backtrace () in
-        let* () =
+        let () =
           match !repo_ptr with
           | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
-          | None -> Lwt.return_unit
+          | None -> ()
         in
-        let+ () =
+        let () =
           match !config_ptr with
           | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
-          | None -> Lwt.return_unit
+          | None ->()
         in
-        Printexc.raise_with_backtrace exn bt)
+        Printexc.raise_with_backtrace exn bt
 end
 
 let filter_src src =
@@ -303,22 +301,21 @@ let checks t =
   Alcotest.check t
 
 (* also in test/irmin-pack/common.ml *)
-let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
-  Lwt.catch
-    (fun x ->
-      let* (_ : a) = f x in
+let check_raises_lwt msg exn (type a) (f : unit -> a) =
+  try
+    let (_ : a) = f () in
+    Alcotest.failf
+      "Fail %s: expected function to raise %s, but it returned instead." msg
+      (Printexc.to_string exn)
+  with
+  | e when e = exn -> ()
+  | e ->
       Alcotest.failf
-        "Fail %s: expected function to raise %s, but it returned instead." msg
-        (Printexc.to_string exn))
-    (function
-      | e when e = exn -> Lwt.return_unit
-      | e ->
-          Alcotest.failf
-            "Fail %s: expected function to raise %s, but it raised %s instead."
-            msg (Printexc.to_string exn) (Printexc.to_string e))
+        "Fail %s: expected function to raise %s, but it raised %s instead." msg
+        (Printexc.to_string exn) (Printexc.to_string e)
 
 module T = Irmin.Type
 
 module type Sleep = sig
-  val sleep : float -> unit Lwt.t
+  val sleep : float -> unit
 end

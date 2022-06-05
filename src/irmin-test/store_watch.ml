@@ -18,7 +18,7 @@ open! Import
 open Common
 
 module type Sleep = sig
-  val sleep : float -> unit Lwt.t
+  val sleep : float -> unit
 end
 
 module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
@@ -26,7 +26,8 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
 
   let sleep ?(sleep_t = 0.01) () =
     let sleep_t = min sleep_t 1. in
-    Lwt.pause () >>= fun () -> Zzz.sleep sleep_t
+    Eio.Fiber.yield ();
+    Zzz.sleep sleep_t
 
   let now_s () = Mtime.Span.to_s (Mtime_clock.elapsed ())
 
@@ -38,13 +39,11 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
     let str i = Fmt.str "%d, %.3fs" i (now_s () -. t) in
     let rec aux i =
       if now_s () -. t > timeout || not (while_ ()) then fn (str i);
-      try
-        fn (str i);
-        Lwt.return_unit
+      try fn (str i)
       with ex ->
         [%log.debug "retry ex: %s" (Printexc.to_string ex)];
         let sleep_t = sleep_t *. (1. +. (float i ** 2.)) in
-        sleep ~sleep_t () >>= fun () ->
+        sleep ~sleep_t () |> fun () ->
         [%log.debug "Test.retry %s" (str i)];
         aux (i + 1)
     in
@@ -52,8 +51,8 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
 
   let test_watch_exn x () =
     let test repo =
-      let* t = S.main repo in
-      let* h = S.Head.find t in
+      let t = S.main repo in
+      let h = S.Head.find t in
       let key = [ "a" ] in
       let v1 = "bar" in
       let v2 = "foo" in
@@ -61,67 +60,67 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
       let eq = Irmin.Type.(unstage (equal (Irmin.Diff.t (S.commit_t repo)))) in
       let old_head = ref h in
       let check x =
-        let+ h2 = S.Head.get t in
+        let h2 = S.Head.get t in
         match !old_head with
         | None -> if eq (`Added h2) x then incr r
         | Some h -> if eq (`Updated (h, h2)) x then incr r
       in
-      let* u =
-        S.watch ?init:h t (fun v -> check v >|= fun () -> failwith "test")
+      let u =
+        S.watch ?init:h t (fun v ->
+            check v;
+            failwith "test")
       in
-      let* v =
-        S.watch ?init:h t (fun v -> check v >>= fun () -> Lwt.fail_with "test")
+      let v =
+        S.watch ?init:h t (fun v ->
+            check v;
+            failwith "test")
       in
-      let* w = S.watch ?init:h t (fun v -> check v) in
-      S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      let* () =
+      let w = S.watch ?init:h t (fun v -> check v) in
+      S.set_exn t ~info:(infof "update") key v1;
+      let () =
         retry
           ~while_:(fun () -> !r < 3)
           (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r)
       in
-      let* h = S.Head.find t in
+      let h = S.Head.find t in
       old_head := h;
-      S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      let* () =
+      S.set_exn t ~info:(infof "update") key v2;
+      let () =
         retry
           ~while_:(fun () -> !r < 6)
           (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r)
       in
-      S.unwatch u >>= fun () ->
-      S.unwatch v >>= fun () ->
-      S.unwatch w >>= fun () ->
-      let* h = S.Head.get t in
+      S.unwatch u;
+      S.unwatch v;
+      S.unwatch w;
+      let h = S.Head.get t in
       old_head := Some h;
-      let* u =
+      let u =
         S.watch_key ~init:h t key (fun _ ->
             incr r;
             failwith "test")
       in
-      let* v =
+      let v =
         S.watch_key ~init:h t key (fun _ ->
             incr r;
-            Lwt.fail_with "test")
+            failwith "test")
       in
-      let* w =
-        S.watch_key ~init:h t key (fun _ ->
-            incr r;
-            Lwt.return_unit)
-      in
-      S.set_exn t ~info:(infof "update") key v1 >>= fun () ->
-      let* () =
+      let w = S.watch_key ~init:h t key (fun _ -> incr r) in
+      S.set_exn t ~info:(infof "update") key v1;
+      let () =
         retry
           ~while_:(fun () -> !r < 9)
           (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r)
       in
-      S.set_exn t ~info:(infof "update") key v2 >>= fun () ->
-      let* () =
+      S.set_exn t ~info:(infof "update") key v2;
+      let () =
         retry
           ~while_:(fun () -> !r < 12)
           (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r)
       in
-      S.unwatch u >>= fun () ->
-      S.unwatch v >>= fun () ->
-      S.unwatch w >>= fun () ->
+      S.unwatch u;
+      S.unwatch v;
+      S.unwatch w;
       Alcotest.(check unit) "ok!" () ();
       B.Repo.close repo
     in
@@ -135,7 +134,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
     in
     let check_workers msg p w =
       match x.stats with
-      | None -> Lwt.return_unit
+      | None -> ()
       | Some stats ->
           retry
             ~while_:(fun _ -> true)
@@ -187,7 +186,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
 
       let check ?sleep_t msg (p, w) (a_adds, a_updates, a_removes) b =
         let a = { adds = a_adds; updates = a_updates; removes = a_removes } in
-        check_workers msg p w >>= fun () ->
+        check_workers msg p w;
         retry ?sleep_t
           ~while_:(fun () -> less_than b a (* While [b] converges toward [a] *))
           (fun s ->
@@ -196,8 +195,8 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
             else Alcotest.failf "%s: %a / %a" msg pp a pp b)
 
       let process ?sleep_t t head =
-        let* () =
-          match sleep_t with None -> Lwt.return_unit | Some s -> Zzz.sleep s
+        let () =
+          match sleep_t with None -> () | Some s -> Zzz.sleep s
         in
         let () =
           match head with
@@ -205,7 +204,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
           | `Updated _ -> update t
           | `Removed _ -> remove t
         in
-        Lwt.return_unit
+        ()
 
       let apply msg state kind fn ?(first = false) on s n =
         let msg mode n w s =
@@ -229,7 +228,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
           | `Remove -> xremove
         in
         let rec aux pre = function
-          | 0 -> Lwt.return_unit
+          | 0 -> ()
           | i ->
               let pre_w =
                 if on then (1, if i = n && first then 0 else 1) else (0, 0)
@@ -237,18 +236,19 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
               let post_w = if on then (1, 1) else (0, 0) in
               let post = if on then incr pre else pre in
               (* check pre-condition *)
-              check `Pre (n - i) pre_w pre >>= fun () ->
+              check `Pre (n - i) pre_w pre;
               [%log.debug "[waiting for] %s" (msg `Post (n - i) post_w post)];
-              fn (n - i) >>= fun () ->
+              fn (n - i);
               (* check post-condition *)
-              check `Post (n - i) post_w post >>= fun () -> aux post (i - 1)
+              check `Post (n - i) post_w post;
+              aux post (i - 1)
         in
         aux s n
     end in
     let test repo1 =
-      let* t1 = S.main repo1 in
-      let* repo = S.Repo.v x.config in
-      let* t2 = S.main repo in
+      let t1 = S.main repo1 in
+      let repo = S.Repo.v x.config in
+      let t2 = S.main repo in
       [%log.debug "WATCH"];
       let state = State.empty () in
       let sleep_t = 0.02 in
@@ -256,36 +256,36 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
       let stops_0 = ref [] in
       let stops_1 = ref [] in
       let rec watch = function
-        | 0 -> Lwt.return_unit
+        | 0 -> ()
         | n ->
             let t = if n mod 2 = 0 then t1 else t2 in
-            let* s = S.watch t process in
+            let s = S.watch t process in
             if n mod 2 = 0 then stops_0 := s :: !stops_0
             else stops_1 := s :: !stops_1;
             watch (n - 1)
       in
       let v1 = "X1" in
       let v2 = "X2" in
-      S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1 >>= fun () ->
-      S.Branch.remove repo1 S.Branch.main >>= fun () ->
-      State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
-      watch 100 >>= fun () ->
-      State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
-      S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1 >>= fun () ->
-      State.check "watches adds" (1, 1) (100, 0, 0) state >>= fun () ->
-      S.set_exn t2 ~info:(infof "update") [ "a"; "c" ] v1 >>= fun () ->
-      State.check "watches updates" (1, 1) (100, 100, 0) state >>= fun () ->
-      S.Branch.remove repo S.Branch.main >>= fun () ->
-      State.check "watches removes" (1, 1) (100, 100, 100) state >>= fun () ->
-      Lwt_list.iter_s (fun f -> S.unwatch f) !stops_0 >>= fun () ->
-      S.set_exn t2 ~info:(infof "update") [ "a" ] v1 >>= fun () ->
-      State.check "watches half off" (1, 1) (150, 100, 100) state >>= fun () ->
-      Lwt_list.iter_s (fun f -> S.unwatch f) !stops_1 >>= fun () ->
-      S.set_exn t1 ~info:(infof "update") [ "a" ] v2 >>= fun () ->
-      State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
+      S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1;
+      S.Branch.remove repo1 S.Branch.main;
+      State.check "init" (0, 0) (0, 0, 0) state;
+      watch 100;
+      State.check "watches on" (1, 0) (0, 0, 0) state;
+      S.set_exn t1 ~info:(infof "update") [ "a"; "b" ] v1;
+      State.check "watches adds" (1, 1) (100, 0, 0) state;
+      S.set_exn t2 ~info:(infof "update") [ "a"; "c" ] v1;
+      State.check "watches updates" (1, 1) (100, 100, 0) state;
+      S.Branch.remove repo S.Branch.main;
+      State.check "watches removes" (1, 1) (100, 100, 100) state;
+      List.iter (fun f -> S.unwatch f) !stops_0;
+      S.set_exn t2 ~info:(infof "update") [ "a" ] v1;
+      State.check "watches half off" (1, 1) (150, 100, 100) state;
+      List.iter (fun f -> S.unwatch f) !stops_1;
+      S.set_exn t1 ~info:(infof "update") [ "a" ] v2;
+      State.check "watches off" (0, 0) (150, 100, 100) state;
       [%log.debug "WATCH-ALL"];
       let state = State.empty () in
-      let* head = r1 ~repo in
+      let head = r1 ~repo in
       let add =
         State.apply "branch-watch-all" state `Add (fun n ->
             let tag = Fmt.str "t%d" n in
@@ -296,18 +296,18 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
             let tag = Fmt.str "t%d" n in
             S.Branch.remove repo tag)
       in
-      let* main = S.Branch.get repo "main" in
-      let* u =
+      let main = S.Branch.get repo "main" in
+      let u =
         S.Branch.watch_all
           ~init:[ ("main", main) ]
           repo
           (fun _ -> State.process state)
       in
-      add true (0, 0, 0) 10 ~first:true >>= fun () ->
-      remove true (10, 0, 0) 5 >>= fun () ->
-      S.unwatch u >>= fun () ->
-      add false (10, 0, 5) 4 >>= fun () ->
-      remove false (10, 0, 5) 4 >>= fun () ->
+      add true (0, 0, 0) 10 ~first:true;
+      remove true (10, 0, 0) 5;
+      S.unwatch u;
+      add false (10, 0, 5) 4;
+      remove false (10, 0, 5) 4;
       [%log.debug "WATCH-KEY"];
       let state = State.empty () in
       let path1 = [ "a"; "b"; "c" ] in
@@ -316,36 +316,33 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
       let add =
         State.apply "branch-key" state `Add (fun _ ->
             let v = "" in
-            S.set_exn t1 ~info:(infof "set1") path1 v >>= fun () ->
-            S.set_exn t1 ~info:(infof "set2") path2 v >>= fun () ->
-            S.set_exn t1 ~info:(infof "set3") path3 v >>= fun () ->
-            Lwt.return_unit)
+            S.set_exn t1 ~info:(infof "set1") path1 v;
+            S.set_exn t1 ~info:(infof "set2") path2 v;
+            S.set_exn t1 ~info:(infof "set3") path3 v)
       in
       let update =
         State.apply "branch-key" state `Update (fun n ->
             let v = string_of_int n in
-            S.set_exn t2 ~info:(infof "update1") path1 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update2") path2 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update3") path3 v >>= fun () ->
-            Lwt.return_unit)
+            S.set_exn t2 ~info:(infof "update1") path1 v;
+            S.set_exn t2 ~info:(infof "update2") path2 v;
+            S.set_exn t2 ~info:(infof "update3") path3 v)
       in
       let remove =
         State.apply "branch-key" state `Remove (fun _ ->
-            S.remove_exn t1 ~info:(infof "remove1") path1 >>= fun () ->
-            S.remove_exn t1 ~info:(infof "remove2") path2 >>= fun () ->
-            S.remove_exn t1 ~info:(infof "remove3") path3 >>= fun () ->
-            Lwt.return_unit)
+            S.remove_exn t1 ~info:(infof "remove1") path1;
+            S.remove_exn t1 ~info:(infof "remove2") path2;
+            S.remove_exn t1 ~info:(infof "remove3") path3)
       in
-      S.remove_exn t1 ~info:(infof "clean") [] >>= fun () ->
-      let* init = S.Head.get t1 in
-      let* u = S.watch_key t1 ~init path1 (State.process state) in
-      add true (0, 0, 0) 1 ~first:true >>= fun () ->
-      update true (1, 0, 0) 10 >>= fun () ->
-      remove true (1, 10, 0) 1 >>= fun () ->
-      S.unwatch u >>= fun () ->
-      add false (1, 10, 1) 3 >>= fun () ->
-      update false (1, 10, 1) 5 >>= fun () ->
-      remove false (1, 10, 1) 4 >>= fun () ->
+      S.remove_exn t1 ~info:(infof "clean") [];
+      let init = S.Head.get t1 in
+      let u = S.watch_key t1 ~init path1 (State.process state) in
+      add true (0, 0, 0) 1 ~first:true;
+      update true (1, 0, 0) 10;
+      remove true (1, 10, 0) 1;
+      S.unwatch u;
+      add false (1, 10, 1) 3;
+      update false (1, 10, 1) 5;
+      remove false (1, 10, 1) 4;
       [%log.debug "WATCH-MORE"];
       let state = State.empty () in
       let update =
@@ -354,19 +351,19 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
             let path1 = [ "a"; "b"; "c"; string_of_int n; "1" ] in
             let path2 = [ "a"; "x"; "c"; string_of_int n; "1" ] in
             let path3 = [ "a"; "y"; "c"; string_of_int n; "1" ] in
-            S.set_exn t2 ~info:(infof "update1") path1 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update2") path2 v >>= fun () ->
-            S.set_exn t2 ~info:(infof "update3") path3 v >>= fun () ->
-            Lwt.return_unit)
+            S.set_exn t2 ~info:(infof "update1") path1 v;
+            S.set_exn t2 ~info:(infof "update2") path2 v;
+            S.set_exn t2 ~info:(infof "update3") path3 v)
       in
-      S.remove_exn t1 ~info:(infof "remove") [ "a" ] >>= fun () ->
-      S.set_exn t1 ~info:(infof "prepare") [ "a"; "b"; "c" ] "" >>= fun () ->
-      let* h = S.Head.get t1 in
-      let* u = S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) in
-      update true (0, 0, 0) 10 ~first:true >>= fun () ->
-      S.unwatch u >>= fun () ->
-      update false (0, 10, 0) 10 >>= fun () ->
-      B.Repo.close repo >>= fun () -> B.Repo.close repo1
+      S.remove_exn t1 ~info:(infof "remove") [ "a" ];
+      S.set_exn t1 ~info:(infof "prepare") [ "a"; "b"; "c" ] "";
+      let h = S.Head.get t1 in
+      let u = S.watch_key t2 ~init:h [ "a"; "b" ] (State.process state) in
+      update true (0, 0, 0) 10 ~first:true;
+      S.unwatch u;
+      update false (0, 10, 0) 10;
+      B.Repo.close repo;
+      B.Repo.close repo1
     in
     run x test
 
