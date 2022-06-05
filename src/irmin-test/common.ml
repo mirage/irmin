@@ -100,7 +100,10 @@ module Suite = struct
     in
     let repo = Store.Repo.v config in
     let branches = Store.Repo.branches repo in
-    let () = List.iter (Store.Branch.remove repo) branches in
+    let () =
+      List.map (fun br () -> Store.Branch.remove repo br) branches
+      |> Eio.Fiber.all
+    in
     Store.Repo.close repo
 
   let create ~name ?(init = fun ~config:_ -> ()) ?clean ~config ~store ?stats

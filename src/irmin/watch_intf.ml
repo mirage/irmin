@@ -81,6 +81,9 @@ module type Sigs = sig
   val none : hook
   (** [none] is the hooks which asserts false. *)
 
+  val set_watch_switch : Eio.Switch.t -> unit
+  (** A terrible hack that will need fixed...  *)
+
   val set_listen_dir_hook : hook -> unit
   (** Register a function which looks for file changes in a directory and return
       a function to stop watching. It is probably best to use

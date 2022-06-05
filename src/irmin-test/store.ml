@@ -46,28 +46,33 @@ module Make (S : Generic_key) = struct
   let old k () = Ok (Some k)
   let may repo commits = function None -> () | Some f -> f repo commits
 
+  let map_p xs =
+    Eio.Switch.run @@ fun sw -> List.map (Eio.Fiber.fork_promise ~sw) xs
+
   let may_get_keys repo keys = function
     | None -> ()
     | Some f ->
         let commits =
           List.map
-            (fun key ->
+            (fun key () ->
               S.Commit.of_key repo key |> function
               | None -> Alcotest.fail "Cannot read commit hash"
               | Some c -> c)
             keys
+          |> map_p
         in
         f repo commits
 
   let may_with_branch branches repo hook =
     let heads =
       List.map
-        (fun branch ->
+        (fun branch () ->
           let h = S.Head.find branch in
           match h with
           | None -> Alcotest.fail "Cannot read head"
           | Some head -> head)
         branches
+      |> map_p
     in
     may repo heads hook
 
@@ -2510,4 +2515,4 @@ let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
   (* Ensure that failures occuring in async lwt threads are raised. *)
   let tl1 = List.map (suite sleep) tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
-  Alcotest.run name (misc @ tl1)
+  Alcotest.run ~bail:true name (misc @ tl1)

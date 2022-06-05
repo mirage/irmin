@@ -1,4 +1,4 @@
-(vendored_dirs vendors)
+(vendored_dirs vendors irmin-watcher)
 
 (mdx
  (files README.md)

@@ -136,7 +136,7 @@ struct
         | None -> ()
         | Some edge ->
             let keys = pred key in
-            List.iter (fun k -> edge key k) keys
+            List.map (fun k () -> edge key k) keys |> Eio.Fiber.all
       else ()
     in
     let visit_predecessors ~filter_history key level =

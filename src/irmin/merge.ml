@@ -208,8 +208,10 @@ let alist_iter2 compare_k f l1 l2 =
 (* assume l1 and l2 are key-sorted *)
 let alist_iter2_lwt compare_k f l1 l2 =
   let l3 = ref [] in
-  alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
-  List.iter Fun.id (List.rev !l3)
+  alist_iter2 compare_k
+    (fun left right -> l3 := (fun () -> f left right) :: !l3)
+    l1 l2;
+  Eio.Fiber.all (List.rev !l3)
 
 (* DO NOT assume l1 and l2 are key-sorted *)
 let alist_merge_lwt compare_k f l1 l2 =
@@ -316,13 +318,12 @@ struct
 
   let iter2 f m1 m2 =
     let m3 = ref [] in
-    iter2 (fun key data -> m3 := f key data :: !m3) m1 m2;
-    (* Check iter_p *)
-    List.iter (fun b -> b ()) (List.rev !m3)
+    iter2 (fun key data -> m3 := (fun () -> f key data) :: !m3) m1 m2;
+    Eio.Fiber.all (List.rev !m3)
 
   let merge_maps f m1 m2 =
     let l3 = ref [] in
-    let f key data () =
+    let f key data =
       match f key data with None -> () | Some v -> l3 := (key, v) :: !l3
     in
     iter2 f m1 m2;

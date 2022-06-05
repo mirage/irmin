@@ -15,6 +15,5 @@
  *)
 
 let () =
-  Lwt_main.run
-  @@ Irmin_test.Store.run "irmin-mem" ~slow:true ~misc:[] ~sleep:Lwt_unix.sleep
+  Irmin_test.Store.run "irmin-mem" ~slow:true ~misc:[] ~sleep:Eio_unix.sleep
        [ (`Quick, Test_mem.suite) ]

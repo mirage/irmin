@@ -53,7 +53,7 @@ let alist_iter2 compare_k f l1 l2 =
 let alist_iter2_lwt compare_k f l1 l2 =
   let l3 = ref [] in
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
-  List.iter (fun b -> b ()) (List.rev !l3)
+  Eio.Fiber.all (List.rev !l3)
 
 exception Backend_invariant_violation of string
 exception Assertion_failure of string
