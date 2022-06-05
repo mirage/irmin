@@ -1,7 +1,7 @@
 (library
  (name irmin_fs)
  (public_name irmin-fs)
- (libraries astring irmin logs lwt)
+ (libraries astring irmin logs)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

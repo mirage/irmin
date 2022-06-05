@@ -26,10 +26,12 @@ let none _ _ =
   assert false
 
 let listen_dir_hook = ref none
+let watch_switch = ref None
 
 type hook = int -> string -> (string -> unit) -> unit -> unit
 
 let set_listen_dir_hook (h : hook) = listen_dir_hook := h
+let set_watch_switch sw = watch_switch := Some sw
 
 let id () =
   let c = ref 0 in
@@ -59,8 +61,8 @@ let scheduler () =
           (s, Eio.Stream.add s)
         in
         incr workers_r;
-        ( Eio.Switch.run @@ fun sw ->
-          Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream );
+        let sw = Option.get !watch_switch in
+        (Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream);
         (* Lwt.async (fun () ->
             (* FIXME: we would like to skip some updates if more recent ones
                are at the back of the queue. *)

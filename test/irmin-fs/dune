@@ -1,12 +1,12 @@
 (library
  (name test_fs)
  (modules test_fs)
- (libraries irmin-fs irmin-test lwt))
+ (libraries irmin-fs irmin-test))
 
 (library
  (name test_fs_unix)
  (modules test_fs_unix)
- (libraries test_fs irmin irmin-fs.unix irmin-test irmin-watcher lwt))
+ (libraries test_fs irmin irmin-fs.unix irmin-test irmin-watcher))
 
 (executable
  (name test)
