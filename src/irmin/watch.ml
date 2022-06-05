@@ -27,8 +27,7 @@ let none _ _ =
 
 let listen_dir_hook = ref none
 
-type hook =
-  int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+type hook = int -> string -> (string -> unit) -> unit -> unit
 
 let set_listen_dir_hook (h : hook) = listen_dir_hook := h
 
@@ -42,6 +41,11 @@ let global = id ()
 let workers_r = ref 0
 let workers () = !workers_r
 
+(* Not sure this is right *)
+let rec stream_iter f s =
+  (match Eio.Stream.take s with Some v -> f v | None -> ());
+  stream_iter f s
+
 let scheduler () =
   let p = ref None in
   let niet () = () in
@@ -50,12 +54,17 @@ let scheduler () =
     match !p with
     | Some p -> p elt
     | None ->
-        let stream, push = Lwt_stream.create () in
+        let stream, push =
+          let s = Eio.Stream.create max_int in
+          (s, Eio.Stream.add s)
+        in
         incr workers_r;
-        Lwt.async (fun () ->
+        ( Eio.Switch.run @@ fun sw ->
+          Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream );
+        (* Lwt.async (fun () ->
             (* FIXME: we would like to skip some updates if more recent ones
                are at the back of the queue. *)
-            Lwt_stream.iter_s (fun f -> f ()) stream);
+            Eio.Stream.take (fun f -> f ()) stream); *)
         p := Some push;
         (c := fun () -> push None);
         push elt
@@ -95,8 +104,8 @@ struct
     let compare (x : int) (y : int) = compare x y
   end)
 
-  type key_handler = value Diff.t -> unit Lwt.t
-  type all_handler = key -> value Diff.t -> unit Lwt.t
+  type key_handler = value Diff.t -> unit
+  type all_handler = key -> value Diff.t -> unit
 
   let pp_value = Type.pp V.t
   let equal_opt_values = Type.(unstage (equal (option V.t)))
@@ -105,7 +114,7 @@ struct
   type t = {
     id : int;
     (* unique watch manager id. *)
-    lock : Lwt_mutex.t;
+    lock : Eio.Mutex.t;
     (* protect [keys] and [glob]. *)
     mutable next : int;
     (* next id, to identify watch handlers. *)
@@ -113,13 +122,13 @@ struct
     (* key handlers. *)
     mutable glob : (value KMap.t * all_handler) IMap.t;
     (* global handlers. *)
-    enqueue : (unit -> unit Lwt.t) -> unit;
+    enqueue : (unit -> unit) -> unit;
     (* enqueue notifications. *)
     clean : unit -> unit;
     (* destroy the notification thread. *)
     mutable listeners : int;
     (* number of listeners. *)
-    mutable stop_listening : unit -> unit Lwt.t;
+    mutable stop_listening : unit -> unit;
     (* clean-up listen resources. *)
     mutable notifications : int; (* number of notifcations. *)
   }
@@ -142,13 +151,10 @@ struct
     t.glob <- IMap.empty;
     t.next <- 0
 
-  let clear t =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        clear_unsafe t;
-        Lwt.return_unit)
+  let clear t = Eio.Mutex.use_rw ~protect:true t.lock (fun () -> clear_unsafe t)
 
   let v () =
-    let lock = Lwt_mutex.create () in
+    let lock = Eio.Mutex.create () in
     let clean, enqueue = scheduler () in
     {
       lock;
@@ -159,7 +165,7 @@ struct
       keys = IMap.empty;
       glob = IMap.empty;
       listeners = 0;
-      stop_listening = (fun () -> Lwt.return_unit);
+      stop_listening = (fun () -> ());
       notifications = 0;
     }
 
@@ -171,10 +177,9 @@ struct
     t.keys <- keys
 
   let unwatch t id =
-    Lwt_mutex.with_lock t.lock (fun () ->
+    Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
         unwatch_unsafe t id;
-        if is_empty t then t.clean ();
-        Lwt.return_unit)
+        if is_empty t then t.clean ())
 
   let mk old value =
     match (old, value) with
@@ -184,10 +189,10 @@ struct
     | Some x, Some y -> `Updated (x, y)
 
   let protect f () =
-    Lwt.catch f (fun e ->
-        [%log.err
-          "watch callback got: %a\n%s" Fmt.exn e (Printexc.get_backtrace ())];
-        Lwt.return_unit)
+    try f ()
+    with e ->
+      [%log.err
+        "watch callback got: %a\n%s" Fmt.exn e (Printexc.get_backtrace ())]
 
   let pp_option = Fmt.option ~none:(Fmt.any "<none>")
   let pp_key = Type.pp K.t
@@ -227,7 +232,9 @@ struct
     t.glob <- glob;
     match !todo with
     | [] -> ()
-    | ts -> t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) ts)
+    | ts ->
+        (* Check iter_p *)
+        t.enqueue (fun () -> List.iter (fun x -> x ()) ts)
 
   let notify_key_unsafe t key value =
     let todo = ref [] in
@@ -255,15 +262,16 @@ struct
     t.keys <- keys;
     match !todo with
     | [] -> ()
-    | ts -> t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) ts)
+    | ts ->
+        (* Check iter_p *)
+        t.enqueue (fun () -> List.iter (fun x -> x ()) ts)
 
   let notify t key value =
-    Lwt_mutex.with_lock t.lock (fun () ->
-        if is_empty t then Lwt.return_unit
+    Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
+        if is_empty t then ()
         else (
           notify_all_unsafe t key value;
-          notify_key_unsafe t key value;
-          Lwt.return_unit))
+          notify_key_unsafe t key value))
 
   let watch_key_unsafe t key ?init f =
     let id = next t in
@@ -272,9 +280,9 @@ struct
     id
 
   let watch_key t key ?init f =
-    Lwt_mutex.with_lock t.lock (fun () ->
+    Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
         let id = watch_key_unsafe t ?init key f in
-        Lwt.return id)
+        id)
 
   let kmap_of_alist l =
     List.fold_left (fun map (k, v) -> KMap.add k v map) KMap.empty l
@@ -286,21 +294,21 @@ struct
     id
 
   let watch t ?init f =
-    Lwt_mutex.with_lock t.lock (fun () ->
+    Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
         let id = watch_unsafe t ?init f in
-        Lwt.return id)
+        id)
 
   let listen_dir t dir ~key ~value =
     let init () =
       if t.listeners = 0 then (
         [%log.debug "%s: start listening to %s" (to_string t) dir];
-        let+ f =
+        let f =
           !listen_dir_hook t.id dir (fun file ->
               match key file with
-              | None -> Lwt.return_unit
+              | None -> ()
               | Some key ->
                   let rec read n =
-                    let* value = value key in
+                    let value = value key in
                     let n' = t.notifications in
                     if n = n' then notify t key value
                     else (
@@ -310,16 +318,14 @@ struct
                   read t.notifications)
         in
         t.stop_listening <- f)
-      else (
-        [%log.debug "%s: already listening on %s" (to_string t) dir];
-        Lwt.return_unit)
+      else [%log.debug "%s: already listening on %s" (to_string t) dir]
     in
-    init () >|= fun () ->
+    init ();
     t.listeners <- t.listeners + 1;
     function
     | () ->
         if t.listeners > 0 then t.listeners <- t.listeners - 1;
-        if t.listeners <> 0 then Lwt.return_unit
+        if t.listeners <> 0 then ()
         else (
           [%log.debug "%s: stop listening to %s" (to_string t) dir];
           t.stop_listening ())

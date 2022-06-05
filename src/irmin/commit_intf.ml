@@ -147,10 +147,10 @@ module type History = sig
     node:node_key ->
     parents:commit_key list ->
     info:info ->
-    (commit_key * v) Lwt.t
+    commit_key * v
   (** Create a new commit. *)
 
-  val parents : [> read ] t -> commit_key -> commit_key list Lwt.t
+  val parents : [> read ] t -> commit_key -> commit_key list
   (** Get the commit parents.
 
       Commits form a append-only, fully functional, partial-order
@@ -166,7 +166,7 @@ module type History = sig
     ?n:int ->
     commit_key ->
     commit_key ->
-    (commit_key list, [ `Max_depth_reached | `Too_many_lcas ]) result Lwt.t
+    (commit_key list, [ `Max_depth_reached | `Too_many_lcas ]) result
   (** Find the lowest common ancestors
       {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor} lca} between two
       commits. *)
@@ -177,7 +177,7 @@ module type History = sig
     ?max_depth:int ->
     ?n:int ->
     commit_key list ->
-    (commit_key option, Merge.conflict) result Lwt.t
+    (commit_key option, Merge.conflict) result
   (** Compute the lowest common ancestors ancestor of a list of commits by
       recursively calling {!lcas} and merging the results.
 
@@ -192,14 +192,11 @@ module type History = sig
     ?n:int ->
     commit_key ->
     commit_key ->
-    (commit_key, Merge.conflict) result Lwt.t
+    (commit_key, Merge.conflict) result
   (** Compute the {!lcas} of the two commit and 3-way merge the result. *)
 
   val closure :
-    [> read ] t ->
-    min:commit_key list ->
-    max:commit_key list ->
-    commit_key list Lwt.t
+    [> read ] t -> min:commit_key list -> max:commit_key list -> commit_key list
   (** Same as {{!Node.Graph.closure} Node.Graph.closure} but for the history
       graph. *)
 
@@ -207,12 +204,12 @@ module type History = sig
     [> read ] t ->
     min:commit_key list ->
     max:commit_key list ->
-    ?commit:(commit_key -> unit Lwt.t) ->
-    ?edge:(commit_key -> commit_key -> unit Lwt.t) ->
-    ?skip:(commit_key -> bool Lwt.t) ->
+    ?commit:(commit_key -> unit) ->
+    ?edge:(commit_key -> commit_key -> unit) ->
+    ?skip:(commit_key -> bool) ->
     ?rev:bool ->
     unit ->
-    unit Lwt.t
+    unit
   (** Same as {{!Node.Graph.iter} Node.Graph.iter} but for traversing the
       history graph. *)
 end

@@ -24,11 +24,11 @@ module type S = sig
   include Read_only.S
   (** @inline *)
 
-  val add : [> write ] t -> value -> key Lwt.t
+  val add : [> write ] t -> value -> key
   (** Write the contents of a value to the store. It's the responsibility of the
       content-addressable store to generate a consistent key. *)
 
-  val unsafe_add : [> write ] t -> key -> value -> unit Lwt.t
+  val unsafe_add : [> write ] t -> key -> value -> unit
   (** Same as {!add} but allows specifying the key directly. The backend might
       choose to discard that key and/or can be corrupt if the key scheme is not
       consistent. *)

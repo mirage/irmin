@@ -35,24 +35,15 @@ struct
   }
   [@@deriving irmin]
 
-  let empty () = Lwt.return { contents = []; nodes = []; commits = [] }
+  let empty () = { contents = []; nodes = []; commits = [] }
 
   let add t = function
-    | `Contents c ->
-        t.contents <- c :: t.contents;
-        Lwt.return_unit
-    | `Node n ->
-        t.nodes <- n :: t.nodes;
-        Lwt.return_unit
-    | `Commit c ->
-        t.commits <- c :: t.commits;
-        Lwt.return_unit
+    | `Contents c -> t.contents <- c :: t.contents
+    | `Node n -> t.nodes <- n :: t.nodes
+    | `Commit c -> t.commits <- c :: t.commits
 
   let iter t f =
-    Lwt.join
-      [
-        Lwt_list.iter_p (fun c -> f (`Contents c)) t.contents;
-        Lwt_list.iter_p (fun n -> f (`Node n)) t.nodes;
-        Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits;
-      ]
+    List.iter (fun c -> f (`Contents c)) t.contents;
+    List.iter (fun n -> f (`Node n)) t.nodes;
+    List.iter (fun c -> f (`Commit c)) t.commits
 end

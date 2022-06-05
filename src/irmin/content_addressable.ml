@@ -19,7 +19,6 @@ include Content_addressable_intf
 
 module Make (AO : Append_only.Maker) (K : Hash.S) (V : Type.S) = struct
   include AO (K) (V)
-  open Lwt.Infix
   module H = Hash.Typed (K) (V)
 
   let hash = H.hash
@@ -27,20 +26,21 @@ module Make (AO : Append_only.Maker) (K : Hash.S) (V : Type.S) = struct
   let equal_hash = Type.(unstage (equal K.t))
 
   let find t k =
-    find t k >>= function
-    | None -> Lwt.return_none
+    match find t k with
+    | None -> None
     | Some v as r ->
         let k' = hash v in
-        if equal_hash k k' then Lwt.return r
+        if equal_hash k k' then r
         else
-          Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_key k' pp_key k
+          Fmt.kstr invalid_arg "corrupted value: got %a, expecting %a" pp_key k'
+            pp_key k
 
   let unsafe_add t k v = add t k v
 
   let add t v =
     let k = hash v in
-    add t k v >|= fun () -> k
+    add t k v;
+    k
 end
 
 module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
@@ -73,11 +73,11 @@ module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
   let v conf =
-    let+ t = S.v conf in
+    let t = S.v conf in
     { closed = ref false; t }
 
   let close t =
-    if !(t.closed) then Lwt.return_unit
+    if !(t.closed) then ()
     else (
       t.closed := true;
       S.close t.t)
