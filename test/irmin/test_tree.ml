@@ -470,13 +470,11 @@ type path = Store.Path.t [@@deriving irmin ~pp ~equal]
 
 let test_clear () =
   (* 1. Build a tree *)
-  Eio.traceln "Clear 1";
-  let size = 256 in
+  let size = 830829 in
   let t =
     List.init size string_of_int
     |> List.fold_left (fun acc i -> Tree.add acc [ i ] i) (Tree.empty ())
   in
-  Eio.traceln "Clear 2";
   (* Check the state of the root and root/42 *)
   Alcotest.(check inspect) "Before clear, root" (`Node `Map) (Tree.inspect t);
   let () =
@@ -485,19 +483,15 @@ let test_clear () =
          "Before clear, root node is eagerly evaluated"
          { nodes = 1; leafs = size; skips = 0; depth = 1; width = size }
   in
-  Eio.traceln "Clear 3";
   let entry42 = Tree.find_tree t [ "42" ] |> Option.get in
   Alcotest.(check inspect)
     "Before clear, root/42" `Contents (Tree.inspect entry42);
-  Eio.traceln "Clear 4";
   let () =
     let dont_skip k = Alcotest.failf "should not have skipped %a" pp_path k in
     Tree.fold ~force:(`False dont_skip) entry42 ()
   in
   (* 2. Clear on non-persisted *)
-  Eio.traceln "Clear 5";
   Tree.clear t;
-  Eio.traceln "Clear 6";
   (* The state of the tree shouldn't have changed after this clear *)
   Alcotest.(check inspect) "Before persist" (`Node `Map) (Tree.inspect t);
   let () =
