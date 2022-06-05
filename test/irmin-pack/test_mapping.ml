@@ -114,17 +114,16 @@ let test ~full_seg_length ~seg_subset_max_length ~random_test_count =
       |> test;
       aux (i + 1))
   in
-  aux 0;
-  Lwt.return_unit
+  aux 0
 
 let tests =
   [
-    Alcotest_lwt.test_case "test mapping on small inputs" `Quick
-      (fun _switch () ->
+    Alcotest.test_case "test mapping on small inputs" `Quick
+      (fun () ->
         test ~full_seg_length:10 ~seg_subset_max_length:30
           ~random_test_count:1000);
-    Alcotest_lwt.test_case "test mapping on large inputs" `Quick
-      (fun _switch () ->
+    Alcotest.test_case "test mapping on large inputs" `Quick
+      (fun () ->
         test ~full_seg_length:10000 ~seg_subset_max_length:30000
           ~random_test_count:100);
   ]

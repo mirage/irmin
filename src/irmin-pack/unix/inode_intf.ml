@@ -34,7 +34,7 @@ module type Persistent = sig
   include Irmin_pack.Checkable with type 'a t := 'a t and type hash := hash
 
   (* val reload : 'a t -> unit *)
-  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
+  val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result
 
   module Pack :
     Pack_store.S

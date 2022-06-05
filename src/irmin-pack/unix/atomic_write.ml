@@ -106,13 +106,13 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     if Io_legacy.readonly t.block then sync_offset t;
     try Some (Tbl.find t.cache k) with Not_found -> None
 
-  let find t k = Lwt.return (unsafe_find t k)
+  let find t k = unsafe_find t k
 
   let unsafe_mem t k =
     [%log.debug "[branches] mem %a" pp_key k];
     try Tbl.mem t.cache k with Not_found -> false
 
-  let mem t v = Lwt.return (unsafe_mem t v)
+  let mem t v = unsafe_mem t v
 
   let unsafe_remove t k =
     Tbl.remove t.cache k;
@@ -137,7 +137,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     let t = { cache; index; block; w = watches } in
     let offset = Io_legacy.force_offset block in
     refill t ~to_:offset ~from:Int63.zero;
-    Lwt.return t
+    t
 
   let clear _ = Fmt.failwith "Unsupported operation"
 
@@ -161,23 +161,27 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
 
   let unsafe_test_and_set t k ~test ~set =
     let v = try Some (Tbl.find t.cache k) with Not_found -> None in
-    if not (equal_v_opt v test) then Lwt.return_false
+    if not (equal_v_opt v test) then false
     else
-      let return () = Lwt.return_true in
       match set with
-      | None -> unsafe_remove t k |> return
-      | Some v -> unsafe_set t k v |> return
+      | None ->
+          unsafe_remove t k;
+          true
+      | Some v ->
+          unsafe_set t k v;
+          true
 
   let test_and_set t k ~test ~set =
     [%log.debug "[branches] test-and-set %a" pp_key k];
-    unsafe_test_and_set t k ~test ~set >>= function
-    | true -> W.notify t.w k set >|= fun () -> true
-    | false -> Lwt.return_false
+    match unsafe_test_and_set t k ~test ~set with
+    | true ->
+        W.notify t.w k set;
+        true
+    | false -> false
 
   let list t =
     [%log.debug "[branches] list"];
-    let keys = Tbl.fold (fun k _ acc -> k :: acc) t.cache [] in
-    Lwt.return keys
+    Tbl.fold (fun k _ acc -> k :: acc) t.cache []
 
   let watch_key t = W.watch_key t.w
   let watch t = W.watch t.w

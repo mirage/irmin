@@ -30,8 +30,8 @@ module Make (Args : Gc_args.S) = struct
     task : Async.t;
     unlink : bool;
     new_suffix_start_offset : int63;
-    resolver : (Stats.Latest_gc.stats, Errs.t) result Lwt.u;
-    promise : (Stats.Latest_gc.stats, Errs.t) result Lwt.t;
+    resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u;
+    promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t;
     dispatcher : Dispatcher.t;
     fm : Fm.t;
     contents : read Contents_store.t;
@@ -79,7 +79,7 @@ module Make (Args : Gc_args.S) = struct
        after a failed gc. *)
     unlink_result_file ();
     (* internal promise for gc *)
-    let promise, resolver = Lwt.wait () in
+    let promise, resolver = Eio.Promise.create () in
     (* start worker task *)
     let task =
       Async.async (fun () ->
@@ -216,7 +216,7 @@ module Make (Args : Gc_args.S) = struct
 
   let finalise ~wait t =
     match t.resulting_stats with
-    | Some partial_stats -> Lwt.return_ok (`Finalised partial_stats)
+    | Some partial_stats -> Ok (`Finalised partial_stats)
     | None -> (
         let partial_stats = t.partial_stats in
         let partial_stats =
@@ -232,7 +232,7 @@ module Make (Args : Gc_args.S) = struct
           in
 
           let result =
-            let open Result_syntax in
+            let (let*) = Result.bind in
             match (status, gc_output) with
             | ( `Success,
                 Ok { suffix_params; removable_chunk_idxs; stats = worker_stats }
@@ -264,33 +264,31 @@ module Make (Args : Gc_args.S) = struct
                   "Gc ended successfully. %a"
                     (Irmin.Type.pp Stats.Latest_gc.stats_t)
                     partial_stats];
-                let () = Lwt.wakeup_later t.resolver (Ok partial_stats) in
+                let () = Eio.Promise.resolve_ok t.resolver partial_stats in
                 Ok (`Finalised partial_stats)
             | _ ->
                 clean_after_abort t;
                 let err = gc_errors status gc_output in
-                let () = Lwt.wakeup_later t.resolver err in
+                let () = Eio.Promise.resolve t.resolver err in
                 err
           in
-          Lwt.return result
+          result
         in
         if wait then
-          let* status = Async.await t.task in
+          let status = Async.await t.task in
           go status
         else
           match Async.status t.task with
-          | `Running -> Lwt.return_ok `Running
+          | `Running -> Ok `Running
           | #Async.outcome as status -> go status)
 
   let finalise_without_swap t =
-    let* status = Async.await t.task in
+    let status = Async.await t.task in
     match status with
-    | `Success ->
-        Lwt.return (t.latest_gc_target_offset, t.new_suffix_start_offset)
+    | `Success -> t.latest_gc_target_offset, t.new_suffix_start_offset
     | _ ->
         let gc_output = read_gc_output ~root:t.root ~generation:t.generation in
-        let r = gc_errors status gc_output |> Errs.raise_if_error in
-        Lwt.return r
+        gc_errors status gc_output |> Errs.raise_if_error
 
   let on_finalise t f =
     (* Ignore returned promise since the purpose of this
@@ -299,7 +297,7 @@ module Make (Args : Gc_args.S) = struct
        implementation detail. This is safe since the callback
        [f] is attached to [t.running_gc.promise], which is
        referenced for the lifetime of a GC process. *)
-    let _ = Lwt.bind t.promise f in
+    let _ = f (Eio.Promise.await t.promise) in
     ()
 
   let cancel t =

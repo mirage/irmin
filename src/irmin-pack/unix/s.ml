@@ -53,7 +53,7 @@ module type S = sig
 
       TODO: Detail exceptions raised. *)
 
-  val create_one_commit_store : repo -> commit_key -> string -> unit Lwt.t
+  val create_one_commit_store : repo -> commit_key -> string -> unit
   (** [create_one_commit_store t key path] creates a new store at [path] from
       the existing one, containing only one commit, specified by the [key]. Note
       that this operation is blocking.
@@ -71,7 +71,7 @@ module type S = sig
 
     (** {2 Low-level API} *)
 
-    val start_exn : ?unlink:bool -> repo -> commit_key -> bool Lwt.t
+    val start_exn : ?unlink:bool -> repo -> commit_key -> bool
     (** [start_exn] tries to start the GC process and returns true if the GC is
         launched. If a GC is already running, a new one is not started.
 
@@ -84,7 +84,7 @@ module type S = sig
 
         TODO: Detail exceptions raised. *)
 
-    val finalise_exn : ?wait:bool -> repo -> process_state Lwt.t
+    val finalise_exn : ?wait:bool -> repo -> process_state
     (** [finalise_exn ?wait repo] waits for the GC process to finish in order to
         finalise it. It returns the state of the GC process from the point of
         view of the function call; subsequent calls of [finalise_exn] after a
@@ -108,10 +108,10 @@ module type S = sig
         logging *)
 
     val run :
-      ?finished:((Stats.Latest_gc.stats, msg) result -> unit Lwt.t) ->
+      ?finished:((Stats.Latest_gc.stats, msg) result -> unit) ->
       repo ->
       commit_key ->
-      (bool, msg) result Lwt.t
+      (bool, msg) result
     (** [run repo commit_key] attempts to start a GC process for a [repo] by
         discarding all data prior to [commit_key]. If a GC process is already
         running, a new one will not be started.
@@ -130,7 +130,7 @@ module type S = sig
         returned as pretty-print error messages; others are re-raised. The error
         messages should be used only for informational purposes, like logging. *)
 
-    val wait : repo -> (Stats.Latest_gc.stats option, msg) result Lwt.t
+    val wait : repo -> (Stats.Latest_gc.stats option, msg) result
     (** [wait repo] blocks until GC is finished or is idle.
 
         If a GC finalises, its stats are returned.
@@ -158,7 +158,7 @@ module type S = sig
   val integrity_check_inodes :
     ?heads:commit list ->
     repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+    ([> `Msg of string ], [> `Msg of string ]) result
 
   val traverse_pack_file :
     [ `Reconstruct_index of [ `In_place | `Output of string ]
@@ -175,7 +175,7 @@ module type S = sig
     unit
 
   val stats :
-    dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
+    dump_blob_paths_to:string option -> commit:commit -> repo -> unit
 
   module Snapshot : sig
     type kinded_hash = Contents of hash * metadata | Node of hash
@@ -201,9 +201,9 @@ module type S = sig
     val export :
       ?on_disk:[ `Path of string ] ->
       repo ->
-      (t -> unit Lwt.t) ->
+      (t -> unit) ->
       root_key:Tree.kinded_key ->
-      int Lwt.t
+      int
     (** [export ?on_disk repo f ~root_key] applies [f] to all inodes and
         contents in a rooted tree, with root specified by [root_key].
 
@@ -237,7 +237,7 @@ module type S = sig
           - if [on_disk] is [`Path path], a temporary index is created at path.
           - if [on_disk] is [`Reuse] the store's index is reused. *)
 
-      val save_elt : process -> t -> node_key Lwt.t
+      val save_elt : process -> t -> node_key
       (** [save_elt snapshot elt] saves [elt] to the store. *)
 
       val close : process -> repo -> unit

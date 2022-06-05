@@ -76,15 +76,14 @@ module Maker (K : Irmin.Hash.S) = struct
     type 'a t = { name : string; mutable t : value KMap.t }
 
     let index_direct _ h = Some h
-    let index t h = Lwt.return (index_direct t h)
+    let index t h = index_direct t h
     let instances = Pool.create ~alloc:(fun name -> { name; t = KMap.empty })
-    let v name = Lwt.return (Pool.take instances name)
+    let v name = Pool.take instances name
     let equal_key = Irmin.Type.(unstage (equal K.t))
 
     let close t =
       [%log.debug "close"];
-      Pool.drop instances t.name;
-      Lwt.return_unit
+      Pool.drop instances t.name
 
     let cast t = (t :> read_write t)
     let batch t f = f (cast t)
@@ -111,16 +110,16 @@ module Maker (K : Irmin.Hash.S) = struct
     let find t k =
       [%log.debug "find %a" pp_hash k];
       find t k |> function
-      | Ok r -> Lwt.return r
+      | Ok r -> r
       | Error (k, k') ->
-          Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
-            pp_hash k' pp_hash k
+          Fmt.kstr invalid_arg "corrupted value: got %a, expecting %a" pp_hash
+            k' pp_hash k
 
     let unsafe_mem t k =
       [%log.debug "mem %a" pp_hash k];
       KMap.mem k t.t
 
-    let mem t k = Lwt.return (unsafe_mem t k)
+    let mem t k = unsafe_mem t k
 
     let unsafe_append ~ensure_unique:_ ~overcommit:_ t k v =
       [%log.debug "add -> %a" pp_hash k];
@@ -128,7 +127,7 @@ module Maker (K : Irmin.Hash.S) = struct
       k
 
     let unsafe_add t k v =
-      Lwt.return (unsafe_append ~ensure_unique:true ~overcommit:true t k v)
+      unsafe_append ~ensure_unique:true ~overcommit:true t k v
 
     let add t v = unsafe_add t (Val.hash v) v
   end

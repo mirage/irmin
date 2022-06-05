@@ -53,7 +53,7 @@ module Alcotest : sig
   val int63 : Int63.t testable
   val kind : Irmin_pack.Pack_value.Kind.t testable
   val hash : Schema.Hash.t testable
-  val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
+  val check_raises : string -> exn -> (unit -> _) -> unit
 
   val check_repr :
     ?pos:Source_code_position.pos ->
@@ -95,10 +95,10 @@ end) : sig
     dict : Dict.t;
   }
 
-  val get_rw_pack : unit -> t Lwt.t
-  val get_ro_pack : string -> t Lwt.t
-  val reopen_rw : string -> t Lwt.t
-  val close_pack : t -> unit Lwt.t
+  val get_rw_pack : unit -> t 
+  val get_ro_pack : string -> t 
+  val reopen_rw : string -> t 
+  val close_pack : t -> unit 
 end
 
 val get : 'a option -> 'a

@@ -18,11 +18,10 @@ let test_nearest_leq () =
   Alcotest.(check leq) "6" (nearest_leq 6) (`Some 2);
   Alcotest.(check leq) "7" (nearest_leq 7) (`Some 3);
   Alcotest.(check leq) "8" (nearest_leq 8) (`Some 3);
-  Alcotest.(check leq) "100" (nearest_leq 100) (`Some 3);
-  Lwt.return_unit
+  Alcotest.(check leq) "100" (nearest_leq 100) (`Some 3)
 
 let tests =
   [
-    Alcotest_lwt.test_case "test_nearest_leq" `Quick (fun _switch () ->
+    Alcotest.test_case "test_nearest_leq" `Quick (fun () ->
         test_nearest_leq ());
   ]
