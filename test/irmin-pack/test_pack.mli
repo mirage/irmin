@@ -15,4 +15,4 @@
  *)
 
 val suite : Irmin_test.Suite.t list
-val misc : (string * unit Alcotest_lwt.test_case list) list
+val misc : (string * unit Alcotest.test_case list) list
