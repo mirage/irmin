@@ -15,7 +15,7 @@
  *)
 
 let () =
-  Lwt_main.run
-  @@ Irmin_test.Store.run "irmin-pack" ~misc:Test_pack.misc
-       ~sleep:Lwt_unix.sleep
+  Eio_main.run @@ fun _env ->
+  Irmin_test.Store.run "irmin-pack" ~misc:Test_pack.misc
+       ~sleep:Eio_unix.sleep
        (List.map (fun s -> (`Quick, s)) Test_pack.suite)

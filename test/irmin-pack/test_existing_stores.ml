@@ -41,34 +41,34 @@ let root_v1_archive, root_v1, tmp =
 module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) =
 struct
   let check_commit repo commit bindings =
-    commit |> S.Commit.key |> S.Commit.of_key repo >>= function
+    match commit |> S.Commit.key |> S.Commit.of_key repo with
     | None ->
         Alcotest.failf "Commit `%a' is dangling in repo" S.Commit.pp_hash commit
     | Some commit ->
         let tree = S.Commit.tree commit in
         bindings
-        |> Lwt_list.iter_s (fun (key, value) ->
+        |> List.iter (fun (key, value) ->
                S.Tree.find tree key
-               >|= Alcotest.(check (option string))
-                     (Fmt.str "Expected binding [%a ↦ %s]"
-                        Fmt.(Dump.list string)
-                        key value)
-                     (Some value))
+               |> Alcotest.(check (option string))
+                    (Fmt.str "Expected binding [%a ↦ %s]"
+                       Fmt.(Dump.list string)
+                       key value)
+                    (Some value))
 
   let check_repo repo structure =
     structure
-    |> Lwt_list.iter_s @@ fun (branch, bindings) ->
-       S.Branch.find repo branch >>= function
+    |> List.iter @@ fun (branch, bindings) ->
+       match S.Branch.find repo branch with
        | None -> Alcotest.failf "Couldn't find expected branch `%s'" branch
        | Some commit -> check_commit repo commit bindings
 
   let commit_of_string repo c =
     match Irmin.Type.of_string S.Hash.t c with
     | Ok x -> (
-        let* commit = S.Commit.of_hash repo x in
+        let commit = S.Commit.of_hash repo x in
         match commit with
         | None -> Alcotest.fail "could not find commit in store"
-        | Some x -> Lwt.return x)
+        | Some x -> x)
     | _ -> Alcotest.fail "could not read hash"
 
   let bin_string_of_string c =
@@ -126,8 +126,8 @@ module Test_reconstruct = struct
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false root_v1 in
     (* Open store in RW to migrate it to V3. *)
-    let* repo = S.Repo.v conf in
-    let* () = S.Repo.close repo in
+    let repo = S.Repo.v conf in
+    let () = S.Repo.close repo in
     (* Test on a V3 store. *)
     S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
@@ -153,13 +153,14 @@ module Test_reconstruct = struct
     Index.close_exn index_new;
     [%log.app
       "Checking old bindings are still reachable post index reconstruction)"];
-    let* r = S.Repo.v conf in
-    check_repo r archive >>= fun () -> S.Repo.close r
+    let r = S.Repo.v conf in
+    check_repo r archive;
+    S.Repo.close r
 
   let test_gc_allowed () =
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false root_v1 in
-    let* repo = S.Repo.v conf in
+    let repo = S.Repo.v conf in
     let allowed = S.Gc.is_allowed repo in
     Alcotest.(check bool)
       "deleting gc not allowed on stores with V1 objects" allowed false;
@@ -179,7 +180,7 @@ module Test_corrupted_stores = struct
 
   let test () =
     setup_env ();
-    let* rw = S.Repo.v (config ~fresh:false root) in
+    let rw = S.Repo.v (config ~fresh:false root) in
     [%log.app
       "integrity check on a store where 3 entries are missing from pack"];
     let* result = S.integrity_check ~auto_repair:false rw in
@@ -271,19 +272,19 @@ module Test_corrupted_inode = struct
 
   let test () =
     setup_test_env ();
-    let* rw = S.Repo.v (config ~fresh:false root) in
+    let rw = S.Repo.v (config ~fresh:false root) in
     [%log.app "integrity check of inodes on a store with one corrupted inode"];
     let c2 = "8d89b97726d9fb650d088cb7e21b78d84d132c6e" in
-    let* c2 = commit_of_string rw c2 in
-    let* result = S.integrity_check_inodes ~heads:[ c2 ] rw in
+    let c2 = commit_of_string rw c2 in
+    let result = S.integrity_check_inodes ~heads:[ c2 ] rw in
     (match result with
     | Ok _ ->
         Alcotest.failf
           "Store is corrupted for second commit, the check should fail"
     | Error _ -> ());
     let c1 = "1b1e259ca4e7bb8dc32c73ade93d8181c29cebe6" in
-    let* c1 = commit_of_string rw c1 in
-    let* result = S.integrity_check_inodes ~heads:[ c1 ] rw in
+    let c1 = commit_of_string rw c1 in
+    let result = S.integrity_check_inodes ~heads:[ c1 ] rw in
     (match result with
     | Error _ ->
         Alcotest.fail
@@ -304,21 +305,21 @@ module Test_traverse_gced = struct
   include Test (S)
 
   let commit_and_gc conf =
-    let* repo = S.Repo.v conf in
-    let* commit =
+    let repo = S.Repo.v conf in
+    let commit =
       commit_of_string repo "22e159de13b427226e5901defd17f0c14e744205"
     in
     let tree = S.Commit.tree commit in
-    let* tree = S.Tree.add tree [ "abba"; "baba" ] "x" in
-    let* commit = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
+    let tree = S.Tree.add tree [ "abba"; "baba" ] "x" in
+    let commit = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
     let commit_key = S.Commit.key commit in
-    let* _launched = S.Gc.start_exn ~unlink:false repo commit_key in
-    let* result = S.Gc.finalise_exn ~wait:true repo in
-    let* () =
+    let _launched = S.Gc.start_exn ~unlink:false repo commit_key in
+    let result = S.Gc.finalise_exn ~wait:true repo in
+    let () =
       match result with
       | `Running -> Alcotest.fail "expected finalised gc"
       (* consider `Idle as success because gc can finalise during commit as well *)
-      | `Idle | `Finalised _ -> Lwt.return_unit
+      | `Idle | `Finalised _ -> ()
     in
     S.Repo.close repo
 
@@ -329,23 +330,22 @@ module Test_traverse_gced = struct
       config ~readonly:false ~fresh:false
         ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
     in
-    let* () = commit_and_gc conf in
-    S.test_traverse_pack_file `Check_index conf;
-    Lwt.return_unit
+    let () = commit_and_gc conf in
+    S.test_traverse_pack_file `Check_index conf
 end
 
 let tests =
   [
-    Alcotest_lwt.test_case "Test index reconstruction" `Quick (fun _switch ->
+    Alcotest.test_case "Test index reconstruction" `Quick (fun _switch ->
         Test_reconstruct.test_reconstruct);
-    Alcotest_lwt.test_case "Test gc not allowed" `Quick (fun _switch ->
+    Alcotest.test_case "Test gc not allowed" `Quick (fun _switch ->
         Test_reconstruct.test_gc_allowed);
-    Alcotest_lwt.test_case "Test integrity check" `Quick (fun _switch ->
+    Alcotest.test_case "Test integrity check" `Quick (fun _switch ->
         Test_corrupted_stores.test);
-    Alcotest_lwt.test_case "Test integrity check minimal stores" `Quick
+    Alcotest.test_case "Test integrity check minimal stores" `Quick
       (fun _switch -> Test_corrupted_stores.test_minimal);
-    Alcotest_lwt.test_case "Test integrity check for inodes" `Quick
+    Alcotest.test_case "Test integrity check for inodes" `Quick
       (fun _switch -> Test_corrupted_inode.test);
-    Alcotest_lwt.test_case "Test traverse pack on gced store" `Quick
+    Alcotest.test_case "Test traverse pack on gced store" `Quick
       (fun _switch -> Test_traverse_gced.test_traverse_pack);
   ]

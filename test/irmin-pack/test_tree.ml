@@ -46,17 +46,17 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
   type context = { repo : Store.repo; tree : Store.tree }
 
   let export_tree_to_store tree =
-    let* repo = Store.Repo.v (config ~fresh:true root) in
-    let* store = Store.empty repo in
-    let* () = Store.set_tree_exn ~info store [] tree in
-    let+ tree = Store.tree store in
+    let repo = Store.Repo.v (config ~fresh:true root) in
+    let store = Store.empty repo in
+    let () = Store.set_tree_exn ~info store [] tree in
+    let tree = Store.tree store in
     { repo; tree }
 
   let close { repo; _ } = Store.Repo.close repo
 
   let fold ~order t ~init ~f =
     Tree.fold ~order ~force:`True ~cache:false ~uniq:`False
-      ~contents:(fun k _v acc -> if k = [] then Lwt.return acc else f k acc)
+      ~contents:(fun k _v acc -> if k = [] then acc else f k acc)
       t init
 
   let init_bindings n =
@@ -68,17 +68,17 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
 
   let init_tree bindings =
     let tree = Tree.empty () in
-    let* tree =
-      Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+    let tree =
+      List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
     export_tree_to_store tree
 
   let find_tree tree k =
-    let+ t = Tree.find_tree tree k in
+    let t = Tree.find_tree tree k in
     match t with None -> tree | Some t -> t
 
   let find tree k =
-    let+ _ = Tree.find tree k in
+    let _ = Tree.find tree k in
     tree
 
   let run_one tree = function
@@ -95,18 +95,18 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
 
   let run_disjoint ops tree =
     let run_one op =
-      let* _ = run_one tree op in
-      Lwt.return_unit
+      let _ = run_one tree op in
+      ()
     in
-    let+ () = Lwt_list.iter_s run_one ops in
+    let () = List.iter run_one ops in
     (tree, ())
 
   let run ops tree =
-    let+ tree = Lwt_list.fold_left_s run_one tree ops in
+    let tree = List.fold_left run_one tree ops in
     (tree, ())
 
-  let proof_of_ops repo hash ops : _ Lwt.t =
-    let+ t, () = Store.Tree.produce_proof repo hash (run ops) in
+  let proof_of_ops repo hash ops : _ =
+    let t, () = Store.Tree.produce_proof repo hash (run ops) in
     t
 
   let bin_of_proof = Irmin.Type.(unstage (to_bin_string Tree.Proof.t))
@@ -122,7 +122,7 @@ let equal_ordered_slist ~msg l1 l2 = Alcotest.check_repr bindings_t msg l1 l2
 
 let fold ~order ~force t ~init ~f =
   Tree.fold ~order ~force ~cache:false ~uniq:`False
-    ~contents:(fun k _v acc -> if k = [] then Lwt.return acc else f k acc)
+    ~contents:(fun k _v acc -> if k = [] then acc else f k acc)
     t init
 
 let equal_slist ~msg l1 l2 =
@@ -181,22 +181,22 @@ let bindings steps = List.map (fun x -> ([ x ], zero)) steps
 let test_fold ?export_tree_to_store:(export_tree_to_store' = true) ~order
     bindings expected =
   let tree = Tree.empty () in
-  let* tree =
-    Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+  let tree =
+    List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
   in
-  let* close =
+  let close =
     match export_tree_to_store' with
     | true ->
-        let+ ctxt = export_tree_to_store tree in
+        let ctxt = export_tree_to_store tree in
         fun () -> close ctxt
-    | false -> Lwt.return Lwt.return
+    | false -> fun () -> ()
   in
-  let* keys =
+  let keys =
     fold
       ~force:
-        (if export_tree_to_store' then `True else `False (Fun.const Lwt.return))
+        (if export_tree_to_store' then `True else `False (Fun.const Fun.id))
       ~order tree ~init:[]
-      ~f:(fun k acc -> Lwt.return (k :: acc))
+      ~f:(fun k acc -> k :: acc)
   in
   let keys = List.rev keys in
   let msg, equal_lists =
@@ -216,20 +216,19 @@ let test_fold_sorted () =
 let test_fold_random () =
   let bindings = bindings some_steps in
   let state = Random.State.make [| 0 |] in
-  let* () = test_fold ~order:(`Random state) bindings some_random_steps in
+  let () = test_fold ~order:(`Random state) bindings some_random_steps in
   let state = Random.State.make [| 1 |] in
-  let* () = test_fold ~order:(`Random state) bindings another_random_steps in
+  let () = test_fold ~order:(`Random state) bindings another_random_steps in
 
   (* Random fold order should still be respected if [~force:`False]. This is a
      regression test for a bug in which the fold order of in-memory nodes during
      a non-forcing traversal was always sorted. *)
   let state = Random.State.make [| 1 |] in
-  let* () =
+  let () =
     test_fold ~order:(`Random state) ~export_tree_to_store:false bindings
       another_random_steps
   in
-
-  Lwt.return_unit
+  ()
 
 let test_fold_undefined () =
   let bindings = bindings steps in
@@ -242,39 +241,39 @@ let proof_of_bin s =
 let check_equivalence tree proof op =
   match op with
   | Add (k, v) ->
-      let* tree = Tree.add tree k v in
-      let+ proof = Tree.add proof k v in
+      let tree = Tree.add tree k v in
+      let proof = Tree.add proof k v in
       Alcotest.(check_repr Store.Hash.t)
         (Fmt.str "same hash add %a" Fmt.(Dump.list string) k)
         (Tree.hash tree) (Tree.hash proof);
       (tree, proof)
   | Del k ->
-      let* tree = Tree.remove tree k in
-      let+ proof = Tree.remove proof k in
+      let tree = Tree.remove tree k in
+      let proof = Tree.remove proof k in
       Alcotest.(check_repr Store.Hash.t)
         (Fmt.str "same hash del %a" Fmt.(Dump.list string) k)
         (Tree.hash tree) (Tree.hash proof);
       (tree, proof)
   | Find k ->
-      let* v_tree = Tree.find tree k in
-      let+ v_proof = Tree.find proof k in
+      let v_tree = Tree.find tree k in
+      let v_proof = Tree.find proof k in
       Alcotest.(check (option string))
         (Fmt.str "same value at %a" Fmt.(Dump.list string) k)
         v_tree v_proof;
       (tree, proof)
   | Find_tree k ->
-      let* v_tree = Tree.find_tree tree k in
-      let+ v_proof = Tree.find_tree tree k in
+      let v_tree = Tree.find_tree tree k in
+      let v_proof = Tree.find_tree tree k in
       Alcotest.(check_repr [%typ: Store.tree option])
         (Fmt.str "same tree at %a" Fmt.(Dump.list string) k)
         v_tree v_proof;
       (tree, proof)
   | Length (k, len_expected) ->
-      let* len_tree = Tree.length tree k in
+      let len_tree = Tree.length tree k in
       Alcotest.(check int)
         (Fmt.str "expected tree length at %a" Fmt.(Dump.list string) k)
         len_expected len_tree;
-      let+ len_proof = Tree.length proof k in
+      let len_proof = Tree.length proof k in
       Alcotest.(check int)
         (Fmt.str "same tree length at %a" Fmt.(Dump.list string) k)
         len_tree len_proof;
@@ -288,7 +287,7 @@ let test_proofs ctxt ops =
   let hash = Tree.hash tree in
 
   (* Create a compressed parital Merle proof for ops *)
-  let* proof = proof_of_ops ctxt.repo (`Node key) ops in
+  let proof = proof_of_ops ctxt.repo (`Node key) ops in
 
   (* test encoding *)
   let enc = bin_of_proof proof in
@@ -301,8 +300,8 @@ let test_proofs ctxt ops =
   Alcotest.(check_repr Store.Hash.t)
     "same initial hash" hash (Tree.hash tree_proof);
 
-  let* _ =
-    Lwt_list.fold_left_s
+  let _ =
+    List.fold_left
       (fun (tree, proof) op -> check_equivalence tree proof op)
       (tree, tree_proof)
       (ops
@@ -318,11 +317,11 @@ let test_proofs ctxt ops =
           Find_tree [ "z"; "o"; "o" ];
         ])
   in
-  Lwt.return_unit
+  ()
 
 let test_large_inode () =
   let bindings = bindings steps in
-  let* ctxt = init_tree bindings in
+  let ctxt = init_tree bindings in
   let ops = [ Add ([ "00" ], "3"); Del [ "01" ] ] in
   test_proofs ctxt ops
 
@@ -334,14 +333,14 @@ let fewer_steps =
 
 let test_small_inode () =
   let bindings = bindings fewer_steps in
-  let* ctxt = init_tree bindings in
+  let ctxt = init_tree bindings in
   let ops = [ Add ([ "00" ], ""); Del [ "01" ] ] in
   test_proofs ctxt ops
 
 let test_length_proof () =
   let bindings = bindings fewer_steps in
   let size = List.length fewer_steps in
-  let* ctxt = init_tree bindings in
+  let ctxt = init_tree bindings in
   let ops =
     [
       Length ([], size) (* initial size *);
@@ -373,21 +372,21 @@ let test_length_proof () =
   test_proofs ctxt ops
 
 let test_deeper_proof () =
-  let* ctxt =
+  let ctxt =
     let tree = Tree.empty () in
-    let* level_one =
+    let level_one =
       let bindings = bindings fewer_steps in
-      Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+      List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
-    let* level_two =
-      let* tree = Tree.add_tree tree [ "0g" ] level_one in
+    let level_two =
+      let tree = Tree.add_tree tree [ "0g" ] level_one in
       let bindings = bindings steps in
-      Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+      List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
-    let* level_three =
-      let* tree = Tree.add_tree tree [ "1g" ] level_two in
+    let level_three =
+      let tree = Tree.add_tree tree [ "1g" ] level_two in
       let bindings = bindings fewer_steps in
-      Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+      List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
     export_tree_to_store level_three
   in
@@ -423,31 +422,31 @@ let test_large_proofs () =
 
   let compare_proofs n =
     let ops = ops n in
-    let* ctxt = init_tree bindings in
+    let ctxt = init_tree bindings in
     let key =
       match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
     in
-    let* proof = proof_of_ops ctxt.repo (`Node key) ops in
+    let proof = proof_of_ops ctxt.repo (`Node key) ops in
     let enc_32 = bin_of_proof proof in
-    let* () = close ctxt in
+    let () = close ctxt in
 
     (* Build a proof on a large store (branching factor = 2) *)
-    let* ctxt = Binary.init_tree bindings in
+    let ctxt = Binary.init_tree bindings in
     let key =
       match Binary.Store.Tree.key ctxt.tree with
       | Some (`Node k) -> k
       | _ -> assert false
     in
-    let* proof = Binary.proof_of_ops ctxt.repo (`Node key) ops in
+    let proof = Binary.proof_of_ops ctxt.repo (`Node key) ops in
     let enc_2 = Binary.bin_of_proof proof in
-    let* () = Binary.close ctxt in
+    let () = Binary.close ctxt in
 
-    Lwt.return (n, String.length enc_32 / 1024, String.length enc_2 / 1024)
+    (n, String.length enc_32 / 1024, String.length enc_2 / 1024)
   in
-  let* a = compare_proofs 1 in
-  let* b = compare_proofs 100 in
-  let* c = compare_proofs 1_000 in
-  let+ d = compare_proofs 10_000 in
+  let a = compare_proofs 1 in
+  let b = compare_proofs 100 in
+  let c = compare_proofs 1_000 in
+  let d = compare_proofs 10_000 in
   List.iter
     (fun (n, k32, k2) ->
       Fmt.pr "Size of Merkle proof for %d operations:\n" n;
@@ -491,17 +490,17 @@ let test_extenders () =
   let bindings3 = ([ "10001" ], "y") :: bindings2 in
 
   let f t =
-    let+ v = Custom.Tree.get t [ "00000" ] in
+    let v = Custom.Tree.get t [ "00000" ] in
     Alcotest.(check string) "00000" "x" v;
     (t, ())
   in
 
   let check_proof bindings =
-    let* ctxt = Custom.init_tree bindings in
+    let ctxt = Custom.init_tree bindings in
     let key = Custom.Tree.key ctxt.tree |> Option.get in
-    let* p, () = Custom.Tree.produce_proof ctxt.repo key f in
+    let p, () = Custom.Tree.produce_proof ctxt.repo key f in
     [%log.debug "Verifying proof %a" pp_proof p];
-    let+ r = Custom.Tree.verify_proof p f in
+    let r = Custom.Tree.verify_proof p f in
     match r with
     | Ok (_, ()) -> ()
     | Error e ->
@@ -509,7 +508,7 @@ let test_extenders () =
           (Irmin.Type.pp Custom.Tree.verifier_error_t)
           e
   in
-  Lwt_list.iter_s check_proof [ bindings; bindings2; bindings3 ]
+  List.iter check_proof [ bindings; bindings2; bindings3 ]
 
 let test_hardcoded_proof () =
   let bindings =
@@ -523,14 +522,14 @@ let test_hardcoded_proof () =
       (Irmin.Type.pp P.inode_tree_t)
       elt
   in
-  let* ctxt = Custom.init_tree bindings in
+  let ctxt = Custom.init_tree bindings in
   let key = Custom.Tree.key ctxt.tree |> Option.get in
   let f t =
-    let+ v = Custom.Tree.get t [ "00000" ] in
+    let v = Custom.Tree.get t [ "00000" ] in
     Alcotest.(check string) "00000" "x" v;
     (t, ())
   in
-  let* p, () = Custom.Tree.produce_proof ctxt.repo key f in
+  let p, () = Custom.Tree.produce_proof ctxt.repo key f in
   let state = P.state p in
 
   let check_depth_2 = function
@@ -553,67 +552,59 @@ let test_hardcoded_proof () =
         check_depth_1 t
     | _ -> fail_with_tree state
   in
-  Lwt.return_unit
+  ()
 
 let tree_of_list ls =
   let tree = Tree.empty () in
-  Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree ls
+  List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree ls
 
 let test_reexport_node () =
-  let* tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
-  let* repo1 = Store.Repo.v (config ~fresh:true root) in
-  let* _ =
+  let tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
+  let repo1 = Store.Repo.v (config ~fresh:true root) in
+  let _ =
     Store.Backend.Repo.batch repo1 (fun c n _ -> Store.save_tree repo1 c n tree)
   in
-  let* () = Store.Repo.close repo1 in
+  let () = Store.Repo.close repo1 in
   (* Re-export the same tree using a different repo. *)
-  let* repo2 = Store.Repo.v (config ~fresh:false root) in
-  let* _ =
-    Alcotest.check_raises_lwt "re-export tree from another repo"
+  let repo2 = Store.Repo.v (config ~fresh:false root) in
+  let _ =
+    Alcotest.check_raises "re-export tree from another repo"
       (Failure "Can't export the node key from another repo") (fun () ->
         Store.Backend.Repo.batch repo2 (fun c n _ ->
             Store.save_tree repo2 c n tree))
   in
-  let* () = Store.Repo.close repo2 in
+  let () = Store.Repo.close repo2 in
   (* Re-export a fresh tree using a different repo. *)
-  let* repo2 = Store.Repo.v (config ~fresh:false root) in
-  let* tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
+  let repo2 = Store.Repo.v (config ~fresh:false root) in
+  let tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
   let _ = Store.Tree.hash tree in
-  let* c1 = Store.Tree.get_tree tree [ "foo" ] in
-  let* _ =
+  let c1 = Store.Tree.get_tree tree [ "foo" ] in
+  let _ =
     Store.Backend.Repo.batch repo2 (fun c n _ -> Store.save_tree repo2 c n c1)
   in
-  let* () =
+  let () =
     match Store.Tree.destruct c1 with
     | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
     | `Node node ->
-        let* _v = Store.to_backend_node node in
-        Lwt.return_unit
+        let _v = Store.to_backend_node node in
+        ()
   in
   Store.Repo.close repo2
 
 let tests =
   [
-    Alcotest_lwt.test_case "fold over keys in sorted order" `Quick
-      (fun _switch -> test_fold_sorted);
-    Alcotest_lwt.test_case "fold over keys in random order" `Quick
-      (fun _switch -> test_fold_random);
-    Alcotest_lwt.test_case "fold over keys in undefined order" `Quick
-      (fun _switch -> test_fold_undefined);
-    Alcotest_lwt.test_case "test Merkle proof for large inodes" `Quick
-      (fun _switch -> test_large_inode);
-    Alcotest_lwt.test_case "test Merkle proof for small inodes" `Quick
-      (fun _switch -> test_small_inode);
-    Alcotest_lwt.test_case "test Merkle proof for Tree.length" `Quick
-      (fun _switch -> test_length_proof);
-    Alcotest_lwt.test_case "test deeper Merkle proof" `Quick (fun _switch ->
-        test_deeper_proof);
-    Alcotest_lwt.test_case "test large Merkle proof" `Slow (fun _switch ->
-        test_large_proofs);
-    Alcotest_lwt.test_case "test extenders in stream proof" `Quick
-      (fun _switch -> test_extenders);
-    Alcotest_lwt.test_case "test hardcoded proof" `Quick (fun _switch ->
-        test_hardcoded_proof);
-    Alcotest_lwt.test_case "test reexport node" `Quick (fun _switch ->
-        test_reexport_node);
+    Alcotest.test_case "fold over keys in sorted order" `Quick test_fold_sorted;
+    Alcotest.test_case "fold over keys in random order" `Quick test_fold_random;
+    Alcotest.test_case "fold over keys in undefined order" `Quick
+      test_fold_undefined;
+    Alcotest.test_case "test Merkle proof for large inodes" `Quick
+      test_large_inode;
+    Alcotest.test_case "test Merkle proof for small inodes" `Quick
+      test_small_inode;
+    Alcotest.test_case "test Merkle proof for Tree.length" `Quick
+      test_length_proof;
+    Alcotest.test_case "test deeper Merkle proof" `Quick test_deeper_proof;
+    Alcotest.test_case "test large Merkle proof" `Slow test_large_proofs;
+    Alcotest.test_case "test hardcoded proof" `Quick test_hardcoded_proof;
+    Alcotest.test_case "test reexport node" `Quick test_reexport_node;
   ]

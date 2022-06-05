@@ -47,10 +47,10 @@ module type Sigs = sig
       val run :
         ?on_disk:[ `Path of string ] ->
         t ->
-        (Contents_pack.value -> unit Lwt.t) ->
-        (Inode.Snapshot.inode -> unit Lwt.t) ->
+        (Contents_pack.value -> unit) ->
+        (Inode.Snapshot.inode -> unit) ->
         Hash.t Pack_key.t * Pack_value.Kind.t ->
-        int Lwt.t
+        int
 
       val close :
         t ->
@@ -73,8 +73,8 @@ module type Sigs = sig
         read Inode.Pack.t ->
         t
 
-      val save_contents : t -> Contents_pack.value -> Hash.t Pack_key.t Lwt.t
-      val save_inodes : t -> Inode.Snapshot.inode -> Hash.t Pack_key.t Lwt.t
+      val save_contents : t -> Contents_pack.value -> Hash.t Pack_key.t
+      val save_inodes : t -> Inode.Snapshot.inode -> Hash.t Pack_key.t
       val close : t -> unit
     end
   end

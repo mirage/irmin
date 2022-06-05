@@ -8,8 +8,7 @@
   irmin
   irmin-pack
   logs
-  lwt
-  lwt.unix
+  eio
   mtime
   cmdliner
   optint

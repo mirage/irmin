@@ -15,7 +15,7 @@
  *)
 
 module Gc : sig
-  val tests : unit Alcotest_lwt.test_case list
+  val tests : unit Alcotest.test_case list
 end
 
 module Gc_archival : sig
@@ -23,15 +23,15 @@ module Gc_archival : sig
 end
 
 module Concurrent_gc : sig
-  val tests : unit Alcotest_lwt.test_case list
+  val tests : unit Alcotest.test_case list
 end
 
 module Split : sig
-  val tests : unit Alcotest_lwt.test_case list
+  val tests : unit Alcotest.test_case list
 end
 
 module Snapshot : sig
-  val tests : unit Alcotest_lwt.test_case list
+  val tests : unit Alcotest.test_case list
 end
 
 module Store : sig
@@ -40,12 +40,12 @@ module Store : sig
   type t
 
   val config : string -> Irmin.config
-  val init_with_config : Irmin.config -> t Lwt.t
-  val close : t -> unit Lwt.t
-  val start_gc : ?unlink:bool -> t -> S.commit -> unit Lwt.t
-  val finalise_gc : t -> unit Lwt.t
-  val commit_1 : t -> (t * S.commit) Lwt.t
-  val commit_2 : t -> (t * S.commit) Lwt.t
-  val commit_3 : t -> (t * S.commit) Lwt.t
-  val checkout_exn : t -> S.commit -> t Lwt.t
+  val init_with_config : Irmin.config -> t
+  val close : t -> unit
+  val start_gc : ?unlink:bool -> t -> S.commit -> unit
+  val finalise_gc : t -> unit
+  val commit_1 : t -> (t * S.commit)
+  val commit_2 : t -> (t * S.commit)
+  val commit_3 : t -> (t * S.commit)
+  val checkout_exn : t -> S.commit -> t
 end

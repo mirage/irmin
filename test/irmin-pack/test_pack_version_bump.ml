@@ -124,36 +124,34 @@ end
 (** {2 The tests} *)
 
 (** Cannot open a V1 store in RO mode. *)
-let test_RO_no_migration () : unit Lwt.t =
+let test_RO_no_migration () : unit =
   [%log.info "Executing test_RO_no_migration"];
   let open With_existing_store () in
   assert (io_get_version ~root:tmp_dir = `V1);
 
-  let* () =
-    Alcotest.check_raises_lwt "open V1 store in RO"
+  let () =
+    Alcotest.check_raises "open V1 store in RO"
       (Irmin_pack_unix.Errors.Pack_error `Migration_needed) (fun () ->
-        let* repo = S.Repo.v (config ~readonly:true) in
+        let repo = S.Repo.v (config ~readonly:true) in
         S.Repo.close repo)
   in
   (* maybe the version bump is only visible after, check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
-    ~actual:(io_get_version ~root:tmp_dir);
-  Lwt.return ()
+    ~actual:(io_get_version ~root:tmp_dir)
 
 (** Open a V1 store RW mode. Even if no writes, the store migrates to V3. *)
-let test_open_RW () : unit Lwt.t =
+let test_open_RW () =
   [%log.info "Executing test_open_RW"];
   let open With_existing_store () in
   assert (io_get_version ~root:tmp_dir = `V1);
-  let* repo = S.Repo.v (config ~readonly:false) in
-  let* () = S.Repo.close repo in
+  let repo = S.Repo.v (config ~readonly:false) in
+  let () = S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V3
-    ~actual:(io_get_version ~root:tmp_dir);
-  Lwt.return ()
+    ~actual:(io_get_version ~root:tmp_dir)
 
 let tests =
-  let f g _switch () = g () in
-  Alcotest_lwt.
+  let f g () = g () in
+  Alcotest.
     [
       test_case "test_RO_no_migration" `Quick (f test_RO_no_migration);
       test_case "test_open_RW" `Quick (f test_open_RW);

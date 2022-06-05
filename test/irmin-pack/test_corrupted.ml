@@ -50,11 +50,11 @@ let write_file path contents =
 let test_corrupted_control_file () =
   rm_dir root;
   let control_file_path = Filename.concat root "store.control" in
-  let* repo = Store.Repo.v (config ~fresh:true root) in
+  let repo = Store.Repo.v (config ~fresh:true root) in
   let control_file_blob0 = read_file control_file_path in
-  let* store = Store.main repo in
-  let* () = Store.set_exn ~info store [ "a" ] "b" in
-  let* () = Store.Repo.close repo in
+  let store = Store.main repo in
+  let () = Store.set_exn ~info store [ "a" ] "b" in
+  let () = Store.Repo.close repo in
   let control_file_blob1 = read_file control_file_path in
   assert (not (String.equal control_file_blob0 control_file_blob1));
   assert (String.length control_file_blob0 = String.length control_file_blob1);
@@ -68,22 +68,17 @@ let test_corrupted_control_file () =
   assert (not (String.equal control_file_blob0 control_file_mix));
   assert (not (String.equal control_file_blob1 control_file_mix));
   write_file control_file_path control_file_mix;
-  let* error =
-    Lwt.catch
-      (fun () ->
-        let+ r = Store.Repo.v (config ~fresh:false root) in
-        Ok r)
-      (fun exn -> Lwt.return (Error exn))
+  let error =
+    try Ok (Store.Repo.v (config ~fresh:false root))
+    with exn -> Error exn
   in
   (match error with
   | Error (Irmin_pack_unix.Errors.Pack_error (`Corrupted_control_file s)) ->
       Alcotest.(check string)
         "path is corrupted" s "_build/test-corrupted/store.control"
-  | _ -> Alcotest.fail "unexpected error");
-  Lwt.return_unit
+  | _ -> Alcotest.fail "unexpected error")
 
 let tests =
   [
-    Alcotest_lwt.test_case "Corrupted control file" `Quick (fun _switch ->
-        test_corrupted_control_file);
+    Alcotest.test_case "Corrupted control file" `Quick test_corrupted_control_file;
   ]

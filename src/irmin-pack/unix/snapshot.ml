@@ -127,7 +127,7 @@ module Make (Args : Args) = struct
                before the call to [aux]. *)
             assert false
         | Direct { length; offset; hash; _ } ->
-            if v.visited hash then Lwt.return_unit
+            if v.visited hash then ()
             else (
               set_visit hash;
               [%log.debug "visit hash: %a, %a" pp_hash hash pp_kind kind];
@@ -152,7 +152,7 @@ module Make (Args : Args) = struct
                   let children =
                     decode_children_offsets ~off:offset ~len:length t
                   in
-                  let* () = Lwt_list.iter_s (fun key -> aux key) children in
+                  let () = List.iter (fun key -> aux key) children in
                   let value =
                     Inode_pack.unsafe_find ~check_integrity:false t.inode_pack
                       key
@@ -179,8 +179,8 @@ module Make (Args : Args) = struct
         | Indexed hash -> key_of_hash hash t.inode_pack |> fst
         | Direct _ -> root_key
       in
-      let* () = aux (root_key, root_kind) in
-      Lwt.return !total_visited
+      let () = aux (root_key, root_kind) in
+      !total_visited
 
     let run_in_memory t f_contents f_inodes root_key =
       [%log.info "iter in memory"];
@@ -205,10 +205,10 @@ module Make (Args : Args) = struct
           Fmt.failwith "Should not visit hash twice. Hash: %a " pp_hash h
         else Index.replace index h ()
       in
-      let* total = iter t { visited; set_visit } f_contents f_inodes root_key in
+      let total = iter t { visited; set_visit } f_contents f_inodes root_key in
       Index.close index;
       rm_index path;
-      Lwt.return total
+      total
 
     let run ?on_disk =
       match on_disk with
@@ -255,21 +255,21 @@ module Make (Args : Args) = struct
       index : (path * Index.t) option;
     }
 
-    let save_contents t b : Hash.t Pack_key.t Lwt.t =
-      let* key =
+    let save_contents t b : Hash.t Pack_key.t =
+      let key =
         Contents_pack.batch t.contents_pack (fun writer ->
             Contents_pack.add writer b)
       in
       let hash = Inode.Key.to_hash key in
       t.set_visit hash key;
-      Lwt.return key
+      key
 
-    let save_inodes t i : Hash.t Pack_key.t Lwt.t =
+    let save_inodes t i : Hash.t Pack_key.t =
       let inode = Inode.of_snapshot t.inode_pack ~index:t.visited i in
       let key = Inode.save ~allow_non_root:true t.inode_pack inode in
       let hash = Inode.Key.to_hash key in
       t.set_visit hash key;
-      Lwt.return key
+      key
 
     let hash_not_found h =
       Fmt.failwith
