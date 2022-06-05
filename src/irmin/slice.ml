@@ -43,7 +43,7 @@ struct
     | `Commit c -> t.commits <- c :: t.commits
 
   let iter t f =
-    List.iter (fun c -> f (`Contents c)) t.contents;
-    List.iter (fun n -> f (`Node n)) t.nodes;
-    List.iter (fun c -> f (`Commit c)) t.commits
+    List.map (fun c () -> f (`Contents c)) t.contents |> Eio.Fiber.all;
+    List.map (fun n () -> f (`Node n)) t.nodes |> Eio.Fiber.all;
+    List.map (fun c () -> f (`Commit c)) t.commits |> Eio.Fiber.all
 end
