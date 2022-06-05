@@ -116,7 +116,7 @@ struct
   let index_direct t hash =
     index_direct_with_kind t hash |> Option.map (fun (key, _) -> key)
 
-  let index t hash = Lwt.return (index_direct t hash)
+  let index t hash = index_direct t hash
 
   let v ~config ~fm ~dict ~dispatcher =
     let indexing_strategy = Conf.indexing_strategy config in
@@ -258,9 +258,7 @@ struct
         || Lru.mem t.lru offset
         || pack_file_contains_key t k
 
-  let mem t k =
-    let b = unsafe_mem t k in
-    Lwt.return b
+  let mem t k = unsafe_mem t k
 
   let check_hash h v =
     let h' = Val.hash v in
@@ -403,9 +401,7 @@ struct
     let key_of_offset ?volume_identifier:_ _ = Pack_key.v_offset in
     find_in_pack_file ~key_of_offset t key
 
-  let find t k =
-    let v = unsafe_find ~check_integrity:true t k in
-    Lwt.return v
+  let find t k = unsafe_find ~check_integrity:true t k
 
   let integrity_check ~offset ~length hash t =
     let k = Pack_key.v_direct ~offset ~length hash in
@@ -432,7 +428,7 @@ struct
        repo.batch instead."];
     let on_success res =
       Fm.flush t.fm |> Errs.raise_if_error;
-      Lwt.return res
+      res
     in
     let on_fail exn =
       [%log.info
@@ -447,7 +443,9 @@ struct
       in
       raise exn
     in
-    Lwt.try_bind (fun () -> f (cast t)) on_success on_fail
+    match f (cast t) with
+      | v -> on_success v
+      | exception exn -> on_fail exn
 
   let unsafe_append ~ensure_unique ~overcommit t hash v =
     let kind = Val.kind v in
@@ -502,7 +500,7 @@ struct
         if unsafe_mem t key then key else unguarded_append ()
 
   let unsafe_add t hash v =
-    unsafe_append ~ensure_unique:true ~overcommit:false t hash v |> Lwt.return
+    unsafe_append ~ensure_unique:true ~overcommit:false t hash v
 
   let add t v = unsafe_add t (Val.hash v) v
 
@@ -512,7 +510,7 @@ struct
       The caller should close the file manager.
 
       We could clear the caches here but that really is not necessary. *)
-  let close _ = Lwt.return ()
+  let close _ = ()
 
   let purge_lru t = Lru.clear t.lru
 end

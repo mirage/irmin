@@ -106,11 +106,9 @@ module Make (Store : Store) = struct
       let log_size = conf root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
       { hash_size = Bytes Hash.hash_size; log_size; objects }
-      |> Irmin.Type.pp_json ~minify:false t Fmt.stdout;
-      Lwt.return_unit
+      |> Irmin.Type.pp_json ~minify:false t Fmt.stdout
 
-    let term_internal =
-      Cmdliner.Term.(const (fun root () -> Lwt_main.run (run ~root)) $ path)
+    let term_internal = Cmdliner.Term.(const (fun root () -> run ~root) $ path)
 
     let term =
       let doc = "Print high-level statistics about the store." in
@@ -201,20 +199,20 @@ module Make (Store : Store) = struct
 
     let run ?ppf ~root ~auto_repair ~always ~heads () =
       let conf = conf root always in
-      let* repo = Store.Repo.v conf in
-      let* heads =
+      let repo = Store.Repo.v conf in
+      let heads =
         match heads with
         | None -> Store.Repo.heads repo
         | Some heads ->
-            Lwt_list.filter_map_s
+            List.filter_map
               (fun x ->
                 match Repr.of_string Store.Hash.t x with
                 | Ok x -> Store.Commit.of_hash repo x
-                | Error (`Msg m) -> Fmt.kstr Lwt.fail_with "Invalid hash %S" m)
+                | Error (`Msg m) -> Fmt.kstr failwith "Invalid hash %S" m)
               heads
       in
-      let* result = Store.integrity_check ?ppf ~auto_repair ~heads repo in
-      let+ () = Store.Repo.close repo in
+      let result = Store.integrity_check ?ppf ~auto_repair ~heads repo in
+      let () = Store.Repo.close repo in
       handle_result ?ppf ?name:None result
 
     let heads =
@@ -234,9 +232,8 @@ module Make (Store : Store) = struct
     let term_internal =
       Cmdliner.Term.(
         const (fun root auto_repair always heads () ->
-            Lwt_main.run
-              (run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads
-                 ()))
+              run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads
+                 ())
         $ path
         $ auto_repair
         $ always
@@ -259,20 +256,20 @@ module Make (Store : Store) = struct
 
     let run ~root ~heads =
       let conf = conf root in
-      let* repo = Store.Repo.v conf in
-      let* heads =
+      let repo = Store.Repo.v conf in
+      let heads =
         match heads with
         | None -> Store.Repo.heads repo
         | Some heads ->
-            Lwt_list.filter_map_s
+            List.filter_map
               (fun x ->
                 match Repr.of_string Store.Hash.t x with
                 | Ok x -> Store.Commit.of_hash repo x
-                | Error (`Msg m) -> Fmt.kstr Lwt.fail_with "Invalid hash %S" m)
+                | Error (`Msg m) -> Fmt.kstr failwith "Invalid hash %S" m)
               heads
       in
-      let* () =
-        Store.integrity_check_inodes ~heads repo >|= function
+      let () =
+        match Store.integrity_check_inodes ~heads repo with
         | Ok `No_error -> [%logs.app "Ok"]
         | Error (`Cannot_fix msg) -> Fmt.failwith "Error: %s" msg
       in
@@ -280,9 +277,7 @@ module Make (Store : Store) = struct
 
     let term_internal =
       Cmdliner.Term.(
-        const (fun root heads () -> Lwt_main.run (run ~root ~heads))
-        $ path
-        $ heads)
+        const (fun root heads () -> run ~root ~heads) $ path $ heads)
 
     let term =
       let doc = "Check integrity of inodes in an existing store." in
@@ -310,35 +305,34 @@ module Make (Store : Store) = struct
 
     let run ~root ~commit ~dump_blob_paths_to () =
       let conf = conf root in
-      let* repo = Store.Repo.v conf in
-      let* commit =
+      let repo = Store.Repo.v conf in
+      let commit =
         match commit with
         | None -> (
-            let* heads = Store.Repo.heads repo in
+            let heads = Store.Repo.heads repo in
             match heads with
-            | [] -> Lwt.fail_with "No heads found"
-            | [ head ] -> Lwt.return head
+            | [] -> failwith "No heads found"
+            | [ head ] -> head
             | ls ->
-                Fmt.kstr Lwt.fail_with
+                Fmt.kstr failwith
                   "Several heads found, please specify one. Heads = %a"
                   Fmt.(list ~sep:comma Store.Commit.pp_hash)
                   ls)
         | Some hash -> (
             match Repr.of_string Store.Hash.t hash with
             | Ok x -> (
-                Store.Commit.of_hash repo x >>= function
-                | None ->
-                    Fmt.kstr Lwt.fail_with "Commit with hash %s not found" hash
-                | Some x -> Lwt.return x)
-            | Error (`Msg m) -> Fmt.kstr Lwt.fail_with "Invalid hash %S" m)
+                match Store.Commit.of_hash repo x with
+                | None -> Fmt.kstr failwith "Commit with hash %s not found" hash
+                | Some x -> x)
+            | Error (`Msg m) -> Fmt.kstr failwith "Invalid hash %S" m)
       in
-      let* () = Store.stats ~dump_blob_paths_to ~commit repo in
+      let () = Store.stats ~dump_blob_paths_to ~commit repo in
       Store.Repo.close repo
 
     let term_internal =
       Cmdliner.Term.(
         const (fun root commit dump_blob_paths_to () ->
-            Lwt_main.run (run ~root ~commit ~dump_blob_paths_to ()))
+            run ~root ~commit ~dump_blob_paths_to ())
         $ path
         $ commit
         $ dump_blob_paths_to)

@@ -33,7 +33,7 @@ end
 module type S = sig
   (** Reads basic metrics from an existing store and prints them to stdout. *)
   module Stat : sig
-    include Subcommand with type run := root:string -> unit Lwt.t
+    include Subcommand with type run := root:string -> unit
 
     (** Internal implementation utilities exposed for use in other integrity
         checks. *)
@@ -67,7 +67,7 @@ module type S = sig
           always:bool ->
           heads:string list option ->
           unit ->
-          unit Lwt.t
+          unit
 
     val handle_result :
       ?ppf:Format.formatter ->
@@ -89,7 +89,7 @@ module type S = sig
   module Integrity_check_inodes : sig
     include
       Subcommand
-        with type run := root:string -> heads:string list option -> unit Lwt.t
+        with type run := root:string -> heads:string list option -> unit
   end
 
   (** Traverses a commit to get stats on its underlying tree. *)
@@ -101,7 +101,7 @@ module type S = sig
           commit:string option ->
           dump_blob_paths_to:string option ->
           unit ->
-          unit Lwt.t
+          unit
   end
 
   val cli :
@@ -161,15 +161,15 @@ module type Sigs = sig
         * [< `Contents of XKey.t | `Inode of XKey.t | `Node of XKey.t ])
         list) ->
       iter:
-        (contents:(XKey.hash Pack_key.t -> unit Lwt.t) ->
-        node:(XKey.t -> unit Lwt.t) ->
+        (contents:(XKey.hash Pack_key.t -> unit) ->
+        node:(XKey.t -> unit) ->
         pred_node:
           (X.Repo.t ->
           XKey.t ->
-          [> `Contents of XKey.t | `Node of XKey.t ] list Lwt.t) ->
-        pred_commit:(X.Repo.t -> XKey.t -> [> `Node of XKey.t ] list Lwt.t) ->
+          [> `Contents of XKey.t | `Node of XKey.t ] list) ->
+        pred_commit:(X.Repo.t -> XKey.t -> [> `Node of XKey.t ] list) ->
         X.Repo.t ->
-        unit Lwt.t) ->
+        unit) ->
       check:
         (offset:int63 ->
         length:int ->
@@ -177,7 +177,7 @@ module type Sigs = sig
         (unit, [< `Absent_value | `Wrong_hash ]) result) ->
       recompute_hash:(X.Node.value -> XKey.hash) ->
       X.Repo.t ->
-      ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
+      ([> `No_error ], [> `Cannot_fix of string ]) result
 
     val check_inodes :
       ?ppf:Format.formatter ->
@@ -185,15 +185,15 @@ module type Sigs = sig
         (pred_node:
            (X.Repo.t ->
            XKey.t ->
-           ([> `Contents of XKey.t | `Node of XKey.t ] as 'a) list Lwt.t) ->
-        node:(XKey.t -> unit Lwt.t) ->
-        commit:(XKey.t -> unit Lwt.t) ->
+           ([> `Contents of XKey.t | `Node of XKey.t ] as 'a) list) ->
+        node:(XKey.t -> unit) ->
+        commit:(XKey.t -> unit) ->
         X.Repo.t ->
-        unit Lwt.t) ->
-      pred:(X.Repo.t -> XKey.t -> 'a list Lwt.t) ->
-      check:(XKey.t -> (unit, string) result Lwt.t) ->
+        unit) ->
+      pred:(X.Repo.t -> XKey.t -> 'a list) ->
+      check:(XKey.t -> (unit, string) result) ->
       X.Repo.t ->
-      ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
+      ([> `No_error ], [> `Cannot_fix of string ]) result
   end
 
   module Stats (S : sig

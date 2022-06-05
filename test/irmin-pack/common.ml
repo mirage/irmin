@@ -154,7 +154,7 @@ struct
     let dict = Dict.v fm |> Errs.raise_if_error in
     let pack = Pack.v ~config ~fm ~dict ~dispatcher in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
-    { name; index; pack; dict; fm } |> Lwt.return
+    { name; index; pack; dict; fm }
 
   let get_rw_pack () =
     let name = fresh_name "" in
@@ -165,9 +165,8 @@ struct
 
   let close_pack t =
     Index.close_exn t.index;
-    File_manager.close t.fm |> Errs.raise_if_error;
+    File_manager.close t.fm |> Errs.raise_if_error
     (* closes pack and dict *)
-    Lwt.return_unit
 end
 
 module Alcotest = struct
@@ -195,19 +194,18 @@ module Alcotest = struct
               msg (Printexc.to_string exn))
 
   (** TODO: upstream this to Alcotest *)
-  let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
-    Lwt.try_bind f
-      (fun _ ->
+  let check_raises msg exn (type a) (f : unit -> a) =
+    try
+      let (_ : a) = f () in
+      Alcotest.failf
+        "Fail %s: expected function to raise %s, but it returned instead." msg
+        (Printexc.to_string exn)
+    with
+    | e when e = exn -> ()
+    | e ->
         Alcotest.failf
-          "Fail %s: expected function to raise %s, but it returned instead." msg
-          (Printexc.to_string exn))
-      (function
-        | e when e = exn -> Lwt.return_unit
-        | e ->
-            Alcotest.failf
-              "Fail %s: expected function to raise %s, but it raised %s \
-               instead."
-              msg (Printexc.to_string exn) (Printexc.to_string e))
+          "Fail %s: expected function to raise %s, but it raised %s instead."
+          msg (Printexc.to_string exn) (Printexc.to_string e)
 
   let testable_repr t =
     Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))

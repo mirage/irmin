@@ -42,20 +42,19 @@ module Make (Args : Gc_args.S) : sig
     wait:bool ->
     t ->
     ([> `Running | `Finalised of Stats.Latest_gc.stats ], Args.Errs.t) result
-    Lwt.t
   (** [finalise ~wait t] returns the state of the GC process.
 
       If [wait = true], the call will block until GC finishes. *)
 
   val on_finalise :
-    t -> ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit Lwt.t) -> unit
+    t -> ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit) -> unit
   (** Attaches a callback to the GC process, which will be called when the GC
       finalises. *)
 
   val cancel : t -> bool
 
   val finalise_without_swap :
-    t -> Control_file_intf.Payload.Upper.Latest.gced Lwt.t
+    t -> Control_file_intf.Payload.Upper.Latest.gced
   (** Waits for the current gc to finish and returns immediately without
       swapping the files and doing the other finalisation steps from [finalise].
       Returns the [gced] status to create a fresh control file for the snapshot. *)

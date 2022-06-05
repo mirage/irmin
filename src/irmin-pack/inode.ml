@@ -2356,7 +2356,7 @@ struct
         let v = Val.of_raw find v in
         Some v
 
-  let find t k = unsafe_find ~check_integrity:true t k |> Lwt.return
+  let find t k = unsafe_find ~check_integrity:true t k
 
   let save ?allow_non_root t v =
     let add k v =
@@ -2366,7 +2366,7 @@ struct
       ~mem:(Pack.unsafe_mem t) v
 
   let hash_exn = Val.hash_exn
-  let add t v = Lwt.return (save t v)
+  let add t v = save t v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
@@ -2377,22 +2377,22 @@ struct
 
   let unsafe_add t k v =
     check_hash k (hash_exn v);
-    Lwt.return (save t v)
+    save t v
 
   let batch = Pack.batch
   let close = Pack.close
   let decode_bin_length = Inter.Raw.decode_bin_length
 
   let protect_from_invalid_depth_exn f =
-    Lwt.catch f (function
-      | Invalid_depth { expected; got; v } ->
-          let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
-          Lwt.return (Error msg)
-      | e -> Lwt.fail e)
+    try f () with
+    | Invalid_depth { expected; got; v } ->
+        let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
+        Error msg
+    | e -> raise e
 
   let integrity_check_inodes t k =
     protect_from_invalid_depth_exn @@ fun () ->
-    find t k >|= function
+    match find t k with
     | None ->
         (* we are traversing the node graph, should find all values *)
         assert false

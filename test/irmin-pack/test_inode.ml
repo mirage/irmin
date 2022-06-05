@@ -146,19 +146,18 @@ struct
       let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
       let store = Inode.v ~config ~fm ~dict ~dispatcher in
       let store_contents = Contents_store.v ~config ~fm ~dict ~dispatcher in
-      let+ foo, bar =
+      let foo, bar =
         Contents_store.batch store_contents (fun writer ->
-            let* foo = Contents_store.add writer Contents.foo in
-            let* bar = Contents_store.add writer Contents.bar in
-            Lwt.return (foo, bar))
+            let foo = Contents_store.add writer Contents.foo in
+            let bar = Contents_store.add writer Contents.bar in
+            (foo, bar))
       in
       [%log.app "Test context constructed"];
       { store; store_contents; fm; foo; bar }
 
     let close t =
-      File_manager.close t.fm |> Errs.raise_if_error;
+      File_manager.close t.fm |> Errs.raise_if_error
       (* closes dict, inodes and contents store. *)
-      Lwt.return_unit
   end
 
   module Context = Context_make (Inode)
@@ -334,7 +333,7 @@ end
 
 let check_node msg v t =
   let hash = Inter.Val.hash_exn v in
-  let+ key = Inode.batch t.Context.store (fun i -> Inode.add i v) in
+  let key = Inode.batch t.Context.store (fun i -> Inode.add i v) in
   let hash' = Key.to_hash key in
   check_hash msg hash hash'
 
@@ -346,19 +345,19 @@ let check_hardcoded_hash msg h v =
 (** Test add values from an empty node. *)
 let test_add_values ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
-  check_node "hash empty node" (Inode.Val.empty ()) t >>= fun () ->
+  check_node "hash empty node" (Inode.Val.empty ()) t;
   let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
   let v2 = Inode.Val.add v1 "y" (normal bar) in
-  check_node "node x+y" v2 t >>= fun () ->
+  check_node "node x+y" v2 t;
   check_hardcoded_hash "hash v2" "d4b55db5d2d806283766354f0d7597d332156f74" v2;
   let v3 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
 
 let test_add_values () =
-  let* () = test_add_values ~indexing_strategy:`always in
+  let () = test_add_values ~indexing_strategy:`always in
   test_add_values ~indexing_strategy:`minimal
 
 let integrity_check ?(stable = true) v =
@@ -371,7 +370,7 @@ let integrity_check ?(stable = true) v =
 (** Test add to inodes. *)
 let test_add_inodes ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
@@ -399,13 +398,13 @@ let test_add_inodes ~indexing_strategy =
   Context.close t
 
 let test_add_inodes () =
-  let* () = test_add_inodes ~indexing_strategy:`always in
+  let () = test_add_inodes ~indexing_strategy:`always in
   test_add_inodes ~indexing_strategy:`minimal
 
 (** Test remove values on an empty node. *)
 let test_remove_values ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.remove v1 "y" in
@@ -413,8 +412,7 @@ let test_remove_values ~indexing_strategy =
   check_values "node x obtained two ways" v2 v3;
   check_hardcoded_hash "hash v2" "a1996f4309ea31cc7ba2d4c81012885aa0e08789" v2;
   let v4 = Inode.Val.remove v2 "x" in
-  check_node "remove results in an empty node" (Inode.Val.empty ()) t
-  >>= fun () ->
+  check_node "remove results in an empty node" (Inode.Val.empty ()) t;
   let v5 = Inode.Val.remove v4 "x" in
   check_values "remove on an already empty node" v4 v5;
   check_hardcoded_hash "hash v4" "5ba93c9db0cff93f52b521d7420e43f6eda2784f" v4;
@@ -422,13 +420,13 @@ let test_remove_values ~indexing_strategy =
   Context.close t
 
 let test_remove_values () =
-  let* () = test_remove_values ~indexing_strategy:`always in
+  let () = test_remove_values ~indexing_strategy:`always in
   test_remove_values ~indexing_strategy:`minimal
 
 (** Test remove and add values to go from stable to unstable inodes. *)
 let test_remove_inodes ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 =
     Inode.Val.of_list
@@ -455,7 +453,7 @@ let test_remove_inodes ~indexing_strategy =
   Context.close t
 
 let test_remove_inodes () =
-  let* () = test_remove_inodes ~indexing_strategy:`always in
+  let () = test_remove_inodes ~indexing_strategy:`always in
   test_remove_inodes ~indexing_strategy:`minimal
 
 (** For each of the 256 possible inode trees with [depth <= 3] and
@@ -504,11 +502,10 @@ let test_representation_uniqueness_maxdepth_3 () =
   in
   List.iter
     (fun (ss, t) -> List.iter (fun s -> f ss t s) (P.steps p))
-    (P.trees p);
-  Lwt.return_unit
+    (P.trees p)
 
 let test_truncated_inodes ~indexing_strategy =
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let to_truncated inode =
     let encode, decode =
@@ -571,11 +568,11 @@ let test_truncated_inodes ~indexing_strategy =
   Context.close t
 
 let test_truncated_inodes () =
-  let* () = test_truncated_inodes ~indexing_strategy:`always in
+  let () = test_truncated_inodes ~indexing_strategy:`always in
   test_truncated_inodes ~indexing_strategy:`minimal
 
 let test_intermediate_inode_as_root ~indexing_strategy =
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let gen_step = Inode_permutations_generator.gen_step (module Inter) in
   let s000, s001, s010 =
@@ -585,7 +582,7 @@ let test_intermediate_inode_as_root ~indexing_strategy =
     Inode.Val.of_list
       [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
   in
-  let* h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
+  let h_depth0 = Inode.batch t.store @@ fun store -> Inode.add store v0 in
   let (`Inode h_depth1) =
     match Inode.Val.pred v0 with
     | [ (_, (`Inode _ as pred)) ] -> pred
@@ -598,8 +595,8 @@ let test_intermediate_inode_as_root ~indexing_strategy =
   in
 
   (* On inode with depth=0 *)
-  let* v =
-    Inode.find t.store h_depth0 >|= function
+  let v =
+    match Inode.find t.store h_depth0 with
     | None -> Alcotest.fail "Could not fetch inode from backend"
     | Some v -> v
   in
@@ -607,11 +604,11 @@ let test_intermediate_inode_as_root ~indexing_strategy =
     Alcotest.fail "Failed to list entries of loaded inode";
   let _ = Inode.Val.remove v s000 in
   let _ = Inode.Val.add v s000 (normal foo) in
-  let* _ = Inode.batch t.store @@ fun store -> Inode.add store v in
+  let _ = Inode.batch t.store @@ fun store -> Inode.add store v in
 
   (* On inode with depth=1 *)
-  let* v =
-    Inode.find t.store h_depth1 >|= function
+  let v =
+    match Inode.find t.store h_depth1 with
     | None -> Alcotest.fail "Could not fetch inode from backend"
     | Some v -> v
   in
@@ -625,12 +622,7 @@ let test_intermediate_inode_as_root ~indexing_strategy =
   in
   with_exn (fun () -> Inode.Val.remove v s000);
   with_exn (fun () -> Inode.Val.add v s000 (normal foo));
-  let* () =
-    Inode.batch t.store (fun store ->
-        with_exn (fun () -> Inode.add store v);
-        Lwt.return_unit)
-  in
-  Lwt.return_unit
+  Inode.batch t.store (fun store -> with_exn (fun () -> Inode.add store v))
 
 let test_invalid_depth_intermediate_inode ~indexing_strategy =
   let* t = Context_mock.get_store ~indexing_strategy () in
@@ -671,13 +663,13 @@ let test_invalid_depth_intermediate_inode ~indexing_strategy =
   Lwt.return_unit
 
 let test_intermediate_inode_as_root () =
-  let* () = test_invalid_depth_intermediate_inode ~indexing_strategy:`always in
-  let* () = test_invalid_depth_intermediate_inode ~indexing_strategy:`minimal in
-  let* () = test_intermediate_inode_as_root ~indexing_strategy:`always in
+  let () = test_invalid_depth_intermediate_inode ~indexing_strategy:`always in
+  let () = test_invalid_depth_intermediate_inode ~indexing_strategy:`minimal in
+  let () = test_intermediate_inode_as_root ~indexing_strategy:`always in
   test_intermediate_inode_as_root ~indexing_strategy:`minimal
 
 let test_concrete_inodes ~indexing_strategy =
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
   let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
@@ -750,9 +742,9 @@ let test_invalid_depth_concrete_inodes ~indexing_strategy =
   Lwt.return_unit
 
 let test_concrete_inodes () =
-  let* () = test_invalid_depth_concrete_inodes ~indexing_strategy:`always in
-  let* () = test_invalid_depth_concrete_inodes ~indexing_strategy:`minimal in
-  let* () = test_concrete_inodes ~indexing_strategy:`always in
+  let () = test_invalid_depth_concrete_inodes ~indexing_strategy:`always in
+  let () = test_invalid_depth_concrete_inodes ~indexing_strategy:`minimal in
+  let () = test_concrete_inodes ~indexing_strategy:`always in
   test_concrete_inodes ~indexing_strategy:`minimal
 
 module Inode_tezos = struct
@@ -774,7 +766,7 @@ module Inode_tezos = struct
 
   let test_encode_bin_values ~indexing_strategy =
     rm_dir root;
-    let* t = S.Context.get_store ~indexing_strategy () in
+    let t = S.Context.get_store ~indexing_strategy () in
     let { S.Context.foo; _ } = t in
     let v = S.Inode.Val.of_list [ ("x", normal foo); ("z", normal foo) ] in
     let h = S.Inter.Val.hash_exn v in
@@ -807,12 +799,12 @@ module Inode_tezos = struct
     S.Context.close t
 
   let test_encode_bin_values () =
-    let* () = test_encode_bin_values ~indexing_strategy:`always in
+    let () = test_encode_bin_values ~indexing_strategy:`always in
     test_encode_bin_values ~indexing_strategy:`minimal
 
   let test_encode_bin_tree ~indexing_strategy =
     rm_dir root;
-    let* t = S.Context.get_store ~indexing_strategy () in
+    let t = S.Context.get_store ~indexing_strategy () in
     let { S.Context.foo; bar; _ } = t in
     let v =
       S.Inode.Val.of_list
@@ -852,7 +844,7 @@ module Inode_tezos = struct
     S.Context.close t
 
   let test_encode_bin_tree () =
-    let* () = test_encode_bin_tree ~indexing_strategy:`always in
+    let () = test_encode_bin_tree ~indexing_strategy:`always in
     test_encode_bin_tree ~indexing_strategy:`minimal
 end
 
@@ -917,7 +909,7 @@ module Child_ordering = struct
     assert (chosen_bit = 0 || chosen_bit = 1);
     chosen_bit
 
-  let test_seeded_hash _switch () =
+  let test_seeded_hash () =
     let entries = Irmin_tezos.Conf.entries in
     let reference ~depth step =
       abs (Step.short_hash ~seed:depth step) mod entries
@@ -934,8 +926,7 @@ module Child_ordering = struct
       let step = random_string 8 and depth = Random.int 10 in
       let expected = reference ~depth step in
       check_child_index __POS__ (module Order) ~expected ~step ~depth
-    done;
-    Lwt.return_unit
+    done
 
   let hash_bits_max_depth ~log2_entries =
     (* For a given [depth], the final bit of the corresponding index is at
@@ -948,7 +939,7 @@ module Child_ordering = struct
     in
     aux 0
 
-  let test_hash_bits _switch () =
+  let test_hash_bits () =
     (* [entries] is required to be a power of 2 greater than 1 and less than
        2048, so we test every possible value here: *)
     for log2_entries = 1 to 10 do
@@ -985,10 +976,9 @@ module Child_ordering = struct
           (module Order)
           ~step ~depth:(max_depth + 1)
       done
-    done;
-    Lwt.return_unit
+    done
 
-  let test_custom _switch () =
+  let test_custom () =
     let entries = 16 in
     let square_index ~depth step =
       let a = depth and b = int_of_string (Bytes.unsafe_to_string step) in
@@ -998,13 +988,12 @@ module Child_ordering = struct
     check_child_index __POS__ (module Order) ~depth:1 ~step:"1" ~expected:1;
     check_child_index __POS__ (module Order) ~depth:2 ~step:"2" ~expected:4;
     check_child_index __POS__ (module Order) ~depth:3 ~step:"3" ~expected:9;
-    ();
-    Lwt.return_unit
+    ()
 end
 
 let tests =
-  let tc_sync name f = Alcotest_lwt.test_case name `Quick f in
-  let tc name f = tc_sync name (fun _switch -> f) in
+  let tc_sync name f = Alcotest.test_case name `Quick f in
+  let tc name f = tc_sync name f in
   (* Test disabled because it relies on being able to serialise concrete inodes,
      which is not possible following the introduction of structured keys. *)
   let _ = tc "test truncated inodes" test_truncated_inodes in

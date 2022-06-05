@@ -32,8 +32,6 @@
   irmin-pack.mem
   irmin-tezos
   logs
-  lwt
-  lwt.unix
   fpath
   hex)
  (preprocess
@@ -42,7 +40,7 @@
 (executable
  (name test)
  (modules test)
- (libraries irmin irmin-test test_pack))
+ (libraries eio_main irmin irmin-test test_pack))
 
 (rule
  (alias runtest)

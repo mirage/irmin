@@ -58,10 +58,10 @@ module Unix = struct
 
   let async f =
     Stdlib.flush_all ();
-    match Lwt_unix.fork () with
+    match Unix.fork () with
     | 0 ->
-        Lwt_main.Exit_hooks.remove_all ();
-        Lwt_main.abandon_yielded_and_paused ();
+        (* Lwt_main.Exit_hooks.remove_all ();
+        Lwt_main.abandon_yielded_and_paused (); *)
         let exit_code =
           match f () with
           | () -> Exit_code.success
@@ -77,12 +77,12 @@ module Unix = struct
         { pid; status = `Running }
 
   let status_of_process_outcome = function
-    | Lwt_unix.WEXITED n when n = Exit_code.success -> `Success
-    | Lwt_unix.WEXITED n when n = Exit_code.unhandled_exn ->
+    | Unix.WEXITED n when n = Exit_code.success -> `Success
+    | Unix.WEXITED n when n = Exit_code.unhandled_exn ->
         `Failure "Unhandled exception"
-    | Lwt_unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
-    | Lwt_unix.WEXITED n -> `Failure (Fmt.str "Exited %d" n)
-    | Lwt_unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
+    | Unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
+    | Unix.WEXITED n -> `Failure (Fmt.str "Exited %d" n)
+    | Unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
 
   let cancel t =
     match t.status with
@@ -112,10 +112,10 @@ module Unix = struct
   let await t =
     match t.status with
     | `Running ->
-        let+ pid, status = Lwt_unix.waitpid [] t.pid in
+        let pid, status = Unix.waitpid [] t.pid in
         let s = status_of_process_outcome status in
         Exit.remove pid;
         t.status <- s;
         s
-    | #outcome as s -> Lwt.return s
+    | #outcome as s -> s
 end

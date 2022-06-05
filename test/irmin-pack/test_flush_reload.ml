@@ -91,19 +91,19 @@ let reload_ro t current_phase =
       Store.reload repo
 
 let write1_no_flush bstore nstore cstore =
-  let* _ = Store.put_borphan bstore in
-  let* _ = Store.put_c0 bstore nstore cstore in
-  let* _ = Store.put_c1 bstore nstore cstore in
-  let* _ = Store.put_borphan' bstore in
-  Lwt.return_unit
+  let _ = Store.put_borphan bstore in
+  let _ = Store.put_c0 bstore nstore cstore in
+  let _ = Store.put_c1 bstore nstore cstore in
+  let _ = Store.put_borphan' bstore in
+  ()
 
 (* These tests always open both RW and RO without any data in the model. *)
 let start t =
-  let* () = start_rw t in
-  let* () = open_ro t S2_before_write in
+  let () = start_rw t in
+  let () = open_ro t S2_before_write in
   let rw = Option.get t.rw |> snd in
   let ro = Option.get t.ro |> snd in
-  Lwt.return (rw, ro)
+  (rw, ro)
 
 (* Open both stores. RW writes but does not flush - we do this by running the
    rest of the test inside the [batch]. Then reload the RO at different phases
@@ -114,8 +114,7 @@ let test_one t ~(ro_reload_at : phase_flush) =
     if ro_reload_at = phase then reload_ro t phase;
     check_ro t
   in
-  let* rw, _ = start t in
-  let* () =
+  let rw, _ = start t in
     Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
         let* () = write1_no_flush bstore nstore cstore in
         let () = aux S1_before_flush in
@@ -127,14 +126,12 @@ let test_one t ~(ro_reload_at : phase_flush) =
           Store.S.Internal.(
             File_manager.flush ~hook (file_manager rw) |> Errs.raise_if_error)
         in
-        let () = aux S4_after_flush in
-        Lwt.return_unit)
-  in
-  Lwt.return_unit
+        aux S4_after_flush
+        )
 
 let test_one_guarded setup ~ro_reload_at =
   let t = create_test_env setup in
-  let* () = test_one t ~ro_reload_at in
+  let () = test_one t ~ro_reload_at in
   close_everything t
 
 let setup =
@@ -144,11 +141,11 @@ let setup =
 
 let test_flush () =
   let t = test_one_guarded setup in
-  let* () = t ~ro_reload_at:S1_before_flush in
-  let* () = t ~ro_reload_at:S2_after_flush_dict in
-  let* () = t ~ro_reload_at:S3_after_flush_suffix in
-  let* () = t ~ro_reload_at:S4_after_flush in
-  Lwt.return_unit
+  let () = t ~ro_reload_at:S1_before_flush in
+  let () = t ~ro_reload_at:S2_after_flush_dict in
+  let () = t ~ro_reload_at:S3_after_flush_suffix in
+  let () = t ~ro_reload_at:S4_after_flush in
+  ()
 
 type phase_reload =
   | S1_before_reload
@@ -195,10 +192,10 @@ let flush_rw t (current_phase : phase_reload) =
 
 let test_one t ~(rw_flush_at : phase_reload) =
   let aux phase = if rw_flush_at = phase then flush_rw t phase in
-  let* rw, ro = start t in
+  let rw, ro = start t in
   let reload_ro () =
     Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
-        let* () = write1_no_flush bstore nstore cstore in
+        let () = write1_no_flush bstore nstore cstore in
         let () = aux S1_before_reload in
         let hook = function
           | `After_index -> aux S2_after_reload_index
@@ -209,32 +206,29 @@ let test_one t ~(rw_flush_at : phase_reload) =
           Store.S.Internal.(
             File_manager.reload ~hook (file_manager ro) |> Errs.raise_if_error)
         in
-        let () = aux S5_after_reload in
-        Lwt.return_unit)
+        aux S5_after_reload
+        )
   in
   let () = check_ro t in
-  let* () = reload_ro () in
-  let () = check_ro t in
-  Lwt.return_unit
+  let () = reload_ro () in
+  check_ro t
 
 let test_one_guarded setup ~rw_flush_at =
   let t = create_test_env setup in
-  let* () = test_one t ~rw_flush_at in
+  let () = test_one t ~rw_flush_at in
   close_everything t
 
 let test_reload () =
   let t = test_one_guarded setup in
-  let* () = t ~rw_flush_at:S1_before_reload in
-  let* () = t ~rw_flush_at:S2_after_reload_index in
-  let* () = t ~rw_flush_at:S3_after_reload_control in
-  let* () = t ~rw_flush_at:S4_after_reload_suffix in
-  let* () = t ~rw_flush_at:S5_after_reload in
-  Lwt.return_unit
+  let () = t ~rw_flush_at:S1_before_reload in
+  let () = t ~rw_flush_at:S2_after_reload_index in
+  let () = t ~rw_flush_at:S3_after_reload_control in
+  let () = t ~rw_flush_at:S4_after_reload_suffix in
+  let () = t ~rw_flush_at:S5_after_reload in
+  ()
 
 let tests =
   [
-    Alcotest_lwt.test_case "Reload during flush stages" `Quick
-      (fun _switch () -> test_flush ());
-    Alcotest_lwt.test_case "Flush during reload stages" `Quick
-      (fun _switch () -> test_reload ());
+    Alcotest.test_case "Reload during flush stages" `Quick test_flush;
+    Alcotest.test_case "Flush during reload stages" `Quick test_reload;
   ]

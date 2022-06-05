@@ -41,8 +41,7 @@ let suite_pack name_suffix indexing_strategy (module Config : Irmin_pack.Conf.S)
     let test_dir =
       Irmin.Backend.Conf.find_root config |> Option.value ~default:test_dir
     in
-    rm_dir test_dir;
-    Lwt.return_unit
+    rm_dir test_dir
   in
   let clean = init in
   Irmin_test.Suite.create_generic_key ~name:("PACK" ^ name_suffix)
@@ -177,16 +176,14 @@ module Dict = struct
 
   let tests =
     [
-      Alcotest_lwt.test_case "dict" `Quick (fun _ () ->
-          Lwt.return (test_dict ()));
-      Alcotest_lwt.test_case "RO dict" `Quick (fun _ () ->
-          Lwt.return (test_readonly_dict ()));
+      Alcotest.test_case "dict" `Quick test_dict;
+      Alcotest.test_case "RO dict" `Quick test_readonly_dict;
     ]
 end
 
 module Pack = struct
   let test_pack () =
-    let* t = Context.get_rw_pack () in
+    let t = Context.get_rw_pack () in
     let x1 = "foo" in
     let x2 = "bar" in
     let x3 = "otoo" in
@@ -195,36 +192,35 @@ module Pack = struct
     let h2 = sha1_contents x2 in
     let h3 = sha1_contents x3 in
     let h4 = sha1_contents x4 in
-    let* k1, k2, k3, k4 =
-      Pack.batch t.pack (fun w ->
-          Lwt_list.map_s
+    let k1, k2, k3, k4 =
+      Pack.batch t.Context.pack (fun w ->
+          List.map
             (fun (k, v) -> Pack.unsafe_add w k v)
             [ (h1, x1); (h2, x2); (h3, x3); (h4, x4) ])
-      >|= function
+      |> function
       | [ k1; k2; k3; k4 ] -> (k1, k2, k3, k4)
       | _ -> assert false
     in
 
     let test t =
-      let* y1 = Pack.find t k1 >|= get in
+      let y1 = Pack.find t k1 |> get in
       Alcotest.(check string) "x1" x1 y1;
-      let* y3 = Pack.find t k3 >|= get in
+      let y3 = Pack.find t k3 |> get in
       Alcotest.(check string) "x3" x3 y3;
-      let* y2 = Pack.find t k2 >|= get in
+      let y2 = Pack.find t k2 |> get in
       Alcotest.(check string) "x2" x2 y2;
-      let* y4 = Pack.find t k4 >|= get in
-      Alcotest.(check string) "x4" x4 y4;
-      Lwt.return_unit
+      let y4 = Pack.find t k4 |> get in
+      Alcotest.(check string) "x4" x4 y4
     in
-    test t.pack >>= fun () ->
-    let* t' = Context.get_ro_pack t.name in
-    test t'.pack >>= fun () ->
-    Context.close_pack t >>= fun () -> Context.close_pack t'
+    test t.pack;
+    let t' = Context.get_ro_pack t.name in
+    test t'.pack;
+    Context.close_pack t; Context.close_pack t'
 
   let test_readonly_pack () =
-    let* t = Context.get_rw_pack () in
-    let* t' = Context.get_ro_pack t.name in
-    let* () =
+    let t = Context.get_rw_pack () in
+    let t' = Context.get_ro_pack t.name in
+    let () =
       let adds l =
         List.map
           (fun (k, v) ->
@@ -236,11 +232,11 @@ module Pack = struct
       let h1 = sha1_contents x1 in
       let h2 = sha1_contents x2 in
       let[@warning "-8"] [ _k1; k2 ] = adds [ (h1, x1); (h2, x2) ] in
-      let* y2 = Pack.find t'.pack k2 in
+      let y2 = Pack.find t'.pack k2 in
       Alcotest.(check (option string)) "before reload" None y2;
       flush t.fm;
       reload t'.fm;
-      let* y2 = Pack.find t'.pack k2 in
+      let y2 = Pack.find t'.pack k2 in
       Alcotest.(check (option string)) "after reload" (Some x2) y2;
       let x3 = "otoo" in
       let x4 = "sdadsadas" in
@@ -249,91 +245,88 @@ module Pack = struct
       let[@warning "-8"] [ k3; _k4 ] = adds [ (h3, x3); (h4, x4) ] in
       flush t.fm;
       reload t'.fm;
-      let* y2 = Pack.find t'.pack k2 in
+      let y2 = Pack.find t'.pack k2 in
       Alcotest.(check (option string)) "y2" (Some x2) y2;
-      let* y3 = Pack.find t'.pack k3 in
-      Alcotest.(check (option string)) "y3" (Some x3) y3;
-      Lwt.return_unit
+      let y3 = Pack.find t'.pack k3 in
+      Alcotest.(check (option string)) "y3" (Some x3) y3
     in
-    Context.close_pack t >>= fun () -> Context.close_pack t'
+    Context.close_pack t; Context.close_pack t'
 
   let test_close_pack_more () =
     (*open and close in rw*)
-    let* t = Context.get_rw_pack () in
+    let t = Context.get_rw_pack () in
     let x1 = "foo" in
     let h1 = sha1_contents x1 in
     let k1 =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t.pack h1 x1
     in
     flush t.fm;
-    Context.close_pack t >>= fun () ->
+    Context.close_pack t;
     (*open and close in ro*)
-    let* t1 = Context.get_ro_pack t.name in
-    let* y1 = Pack.find t1.pack k1 >|= get in
+    let t1 = Context.get_ro_pack t.name in
+    let y1 = Pack.find t1.pack k1 |> get in
     Alcotest.(check string) "x1.1" x1 y1;
-    Context.close_pack t1 >>= fun () ->
+    Context.close_pack t1;
     (* reopen in rw *)
-    let* t2 = Context.reopen_rw t.name in
-    let* y1 = Pack.find t2.pack k1 >|= get in
+    let t2 = Context.reopen_rw t.name in
+    let y1 = Pack.find t2.pack k1 |> get in
     Alcotest.(check string) "x1.2" x1 y1;
     (*reopen in ro *)
-    let* t3 = Context.get_ro_pack t.name in
-    let* y1 = Pack.find t3.pack k1 >|= get in
+    let t3 = Context.get_ro_pack t.name in
+    let y1 = Pack.find t3.pack k1 |> get in
     Alcotest.(check string) "x1.3" x1 y1;
-    Context.close_pack t2 >>= fun () -> Context.close_pack t3
+    Context.close_pack t2; Context.close_pack t3
 
   let test_close_pack () =
-    let* t = Context.get_rw_pack () in
+    let t = Context.get_rw_pack () in
     let w = t.pack in
     let x1 = "foo" in
     let x2 = "bar" in
     let h1 = sha1_contents x1 in
     let h2 = sha1_contents x2 in
-    let* k1, k2 =
+    let k1, k2 =
       Pack.batch w (fun w ->
-          Lwt_list.map_s
-            (fun (k, v) -> Pack.unsafe_add w k v)
-            [ (h1, x1); (h2, x2) ])
-      >|= function
+          List.map (fun (k, v) -> Pack.unsafe_add w k v) [ (h1, x1); (h2, x2) ])
+      |> function
       | [ k1; k2 ] -> (k1, k2)
       | _ -> assert false
     in
-    Context.close_pack t >>= fun () ->
+    Context.close_pack t;
     (*reopen in rw *)
-    let* t' = Context.reopen_rw t.name in
-    let* y2 = Pack.find t'.pack k2 >|= get in
+    let t' = Context.reopen_rw t.name in
+    let y2 = Pack.find t'.pack k2 |> get in
     Alcotest.(check string) "x2.1" x2 y2;
-    let* y1 = Pack.find t'.pack k1 >|= get in
+    let y1 = Pack.find t'.pack k1 |> get in
     Alcotest.(check string) "x1.1" x1 y1;
     let x3 = "toto" in
     let h3 = sha1_contents x3 in
     let k3 =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t'.pack h3 x3
     in
-    Context.close_pack t' >>= fun () ->
+    Context.close_pack t';
     (*reopen in rw *)
-    let* t2 = Context.reopen_rw t.name in
-    let* y2 = Pack.find t2.pack k2 >|= get in
+    let t2 = Context.reopen_rw t.name in
+    let y2 = Pack.find t2.pack k2 |> get in
     Alcotest.(check string) "x2.2" x2 y2;
-    let* y3 = Pack.find t2.pack k3 >|= get in
+    let y3 = Pack.find t2.pack k3 |> get in
     Alcotest.(check string) "x3.2" x3 y3;
-    let* y1 = Pack.find t2.pack k1 >|= get in
+    let y1 = Pack.find t2.pack k1 |> get in
     Alcotest.(check string) "x1.2" x1 y1;
-    Context.close_pack t2 >>= fun () ->
+    Context.close_pack t2;
     (*reopen in ro *)
-    let* t' = Context.get_ro_pack t.name in
-    let* y1 = Pack.find t'.pack k1 >|= get in
+    let t' = Context.get_ro_pack t.name in
+    let y1 = Pack.find t'.pack k1 |> get in
     Alcotest.(check string) "x1.3" x1 y1;
-    let* y2 = Pack.find t'.pack k2 >|= get in
+    let y2 = Pack.find t'.pack k2 |> get in
     Alcotest.(check string) "x2.3" x2 y2;
-    Context.close_pack t' >>= fun () -> Lwt.return_unit
+    Context.close_pack t'
 
   (** Index can be flushed to disk independently of pack, we simulate this in
       the tests using [Index.filter] and [Index.flush]. Regression test for PR
       1008 in which values were indexed before being reachable in pack. *)
   let readonly_reload_index_flush () =
-    let* t = Context.get_rw_pack () in
-    let* t' = Context.get_ro_pack t.name in
+    let t = Context.get_rw_pack () in
+    let t' = Context.get_ro_pack t.name in
     let test w =
       let x1 = "foo" in
       let h1 = sha1_contents x1 in
@@ -341,11 +334,11 @@ module Pack = struct
         Pack.unsafe_append ~ensure_unique:true ~overcommit:false w h1 x1
       in
       reload t'.fm;
-      let* y1 = Pack.find t'.pack k1 in
+      let y1 = Pack.find t'.pack k1 in
       Alcotest.(check (option string)) "reload before filter" None y1;
       Index.filter t.index (fun _ -> true);
       reload t'.fm;
-      let* y1 = Pack.find t'.pack k1 in
+      let y1 = Pack.find t'.pack k1 in
       Alcotest.(check (option string)) "reload after filter" (Some x1) y1;
       let x2 = "foo" in
       let h2 = sha1_contents x2 in
@@ -353,17 +346,18 @@ module Pack = struct
         Pack.unsafe_append ~ensure_unique:true ~overcommit:false w h2 x2
       in
       Index.flush t.index ~with_fsync:false |> Errs.raise_if_error;
-      let+ y2 = Pack.find t'.pack k2 in
+      let y2 = Pack.find t'.pack k2 in
       Alcotest.(check (option string)) "reload after flush" (Some x2) y2
     in
-    test t.pack >>= fun () ->
-    Context.close_pack t >>= fun () -> Context.close_pack t'
+    test t.pack;
+    Context.close_pack t;
+    Context.close_pack t'
 
   let readonly_find_index_flush () =
-    let* t = Context.get_rw_pack () in
-    let* t' = Context.get_ro_pack t.name in
+    let t = Context.get_rw_pack () in
+    let t' = Context.get_ro_pack t.name in
     let check h x msg =
-      let+ y = Pack.find t'.pack h in
+      let y = Pack.find t'.pack h in
       Alcotest.(check (option string)) msg (Some x) y
     in
     let test w =
@@ -374,9 +368,9 @@ module Pack = struct
       in
       flush t.fm;
       reload t'.fm;
-      check k1 x1 "find before filter" >>= fun () ->
+      check k1 x1 "find before filter";
       Index.filter t.index (fun _ -> true);
-      check k1 x1 "find after filter" >>= fun () ->
+      check k1 x1 "find after filter";
       let x2 = "bar" in
       let h2 = sha1_contents x2 in
       let k2 =
@@ -384,34 +378,30 @@ module Pack = struct
       in
       flush t.fm;
       reload t'.fm;
-      check k2 x2 "find before flush" >>= fun () ->
+      check k2 x2 "find before flush";
       let x3 = "toto" in
       let h3 = sha1_contents x3 in
       let k3 =
         Pack.unsafe_append ~ensure_unique:true ~overcommit:false w h3 x3
       in
       Index.flush t.index ~with_fsync:false |> Errs.raise_if_error;
-      check k2 x2 "find after flush" >>= fun () ->
+      check k2 x2 "find after flush";
       flush t.fm;
       reload t'.fm;
       check k3 x3 "find after flush new values"
     in
-    test t.pack >>= fun () ->
-    Context.close_pack t >>= fun () -> Context.close_pack t'
+    test t.pack;
+    Context.close_pack t;
+    Context.close_pack t'
 
   let tests =
     [
-      Alcotest_lwt.test_case "pack" `Quick (fun _switch () -> test_pack ());
-      Alcotest_lwt.test_case "RO pack" `Quick (fun _switch () ->
-          test_readonly_pack ());
-      Alcotest_lwt.test_case "close" `Quick (fun _switch () ->
-          test_close_pack ());
-      Alcotest_lwt.test_case "close readonly" `Quick (fun _switch () ->
-          test_close_pack_more ());
-      Alcotest_lwt.test_case "readonly reload, index flush" `Quick
-        (fun _switch () -> readonly_reload_index_flush ());
-      Alcotest_lwt.test_case "readonly find, index flush" `Quick
-        (fun _switch () -> readonly_find_index_flush ());
+      Alcotest.test_case "pack" `Quick test_pack;
+      Alcotest.test_case "RO pack" `Quick test_readonly_pack;
+      Alcotest.test_case "close" `Quick test_close_pack;
+      Alcotest.test_case "close readonly" `Quick test_close_pack_more;
+      Alcotest.test_case "readonly reload, index flush" `Quick readonly_reload_index_flush;
+      Alcotest.test_case "readonly find, index flush" `Quick readonly_find_index_flush;
     ]
 end
 
@@ -426,72 +416,71 @@ module Branch = struct
   let test_branch () =
     let branches = [ "foo"; "bar/toto"; "titi" ] in
     let test t =
-      Lwt_list.iter_s (fun k -> Branch.set t k (sha1 k)) branches >>= fun () ->
-      let check h =
-        let+ v = Branch.find t h in
+      List.iter (fun k -> Branch.set t k (sha1 k)) branches;
+      let check h () =
+        let v = Branch.find t h in
         Alcotest.(check (option hash)) h (Some (sha1 h)) v
       in
-      Lwt_list.iter_p check branches
+      List.map check branches |> Eio.Fiber.all
     in
     let name = Context.fresh_name "branch" in
-    Branch.v ~fresh:true name >>= test >>= fun () ->
-    Branch.v ~fresh:true name >>= test >>= fun () ->
-    Branch.v ~fresh:true name >>= test >>= fun () ->
-    let* t = Branch.v ~fresh:false name in
-    test t >>= fun () ->
+    Branch.v ~fresh:true name |> test;
+    Branch.v ~fresh:true name |> test;
+    Branch.v ~fresh:true name |> test;
+    let t = Branch.v ~fresh:false name in
+    test t;
     let x = sha1 "XXX" in
-    Branch.set t "foo" x >>= fun () ->
-    let* t = Branch.v ~fresh:false name in
-    let* v = Branch.find t "foo" in
+    Branch.set t "foo" x;
+    let t = Branch.v ~fresh:false name in
+    let v = Branch.find t "foo" in
     Alcotest.(check (option hash)) "foo" (Some x) v;
-    let* br = Branch.list t in
+    let br = Branch.list t in
     Alcotest.(check (slist string compare)) "branches" branches br;
-    Branch.remove t "foo" >>= fun () ->
-    let* t = Branch.v ~fresh:false name in
-    let* v = Branch.find t "foo" in
+    Branch.remove t "foo";
+    let t = Branch.v ~fresh:false name in
+    let v = Branch.find t "foo" in
     Alcotest.(check (option hash)) "foo none" None v;
-    let* br = Branch.list t in
+    let br = Branch.list t in
     Alcotest.(check (slist string compare))
       "branches"
       (List.filter (( <> ) "foo") branches)
-      br;
-    Lwt.return_unit
+      br
 
   let test_close_branch () =
     let branches = [ "foo"; "bar/toto"; "titi" ] in
     let add t =
-      Lwt_list.iter_s
+      List.iter
         (fun k ->
           [%logs.debug "k = %s, v= %a" k pp_hash (sha1 k)];
           Branch.set t k (sha1 k))
         branches
     in
     let test t =
-      let check h =
-        let+ v = Branch.find t h in
+      let check h () =
+        let v = Branch.find t h in
         Alcotest.(check (option hash)) h (Some (sha1 h)) v
       in
-      Lwt_list.iter_p check branches
+      List.map check branches |> Eio.Fiber.all
     in
     let name = Context.fresh_name "branch" in
-    let* t = Branch.v ~fresh:true name in
-    add t >>= fun () ->
-    test t >>= fun () ->
-    Branch.close t >>= fun () ->
-    let* t = Branch.v ~fresh:false ~readonly:true name in
-    test t >>= fun () ->
-    Branch.close t >>= fun () ->
+    let t = Branch.v ~fresh:true name in
+    add t;
+    test t;
+    Branch.close t;
+    let t = Branch.v ~fresh:false ~readonly:true name in
+    test t;
+    Branch.close t;
     let name = Context.fresh_name "branch" in
-    let* t1 = Branch.v ~fresh:true ~readonly:false name in
-    let* t2 = Branch.v ~fresh:false ~readonly:true name in
-    add t1 >>= fun () ->
-    Branch.close t1 >>= fun () -> test t2
+    let t1 = Branch.v ~fresh:true ~readonly:false name in
+    let t2 = Branch.v ~fresh:false ~readonly:true name in
+    add t1;
+    Branch.close t1;
+    test t2
 
   let tests =
     [
-      Alcotest_lwt.test_case "branch" `Quick (fun _switch -> test_branch);
-      Alcotest_lwt.test_case "branch close" `Quick (fun _switch ->
-          test_close_branch);
+      Alcotest.test_case "branch" `Quick test_branch;
+      Alcotest.test_case "branch close" `Quick test_close_branch;
     ]
 end
 
@@ -541,9 +530,9 @@ module Layout = struct
 
   let tests =
     [
-      Alcotest_lwt.test_case "classify upper files" `Quick (fun _switch ->
+      Alcotest.test_case "classify upper files" `Quick (fun _switch ->
           test_classify_upper_filename);
-      Alcotest_lwt.test_case "classify volume files" `Quick (fun _switch ->
+      Alcotest.test_case "classify volume files" `Quick (fun _switch ->
           test_classify_volume_filename);
     ]
 end
