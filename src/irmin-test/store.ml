@@ -1301,13 +1301,6 @@ module Make (S : Generic_key) = struct
 
       (* Testing other tree operations. *)
       let v0 = S.Tree.empty () in
-      let b0 = S.Tree.is_val v0 [] in
-      Alcotest.(check bool) "empty is_val /" true b0;
-      let b0 = S.Tree.is_val v0 [ "foo" ] in
-      Alcotest.(check bool) "empty is_val /foo" true b0;
-      let b0 = S.Tree.is_val v0 [ "foo"; "bar" ] in
-      Alcotest.(check bool) "empty is_val /foo/bar" true b0;
-
       let* c = S.Tree.to_concrete v0 in
       (match c with
       | `Tree [] -> ()
@@ -1421,6 +1414,37 @@ module Make (S : Generic_key) = struct
       let* vx' = S.find_all t [ "a" ] in
       check_val "update file as tree" (normal vx) vx';
       B.Repo.close repo
+    in
+    run x test
+
+  let test_lazy_tree x () =
+    let is_val_aux v t k =
+      let str = Fmt.str "empty is_val %a" Irmin.Type.(pp S.path_t) k in
+      let b = S.Tree.is_val t k in
+      Alcotest.(check bool) str v b
+    in
+    let is_val = is_val_aux true in
+    let is_not_val = is_val_aux false in
+    let test repo =
+      let v0 = S.Tree.empty () in
+      is_val v0 [];
+      is_val v0 [ "foo" ];
+      is_val v0 [ "foo"; "bar" ];
+
+      let* r1 = r1 ~repo in
+      let v1 = S.Commit.tree r1 in
+      is_not_val v1 [];
+      is_not_val v1 [ "a" ];
+
+      let* _ = S.Tree.find_tree v1 [ "a" ] in
+      is_val v1 [];
+      is_val v1 [ "a" ];
+
+      S.Tree.clear v1;
+      is_not_val v1 [];
+      is_not_val v1 [ "a" ];
+
+      Lwt.return ()
     in
     run x test
 
@@ -2448,6 +2472,7 @@ let suite (speed, x) =
   suite'
     ([
        ("High-level operations on trees", speed, T.test_trees x);
+       ("Test lazy trees", speed, T.test_lazy_tree x);
        ("Basic operations on contents", speed, T.test_contents x);
        ("Basic operations on nodes", speed, T.test_nodes x);
        ("Basic operations on commits", speed, T.test_commits x);
