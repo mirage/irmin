@@ -1301,6 +1301,13 @@ module Make (S : Generic_key) = struct
 
       (* Testing other tree operations. *)
       let v0 = S.Tree.empty () in
+      let b0 = S.Tree.is_val v0 [] in
+      Alcotest.(check bool) "empty is_val /" true b0;
+      let b0 = S.Tree.is_val v0 [ "foo" ] in
+      Alcotest.(check bool) "empty is_val /foo" true b0;
+      let b0 = S.Tree.is_val v0 [ "foo"; "bar" ] in
+      Alcotest.(check bool) "empty is_val /foo/bar" true b0;
+
       let* c = S.Tree.to_concrete v0 in
       (match c with
       | `Tree [] -> ()
