@@ -126,23 +126,36 @@ module Maker (Config : Conf.S) = struct
           fm : File_manager.t;
         }
 
-        let contents_t t : 'a Contents.t = t.contents
-        let node_t t : 'a Node.t = (contents_t t, t.node)
-        let commit_t t : 'a Commit.t = (node_t t, t.commit)
-        let branch_t t = t.branch
-
         let batch t f =
-          f (t.contents :> read_write Contents.t)
+          let contents = Contents.CA.cast t.contents in
+          (* TODO:  *)
+          let node = Obj.magic t.node in
+          let commit = Commit.CA.cast t.commit in
+          (* let contents = Contents.CA.cast t.contents in
+           * let node = Node.CA.Pack'.cast t.node in
+           * let commit = Commit.CA.cast t.commit in *)
+          let contents : 'a Contents.t = contents in
+          let node : 'a Node.t = (contents, node) in
+          let commit : 'a Commit.t = (node, commit) in
+          let on_success res =
+            File_manager.flush_exn t.fm;
+            Lwt.return res
+          in
+          let on_fail exn =
+            [%log.info "[pack] flush during batch fail"];
+            let () =
+              match File_manager.flush t.fm with
+              | Ok () -> ()
+              | Error _ ->
+                  [%log.err "[pack] silencing flush fail during batch fail"];
+                  (* TODO: tostring the error *)
+                  assert false
+            in
+            raise exn
+          in
+          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
 
-          (* Commit.CA.batch t.commit (fun commit ->
-           *     Node.CA.batch t.node (fun node ->
-           *         Contents.CA.batch t.contents (fun contents ->
-           *             let contents : 'a Contents.t = contents in
-           *             let node : 'a Node.t = (contents, node) in
-           *             let commit : 'a Commit.t = (node, commit) in
-           *             f contents node commit))) *)
-
-        let unsafe_v config =
+        let v config =
           let fm =
             (* TODO *)
             assert false
@@ -164,40 +177,21 @@ module Maker (Config : Conf.S) = struct
             match File_manager.close t.fm with
             | Ok () -> ()
             | Error _ ->
-                (* TODO *)
+                (* TODO: raise dedicated exceptionx *)
                 assert false
           in
           Branch.close t.branch
 
-        let v config =
-          Lwt.catch
-            (fun () -> unsafe_v config)
-            (function
-              | Version.Invalid { expected; found } as e
-                when expected = Version.latest ->
-                  [%log.err
-                    "[%s] Attempted to open store of unsupported version %a"
-                      (Conf.root config) Version.pp found];
-                  Lwt.fail e
-              | e -> Lwt.fail e)
+        let flush t = File_manager.flush_exn t.fm
 
-        (* TODO: Rename [sync] to [reload] absolutly everywhere *)
         let sync t =
-          match File_manager.reload t.fm with
-          | Ok () -> ()
-          | Error _ ->
-              (* TODO *)
-              assert false
+          (* TODO: Rename [sync] to [reload] absolutly everywhere *)
+          File_manager.reload_exn t.fm
 
-        let flush t =
-          let () =
-            match File_manager.flush t.fm with
-            | Ok () -> ()
-            | Error _ ->
-                (* TODO *)
-                assert false
-          in
-          Branch.flush t.branch
+        let contents_t t : 'a Contents.t = t.contents
+        let node_t t : 'a Node.t = (contents_t t, t.node)
+        let commit_t t : 'a Commit.t = (node_t t, t.commit)
+        let branch_t t = t.branch
       end
     end
 

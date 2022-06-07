@@ -56,7 +56,9 @@ module type S = sig
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
   val flush : t -> (unit, [> Io.write_error ]) result
+  val flush_exn : t -> unit
   val reload : t -> (unit, [> Io.reload_error ]) result
+  val reload_exn : t -> unit
 end
 
 module type Sigs = sig

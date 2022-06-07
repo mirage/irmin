@@ -38,6 +38,8 @@ module type S = sig
 
   val v : config:Irmin.Backend.Conf.t -> fm:file_manager -> read t Lwt.t
 
+  val cast : read t -> read_write t
+
   (* val sync : 'a t -> unit
    * (\** Syncs a readonly instance with the files on disk. The same file instance
    *     is shared between several pack instances. *\)

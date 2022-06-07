@@ -330,18 +330,26 @@ struct
       | Error _ -> Error `Wrong_hash
     with Invalid_read _ -> Error `Absent_value
 
-  (* let cast t = (t :> read_write t) *)
+  let cast t = (t :> read_write t)
 
-  let batch _ _ =
-    (* Calling batch is undefined *)
-    assert false
-
-  (* let batch t f =
-   *   let* r = f (cast t) in
-   *   if Tbl.length t.staging = 0 then Lwt.return r
-   *   else (
-   *     flush t;
-   *     Lwt.return r) *)
+  let batch t f =
+    let on_success res =
+      Fm.flush_exn t.fm;
+      Lwt.return res
+    in
+    let on_fail exn =
+      [%log.info "[pack] flush during batch fail"];
+      let () =
+        match Fm.flush t.fm with
+        | Ok () -> ()
+        | Error _ ->
+            [%log.err "[pack] silencing flush fail during batch fail"];
+            (* TODO: tostring the error *)
+            assert false
+      in
+      raise exn
+    in
+    Lwt.try_bind (fun () -> f (cast t)) on_success on_fail
 
   let auto_flush = 1024
 
@@ -416,8 +424,8 @@ struct
   let close _ =
     (* Calling close is undefined *)
     assert false
-    (* unsafe_close t; *)
-    (* Lwt.return_unit *)
+  (* unsafe_close t; *)
+  (* Lwt.return_unit *)
 
   (* let sync t =
    *   let former_offset = Suffix.end_offset (Fm.suffix t.fm) in

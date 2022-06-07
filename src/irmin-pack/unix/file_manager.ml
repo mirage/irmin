@@ -35,7 +35,6 @@ struct
     suffix : Suffix.t;
     index : Index.t;
     use_fsync : bool;
-    mutable batch_level : int;
   }
 
   module Control = Control
@@ -59,26 +58,24 @@ struct
 
   let reload _t = assert false
   let flush _t = assert false
+
+  let reload_exn t =
+    match reload t with
+    | Ok () -> ()
+    | Error _ ->
+        (* TODO: Raise dedicated exception *)
+        assert false
+
+  let flush_exn t =
+    match flush t with
+    | Ok () -> ()
+    | Error _ ->
+        (* TODO: Raise dedicated exception *)
+        assert false
+
   let dict_is_about_to_auto_flush _ = ()
   let suffix_is_about_to_auto_flush _ = ()
   let index_is_about_to_auto_flush _ = ()
-
-  let batch_end t =
-
-
-  let batch t f =
-    t.batch_level <- t.batch_level + 1;
-    try
-      f ();
-      t.batch_level <- t.batch_level - 1;
-      if t.batch_level = 0 then batch_end t
-    with e ->
-      t.batch_level <- t.batch_level - 1;
-      (match out_of_batch t with
-      | Ok () | Error _ ->
-          (* Ignoring error *)
-          ());
-      raise e
 
   (* File creation ********************************************************** *)
 
@@ -144,7 +141,7 @@ struct
       in an undefined state.
 
       Note on errors: If [create_rw] returns an error, the storage is left in an
-      undefined state. *)
+      undefined state and some file descriptors might not be closed. *)
   let create_rw config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
@@ -237,7 +234,8 @@ struct
 
       Note on errors: If [open_rw] returns an error during
       [open_rw_migrate_from_v1_v2], the storage is left in an undefined state.
-      Otherwise the storage is unaffected. *)
+      Otherwise the storage is unaffected. Anyhow, some file descriptors might
+      not be closed. *)
   let open_rw config =
     let root = Irmin_pack.Conf.root config in
     match Io.classify_path root with
@@ -254,7 +252,10 @@ struct
 
   (** Note on SWMR consistency: TODO
 
-      Note on errors and crash consistency: The storage is never mutated. *)
+      Note on crash consistency: The storage is never mutated.
+
+      Note on errors: The storage is never mutated. Some file descriptors might
+      not be closed. *)
   let open_ro config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
