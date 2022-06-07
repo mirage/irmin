@@ -55,11 +55,7 @@ module type S = sig
     (t, [> Io.open_error ]) result
   (** Create a ro instance of [t] by opening an existing file at [path] *)
 
-  (* val inject : t -> (unit -> unit) -> unit *)
-  (** Finish constructing a rw instace of [t] by injecting a callback that will
-      take care of auto flushes. *)
-
-  val close : t -> (unit, [> Io.close_error ]) result
+  val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
 
   val end_offset : t -> int63
   (** [end_offset t] is the number of bytes of the file. That function doesn't

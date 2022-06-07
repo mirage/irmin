@@ -82,8 +82,11 @@ module type S = sig
     t -> off:int63 -> len:int -> (string, [> read_error ]) result
   (** [read_to_string t ~off ~len] are the [len] bytes of [t] at [off]. *)
 
-  val size : t -> (int63, [> read_error ]) result
-  (** [size t] is the number of bytes of the file handled by [t].*)
+  val read_size : t -> (int63, [> read_error ]) result
+  (** [read_size t] is the number of bytes of the file handled by [t].
+
+      This function is expensive in the unix implementation because it performs
+      syscalls. *)
 
   val classify_path :
     string -> [> `File | `Directory | `No_such_file_or_directory ]

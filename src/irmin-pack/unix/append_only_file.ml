@@ -66,7 +66,16 @@ module Make (Io : Io.S) = struct
     let dead_header_size = Int63.of_int dead_header_size in
     { io; persisted_end_offset; dead_header_size; rw_perm = None }
 
-  let close t = Io.close t.io
+  let close t =
+    let open Result_syntax in
+    let* () =
+      match t.rw_perm with
+      | None -> Ok ()
+      | Some rw_perm ->
+          if Buffer.length rw_perm.buf <> 0 then Error `Pending_flush else Ok ()
+    in
+    Io.close t.io
+
   let readonly t = Io.readonly t.io
 
   let end_offset t =

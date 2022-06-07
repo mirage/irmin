@@ -79,10 +79,7 @@ module Unix = struct
     ignore (t, off, s);
     ()
 
-  let size _ = assert false
-
-  (* let size _ = Int63.zero
-   * let reload _ = assert false *)
+  let read_size _ = assert false
 
   let readonly t =
     ignore t;

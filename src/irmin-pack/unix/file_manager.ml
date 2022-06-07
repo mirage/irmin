@@ -16,6 +16,7 @@
 
 open Import
 module Payload = Control_file.Latest_payload
+include File_manager_intf
 
 let legacy_io_header_size = 16
 
@@ -167,7 +168,7 @@ struct
     let* () = Io.move_file ~src ~dst in
     let* entry_offset_at_upgrade_to_v3 =
       let* suffix = Io.open_ ~path:dst ~readonly:true in
-      let* x = Io.size suffix in
+      let* x = Io.read_size suffix in
       let+ () = Io.close suffix in
       let ( - ) = Int63.sub in
       x - Int63.of_int legacy_io_header_size
@@ -209,7 +210,7 @@ struct
         | `No_such_file_or_directory -> open_rw_no_control_file config
         | `Directory -> Error `Invalid_layout)
 
-  (* Open ro ***************************************************************8 *)
+  (* Open ro **************************************************************** *)
 
   (** Note on SWMR consistency: TODO
 
@@ -252,4 +253,13 @@ struct
     in
     (* 3. return with success *)
     Ok { dict; control; suffix; use_fsync; index }
+
+  (* Misc ******************************************************************* *)
+  let close t =
+    let open Result_syntax in
+    let* () = Dict.close t.dict in
+    let* () = Control.close t.control in
+    let+ () = Suffix.close t.suffix in
+    (* TODO: Index error monad *)
+    Index.close t.index
 end
