@@ -31,8 +31,6 @@ module Make
               and type key := Hash.t Pack_key.t) =
 struct
   module Tbl = Table (Hash)
-
-  (* module Dict = Fm.Dict *)
   module Control = Fm.Control
   module Suffix = Fm.Suffix
   module Index = Fm.Index
@@ -166,7 +164,7 @@ struct
   let io_read_and_decode_entry_prefix ~off t =
     ignore t;
     (* Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf; *)
-    (* TODO: Need a [read_up_to] *)
+    (* TODO: Fix here. Need a [read_up_to] *)
     let io_read = assert false in
     read_and_decode_entry_prefix ~off ~io_read
 
@@ -346,7 +344,7 @@ struct
         | Ok () -> ()
         | Error _ ->
             [%log.err "[pack] silencing flush fail during batch fail"];
-            (* TODO: tostring the error *)
+            (* TODO: Proper error message (tostring error) *)
             assert false
       in
       raise exn
@@ -376,7 +374,7 @@ struct
       let off = Suffix.end_offset (Fm.suffix t.fm) in
       Val.encode_bin ~offset_of_key ~dict hash v
         (Suffix.append_exn (Fm.suffix t.fm));
-      (* TODO: flush
+      (* TODO: Fix flush
            The current behaviour is:
            - if >1M (never triggered because 1024 triggers first in practice)
               - only flush pack file, most likely midway during the encoding of entries
@@ -392,10 +390,7 @@ struct
         if should_index then
           Index.add ~overcommit (Fm.index t.fm) hash (off, len, kind)
       in
-      if Tbl.length t.staging >= auto_flush then
-        (* TODO *)
-        (* flush t *)
-        assert false
+      if Tbl.length t.staging >= auto_flush then assert false
       else Tbl.add t.staging hash v;
       Lru.add t.lru hash v;
       [%log.debug "[pack] append done %a <- %a" pp_hash hash pp_key key];

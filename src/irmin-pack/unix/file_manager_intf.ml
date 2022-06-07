@@ -29,6 +29,7 @@ module type S = sig
   val index : t -> Index.t
 
   val create_rw :
+    overwrite:bool ->
     Irmin.Backend.Conf.t ->
     ( t,
       [> Io.create_error

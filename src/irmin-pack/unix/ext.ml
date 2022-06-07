@@ -32,8 +32,9 @@ module Maker (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
-    module Control = Control_file.Make (Io.Unix)
-    module Aof = Append_only_file.Make (Io.Unix)
+    module Io = Io.Unix
+    module Control = Control_file.Make (Io)
+    module Aof = Append_only_file.Make (Io)
     module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index)
     module Dict = Dict.Make (File_manager)
     module XKey = Pack_key.Make (H)
@@ -145,7 +146,7 @@ module Maker (Config : Conf.S) = struct
               | Ok () -> ()
               | Error _ ->
                   [%log.err "[pack] silencing flush fail during batch fail"];
-                  (* TODO: tostring the error *)
+                  (* TODO: Proper error message (tostring on error) *)
                   assert false
             in
             raise exn
@@ -154,12 +155,28 @@ module Maker (Config : Conf.S) = struct
 
         let v config =
           let fm =
-            (* TODO *)
-            assert false
+            let readonly = Irmin_pack.Conf.readonly config in
+            (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
+            if readonly then File_manager.open_ro config |> Result.get_ok
+            else
+              let fresh = Irmin_pack.Conf.fresh config in
+              let root = Irmin_pack.Conf.root config in
+              match (Io.classify_path root, fresh) with
+              | `No_such_file_or_directory, _ ->
+                  File_manager.create_rw ~overwrite:false config
+                  |> Result.get_ok
+              | `Directory, true ->
+                  File_manager.create_rw ~overwrite:true config |> Result.get_ok
+              | `Directory, false ->
+                  File_manager.open_rw config |> Result.get_ok
+              | `File, _ ->
+                  (* TODO: Proper exception *)
+                  assert false
           in
           let dict =
-            (* TODO *)
-            assert false
+            (* TODO: Capacity from config? *)
+            let capacity = 100_000 in
+            Dict.v ~capacity fm
           in
           let* contents = Contents.CA.v ~config ~fm ~dict in
           let* node = Node.CA.v ~config ~fm ~dict in
@@ -178,7 +195,7 @@ module Maker (Config : Conf.S) = struct
             match File_manager.close t.fm with
             | Ok () -> ()
             | Error _ ->
-                (* TODO: raise dedicated exceptionx *)
+                (* TODO: Proper exception *)
                 assert false
           in
           Branch.close t.branch
@@ -208,7 +225,7 @@ module Maker (Config : Conf.S) = struct
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
       ignore (ppf, auto_repair, check, t);
-      (* TODO *)
+      (* TODO: Fix integrity_check *)
       assert false
     (* Checks.integrity_check ?ppf ~auto_repair ~check t.index *)
 

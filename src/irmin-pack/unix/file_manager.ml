@@ -49,28 +49,34 @@ struct
 
   (* Misc ******************************************************************* *)
   let close t =
+    (* TODO: Implement close *)
     let open Result_syntax in
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
     let+ () = Suffix.close t.suffix in
-    (* TODO: Index error monad *)
+    (* TODO: Proper error monad for [Index.close] *)
     Index.close t.index
 
-  let reload _t = assert false
-  let flush _t = assert false
+  let reload _t =
+    (* TODO: Implement reload *)
+    assert false
+
+  let flush _t =
+    (* TODO: Implement flush *)
+    assert false
 
   let reload_exn t =
     match reload t with
     | Ok () -> ()
     | Error _ ->
-        (* TODO: Raise dedicated exception *)
+        (* TODO: Proper exception *)
         assert false
 
   let flush_exn t =
     match flush t with
     | Ok () -> ()
     | Error _ ->
-        (* TODO: Raise dedicated exception *)
+        (* TODO: Proper exception *)
         assert false
 
   let dict_is_about_to_auto_flush _ = ()
@@ -142,10 +148,9 @@ struct
 
       Note on errors: If [create_rw] returns an error, the storage is left in an
       undefined state and some file descriptors might not be closed. *)
-  let create_rw config =
+  let create_rw ~overwrite config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
-    let overwrite = true in
     let* () =
       match (overwrite, Io.classify_path root) with
       | _, `File -> Error `Not_a_directory
@@ -250,7 +255,7 @@ struct
 
   (* Open ro **************************************************************** *)
 
-  (** Note on SWMR consistency: TODO
+  (** Note on SWMR consistency: TODO: doc
 
       Note on crash consistency: The storage is never mutated.
 

@@ -91,7 +91,7 @@ module Make (Fm : File_manager.S) = struct
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let t = { capacity; index; cache; fm } in
-    (* TODO: refill shouldn't raise *)
+    (* TODO: Proper error monad for refill *)
     refill ~from:Int63.zero t;
     t
 
