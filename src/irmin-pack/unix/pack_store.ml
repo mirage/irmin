@@ -348,13 +348,6 @@ struct
                 Some offset)
       in
       let kind = Val.kind v in
-      let () =
-        (* Bump the pack file version header if necessary *)
-        let value_version = Pack_value.Kind.version kind
-        and io_version = Io_legacy.version t.io in
-        if Version.compare value_version io_version > 0 then
-          Io_legacy.set_version t.io value_version
-      in
       let dict = Dict.index t.dict in
       let off = Io_legacy.offset t.io in
       Val.encode_bin ~offset_of_key ~dict hash v (Io_legacy.append t.io);
