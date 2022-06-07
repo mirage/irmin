@@ -22,6 +22,7 @@ struct
   module Pack = Pack
 
   type file_manager = Pack.file_manager
+  type dict = Pack.dict
 
   let to_snapshot = Inter.to_snapshot
 

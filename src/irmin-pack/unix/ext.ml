@@ -35,7 +35,7 @@ module Maker (Config : Conf.S) = struct
     module Control = Control_file.Make (Io.Unix)
     module Aof = Append_only_file.Make (Io.Unix)
     module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index)
-    module Dict = Pack_dict
+    module Dict = Dict.Make (File_manager)
     module XKey = Pack_key.Make (H)
 
     module X = struct
@@ -46,7 +46,7 @@ module Maker (Config : Conf.S) = struct
 
       module Contents = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
-        module CA = Pack_store.Make (File_manager) (H) (Pack_value)
+        module CA = Pack_store.Make (File_manager) (Dict) (H) (Pack_value)
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
@@ -57,7 +57,7 @@ module Maker (Config : Conf.S) = struct
           module Inter =
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
-          module Pack' = Pack_store.Make (File_manager) (H) (Inter.Raw)
+          module Pack' = Pack_store.Make (File_manager) (Dict) (H) (Inter.Raw)
           include Inode.Make_persistent (H) (Value) (Inter) (Pack')
         end
 
@@ -81,7 +81,7 @@ module Maker (Config : Conf.S) = struct
         end
 
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
-        module CA = Pack_store.Make (File_manager) (H) (Pack_value)
+        module CA = Pack_store.Make (File_manager) (Dict) (H) (Pack_value)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
@@ -122,6 +122,7 @@ module Maker (Config : Conf.S) = struct
           contents : read Contents.CA.t;
           node : read Node.CA.t;
           commit : read Commit.CA.t;
+          dict : Dict.t;
           branch : Branch.t;
           fm : File_manager.t;
         }
@@ -156,9 +157,13 @@ module Maker (Config : Conf.S) = struct
             (* TODO *)
             assert false
           in
-          let* contents = Contents.CA.v ~config ~fm in
-          let* node = Node.CA.v ~config ~fm in
-          let* commit = Commit.CA.v ~config ~fm in
+          let dict =
+            (* TODO *)
+            assert false
+          in
+          let* contents = Contents.CA.v ~config ~fm ~dict in
+          let* node = Node.CA.v ~config ~fm ~dict in
+          let* commit = Commit.CA.v ~config ~fm ~dict in
           let+ branch =
             let root = Conf.root config in
             let fresh = Conf.fresh config in
@@ -166,7 +171,7 @@ module Maker (Config : Conf.S) = struct
             let path = Irmin_pack.Layout.V3.branch ~root in
             Branch.v ~fresh ~readonly path
           in
-          { config; contents; node; commit; branch; fm }
+          { config; contents; node; commit; branch; fm; dict }
 
         let close t =
           let () =

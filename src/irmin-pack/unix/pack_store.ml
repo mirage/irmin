@@ -24,13 +24,15 @@ end)
 
 module Make
     (Fm : File_manager.S)
+    (Dict : Dict.S)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
               and type key := Hash.t Pack_key.t) =
 struct
   module Tbl = Table (Hash)
-  module Dict = Fm.Dict
+
+  (* module Dict = Fm.Dict *)
   module Control = Fm.Control
   module Suffix = Fm.Suffix
   module Index = Fm.Index
@@ -44,12 +46,14 @@ struct
   end)
 
   type file_manager = Fm.t
+  type dict = Dict.t
 
   type 'a t = {
     lru : Val.t Lru.t;
     staging : Val.t Tbl.t;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     fm : Fm.t;
+    dict : Dict.t;
   }
 
   type hash = Hash.t [@@deriving irmin ~pp ~equal ~decode_bin]
@@ -76,13 +80,13 @@ struct
    *   if index then Index.flush (Fm.index t.fm);
    *   Tbl.clear t.staging *)
 
-  let v ~config ~fm =
+  let v ~config ~fm ~dict =
     let indexing_strategy = Conf.indexing_strategy config in
     let lru_size = Conf.lru_size config in
 
     let staging = Tbl.create 127 in
     let lru = Lru.create lru_size in
-    { lru; staging; indexing_strategy; fm } |> Lwt.return
+    { lru; staging; indexing_strategy; fm; dict } |> Lwt.return
 
   let io_read_and_decode_hash ~off t =
     let buf = Bytes.create Hash.hash_size in
@@ -221,7 +225,7 @@ struct
 
   let io_read_and_decode ~off ~len t =
     let () =
-      if not (Control.readonly (Fm.control t.fm)) then
+      if not (Suffix.readonly (Fm.suffix t.fm)) then
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
         if Int63.add off (Int63.of_int len) > io_offset then
           (* This is likely a store corruption. We raise [Invalid_read]
@@ -253,11 +257,7 @@ struct
           Pack_key.v_indexed entry_prefix.hash
     in
     let key_of_hash = Pack_key.v_indexed in
-    let dict =
-      (* TODO: Move dict abstraction *)
-      assert false
-      (* Dict.find (Fm.dict t.fm) *)
-    in
+    let dict = Dict.find t.dict in
     Val.decode_bin ~key_of_offset ~key_of_hash ~dict
       (Bytes.unsafe_to_string buf)
       (ref 0)
@@ -332,6 +332,9 @@ struct
   let cast t = (t :> read_write t)
 
   let batch t f =
+    [%log.warn
+      "[pack] calling batch directory on a store is not recommended. Use \
+       repo.batch instead."];
     let on_success res =
       Fm.flush_exn t.fm;
       Lwt.return res
@@ -369,13 +372,7 @@ struct
                 Stats.incr_appended_offsets ();
                 Some offset)
       in
-      let kind = Val.kind v in
-      ignore kind;
-      let dict =
-        (* TODO: Move dict abstraction *)
-        assert false
-        (* Dict.index (Fm.dict t.fm) *)
-      in
+      let dict = Dict.index t.dict in
       let off = Suffix.end_offset (Fm.suffix t.fm) in
       Val.encode_bin ~offset_of_key ~dict hash v
         (Suffix.append_exn (Fm.suffix t.fm));
@@ -420,9 +417,9 @@ struct
    *   Tbl.clear t.staging;
    *   Lru.clear t.lru *)
 
-  let close _ =
-    (* Calling close is undefined *)
-    assert false
+  let close _ = Lwt.return ()
+  (* Fm.close_exn t.fm; *)
+
   (* unsafe_close t; *)
   (* Lwt.return_unit *)
 

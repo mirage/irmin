@@ -5,11 +5,10 @@ module type Persistent = sig
   include S
 
   type file_manager
+  type dict
 
   val v :
-    config:Irmin.Backend.Conf.t ->
-    fm:file_manager ->
-    read t Lwt.t
+    config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t Lwt.t
 
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
 
@@ -19,6 +18,7 @@ module type Persistent = sig
   module Pack :
     Pack_store.S
       with type file_manager = file_manager
+       and type dict = dict
        and type key := hash Pack_key.t
        and type hash := hash
        and type 'a t = 'a t
@@ -61,5 +61,6 @@ module type Sigs = sig
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
        and type file_manager = Pack.file_manager
+       and type dict = Pack.dict
        and type value = Inter.Val.t
 end

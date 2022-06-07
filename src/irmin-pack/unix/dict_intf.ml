@@ -16,20 +16,22 @@
 
 module type S = sig
   type t
+  type file_manager
 
   val find : t -> int -> string option
   val index : t -> string -> int option
-  val flush : t -> unit
 
-  val sync : t -> unit
-  (** syncs a readonly dict with the file on disk. *)
+  (* val flush : t -> unit
+   *
+   * val sync : t -> unit
+   * (\** syncs a readonly dict with the file on disk. *\) *)
 
-  val v : ?fresh:bool -> ?readonly:bool -> ?capacity:int -> string -> t
+  val v : capacity:int -> file_manager -> t
   val close : t -> unit
 end
 
 module type Sigs = sig
   module type S = S
 
-  module Make (_ : Io_legacy.S) : S
+  module Make (Fm : File_manager.S) : S with type file_manager = Fm.t
 end

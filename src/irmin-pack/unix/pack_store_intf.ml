@@ -35,8 +35,10 @@ module type S = sig
    * end *)
 
   type file_manager
+  type dict
 
-  val v : config:Irmin.Backend.Conf.t -> fm:file_manager -> read t Lwt.t
+  val v :
+    config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t Lwt.t
 
   val cast : read t -> read_write t
 
@@ -87,6 +89,7 @@ module type Sigs = sig
 
   module Make
       (Fm : File_manager.S)
+      (Dict : Dict.S with type file_manager = Fm.t)
       (Hash : Irmin.Hash.S with type t = Fm.Index.key)
       (Val : Pack_value.Persistent
                with type hash := Hash.t
@@ -96,4 +99,5 @@ module type Sigs = sig
        and type hash = Hash.t
        and type value = Val.t
        and type file_manager = Fm.t
+       and type dict = Dict.t
 end
