@@ -35,11 +35,50 @@ struct
     suffix : Suffix.t;
     index : Index.t;
     use_fsync : bool;
+    mutable batch_level : int;
   }
 
+  module Control = Control
+  module Dict = Dict
+  module Suffix = Suffix
+  module Index = Index
+
+  let control t = t.control
+  let dict t = t.dict
+  let suffix t = t.suffix
+  let index t = t.index
+
+  (* Misc ******************************************************************* *)
+  let close t =
+    let open Result_syntax in
+    let* () = Dict.close t.dict in
+    let* () = Control.close t.control in
+    let+ () = Suffix.close t.suffix in
+    (* TODO: Index error monad *)
+    Index.close t.index
+
+  let reload _t = assert false
+  let flush _t = assert false
   let dict_is_about_to_auto_flush _ = ()
   let suffix_is_about_to_auto_flush _ = ()
   let index_is_about_to_auto_flush _ = ()
+
+  let batch_end t =
+
+
+  let batch t f =
+    t.batch_level <- t.batch_level + 1;
+    try
+      f ();
+      t.batch_level <- t.batch_level - 1;
+      if t.batch_level = 0 then batch_end t
+    with e ->
+      t.batch_level <- t.batch_level - 1;
+      (match out_of_batch t with
+      | Ok () | Error _ ->
+          (* Ignoring error *)
+          ());
+      raise e
 
   (* File creation ********************************************************** *)
 
@@ -254,16 +293,4 @@ struct
     in
     (* 3. return with success *)
     Ok { dict; control; suffix; use_fsync; index }
-
-  (* Misc ******************************************************************* *)
-  let close t =
-    let open Result_syntax in
-    let* () = Dict.close t.dict in
-    let* () = Control.close t.control in
-    let+ () = Suffix.close t.suffix in
-    (* TODO: Index error monad *)
-    Index.close t.index
-
-  let reload _t = assert false
-  let flush _t = assert false
 end

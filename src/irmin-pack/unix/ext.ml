@@ -132,28 +132,29 @@ module Maker (Config : Conf.S) = struct
         let branch_t t = t.branch
 
         let batch t f =
-          Commit.CA.batch t.commit (fun commit ->
-              Node.CA.batch t.node (fun node ->
-                  Contents.CA.batch t.contents (fun contents ->
-                      let contents : 'a Contents.t = contents in
-                      let node : 'a Node.t = (contents, node) in
-                      let commit : 'a Commit.t = (node, commit) in
-                      f contents node commit)))
+          f (t.contents :> read_write Contents.t)
+
+          (* Commit.CA.batch t.commit (fun commit ->
+           *     Node.CA.batch t.node (fun node ->
+           *         Contents.CA.batch t.contents (fun contents ->
+           *             let contents : 'a Contents.t = contents in
+           *             let node : 'a Node.t = (contents, node) in
+           *             let commit : 'a Commit.t = (node, commit) in
+           *             f contents node commit))) *)
 
         let unsafe_v config =
-          let indexing_strategy = Conf.indexing_strategy config in
           let fm =
             (* TODO *)
             assert false
           in
-          let* contents = Contents.CA.v ~indexing_strategy ~fm in
-          let* node = Node.CA.v ~indexing_strategy ~fm in
-          let* commit = Commit.CA.v ~indexing_strategy ~fm in
+          let* contents = Contents.CA.v ~config ~fm in
+          let* node = Node.CA.v ~config ~fm in
+          let* commit = Commit.CA.v ~config ~fm in
           let+ branch =
             let root = Conf.root config in
             let fresh = Conf.fresh config in
             let readonly = Conf.readonly config in
-            let path = Irmin_pack.Layout.V1_and_v2.branch ~root in
+            let path = Irmin_pack.Layout.V3.branch ~root in
             Branch.v ~fresh ~readonly path
           in
           { config; contents; node; commit; branch; fm }

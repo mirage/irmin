@@ -36,10 +36,7 @@ module type S = sig
 
   type file_manager
 
-  val v :
-    indexing_strategy:Irmin_pack.Indexing_strategy.t ->
-    fm:file_manager ->
-    read t Lwt.t
+  val v : config:Irmin.Backend.Conf.t -> fm:file_manager -> read t Lwt.t
 
   (* val sync : 'a t -> unit
    * (\** Syncs a readonly instance with the files on disk. The same file instance
@@ -87,8 +84,8 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (File_manager : File_manager.S)
-      (Hash : Irmin.Hash.S)
+      (Fm : File_manager.S)
+      (Hash : Irmin.Hash.S with type t = Fm.Index.key)
       (Val : Pack_value.Persistent
                with type hash := Hash.t
                 and type key := Hash.t Pack_key.t) :
@@ -96,5 +93,5 @@ module type Sigs = sig
       with type key = Hash.t Pack_key.t
        and type hash = Hash.t
        and type value = Val.t
-       and type file_manager = File_manager.t
+       and type file_manager = Fm.t
 end

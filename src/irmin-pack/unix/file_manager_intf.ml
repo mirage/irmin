@@ -16,8 +16,17 @@
 
 module type S = sig
   module Io : Io.S
+  module Control : Control_file.S
+  module Dict : Append_only_file.S
+  module Suffix : Append_only_file.S
+  module Index : Pack_index.S
 
   type t
+
+  val control : t -> Control.t
+  val dict : t -> Dict.t
+  val suffix : t -> Suffix.t
+  val index : t -> Index.t
 
   val create_rw :
     Irmin.Backend.Conf.t ->
@@ -57,5 +66,11 @@ module type Sigs = sig
       (Control : Control_file.S with module Io = Io.Unix)
       (Dict : Append_only_file.S with module Io = Control.Io)
       (Suffix : Append_only_file.S with module Io = Control.Io)
-      (Index : Pack_index.S) : S with module Io = Control.Io
+      (Index : Pack_index.S) :
+    S
+      with module Io = Control.Io
+       and module Control = Control
+       and module Dict = Dict
+       and module Suffix = Suffix
+       and module Index = Index
 end

@@ -7,7 +7,7 @@ module type Persistent = sig
   type file_manager
 
   val v :
-    indexing_strategy:Irmin_pack.Indexing_strategy.t ->
+    config:Irmin.Backend.Conf.t ->
     fm:file_manager ->
     read t Lwt.t
 
