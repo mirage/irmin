@@ -29,7 +29,6 @@ module Make
              with type hash := Hash.t
               and type key := Hash.t Pack_key.t) =
 struct
-  (* module Io_legacy = Io_legacy.Unix *)
   module Tbl = Table (Hash)
   module Dict = Fm.Dict
   module Control = Fm.Control

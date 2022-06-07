@@ -128,12 +128,8 @@ module Maker (Config : Conf.S) = struct
 
         let batch t f =
           let contents = Contents.CA.cast t.contents in
-          (* TODO:  *)
-          let node = Obj.magic t.node in
+          let node = Node.CA.Pack.cast t.node in
           let commit = Commit.CA.cast t.commit in
-          (* let contents = Contents.CA.cast t.contents in
-           * let node = Node.CA.Pack'.cast t.node in
-           * let commit = Commit.CA.cast t.commit in *)
           let contents : 'a Contents.t = contents in
           let node : 'a Node.t = (contents, node) in
           let commit : 'a Commit.t = (node, commit) in
