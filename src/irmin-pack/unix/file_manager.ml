@@ -263,4 +263,7 @@ struct
     let+ () = Suffix.close t.suffix in
     (* TODO: Index error monad *)
     Index.close t.index
+
+  let reload _t = assert false
+  let flush _t = assert false
 end

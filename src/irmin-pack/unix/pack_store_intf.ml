@@ -7,27 +7,57 @@ open! Import
     implementation, but not all of them need be. *)
 module type S = sig
   include Irmin_pack.Indexable.S
+  (* sig
+   *   type -'a t
+   *   type key
+   *   type value
+   *   val mem : [> Irmin__Import.read ] t -> key -> bool Lwt.t
+   *   val find : [> Irmin__Import.read ] t -> key -> value option Lwt.t
+   *   val close : 'a t -> unit Lwt.t
+   *   type hash
+   *   val index : [> Irmin__Import.read ] t -> hash -> key option Lwt.t
+   *   val batch :
+   *     Irmin__Import.read t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
+   *   module Key :
+   *     sig
+   *       type t = key
+   *       val t : t Irmin__Type.t
+   *       type hash = hash
+   *       val to_hash : t -> hash/2
+   *     end
+   *   val add : 'a t -> value -> key Lwt.t
+   *   val unsafe_add : 'a t -> hash -> value -> key Lwt.t
+   *   val index_direct : 'a t -> hash -> key option
+   *   val unsafe_append :
+   *     ensure_unique:bool -> overcommit:bool -> 'a t -> hash -> value -> key
+   *   val unsafe_mem : 'a t -> key -> bool
+   *   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
+   * end *)
 
-  type index
+  type file_manager
 
   val v :
-    readonly:bool ->
-    lru_size:int ->
-    index:index ->
     indexing_strategy:Irmin_pack.Indexing_strategy.t ->
-    dict:Pack_dict.t ->
-    io:Io_legacy.Unix.t ->
+    fm:file_manager ->
     read t Lwt.t
 
-  val sync : 'a t -> unit
-  (** Syncs a readonly instance with the files on disk. The same file instance
-      is shared between several pack instances. *)
-
-  val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
-  val offset : 'a t -> int63
+  (* val sync : 'a t -> unit
+   * (\** Syncs a readonly instance with the files on disk. The same file instance
+   *     is shared between several pack instances. *\)
+   *
+   * val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
+   * val offset : 'a t -> int63 *)
 
   (** @inline *)
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
+  (* sig
+   *   type 'a t
+   *   type hash
+   *   val integrity_check :
+   *     offset:Irmin_pack__Import.int63 ->
+   *     length:int ->
+   *     hash -> 'a t -> (unit, [ `Absent_value | `Wrong_hash ]) result
+   * end *)
 
   module Entry_prefix : sig
     type t = {
@@ -57,14 +87,14 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (Index : Pack_index.S)
-      (Hash : Irmin.Hash.S with type t = Index.key)
-      (V : Pack_value.Persistent
-             with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) :
+      (File_manager : File_manager.S)
+      (Hash : Irmin.Hash.S)
+      (Val : Pack_value.Persistent
+               with type hash := Hash.t
+                and type key := Hash.t Pack_key.t) :
     S
       with type key = Hash.t Pack_key.t
        and type hash = Hash.t
-       and type value = V.t
-       and type index := Index.t
+       and type value = Val.t
+       and type file_manager = File_manager.t
 end

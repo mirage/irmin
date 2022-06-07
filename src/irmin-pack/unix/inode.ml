@@ -15,12 +15,13 @@ module Make_persistent
                 and type Val.step = Node.step)
     (Pack : Pack_store.S
               with type hash = H.t
-               and type index := Pack_index.Make(H).t
                and type key = H.t Pack_key.t
                and type value = Inter.Raw.t) =
 struct
   module Raw = Inter.Raw
   module Pack = Pack
+
+  type file_manager = Pack.file_manager
 
   let to_snapshot = Inter.to_snapshot
 
@@ -36,6 +37,5 @@ struct
     Inter.Val.of_snapshot ~index v find
 
   let v = Pack.v
-  let sync = Pack.sync
   let integrity_check = Pack.integrity_check
 end

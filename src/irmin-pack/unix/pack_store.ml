@@ -24,8 +24,7 @@ end)
 
 module Make
     (File_manager : File_manager.S)
-    (* (Index : Pack_index.S) *)
-    (Hash : Irmin.Hash.S with type t = Index.key)
+    (Hash : Irmin.Hash.S)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
               and type key := Hash.t Pack_key.t) =
@@ -45,11 +44,8 @@ struct
   type 'a t = {
     lru : Val.t Lru.t;
     staging : Val.t Tbl.t;
-    readonly : bool;
-    io : Io_legacy.t;
-    index : Index.t;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
-    dict : Dict.t;
+    fm : File_manager.t;
   }
 
   type hash = Hash.t [@@deriving irmin ~pp ~equal ~decode_bin]
@@ -69,12 +65,12 @@ struct
 
   let index t hash = Lwt.return (index_direct t hash)
 
-  let flush ?(index = true) ?(index_merge = false) t =
-    if index_merge then Index.merge t.index;
-    Dict.flush t.dict;
-    Io_legacy.flush t.io;
-    if index then Index.flush t.index;
-    Tbl.clear t.staging
+  (* let flush ?(index = true) ?(index_merge = false) t =
+   *   if index_merge then Index.merge t.index;
+   *   Dict.flush t.dict;
+   *   Io_legacy.flush t.io;
+   *   if index then Index.flush t.index;
+   *   Tbl.clear t.staging *)
 
   let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
     let staging = Tbl.create 127 in
@@ -387,50 +383,20 @@ struct
 
   let add t v = unsafe_add t (Val.hash v) v
 
-  let unsafe_close t =
-    Tbl.clear t.staging;
-    Lru.clear t.lru
+  (* let unsafe_close t =
+   *   Tbl.clear t.staging;
+   *   Lru.clear t.lru *)
 
-  let close t =
-    unsafe_close t;
-    Lwt.return_unit
+  (* let close t =
+   *   unsafe_close t;
+   *   Lwt.return_unit *)
 
-  let sync t =
-    let former_offset = Io_legacy.offset t.io in
-    let offset = Io_legacy.force_offset t.io in
-    if offset > former_offset then (
-      Dict.sync t.dict;
-      Index.sync t.index)
+  (* let sync t =
+   *   let former_offset = Io_legacy.offset t.io in
+   *   let offset = Io_legacy.force_offset t.io in
+   *   if offset > former_offset then (
+   *     Dict.sync t.dict;
+   *     Index.sync t.index) *)
 
   let offset t = Io_legacy.offset t.io
 end
-
-(* module Make
- *     (Index : Pack_index.S)
- *     (Hash : Irmin.Hash.S with type t = Index.key)
- *     (Val : Pack_value.Persistent
- *              with type hash := Hash.t
- *               and type key := Hash.t Pack_key.t) =
- * struct
- *   module Inner = Make_without_close_checks (Index) (Hash) (Val)
- *   include Indexable.Closeable (Inner)
- *
- *   let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
- *     Inner.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
- *     >|= make_closeable
- *
- *   let sync t = Inner.sync (get_open_exn t)
- *
- *   let flush ?index ?index_merge t =
- *     Inner.flush ?index ?index_merge (get_open_exn t)
- *
- *   let offset t = Inner.offset (get_open_exn t)
- *
- *   let integrity_check ~offset ~length k t =
- *     Inner.integrity_check ~offset ~length k (get_open_exn t)
- *
- *   module Entry_prefix = Inner.Entry_prefix
- *
- *   let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
- *   let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
- * end *)

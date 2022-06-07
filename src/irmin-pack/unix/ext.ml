@@ -32,7 +32,6 @@ module Maker (Config : Conf.S) = struct
 
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
-
     module Control = Control_file.Make (Io.Unix)
     module Aof = Append_only_file.Make (Io.Unix)
     module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index)
@@ -47,13 +46,7 @@ module Maker (Config : Conf.S) = struct
 
       module Contents = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
-
-        module CA = struct
-          include Pack_store.Make (Index) (H) (Pack_value)
-
-          type index = Index.t
-        end
-
+        module CA = Pack_store.Make (File_manager) (H) (Pack_value)
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
@@ -64,10 +57,8 @@ module Maker (Config : Conf.S) = struct
           module Inter =
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
-          module Pack' = Pack_store.Make (Index) (H) (Inter.Raw)
+          module Pack' = Pack_store.Make (File_manager) (H) (Inter.Raw)
           include Inode.Make_persistent (H) (Value) (Inter) (Pack')
-
-          type index = Index.t
         end
 
         include
@@ -90,7 +81,7 @@ module Maker (Config : Conf.S) = struct
         end
 
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
-        module CA = Pack_store.Make (Index) (H) (Pack_value)
+        module CA = Pack_store.Make (File_manager) (H) (Pack_value)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
@@ -133,9 +124,6 @@ module Maker (Config : Conf.S) = struct
           commit : read Commit.CA.t;
           branch : Branch.t;
           fm : File_manager.t;
-              (* index : Index.t; *)
-              (* dict : Pack_dict.t; *)
-              (* io : Io_legacy.t; *)
         }
 
         let contents_t t : 'a Contents.t = t.contents
@@ -153,33 +141,32 @@ module Maker (Config : Conf.S) = struct
                       f contents node commit)))
 
         let unsafe_v config =
-          let root = Conf.root config
-          and fresh = Conf.fresh config
-          and lru_size = Conf.lru_size config
-          and readonly = Conf.readonly config
-          and log_size = Conf.index_log_size config
-          and throttle = Conf.merge_throttle config
-          and indexing_strategy = Conf.indexing_strategy config in
+          let indexing_strategy = Conf.indexing_strategy config in
+          let fm =
+            (* TODO *)
+            assert false
+          in
           let* contents = Contents.CA.v ~indexing_strategy ~fm in
           let* node = Node.CA.v ~indexing_strategy ~fm in
           let* commit = Commit.CA.v ~indexing_strategy ~fm in
-          let fm =
-            File_manager
-          in
           let+ branch =
+            let root = Conf.root config in
+            let fresh = Conf.fresh config in
+            let readonly = Conf.readonly config in
             let path = Irmin_pack.Layout.V1_and_v2.branch ~root in
             Branch.v ~fresh ~readonly path
           in
           { config; contents; node; commit; branch; fm }
 
         let close t =
-          Index.close t.index;
-          [%log.debug "[pack] close %s" (Io_legacy.name t.io)];
-          Io_legacy.close t.io;
-          Dict.close t.dict;
-          Contents.CA.close (contents_t t) >>= fun () ->
-          Node.CA.close (snd (node_t t)) >>= fun () ->
-          Commit.CA.close (snd (commit_t t)) >>= fun () -> Branch.close t.branch
+          let () =
+            match File_manager.close t.fm with
+            | Ok () -> ()
+            | Error _ ->
+                (* TODO *)
+                assert false
+          in
+          Branch.close t.branch
 
         let v config =
           Lwt.catch
@@ -193,11 +180,22 @@ module Maker (Config : Conf.S) = struct
                   Lwt.fail e
               | e -> Lwt.fail e)
 
-        (** Stores share instances in memory, one sync is enough. *)
-        let sync t = Contents.CA.sync (contents_t t)
+        (* TODO: Rename [sync] to [reload] absolutly everywhere *)
+        let sync t =
+          match File_manager.reload t.fm with
+          | Ok () -> ()
+          | Error _ ->
+              (* TODO *)
+              assert false
 
         let flush t =
-          Contents.CA.flush (contents_t t);
+          let () =
+            match File_manager.flush t.fm with
+            | Ok () -> ()
+            | Error _ ->
+                (* TODO *)
+                assert false
+          in
           Branch.flush t.branch
       end
     end
@@ -213,7 +211,10 @@ module Maker (Config : Conf.S) = struct
         | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
-      Checks.integrity_check ?ppf ~auto_repair ~check t.index
+      ignore (ppf, auto_repair, check, t);
+      (* TODO *)
+      assert false
+    (* Checks.integrity_check ?ppf ~auto_repair ~check t.index *)
 
     include Irmin.Of_backend (X)
 
