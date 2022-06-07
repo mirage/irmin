@@ -320,6 +320,8 @@ module Make (P : Backend.S) = struct
               if cache then c.info.ptr <- Hash h;
               h)
 
+    let is_val t = match cached_value t with None -> false | Some _ -> true
+
     let key t =
       match t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
 
@@ -1227,6 +1229,24 @@ module Make (P : Backend.S) = struct
 
     let findv = findv_aux ~value_of_key ~return:Lwt.return ~bind:Lwt.bind
 
+    exception Lazy
+
+    let findv' ctx t k =
+      match
+        findv_aux ~cache:false
+          ~value_of_key:(fun ~cache:_ _ _ _ -> raise Lazy)
+          ~return:Fun.id
+          ~bind:(fun x f -> f x)
+          ctx t k
+      with
+      | exception Lazy -> None
+      | e -> e
+
+    let is_val t =
+      match (cached_map t, cached_value t) with
+      | None, None -> false
+      | _ -> true
+
     let seq_of_map ?(offset = 0) ?length m : (step * elt) Seq.t =
       let take seq =
         match length with None -> seq | Some n -> Seq.take n seq
@@ -1690,6 +1710,18 @@ module Make (P : Backend.S) = struct
     match t with
     | `Node n -> (aux [@tailcall]) n path
     | `Contents _ -> Lwt.return_none
+
+  let is_val t path =
+    let rec aux node path =
+      match Path.decons path with
+      | None -> Node.is_val node
+      | Some (h, p) -> (
+          match Node.findv' "is_val" node h with
+          | None -> true
+          | Some (`Contents (c, _)) -> Contents.is_val c
+          | Some (`Node n) -> aux n p)
+    in
+    match t with `Node n -> aux n path | `Contents (c, _) -> Contents.is_val c
 
   let find_tree (t : t) path =
     let cache = true in
