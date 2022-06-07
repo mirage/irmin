@@ -55,9 +55,11 @@ module type Sigs = sig
                   and type key = H.t Pack_key.t
                   and type Snapshot.metadata = Node.metadata
                   and type Val.step = Node.step)
-      (CA : Pack_store.Maker
-              with type hash = H.t
-               and type index := Pack_index.Make(H).t) :
+      (Pack : Pack_store.S
+                with type hash = H.t
+                 and type index := Pack_index.Make(H).t
+                 and type key = H.t Pack_key.t
+                 and type value = Inter.Raw.t) :
     Persistent
       with type key = H.t Pack_key.t
        and type hash = H.t

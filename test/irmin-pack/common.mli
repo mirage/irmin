@@ -66,11 +66,6 @@ module Pack :
      and type value = string
      and type index := Index.t
 
-module P :
-  Irmin_pack_unix.Pack_store.Maker
-    with type hash = Schema.Hash.t
-     and type index := Irmin_pack_unix.Index.Make(Schema.Hash).t
-
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)
 module Make_context (Config : sig
   val root : string

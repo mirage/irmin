@@ -76,8 +76,7 @@ end
 module I = Irmin_pack_unix.Index
 module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
-module P = Irmin_pack_unix.Pack_store.Maker (Index) (Schema.Hash)
-module Pack = P.Make (Contents)
+module Pack = Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Contents)
 
 module Branch =
   Irmin_pack_unix.Atomic_write.Make_persistent

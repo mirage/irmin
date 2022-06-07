@@ -13,16 +13,17 @@ module Make_persistent
                 and type key = H.t Pack_key.t
                 and type Snapshot.metadata = Node.metadata
                 and type Val.step = Node.step)
-    (CA : Pack_store.Maker
-            with type hash = H.t
-             and type index := Pack_index.Make(H).t) =
+    (Pack : Pack_store.S
+              with type hash = H.t
+               and type index := Pack_index.Make(H).t
+               and type key = H.t Pack_key.t
+               and type value = Inter.Raw.t) =
 struct
   module Raw = Inter.Raw
+  module Pack = Pack
 
   let to_snapshot = Inter.to_snapshot
 
-  module Persistent_pack = CA.Make (Inter.Raw)
-  module Pack = Persistent_pack
   module XKey = Pack_key.Make (H)
   include Make (H) (XKey) (Node) (Inter) (Pack)
   module Snapshot = Inter.Snapshot
