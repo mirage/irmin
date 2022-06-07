@@ -82,6 +82,12 @@ module type S = sig
   (** [is_empty t] is true iff [t] is {!empty} (i.e. a tree node with no
       children). Trees with {!kind} = [`Contents] are never considered empty. *)
 
+  val is_val : t -> path -> bool
+  (** [is_val t k] is [true] iff the path [k] has already been forced in [t]. In
+      that case, that means that all the nodes traversed by [k] are loaded in
+      memory. If the leaf node is a contents [c], then [Contents.is_val c]
+      should also be [true]. *)
+
   (** {1 Diffs} *)
 
   val diff : t -> t -> (path * (contents * metadata) Diff.t) list Lwt.t
@@ -127,6 +133,10 @@ module type S = sig
     val force_exn : t -> contents Lwt.t
     (** Equivalent to {!val-force}, but raises an exception if the lazy content
         value is not present in the underlying repository. *)
+
+    val is_val : t -> bool
+    (** [is_val x] is [true] iff [x] has already been forced (and so is loaded
+        in memory). *)
 
     val clear : t -> unit
     (** [clear t] clears [t]'s cache. *)
