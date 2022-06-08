@@ -124,9 +124,7 @@ module Maker (Config : Conf.S) = struct
           node : read Node.CA.t;
           commit : read Commit.CA.t;
           branch : Branch.t;
-
           fm : File_manager.t;
-
           dict : Dict.t;
         }
 

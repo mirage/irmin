@@ -42,7 +42,6 @@ module type S = sig
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
 
   type close_error = [ `Io_misc of misc_error | `Double_close ]
-
   type move_file_error = [ `Io_misc of misc_error ]
 
   type mkdir_error =

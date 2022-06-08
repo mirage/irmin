@@ -44,7 +44,7 @@ module type S = sig
   val reload : t -> (unit, [> `Tmp ]) result
   val close : t -> (unit, [> `Tmp ]) result
   val close_exn : t -> unit
-  val flush : t ->  with_fsync:bool -> (unit, [> `Tmp ]) result
+  val flush : t -> with_fsync:bool -> (unit, [> `Tmp ]) result
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
   val merge : t -> unit

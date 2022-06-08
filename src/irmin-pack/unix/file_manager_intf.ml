@@ -58,7 +58,11 @@ module type S = sig
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
   val flush : t -> (unit, [> Io.write_error | `Tmp ]) result
   val flush_exn : t -> unit
-  val reload : t -> (unit, [> Io.read_error | `Rw_not_allowed | `Decoding_error | `Tmp ]) result
+
+  val reload :
+    t ->
+    (unit, [> Io.read_error | `Rw_not_allowed | `Decoding_error | `Tmp ]) result
+
   val reload_exn : t -> unit
 end
 

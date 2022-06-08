@@ -47,9 +47,7 @@ struct
   let suffix t = t.suffix
   let index t = t.index
 
-  (* Misc ******************************************************************* *)
   let close t =
-    (* TODO: Implement close *)
     let open Result_syntax in
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in

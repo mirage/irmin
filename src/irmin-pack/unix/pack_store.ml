@@ -71,13 +71,6 @@ struct
 
   let index t hash = Lwt.return (index_direct t hash)
 
-  (* let flush ?(index = true) ?(index_merge = false) t =
-   *   if index_merge then Index.merge (Fm.index t.fm);
-   *   Dict.flush (Fm.dict t.fm);
-   *   Io_legacy.flush t.io;
-   *   if index then Index.flush (Fm.index t.fm);
-   *   Tbl.clear t.staging *)
-
   let v ~config ~fm ~dict =
     let indexing_strategy = Conf.indexing_strategy config in
     let lru_size = Conf.lru_size config in
@@ -344,6 +337,10 @@ struct
 
   let cast t = (t :> read_write t)
 
+  (** [batch] is required by the [Backend] signature of irmin core, but
+      irmin-pack is really meant to be used using the [batch] of the repo (in
+      [ext.ml]). The following batch exists only for compatibility, but it is
+      very tempting to replace the implementation by an [assert false]. *)
   let batch t f =
     [%log.warn
       "[pack] calling batch directory on a store is not recommended. Use \
@@ -416,22 +413,11 @@ struct
 
   let add t v = unsafe_add t (Val.hash v) v
 
-  (* let unsafe_close t =
-   *   Tbl.clear t.staging;
-   *   Lru.clear t.lru *)
+  (** This close is a noop.
 
+      Closing the file manager would be inadequate because it is passed to [v].
+      The caller should close the file manager.
+
+      We could clear the caches here but that really is not necessary. *)
   let close _ = Lwt.return ()
-  (* Fm.close_exn t.fm; *)
-
-  (* unsafe_close t; *)
-  (* Lwt.return_unit *)
-
-  (* let sync t =
-   *   let former_offset = Suffix.end_offset (Fm.suffix t.fm) in
-   *   let offset = Io_legacy.force_offset t.io in
-   *   if offset > former_offset then (
-   *     Dict.sync (Fm.dict t.fm);
-   *     Index.sync (Fm.index t.fm)) *)
-
-  (* let offset t = Suffix.end_offset (Fm.suffix t.fm) *)
 end

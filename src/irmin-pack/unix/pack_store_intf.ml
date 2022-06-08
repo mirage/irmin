@@ -7,32 +7,6 @@ open! Import
     implementation, but not all of them need be. *)
 module type S = sig
   include Irmin_pack.Indexable.S
-  (* sig
-   *   type -'a t
-   *   type key
-   *   type value
-   *   val mem : [> Irmin__Import.read ] t -> key -> bool Lwt.t
-   *   val find : [> Irmin__Import.read ] t -> key -> value option Lwt.t
-   *   val close : 'a t -> unit Lwt.t
-   *   type hash
-   *   val index : [> Irmin__Import.read ] t -> hash -> key option Lwt.t
-   *   val batch :
-   *     Irmin__Import.read t -> ([ `Read | `Write ] t -> 'a Lwt.t) -> 'a Lwt.t
-   *   module Key :
-   *     sig
-   *       type t = key
-   *       val t : t Irmin__Type.t
-   *       type hash = hash
-   *       val to_hash : t -> hash/2
-   *     end
-   *   val add : 'a t -> value -> key Lwt.t
-   *   val unsafe_add : 'a t -> hash -> value -> key Lwt.t
-   *   val index_direct : 'a t -> hash -> key option
-   *   val unsafe_append :
-   *     ensure_unique:bool -> overcommit:bool -> 'a t -> hash -> value -> key
-   *   val unsafe_mem : 'a t -> key -> bool
-   *   val unsafe_find : check_integrity:bool -> 'a t -> key -> value option
-   * end *)
 
   type file_manager
   type dict
@@ -42,23 +16,8 @@ module type S = sig
 
   val cast : read t -> read_write t
 
-  (* val sync : 'a t -> unit
-   * (\** Syncs a readonly instance with the files on disk. The same file instance
-   *     is shared between several pack instances. *\)
-   *
-   * val flush : ?index:bool -> ?index_merge:bool -> 'a t -> unit
-   * val offset : 'a t -> int63 *)
-
   (** @inline *)
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
-  (* sig
-   *   type 'a t
-   *   type hash
-   *   val integrity_check :
-   *     offset:Irmin_pack__Import.int63 ->
-   *     length:int ->
-   *     hash -> 'a t -> (unit, [ `Absent_value | `Wrong_hash ]) result
-   * end *)
 
   module Entry_prefix : sig
     type t = {
@@ -77,7 +36,9 @@ module type S = sig
   end
 
   val read_and_decode_entry_prefix :
-    off:int63 -> io_read_at_most:(off:int63 -> len:int -> bytes -> int) -> Entry_prefix.t
+    off:int63 ->
+    io_read_at_most:(off:int63 -> len:int -> bytes -> int) ->
+    Entry_prefix.t
   (** Read the entry prefix at offset [off]. *)
 
   val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
