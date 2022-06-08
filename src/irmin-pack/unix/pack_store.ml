@@ -130,9 +130,9 @@ struct
       Option.map (fun len -> min_length + len) t.size_of_value_and_length_header
   end
 
-  let read_and_decode_entry_prefix ~off ~io_read =
+  let read_and_decode_entry_prefix ~off ~io_read_at_most =
     let buf = Bytes.create Entry_prefix.max_length in
-    let bytes_read = io_read ~off buf in
+    let bytes_read = io_read_at_most ~off ~len:Entry_prefix.max_length buf in
     (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
        final entry in the pack file (if the data section of the entry is
        shorter than [Varint.max_encoded_size]. In this case, an invalid read
@@ -162,11 +162,27 @@ struct
     { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
   let io_read_and_decode_entry_prefix ~off t =
-    ignore t;
-    (* Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf; *)
-    (* TODO: Fix here. Need a [read_up_to] *)
-    let io_read = assert false in
-    read_and_decode_entry_prefix ~off ~io_read
+    let io_read_at_most ~off ~len b =
+      (* Read at most [len], by checking that [(off, len)] don't go out of
+         bounds of the suffix file.
+
+         This will have to be rewritten to work with the prefix file. A solution
+         would be to implement somewhere a [read_at_most_exn] function that
+         reads in both the prefix and the suffix and that doesn't crash if the
+         read goes out of bounds. *)
+      let bytes_after_off =
+        let ( - ) = Int63.sub in
+        Suffix.end_offset (Fm.suffix t.fm) - off
+      in
+      let len =
+        let ( < ) a b = Int63.compare a b < 0 in
+        if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
+        else len
+      in
+      Suffix.read_exn (Fm.suffix t.fm) ~off ~len b;
+      len
+    in
+    read_and_decode_entry_prefix ~off ~io_read_at_most
 
   let pack_file_contains_key t k =
     let key = Pack_key.inspect k in

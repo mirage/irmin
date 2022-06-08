@@ -123,9 +123,11 @@ module Maker (Config : Conf.S) = struct
           contents : read Contents.CA.t;
           node : read Node.CA.t;
           commit : read Commit.CA.t;
-          dict : Dict.t;
           branch : Branch.t;
+
           fm : File_manager.t;
+
+          dict : Dict.t;
         }
 
         let batch t f =
