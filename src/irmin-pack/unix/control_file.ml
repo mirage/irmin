@@ -84,17 +84,15 @@ end
 module Make (Io : Io.S) = struct
   module Io = Io
 
-  type t = { io : Io.t; mutable payload : Latest_payload.t; use_fsync : bool }
+  type t = { io : Io.t; mutable payload : Latest_payload.t }
 
-  let write io use_fsync payload =
-    let open Result_syntax in
+  let write io payload =
     let s = Data.(to_bin_string (V3 payload)) in
 
     (* The data must fit inside a single page for atomic updates of the file *)
     assert (String.length s <= Io.page_size);
 
-    let* () = Io.write_string io ~off:Int63.zero s in
-    if use_fsync then Io.fsync io else Ok ()
+    Io.write_string io ~off:Int63.zero s
 
   let read io =
     let open Result_syntax in
@@ -105,25 +103,25 @@ module Make (Io : Io.S) = struct
     | Ok _ as ok -> ok
     | Error (`Msg _msg) -> Error `Decoding_error
 
-  let create_rw ~path ~overwrite ~use_fsync payload =
+  let create_rw ~path ~overwrite payload =
     let open Result_syntax in
     let* io = Io.create ~path ~overwrite in
-    let+ () = write io use_fsync payload in
-    { io; payload; use_fsync }
+    let+ () = write io payload in
+    { io; payload }
 
-  let open_rw ~path ~use_fsync =
+  let open_rw ~path =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:false in
     let+ data = read io in
     let payload = match data with Data.V3 payload -> payload in
-    { io; payload; use_fsync }
+    { io; payload }
 
   let open_ro ~path =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:true in
     let+ data = read io in
     let payload = match data with Data.V3 payload -> payload in
-    { io; payload; use_fsync = false }
+    { io; payload }
 
   let close t = Io.close t.io
   let readonly t = Io.readonly t.io
@@ -139,6 +137,8 @@ module Make (Io : Io.S) = struct
 
   let set_payload t payload =
     let open Result_syntax in
-    let+ () = write t.io t.use_fsync payload in
+    let+ () = write t.io payload in
     t.payload <- payload
+
+  let fsync t = Io.fsync t.io
 end

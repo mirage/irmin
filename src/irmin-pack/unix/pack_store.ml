@@ -81,7 +81,6 @@ struct
   let v ~config ~fm ~dict =
     let indexing_strategy = Conf.indexing_strategy config in
     let lru_size = Conf.lru_size config in
-
     let staging = Tbl.create 127 in
     let lru = Lru.create lru_size in
     { lru; staging; indexing_strategy; fm; dict } |> Lwt.return
@@ -367,8 +366,6 @@ struct
     in
     Lwt.try_bind (fun () -> f (cast t)) on_success on_fail
 
-  let auto_flush = 1024
-
   let unsafe_append ~ensure_unique ~overcommit t hash v =
     let unguarded_append () =
       [%log.debug "[pack] append %a" pp_hash hash];
@@ -388,16 +385,12 @@ struct
       in
       let dict = Dict.index t.dict in
       let off = Suffix.end_offset (Fm.suffix t.fm) in
-      Val.encode_bin ~offset_of_key ~dict hash v
-        (Suffix.append_exn (Fm.suffix t.fm));
-      (* TODO: Fix flush
-           The current behaviour is:
-           - if >1M (never triggered because 1024 triggers first in practice)
-              - only flush pack file, most likely midway during the encoding of entries
-              - don't flush dict, don't flush staging
-           - if >1024 entries
-              - perform a flush at a sensible location
-      *)
+
+      (* [encode_bin] will most likely call [append] several time. One of these
+         call may trigger an auto flush. *)
+      let append = Suffix.append_exn (Fm.suffix t.fm) in
+      Val.encode_bin ~offset_of_key ~dict hash v append;
+
       let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) -- off) in
       let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
       let () =
@@ -406,8 +399,7 @@ struct
         if should_index then
           Index.add ~overcommit (Fm.index t.fm) hash (off, len, kind)
       in
-      if Tbl.length t.staging >= auto_flush then assert false
-      else Tbl.add t.staging hash v;
+      Tbl.add t.staging hash v;
       Lru.add t.lru hash v;
       [%log.debug "[pack] append done %a <- %a" pp_hash hash pp_key key];
       key

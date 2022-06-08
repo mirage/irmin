@@ -123,5 +123,5 @@ module Make (Io : Io.S) = struct
         Buffer.add_string rw_perm.buf s;
         if Buffer.length rw_perm.buf >= rw_perm.auto_flush_threshold then (
           rw_perm.auto_flush_callback ();
-          match flush t with Ok () -> () | Error e -> raise (Io.Write_error e))
+          assert (Buffer.length rw_perm.buf = 0))
 end

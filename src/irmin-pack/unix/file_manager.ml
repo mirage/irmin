@@ -61,10 +61,6 @@ struct
     (* TODO: Implement reload *)
     assert false
 
-  let flush _t =
-    (* TODO: Implement flush *)
-    assert false
-
   let reload_exn t =
     match reload t with
     | Ok () -> ()
@@ -72,16 +68,77 @@ struct
         (* TODO: Proper exception *)
         assert false
 
+  (* Flush stages *********************************************************** *)
+
+  (* Flush stage 1 *)
+  let flush_dict t =
+    let open Result_syntax in
+    let* () = Dict.flush t.dict in
+    let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
+    let* () =
+      let pl : Payload.t = Control.payload t.control in
+      let pl = { pl with dict_offset_end = Dict.end_offset t.dict } in
+      Control.set_payload t.control pl
+    in
+    let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
+    ()
+
+  (* Flush stage 2 *)
+  let flush_suffix_and_its_deps t =
+    let open Result_syntax in
+    let* () = flush_dict t in
+    let* () = Suffix.flush t.suffix in
+    let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
+    let* () =
+      let pl : Payload.t = Control.payload t.control in
+      let pl = { pl with entry_offset_suffix_end = Dict.end_offset t.dict } in
+      Control.set_payload t.control pl
+    in
+    let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
+    (* TODO: Flush staging table *)
+    ()
+
+  (* Flush stage 3 *)
+  let flush_index_and_its_deps t =
+    let open Result_syntax in
+    let* () = flush_suffix_and_its_deps t in
+    Index.flush ~no_callback:() ~with_fsync:t.use_fsync t.index;
+    (* TODO: Proper error monad for index.flush *)
+    Ok ()
+
+  (* Auto flushes *********************************************************** *)
+
+  let dict_requires_a_flush_exn t =
+    match flush_dict t with
+    | Ok () -> ()
+    | Error _ ->
+        (* TODO: Proper error *)
+        assert false
+
+  let suffix_requires_a_flush_exn t =
+    match flush_suffix_and_its_deps t with
+    | Ok () -> ()
+    | Error _ ->
+        (* TODO: Proper error *)
+        assert false
+
+  let index_is_about_to_auto_flush_exn t =
+    match flush_suffix_and_its_deps t with
+    | Ok () -> ()
+    | Error _ ->
+        (* TODO: Proper error *)
+        assert false
+
+  (* Explicit flush ********************************************************* *)
+
+  let flush t = flush_index_and_its_deps t
+
   let flush_exn t =
     match flush t with
     | Ok () -> ()
     | Error _ ->
         (* TODO: Proper exception *)
         assert false
-
-  let dict_is_about_to_auto_flush _ = ()
-  let suffix_is_about_to_auto_flush _ = ()
-  let index_is_about_to_auto_flush _ = ()
 
   (* File creation ********************************************************** *)
 
@@ -107,7 +164,7 @@ struct
       let auto_flush_threshold =
         Irmin_pack.Conf.suffix_auto_flush_threshold config
       in
-      let cb () = suffix_is_about_to_auto_flush (get_instance ()) in
+      let cb () = suffix_requires_a_flush_exn (get_instance ()) in
       make_suffix ~path ~auto_flush_threshold ~auto_flush_callback:cb
     in
     let* dict =
@@ -115,30 +172,28 @@ struct
       let auto_flush_threshold =
         Irmin_pack.Conf.dict_auto_flush_threshold config
       in
-      let cb () = dict_is_about_to_auto_flush (get_instance ()) in
+      let cb () = dict_requires_a_flush_exn (get_instance ()) in
       make_dict ~path ~auto_flush_threshold ~auto_flush_callback:cb
     in
     let* index =
       let log_size = Conf.index_log_size config in
       let throttle = Conf.merge_throttle config in
-      let cb () = index_is_about_to_auto_flush (get_instance ()) in
+      let cb () = index_is_about_to_auto_flush_exn (get_instance ()) in
       (* [cb] will not be called during calls to [index.flush] because we will
          use [~no_callback:()] *)
       make_index ~flush_callback:cb ~readonly:false ~throttle ~log_size root
     in
-
     Ok { dict; control; suffix; use_fsync; index }
 
   let create_control_file ~overwrite config (status : Payload.status) =
     let root = Irmin_pack.Conf.root config in
-    let use_fsync = Irmin_pack.Conf.use_fsync config in
     let path = Irmin_pack.Layout.V3.control ~root in
     let pl =
       let open Payload in
       let z = Int63.zero in
       { dict_offset_end = z; entry_offset_suffix_end = z; status }
     in
-    Control.create_rw ~path ~overwrite ~use_fsync pl
+    Control.create_rw ~path ~overwrite pl
 
   (** Note on SWMR consistency: It is undefined for a reader to attempt an
       opening before [create_rw] is over.
@@ -178,10 +233,9 @@ struct
   let open_rw_with_control_file config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
-    let use_fsync = Irmin_pack.Conf.use_fsync config in
     let* control =
       let path = Irmin_pack.Layout.V3.control ~root in
-      Control.open_rw ~path ~use_fsync
+      Control.open_rw ~path
     in
     let pl : Payload.t = Control.payload control in
     let dead_header_size =

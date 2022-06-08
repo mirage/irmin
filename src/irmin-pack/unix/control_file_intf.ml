@@ -80,14 +80,12 @@ module type S = sig
   val create_rw :
     path:string ->
     overwrite:bool ->
-    use_fsync:bool ->
     Latest_payload.t ->
     (t, [> Io.create_error | Io.write_error ]) result
   (** Create a rw instance of [t] by creating a control file. *)
 
   val open_rw :
     path:string ->
-    use_fsync:bool ->
     (t, [> Io.open_error | Io.read_error | `Decoding_error ]) result
   (** Create a rw instance of [t] by reading an existing file at [path]. *)
 
@@ -140,6 +138,7 @@ module type S = sig
       Always returns an error. *)
 
   val readonly : t -> bool
+  val fsync : t -> (unit, [> Io.write_error ]) result
 end
 
 module type Sigs = sig
