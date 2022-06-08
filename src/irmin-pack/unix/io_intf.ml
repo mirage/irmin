@@ -43,9 +43,6 @@ module type S = sig
 
   type close_error = [ `Io_misc of misc_error | `Double_close ]
 
-  type reload_error =
-    [ `Io_misc of misc_error | `Rw_not_allowed | `Reload_on_closed ]
-
   type move_file_error = [ `Io_misc of misc_error ]
 
   type mkdir_error =

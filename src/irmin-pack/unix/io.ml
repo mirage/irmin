@@ -35,9 +35,6 @@ module Unix = struct
 
   type close_error = [ `Io_misc of misc_error | `Double_close ]
 
-  type reload_error =
-    [ `Io_misc of misc_error | `Rw_not_allowed | `Reload_on_closed ]
-
   type mkdir_error =
     [ `Io_misc of misc_error | `File_exists | `No_such_file_or_directory ]
 

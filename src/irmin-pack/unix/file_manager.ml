@@ -53,13 +53,25 @@ struct
     let open Result_syntax in
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
-    let+ () = Suffix.close t.suffix in
-    (* TODO: Proper error monad for [Index.close] *)
-    Index.close t.index
+    let* () = Suffix.close t.suffix in
+    let+ () = Index.close t.index in
+    ()
 
-  let reload _t =
-    (* TODO: Implement reload *)
-    assert false
+  (* Reload ***************************************************************** *)
+
+  let reload t =
+    let open Result_syntax in
+    let* () = Index.reload t.index in
+    let pl0 = Control.payload t.control in
+    let* () = Control.reload t.control in
+    let pl1 : Payload.t = Control.payload t.control in
+    if pl0 = pl1 then Ok ()
+    else
+      let* () =
+        Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
+      in
+      let+ () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
+      ()
 
   let reload_exn t =
     match reload t with
@@ -102,9 +114,8 @@ struct
   let flush_index_and_its_deps t =
     let open Result_syntax in
     let* () = flush_suffix_and_its_deps t in
-    Index.flush ~no_callback:() ~with_fsync:t.use_fsync t.index;
-    (* TODO: Proper error monad for index.flush *)
-    Ok ()
+    let+ () = Index.flush ~with_fsync:t.use_fsync t.index in
+    ()
 
   (* Auto flushes *********************************************************** *)
 

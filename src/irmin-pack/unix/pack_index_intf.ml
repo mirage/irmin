@@ -41,11 +41,13 @@ module type S = sig
     string ->
     (t, [> Io.Unix.create_error | Io.Unix.open_error ]) result
 
+  val reload : t -> (unit, [> `Tmp ]) result
+  val close : t -> (unit, [> `Tmp ]) result
+  val close_exn : t -> unit
+  val flush : t ->  with_fsync:bool -> (unit, [> `Tmp ]) result
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
-  val close : t -> unit
   val merge : t -> unit
-  val flush : ?no_callback:unit -> ?with_fsync:bool -> t -> unit
   val sync : t -> unit
   val mem : t -> key -> bool
   val iter : (key -> value -> unit) -> t -> unit

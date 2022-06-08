@@ -110,7 +110,7 @@ end = struct
          smaller [log_size] don't immediately trigger a merge operation. *)
       [%log.app "Completed indexing of pack entries. Running a final merge ..."];
       Index.try_merge index;
-      Index.close index
+      Index.close_exn index
   end
 
   module Index_checker = struct
@@ -133,7 +133,7 @@ end = struct
           incr idx_ref;
           Ok ()
 
-    let finalise (index, _) () = Index.close index
+    let finalise (index, _) () = Index.close_exn index
   end
 
   module Index_check_and_fix = struct
@@ -159,7 +159,7 @@ end = struct
     let finalise (index, _) () =
       [%log.app "Completed indexing of pack entries. Running a final merge ..."];
       Index.try_merge index;
-      Index.close index
+      Index.close_exn index
   end
 
   let decode_entry_length = function

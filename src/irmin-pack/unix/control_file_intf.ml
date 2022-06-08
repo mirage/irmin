@@ -110,7 +110,7 @@ module type S = sig
       [payload t] is the [payload], as it was seen during [open_] or during the
       most recent [reload]. *)
 
-  type reload_error := [ `Decoding_error | Io.reload_error | Io.read_error ]
+  type reload_error := [ `Decoding_error | Io.read_error | `Rw_not_allowed ]
 
   val reload : t -> (unit, [> reload_error ]) result
   (** Reread the file.

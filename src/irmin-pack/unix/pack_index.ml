@@ -74,5 +74,20 @@ module Make (K : Irmin.Hash.S) = struct
 
   let add ?overcommit t k v = replace ?overcommit t k v
   let find t k = match find t k with exception Not_found -> None | h -> Some h
-  let close t = Index.close t
+  let close_exn t = Index.close t
+
+  let close t =
+    close_exn t;
+    (* TODO: Catch errors and set type in mli *)
+    Ok ()
+
+  let reload t =
+    Index.sync t;
+    (* TODO: Catch errors and set type in mli *)
+    Ok ()
+
+  let flush t ~with_fsync =
+    Index.flush ~no_callback:() ~with_fsync t;
+    (* TODO: Catch errors and set type in mli *)
+    Ok ()
 end
