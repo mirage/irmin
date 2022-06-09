@@ -1,3 +1,4 @@
+M
 (*
  * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *
@@ -17,6 +18,14 @@
 open Import
 
 module type S = sig
+  (** Abstraction for irmin-pack's append only files (i.e. suffix and dict).
+
+      It is parameterized with [Io], a file system abstraction (e.g. unix,
+      mirage, eio_linux).
+
+      It comprises a persistent file, an append buffer and take care of
+      automatically shifting offsets to deal with legacy headers. *)
+
   module Io : Io.S
 
   type t
@@ -38,6 +47,15 @@ module type S = sig
     (t, [> Io.open_error ]) result
   (** Create a rw instance of [t] by opening an existing file at [path].
 
+      {3 End Offset}
+
+      The file has an end offset at which new data will be saved. While this
+      information could be computed by looking at the size of the file, we
+      prefer storing that information elsewhere (i.e. in the control file). This
+      is why [open_rw] and [open_ro] take an [end_offset] parameter, and also
+      why [refresh_end_offset] exists. The abstractions above [Append_only_file]
+      are responsible for reading/writing the offsets from/to the control file.
+
       {3 [dead_header_size]}
 
       Designates a small area at the beginning of the file that should be
@@ -46,7 +64,15 @@ module type S = sig
       The actual persisted size of a file is [end_offset + dead_header_size].
 
       This concept exists in order to keep supporting [`V1] and [`V2] pack
-      stores with [`V3]. *)
+      stores with [`V3].
+
+      {3 Auto Flushes}
+
+      One of the goal of the [Append_only_file] abstraction is to provide
+      buffered appends. [auto_flush_threshold] is the soft cap after which the
+      buffer should be flushed. If a call to [append_exn] fills the buffer,
+      [auto_flush_callback] will be called so that the parent abstraction takes
+      care of the flush procedure. *)
 
   val open_ro :
     path:string ->
@@ -56,6 +82,10 @@ module type S = sig
   (** Create a ro instance of [t] by opening an existing file at [path] *)
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
+  (** Close the underlying file.
+
+      The internal buffer is expected to be in a flushed state when [close] is
+      called. Otherwise, an error is returned. *)
 
   val end_offset : t -> int63
   (** [end_offset t] is the number of bytes of the file. That function doesn't
@@ -91,16 +121,32 @@ module type S = sig
 
       Post-condition: [end_offset t - end_offset (old t) = String.length b].
 
-      Raises [Io.Write_error] *)
+      Raises [Io.Write_error]
+
+      {3 RW mode}
+
+      Always raises [Io.Write_error `Ro_not_allowed] *)
 
   val flush : t -> (unit, [> Io.write_error ]) result
-  (** Flush the append buffer. Does not call [fsync]. *)
+  (** Flush the append buffer. Does not call [fsync].
+
+      {3 RO mode}
+
+      Always returns [Error `Ro_not_allowed]. *)
 
   val fsync : t -> (unit, [> Io.write_error ]) result
-  (** Tell the os to fush its internal buffers. Does not call [flush]. *)
+  (** Tell the os to fush its internal buffers. Does not call [flush].
+
+      {3 RO mode}
+
+      Always returns [Error `Ro_not_allowed]. *)
 
   val refresh_end_offset : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
-  (** Ingest the new end offset of the file. *)
+  (** Ingest the new end offset of the file.
+
+      {3 RW mode}
+
+      Always returns [Error `Rw_not_allowed]. *)
 
   val readonly : t -> bool
 end
@@ -108,11 +154,5 @@ end
 module type Sigs = sig
   module type S = S
 
-  (** Abstraction for irmin-pack's append only files (i.e. suffix and dict).
-
-      It is parameterized with [IO], a file system abstraction (e.g. unix,
-      mirage, eio_linux).
-
-      It comprises a persistent file and an append buffer. *)
   module Make (Io : Io.S) : S with module Io = Io
 end

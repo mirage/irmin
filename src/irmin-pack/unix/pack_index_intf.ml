@@ -17,6 +17,9 @@
 open! Import
 
 module type S = sig
+  (** An abstraction on top of the index library that exposes an API that better
+      fits the irmin-pack use case. *)
+
   type t
   type key
   type value = int63 * int * Pack_value.Kind.t

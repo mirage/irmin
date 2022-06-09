@@ -40,7 +40,8 @@ module Payload_v3 = struct
       [`V3]. It contains infos related to backward compatibility. GCs are
       forbidden on it.
 
-      TODO: Change to something better for future upgrades.
+      TODO: Need a better payload. Think about the lower layer and about the
+      indexing strategy.
 
       [from_v3_gc_disallowed] corresponds to a pack store that was created using
       [`V3] code. GCs are forbidden on it because it uses an indexing strategy.
@@ -73,6 +74,13 @@ end
 module Latest_payload = Payload_v3
 
 module type S = sig
+  (** Abstraction for irmin-pack's control file.
+
+      It is parameterized with [Io], a file system abstraction (e.g. unix,
+      mirage, eio_linux).
+
+      None of the functions raise exceptions. *)
+
   module Io : Io.S
 
   type t
@@ -134,7 +142,13 @@ module type S = sig
       Always returns an error. *)
 
   val readonly : t -> bool
+
   val fsync : t -> (unit, [> Io.write_error ]) result
+  (** Tell the os to fush its internal buffers.
+
+      {3 RO mode}
+
+      Always returns [Error `Ro_not_allowed]. *)
 end
 
 module type Sigs = sig
@@ -143,17 +157,5 @@ module type Sigs = sig
 
   module type S = S
 
-  (** Abstraction for irmin-pack's control file.
-
-      It is parameterized with [IO], a file system abstraction (e.g. unix,
-      mirage, eio_linux).
-
-      In rw mode, if [use_fsync = true], all changes to the control file during
-      [open_rw], [create_rw] and [set_payload] are immediatly persisted to disk
-      by asking the OS to do so. Otherwise, the OS may keep an in-memory buffer
-      that may be either process-wise or OS-wise. Anyhow, there is no write
-      buffer in the user space.
-
-      None of the functions raise exceptions. *)
   module Make (Io : Io.S) : S with module Io = Io
 end

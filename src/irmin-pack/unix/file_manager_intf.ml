@@ -49,8 +49,7 @@ module type S = sig
       | `Not_a_directory
       | `Invalid_layout
       | `Decoding_error
-      | `Corrupted_legacy_file
-    ] )
+      | `Corrupted_legacy_file ] )
     result
 
   val open_ro :

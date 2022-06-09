@@ -68,7 +68,10 @@ module Make (K : Irmin.Hash.S) = struct
         (* Happens when [fresh = true = readonly] *)
         assert false
     | Index_unix.Private.Raw.Not_written ->
-        (* ¯\_(ツ)_/¯ *)
+        (* This is not expected to be raised but let's catch anyway to trigger
+           a more precise error instead (i.e. the [assert false] below). This
+           error is exptected to be raised when a RO instance attemps an opening
+           on a non-existing file. *)
         assert false
     | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
 

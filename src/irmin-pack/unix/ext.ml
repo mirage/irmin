@@ -174,7 +174,7 @@ module Maker (Config : Conf.S) = struct
                   assert false
           in
           let dict =
-            (* TODO: Capacity from config? *)
+            (* TODO: Hide capacity in Dict and put a comment *)
             let capacity = 100_000 in
             Dict.v ~capacity fm
           in

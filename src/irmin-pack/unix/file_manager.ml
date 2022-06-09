@@ -80,7 +80,7 @@ struct
 
   (* Flush stages *********************************************************** *)
 
-  (* Flush stage 1 *)
+  (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
     let* () = Dict.flush t.dict in
@@ -93,7 +93,7 @@ struct
     let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
     ()
 
-  (* Flush stage 2 *)
+  (** Flush stage 2 *)
   let flush_suffix_and_its_deps t =
     let open Result_syntax in
     let* () = flush_dict t in
@@ -101,14 +101,14 @@ struct
     let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
     let* () =
       let pl : Payload.t = Control.payload t.control in
-      let pl = { pl with entry_offset_suffix_end = Dict.end_offset t.dict } in
+      let pl = { pl with entry_offset_suffix_end = Suffix.end_offset t.dict } in
       Control.set_payload t.control pl
     in
     let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
     (* TODO: Flush staging table *)
     ()
 
-  (* Flush stage 3 *)
+  (** Flush stage 3 *)
   let flush_index_and_its_deps t =
     let open Result_syntax in
     let* () = flush_suffix_and_its_deps t in
@@ -117,6 +117,8 @@ struct
 
   (* Auto flushes *********************************************************** *)
 
+  (** Is expected to be called by the dict when its append buffer is full so
+      that the file manager flushes. *)
   let dict_requires_a_flush_exn t =
     match flush_dict t with
     | Ok () -> ()
@@ -124,6 +126,8 @@ struct
         (* TODO: Proper error *)
         assert false
 
+  (** Is expected to be called by the suffix when its append buffer is full so
+      that the file manager flushes. *)
   let suffix_requires_a_flush_exn t =
     match flush_suffix_and_its_deps t with
     | Ok () -> ()
@@ -131,6 +135,9 @@ struct
         (* TODO: Proper error *)
         assert false
 
+  (** Is expected to be called by the index when its append buffer is full so
+      that the dependendies of index are flushes. When the function returns,
+      index will flush itself. *)
   let index_is_about_to_auto_flush_exn t =
     match flush_suffix_and_its_deps t with
     | Ok () -> ()
