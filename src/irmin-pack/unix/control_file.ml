@@ -109,16 +109,9 @@ module Make (Io : Io.S) = struct
     let+ () = write io payload in
     { io; payload }
 
-  let open_rw ~path =
+  let open_ ~path ~readonly =
     let open Result_syntax in
-    let* io = Io.open_ ~path ~readonly:false in
-    let+ data = read io in
-    let payload = match data with Data.V3 payload -> payload in
-    { io; payload }
-
-  let open_ro ~path =
-    let open Result_syntax in
-    let* io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~path ~readonly in
     let+ data = read io in
     let payload = match data with Data.V3 payload -> payload in
     { io; payload }

@@ -84,15 +84,11 @@ module type S = sig
     (t, [> Io.create_error | Io.write_error ]) result
   (** Create a rw instance of [t] by creating a control file. *)
 
-  val open_rw :
+  val open_ :
     path:string ->
+    readonly:bool ->
     (t, [> Io.open_error | Io.read_error | `Decoding_error ]) result
   (** Create a rw instance of [t] by reading an existing file at [path]. *)
-
-  val open_ro :
-    path:string ->
-    (t, [> Io.open_error | Io.read_error | `Decoding_error ]) result
-  (** Create a ro instance of [t] by reading an existing file at [path]. *)
 
   val close : t -> (unit, [> Io.close_error ]) result
 

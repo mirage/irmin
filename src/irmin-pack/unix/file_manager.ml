@@ -244,7 +244,7 @@ struct
     let root = Irmin_pack.Conf.root config in
     let* control =
       let path = Irmin_pack.Layout.V3.control ~root in
-      Control.open_rw ~path
+      Control.open_ ~readonly:false ~path
     in
     let pl : Payload.t = Control.payload control in
     let dead_header_size =
@@ -331,7 +331,7 @@ struct
     (* 1. Open the control file *)
     let* control =
       let path = Irmin_pack.Layout.V3.control ~root in
-      Control.open_ro ~path
+      Control.open_ ~readonly:true ~path
     in
     let pl : Payload.t = Control.payload control in
     let dead_header_size =
