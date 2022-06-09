@@ -15,6 +15,13 @@
  *)
 
 module type S = sig
+  (** Abstraction that governs the lifetime of the various files that are part
+      of a pack store (except the branch store).
+
+      The file manager handles the files one by one and makes explicit all the
+      interactions between them (except the index which is handled at a high
+      level). *)
+
   module Io : Io.S
   module Control : Control_file.S
   module Dict : Append_only_file.S
@@ -57,6 +64,14 @@ module type S = sig
     (t, [> Io.open_error | Io.read_error | `Decoding_error ]) result
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
+  (** Close all the files.
+
+      This call fails if the append buffers are not in a flushed stated. This
+      situation will most likely never occur because the append buffers will
+      contain data only during the scope of a batch function.
+
+      After *)
+
   val flush : t -> (unit, [> Io.write_error | `Tmp ]) result
   val flush_exn : t -> unit
 

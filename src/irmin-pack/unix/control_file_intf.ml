@@ -127,8 +127,6 @@ module type S = sig
 
       Reread the file on disk.
 
-      If the file did not change since the last read, nothing happens.
-
       If the file changed since the last read, the payload in [t] is updated to
       match the content of the file. *)
 

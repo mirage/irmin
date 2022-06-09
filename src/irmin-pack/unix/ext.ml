@@ -140,12 +140,13 @@ module Maker (Config : Conf.S) = struct
             Lwt.return res
           in
           let on_fail exn =
-            [%log.info "[pack] flush during batch fail"];
+            [%log.info "[pack] batch failed. calling flush"];
             let () =
               match File_manager.flush t.fm with
               | Ok () -> ()
               | Error _ ->
-                  [%log.err "[pack] silencing flush fail during batch fail"];
+                  [%log.err
+                    "[pack] batch failed and flush failed. Silencing flush fail"];
                   (* TODO: Proper error message (tostring on error) *)
                   assert false
             in

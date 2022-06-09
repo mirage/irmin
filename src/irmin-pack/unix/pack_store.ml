@@ -243,10 +243,6 @@ struct
     in
     let buf = Bytes.create len in
     Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    (* let n = Io_legacy.read t.io ~off buf in
-     * if n <> len then
-     *   invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp off
-     *     len; *)
     let key_of_offset offset =
       [%log.debug "key_of_offset: %a" Int63.pp offset];
       (* Attempt to eagerly read the length at the same time as reading the

@@ -59,17 +59,6 @@ module Make (Fm : File_manager.S) = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache)
 
-  (* let sync_offset t =
-   *   let former_offset = File.offset t in
-   *   let offset = Io_legacy.force_offset t.io in
-   *   if offset > former_offset then refill ~from:former_offset t
-   *
-   * let sync t =
-   *   if Io_legacy.readonly t.io then sync_offset t
-   *   else invalid_arg "only a readonly instance should call this function"
-   *
-   * let flush t = Io_legacy.flush t.io *)
-
   let index t v =
     [%log.debug "[dict] index %S" v];
     try Some (Hashtbl.find t.cache v)
@@ -96,8 +85,4 @@ module Make (Fm : File_manager.S) = struct
     t
 
   let close _ = ()
-  (* if not (File.readonly t) then flush t;
-   * Io_legacy.close t.io;
-   * Hashtbl.reset t.cache;
-   * Hashtbl.reset t.index *)
 end

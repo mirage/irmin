@@ -69,6 +69,7 @@ struct
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
       let+ () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
+      (* TODO: call Dict's refill *)
       ()
 
   let reload_exn t =
