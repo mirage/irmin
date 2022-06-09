@@ -48,7 +48,9 @@ module type S = sig
       | Io.write_error
       | `Not_a_directory
       | `Invalid_layout
-      | `Decoding_error ] )
+      | `Decoding_error
+      | `Corrupted_legacy_file
+    ] )
     result
 
   val open_ro :

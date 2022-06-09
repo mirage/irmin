@@ -194,14 +194,9 @@ struct
     in
     Ok { dict; control; suffix; use_fsync; index }
 
-  let create_control_file ~overwrite config (status : Payload.status) =
+  let create_control_file ~overwrite config pl =
     let root = Irmin_pack.Conf.root config in
     let path = Irmin_pack.Layout.V3.control ~root in
-    let pl =
-      let open Payload in
-      let z = Int63.zero in
-      { dict_offset_end = z; entry_offset_suffix_end = z; status }
-    in
     Control.create_rw ~path ~overwrite pl
 
   (** Note on SWMR consistency: It is undefined for a reader to attempt an
@@ -223,11 +218,16 @@ struct
       | _, `No_such_file_or_directory -> Io.mkdir root
     in
     let* control =
+      let open Payload in
       let status =
-        Payload.From_v3_gc_allowed
+        From_v3_gc_allowed
           { entry_offset_suffix_start = Int63.zero; gc_generation = 0 }
       in
-      create_control_file ~overwrite config status
+      let pl =
+        let z = Int63.zero in
+        { dict_offset_end = z; entry_offset_suffix_end = z; status }
+      in
+      create_control_file ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~overwrite in
     let make_suffix = Suffix.create_rw ~overwrite in
@@ -265,23 +265,36 @@ struct
     in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
 
+  let read_offset_from_legacy_file path =
+    let open Result_syntax in
+    (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
+    let* io = Io.open_ ~path ~readonly:true in
+    let* s = Io.read_to_string io ~off:Int63.zero ~len:8 in
+    let* () = Io.close io in
+    match Int63.of_string_opt s with
+    | None -> Error `Corrupted_legacy_file
+    | Some i -> Ok i
+
   let open_rw_migrate_from_v1_v2 config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let dst = Irmin_pack.Layout.V3.suffix ~root ~generation:0 in
+    let* entry_offset_suffix_end = read_offset_from_legacy_file src in
+    let* dict_offset_end =
+      let path = Irmin_pack.Layout.V3.dict ~root in
+      read_offset_from_legacy_file path
+    in
     let* () = Io.move_file ~src ~dst in
-    let* entry_offset_at_upgrade_to_v3 =
-      let* suffix = Io.open_ ~path:dst ~readonly:true in
-      let* x = Io.read_size suffix in
-      let+ () = Io.close suffix in
-      let ( - ) = Int63.sub in
-      x - Int63.of_int legacy_io_header_size
+    let* control =
+      let open Payload in
+      let status =
+        From_v1_v2_post_upgrade
+          { entry_offset_at_upgrade_to_v3 = entry_offset_suffix_end }
+      in
+      let pl = { dict_offset_end; entry_offset_suffix_end; status } in
+      create_control_file ~overwrite:false config pl
     in
-    let status =
-      Payload.From_v1_v2_post_upgrade { entry_offset_at_upgrade_to_v3 }
-    in
-    let* control = create_control_file ~overwrite:false config status in
     let* () = Control.close control in
     open_rw_with_control_file config
 
