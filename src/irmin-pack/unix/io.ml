@@ -56,7 +56,10 @@ module Unix = struct
     [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
 
   type read_error =
-    [ `Io_misc of misc_error | `Read_out_of_bounds | `Read_on_closed ]
+    [ `Io_misc of misc_error
+    | `Read_out_of_bounds
+    | `Read_on_closed
+    | `Invalid_argument ]
 
   type write_error =
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
@@ -78,18 +81,6 @@ module Unix = struct
     readonly : bool;
     path : string;
   }
-
-  exception
-    Io_error of
-      [ `Double_close
-      | `File_exists
-      | `Invalid_parent_directory
-      | `No_such_file_or_directory
-      | `Not_a_file
-      | `Read_on_closed
-      | `Read_out_of_bounds
-      | `Ro_not_allowed
-      | `Write_on_closed ]
 
   let classify_path p =
     Unix.(
@@ -151,19 +142,6 @@ module Unix = struct
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  let write_string t ~off s : (unit, [> write_error ]) result =
-    match (t.closed, t.readonly) with
-    | true, _ -> Error `Write_on_closed
-    | _, true -> Error `Ro_not_allowed
-    | _ -> (
-        (* really_write and following do not mutate the given buffer, so
-           [Bytes.unsafe_of_string] is actually safe *)
-        let buf = Bytes.unsafe_of_string s in
-        try
-          let () = Util.really_write t.fd off buf 0 (Bytes.length buf) in
-          Ok ()
-        with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-
   let write_exn t ~off s : unit =
     match (t.closed, t.readonly) with
     | true, _ -> raise (Io_error `Write_on_closed)
@@ -172,8 +150,15 @@ module Unix = struct
         (* really_write and following do not mutate the given buffer, so
            Bytes.unsafe_of_string is actually safe *)
         let buf = Bytes.unsafe_of_string s in
-        let () = Util.really_write t.fd off buf 0 (Bytes.length buf) in
+        let len = Bytes.length buf in
+        let () = Util.really_write t.fd off buf 0 len in
+        Index.Stats.add_write len;
         ()
+
+  let write_string t ~off s : (unit, [> write_error ]) result =
+    try Ok (write_exn t ~off s) with
+    | Io_error ((`Write_on_closed | `Ro_not_allowed) as e) -> Error e
+    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let fsync t : (unit, [> write_error ]) result =
     match (t.closed, t.readonly) with
@@ -185,35 +170,29 @@ module Unix = struct
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  let read_to_string t ~off ~len =
-    match t.closed with
-    | true -> Error `Read_on_closed
-    | false -> (
-        let buf = Bytes.create len in
-        try
-          let nread = Util.really_read t.fd off len buf in
-          match nread = len with
-          | false ->
-              (* didn't manage to read the desired amount *)
-              Error `Read_out_of_bounds
-          | true ->
-              (* we just created the buf; after we return it as a string, no-one
-                 has a handle on it, so it cannot be mutated; so
-                 [Bytes.unsafe_to_string] is obviously safe here *)
-              Ok (Bytes.unsafe_to_string buf)
-        with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-
   let read_exn t ~off ~len buf : unit =
     if len > Bytes.length buf then raise (Io_error `Invalid_argument);
     match t.closed with
     | true -> raise (Io_error `Read_on_closed)
     | false ->
         let nread = Util.really_read t.fd off len buf in
+        Index.Stats.add_read nread;
         if nread <> len then
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
              - the normal API allows return of a short string *)
           raise (Io_error `Read_out_of_bounds)
+
+  let read_to_string t ~off ~len =
+    let buf = Bytes.create len in
+    try
+      read_exn t ~off ~len buf;
+      Ok (Bytes.unsafe_to_string buf)
+    with
+    | Io_error
+        ((`Invalid_argument | `Read_on_closed | `Read_out_of_bounds) as e) ->
+        Error e
+    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let read_size t : (int63, [> read_error ]) result =
     match t.closed with

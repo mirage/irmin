@@ -54,7 +54,10 @@ module type S = sig
     [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
 
   type read_error =
-    [ `Io_misc of misc_error | `Read_out_of_bounds | `Read_on_closed ]
+    [ `Io_misc of misc_error
+    | `Read_out_of_bounds
+    | `Read_on_closed
+    | `Invalid_argument ]
 
   type write_error =
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
