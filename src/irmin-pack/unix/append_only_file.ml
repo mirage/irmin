@@ -104,8 +104,8 @@ module Make (Io : Io.S) = struct
         let+ () = Io.write_string t.io ~off s in
         t.persisted_end_offset <-
           t.persisted_end_offset + (String.length s |> Int63.of_int);
-        (* [truncate] is sementically identical to [clear], except that
-           [truncate] doesn't deallocate the internal buffer. We used to use
+        (* [truncate] is semantically identical to [clear], except that
+           [truncate] doesn't deallocate the internal buffer. We use
            [clear] in legacy_io. *)
         Buffer.truncate rw_perm.buf 0
 

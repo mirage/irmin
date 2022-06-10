@@ -167,8 +167,8 @@ module Test_reconstruct = struct
         | None ->
             Alcotest.failf "expected to find hash %a" (Irmin.Type.pp S.Hash.t) k)
       index_old;
-    Index.close index_old;
-    Index.close index_new;
+    Index.close_exn index_old;
+    Index.close_exn index_new;
     [%log.app
       "Checking old bindings are still reachable post index reconstruction)"];
     let* r = S.Repo.v conf in

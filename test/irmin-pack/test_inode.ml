@@ -22,7 +22,6 @@ let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let log_size = 1000
 let check_iter = Test_hashes.check_iter
 
 module Inode_modules
@@ -44,8 +43,18 @@ struct
   module Inter =
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
+  module Io = Irmin_pack_unix.Io.Unix
+  module Control = Irmin_pack_unix.Control_file.Make (Io)
+  module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
+
+  module File_manager =
+    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index)
+
+  module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+
   module Pack =
-    Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Inter.Raw)
+    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash)
+      (Inter.Raw)
 
   module Inode =
     Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (Pack)
@@ -55,65 +64,63 @@ struct
       (Schema.Contents)
 
   module Contents_store =
-    Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Contents_value)
+    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash)
+      (Contents_value)
 
   module Context = struct
     type t = {
-      index : Index.t;
       store : read Inode.t;
       store_contents : read Contents_store.t;
-      clone : readonly:bool -> read Inode.t Lwt.t;
+      fm : File_manager.t;
       (* Two contents values that are guaranteed to be read by {!store}: *)
       foo : Key.t;
       bar : Key.t;
     }
 
-    let get_store ?(lru_size = 0) () =
+    (* TODO : test the indexing strategy minimal. *)
+    let config ~readonly ~fresh name =
+      Irmin_pack.Conf.init ~fresh ~readonly
+        ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
+
+    (* TODO : remove duplication with irmin_pack/ext.ml *)
+    let get_fm config =
+      let readonly = Irmin_pack.Conf.readonly config in
+      (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
+      if readonly then File_manager.open_ro config |> Result.get_ok
+      else
+        let fresh = Irmin_pack.Conf.fresh config in
+        let root = Irmin_pack.Conf.root config in
+        match (Io.classify_path root, fresh) with
+        | `No_such_file_or_directory, _ ->
+            File_manager.create_rw ~overwrite:false config |> Result.get_ok
+        | `Directory, true ->
+            File_manager.create_rw ~overwrite:true config |> Result.get_ok
+        | `Directory, false -> File_manager.open_rw config |> Result.get_ok
+        | (`File | `Other), _ ->
+            (* TODO: Proper exception *)
+            assert false
+
+    let get_store () =
       [%log.app "Constructing a fresh context for use by the test"];
       rm_dir root;
-      let index = Index.v_exn ~log_size ~fresh:true root in
-      let indexing_strategy = Irmin_pack.Indexing_strategy.always in
-      let dict =
-        let path = Irmin_pack.Layout.V1_and_v2.dict ~root in
-        Irmin_pack_unix.Dict.v ~fresh:true ~readonly:false path
-      in
-      let io =
-        let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
-        let version = Some Irmin_pack.Version.latest in
-        Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh:true ~readonly:false
-          path
-      in
-      let* store =
-        Inode.v ~readonly:false ~lru_size ~index ~indexing_strategy ~dict ~io
-      in
-      let* store_contents =
-        Contents_store.v ~readonly:false ~lru_size ~index ~indexing_strategy
-          ~dict ~io
-      in
+      let config = config ~readonly:false ~fresh:true root in
+      let fm = get_fm config in
+      let dict = Dict.v ~capacity:100 fm in
+      let* store = Inode.v ~config ~fm ~dict in
+      let* store_contents = Contents_store.v ~config ~fm ~dict in
       let+ foo, bar =
         Contents_store.batch store_contents (fun writer ->
             let* foo = Contents_store.add writer Contents.foo in
             let* bar = Contents_store.add writer Contents.bar in
             Lwt.return (foo, bar))
       in
-      let clone ~readonly =
-        let dict =
-          let path = Irmin_pack.Layout.V1_and_v2.dict ~root in
-          Irmin_pack_unix.Dict.v ~fresh:false ~readonly path
-        in
-        let io =
-          let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
-          let version = Some Irmin_pack.Version.latest in
-          Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh:false ~readonly path
-        in
-        Inode.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-      in
       [%log.app "Test context constructed"];
-      { index; store; store_contents; clone; foo; bar }
+      { store; store_contents; fm; foo; bar }
 
     let close t =
-      Index.close t.index;
-      Inode.close t.store >>= fun () -> Contents_store.close t.store_contents
+      File_manager.close t.fm |> Result.get_ok;
+      (* closes dict, inodes and contents store. *)
+      Lwt.return_unit
   end
 end
 
