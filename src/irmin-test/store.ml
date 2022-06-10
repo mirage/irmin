@@ -2412,7 +2412,7 @@ module Make (S : Generic_key) = struct
       S.Backend.Repo.close repo
     in
     (* Test collisions with the empty node (and its commit), *)
-    run x (test @@ fun () -> S.Tree.empty () |> Lwt.return) >>= fun () ->
+    let* () = run x (test @@ fun () -> S.Tree.empty () |> Lwt.return) in
     (* with a length one node, *)
     run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1) >>= fun () ->
     (* and with a length >256 node (which is the threshold for unstable inodes

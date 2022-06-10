@@ -22,8 +22,7 @@ let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
 
 let run f () =
-  let open Lwt.Infix in
-  f () >|= fun () ->
+  let+ () = f () in
   flush stderr;
   flush stdout
 
