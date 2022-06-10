@@ -25,6 +25,7 @@ module Make (Fm : File_manager.S) = struct
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
     fm : Fm.t;
+    mutable last_refill_offset : int63;
   }
 
   module File = struct
@@ -40,8 +41,12 @@ module Make (Fm : File_manager.S) = struct
     let buf = int32_to_bin_string len ^ v in
     File.append_exn t buf
 
-  let refill ~from t =
+  (* Refill is only called once for a RW instance *)
+  let refill t =
+    (* TODO: Proper error monad for refill *)
+    let from = t.last_refill_offset in
     let len = Int63.to_int (File.offset t -- from) in
+    t.last_refill_offset <- File.offset t;
     let raw = Bytes.create len in
     File.read_exn t ~off:from ~len raw;
     let raw = Bytes.unsafe_to_string raw in
@@ -79,9 +84,12 @@ module Make (Fm : File_manager.S) = struct
   let v ~capacity fm =
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
-    let t = { capacity; index; cache; fm } in
-    (* TODO: Proper error monad for refill *)
-    refill ~from:Int63.zero t;
+    let last_refill_offset = Int63.zero in
+    let t = { capacity; index; cache; fm; last_refill_offset } in
+    refill t;
+    Fm.register_dict_consumer fm ~after_reload:(fun () ->
+        refill t;
+        Ok ());
     t
 
   let close _ = ()
