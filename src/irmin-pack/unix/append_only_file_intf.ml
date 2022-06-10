@@ -1,4 +1,3 @@
-M
 (*
  * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *

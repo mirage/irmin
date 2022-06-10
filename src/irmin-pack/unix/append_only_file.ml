@@ -107,7 +107,7 @@ module Make (Io : Io.S) = struct
         (* [truncate] is sementically identical to [clear], except that
            [truncate] doesn't deallocate the internal buffer. We used to use
            [clear] in legacy_io. *)
-        Buffer.truncate rw_perm.buf
+        Buffer.truncate rw_perm.buf 0
 
   let fsync t = Io.fsync t.io
 
