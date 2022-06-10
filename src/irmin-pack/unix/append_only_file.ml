@@ -118,7 +118,7 @@ module Make (Io : Io.S) = struct
 
   let append_exn t s =
     match t.rw_perm with
-    | None -> raise (Io.Write_error `Ro_not_allowed)
+    | None -> raise (Io.Io_error `Ro_not_allowed)
     | Some rw_perm ->
         assert (Buffer.length rw_perm.buf < rw_perm.auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;

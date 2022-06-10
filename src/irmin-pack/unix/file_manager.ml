@@ -102,7 +102,9 @@ struct
     let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
     let* () =
       let pl : Payload.t = Control.payload t.control in
-      let pl = { pl with entry_offset_suffix_end = Suffix.end_offset t.dict } in
+      let pl =
+        { pl with entry_offset_suffix_end = Suffix.end_offset t.suffix }
+      in
       Control.set_payload t.control pl
     in
     let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
@@ -220,7 +222,7 @@ struct
     let root = Irmin_pack.Conf.root config in
     let* () =
       match (overwrite, Io.classify_path root) with
-      | _, `File -> Error `Not_a_directory
+      | _, (`File | `Other) -> Error `Not_a_directory
       | false, `Directory -> Error `File_exists
       | true, `Directory -> Ok ()
       | _, `No_such_file_or_directory -> Io.mkdir root
@@ -311,7 +313,7 @@ struct
     let suffix_path = Irmin_pack.Layout.V1_and_v2.pack ~root in
     match Io.classify_path suffix_path with
     | `Directory -> Error `Invalid_layout
-    | `No_such_file_or_directory -> Error `Invalid_layout
+    | `No_such_file_or_directory | `Other -> Error `Invalid_layout
     | `File -> open_rw_migrate_from_v1_v2 config
 
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -328,14 +330,14 @@ struct
   let open_rw config =
     let root = Irmin_pack.Conf.root config in
     match Io.classify_path root with
-    | `File -> Error `Not_a_directory
+    | `File | `Other -> Error `Not_a_directory
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
     | `Directory -> (
         let path = Irmin_pack.Layout.V3.control ~root in
         match Io.classify_path path with
         | `File -> open_rw_with_control_file config
         | `No_such_file_or_directory -> open_rw_no_control_file config
-        | `Directory -> Error `Invalid_layout)
+        | `Directory | `Other -> Error `Invalid_layout)
 
   (* Open ro **************************************************************** *)
 

@@ -56,12 +56,15 @@ module type S = sig
       | `Not_a_directory
       | `Invalid_layout
       | `Decoding_error
-      | `Corrupted_legacy_file ] )
+      | `Corrupted_legacy_file
+      | `File_exists ] )
     result
 
   val open_ro :
     Irmin.Backend.Conf.t ->
-    (t, [> Io.open_error | Io.read_error | `Decoding_error ]) result
+    ( t,
+      [> Io.open_error | Io.read_error | `Decoding_error | `File_exists ] )
+    result
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
   (** Close all the files.
