@@ -224,7 +224,7 @@ struct
          use [~no_callback:()] *)
       make_index ~flush_callback:cb ~readonly:false ~throttle ~log_size root
     in
-    Ok
+    let t =
       {
         dict;
         control;
@@ -234,6 +234,9 @@ struct
         dict_consumers = [];
         suffix_consumers = [];
       }
+    in
+    instance := Some t;
+    Ok t
 
   let create_control_file ~overwrite config pl =
     let root = Irmin_pack.Conf.root config in
