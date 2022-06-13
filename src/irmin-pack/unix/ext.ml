@@ -140,7 +140,7 @@ module Maker (Config : Conf.S) = struct
             Lwt.return res
           in
           let on_fail exn =
-            [%log.info "[pack] batch failed. calling flush"];
+            [%log.info "[pack] batch failed. calling flush. (exn was %s)" (Printexc.to_string exn)];
             let () =
               match File_manager.flush t.fm with
               | Ok () -> ()

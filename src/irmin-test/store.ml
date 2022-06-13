@@ -102,7 +102,26 @@ module Make (S : Generic_key) = struct
         (fun () ->
           let+ _ = with_contents repo (fun t -> B.Contents.add t v2) in
           Alcotest.fail "Add after close should not be allowed")
-        (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+        (function Irmin.Closed -> Lwt.return_unit 
+                (* | Index.Closed -> Lwt.return_unit 
+
+                   presumably, previously the exception thrown when operating on a closed
+                   repo was "Irmin.Closed"; after the IO refactor, the exception seems to
+                   be "Index.closed"; the library for this file store.ml (in
+                   src/irmin-test) doesn't depend on Index; thus we can't pattern match on
+                   the Index.Closed exception
+
+                   So, presumably we should catch Index.Closed everywhere and convert to
+                   Irmin.closed? 
+
+                   Catching all exceptions and returning unit seems wrong (what if the
+                   exception isn't an Index.Closed exception, but something else?)
+
+                   Another alternative is to depend on index, and catch Index.Closed (but
+                   these tests are supposed to be independent of the backend... so this
+                   can't be right).
+                *)
+                | exn -> Lwt.fail exn)
     in
     run x test
 
