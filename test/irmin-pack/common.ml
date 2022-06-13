@@ -121,6 +121,12 @@ struct
     else
       let fresh = Irmin_pack.Conf.fresh config in
       let root = Irmin_pack.Conf.root config in
+      (* make sure the parent dir exists *)
+      let () =
+        match Sys.file_exists (Filename.dirname root) with
+        | false -> Unix.mkdir (Filename.dirname root) 0o755
+        | true -> ()
+      in
       match (Io.classify_path root, fresh) with
       | `No_such_file_or_directory, _ ->
           File_manager.create_rw ~overwrite:false config |> Result.get_ok
