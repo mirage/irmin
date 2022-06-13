@@ -5,6 +5,11 @@ module Pack_store = Pack_store
 module Io_legacy = Io_legacy
 module Checks = Checks
 module Atomic_write = Atomic_write
+module Dict = Dict
+module Io = Io
+module Control_file = Control_file
+module Append_only_file = Append_only_file
+module File_manager = File_manager
 include Ext
 
 module KV (Config : Irmin_pack.Conf.S) = struct

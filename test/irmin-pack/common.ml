@@ -16,7 +16,6 @@
 
 open Irmin.Export_for_backends
 module Int63 = Optint.Int63
-module Dict = Irmin_pack_unix.Dict
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
@@ -76,7 +75,17 @@ end
 module I = Irmin_pack_unix.Index
 module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
-module Pack = Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Contents)
+module Io = Irmin_pack_unix.Io.Unix
+module Control = Irmin_pack_unix.Control_file.Make (Io)
+module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
+
+module File_manager =
+  Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index)
+
+module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+
+module Pack =
+  Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash) (Contents)
 
 module Branch =
   Irmin_pack_unix.Atomic_write.Make_persistent
@@ -95,60 +104,72 @@ struct
       [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
-  type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }
+  let capacity = 100
 
-  let get_dict () =
-    let name = fresh_name "dict" in
-    let dict = Dict.v ~fresh:true name in
-    let clone ~readonly = Dict.v ~fresh:false ~readonly name in
-    { dict; clone }
+  type d = { name : string; fm : File_manager.t; dict : Dict.t }
+
+  (* TODO : test the indexing_strategy minimal. *)
+  let config ~readonly ~fresh name =
+    Irmin_pack.Conf.init ~fresh ~readonly
+      ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
+
+  (* TODO : remove duplication with irmin_pack/ext.ml *)
+  let get_fm config =
+    let readonly = Irmin_pack.Conf.readonly config in
+    (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
+    if readonly then File_manager.open_ro config |> Result.get_ok
+    else
+      let fresh = Irmin_pack.Conf.fresh config in
+      let root = Irmin_pack.Conf.root config in
+      match (Io.classify_path root, fresh) with
+      | `No_such_file_or_directory, _ ->
+          File_manager.create_rw ~overwrite:false config |> Result.get_ok
+      | `Directory, true ->
+          File_manager.create_rw ~overwrite:true config |> Result.get_ok
+      | `Directory, false -> File_manager.open_rw config |> Result.get_ok
+      | (`File | `Other), _ ->
+          (* TODO: Proper exception *)
+          assert false
+
+  let get_dict ?name ~readonly ~fresh () =
+    let name = Option.value name ~default:(fresh_name "dict") in
+    let fm = config ~readonly ~fresh name |> get_fm in
+    let dict = Dict.v ~capacity fm in
+    { name; dict; fm }
+
+  let close_dict d = File_manager.close d.fm |> Result.get_ok
 
   type t = {
-    lru_size : int;
     name : string;
+    fm : File_manager.t;
     index : Index.t;
     pack : read Pack.t;
-    dict : Irmin_pack_unix.Dict.t;
-    io : Irmin_pack_unix.Io_legacy.Unix.t;
+    dict : Pack.dict;
   }
 
-  let log_size = 10_000_000
-
-  let create ~readonly ~fresh lru_size name =
+  let create ~readonly ~fresh name =
     let f = ref (fun () -> ()) in
-    let index =
-      Index.v_exn ~readonly
-        ~flush_callback:(fun () -> !f ())
-        ~log_size ~fresh name
-    in
-    let indexing_strategy = Irmin_pack.Indexing_strategy.always in
-    let dict =
-      let path = Irmin_pack.Layout.V1_and_v2.dict ~root:name in
-      Irmin_pack_unix.Dict.v ~fresh ~readonly path
-    in
-    let io =
-      let path = Irmin_pack.Layout.V1_and_v2.pack ~root:name in
-      let version = Some Irmin_pack.Version.latest in
-      Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh ~readonly path
-    in
-    let+ pack =
-      Pack.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-    in
-    (f := fun () -> Pack.flush ~index:false pack);
-    { lru_size; name; index; pack; dict; io }
+    let config = config ~readonly ~fresh name in
+    let fm = get_fm config in
+    (* open the index created by the fm. *)
+    let index = File_manager.index fm in
+    let dict = Dict.v ~capacity fm in
+    let+ pack = Pack.v ~config ~fm ~dict in
+    (f := fun () -> File_manager.flush fm |> Result.get_ok);
+    { name; index; pack; dict; fm }
 
-  let get_pack ?(lru_size = 0) () =
+  let get_rw_pack () =
     let name = fresh_name "" in
-    create ~readonly:false ~fresh:true lru_size name
+    create ~readonly:false ~fresh:true name
 
-  let clone ~readonly { lru_size; name; _ } =
-    create ~readonly ~fresh:false lru_size name
+  let get_ro_pack name = create ~readonly:true ~fresh:false name
+  let reopen_rw name = create ~readonly:false ~fresh:false name
 
-  let close t =
-    Index.close t.index;
-    Irmin_pack_unix.Dict.close t.dict;
-    Irmin_pack_unix.Io_legacy.Unix.close t.io;
-    Pack.close t.pack
+  let close_pack t =
+    Index.close_exn t.index;
+    File_manager.close t.fm |> Result.get_ok;
+    (* closes pack and dict *)
+    Lwt.return_unit
 end
 
 module Alcotest = struct
