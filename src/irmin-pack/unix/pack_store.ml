@@ -76,6 +76,7 @@ struct
     let lru_size = Conf.lru_size config in
     let staging = Tbl.create 127 in
     let lru = Lru.create lru_size in
+    Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
     { lru; staging; indexing_strategy; fm; dict } |> Lwt.return
 
   let io_read_and_decode_hash ~off t =
@@ -417,3 +418,5 @@ struct
       We could clear the caches here but that really is not necessary. *)
   let close _ = Lwt.return ()
 end
+
+(* TODO: Add back close checks *)

@@ -83,6 +83,11 @@ module type S = sig
     (unit, [> Io.read_error | `Rw_not_allowed | `Decoding_error | `Tmp ]) result
 
   val reload_exn : t -> unit
+
+  val register_dict_consumer :
+    t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit
+
+  val register_suffix_consumer : t -> after_flush:(unit -> unit) -> unit
 end
 
 module type Sigs = sig

@@ -29,12 +29,20 @@ module Make
 struct
   module Io = Control.Io
 
+  type dict_consumer_data = {
+    after_reload : unit -> (unit, Io.read_error) result;
+  }
+
+  type suffix_consumer_data = { after_flush : unit -> unit }
+
   type t = {
     dict : Dict.t;
     control : Control.t;
     suffix : Suffix.t;
     index : Index.t;
     use_fsync : bool;
+    mutable dict_consumers : dict_consumer_data list;
+    mutable suffix_consumers : suffix_consumer_data list;
   }
 
   module Control = Control
@@ -55,6 +63,12 @@ struct
     let+ () = Index.close t.index in
     ()
 
+  let register_dict_consumer t ~after_reload =
+    t.dict_consumers <- { after_reload } :: t.dict_consumers
+
+  let register_suffix_consumer t ~after_flush =
+    t.suffix_consumers <- { after_flush } :: t.suffix_consumers
+
   (* Reload ***************************************************************** *)
 
   let reload t =
@@ -68,8 +82,17 @@ struct
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
-      let+ () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
-      (* TODO: call Dict's refill *)
+      let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
+      let+ () =
+        let res =
+          List.fold_left
+            (fun acc { after_reload } -> Result.bind acc after_reload)
+            (Ok ()) t.dict_consumers
+        in
+        (* The following dirty trick casts the result from
+           [read_error] to [ [>read_error] ]. *)
+        match res with Ok () -> Ok () | Error (#Io.read_error as e) -> Error e
+      in
       ()
 
   let reload_exn t =
@@ -108,8 +131,7 @@ struct
       Control.set_payload t.control pl
     in
     let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-    (* TODO: Flush staging table *)
-    ()
+    List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
 
   (** Flush stage 3 *)
   let flush_index_and_its_deps t =
@@ -202,7 +224,16 @@ struct
          use [~no_callback:()] *)
       make_index ~flush_callback:cb ~readonly:false ~throttle ~log_size root
     in
-    Ok { dict; control; suffix; use_fsync; index }
+    Ok
+      {
+        dict;
+        control;
+        suffix;
+        use_fsync;
+        index;
+        dict_consumers = [];
+        suffix_consumers = [];
+      }
 
   let create_control_file ~overwrite config pl =
     let root = Irmin_pack.Conf.root config in
@@ -384,5 +415,14 @@ struct
       Index.v ~fresh:false ~readonly:true ~throttle ~log_size root
     in
     (* 3. return with success *)
-    Ok { dict; control; suffix; use_fsync; index }
+    Ok
+      {
+        dict;
+        control;
+        suffix;
+        use_fsync;
+        index;
+        dict_consumers = [];
+        suffix_consumers = [];
+      }
 end
