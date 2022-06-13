@@ -170,7 +170,7 @@ module Maker (Config : Conf.S) = struct
                   File_manager.create_rw ~overwrite:true config |> Result.get_ok
               | `Directory, false ->
                   File_manager.open_rw config |> Result.get_ok
-              | `File, _ ->
+              | (`File | `Other), _ ->
                   (* TODO: Proper exception *)
                   assert false
           in

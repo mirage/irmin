@@ -14,14 +14,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Low level IO abstraction. A typical implementation is unix.
-
-    This abstraction is meant to be dead simple. Not a lot of documentation is
-    required. *)
-
 open Import
 
+module Errors = struct
+  exception
+    Io_error of
+      [ `Double_close
+      | `File_exists
+      | `Invalid_parent_directory
+      | `No_such_file_or_directory
+      | `Not_a_file
+      | `Read_on_closed
+      | `Read_out_of_bounds
+      | `Ro_not_allowed
+      | `Write_on_closed
+      | `Invalid_argument ]
+end
+
 module type S = sig
+  (** Low level IO abstraction. A typical implementation is unix.
+
+      This abstraction is meant to be dead simple. Not a lot of documentation is
+      required.
+
+      It is not resistant to race condictions. There should not be concurrent
+      modifications of the files. *)
+
   type t
 
   (** {1 Errors} *)
@@ -30,13 +48,16 @@ module type S = sig
   (** An abstract error type that contains the IO-backend specific errors. (e.g.
       [Unix.error]) *)
 
-  type create_error = [ `Io_misc of misc_error ]
+  type create_error = [ `Io_misc of misc_error | `File_exists ]
 
   type open_error =
-    [ `Io_misc of misc_error | `No_such_file_or_directory | `Is_a_directory ]
+    [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
 
   type read_error =
-    [ `Io_misc of misc_error | `Read_out_of_bounds | `Read_on_closed ]
+    [ `Io_misc of misc_error
+    | `Read_out_of_bounds
+    | `Read_on_closed
+    | `Invalid_argument ]
 
   type write_error =
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
@@ -45,7 +66,12 @@ module type S = sig
   type move_file_error = [ `Io_misc of misc_error ]
 
   type mkdir_error =
-    [ `Io_misc of misc_error | `File_exists | `No_such_file_or_directory ]
+    [ `Io_misc of misc_error
+    | `File_exists
+    | `No_such_file_or_directory
+    | `Invalid_parent_directory ]
+
+  include module type of Errors
 
   (** {1 Safe Functions}
 
@@ -85,7 +111,7 @@ module type S = sig
       syscalls. *)
 
   val classify_path :
-    string -> [> `File | `Directory | `No_such_file_or_directory ]
+    string -> [> `File | `Directory | `No_such_file_or_directory | `Other ]
 
   (** {1 MISC.} *)
 
@@ -98,22 +124,26 @@ module type S = sig
       These functions are equivalents to exising safe ones, but using exceptions
       instead of the result monad for performances reasons. *)
 
-  exception Read_error of read_error
-
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** [read_exn t ~off ~len b] reads the [len] bytes of [t] at [off] to [b].
 
-      Raises [Read_error] *)
+      Raises [Io_error].
 
-  exception Write_error of write_error
+      Also raises backend-specific exceptions (e.g. [Unix.Unix_error] for the
+      unix backend). *)
 
   val write_exn : t -> off:int63 -> string -> unit
   (** [write_exn t ~off b] writes [b] to [t] at offset [off].
 
-      Raises [Write_error] *)
+      Raises [Io_error]
+
+      Also raises backend-specific exceptions (e.g. [Unix.Unix_error] for the
+      unix backend). *)
 end
 
 module type Sigs = sig
+  include module type of Errors
+
   module type S = S
 
   module Unix : S with type misc_error = Unix.error * string * string
