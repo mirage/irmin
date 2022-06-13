@@ -139,6 +139,7 @@ let test_in_memory () =
   let* tree2 = tree2 () in
   let* () = test tree2 3 in
   let* () = S.Repo.close repo_export in
+  S.flush repo_import;
   S.Repo.close repo_import
 
 let test_on_disk () =
@@ -155,6 +156,7 @@ let test_on_disk () =
   let* tree2 = tree2 () in
   let* () = test ~on_disk:(`Path index_on_disk) tree2 3 in
   let* () = S.Repo.close repo_export in
+  S.flush repo_import;
   S.Repo.close repo_import
 
 let tests =

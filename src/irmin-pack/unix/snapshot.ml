@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Io_legacy = Io_legacy.Unix
 open Snapshot_intf
 
 let rm_index path =
@@ -30,6 +29,7 @@ module Make (Args : Args) = struct
   open Args
   module Inode_pack = Inode.Pack
   module Pack_index = Pack_index.Make (Hash)
+  module Fm = File_manager
 
   let pp_hash = Irmin.Type.pp Hash.t
   let pp_key = Irmin.Type.pp Inode_pack.Key.t
@@ -49,21 +49,21 @@ module Make (Args : Args) = struct
       Index_unix.Make (Pack_index.Key) (Value_unit) (Index.Cache.Unbounded)
 
     type t = {
-      file : Io_legacy.t;
+      fm : File_manager.t;
       log_size : int;
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
     }
 
-    let v root log_size contents_pack inode_pack =
-      let path = Filename.concat root "store.pack" in
-      let file =
-        Io_legacy.v ~fresh:false ~readonly:true
-          ~version:(Some Irmin_pack.Version.latest) path
-      in
-      { file; log_size; inode_pack; contents_pack }
+    let v config contents_pack inode_pack =
+      (* In order to read from the pack files, we need to open at least two
+         files: suffix and control. We just open the file manager for
+         simplicity. *)
+      let fm = Fm.open_ro config |> Result.get_ok in
+      let log_size = Conf.index_log_size config in
+      { fm; log_size; inode_pack; contents_pack }
 
-    let close t = Io_legacy.close t.file
+    let close t = Fm.close t.fm
 
     let key_of_hash hash t =
       Inode_pack.index_direct_with_kind t hash |> Option.get
@@ -78,12 +78,12 @@ module Make (Args : Args) = struct
       | Direct { length; _ } -> length
 
     let io_read_and_decode_entry_prefix ~off t =
-      let io_read = Io_legacy.read t.file in
+      let io_read_at_most ~off ~len bytes =
+        Fm.Suffix.read_exn (Fm.suffix t.fm) ~off ~len bytes;
+        len
+      in
       let entry_prefix : Inode_pack.Entry_prefix.t =
-        (* TODO: Fix snapshots *)
-        ignore (off, io_read);
-        assert false
-        (* Inode_pack.read_and_decode_entry_prefix ~off ~io_read *)
+        Inode_pack.read_and_decode_entry_prefix ~off ~io_read_at_most
       in
       let length =
         match Inode_pack.Entry_prefix.total_entry_length entry_prefix with
@@ -98,10 +98,7 @@ module Make (Args : Args) = struct
     (* Get the childrens offsets and then read their keys at that offset. *)
     let decode_children_offsets ~off ~len t =
       let buf = Bytes.create len in
-      let n = Io_legacy.read t.file ~off buf in
-      if n <> len then
-        Fmt.failwith "Read %d bytes (at offset %a) but expected %d" n Int63.pp
-          off len;
+      Fm.Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
       let entry_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];
         io_read_and_decode_entry_prefix ~off:offset t
