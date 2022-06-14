@@ -22,7 +22,7 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
 
-module Make
+module Make_without_close_checks
     (Fm : File_manager.S)
     (Dict : Dict.S)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
@@ -419,4 +419,26 @@ struct
   let close _ = Lwt.return ()
 end
 
-(* TODO: Add back close checks *)
+module Make
+    (Fm : File_manager.S)
+    (Dict : Dict.S)
+    (Hash : Irmin.Hash.S with type t = Fm.Index.key)
+    (Val : Pack_value.Persistent
+             with type hash := Hash.t
+              and type key := Hash.t Pack_key.t) =
+struct
+  module Inner = Make_without_close_checks (Fm) (Dict) (Hash) (Val)
+  include Inner
+  include Indexable.Closeable (Inner)
+
+  let v ~config ~fm ~dict = Inner.v ~config ~fm ~dict >|= make_closeable
+  let cast t = Inner.cast (get_open_exn t) |> make_closeable
+
+  let integrity_check ~offset ~length k t =
+    Inner.integrity_check ~offset ~length k (get_open_exn t)
+
+  module Entry_prefix = Inner.Entry_prefix
+
+  let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
+  let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
+end
