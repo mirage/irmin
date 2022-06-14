@@ -309,15 +309,16 @@ struct
     in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
 
+  let decode_int63 buf = Int63.decode ~off:0 buf
+
   let read_offset_from_legacy_file path =
     let open Result_syntax in
     (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
     let* io = Io.open_ ~path ~readonly:true in
     let* s = Io.read_to_string io ~off:Int63.zero ~len:8 in
     let* () = Io.close io in
-    match Int63.of_string_opt s with
-    | None -> Error `Corrupted_legacy_file
-    | Some i -> Ok i
+    let x = decode_int63 s in
+    Ok x
 
   let open_rw_migrate_from_v1_v2 config =
     let open Result_syntax in
