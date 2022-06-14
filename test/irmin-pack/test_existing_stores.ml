@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let src = Logs.Src.create "tests.migration" ~doc:"Test migrations"
+let src = Logs.Src.create "tests.integrity_checks" ~doc:"Test integrity checks"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -49,11 +49,12 @@ module Config_store = struct
   let root_v1_archive, root_v1, tmp =
     let open Fpath in
     ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
-      v "_build" / "test_pack_migrate_1_to_2" |> to_string,
+      v "_build" / "test_pack_version_1" |> to_string,
       v "_build" / "test_index_reconstruct" |> to_string )
 
   let setup_test_env () =
     goto_project_root ();
+    rm_dir root_v1;
     let cmd =
       Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
     in
