@@ -33,9 +33,10 @@ module Maker (Config : Conf.S) = struct
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
     module Io = Io.Unix
+    module Errs = Errors.Make (Io)
     module Control = Control_file.Make (Io)
     module Aof = Append_only_file.Make (Io)
-    module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index)
+    module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
     module Dict = Dict.Make (File_manager)
     module XKey = Pack_key.Make (H)
 
@@ -47,7 +48,10 @@ module Maker (Config : Conf.S) = struct
 
       module Contents = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
-        module CA = Pack_store.Make (File_manager) (Dict) (H) (Pack_value)
+
+        module CA =
+          Pack_store.Make (File_manager) (Dict) (H) (Pack_value) (Errs)
+
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
 
@@ -58,7 +62,9 @@ module Maker (Config : Conf.S) = struct
           module Inter =
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
-          module Pack' = Pack_store.Make (File_manager) (Dict) (H) (Inter.Raw)
+          module Pack' =
+            Pack_store.Make (File_manager) (Dict) (H) (Inter.Raw) (Errs)
+
           include Inode.Make_persistent (H) (Value) (Inter) (Pack')
         end
 
@@ -82,7 +88,9 @@ module Maker (Config : Conf.S) = struct
         end
 
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
-        module CA = Pack_store.Make (File_manager) (Dict) (H) (Pack_value)
+
+        module CA =
+          Pack_store.Make (File_manager) (Dict) (H) (Pack_value) (Errs)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
@@ -141,20 +149,21 @@ module Maker (Config : Conf.S) = struct
           let node : 'a Node.t = (contents, node) in
           let commit : 'a Commit.t = (node, commit) in
           let on_success res =
-            File_manager.flush_exn t.fm;
+            File_manager.flush t.fm |> Errs.raise_if_error;
             Lwt.return res
           in
           let on_fail exn =
             [%log.info
-              "[pack] batch failed. calling flush. (exn was %s)"
+              "[pack] batch failed. calling flush. (%s)"
                 (Printexc.to_string exn)];
             let () =
               match File_manager.flush t.fm with
               | Ok () -> ()
-              | Error _ ->
+              | Error err ->
                   [%log.err
-                    "[pack] batch failed and flush failed. Silencing flush fail"]
-              (* TODO: Proper error message (tostring on error) *)
+                    "[pack] batch failed and flush failed. Silencing flush \
+                     fail. (%a)"
+                    Errs.pp_error err]
             in
             raise exn
           in
@@ -163,22 +172,20 @@ module Maker (Config : Conf.S) = struct
         let v config =
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
-            (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
-            if readonly then File_manager.open_ro config |> Result.get_ok
+            if readonly then File_manager.open_ro config |> Errs.raise_if_error
             else
               let fresh = Irmin_pack.Conf.fresh config in
               let root = Irmin_pack.Conf.root config in
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
                   File_manager.create_rw ~overwrite:false config
-                  |> Result.get_ok
+                  |> Errs.raise_if_error
               | `Directory, true ->
-                  File_manager.create_rw ~overwrite:true config |> Result.get_ok
+                  File_manager.create_rw ~overwrite:true config
+                  |> Errs.raise_if_error
               | `Directory, false ->
-                  File_manager.open_rw config |> Result.get_ok
-              | (`File | `Other), _ ->
-                  (* TODO: Proper exception *)
-                  assert false
+                  File_manager.open_rw config |> Errs.raise_if_error
+              | (`File | `Other), _ -> Errs.raise_error `Not_a_directory
           in
           let dict =
             (* TODO: Hide capacity in Dict and put a comment *)
@@ -199,13 +206,7 @@ module Maker (Config : Conf.S) = struct
 
         let close t =
           (* Step 1 - Close the files *)
-          let () =
-            match File_manager.close t.fm with
-            | Ok () -> ()
-            | Error _ ->
-                (* TODO: Proper exception *)
-                assert false
-          in
+          let () = File_manager.close t.fm |> Errs.raise_if_error in
           Branch.close t.branch >>= fun () ->
           (* Step 2 - Close the in-memory abstractions *)
           Dict.close t.dict;
@@ -213,11 +214,11 @@ module Maker (Config : Conf.S) = struct
           Node.CA.close (snd (node_t t)) >>= fun () ->
           Commit.CA.close (snd (commit_t t))
 
-        let flush t = File_manager.flush_exn t.fm
+        let flush t = File_manager.flush t.fm |> Errs.raise_if_error
 
         let sync t =
           (* TODO: Rename [sync] to [reload] absolutly everywhere *)
-          File_manager.reload_exn t.fm
+          File_manager.reload t.fm |> Errs.raise_if_error
       end
     end
 

@@ -76,16 +76,18 @@ module I = Irmin_pack_unix.Index
 module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 module Io = Irmin_pack_unix.Io.Unix
+module Errs = Irmin_pack_unix.Errors.Make (Io)
 module Control = Irmin_pack_unix.Control_file.Make (Io)
 module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
 
 module File_manager =
-  Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index)
+  Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
 
 module Dict = Irmin_pack_unix.Dict.Make (File_manager)
 
 module Pack =
   Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash) (Contents)
+    (Errs)
 
 module Branch =
   Irmin_pack_unix.Atomic_write.Make_persistent

@@ -76,13 +76,10 @@ module type S = sig
       After *)
 
   val flush : t -> (unit, [> Io.write_error | `Tmp ]) result
-  val flush_exn : t -> unit
 
   val reload :
     t ->
     (unit, [> Io.read_error | `Rw_not_allowed | `Decoding_error | `Tmp ]) result
-
-  val reload_exn : t -> unit
 
   val register_dict_consumer :
     t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit
@@ -97,7 +94,8 @@ module type Sigs = sig
       (Control : Control_file.S with module Io = Io.Unix)
       (Dict : Append_only_file.S with module Io = Control.Io)
       (Suffix : Append_only_file.S with module Io = Control.Io)
-      (Index : Pack_index.S) :
+      (Index : Pack_index.S)
+      (Errs : Errors.S with module Io = Control.Io) :
     S
       with module Io = Control.Io
        and module Control = Control

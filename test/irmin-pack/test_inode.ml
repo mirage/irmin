@@ -44,17 +44,19 @@ struct
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
   module Io = Irmin_pack_unix.Io.Unix
+  module Errs = Irmin_pack_unix.Errors.Make (Io)
   module Control = Irmin_pack_unix.Control_file.Make (Io)
   module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
 
   module File_manager =
-    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index)
+    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
 
   module Dict = Irmin_pack_unix.Dict.Make (File_manager)
 
   module Pack =
     Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash)
       (Inter.Raw)
+      (Errs)
 
   module Inode =
     Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (Pack)
@@ -66,6 +68,7 @@ struct
   module Contents_store =
     Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash)
       (Contents_value)
+      (Errs)
 
   module Context = struct
     type t = {
