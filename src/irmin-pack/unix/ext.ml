@@ -406,7 +406,9 @@ module Maker (Config : Conf.S) = struct
           | Blob x -> Import.save_contents process x
           | Inode x -> Import.save_inodes process x
 
-        let close process = Import.close process
+        let close process repo =
+          flush repo;
+          Import.close process
       end
     end
   end

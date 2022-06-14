@@ -92,7 +92,7 @@ let restore repo ?on_disk buf =
     else Lwt.return (!total_visited, last_key)
   in
   let* result = aux None in
-  S.Snapshot.Import.close snapshot;
+  S.Snapshot.Import.close snapshot repo;
   Lwt.return result
 
 let test ~repo_export ~repo_import ?on_disk tree expected_visited =
@@ -139,7 +139,6 @@ let test_in_memory () =
   let* tree2 = tree2 () in
   let* () = test tree2 3 in
   let* () = S.Repo.close repo_export in
-  S.flush repo_import;
   S.Repo.close repo_import
 
 let test_on_disk () =
@@ -156,7 +155,6 @@ let test_on_disk () =
   let* tree2 = tree2 () in
   let* () = test ~on_disk:(`Path index_on_disk) tree2 3 in
   let* () = S.Repo.close repo_export in
-  S.flush repo_import;
   S.Repo.close repo_import
 
 let tests =

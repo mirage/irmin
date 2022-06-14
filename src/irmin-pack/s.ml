@@ -138,7 +138,7 @@ module type S = sig
       val save_elt : process -> t -> node_key Lwt.t
       (** [save_elt snapshot elt] saves [elt] to the store. *)
 
-      val close : process -> unit
+      val close : process -> repo -> unit
       (** [close snapshot] close the [snaphot] instance.*)
     end
   end
