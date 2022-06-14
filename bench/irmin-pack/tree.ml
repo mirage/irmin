@@ -190,6 +190,7 @@ struct
     let conf =
       Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
     in
+    prepare_artefacts_dir root;
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
