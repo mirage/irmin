@@ -1,5 +1,6 @@
 open! Import
 module Io_legacy = Io_legacy.Unix
+(* TODO: Use new Io in traverse pack file *)
 
 module Stats : sig
   type t
@@ -87,7 +88,7 @@ end = struct
       let dest =
         match dest with
         | `Output path ->
-            if Io_legacy.exists path then
+            if Sys.file_exists path then
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
