@@ -372,6 +372,7 @@ module Maker (Config : Conf.S) = struct
         module Hash = H
         module Inode = X.Node.CA
         module Contents_pack = X.Contents.CA
+        module File_manager = File_manager
       end)
 
       include S
@@ -381,9 +382,7 @@ module Maker (Config : Conf.S) = struct
           [%log.debug "Iterate over a tree"];
           let contents = X.Repo.contents_t repo in
           let nodes = X.Repo.node_t repo |> snd in
-          let root = Conf.root repo.config in
-          let log_size = Conf.index_log_size repo.config in
-          let export = S.Export.v root log_size contents nodes in
+          let export = S.Export.v repo.config contents nodes in
           let f_contents x = f (Blob x) in
           let f_nodes x = f (Inode x) in
           match root_key with
@@ -393,7 +392,8 @@ module Maker (Config : Conf.S) = struct
                 Export.run ?on_disk export f_contents f_nodes
                   (key, Pack_value.Kind.Inode_v2_root)
               in
-              Export.close export;
+              (* TODO proper error handling *)
+              Export.close export |> Result.get_ok;
               Lwt.return total
       end
 
@@ -413,7 +413,9 @@ module Maker (Config : Conf.S) = struct
           | Blob x -> Import.save_contents process x
           | Inode x -> Import.save_inodes process x
 
-        let close process = Import.close process
+        let close process repo =
+          flush repo;
+          Import.close process
       end
     end
   end
