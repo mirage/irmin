@@ -88,20 +88,26 @@ struct
     (* TODO : remove duplication with irmin_pack/ext.ml *)
     let get_fm config =
       let readonly = Irmin_pack.Conf.readonly config in
-      (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
-      if readonly then File_manager.open_ro config |> Result.get_ok
+
+      if readonly then File_manager.open_ro config |> Errs.raise_if_error
       else
         let fresh = Irmin_pack.Conf.fresh config in
         let root = Irmin_pack.Conf.root config in
+        (* make sure the parent dir exists *)
+        let () =
+          match Sys.is_directory (Filename.dirname root) with
+          | false -> Unix.mkdir (Filename.dirname root) 0o755
+          | true -> ()
+        in
         match (Io.classify_path root, fresh) with
         | `No_such_file_or_directory, _ ->
-            File_manager.create_rw ~overwrite:false config |> Result.get_ok
+            File_manager.create_rw ~overwrite:false config
+            |> Errs.raise_if_error
         | `Directory, true ->
-            File_manager.create_rw ~overwrite:true config |> Result.get_ok
-        | `Directory, false -> File_manager.open_rw config |> Result.get_ok
-        | (`File | `Other), _ ->
-            (* TODO: Proper exception *)
-            assert false
+            File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error
+        | `Directory, false ->
+            File_manager.open_rw config |> Errs.raise_if_error
+        | (`File | `Other), _ -> Errs.raise_error `Not_a_directory
 
     let get_store () =
       [%log.app "Constructing a fresh context for use by the test"];
@@ -121,7 +127,7 @@ struct
       { store; store_contents; fm; foo; bar }
 
     let close t =
-      File_manager.close t.fm |> Result.get_ok;
+      File_manager.close t.fm |> Errs.raise_if_error;
       (* closes dict, inodes and contents store. *)
       Lwt.return_unit
   end
