@@ -185,7 +185,7 @@ module Maker (Config : Conf.S) = struct
                   |> Errs.raise_if_error
               | `Directory, false ->
                   File_manager.open_rw config |> Errs.raise_if_error
-              | (`File | `Other), _ -> Errs.raise_error `Not_a_directory
+              | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
           let dict =
             (* TODO: Hide capacity in Dict and put a comment *)

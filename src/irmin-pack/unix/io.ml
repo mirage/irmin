@@ -55,7 +55,7 @@ module Unix = struct
 
   let misc_error_t = Irmin.Type.(triple unix_error_t string string)
 
-  type create_error = [ `Io_misc of misc_error | `File_exists ]
+  type create_error = [ `Io_misc of misc_error | `File_exists of string ]
 
   type open_error =
     [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
@@ -74,7 +74,7 @@ module Unix = struct
 
   type mkdir_error =
     [ `Io_misc of misc_error
-    | `File_exists
+    | `File_exists of string
     | `No_such_file_or_directory
     | `Invalid_parent_directory ]
 
@@ -123,7 +123,7 @@ module Unix = struct
                     default_create_perm)
               in
               Ok { fd; closed = false; readonly = false; path }
-          | false -> Error `File_exists)
+          | false -> Error (`File_exists path))
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let open_ ~path ~readonly : (t, [> open_error ]) result =
@@ -225,7 +225,7 @@ module Unix = struct
           Unix.mkdir path default_mkdir_perm;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-    | `Directory, (`File | `Directory | `Other) -> Error `File_exists
+    | `Directory, (`File | `Directory | `Other) -> Error (`File_exists path)
     | `No_such_file_or_directory, `No_such_file_or_directory ->
         Error `No_such_file_or_directory
     | _ -> Error `Invalid_parent_directory

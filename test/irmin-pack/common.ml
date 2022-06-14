@@ -102,10 +102,12 @@ struct
     let c = ref 0 in
     fun object_type ->
       incr c;
+
       let name = Filename.concat Config.root ("pack_" ^ string_of_int !c) in
       [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
+  let mkdir_dash_p dirname = Irmin_pack_unix.Io_legacy.Unix.mkdir dirname
   let capacity = 100
 
   type d = { name : string; fm : File_manager.t; dict : Dict.t }
@@ -121,20 +123,11 @@ struct
     if readonly then File_manager.open_ro config |> Errs.raise_if_error
     else
       let fresh = Irmin_pack.Conf.fresh config in
-      let root = Irmin_pack.Conf.root config in
-      (* make sure the parent dir exists *)
-      let () =
-        match Sys.is_directory (Filename.dirname root) with
-        | false -> Unix.mkdir (Filename.dirname root) 0o755
-        | true -> ()
-      in
-      match (Io.classify_path root, fresh) with
-      | `No_such_file_or_directory, _ ->
-          File_manager.create_rw ~overwrite:false config |> Errs.raise_if_error
-      | `Directory, true ->
-          File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error
-      | `Directory, false -> File_manager.open_rw config |> Errs.raise_if_error
-      | (`File | `Other), _ -> Errs.raise_error `Not_a_directory
+      if fresh then (
+        let root = Irmin_pack.Conf.root config in
+        mkdir_dash_p root;
+        File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error)
+      else File_manager.open_rw config |> Errs.raise_if_error
 
   let get_dict ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in

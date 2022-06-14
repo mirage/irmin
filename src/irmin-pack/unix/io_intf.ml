@@ -17,9 +17,8 @@
 open Import
 
 module type S = sig
-  (** Low level IO abstraction. A typical implementation is unix.
-
-      This abstraction is meant to be dead simple. Not a lot of documentation is
+  (** Low level IO abstraction. A typical implementation is unix. = This
+      abstraction is meant to be dead simple. Not a lot of documentation is
       required.
 
       It is not resistant to race condictions. There should not be concurrent
@@ -33,7 +32,7 @@ module type S = sig
   (** An abstract error type that contains the IO-backend specific errors. (e.g.
       [Unix.error]) *)
 
-  type create_error = [ `Io_misc of misc_error | `File_exists ]
+  type create_error = [ `Io_misc of misc_error | `File_exists of string ]
 
   type open_error =
     [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
@@ -52,7 +51,7 @@ module type S = sig
 
   type mkdir_error =
     [ `Io_misc of misc_error
-    | `File_exists
+    | `File_exists of string
     | `No_such_file_or_directory
     | `Invalid_parent_directory ]
 

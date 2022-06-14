@@ -18,7 +18,7 @@
 
 type error =
   [ `Double_close
-  | `File_exists
+  | `File_exists of string
   | `Invalid_parent_directory
   | `No_such_file_or_directory
   | `Not_a_file
@@ -29,19 +29,18 @@ type error =
   | `Write_on_closed
   | `Invalid_argument
   | `Decoding_error
-  | `Not_a_directory
+  | `Not_a_directory of string
   | `Invalid_layout
   | `Corrupted_legacy_file
   | `Pending_flush
   | `Rw_not_allowed ]
 [@@deriving irmin ~pp]
+(** [error] is the type of all errors that can occur in a [result], except
+    [`Io_misc] which depends on the Io module used. *)
 
-(* This exception does not contain [`Ro_not_allowed].
-
-   We can't use polyval inclusion because repr doesn't support it *)
 type error' =
   [ `Double_close
-  | `File_exists
+  | `File_exists of string
   | `Invalid_parent_directory
   | `No_such_file_or_directory
   | `Not_a_file
@@ -51,11 +50,17 @@ type error' =
   | `Write_on_closed
   | `Invalid_argument
   | `Decoding_error
-  | `Not_a_directory
+  | `Not_a_directory of string
   | `Invalid_layout
   | `Corrupted_legacy_file
   | `Pending_flush
   | `Rw_not_allowed ]
+(** [error'] is the payload of the [Io_error] exception.
+
+    [error'] is [error] without [`Ro_not_allowed], because there exist a
+    dedicated [RO_not_allowed] exception.
+
+    We can't use polyval inclusion because repr doesn't support it *)
 
 exception Io_error of error'
 

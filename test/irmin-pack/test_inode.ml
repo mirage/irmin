@@ -107,7 +107,7 @@ struct
             File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error
         | `Directory, false ->
             File_manager.open_rw config |> Errs.raise_if_error
-        | (`File | `Other), _ -> Errs.raise_error `Not_a_directory
+        | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
 
     let get_store () =
       [%log.app "Constructing a fresh context for use by the test"];

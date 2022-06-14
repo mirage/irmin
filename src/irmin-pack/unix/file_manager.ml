@@ -230,8 +230,8 @@ struct
     let root = Irmin_pack.Conf.root config in
     let* () =
       match (overwrite, Io.classify_path root) with
-      | _, (`File | `Other) -> Error `Not_a_directory
-      | false, `Directory -> Error `File_exists
+      | _, (`File | `Other) -> Error (`Not_a_directory root)
+      | false, `Directory -> Error (`File_exists root)
       | true, `Directory -> Ok ()
       | _, `No_such_file_or_directory -> Io.mkdir root
     in
@@ -339,7 +339,7 @@ struct
   let open_rw config =
     let root = Irmin_pack.Conf.root config in
     match Io.classify_path root with
-    | `File | `Other -> Error `Not_a_directory
+    | `File | `Other -> Error (`Not_a_directory root)
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
     | `Directory -> (
         let path = Irmin_pack.Layout.V3.control ~root in

@@ -97,7 +97,7 @@ let reload fm = File_manager.reload fm |> Errs.raise_if_error
 
 module Dict = struct
   let test_dict () =
-    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:false () in
+    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:true () in
     let x1 = Dict.index d.dict "foo" in
     Alcotest.(check (option int)) "foo" (Some 0) x1;
     let x1 = Dict.index d.dict "foo" in
@@ -134,7 +134,7 @@ module Dict = struct
   let ignore_int (_ : int option) = ()
 
   let test_readonly_dict () =
-    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:false () in
+    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:true () in
     let (d2 : Context.d) =
       Context.get_dict ~name:d.name ~readonly:true ~fresh:false ()
     in
@@ -159,6 +159,7 @@ module Dict = struct
     ignore_int (Dict.index d.dict "toto");
     ignore_int (Dict.index d.dict "titiabc");
     ignore_int (Dict.index d.dict "foo");
+    flush d.fm;
     reload d2.fm;
     check_index "titiabc" 3;
     check_index "bar" 1;

@@ -43,7 +43,7 @@ module type S = sig
       | Io.write_error
       | Io.open_error
       | Io.mkdir_error
-      | `Not_a_directory ] )
+      | `Not_a_directory of string ] )
     result
 
   val open_rw :
@@ -53,17 +53,20 @@ module type S = sig
       | Io.close_error
       | Io.read_error
       | Io.write_error
-      | `Not_a_directory
+      | `Not_a_directory of string
       | `Invalid_layout
       | `Decoding_error
       | `Corrupted_legacy_file
-      | `File_exists ] )
+      | `File_exists of string ] )
     result
 
   val open_ro :
     Irmin.Backend.Conf.t ->
     ( t,
-      [> Io.open_error | Io.read_error | `Decoding_error | `File_exists ] )
+      [> Io.open_error
+      | Io.read_error
+      | `Decoding_error
+      | `File_exists of string ] )
     result
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
