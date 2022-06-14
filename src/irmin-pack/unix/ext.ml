@@ -128,6 +128,11 @@ module Maker (Config : Conf.S) = struct
           dict : Dict.t;
         }
 
+        let contents_t t : 'a Contents.t = t.contents
+        let node_t t : 'a Node.t = (contents_t t, t.node)
+        let commit_t t : 'a Commit.t = (node_t t, t.commit)
+        let branch_t t = t.branch
+
         let batch t f =
           let contents = Contents.CA.cast t.contents in
           let node = Node.CA.Pack.cast t.node in
@@ -140,15 +145,16 @@ module Maker (Config : Conf.S) = struct
             Lwt.return res
           in
           let on_fail exn =
-            [%log.info "[pack] batch failed. calling flush"];
+            [%log.info
+              "[pack] batch failed. calling flush. (exn was %s)"
+                (Printexc.to_string exn)];
             let () =
               match File_manager.flush t.fm with
               | Ok () -> ()
               | Error _ ->
                   [%log.err
-                    "[pack] batch failed and flush failed. Silencing flush fail"];
-                  (* TODO: Proper error message (tostring on error) *)
-                  assert false
+                    "[pack] batch failed and flush failed. Silencing flush fail"]
+              (* TODO: Proper error message (tostring on error) *)
             in
             raise exn
           in
@@ -192,6 +198,7 @@ module Maker (Config : Conf.S) = struct
           { config; contents; node; commit; branch; fm; dict }
 
         let close t =
+          (* Step 1 - Close the files *)
           let () =
             match File_manager.close t.fm with
             | Ok () -> ()
@@ -199,18 +206,18 @@ module Maker (Config : Conf.S) = struct
                 (* TODO: Proper exception *)
                 assert false
           in
-          Branch.close t.branch
+          Branch.close t.branch >>= fun () ->
+          (* Step 2 - Close the in-memory abstractions *)
+          Dict.close t.dict;
+          Contents.CA.close (contents_t t) >>= fun () ->
+          Node.CA.close (snd (node_t t)) >>= fun () ->
+          Commit.CA.close (snd (commit_t t))
 
         let flush t = File_manager.flush_exn t.fm
 
         let sync t =
           (* TODO: Rename [sync] to [reload] absolutly everywhere *)
           File_manager.reload_exn t.fm
-
-        let contents_t t : 'a Contents.t = t.contents
-        let node_t t : 'a Node.t = (contents_t t, t.node)
-        let commit_t t : 'a Commit.t = (node_t t, t.commit)
-        let branch_t t = t.branch
       end
     end
 
