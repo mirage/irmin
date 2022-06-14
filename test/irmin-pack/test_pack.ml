@@ -159,6 +159,7 @@ module Dict = struct
     ignore_int (Dict.index d.dict "toto");
     ignore_int (Dict.index d.dict "titiabc");
     ignore_int (Dict.index d.dict "foo");
+    flush d.fm;
     reload d2.fm;
     check_index "titiabc" 3;
     check_index "bar" 1;
