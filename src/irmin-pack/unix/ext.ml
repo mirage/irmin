@@ -232,10 +232,8 @@ module Maker (Config : Conf.S) = struct
         | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
-      ignore (ppf, auto_repair, check, t);
-      (* TODO: Fix integrity_check *)
-      assert false
-    (* Checks.integrity_check ?ppf ~auto_repair ~check t.index *)
+      let index = File_manager.index t.fm in
+      Checks.integrity_check ?ppf ~auto_repair ~check index
 
     include Irmin.Of_backend (X)
 
