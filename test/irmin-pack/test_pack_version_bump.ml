@@ -11,6 +11,31 @@ let src = Logs.Src.create "tests.version_bump" ~doc:"Test pack version bump"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+(** Set up modules to allow access to "version_1" store *)
+module Private = struct
+  (* The behaviour under test is independent of which [Conf] we pick: *)
+  module Conf = Irmin_tezos.Conf
+
+  (* Note: the existing stores use a different hash from [Irmin_tezos.Schema]
+     (SHA1 rather than BLAKE2b) *)
+  module Schema = Common.Schema
+
+  (* from test_existing_stores.ml; the V2 is because
+     test_existing_stores defines two different configs *)
+  module V2_maker = Irmin_pack_unix.Maker (Conf)
+  module V2 = V2_maker.Make (Schema)
+
+  (* the following modules are necessary to expose the File_manager.*)
+  module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
+  module Io = Irmin_pack_unix.Io.Unix
+  module Errs = Irmin_pack_unix.Errors.Make (Io)
+  module Control = Irmin_pack_unix.Control_file.Make (Io)
+  module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
+
+  module File_manager =
+    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
+end
+
 module Util = struct
   (** Following are generic utils *)
 
@@ -70,12 +95,8 @@ module Util = struct
 
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)
-  let io_get_version ~fn : [ `V1 | `V2 | `V3 ] =
-    assert (Sys.file_exists fn);
-    let t = Unix_.v ~version:None ~fresh:false ~readonly:true fn in
-    let r = Unix_.version t in
-    Unix_.close t;
-    r
+  let io_get_version ~root : [ `V1 | `V2 | `V3 ] =
+    File_manager.version ~root |> Errs.raise_if_error
 
   let alco_check_version ~pos ~expected ~actual =
     Alcotest.check_repr ~pos Irmin_pack.Version.t "" expected actual
@@ -93,21 +114,6 @@ module With_existing_store () = struct
     rm_dir tmp_dir;
     copy_dir (project_root () / v1_store_archive_dir) tmp_dir;
     ()
-
-  (** Set up modules to allow access to "version_1" store *)
-  module Private = struct
-    (* The behaviour under test is independent of which [Conf] we pick: *)
-    module Conf = Irmin_tezos.Conf
-
-    (* Note: the existing stores use a different hash from [Irmin_tezos.Schema]
-       (SHA1 rather than BLAKE2b) *)
-    module Schema = Common.Schema
-
-    (* from test_existing_stores.ml; the V2 is because
-       test_existing_stores defines two different configs *)
-    module V2_maker = Irmin_pack_unix.Maker (Conf)
-    module V2 = V2_maker.Make (Schema)
-  end
 
   (* [S] is the functionality we use from Private, together with an
      appropriate config *)
@@ -131,7 +137,7 @@ let test_RO_no_version_bump () : unit Lwt.t =
   (* maybe the version bump is only visible after closing the
      store... so check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
-    ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
+    ~actual:(io_get_version ~root:tmp_dir);
   Lwt.return ()
 
 (** Open a V1 store RW mode but don't attempt to mutate, version should remain
@@ -139,20 +145,20 @@ let test_RO_no_version_bump () : unit Lwt.t =
 let test_RW_no_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RW_no_version_bump"];
   let open With_existing_store () in
-  assert (io_get_version ~fn:(tmp_dir / "store.pack") = `V1);
+  assert (io_get_version ~root:tmp_dir = `V1);
   let* repo = S.Repo.v (config ~readonly:false (* was RO before, now RW *)) in
   let* () = S.Repo.close repo in
   (* maybe the version bump is only visible after closing the
      store... so check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
-    ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
+    ~actual:(io_get_version ~root:tmp_dir);
   Lwt.return ()
 
 (** Open a V1 store RW mode, change something, version should bump to V2 *)
 let test_RW_version_bump () : unit Lwt.t =
   [%log.info "Executing test_RW_version_bump"];
   let open With_existing_store () in
-  assert (io_get_version ~fn:(tmp_dir / "store.pack") = `V1);
+  assert (io_get_version ~root:tmp_dir = `V1);
   let* repo = S.Repo.v (config ~readonly:false) in
   (* force version bump by writing to the store *)
   let* main = S.main repo in
@@ -163,7 +169,7 @@ let test_RW_version_bump () : unit Lwt.t =
   in
   let* () = S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V2
-    ~actual:(io_get_version ~fn:(tmp_dir / "store.pack"));
+    ~actual:(io_get_version ~root:tmp_dir);
   Lwt.return ()
 
 let tests =

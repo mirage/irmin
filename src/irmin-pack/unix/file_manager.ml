@@ -294,6 +294,15 @@ struct
     let x = decode_int63 s in
     Ok x
 
+  let read_version_from_legacy_file path =
+    let open Result_syntax in
+    (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
+    let* io = Io.open_ ~path ~readonly:true in
+    let off = Int63.of_int 8 in
+    let* s = Io.read_to_string io ~off ~len:8 in
+    let* () = Io.close io in
+    match Version.of_bin s with Some x -> Ok x | None -> Error `Invalid_layout
+
   let open_rw_migrate_from_v1_v2 config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
@@ -403,4 +412,16 @@ struct
         dict_consumers = [];
         suffix_consumers = [];
       }
+
+  let version ~root =
+    let v2_or_v1 () =
+      let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
+      assert (Io.classify_path pack = `File);
+      read_version_from_legacy_file pack
+    in
+    let control = Irmin_pack.Layout.V3.control ~root in
+    match Io.classify_path control with
+    | `File -> Ok `V3
+    | `No_such_file_or_directory -> v2_or_v1 ()
+    | `Directory | `Other -> assert false
 end
