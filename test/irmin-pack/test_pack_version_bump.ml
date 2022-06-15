@@ -127,48 +127,31 @@ end
 
 (** {2 The tests} *)
 
-(** Open a V1 store RO mode, the version should remain V1 *)
-let test_RO_no_version_bump () : unit Lwt.t =
-  [%log.info "Executing test_RO_no_version_bump"];
-  let open With_existing_store () in
-  assert (io_get_version ~fn:(tmp_dir / "store.pack") = `V1);
-  let* repo = S.Repo.v (config ~readonly:true) in
-  let* () = S.Repo.close repo in
-  (* maybe the version bump is only visible after closing the
-     store... so check again *)
-  alco_check_version ~pos:__POS__ ~expected:`V1
-    ~actual:(io_get_version ~root:tmp_dir);
-  Lwt.return ()
-
-(** Open a V1 store RW mode but don't attempt to mutate, version should remain
-    V1 *)
-let test_RW_no_version_bump () : unit Lwt.t =
-  [%log.info "Executing test_RW_no_version_bump"];
+(** Cannot open a V1 store in RO mode. *)
+let test_RO_no_migration () : unit Lwt.t =
+  [%log.info "Executing test_RO_no_migration"];
   let open With_existing_store () in
   assert (io_get_version ~root:tmp_dir = `V1);
-  let* repo = S.Repo.v (config ~readonly:false (* was RO before, now RW *)) in
-  let* () = S.Repo.close repo in
-  (* maybe the version bump is only visible after closing the
-     store... so check again *)
+
+  let* () =
+    Alcotest.check_raises_lwt "open V1 store in RO"
+      (Irmin_pack_unix.Errors.Io_error `Migration_needed) (fun () ->
+        let* repo = S.Repo.v (config ~readonly:true) in
+        S.Repo.close repo)
+  in
+  (* maybe the version bump is only visible after, check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
     ~actual:(io_get_version ~root:tmp_dir);
   Lwt.return ()
 
-(** Open a V1 store RW mode, change something, version should bump to V2 *)
-let test_RW_version_bump () : unit Lwt.t =
-  [%log.info "Executing test_RW_version_bump"];
+(** Open a V1 store RW mode. Even if no writes, the store migrates to V3. *)
+let test_open_RW () : unit Lwt.t =
+  [%log.info "Executing test_open_RW"];
   let open With_existing_store () in
   assert (io_get_version ~root:tmp_dir = `V1);
   let* repo = S.Repo.v (config ~readonly:false) in
-  (* force version bump by writing to the store *)
-  let* main = S.main repo in
-  let info () = S.Info.v (Int64.of_int 0) in
-  let* () =
-    S.set_tree_exn ~info main []
-      (S.Tree.singleton [ "singleton-key" ] "singleton-val")
-  in
   let* () = S.Repo.close repo in
-  alco_check_version ~pos:__POS__ ~expected:`V2
+  alco_check_version ~pos:__POS__ ~expected:`V3
     ~actual:(io_get_version ~root:tmp_dir);
   Lwt.return ()
 
@@ -176,7 +159,6 @@ let tests =
   let f g () = Lwt_main.run @@ g () in
   Alcotest.
     [
-      test_case "test_RO_no_version_bump" `Quick (f test_RO_no_version_bump);
-      test_case "test_RW_no_version_bump" `Quick (f test_RW_no_version_bump);
-      test_case "test_RW_version_bump" `Quick (f test_RW_version_bump);
+      test_case "test_RO_no_migration" `Quick (f test_RO_no_migration);
+      test_case "test_open_RW" `Quick (f test_open_RW);
     ]
