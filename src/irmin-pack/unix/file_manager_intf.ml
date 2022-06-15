@@ -66,7 +66,8 @@ module type S = sig
       [> Io.open_error
       | Io.read_error
       | `Decoding_error
-      | `File_exists of string ] )
+      | `File_exists of string
+      | `Migration_needed ] )
     result
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
@@ -88,6 +89,19 @@ module type S = sig
     t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit
 
   val register_suffix_consumer : t -> after_flush:(unit -> unit) -> unit
+
+  val version :
+    root:string ->
+    ( Import.Version.t,
+      [> `Double_close
+      | `Invalid_argument
+      | `Invalid_layout
+      | `Io_misc of Io.misc_error
+      | `No_such_file_or_directory
+      | `Not_a_file
+      | `Read_on_closed
+      | `Read_out_of_bounds ] )
+    result
 end
 
 module type Sigs = sig

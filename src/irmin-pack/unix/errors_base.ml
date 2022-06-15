@@ -33,7 +33,8 @@ type error =
   | `Invalid_layout
   | `Corrupted_legacy_file
   | `Pending_flush
-  | `Rw_not_allowed ]
+  | `Rw_not_allowed
+  | `Migration_needed ]
 [@@deriving irmin ~pp]
 (** [error] is the type of all errors that can occur in a [result], except
     [`Io_misc] which depends on the Io module used. *)
@@ -54,7 +55,8 @@ type error' =
   | `Invalid_layout
   | `Corrupted_legacy_file
   | `Pending_flush
-  | `Rw_not_allowed ]
+  | `Rw_not_allowed
+  | `Migration_needed ]
 (** [error'] is the payload of the [Io_error] exception.
 
     [error'] is [error] without [`Ro_not_allowed], because there exist a
