@@ -421,9 +421,6 @@ module Branch = struct
 
   let pp_hash = Irmin.Type.pp Irmin.Hash.SHA1.t
 
-  let hash =
-    Alcotest.testable pp_hash Irmin.Type.(unstage (equal Irmin.Hash.SHA1.t))
-
   let test_branch () =
     let branches = [ "foo"; "bar/toto"; "titi" ] in
     let test t =
@@ -509,4 +506,5 @@ let misc =
     ("trees", Test_tree.tests);
     ("version-bump", Test_pack_version_bump.tests);
     ("snapshot", Test_snapshot.tests);
+    ("upgrade", Test_upgrade.tests);
   ]

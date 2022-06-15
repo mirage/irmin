@@ -50,6 +50,8 @@ module Alcotest : sig
   include module type of Alcotest
 
   val int63 : Int63.t testable
+  val kind : Irmin_pack.Pack_value.Kind.t testable
+  val hash : Schema.Hash.t testable
   val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
 
   val check_repr :
@@ -106,3 +108,7 @@ val random_letters : int -> string
 
 val exec_cmd : string -> (unit, int) result
 (** Exec a command, and return [Ok ()] or [Error n] if return code is n <> 0 *)
+
+val setup_test_env : root_archive:string -> root_local_build:string -> unit
+(** [setup_test_env ~root_archive ~root_local_build] copies an existing store to
+    a temporary location, to be used by the test. *)

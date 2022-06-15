@@ -11,7 +11,7 @@ module Errors = Errors
 module Control_file = Control_file
 module Append_only_file = Append_only_file
 module File_manager = File_manager
-include Ext
+module Maker = Ext.Maker
 
 module KV (Config : Irmin_pack.Conf.S) = struct
   type endpoint = unit
