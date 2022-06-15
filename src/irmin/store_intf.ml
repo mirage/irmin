@@ -429,8 +429,8 @@ module type S_generic_key = sig
         [r], if such a key exists and is indexed. *)
 
     val of_key : Repo.t -> kinded_key -> tree option Lwt.t
-    (** [of_key r h] is the the tree object in [r] having [h] as key, or [None]
-        is no such tree object exists. *)
+    (** [of_key r h] is the tree object in [r] having [h] as key, or [None] if
+        no such tree object exists. *)
 
     val shallow : Repo.t -> kinded_key -> tree
     (** [shallow r h] is the shallow tree object with the key [h]. No check is
