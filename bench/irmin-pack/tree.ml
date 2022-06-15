@@ -48,6 +48,8 @@ module type Store = sig
 
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+
+  val gc : repo -> commit_key -> unit
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -184,6 +186,8 @@ struct
     include Make (Irmin_tezos.Schema)
   end
 
+  include Store
+
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
   let create_repo ~root _config =
@@ -196,7 +200,8 @@ struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  include Store
+  let gc = Store.gc ~unlink:true
+
 end
 
 module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)

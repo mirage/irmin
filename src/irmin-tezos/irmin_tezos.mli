@@ -18,7 +18,7 @@ module Schema = Schema
 module Conf : Irmin_pack.Conf.S
 
 module Store :
-  Irmin.Generic_key.S
+  Irmin_pack.S
     with type Schema.Hash.t = Schema.Hash.t
      and type Schema.Branch.t = Schema.Branch.t
      and type Schema.Metadata.t = Schema.Metadata.t

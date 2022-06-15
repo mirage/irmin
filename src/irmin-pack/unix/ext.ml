@@ -124,6 +124,20 @@ module Maker (Config : Conf.S) = struct
       module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
       module Remote = Irmin.Backend.Remote.None (Commit.Key) (B)
 
+      module Gc = Gc.Make (struct
+        module Fm = File_manager
+        module Errs = Errs
+        module Dict = Dict
+        module Hash = Schema.Hash
+        module Node_value = Node.CA.Inter.Val
+        module Node_store = Node.CA
+        module Commit_value = Commit.Value
+        module Commit_store = Commit.CA
+
+        type hash = Node_value.hash
+        type key = Node_value.node_key [@@deriving irmin]
+      end)
+
       module Repo = struct
         type t = {
           config : Irmin.Backend.Conf.t;
@@ -133,14 +147,17 @@ module Maker (Config : Conf.S) = struct
           branch : Branch.t;
           fm : File_manager.t;
           dict : Dict.t;
+          mutable during_batch : bool;
         }
 
+        let pp_key = Irmin.Type.pp XKey.t
         let contents_t t : 'a Contents.t = t.contents
         let node_t t : 'a Node.t = (contents_t t, t.node)
         let commit_t t : 'a Commit.t = (node_t t, t.commit)
         let branch_t t = t.branch
 
         let batch t f =
+          t.during_batch <- true;
           let contents = Contents.CA.cast t.contents in
           let node = Node.CA.Pack.cast t.node in
           let commit = Commit.CA.cast t.commit in
@@ -148,10 +165,12 @@ module Maker (Config : Conf.S) = struct
           let node : 'a Node.t = (contents, node) in
           let commit : 'a Commit.t = (node, commit) in
           let on_success res =
+            t.during_batch <- false;
             File_manager.flush t.fm |> Errs.raise_if_error;
             Lwt.return res
           in
           let on_fail exn =
+            t.during_batch <- false;
             [%log.info
               "[pack] batch failed. calling flush. (%s)"
                 (Printexc.to_string exn)];
@@ -162,7 +181,7 @@ module Maker (Config : Conf.S) = struct
                   [%log.err
                     "[pack] batch failed and flush failed. Silencing flush \
                      fail. (%a)"
-                    Errs.pp_error err]
+                    Errs.pp err]
             in
             raise exn
           in
@@ -187,9 +206,9 @@ module Maker (Config : Conf.S) = struct
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
           let dict = Dict.v fm |> Errs.raise_if_error in
-          let* contents = Contents.CA.v ~config ~fm ~dict in
-          let* node = Node.CA.v ~config ~fm ~dict in
-          let* commit = Commit.CA.v ~config ~fm ~dict in
+          let contents = Contents.CA.v ~config ~fm ~dict in
+          let node = Node.CA.v ~config ~fm ~dict in
+          let commit = Commit.CA.v ~config ~fm ~dict in
           let+ branch =
             let root = Conf.root config in
             let fresh = Conf.fresh config in
@@ -197,7 +216,8 @@ module Maker (Config : Conf.S) = struct
             let path = Irmin_pack.Layout.V3.branch ~root in
             Branch.v ~fresh ~readonly path
           in
-          { config; contents; node; commit; branch; fm; dict }
+          let during_batch = false in
+          { config; contents; node; commit; branch; fm; dict; during_batch }
 
         let close t =
           (* Step 1 - Close the files *)
@@ -211,6 +231,30 @@ module Maker (Config : Conf.S) = struct
 
         let flush t = File_manager.flush t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
+
+        let gc ?(unlink = true) t commit_key =
+          let open Result_syntax in
+          [%log.info "GC: Starting on %a" pp_key commit_key];
+          let* () =
+            if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
+          in
+          let root = Conf.root t.config in
+          let* generation = Gc.run root commit_key in
+          let* () = File_manager.swap t.fm ~generation ~unlink in
+
+          (* No need to purge dict here, as it is global to the store. *)
+          (* No need to purge index here. It is global too, but some hashes may
+             not point to valid offsets anymore. Pack_store will just say that
+             such keys are not member of the store. *)
+          Contents.CA.purge_lru t.contents;
+          Node.CA.purge_lru t.node;
+          Commit.CA.purge_lru t.commit;
+          [%log.info "GC: end"];
+
+          Ok ()
+
+        let gc_exn ?unlink t commit_key =
+          gc ?unlink t commit_key |> Errs.raise_if_error
       end
     end
 
@@ -341,6 +385,7 @@ module Maker (Config : Conf.S) = struct
     let stats = Stats.run
     let reload = X.Repo.reload
     let flush = X.Repo.flush
+    let gc = X.Repo.gc_exn
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
       module File_manager = File_manager

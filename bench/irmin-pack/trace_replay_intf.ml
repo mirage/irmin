@@ -78,6 +78,8 @@ module type Store = sig
 
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+
+  val gc : repo -> commit_key -> unit
 end
 
 module type Sigs = sig

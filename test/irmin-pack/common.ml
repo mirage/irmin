@@ -151,9 +151,9 @@ struct
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
     let dict = Dict.v fm |> Errs.raise_if_error in
-    let+ pack = Pack.v ~config ~fm ~dict in
+    let pack = Pack.v ~config ~fm ~dict in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
-    { name; index; pack; dict; fm }
+    { name; index; pack; dict; fm } |> Lwt.return
 
   let get_rw_pack () =
     let name = fresh_name "" in

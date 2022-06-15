@@ -155,7 +155,7 @@ module Make (Store : Store) = struct
   type t = {
     contexts : (int64, context) Hashtbl.t;
     hash_corresps : (Def.hash, Store.commit_key) Hashtbl.t;
-    mutable latest_commit : Store.Hash.t option;
+    mutable latest_commit : Store.commit_key option;
   }
 
   let error_find op k b n_op n_c in_ctx_id =
@@ -275,7 +275,7 @@ module Make (Store : Store) = struct
      * re-commiting the same thing, hence the [.replace] below. *)
     Hashtbl.replace t.hash_corresps (unscope h_trace) k_store;
     maybe_forget_hash t h_trace;
-    t.latest_commit <- Some h_store
+    t.latest_commit <- Some k_store
 
   let add_operations t repo operations n stats check_hash empty_blobs =
     let rec aux l i =
@@ -333,13 +333,23 @@ module Make (Store : Store) = struct
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
+          (* if i <> 0 then *)
+         if i <> 0 && i mod 400 = 0 then (
+           (* TODO: Interval from CLI *)
+           (* TODO: Don't just GC the latest, GC at a distance *)
+           (* TODO: Maybe GC on_commit *)
+            Fmt.epr "\n%!";
+            Store.gc repo (Option.get t.latest_commit));
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
           if (len0, len1) <> (0, 1) then
             [%logs.app
               "\nAfter commit %6d we have %d/%d history sizes" i len0 len1];
-          let* () = on_commit i (Option.get t.latest_commit) in
+          let* () =
+            on_commit i
+              (Option.get t.latest_commit |> Store.Backend.Commit.Key.to_hash)
+          in
           prog 1;
           aux commit_seq (i + 1)
     in

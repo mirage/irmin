@@ -17,28 +17,39 @@
 include Errors_base
 
 module type S = sig
+  (** Error manager for [RO_not_allowed], [Pack_error], [Io.misc_error] and IO's
+      dedicated exceptions *)
+
   module Io : Io.S
 
-  val pp_error :
-    Format.formatter -> [< error | `Io_misc of Io.misc_error ] -> unit
+  type t = [ base_error | `Io_misc of Io.misc_error | `Ro_not_allowed ]
 
-  val raise_error : [< error | `Io_misc of Io.misc_error ] -> 'a
-  val raise_if_error : ('a, [< error | `Io_misc of Io.misc_error ]) result -> 'a
+  val pp : Format.formatter -> [< t ] -> unit
+  val raise_error : [< t ] -> 'a
+  val catch : (unit -> 'a) -> ('a, [> t ]) result
+  val raise_if_error : ('a, [< t ]) result -> 'a
 end
 
 module Make (Io : Io.S) : S with module Io = Io = struct
   module Io = Io
 
+  type t = [ base_error | `Io_misc of Io.misc_error | `Ro_not_allowed ]
   type misc_error = Io.misc_error [@@deriving irmin ~pp]
 
-  let pp_error ppf = function
+  let pp ppf = function
+    | `Ro_not_allowed -> Format.fprintf ppf "`Ro_not_allowed"
     | `Io_misc e -> Format.fprintf ppf "%a" pp_misc_error e
-    | #error as e -> Format.fprintf ppf "%a" pp_error e
+    | #base_error as e -> Format.fprintf ppf "%a" pp_base_error e
 
   let raise_error = function
     | `Io_misc e -> Io.raise_misc_error e
     | `Ro_not_allowed -> raise RO_not_allowed
-    | #error' as e -> raise (Pack_error e)
+    | #base_error as e -> raise (Pack_error e)
+
+  let catch f =
+    try Io.catch_misc_error f with
+    | Pack_error e -> Error (e : base_error :> [> base_error ])
+    | RO_not_allowed -> Error `Ro_not_allowed
 
   let raise_if_error = function Ok x -> x | Error e -> raise_error e
 end

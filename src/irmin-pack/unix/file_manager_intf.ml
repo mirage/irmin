@@ -71,9 +71,11 @@ module type S = sig
     | `Ro_not_allowed
     | `Sys_error of string
     | `V3_store_from_the_future
-    | `Write_on_closed
+    | `Only_minimal_indexing_strategy_allowed
+    | `Unknown_major_pack_version of string
     | `Index_failure of string
-    | `Unknown_major_pack_version of string ]
+    | `Sys_error of string
+    | `Write_on_closed ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -159,6 +161,19 @@ module type S = sig
 
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the files at [root]. *)
+
+  type swap_error :=
+    [ `Double_close
+    | `Io_misc of Control.Io.misc_error
+    | `No_such_file_or_directory
+    | `Not_a_file
+    | `Pending_flush
+    | `Ro_not_allowed
+    | `Write_on_closed
+    | `Sys_error of string ]
+
+  val swap :
+    t -> generation:int -> unlink:bool -> (unit, [> swap_error ]) result
 end
 
 module type Sigs = sig
