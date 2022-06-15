@@ -34,7 +34,8 @@ module Default = struct
   let readonly = false
   let merge_throttle = `Block_writes
   let indexing_strategy = Indexing_strategy.default
-  let use_fsync = true
+  let use_fsync = false
+  (* TODO: Maybe switch to [true] *)
   (* TODO: Add line in changelog about these new params. Say that
      [use_fsync = true] (the default) may seriously impact the performances. *)
 
