@@ -106,6 +106,9 @@ module type S_generic_key = sig
     val v : Conf.t -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
+    val config : t -> Conf.t
+    (** [config repo] is the configuration used to create [repo] *)
+
     include Closeable with type _ t := t
     (** @inline *)
 

@@ -532,6 +532,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let commit_t t = t.commit
       let node_t t = t.node
       let contents_t t = t.contents
+      let config t = t.config
 
       let batch t f =
         Contents.X.batch t.contents @@ fun contents_t ->

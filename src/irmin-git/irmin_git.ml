@@ -307,6 +307,7 @@ struct
         let node_t t = t.nodes
         let commit_t t = t.commits
         let branch_t t = t.branch
+        let config t = t.config
 
         let batch t f =
           Contents.CA.batch t.contents @@ fun c ->

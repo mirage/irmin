@@ -5,6 +5,8 @@
 - **irmin**
   - Add `Metrics` module to describe metric gathering in irmin.
     (#1817, @maiste)
+  - Add `Repo.config` to access config used to create repo
+    (#1886, @zshipko)
 
 - **irmin-unix**
   - Add `--plugin` flag to load Dynlink plugins that can register new

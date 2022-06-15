@@ -94,6 +94,7 @@ module type S = sig
     val contents_t : t -> read Contents.t
     val node_t : t -> read Node.t
     val commit_t : t -> read Commit.t
+    val config : t -> Conf.t
 
     val batch :
       t ->
