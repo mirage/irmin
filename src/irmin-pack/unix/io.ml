@@ -16,7 +16,6 @@
 
 open! Import
 open Io_intf
-include Errors
 
 (* File utils, taken from index.unix package *)
 module Util = struct
@@ -50,7 +49,13 @@ module type S = S
 
 module Unix = struct
   type misc_error = Unix.error * string * string
-  type create_error = [ `Io_misc of misc_error | `File_exists ]
+
+  let unix_error_t =
+    Irmin.Type.(map string (fun _str -> assert false) Unix.error_message)
+
+  let misc_error_t = Irmin.Type.(triple unix_error_t string string)
+
+  type create_error = [ `Io_misc of misc_error | `File_exists of string ]
 
   type open_error =
     [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
@@ -69,11 +74,11 @@ module Unix = struct
 
   type mkdir_error =
     [ `Io_misc of misc_error
-    | `File_exists
+    | `File_exists of string
     | `No_such_file_or_directory
     | `Invalid_parent_directory ]
 
-  include Errors
+  let raise_misc_error (x, y, z) = raise (Unix.Unix_error (x, y, z))
 
   type t = {
     fd : Unix.file_descr;
@@ -118,7 +123,7 @@ module Unix = struct
                     default_create_perm)
               in
               Ok { fd; closed = false; readonly = false; path }
-          | false -> Error `File_exists)
+          | false -> Error (`File_exists path))
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let open_ ~path ~readonly : (t, [> open_error ]) result =
@@ -144,8 +149,8 @@ module Unix = struct
 
   let write_exn t ~off s : unit =
     match (t.closed, t.readonly) with
-    | true, _ -> raise (Io_error `Write_on_closed)
-    | _, true -> raise (Io_error `Ro_not_allowed)
+    | true, _ -> raise (Errors_base.Io_error `Write_on_closed)
+    | _, true -> raise Errors_base.RO_not_allowed
     | _ ->
         (* really_write and following do not mutate the given buffer, so
            Bytes.unsafe_of_string is actually safe *)
@@ -157,7 +162,8 @@ module Unix = struct
 
   let write_string t ~off s : (unit, [> write_error ]) result =
     try Ok (write_exn t ~off s) with
-    | Io_error ((`Write_on_closed | `Ro_not_allowed) as e) -> Error e
+    | Errors_base.Io_error (`Write_on_closed as e) -> Error e
+    | Errors_base.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let fsync t : (unit, [> write_error ]) result =
@@ -171,9 +177,10 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let read_exn t ~off ~len buf : unit =
-    if len > Bytes.length buf then raise (Io_error `Invalid_argument);
+    if len > Bytes.length buf then
+      raise (Errors_base.Io_error `Invalid_argument);
     match t.closed with
-    | true -> raise (Io_error `Read_on_closed)
+    | true -> raise (Errors_base.Io_error `Read_on_closed)
     | false ->
         let nread = Util.really_read t.fd off len buf in
         Index.Stats.add_read nread;
@@ -181,7 +188,7 @@ module Unix = struct
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
              - the normal API allows return of a short string *)
-          raise (Io_error `Read_out_of_bounds)
+          raise (Errors_base.Io_error `Read_out_of_bounds)
 
   let read_to_string t ~off ~len =
     let buf = Bytes.create len in
@@ -189,7 +196,7 @@ module Unix = struct
       read_exn t ~off ~len buf;
       Ok (Bytes.unsafe_to_string buf)
     with
-    | Io_error
+    | Errors_base.Io_error
         ((`Invalid_argument | `Read_on_closed | `Read_out_of_bounds) as e) ->
         Error e
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
@@ -218,7 +225,7 @@ module Unix = struct
           Unix.mkdir path default_mkdir_perm;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-    | `Directory, (`File | `Directory | `Other) -> Error `File_exists
+    | `Directory, (`File | `Directory | `Other) -> Error (`File_exists path)
     | `No_such_file_or_directory, `No_such_file_or_directory ->
         Error `No_such_file_or_directory
     | _ -> Error `Invalid_parent_directory

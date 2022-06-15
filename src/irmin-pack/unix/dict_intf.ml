@@ -20,12 +20,6 @@ module type S = sig
 
   val find : t -> int -> string option
   val index : t -> string -> int option
-
-  (* val flush : t -> unit
-   *
-   * val sync : t -> unit
-   * (\** syncs a readonly dict with the file on disk. *\) *)
-
   val v : capacity:int -> file_manager -> t
   val close : t -> unit
 end

@@ -92,12 +92,12 @@ module Context = Make_context (struct
   let root = test_dir
 end)
 
-let flush fm = File_manager.flush fm |> Result.get_ok
-let reload fm = File_manager.reload fm |> Result.get_ok
+let flush fm = File_manager.flush fm |> Errs.raise_if_error
+let reload fm = File_manager.reload fm |> Errs.raise_if_error
 
 module Dict = struct
   let test_dict () =
-    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:false () in
+    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:true () in
     let x1 = Dict.index d.dict "foo" in
     Alcotest.(check (option int)) "foo" (Some 0) x1;
     let x1 = Dict.index d.dict "foo" in
@@ -134,7 +134,7 @@ module Dict = struct
   let ignore_int (_ : int option) = ()
 
   let test_readonly_dict () =
-    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:false () in
+    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:true () in
     let (d2 : Context.d) =
       Context.get_dict ~name:d.name ~readonly:true ~fresh:false ()
     in
@@ -159,6 +159,7 @@ module Dict = struct
     ignore_int (Dict.index d.dict "toto");
     ignore_int (Dict.index d.dict "titiabc");
     ignore_int (Dict.index d.dict "foo");
+    flush d.fm;
     reload d2.fm;
     check_index "titiabc" 3;
     check_index "bar" 1;
@@ -349,7 +350,7 @@ module Pack = struct
       let k2 =
         Pack.unsafe_append ~ensure_unique:true ~overcommit:false w h2 x2
       in
-      Index.flush t.index ~with_fsync:false |> Result.get_ok;
+      Index.flush t.index ~with_fsync:false |> Errs.raise_if_error;
       let+ y2 = Pack.find t'.pack k2 in
       Alcotest.(check (option string)) "sync after flush" (Some x2) y2
     in
@@ -387,7 +388,7 @@ module Pack = struct
       let k3 =
         Pack.unsafe_append ~ensure_unique:true ~overcommit:false w h3 x3
       in
-      Index.flush t.index ~with_fsync:false |> Result.get_ok;
+      Index.flush t.index ~with_fsync:false |> Errs.raise_if_error;
       check k2 x2 "find after flush" >>= fun () ->
       flush t.fm;
       reload t'.fm;

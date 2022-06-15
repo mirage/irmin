@@ -28,7 +28,8 @@ module Make_without_close_checks
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) =
+              and type key := Hash.t Pack_key.t)
+    (Errs : Errors.S with module Io = Fm.Io) =
 struct
   module Tbl = Table (Hash)
   module Control = Fm.Control
@@ -343,18 +344,19 @@ struct
       "[pack] calling batch directory on a store is not recommended. Use \
        repo.batch instead."];
     let on_success res =
-      Fm.flush_exn t.fm;
+      Fm.flush t.fm |> Errs.raise_if_error;
       Lwt.return res
     in
     let on_fail exn =
-      [%log.info "[pack] flush during batch fail"];
+      [%log.info
+        "[pack] batch failed. calling flush. (%s)" (Printexc.to_string exn)];
       let () =
         match Fm.flush t.fm with
         | Ok () -> ()
-        | Error _ ->
-            [%log.err "[pack] silencing flush fail during batch fail"];
-            (* TODO: Proper error message (tostring error) *)
-            assert false
+        | Error err ->
+            [%log.err
+              "[pack] batch failed and flush failed. Silencing flush fail. (%a)"
+                Errs.pp_error err]
       in
       raise exn
     in
@@ -425,9 +427,10 @@ module Make
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) =
+              and type key := Hash.t Pack_key.t)
+    (Errs : Errors.S with module Io = Fm.Io) =
 struct
-  module Inner = Make_without_close_checks (Fm) (Dict) (Hash) (Val)
+  module Inner = Make_without_close_checks (Fm) (Dict) (Hash) (Val) (Errs)
   include Inner
   include Indexable.Closeable (Inner)
 

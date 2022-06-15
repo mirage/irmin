@@ -54,7 +54,8 @@ module type Sigs = sig
       (Hash : Irmin.Hash.S with type t = Fm.Index.key)
       (Val : Pack_value.Persistent
                with type hash := Hash.t
-                and type key := Hash.t Pack_key.t) :
+                and type key := Hash.t Pack_key.t)
+      (Errs : Errors.S with module Io = Fm.Io) :
     S
       with type key = Hash.t Pack_key.t
        and type hash = Hash.t

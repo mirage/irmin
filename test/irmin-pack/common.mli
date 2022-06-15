@@ -19,7 +19,11 @@ module Int63 = Optint.Int63
 module Dict : Irmin_pack_unix.Dict.S
 module I = Irmin_pack_unix.Index
 module Conf : Irmin_pack.Conf.S
-module File_manager : Irmin_pack_unix.File_manager.S
+
+module File_manager :
+  Irmin_pack_unix.File_manager.S with module Io = Irmin_pack_unix.Io.Unix
+
+module Errs : Irmin_pack_unix.Errors.S with module Io = Irmin_pack_unix.Io.Unix
 
 module Schema :
   Irmin.Schema.Extended

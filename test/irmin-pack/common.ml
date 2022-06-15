@@ -76,16 +76,18 @@ module I = Irmin_pack_unix.Index
 module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
 module Io = Irmin_pack_unix.Io.Unix
+module Errs = Irmin_pack_unix.Errors.Make (Io)
 module Control = Irmin_pack_unix.Control_file.Make (Io)
 module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
 
 module File_manager =
-  Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index)
+  Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
 
 module Dict = Irmin_pack_unix.Dict.Make (File_manager)
 
 module Pack =
   Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash) (Contents)
+    (Errs)
 
 module Branch =
   Irmin_pack_unix.Atomic_write.Make_persistent
@@ -100,10 +102,12 @@ struct
     let c = ref 0 in
     fun object_type ->
       incr c;
+
       let name = Filename.concat Config.root ("pack_" ^ string_of_int !c) in
       [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
+  let mkdir_dash_p dirname = Irmin_pack_unix.Io_legacy.Unix.mkdir dirname
   let capacity = 100
 
   type d = { name : string; fm : File_manager.t; dict : Dict.t }
@@ -116,26 +120,14 @@ struct
   (* TODO : remove duplication with irmin_pack/ext.ml *)
   let get_fm config =
     let readonly = Irmin_pack.Conf.readonly config in
-    (* TODO: Proper exceptions (instead of [Result.get_ok]) *)
-    if readonly then File_manager.open_ro config |> Result.get_ok
+    if readonly then File_manager.open_ro config |> Errs.raise_if_error
     else
       let fresh = Irmin_pack.Conf.fresh config in
-      let root = Irmin_pack.Conf.root config in
-      (* make sure the parent dir exists *)
-      let () =
-        match Sys.file_exists (Filename.dirname root) with
-        | false -> Unix.mkdir (Filename.dirname root) 0o755
-        | true -> ()
-      in
-      match (Io.classify_path root, fresh) with
-      | `No_such_file_or_directory, _ ->
-          File_manager.create_rw ~overwrite:false config |> Result.get_ok
-      | `Directory, true ->
-          File_manager.create_rw ~overwrite:true config |> Result.get_ok
-      | `Directory, false -> File_manager.open_rw config |> Result.get_ok
-      | (`File | `Other), _ ->
-          (* TODO: Proper exception *)
-          assert false
+      if fresh then (
+        let root = Irmin_pack.Conf.root config in
+        mkdir_dash_p root;
+        File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error)
+      else File_manager.open_rw config |> Errs.raise_if_error
 
   let get_dict ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in
@@ -143,7 +135,7 @@ struct
     let dict = Dict.v ~capacity fm in
     { name; dict; fm }
 
-  let close_dict d = File_manager.close d.fm |> Result.get_ok
+  let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
 
   type t = {
     name : string;
@@ -161,7 +153,7 @@ struct
     let index = File_manager.index fm in
     let dict = Dict.v ~capacity fm in
     let+ pack = Pack.v ~config ~fm ~dict in
-    (f := fun () -> File_manager.flush fm |> Result.get_ok);
+    (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm }
 
   let get_rw_pack () =
@@ -173,7 +165,7 @@ struct
 
   let close_pack t =
     Index.close_exn t.index;
-    File_manager.close t.fm |> Result.get_ok;
+    File_manager.close t.fm |> Errs.raise_if_error;
     (* closes pack and dict *)
     Lwt.return_unit
 end

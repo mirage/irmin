@@ -25,7 +25,8 @@ module Make
     (Control : Control_file.S with module Io = Io.Unix)
     (Dict : Append_only_file.S with module Io = Control.Io)
     (Suffix : Append_only_file.S with module Io = Control.Io)
-    (Index : Pack_index.S) =
+    (Index : Pack_index.S)
+    (Errs : Errors.S with module Io = Control.Io) =
 struct
   module Io = Control.Io
 
@@ -95,13 +96,6 @@ struct
       in
       ()
 
-  let reload_exn t =
-    match reload t with
-    | Ok () -> ()
-    | Error _ ->
-        (* TODO: Proper exception *)
-        assert false
-
   (* Flush stages *********************************************************** *)
 
   (** Flush stage 1 *)
@@ -144,42 +138,22 @@ struct
 
   (** Is expected to be called by the dict when its append buffer is full so
       that the file manager flushes. *)
-  let dict_requires_a_flush_exn t =
-    match flush_dict t with
-    | Ok () -> ()
-    | Error _ ->
-        (* TODO: Proper error *)
-        assert false
+  let dict_requires_a_flush_exn t = flush_dict t |> Errs.raise_if_error
 
   (** Is expected to be called by the suffix when its append buffer is full so
       that the file manager flushes. *)
   let suffix_requires_a_flush_exn t =
-    match flush_suffix_and_its_deps t with
-    | Ok () -> ()
-    | Error _ ->
-        (* TODO: Proper error *)
-        assert false
+    flush_suffix_and_its_deps t |> Errs.raise_if_error
 
   (** Is expected to be called by the index when its append buffer is full so
       that the dependendies of index are flushes. When the function returns,
       index will flush itself. *)
   let index_is_about_to_auto_flush_exn t =
-    match flush_suffix_and_its_deps t with
-    | Ok () -> ()
-    | Error _ ->
-        (* TODO: Proper error *)
-        assert false
+    flush_suffix_and_its_deps t |> Errs.raise_if_error
 
   (* Explicit flush ********************************************************* *)
 
   let flush t = flush_index_and_its_deps t
-
-  let flush_exn t =
-    match flush t with
-    | Ok () -> ()
-    | Error _ ->
-        (* TODO: Proper exception *)
-        assert false
 
   (* File creation ********************************************************** *)
 
@@ -256,8 +230,8 @@ struct
     let root = Irmin_pack.Conf.root config in
     let* () =
       match (overwrite, Io.classify_path root) with
-      | _, (`File | `Other) -> Error `Not_a_directory
-      | false, `Directory -> Error `File_exists
+      | _, (`File | `Other) -> Error (`Not_a_directory root)
+      | false, `Directory -> Error (`File_exists root)
       | true, `Directory -> Ok ()
       | _, `No_such_file_or_directory -> Io.mkdir root
     in
@@ -365,7 +339,7 @@ struct
   let open_rw config =
     let root = Irmin_pack.Conf.root config in
     match Io.classify_path root with
-    | `File | `Other -> Error `Not_a_directory
+    | `File | `Other -> Error (`Not_a_directory root)
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
     | `Directory -> (
         let path = Irmin_pack.Layout.V3.control ~root in
