@@ -373,6 +373,13 @@ struct
     let* control =
       let path = Irmin_pack.Layout.V3.control ~root in
       Control.open_ ~readonly:true ~path
+      (* If no control file, then check whether the store is in v1 or v2. *)
+      |> Result.map_error (function
+           | `No_such_file_or_directory ->
+               let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
+               if Io.classify_path pack = `File then `Migration_needed
+               else `No_such_file_or_directory
+           | error -> error)
     in
     let pl : Payload.t = Control.payload control in
     let dead_header_size =

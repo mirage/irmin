@@ -66,7 +66,8 @@ module type S = sig
       [> Io.open_error
       | Io.read_error
       | `Decoding_error
-      | `File_exists of string ] )
+      | `File_exists of string
+      | `Migration_needed ] )
     result
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
