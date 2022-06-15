@@ -17,6 +17,7 @@
 open! Import
 include Checks_intf
 module Io_legacy = Io_legacy.Unix
+(* TODO: Make integrity check work with V3 *)
 
 let setup_log =
   let init style_renderer level =
