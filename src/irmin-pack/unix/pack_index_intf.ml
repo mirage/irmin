@@ -24,6 +24,8 @@ module type S = sig
   type key
   type value = int63 * int * Pack_value.Kind.t
 
+  include Index.S with type value := value and type t := t and type key := key
+
   val v_exn :
     ?flush_callback:(unit -> unit) ->
     ?fresh:bool ->
