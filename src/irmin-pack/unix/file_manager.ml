@@ -96,7 +96,14 @@ struct
       in
       ()
 
-  (* Flush stages *********************************************************** *)
+  (** Flush stages *************************************************************
+
+      The irmin-pack files are only mutated during calls to one of the 3
+      following functions. Exceptions:
+
+      - During [create] and [open_rw].
+      - During a GC.
+      - When the branch store is modified. *)
 
   (** Flush stage 1 *)
   let flush_dict t =
@@ -217,14 +224,6 @@ struct
     let path = Irmin_pack.Layout.V3.control ~root in
     Control.create_rw ~path ~overwrite pl
 
-  (** Note on SWMR consistency: It is undefined for a reader to attempt an
-      opening before [create_rw] is over.
-
-      Note on crash consistency: Crashing during [create_rw] leaves the storage
-      in an undefined state.
-
-      Note on errors: If [create_rw] returns an error, the storage is left in an
-      undefined state and some file descriptors might not be closed. *)
   let create_rw ~overwrite config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
@@ -336,17 +335,6 @@ struct
     | `No_such_file_or_directory | `Other -> Error `Invalid_layout
     | `File -> open_rw_migrate_from_v1_v2 config
 
-  (** Note on SWMR consistency: It is undefined for a reader to attempt and
-      opening during an [open_rw].
-
-      Note on crash consistency: If [open_rw] crashes during
-      [open_rw_migrate_from_v1_v2], the storage is left in an undefined state.
-      Otherwise the storage is unaffected.
-
-      Note on errors: If [open_rw] returns an error during
-      [open_rw_migrate_from_v1_v2], the storage is left in an undefined state.
-      Otherwise the storage is unaffected. Anyhow, some file descriptors might
-      not be closed. *)
   let open_rw config =
     let root = Irmin_pack.Conf.root config in
     match Io.classify_path root with
@@ -361,12 +349,6 @@ struct
 
   (* Open ro **************************************************************** *)
 
-  (** Note on SWMR consistency: TODO: doc
-
-      Note on crash consistency: The storage is never mutated.
-
-      Note on errors: The storage is never mutated. Some file descriptors might
-      not be closed. *)
   let open_ro config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
