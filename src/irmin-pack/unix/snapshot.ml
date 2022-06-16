@@ -79,6 +79,7 @@ module Make (Args : Args) = struct
 
     let io_read_and_decode_entry_prefix ~off t =
       let io_read_at_most ~off ~len bytes =
+        (* TODO: Check that *)
         Fm.Suffix.read_exn (Fm.suffix t.fm) ~off ~len bytes;
         len
       in

@@ -101,7 +101,15 @@ module Make (Io : Io.S) = struct
     let* string = Io.read_to_string io ~off:Int63.zero ~len in
     match Data.of_bin_string string with
     | Ok _ as ok -> ok
-    | Error (`Msg _msg) -> Error `Decoding_error
+    | Error (`Msg _msg) -> Error `Corrupted_control_file
+
+  let read io =
+    match read io with
+    | Ok x -> Ok x
+    | Error (`Read_out_of_bounds | `Corrupted_control_file) ->
+        Error `Corrupted_control_file
+    | Error `Invalid_argument -> assert false
+    | Error (`Io_misc _ | `Read_on_closed) as e -> e
 
   let create_rw ~path ~overwrite payload =
     let open Result_syntax in

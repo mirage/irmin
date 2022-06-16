@@ -34,7 +34,8 @@ type error =
   | `Corrupted_legacy_file
   | `Pending_flush
   | `Rw_not_allowed
-  | `Migration_needed ]
+  | `Migration_needed
+  | `Corrupted_control_file ]
 [@@deriving irmin ~pp]
 (** [error] is the type of all errors that can occur in a [result], except
     [`Io_misc] which depends on the Io module used. *)
@@ -56,7 +57,8 @@ type error' =
   | `Corrupted_legacy_file
   | `Pending_flush
   | `Rw_not_allowed
-  | `Migration_needed ]
+  | `Migration_needed
+  | `Corrupted_control_file ]
 (** [error'] is the payload of the [Io_error] exception.
 
     [error'] is [error] without [`Ro_not_allowed], because there exist a

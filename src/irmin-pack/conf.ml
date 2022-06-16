@@ -41,6 +41,8 @@ module Default = struct
 
   let dict_auto_flush_threshold = 1_000_000
   let suffix_auto_flush_threshold = 1_000_000
+
+  (* TODO: Add a [no_migrate] parameter. so that [open_rw] fails if migration is needed *)
 end
 
 open Irmin.Backend.Conf

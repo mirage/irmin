@@ -49,25 +49,31 @@ module type S = sig
   val open_rw :
     Irmin.Backend.Conf.t ->
     ( t,
-      [> Io.open_error
-      | Io.close_error
-      | Io.read_error
-      | Io.write_error
-      | `Not_a_directory of string
+      [> `Corrupted_control_file
+      | `Double_close
+      | `File_exists of string
+      | `Invalid_argument
       | `Invalid_layout
-      | `Decoding_error
-      | `Corrupted_legacy_file
-      | `File_exists of string ] )
+      | `Io_misc of Io.misc_error
+      | `No_such_file_or_directory
+      | `Not_a_directory of string
+      | `Not_a_file
+      | `Read_on_closed
+      | `Read_out_of_bounds
+      | `Ro_not_allowed
+      | `Write_on_closed ] )
     result
 
   val open_ro :
     Irmin.Backend.Conf.t ->
     ( t,
-      [> Io.open_error
-      | Io.read_error
-      | `Decoding_error
+      [> `Corrupted_control_file
       | `File_exists of string
-      | `Migration_needed ] )
+      | `Io_misc of Io.misc_error
+      | `Migration_needed
+      | `No_such_file_or_directory
+      | `Not_a_file
+      | `Read_on_closed ] )
     result
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
@@ -83,7 +89,15 @@ module type S = sig
 
   val reload :
     t ->
-    (unit, [> Io.read_error | `Rw_not_allowed | `Decoding_error | `Tmp ]) result
+    ( unit,
+      [> `Corrupted_control_file
+      | `Invalid_argument
+      | `Io_misc of Io.misc_error
+      | `Read_on_closed
+      | `Read_out_of_bounds
+      | `Rw_not_allowed
+      | `Tmp ] )
+    result
 
   val register_dict_consumer :
     t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit
@@ -93,14 +107,12 @@ module type S = sig
   val version :
     root:string ->
     ( Import.Version.t,
-      [> `Double_close
-      | `Invalid_argument
+      [> `Corrupted_control_file
+      | `Corrupted_legacy_file
       | `Invalid_layout
       | `Io_misc of Io.misc_error
       | `No_such_file_or_directory
-      | `Not_a_file
-      | `Read_on_closed
-      | `Read_out_of_bounds ] )
+      | `Not_a_directory of string ] )
     result
 end
 

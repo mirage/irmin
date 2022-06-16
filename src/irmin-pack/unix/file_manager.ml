@@ -301,7 +301,9 @@ struct
     let off = Int63.of_int 8 in
     let* s = Io.read_to_string io ~off ~len:8 in
     let* () = Io.close io in
-    match Version.of_bin s with Some x -> Ok x | None -> Error `Invalid_layout
+    match Version.of_bin s with
+    | Some x -> Ok x
+    | None -> Error `Corrupted_legacy_file
 
   let open_rw_migrate_from_v1_v2 config =
     let open Result_syntax in
@@ -422,13 +424,26 @@ struct
 
   let version ~root =
     let v2_or_v1 () =
-      let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
-      assert (Io.classify_path pack = `File);
-      read_version_from_legacy_file pack
+      let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
+      match read_version_from_legacy_file path with
+      | Ok v -> Ok v
+      | Error `Double_close | Error `Invalid_argument | Error `Read_on_closed ->
+          assert false
+      | Error `No_such_file_or_directory -> Error `Invalid_layout
+      | Error `Not_a_file -> Error `Invalid_layout
+      | Error `Corrupted_legacy_file | Error `Read_out_of_bounds ->
+          Error `Corrupted_legacy_file
+      | Error (`Io_misc _) as e -> e
     in
-    let control = Irmin_pack.Layout.V3.control ~root in
-    match Io.classify_path control with
-    | `File -> Ok `V3
-    | `No_such_file_or_directory -> v2_or_v1 ()
-    | `Directory | `Other -> assert false
+    match Io.classify_path root with
+    | `No_such_file_or_directory -> Error `No_such_file_or_directory
+    | `File | `Other -> Error (`Not_a_directory root)
+    | `Directory -> (
+        let path = Irmin_pack.Layout.V3.control ~root in
+        match Control.open_ ~path ~readonly:true with
+        | Ok _ -> Ok `V3
+        | Error `No_such_file_or_directory -> v2_or_v1 ()
+        | Error `Not_a_file -> Error `Invalid_layout
+        | Error `Read_on_closed -> assert false
+        | Error (`Io_misc _ | `Corrupted_control_file) as e -> e)
 end

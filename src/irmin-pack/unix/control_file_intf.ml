@@ -92,10 +92,14 @@ module type S = sig
     (t, [> Io.create_error | Io.write_error ]) result
   (** Create a rw instance of [t] by creating a control file. *)
 
-  val open_ :
-    path:string ->
-    readonly:bool ->
-    (t, [> Io.open_error | Io.read_error | `Decoding_error ]) result
+  type open_error :=
+    [ `Corrupted_control_file
+    | `Io_misc of Io.misc_error
+    | `No_such_file_or_directory
+    | `Not_a_file
+    | `Read_on_closed ]
+
+  val open_ : path:string -> readonly:bool -> (t, [> open_error ]) result
   (** Create a rw instance of [t] by reading an existing file at [path]. *)
 
   val close : t -> (unit, [> Io.close_error ]) result
@@ -114,7 +118,11 @@ module type S = sig
       [payload t] is the [payload], as it was seen during [open_] or during the
       most recent [reload]. *)
 
-  type reload_error := [ `Decoding_error | Io.read_error | `Rw_not_allowed ]
+  type reload_error :=
+    [ `Corrupted_control_file
+    | `Io_misc of Io.misc_error
+    | `Read_on_closed
+    | `Rw_not_allowed ]
 
   val reload : t -> (unit, [> reload_error ]) result
   (** Reread the file.
