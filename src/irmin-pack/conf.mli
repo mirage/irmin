@@ -64,6 +64,7 @@ module Key : sig
   val use_fsync : bool Irmin.Backend.Conf.key
   val dict_auto_flush_threshold : int Irmin.Backend.Conf.key
   val suffix_auto_flush_threshold : int Irmin.Backend.Conf.key
+  val no_migrate : bool Irmin.Backend.Conf.key
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
@@ -76,6 +77,7 @@ val indexing_strategy : Irmin.Backend.Conf.t -> Indexing_strategy.t
 val use_fsync : Irmin.Backend.Conf.t -> bool
 val dict_auto_flush_threshold : Irmin.Backend.Conf.t -> int
 val suffix_auto_flush_threshold : Irmin.Backend.Conf.t -> int
+val no_migrate : Irmin.Backend.Conf.t -> bool
 
 val init :
   ?fresh:bool ->
@@ -87,5 +89,6 @@ val init :
   ?use_fsync:bool ->
   ?dict_auto_flush_threshold:int ->
   ?suffix_auto_flush_threshold:int ->
+  ?no_migrate:bool ->
   string ->
   Irmin.config

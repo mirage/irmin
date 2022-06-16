@@ -61,6 +61,7 @@ module type S = sig
     | `Invalid_argument
     | `Invalid_layout
     | `Io_misc of Io.misc_error
+    | `Migration_needed
     | `No_such_file_or_directory
     | `Not_a_directory of string
     | `Not_a_file

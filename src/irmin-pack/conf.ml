@@ -37,8 +37,7 @@ module Default = struct
   let use_fsync = false
   let dict_auto_flush_threshold = 1_000_000
   let suffix_auto_flush_threshold = 1_000_000
-
-  (* TODO: Add a [no_migrate] parameter. so that [open_rw] fails if migration is needed *)
+  let no_migrate = false
 end
 
 open Irmin.Backend.Conf
@@ -96,6 +95,10 @@ module Key = struct
     key ~spec ~doc:"Buffer size of the suffix at which automatic flushes occur"
       "suffix-auto-flush-threshold" Irmin.Type.int
       Default.suffix_auto_flush_threshold
+
+  let no_migrate =
+    key ~spec ~doc:"Prevent migration of V1 and V2 stores" "no-migrate"
+      Irmin.Type.bool Default.no_migrate
 end
 
 let fresh config = get config Key.fresh
@@ -119,13 +122,16 @@ let dict_auto_flush_threshold config = get config Key.dict_auto_flush_threshold
 let suffix_auto_flush_threshold config =
   get config Key.suffix_auto_flush_threshold
 
+let no_migrate config = get config Key.no_migrate
+
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(indexing_strategy = Default.indexing_strategy)
     ?(use_fsync = Default.use_fsync)
     ?(dict_auto_flush_threshold = Default.dict_auto_flush_threshold)
-    ?(suffix_auto_flush_threshold = Default.suffix_auto_flush_threshold) root =
+    ?(suffix_auto_flush_threshold = Default.suffix_auto_flush_threshold)
+    ?(no_migrate = Default.no_migrate) root =
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.fresh fresh in
@@ -141,4 +147,5 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config =
     add config Key.suffix_auto_flush_threshold suffix_auto_flush_threshold
   in
+  let config = add config Key.no_migrate no_migrate in
   verify config

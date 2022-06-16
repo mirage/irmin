@@ -36,6 +36,7 @@ module type Sigs = sig
     ?use_fsync:bool ->
     ?dict_auto_flush_threshold:int ->
     ?suffix_auto_flush_threshold:int ->
+    ?no_migrate:bool ->
     string ->
     Irmin.config
   (** Configuration options for stores.

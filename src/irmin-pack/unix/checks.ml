@@ -200,7 +200,7 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Conf.init ~readonly:false ~fresh:false root
+    let conf root = Conf.init ~readonly:false ~fresh:false ~no_migrate:true root
 
     let handle_result ?name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
