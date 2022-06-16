@@ -100,7 +100,7 @@ module Unix = struct
   let default_open_perm = 0o644
   let default_mkdir_perm = 0o755
 
-  let create ~path ~overwrite : (t, [> create_error ]) result =
+  let create ~path ~overwrite =
     try
       match Sys.file_exists path with
       | false ->
@@ -126,7 +126,7 @@ module Unix = struct
           | false -> Error (`File_exists path))
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  let open_ ~path ~readonly : (t, [> open_error ]) result =
+  let open_ ~path ~readonly =
     match classify_path path with
     | `Directory | `Other -> Error `Not_a_file
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
@@ -137,7 +137,7 @@ module Unix = struct
           Ok { fd; closed = false; readonly; path }
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  let close t : (unit, [> close_error ]) result =
+  let close t =
     match t.closed with
     | true -> Error `Double_close
     | false -> (
@@ -147,7 +147,7 @@ module Unix = struct
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  let write_exn t ~off s : unit =
+  let write_exn t ~off s =
     match (t.closed, t.readonly) with
     | true, _ -> raise (Errors_base.Io_error `Write_on_closed)
     | _, true -> raise Errors_base.RO_not_allowed
@@ -160,13 +160,13 @@ module Unix = struct
         Index.Stats.add_write len;
         ()
 
-  let write_string t ~off s : (unit, [> write_error ]) result =
+  let write_string t ~off s =
     try Ok (write_exn t ~off s) with
     | Errors_base.Io_error (`Write_on_closed as e) -> Error e
     | Errors_base.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  let fsync t : (unit, [> write_error ]) result =
+  let fsync t =
     match (t.closed, t.readonly) with
     | true, _ -> Error `Write_on_closed
     | _, true -> Error `Ro_not_allowed
@@ -176,7 +176,7 @@ module Unix = struct
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  let read_exn t ~off ~len buf : unit =
+  let read_exn t ~off ~len buf =
     if len > Bytes.length buf then
       raise (Errors_base.Io_error `Invalid_argument);
     match t.closed with
@@ -201,7 +201,7 @@ module Unix = struct
         Error e
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  let read_size t : (int63, [> read_error ]) result =
+  let read_size t =
     match t.closed with
     | true -> Error `Read_on_closed
     | false -> (
@@ -212,13 +212,13 @@ module Unix = struct
   let path t = t.path
   let page_size = 4096
 
-  let move_file ~src ~dst : (unit, [> move_file_error ]) result =
+  let move_file ~src ~dst =
     try
       Sys.rename src dst;
       Ok ()
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  let mkdir path : (unit, [> mkdir_error ]) result =
+  let mkdir path =
     match (classify_path (Filename.dirname path), classify_path path) with
     | `Directory, `No_such_file_or_directory -> (
         try

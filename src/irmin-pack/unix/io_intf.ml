@@ -17,7 +17,7 @@
 open Import
 
 module type S = sig
-  (** Low level IO abstraction. A typical implementation is unix. = This
+  (** Low level IO abstraction. A typical implementation is unix. This
       abstraction is meant to be dead simple. Not a lot of documentation is
       required.
 
