@@ -17,7 +17,6 @@
 open! Import
 include Checks_intf
 module Io_legacy = Io_legacy.Unix
-(* TODO: Make integrity check work with V3 *)
 
 let setup_log =
   let init style_renderer level =
@@ -63,8 +62,7 @@ module Make (Store : Store) = struct
     type io = { size : size; offset : int63; version : Version.t }
     [@@deriving irmin]
 
-    type files = { pack : io option; branch : io option; dict : io option }
-    [@@deriving irmin]
+    type files = { branch : io option; dict : io option } [@@deriving irmin]
 
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
@@ -95,10 +93,9 @@ module Make (Store : Store) = struct
       { size; offset; version }
 
     let v ~root =
-      let pack = Layout.V1_and_v2.pack ~root |> io in
-      let branch = Layout.V1_and_v2.branch ~root |> io in
-      let dict = Layout.V1_and_v2.dict ~root |> io in
-      { pack; branch; dict }
+      let branch = Layout.V3.branch ~root |> io in
+      let dict = Layout.V3.dict ~root |> io in
+      { branch; dict }
 
     let traverse_index ~root log_size =
       let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
@@ -119,7 +116,7 @@ module Make (Store : Store) = struct
       in
       { nb_contents; nb_nodes; nb_commits }
 
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let run ~root =
       [%logs.app "Getting statistics for store: `%s'@," root];
@@ -140,7 +137,8 @@ module Make (Store : Store) = struct
 
   module Reconstruct_index = struct
     let conf ~index_log_size root =
-      Conf.init ~readonly:false ~fresh:false ?index_log_size root
+      Conf.init ~readonly:false ~fresh:false ?index_log_size ~no_migrate:true
+        root
 
     let dest =
       let open Cmdliner.Arg in
@@ -175,7 +173,7 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check_index = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let run ~root ~auto_repair () =
       let conf = conf root in
@@ -236,7 +234,7 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check_inodes = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let heads =
       let open Cmdliner.Arg in
@@ -279,7 +277,7 @@ module Make (Store : Store) = struct
   end
 
   module Stats_commit = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let commit =
       let open Cmdliner.Arg in
