@@ -10,6 +10,11 @@
   - Add `--plugin` flag to load Dynlink plugins that can register new
     contents, hash and store types (#1808, @zshipko)
 
+- **irmin-pack**
+  - Add `use_fsync`, `dict_auto_flush_threshold` and
+  - `suffix_auto_flush_threshold` in store configuration. (#1865, @Ngoguey42)
+  - Add `no_migrate` in store configuration. (#1893, @zshipko)
+
 ### Changed
 
 - **irmin-pack**
@@ -18,6 +23,14 @@
     to `Irmin_pack_unix` (#1833, @Ngoguey42)
   - Different repos opened using the same store module no longer share caches
     and file descriptors (#1852, @Ngoguey42)
+  - `Snapshot.Import.close` requires a repo as additional argument (#1872,
+    @icristescu)
+  - Upgraded on-disk format to version 3 to support better synchronisation
+    mechanism between readwrite and readonly instances. This change is *not*
+    backwards-compatible with existing stores using `irmin-pack.x.x < 3.3.0`
+    versions. A migration done by the readwrite instance is necessary to open
+    older stores with `irmin-pack.3.3.0`. It is not forwards compatible. (#1865)
+  - Rename `Store.sync` to `Store.reload` (#TODO).
 
 ### Fixed
 
