@@ -410,13 +410,10 @@ let config_term =
   let create root config_path (opts : (string * string) list list) =
     (root, config_path, opts)
   in
-  let spec = Conf.Spec.(join (v "unix") [ Irmin_http.Conf.spec ]) in
   let doc =
-    Seq.map (fun (Irmin.Backend.Conf.K x) -> Conf.name x) (Conf.Spec.keys spec)
-    |> List.of_seq
-    |> String.concat ~sep:", "
+    "Backend-specific options. See the output of `irmin options` for a list of \
+     options supported by the selected backend"
   in
-  let doc = "Backend-specific options: " ^ doc in
   let opts =
     Arg.info ~docv:"OPTIONS" ~docs:global_option_section ~doc
       [ "opt"; "options" ]
