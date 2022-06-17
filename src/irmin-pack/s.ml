@@ -47,8 +47,8 @@ module type Specifics = sig
       reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
       entries. *)
 
-  val sync : repo -> unit
-  (** [sync t] syncs a readonly pack with the files on disk. Raises
+  val reload : repo -> unit
+  (** [reload t] reloads a readonly pack with the files on disk. Raises
       [invalid_argument] if called by a read-write pack.*)
 
   val flush : repo -> unit

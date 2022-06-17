@@ -73,10 +73,10 @@ module type Sigs = sig
         store) will be discovered on attempted [find] (or [mem]).
 
       - {b passing keys between store handles}. Read-only handles on a pack
-        store must explicitly {i sync} to observe recent writes to the store.
+        store must explicitly {i reload} to observe recent writes to the store.
         This means that any keys built by a read-write instance and passed to a
         read-only instance will be undereferencable until that reader has
-        synced.
+        reloaded.
 
       - {b passing keys between repositories}. Keys created for one Irmin
         repository may not be dereferenced with respect to another by design. *)

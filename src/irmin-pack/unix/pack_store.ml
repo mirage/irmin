@@ -193,7 +193,7 @@ struct
         then (
           (* Can't fit an entry into this suffix of the store, so this key
              isn't (yet) valid. If we're a read-only instance, the key may
-             become valid on [sync]; otherwise we know that this key wasn't
+             become valid on [reload]; otherwise we know that this key wasn't
              constructed for this store. *)
           if not (Control.readonly (Fm.control t.fm)) then
             invalid_read
@@ -282,7 +282,7 @@ struct
     if Int63.add offset (Int63.of_int length) > io_offset then (
       (* Can't fit an entry into this suffix of the store, so this key
          isn't (yet) valid. If we're a read-only instance, the key may
-         become valid on [sync]; otherwise we know that this key wasn't
+         become valid on [reload]; otherwise we know that this key wasn't
          constructed for this store. *)
       match Control.readonly (Fm.control t.fm) with
       | false ->
