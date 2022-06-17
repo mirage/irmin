@@ -48,9 +48,9 @@ module type Sigs = sig
         t ->
         ( unit,
           [> `Double_close
+          | `Index_failure of string
           | `Io_misc of File_manager.Io.misc_error
-          | `Pending_flush
-          | `Tmp ] )
+          | `Pending_flush ] )
         result
     end
 

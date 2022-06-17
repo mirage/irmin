@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(* TODO: Remove [`Tmp] everywhere *)
-
 type error =
   [ `Double_close
   | `File_exists of string
@@ -25,11 +23,11 @@ type error =
   | `Read_on_closed
   | `Read_out_of_bounds
   | `Ro_not_allowed
-  | `Tmp
   | `Write_on_closed
   | `Invalid_argument
   | `Decoding_error
   | `Not_a_directory of string
+  | `Index_failure of string
   | `Invalid_layout
   | `Corrupted_legacy_file
   | `Pending_flush
@@ -49,11 +47,11 @@ type error' =
   | `Not_a_file
   | `Read_on_closed
   | `Read_out_of_bounds
-  | `Tmp
   | `Write_on_closed
   | `Invalid_argument
   | `Decoding_error
   | `Not_a_directory of string
+  | `Index_failure of string
   | `Invalid_layout
   | `Corrupted_legacy_file
   | `Pending_flush
@@ -61,18 +59,19 @@ type error' =
   | `Migration_needed
   | `Corrupted_control_file
   | `V3_store_from_the_future ]
-(** [error'] is the payload of the [Io_error] exception.
+(** [error'] is the payload of the [Pack_error] exception.
 
     [error'] is [error] without [`Ro_not_allowed], because there exist a
     dedicated [RO_not_allowed] exception.
 
     We can't use polyval inclusion because repr doesn't support it *)
 
-exception Io_error of error'
+exception Pack_error of error'
 
 let () =
   Printexc.register_printer (function
-    | Io_error e -> Some (Fmt.str "Io_error: %a" pp_error (e : error' :> error))
+    | Pack_error e ->
+        Some (Fmt.str "Pack_error: %a" pp_error (e : error' :> error))
     | _ -> None)
 
 exception RO_not_allowed = Irmin_pack.RO_not_allowed

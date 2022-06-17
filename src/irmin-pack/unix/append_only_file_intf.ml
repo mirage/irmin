@@ -99,6 +99,9 @@ module type S = sig
       This information originates from the latest reload of the control file.
       Calling [refresh_end_offset t] updates [end_offset]. *)
 
+  val read_to_string :
+    t -> off:int63 -> len:int -> (string, [> Io.read_error ]) result
+
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** [read_exn t ~off ~len b] puts the [len] bytes of [t] at [off] to [b].
 

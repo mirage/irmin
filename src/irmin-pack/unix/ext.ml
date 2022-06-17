@@ -190,7 +190,7 @@ module Maker (Config : Conf.S) = struct
           let dict =
             (* TODO: Hide capacity in Dict and put a comment *)
             let capacity = 100_000 in
-            Dict.v ~capacity fm
+            Dict.v ~capacity fm |> Errs.raise_if_error
           in
           let* contents = Contents.CA.v ~config ~fm ~dict in
           let* node = Node.CA.v ~config ~fm ~dict in
@@ -388,8 +388,7 @@ module Maker (Config : Conf.S) = struct
                 Export.run ?on_disk export f_contents f_nodes
                   (key, Pack_value.Kind.Inode_v2_root)
               in
-              (* TODO proper error handling *)
-              Export.close export |> Result.get_ok;
+              Export.close export |> Errs.raise_if_error;
               Lwt.return total
       end
 

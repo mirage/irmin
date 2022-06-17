@@ -74,23 +74,39 @@ module Make (K : Irmin.Hash.S) = struct
            on a non-existing file. *)
         assert false
     | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    | Failure msg -> Error (`Index_failure msg)
 
   let add ?overcommit t k v = replace ?overcommit t k v
   let find t k = match find t k with exception Not_found -> None | h -> Some h
   let close_exn t = Index.close t
 
   let close t =
-    close_exn t;
-    (* TODO: Catch errors and set type in mli *)
-    Ok ()
+    try
+      close_exn t;
+      Ok ()
+    with
+    | I.RO_not_allowed -> assert false
+    | Index_unix.Private.Raw.Not_written -> assert false
+    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    | Failure msg -> Error (`Index_failure msg)
 
   let reload t =
-    Index.sync t;
-    (* TODO: Catch errors and set type in mli *)
-    Ok ()
+    try
+      Index.sync t;
+      Ok ()
+    with
+    | I.RO_not_allowed -> assert false
+    | Index_unix.Private.Raw.Not_written -> assert false
+    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    | Failure msg -> Error (`Index_failure msg)
 
   let flush t ~with_fsync =
-    Index.flush ~no_callback:() ~with_fsync t;
-    (* TODO: Catch errors and set type in mli *)
-    Ok ()
+    try
+      Index.flush ~no_callback:() ~with_fsync t;
+      Ok ()
+    with
+    | I.RO_not_allowed -> assert false
+    | Index_unix.Private.Raw.Not_written -> assert false
+    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    | Failure msg -> Error (`Index_failure msg)
 end

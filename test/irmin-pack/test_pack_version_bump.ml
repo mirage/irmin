@@ -135,7 +135,7 @@ let test_RO_no_migration () : unit Lwt.t =
 
   let* () =
     Alcotest.check_raises_lwt "open V1 store in RO"
-      (Irmin_pack_unix.Errors.Io_error `Migration_needed) (fun () ->
+      (Irmin_pack_unix.Errors.Pack_error `Migration_needed) (fun () ->
         let* repo = S.Repo.v (config ~readonly:true) in
         S.Repo.close repo)
   in

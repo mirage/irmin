@@ -18,7 +18,7 @@ open! Import
 include Dict_intf
 
 module Make (Fm : File_manager.S) = struct
-  type file_manager = Fm.t
+  module Fm = Fm
 
   type t = {
     capacity : int;
@@ -31,7 +31,7 @@ module Make (Fm : File_manager.S) = struct
   module File = struct
     let append_exn t = Fm.Dict.append_exn (Fm.dict t.fm)
     let offset t = Fm.Dict.end_offset (Fm.dict t.fm)
-    let read_exn t = Fm.Dict.read_exn (Fm.dict t.fm)
+    let read_to_string t = Fm.Dict.read_to_string (Fm.dict t.fm)
   end
 
   type nonrec int32 = int32 [@@deriving irmin ~to_bin_string ~decode_bin]
@@ -43,13 +43,11 @@ module Make (Fm : File_manager.S) = struct
 
   (* Refill is only called once for a RW instance *)
   let refill t =
-    (* TODO: Proper error monad for refill *)
+    let open Result_syntax in
     let from = t.last_refill_offset in
     let len = Int63.to_int (File.offset t -- from) in
     t.last_refill_offset <- File.offset t;
-    let raw = Bytes.create len in
-    File.read_exn t ~off:from ~len raw;
-    let raw = Bytes.unsafe_to_string raw in
+    let+ raw = File.read_to_string t ~off:from ~len in
     let pos_ref = ref 0 in
     let rec aux n =
       if !pos_ref >= len then ()
@@ -82,15 +80,14 @@ module Make (Fm : File_manager.S) = struct
     v
 
   let v ~capacity fm =
+    let open Result_syntax in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let last_refill_offset = Int63.zero in
     let t = { capacity; index; cache; fm; last_refill_offset } in
-    refill t;
-    Fm.register_dict_consumer fm ~after_reload:(fun () ->
-        refill t;
-        Ok ());
-    t
+    let* () = refill t in
+    Fm.register_dict_consumer fm ~after_reload:(fun () -> refill t);
+    Ok t
 
   let close _ = ()
 end

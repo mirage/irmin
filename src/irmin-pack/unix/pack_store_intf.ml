@@ -50,7 +50,7 @@ module type Sigs = sig
 
   module Make
       (Fm : File_manager.S)
-      (Dict : Dict.S with type file_manager = Fm.t)
+      (Dict : Dict.S with module Fm = Fm)
       (Hash : Irmin.Hash.S with type t = Fm.Index.key)
       (Val : Pack_value.Persistent
                with type hash := Hash.t
