@@ -66,7 +66,8 @@ module type S = sig
     | `Read_on_closed
     | `Read_out_of_bounds
     | `Ro_not_allowed
-    | `Write_on_closed ]
+    | `Write_on_closed
+    | `V3_store_from_the_future ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -88,7 +89,8 @@ module type S = sig
     | `Migration_needed
     | `No_such_file_or_directory
     | `Not_a_file
-    | `Read_on_closed ]
+    | `Read_on_closed
+    | `V3_store_from_the_future ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Note on SWMR consistency: TODO: doc
