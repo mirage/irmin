@@ -391,6 +391,18 @@ module type S = sig
   val inspect :
     t ->
     [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+  (** [inspect t] is similar to {!kind}, with additional state information for
+      nodes. It is primarily useful for debugging and testing.
+
+      If [t] holds a node, additional information about its state is included:
+
+      - [`Map], if [t] is from {!of_concrete}.
+      - [`Value], if [t]'s node has modifications that have not been persisted
+        to a store.
+      - [`Portable_dirty], if [t]'s node has modifications and is
+        {!Node.Portable}. Currently only used with {!Proof}.
+      - [`Pruned], if [t] is from {!pruned}.
+      - Otherwise [`Key], the default state for a node loaded from a store. *)
 
   module Private : sig
     module Env : sig
