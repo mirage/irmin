@@ -21,7 +21,10 @@ module type Args = sig
   module File_manager : File_manager.S
 
   module Inode :
-    Inode.Persistent with type hash := Hash.t and type key = Hash.t Pack_key.t
+    Inode.Persistent
+      with type hash := Hash.t
+       and type key = Hash.t Pack_key.t
+       and type file_manager = File_manager.t
 
   module Contents_pack :
     Pack_store.S with type hash := Hash.t and type key = Hash.t Pack_key.t

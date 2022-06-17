@@ -35,10 +35,7 @@ module type S = sig
     val total_entry_length : t -> int option
   end
 
-  val read_and_decode_entry_prefix :
-    off:int63 ->
-    io_read_at_most:(off:int63 -> len:int -> bytes -> int) ->
-    Entry_prefix.t
+  val read_and_decode_entry_prefix : off:int63 -> file_manager -> Entry_prefix.t
   (** Read the entry prefix at offset [off]. *)
 
   val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
