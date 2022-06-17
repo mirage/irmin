@@ -40,15 +40,9 @@ module type S = sig
 
     type size = Bytes of int [@@deriving irmin]
 
-    type io = { size : size; offset : int63; version : Version.t }
-    [@@deriving irmin]
-
-    type files = { branch : io option; dict : io option } [@@deriving irmin]
-
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
 
-    val v : root:string -> files
     val traverse_index : root:string -> int -> objects
   end
 

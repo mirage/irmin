@@ -62,40 +62,11 @@ module Make (Store : Store) = struct
     type io = { size : size; offset : int63; version : Version.t }
     [@@deriving irmin]
 
-    type files = { branch : io option; dict : io option } [@@deriving irmin]
-
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
 
-    type t = {
-      hash_size : size;
-      log_size : int;
-      files : files;
-      objects : objects;
-    }
+    type t = { hash_size : size; log_size : int; objects : objects }
     [@@deriving irmin]
-
-    let with_io : type a. string -> (Io_legacy.t -> a) -> a option =
-     fun path f ->
-      match Io_legacy.exists path with
-      | false -> None
-      | true ->
-          let io = Io_legacy.v ~fresh:false ~readonly:true ~version:None path in
-          Fun.protect
-            ~finally:(fun () -> Io_legacy.close io)
-            (fun () -> Some (f io))
-
-    let io path =
-      with_io path @@ fun io ->
-      let offset = Io_legacy.offset io in
-      let size = Bytes (Io_legacy.size io) in
-      let version = Io_legacy.version io in
-      { size; offset; version }
-
-    let v ~root =
-      let branch = Layout.V3.branch ~root |> io in
-      let dict = Layout.V3.dict ~root |> io in
-      { branch; dict }
 
     let traverse_index ~root log_size =
       let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
@@ -122,8 +93,7 @@ module Make (Store : Store) = struct
       [%logs.app "Getting statistics for store: `%s'@," root];
       let log_size = conf root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
-      let files = v ~root in
-      { hash_size = Bytes Hash.hash_size; log_size; files; objects }
+      { hash_size = Bytes Hash.hash_size; log_size; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
 
