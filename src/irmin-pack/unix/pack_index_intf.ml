@@ -36,6 +36,8 @@ module type S = sig
     string ->
     t
 
+  type error := [ `Index_failure of string | `Io_misc of Io.Unix.misc_error ]
+
   val v :
     ?flush_callback:(unit -> unit) ->
     ?fresh:bool ->
@@ -44,12 +46,12 @@ module type S = sig
     ?lru_size:int ->
     log_size:int ->
     string ->
-    (t, [> Io.Unix.create_error | Io.Unix.open_error ]) result
+    (t, [> error ]) result
 
-  val reload : t -> (unit, [> `Tmp ]) result
-  val close : t -> (unit, [> `Tmp ]) result
+  val reload : t -> (unit, [> error ]) result
+  val close : t -> (unit, [> error ]) result
   val close_exn : t -> unit
-  val flush : t -> with_fsync:bool -> (unit, [> `Tmp ]) result
+  val flush : t -> with_fsync:bool -> (unit, [> error ]) result
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
   val merge : t -> unit

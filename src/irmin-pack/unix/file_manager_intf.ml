@@ -23,9 +23,9 @@ module type S = sig
       level). *)
 
   module Io : Io.S
-  module Control : Control_file.S
-  module Dict : Append_only_file.S
-  module Suffix : Append_only_file.S
+  module Control : Control_file.S with module Io = Io
+  module Dict : Append_only_file.S with module Io = Io
+  module Suffix : Append_only_file.S with module Io = Io
   module Index : Pack_index.S
 
   type t
@@ -40,7 +40,8 @@ module type S = sig
     | Io.write_error
     | Io.open_error
     | Io.mkdir_error
-    | `Not_a_directory of string ]
+    | `Not_a_directory of string
+    | `Index_failure of string ]
 
   val create_rw :
     overwrite:bool -> Irmin.Backend.Conf.t -> (t, [> create_error ]) result
@@ -67,7 +68,8 @@ module type S = sig
     | `Read_out_of_bounds
     | `Ro_not_allowed
     | `Write_on_closed
-    | `V3_store_from_the_future ]
+    | `V3_store_from_the_future
+    | `Index_failure of string ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -90,7 +92,8 @@ module type S = sig
     | `No_such_file_or_directory
     | `Not_a_file
     | `Read_on_closed
-    | `V3_store_from_the_future ]
+    | `V3_store_from_the_future
+    | `Index_failure of string ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Note on SWMR consistency: TODO: doc
@@ -100,7 +103,13 @@ module type S = sig
       Note on errors: The storage is never mutated. Some file descriptors might
       not be closed. *)
 
-  val close : t -> (unit, [> Io.close_error | `Pending_flush | `Tmp ]) result
+  type close_error :=
+    [ `Double_close
+    | `Index_failure of string
+    | `Io_misc of Io.misc_error
+    | `Pending_flush ]
+
+  val close : t -> (unit, [> close_error ]) result
   (** Close all the files.
 
       This call fails if the append buffers are not in a flushed stated. This
@@ -109,16 +118,22 @@ module type S = sig
 
       After *)
 
-  val flush : t -> (unit, [> Io.write_error | `Tmp ]) result
+  type flush_error :=
+    [ `Index_failure of string
+    | `Io_misc of Io.misc_error
+    | `Ro_not_allowed
+    | `Write_on_closed ]
+
+  val flush : t -> (unit, [> flush_error ]) result
 
   type reload_error :=
     [ `Corrupted_control_file
+    | `Index_failure of string
     | `Invalid_argument
     | `Io_misc of Io.misc_error
     | `Read_on_closed
     | `Read_out_of_bounds
-    | `Rw_not_allowed
-    | `Tmp ]
+    | `Rw_not_allowed ]
 
   val reload : t -> (unit, [> reload_error ]) result
 

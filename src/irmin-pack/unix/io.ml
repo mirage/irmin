@@ -149,7 +149,7 @@ module Unix = struct
 
   let write_exn t ~off s =
     match (t.closed, t.readonly) with
-    | true, _ -> raise (Errors_base.Io_error `Write_on_closed)
+    | true, _ -> raise (Errors_base.Pack_error `Write_on_closed)
     | _, true -> raise Errors_base.RO_not_allowed
     | _ ->
         (* really_write and following do not mutate the given buffer, so
@@ -162,7 +162,7 @@ module Unix = struct
 
   let write_string t ~off s =
     try Ok (write_exn t ~off s) with
-    | Errors_base.Io_error (`Write_on_closed as e) -> Error e
+    | Errors_base.Pack_error (`Write_on_closed as e) -> Error e
     | Errors_base.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
@@ -178,9 +178,9 @@ module Unix = struct
 
   let read_exn t ~off ~len buf =
     if len > Bytes.length buf then
-      raise (Errors_base.Io_error `Invalid_argument);
+      raise (Errors_base.Pack_error `Invalid_argument);
     match t.closed with
-    | true -> raise (Errors_base.Io_error `Read_on_closed)
+    | true -> raise (Errors_base.Pack_error `Read_on_closed)
     | false ->
         let nread = Util.really_read t.fd off len buf in
         Index.Stats.add_read nread;
@@ -188,7 +188,7 @@ module Unix = struct
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
              - the normal API allows return of a short string *)
-          raise (Errors_base.Io_error `Read_out_of_bounds)
+          raise (Errors_base.Pack_error `Read_out_of_bounds)
 
   let read_to_string t ~off ~len =
     let buf = Bytes.create len in
@@ -196,7 +196,7 @@ module Unix = struct
       read_exn t ~off ~len buf;
       Ok (Bytes.unsafe_to_string buf)
     with
-    | Errors_base.Io_error
+    | Errors_base.Pack_error
         ((`Invalid_argument | `Read_on_closed | `Read_out_of_bounds) as e) ->
         Error e
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))

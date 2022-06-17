@@ -38,7 +38,7 @@ module Make (Io : Io.S) : S with module Io = Io = struct
   let raise_error = function
     | `Io_misc e -> Io.raise_misc_error e
     | `Ro_not_allowed -> raise RO_not_allowed
-    | #error' as e -> raise (Io_error e)
+    | #error' as e -> raise (Pack_error e)
 
   let raise_if_error = function Ok x -> x | Error e -> raise_error e
 end

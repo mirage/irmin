@@ -116,6 +116,11 @@ module Make (Io : Io.S) = struct
     let off = off + t.dead_header_size in
     Io.read_exn t.io ~off ~len b
 
+  let read_to_string t ~off ~len =
+    let ( + ) = Int63.add in
+    let off = off + t.dead_header_size in
+    Io.read_to_string t.io ~off ~len
+
   let append_exn t s =
     match t.rw_perm with
     | None -> raise Errors.RO_not_allowed

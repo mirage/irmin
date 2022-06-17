@@ -109,7 +109,7 @@ module type S = sig
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** [read_exn t ~off ~len b] reads the [len] bytes of [t] at [off] to [b].
 
-      Raises [Errors.Io_error].
+      Raises [Errors.Pack_error].
 
       Also raises backend-specific exceptions (e.g. [Unix.Unix_error] for the
       unix backend). *)
@@ -117,7 +117,7 @@ module type S = sig
   val write_exn : t -> off:int63 -> string -> unit
   (** [write_exn t ~off b] writes [b] to [t] at offset [off].
 
-      Raises [Errors.Io_error]
+      Raises [Errors.Pack_error]
 
       Also raises backend-specific exceptions (e.g. [Unix.Unix_error] for the
       unix backend). *)
