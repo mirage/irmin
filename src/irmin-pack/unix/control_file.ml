@@ -76,7 +76,12 @@ module Data = struct
 
   let size_of = Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
   let bin = (encode_bin, decode_bin, size_of)
-  let t = Irmin.Type.like t ~bin
+
+  let t =
+    (* [unboxed_bin] is necessary here.
+       See https://github.com/mirage/repr/issues/97 *)
+    Irmin.Type.like t ~bin ~unboxed_bin:bin
+
   let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
   let to_bin_string = Irmin.Type.to_bin_string t |> Irmin.Type.unstage
 end
