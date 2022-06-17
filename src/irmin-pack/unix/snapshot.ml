@@ -78,13 +78,8 @@ module Make (Args : Args) = struct
       | Direct { length; _ } -> length
 
     let io_read_and_decode_entry_prefix ~off t =
-      let io_read_at_most ~off ~len bytes =
-        (* TODO: Check that *)
-        Fm.Suffix.read_exn (Fm.suffix t.fm) ~off ~len bytes;
-        len
-      in
       let entry_prefix : Inode_pack.Entry_prefix.t =
-        Inode_pack.read_and_decode_entry_prefix ~off ~io_read_at_most
+        Inode_pack.read_and_decode_entry_prefix ~off t.fm
       in
       let length =
         match Inode_pack.Entry_prefix.total_entry_length entry_prefix with

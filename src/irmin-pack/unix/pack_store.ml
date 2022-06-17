@@ -124,7 +124,31 @@ struct
       Option.map (fun len -> min_length + len) t.size_of_value_and_length_header
   end
 
-  let read_and_decode_entry_prefix ~off ~io_read_at_most =
+  let read_and_decode_entry_prefix ~off fm =
+    let io_read_at_most ~off ~len b =
+      (* Read at most [len], by checking that [(off, len)] don't go out of
+         bounds of the suffix file.
+
+         This can happen when we are reading the last entry in the file and the
+         [size_of_value_and_length_header] is smaller then [len] (for instance
+         the empty blob).
+
+         This will have to be rewritten to work with the prefix file. A solution
+         would be to implement somewhere a [read_at_most_exn] function that
+         reads in both the prefix and the suffix and that doesn't crash if the
+         read goes out of bounds. *)
+      let bytes_after_off =
+        let ( - ) = Int63.sub in
+        Suffix.end_offset (Fm.suffix fm) - off
+      in
+      let len =
+        let ( < ) a b = Int63.compare a b < 0 in
+        if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
+        else len
+      in
+      Suffix.read_exn (Fm.suffix fm) ~off ~len b;
+      len
+    in
     let buf = Bytes.create Entry_prefix.max_length in
     let bytes_read = io_read_at_most ~off ~len:Entry_prefix.max_length buf in
     (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
@@ -156,27 +180,7 @@ struct
     { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
   let io_read_and_decode_entry_prefix ~off t =
-    let io_read_at_most ~off ~len b =
-      (* Read at most [len], by checking that [(off, len)] don't go out of
-         bounds of the suffix file.
-
-         This will have to be rewritten to work with the prefix file. A solution
-         would be to implement somewhere a [read_at_most_exn] function that
-         reads in both the prefix and the suffix and that doesn't crash if the
-         read goes out of bounds. *)
-      let bytes_after_off =
-        let ( - ) = Int63.sub in
-        Suffix.end_offset (Fm.suffix t.fm) - off
-      in
-      let len =
-        let ( < ) a b = Int63.compare a b < 0 in
-        if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
-        else len
-      in
-      Suffix.read_exn (Fm.suffix t.fm) ~off ~len b;
-      len
-    in
-    read_and_decode_entry_prefix ~off ~io_read_at_most
+    read_and_decode_entry_prefix ~off t.fm
 
   let pack_file_contains_key t k =
     let key = Pack_key.inspect k in
