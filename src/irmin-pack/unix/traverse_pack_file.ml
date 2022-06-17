@@ -268,7 +268,12 @@ end = struct
           (iter_pack_entry v, finalise v, "Checking and fixing index")
     in
     let run_duration = Mtime_clock.counter () in
-    let fm = File_manager.open_rw config |> Errs.raise_if_error in
+    let readonly = Irmin_pack.Conf.readonly config in
+    let fm =
+      Errs.raise_if_error
+        (if readonly then File_manager.open_ro config
+        else File_manager.open_rw config)
+    in
     let suffix = File_manager.suffix fm in
     let total = File_manager.Suffix.end_offset suffix in
     let stats, missing_hash =
