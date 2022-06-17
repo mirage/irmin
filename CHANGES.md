@@ -30,7 +30,7 @@
     backwards-compatible with existing stores using `irmin-pack.x.x < 3.3.0`
     versions. A migration done by the readwrite instance is necessary to open
     older stores with `irmin-pack.3.3.0`. It is not forwards compatible. (#1865)
-  - Rename `Store.sync` to `Store.reload` (#TODO).
+  - Rename `Store.sync` to `Store.reload` (#1900).
 
 ### Fixed
 

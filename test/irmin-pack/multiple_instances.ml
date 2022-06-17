@@ -66,7 +66,7 @@ let check_binding ?msg repo commit key value =
       let+ x = S.Tree.find tree key in
       Alcotest.(check (option string)) msg (Some value) x
 
-let ro_sync_after_add () =
+let ro_reload_after_add () =
   let check ro c k v =
     S.Commit.of_hash ro (S.Commit.hash c) >>= function
     | None -> Alcotest.failf "commit not found"
@@ -80,7 +80,7 @@ let ro_sync_after_add () =
   let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
   let tree = S.Tree.singleton [ "a" ] "x" in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
-  S.sync ro;
+  S.reload ro;
   check ro c1 "a" "x" >>= fun () ->
   let tree = S.Tree.singleton [ "a" ] "y" in
   let* c2 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
@@ -90,11 +90,11 @@ let ro_sync_after_add () =
     | None -> ()
     | Some _ -> Alcotest.failf "should not find branch by"
   in
-  S.sync ro;
+  S.reload ro;
   check ro c2 "a" "y" >>= fun () ->
   S.Repo.close ro >>= fun () -> S.Repo.close rw
 
-let ro_sync_after_close () =
+let ro_reload_after_close () =
   let binding f = f [ "a" ] "x" in
   rm_dir root;
   let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
@@ -102,7 +102,7 @@ let ro_sync_after_close () =
   let tree = binding (S.Tree.singleton ?metadata:None) in
   let* c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.Repo.close rw >>= fun () ->
-  S.sync ro;
+  S.reload ro;
   binding (check_binding ro c1) >>= fun () -> S.Repo.close ro
 
 let tests =
@@ -111,6 +111,6 @@ let tests =
   in
   [
     tc "Test open ro after rw closed" open_ro_after_rw_closed;
-    tc "Test ro sync after add" ro_sync_after_add;
-    tc "Test ro sync after close" ro_sync_after_close;
+    tc "Test ro reload after add" ro_reload_after_add;
+    tc "Test ro reload after close" ro_reload_after_close;
   ]

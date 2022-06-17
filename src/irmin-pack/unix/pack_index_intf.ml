@@ -53,7 +53,6 @@ module type S = sig
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
   val merge : t -> unit
-  val sync : t -> unit
   val mem : t -> key -> bool
   val iter : (key -> value -> unit) -> t -> unit
   val filter : t -> (key * value -> bool) -> unit

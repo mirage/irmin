@@ -215,10 +215,7 @@ module Maker (Config : Conf.S) = struct
           Commit.CA.close (snd (commit_t t))
 
         let flush t = File_manager.flush t.fm |> Errs.raise_if_error
-
-        let sync t =
-          (* TODO: Rename [sync] to [reload] absolutly everywhere *)
-          File_manager.reload t.fm |> Errs.raise_if_error
+        let reload t = File_manager.reload t.fm |> Errs.raise_if_error
       end
     end
 
@@ -347,7 +344,7 @@ module Maker (Config : Conf.S) = struct
     end
 
     let stats = Stats.run
-    let sync = X.Repo.sync
+    let reload = X.Repo.reload
     let flush = X.Repo.flush
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct

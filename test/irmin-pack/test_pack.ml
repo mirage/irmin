@@ -235,11 +235,11 @@ module Pack = struct
       let h2 = sha1_contents x2 in
       let[@warning "-8"] [ _k1; k2 ] = adds [ (h1, x1); (h2, x2) ] in
       let* y2 = Pack.find t'.pack k2 in
-      Alcotest.(check (option string)) "before sync" None y2;
+      Alcotest.(check (option string)) "before reload" None y2;
       flush t.fm;
       reload t'.fm;
       let* y2 = Pack.find t'.pack k2 in
-      Alcotest.(check (option string)) "after sync" (Some x2) y2;
+      Alcotest.(check (option string)) "after reload" (Some x2) y2;
       let x3 = "otoo" in
       let x4 = "sdadsadas" in
       let h3 = sha1_contents x3 in
@@ -329,7 +329,7 @@ module Pack = struct
   (** Index can be flushed to disk independently of pack, we simulate this in
       the tests using [Index.filter] and [Index.flush]. Regression test for PR
       1008 in which values were indexed before being reachable in pack. *)
-  let readonly_sync_index_flush () =
+  let readonly_reload_index_flush () =
     let* t = Context.get_rw_pack () in
     let* t' = Context.get_ro_pack t.name in
     let test w =
@@ -340,11 +340,11 @@ module Pack = struct
       in
       reload t'.fm;
       let* y1 = Pack.find t'.pack k1 in
-      Alcotest.(check (option string)) "sync before filter" None y1;
+      Alcotest.(check (option string)) "reload before filter" None y1;
       Index.filter t.index (fun _ -> true);
       reload t'.fm;
       let* y1 = Pack.find t'.pack k1 in
-      Alcotest.(check (option string)) "sync after filter" (Some x1) y1;
+      Alcotest.(check (option string)) "reload after filter" (Some x1) y1;
       let x2 = "foo" in
       let h2 = sha1_contents x2 in
       let k2 =
@@ -352,7 +352,7 @@ module Pack = struct
       in
       Index.flush t.index ~with_fsync:false |> Errs.raise_if_error;
       let+ y2 = Pack.find t'.pack k2 in
-      Alcotest.(check (option string)) "sync after flush" (Some x2) y2
+      Alcotest.(check (option string)) "reload after flush" (Some x2) y2
     in
     test t.pack >>= fun () ->
     Context.close_pack t >>= fun () -> Context.close_pack t'
@@ -406,8 +406,8 @@ module Pack = struct
           Lwt_main.run (test_close_pack ()));
       Alcotest.test_case "close readonly" `Quick (fun () ->
           Lwt_main.run (test_close_pack_more ()));
-      Alcotest.test_case "readonly sync, index flush" `Quick (fun () ->
-          Lwt_main.run (readonly_sync_index_flush ()));
+      Alcotest.test_case "readonly reload, index flush" `Quick (fun () ->
+          Lwt_main.run (readonly_reload_index_flush ()));
       Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
           Lwt_main.run (readonly_find_index_flush ()));
     ]

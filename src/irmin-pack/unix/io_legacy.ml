@@ -32,7 +32,7 @@ module Unix : S = struct
         not
           (t.flushed ++ Int63.of_int (String.length buf) = header_size ++ offset)
       then
-        Fmt.failwith "sync error: %s flushed=%a offset+header=%a\n%!" t.file
+        Fmt.failwith "reload error: %s flushed=%a offset+header=%a\n%!" t.file
           Int63.pp t.flushed Int63.pp (offset ++ header_size);
       t.flushed <- offset ++ header_size
 
