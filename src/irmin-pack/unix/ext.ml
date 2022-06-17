@@ -348,6 +348,7 @@ module Maker (Config : Conf.S) = struct
     let flush = X.Repo.flush
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
+      module File_manager = File_manager
       module Hash = H
       module Index = Index
       module Inode = X.Node.CA

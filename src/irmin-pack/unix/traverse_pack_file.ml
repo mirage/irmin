@@ -1,6 +1,5 @@
 open! Import
-module Io_legacy = Io_legacy.Unix
-(* TODO: Use new Io in traverse pack file *)
+module Io = Io.Unix
 
 module Stats : sig
   type t
@@ -45,6 +44,7 @@ end = struct
 end
 
 module type Args = sig
+  module File_manager : File_manager.S
   module Hash : Irmin.Hash.S
   module Index : Pack_index.S with type key := Hash.t
   module Inode : Inode.S with type hash := Hash.t
@@ -62,6 +62,7 @@ module Make (Args : Args) : sig
     unit
 end = struct
   open Args
+  module Errs = Errors.Make (Args.File_manager.Io)
 
   let pp_key = Irmin.Type.pp Hash.t
   let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
@@ -186,18 +187,12 @@ end = struct
     | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
         raise Not_enough_buffer
 
-  let ingest_data_file ~progress ~total pack iter_pack_entry =
+  let ingest_data_file ~progress ~total suffix iter_pack_entry =
     let buffer = ref (Bytes.create 1024) in
     let refill_buffer ~from =
-      let read = Io_legacy.read pack ~off:from !buffer in
-      let filled = read = Bytes.length !buffer in
-      let eof = Int63.equal total (Int63.add from (Int63.of_int read)) in
-      if (not filled) && not eof then
-        Fmt.failwith
-          "When refilling from offset %#Ld (total %#Ld), read %#d but expected \
-           %#d"
-          (Int63.to_int64 from) (Int63.to_int64 total) read
-          (Bytes.length !buffer)
+      let buffer_len = Int63.of_int (Bytes.length !buffer) in
+      let len = Int63.to_int (buffer_len -- from) in
+      File_manager.Suffix.read_exn suffix ~off:from ~len !buffer
     in
     let expand_and_refill_buffer ~from =
       let length = Bytes.length !buffer in
@@ -273,13 +268,9 @@ end = struct
           (iter_pack_entry v, finalise v, "Checking and fixing index")
     in
     let run_duration = Mtime_clock.counter () in
-    let root = Conf.root config in
-    let pack_file = Filename.concat root "store.pack" in
-    let pack =
-      Io_legacy.v ~fresh:false ~readonly:true
-        ~version:(Some Irmin_pack.Version.latest) pack_file
-    in
-    let total = Io_legacy.offset pack in
+    let fm = File_manager.open_rw config |> Errs.raise_if_error in
+    let suffix = File_manager.suffix fm in
+    let total = File_manager.Suffix.end_offset suffix in
     let stats, missing_hash =
       let bar =
         let open Progress.Line.Using_int63 in
@@ -287,10 +278,10 @@ end = struct
           [ const message; bytes; elapsed (); bar total; percentage_of total ]
       in
       Progress.(with_reporter bar) (fun progress ->
-          ingest_data_file ~progress ~total pack iter_pack_entry)
+          ingest_data_file ~progress ~total suffix iter_pack_entry)
     in
     finalise ();
-    Io_legacy.close pack;
+    File_manager.close fm |> Errs.raise_if_error;
     let run_duration = Mtime_clock.count run_duration in
     let store_stats fmt =
       Fmt.pf fmt "Store statistics:@,  @[<v 0>%a@]" Stats.pp stats
