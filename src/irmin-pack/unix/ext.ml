@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Io_legacy = Io_legacy.Unix
 
 module Maker (Config : Conf.S) = struct
   type endpoint = unit

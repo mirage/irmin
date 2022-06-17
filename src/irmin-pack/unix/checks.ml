@@ -16,7 +16,6 @@
 
 open! Import
 include Checks_intf
-module Io_legacy = Io_legacy.Unix
 
 let setup_log =
   let init style_renderer level =
