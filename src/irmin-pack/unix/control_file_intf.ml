@@ -23,36 +23,40 @@ module Payload_v3 = struct
       entries before that point may be v1 entries. V1 entries need an entry in
       index because it is the only place their lenght is stored. *)
 
-  type from_v3_gc_allowed = {
-    entry_offset_suffix_start : int63;
-    gc_generation : int;
-  }
-  [@@deriving irmin]
-  (** [entry_offset_suffix_start] is 0 if the suffix file was never garbage
-      collected. Otherwise it is the offset of the very first entry of the
-      suffix file. Note that offsets in the suffix file are virtual. The garbage
-      collections don't reset the offsets.
-
-      [gc_generation] is the number of past GCs. A suffix file and a prefix file
-      containing that integer in their name exist. *)
-
   (** [From_v1_v2_post_upgrade] corresponds to a pack store that was upgraded to
       [`V3]. It contains infos related to backward compatibility. GCs are
       forbidden on it.
 
-      TODO: Need a better payload. Think about the lower layer and about the
+      [From_v3] corresponds to a pack store that was created using [`V3] code.
+      It never underwent a GC.
+
+      [From_v3_used_non_minimal_indexing_strategy] corresponds to a pack store
+      that was created using [`V3] code. It never underwent a GC and it will
+      never be possible to GC it because entries were pushed using a non-minimal
       indexing strategy.
 
-      [from_v3_gc_disallowed] corresponds to a pack store that was created using
-      [`V3] code. GCs are forbidden on it because it uses an indexing strategy.
-
-      [from_v3_gc_allowed] corresponds to a pack store that was created using
-      [`V3] code. GCs are possible on it, but the indexing strategy is
-      constrained to minimal. *)
+      The [T*] tags are provisional tags that the binary decoder is aware of and
+      that may in the future be used to add features to the [`V3] payload. *)
   type status =
     | From_v1_v2_post_upgrade of from_v1_v2_post_upgrade
-    | From_v3_gc_disallowed
-    | From_v3_gc_allowed of from_v3_gc_allowed
+    | From_v3
+    | From_v3_used_non_minimal_indexing_strategy
+    | T0
+    | T1
+    | T2
+    | T3
+    | T4
+    | T5
+    | T6
+    | T7
+    | T8
+    | T9
+    | T10
+    | T11
+    | T12
+    | T13
+    | T14
+    | T15
   [@@deriving irmin]
 
   type t = {
@@ -61,14 +65,35 @@ module Payload_v3 = struct
     status : status;
   }
   [@@deriving irmin]
-  (** Payload of the control file for [irmin_pack_version = `V3].
+  (** The [`V3] payload of the irmin-pack control file. [`V3] is a major
+      version. If [`V4] ever exists, it will have its own dedicated payload, but
+      the [`V3] definition will still have to stick in the codebase for backward
+      compatibilty of old irmin-pack directories.
+
+      A store may only change its major version during an [open_rw] in
+      [File_manager]. Note that upgrading a major version is the only reason why
+      [open_rw] would modify files in an irmin-pack directory.
+
+      For a given major version, the format of a payload may change, but only in
+      a backward compatible way. I.e., all versions of irmin-pack should forever
+      be able to decode a [`V3] control file, it allows for control file
+      corruption and out-of-date code to be distinguishable.
+
+      It is legal for the payload decoder to not fully consume the input buffer.
+      Remaining bytes means that the definition of a payload was changed.
+
+      {3 Fields}
 
       [dict_offset_end] is the offset in the dict file just after the last valid
       dict bytes. The next data to be pushed to the dict will be pushed at this
       offset.
 
       [entry_offset_suffix_end] is similar to [dict_offset_end] but for the
-      suffix file. *)
+      suffix file.
+
+      [status] is a variant that encode the state of the irmin-pack directory.
+      This field MUST be the last field of the record, in order to allow
+      extensions *)
 end
 
 module Latest_payload = Payload_v3

@@ -44,6 +44,7 @@ struct
     use_fsync : bool;
     mutable dict_consumers : dict_consumer_data list;
     mutable suffix_consumers : suffix_consumer_data list;
+    indexing_strategy : Irmin_pack.Indexing_strategy.t;
   }
 
   module Control = Control
@@ -126,8 +127,27 @@ struct
     let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
     let* () =
       let pl : Payload.t = Control.payload t.control in
+      let status =
+        match pl.status with
+        | From_v1_v2_post_upgrade _ -> pl.status
+        | From_v3 ->
+            (* Using physical equality to test which indexing_strategy
+               we are using *)
+            if t.indexing_strategy == Irmin_pack.Indexing_strategy.minimal then
+              pl.status
+            else (
+              [%log.warn
+                "Updating the control file from [From_v3] to \
+                 [From_v3_used_non_minimal_indexing_strategy]. It won't be \
+                 possible to GC this irmin-pack store anymore."];
+              Payload.From_v3_used_non_minimal_indexing_strategy)
+        | From_v3_used_non_minimal_indexing_strategy -> pl.status
+        | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12
+        | T13 | T14 | T15 ->
+            assert false
+      in
       let pl =
-        { pl with entry_offset_suffix_end = Suffix.end_offset t.suffix }
+        { pl with entry_offset_suffix_end = Suffix.end_offset t.suffix; status }
       in
       Control.set_payload t.control pl
     in
@@ -169,11 +189,16 @@ struct
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
+    let indexing_strategy = Conf.indexing_strategy config in
     let pl : Payload.t = Control.payload control in
     let generation =
       match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3_gc_disallowed -> 0
-      | From_v3_gc_allowed x -> x.gc_generation
+      | From_v1_v2_post_upgrade _ | From_v3
+      | From_v3_used_non_minimal_indexing_strategy ->
+          0
+      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+      | T14 | T15 ->
+          assert false
     in
     (* 1. Create a ref for dependency injections for auto flushes *)
     let instance = ref None in
@@ -214,6 +239,7 @@ struct
         index;
         dict_consumers = [];
         suffix_consumers = [];
+        indexing_strategy;
       }
     in
     instance := Some t;
@@ -236,10 +262,7 @@ struct
     in
     let* control =
       let open Payload in
-      let status =
-        From_v3_gc_allowed
-          { entry_offset_suffix_start = Int63.zero; gc_generation = 0 }
-      in
+      let status = From_v3 in
       let pl =
         let z = Int63.zero in
         { dict_offset_end = z; entry_offset_suffix_end = z; status }
@@ -264,10 +287,13 @@ struct
       Control.open_ ~readonly:false ~path
     in
     let pl : Payload.t = Control.payload control in
-    let dead_header_size =
+    let* dead_header_size =
       match pl.status with
-      | From_v1_v2_post_upgrade _ -> legacy_io_header_size
-      | From_v3_gc_disallowed | From_v3_gc_allowed _ -> 0
+      | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
+      | From_v3 | From_v3_used_non_minimal_indexing_strategy -> Ok 0
+      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+      | T14 | T15 ->
+          Error `V3_store_from_the_future
     in
     let make_dict =
       let end_offset = pl.dict_offset_end in
@@ -351,6 +377,7 @@ struct
 
   let open_ro config =
     let open Result_syntax in
+    let indexing_strategy = Conf.indexing_strategy config in
     let root = Irmin_pack.Conf.root config in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     (* 1. Open the control file *)
@@ -366,15 +393,22 @@ struct
            | error -> error)
     in
     let pl : Payload.t = Control.payload control in
-    let dead_header_size =
+    let* dead_header_size =
       match pl.status with
-      | From_v1_v2_post_upgrade _ -> legacy_io_header_size
-      | From_v3_gc_disallowed | From_v3_gc_allowed _ -> 0
+      | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
+      | From_v3 | From_v3_used_non_minimal_indexing_strategy -> Ok 0
+      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+      | T14 | T15 ->
+          Error `V3_store_from_the_future
     in
     let generation =
       match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3_gc_disallowed -> 0
-      | From_v3_gc_allowed x -> x.gc_generation
+      | From_v1_v2_post_upgrade _ | From_v3
+      | From_v3_used_non_minimal_indexing_strategy ->
+          0
+      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+      | T14 | T15 ->
+          assert false
     in
     (* 2. Open the other files *)
     let* suffix =
@@ -399,6 +433,7 @@ struct
         control;
         suffix;
         use_fsync;
+        indexing_strategy;
         index;
         dict_consumers = [];
         suffix_consumers = [];
