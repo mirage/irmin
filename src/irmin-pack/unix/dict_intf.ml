@@ -21,7 +21,7 @@ module type S = sig
 
   val find : t -> int -> string option
   val index : t -> string -> int option
-  val v : capacity:int -> Fm.t -> (t, [> Fm.Io.read_error ]) result
+  val v : Fm.t -> (t, [> Fm.Io.read_error ]) result
   val close : t -> unit
 end
 

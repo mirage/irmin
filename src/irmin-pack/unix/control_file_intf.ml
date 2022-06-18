@@ -150,9 +150,7 @@ module type S = sig
     | `Rw_not_allowed ]
 
   val reload : t -> (unit, [> reload_error ]) result
-  (** Reread the file.
-
-      {3 RW mode}
+  (** {3 RW mode}
 
       Always returns an error.
 
@@ -175,7 +173,9 @@ module type S = sig
   val readonly : t -> bool
 
   val fsync : t -> (unit, [> Io.write_error ]) result
-  (** Tell the os to fush its internal buffers.
+  (** {3 RW mode}
+
+      Tell the os to fush its internal buffers.
 
       {3 RO mode}
 

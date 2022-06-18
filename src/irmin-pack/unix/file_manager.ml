@@ -81,6 +81,8 @@ struct
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
+      (* Update the end offsets to prevent the readonly instance to read data
+         flushed to disk by the readwrite, between calls to reload. *)
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
