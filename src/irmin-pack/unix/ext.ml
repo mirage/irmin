@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Io_legacy = Io_legacy.Unix
 
 module Maker (Config : Conf.S) = struct
   type endpoint = unit
@@ -348,6 +347,7 @@ module Maker (Config : Conf.S) = struct
     let flush = X.Repo.flush
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
+      module File_manager = File_manager
       module Hash = H
       module Index = Index
       module Inode = X.Node.CA
@@ -357,6 +357,7 @@ module Maker (Config : Conf.S) = struct
     end)
 
     let traverse_pack_file = Traverse_pack_file.run
+    let test_traverse_pack_file = Traverse_pack_file.test
 
     module Snapshot = struct
       include X.Node.CA.Snapshot

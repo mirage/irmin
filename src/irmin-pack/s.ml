@@ -72,6 +72,13 @@ module type S = sig
     Irmin.config ->
     unit
 
+  val test_traverse_pack_file :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
+
   val stats :
     dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
 

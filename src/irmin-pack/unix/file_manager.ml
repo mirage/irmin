@@ -363,6 +363,7 @@ struct
 
   let open_rw config =
     let root = Irmin_pack.Conf.root config in
+    let no_migrate = Irmin_pack.Conf.no_migrate config in
     match Io.classify_path root with
     | `File | `Other -> Error (`Not_a_directory root)
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
@@ -370,7 +371,9 @@ struct
         let path = Irmin_pack.Layout.V3.control ~root in
         match Io.classify_path path with
         | `File -> open_rw_with_control_file config
-        | `No_such_file_or_directory -> open_rw_no_control_file config
+        | `No_such_file_or_directory ->
+            if no_migrate then Error `Migration_needed
+            else open_rw_no_control_file config
         | `Directory | `Other -> Error `Invalid_layout)
 
   (* Open ro **************************************************************** *)
