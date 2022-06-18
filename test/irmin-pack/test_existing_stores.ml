@@ -114,6 +114,10 @@ module Test_reconstruct = struct
     let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false root_v1 in
+    (* Open store in RW to migrate it to V3. *)
+    let* repo = S.Repo.v conf in
+    let* () = S.Repo.close repo in
+    (* Test on a V3 store. *)
     S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
       Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 tmp
