@@ -187,12 +187,29 @@ end = struct
     | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
         raise Not_enough_buffer
 
+  (* Read at most [len], by checking that [(off, len)] don't go out of bounds of
+     the suffix file. *)
+  let io_read_at_most ~off ~len b suffix =
+    let bytes_after_off =
+      let ( - ) = Int63.sub in
+      File_manager.Suffix.end_offset suffix - off
+    in
+    let len =
+      let ( < ) a b = Int63.compare a b < 0 in
+      if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
+      else len
+    in
+    File_manager.Suffix.read_exn suffix ~off ~len b;
+    len
+
   let ingest_data_file ~progress ~total suffix iter_pack_entry =
     let buffer = ref (Bytes.create 1024) in
     let refill_buffer ~from =
-      let buffer_len = Int63.of_int (Bytes.length !buffer) in
-      let len = Int63.to_int (buffer_len -- from) in
-      File_manager.Suffix.read_exn suffix ~off:from ~len !buffer
+      let buffer_len = Bytes.length !buffer in
+      let (_ : int) =
+        io_read_at_most ~off:from ~len:buffer_len !buffer suffix
+      in
+      ()
     in
     let expand_and_refill_buffer ~from =
       let length = Bytes.length !buffer in
