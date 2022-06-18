@@ -195,6 +195,8 @@ module Alcotest = struct
     Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
 
   let check_repr ?pos t = Alcotest.check ?pos (testable_repr t)
+  let kind = testable_repr Irmin_pack.Pack_value.Kind.t
+  let hash = testable_repr Schema.Hash.t
 end
 
 module Filename = struct
@@ -305,3 +307,32 @@ end
 let exec_cmd cmd =
   [%logs.info "exec: %s" cmd];
   match Sys.command cmd with 0 -> Ok () | n -> Error n
+
+let rec repeat = function
+  | 0 -> fun _f x -> x
+  | n -> fun f x -> f (repeat (n - 1) f x)
+
+(** The current working directory depends on whether the test binary is directly
+    run or is triggered with [dune exec], [dune runtest]. We normalise by
+    switching to the project root first. *)
+let goto_project_root () =
+  let cwd = Fpath.v (Sys.getcwd ()) in
+  match cwd |> Fpath.segs |> List.rev with
+  | "irmin-pack" :: "test" :: "default" :: "_build" :: _ ->
+      let root = cwd |> repeat 4 Fpath.parent in
+      Unix.chdir (Fpath.to_string root)
+  | _ -> ()
+
+let setup_test_env ~root_archive ~root_local_build =
+  goto_project_root ();
+  rm_dir root_local_build;
+  let cmd =
+    Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root_local_build ]
+  in
+  exec_cmd cmd |> function
+  | Ok () -> ()
+  | Error n ->
+      Fmt.failwith
+        "Failed to set up the test environment: command `%s' exited with \
+         non-zero exit code %d"
+        cmd n
