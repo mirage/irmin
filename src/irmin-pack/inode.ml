@@ -472,12 +472,17 @@ struct
       let of_encoding s off =
         let offref = ref off in
         let kind = decode_bin_kind s offref in
+        let magic_len = 1 in
         match kind with
         | Pack_value.Kind.Inode_v1_unstable | Inode_v1_stable ->
-            1 + dynamic_size_of_v_encoding s !offref
+            let vlen = dynamic_size_of_v_encoding s !offref in
+            magic_len + vlen
         | Inode_v2_root | Inode_v2_nonroot ->
-            let len = decode_bin_int s offref in
-            len - H.hash_size
+            let before = !offref in
+            let vlen = decode_bin_int s offref in
+            let after = !offref in
+            let lenlen = after - before in
+            magic_len + lenlen + vlen
         | Commit_v1 | Commit_v2 | Contents -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_encoding ()
