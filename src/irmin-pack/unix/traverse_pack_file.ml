@@ -60,6 +60,13 @@ module Make (Args : Args) : sig
     | `Check_and_fix_index ] ->
     Irmin.config ->
     unit
+
+  val test :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
 end = struct
   open Args
   module Errs = Errors.Make (Args.File_manager.Io)
@@ -202,8 +209,9 @@ end = struct
     File_manager.Suffix.read_exn suffix ~off ~len b;
     len
 
-  let ingest_data_file ~progress ~total suffix iter_pack_entry =
-    let buffer = ref (Bytes.create 1024) in
+  let ingest_data_file ~initial_buffer_size ~progress ~total suffix
+      iter_pack_entry =
+    let buffer = ref (Bytes.create initial_buffer_size) in
     let refill_buffer ~from =
       let buffer_len = Bytes.length !buffer in
       let (_ : int) =
@@ -268,7 +276,7 @@ end = struct
     refill_buffer ~from:Int63.zero;
     loop_entries ~buffer_off:0 Int63.zero None
 
-  let run mode config =
+  let run_or_test ~initial_buffer_size mode config =
     let iter_pack_entry, finalise, message =
       match mode with
       | `Reconstruct_index dest ->
@@ -300,7 +308,8 @@ end = struct
           [ const message; bytes; elapsed (); bar total; percentage_of total ]
       in
       Progress.(with_reporter bar) (fun progress ->
-          ingest_data_file ~progress ~total suffix iter_pack_entry)
+          ingest_data_file ~initial_buffer_size ~progress ~total suffix
+            iter_pack_entry)
     in
     finalise ();
     File_manager.close fm |> Errs.raise_if_error;
@@ -330,4 +339,7 @@ end = struct
             Fmt.(styled `Red string)
             msg Mtime.Span.pp run_duration x.idx_pack pp_binding x.binding
             store_stats]
+
+  let run = run_or_test ~initial_buffer_size:1024
+  let test = run_or_test ~initial_buffer_size:100
 end

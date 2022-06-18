@@ -357,6 +357,7 @@ module Maker (Config : Conf.S) = struct
     end)
 
     let traverse_pack_file = Traverse_pack_file.run
+    let test_traverse_pack_file = Traverse_pack_file.test
 
     module Snapshot = struct
       include X.Node.CA.Snapshot

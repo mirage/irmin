@@ -114,7 +114,7 @@ module Test_reconstruct = struct
     let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false root_v1 in
-    S.traverse_pack_file (`Reconstruct_index `In_place) conf;
+    S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
       Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 tmp
     in
