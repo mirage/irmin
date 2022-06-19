@@ -10,6 +10,7 @@ module Kind = struct
     | Inode_v1_stable
     | Inode_v2_root
     | Inode_v2_nonroot
+    | Gced
 
   let to_magic = function
     | Commit_v1 -> 'C'
@@ -19,6 +20,7 @@ module Kind = struct
     | Inode_v1_stable -> 'N'
     | Inode_v2_root -> 'R'
     | Inode_v2_nonroot -> 'O'
+    | Gced -> 'Z'
 
   let of_magic_exn = function
     | 'C' -> Commit_v1
@@ -28,6 +30,7 @@ module Kind = struct
     | 'N' -> Inode_v1_stable
     | 'R' -> Inode_v2_root
     | 'O' -> Inode_v2_nonroot
+    | 'Z' -> Gced
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
   let all =
@@ -49,6 +52,7 @@ module Kind = struct
     | Inode_v1_stable -> 4
     | Inode_v2_root -> 5
     | Inode_v2_nonroot -> 6
+    | Gced -> 7
 
   let pp =
     Fmt.of_to_string (function
@@ -58,11 +62,8 @@ module Kind = struct
       | Inode_v1_unstable -> "Inode_v1_unstable"
       | Inode_v1_stable -> "Inode_v1_stable"
       | Inode_v2_root -> "Inode_v2_root"
-      | Inode_v2_nonroot -> "Inode_v2_nonroot")
-
-  let version : t -> Version.t = function
-    | Contents | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> `V1
-    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot -> `V2
+      | Inode_v2_nonroot -> "Inode_v2_nonroot"
+      | Gced -> "Gced")
 
   let length_header_exn : t -> length_header =
     let some_varint = Some `Varint in
@@ -72,6 +73,7 @@ module Kind = struct
     | Contents ->
         Fmt.failwith
           "Can't determine length header for user-defined codec Contents"
+    | Gced -> assert false
 
   let t = Irmin.Type.map ~pp Irmin.Type.char of_magic_exn to_magic
 end

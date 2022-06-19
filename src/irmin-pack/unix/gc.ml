@@ -140,7 +140,7 @@ module Make (Args : Args) : S with module Args := Args = struct
         let (_ : action) = f node_key in
         iter_from_node_key node_key node_store ~f (fun () -> ())
 
-  let char = 'Z' (* TODO: Put in Pack_value *)
+  let char = Pack_value.Kind.to_magic Pack_value.Kind.Gced
 
   let fill ~io ~count =
     let open Result_syntax in
