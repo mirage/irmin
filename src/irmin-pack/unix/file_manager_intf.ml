@@ -135,9 +135,13 @@ module type S = sig
 
   type reload_error :=
     [ `Corrupted_control_file
+    | `Double_close
     | `Index_failure of string
     | `Invalid_argument
     | `Io_misc of Io.misc_error
+    | `No_such_file_or_directory
+    | `Not_a_file
+    | `Pending_flush
     | `Read_on_closed
     | `Read_out_of_bounds
     | `Rw_not_allowed
