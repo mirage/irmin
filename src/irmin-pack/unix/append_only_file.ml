@@ -115,13 +115,21 @@ module Make (Io : Io.S) = struct
 
   let read_exn t ~off ~len b =
     let ( + ) = Int63.add in
+    let ( > ) a b = Int63.compare a b > 0 in
+    let off' = off + Int63.of_int len in
+    if off' > t.persisted_end_offset then
+      raise (Errors_base.Pack_error `Read_out_of_bounds);
     let off = off + t.dead_header_size in
     Io.read_exn t.io ~off ~len b
 
   let read_to_string t ~off ~len =
     let ( + ) = Int63.add in
-    let off = off + t.dead_header_size in
-    Io.read_to_string t.io ~off ~len
+    let ( > ) a b = Int63.compare a b > 0 in
+    let off' = off + Int63.of_int len in
+    if off' > t.persisted_end_offset then Error `Read_out_of_bounds
+    else
+      let off = off + t.dead_header_size in
+      Io.read_to_string t.io ~off ~len
 
   let append_exn t s =
     match t.rw_perm with
