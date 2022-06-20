@@ -334,10 +334,10 @@ module Make (Store : Store) = struct
       | Seq.Nil -> on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
           (* if i <> 0 then *)
-         if i <> 0 && i mod 400 = 0 then (
-           (* TODO: Interval from CLI *)
-           (* TODO: Don't just GC the latest, GC at a distance *)
-           (* TODO: Maybe GC on_commit *)
+          if i <> 0 && i mod 400 = 0 then (
+            (* TODO: Interval from CLI *)
+            (* TODO: Don't just GC the latest, GC at a distance *)
+            (* TODO: Maybe GC on_commit *)
             Fmt.epr "\n%!";
             Store.gc repo (Option.get t.latest_commit));
           let* () = add_operations t repo ops i stats check_hash empty_blobs in

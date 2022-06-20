@@ -201,7 +201,6 @@ struct
     Lwt.return (repo, on_commit, on_end)
 
   let gc = Store.gc ~unlink:true
-
 end
 
 module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
