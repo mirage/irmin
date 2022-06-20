@@ -178,11 +178,24 @@ module File_manager_stats = struct
     mutable dict_flushes : int;
     mutable suffix_flushes : int;
     mutable index_flushes : int;
+    mutable auto_dict : int;
+    mutable auto_suffix : int;
+    mutable auto_index : int;
+    mutable flush : int;
   }
   [@@deriving irmin]
 
   (* NOTE return a new instance each time, since fields are mutable *)
-  let init' () = { dict_flushes = 0; suffix_flushes = 0; index_flushes = 0 }
+  let init' () =
+    {
+      dict_flushes = 0;
+      suffix_flushes = 0;
+      index_flushes = 0;
+      auto_dict = 0;
+      auto_suffix = 0;
+      auto_index = 0;
+      flush = 0;
+    }
 
   (* type [stat] is an abstract type in stats.mli; FIXME what is it for? *)
   type stat = t Metrics.t
@@ -255,9 +268,9 @@ let get_offset_stats () =
       pack_store.appended_offsets + pack_store.appended_hashes;
   }
 
-(* following 3 functions for [File_manager_stats]; FIXME why can't we just expose the
-   mutable record and let the user update the fields directly? *)
-include struct
+(** Stats update functions for [File_manager_stats]; FIXME why can't we just expose the
+    mutable record and let the user update the fields directly? *)
+module Fm = struct
   let incr_dict_flushes () = 
     let t = File_manager_stats.export s.file_manager in
     t.dict_flushes <- 1+t.dict_flushes;
@@ -271,5 +284,25 @@ include struct
   let incr_index_flushes () = 
     let t = File_manager_stats.export s.file_manager in
     t.index_flushes <- 1+t.index_flushes;
+    ()
+
+  let incr_auto_dict () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.auto_dict <- 1+t.auto_dict;
+    ()
+
+  let incr_auto_suffix () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.auto_suffix <- 1+t.auto_suffix;
+    ()
+
+  let incr_auto_index () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.auto_index <- 1+t.auto_index;
+    ()
+
+  let incr_flush () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.flush <- 1+t.flush;
     ()
 end

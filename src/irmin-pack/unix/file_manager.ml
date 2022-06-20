@@ -120,8 +120,10 @@ struct
     if Dict.empty_buffer t.dict then Ok ()
     else
       let* () = Dict.flush t.dict in
-      (* update stats *)
-      Stats.incr_dict_flushes();
+      (* update stats; FIXME we increment on successful flush; elsewhere we increment just
+         before the function call - i.e. we increment whether successful or not; perhaps
+         the following line should come before the call to [Dict.flush]*)
+      Stats.Fm.incr_dict_flushes ();
       let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -138,7 +140,7 @@ struct
     if Suffix.empty_buffer t.suffix then Ok ()
     else
       let* () = Suffix.flush t.suffix in
-      Stats.incr_suffix_flushes();
+      Stats.Fm.incr_suffix_flushes ();
       let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -186,22 +188,28 @@ struct
 
   (** Is expected to be called by the dict when its append buffer is full so
       that the file manager flushes. *)
-  let dict_requires_a_flush_exn t = flush_dict t |> Errs.raise_if_error
+  let dict_requires_a_flush_exn t =
+    Stats.Fm.incr_auto_dict ();
+    flush_dict t |> Errs.raise_if_error
 
   (** Is expected to be called by the suffix when its append buffer is full so
       that the file manager flushes. *)
   let suffix_requires_a_flush_exn t =
+    Stats.Fm.incr_auto_suffix ();
     flush_suffix_and_its_deps t |> Errs.raise_if_error
 
   (** Is expected to be called by the index when its append buffer is full so
       that the dependendies of index are flushes. When the function returns,
       index will flush itself. *)
   let index_is_about_to_auto_flush_exn t =
+    Stats.Fm.incr_auto_index ();
     flush_suffix_and_its_deps t |> Errs.raise_if_error
 
   (* Explicit flush ********************************************************* *)
 
-  let flush t = flush_index_and_its_deps t
+  let flush t =
+    Stats.Fm.incr_flush ();
+    flush_index_and_its_deps t
 
   (* File creation ********************************************************** *)
 

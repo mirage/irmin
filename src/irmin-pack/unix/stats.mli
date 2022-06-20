@@ -72,6 +72,10 @@ module File_manager_stats : sig
     mutable dict_flushes : int;
     mutable suffix_flushes : int;
     mutable index_flushes : int;
+    mutable auto_dict: int;
+    mutable auto_suffix: int;
+    mutable auto_index: int;
+    mutable flush : int
   }
   [@@deriving irmin]
 
@@ -133,7 +137,12 @@ val get_offset_stats : unit -> offset_stats
 
 (** The following are [File_manager_stats] functions. They mutate the relevant fields of
     the [file_manager] field in the "get instance". *)
-
-val incr_dict_flushes : unit -> unit
-val incr_suffix_flushes : unit -> unit
-val incr_index_flushes : unit -> unit
+module Fm : sig
+  val incr_dict_flushes : unit -> unit
+  val incr_suffix_flushes : unit -> unit
+  val incr_index_flushes : unit -> unit
+  val incr_auto_dict : unit -> unit
+  val incr_auto_suffix : unit -> unit
+  val incr_auto_index : unit -> unit
+  val incr_flush : unit -> unit
+end
