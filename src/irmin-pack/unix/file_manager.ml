@@ -74,6 +74,16 @@ struct
 
   (* Reload ***************************************************************** *)
 
+  let generation = function
+    | Payload.From_v1_v2_post_upgrade _
+    | From_v3_used_non_minimal_indexing_strategy | From_v3_no_gc_yet ->
+        0
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        (* Unreachable *)
+        assert false
+    | From_v3_gced x -> x.generation
+
   let reload t =
     let open Result_syntax in
     let* () = Index.reload t.index in
@@ -82,9 +92,26 @@ struct
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
-      (* Update the end offsets to prevent the readonly instance to read data
+      (* Check if generation changed. If it did, reopen suffix. *)
+      let* () =
+        let gen0 = generation pl0.status in
+        let gen1 = generation pl1.status in
+        if gen0 = gen1 then Ok ()
+        else
+          let* suffix1 =
+            let path =
+              Irmin_pack.Layout.V3.suffix ~root:t.root ~generation:gen1
+            in
+            let end_offset = pl1.entry_offset_suffix_end in
+            [%log.debug "reload: generation changed, opening %s" path];
+            Suffix.open_ro ~path ~end_offset ~dead_header_size:0
+          in
+          let suffix0 = t.suffix in
+          t.suffix <- suffix1;
+          Suffix.close suffix0
+      in
+      (* Update end offsets. This prevents the readonly instance to read data
          flushed to disk by the readwrite, between calls to reload. *)
-      (* TODO: handle generation change *)
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
@@ -431,16 +458,7 @@ struct
       | T15 ->
           Error `V3_store_from_the_future
     in
-    let generation =
-      match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3_no_gc_yet
-      | From_v3_used_non_minimal_indexing_strategy ->
-          0
-      | From_v3_gced x -> x.generation
-      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
-      | T15 ->
-          assert false
-    in
+    let generation = generation pl.status in
     (* 2. Open the other files *)
     let* suffix =
       let path = Irmin_pack.Layout.V3.suffix ~root ~generation in

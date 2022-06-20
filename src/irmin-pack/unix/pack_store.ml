@@ -80,12 +80,6 @@ struct
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
     { lru; staging; indexing_strategy; fm; dict }
 
-  let io_read_and_decode_hash ~off t =
-    let buf = Bytes.create Hash.hash_size in
-    let len = Hash.hash_size in
-    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
-
   type span = { offset : int63; length : int }
   (** The type of contiguous ranges of bytes in the pack file. *)
 
@@ -182,11 +176,26 @@ struct
   let io_read_and_decode_entry_prefix ~off t =
     read_and_decode_entry_prefix ~off t.fm
 
+  (* This function assumes magic is written at hash_size + 1 for every
+     object. *)
+  let gced buf =
+    let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
+    kind = Pack_value.Kind.Gced
+
+  let io_read_and_decode_hash_if_not_gced ~off t =
+    let len = Hash.hash_size + 1 in
+    let buf = Bytes.create len in
+    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
+    if gced buf then None
+    else
+      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+      Some hash
+
   let pack_file_contains_key t k =
     let key = Pack_key.inspect k in
     match key with
     | Indexed hash -> Index.mem (Fm.index t.fm) hash
-    | Direct { offset; _ } ->
+    | Direct { offset; _ } -> (
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
         let minimal_entry_length = Entry_prefix.min_length in
         if
@@ -206,18 +215,20 @@ struct
           false)
         else
           (* Read the hash explicitly as an integrity check: *)
-          let hash = io_read_and_decode_hash ~off:offset t in
-          let expected_hash = Key.to_hash k in
-          if not (equal_hash hash expected_hash) then
-            invalid_read
-              "invalid key %a checked for membership (read hash %a at this \
-               offset instead)"
-              pp_key k pp_hash hash;
-          (* At this point we consider the key to be contained in the pack
-             file. However, we could also be in the presence of a forged (or
-             unlucky) key that points to an offset that mimics a real pack
-             entry (e.g. in the middle of a blob). *)
-          true
+          match io_read_and_decode_hash_if_not_gced ~off:offset t with
+          | None -> false
+          | Some hash ->
+              let expected_hash = Key.to_hash k in
+              if not (equal_hash hash expected_hash) then
+                invalid_read
+                  "invalid key %a checked for membership (read hash %a at this \
+                   offset instead)"
+                  pp_key k pp_hash hash;
+              (* At this point we consider the key to be contained in the pack
+                 file. However, we could also be in the presence of a forged (or
+                 unlucky) key that points to an offset that mimics a real pack
+                 entry (e.g. in the middle of a blob). *)
+              true)
 
   let unsafe_mem t k =
     [%log.debug "[pack] mem %a" pp_key k];
@@ -235,7 +246,7 @@ struct
 
   let check_key k v = check_hash (Key.to_hash k) v
 
-  let io_read_and_decode ~off ~len t =
+  let io_read_and_decode_if_not_gced ~off ~len t =
     let () =
       if not (Suffix.readonly (Fm.suffix t.fm)) then
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
@@ -249,26 +260,32 @@ struct
     in
     let buf = Bytes.create len in
     Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    let key_of_offset offset =
-      [%log.debug "key_of_offset: %a" Int63.pp offset];
-      (* Attempt to eagerly read the length at the same time as reading the
-         hash in order to save an extra IO read when dereferencing the key: *)
-      let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
-      match Entry_prefix.total_entry_length entry_prefix with
-      | Some length -> Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
-      | None ->
-          (* NOTE: we could store [offset] in this key, but since we know the
-             entry doesn't have a length header we'll need to check the index
-             when dereferencing this key anyway. {i Not} storing the offset
-             avoids doing another failed check in the pack file for the length
-             header during [find]. *)
-          Pack_key.v_indexed entry_prefix.hash
-    in
-    let key_of_hash = Pack_key.v_indexed in
-    let dict = Dict.find t.dict in
-    Val.decode_bin ~key_of_offset ~key_of_hash ~dict
-      (Bytes.unsafe_to_string buf)
-      (ref 0)
+    if gced buf then None
+    else
+      let key_of_offset offset =
+        [%log.debug "key_of_offset: %a" Int63.pp offset];
+        (* Attempt to eagerly read the length at the same time as reading the
+           hash in order to save an extra IO read when dereferencing the key: *)
+        let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
+        match Entry_prefix.total_entry_length entry_prefix with
+        | Some length ->
+            Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
+        | None ->
+            (* NOTE: we could store [offset] in this key, but since we know the
+               entry doesn't have a length header we'll need to check the index
+               when dereferencing this key anyway. {i Not} storing the offset
+               avoids doing another failed check in the pack file for the length
+               header during [find]. *)
+            Pack_key.v_indexed entry_prefix.hash
+      in
+      let key_of_hash = Pack_key.v_indexed in
+      let dict = Dict.find t.dict in
+      let v =
+        Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+          (Bytes.unsafe_to_string buf)
+          (ref 0)
+      in
+      Some v
 
   let find_in_pack_file ~check_integrity t key hash =
     let loc, { offset; length } =
@@ -299,15 +316,17 @@ struct
             Int63.pp offset length Int63.pp io_offset];
           (Stats.Pack_store.Not_found, None))
     else
-      let v = io_read_and_decode ~off:offset ~len:length t in
-      Lru.add t.lru hash v;
-      (if check_integrity then
-       check_key key v |> function
-       | Ok () -> ()
-       | Error (expected, got) ->
-           corrupted_store "Got hash %a, expecting %a (for val: %a)." pp_hash
-             got pp_hash expected pp_value v);
-      (loc, Some v)
+      match io_read_and_decode_if_not_gced ~off:offset ~len:length t with
+      | Some v ->
+          Lru.add t.lru hash v;
+          (if check_integrity then
+           check_key key v |> function
+           | Ok () -> ()
+           | Error (expected, got) ->
+               corrupted_store "Got hash %a, expecting %a (for val: %a)."
+                 pp_hash got pp_hash expected pp_value v);
+          (loc, Some v)
+      | None -> (* TODO: add a new counter in stats*) (loc, None)
 
   let unsafe_find ~check_integrity t k =
     [%log.debug "[pack] find %a" pp_key k];
@@ -331,10 +350,12 @@ struct
 
   let integrity_check ~offset ~length hash t =
     try
-      let value = io_read_and_decode ~off:offset ~len:length t in
-      match check_hash hash value with
-      | Ok () -> Ok ()
-      | Error _ -> Error `Wrong_hash
+      match io_read_and_decode_if_not_gced ~off:offset ~len:length t with
+      | None -> Error `Wrong_hash (*TODO: new error for reading gced objects.*)
+      | Some value -> (
+          match check_hash hash value with
+          | Ok () -> Ok ()
+          | Error _ -> Error `Wrong_hash)
     with Invalid_read _ -> Error `Absent_value
 
   let cast t = (t :> read_write t)
