@@ -206,8 +206,7 @@ module Blocking_gc = struct
     [%log.debug "Gc c1, c2, keep c3"];
     let () = gc t c3 in
     let* () = wait_for_gc t in
-    (* TODO: parent of commit is not gced. *)
-    (* let* () = check_not_found t c1 "removed c1" in *)
+    let* () = check_not_found t c1 "removed c1" in
     let* () = check_not_found t c2 "removed c2" in
     let* () = check_3 t c3 in
     S.Repo.close t.repo
@@ -238,8 +237,7 @@ module Blocking_gc = struct
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_not_found t c2 "removed c2" in
     let* () = check_not_found t c3 "removed c3" in
-    (* TODO: parent of commit is not gced. *)
-    (* let* () = check_not_found t c2a "removed c2a" in *)
+    let* () = check_not_found t c4 "removed c4" in
     S.Repo.close t.repo
 
   (** Check that calling gc on first commit of chain keeps everything. *)
@@ -274,8 +272,7 @@ module Blocking_gc = struct
     let () = gc t c3 in
     let* () = wait_for_gc t in
     let* () = check_not_found t c1 "removed c1" in
-    (* TODO: parent of commit is not gced. *)
-    (* let* () = check_not_found t c_del "removed c_del" in *)
+    let* () = check_not_found t c_del "removed c_del" in
     let* () = check_3 t c3 in
     let* () = check_del_1 t c3 in
     [%log.debug "Add back c1"];
@@ -288,8 +285,7 @@ module Blocking_gc = struct
     [%log.debug "Gc c3, keep c1, c2"];
     let () = gc t c1 in
     let* () = wait_for_gc t in
-    (* TODO: parent of commit is not gced. *)
-    (* let* () = check_not_found t c3 "removed c3" in *)
+    let* () = check_not_found t c3 "removed c3" in
     let* () = check_2 t c2 in
     [%log.debug "Add back c3"];
     let* t = checkout_exn t c2 in
@@ -320,8 +316,7 @@ module Blocking_gc = struct
     let () = gc t c2 in
     let* () = S.Repo.close t.repo in
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
-    (* TODO: parent of commit is not gced. *)
-    (* let* () = check_not_found t c1 "removed c1" in *)
+    let* () = check_not_found t c1 "removed c1" in
     let* () = check_2 t c2 in
     S.Repo.close t.repo
 
@@ -338,9 +333,8 @@ module Blocking_gc = struct
     let* t, c3 = commit_3 t in
     let () = gc t c3 in
     let* () = wait_for_gc t in
-    (* TODO: parent of commit is not gced. *)
-    (* let* () = check_not_found t c1 "removed c1" in *)
-    (* let* () = check_not_found t c2a "removed c2a" in *)
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_not_found t c2 "removed c2" in
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
@@ -368,8 +362,7 @@ module Blocking_gc = struct
     S.reload ro_t.repo;
     [%log.debug "RO does not find gced commits after reload"];
     let* () = check_3 ro_t c3 in
-    (* TODO: parent of commit is not gced. *)
-    (* check_not_found ro_t c1 "c1" >>= fun () -> *)
+    let* () = check_not_found ro_t c1 "c1" in
     let* () = check_not_found ro_t c2 "c2" in
     let* t = checkout_exn t c3 in
     let* t, c4 = commit_4 t in
@@ -387,8 +380,7 @@ module Blocking_gc = struct
     [%log.debug "RO finds c4, c5 but not c3 after reload"];
     let* () = check_4 ro_t c4 in
     let* () = check_5 ro_t c5 in
-    (* TODO: parent of commit is not gced. *)
-    (* check_not_found ro_t c3 "c3" >>= fun () -> *)
+    let* () = check_not_found ro_t c3 "c3" in
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
@@ -413,8 +405,7 @@ module Blocking_gc = struct
     [%log.debug "RO finds c2, but not c1 after reload"];
     S.reload ro_t.repo;
     let* () = check_2 ro_t c2 in
-    (* TODO: parent of commit is not gced. *)
-    (* check_not_found ro_t c1 "c1" >>= fun () -> *)
+    let* () = check_not_found ro_t c1 "c1" in
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
@@ -431,15 +422,13 @@ module Blocking_gc = struct
     [%log.debug "RO reopens is similar to a reload"];
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* () = check_2 ro_t c2 in
-    (* TODO: parent of commit is not gced. *)
-    (* check_not_found ro_t c1 "removed c1" >>= fun () -> *)
+    let* () = check_not_found ro_t c1 "removed c1" in
     let* t = checkout_exn t c2 in
     let* t, c3 = commit_3 t in
     S.reload ro_t.repo;
     let* () = check_3 t c3 in
     let* () = check_3 ro_t c3 in
-    (* TODO: parent of commit is not gced. *)
-    (* check_not_found ro_t c1 "removed c1" >>= fun () -> *)
+    let* () = check_not_found ro_t c1 "removed c1" in
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 

@@ -86,6 +86,11 @@ module Make (Args : Args) : S with module Args := Args = struct
 
   let string_of_key = Irmin.Type.to_string key_t
 
+  (** [iter_from_node_key node_key _ _ ~f] calls [f] with the key of the node
+      and iterates over its children.
+
+      [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
+      if the children of [k] should be traversed or skiped. *)
   let rec iter_from_node_key node_key node_store ~f k =
     match Node_store.unsafe_find ~check_integrity:false node_store node_key with
     | None -> raise (Abort_gc (`Dangling_key (string_of_key node_key)))
@@ -106,45 +111,31 @@ module Make (Args : Args) : S with module Args := Args = struct
             | No_follow -> k ()
             | Follow -> iter_from_node_key key node_store ~f k))
 
-  (** [iter_from_commit_key commit_key _ _ ~f] calls [f] with:
+  let direct_of_key key =
+    match Irmin_pack.Pack_key.inspect key with
+    | Indexed _ ->
+        raise (Abort_gc (`Node_or_contents_key_is_indexed (string_of_key key)))
+    | Direct { offset; length; _ } -> (offset, length)
 
-      - [commit_key],
-      - the key of the commit parents of [commit_key] and
-      - the key of the node and commit entries in the tree of [commit_key].
+  let magic_gced = Pack_value.Kind.to_magic Pack_value.Kind.Gced
 
-      [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
-      if the children of [k] should be traversed or skiped.
+  (* Dangling_parent_commit are the parents of the gced commit. They are kept on
+     disk in order to correctly deserialised the gced commit. *)
+  let magic_parent =
+    Pack_value.Kind.to_magic Pack_value.Kind.Dangling_parent_commit
 
-      The parent(s) of [commit_key] must be included in the iteration because,
-      when decoding the [Commit_value.t] at [commit_key], the parents will have
-      to be read in order to produce a key for them. *)
-  let iter_from_commit_key :
-      Commit_store.key ->
-      read Commit_store.t ->
-      read Node_store.t ->
-      f:(key -> action) ->
-      unit =
-   fun commit_key commit_store node_store ~f ->
-    let (_ : action) = f commit_key in
-    match
-      Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
-    with
-    | None -> raise (Abort_gc (`Dangling_key (string_of_key commit_key)))
-    | Some commit ->
-        List.iter
-          (fun parent_commit_key ->
-            let (_ : action) = f parent_commit_key in
-            ())
-          (Commit_value.parents commit);
-        let node_key = Commit_value.node commit in
-        let (_ : action) = f node_key in
-        iter_from_node_key node_key node_store ~f (fun () -> ())
-
-  let char = Pack_value.Kind.to_magic Pack_value.Kind.Gced
+  (* Transfer the commit with a different magic. Note that this is modifying
+     existing written data. *)
+  let transfer_parent_commit ~src ~dst key =
+    let off, len = direct_of_key key in
+    let buffer = Bytes.create len in
+    Fm.Suffix.read_exn src ~off ~len buffer;
+    Bytes.set buffer Hash.hash_size magic_parent;
+    Io.write_exn dst ~off ~len (Bytes.unsafe_to_string buffer)
 
   let fill ~io ~count =
     let open Result_syntax in
-    let buffer = String.make buffer_size char in
+    let buffer = String.make buffer_size magic_gced in
     let buffer_size = Int63.of_int buffer_size in
     let rec aux off count =
       let ( < ) a b = Int63.compare a b < 0 in
@@ -153,7 +144,7 @@ module Make (Args : Args) : S with module Args := Args = struct
       let ( === ) = Int63.equal in
       if count === Int63.zero then Ok ()
       else if count < buffer_size then
-        let buffer = String.make (Int63.to_int count) char in
+        let buffer = String.make (Int63.to_int count) magic_gced in
         Io.write_string io ~off buffer
       else
         let* () = Io.write_string io ~off buffer in
@@ -227,7 +218,7 @@ module Make (Args : Args) : S with module Args := Args = struct
       (* Read the [kind] byte, which lies just after the hash *)
       let ( + ) = Int63.add in
       Io.read_exn dst_io ~off:(off + hash_size) ~len:1 buffer;
-      Bytes.get buffer 0 <> char
+      Bytes.get buffer 0 <> magic_gced
     in
     let rec transfer_exn (off : int63) (len_remaining : int63) =
       let ( + ) = Int63.add in
@@ -262,24 +253,39 @@ module Make (Args : Args) : S with module Args := Args = struct
     (* Step 7. *)
     [%log.debug "GC: transfering to the left side"];
     let f key =
-      let state : _ Irmin_pack.Pack_key.state =
-        Irmin_pack.Pack_key.inspect key
-      in
-      match state with
-      | Indexed _ ->
-          raise
-            (Abort_gc (`Node_or_contents_key_is_indexed (string_of_key key)))
-      | Direct { offset; length; _ } ->
-          if already_copied_exn offset then No_follow
-          else (
-            transfer_exn offset (Int63.of_int length);
-            Follow)
+      let offset, length = direct_of_key key in
+      if already_copied_exn offset then No_follow
+      else (
+        transfer_exn offset (Int63.of_int length);
+        Follow)
     in
+
+    (* 7.1. Transfer the [commit_key]. *)
+    let (_ : action) = f commit_key in
     let* () =
-      try
-        Errs.catch (fun () ->
-            iter_from_commit_key commit_key commit_store node_store ~f)
-      with Abort_gc (#abort_error as err) -> Error err
+      match
+        Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
+      with
+      | None -> raise (Abort_gc (`Dangling_key (string_of_key commit_key)))
+      | Some commit -> (
+          (* 7.2. Transfer the parents of [commit_key]. *)
+          (* The parent(s) of [commit_key] must be included in the iteration because,
+             when decoding the [Commit_value.t] at [commit_key], the parents will have
+             to be read in order to produce a key for them. *)
+          let transfer_parent =
+            transfer_parent_commit ~src:src_ao ~dst:dst_io
+          in
+          List.iter
+            (fun parent_commit_key -> transfer_parent parent_commit_key)
+            (Commit_value.parents commit);
+          let node_key = Commit_value.node commit in
+          let (_ : action) = f node_key in
+          (* Step 7.3. Continue by iterating on the root node. *)
+          [%log.debug "GC: transfering tree to the left side "];
+          try
+            Errs.catch (fun () ->
+                iter_from_node_key node_key node_store ~f (fun () -> ()))
+          with Abort_gc (#abort_error as err) -> Error err)
     in
 
     (* Step 8. Close everything *)

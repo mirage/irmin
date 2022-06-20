@@ -79,7 +79,7 @@ module Make (Store : Store) = struct
           ->
             progress_nodes ()
         | Commit_v1 | Commit_v2 -> progress_commits ()
-        | Gced -> assert false
+        | Gced | Dangling_parent_commit -> assert false
       in
       Index.iter f index;
       let nb_contents, nb_nodes, nb_commits =
@@ -368,7 +368,7 @@ module Index (Index : Pack_index.S) = struct
       | Commit_v1 | Commit_v2 ->
           progress_commits ();
           check ~kind:`Commit ~offset ~length k
-      | Gced -> assert false
+      | Gced | Dangling_parent_commit -> assert false
     in
     let result =
       if auto_repair then

@@ -180,7 +180,7 @@ struct
      object. *)
   let gced buf =
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
-    kind = Pack_value.Kind.Gced
+    kind = Pack_value.Kind.Gced || kind = Pack_value.Kind.Dangling_parent_commit
 
   let io_read_and_decode_hash_if_not_gced ~off t =
     let len = Hash.hash_size + 1 in
@@ -267,6 +267,16 @@ struct
         (* Attempt to eagerly read the length at the same time as reading the
            hash in order to save an extra IO read when dereferencing the key: *)
         let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
+        (* This function is called on the parents of a commit when deserialising
+           it. Dangling_parent_commit are usually treated as removed objects,
+           except here, where in order to correctly deserialise the gced commit,
+           they are treated as kept commits. *)
+        let kind =
+          if entry_prefix.kind = Pack_value.Kind.Dangling_parent_commit then
+            Pack_value.Kind.Commit_v2
+          else entry_prefix.kind
+        in
+        let entry_prefix = { entry_prefix with kind } in
         match Entry_prefix.total_entry_length entry_prefix with
         | Some length ->
             Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
