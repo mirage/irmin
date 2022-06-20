@@ -171,13 +171,95 @@ module Index = struct
   let export m = Metrics.state m
 end
 
-type t = { pack_store : Pack_store.stat; index : Index.stat }
+module File_manager = struct
+  type Metrics.origin += File_manager
 
-let s = { pack_store = Pack_store.init (); index = Index.init () }
+  type t = {
+    mutable dict_flushes : int;
+    mutable suffix_flushes : int;
+    mutable index_flushes : int;
+    mutable auto_dict : int;
+    mutable auto_suffix : int;
+    mutable auto_index : int;
+    mutable flush : int;
+  }
+  [@@deriving irmin]
+
+  (* NOTE return a new instance each time, since fields are mutable *)
+  let create () =
+    {
+      dict_flushes = 0;
+      suffix_flushes = 0;
+      index_flushes = 0;
+      auto_dict = 0;
+      auto_suffix = 0;
+      auto_index = 0;
+      flush = 0;
+    }
+
+  (* NOTE type [stat] is an abstract type in stats.mli *)
+  type stat = t Metrics.t
+
+  let init () : stat =
+    let initial_state = create () in
+    Metrics.v ~origin:File_manager ~name:"file_manager_metric" ~initial_state t
+
+  (* [export] reveals the [t] contained in the [Metrics.t] container *)
+  let export : stat -> t = fun m -> Metrics.state m
+
+  (* support [reset_stats] function below *)
+  let clear' (t : t) =
+    t.dict_flushes <- 0;
+    t.suffix_flushes <- 0;
+    t.index_flushes <- 0;
+    ()
+
+  let clear (t : stat) = clear' (export t)
+
+  (* we want to support an interface where the particular fields of type [t] are reified
+     as variants, so that we can call [incr_fm_field Dict_flushes] for example *)
+
+  type field =
+    | Dict_flushes
+    | Suffix_flushes
+    | Index_flushes
+    | Auto_dict
+    | Auto_suffix
+    | Auto_index
+    | Flush
+
+  let update ~field t =
+    let f t =
+      match field with
+      | Dict_flushes -> t.dict_flushes <- t.dict_flushes + 1
+      | Suffix_flushes -> t.suffix_flushes <- t.suffix_flushes + 1
+      | Index_flushes -> t.index_flushes <- t.index_flushes + 1
+      | Auto_dict -> t.auto_dict <- t.auto_dict + 1
+      | Auto_suffix -> t.auto_suffix <- t.auto_suffix + 1
+      | Auto_index -> t.auto_index <- t.auto_index + 1
+      | Flush -> t.flush <- t.flush + 1
+    in
+    Metrics.update t (Metrics.Mutate f)
+end
+
+type t = {
+  pack_store : Pack_store.stat;
+  index : Index.stat;
+  file_manager : File_manager.stat;
+}
+
+let s =
+  {
+    pack_store = Pack_store.init ();
+    index = Index.init ();
+    file_manager = File_manager.init ();
+  }
 
 let reset_stats () =
   Pack_store.clear s.pack_store;
-  Index.clear s.index
+  Index.clear s.index;
+  File_manager.clear s.file_manager;
+  ()
 
 let get () = s
 let report_pack_store ~field = Pack_store.update ~field s.pack_store
@@ -208,3 +290,5 @@ let get_offset_stats () =
     offset_significance =
       pack_store.appended_offsets + pack_store.appended_hashes;
   }
+
+let incr_fm_field field = File_manager.update ~field s.file_manager
