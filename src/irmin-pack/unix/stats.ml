@@ -171,13 +171,59 @@ module Index = struct
   let export m = Metrics.state m
 end
 
-type t = { pack_store : Pack_store.stat; index : Index.stat }
+module File_manager_stats = struct
+  type Metrics.origin += File_manager_stats
 
-let s = { pack_store = Pack_store.init (); index = Index.init () }
+  type t = {
+    mutable dict_flushes : int;
+    mutable suffix_flushes : int;
+    mutable index_flushes : int;
+  }
+  [@@deriving irmin]
+
+  (* NOTE return a new instance each time, since fields are mutable *)
+  let init' () = { dict_flushes = 0; suffix_flushes = 0; index_flushes = 0 }
+
+  (* type [stat] is an abstract type in stats.mli; FIXME what is it for? *)
+  type stat = t Metrics.t
+
+  let init () : stat =
+    Metrics.v ~origin:File_manager_stats ~name:"file_manager_metric"
+      ~initial_state:(init' ()) t
+
+  (* [export] reveals the [t] contained in the [Metrics.t] container *)
+  let export : stat -> t = fun m -> Metrics.state m
+
+  (* support [reset_stats] function below *)
+  let clear' (t : t) =
+    t.dict_flushes <- 0;
+    t.suffix_flushes <- 0;
+    t.index_flushes <- 0;
+    ()
+
+  let clear (t : stat) = clear' (export t)
+end
+
+type t = {
+  pack_store : Pack_store.stat;
+  index : Index.stat;
+  file_manager : File_manager_stats.stat; 
+  (* FIXME why not just expose [File_manager_stats.t] here? What is reason for only
+     exposing stat's? *)
+}
+
+let s =
+  {
+    pack_store = Pack_store.init ();
+    index = Index.init ();
+    file_manager = File_manager_stats.init ();
+  }
 
 let reset_stats () =
   Pack_store.clear s.pack_store;
-  Index.clear s.index
+  Index.clear s.index;
+  File_manager_stats.clear s.file_manager;
+  ()
 
 let get () = s
 let report_pack_store ~field = Pack_store.update ~field s.pack_store
@@ -208,3 +254,22 @@ let get_offset_stats () =
     offset_significance =
       pack_store.appended_offsets + pack_store.appended_hashes;
   }
+
+(* following 3 functions for [File_manager_stats]; FIXME why can't we just expose the
+   mutable record and let the user update the fields directly? *)
+include struct
+  let incr_dict_flushes () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.dict_flushes <- 1+t.dict_flushes;
+    ()
+
+  let incr_suffix_flushes () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.suffix_flushes <- 1+t.suffix_flushes;
+    ()
+
+  let incr_index_flushes () = 
+    let t = File_manager_stats.export s.file_manager in
+    t.index_flushes <- 1+t.index_flushes;
+    ()
+end
