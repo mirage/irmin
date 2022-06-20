@@ -111,50 +111,58 @@ struct
   (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
-    let* () = Dict.flush t.dict in
-    let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
-    let* () =
-      let pl : Payload.t = Control.payload t.control in
-      let pl = { pl with dict_offset_end = Dict.end_offset t.dict } in
-      Control.set_payload t.control pl
-    in
-    let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-    ()
+    if Dict.empty_buffer t.dict then Ok ()
+    else
+      let* () = Dict.flush t.dict in
+      let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
+      let* () =
+        let pl : Payload.t = Control.payload t.control in
+        let pl = { pl with dict_offset_end = Dict.end_offset t.dict } in
+        Control.set_payload t.control pl
+      in
+      let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
+      ()
 
   (** Flush stage 2 *)
   let flush_suffix_and_its_deps t =
     let open Result_syntax in
     let* () = flush_dict t in
-    let* () = Suffix.flush t.suffix in
-    let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
-    let* () =
-      let pl : Payload.t = Control.payload t.control in
-      let status =
-        match pl.status with
-        | From_v1_v2_post_upgrade _ -> pl.status
-        | From_v3 ->
-            (* Using physical equality to test which indexing_strategy
-               we are using *)
-            if t.indexing_strategy == Irmin_pack.Indexing_strategy.minimal then
-              pl.status
-            else (
-              [%log.warn
-                "Updating the control file from [From_v3] to \
-                 [From_v3_used_non_minimal_indexing_strategy]. It won't be \
-                 possible to GC this irmin-pack store anymore."];
-              Payload.From_v3_used_non_minimal_indexing_strategy)
-        | From_v3_used_non_minimal_indexing_strategy -> pl.status
-        | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12
-        | T13 | T14 | T15 ->
-            assert false
+    if Suffix.empty_buffer t.suffix then Ok ()
+    else
+      let* () = Suffix.flush t.suffix in
+      let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
+      let* () =
+        let pl : Payload.t = Control.payload t.control in
+        let status =
+          match pl.status with
+          | From_v1_v2_post_upgrade _ -> pl.status
+          | From_v3 ->
+              (* Using physical equality to test which indexing_strategy
+                 we are using *)
+              if t.indexing_strategy == Irmin_pack.Indexing_strategy.minimal
+              then pl.status
+              else (
+                [%log.warn
+                  "Updating the control file from [From_v3] to \
+                   [From_v3_used_non_minimal_indexing_strategy]. It won't be \
+                   possible to GC this irmin-pack store anymore."];
+                Payload.From_v3_used_non_minimal_indexing_strategy)
+          | From_v3_used_non_minimal_indexing_strategy -> pl.status
+          | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12
+          | T13 | T14 | T15 ->
+              assert false
+        in
+        let pl =
+          {
+            pl with
+            entry_offset_suffix_end = Suffix.end_offset t.suffix;
+            status;
+          }
+        in
+        Control.set_payload t.control pl
       in
-      let pl =
-        { pl with entry_offset_suffix_end = Suffix.end_offset t.suffix; status }
-      in
-      Control.set_payload t.control pl
-    in
-    let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-    List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
+      let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
+      List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
 
   (** Flush stage 3 *)
   let flush_index_and_its_deps t =
