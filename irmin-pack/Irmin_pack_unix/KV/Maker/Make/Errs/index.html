@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Errs (irmin-pack.Irmin_pack_unix.KV.Maker.Make.Errs)</title><link rel="stylesheet" href="../../../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../../../index.html">irmin-pack</a> &#x00BB; <a href="../../../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../../../index.html">KV</a> &#x00BB; <a href="../../index.html">Maker</a> &#x00BB; <a href="../index.html">Make</a> &#x00BB; Errs</nav><header class="odoc-preamble"><h1>Module <code><span>Make.Errs</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module" id="module-Io" class="anchored"><a href="#module-Io" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Io/index.html">Io</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-pp_error" class="anchored"><a href="#val-pp_error" class="anchor"></a><code><span><span class="keyword">val</span> pp_error : 
+  <span><span class="xref-unresolved">Stdlib</span>.Format.formatter <span class="arrow">&#45;&gt;</span></span>
+  <span><span>[&lt; `Corrupted_control_file
+  <span>| `Corrupted_legacy_file</span>
+  <span>| `Decoding_error</span>
+  <span>| `Double_close</span>
+  <span><span>| `File_exists</span> of string</span>
+  <span><span>| `Index_failure</span> of string</span>
+  <span>| `Invalid_argument</span>
+  <span>| `Invalid_layout</span>
+  <span>| `Invalid_parent_directory</span>
+  <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+  <span>| `Migration_needed</span>
+  <span>| `No_such_file_or_directory</span>
+  <span><span>| `Not_a_directory</span> of string</span>
+  <span>| `Not_a_file</span>
+  <span>| `Pending_flush</span>
+  <span>| `Read_on_closed</span>
+  <span>| `Read_out_of_bounds</span>
+  <span>| `Ro_not_allowed</span>
+  <span>| `Rw_not_allowed</span>
+  <span><span>| `Sys_error</span> of string</span>
+  <span><span>| `Unknown_major_pack_version</span> of string</span>
+  <span>| `V3_store_from_the_future</span>
+  <span>| `Write_on_closed</span> ]</span> <span class="arrow">&#45;&gt;</span></span>
+  unit</span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-raise_error" class="anchored"><a href="#val-raise_error" class="anchor"></a><code><span><span class="keyword">val</span> raise_error : 
+  <span><span>[&lt; `Corrupted_control_file
+  <span>| `Corrupted_legacy_file</span>
+  <span>| `Decoding_error</span>
+  <span>| `Double_close</span>
+  <span><span>| `File_exists</span> of string</span>
+  <span><span>| `Index_failure</span> of string</span>
+  <span>| `Invalid_argument</span>
+  <span>| `Invalid_layout</span>
+  <span>| `Invalid_parent_directory</span>
+  <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+  <span>| `Migration_needed</span>
+  <span>| `No_such_file_or_directory</span>
+  <span><span>| `Not_a_directory</span> of string</span>
+  <span>| `Not_a_file</span>
+  <span>| `Pending_flush</span>
+  <span>| `Read_on_closed</span>
+  <span>| `Read_out_of_bounds</span>
+  <span>| `Ro_not_allowed</span>
+  <span>| `Rw_not_allowed</span>
+  <span><span>| `Sys_error</span> of string</span>
+  <span><span>| `Unknown_major_pack_version</span> of string</span>
+  <span>| `V3_store_from_the_future</span>
+  <span>| `Write_on_closed</span> ]</span> <span class="arrow">&#45;&gt;</span></span>
+  <span class="type-var">'a</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-raise_if_error" class="anchored"><a href="#val-raise_if_error" class="anchor"></a><code><span><span class="keyword">val</span> raise_if_error : 
+  <span><span><span>( <span class="type-var">'a</span>,
+    <span>[&lt; `Corrupted_control_file
+    <span>| `Corrupted_legacy_file</span>
+    <span>| `Decoding_error</span>
+    <span>| `Double_close</span>
+    <span><span>| `File_exists</span> of string</span>
+    <span><span>| `Index_failure</span> of string</span>
+    <span>| `Invalid_argument</span>
+    <span>| `Invalid_layout</span>
+    <span>| `Invalid_parent_directory</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `Migration_needed</span>
+    <span>| `No_such_file_or_directory</span>
+    <span><span>| `Not_a_directory</span> of string</span>
+    <span>| `Not_a_file</span>
+    <span>| `Pending_flush</span>
+    <span>| `Read_on_closed</span>
+    <span>| `Read_out_of_bounds</span>
+    <span>| `Ro_not_allowed</span>
+    <span>| `Rw_not_allowed</span>
+    <span><span>| `Sys_error</span> of string</span>
+    <span><span>| `Unknown_major_pack_version</span> of string</span>
+    <span>| `V3_store_from_the_future</span>
+    <span>| `Write_on_closed</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span> <span class="arrow">&#45;&gt;</span></span>
+  <span class="type-var">'a</span></span></code></div></div></div></body></html>

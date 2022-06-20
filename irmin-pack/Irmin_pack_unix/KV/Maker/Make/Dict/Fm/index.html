@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Fm (irmin-pack.Irmin_pack_unix.KV.Maker.Make.Dict.Fm)</title><link rel="stylesheet" href="../../../../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../../../../index.html">irmin-pack</a> &#x00BB; <a href="../../../../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../../../../index.html">KV</a> &#x00BB; <a href="../../../index.html">Maker</a> &#x00BB; <a href="../../index.html">Make</a> &#x00BB; <a href="../index.html">Dict</a> &#x00BB; Fm</nav><header class="odoc-preamble"><h1>Module <code><span>Dict.Fm</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module" id="module-Io" class="anchored"><a href="#module-Io" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Io/index.html">Io</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec module" id="module-Control" class="anchored"><a href="#module-Control" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Control/index.html">Control</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec module" id="module-Dict" class="anchored"><a href="#module-Dict" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Dict/index.html">Dict</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec module" id="module-Suffix" class="anchored"><a href="#module-Suffix" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Suffix/index.html">Suffix</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec module" id="module-Index" class="anchored"><a href="#module-Index" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Index/index.html">Index</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec type" id="type-t" class="anchored"><a href="#type-t" class="anchor"></a><code><span><span class="keyword">type</span> t</span><span> = <a href="../../File_manager/index.html#type-t">File_manager.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-control" class="anchored"><a href="#val-control" class="anchor"></a><code><span><span class="keyword">val</span> control : <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> <a href="Control/index.html#type-t">Control.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-dict" class="anchored"><a href="#val-dict" class="anchor"></a><code><span><span class="keyword">val</span> dict : <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> <a href="Dict/index.html#type-t">Dict.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-suffix" class="anchored"><a href="#val-suffix" class="anchor"></a><code><span><span class="keyword">val</span> suffix : <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> <a href="Suffix/index.html#type-t">Suffix.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-index" class="anchored"><a href="#val-index" class="anchor"></a><code><span><span class="keyword">val</span> index : <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> <a href="Index/index.html#type-t">Index.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-create_rw" class="anchored"><a href="#val-create_rw" class="anchor"></a><code><span><span class="keyword">val</span> create_rw : 
+  <span>overwrite:bool <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="../../../../../../../irmin/Irmin/Backend/Conf/index.html#type-t">Irmin.Backend.Conf.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <a href="#type-t">t</a>,
+    <span>[&gt; <span>`File_exists of string</span>
+    <span><span>| `Index_failure</span> of string</span>
+    <span>| `Invalid_parent_directory</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `No_such_file_or_directory</span>
+    <span><span>| `Not_a_directory</span> of string</span>
+    <span>| `Not_a_file</span>
+    <span>| `Ro_not_allowed</span>
+    <span>| `Write_on_closed</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-open_rw" class="anchored"><a href="#val-open_rw" class="anchor"></a><code><span><span class="keyword">val</span> open_rw : 
+  <span><a href="../../../../../../../irmin/Irmin/Backend/Conf/index.html#type-t">Irmin.Backend.Conf.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <a href="#type-t">t</a>,
+    <span>[&gt; `Corrupted_control_file
+    <span>| `Double_close</span>
+    <span><span>| `File_exists</span> of string</span>
+    <span><span>| `Index_failure</span> of string</span>
+    <span>| `Invalid_argument</span>
+    <span>| `Invalid_layout</span>
+    <span><span>| `Io_misc</span> of <a href="Control/Io/index.html#type-misc_error">Control.Io.misc_error</a></span>
+    <span>| `Migration_needed</span>
+    <span>| `No_such_file_or_directory</span>
+    <span><span>| `Not_a_directory</span> of string</span>
+    <span>| `Not_a_file</span>
+    <span>| `Read_on_closed</span>
+    <span>| `Read_out_of_bounds</span>
+    <span>| `Ro_not_allowed</span>
+    <span><span>| `Sys_error</span> of string</span>
+    <span><span>| `Unknown_major_pack_version</span> of string</span>
+    <span>| `V3_store_from_the_future</span>
+    <span>| `Write_on_closed</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-open_ro" class="anchored"><a href="#val-open_ro" class="anchor"></a><code><span><span class="keyword">val</span> open_ro : 
+  <span><a href="../../../../../../../irmin/Irmin/Backend/Conf/index.html#type-t">Irmin.Backend.Conf.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <a href="#type-t">t</a>,
+    <span>[&gt; `Corrupted_control_file
+    <span><span>| `File_exists</span> of string</span>
+    <span><span>| `Index_failure</span> of string</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `Migration_needed</span>
+    <span>| `No_such_file_or_directory</span>
+    <span>| `Not_a_file</span>
+    <span>| `Read_on_closed</span>
+    <span><span>| `Unknown_major_pack_version</span> of string</span>
+    <span>| `V3_store_from_the_future</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-close" class="anchored"><a href="#val-close" class="anchor"></a><code><span><span class="keyword">val</span> close : 
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( unit,
+    <span>[&gt; `Double_close
+    <span><span>| `Index_failure</span> of string</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `Pending_flush</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-flush" class="anchored"><a href="#val-flush" class="anchor"></a><code><span><span class="keyword">val</span> flush : 
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( unit,
+    <span>[&gt; <span>`Index_failure of string</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `Ro_not_allowed</span>
+    <span>| `Write_on_closed</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-reload" class="anchored"><a href="#val-reload" class="anchor"></a><code><span><span class="keyword">val</span> reload : 
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( unit,
+    <span>[&gt; `Corrupted_control_file
+    <span><span>| `Index_failure</span> of string</span>
+    <span>| `Invalid_argument</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `Read_on_closed</span>
+    <span>| `Read_out_of_bounds</span>
+    <span>| `Rw_not_allowed</span>
+    <span><span>| `Unknown_major_pack_version</span> of string</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-register_dict_consumer" class="anchored"><a href="#val-register_dict_consumer" class="anchor"></a><code><span><span class="keyword">val</span> register_dict_consumer : 
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>after_reload:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> <span><span>( unit, <a href="Io/index.html#type-read_error">Io.read_error</a> )</span> <span class="xref-unresolved">Stdlib</span>.result</span> )</span> <span class="arrow">&#45;&gt;</span></span>
+  unit</span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-register_suffix_consumer" class="anchored"><a href="#val-register_suffix_consumer" class="anchor"></a><code><span><span class="keyword">val</span> register_suffix_consumer : <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> <span>after_flush:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span> unit</span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-version" class="anchored"><a href="#val-version" class="anchor"></a><code><span><span class="keyword">val</span> version : 
+  <span>root:string <span class="arrow">&#45;&gt;</span></span>
+  <span><span>( <a href="../../../../../../Irmin_pack/Version/index.html#type-t">Irmin_pack.Version.t</a>,
+    <span>[&gt; `Corrupted_control_file
+    <span>| `Corrupted_legacy_file</span>
+    <span>| `Invalid_layout</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `No_such_file_or_directory</span>
+    <span><span>| `Not_a_directory</span> of string</span>
+    <span><span>| `Unknown_major_pack_version</span> of string</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div></div></body></html>
