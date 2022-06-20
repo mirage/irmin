@@ -20,70 +20,38 @@ include Control_file_intf
 module Plv3 = struct
   include Payload_v3
 
-  let encode_bin = Repr.encode_bin t |> Repr.unstage
-  let decode_bin = Repr.decode_bin t |> Repr.unstage
-
-  let size_of_value =
-    match Irmin.Type.Size.of_value t with
-    | Irmin.Type.Size.Unknown -> assert false
-    | Static x -> Fun.const x
-    | Dynamic f -> f
-
-  let size_of_encoding =
-    match Irmin.Type.Size.of_encoding t with
-    | Irmin.Type.Size.Unknown -> assert false
-    | Static x -> fun _ _ -> x
-    | Dynamic f -> f
-end
-
-module Version = struct
-  type t = Irmin_pack.Version.t [@@deriving irmin ~encode_bin ~decode_bin]
-
-  let size : int =
-    match Irmin.Type.Size.of_value t with
-    | Irmin.Type.Size.Static v -> v
-    | _ -> assert false
-end
-
-module Data = struct
-  (** Type of what's encoded in the control file. The boilerplate around [bin]
-      makes the variant tag to be encoded as a [Version.t]. *)
-  type t = V3 of Plv3.t [@@deriving irmin]
-
-  let encode_bin t f =
-    match t with
-    | V3 payload ->
-        Version.encode_bin `V3 f;
-        Plv3.encode_bin payload f
-
-  let decode_bin s offref =
-    let version = Version.decode_bin s offref in
-    match version with
-    | `V1 | `V2 ->
-        (* These versions have never been written to control file *)
-        assert false
-    | `V3 -> V3 (Plv3.decode_bin s offref)
-
-  let of_value = function V3 pl -> Version.size + Plv3.size_of_value pl
-
-  let of_encoding s off =
-    let version = Version.decode_bin s (ref off) in
-    match version with
-    | `V1 | `V2 ->
-        (* These versions have never been written to control file *)
-        assert false
-    | `V3 -> Version.size + Plv3.size_of_encoding s off
-
-  let size_of = Irmin.Type.Size.custom_dynamic ~of_value ~of_encoding ()
-  let bin = (encode_bin, decode_bin, size_of)
-
-  let t =
-    (* [unboxed_bin] is necessary here.
-       See https://github.com/mirage/repr/issues/97 *)
-    Irmin.Type.like t ~bin ~unboxed_bin:bin
-
   let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
   let to_bin_string = Irmin.Type.to_bin_string t |> Irmin.Type.unstage
+end
+
+module Version = Irmin_pack.Version
+
+module Data = struct
+  (** Type of what's encoded in the control file. The variant tag is encoded as
+      a [Version.t]. *)
+  type t = V3 of Plv3.t
+
+  let to_bin_string = function
+    | V3 payload -> Version.to_bin `V3 ^ Plv3.to_bin_string payload
+
+  let of_bin_string s =
+    let open Result_syntax in
+    let* left, right =
+      let len = String.length s in
+      try Ok (String.sub s 0 8, String.sub s 8 (len - 8))
+      with Invalid_argument _ -> Error `Corrupted_control_file
+    in
+    let* version =
+      match Version.of_bin left with
+      | None -> Error (`Unknown_major_pack_version left)
+      | Some `V3 -> Ok `V3
+      | Some (`V1 | `V2) -> assert false
+    in
+    match version with
+    | `V3 -> (
+        match Plv3.of_bin_string right with
+        | Ok x -> Ok (V3 x)
+        | Error _ -> Error `Corrupted_control_file)
 end
 
 module Make (Io : Io.S) = struct
@@ -104,9 +72,7 @@ module Make (Io : Io.S) = struct
     let* len = Io.read_size io in
     let len = Int63.to_int len in
     let* string = Io.read_to_string io ~off:Int63.zero ~len in
-    match Data.of_bin_string string with
-    | Ok _ as ok -> ok
-    | Error (`Msg _msg) -> Error `Corrupted_control_file
+    Data.of_bin_string string
 
   let read io =
     match read io with
@@ -114,7 +80,9 @@ module Make (Io : Io.S) = struct
     | Error (`Read_out_of_bounds | `Corrupted_control_file) ->
         Error `Corrupted_control_file
     | Error `Invalid_argument -> assert false
-    | Error (`Io_misc _ | `Read_on_closed) as e -> e
+    | Error (`Io_misc _ | `Read_on_closed | `Unknown_major_pack_version _) as e
+      ->
+        e
 
   let create_rw ~path ~overwrite payload =
     let open Result_syntax in

@@ -475,5 +475,8 @@ struct
         | Error `No_such_file_or_directory -> v2_or_v1 ()
         | Error `Not_a_file -> Error `Invalid_layout
         | Error `Read_on_closed -> assert false
-        | Error (`Io_misc _ | `Corrupted_control_file) as e -> e)
+        | Error
+            ( `Io_misc _ | `Corrupted_control_file
+            | `Unknown_major_pack_version _ ) as e ->
+            e)
 end
