@@ -120,6 +120,8 @@ struct
     if Dict.empty_buffer t.dict then Ok ()
     else
       let* () = Dict.flush t.dict in
+      (* update stats *)
+      Stats.incr_dict_flushes();
       let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -136,6 +138,7 @@ struct
     if Suffix.empty_buffer t.suffix then Ok ()
     else
       let* () = Suffix.flush t.suffix in
+      Stats.incr_suffix_flushes();
       let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -176,6 +179,7 @@ struct
     let open Result_syntax in
     let* () = flush_suffix_and_its_deps t in
     let+ () = Index.flush ~with_fsync:t.use_fsync t.index in
+    (* NOTE index flush stats are updated in {!Pack_index} *)
     ()
 
   (* Auto flushes *********************************************************** *)

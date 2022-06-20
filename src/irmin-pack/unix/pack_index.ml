@@ -49,6 +49,7 @@ module Make (K : Irmin.Hash.S) = struct
       (off, len, kind)
   end
 
+  module Irmin_pack_unix_stats = Stats
   module Stats = Index.Stats
   module I = Index
   module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)
@@ -103,6 +104,9 @@ module Make (K : Irmin.Hash.S) = struct
   let flush t ~with_fsync =
     try
       Index.flush ~no_callback:() ~with_fsync t;
+      (* record the index flush in stats; an alternative would be to add flush stats to
+         the index package *)
+      Irmin_pack_unix_stats.incr_index_flushes ();
       Ok ()
     with
     | I.RO_not_allowed -> assert false
