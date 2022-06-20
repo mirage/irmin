@@ -186,11 +186,7 @@ module Maker (Config : Conf.S) = struct
                   File_manager.open_rw config |> Errs.raise_if_error
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
-          let dict =
-            (* TODO: Hide capacity in Dict and put a comment *)
-            let capacity = 100_000 in
-            Dict.v ~capacity fm |> Errs.raise_if_error
-          in
+          let dict = Dict.v fm |> Errs.raise_if_error in
           let* contents = Contents.CA.v ~config ~fm ~dict in
           let* node = Node.CA.v ~config ~fm ~dict in
           let* commit = Commit.CA.v ~config ~fm ~dict in

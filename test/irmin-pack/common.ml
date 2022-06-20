@@ -108,7 +108,6 @@ struct
       name
 
   let mkdir_dash_p dirname = Irmin_pack_unix.Io_legacy.Unix.mkdir dirname
-  let capacity = 100
 
   type d = { name : string; fm : File_manager.t; dict : Dict.t }
 
@@ -132,7 +131,7 @@ struct
   let get_dict ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in
     let fm = config ~readonly ~fresh name |> get_fm in
-    let dict = Dict.v ~capacity fm |> Errs.raise_if_error in
+    let dict = Dict.v fm |> Errs.raise_if_error in
     { name; dict; fm }
 
   let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
@@ -151,7 +150,7 @@ struct
     let fm = get_fm config in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
-    let dict = Dict.v ~capacity fm |> Errs.raise_if_error in
+    let dict = Dict.v fm |> Errs.raise_if_error in
     let+ pack = Pack.v ~config ~fm ~dict in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm }

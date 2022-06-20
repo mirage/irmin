@@ -79,12 +79,16 @@ module Make (Fm : File_manager.S) = struct
     let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
     v
 
-  let v ~capacity fm =
+  let default_capacity = 100_000
+
+  let v fm =
     let open Result_syntax in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let last_refill_offset = Int63.zero in
-    let t = { capacity; index; cache; fm; last_refill_offset } in
+    let t =
+      { capacity = default_capacity; index; cache; fm; last_refill_offset }
+    in
     let* () = refill t in
     Fm.register_dict_consumer fm ~after_reload:(fun () -> refill t);
     Ok t

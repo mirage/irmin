@@ -114,7 +114,7 @@ struct
       rm_dir root;
       let config = config ~readonly:false ~fresh:true root in
       let fm = get_fm config in
-      let dict = Dict.v ~capacity:100 fm |> Errs.raise_if_error in
+      let dict = Dict.v fm |> Errs.raise_if_error in
       let* store = Inode.v ~config ~fm ~dict in
       let* store_contents = Contents_store.v ~config ~fm ~dict in
       let+ foo, bar =
