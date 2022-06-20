@@ -122,7 +122,8 @@ module type S = sig
     | `Io_misc of Io.misc_error
     | `No_such_file_or_directory
     | `Not_a_file
-    | `Read_on_closed ]
+    | `Read_on_closed
+    | `Unknown_major_pack_version of string ]
 
   val open_ : path:string -> readonly:bool -> (t, [> open_error ]) result
   (** Create a rw instance of [t] by reading an existing file at [path]. *)
@@ -147,7 +148,8 @@ module type S = sig
     [ `Corrupted_control_file
     | `Io_misc of Io.misc_error
     | `Read_on_closed
-    | `Rw_not_allowed ]
+    | `Rw_not_allowed
+    | `Unknown_major_pack_version of string ]
 
   val reload : t -> (unit, [> reload_error ]) result
   (** {3 RW mode}

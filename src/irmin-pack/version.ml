@@ -41,7 +41,7 @@ let decode_bin s offref =
 
 let size_of = Irmin.Type.Size.custom_static 8
 let bin = (encode_bin, decode_bin, size_of)
-let t = Irmin.Type.like ~bin ~compare ~pp t
+let t = Irmin.Type.like ~bin ~unboxed_bin:bin ~compare ~pp t
 
 let invalid_arg v =
   let pp_full_version ppf v = Fmt.pf ppf "%a (%S)" pp v (to_bin v) in

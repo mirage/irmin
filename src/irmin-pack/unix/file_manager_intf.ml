@@ -71,7 +71,9 @@ module type S = sig
     | `Ro_not_allowed
     | `Sys_error of string
     | `V3_store_from_the_future
-    | `Write_on_closed ]
+    | `Write_on_closed
+    | `Index_failure of string
+    | `Unknown_major_pack_version of string ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -95,7 +97,8 @@ module type S = sig
     | `Not_a_file
     | `Read_on_closed
     | `V3_store_from_the_future
-    | `Index_failure of string ]
+    | `Index_failure of string
+    | `Unknown_major_pack_version of string ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Note on SWMR consistency: TODO: doc
@@ -135,7 +138,8 @@ module type S = sig
     | `Io_misc of Io.misc_error
     | `Read_on_closed
     | `Read_out_of_bounds
-    | `Rw_not_allowed ]
+    | `Rw_not_allowed
+    | `Unknown_major_pack_version of string ]
 
   val reload : t -> (unit, [> reload_error ]) result
 
@@ -150,7 +154,8 @@ module type S = sig
     | `Invalid_layout
     | `Io_misc of Io.misc_error
     | `No_such_file_or_directory
-    | `Not_a_directory of string ]
+    | `Not_a_directory of string
+    | `Unknown_major_pack_version of string ]
 
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the files at [root]. *)
