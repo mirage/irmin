@@ -92,7 +92,7 @@ let restore repo ?on_disk buf =
     else Lwt.return (!total_visited, last_key)
   in
   let* result = aux None in
-  S.Snapshot.Import.close snapshot;
+  S.Snapshot.Import.close snapshot repo;
   Lwt.return result
 
 let test ~repo_export ~repo_import ?on_disk tree expected_visited =

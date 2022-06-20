@@ -17,29 +17,37 @@
 open! Import
 include Dict_intf
 
-let version = `V1
+module Make (Fm : File_manager.S) = struct
+  module Fm = Fm
 
-module Make (Io_legacy : Io_legacy.S) : S = struct
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    io : Io_legacy.t;
+    fm : Fm.t;
+    mutable last_refill_offset : int63;
   }
+
+  module File = struct
+    let append_exn t = Fm.Dict.append_exn (Fm.dict t.fm)
+    let offset t = Fm.Dict.end_offset (Fm.dict t.fm)
+    let read_to_string t = Fm.Dict.read_to_string (Fm.dict t.fm)
+  end
 
   type nonrec int32 = int32 [@@deriving irmin ~to_bin_string ~decode_bin]
 
   let append_string t v =
     let len = Int32.of_int (String.length v) in
     let buf = int32_to_bin_string len ^ v in
-    Io_legacy.append t.io buf
+    File.append_exn t buf
 
-  let refill ~from t =
-    let len = Int63.to_int (Io_legacy.offset t.io -- from) in
-    let raw = Bytes.create len in
-    let n = Io_legacy.read t.io ~off:from raw in
-    assert (n = len);
-    let raw = Bytes.unsafe_to_string raw in
+  (* Refill is only called once for a RW instance *)
+  let refill t =
+    let open Result_syntax in
+    let from = t.last_refill_offset in
+    let len = Int63.to_int (File.offset t -- from) in
+    t.last_refill_offset <- File.offset t;
+    let+ raw = File.read_to_string t ~off:from ~len in
     let pos_ref = ref 0 in
     let rec aux n =
       if !pos_ref >= len then ()
@@ -54,17 +62,6 @@ module Make (Io_legacy : Io_legacy.S) : S = struct
     in
     (aux [@tailcall]) (Hashtbl.length t.cache)
 
-  let sync_offset t =
-    let former_offset = Io_legacy.offset t.io in
-    let offset = Io_legacy.force_offset t.io in
-    if offset > former_offset then refill ~from:former_offset t
-
-  let sync t =
-    if Io_legacy.readonly t.io then sync_offset t
-    else invalid_arg "only a readonly instance should call this function"
-
-  let flush t = Io_legacy.flush t.io
-
   let index t v =
     [%log.debug "[dict] index %S" v];
     try Some (Hashtbl.find t.cache v)
@@ -72,7 +69,6 @@ module Make (Io_legacy : Io_legacy.S) : S = struct
       let id = Hashtbl.length t.cache in
       if id > t.capacity then None
       else (
-        if Io_legacy.readonly t.io then raise Irmin_pack.RO_not_allowed;
         append_string t v;
         Hashtbl.add t.cache v id;
         Hashtbl.add t.index id v;
@@ -83,18 +79,19 @@ module Make (Io_legacy : Io_legacy.S) : S = struct
     let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
     v
 
-  let v ?(fresh = true) ?(readonly = false) ?(capacity = 100_000) file =
-    let io = Io_legacy.v ~version:(Some version) ~fresh ~readonly file in
+  let default_capacity = 100_000
+
+  let v fm =
+    let open Result_syntax in
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
-    let t = { capacity; index; cache; io } in
-    refill ~from:Int63.zero t;
-    t
+    let last_refill_offset = Int63.zero in
+    let t =
+      { capacity = default_capacity; index; cache; fm; last_refill_offset }
+    in
+    let* () = refill t in
+    Fm.register_dict_consumer fm ~after_reload:(fun () -> refill t);
+    Ok t
 
-  let close t =
-    if not (Io_legacy.readonly t.io) then flush t;
-    [%log.debug "[pack] close %s" (Io_legacy.name t.io)];
-    Io_legacy.close t.io;
-    Hashtbl.reset t.cache;
-    Hashtbl.reset t.index
+  let close _ = ()
 end

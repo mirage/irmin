@@ -45,6 +45,9 @@ module Simple = struct
 
   let create_store () =
     rm_dir data_dir;
+    (* make sure the parent directory data/ exists; by default Store.Repo.v will not
+       create the containing directory *)
+    if not (Sys.file_exists "data") then Unix.mkdir "data" 0o755;
     let* rw = Store.Repo.v (config data_dir) in
     let tree = Store.Tree.singleton [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1" in
     let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in

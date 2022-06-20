@@ -32,8 +32,11 @@ module type Sigs = sig
     ?lru_size:int ->
     ?index_log_size:int ->
     ?merge_throttle:Conf.merge_throttle ->
-    ?freeze_throttle:Conf.freeze_throttle ->
     ?indexing_strategy:Indexing_strategy.t ->
+    ?use_fsync:bool ->
+    ?dict_auto_flush_threshold:int ->
+    ?suffix_auto_flush_threshold:int ->
+    ?no_migrate:bool ->
     string ->
     Irmin.config
   (** Configuration options for stores.

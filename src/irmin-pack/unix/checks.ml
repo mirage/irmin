@@ -16,7 +16,6 @@
 
 open! Import
 include Checks_intf
-module Io_legacy = Io_legacy.Unix
 
 let setup_log =
   let init style_renderer level =
@@ -62,45 +61,14 @@ module Make (Store : Store) = struct
     type io = { size : size; offset : int63; version : Version.t }
     [@@deriving irmin]
 
-    type files = { pack : io option; branch : io option; dict : io option }
-    [@@deriving irmin]
-
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
 
-    type t = {
-      hash_size : size;
-      log_size : int;
-      files : files;
-      objects : objects;
-    }
+    type t = { hash_size : size; log_size : int; objects : objects }
     [@@deriving irmin]
 
-    let with_io : type a. string -> (Io_legacy.t -> a) -> a option =
-     fun path f ->
-      match Io_legacy.exists path with
-      | false -> None
-      | true ->
-          let io = Io_legacy.v ~fresh:false ~readonly:true ~version:None path in
-          Fun.protect
-            ~finally:(fun () -> Io_legacy.close io)
-            (fun () -> Some (f io))
-
-    let io path =
-      with_io path @@ fun io ->
-      let offset = Io_legacy.offset io in
-      let size = Bytes (Io_legacy.size io) in
-      let version = Io_legacy.version io in
-      { size; offset; version }
-
-    let v ~root =
-      let pack = Layout.pack ~root |> io in
-      let branch = Layout.branch ~root |> io in
-      let dict = Layout.dict ~root |> io in
-      { pack; branch; dict }
-
     let traverse_index ~root log_size =
-      let index = Index.v ~readonly:true ~fresh:false ~log_size root in
+      let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
       let bar, (progress_contents, progress_nodes, progress_commits) =
         Utils.Object_counter.start ()
       in
@@ -118,14 +86,13 @@ module Make (Store : Store) = struct
       in
       { nb_contents; nb_nodes; nb_commits }
 
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let run ~root =
       [%logs.app "Getting statistics for store: `%s'@," root];
       let log_size = conf root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
-      let files = v ~root in
-      { hash_size = Bytes Hash.hash_size; log_size; files; objects }
+      { hash_size = Bytes Hash.hash_size; log_size; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout;
       Lwt.return_unit
 
@@ -139,7 +106,8 @@ module Make (Store : Store) = struct
 
   module Reconstruct_index = struct
     let conf ~index_log_size root =
-      Conf.init ~readonly:false ~fresh:false ?index_log_size root
+      Conf.init ~readonly:false ~fresh:false ?index_log_size ~no_migrate:true
+        root
 
     let dest =
       let open Cmdliner.Arg in
@@ -174,7 +142,7 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check_index = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let run ~root ~auto_repair () =
       let conf = conf root in
@@ -199,7 +167,7 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Conf.init ~readonly:false ~fresh:false root
+    let conf root = Conf.init ~readonly:false ~fresh:false ~no_migrate:true root
 
     let handle_result ?name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
@@ -235,7 +203,7 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check_inodes = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let heads =
       let open Cmdliner.Arg in
@@ -278,7 +246,7 @@ module Make (Store : Store) = struct
   end
 
   module Stats_commit = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false root
+    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let commit =
       let open Cmdliner.Arg in

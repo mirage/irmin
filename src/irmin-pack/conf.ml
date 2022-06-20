@@ -33,8 +33,11 @@ module Default = struct
   let index_log_size = 2_500_000
   let readonly = false
   let merge_throttle = `Block_writes
-  let freeze_throttle = `Block_writes
   let indexing_strategy = Indexing_strategy.default
+  let use_fsync = false
+  let dict_auto_flush_threshold = 1_000_000
+  let suffix_auto_flush_threshold = 1_000_000
+  let no_migrate = false
 end
 
 open Irmin.Backend.Conf
@@ -42,9 +45,6 @@ open Irmin.Backend.Conf
 let spec = Spec.v "pack"
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
-
-type freeze_throttle = [ `Block_writes | `Overcommit_memory | `Cancel_existing ]
-[@@deriving irmin]
 
 module Key = struct
   let fresh =
@@ -68,10 +68,6 @@ module Key = struct
       ~doc:"Strategy to use for large writes when index caches are full."
       "merge-throttle" merge_throttle_t Default.merge_throttle
 
-  let freeze_throttle =
-    key ~spec ~doc:"Strategy to use for long-running freezes." "freeze-throttle"
-      freeze_throttle_t Default.freeze_throttle
-
   let root = root spec
 
   let indexing_strategy =
@@ -84,6 +80,25 @@ module Key = struct
            | `Minimal -> Indexing_strategy.minimal)
          (fun _ -> Fmt.failwith "Can't serialise indexing strategy"))
       Default.indexing_strategy
+
+  let use_fsync =
+    key ~spec
+      ~doc:"Whether fsync should be used to ensure persistence order of files"
+      "use-fsync" Irmin.Type.bool Default.use_fsync
+
+  let dict_auto_flush_threshold =
+    key ~spec ~doc:"Buffer size of the dict at which automatic flushes occur"
+      "dict-auto-flush-threshold" Irmin.Type.int
+      Default.dict_auto_flush_threshold
+
+  let suffix_auto_flush_threshold =
+    key ~spec ~doc:"Buffer size of the suffix at which automatic flushes occur"
+      "suffix-auto-flush-threshold" Irmin.Type.int
+      Default.suffix_auto_flush_threshold
+
+  let no_migrate =
+    key ~spec ~doc:"Prevent migration of V1 and V2 stores" "no-migrate"
+      Irmin.Type.bool Default.no_migrate
 end
 
 let fresh config = get config Key.fresh
@@ -91,7 +106,6 @@ let lru_size config = get config Key.lru_size
 let readonly config = get config Key.readonly
 let index_log_size config = get config Key.index_log_size
 let merge_throttle config = get config Key.merge_throttle
-let freeze_throttle config = get config Key.freeze_throttle
 
 let root config =
   match find_root config with
@@ -102,12 +116,22 @@ let root config =
   | Some root -> root
 
 let indexing_strategy config = get config Key.indexing_strategy
+let use_fsync config = get config Key.use_fsync
+let dict_auto_flush_threshold config = get config Key.dict_auto_flush_threshold
+
+let suffix_auto_flush_threshold config =
+  get config Key.suffix_auto_flush_threshold
+
+let no_migrate config = get config Key.no_migrate
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
-    ?(freeze_throttle = Default.freeze_throttle)
-    ?(indexing_strategy = Default.indexing_strategy) root =
+    ?(indexing_strategy = Default.indexing_strategy)
+    ?(use_fsync = Default.use_fsync)
+    ?(dict_auto_flush_threshold = Default.dict_auto_flush_threshold)
+    ?(suffix_auto_flush_threshold = Default.suffix_auto_flush_threshold)
+    ?(no_migrate = Default.no_migrate) root =
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.fresh fresh in
@@ -115,6 +139,13 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config = add config Key.index_log_size index_log_size in
   let config = add config Key.readonly readonly in
   let config = add config Key.merge_throttle merge_throttle in
-  let config = add config Key.freeze_throttle freeze_throttle in
   let config = add config Key.indexing_strategy indexing_strategy in
+  let config = add config Key.use_fsync use_fsync in
+  let config =
+    add config Key.dict_auto_flush_threshold dict_auto_flush_threshold
+  in
+  let config =
+    add config Key.suffix_auto_flush_threshold suffix_auto_flush_threshold
+  in
+  let config = add config Key.no_migrate no_migrate in
   verify config

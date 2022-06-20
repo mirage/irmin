@@ -23,15 +23,18 @@ module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
 end)
 
 module Make_without_close_checks
-    (Index : Pack_index.S)
-    (Hash : Irmin.Hash.S with type t = Index.key)
+    (Fm : File_manager.S)
+    (Dict : Dict.S)
+    (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) =
+              and type key := Hash.t Pack_key.t)
+    (Errs : Errors.S with module Io = Fm.Io) =
 struct
-  module Io_legacy = Io_legacy.Unix
   module Tbl = Table (Hash)
-  module Dict = Pack_dict
+  module Control = Fm.Control
+  module Suffix = Fm.Suffix
+  module Index = Fm.Index
   module Key = Pack_key.Make (Hash)
 
   module Lru = Irmin.Backend.Lru.Make (struct
@@ -41,13 +44,14 @@ struct
     let equal = Irmin.Type.(unstage (equal Hash.t))
   end)
 
+  type file_manager = Fm.t
+  type dict = Dict.t
+
   type 'a t = {
     lru : Val.t Lru.t;
     staging : Val.t Tbl.t;
-    readonly : bool;
-    io : Io_legacy.t;
-    index : Index.t;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
+    fm : Fm.t;
     dict : Dict.t;
   }
 
@@ -57,7 +61,7 @@ struct
 
   let index_direct_with_kind t hash =
     [%log.debug "index %a" pp_hash hash];
-    match Index.find t.index hash with
+    match Index.find (Fm.index t.fm) hash with
     | None -> None
     | Some (offset, length, kind) ->
         let key = Pack_key.v_direct ~hash ~offset ~length in
@@ -68,22 +72,18 @@ struct
 
   let index t hash = Lwt.return (index_direct t hash)
 
-  let flush ?(index = true) ?(index_merge = false) t =
-    if index_merge then Index.merge t.index;
-    Dict.flush t.dict;
-    Io_legacy.flush t.io;
-    if index then Index.flush t.index;
-    Tbl.clear t.staging
-
-  let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
+  let v ~config ~fm ~dict =
+    let indexing_strategy = Conf.indexing_strategy config in
+    let lru_size = Conf.lru_size config in
     let staging = Tbl.create 127 in
     let lru = Lru.create lru_size in
-    { lru; staging; readonly; io; index; indexing_strategy; dict } |> Lwt.return
+    Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
+    { lru; staging; indexing_strategy; fm; dict } |> Lwt.return
 
   let io_read_and_decode_hash ~off t =
     let buf = Bytes.create Hash.hash_size in
-    let n = Io_legacy.read t.io ~off buf in
-    assert (n = Hash.hash_size);
+    let len = Hash.hash_size in
+    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
     decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
 
   type span = { offset : int63; length : int }
@@ -124,9 +124,33 @@ struct
       Option.map (fun len -> min_length + len) t.size_of_value_and_length_header
   end
 
-  let read_and_decode_entry_prefix ~off ~io_read =
+  let read_and_decode_entry_prefix ~off fm =
+    let io_read_at_most ~off ~len b =
+      (* Read at most [len], by checking that [(off, len)] don't go out of
+         bounds of the suffix file.
+
+         This can happen when we are reading the last entry in the file and the
+         [size_of_value_and_length_header] is smaller then [len] (for instance
+         the empty blob).
+
+         This will have to be rewritten to work with the prefix file. A solution
+         would be to implement somewhere a [read_at_most_exn] function that
+         reads in both the prefix and the suffix and that doesn't crash if the
+         read goes out of bounds. *)
+      let bytes_after_off =
+        let ( - ) = Int63.sub in
+        Suffix.end_offset (Fm.suffix fm) - off
+      in
+      let len =
+        let ( < ) a b = Int63.compare a b < 0 in
+        if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
+        else len
+      in
+      Suffix.read_exn (Fm.suffix fm) ~off ~len b;
+      len
+    in
     let buf = Bytes.create Entry_prefix.max_length in
-    let bytes_read = io_read ~off buf in
+    let bytes_read = io_read_at_most ~off ~len:Entry_prefix.max_length buf in
     (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
        final entry in the pack file (if the data section of the entry is
        shorter than [Varint.max_encoded_size]. In this case, an invalid read
@@ -156,15 +180,14 @@ struct
     { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
   let io_read_and_decode_entry_prefix ~off t =
-    let io_read = Io_legacy.read t.io in
-    read_and_decode_entry_prefix ~off ~io_read
+    read_and_decode_entry_prefix ~off t.fm
 
   let pack_file_contains_key t k =
     let key = Pack_key.inspect k in
     match key with
-    | Indexed hash -> Index.mem t.index hash
+    | Indexed hash -> Index.mem (Fm.index t.fm) hash
     | Direct { offset; _ } ->
-        let io_offset = Io_legacy.offset t.io in
+        let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
         let minimal_entry_length = Entry_prefix.min_length in
         if
           Int63.compare
@@ -174,9 +197,9 @@ struct
         then (
           (* Can't fit an entry into this suffix of the store, so this key
              isn't (yet) valid. If we're a read-only instance, the key may
-             become valid on [sync]; otherwise we know that this key wasn't
+             become valid on [reload]; otherwise we know that this key wasn't
              constructed for this store. *)
-          if not t.readonly then
+          if not (Control.readonly (Fm.control t.fm)) then
             invalid_read
               "invalid key %a checked for membership (IO offset = %a)" pp_key k
               Int63.pp io_offset;
@@ -214,8 +237,8 @@ struct
 
   let io_read_and_decode ~off ~len t =
     let () =
-      if not (Io_legacy.readonly t.io) then
-        let io_offset = Io_legacy.offset t.io in
+      if not (Suffix.readonly (Fm.suffix t.fm)) then
+        let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
         if Int63.add off (Int63.of_int len) > io_offset then
           (* This is likely a store corruption. We raise [Invalid_read]
              specifically so that [integrity_check] below can handle it. *)
@@ -225,10 +248,7 @@ struct
             len Int63.pp off Int63.pp io_offset
     in
     let buf = Bytes.create len in
-    let n = Io_legacy.read t.io ~off buf in
-    if n <> len then
-      invalid_read "Read %d bytes (at offset %a) but expected %d" n Int63.pp off
-        len;
+    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
     let key_of_offset offset =
       [%log.debug "key_of_offset: %a" Int63.pp offset];
       (* Attempt to eagerly read the length at the same time as reading the
@@ -250,11 +270,6 @@ struct
       (Bytes.unsafe_to_string buf)
       (ref 0)
 
-  let pp_io ppf t =
-    let name = Filename.basename (Filename.dirname (Io_legacy.name t.io)) in
-    let mode = if t.readonly then ":RO" else "" in
-    Fmt.pf ppf "%s%s" name mode
-
   let find_in_pack_file ~check_integrity t key hash =
     let loc, { offset; length } =
       match Pack_key.inspect key with
@@ -267,13 +282,13 @@ struct
             ~length:entry_span.length;
           (Stats.Pack_store.Pack_indexed, entry_span)
     in
-    let io_offset = Io_legacy.offset t.io in
+    let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
     if Int63.add offset (Int63.of_int length) > io_offset then (
       (* Can't fit an entry into this suffix of the store, so this key
          isn't (yet) valid. If we're a read-only instance, the key may
-         become valid on [sync]; otherwise we know that this key wasn't
+         become valid on [reload]; otherwise we know that this key wasn't
          constructed for this store. *)
-      match t.readonly with
+      match Control.readonly (Fm.control t.fm) with
       | false ->
           invalid_read "attempt to dereference invalid key %a (IO offset = %a)"
             pp_key key Int63.pp io_offset
@@ -295,7 +310,7 @@ struct
       (loc, Some v)
 
   let unsafe_find ~check_integrity t k =
-    [%log.debug "[pack:%a] find %a" pp_io t pp_key k];
+    [%log.debug "[pack] find %a" pp_key k];
     let hash = Key.to_hash k in
     let location, value =
       match Tbl.find t.staging hash with
@@ -314,8 +329,6 @@ struct
     let v = unsafe_find ~check_integrity:true t k in
     Lwt.return v
 
-  let cast t = (t :> read_write t)
-
   let integrity_check ~offset ~length hash t =
     try
       let value = io_read_and_decode ~off:offset ~len:length t in
@@ -324,14 +337,34 @@ struct
       | Error _ -> Error `Wrong_hash
     with Invalid_read _ -> Error `Absent_value
 
-  let batch t f =
-    let* r = f (cast t) in
-    if Tbl.length t.staging = 0 then Lwt.return r
-    else (
-      flush t;
-      Lwt.return r)
+  let cast t = (t :> read_write t)
 
-  let auto_flush = 1024
+  (** [batch] is required by the [Backend] signature of irmin core, but
+      irmin-pack is really meant to be used using the [batch] of the repo (in
+      [ext.ml]). The following batch exists only for compatibility, but it is
+      very tempting to replace the implementation by an [assert false]. *)
+  let batch t f =
+    [%log.warn
+      "[pack] calling batch directory on a store is not recommended. Use \
+       repo.batch instead."];
+    let on_success res =
+      Fm.flush t.fm |> Errs.raise_if_error;
+      Lwt.return res
+    in
+    let on_fail exn =
+      [%log.info
+        "[pack] batch failed. calling flush. (%s)" (Printexc.to_string exn)];
+      let () =
+        match Fm.flush t.fm with
+        | Ok () -> ()
+        | Error err ->
+            [%log.err
+              "[pack] batch failed and flush failed. Silencing flush fail. (%a)"
+                Errs.pp_error err]
+      in
+      raise exn
+    in
+    Lwt.try_bind (fun () -> f (cast t)) on_success on_fail
 
   let unsafe_append ~ensure_unique ~overcommit t hash v =
     let unguarded_append () =
@@ -342,7 +375,7 @@ struct
             Stats.incr_appended_offsets ();
             Some offset
         | Indexed hash -> (
-            match Index.find t.index hash with
+            match Index.find (Fm.index t.fm) hash with
             | None ->
                 Stats.incr_appended_hashes ();
                 None
@@ -350,26 +383,23 @@ struct
                 Stats.incr_appended_offsets ();
                 Some offset)
       in
-      let kind = Val.kind v in
-      let () =
-        (* Bump the pack file version header if necessary *)
-        let value_version = Pack_value.Kind.version kind
-        and io_version = Io_legacy.version t.io in
-        if Version.compare value_version io_version > 0 then
-          Io_legacy.set_version t.io value_version
-      in
       let dict = Dict.index t.dict in
-      let off = Io_legacy.offset t.io in
-      Val.encode_bin ~offset_of_key ~dict hash v (Io_legacy.append t.io);
-      let len = Int63.to_int (Io_legacy.offset t.io -- off) in
+      let off = Suffix.end_offset (Fm.suffix t.fm) in
+
+      (* [encode_bin] will most likely call [append] several time. One of these
+         call may trigger an auto flush. *)
+      let append = Suffix.append_exn (Fm.suffix t.fm) in
+      Val.encode_bin ~offset_of_key ~dict hash v append;
+
+      let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) -- off) in
       let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
       let () =
         let kind = Val.kind v in
         let should_index = t.indexing_strategy ~value_length:len kind in
-        if should_index then Index.add ~overcommit t.index hash (off, len, kind)
+        if should_index then
+          Index.add ~overcommit (Fm.index t.fm) hash (off, len, kind)
       in
-      if Tbl.length t.staging >= auto_flush then flush t
-      else Tbl.add t.staging hash v;
+      Tbl.add t.staging hash v;
       Lru.add t.lru hash v;
       [%log.debug "[pack] append done %a <- %a" pp_hash hash pp_key key];
       key
@@ -386,44 +416,30 @@ struct
 
   let add t v = unsafe_add t (Val.hash v) v
 
-  let unsafe_close t =
-    Tbl.clear t.staging;
-    Lru.clear t.lru
+  (** This close is a noop.
 
-  let close t =
-    unsafe_close t;
-    Lwt.return_unit
+      Closing the file manager would be inadequate because it is passed to [v].
+      The caller should close the file manager.
 
-  let sync t =
-    let former_offset = Io_legacy.offset t.io in
-    let offset = Io_legacy.force_offset t.io in
-    if offset > former_offset then (
-      Dict.sync t.dict;
-      Index.sync t.index)
-
-  let offset t = Io_legacy.offset t.io
+      We could clear the caches here but that really is not necessary. *)
+  let close _ = Lwt.return ()
 end
 
 module Make
-    (Index : Pack_index.S)
-    (Hash : Irmin.Hash.S with type t = Index.key)
+    (Fm : File_manager.S)
+    (Dict : Dict.S)
+    (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
-              and type key := Hash.t Pack_key.t) =
+              and type key := Hash.t Pack_key.t)
+    (Errs : Errors.S with module Io = Fm.Io) =
 struct
-  module Inner = Make_without_close_checks (Index) (Hash) (Val)
+  module Inner = Make_without_close_checks (Fm) (Dict) (Hash) (Val) (Errs)
+  include Inner
   include Indexable.Closeable (Inner)
 
-  let v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io =
-    Inner.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-    >|= make_closeable
-
-  let sync t = Inner.sync (get_open_exn t)
-
-  let flush ?index ?index_merge t =
-    Inner.flush ?index ?index_merge (get_open_exn t)
-
-  let offset t = Inner.offset (get_open_exn t)
+  let v ~config ~fm ~dict = Inner.v ~config ~fm ~dict >|= make_closeable
+  let cast t = Inner.cast (get_open_exn t) |> make_closeable
 
   let integrity_check ~offset ~length k t =
     Inner.integrity_check ~offset ~length k (get_open_exn t)

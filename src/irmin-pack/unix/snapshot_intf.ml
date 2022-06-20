@@ -18,9 +18,13 @@ open! Import
 
 module type Args = sig
   module Hash : Irmin.Hash.S
+  module File_manager : File_manager.S
 
   module Inode :
-    Inode.Persistent with type hash := Hash.t and type key = Hash.t Pack_key.t
+    Inode.Persistent
+      with type hash := Hash.t
+       and type key = Hash.t Pack_key.t
+       and type file_manager = File_manager.t
 
   module Contents_pack :
     Pack_store.S with type hash := Hash.t and type key = Hash.t Pack_key.t
@@ -33,7 +37,7 @@ module type Sigs = sig
     module Export : sig
       type t
 
-      val v : string -> int -> read Contents_pack.t -> read Inode.Pack.t -> t
+      val v : Irmin.config -> read Contents_pack.t -> read Inode.Pack.t -> t
 
       val run :
         ?on_disk:[ `Path of string ] ->
@@ -43,7 +47,14 @@ module type Sigs = sig
         Hash.t Pack_key.t * Pack_value.Kind.t ->
         int Lwt.t
 
-      val close : t -> unit
+      val close :
+        t ->
+        ( unit,
+          [> `Double_close
+          | `Index_failure of string
+          | `Io_misc of File_manager.Io.misc_error
+          | `Pending_flush ] )
+        result
     end
 
     module Import : sig

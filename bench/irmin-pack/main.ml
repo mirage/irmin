@@ -48,7 +48,7 @@ let index root =
 
 let size ~root =
   let index_size = index root in
-  Irmin_pack.Layout.stores ~root
+  Irmin_pack.Layout.V1_and_v2.all ~root
   |> List.map file
   |> List.fold_left ( + ) index_size
 

@@ -17,27 +17,12 @@
 open! Import
 open Common
 
-let src = Logs.Src.create "tests.migration" ~doc:"Test migrations"
+let src = Logs.Src.create "tests.integrity_checks" ~doc:"Test integrity checks"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let config ?(readonly = false) ?(fresh = true) root =
   Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh root
-
-let rec repeat = function
-  | 0 -> fun _f x -> x
-  | n -> fun f x -> f (repeat (n - 1) f x)
-
-(** The current working directory depends on whether the test binary is directly
-    run or is triggered with [dune exec], [dune runtest]. We normalise by
-    switching to the project root first. *)
-let goto_project_root () =
-  let cwd = Fpath.v (Sys.getcwd ()) in
-  match cwd |> Fpath.segs |> List.rev with
-  | "irmin-pack" :: "test" :: "default" :: "_build" :: _ ->
-      let root = cwd |> repeat 4 Fpath.parent in
-      Unix.chdir (Fpath.to_string root)
-  | _ -> ()
 
 let archive =
   [
@@ -45,26 +30,11 @@ let archive =
     ("foo", [ ([ "b" ], "y") ]);
   ]
 
-module Config_store = struct
-  let root_v1_archive, root_v1, tmp =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
-      v "_build" / "test_pack_migrate_1_to_2" |> to_string,
-      v "_build" / "test_index_reconstruct" |> to_string )
-
-  let setup_test_env () =
-    goto_project_root ();
-    let cmd =
-      Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; root_v1 ]
-    in
-    exec_cmd cmd |> function
-    | Ok () -> ()
-    | Error n ->
-        Fmt.failwith
-          "Failed to set up the test environment: command `%s' exited with \
-           non-zero exit code %d"
-          cmd n
-end
+let root_v1_archive, root_v1, tmp =
+  let open Fpath in
+  ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
+    v "_build" / "test_pack_version_1" |> to_string,
+    v "_build" / "test_index_reconstruct" |> to_string )
 
 module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) =
 struct
@@ -127,11 +97,10 @@ module Test_reconstruct = struct
   include Test (S)
 
   let setup_test_env () =
-    Config_store.setup_test_env ();
-    rm_dir Config_store.tmp;
+    setup_test_env ~root_archive:root_v1_archive ~root_local_build:root_v1;
+    rm_dir tmp;
     let cmd =
-      Filename.quote_command "cp"
-        [ "-R"; "-p"; Config_store.root_v1_archive; Config_store.tmp ]
+      Filename.quote_command "cp" [ "-R"; "-p"; root_v1_archive; tmp ]
     in
     exec_cmd cmd |> function
     | Ok () -> ()
@@ -144,14 +113,17 @@ module Test_reconstruct = struct
   let test_reconstruct () =
     let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
-    let conf = config ~readonly:false ~fresh:false Config_store.root_v1 in
-    S.traverse_pack_file (`Reconstruct_index `In_place) conf;
+    let conf = config ~readonly:false ~fresh:false root_v1 in
+    (* Open store in RW to migrate it to V3. *)
+    let* repo = S.Repo.v conf in
+    let* () = S.Repo.close repo in
+    (* Test on a V3 store. *)
+    S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
-      Index.v ~fresh:false ~readonly:false ~log_size:500_000 Config_store.tmp
+      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 tmp
     in
     let index_new =
-      Index.v ~fresh:false ~readonly:false ~log_size:500_000
-        Config_store.root_v1
+      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 root_v1
     in
     Index.iter
       (fun k (offset, length, kind) ->
@@ -166,8 +138,8 @@ module Test_reconstruct = struct
         | None ->
             Alcotest.failf "expected to find hash %a" (Irmin.Type.pp S.Hash.t) k)
       index_old;
-    Index.close index_old;
-    Index.close index_new;
+    Index.close_exn index_old;
+    Index.close_exn index_new;
     [%log.app
       "Checking old bindings are still reachable post index reconstruction)"];
     let* r = S.Repo.v conf in
@@ -180,14 +152,7 @@ module Test_corrupted_stores = struct
     ( v "test" / "irmin-pack" / "data" / "corrupted" |> to_string,
       v "_build" / "test_integrity" |> to_string )
 
-  let setup_test_env () =
-    goto_project_root ();
-    rm_dir root;
-    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
-    exec_cmd cmd |> function
-    | Ok () -> ()
-    | Error n ->
-        Fmt.failwith "Failed to set up test env; cmd was %s; error was %d" cmd n
+  let setup_test_env () = setup_test_env ~root_archive ~root_local_build:root
 
   let test () =
     setup_test_env ();
@@ -214,15 +179,7 @@ module Test_corrupted_inode = struct
     ( v "test" / "irmin-pack" / "data" / "corrupted_inode" |> to_string,
       v "_build" / "test_integrity_inode" |> to_string )
 
-  let setup_test_env () =
-    goto_project_root ();
-    rm_dir root;
-    let cmd = Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root ] in
-    exec_cmd cmd |> function
-    | Ok () -> ()
-    | Error n ->
-        Fmt.failwith "Failed to set up test env; command %s failed with %d" cmd
-          n
+  let setup_test_env () = setup_test_env ~root_archive ~root_local_build:root
 
   let test () =
     setup_test_env ();

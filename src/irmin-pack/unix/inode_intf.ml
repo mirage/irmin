@@ -4,25 +4,21 @@ open Irmin_pack.Inode
 module type Persistent = sig
   include S
 
-  type index
+  type file_manager
+  type dict
 
   val v :
-    readonly:bool ->
-    lru_size:int ->
-    index:index ->
-    indexing_strategy:Irmin_pack.Indexing_strategy.t ->
-    dict:Pack_dict.t ->
-    io:Io_legacy.Unix.t ->
-    read t Lwt.t
+    config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t Lwt.t
 
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
 
-  val sync : 'a t -> unit
+  (* val reload : 'a t -> unit *)
   val integrity_check_inodes : [ `Read ] t -> key -> (unit, string) result Lwt.t
 
   module Pack :
     Pack_store.S
-      with type index := index
+      with type file_manager = file_manager
+       and type dict = dict
        and type key := hash Pack_key.t
        and type hash := hash
        and type 'a t = 'a t
@@ -57,7 +53,6 @@ module type Sigs = sig
                   and type Val.step = Node.step)
       (Pack : Pack_store.S
                 with type hash = H.t
-                 and type index := Pack_index.Make(H).t
                  and type key = H.t Pack_key.t
                  and type value = Inter.Raw.t) :
     Persistent
@@ -65,6 +60,7 @@ module type Sigs = sig
        and type hash = H.t
        and type Val.metadata = Node.metadata
        and type Val.step = Node.step
-       and type index := Pack_index.Make(H).t
+       and type file_manager = Pack.file_manager
+       and type dict = Pack.dict
        and type value = Inter.Val.t
 end

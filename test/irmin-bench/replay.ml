@@ -10,6 +10,12 @@ module Store = struct
   module Store = Irmin_tezos.Store
 
   let create_repo ~root () =
+    (* make sure the parent dir exists *)
+    let () =
+      match Sys.file_exists (Filename.dirname root) with
+      | false -> Unix.mkdir (Filename.dirname root) 0o755
+      | true -> ()
+    in
     let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
     let* repo = Store.Repo.v conf in
     let on_commit _ _ = Lwt.return_unit in
@@ -32,15 +38,11 @@ let goto_project_root () =
   let cwd = Fpath.v (Sys.getcwd ()) in
   match cwd |> Fpath.segs |> List.rev with
   | "irmin-bench" :: "test" :: "default" :: "_build" :: _ ->
-      Printf.eprintf "case a\n%!";
       let root = cwd |> repeat 4 Fpath.parent in
       Unix.chdir (Fpath.to_string root)
-  | _ ->
-      Printf.eprintf "case b\n%!";
-      ()
+  | _ -> ()
 
 let replay_1_commit () =
-  Printf.eprintf "hello\n%!";
   goto_project_root ();
   let trace_path =
     let open Fpath in

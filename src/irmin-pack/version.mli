@@ -14,9 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Management of disk-format versions. *)
+(** Management of disk-format versions.
 
-type t = [ `V1 | `V2 ] [@@deriving irmin]
+    [`V2] introduced the [*_v2] kinds and deprecated the [*_v1] ones. The
+    upgrade of a pack file to [`V2] was done silently the first time a used
+    pushed a [*_v2] entry to the pack file.
+
+    [`V3] introduced the control file. It centralizes all the metadata that used
+    to be contained in the header of other files (e.g. the version of the store
+    used to be stored in each files, it is now solely stored in the control
+    file). The upgrade of a store to [`V3] was done silently when opening a
+    store in rw mode. *)
+
+type t = [ `V1 | `V2 | `V3 ] [@@deriving irmin]
 (** The type for version numbers. *)
 
 val compare : t -> t -> int

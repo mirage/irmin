@@ -17,7 +17,26 @@
 open! Import
 
 module type S = sig
-  include Index.S with type value = int63 * int * Pack_value.Kind.t
+  (** An abstraction on top of the index library that exposes an API that better
+      fits the irmin-pack use case. *)
+
+  type t
+  type key
+  type value = int63 * int * Pack_value.Kind.t
+
+  include Index.S with type value := value and type t := t and type key := key
+
+  val v_exn :
+    ?flush_callback:(unit -> unit) ->
+    ?fresh:bool ->
+    ?readonly:bool ->
+    ?throttle:[ `Block_writes | `Overcommit_memory ] ->
+    ?lru_size:int ->
+    log_size:int ->
+    string ->
+    t
+
+  type error := [ `Index_failure of string | `Io_misc of Io.Unix.misc_error ]
 
   val v :
     ?flush_callback:(unit -> unit) ->
@@ -27,13 +46,19 @@ module type S = sig
     ?lru_size:int ->
     log_size:int ->
     string ->
-    t
-  (** Constructor for indices, memoized by [(path, readonly)] pairs. *)
+    (t, [> error ]) result
 
+  val reload : t -> (unit, [> error ]) result
+  val close : t -> (unit, [> error ]) result
+  val close_exn : t -> unit
+  val flush : t -> with_fsync:bool -> (unit, [> error ]) result
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
-  val close : t -> unit
   val merge : t -> unit
+  val mem : t -> key -> bool
+  val iter : (key -> value -> unit) -> t -> unit
+  val filter : t -> (key * value -> bool) -> unit
+  val try_merge : t -> unit
 
   module Stats = Index.Stats
   module Key : Index.Key.S with type t = key

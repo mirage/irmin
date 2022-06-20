@@ -9,7 +9,8 @@
   test_hashes
   import
   test_pack_version_bump
-  test_snapshot)
+  test_snapshot
+  test_upgrade)
  (libraries
   alcotest
   fmt
@@ -53,6 +54,7 @@
   irmin-tezos
   logs
   lwt
-  hex)
+  hex
+  fpath)
  (preprocess
   (pps ppx_irmin.internal)))

@@ -52,7 +52,6 @@ end
 val spec : Irmin.Backend.Conf.Spec.t
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
-type freeze_throttle = [ merge_throttle | `Cancel_existing ] [@@deriving irmin]
 
 module Key : sig
   val fresh : bool Irmin.Backend.Conf.key
@@ -61,8 +60,11 @@ module Key : sig
   val readonly : bool Irmin.Backend.Conf.key
   val root : string Irmin.Backend.Conf.key
   val merge_throttle : merge_throttle Irmin.Backend.Conf.key
-  val freeze_throttle : freeze_throttle Irmin.Backend.Conf.key
   val indexing_strategy : Indexing_strategy.t Irmin.Backend.Conf.key
+  val use_fsync : bool Irmin.Backend.Conf.key
+  val dict_auto_flush_threshold : int Irmin.Backend.Conf.key
+  val suffix_auto_flush_threshold : int Irmin.Backend.Conf.key
+  val no_migrate : bool Irmin.Backend.Conf.key
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
@@ -70,9 +72,12 @@ val lru_size : Irmin.Backend.Conf.t -> int
 val index_log_size : Irmin.Backend.Conf.t -> int
 val readonly : Irmin.Backend.Conf.t -> bool
 val merge_throttle : Irmin.Backend.Conf.t -> merge_throttle
-val freeze_throttle : Irmin.Backend.Conf.t -> freeze_throttle
 val root : Irmin.Backend.Conf.t -> string
 val indexing_strategy : Irmin.Backend.Conf.t -> Indexing_strategy.t
+val use_fsync : Irmin.Backend.Conf.t -> bool
+val dict_auto_flush_threshold : Irmin.Backend.Conf.t -> int
+val suffix_auto_flush_threshold : Irmin.Backend.Conf.t -> int
+val no_migrate : Irmin.Backend.Conf.t -> bool
 
 val init :
   ?fresh:bool ->
@@ -80,7 +85,10 @@ val init :
   ?lru_size:int ->
   ?index_log_size:int ->
   ?merge_throttle:merge_throttle ->
-  ?freeze_throttle:freeze_throttle ->
   ?indexing_strategy:Indexing_strategy.t ->
+  ?use_fsync:bool ->
+  ?dict_auto_flush_threshold:int ->
+  ?suffix_auto_flush_threshold:int ->
+  ?no_migrate:bool ->
   string ->
   Irmin.config

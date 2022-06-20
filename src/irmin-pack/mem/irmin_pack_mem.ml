@@ -163,8 +163,8 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
           Commit.Indexable.close (snd (commit_t t)) >>= fun () ->
           Branch.close t.branch
 
-        (* An in-memory store is always in sync. *)
-        let sync _ = ()
+        (* An in-memory store is always in reload. *)
+        let reload _ = ()
         let flush _ = ()
       end
     end
@@ -192,10 +192,11 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
       Lwt.return
         (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
 
-    let sync = X.Repo.sync
+    let reload = X.Repo.reload
     let flush = X.Repo.flush
     let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
     let traverse_pack_file _ _ = ()
+    let test_traverse_pack_file _ _ = ()
     let stats ~dump_blob_paths_to:_ ~commit:_ _ = Lwt.return_unit
   end
 end

@@ -1,5 +1,5 @@
 open! Import
-module Io_legacy = Io_legacy.Unix
+module Io = Io.Unix
 
 module Stats : sig
   type t
@@ -44,10 +44,11 @@ end = struct
 end
 
 module type Args = sig
+  module File_manager : File_manager.S
   module Hash : Irmin.Hash.S
   module Index : Pack_index.S with type key := Hash.t
   module Inode : Inode.S with type hash := Hash.t
-  module Dict : Pack_dict.S
+  module Dict : Dict.S
   module Contents : Pack_value.S
   module Commit : Pack_value.S
 end
@@ -59,8 +60,16 @@ module Make (Args : Args) : sig
     | `Check_and_fix_index ] ->
     Irmin.config ->
     unit
+
+  val test :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
 end = struct
   open Args
+  module Errs = Errors.Make (Args.File_manager.Io)
 
   let pp_key = Irmin.Type.pp Hash.t
   let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
@@ -87,7 +96,7 @@ end = struct
       let dest =
         match dest with
         | `Output path ->
-            if Io_legacy.exists path then
+            if Sys.file_exists path then
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
@@ -98,7 +107,7 @@ end = struct
       [%log.app
         "Beginning index reconstruction with parameters: { log_size = %d }"
           log_size];
-      let index = Index.v ~fresh:true ~readonly:false ~log_size dest in
+      let index = Index.v_exn ~fresh:true ~readonly:false ~log_size dest in
       index
 
     let iter_pack_entry index key data =
@@ -110,7 +119,7 @@ end = struct
          smaller [log_size] don't immediately trigger a merge operation. *)
       [%log.app "Completed indexing of pack entries. Running a final merge ..."];
       Index.try_merge index;
-      Index.close index
+      Index.close_exn index
   end
 
   module Index_checker = struct
@@ -119,7 +128,7 @@ end = struct
       [%log.app
         "Beginning index checking with parameters: { log_size = %d }" log_size];
       let index =
-        Index.v ~fresh:false ~readonly:true ~log_size (Conf.root config)
+        Index.v_exn ~fresh:false ~readonly:true ~log_size (Conf.root config)
       in
       (index, ref 0)
 
@@ -133,7 +142,7 @@ end = struct
           incr idx_ref;
           Ok ()
 
-    let finalise (index, _) () = Index.close index
+    let finalise (index, _) () = Index.close_exn index
   end
 
   module Index_check_and_fix = struct
@@ -142,7 +151,7 @@ end = struct
       [%log.app
         "Beginning index checking with parameters: { log_size = %d }" log_size];
       let root = Conf.root config in
-      let index = Index.v ~fresh:false ~readonly:false ~log_size root in
+      let index = Index.v_exn ~fresh:false ~readonly:false ~log_size root in
       (index, ref 0)
 
     let iter_pack_entry (index, idx_ref) key data =
@@ -159,7 +168,7 @@ end = struct
     let finalise (index, _) () =
       [%log.app "Completed indexing of pack entries. Running a final merge ..."];
       Index.try_merge index;
-      Index.close index
+      Index.close_exn index
   end
 
   let decode_entry_length = function
@@ -185,18 +194,30 @@ end = struct
     | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
         raise Not_enough_buffer
 
-  let ingest_data_file ~progress ~total pack iter_pack_entry =
-    let buffer = ref (Bytes.create 1024) in
+  (* Read at most [len], by checking that [(off, len)] don't go out of bounds of
+     the suffix file. *)
+  let io_read_at_most ~off ~len b suffix =
+    let bytes_after_off =
+      let ( - ) = Int63.sub in
+      File_manager.Suffix.end_offset suffix - off
+    in
+    let len =
+      let ( < ) a b = Int63.compare a b < 0 in
+      if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
+      else len
+    in
+    File_manager.Suffix.read_exn suffix ~off ~len b;
+    len
+
+  let ingest_data_file ~initial_buffer_size ~progress ~total suffix
+      iter_pack_entry =
+    let buffer = ref (Bytes.create initial_buffer_size) in
     let refill_buffer ~from =
-      let read = Io_legacy.read pack ~off:from !buffer in
-      let filled = read = Bytes.length !buffer in
-      let eof = Int63.equal total (Int63.add from (Int63.of_int read)) in
-      if (not filled) && not eof then
-        Fmt.failwith
-          "When refilling from offset %#Ld (total %#Ld), read %#d but expected \
-           %#d"
-          (Int63.to_int64 from) (Int63.to_int64 total) read
-          (Bytes.length !buffer)
+      let buffer_len = Bytes.length !buffer in
+      let (_ : int) =
+        io_read_at_most ~off:from ~len:buffer_len !buffer suffix
+      in
+      ()
     in
     let expand_and_refill_buffer ~from =
       let length = Bytes.length !buffer in
@@ -255,7 +276,7 @@ end = struct
     refill_buffer ~from:Int63.zero;
     loop_entries ~buffer_off:0 Int63.zero None
 
-  let run mode config =
+  let run_or_test ~initial_buffer_size mode config =
     let iter_pack_entry, finalise, message =
       match mode with
       | `Reconstruct_index dest ->
@@ -272,13 +293,9 @@ end = struct
           (iter_pack_entry v, finalise v, "Checking and fixing index")
     in
     let run_duration = Mtime_clock.counter () in
-    let root = Conf.root config in
-    let pack_file = Filename.concat root "store.pack" in
-    let pack =
-      Io_legacy.v ~fresh:false ~readonly:true
-        ~version:(Some Irmin_pack.Version.latest) pack_file
-    in
-    let total = Io_legacy.offset pack in
+    let fm = File_manager.open_ro config |> Errs.raise_if_error in
+    let suffix = File_manager.suffix fm in
+    let total = File_manager.Suffix.end_offset suffix in
     let stats, missing_hash =
       let bar =
         let open Progress.Line.Using_int63 in
@@ -286,10 +303,11 @@ end = struct
           [ const message; bytes; elapsed (); bar total; percentage_of total ]
       in
       Progress.(with_reporter bar) (fun progress ->
-          ingest_data_file ~progress ~total pack iter_pack_entry)
+          ingest_data_file ~initial_buffer_size ~progress ~total suffix
+            iter_pack_entry)
     in
     finalise ();
-    Io_legacy.close pack;
+    File_manager.close fm |> Errs.raise_if_error;
     let run_duration = Mtime_clock.count run_duration in
     let store_stats fmt =
       Fmt.pf fmt "Store statistics:@,  @[<v 0>%a@]" Stats.pp stats
@@ -316,4 +334,7 @@ end = struct
             Fmt.(styled `Red string)
             msg Mtime.Span.pp run_duration x.idx_pack pp_binding x.binding
             store_stats]
+
+  let run = run_or_test ~initial_buffer_size:1024
+  let test = run_or_test ~initial_buffer_size:100
 end

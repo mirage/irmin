@@ -17,6 +17,7 @@ module type S = sig
   val close : t -> unit
   val exists : string -> bool
   val size : t -> int
+  val mkdir : string -> unit
 
   (* {2 Versioning} *)
 

@@ -6,9 +6,11 @@ Create default config file
 
 Set a/b/c => 123 in ./test
   $ irmin set a/b/c 123
+  irmin: [WARNING] Updating the control file from [From_v3] to [From_v3_used_non_minimal_indexing_strategy]. It won't be possible to GC this irmin-pack store anymore.
 
 Set foo => bar in ./test1
   $ irmin set --root ./test1 foo bar
+  irmin: [WARNING] Updating the control file from [From_v3] to [From_v3_used_non_minimal_indexing_strategy]. It won't be possible to GC this irmin-pack store anymore.
 
 Check for a/b/c in ./test
   $ irmin get --root ./test a/b/c
@@ -89,5 +91,6 @@ Check mismatched hash function
 
 Clone a local repo
   $ irmin clone --root ./cloned ./test
+  irmin: [WARNING] Updating the control file from [From_v3] to [From_v3_used_non_minimal_indexing_strategy]. It won't be possible to GC this irmin-pack store anymore.
   $ irmin get --root ./cloned a/b/c
   123

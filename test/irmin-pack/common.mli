@@ -20,6 +20,11 @@ module Dict : Irmin_pack_unix.Dict.S
 module I = Irmin_pack_unix.Index
 module Conf : Irmin_pack.Conf.S
 
+module File_manager :
+  Irmin_pack_unix.File_manager.S with module Io = Irmin_pack_unix.Io.Unix
+
+module Errs : Irmin_pack_unix.Errors.S with module Io = Irmin_pack_unix.Io.Unix
+
 module Schema :
   Irmin.Schema.Extended
     with type Hash.t = Irmin.Hash.SHA1.t
@@ -45,6 +50,8 @@ module Alcotest : sig
   include module type of Alcotest
 
   val int63 : Int63.t testable
+  val kind : Irmin_pack.Pack_value.Kind.t testable
+  val hash : Schema.Hash.t testable
   val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
 
   val check_repr :
@@ -64,7 +71,6 @@ module Pack :
     with type hash = Schema.Hash.t
      and type key = Key.t
      and type value = string
-     and type index := Index.t
 
 (** Helper constructors for fresh pre-initialised dictionaries and packs *)
 module Make_context (Config : sig
@@ -73,27 +79,23 @@ end) : sig
   val fresh_name : string -> string
   (** [fresh_name typ] is a clean directory for a resource of type [typ]. *)
 
-  type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }
+  type d = { name : string; fm : File_manager.t; dict : Dict.t }
 
-  val get_dict : unit -> d
-  (** Fresh, empty dict. *)
+  val get_dict : ?name:string -> readonly:bool -> fresh:bool -> unit -> d
+  val close_dict : d -> unit
 
   type t = {
-    lru_size : int;
     name : string;
+    fm : File_manager.t;
     index : Index.t;
     pack : read Pack.t;
-    dict : Irmin_pack_unix.Dict.t;
-    io : Irmin_pack_unix.Io_legacy.Unix.t;
+    dict : Dict.t;
   }
 
-  val clone : readonly:bool -> t -> t Lwt.t
-
-  val get_pack : ?lru_size:int -> unit -> t Lwt.t
-  (** Fresh, empty index and pack. [clone_pack] opens a clone of the pack at the
-      same location, [clone_index_pack] opens a clone of the index and the pack. *)
-
-  val close : t -> unit Lwt.t
+  val get_rw_pack : unit -> t Lwt.t
+  val get_ro_pack : string -> t Lwt.t
+  val reopen_rw : string -> t Lwt.t
+  val close_pack : t -> unit Lwt.t
 end
 
 val get : 'a option -> 'a
@@ -106,3 +108,7 @@ val random_letters : int -> string
 
 val exec_cmd : string -> (unit, int) result
 (** Exec a command, and return [Ok ()] or [Error n] if return code is n <> 0 *)
+
+val setup_test_env : root_archive:string -> root_local_build:string -> unit
+(** [setup_test_env ~root_archive ~root_local_build] copies an existing store to
+    a temporary location, to be used by the test. *)

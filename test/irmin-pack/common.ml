@@ -16,7 +16,6 @@
 
 open Irmin.Export_for_backends
 module Int63 = Optint.Int63
-module Dict = Irmin_pack_unix.Dict
 
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
@@ -76,7 +75,19 @@ end
 module I = Irmin_pack_unix.Index
 module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
-module Pack = Irmin_pack_unix.Pack_store.Make (Index) (Schema.Hash) (Contents)
+module Io = Irmin_pack_unix.Io.Unix
+module Errs = Irmin_pack_unix.Errors.Make (Io)
+module Control = Irmin_pack_unix.Control_file.Make (Io)
+module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
+
+module File_manager =
+  Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
+
+module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+
+module Pack =
+  Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash) (Contents)
+    (Errs)
 
 module Branch =
   Irmin_pack_unix.Atomic_write.Make_persistent
@@ -91,62 +102,71 @@ struct
     let c = ref 0 in
     fun object_type ->
       incr c;
+
       let name = Filename.concat Config.root ("pack_" ^ string_of_int !c) in
       [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
-  type d = { dict : Dict.t; clone : readonly:bool -> Dict.t }
+  let mkdir_dash_p dirname = Irmin_pack_unix.Io_legacy.Unix.mkdir dirname
 
-  let get_dict () =
-    let name = fresh_name "dict" in
-    let dict = Dict.v ~fresh:true name in
-    let clone ~readonly = Dict.v ~fresh:false ~readonly name in
-    { dict; clone }
+  type d = { name : string; fm : File_manager.t; dict : Dict.t }
+
+  (* TODO : test the indexing_strategy minimal. *)
+  let config ~readonly ~fresh name =
+    Irmin_pack.Conf.init ~fresh ~readonly
+      ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
+
+  (* TODO : remove duplication with irmin_pack/ext.ml *)
+  let get_fm config =
+    let readonly = Irmin_pack.Conf.readonly config in
+    if readonly then File_manager.open_ro config |> Errs.raise_if_error
+    else
+      let fresh = Irmin_pack.Conf.fresh config in
+      if fresh then (
+        let root = Irmin_pack.Conf.root config in
+        mkdir_dash_p root;
+        File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error)
+      else File_manager.open_rw config |> Errs.raise_if_error
+
+  let get_dict ?name ~readonly ~fresh () =
+    let name = Option.value name ~default:(fresh_name "dict") in
+    let fm = config ~readonly ~fresh name |> get_fm in
+    let dict = Dict.v fm |> Errs.raise_if_error in
+    { name; dict; fm }
+
+  let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
 
   type t = {
-    lru_size : int;
     name : string;
+    fm : File_manager.t;
     index : Index.t;
     pack : read Pack.t;
-    dict : Irmin_pack_unix.Dict.t;
-    io : Irmin_pack_unix.Io_legacy.Unix.t;
+    dict : Pack.dict;
   }
 
-  let log_size = 10_000_000
-
-  let create ~readonly ~fresh lru_size name =
+  let create ~readonly ~fresh name =
     let f = ref (fun () -> ()) in
-    let index =
-      Index.v ~readonly ~flush_callback:(fun () -> !f ()) ~log_size ~fresh name
-    in
-    let indexing_strategy = Irmin_pack.Indexing_strategy.always in
-    let dict =
-      let path = Irmin_pack.Layout.dict ~root:name in
-      Irmin_pack_unix.Dict.v ~fresh ~readonly path
-    in
-    let io =
-      let path = Irmin_pack.Layout.pack ~root:name in
-      let version = Some Irmin_pack.Version.latest in
-      Irmin_pack_unix.Io_legacy.Unix.v ~version ~fresh ~readonly path
-    in
-    let+ pack =
-      Pack.v ~readonly ~lru_size ~index ~indexing_strategy ~dict ~io
-    in
-    (f := fun () -> Pack.flush ~index:false pack);
-    { lru_size; name; index; pack; dict; io }
+    let config = config ~readonly ~fresh name in
+    let fm = get_fm config in
+    (* open the index created by the fm. *)
+    let index = File_manager.index fm in
+    let dict = Dict.v fm |> Errs.raise_if_error in
+    let+ pack = Pack.v ~config ~fm ~dict in
+    (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
+    { name; index; pack; dict; fm }
 
-  let get_pack ?(lru_size = 0) () =
+  let get_rw_pack () =
     let name = fresh_name "" in
-    create ~readonly:false ~fresh:true lru_size name
+    create ~readonly:false ~fresh:true name
 
-  let clone ~readonly { lru_size; name; _ } =
-    create ~readonly ~fresh:false lru_size name
+  let get_ro_pack name = create ~readonly:true ~fresh:false name
+  let reopen_rw name = create ~readonly:false ~fresh:false name
 
-  let close t =
-    Index.close t.index;
-    Irmin_pack_unix.Dict.close t.dict;
-    Irmin_pack_unix.Io_legacy.Unix.close t.io;
-    Pack.close t.pack
+  let close_pack t =
+    Index.close_exn t.index;
+    File_manager.close t.fm |> Errs.raise_if_error;
+    (* closes pack and dict *)
+    Lwt.return_unit
 end
 
 module Alcotest = struct
@@ -174,6 +194,8 @@ module Alcotest = struct
     Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
 
   let check_repr ?pos t = Alcotest.check ?pos (testable_repr t)
+  let kind = testable_repr Irmin_pack.Pack_value.Kind.t
+  let hash = testable_repr Schema.Hash.t
 end
 
 module Filename = struct
@@ -284,3 +306,32 @@ end
 let exec_cmd cmd =
   [%logs.info "exec: %s" cmd];
   match Sys.command cmd with 0 -> Ok () | n -> Error n
+
+let rec repeat = function
+  | 0 -> fun _f x -> x
+  | n -> fun f x -> f (repeat (n - 1) f x)
+
+(** The current working directory depends on whether the test binary is directly
+    run or is triggered with [dune exec], [dune runtest]. We normalise by
+    switching to the project root first. *)
+let goto_project_root () =
+  let cwd = Fpath.v (Sys.getcwd ()) in
+  match cwd |> Fpath.segs |> List.rev with
+  | "irmin-pack" :: "test" :: "default" :: "_build" :: _ ->
+      let root = cwd |> repeat 4 Fpath.parent in
+      Unix.chdir (Fpath.to_string root)
+  | _ -> ()
+
+let setup_test_env ~root_archive ~root_local_build =
+  goto_project_root ();
+  rm_dir root_local_build;
+  let cmd =
+    Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root_local_build ]
+  in
+  exec_cmd cmd |> function
+  | Ok () -> ()
+  | Error n ->
+      Fmt.failwith
+        "Failed to set up the test environment: command `%s' exited with \
+         non-zero exit code %d"
+        cmd n

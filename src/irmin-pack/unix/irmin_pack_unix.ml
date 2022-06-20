@@ -1,4 +1,3 @@
-module Dict = Pack_dict
 module Stats = Stats
 module Index = Pack_index
 module Inode = Inode
@@ -6,7 +5,13 @@ module Pack_store = Pack_store
 module Io_legacy = Io_legacy
 module Checks = Checks
 module Atomic_write = Atomic_write
-include Ext
+module Dict = Dict
+module Io = Io
+module Errors = Errors
+module Control_file = Control_file
+module Append_only_file = Append_only_file
+module File_manager = File_manager
+module Maker = Ext.Maker
 
 module KV (Config : Irmin_pack.Conf.S) = struct
   type endpoint = unit

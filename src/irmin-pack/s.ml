@@ -47,8 +47,8 @@ module type Specifics = sig
       reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
       entries. *)
 
-  val sync : repo -> unit
-  (** [sync t] syncs a readonly pack with the files on disk. Raises
+  val reload : repo -> unit
+  (** [reload t] reloads a readonly pack with the files on disk. Raises
       [invalid_argument] if called by a read-write pack.*)
 
   val flush : repo -> unit
@@ -66,6 +66,13 @@ module type S = sig
     ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
 
   val traverse_pack_file :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
+
+  val test_traverse_pack_file :
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -138,7 +145,7 @@ module type S = sig
       val save_elt : process -> t -> node_key Lwt.t
       (** [save_elt snapshot elt] saves [elt] to the store. *)
 
-      val close : process -> unit
+      val close : process -> repo -> unit
       (** [close snapshot] close the [snaphot] instance.*)
     end
   end
