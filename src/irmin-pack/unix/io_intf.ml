@@ -47,7 +47,6 @@ module type S = sig
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
 
   type close_error = [ `Io_misc of misc_error | `Double_close ]
-  type move_file_error = [ `Io_misc of misc_error ]
 
   type mkdir_error =
     [ `Io_misc of misc_error
@@ -76,9 +75,10 @@ module type S = sig
       write. *)
 
   val move_file :
-    src:string -> dst:string -> (unit, [> move_file_error ]) result
+    src:string -> dst:string -> (unit, [> `Sys_error of string ]) result
 
   val mkdir : string -> (unit, [> mkdir_error ]) result
+  val unlink : string -> (unit, [> `Sys_error of string ]) result
 
   (** {2 Read Functions} *)
 
@@ -109,20 +109,23 @@ module type S = sig
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** [read_exn t ~off ~len b] reads the [len] bytes of [t] at [off] to [b].
 
-      Raises [Errors.Pack_error].
+      Raises [Errors.Pack_error] and [Errors.RO_not_allowed].
 
       Also raises backend-specific exceptions (e.g. [Unix.Unix_error] for the
       unix backend). *)
 
-  val write_exn : t -> off:int63 -> string -> unit
+  val write_exn : t -> off:int63 -> len:int -> string -> unit
   (** [write_exn t ~off b] writes [b] to [t] at offset [off].
 
-      Raises [Errors.Pack_error]
+      Raises [Errors.Pack_error] and [Errors.RO_not_allowed].
 
       Also raises backend-specific exceptions (e.g. [Unix.Unix_error] for the
       unix backend). *)
 
   val raise_misc_error : misc_error -> 'a
+
+  val catch_misc_error :
+    (unit -> 'a) -> ('a, [> `Io_misc of misc_error ]) result
 end
 
 module type Sigs = sig

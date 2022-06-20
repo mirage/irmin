@@ -70,7 +70,6 @@ module Unix = struct
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
 
   type close_error = [ `Io_misc of misc_error | `Double_close ]
-  type move_file_error = [ `Io_misc of misc_error ]
 
   type mkdir_error =
     [ `Io_misc of misc_error
@@ -79,6 +78,10 @@ module Unix = struct
     | `Invalid_parent_directory ]
 
   let raise_misc_error (x, y, z) = raise (Unix.Unix_error (x, y, z))
+
+  let catch_misc_error f =
+    try Ok (f ())
+    with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   type t = {
     fd : Unix.file_descr;
@@ -124,7 +127,9 @@ module Unix = struct
               in
               Ok { fd; closed = false; readonly = false; path }
           | false -> Error (`File_exists path))
-    with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+    with
+    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+    | Sys_error _ -> assert false
 
   let open_ ~path ~readonly =
     match classify_path path with
@@ -147,7 +152,9 @@ module Unix = struct
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  let write_exn t ~off s =
+  let write_exn t ~off ~len s =
+    if String.length s < len then
+      raise (Errors_base.Pack_error `Invalid_argument);
     match (t.closed, t.readonly) with
     | true, _ -> raise (Errors_base.Pack_error `Write_on_closed)
     | _, true -> raise Errors_base.RO_not_allowed
@@ -155,13 +162,13 @@ module Unix = struct
         (* really_write and following do not mutate the given buffer, so
            Bytes.unsafe_of_string is actually safe *)
         let buf = Bytes.unsafe_of_string s in
-        let len = Bytes.length buf in
         let () = Util.really_write t.fd off buf 0 len in
         Index.Stats.add_write len;
         ()
 
   let write_string t ~off s =
-    try Ok (write_exn t ~off s) with
+    let len = String.length s in
+    try Ok (write_exn t ~off ~len s) with
     | Errors_base.Pack_error (`Write_on_closed as e) -> Error e
     | Errors_base.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
@@ -216,7 +223,7 @@ module Unix = struct
     try
       Sys.rename src dst;
       Ok ()
-    with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+    with Sys_error msg -> Error (`Sys_error msg)
 
   let mkdir path =
     match (classify_path (Filename.dirname path), classify_path path) with
@@ -229,4 +236,10 @@ module Unix = struct
     | `No_such_file_or_directory, `No_such_file_or_directory ->
         Error `No_such_file_or_directory
     | _ -> Error `Invalid_parent_directory
+
+  let unlink path =
+    try
+      Sys.remove path;
+      Ok ()
+    with Sys_error msg -> Error (`Sys_error msg)
 end
