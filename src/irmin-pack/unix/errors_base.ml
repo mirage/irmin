@@ -34,7 +34,8 @@ type error =
   | `Rw_not_allowed
   | `Migration_needed
   | `Corrupted_control_file
-  | `V3_store_from_the_future ]
+  | `V3_store_from_the_future
+  | `Sys_error of string ]
 [@@deriving irmin ~pp]
 (** [error] is the type of all errors that can occur in a [result], except
     [`Io_misc] which depends on the Io module used. *)
@@ -58,7 +59,8 @@ type error' =
   | `Rw_not_allowed
   | `Migration_needed
   | `Corrupted_control_file
-  | `V3_store_from_the_future ]
+  | `V3_store_from_the_future
+  | `Sys_error of string ]
 (** [error'] is the payload of the [Pack_error] exception.
 
     [error'] is [error] without [`Ro_not_allowed], because there exist a

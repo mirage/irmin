@@ -67,17 +67,19 @@ module Make (Io : Io.S) = struct
     let dead_header_size = Int63.of_int dead_header_size in
     { io; persisted_end_offset; dead_header_size; rw_perm = None }
 
+  let empty_buffer = function
+    | { rw_perm = Some { buf; _ }; _ } when Buffer.length buf > 0 -> false
+    | _ -> true
+
   let close t =
-    let open Result_syntax in
-    let* () =
-      match t.rw_perm with
-      | None -> Ok ()
-      | Some rw_perm ->
-          if Buffer.length rw_perm.buf <> 0 then Error `Pending_flush else Ok ()
-    in
-    Io.close t.io
+    if not @@ empty_buffer t then Error `Pending_flush else Io.close t.io
 
   let readonly t = Io.readonly t.io
+  let path t = Io.path t.io
+
+  let auto_flush_threshold = function
+    | { rw_perm = None; _ } -> None
+    | { rw_perm = Some rw_perm; _ } -> Some rw_perm.auto_flush_threshold
 
   let end_offset t =
     match t.rw_perm with
@@ -113,13 +115,21 @@ module Make (Io : Io.S) = struct
 
   let read_exn t ~off ~len b =
     let ( + ) = Int63.add in
+    let ( > ) a b = Int63.compare a b > 0 in
+    let off' = off + Int63.of_int len in
+    if off' > t.persisted_end_offset then
+      raise (Errors_base.Pack_error `Read_out_of_bounds);
     let off = off + t.dead_header_size in
     Io.read_exn t.io ~off ~len b
 
   let read_to_string t ~off ~len =
     let ( + ) = Int63.add in
-    let off = off + t.dead_header_size in
-    Io.read_to_string t.io ~off ~len
+    let ( > ) a b = Int63.compare a b > 0 in
+    let off' = off + Int63.of_int len in
+    if off' > t.persisted_end_offset then Error `Read_out_of_bounds
+    else
+      let off = off + t.dead_header_size in
+      Io.read_to_string t.io ~off ~len
 
   let append_exn t s =
     match t.rw_perm with
@@ -129,5 +139,5 @@ module Make (Io : Io.S) = struct
         Buffer.add_string rw_perm.buf s;
         if Buffer.length rw_perm.buf >= rw_perm.auto_flush_threshold then (
           rw_perm.auto_flush_callback ();
-          assert (Buffer.length rw_perm.buf = 0))
+          assert (empty_buffer t))
 end

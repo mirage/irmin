@@ -151,6 +151,9 @@ module type S = sig
       Always returns [Error `Rw_not_allowed]. *)
 
   val readonly : t -> bool
+  val auto_flush_threshold : t -> int option
+  val empty_buffer : t -> bool
+  val path : t -> string
 end
 
 module type Sigs = sig

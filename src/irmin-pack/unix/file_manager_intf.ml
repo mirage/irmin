@@ -58,9 +58,10 @@ module type S = sig
     [ `Corrupted_control_file
     | `Double_close
     | `File_exists of string
+    | `Index_failure of string
     | `Invalid_argument
     | `Invalid_layout
-    | `Io_misc of Io.misc_error
+    | `Io_misc of Control.Io.misc_error
     | `Migration_needed
     | `No_such_file_or_directory
     | `Not_a_directory of string
@@ -68,9 +69,9 @@ module type S = sig
     | `Read_on_closed
     | `Read_out_of_bounds
     | `Ro_not_allowed
-    | `Write_on_closed
+    | `Sys_error of string
     | `V3_store_from_the_future
-    | `Index_failure of string ]
+    | `Write_on_closed ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
