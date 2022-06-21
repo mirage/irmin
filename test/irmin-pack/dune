@@ -10,7 +10,8 @@
   import
   test_pack_version_bump
   test_snapshot
-  test_upgrade)
+  test_upgrade
+  test_gc)
  (libraries
   alcotest
   fmt

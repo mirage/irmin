@@ -507,4 +507,6 @@ let misc =
     ("version-bump", Test_pack_version_bump.tests);
     ("snapshot", Test_snapshot.tests);
     ("upgrade", Test_upgrade.tests);
+    ("blocking gc", Test_gc.Blocking_gc.tests);
+    ("concurrent gc", Test_gc.Concurrent_gc.tests);
   ]
