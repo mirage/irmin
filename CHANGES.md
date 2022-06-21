@@ -26,6 +26,12 @@
 - **irmin-pack**
   - Fix data race in RO instances when reading control file (#2100, @Ngoguey42)
 
+### Fixed
+
+- **irmin-pack**
+  - Fix the traverse pack files commands in the `irmin-tezos` CLI to work with
+    gced stores. (#1919, @icristescu)
+
 ## 3.4.1 (2022-09-07)
 
 ### Added

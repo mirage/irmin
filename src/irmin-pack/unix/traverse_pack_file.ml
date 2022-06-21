@@ -61,6 +61,7 @@ end
 
 module type Args = sig
   module File_manager : File_manager.S
+  module Dispatcher : Dispatcher.S with module Fm = File_manager
   module Hash : Irmin.Hash.S
   module Index : Pack_index.S with type key := Hash.t
   module Inode : Inode.S with type hash := Hash.t
@@ -107,6 +108,12 @@ end = struct
     Fmt.pf ppf "@[<v 0>%a with hash %a@,pack offset = %a, length = %d@]"
       Pack_value.Kind.pp kind pp_key x.key Int63.pp off len
 
+  let to_index = function
+    | Pack_value.Kind.Commit_v2 | Commit_v1 | Dangling_parent_commit -> true
+    | Contents | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
+    | Inode_v2_nonroot ->
+        false
+
   module Index_reconstructor = struct
     let create ~dest config =
       let dest =
@@ -126,8 +133,9 @@ end = struct
       let index = Index.v_exn ~fresh:true ~readonly:false ~log_size dest in
       index
 
-    let iter_pack_entry index key data =
-      Index.add index key data;
+    let iter_pack_entry ~always index key data =
+      let _, _, kind = data in
+      if always || to_index kind then Index.add index key data;
       Ok ()
 
     let finalise index () =
@@ -148,15 +156,19 @@ end = struct
       in
       (index, ref 0)
 
-    let iter_pack_entry (index, idx_ref) key data =
-      match Index.find index key with
-      | None ->
-          Error (`Missing_hash { idx_pack = !idx_ref; binding = { key; data } })
-      | Some data' when not @@ equal_index_value data data' ->
-          Error `Inconsistent_entry
-      | Some _ ->
-          incr idx_ref;
-          Ok ()
+    let iter_pack_entry ~always (index, idx_ref) key data =
+      let _, _, kind = data in
+      if always || to_index kind then (
+        match Index.find index key with
+        | None ->
+            Error
+              (`Missing_hash { idx_pack = !idx_ref; binding = { key; data } })
+        | Some data' when not @@ equal_index_value data data' ->
+            Error `Inconsistent_entry
+        | Some _ ->
+            incr idx_ref;
+            Ok ())
+      else Ok ()
 
     let finalise (index, _) () = Index.close_exn index
   end
@@ -170,16 +182,20 @@ end = struct
       let index = Index.v_exn ~fresh:false ~readonly:false ~log_size root in
       (index, ref 0)
 
-    let iter_pack_entry (index, idx_ref) key data =
-      match Index.find index key with
-      | None ->
-          Index.add index key data;
-          Error (`Missing_hash { idx_pack = !idx_ref; binding = { key; data } })
-      | Some data' when not @@ equal_index_value data data' ->
-          Error `Inconsistent_entry
-      | Some _ ->
-          incr idx_ref;
-          Ok ()
+    let iter_pack_entry ~always (index, idx_ref) key data =
+      let _, _, kind = data in
+      if always || to_index kind then (
+        match Index.find index key with
+        | None ->
+            Index.add index key data;
+            Error
+              (`Missing_hash { idx_pack = !idx_ref; binding = { key; data } })
+        | Some data' when not @@ equal_index_value data data' ->
+            Error `Inconsistent_entry
+        | Some _ ->
+            incr idx_ref;
+            Ok ())
+      else Ok ()
 
     let finalise (index, _) () =
       [%log.app "Completed indexing of pack entries. Running a final merge ..."];
@@ -189,10 +205,9 @@ end = struct
 
   let decode_entry_length = function
     | Pack_value.Kind.Contents -> Contents.decode_bin_length
-    | Commit_v1 | Commit_v2 -> Commit.decode_bin_length
+    | Commit_v1 | Commit_v2 | Dangling_parent_commit -> Commit.decode_bin_length
     | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot ->
         Inode.decode_bin_length
-    | Dangling_parent_commit -> assert false
 
   let decode_entry_exn ~off ~buffer ~buffer_off =
     try
@@ -211,29 +226,77 @@ end = struct
     | Invalid_argument msg when msg = "String.blit / Bytes.blit_string" ->
         raise Not_enough_buffer
 
+  (* duplicated code with irmin-tezos-utils *)
+  let decode_entry_len buffer =
+    let buffer = Bytes.unsafe_to_string buffer in
+    let i0 = 0 in
+    let ilength = i0 + Hash.hash_size + 1 in
+    let pos_ref = ref ilength in
+    let suffix_length = Varint.decode_bin buffer pos_ref in
+    let length_length = !pos_ref - ilength in
+    Hash.hash_size + 1 + length_length + suffix_length
+
   (* Read at most [len], by checking that [(off, len)] don't go out of bounds of
      the suffix file. *)
-  let io_read_at_most ~off ~len b suffix =
-    let bytes_after_off =
-      let open Int63.Syntax in
-      File_manager.Suffix.end_poff suffix - off
-    in
+  let io_read_at_most ~off ~len buffer dispatcher =
     let len =
       let open Int63.Syntax in
+      let bytes_after_off = Dispatcher.end_offset dispatcher - off in
       if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
       else len
     in
-    File_manager.Suffix.read_exn suffix ~off ~len b;
-    len
+    let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
+    Dispatcher.read_exn dispatcher accessor buffer
 
-  let ingest_data_file ~initial_buffer_size ~progress ~total suffix
+  let on_entry { data; key } stats iter_pack_entry missing_hash =
+    [%log.debug "k = %a (off, len, kind) = %a" pp_key key pp_index_value data];
+    match iter_pack_entry key data with
+    | Ok () -> Option.map Fun.id missing_hash
+    | Error `Inconsistent_entry ->
+        Stats.duplicate_entry stats;
+        Option.map Fun.id missing_hash
+    | Error (`Missing_hash x) ->
+        Stats.missing_hash stats;
+        Some x
+
+  let ingest_data_file_after_v3 ~initial_buffer_size ~progress dispatcher
       iter_pack_entry =
+    let stats = Stats.empty () in
+    let min_bytes_needed_to_discover_length = Hash.hash_size + 1 in
+    let max_bytes_needed_to_discover_length =
+      Hash.hash_size + 1 + Varint.max_encoded_size
+    in
+    let seq =
+      Dispatcher.create_sequential_accessor_seq dispatcher
+        ~min_header_len:min_bytes_needed_to_discover_length
+        ~max_header_len:max_bytes_needed_to_discover_length
+        ~read_len:decode_entry_len
+    in
+    let buffer = Bytes.create initial_buffer_size in
+    let on_entry missing_hash (off, accessor) =
+      Dispatcher.read_exn dispatcher accessor buffer;
+      let { key; data } =
+        decode_entry_exn ~off
+          ~buffer:(Bytes.unsafe_to_string buffer)
+          ~buffer_off:0
+      in
+      let off', entry_len, kind = data in
+      let entry_lenL = Int63.of_int entry_len in
+      assert (off = off');
+      Stats.add stats kind;
+      progress entry_lenL;
+      on_entry { key; data } stats iter_pack_entry missing_hash
+    in
+
+    let missing_hash = Seq.fold_left on_entry None seq in
+    (stats, missing_hash)
+
+  let ingest_data_file_before_v3 ~initial_buffer_size ~progress ~total
+      dispatcher iter_pack_entry =
     let buffer = ref (Bytes.create initial_buffer_size) in
     let refill_buffer ~from =
       let buffer_len = Bytes.length !buffer in
-      let (_ : int) =
-        io_read_at_most ~off:from ~len:buffer_len !buffer suffix
-      in
+      let _ = io_read_at_most ~off:from ~len:buffer_len !buffer dispatcher in
       ()
     in
     let expand_and_refill_buffer ~from =
@@ -264,22 +327,12 @@ end = struct
               let off', entry_len, kind = data in
               let entry_lenL = Int63.of_int entry_len in
               assert (off = off');
-              [%log.debug
-                "k = %a (off, len, kind) = (%a, %d, %a)" pp_key key Int63.pp off
-                  entry_len Pack_value.Kind.pp kind];
               Stats.add stats kind;
-              let missing_hash =
-                match iter_pack_entry key data with
-                | Ok () -> Option.map Fun.id missing_hash
-                | Error `Inconsistent_entry ->
-                    Stats.duplicate_entry stats;
-                    Option.map Fun.id missing_hash
-                | Error (`Missing_hash x) ->
-                    Stats.missing_hash stats;
-                    Some x
-              in
-              let off = Int63.Syntax.(off + entry_lenL) in
               progress entry_lenL;
+              let off = Int63.Syntax.(off + entry_lenL) in
+              let missing_hash =
+                on_entry { data; key } stats iter_pack_entry missing_hash
+              in
               (buffer_off + entry_len, off, missing_hash)
           | exception Not_enough_buffer ->
               let () =
@@ -298,34 +351,45 @@ end = struct
     loop_entries ~buffer_off:0 Int63.zero None
 
   let run_or_test ~initial_buffer_size mode config =
+    let always =
+      Conf.indexing_strategy config
+      |> Irmin_pack.Indexing_strategy.is_minimal
+      |> not
+    in
     let iter_pack_entry, finalise, message =
       match mode with
       | `Reconstruct_index dest ->
           let open Index_reconstructor in
           let v = create ~dest config in
-          (iter_pack_entry v, finalise v, "Reconstructing index")
+          (iter_pack_entry ~always v, finalise v, "Reconstructing index")
       | `Check_index ->
           let open Index_checker in
           let v = create config in
-          (iter_pack_entry v, finalise v, "Checking index")
+          (iter_pack_entry ~always v, finalise v, "Checking index")
       | `Check_and_fix_index ->
           let open Index_check_and_fix in
           let v = create config in
-          (iter_pack_entry v, finalise v, "Checking and fixing index")
+          (iter_pack_entry ~always v, finalise v, "Checking and fixing index")
     in
     let run_duration = Mtime_clock.counter () in
     let fm = File_manager.open_ro config |> Errs.raise_if_error in
-    let suffix = File_manager.suffix fm in
-    let total = File_manager.Suffix.end_poff suffix in
+    let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
+    let total = Dispatcher.end_offset dispatcher in
+    let ingest_data progress =
+      if File_manager.gc_allowed fm then
+        ingest_data_file_after_v3 ~initial_buffer_size dispatcher
+          iter_pack_entry ~progress
+      else
+        ingest_data_file_before_v3 ~initial_buffer_size ~total dispatcher
+          iter_pack_entry ~progress
+    in
     let stats, missing_hash =
       let bar =
         let open Progress.Line.Using_int63 in
         list
           [ const message; bytes; elapsed (); bar total; percentage_of total ]
       in
-      Progress.(with_reporter bar) (fun progress ->
-          ingest_data_file ~initial_buffer_size ~progress ~total suffix
-            iter_pack_entry)
+      Progress.(with_reporter bar) ingest_data
     in
     finalise ();
     File_manager.close fm |> Errs.raise_if_error;
