@@ -169,6 +169,17 @@ let test_on_disk_minimal =
 let test_on_disk_always =
   test_on_disk ~indexing_strategy:Irmin_pack.Indexing_strategy.always
 
+let start_gc repo commit =
+  let commit_key = S.Commit.key commit in
+  let* launched = S.start_gc ~unlink:false ~throttle:`Block repo commit_key in
+  assert launched;
+  Lwt.return_unit
+
+let finalise_gc repo =
+  let* wait = S.finalise_gc ~wait:true repo in
+  assert wait;
+  Lwt.return_unit
+
 let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
   (* create the store *)
   let* tree1 =
@@ -184,10 +195,9 @@ let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
     S.Tree.add t [ "a"; "d" ] "x3"
   in
   let* c3 = S.Commit.v repo_export ~parents:[ k1 ] ~info tree3 in
-  let k3 = S.Commit.key c3 in
   (* call gc on last commit *)
-  let () = S.gc ~unlink:true repo_export k3 in
-  (* TODO - add call to wait_for_gc *)
+  let* () = start_gc repo_export c3 in
+  let* () = finalise_gc repo_export in
   let tree = S.Commit.tree c3 in
   let root_key = S.Tree.key tree |> Option.get in
   let buf = Buffer.create 0 in

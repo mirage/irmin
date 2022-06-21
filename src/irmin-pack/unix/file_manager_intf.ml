@@ -27,6 +27,7 @@ module type S = sig
   module Dict : Append_only_file.S with module Io = Io
   module Suffix : Append_only_file.S with module Io = Io
   module Index : Pack_index.S
+  module Errs : Errors.S with module Io = Io
 
   type t
 
@@ -177,7 +178,33 @@ module type S = sig
     | `Sys_error of string ]
 
   val swap :
-    t -> generation:int -> unlink:bool -> (unit, [> swap_error ]) result
+    t ->
+    generation:int ->
+    copy_end_offset:Import.int63 ->
+    (unit, [> swap_error ]) result
+
+  type write_gc_output_error :=
+    [ `Double_close
+    | `File_exists of string
+    | `Io_misc of Io.misc_error
+    | `Ro_not_allowed
+    | `Write_on_closed ]
+
+  val write_gc_output :
+    root:string ->
+    generation:int ->
+    (Import.int63, Errs.t) result ->
+    (unit, write_gc_output_error) result
+  (** Used by the gc process at the end to write its output in
+      store.<generation>.out. *)
+
+  type read_gc_output_error :=
+    [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
+
+  val read_gc_output :
+    root:string -> generation:int -> (Import.int63, read_gc_output_error) result
+  (** Used by the main process, after the gc process finished, to read
+      store.<generation>.out. *)
 end
 
 module type Sigs = sig

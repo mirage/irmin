@@ -25,7 +25,16 @@ module Store = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let gc = Store.gc ~unlink:true
+  let gc repo key =
+    let* launched = Store.start_gc ~unlink:true ~throttle:`Skip repo key in
+    assert launched;
+    let* wait = Store.finalise_gc ~wait:true repo in
+    assert wait;
+    Lwt.return_unit
+
+  let finalise_gc ~wait repo =
+    let* (_ : bool) = Store.finalise_gc ~wait repo in
+    Lwt.return_unit
 end
 
 module Replay = Irmin_traces.Trace_replay.Make (Store)
@@ -119,7 +128,16 @@ module Store_mem = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let gc = Store.gc ~unlink:true
+  let gc repo key =
+    let* launched = Store.start_gc ~unlink:true ~throttle:`Skip repo key in
+    assert launched;
+    let* wait = Store.finalise_gc ~wait:true repo in
+    assert wait;
+    Lwt.return_unit
+
+  let finalise_gc ~wait repo =
+    let* (_ : bool) = Store.finalise_gc ~wait repo in
+    Lwt.return_unit
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)

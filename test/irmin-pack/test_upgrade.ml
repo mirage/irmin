@@ -241,7 +241,11 @@ module Store = struct
 
   let gc repo =
     let k = key_of_entry c1 in
-    S.gc ~unlink:true repo k
+    let* launched = S.start_gc ~unlink:true ~throttle:`Block repo k in
+    assert launched;
+    let* wait = S.finalise_gc ~wait:true repo in
+    assert wait;
+    Lwt.return_unit
 
   let dict_find_opt (repo : S.repo) step = S.Dict.find repo.dict step
 
@@ -509,11 +513,11 @@ let gc_rw t =
   | None -> assert false
   | Some (_, repo) ->
       t.rw <- Some (Model.create_after_gc t.setup, repo);
-      let () =
+      let* () =
         match (t.setup.start_mode, t.setup.indexing_strategy) with
         | From_v2, _ | _, `always ->
-            let () =
-              Alcotest.check_raises "GC on V2/always"
+            let* () =
+              Alcotest.check_raises_lwt "GC on V2/always"
                 (Irmin_pack_unix.Errors.Pack_error `Gc_disallowed) (fun () ->
                   Store.gc repo)
             in

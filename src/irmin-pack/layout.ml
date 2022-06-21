@@ -31,6 +31,9 @@ module V3 = struct
   let suffix ~generation =
     toplevel ("store." ^ string_of_int generation ^ ".suffix")
 
+  let gc_result ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".out")
+
   (* TODO layered: Add prefix and mapping *)
   let all ~generation ~root =
     [ suffix ~generation ~root; branch ~root; dict ~root; control ~root ]

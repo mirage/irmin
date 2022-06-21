@@ -55,7 +55,41 @@ module type Specifics = sig
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)
 
-  val gc : ?unlink:bool -> repo -> commit_key -> unit
+  val start_gc :
+    ?unlink:bool ->
+    throttle:[ `Block | `Skip ] ->
+    repo ->
+    commit_key ->
+    bool Lwt.t
+  (** [start_gc] tries to start the gc process and returns true if the gc is
+      launched.
+
+      If [unlink] is false then temporary files and files from the previous
+      generation will be kept on disk after the gc finished. This option is
+      useful for debugging. The default is true.
+
+      If [throttle] is [Skip] and there is a concurrent gc, [start_gc] returns
+      false immediately without launching a second gc. If [throttle] is [Block]
+      and there is a concurrent gc, [start_gc] blocks waiting for the previous
+      gc to finish and only after launches a second gc. If the previous GC
+      failed, the function returns without launching a new GC.
+
+      TODO: Detail exceptions raised. *)
+
+  val finalise_gc : ?wait:bool -> repo -> bool Lwt.t
+  (** [finalise_gc ?wait repo] waits for the gc process to finish in order to
+      finalise it. It returns true if a GC was finalised.
+
+      Finalising consists of mutating [repo] so that it points to the new file
+      and to flush the internal caches that could be referencing GCed objects.
+
+      If [wait = true] (the default), the call blocks until the GC process
+      finishes. If [wait = false] it either returns [false], raises an exception
+      or finalises and returns [true].
+
+      If there are no running gcs, the call is a no-op and it returns false.
+
+      TODO: Detail exceptions raised. *)
 end
 
 module type S = sig

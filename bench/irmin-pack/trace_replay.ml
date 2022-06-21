@@ -380,25 +380,32 @@ module Make (Store : Store) = struct
           let really_wait_gc, really_start_gc =
             gc_actions config i t.commits_since_start_or_gc
           in
-          if really_wait_gc then (
-            [%logs.app "Waiting gc while latest commit has idx %d" (i - 1)];
-            () (* TODO: Block until GC success *));
-          if really_start_gc then (
-            (* Starting GC.
+          let* () =
+            if really_wait_gc then (
+              [%logs.app "Waiting gc while latest commit has idx %d" (i - 1)];
+              Store.finalise_gc ~wait:true repo)
+            else Lwt.return_unit
+          in
+          (*TODO call finalise_gc wait:false *)
+          let* () =
+            if really_start_gc then (
+              (* Starting GC.
 
-               TODO: If the GC-commit is an orphan commit we will have
-               problems. *)
-            let gc_commit_idx = i - config.gc_distance_in_the_past - 1 in
-            let gc_commit_key =
-              Hashtbl.find t.key_per_commit_idx gc_commit_idx
-            in
-            t.commits_since_start_or_gc <- 0;
-            [%logs.app
-              "Starting gc on commit idx %d with key %a while latest commit \
-               has idx %d with key %a"
-              gc_commit_idx pp_key gc_commit_key (i - 1) pp_key
-                (Hashtbl.find t.key_per_commit_idx (i - 1))];
-            Store.gc repo gc_commit_key);
+                 TODO: If the GC-commit is an orphan commit we will have
+                 problems. *)
+              let gc_commit_idx = i - config.gc_distance_in_the_past - 1 in
+              let gc_commit_key =
+                Hashtbl.find t.key_per_commit_idx gc_commit_idx
+              in
+              t.commits_since_start_or_gc <- 0;
+              [%logs.app
+                "Starting gc on commit idx %d with key %a while latest commit \
+                 has idx %d with key %a"
+                gc_commit_idx pp_key gc_commit_key (i - 1) pp_key
+                  (Hashtbl.find t.key_per_commit_idx (i - 1))];
+              Store.gc repo gc_commit_key)
+            else Lwt.return_unit
+          in
 
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in

@@ -42,7 +42,10 @@ type base_error =
   | `Dangling_key of string
   | `Gc_disallowed
   | `Node_or_contents_key_is_indexed of string
-  | `Commit_parent_key_is_indexed of string ]
+  | `Commit_parent_key_is_indexed of string
+  | `Gc_process_error of string
+  | `Corrupted_gc_result_file of string
+  | `Gc_process_died_without_result_file of string ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     [`Io_misc] which depends on the Io module used, and except [`Ro_not_allowed]

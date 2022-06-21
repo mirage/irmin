@@ -38,6 +38,8 @@ module type S = sig
   val catch : (unit -> 'a) -> ('a, [> t ]) result
   val raise_if_error : ('a, [< t ]) result -> 'a
   val log_if_error : string -> (unit, [< t ]) result -> unit
+  val to_json_string : (int63, t) result -> string
+  val of_json_string : string -> (int63, t) result
 end
 
 module Make (Io : Io.S) : S with module Io = Io = struct
@@ -66,4 +68,31 @@ module Make (Io : Io.S) : S with module Io = Io = struct
   let log_if_error context = function
     | Ok () -> ()
     | Error e -> [%log.err "%s failed: %a" context pp e]
+
+  type err =
+    | Pack_error of base_error
+    | Io_misc of Io.misc_error
+    | Ro_not_allowed
+  [@@deriving irmin]
+
+  let t_to_err = function
+    | `Io_misc e -> Io_misc e
+    | `Ro_not_allowed -> Ro_not_allowed
+    | #base_error as e -> Pack_error e
+
+  let err_to_t = function
+    | Io_misc e -> `Io_misc e
+    | Ro_not_allowed -> `Ro_not_allowed
+    | Pack_error e -> (e : base_error :> [> base_error ])
+
+  let err_result = Irmin.Type.(result int63 err_t)
+
+  let to_json_string result =
+    let convert = Result.map_error t_to_err in
+    convert result |> Irmin.Type.to_json_string err_result
+
+  let of_json_string string =
+    match (Irmin.Type.of_json_string err_result) string with
+    | Error (`Msg _) -> Error `Decoding_error
+    | Ok result -> Result.map_error err_to_t result
 end
