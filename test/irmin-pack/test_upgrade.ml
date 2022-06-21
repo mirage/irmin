@@ -22,6 +22,8 @@ let test_dir = "_build" / "test-upgrade"
 let root_v2_minimal = "test" / "irmin-pack" / "data" / "version_2_minimal"
 let root_v2_always = "test" / "irmin-pack" / "data" / "version_2_always"
 let store_v2 = "_build" / "test-upgrade-v2"
+let root_v3_minimal = "test" / "irmin-pack" / "data" / "version_3_minimal"
+let root_v3_always = "test" / "irmin-pack" / "data" / "version_3_always"
 let store_v3 = "_build" / "test-upgrade-v3"
 
 let hash_of_string hash =
@@ -220,25 +222,24 @@ struct
     mutable rw : (Model.t * Store.repo) option;
   }
 
-  let setup_test_env root_v2 =
-    setup_test_env ~root_archive:root_v2 ~root_local_build:store_v2
-
   let create_test_env start_mode =
     rm_dir test_dir;
     rm_dir store_v3;
     match start_mode with
     | From_scratch -> Lwt.return { start_mode; rw = None; ro = None }
-    | From_v3 ->
-        let* repo = Store.v ~readonly:false ~fresh:true store_v3 in
-        let* _ = Store.preload_commit repo in
-        let* () = Store.close repo in
-        Lwt.return { start_mode; rw = None; ro = None }
     | From_v2 ->
         let root_v2 =
           if I.indexing_strategy = "always" then root_v2_always
           else root_v2_minimal
         in
-        setup_test_env root_v2;
+        setup_test_env ~root_archive:root_v2 ~root_local_build:store_v2;
+        Lwt.return { start_mode; rw = None; ro = None }
+    | From_v3 ->
+        let root_v3 =
+          if I.indexing_strategy = "always" then root_v3_always
+          else root_v3_minimal
+        in
+        setup_test_env ~root_archive:root_v3 ~root_local_build:store_v3;
         Lwt.return { start_mode; rw = None; ro = None }
 
   let start_rw t =
