@@ -430,12 +430,7 @@ module Make (P : Backend.S) = struct
       | Pruned of hash
 
     and t = { mutable v : v; info : info }
-    (** [t.v] has 3 possible states:
-
-        - A [Map], only after a [Tree.of_concrete] operation.
-        - A [Value], only after an add, a remove, temporarily during an export
-          or at the end of a merge.
-        - It is otherwise a [Key].
+    (** For discussion of [t.v]'s states, see {!Tree_intf.S.inspect}.
 
         [t.info.map] is only populated during a call to [Node.to_map]. *)
 
