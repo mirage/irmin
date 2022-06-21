@@ -1,3 +1,15 @@
+## Unreleased
+
+### Added
+
+### Changed
+
+- **irmin**
+  - Replaced `Tree.node_fn` type with more general `Tree.folder` type to
+    represent the different ways to use `Tree.fold` (#1918, @metanivek)
+
+### Fixed
+
 ## 3.3.1 (2022-06-22)
 
 ### Fixed

@@ -175,7 +175,7 @@ module Make (P : Backend.S) = struct
   type 'a or_error = ('a, error) result
   type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
   type uniq = [ `False | `True | `Marks of marks ]
-  type 'a node_fn = path -> step list -> 'a -> 'a Lwt.t
+  type ('a, 'b) folder = path -> 'b -> 'a -> 'a Lwt.t
 
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
@@ -1287,10 +1287,10 @@ module Make (P : Backend.S) = struct
         in
         Seq.append value_bindings updates
 
-    type ('v, 'acc, 'r) folder =
+    type ('v, 'acc, 'r) cps_folder =
       path:Path.t -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
-    (** A ('val, 'acc, 'r) folder is a CPS, threaded fold function over values
-        of type ['v] producing an accumulator of type ['acc]. *)
+    (** A ('val, 'acc, 'r) cps_folder is a CPS, threaded fold function over
+        values of type ['v] producing an accumulator of type ['acc]. *)
 
     let fold :
         type acc.
@@ -1298,13 +1298,13 @@ module Make (P : Backend.S) = struct
         force:acc force ->
         cache:bool ->
         uniq:uniq ->
-        pre:acc node_fn option ->
-        post:acc node_fn option ->
+        pre:(acc, step list) folder option ->
+        post:(acc, step list) folder option ->
         path:Path.t ->
         ?depth:depth ->
-        node:(Path.t -> _ -> acc -> acc Lwt.t) ->
-        contents:(Path.t -> contents -> acc -> acc Lwt.t) ->
-        tree:(Path.t -> _ -> acc -> acc Lwt.t) ->
+        node:(acc, _) folder ->
+        contents:(acc, contents) folder ->
+        tree:(acc, _) folder ->
         t ->
         acc ->
         acc Lwt.t =
@@ -1331,7 +1331,7 @@ module Make (P : Backend.S) = struct
             let s = Seq.fold_left (fun acc (s, _) -> s :: acc) [] bindings in
             post path s acc
       in
-      let rec aux : type r. (t, acc, r) folder =
+      let rec aux : type r. (t, acc, r) cps_folder =
        fun ~path acc d t k ->
         let apply acc = node path t acc >>= tree path (`Node t) in
         let next acc =
@@ -1405,7 +1405,7 @@ module Make (P : Backend.S) = struct
         | Some (`Ge depth) -> if d < depth then next acc else apply acc >>= next
         | Some (`Gt depth) ->
             if d <= depth then next acc else apply acc >>= next
-      and aux_uniq : type r. (t, acc, r) folder =
+      and aux_uniq : type r. (t, acc, r) cps_folder =
        fun ~path acc d t k ->
         if uniq = `False then (aux [@tailcall]) ~path acc d t k
         else
@@ -1413,7 +1413,7 @@ module Make (P : Backend.S) = struct
           match Hashes.add marks h with
           | `Duplicate -> k acc
           | `Ok -> (aux [@tailcall]) ~path acc d t k
-      and step : type r. (step * elt, acc, r) folder =
+      and step : type r. (step * elt, acc, r) cps_folder =
        fun ~path acc d (s, v) k ->
         let path = Path.rcons path s in
         match v with
@@ -1430,21 +1430,21 @@ module Make (P : Backend.S) = struct
             | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
             | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
             | Some (`Gt depth) -> if d >= depth then apply () else k acc)
-      and steps : type r. ((step * elt) Seq.t, acc, r) folder =
+      and steps : type r. ((step * elt) Seq.t, acc, r) cps_folder =
        fun ~path acc d s k ->
         match s () with
         | Seq.Nil -> k acc
         | Seq.Cons (h, t) ->
             (step [@tailcall]) ~path acc d h (fun acc ->
                 (steps [@tailcall]) ~path acc d t k)
-      and map : type r. (map option, acc, r) folder =
+      and map : type r. (map option, acc, r) cps_folder =
        fun ~path acc d m k ->
         match m with
         | None -> k acc
         | Some m ->
             let bindings = StepMap.to_seq m in
             seq ~path acc d bindings k
-      and value : type r. (repo * value * updatemap option, acc, r) folder =
+      and value : type r. (repo * value * updatemap option, acc, r) cps_folder =
        fun ~path acc d (repo, v, updates) k ->
         let bindings = Regular_value.seq ~env ~cache repo v in
         let bindings =
@@ -1453,7 +1453,7 @@ module Make (P : Backend.S) = struct
           | Some updates -> seq_of_updates updates bindings
         in
         seq ~path acc d bindings k
-      and portable : type r. (portable * updatemap option, acc, r) folder =
+      and portable : type r. (portable * updatemap option, acc, r) cps_folder =
        fun ~path acc d (v, updates) k ->
         let bindings = Portable_value.seq ~env ~cache () v in
         let bindings =
@@ -1462,7 +1462,7 @@ module Make (P : Backend.S) = struct
           | Some updates -> seq_of_updates updates bindings
         in
         seq ~path acc d bindings k
-      and seq : type r. ((step * elt) Seq.t, acc, r) folder =
+      and seq : type r. ((step * elt) Seq.t, acc, r) cps_folder =
        fun ~path acc d bindings k ->
         let* acc = pre path bindings acc in
         (steps [@tailcall]) ~path acc d bindings (fun acc ->
