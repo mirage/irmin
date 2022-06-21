@@ -58,6 +58,7 @@ module type Sigs = sig
       | Inode_v2_root
       | Inode_v2_nonroot
       | Gced
+      | Dangling_parent_commit
     [@@deriving irmin]
 
     val all : t list

@@ -11,6 +11,7 @@ module Kind = struct
     | Inode_v2_root
     | Inode_v2_nonroot
     | Gced
+    | Dangling_parent_commit
 
   let to_magic = function
     | Commit_v1 -> 'C'
@@ -21,6 +22,7 @@ module Kind = struct
     | Inode_v2_root -> 'R'
     | Inode_v2_nonroot -> 'O'
     | Gced -> 'Z'
+    | Dangling_parent_commit -> 'P'
 
   let of_magic_exn = function
     | 'C' -> Commit_v1
@@ -31,6 +33,7 @@ module Kind = struct
     | 'R' -> Inode_v2_root
     | 'O' -> Inode_v2_nonroot
     | 'Z' -> Gced
+    | 'P' -> Dangling_parent_commit
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
   let all =
@@ -42,6 +45,8 @@ module Kind = struct
       Inode_v1_stable;
       Inode_v2_root;
       Inode_v2_nonroot;
+      Gced;
+      Dangling_parent_commit;
     ]
 
   let to_enum = function
@@ -53,6 +58,7 @@ module Kind = struct
     | Inode_v2_root -> 5
     | Inode_v2_nonroot -> 6
     | Gced -> 7
+    | Dangling_parent_commit -> 8
 
   let pp =
     Fmt.of_to_string (function
@@ -63,13 +69,15 @@ module Kind = struct
       | Inode_v1_stable -> "Inode_v1_stable"
       | Inode_v2_root -> "Inode_v2_root"
       | Inode_v2_nonroot -> "Inode_v2_nonroot"
-      | Gced -> "Gced")
+      | Gced -> "Gced"
+      | Dangling_parent_commit -> "Dangling_parent_commit")
 
   let length_header_exn : t -> length_header =
     let some_varint = Some `Varint in
     function
     | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> None
-    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot -> some_varint
+    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot | Dangling_parent_commit ->
+        some_varint
     | Contents ->
         Fmt.failwith
           "Can't determine length header for user-defined codec Contents"

@@ -467,7 +467,7 @@ struct
           V1_nonroot { length; v }
       | Commit_v1 | Commit_v2 -> assert false
       | Contents -> assert false
-      | Gced -> assert false
+      | Gced | Dangling_parent_commit -> assert false
 
     let size_of_tv =
       let of_encoding s off =
@@ -480,7 +480,7 @@ struct
             let len = decode_bin_int s offref in
             len - H.hash_size
         | Commit_v1 | Commit_v2 | Contents -> assert false
-        | Gced -> assert false
+        | Gced | Dangling_parent_commit -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_encoding ()
 
