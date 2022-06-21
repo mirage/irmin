@@ -119,11 +119,13 @@ struct
     let open Result_syntax in
     if Dict.empty_buffer t.dict then Ok ()
     else
-      let* () = Dict.flush t.dict in
-      (* update stats; FIXME we increment on successful flush; elsewhere we increment just
-         before the function call - i.e. we increment whether successful or not; perhaps
-         the following line should come before the call to [Dict.flush]*)
-      Stats.Fm.incr_dict_flushes ();
+      (* NOTE we call the Stats increment function before the call to the Dict flush
+         function; in general we increment the stat before the call, everywhere in this
+         file. *)
+      let* () =
+        Stats.Fm.incr_dict_flushes ();
+        Dict.flush t.dict
+      in
       let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -139,8 +141,10 @@ struct
     let* () = flush_dict t in
     if Suffix.empty_buffer t.suffix then Ok ()
     else
-      let* () = Suffix.flush t.suffix in
-      Stats.Fm.incr_suffix_flushes ();
+      let* () =
+        Stats.Fm.incr_suffix_flushes ();
+        Suffix.flush t.suffix
+      in
       let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -180,8 +184,10 @@ struct
   let flush_index_and_its_deps t =
     let open Result_syntax in
     let* () = flush_suffix_and_its_deps t in
-    let+ () = Index.flush ~with_fsync:t.use_fsync t.index in
-    (* NOTE index flush stats are updated in {!Pack_index} *)
+    let+ () =
+      Stats.Fm.incr_index_flushes ();
+      Index.flush ~with_fsync:t.use_fsync t.index
+    in
     ()
 
   (* Auto flushes *********************************************************** *)

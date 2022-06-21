@@ -72,10 +72,10 @@ module File_manager_stats : sig
     mutable dict_flushes : int;
     mutable suffix_flushes : int;
     mutable index_flushes : int;
-    mutable auto_dict: int;
-    mutable auto_suffix: int;
-    mutable auto_index: int;
-    mutable flush : int
+    mutable auto_dict : int;
+    mutable auto_suffix : int;
+    mutable auto_index : int;
+    mutable flush : int;
   }
   [@@deriving irmin]
 
@@ -90,15 +90,15 @@ type t = {
   file_manager : File_manager_stats.stat;
 }
 (** Record type for all statistics that will be collected. There is a single
-    instance (the "get instance") which is returned by {!get} below. *)
+    instance (which we refer to as "the instance" below) which is returned by
+    {!get}. *)
 
 val reset_stats : unit -> unit
 (** [reset_stats ()] will call the relevant [clear] function on each field of
-    "get instance". This typically resets the fields (e.g. to 0 for an int
-    field). *)
+    the instance. This typically resets the fields (e.g. to 0 for an int field). *)
 
 val get : unit -> t
-(** [get ()] returns the {!t} that stores the satistics (the "get instance"). If
+(** [get ()] returns the instance of {!t} that stores the satistics. If
     {!report_pack_store} or {!report_index} is not called before, the content
     will be filled with default value, decided at create time (most the time,
     [0]). *)
@@ -115,11 +115,11 @@ val report_index : unit -> unit
 
 val incr_appended_hashes : unit -> unit
 (** [incr_appended_hashes ()] increments the field [appended_hashes] for
-    [pack_store] in the "get instance". *)
+    [pack_store] in the instance. *)
 
 val incr_appended_offsets : unit -> unit
 (** [incr_appended_offsets] increments the field [appended_offsets] for
-    [pack_store] in the "get instance". *)
+    [pack_store] in the instance. *)
 
 type cache_stats = { cache_misses : float }
 
@@ -128,15 +128,15 @@ type offset_stats = { offset_ratio : float; offset_significance : int }
     [offset_significance]: [appended_offsets + appended_hashes] *)
 
 val get_cache_stats : unit -> cache_stats
-(** [get_cache_stats()] uses the "get instance" [pack_store] field to compute
-    cache misses. *)
+(** [get_cache_stats()] uses the instance [pack_store] field to compute cache
+    misses. *)
 
 val get_offset_stats : unit -> offset_stats
-(** [get_offset_stats()] uses the "get instance" [pack_store] field to compute
-    "offset stats". *)
+(** [get_offset_stats()] uses the instance [pack_store] field to compute offset
+    stats. *)
 
-(** The following are [File_manager_stats] functions. They mutate the relevant fields of
-    the [file_manager] field in the "get instance". *)
+(** The following are [File_manager_stats] functions. They mutate the relevant
+    fields of the [file_manager] field in the instance. *)
 module Fm : sig
   val incr_dict_flushes : unit -> unit
   val incr_suffix_flushes : unit -> unit

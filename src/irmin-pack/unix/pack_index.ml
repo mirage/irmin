@@ -104,9 +104,6 @@ module Make (K : Irmin.Hash.S) = struct
   let flush t ~with_fsync =
     try
       Index.flush ~no_callback:() ~with_fsync t;
-      (* record the index flush in stats; an alternative would be to add flush stats to
-         the index package *)
-      Irmin_pack_unix_stats.Fm.incr_index_flushes ();
       Ok ()
     with
     | I.RO_not_allowed -> assert false
