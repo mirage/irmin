@@ -38,10 +38,9 @@ struct
   module Key = Pack_key.Make (Hash)
 
   module Lru = Irmin.Backend.Lru.Make (struct
-    include Hash
+    include Int63
 
-    let hash = Hash.short_hash
-    let equal = Irmin.Type.(unstage (equal Hash.t))
+    let hash = Hashtbl.hash
   end)
 
   type file_manager = Fm.t
@@ -101,6 +100,16 @@ struct
             assert false)
     | None ->
         corrupted_store "Unexpected object %a missing from index" pp_hash hash
+
+  let offset_of_key t k =
+    match Pack_key.inspect k with
+    | Direct { offset; _ } -> offset
+    | Indexed hash ->
+        let entry_span = get_entry_span_from_index_exn t hash in
+        (* Cache the offset and length information in the existing key: *)
+        Pack_key.promote_exn k ~offset:entry_span.offset
+          ~length:entry_span.length;
+        entry_span.offset
 
   module Entry_prefix = struct
     type t = {
@@ -222,7 +231,7 @@ struct
   let unsafe_mem t k =
     [%log.debug "[pack] mem %a" pp_key k];
     Tbl.mem t.staging (Key.to_hash k)
-    || Lru.mem t.lru (Key.to_hash k)
+    || Lru.mem t.lru (offset_of_key t k)
     || pack_file_contains_key t k
 
   let mem t k =
@@ -270,7 +279,7 @@ struct
       (Bytes.unsafe_to_string buf)
       (ref 0)
 
-  let find_in_pack_file ~check_integrity t key hash =
+  let find_in_pack_file ~check_integrity t key =
     let loc, { offset; length } =
       match Pack_key.inspect key with
       | Direct { offset; length; _ } ->
@@ -300,7 +309,7 @@ struct
           (Stats.Pack_store.Not_found, None))
     else
       let v = io_read_and_decode ~off:offset ~len:length t in
-      Lru.add t.lru hash v;
+      Lru.add t.lru offset v;
       (if check_integrity then
        check_key key v |> function
        | Ok () -> ()
@@ -312,15 +321,16 @@ struct
   let unsafe_find ~check_integrity t k =
     [%log.debug "[pack] find %a" pp_key k];
     let hash = Key.to_hash k in
+    let off = offset_of_key t k in
     let location, value =
       match Tbl.find t.staging hash with
       | v ->
-          Lru.add t.lru hash v;
+          Lru.add t.lru off v;
           (Stats.Pack_store.Staging, Some v)
       | exception Not_found -> (
-          match Lru.find t.lru hash with
+          match Lru.find t.lru off with
           | v -> (Stats.Pack_store.Lru, Some v)
-          | exception Not_found -> find_in_pack_file ~check_integrity t k hash)
+          | exception Not_found -> find_in_pack_file ~check_integrity t k)
     in
     Stats.report_pack_store ~field:location;
     value
@@ -375,6 +385,7 @@ struct
             Stats.incr_appended_offsets ();
             Some offset
         | Indexed hash -> (
+            (* TODO: Why don't we promote the key here? *)
             match Index.find (Fm.index t.fm) hash with
             | None ->
                 Stats.incr_appended_hashes ();
@@ -400,7 +411,7 @@ struct
           Index.add ~overcommit (Fm.index t.fm) hash (off, len, kind)
       in
       Tbl.add t.staging hash v;
-      Lru.add t.lru hash v;
+      Lru.add t.lru off v;
       [%log.debug "[pack] append done %a <- %a" pp_hash hash pp_key key];
       key
     in
