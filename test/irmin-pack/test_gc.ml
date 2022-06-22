@@ -43,9 +43,9 @@ include struct
     tree : S.tree;
   }
 
-  let config ~readonly ~fresh root =
+  let config ~lru_size ~readonly ~fresh root =
     Irmin_pack.config ~readonly
-      ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal ~lru_size:0 ~fresh
+      ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal ~fresh ~lru_size
       root
 
   let info = S.Info.empty
@@ -84,11 +84,11 @@ include struct
     let* o = checkout t key in
     match o with None -> Lwt.fail Not_found | Some p -> Lwt.return p
 
-  let init ?(readonly = false) ?(fresh = true) ?root () =
+  let init ?(lru_size = 0) ?(readonly = false) ?(fresh = true) ?root () =
     (* start with a clean dir if fresh *)
     let root = Option.value root ~default:(fresh_name ()) in
     if fresh then rm_dir root;
-    let+ repo = S.Repo.v (config ~readonly ~fresh root) in
+    let+ repo = S.Repo.v (config ~readonly ~fresh ~lru_size root) in
     let tree = S.Tree.empty () in
     { root; repo; tree; parents = [] }
 end
@@ -442,6 +442,33 @@ module Blocking_gc = struct
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
+  (** Check that gc works when the lru caches some objects that are delete by
+      consequent commits. See https://github.com/mirage/irmin/issues/1920. *)
+  let gc_lru () =
+    let check t c =
+      S.Commit.of_key t.repo (S.Commit.key c) >>= function
+      | None -> Alcotest.fail "no hash found in repo"
+      | Some commit ->
+          let tree = S.Commit.tree commit in
+          check_blob tree [ "a"; "b"; "c" ] "b"
+    in
+    let* t = init ~lru_size:100 () in
+    let* t = set t [ "a"; "b"; "c" ] "b" in
+    let* c1 = commit t in
+    let* t = checkout_exn t c1 in
+    let* t = set t [ "a"; "d"; "c" ] "b" in
+    let* c2 = commit t in
+    let* t = checkout_exn t c2 in
+    let* t = del t [ "a"; "d"; "c" ] in
+    let* c3 = commit t in
+    let* t = checkout_exn t c3 in
+    let* t = set t [ "a"; "b"; "e" ] "a" in
+    let* c4 = commit t in
+    let () = gc t c3 in
+    let* () = wait_for_gc t.repo in
+    let* () = check t c4 in
+    S.Repo.close t.repo
+
   let tests =
     let tc name f =
       Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
@@ -458,6 +485,7 @@ module Blocking_gc = struct
       tc "Test reload after two gc" ro_after_two_gc;
       tc "Test ro close" ro_close;
       tc "Test ro reload after open" ro_reload_after_v;
+      tc "Test lru" gc_lru;
     ]
 end
 
