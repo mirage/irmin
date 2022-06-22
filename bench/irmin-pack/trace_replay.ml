@@ -150,12 +150,14 @@ module Make (Store : Store) = struct
   include Config
   module Stat_collector = Trace_collection.Make_stat (Store)
 
+  type key = Store.contents_key [@@deriving irmin ~pp]
   type context = { tree : Store.tree }
 
   type t = {
     contexts : (int64, context) Hashtbl.t;
     hash_corresps : (Def.hash, Store.commit_key) Hashtbl.t;
-    mutable latest_commit : Store.commit_key option;
+    mutable commits_since_start_or_gc : int;
+    key_per_commit_idx : (int, Store.commit_key) Hashtbl.t;
   }
 
   let error_find op k b n_op n_c in_ctx_id =
@@ -275,7 +277,11 @@ module Make (Store : Store) = struct
      * re-commiting the same thing, hence the [.replace] below. *)
     Hashtbl.replace t.hash_corresps (unscope h_trace) k_store;
     maybe_forget_hash t h_trace;
-    t.latest_commit <- Some k_store
+    let () =
+      let tbl = t.key_per_commit_idx in
+      Hashtbl.add tbl (Hashtbl.length tbl) k_store
+    in
+    ()
 
   let add_operations t repo operations n stats check_hash empty_blobs =
     let rec aux l i =
@@ -314,15 +320,53 @@ module Make (Store : Store) = struct
     in
     aux operations 0
 
-  let add_commits repo max_ncommits commit_seq on_commit on_end stats check_hash
+  let gc_actions config i commits_since_start_or_gc =
+    let gc_enabled =
+      (* Is GC enabled at all? *)
+      config.gc_every > 0
+    in
+    let gc_wait_enabled =
+      (* Will GC wait be called at all? *)
+      gc_enabled && config.gc_wait_after > 0
+    in
+
+    let first_gc_occured = i <> commits_since_start_or_gc in
+
+    let time_to_start =
+      (* Is it time to start GC? *)
+      if first_gc_occured then commits_since_start_or_gc = config.gc_every
+      else
+        let gc_commit_idx =
+          (* [i] is the replay step and also the commit index of the next
+             commit and also the number of commits replayed so far.
+
+             [i - t.gc_distance_in_the_past - 1] is the index of the commit we
+             want to GC. *)
+          i - config.gc_distance_in_the_past - 1
+        in
+        gc_commit_idx = 1
+    in
+    let time_to_wait =
+      (* Is it time to wait GC? *)
+      if first_gc_occured then commits_since_start_or_gc = config.gc_wait_after
+      else false
+    in
+
+    let really_start_gc = gc_enabled && time_to_start in
+    let really_wait_gc = gc_wait_enabled && time_to_wait in
+    (really_wait_gc, really_start_gc)
+
+  let add_commits config repo commit_seq on_commit on_end stats check_hash
       empty_blobs =
+    let max_ncommits = config.number_of_commits_to_replay in
     with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commit"
     @@ fun prog ->
     let t =
       {
         contexts = Hashtbl.create 3;
         hash_corresps = Hashtbl.create 3;
-        latest_commit = None;
+        commits_since_start_or_gc = 0;
+        key_per_commit_idx = Hashtbl.create 3;
       }
     in
 
@@ -333,13 +377,29 @@ module Make (Store : Store) = struct
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
-          (* if i <> 0 then *)
-          if i <> 0 && i mod 400 = 0 then (
-            (* TODO: Interval from CLI *)
-            (* TODO: Don't just GC the latest, GC at a distance *)
-            (* TODO: Maybe GC on_commit *)
-            Fmt.epr "\n%!";
-            Store.gc repo (Option.get t.latest_commit));
+          let really_wait_gc, really_start_gc =
+            gc_actions config i t.commits_since_start_or_gc
+          in
+          if really_wait_gc then (
+            [%logs.app "Waiting gc while latest commit has idx %d" (i - 1)];
+            () (* TODO: Block until GC success *));
+          if really_start_gc then (
+            (* Starting GC.
+
+               TODO: If the GC-commit is an orphan commit we will have
+               problems. *)
+            let gc_commit_idx = i - config.gc_distance_in_the_past - 1 in
+            let gc_commit_key =
+              Hashtbl.find t.key_per_commit_idx gc_commit_idx
+            in
+            t.commits_since_start_or_gc <- 0;
+            [%logs.app
+              "Starting gc on commit idx %d with key %a while latest commit \
+               has idx %d with key %a"
+              gc_commit_idx pp_key gc_commit_key (i - 1) pp_key
+                (Hashtbl.find t.key_per_commit_idx (i - 1))];
+            Store.gc repo gc_commit_key);
+
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
@@ -348,8 +408,10 @@ module Make (Store : Store) = struct
               "\nAfter commit %6d we have %d/%d history sizes" i len0 len1];
           let* () =
             on_commit i
-              (Option.get t.latest_commit |> Store.Backend.Commit.Key.to_hash)
+              (Hashtbl.find t.key_per_commit_idx i
+              |> Store.Backend.Commit.Key.to_hash)
           in
+          t.commits_since_start_or_gc <- t.commits_since_start_or_gc + 1;
           prog 1;
           aux commit_seq (i + 1)
     in
@@ -392,8 +454,8 @@ module Make (Store : Store) = struct
     Lwt.finalize
       (fun () ->
         let* block_count =
-          add_commits repo config.number_of_commits_to_replay commit_seq
-            on_commit on_end stats check_hash config.empty_blobs
+          add_commits config repo commit_seq on_commit on_end stats check_hash
+            config.empty_blobs
         in
         [%logs.app "Closing repo..."];
         let+ () = Store.Repo.close repo in

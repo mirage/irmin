@@ -10,6 +10,8 @@ module Store = struct
   module Store = Irmin_tezos.Store
   include Store
 
+  type key = commit_key
+
   let create_repo ~root () =
     (* make sure the parent dir exists *)
     let () =
@@ -68,7 +70,10 @@ let replay_1_commit () =
       keep_store = false;
       keep_stat_trace = false;
       empty_blobs = false;
-      return_type = Summary (* TODO: Run gc every 1 *);
+      return_type = Summary;
+      gc_every = 0;
+      gc_distance_in_the_past = 0;
+      gc_wait_after = 0;
     }
   in
   let+ summary = Replay.run () replay_config in
@@ -104,6 +109,8 @@ module Store_mem = struct
   module Maker = Irmin_pack_mem.Maker (Conf)
   module Store = Maker.Make (Irmin_tezos.Schema)
   include Store
+
+  type key = commit_key
 
   let create_repo ~root () =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
@@ -143,6 +150,9 @@ let replay_1_commit_mem () =
       keep_stat_trace = false;
       empty_blobs = false;
       return_type = Summary;
+      gc_every = 0;
+      gc_distance_in_the_past = 0;
+      gc_wait_after = 0;
     }
   in
   let+ summary = Replay_mem.run () replay_config in
