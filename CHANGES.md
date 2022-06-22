@@ -1,3 +1,11 @@
+### Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Fix topology irregularities on disk which may lead to post-gc crashes.
+    (#1925, @Ngoguey42, @icristescu)
+
 ## 3.3.0 (2022-06-20)
 
 ### Added
