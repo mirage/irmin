@@ -110,10 +110,6 @@ struct
       - During a GC.
       - When the branch store is modified. *)
 
-  (* TODO: Stat on flushes:
-     - How many calls to Dict.flush/Suffix.flush/Index.flush
-     - How many calls to [flush] and the 3 auto ones. *)
-
   (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
