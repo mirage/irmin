@@ -145,5 +145,5 @@ val get_offset_stats : unit -> offset_stats
     stats. *)
 
 val incr_fm_field : File_manager.field -> unit
-(** [incr_fm_field ~field] increments the chosen stats field for the
+(** [incr_fm_field field] increments the chosen stats field for the
     {!File_manager} *)
