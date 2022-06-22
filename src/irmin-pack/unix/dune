@@ -12,8 +12,10 @@
   lwt.unix
   mtime
   cmdliner
+  sexplib ;; FIXME remove
   optint)
  (preprocess
-  (pps ppx_irmin.internal))
+  (pps ppx_irmin.internal ppx_sexp_conv))
+ ;; FIXME remove ppx_sexp_conv
  (instrumentation
   (backend bisect_ppx)))
