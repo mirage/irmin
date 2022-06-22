@@ -1779,7 +1779,7 @@ module Make (P : Backend.S) = struct
     | None -> Lwt.return 0
     | Some n -> Node.length ~cache:true n
 
-  let seq t ?offset ?length ~cache path : (step * t) Seq.t Lwt.t =
+  let seq t ?offset ?length ?(cache = true) path =
     [%log.debug "Tree.seq %a" pp_path path];
     sub ~cache "seq.sub" t path >>= function
     | None -> Lwt.return Seq.empty
