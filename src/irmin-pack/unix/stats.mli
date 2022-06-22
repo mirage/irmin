@@ -67,7 +67,16 @@ module Index : sig
   val export : stat -> t
 end
 
-module File_manager_stats : sig
+module File_manager : sig
+  type field =
+    | Dict_flushes
+    | Suffix_flushes
+    | Index_flushes
+    | Auto_dict
+    | Auto_suffix
+    | Auto_index
+    | Flush
+
   type t = private {
     mutable dict_flushes : int;
     mutable suffix_flushes : int;
@@ -87,7 +96,7 @@ end
 type t = {
   pack_store : Pack_store.stat;
   index : Index.stat;
-  file_manager : File_manager_stats.stat;
+  file_manager : File_manager.stat;
 }
 (** Record type for all statistics that will be collected. There is a single
     instance (which we refer to as "the instance" below) which is returned by
@@ -135,14 +144,6 @@ val get_offset_stats : unit -> offset_stats
 (** [get_offset_stats()] uses the instance [pack_store] field to compute offset
     stats. *)
 
-(** The following are [File_manager_stats] functions. They mutate the relevant
-    fields of the [file_manager] field in the instance. *)
-module Fm : sig
-  val incr_dict_flushes : unit -> unit
-  val incr_suffix_flushes : unit -> unit
-  val incr_index_flushes : unit -> unit
-  val incr_auto_dict : unit -> unit
-  val incr_auto_suffix : unit -> unit
-  val incr_auto_index : unit -> unit
-  val incr_flush : unit -> unit
-end
+val incr_fm_field : File_manager.field -> unit
+(** [incr_fm_field ~field] increments the chosen stats field for the
+    {!File_manager} *)

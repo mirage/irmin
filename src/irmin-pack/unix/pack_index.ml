@@ -49,7 +49,6 @@ module Make (K : Irmin.Hash.S) = struct
       (off, len, kind)
   end
 
-  module Irmin_pack_unix_stats = Stats
   module Stats = Index.Stats
   module I = Index
   module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)

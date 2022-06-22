@@ -171,8 +171,8 @@ module Index = struct
   let export m = Metrics.state m
 end
 
-module File_manager_stats = struct
-  type Metrics.origin += File_manager_stats
+module File_manager = struct
+  type Metrics.origin += File_manager
 
   type t = {
     mutable dict_flushes : int;
@@ -201,8 +201,8 @@ module File_manager_stats = struct
   type stat = t Metrics.t
 
   let init () : stat =
-    Metrics.v ~origin:File_manager_stats ~name:"file_manager_metric"
-      ~initial_state:(create ()) t
+    let initial_state = create () in
+    Metrics.v ~origin:File_manager ~name:"file_manager_metric" ~initial_state t
 
   (* [export] reveals the [t] contained in the [Metrics.t] container *)
   let export : stat -> t = fun m -> Metrics.state m
@@ -215,25 +215,50 @@ module File_manager_stats = struct
     ()
 
   let clear (t : stat) = clear' (export t)
+
+  (* we want to support an interface where the particular fields of type [t] are reified
+     as variants, so that we can call [incr_fm_field Dict_flushes] for example *)
+
+  type field =
+    | Dict_flushes
+    | Suffix_flushes
+    | Index_flushes
+    | Auto_dict
+    | Auto_suffix
+    | Auto_index
+    | Flush
+
+  let update ~field t =
+    let f t =
+      match field with
+      | Dict_flushes -> t.dict_flushes <- t.dict_flushes + 1
+      | Suffix_flushes -> t.suffix_flushes <- t.suffix_flushes + 1
+      | Index_flushes -> t.index_flushes <- t.index_flushes + 1
+      | Auto_dict -> t.auto_dict <- t.auto_dict + 1
+      | Auto_suffix -> t.auto_suffix <- t.auto_suffix + 1
+      | Auto_index -> t.auto_index <- t.auto_index + 1
+      | Flush -> t.flush <- t.flush + 1
+    in
+    Metrics.update t (Metrics.Mutate f)
 end
 
 type t = {
   pack_store : Pack_store.stat;
   index : Index.stat;
-  file_manager : File_manager_stats.stat;
+  file_manager : File_manager.stat;
 }
 
 let s =
   {
     pack_store = Pack_store.init ();
     index = Index.init ();
-    file_manager = File_manager_stats.init ();
+    file_manager = File_manager.init ();
   }
 
 let reset_stats () =
   Pack_store.clear s.pack_store;
   Index.clear s.index;
-  File_manager_stats.clear s.file_manager;
+  File_manager.clear s.file_manager;
   ()
 
 let get () = s
@@ -266,43 +291,4 @@ let get_offset_stats () =
       pack_store.appended_offsets + pack_store.appended_hashes;
   }
 
-(** Update functions for [File_manager_stats]; we may want to enforce some
-    invariants e.g. when we increment a field we also increment a total; for
-    this reason, we make abstract [stat] types, and modifications to the mutable
-    record fields can only be made indirectly through the following functions. *)
-module Fm = struct
-  let incr_dict_flushes () =
-    let t = File_manager_stats.export s.file_manager in
-    t.dict_flushes <- 1 + t.dict_flushes;
-    ()
-
-  let incr_suffix_flushes () =
-    let t = File_manager_stats.export s.file_manager in
-    t.suffix_flushes <- 1 + t.suffix_flushes;
-    ()
-
-  let incr_index_flushes () =
-    let t = File_manager_stats.export s.file_manager in
-    t.index_flushes <- 1 + t.index_flushes;
-    ()
-
-  let incr_auto_dict () =
-    let t = File_manager_stats.export s.file_manager in
-    t.auto_dict <- 1 + t.auto_dict;
-    ()
-
-  let incr_auto_suffix () =
-    let t = File_manager_stats.export s.file_manager in
-    t.auto_suffix <- 1 + t.auto_suffix;
-    ()
-
-  let incr_auto_index () =
-    let t = File_manager_stats.export s.file_manager in
-    t.auto_index <- 1 + t.auto_index;
-    ()
-
-  let incr_flush () =
-    let t = File_manager_stats.export s.file_manager in
-    t.flush <- 1 + t.flush;
-    ()
-end
+let incr_fm_field field = File_manager.update ~field s.file_manager
