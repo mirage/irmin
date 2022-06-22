@@ -197,7 +197,7 @@ module File_manager = struct
       flush = 0;
     }
 
-  (* type [stat] is an abstract type in stats.mli; FIXME what is it for? *)
+  (* NOTE type [stat] is an abstract type in stats.mli *)
   type stat = t Metrics.t
 
   let init () : stat =
