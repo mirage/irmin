@@ -1,3 +1,7 @@
+(* NOTE (adating to new IO): some of this can be deleted (eg small_int_file_v1? ,
+   add_load_save_funs, mkdir (new IO has this); binary_search (assuming we don't need it
+   because we are happy with an in-memory map)). *)
+
 (** Miscellaneous small utilities *)
 
 (** {1 Logging} *)

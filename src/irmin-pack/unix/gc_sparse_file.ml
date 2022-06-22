@@ -1,3 +1,9 @@
+(* NOTE if we want to use this with the new IO, we can eliminate the load/save mmap usage
+   and just write ints to disk via new IO; we also need to adjust the v3 layout to include
+   the sparse file map and data files; then presumably we need to add file read/write
+   functions (in file manager?) which determines whether to read/write in the sparse or
+   the suffix (based on the suffix offset) *)
+
 (** A sparse file is "a file containing gaps"; the gaps do not take up space on
     disk.
 

@@ -1,3 +1,8 @@
+(* NOTE: in terms of the new IO, these routines are difficult to incorporate because they
+   use mmaps (for efficiency, and also because the code is much easier to write if we can
+   view the file contents as an array of int). Thus, for now it seems better to keep these
+   routines using mmaps. *)
+
 (** An implementation of "external sorting" (sorting on-disk data) and various
     other related routines.
 
