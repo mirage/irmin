@@ -26,15 +26,15 @@ module Unix : S = struct
       Buffer.clear t.buf;
       Raw.unsafe_write t.raw ~off:t.flushed buf 0 (String.length buf);
       Raw.Offset.set t.raw offset;
+      let open Int63.Syntax in
       (* concurrent append might happen so here t.offset might differ
          from offset *)
       if
-        not
-          (t.flushed ++ Int63.of_int (String.length buf) = header_size ++ offset)
+        not (t.flushed + Int63.of_int (String.length buf) = header_size + offset)
       then
         Fmt.failwith "reload error: %s flushed=%a offset+header=%a\n%!" t.file
-          Int63.pp t.flushed Int63.pp (offset ++ header_size);
-      t.flushed <- offset ++ header_size
+          Int63.pp t.flushed Int63.pp (offset + header_size);
+      t.flushed <- offset + header_size
 
   let flush t =
     if t.readonly then raise Irmin_pack.RO_not_allowed;
@@ -45,17 +45,19 @@ module Unix : S = struct
   let append t buf =
     Buffer.add_string t.buf buf;
     let len = Int63.of_int (String.length buf) in
-    t.offset <- t.offset ++ len;
-    if t.offset -- t.flushed > auto_flush_limit then flush t
+    let open Int63.Syntax in
+    t.offset <- t.offset + len;
+    if t.offset - t.flushed > auto_flush_limit then flush t
 
   let set t ~off buf =
     if t.readonly then raise Irmin_pack.RO_not_allowed;
     unsafe_flush t;
     let buf_len = String.length buf in
-    Raw.unsafe_write t.raw ~off:(header_size ++ off) buf 0 buf_len;
+    let open Int63.Syntax in
+    Raw.unsafe_write t.raw ~off:(header_size + off) buf 0 buf_len;
     assert (
       let len = Int63.of_int buf_len in
-      let off = header_size ++ off ++ len in
+      let off = header_size + off + len in
       off <= t.flushed)
 
   exception Invalid_read of string
@@ -63,7 +65,8 @@ module Unix : S = struct
   let raise_invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 
   let read_buffer t ~off ~buf ~len =
-    let off = header_size ++ off in
+    let open Int63.Syntax in
+    let off = header_size + off in
     if (not t.readonly) && off > t.flushed then
       raise_invalid_read
         "Requested read of %d bytes at offset %a, but only flushed to %a" len
@@ -133,6 +136,7 @@ module Unix : S = struct
             file
     in
     let v ~offset ~version raw =
+      let open Int63.Syntax in
       {
         version;
         file;
@@ -140,7 +144,7 @@ module Unix : S = struct
         raw;
         readonly;
         buf = Buffer.create (4 * 1024);
-        flushed = header_size ++ offset;
+        flushed = header_size + offset;
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in

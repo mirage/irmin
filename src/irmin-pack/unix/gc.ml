@@ -138,11 +138,8 @@ module Make (Args : Args) : S with module Args := Args = struct
     let buffer = String.make buffer_size magic_gced in
     let buffer_size = Int63.of_int buffer_size in
     let rec aux off count =
-      let ( < ) a b = Int63.compare a b < 0 in
-      let ( - ) = Int63.sub in
-      let ( + ) = Int63.add in
-      let ( === ) = Int63.equal in
-      if count === Int63.zero then Ok ()
+      let open Int63.Syntax in
+      if count = Int63.zero then Ok ()
       else if count < buffer_size then
         let buffer = String.make (Int63.to_int count) magic_gced in
         Io.write_string io ~off buffer
@@ -216,15 +213,12 @@ module Make (Args : Args) : S with module Args := Args = struct
     let hash_size = Int63.of_int Hash.hash_size in
     let already_copied_exn off =
       (* Read the [kind] byte, which lies just after the hash *)
-      let ( + ) = Int63.add in
+      let open Int63.Syntax in
       Io.read_exn dst_io ~off:(off + hash_size) ~len:1 buffer;
       Bytes.get buffer 0 <> magic_gced
     in
     let rec transfer_exn (off : int63) (len_remaining : int63) =
-      let ( + ) = Int63.add in
-      let ( - ) = Int63.sub in
-      let ( < ) a b = Int63.compare a b < 0 in
-      let ( > ) a b = Int63.compare a b > 0 in
+      let open Int63.Syntax in
       let min a b = if a < b then a else b in
       let len : int63 = min buffer_size_63 len_remaining in
       let len' = Int63.to_int len in
@@ -238,8 +232,7 @@ module Make (Args : Args) : S with module Args := Args = struct
     [%log.debug "GC: transfering to the right side"];
     let right_size =
       let total_size = pl.entry_offset_suffix_end in
-      let ( - ) = Int63.sub in
-      let ( >= ) a b = Int63.compare a b >= 0 in
+      let open Int63.Syntax in
       let x = total_size - commit_offset in
       assert (x >= Int63.of_int commit_len);
       x

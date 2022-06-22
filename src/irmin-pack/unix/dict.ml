@@ -45,7 +45,7 @@ module Make (Fm : File_manager.S) = struct
   let refill t =
     let open Result_syntax in
     let from = t.last_refill_offset in
-    let len = Int63.to_int (File.offset t -- from) in
+    let len = Int63.to_int Int63.Syntax.(File.offset t - from) in
     t.last_refill_offset <- File.offset t;
     let+ raw = File.read_to_string t ~off:from ~len in
     let pos_ref = ref 0 in
