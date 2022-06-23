@@ -85,14 +85,11 @@ module Private_map : sig
   val save' : map -> string -> (unit, [> save_error ]) result
   *)
 
-  type load_error =
-    [ `Double_close
-    | `Invalid_argument
+  type load_error = 
+    [ `Invalid_argument
     | `Io_misc of Io.misc_error
     | `No_such_file_or_directory
-    | `Not_a_file
-    | `Read_on_closed
-    | `Read_out_of_bounds ]
+    | `Not_a_file ]
 
   val load' : string -> (map, load_error) result
 end = struct
@@ -195,7 +192,7 @@ end = struct
 
   let _ = save'
 
-  type load_error =
+  type load_error' =
     [ `Double_close
     | `Invalid_argument
     | `Io_misc of Io.misc_error
@@ -204,7 +201,7 @@ end = struct
     | `Read_on_closed
     | `Read_out_of_bounds ]
 
-  let load' fn : (_, load_error) result =
+  let load' fn : (_, load_error') result =
     let open Result_syntax in
     let* io = Io.open_ ~path:fn ~readonly:true in
     let* sz_bytes = Io.read_size io in
@@ -249,6 +246,25 @@ end = struct
     (* remember to close the io *)
     let* () = Io.close io in
     Ok m
+
+  (* be more precise about errors *)
+  type load_error = 
+    [ `Invalid_argument
+    | `Io_misc of Io.misc_error
+    | `No_such_file_or_directory
+    | `Not_a_file ]
+    
+  let load' fn : (_,load_error)result =
+    load' fn |> function
+    | Ok m -> Ok m
+    | Error e -> match e with
+      | `Double_close | `Read_on_closed | `Read_out_of_bounds -> 
+        (* looking at the code, these errors can't actually happen *)
+        assert false
+      | `Invalid_argument -> Error `Invalid_argument
+      | `Io_misc e -> Error (`Io_misc e)
+      | `No_such_file_or_directory -> Error `No_such_file_or_directory
+      | `Not_a_file -> Error `Not_a_file
 
   let _ = load'
 end
