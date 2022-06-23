@@ -209,8 +209,8 @@ end = struct
              | true ->
                  let x, y, z =
                    ( String.get_int64_le contents (i * 8),
-                     String.get_int64_le contents ((i * 8) + 8),
-                     String.get_int64_le contents ((i * 8) + 16) )
+                     String.get_int64_le contents ((i + 1) * 8),
+                     String.get_int64_le contents ((i + 2) * 8) )
                  in
                  let voff, off, len =
                    (Int64.to_int x, Int64.to_int y, Int64.to_int z)
