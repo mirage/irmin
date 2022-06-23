@@ -15,8 +15,7 @@
  *)
 
 type base_error =
-  [ `Double_close
-  | `File_exists of string
+  [ `File_exists of string
   | `Invalid_parent_directory
   | `No_such_file_or_directory
   | `Not_a_file

@@ -69,7 +69,7 @@ module Unix = struct
   type write_error =
     [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
 
-  type close_error = [ `Io_misc of misc_error | `Double_close ]
+  type close_error = [ `Io_misc of misc_error ]
 
   type mkdir_error =
     [ `Io_misc of misc_error
@@ -144,11 +144,11 @@ module Unix = struct
 
   let close t =
     match t.closed with
-    | true -> Error `Double_close
+    | true -> Ok () (* no-op for already closed file *)
     | false -> (
-        t.closed <- true;
         try
           Unix.close t.fd;
+          t.closed <- true;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 

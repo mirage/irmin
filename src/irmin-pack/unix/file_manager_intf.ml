@@ -56,7 +56,6 @@ module type S = sig
 
   type open_rw_error :=
     [ `Corrupted_control_file
-    | `Double_close
     | `File_exists of string
     | `Index_failure of string
     | `Invalid_argument
@@ -111,10 +110,7 @@ module type S = sig
       not be closed. *)
 
   type close_error :=
-    [ `Double_close
-    | `Index_failure of string
-    | `Io_misc of Io.misc_error
-    | `Pending_flush ]
+    [ `Index_failure of string | `Io_misc of Io.misc_error | `Pending_flush ]
 
   val close : t -> (unit, [> close_error ]) result
   (** Close all the files.
@@ -135,7 +131,6 @@ module type S = sig
 
   type reload_error :=
     [ `Corrupted_control_file
-    | `Double_close
     | `Index_failure of string
     | `Invalid_argument
     | `Io_misc of Io.misc_error
@@ -167,8 +162,7 @@ module type S = sig
   (** [version ~root] is the version of the files at [root]. *)
 
   type swap_error :=
-    [ `Double_close
-    | `Io_misc of Control.Io.misc_error
+    [ `Io_misc of Control.Io.misc_error
     | `No_such_file_or_directory
     | `Not_a_file
     | `Pending_flush

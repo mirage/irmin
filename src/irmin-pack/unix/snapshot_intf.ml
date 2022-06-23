@@ -50,8 +50,7 @@ module type Sigs = sig
       val close :
         t ->
         ( unit,
-          [> `Double_close
-          | `Index_failure of string
+          [> `Index_failure of string
           | `Io_misc of File_manager.Io.misc_error
           | `Pending_flush ] )
         result

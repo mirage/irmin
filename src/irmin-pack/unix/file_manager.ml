@@ -496,8 +496,7 @@ struct
       let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
       match read_version_from_legacy_file path with
       | Ok v -> Ok v
-      | Error `Double_close | Error `Invalid_argument | Error `Read_on_closed ->
-          assert false
+      | Error `Invalid_argument | Error `Read_on_closed -> assert false
       | Error `No_such_file_or_directory -> Error `Invalid_layout
       | Error `Not_a_file -> Error `Invalid_layout
       | Error `Corrupted_legacy_file | Error `Read_out_of_bounds ->
