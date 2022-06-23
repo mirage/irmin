@@ -256,8 +256,9 @@ module type S = sig
       collection of marks [m] to store the cache of keys: the fold will modify
       [m]. This can be used for incremental folds. *)
 
-  type 'a node_fn = path -> step list -> 'a -> 'a Lwt.t
-  (** The type for {!fold}'s [pre] and [post] parameters. *)
+  type ('a, 'b) folder = path -> 'b -> 'a -> 'a Lwt.t
+  (** The type for {!fold}'s folders: [pre], [post], [contents], [node], and
+      [tree], where ['a] is the accumulator and ['b] is the item folded. *)
 
   type depth = [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
   [@@deriving irmin]
@@ -274,22 +275,31 @@ module type S = sig
     ?force:'a force ->
     ?cache:bool ->
     ?uniq:uniq ->
-    ?pre:'a node_fn ->
-    ?post:'a node_fn ->
+    ?pre:('a, step list) folder ->
+    ?post:('a, step list) folder ->
     ?depth:depth ->
-    ?contents:(path -> contents -> 'a -> 'a Lwt.t) ->
-    ?node:(path -> node -> 'a -> 'a Lwt.t) ->
-    ?tree:(path -> t -> 'a -> 'a Lwt.t) ->
+    ?contents:('a, contents) folder ->
+    ?node:('a, node) folder ->
+    ?tree:('a, t) folder ->
     t ->
     'a ->
     'a Lwt.t
-  (** [fold f t acc] folds [f] over [t]'s leafs.
+  (** [fold t acc] folds over [t]'s nodes with node-specific folders:
+      [contents], [node], and [tree], based on a node's {!kind}.
 
-      For every node [n], ui [n] is a leaf node, call [f path n]. Otherwise:
+      The default for all folders is identity.
 
-      - Call [pre path n]. By default [pre] is the identity;
-      - Recursively call [fold] on each children.
-      - Call [post path n]; By default [post] is the identity.
+      For every node [n] of [t], including itself:
+
+      - If [n] is a [`Contents] kind, call [contents path c] where [c] is the
+        {!contents} of [n].
+      - If [n] is a [`Node] kind, (1) call [pre path steps]; (2) call
+        [node path n]; (3) recursively fold on each child; (4) call
+        [post path steps].
+      - If [n] is any kind, call [tree path t'] where [t'] is the tree of [n].
+
+      See {{:https://github.com/mirage/irmin/blob/main/examples/fold.ml}
+      examples/fold.ml} for a demo of the different {!folder}s.
 
       See {!force} for details about the [force] parameters. By default it is
       [`True].
