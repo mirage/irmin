@@ -85,7 +85,7 @@ module Make (Io : Io.S) = struct
     match t.rw_perm with
     | None -> t.persisted_end_offset
     | Some rw_perm ->
-        let ( + ) = Int63.add in
+        let open Int63.Syntax in
         t.persisted_end_offset + (Buffer.length rw_perm.buf |> Int63.of_int)
 
   let refresh_end_offset t new_end_offset =
@@ -100,7 +100,7 @@ module Make (Io : Io.S) = struct
     | None -> Error `Ro_not_allowed
     | Some rw_perm ->
         let open Result_syntax in
-        let ( + ) = Int63.add in
+        let open Int63.Syntax in
         let s = Buffer.contents rw_perm.buf in
         let off = t.persisted_end_offset + t.dead_header_size in
         let+ () = Io.write_string t.io ~off s in
@@ -114,8 +114,7 @@ module Make (Io : Io.S) = struct
   let fsync t = Io.fsync t.io
 
   let read_exn t ~off ~len b =
-    let ( + ) = Int63.add in
-    let ( > ) a b = Int63.compare a b > 0 in
+    let open Int63.Syntax in
     let off' = off + Int63.of_int len in
     if off' > t.persisted_end_offset then
       raise (Errors_base.Pack_error `Read_out_of_bounds);
@@ -123,8 +122,7 @@ module Make (Io : Io.S) = struct
     Io.read_exn t.io ~off ~len b
 
   let read_to_string t ~off ~len =
-    let ( + ) = Int63.add in
-    let ( > ) a b = Int63.compare a b > 0 in
+    let open Int63.Syntax in
     let off' = off + Int63.of_int len in
     if off' > t.persisted_end_offset then Error `Read_out_of_bounds
     else

@@ -31,7 +31,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     let buf = Bytes.create 4 in
     let n = Io_legacy.read block ~off:!file_pos buf in
     assert (n = 4);
-    file_pos := !file_pos ++ Int63.of_int 4;
+    (file_pos := Int63.Syntax.(!file_pos + Int63.of_int 4));
     let pos_ref = ref 0 in
     let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
     assert (!pos_ref = 4);
@@ -70,7 +70,8 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
           let buf = Bytes.create buf_size in
           let n = Io_legacy.read t.block ~off:!file_pos buf in
           assert (n = buf_size);
-          file_pos := !file_pos ++ Int63.of_int buf_size;
+          let open Int63.Syntax in
+          file_pos := !file_pos + Int63.of_int buf_size;
           Bytes.unsafe_to_string buf
         in
         let key =

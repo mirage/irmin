@@ -24,12 +24,19 @@ module Int63 = struct
   include Optint.Int63
 
   let t = Irmin.Type.int63
+
+  module Syntax = struct
+    let ( + ) = add
+    let ( - ) = sub
+    let ( < ) a b = compare a b < 0
+    let ( <= ) a b = compare a b <= 0
+    let ( > ) a b = compare a b > 0
+    let ( >= ) a b = compare a b >= 0
+    let ( = ) = equal
+  end
 end
 
 type int63 = Int63.t [@@deriving irmin]
-
-let ( ++ ) = Int63.add
-let ( -- ) = Int63.sub
 
 module Pack_value = Irmin_pack.Pack_value
 module Version = Irmin_pack.Version

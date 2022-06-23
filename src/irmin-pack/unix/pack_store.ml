@@ -141,11 +141,11 @@ struct
          reads in both the prefix and the suffix and that doesn't crash if the
          read goes out of bounds. *)
       let bytes_after_off =
-        let ( - ) = Int63.sub in
+        let open Int63.Syntax in
         Suffix.end_offset (Fm.suffix fm) - off
       in
       let len =
-        let ( < ) a b = Int63.compare a b < 0 in
+        let open Int63.Syntax in
         if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
         else len
       in
@@ -207,12 +207,8 @@ struct
     | Direct { offset; _ } -> (
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
         let minimal_entry_length = Entry_prefix.min_length in
-        if
-          Int63.compare
-            (Int63.add offset (Int63.of_int minimal_entry_length))
-            io_offset
-          > 0
-        then (
+        let open Int63.Syntax in
+        if offset + Int63.of_int minimal_entry_length > io_offset then (
           (* Can't fit an entry into this suffix of the store, so this key
              isn't (yet) valid. If we're a read-only instance, the key may
              become valid on [reload]; otherwise we know that this key wasn't
@@ -259,7 +255,8 @@ struct
     let () =
       if not (Suffix.readonly (Fm.suffix t.fm)) then
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
-        if Int63.add off (Int63.of_int len) > io_offset then
+        let open Int63.Syntax in
+        if off + Int63.of_int len > io_offset then
           (* This is likely a store corruption. We raise [Invalid_read]
              specifically so that [integrity_check] below can handle it. *)
           invalid_read
@@ -319,7 +316,8 @@ struct
           (Stats.Pack_store.Pack_indexed, entry_span)
     in
     let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
-    if Int63.add offset (Int63.of_int length) > io_offset then (
+    let open Int63.Syntax in
+    if offset + Int63.of_int length > io_offset then (
       (* Can't fit an entry into this suffix of the store, so this key
          isn't (yet) valid. If we're a read-only instance, the key may
          become valid on [reload]; otherwise we know that this key wasn't
@@ -433,7 +431,8 @@ struct
       let append = Suffix.append_exn (Fm.suffix t.fm) in
       Val.encode_bin ~offset_of_key ~dict hash v append;
 
-      let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) -- off) in
+      let open Int63.Syntax in
+      let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) - off) in
       let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
       let () =
         let kind = Val.kind v in
