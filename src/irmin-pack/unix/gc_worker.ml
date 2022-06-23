@@ -61,7 +61,7 @@ module Private = struct
     let _ = assert (chunk_sz mod 2 = 0) in
     (* needs to be a multiple of 2 *)
     let sorted =
-      Int_mmap.open_ ~fn:sorted_fn ~sz:(BA1.dim reachable.Int_mmap.arr)
+      Int_mmap.open_ ~fn:sorted_fn ~sz:(BigArr1.dim reachable.Int_mmap.arr)
     in
     let _ =
       Gc_external_sort.sort ~chunk_sz ~src:reachable.arr ~dst:sorted.arr
@@ -91,7 +91,7 @@ module Private = struct
     let sparse = Gc_sparse_file.create ~path:fn in
     let extents = Int_mmap.open_ ~fn:extents_fn ~sz:(-1) in
     let arr = extents.arr in
-    let arr_sz = BA1.dim arr in
+    let arr_sz = BigArr1.dim arr in
     let _write_extents_to_sparse =
       0
       |> iter_k (fun ~k i ->
@@ -185,7 +185,7 @@ module Private = struct
     mark 4;
     let _offset_of_last_extent =
       let mmap = Int_mmap.open_ ~fn:extents_fn ~sz:(-1) in
-      let sz = BA1.dim mmap.arr in
+      let sz = BigArr1.dim mmap.arr in
       assert (sz mod 2 = 0 && sz >= 2);
       (* FIXME ensure this is the case; perhaps bail if not *)
       let off = mmap.arr.{sz - 2} in

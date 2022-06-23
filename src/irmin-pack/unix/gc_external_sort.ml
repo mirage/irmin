@@ -81,7 +81,7 @@ module Private = struct
   (* [merge_chunks ~src ~chunk_sz ~dst] takes previously sorted chunks of [(k,v)] data in
      [src] and performs an n-way merge into [dst]. *)
   let merge_chunks ~(src : int_bigarray) ~chunk_sz ~(dst : int_bigarray) =
-    let src_sz, dst_sz = (BA1.dim src, BA1.dim dst) in
+    let src_sz, dst_sz = (BigArr1.dim src, BigArr1.dim dst) in
     let _initial_checks =
       assert (step_2 = 2);
       assert (chunk_sz mod step_2 = 0);
@@ -95,7 +95,7 @@ module Private = struct
              match off < src_sz with
              | false -> xs
              | true ->
-                 let arr = BA1.sub src off (min chunk_sz (src_sz - off)) in
+                 let arr = BigArr1.sub src off (min chunk_sz (src_sz - off)) in
                  k (off + chunk_sz, arr :: xs))
     in
     (* for each subarr, we start at position 0, and successively move through the array
@@ -115,7 +115,7 @@ module Private = struct
     let q =
       let q =
         Q.create
-          ~dummy:{ key = 0; off = 0; arr = BA1.sub src 0 0 }
+          ~dummy:{ key = 0; off = 0; arr = BigArr1.sub src 0 0 }
           (List.length xs)
       in
       let _ = xs |> List.iter (fun x -> Q.add q x) in
@@ -135,7 +135,7 @@ module Private = struct
                  let v = arr.{off + 1} in
                  dst.{dst_off} <- key;
                  dst.{dst_off + 1} <- v;
-                 match off + 2 < BA1.dim arr with
+                 match off + 2 < BigArr1.dim arr with
                  | true ->
                      let off = off + 2 in
                      Q.add q { key = arr.{off}; off; arr };
@@ -159,7 +159,7 @@ module Private = struct
       extra data in each entry to be related to the initial entries of course,
       but we don't check that at the moment *)
   let is_sorted ~(arr : int_bigarray) =
-    let sz = BA1.dim arr in
+    let sz = BigArr1.dim arr in
     assert (sz > 0);
     (2, arr.{0})
     |> iter_k (fun ~k (off, prev) ->
@@ -184,7 +184,7 @@ module Private = struct
   let calculate_extents_oc ~(src_is_sorted : unit) ~gap_tolerance
       ~(src : int_bigarray) ~(dst : out_channel) : unit =
     ignore src_is_sorted;
-    let src_sz = BA1.dim src in
+    let src_sz = BigArr1.dim src in
     let _ =
       assert (src_sz >= 2);
       assert (src_sz mod step_2 = 0);
@@ -219,7 +219,7 @@ module Private = struct
                  | true ->
                      (* we can combine *)
                      incr regions_combined;
-                     (* (if false &&  off' < off+len then P.p "Offset %d occured within existing region (%d,%d)\n%!" off' off len); *)
+                     (* (if false &&  off' < off+len then Printf.printf "Offset %d occured within existing region (%d,%d)\n%!" off' off len); *)
                      assert (off <= off');
                      (* offs are sorted *)
                      let len = max len (off' + len' - off) in

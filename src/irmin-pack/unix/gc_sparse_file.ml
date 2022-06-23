@@ -73,7 +73,7 @@ module Private_map = struct
     let ok = sz_bytes mod (3 * 8) = 0 in
     let _check_ints_size =
       if not ok then
-        failwith (P.s "%s: file %s did not contain 3*n ints" __FILE__ fn)
+        failwith (Printf.sprintf "%s: file %s did not contain 3*n ints" __FILE__ fn)
     in
     assert ok;
     let sz = sz_bytes / 8 in
