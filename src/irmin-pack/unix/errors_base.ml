@@ -41,7 +41,8 @@ type base_error =
   | `Commit_key_is_indexed_and_dangling of string
   | `Dangling_key of string
   | `Gc_disallowed
-  | `Node_or_contents_key_is_indexed of string ]
+  | `Node_or_contents_key_is_indexed of string
+  | `Commit_parent_key_is_indexed of string ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     [`Io_misc] which depends on the Io module used, and except [`Ro_not_allowed]

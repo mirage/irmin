@@ -20,6 +20,8 @@ module Payload = Control_file.Latest_payload
 let buffer_size = 8192
 let buffer_size_63 = Int63.of_int 8192
 
+exception Pack_error = Errors_base.Pack_error
+
 module type Args = sig
   module Fm : File_manager.S
   module Dict : Dict.S with module Fm = Fm
@@ -74,34 +76,28 @@ end
 
 module Make (Args : Args) : S with module Args := Args = struct
   open Args
-
-  type abort_error =
-    [ `Node_or_contents_key_is_indexed of string | `Dangling_key of string ]
-
-  exception Abort_gc of abort_error
-
   module Io = Fm.Io
 
   type action = Follow | No_follow
 
   let string_of_key = Irmin.Type.to_string key_t
 
-  (** [iter_from_node_key node_key _ _ ~f] calls [f] with the key of the node
-      and iterates over its children.
+  (** [iter_from_node_key_exn node_key _ _ ~f] calls [f] with the key of the
+      node and iterates over its children.
 
       [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
       if the children of [k] should be traversed or skiped. *)
-  let rec iter_from_node_key node_key node_store ~f k =
+  let rec iter_from_node_key_exn node_key node_store ~f k =
     match Node_store.unsafe_find ~check_integrity:false node_store node_key with
-    | None -> raise (Abort_gc (`Dangling_key (string_of_key node_key)))
+    | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
     | Some node ->
-        iter_from_node_children node_store ~f (Node_value.pred node) k
+        iter_from_node_children_exn node_store ~f (Node_value.pred node) k
 
-  and iter_from_node_children node_store ~f children k =
+  and iter_from_node_children_exn node_store ~f children k =
     match children with
     | [] -> k ()
     | (_step, kinded_key) :: tl -> (
-        let k () = iter_from_node_children node_store ~f tl k in
+        let k () = iter_from_node_children_exn node_store ~f tl k in
         match kinded_key with
         | `Contents key ->
             let (_ : action) = f key in
@@ -109,13 +105,7 @@ module Make (Args : Args) : S with module Args := Args = struct
         | `Inode key | `Node key -> (
             match f key with
             | No_follow -> k ()
-            | Follow -> iter_from_node_key key node_store ~f k))
-
-  let direct_of_key key =
-    match Irmin_pack.Pack_key.inspect key with
-    | Indexed _ ->
-        raise (Abort_gc (`Node_or_contents_key_is_indexed (string_of_key key)))
-    | Direct { offset; length; _ } -> (offset, length)
+            | Follow -> iter_from_node_key_exn key node_store ~f k))
 
   let magic_gced = Pack_value.Kind.to_magic Pack_value.Kind.Gced
 
@@ -127,11 +117,16 @@ module Make (Args : Args) : S with module Args := Args = struct
   (* Transfer the commit with a different magic. Note that this is modifying
      existing written data. *)
   let transfer_parent_commit ~src ~dst key =
-    let off, len = direct_of_key key in
-    let buffer = Bytes.create len in
-    Fm.Suffix.read_exn src ~off ~len buffer;
-    Bytes.set buffer Hash.hash_size magic_parent;
-    Io.write_exn dst ~off ~len (Bytes.unsafe_to_string buffer)
+    let open Result_syntax in
+    let* off, len =
+      match Irmin_pack.Pack_key.inspect key with
+      | Indexed _ -> Error (`Commit_parent_key_is_indexed (string_of_key key))
+      | Direct { offset; length; _ } -> Ok (offset, length)
+    in
+    let* s = Fm.Suffix.read_to_string src ~off ~len in
+    let s = Bytes.of_string s in
+    Bytes.set s Hash.hash_size magic_parent;
+    Io.write_string dst ~off (Bytes.unsafe_to_string s)
 
   let fill ~io ~count =
     let open Result_syntax in
@@ -243,49 +238,59 @@ module Make (Args : Args) : S with module Args := Args = struct
     [%log.debug "GC: filling the left side"];
     let* () = fill ~io:dst_io ~count:commit_offset in
 
-    (* Step 7. *)
-    [%log.debug "GC: transfering to the left side"];
-    let f key =
-      let offset, length = direct_of_key key in
+    (* Step 7. Transfer the parents of [commit_key].
+
+       The parent(s) of [commit_key] must be included in the iteration because,
+       when decoding the [Commit_value.t] at [commit_key], the parents will have
+       to be read in order to produce a key for them.
+
+       There is no need to transfer [commit_key] itself because it is in
+       right. *)
+    [%log.debug "GC: transfering commit parent(s) to the left side"];
+    let* commit =
+      match
+        Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
+      with
+      | None -> Error (`Dangling_key (string_of_key commit_key))
+      | Some commit -> Ok commit
+    in
+    let* () =
+      List.fold_left
+        (fun result parent_commit_key ->
+          let* () = result in
+          transfer_parent_commit ~src:src_ao ~dst:dst_io parent_commit_key)
+        (Ok ())
+        (Commit_value.parents commit)
+    in
+
+    (* Step 8. Transfer the nodes and blobs. *)
+    [%log.debug "GC: transfering nodes and contents to the left side"];
+    let transfer_object_exn key =
+      let offset, length =
+        match Irmin_pack.Pack_key.inspect key with
+        | Indexed _ ->
+            raise
+              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
+        | Direct { offset; length; _ } -> (offset, length)
+      in
       if already_copied_exn offset then No_follow
       else (
         transfer_exn offset (Int63.of_int length);
         Follow)
     in
-
-    (* 7.1. Transfer the [commit_key]. *)
-    let (_ : action) = f commit_key in
+    let node_key = Commit_value.node commit in
+    let* (_ : action) = Errs.catch (fun () -> transfer_object_exn node_key) in
     let* () =
-      match
-        Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
-      with
-      | None -> raise (Abort_gc (`Dangling_key (string_of_key commit_key)))
-      | Some commit -> (
-          (* 7.2. Transfer the parents of [commit_key]. *)
-          (* The parent(s) of [commit_key] must be included in the iteration because,
-             when decoding the [Commit_value.t] at [commit_key], the parents will have
-             to be read in order to produce a key for them. *)
-          let transfer_parent =
-            transfer_parent_commit ~src:src_ao ~dst:dst_io
-          in
-          List.iter
-            (fun parent_commit_key -> transfer_parent parent_commit_key)
-            (Commit_value.parents commit);
-          let node_key = Commit_value.node commit in
-          let (_ : action) = f node_key in
-          (* Step 7.3. Continue by iterating on the root node. *)
-          [%log.debug "GC: transfering tree to the left side "];
-          try
-            Errs.catch (fun () ->
-                iter_from_node_key node_key node_store ~f (fun () -> ()))
-          with Abort_gc (#abort_error as err) -> Error err)
+      Errs.catch (fun () ->
+          iter_from_node_key_exn node_key node_store ~f:transfer_object_exn
+            (fun () -> ()))
     in
 
-    (* Step 8. Close everything *)
+    (* Step 9. *)
     [%log.debug "GC: closing files"];
     let* () = Io.close dst_io in
     let* () = Fm.close fm in
 
-    (* Step 9. Inform the caller of the new generation *)
+    (* Step 10. Inform the caller of the new generation *)
     Ok generation
 end
