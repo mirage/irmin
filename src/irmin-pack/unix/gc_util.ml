@@ -115,23 +115,6 @@ end
 
 module Int_map = Map.Make (Int)
 
-module Add_load_save_funs (S : sig
-  type t [@@deriving sexp]
-end) =
-struct
-  open S
-
-  let save t fn = Sexplib.Sexp.save_hum fn (t |> sexp_of_t)
-  let load fn = Sexplib.Sexp.load_sexp fn |> t_of_sexp
-  let to_string t = Sexplib.Sexp.to_string_hum (t |> sexp_of_t)
-
-  (* this loads from the file name s! *)
-  let _of_string s = Sexplib.Sexp.load_sexp s |> t_of_sexp
-  let of_string s = Sexplib.Sexp.of_string s |> t_of_sexp
-  let to_bytes t = t |> to_string |> Bytes.unsafe_of_string
-  let of_bytes bs = bs |> Bytes.unsafe_to_string |> of_string
-end
-
 (** Common strings for filenames *)
 let control_s = "control"
 (** The control file is always called "control" *)
