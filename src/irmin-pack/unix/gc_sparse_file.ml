@@ -76,29 +76,25 @@ module Private_map : sig
   val load : string -> map
   val save : map -> string -> unit
 
-  val save' :
-    map ->
-    string ->
-    ( unit,
-      [ `Double_close
-      | `File_exists of string
-      | `Io_misc of Io.misc_error
-      | `Pending_flush
-      | `Ro_not_allowed
-      | `Write_on_closed ] )
-    result
+  (* real errors that can arise from save *)
+  type save_error = [ `Io_misc of Io.misc_error ]
 
-  val load' :
-    string ->
-    ( map,
-      [> `Double_close
-      | `Invalid_argument
-      | `Io_misc of Io.misc_error
-      | `No_such_file_or_directory
-      | `Not_a_file
-      | `Read_on_closed
-      | `Read_out_of_bounds ] )
-    result
+  val save' : map -> string -> (unit, save_error) result
+
+  (* FIXME or prefer this?
+  val save' : map -> string -> (unit, [> save_error ]) result
+  *)
+
+  type load_error =
+    [ `Double_close
+    | `Invalid_argument
+    | `Io_misc of Io.misc_error
+    | `No_such_file_or_directory
+    | `Not_a_file
+    | `Read_on_closed
+    | `Read_out_of_bounds ]
+
+  val load' : string -> (map, load_error) result
 end = struct
   type map = (int * int) Int_map.t
 
@@ -147,10 +143,21 @@ end = struct
     Unix.rename tmp fn;
     ()
 
+  type save_error' =
+    [ `Double_close
+    | `File_exists of string
+    | `Io_misc of Io.misc_error
+    | `Pending_flush
+    | `Ro_not_allowed
+    | `Write_on_closed ]
+
+  (* real errors that can arise from save *)
+  type save_error = [ `Io_misc of Io.misc_error ]
+
   let megabyte = 1024 * 1024
 
   (* following version uses the new IO *)
-  let save' t fn =
+  let save' t fn : (unit, save_error') result =
     (* we used to write to a temp file and rename, but the new IO doesn't provide the
        temp_file function; so we just write the file directly *)
     let open Result_syntax in
@@ -174,9 +181,30 @@ end = struct
     let* () = Aof.close f in
     Ok ()
 
+  (* be more precise about errors... *)
+  let save' t fn : (_, save_error) result =
+    save' t fn |> function
+    | Ok () -> Ok ()
+    | Error x -> (
+        match x with
+        | `Double_close | `File_exists _ | `Pending_flush | `Ro_not_allowed
+        | `Write_on_closed ->
+            (* looking at the code, these errors can't actually happen *)
+            assert false
+        | `Io_misc x -> Error (`Io_misc x))
+
   let _ = save'
 
-  let load' fn =
+  type load_error =
+    [ `Double_close
+    | `Invalid_argument
+    | `Io_misc of Io.misc_error
+    | `No_such_file_or_directory
+    | `Not_a_file
+    | `Read_on_closed
+    | `Read_out_of_bounds ]
+
+  let load' fn : (_, load_error) result =
     let open Result_syntax in
     let* io = Io.open_ ~path:fn ~readonly:true in
     let* sz_bytes = Io.read_size io in
