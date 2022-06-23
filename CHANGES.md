@@ -2,6 +2,9 @@
 
 ### Added
 
+- **irmin**
+  - Add `Tree.seq` to `Tree`'s public API (#1923, @metanivek)
+
 ### Changed
 
 - **irmin**

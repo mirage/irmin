@@ -181,6 +181,15 @@ module type S = sig
       [cache] defaults to [true], see {!Contents.caching} for an explanation of
       the parameter. *)
 
+  val seq :
+    t ->
+    ?offset:int ->
+    ?length:int ->
+    ?cache:bool ->
+    path ->
+    (step * t) Seq.t Lwt.t
+  (** [seq t key] follows the same behavior as {!list} but returns a sequence. *)
+
   val get : t -> path -> contents Lwt.t
   (** Same as {!get_all} but ignore the metadata. *)
 
