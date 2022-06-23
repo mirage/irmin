@@ -14,7 +14,14 @@
     The prototype, which includes extensive documentation, can be found at
     {:https://github.com/tomjridge/sparse-file/}. *)
 
+open Import
 open Gc_util
+
+include struct
+  module Io = Io.Unix
+  module Append_only_file = Append_only_file.Make (Io)
+  module Aof = Append_only_file
+end
 
 (** Signature for sparse files; file-like with [append_region] and [pread] *)
 module type S = sig
@@ -63,17 +70,47 @@ module type S = sig
 end
 
 (** Private implementation of the "map" file *)
-module Private_map = struct
+module Private_map : sig
   type map = (int * int) Int_map.t
 
-  include Int_map
+  val load : string -> map
+  val save : map -> string -> unit
+
+  val save' :
+    map ->
+    string ->
+    ( unit,
+      [ `Double_close
+      | `File_exists of string
+      | `Io_misc of Io.misc_error
+      | `Pending_flush
+      | `Ro_not_allowed
+      | `Write_on_closed ] )
+    result
+
+  val load' :
+    string ->
+    ( map,
+      [> `Double_close
+      | `Invalid_argument
+      | `Io_misc of Io.misc_error
+      | `No_such_file_or_directory
+      | `Not_a_file
+      | `Read_on_closed
+      | `Read_out_of_bounds ] )
+    result
+end = struct
+  type map = (int * int) Int_map.t
+
+  open Int_map
 
   let load fn =
     let sz_bytes = File.size fn in
     let ok = sz_bytes mod (3 * 8) = 0 in
     let _check_ints_size =
       if not ok then
-        failwith (Printf.sprintf "%s: file %s did not contain 3*n ints" __FILE__ fn)
+        failwith
+          (Printf.sprintf "%s: file %s did not contain 3*n ints" __FILE__ fn)
     in
     assert ok;
     let sz = sz_bytes / 8 in
@@ -109,6 +146,83 @@ module Private_map = struct
     Int_mmap.close mmap;
     Unix.rename tmp fn;
     ()
+
+  let megabyte = 1024 * 1024
+
+  (* following version uses the new IO *)
+  let save' t fn =
+    (* we used to write to a temp file and rename, but the new IO doesn't provide the
+       temp_file function; so we just write the file directly *)
+    let open Result_syntax in
+    let* f =
+      Aof.create_rw ~path:fn ~overwrite:true ~auto_flush_threshold:(4 * megabyte)
+        ~auto_flush_callback:(fun () -> ())
+    in
+    let buf = Bytes.create 24 in
+    t
+    |> iter (fun voff (roff, len) ->
+           (* since we don't use mmaps for the sparse file map, we can chose to use big
+              endian, little endian or native endian; if we pick either big endian or little
+              endian, the stores can be used across architectures; so we choose little endian
+              (since that is default on x86) *)
+           Bytes.set_int64_le buf 0 (Int64.of_int voff);
+           Bytes.set_int64_le buf 8 (Int64.of_int roff);
+           Bytes.set_int64_le buf 16 (Int64.of_int len);
+           Aof.append_exn f (Bytes.to_string buf);
+           ());
+    let* () = Aof.flush f in
+    let* () = Aof.close f in
+    Ok ()
+
+  let _ = save'
+
+  let load' fn =
+    let open Result_syntax in
+    let* io = Io.open_ ~path:fn ~readonly:true in
+    let* sz_bytes = Io.read_size io in
+    let sz_bytes = Int63.to_int sz_bytes in
+    let ok = sz_bytes mod (3 * 8) = 0 in
+    let _check_ints_size =
+      if not ok then
+        failwith
+          (Printf.sprintf "%s: file %s did not contain 3*n ints" __FILE__ fn)
+    in
+    assert ok;
+    (* NOTE we expect the sparse map file to be under 50MB; if it is over 100MB then we
+       issue a warning *)
+    let _warn_if_size_large =
+      if sz_bytes > 100 * megabyte then
+        [%log.warn
+          "The size of the sparse map file is very large (%d bytes)" sz_bytes]
+    in
+    let sz = sz_bytes / 8 in
+    (* NOTE sz is number of ints *)
+    (* Since we are going to turn the entries into a map, we are not too worried about
+       holding all the bytes in the file in memory *)
+    let* contents = Io.read_to_string io ~off:Int63.zero ~len:sz in
+    (* now we can iterate through the contents, filling the map *)
+    let m =
+      (0, empty)
+      |> iter_k (fun ~k (i, m) ->
+             match i + 2 < sz with
+             | false -> m
+             | true ->
+                 let x, y, z =
+                   ( String.get_int64_le contents (i * 8),
+                     String.get_int64_le contents ((i * 8) + 8),
+                     String.get_int64_le contents ((i * 8) + 16) )
+                 in
+                 let voff, off, len =
+                   (Int64.to_int x, Int64.to_int y, Int64.to_int z)
+                 in
+                 let m = add voff (off, len) m in
+                 k (i + 3, m))
+    in
+    (* remember to close the io *)
+    let* () = Io.close io in
+    Ok m
+
+  let _ = load'
 end
 
 (** Private implementation of sparse files *)
@@ -140,7 +254,7 @@ module Private = struct
     let fd =
       Unix.(openfile Fn.(path / data_fn) [ O_RDWR; O_CREAT; O_TRUNC ] 0o660)
     in
-    let t = { dir = path; fd; map = Map_.empty; readonly = false } in
+    let t = { dir = path; fd; map = Int_map.empty; readonly = false } in
     (* we also create an initially empty map file; we can't open in future if the map file
        doesn't exist *)
     let _ = save_map t in
@@ -163,7 +277,7 @@ module Private = struct
     Unix.close t.fd
 
   let map_add t ~virt_off ~real_off ~len =
-    t.map <- Map_.add virt_off (real_off, len) t.map
+    t.map <- Int_map.add virt_off (real_off, len) t.map
 
   let append_region t ~(src : Pread.t) ~src_off ~len ~virt_off =
     assert (len > 0);
@@ -226,7 +340,7 @@ module Private = struct
     | Extends_beyond of { real_off : int; real_len : int }
 
   let translate_vreg map ~virt_off ~len =
-    Map_.find_last_opt (fun voff' -> voff' <= virt_off) map |> function
+    Int_map.find_last_opt (fun voff' -> voff' <= virt_off) map |> function
     | None ->
         Log.err (fun m ->
             m "%s: No virtual offset found <= %d" __FILE__ virt_off);
