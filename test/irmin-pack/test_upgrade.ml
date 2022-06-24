@@ -18,422 +18,663 @@ open! Import
 open Common
 
 let ( / ) = Filename.concat
-let test_dir = "_build" / "test-upgrade"
-let root_v2_minimal = "test" / "irmin-pack" / "data" / "version_2_minimal"
-let root_v2_always = "test" / "irmin-pack" / "data" / "version_2_always"
-let store_v2 = "_build" / "test-upgrade-v2"
-let root_v3_minimal = "test" / "irmin-pack" / "data" / "version_3_minimal"
-let root_v3_always = "test" / "irmin-pack" / "data" / "version_3_always"
-let store_v3 = "_build" / "test-upgrade-v3"
+let archive_v2_minimal = "test" / "irmin-pack" / "data" / "version_2_minimal"
+let archive_v2_always = "test" / "irmin-pack" / "data" / "version_2_always"
+let archive_v3_minimal = "test" / "irmin-pack" / "data" / "version_3_minimal"
+let archive_v3_always = "test" / "irmin-pack" / "data" / "version_3_always"
+let root_local_build = "_build" / "test-upgrade"
 
-let hash_of_string hash =
-  match Irmin.Type.(of_string Schema.Hash.t) hash with
-  | Error (`Msg s) -> Alcotest.failf "failed hash_of_string %s" s
-  | Ok h -> h
+type pack_entry = {
+  h : Schema.Hash.t;
+  o : Int63.t;
+  l : int;
+  k : [ `b | `n | `c ];
+}
+(** [pack_entry]: hash / offset / length / kind *)
 
-module Test (I : sig
-  val indexing_strategy : string
-end) =
-struct
-  module Model = struct
-    type offset = Int63.t
-    type len = int
+let e h o l k =
+  let h =
+    match Irmin.Type.(of_string Schema.Hash.t) h with
+    | Error (`Msg s) -> Alcotest.failf "failed hash_of_string %s" s
+    | Ok h -> h
+  in
+  let o = Int63.of_int o in
+  { h; o; l; k }
 
-    type t = {
-      dict : (string, int) Hashtbl.t;
-      suffix : (offset, Schema.Hash.t * len) Hashtbl.t;
-      index :
-        (Schema.Hash.t, offset * len * Irmin_pack.Pack_value.Kind.t) Hashtbl.t;
-    }
+(* Objects inserted during preload
 
-    let v () =
-      let dict = Hashtbl.create 5 in
-      let suffix = Hashtbl.create 5 in
-      let index = Hashtbl.create 5 in
-      { dict; suffix; index }
+   borphan | b01 <- n01 <- n0 <- c0 *)
+let borphan = e "c9bfadf2d211aa6da8e2d00732628a0880b7ee98" 0 29 `b
+let b01 = e "5368d2c2f4fc5521fe8e8acd17cdd7349aa8f753" 29 25 `n
+let n01 = e "9b120e5019dcc6cd90b4d9c9826c9ebbebdc0023" 54 34 `n
+let n0 = e "fe0084f902d55464e9e6dbd82fb60fcf058bb6b1" 88 34 `n
+let c0 = e "22e159de13b427226e5901defd17f0c14e744205" 122 42 `c
 
-    let add_entry_suffix t off (hash, len) =
-      let hash = hash_of_string hash in
-      Hashtbl.replace t.suffix (Int63.of_int off) (hash, len)
+(* Objects inserted during write1
 
-    let preload_suffix t =
-      add_entry_suffix t 0 ("11f6ad8ec52a2984abaafd7c3b516503785c2072", 23);
-      add_entry_suffix t 23 ("d8fe4f428588313ef0a1629bb61b4ab4c27bd518", 34);
-      add_entry_suffix t 57 ("a89e8c7a52eaf185b88acc0435b75d69f510c9c8", 34);
-      add_entry_suffix t 91 ("94919d4ecc64db71f19ea134e0eedf675512453c", 42)
+   to n01 <-    to c0 <-
+            \           \
+        b1 <- n1 <------- c1 | borphan' *)
+let b1 = e "7e83ca2a65d6f90a809c8570c6c905a941b87732" 164 24 `b
+let n1 = e "2cc1191a4cfbf869c62da4649961455df6e6b424" 188 44 `n
+let c1 = e "09468f13334d3120d8798e27a28d23baba628710" 232 51 `c
+let borphan' = e "945bcf284cb6f4735eb8eb74553637b43fde996b" 283 30 `b
 
-    let add_entry_index t hash (off, len, kind) =
-      let hash = hash_of_string hash in
-      let kind = Irmin_pack.Pack_value.Kind.of_magic_exn kind in
-      Hashtbl.replace t.index hash (Int63.of_int off, len, kind)
+(* Objects inserted during write2
 
-    let preload_index t =
-      if I.indexing_strategy = "always" then (
-        add_entry_index t "11f6ad8ec52a2984abaafd7c3b516503785c2072" (0, 23, 'B');
-        add_entry_index t "d8fe4f428588313ef0a1629bb61b4ab4c27bd518"
-          (23, 34, 'R');
-        add_entry_index t "a89e8c7a52eaf185b88acc0435b75d69f510c9c8"
-          (57, 34, 'R'))
-      else ();
-      add_entry_index t "94919d4ecc64db71f19ea134e0eedf675512453c" (91, 42, 'D')
+     to c1 <-
+             \
+   b2 <- n2 <- c2 *)
+let b2 = e "32f28ea03b1b20126629d2ca63fc6665b0bbb604" 313 24 `b
+let n2 = e "bbca871beaebb1b556e498a8e1ccae7817f5f4ff" 337 34 `n
+let c2 = e "6d6c9fcf882f1473f5e2bd0cd4b475611c3a5b60" 371 51 `c
 
-    let preload_dict t =
-      Hashtbl.replace t.dict "abab" 0;
-      Hashtbl.replace t.dict "abba" 1
+let pack_entries =
+  [ n0; b1; borphan; c2; c1; b01; borphan'; n1; n2; n01; c0; b2 ]
 
-    let preload t =
-      preload_suffix t;
-      preload_index t;
-      preload_dict t
+let dict_entries =
+  [ ("step-n01", 1); ("step-b01", 0); ("step-b1", 2); ("step-b2", 3) ]
 
-    let add_suffix t =
-      add_entry_suffix t 133 ("95cb0bfd2977c761298d9624e4b4d4c72a39974a", 23);
-      add_entry_suffix t 156 ("d9962241e991b771359d8278e79004a334088fde", 44);
-      add_entry_suffix t 200 ("8aa02b8a95077bffe8672222ef69c8967e23ed49", 42)
+let dict_entries = List.to_seq dict_entries |> Hashtbl.of_seq
 
-    let add_index t =
-      if I.indexing_strategy = "always" then (
-        add_entry_index t "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
-          (133, 23, 'B');
-        add_entry_index t "d9962241e991b771359d8278e79004a334088fde"
-          (156, 44, 'R'))
-      else ();
-      add_entry_index t "8aa02b8a95077bffe8672222ef69c8967e23ed49" (200, 42, 'D')
+let index_entries =
+  List.map (fun e -> (e.h, e.o)) pack_entries |> List.to_seq |> Hashtbl.of_seq
 
-    let add_dict t = Hashtbl.add t.dict "baba" 2
+let key_of_entry x =
+  Irmin_pack.Pack_key.v_direct ~hash:x.h ~offset:x.o ~length:x.l
 
-    let add t =
-      add_suffix t;
-      add_index t;
-      add_dict t
-  end
+type start_mode = From_v2 | From_v3 | From_scratch [@@deriving irmin]
 
-  module Store = struct
-    module S = struct
-      module Maker = Irmin_pack_unix.Maker (Conf)
-      include Maker.Make (Schema)
-    end
+type setup = {
+  indexing_strategy : [ `always | `minimal ];
+  start_mode : start_mode;
+  lru_size : int;
+}
+[@@deriving irmin ~pp]
 
-    type repo = S.repo
+type phase =
+  | S1_before_start
+  | S2_before_write
+  | S3_before_gc
+  | S4_before_write
+  | S5_before_close
+[@@deriving irmin ~pp]
 
-    let config ?(readonly = false) ?(fresh = true) root =
-      let module Index = Irmin_pack.Indexing_strategy in
-      let indexing_strategy =
-        if I.indexing_strategy = "always" then Index.always else Index.minimal
-      in
-      Irmin_pack.config ~readonly ~indexing_strategy ~lru_size:0 ~fresh root
-
-    let v ~readonly ~fresh root = S.Repo.v (config ~readonly ~fresh root)
-    let close = S.Repo.close
-    let reload = S.reload
-
-    let preload_commit repo =
-      let tree = S.Tree.empty () in
-      let* tree = S.Tree.add tree [ "abba"; "abab" ] "x" in
-      let* commit = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
-      let commit_key = S.Commit.key commit in
-      Lwt.return commit_key
-
-    let commit repo =
-      let* o =
-        "94919d4ecc64db71f19ea134e0eedf675512453c"
-        |> hash_of_string
-        |> S.Commit.of_hash repo
-      in
-      match o with
-      | None -> assert false
-      | Some commit ->
-          let tree = S.Commit.tree commit in
-          let* tree = S.Tree.add tree [ "baba" ] "y" in
-          S.Commit.v repo ~info:S.Info.empty ~parents:[] tree
-
-    let pp_hash = Irmin.Type.pp Schema.Hash.t
-
-    let decode_entry_prefix ~off fm =
-      let module CA = S.X.Contents.CA in
-      let entry = CA.read_and_decode_entry_prefix ~off fm in
-      let len = CA.Entry_prefix.total_entry_length entry |> Option.get in
-      (entry.hash, len)
-
-    let dict_find (repo : S.repo) step =
-      let dict = repo.dict in
-      S.Dict.index dict step |> Option.get
-
-    let index_find (repo : S.repo) hash =
-      let index = S.File_manager.index repo.fm in
-      S.Index.find index hash |> Option.get
-
-    let suffix_find (repo : S.repo) off = decode_entry_prefix ~off repo.fm
-
-    let index_iter (repo : S.repo) f =
-      let index = S.File_manager.index repo.fm in
-      S.Index.iter f index
-  end
-
-  exception Skip_the_rest_of_that_test
-
-  let fail_and_skip root error =
-    let* () =
-      Alcotest.check_raises_lwt "open empty/V2 store in RO"
-        (Irmin_pack_unix.Errors.Pack_error error) (fun () ->
-          let* repo = Store.v ~readonly:true ~fresh:false root in
-          Store.close repo)
-    in
-    raise Skip_the_rest_of_that_test
-
-  (* Only checking injection and not bijection. *)
-  let test_dict repo model =
-    Hashtbl.iter
-      (fun step expected ->
-        let got = Store.dict_find repo step in
-        let msg = "---- dict " ^ step in
-        Alcotest.(check int) msg expected got)
-      model.Model.dict
-
-  let test_index repo model =
-    Hashtbl.iter
-      (fun hash expected ->
-        let got = Store.index_find repo hash in
-        let msg = Fmt.str "---- M index %a" Store.pp_hash hash in
-        Alcotest.(check (triple int63 int kind)) msg expected got)
-      model.Model.index;
-    Store.index_iter repo (fun hash expected ->
-        let got = Hashtbl.find model.Model.index hash in
-        let msg = Fmt.str "---- S index %a" Store.pp_hash hash in
-        Alcotest.(check (triple int63 int kind)) msg expected got)
-
-  (* Only checking injection and not bijection. *)
-  let test_suffix repo model =
-    Hashtbl.iter
-      (fun off expected ->
-        let got = Store.suffix_find repo off in
-        let msg = Fmt.str "---- suffix %a" Int63.pp off in
-        Alcotest.(check (pair hash int)) msg expected got)
-      model.Model.suffix
-
-  type mode = From_v2 | From_v3 | From_scratch [@@deriving irmin ~pp]
-
-  type phase = Before_rw_open | Between_rw_open_and_write | After_rw_write
-  [@@deriving irmin ~pp]
-
+(** A model is updated in conjunction with a store. Both should always reference
+    the same entries *)
+module Model = struct
   type t = {
-    start_mode : mode;
-    mutable ro : (Model.t * Store.repo) option;
-    mutable rw : (Model.t * Store.repo) option;
+    setup : setup;
+    dict : (string, unit) Hashtbl.t;
+    suffix : (Int63.t, unit) Hashtbl.t;
+    index : (Schema.Hash.t, unit) Hashtbl.t;
   }
 
-  let create_test_env start_mode =
-    rm_dir test_dir;
-    rm_dir store_v3;
-    match start_mode with
-    | From_scratch -> Lwt.return { start_mode; rw = None; ro = None }
-    | From_v2 ->
-        let root_v2 =
-          if I.indexing_strategy = "always" then root_v2_always
-          else root_v2_minimal
-        in
-        setup_test_env ~root_archive:root_v2 ~root_local_build:store_v2;
-        Lwt.return { start_mode; rw = None; ro = None }
-    | From_v3 ->
-        let root_v3 =
-          if I.indexing_strategy = "always" then root_v3_always
-          else root_v3_minimal
-        in
-        setup_test_env ~root_archive:root_v3 ~root_local_build:store_v3;
-        Lwt.return { start_mode; rw = None; ro = None }
+  let v setup =
+    let dict = Hashtbl.create 5 in
+    let suffix = Hashtbl.create 5 in
+    let index = Hashtbl.create 5 in
+    { setup; dict; suffix; index }
 
-  let start_rw t =
-    [%logs.debug "*** start_rw start_mode = %a" pp_mode t.start_mode];
-    let+ rw =
-      match t.rw with
-      | Some _ -> assert false
-      | None ->
-          let model =
-            match t.start_mode with
-            | From_v2 | From_v3 ->
-                (* Model with pre-loaded data. *)
-                let m = Model.v () in
-                Model.preload m;
-                m
-            | From_scratch -> Model.v ()
-          in
-          let+ repo =
-            match t.start_mode with
-            | From_v2 -> Store.v ~readonly:false ~fresh:false store_v2
-            | From_v3 -> Store.v ~readonly:false ~fresh:false store_v3
-            | From_scratch -> Store.v ~readonly:false ~fresh:true test_dir
-          in
-          (model, repo)
-    in
-    t.rw <- Some rw
+  let preload_dict t =
+    Hashtbl.replace t.dict "step-b01" ();
+    Hashtbl.replace t.dict "step-n01" ()
 
-  let write_rw t =
-    [%logs.debug "*** write_rw start_mode = %a" pp_mode t.start_mode];
-    match t.rw with
-    | None -> assert false
-    | Some (model, repo) ->
-        (* Put exactly the same thing in the repo and in the model. *)
-        Model.preload model;
-        Model.add model;
-        let* () =
-          (* If the preload commit is not yet in the store, add it. Note that
-             adding the same commit twice is not idempotent in indexing strategy
-             minimal, therefore we need to make this distinction. *)
-          if t.start_mode = From_scratch then
-            let* _ = Store.preload_commit repo in
-            Lwt.return_unit
-          else Lwt.return_unit
-        in
-        let* _ = Store.commit repo in
-        Lwt.return_unit
+  let preload_suffix t =
+    Hashtbl.replace t.suffix borphan.o ();
+    Hashtbl.replace t.suffix b01.o ();
+    Hashtbl.replace t.suffix n01.o ();
+    Hashtbl.replace t.suffix n0.o ();
+    Hashtbl.replace t.suffix c0.o ()
 
-  let open_ro t current_phase =
-    [%logs.debug
-      "*** open_ro current_phase = %a, start_mode = %a" pp_phase current_phase
-        pp_mode t.start_mode];
-    let+ ro =
-      match t.ro with
-      | Some _ -> assert false
-      | None ->
-          let model =
-            match (current_phase, t.start_mode) with
-            | Before_rw_open, From_scratch
-            | Between_rw_open_and_write, From_scratch ->
-                Model.v ()
-            | Before_rw_open, _ | Between_rw_open_and_write, _ ->
-                let m = Model.v () in
-                Model.preload m;
-                m
-            | After_rw_write, _ ->
-                let m = Model.v () in
-                Model.preload m;
-                Model.add m;
-                m
-          in
-          let+ repo =
-            match (current_phase, t.start_mode) with
-            | Before_rw_open, From_scratch ->
-                fail_and_skip test_dir `No_such_file_or_directory
-            | Before_rw_open, From_v2 ->
-                fail_and_skip store_v2 `Migration_needed
-            | _, From_v2 -> Store.v ~readonly:true ~fresh:false store_v2
-            | _, From_v3 -> Store.v ~readonly:true ~fresh:false store_v3
-            | _, From_scratch -> Store.v ~readonly:true ~fresh:false test_dir
-          in
-          (model, repo)
-    in
-    t.ro <- Some ro
+  let preload_index t =
+    if t.setup.indexing_strategy = `always then (
+      Hashtbl.replace t.index borphan.h ();
+      Hashtbl.replace t.index b01.h ();
+      Hashtbl.replace t.index n01.h ();
+      Hashtbl.replace t.index n0.h ());
+    Hashtbl.replace t.index c0.h ()
 
-  let sync_ro t current_phase =
-    [%logs.debug
-      "*** sync_ro current_phase = %a, start_mode = %a" pp_phase current_phase
-        pp_mode t.start_mode];
-    match t.ro with
-    | None -> assert false
-    | Some (model, repo) ->
-        let () =
-          match current_phase with
-          | Before_rw_open | Between_rw_open_and_write -> ()
-          | After_rw_write ->
-              Model.preload model;
-              Model.add model
-        in
-        Store.reload repo
+  let preload t =
+    preload_suffix t;
+    preload_index t;
+    preload_dict t
 
-  let check t =
-    let test_all (model, repo) =
-      test_dict repo model;
-      test_index repo model;
-      test_suffix repo model
-    in
-    Option.iter test_all t.ro;
-    Option.iter test_all t.rw
+  let write1_dict t = Hashtbl.replace t.dict "step-b1" ()
 
-  let close_everything t =
-    match (t.rw, t.ro) with
-    | Some (_, repo), Some (_, repo') ->
-        let* () = Store.close repo in
-        Store.close repo'
-    | _ -> assert false
+  let write1_suffix t =
+    Hashtbl.replace t.suffix b1.o ();
+    Hashtbl.replace t.suffix n1.o ();
+    Hashtbl.replace t.suffix c1.o ();
+    Hashtbl.replace t.suffix borphan'.o ()
 
-  let test_one start_mode ~ro_open_at ~ro_sync_at =
-    let* t = create_test_env start_mode in
+  let write1_index t =
+    if t.setup.indexing_strategy = `always then (
+      Hashtbl.replace t.index b1.h ();
+      Hashtbl.replace t.index n1.h ();
+      Hashtbl.replace t.index borphan'.h ());
+    Hashtbl.replace t.index c1.h ()
 
-    let* () =
-      if ro_open_at = Before_rw_open then open_ro t Before_rw_open
-      else Lwt.return_unit
-    in
-    check t;
-    if ro_sync_at = Before_rw_open then sync_ro t Before_rw_open;
-    check t;
+  let write1 t =
+    write1_suffix t;
+    write1_index t;
+    write1_dict t
 
-    let* () = start_rw t in
-    check t;
-    let* () =
-      if ro_open_at = Between_rw_open_and_write then
-        open_ro t Between_rw_open_and_write
-      else Lwt.return_unit
-    in
-    check t;
-    if ro_sync_at = Between_rw_open_and_write then
-      sync_ro t Between_rw_open_and_write;
-    check t;
+  let gc t =
+    Hashtbl.remove t.suffix borphan.o;
+    Hashtbl.remove t.suffix n0.o;
+    Hashtbl.remove t.suffix c0.o
 
-    let* () = write_rw t in
-    let* () =
-      if ro_open_at = After_rw_write then open_ro t After_rw_write
-      else Lwt.return_unit
-    in
-    check t;
-    if ro_sync_at = After_rw_write then sync_ro t After_rw_write;
-    check t;
+  let write2_dict t = Hashtbl.replace t.dict "step-b2" ()
 
-    close_everything t
+  let write2_suffix t =
+    Hashtbl.replace t.suffix b2.o ();
+    Hashtbl.replace t.suffix n2.o ();
+    Hashtbl.replace t.suffix c2.o ()
 
-  let test_one_guarded start_mode ~ro_open_at ~ro_sync_at =
-    Lwt.catch
-      (fun () -> test_one start_mode ~ro_open_at ~ro_sync_at)
-      (function
-        | Skip_the_rest_of_that_test ->
-            [%logs.debug "*** skip rest of the test"];
-            Lwt.return_unit
-        | exn -> Lwt.fail exn)
+  let write2_index t =
+    if t.setup.indexing_strategy = `always then (
+      Hashtbl.replace t.index b2.h ();
+      Hashtbl.replace t.index n2.h ());
+    Hashtbl.replace t.index c2.h ()
 
-  (* All possible interleaving of the ro calls (open and sync) with the rw calls
-     (open and write). Test them on three types of store.
-     Test with two different indexing strategies. *)
-  let test () =
-    [ From_v2; From_v3; From_scratch ]
-    |> Lwt_list.iter_s (fun start_mode ->
-           let t = test_one_guarded start_mode in
-           let* () = t ~ro_open_at:Before_rw_open ~ro_sync_at:Before_rw_open in
-           let* () =
-             t ~ro_open_at:Before_rw_open ~ro_sync_at:Between_rw_open_and_write
-           in
-           let* () = t ~ro_open_at:Before_rw_open ~ro_sync_at:After_rw_write in
-           let* () =
-             t ~ro_open_at:Between_rw_open_and_write
-               ~ro_sync_at:Between_rw_open_and_write
-           in
-           let* () =
-             t ~ro_open_at:Between_rw_open_and_write ~ro_sync_at:After_rw_write
-           in
-           let* () = t ~ro_open_at:After_rw_write ~ro_sync_at:After_rw_write in
-           Lwt.return_unit)
+  let write2 t =
+    write2_suffix t;
+    write2_index t;
+    write2_dict t
+
+  (** The 5 different states in which a model may be *)
+  include struct
+    let create_empty setup = v setup
+
+    let create_after_preload setup =
+      let m = v setup in
+      preload m;
+      m
+
+    let create_after_write1 setup =
+      let m = v setup in
+      preload m;
+      write1 m;
+      m
+
+    let create_after_gc setup =
+      let m = v setup in
+      preload m;
+      write1 m;
+      gc m;
+      m
+
+    let create_after_write2 setup =
+      let m = v setup in
+      preload m;
+      write1 m;
+      gc m;
+      write2 m;
+      m
+  end
 end
 
-module Always = Test (struct
-  let indexing_strategy = "always"
-end)
+(** A store is updated in conjunction with a model. Both should always reference
+    the same entries *)
+module Store = struct
+  module S = struct
+    module Maker = Irmin_pack_unix.Maker (Conf)
+    include Maker.Make (Schema)
+  end
 
-module Minimal = Test (struct
-  let indexing_strategy = "minimal"
-end)
+  type repo = S.repo
 
+  let config setup ?(readonly = false) ?(fresh = true) root =
+    let module Index = Irmin_pack.Indexing_strategy in
+    let indexing_strategy =
+      if setup.indexing_strategy = `always then Index.always else Index.minimal
+    in
+    let lru_size = setup.lru_size in
+    Irmin_pack.config ~readonly ~indexing_strategy ~lru_size ~fresh root
+
+  let v setup ~readonly ~fresh root =
+    S.Repo.v (config setup ~readonly ~fresh root)
+
+  let close = S.Repo.close
+  let reload = S.reload
+
+  let gc repo =
+    let k = key_of_entry c1 in
+    S.gc ~unlink:true repo k
+
+  let dict_find_opt (repo : S.repo) step = S.Dict.find repo.dict step
+
+  let index_find_opt (repo : S.repo) hash =
+    S.Index.find (S.File_manager.index repo.fm) hash
+
+  let suffix_mem (repo : S.repo) e =
+    let k = key_of_entry e in
+    try
+      match e.k with
+      | `c -> S.Backend.Commit.mem (S.Backend.Repo.commit_t repo) k
+      | `n -> S.Backend.Node.mem (S.Backend.Repo.node_t repo) k
+      | `b -> S.Backend.Contents.mem (S.Backend.Repo.contents_t repo) k
+    with Irmin_pack_unix.Pack_store.Invalid_read _ ->
+      (* In RW mode, [mem] will raise an exception if the offset of the key is
+         out of the bounds of the pack file *)
+      Lwt.return_false
+
+  let put_borphan bstore =
+    let+ k = S.Backend.Contents.add bstore "borphan" in
+    assert (k = key_of_entry borphan);
+    k
+
+  let put_b01 bstore =
+    let+ k = S.Backend.Contents.add bstore "b01" in
+    assert (k = key_of_entry b01);
+    k
+
+  let put_n01 bstore nstore =
+    let* k_b01 = put_b01 bstore in
+    let step = "step-b01" in
+    let childs = [ (step, `Contents (k_b01, ())) ] in
+    let n = S.Backend.Node.Val.of_list childs in
+    let+ k = S.Backend.Node.add nstore n in
+    assert (k = key_of_entry n01);
+    k
+
+  let put_n0 bstore nstore =
+    let* k_n01 = put_n01 bstore nstore in
+    let step = "step-n01" in
+    let childs = [ (step, `Node k_n01) ] in
+    let n = S.Backend.Node.Val.of_list childs in
+    let+ k = S.Backend.Node.add nstore n in
+    assert (k = key_of_entry n0);
+    k
+
+  let put_c0 bstore nstore cstore =
+    let* k_n0 = put_n0 bstore nstore in
+    let c = S.Backend.Commit.Val.v ~info:S.Info.empty ~node:k_n0 ~parents:[] in
+    let+ k = S.Backend.Commit.add cstore c in
+    assert (k = key_of_entry c0);
+    k
+
+  let put_b1 bstore =
+    let+ k = S.Backend.Contents.add bstore "b1" in
+    k
+
+  let put_n1 bstore nstore =
+    let* k_b1 = put_b1 bstore in
+    let k_n01 = key_of_entry n01 in
+    let step = "step-b1" in
+    let step' = "step-b01" in
+    let childs = [ (step, `Contents (k_b1, ())); (step', `Node k_n01) ] in
+    let n = S.Backend.Node.Val.of_list childs in
+    let+ k = S.Backend.Node.add nstore n in
+    assert (k = key_of_entry n1);
+    k
+
+  let put_c1 bstore nstore cstore =
+    let* k_n1 = put_n1 bstore nstore in
+    let k_c0 = key_of_entry c0 in
+    let c =
+      S.Backend.Commit.Val.v ~info:S.Info.empty ~node:k_n1 ~parents:[ k_c0 ]
+    in
+    let+ k = S.Backend.Commit.add cstore c in
+    assert (k = key_of_entry c1);
+    k
+
+  let put_borphan' bstore =
+    let+ k = S.Backend.Contents.add bstore "borphan'" in
+    assert (k = key_of_entry borphan');
+    k
+
+  let put_b2 bstore =
+    let+ k = S.Backend.Contents.add bstore "b2" in
+    assert (k = key_of_entry b2);
+    k
+
+  let put_n2 bstore nstore =
+    let* k_b2 = put_b2 bstore in
+    let step = "step-b2" in
+    let childs = [ (step, `Contents (k_b2, ())) ] in
+    let n = S.Backend.Node.Val.of_list childs in
+    let+ k = S.Backend.Node.add nstore n in
+    assert (k = key_of_entry n2);
+    k
+
+  let put_c2 bstore nstore cstore =
+    let* k_n2 = put_n2 bstore nstore in
+    let k_c1 = key_of_entry c1 in
+    let c =
+      S.Backend.Commit.Val.v ~info:S.Info.empty ~node:k_n2 ~parents:[ k_c1 ]
+    in
+    let+ k = S.Backend.Commit.add cstore c in
+    assert (k = key_of_entry c2);
+    k
+
+  let preload repo =
+    S.Backend.Repo.batch repo (fun bstore nstore cstore ->
+        let* _ = put_borphan bstore in
+        let* _ = put_c0 bstore nstore cstore in
+        Lwt.return_unit)
+
+  let write1 repo =
+    S.Backend.Repo.batch repo (fun bstore nstore cstore ->
+        let* _ = put_c1 bstore nstore cstore in
+        let* _ = put_borphan' bstore in
+        Lwt.return_unit)
+
+  let write2 repo =
+    S.Backend.Repo.batch repo (fun bstore nstore cstore ->
+        let* _ = put_c2 bstore nstore cstore in
+        Lwt.return_unit)
+end
+
+exception Skip_the_rest_of_that_test
+
+type hash = Store.S.hash [@@deriving irmin ~pp]
+
+type t = {
+  setup : setup;
+  mutable ro : (Model.t * Store.repo) option;
+  mutable rw : (Model.t * Store.repo) option;
+}
+
+let check_dict repo model =
+  Hashtbl.iter
+    (fun step idx ->
+      let got = Store.dict_find_opt repo idx in
+      let exp = Hashtbl.mem model.Model.dict step in
+      match (got, exp) with
+      | None, false -> ()
+      | Some step', true ->
+          let msg = Fmt.str "Dict entry with id:%d" idx in
+          Alcotest.(check string) msg step step'
+      | Some step', false ->
+          Alcotest.failf
+            "Dict entry with id:%d step:%s shouldn't be there (it's under step \
+             %s)"
+            idx step step'
+      | None, true ->
+          Alcotest.failf "Dict entry with id:%d step:%s missing" idx step)
+    dict_entries
+
+let check_index repo model =
+  Hashtbl.iter
+    (fun hash off ->
+      let got = Store.index_find_opt repo hash in
+      let exp = Hashtbl.mem model.Model.index hash in
+      match (got, exp) with
+      | None, false -> ()
+      | Some (off', _, _), true ->
+          let msg = Fmt.str "Index entry with hash:%a" pp_hash hash in
+          Alcotest.(check int) msg (Int63.to_int off) (Int63.to_int off')
+      | Some (off', _, _), false ->
+          Alcotest.failf
+            "Index entry with hash:%a offset:%d shouldn't be there (it \
+             contains offset %d)"
+            pp_hash hash (Int63.to_int off) (Int63.to_int off')
+      | None, true ->
+          Alcotest.failf "Index entry with hash:%a off:%d is missing" pp_hash
+            hash (Int63.to_int off))
+    index_entries
+
+let check_suffix repo model =
+  Lwt_list.iter_s
+    (fun e ->
+      let+ got = Store.suffix_mem repo e in
+      let exp = Hashtbl.mem model.Model.suffix e.o in
+      match (got, exp) with
+      | false, false -> ()
+      | true, true -> ()
+      | true, false ->
+          Alcotest.failf "Pack entry with hash:%a off:%d shouldn't be there"
+            pp_hash e.h (Int63.to_int e.o)
+      | false, true ->
+          Alcotest.failf "Pack entry with hash:%a off:%d is missing" pp_hash e.h
+            (Int63.to_int e.o))
+    pack_entries
+
+let check t =
+  Lwt_list.iter_s
+    (fun (model, repo) ->
+      check_dict repo model;
+      check_index repo model;
+      check_suffix repo model)
+    (Option.to_list t.ro @ Option.to_list t.rw)
+
+let create_test_env setup =
+  rm_dir root_local_build;
+  let () =
+    match setup.start_mode with
+    | From_scratch -> ()
+    | From_v2 ->
+        let root_archive =
+          if setup.indexing_strategy = `always then archive_v2_always
+          else archive_v2_minimal
+        in
+        setup_test_env ~root_archive ~root_local_build
+    | From_v3 ->
+        let root_archive =
+          if setup.indexing_strategy = `always then archive_v3_always
+          else archive_v3_minimal
+        in
+        setup_test_env ~root_archive ~root_local_build
+  in
+  { setup; rw = None; ro = None }
+
+(** One of the 4 rw mutations *)
+let start_rw t =
+  [%logs.app "*** start_rw %a" pp_setup t.setup];
+  let+ rw =
+    match t.rw with
+    | Some _ -> assert false
+    | None ->
+        let model =
+          match t.setup.start_mode with
+          | From_v2 | From_v3 ->
+              (* Model with pre-loaded data. *)
+              let m = Model.v t.setup in
+              Model.preload m;
+              m
+          | From_scratch -> Model.v t.setup
+        in
+        let+ repo =
+          Store.v t.setup ~readonly:false ~fresh:false root_local_build
+        in
+        (model, repo)
+  in
+  t.rw <- Some rw
+
+(** One of the 4 rw mutations *)
+let write1_rw t =
+  [%logs.app "*** write1_rw %a" pp_setup t.setup];
+  match t.rw with
+  | None -> assert false
+  | Some (_, repo) ->
+      t.rw <- Some (Model.create_after_write1 t.setup, repo);
+      let* () =
+        (* If the preload commit is not yet in the store, add it. Note that
+           adding the same commit twice is not idempotent in indexing strategy
+           minimal, therefore we need to make this distinction. *)
+        if t.setup.start_mode = From_scratch then
+          let* _ = Store.preload repo in
+          Lwt.return_unit
+        else Lwt.return_unit
+      in
+      let* _ = Store.write1 repo in
+      Lwt.return_unit
+
+(** One of the 4 rw mutations *)
+let gc_rw t =
+  [%logs.app "*** gc_rw %a" pp_setup t.setup];
+  match t.rw with
+  | None -> assert false
+  | Some (_, repo) ->
+      t.rw <- Some (Model.create_after_gc t.setup, repo);
+      let () =
+        match (t.setup.start_mode, t.setup.indexing_strategy) with
+        | From_v2, _ | _, `always ->
+            let () =
+              Alcotest.check_raises "GC on V2/always"
+                (Irmin_pack_unix.Errors.Pack_error `Gc_disallowed) (fun () ->
+                  Store.gc repo)
+            in
+            raise Skip_the_rest_of_that_test
+        | (From_v3 | From_scratch), `minimal -> Store.gc repo
+      in
+      Lwt.return_unit
+
+(** One of the 4 rw mutations *)
+let write2_rw t =
+  [%logs.app "*** write2_rw %a" pp_setup t.setup];
+  match t.rw with
+  | None -> assert false
+  | Some (_, repo) ->
+      t.rw <- Some (Model.create_after_write2 t.setup, repo);
+      let* _ = Store.write2 repo in
+      Lwt.return_unit
+
+(** One of the 2 ro mutations *)
+let open_ro t current_phase =
+  [%logs.app "*** open_ro %a, %a" pp_setup t.setup pp_phase current_phase];
+  let+ ro =
+    match t.ro with
+    | Some _ -> assert false
+    | None ->
+        let model =
+          match (t.setup.start_mode, current_phase) with
+          | From_scratch, (S1_before_start | S2_before_write) ->
+              Model.create_empty t.setup
+          | (From_v2 | From_v3), (S1_before_start | S2_before_write) ->
+              Model.create_after_preload t.setup
+          | (From_v2 | From_v3 | From_scratch), S3_before_gc ->
+              Model.create_after_write1 t.setup
+          | (From_v2 | From_v3 | From_scratch), S4_before_write ->
+              Model.create_after_gc t.setup
+          | (From_v2 | From_v3 | From_scratch), S5_before_close ->
+              Model.create_after_write2 t.setup
+        in
+        let fail_and_skip error =
+          let* () =
+            Alcotest.check_raises_lwt "open empty/V2 store in RO"
+              (Irmin_pack_unix.Errors.Pack_error error) (fun () ->
+                let* repo =
+                  Store.v t.setup ~readonly:true ~fresh:false root_local_build
+                in
+                Store.close repo)
+          in
+          raise Skip_the_rest_of_that_test
+        in
+        let+ repo =
+          match (t.setup.start_mode, current_phase) with
+          | From_scratch, S1_before_start ->
+              fail_and_skip `No_such_file_or_directory
+          | From_v2, S1_before_start -> fail_and_skip `Migration_needed
+          | (From_v2 | From_v3 | From_scratch), _ ->
+              Store.v t.setup ~readonly:true ~fresh:false root_local_build
+        in
+        (model, repo)
+  in
+  t.ro <- Some ro
+
+(** One of the 2 ro mutations *)
+let sync_ro t current_phase =
+  [%logs.app "*** sync_ro %a, %a" pp_setup t.setup pp_phase current_phase];
+  match t.ro with
+  | None -> assert false
+  | Some (_, repo) ->
+      let () =
+        match current_phase with
+        | S1_before_start | S2_before_write -> ()
+        | S3_before_gc -> t.ro <- Some (Model.create_after_write1 t.setup, repo)
+        | S4_before_write -> t.ro <- Some (Model.create_after_gc t.setup, repo)
+        | S5_before_close ->
+            t.ro <- Some (Model.create_after_write2 t.setup, repo)
+      in
+      Store.reload repo
+
+let close_everything t =
+  Lwt_list.iter_s
+    (fun (_, repo) -> Store.close repo)
+    (Option.to_list t.ro @ Option.to_list t.rw)
+
+let test_one t ~ro_open_at ~ro_sync_at =
+  let aux phase =
+    let* () = check t in
+    let* () = if ro_open_at = phase then open_ro t phase else Lwt.return_unit in
+    let* () = check t in
+    if ro_sync_at = phase then sync_ro t phase;
+    let* () = check t in
+    Lwt.return_unit
+  in
+
+  let* () = aux S1_before_start in
+  let* () = start_rw t in
+  let* () = aux S2_before_write in
+  let* () = write1_rw t in
+  let* () = aux S3_before_gc in
+  let* () = gc_rw t in
+  let* () = aux S4_before_write in
+  let* () = write2_rw t in
+  let* () = aux S5_before_close in
+  Lwt.return_unit
+
+let test_one_guarded setup ~ro_open_at ~ro_sync_at =
+  let t = create_test_env setup in
+  Lwt.catch
+    (fun () ->
+      let* () = test_one t ~ro_open_at ~ro_sync_at in
+      close_everything t)
+    (function
+      | Skip_the_rest_of_that_test ->
+          [%logs.app "*** skip rest of %a" pp_setup setup];
+          close_everything t
+      | exn -> Lwt.fail exn)
+
+(** All possible interleaving of the ro calls (open and sync) with the rw calls
+    (open, write1, gc and write2). *)
+let test start_mode indexing_strategy lru_size =
+  let setup = { start_mode; indexing_strategy; lru_size } in
+  let t = test_one_guarded setup in
+
+  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S1_before_start in
+  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S2_before_write in
+  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S3_before_gc in
+  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S4_before_write in
+  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S5_before_close in
+
+  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S2_before_write in
+  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S3_before_gc in
+  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S4_before_write in
+  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S5_before_close in
+
+  let* () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S3_before_gc in
+  let* () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S4_before_write in
+  let* () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S5_before_close in
+
+  let* () = t ~ro_open_at:S4_before_write ~ro_sync_at:S4_before_write in
+  let* () = t ~ro_open_at:S4_before_write ~ro_sync_at:S5_before_close in
+
+  let* () = t ~ro_open_at:S5_before_close ~ro_sync_at:S5_before_close in
+  Lwt.return_unit
+
+(** Product on lru_size *)
+let test start_mode indexing_strategy =
+  let* () = test start_mode indexing_strategy 0 in
+  let* () = test start_mode indexing_strategy 100 in
+  Lwt.return_unit
+
+(** Product on indexing_strategy *)
+let test start_mode () =
+  let* () = test start_mode `minimal in
+  let* () = test start_mode `always in
+  Lwt.return_unit
+
+(** Product on start_mode *)
 let tests =
   [
-    Alcotest.test_case "upgrade indexing_strategy=always" `Quick (fun () ->
-        Lwt_main.run (Always.test ()));
-    Alcotest.test_case "upgrade indexing_strategy=minimal" `Quick (fun () ->
-        Lwt_main.run (Minimal.test ()));
+    Alcotest.test_case "upgrade From_v3" `Quick (fun () ->
+        Lwt_main.run (test From_v3 ()));
+    Alcotest.test_case "upgrade From_v2" `Quick (fun () ->
+        Lwt_main.run (test From_v2 ()));
+    Alcotest.test_case "upgrade From_scratch" `Quick (fun () ->
+        Lwt_main.run (test From_scratch ()));
   ]

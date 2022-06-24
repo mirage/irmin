@@ -43,6 +43,8 @@ module type S = sig
 end
 
 module type Sigs = sig
+  exception Invalid_read of string
+
   module type S = S
 
   module Make
