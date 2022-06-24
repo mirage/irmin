@@ -29,7 +29,7 @@ module Make_without_close_checks
     (Val : Pack_value.Persistent
              with type hash := Hash.t
               and type key := Hash.t Pack_key.t)
-    (Errs : Errors.S with module Io = Fm.Io) =
+    (Errs : Io_errors.S with module Io = Fm.Io) =
 struct
   module Tbl = Table (Hash)
   module Control = Fm.Control
@@ -475,7 +475,7 @@ module Make
     (Val : Pack_value.Persistent
              with type hash := Hash.t
               and type key := Hash.t Pack_key.t)
-    (Errs : Errors.S with module Io = Fm.Io) =
+    (Errs : Io_errors.S with module Io = Fm.Io) =
 struct
   module Inner = Make_without_close_checks (Fm) (Dict) (Hash) (Val) (Errs)
   include Inner

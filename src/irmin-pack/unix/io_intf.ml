@@ -40,12 +40,10 @@ module type S = sig
   type read_error =
     [ `Io_misc of misc_error
     | `Read_out_of_bounds
-    | `Read_on_closed
+    | `Closed
     | `Invalid_argument ]
 
-  type write_error =
-    [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
-
+  type write_error = [ `Io_misc of misc_error | `Ro_not_allowed | `Closed ]
   type close_error = [ `Io_misc of misc_error | `Double_close ]
 
   type mkdir_error =

@@ -54,7 +54,7 @@ module type Sigs = sig
       (Val : Pack_value.Persistent
                with type hash := Hash.t
                 and type key := Hash.t Pack_key.t)
-      (Errs : Errors.S with module Io = Fm.Io) :
+      (Errs : Io_errors.S with module Io = Fm.Io) :
     S
       with type key = Hash.t Pack_key.t
        and type hash = Hash.t

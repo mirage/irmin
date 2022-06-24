@@ -27,7 +27,7 @@ module type S = sig
   module Dict : Append_only_file.S with module Io = Io
   module Suffix : Append_only_file.S with module Io = Io
   module Index : Pack_index.S
-  module Errs : Errors.S with module Io = Io
+  module Errs : Io_errors.S with module Io = Io
 
   type t
 
@@ -58,6 +58,7 @@ module type S = sig
   type open_rw_error :=
     [ `Corrupted_control_file
     | `Double_close
+    | `Closed
     | `File_exists of string
     | `Index_failure of string
     | `Invalid_argument
@@ -67,7 +68,6 @@ module type S = sig
     | `No_such_file_or_directory
     | `Not_a_directory of string
     | `Not_a_file
-    | `Read_on_closed
     | `Read_out_of_bounds
     | `Ro_not_allowed
     | `Sys_error of string
@@ -75,8 +75,7 @@ module type S = sig
     | `Only_minimal_indexing_strategy_allowed
     | `Unknown_major_pack_version of string
     | `Index_failure of string
-    | `Sys_error of string
-    | `Write_on_closed ]
+    | `Sys_error of string ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -98,7 +97,7 @@ module type S = sig
     | `Migration_needed
     | `No_such_file_or_directory
     | `Not_a_file
-    | `Read_on_closed
+    | `Closed
     | `V3_store_from_the_future
     | `Index_failure of string
     | `Unknown_major_pack_version of string ]
@@ -130,7 +129,7 @@ module type S = sig
     [ `Index_failure of string
     | `Io_misc of Io.misc_error
     | `Ro_not_allowed
-    | `Write_on_closed ]
+    | `Closed ]
 
   val flush : t -> (unit, [> flush_error ]) result
 
@@ -143,7 +142,7 @@ module type S = sig
     | `No_such_file_or_directory
     | `Not_a_file
     | `Pending_flush
-    | `Read_on_closed
+    | `Closed
     | `Read_out_of_bounds
     | `Rw_not_allowed
     | `Unknown_major_pack_version of string ]
@@ -174,7 +173,7 @@ module type S = sig
     | `Not_a_file
     | `Pending_flush
     | `Ro_not_allowed
-    | `Write_on_closed
+    | `Closed
     | `Sys_error of string ]
 
   val swap :
@@ -188,13 +187,13 @@ module type S = sig
     | `File_exists of string
     | `Io_misc of Io.misc_error
     | `Ro_not_allowed
-    | `Write_on_closed ]
+    | `Closed ]
 
   val write_gc_output :
     root:string ->
     generation:int ->
     (Import.int63, Errs.t) result ->
-    (unit, write_gc_output_error) result
+    (unit, [> write_gc_output_error ]) result
   (** Used by the gc process at the end to write its output in
       store.<generation>.out. *)
 
@@ -202,7 +201,9 @@ module type S = sig
     [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
 
   val read_gc_output :
-    root:string -> generation:int -> (Import.int63, read_gc_output_error) result
+    root:string ->
+    generation:int ->
+    (Import.int63, [> read_gc_output_error ]) result
   (** Used by the main process, after the gc process finished, to read
       store.<generation>.out. *)
 end
@@ -215,7 +216,7 @@ module type Sigs = sig
       (Dict : Append_only_file.S with module Io = Control.Io)
       (Suffix : Append_only_file.S with module Io = Control.Io)
       (Index : Pack_index.S)
-      (Errs : Errors.S with module Io = Control.Io) :
+      (Errs : Io_errors.S with module Io = Control.Io) :
     S
       with module Io = Control.Io
        and module Control = Control

@@ -19,12 +19,12 @@ module Payload = Control_file.Latest_payload
 
 let buffer_size = 8192
 
-exception Pack_error = Errors_base.Pack_error
+exception Pack_error = Errors.Pack_error
 
 module type Args = sig
   module Fm : File_manager.S
   module Dict : Dict.S with module Fm = Fm
-  module Errs : Errors.S with module Io = Fm.Io
+  module Errs : Io_errors.S with module Io = Fm.Io
 
   type hash
   type key = hash Irmin_pack.Pack_key.t [@@deriving irmin]
@@ -299,6 +299,7 @@ module Make (Args : Args) : S with module Args := Args = struct
      file and terminate the process with an exception, if needed. *)
   let run_and_output_result ~generation root commit_key =
     let result = run ~generation root commit_key in
-    Fm.write_gc_output ~root ~generation result |> Errs.raise_if_error;
+    let write_result = Fm.write_gc_output ~root ~generation result in
+    write_result |> Errs.raise_if_error;
     result |> Errs.raise_if_error
 end

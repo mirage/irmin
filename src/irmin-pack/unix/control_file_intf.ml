@@ -136,7 +136,7 @@ module type S = sig
     | `Io_misc of Io.misc_error
     | `No_such_file_or_directory
     | `Not_a_file
-    | `Read_on_closed
+    | `Closed
     | `Unknown_major_pack_version of string ]
 
   val open_ : path:string -> readonly:bool -> (t, [> open_error ]) result
@@ -161,7 +161,7 @@ module type S = sig
   type reload_error :=
     [ `Corrupted_control_file
     | `Io_misc of Io.misc_error
-    | `Read_on_closed
+    | `Closed
     | `Rw_not_allowed
     | `Unknown_major_pack_version of string ]
 

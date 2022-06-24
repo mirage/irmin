@@ -69,7 +69,7 @@ module Make (Args : Args) : sig
     unit
 end = struct
   open Args
-  module Errs = Errors.Make (Args.File_manager.Io)
+  module Errs = Io_errors.Make (Args.File_manager.Io)
 
   let pp_key = Irmin.Type.pp Hash.t
   let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
