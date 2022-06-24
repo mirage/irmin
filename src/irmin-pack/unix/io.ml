@@ -147,6 +147,8 @@ module Unix = struct
     | true -> Error `Double_close
     | false -> (
         t.closed <- true;
+        (* mark [t] as closed, even if [Unix.close] fails, since it is recommended
+           to not retry after an error. see: https://man7.org/linux/man-pages/man2/close.2.html *)
         try
           Unix.close t.fd;
           Ok ()
