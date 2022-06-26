@@ -3,8 +3,33 @@
 ### Added
 
 - **irmin**
+  - Add `Tree.seq` to `Tree`'s public API (#1923, @metanivek)
+
+### Changed
+
+- **irmin**
+  - Replaced `Tree.node_fn` type with more general `Tree.folder` type to
+    represent the different ways to use `Tree.fold` (#1918, @metanivek)
+
+### Fixed
+
+## 3.3.1 (2022-06-22)
+
+### Fixed
+
+- **irmin-pack**
+  - Fix topology irregularities on disk which may lead to post-gc crashes.
+    (#1925, @Ngoguey42, @icristescu)
+
+## 3.3.0 (2022-06-20)
+
+### Added
+
+- **irmin**
   - Add `Metrics` module to describe metric gathering in irmin.
     (#1817, @maiste)
+  - Add `Repo.config` to access config used to create repo
+    (#1886, @zshipko)
 
 - **irmin-unix**
   - Add `--plugin` flag to load Dynlink plugins that can register new

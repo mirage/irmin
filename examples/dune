@@ -8,7 +8,8 @@
   irmin_git_store
   custom_merge
   push
-  custom_graphql)
+  custom_graphql
+  fold)
  (libraries astring cohttp fmt git irmin irmin-git irmin-unix lwt lwt.unix)
  (preprocess
   (pps ppx_irmin)))
@@ -24,7 +25,8 @@
   push.exe
   irmin_git_store.exe
   custom_merge.exe
-  custom_graphql.exe))
+  custom_graphql.exe
+  fold.exe))
 
 (alias
  (name runtest)
@@ -37,4 +39,5 @@
   deploy.exe
   push.exe
   irmin_git_store.exe
-  custom_merge.exe))
+  custom_merge.exe
+  fold.exe))

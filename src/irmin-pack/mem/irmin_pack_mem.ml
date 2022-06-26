@@ -138,6 +138,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         let node_t t : 'a Node.t = (contents_t t, t.node)
         let commit_t t : 'a Commit.t = (node_t t, t.commit)
         let branch_t t = t.branch
+        let config t = t.config
 
         let batch t f =
           Commit.Indexable.batch t.commit (fun commit ->

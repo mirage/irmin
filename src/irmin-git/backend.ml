@@ -110,6 +110,7 @@ struct
       let+ b = Branch.v ~head ~bare g in
       { g; b; closed = ref false; config = (conf :> Irmin.config) }
 
+    let config t = t.config
     let close t = Branch.close t.b >|= fun () -> t.closed := true
   end
 

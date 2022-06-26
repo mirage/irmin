@@ -106,6 +106,9 @@ module type S_generic_key = sig
     val v : Conf.t -> t Lwt.t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
+    val config : t -> Conf.t
+    (** [config repo] is the configuration used to create [repo] *)
+
     include Closeable with type _ t := t
     (** @inline *)
 
@@ -429,8 +432,8 @@ module type S_generic_key = sig
         [r], if such a key exists and is indexed. *)
 
     val of_key : Repo.t -> kinded_key -> tree option Lwt.t
-    (** [of_key r h] is the the tree object in [r] having [h] as key, or [None]
-        is no such tree object exists. *)
+    (** [of_key r h] is the tree object in [r] having [h] as key, or [None] if
+        no such tree object exists. *)
 
     val shallow : Repo.t -> kinded_key -> tree
     (** [shallow r h] is the shallow tree object with the key [h]. No check is

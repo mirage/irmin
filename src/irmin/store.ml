@@ -233,6 +233,7 @@ module Make (B : Backend.S) = struct
     type t = repo
 
     let v = B.Repo.v
+    let config = B.Repo.config
     let close = B.Repo.close
     let branch_t t = B.Repo.branch_t t
     let commit_t t = B.Repo.commit_t t
