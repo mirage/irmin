@@ -531,7 +531,7 @@ let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
 let gc_every =
-  let doc = Arg.info ~doc:"Distance between calls to GC" [ "gc_every" ] in
+  let doc = Arg.info ~doc:"Distance between calls to GC" [ "gc-every" ] in
   Arg.(value @@ opt int 1000 doc)
 
 let gc_distance_in_the_past =
