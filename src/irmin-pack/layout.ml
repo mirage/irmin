@@ -34,7 +34,18 @@ module V3 = struct
   let gc_result ~generation =
     toplevel ("store." ^ string_of_int generation ^ ".out")
 
-  (* TODO layered: Add prefix and mapping *)
+  let reachable ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".reachable")
+
+  let sorted ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".sorted")
+
+  let mapping ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".mapping")
+
+  let prefix ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".prefix")
+
   let all ~generation ~root =
     [ suffix ~generation ~root; branch ~root; dict ~root; control ~root ]
 end
