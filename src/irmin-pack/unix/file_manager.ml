@@ -39,12 +39,13 @@ struct
   type t = {
     dict : Dict.t;
     control : Control.t;
-    suffix : Suffix.t;
+    mutable suffix : Suffix.t;
     index : Index.t;
-    use_fsync : bool;
     mutable dict_consumers : dict_consumer_data list;
     mutable suffix_consumers : suffix_consumer_data list;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
+    use_fsync : bool;
+    root : string;
   }
 
   module Control = Control
@@ -73,6 +74,16 @@ struct
 
   (* Reload ***************************************************************** *)
 
+  let generation = function
+    | Payload.From_v1_v2_post_upgrade _
+    | From_v3_used_non_minimal_indexing_strategy | From_v3_no_gc_yet ->
+        0
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        (* Unreachable *)
+        assert false
+    | From_v3_gced x -> x.generation
+
   let reload t =
     let open Result_syntax in
     let* () = Index.reload t.index in
@@ -81,7 +92,25 @@ struct
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
-      (* Update the end offsets to prevent the readonly instance to read data
+      (* Check if generation changed. If it did, reopen suffix. *)
+      let* () =
+        let gen0 = generation pl0.status in
+        let gen1 = generation pl1.status in
+        if gen0 = gen1 then Ok ()
+        else
+          let* suffix1 =
+            let path =
+              Irmin_pack.Layout.V3.suffix ~root:t.root ~generation:gen1
+            in
+            let end_offset = pl1.entry_offset_suffix_end in
+            [%log.debug "reload: generation changed, opening %s" path];
+            Suffix.open_ro ~path ~end_offset ~dead_header_size:0
+          in
+          let suffix0 = t.suffix in
+          t.suffix <- suffix1;
+          Suffix.close suffix0
+      in
+      (* Update end offsets. This prevents the readonly instance to read data
          flushed to disk by the readwrite, between calls to reload. *)
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
@@ -107,6 +136,10 @@ struct
       - During [create] and [open_rw].
       - During a GC.
       - When the branch store is modified. *)
+
+  (* TODO: Stat on flushes:
+     - How many calls to Dict.flush/Suffix.flush/Index.flush
+     - How many calls to [flush] and the 3 auto ones. *)
 
   (** Flush stage 1 *)
   let flush_dict t =
@@ -136,9 +169,10 @@ struct
         let status =
           match pl.status with
           | From_v1_v2_post_upgrade _ -> pl.status
-          | From_v3 ->
+          | From_v3_gced _ -> pl.status
+          | From_v3_no_gc_yet ->
               (* Using physical equality to test which indexing_strategy
-                 we are using *)
+                 we are using. Might not be great in the long term. *)
               if t.indexing_strategy == Irmin_pack.Indexing_strategy.minimal
               then pl.status
               else (
@@ -148,8 +182,8 @@ struct
                    possible to GC this irmin-pack store anymore."];
                 Payload.From_v3_used_non_minimal_indexing_strategy)
           | From_v3_used_non_minimal_indexing_strategy -> pl.status
-          | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12
-          | T13 | T14 | T15 ->
+          | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+          | T14 | T15 ->
               assert false
         in
         let pl =
@@ -203,11 +237,12 @@ struct
     let pl : Payload.t = Control.payload control in
     let generation =
       match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3
+      | From_v1_v2_post_upgrade _ | From_v3_no_gc_yet
       | From_v3_used_non_minimal_indexing_strategy ->
           0
-      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-      | T14 | T15 ->
+      | From_v3_gced x -> x.generation
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
           assert false
     in
     (* 1. Create a ref for dependency injections for auto flushes *)
@@ -250,6 +285,7 @@ struct
         dict_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
+        root;
       }
     in
     instance := Some t;
@@ -272,7 +308,7 @@ struct
     in
     let* control =
       let open Payload in
-      let status = From_v3 in
+      let status = From_v3_no_gc_yet in
       let pl =
         let z = Int63.zero in
         { dict_offset_end = z; entry_offset_suffix_end = z; status }
@@ -300,9 +336,15 @@ struct
     let* dead_header_size =
       match pl.status with
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
-      | From_v3 | From_v3_used_non_minimal_indexing_strategy -> Ok 0
-      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-      | T14 | T15 ->
+      | From_v3_gced _ ->
+          let indexing_strategy = Conf.indexing_strategy config in
+          (* Using physical equality to test which indexing_strategy
+             we are using. Might not be great in the long term. *)
+          if indexing_strategy == Irmin_pack.Indexing_strategy.minimal then Ok 0
+          else Error `Only_minimal_indexing_strategy_allowed
+      | From_v3_no_gc_yet | From_v3_used_non_minimal_indexing_strategy -> Ok 0
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
           Error `V3_store_from_the_future
     in
     let make_dict =
@@ -409,20 +451,14 @@ struct
     let* dead_header_size =
       match pl.status with
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
-      | From_v3 | From_v3_used_non_minimal_indexing_strategy -> Ok 0
-      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-      | T14 | T15 ->
+      | From_v3_no_gc_yet | From_v3_gced _
+      | From_v3_used_non_minimal_indexing_strategy ->
+          Ok 0
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
           Error `V3_store_from_the_future
     in
-    let generation =
-      match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3
-      | From_v3_used_non_minimal_indexing_strategy ->
-          0
-      | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-      | T14 | T15 ->
-          assert false
-    in
+    let generation = generation pl.status in
     (* 2. Open the other files *)
     let* suffix =
       let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
@@ -450,7 +486,10 @@ struct
         index;
         dict_consumers = [];
         suffix_consumers = [];
+        root;
       }
+
+  (* MISC. ****************************************************************** *)
 
   let version ~root =
     let v2_or_v1 () =
@@ -479,4 +518,52 @@ struct
             ( `Io_misc _ | `Corrupted_control_file
             | `Unknown_major_pack_version _ ) as e ->
             e)
+
+  let swap t ~generation ~unlink =
+    let open Result_syntax in
+    (* Step 1. Open the suffix *)
+    let* suffix =
+      let end_offset = Suffix.end_offset t.suffix in
+      let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
+      let dead_header_size = 0 in
+      let auto_flush_threshold =
+        match Suffix.auto_flush_threshold t.suffix with
+        | Some x -> x
+        | None -> assert false
+      in
+      let cb () = suffix_requires_a_flush_exn t in
+      [%log.debug "GC: opening new suffix in rw mode: %s" path];
+      Suffix.open_rw ~end_offset ~dead_header_size ~path ~auto_flush_threshold
+        ~auto_flush_callback:cb
+    in
+
+    (* Step 2. Update the control file *)
+    let* () =
+      let pl = Control.payload t.control in
+      let pl =
+        let open Payload in
+        (* [swap] will logically only be called while in one of the 2 statuses. *)
+        let status =
+          match pl.status with
+          | From_v1_v2_post_upgrade _ -> assert false
+          | From_v3_used_non_minimal_indexing_strategy -> assert false
+          | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+          | T14 | T15 ->
+              assert false
+          | From_v3_gced _ | From_v3_no_gc_yet -> From_v3_gced { generation }
+        in
+        { pl with status }
+      in
+      [%log.debug "GC: writing new control_file"];
+      Control.set_payload t.control pl
+    in
+
+    (* Step 3. Use the new suffix in the rw instance *)
+    let old_suffix = t.suffix in
+    t.suffix <- suffix;
+
+    (* Step 4. Close, unlink and return *)
+    let* () = Suffix.close old_suffix in
+    let* () = if unlink then Io.unlink (Suffix.path old_suffix) else Ok () in
+    Ok ()
 end

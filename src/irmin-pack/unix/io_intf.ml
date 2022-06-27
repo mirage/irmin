@@ -115,7 +115,8 @@ module type S = sig
       unix backend). *)
 
   val write_exn : t -> off:int63 -> len:int -> string -> unit
-  (** [write_exn t ~off b] writes [b] to [t] at offset [off].
+  (** [write_exn t ~off ~len b] writes the first [len] bytes pf [b] to [t] at
+      offset [off].
 
       Raises [Errors.Pack_error] and [Errors.RO_not_allowed].
 

@@ -57,13 +57,14 @@ module type Sigs = sig
       | Inode_v1_stable
       | Inode_v2_root
       | Inode_v2_nonroot
+      | Gced
+      | Dangling_parent_commit
     [@@deriving irmin]
 
     val all : t list
     val to_enum : t -> int
     val to_magic : t -> char
     val of_magic_exn : char -> t
-    val version : t -> Version.t
     val pp : t Fmt.t
 
     val length_header_exn : t -> length_header

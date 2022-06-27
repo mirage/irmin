@@ -30,6 +30,9 @@ module Config = struct
     keep_stat_trace : bool;
     empty_blobs : bool;
     return_type : 'a return_type;
+    gc_every : int;
+    gc_distance_in_the_past : int;
+    gc_wait_after : int;
   }
   (** Replay configuration
 
@@ -61,7 +64,20 @@ module Config = struct
       blobs, instead of their actual value read in the trace.
 
       [inode_config] is a pair of ints that will be stored in the results of the
-      replay. *)
+      replay.
+
+      A GC is triggered every [gc_every] commits. When GC is triggered, we
+      select a previous commit that is [gc_distance_in_the_past] commits away
+      from the current head commit.
+
+      The first GC will be started after [gc_distance_in_the_past + 1] commits
+      were replayed. [gc_distance_in_the_past] only makes sense if [gc_every] is
+      not [0].
+
+      [gc_wait_after] defines how many commits separate the start of a GC and
+      the moment we block to wait for it to finish. [0] means that we will only
+      block when the next gc starts or at the end of the replay. This parameter
+      only makes sense if [gc_every] is not [0]. *)
 end
 
 module type Config = module type of Config
@@ -70,14 +86,22 @@ include Config
 
 module type Store = sig
   type store_config
+  type key
 
-  include Irmin.Generic_key.KV with type Schema.Contents.t = bytes
+  include
+    Irmin.Generic_key.KV
+      with type Schema.Contents.t = bytes
+       and type commit_key = key
+       and type node_key = key
+       and type contents_key = key
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
 
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+
+  val gc : repo -> commit_key -> unit
 end
 
 module type Sigs = sig

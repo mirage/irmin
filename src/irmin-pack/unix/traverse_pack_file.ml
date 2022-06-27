@@ -176,6 +176,7 @@ end = struct
     | Commit_v1 | Commit_v2 -> Commit.decode_bin_length
     | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot ->
         Inode.decode_bin_length
+    | Gced | Dangling_parent_commit -> assert false
 
   let decode_entry_exn ~off ~buffer ~buffer_off =
     try
@@ -198,11 +199,11 @@ end = struct
      the suffix file. *)
   let io_read_at_most ~off ~len b suffix =
     let bytes_after_off =
-      let ( - ) = Int63.sub in
+      let open Int63.Syntax in
       File_manager.Suffix.end_offset suffix - off
     in
     let len =
-      let ( < ) a b = Int63.compare a b < 0 in
+      let open Int63.Syntax in
       if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
       else len
     in
@@ -258,8 +259,9 @@ end = struct
                     Stats.missing_hash stats;
                     Some x
               in
+              let off = Int63.Syntax.(off + entry_lenL) in
               progress entry_lenL;
-              (buffer_off + entry_len, off ++ entry_lenL, missing_hash)
+              (buffer_off + entry_len, off, missing_hash)
           | exception Not_enough_buffer ->
               let () =
                 if buffer_off > 0 then

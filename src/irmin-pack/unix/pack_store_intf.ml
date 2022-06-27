@@ -11,9 +11,7 @@ module type S = sig
   type file_manager
   type dict
 
-  val v :
-    config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t Lwt.t
-
+  val v : config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t
   val cast : read t -> read_write t
 
   (** @inline *)
@@ -40,9 +38,13 @@ module type S = sig
 
   val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
   (** Returns the key and the kind of an object indexed by hash. *)
+
+  val purge_lru : 'a t -> unit
 end
 
 module type Sigs = sig
+  exception Invalid_read of string
+
   module type S = S
 
   module Make

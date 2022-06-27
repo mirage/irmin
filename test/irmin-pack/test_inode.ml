@@ -115,8 +115,8 @@ struct
       let config = config ~readonly:false ~fresh:true root in
       let fm = get_fm config in
       let dict = Dict.v fm |> Errs.raise_if_error in
-      let* store = Inode.v ~config ~fm ~dict in
-      let* store_contents = Contents_store.v ~config ~fm ~dict in
+      let store = Inode.v ~config ~fm ~dict in
+      let store_contents = Contents_store.v ~config ~fm ~dict in
       let+ foo, bar =
         Contents_store.batch store_contents (fun writer ->
             let* foo = Contents_store.add writer Contents.foo in

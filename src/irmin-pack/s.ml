@@ -33,7 +33,7 @@ end
 (** [Irmin-pack]-specific extensions to the [Store] module type. *)
 module type Specifics = sig
   type repo
-  type commit
+  type commit_key
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -54,11 +54,13 @@ module type Specifics = sig
   val flush : repo -> unit
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)
+
+  val gc : ?unlink:bool -> repo -> commit_key -> unit
 end
 
 module type S = sig
   include Irmin.Generic_key.S
-  include Specifics with type repo := repo and type commit := commit
+  include Specifics with type repo := repo and type commit_key := commit_key
 
   val integrity_check_inodes :
     ?heads:commit list ->

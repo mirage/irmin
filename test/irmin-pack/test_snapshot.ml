@@ -30,8 +30,8 @@ end
 
 let check_key = Alcotest.check_repr Key.t
 
-let config ?(readonly = false) ?(fresh = true) root =
-  Irmin_pack.config ~readonly ?index_log_size ~fresh root
+let config ?(readonly = false) ?(fresh = true) ~indexing_strategy root =
+  Irmin_pack.config ~readonly ?index_log_size ~fresh ~indexing_strategy root
 
 let info = S.Info.empty
 
@@ -124,14 +124,14 @@ let tree2 () =
   let* t = S.Tree.add t [ "c" ] "y" in
   S.Tree.add t [ "d" ] "y"
 
-let test_in_memory () =
+let test_in_memory ~indexing_strategy () =
   rm_dir root_export;
   rm_dir root_import;
   let* repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true root_export)
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let* repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true root_import)
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
   let tree1 = S.Tree.singleton [ "a" ] "x" in
@@ -141,15 +141,21 @@ let test_in_memory () =
   let* () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
-let test_on_disk () =
+let test_in_memory_minimal =
+  test_in_memory ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
+
+let test_in_memory_always =
+  test_in_memory ~indexing_strategy:Irmin_pack.Indexing_strategy.always
+
+let test_on_disk ~indexing_strategy () =
   rm_dir root_export;
   rm_dir root_import;
   let index_on_disk = Filename.concat root_import "index_on_disk" in
   let* repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true root_export)
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let* repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true root_import)
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
   let* tree2 = tree2 () in
@@ -157,10 +163,92 @@ let test_on_disk () =
   let* () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
+let test_on_disk_minimal =
+  test_on_disk ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
+
+let test_on_disk_always =
+  test_on_disk ~indexing_strategy:Irmin_pack.Indexing_strategy.always
+
+let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
+  (* create the store *)
+  let* tree1 =
+    let t = S.Tree.singleton [ "b"; "a" ] "x0" in
+    S.Tree.add t [ "a"; "b" ] "x1"
+  in
+  let* c1 = S.Commit.v repo_export ~parents:[] ~info tree1 in
+  let k1 = S.Commit.key c1 in
+  let* tree2 = S.Tree.add tree1 [ "a"; "c" ] "x2" in
+  let* _ = S.Commit.v repo_export ~parents:[ k1 ] ~info tree2 in
+  let* tree3 =
+    let* t = S.Tree.remove tree1 [ "a"; "b" ] in
+    S.Tree.add t [ "a"; "d" ] "x3"
+  in
+  let* c3 = S.Commit.v repo_export ~parents:[ k1 ] ~info tree3 in
+  let k3 = S.Commit.key c3 in
+  (* call gc on last commit *)
+  let () = S.gc ~unlink:true repo_export k3 in
+  (* TODO - add call to wait_for_gc *)
+  let tree = S.Commit.tree c3 in
+  let root_key = S.Tree.key tree |> Option.get in
+  let buf = Buffer.create 0 in
+  let* total_visited =
+    S.Snapshot.export ?on_disk repo_export (encode_with_size buf) ~root_key
+  in
+  Alcotest.(check int)
+    "total visited during export" expected_visited total_visited;
+  let* total_visited, key =
+    Buffer.contents buf |> restore repo_import ?on_disk
+  in
+  Alcotest.(check int)
+    "total visited during import" expected_visited total_visited;
+  let () =
+    match (root_key, key) with
+    | _, None -> Alcotest.fail "No key imported"
+    | `Node key, Some key' -> check_key "snapshot key" key key'
+    | `Contents _, _ -> Alcotest.fail "Root key should not be contents"
+  in
+  Lwt.return_unit
+
+let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
+
+let test_gced_store_in_memory () =
+  rm_dir root_export;
+  rm_dir root_import;
+  let* repo_export =
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+  in
+  let* repo_import =
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+  in
+  let* () = test_gc ~repo_export ~repo_import 5 in
+  let* () = S.Repo.close repo_export in
+  S.Repo.close repo_import
+
+let test_gced_store_on_disk () =
+  rm_dir root_export;
+  rm_dir root_import;
+  let index_on_disk = Filename.concat root_import "index_on_disk" in
+  let* repo_export =
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+  in
+  let* repo_import =
+    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+  in
+  let* () =
+    test_gc ~repo_export ~repo_import ~on_disk:(`Path index_on_disk) 5
+  in
+  let* () = S.Repo.close repo_export in
+  S.Repo.close repo_import
+
 let tests =
+  let tc name f =
+    Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
+  in
   [
-    Alcotest.test_case "in memory" `Quick (fun () ->
-        Lwt_main.run (test_in_memory ()));
-    Alcotest.test_case "on disk" `Quick (fun () ->
-        Lwt_main.run (test_on_disk ()));
+    tc "in memory minimal" test_in_memory_minimal;
+    tc "in memory always" test_in_memory_always;
+    tc "on disk minimal" test_on_disk_minimal;
+    tc "on disk always" test_on_disk_always;
+    tc "gced store, in memory" test_gced_store_in_memory;
+    tc "gced store, on disk" test_gced_store_on_disk;
   ]

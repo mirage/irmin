@@ -7,8 +7,7 @@ module type Persistent = sig
   type file_manager
   type dict
 
-  val v :
-    config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t Lwt.t
+  val v : config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t
 
   include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
 
@@ -34,6 +33,7 @@ module type Persistent = sig
 
   val to_snapshot : Raw.t -> Snapshot.inode
   val of_snapshot : 'a t -> index:(hash -> key) -> Snapshot.inode -> value
+  val purge_lru : 'a t -> unit
 end
 
 module type Sigs = sig

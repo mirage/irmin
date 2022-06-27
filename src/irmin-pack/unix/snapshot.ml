@@ -165,7 +165,8 @@ module Make (Args : Args) = struct
               | Commit_v1 | Commit_v2 ->
                   (* The traversal starts with a node, it never iters over
                      commits. *)
-                  assert false)
+                  assert false
+              | Gced | Dangling_parent_commit -> assert false)
       in
       (* In case the root node of a tree is indexed, we need to convert it to a
          direct key first. *)

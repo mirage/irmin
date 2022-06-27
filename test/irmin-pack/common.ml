@@ -57,17 +57,18 @@ module Contents = struct
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
   let hash = H.hash
-  let encode_pair = Irmin.Type.(unstage (encode_bin (pair H.t t)))
-  let decode_pair = Irmin.Type.(unstage (decode_bin (pair H.t t)))
+  let magic = 'B'
+  let encode_triple = Irmin.Type.(unstage (encode_bin (triple H.t char t)))
+  let decode_triple = Irmin.Type.(unstage (decode_bin (triple H.t char t)))
   let length_header = Fun.const (Some `Varint)
-  let encode_bin ~dict:_ ~offset_of_key:_ k x = encode_pair (k, x)
+  let encode_bin ~dict:_ ~offset_of_key:_ k x = encode_triple (k, magic, x)
 
   let decode_bin ~dict:_ ~key_of_offset:_ ~key_of_hash:_ x pos_ref =
-    let _, v = decode_pair x pos_ref in
+    let _, _, v = decode_triple x pos_ref in
     v
 
   let decode_bin_length =
-    match Irmin.Type.(Size.of_encoding (pair H.t t)) with
+    match Irmin.Type.(Size.of_encoding (triple H.t char t)) with
     | Dynamic f -> f
     | _ -> assert false
 end
@@ -151,9 +152,9 @@ struct
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
     let dict = Dict.v fm |> Errs.raise_if_error in
-    let+ pack = Pack.v ~config ~fm ~dict in
+    let pack = Pack.v ~config ~fm ~dict in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
-    { name; index; pack; dict; fm }
+    { name; index; pack; dict; fm } |> Lwt.return
 
   let get_rw_pack () =
     let name = fresh_name "" in

@@ -467,6 +467,7 @@ struct
           V1_nonroot { length; v }
       | Commit_v1 | Commit_v2 -> assert false
       | Contents -> assert false
+      | Gced | Dangling_parent_commit -> assert false
 
     let size_of_tv =
       let of_encoding s off =
@@ -479,6 +480,7 @@ struct
             let len = decode_bin_int s offref in
             len - H.hash_size
         | Commit_v1 | Commit_v2 | Contents -> assert false
+        | Gced | Dangling_parent_commit -> assert false
       in
       Irmin.Type.Size.custom_dynamic ~of_encoding ()
 
@@ -2314,17 +2316,19 @@ struct
         | Some got ->
             if got <> expected then raise (Invalid_depth { expected; got; v }))
 
-  let find t k =
-    Pack.find t k >|= function
+  let unsafe_find ~check_integrity t k =
+    match Pack.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
         let find ~expected_depth k =
-          let v = Pack.unsafe_find ~check_integrity:true t k in
+          let v = Pack.unsafe_find ~check_integrity t k in
           check_depth_opt ~expected_depth v;
           v
         in
         let v = Val.of_raw find v in
         Some v
+
+  let find t k = unsafe_find ~check_integrity:true t k |> Lwt.return
 
   let save ?allow_non_root t v =
     let add k v =

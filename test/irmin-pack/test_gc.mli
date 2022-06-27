@@ -1,5 +1,5 @@
 (*
- * Copyright (c)2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,16 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin.Export_for_backends
-
-let src = Logs.Src.create "irmin.pack" ~doc:"irmin-pack backend"
-
-module Log = (val Logs.src_log src : Logs.LOG)
-
-module Int63 = struct
-  include Optint.Int63
-
-  let t = Irmin.Type.int63
+module Blocking_gc : sig
+  val tests : unit Alcotest.test_case list
 end
 
-type int63 = Int63.t [@@deriving irmin]
+module Concurrent_gc : sig
+  val tests : unit Alcotest.test_case list
+end

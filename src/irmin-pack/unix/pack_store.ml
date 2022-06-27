@@ -77,13 +77,7 @@ struct
     let staging = Tbl.create 127 in
     let lru = Lru.create lru_size in
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
-    { lru; staging; indexing_strategy; fm; dict } |> Lwt.return
-
-  let io_read_and_decode_hash ~off t =
-    let buf = Bytes.create Hash.hash_size in
-    let len = Hash.hash_size in
-    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
+    { lru; staging; indexing_strategy; fm; dict }
 
   type span = { offset : int63; length : int }
   (** The type of contiguous ranges of bytes in the pack file. *)
@@ -147,11 +141,11 @@ struct
          reads in both the prefix and the suffix and that doesn't crash if the
          read goes out of bounds. *)
       let bytes_after_off =
-        let ( - ) = Int63.sub in
+        let open Int63.Syntax in
         Suffix.end_offset (Fm.suffix fm) - off
       in
       let len =
-        let ( < ) a b = Int63.compare a b < 0 in
+        let open Int63.Syntax in
         if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
         else len
       in
@@ -191,19 +185,30 @@ struct
   let io_read_and_decode_entry_prefix ~off t =
     read_and_decode_entry_prefix ~off t.fm
 
+  (* This function assumes magic is written at hash_size + 1 for every
+     object. *)
+  let gced buf =
+    let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
+    kind = Pack_value.Kind.Gced || kind = Pack_value.Kind.Dangling_parent_commit
+
+  let io_read_and_decode_hash_if_not_gced ~off t =
+    let len = Hash.hash_size + 1 in
+    let buf = Bytes.create len in
+    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
+    if gced buf then None
+    else
+      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+      Some hash
+
   let pack_file_contains_key t k =
     let key = Pack_key.inspect k in
     match key with
     | Indexed hash -> Index.mem (Fm.index t.fm) hash
-    | Direct { offset; _ } ->
+    | Direct { offset; _ } -> (
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
         let minimal_entry_length = Entry_prefix.min_length in
-        if
-          Int63.compare
-            (Int63.add offset (Int63.of_int minimal_entry_length))
-            io_offset
-          > 0
-        then (
+        let open Int63.Syntax in
+        if offset + Int63.of_int minimal_entry_length > io_offset then (
           (* Can't fit an entry into this suffix of the store, so this key
              isn't (yet) valid. If we're a read-only instance, the key may
              become valid on [reload]; otherwise we know that this key wasn't
@@ -215,18 +220,20 @@ struct
           false)
         else
           (* Read the hash explicitly as an integrity check: *)
-          let hash = io_read_and_decode_hash ~off:offset t in
-          let expected_hash = Key.to_hash k in
-          if not (equal_hash hash expected_hash) then
-            invalid_read
-              "invalid key %a checked for membership (read hash %a at this \
-               offset instead)"
-              pp_key k pp_hash hash;
-          (* At this point we consider the key to be contained in the pack
-             file. However, we could also be in the presence of a forged (or
-             unlucky) key that points to an offset that mimics a real pack
-             entry (e.g. in the middle of a blob). *)
-          true
+          match io_read_and_decode_hash_if_not_gced ~off:offset t with
+          | None -> false
+          | Some hash ->
+              let expected_hash = Key.to_hash k in
+              if not (equal_hash hash expected_hash) then
+                invalid_read
+                  "invalid key %a checked for membership (read hash %a at this \
+                   offset instead)"
+                  pp_key k pp_hash hash;
+              (* At this point we consider the key to be contained in the pack
+                 file. However, we could also be in the presence of a forged (or
+                 unlucky) key that points to an offset that mimics a real pack
+                 entry (e.g. in the middle of a blob). *)
+              true)
 
   let unsafe_mem t k =
     [%log.debug "[pack] mem %a" pp_key k];
@@ -244,11 +251,12 @@ struct
 
   let check_key k v = check_hash (Key.to_hash k) v
 
-  let io_read_and_decode ~off ~len t =
+  let io_read_and_decode_if_not_gced ~off ~len t =
     let () =
       if not (Suffix.readonly (Fm.suffix t.fm)) then
         let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
-        if Int63.add off (Int63.of_int len) > io_offset then
+        let open Int63.Syntax in
+        if off + Int63.of_int len > io_offset then
           (* This is likely a store corruption. We raise [Invalid_read]
              specifically so that [integrity_check] below can handle it. *)
           invalid_read
@@ -258,26 +266,42 @@ struct
     in
     let buf = Bytes.create len in
     Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    let key_of_offset offset =
-      [%log.debug "key_of_offset: %a" Int63.pp offset];
-      (* Attempt to eagerly read the length at the same time as reading the
-         hash in order to save an extra IO read when dereferencing the key: *)
-      let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
-      match Entry_prefix.total_entry_length entry_prefix with
-      | Some length -> Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
-      | None ->
-          (* NOTE: we could store [offset] in this key, but since we know the
-             entry doesn't have a length header we'll need to check the index
-             when dereferencing this key anyway. {i Not} storing the offset
-             avoids doing another failed check in the pack file for the length
-             header during [find]. *)
-          Pack_key.v_indexed entry_prefix.hash
-    in
-    let key_of_hash = Pack_key.v_indexed in
-    let dict = Dict.find t.dict in
-    Val.decode_bin ~key_of_offset ~key_of_hash ~dict
-      (Bytes.unsafe_to_string buf)
-      (ref 0)
+    if gced buf then None
+    else
+      let key_of_offset offset =
+        [%log.debug "key_of_offset: %a" Int63.pp offset];
+        (* Attempt to eagerly read the length at the same time as reading the
+           hash in order to save an extra IO read when dereferencing the key: *)
+        let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
+        (* This function is called on the parents of a commit when deserialising
+           it. Dangling_parent_commit are usually treated as removed objects,
+           except here, where in order to correctly deserialise the gced commit,
+           they are treated as kept commits. *)
+        let kind =
+          if entry_prefix.kind = Pack_value.Kind.Dangling_parent_commit then
+            Pack_value.Kind.Commit_v2
+          else entry_prefix.kind
+        in
+        let entry_prefix = { entry_prefix with kind } in
+        match Entry_prefix.total_entry_length entry_prefix with
+        | Some length ->
+            Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
+        | None ->
+            (* NOTE: we could store [offset] in this key, but since we know the
+               entry doesn't have a length header we'll need to check the index
+               when dereferencing this key anyway. {i Not} storing the offset
+               avoids doing another failed check in the pack file for the length
+               header during [find]. *)
+            Pack_key.v_indexed entry_prefix.hash
+      in
+      let key_of_hash = Pack_key.v_indexed in
+      let dict = Dict.find t.dict in
+      let v =
+        Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+          (Bytes.unsafe_to_string buf)
+          (ref 0)
+      in
+      Some v
 
   let find_in_pack_file ~check_integrity t key =
     let loc, { offset; length } =
@@ -292,7 +316,8 @@ struct
           (Stats.Pack_store.Pack_indexed, entry_span)
     in
     let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
-    if Int63.add offset (Int63.of_int length) > io_offset then (
+    let open Int63.Syntax in
+    if offset + Int63.of_int length > io_offset then (
       (* Can't fit an entry into this suffix of the store, so this key
          isn't (yet) valid. If we're a read-only instance, the key may
          become valid on [reload]; otherwise we know that this key wasn't
@@ -308,15 +333,17 @@ struct
             Int63.pp offset length Int63.pp io_offset];
           (Stats.Pack_store.Not_found, None))
     else
-      let v = io_read_and_decode ~off:offset ~len:length t in
-      Lru.add t.lru offset v;
-      (if check_integrity then
-       check_key key v |> function
-       | Ok () -> ()
-       | Error (expected, got) ->
-           corrupted_store "Got hash %a, expecting %a (for val: %a)." pp_hash
-             got pp_hash expected pp_value v);
-      (loc, Some v)
+      match io_read_and_decode_if_not_gced ~off:offset ~len:length t with
+      | Some v ->
+          Lru.add t.lru offset v;
+          (if check_integrity then
+           check_key key v |> function
+           | Ok () -> ()
+           | Error (expected, got) ->
+               corrupted_store "Got hash %a, expecting %a (for val: %a)."
+                 pp_hash got pp_hash expected pp_value v);
+          (loc, Some v)
+      | None -> (* TODO: add a new counter in stats*) (loc, None)
 
   let unsafe_find ~check_integrity t k =
     [%log.debug "[pack] find %a" pp_key k];
@@ -341,10 +368,12 @@ struct
 
   let integrity_check ~offset ~length hash t =
     try
-      let value = io_read_and_decode ~off:offset ~len:length t in
-      match check_hash hash value with
-      | Ok () -> Ok ()
-      | Error _ -> Error `Wrong_hash
+      match io_read_and_decode_if_not_gced ~off:offset ~len:length t with
+      | None -> Error `Wrong_hash (*TODO: new error for reading gced objects.*)
+      | Some value -> (
+          match check_hash hash value with
+          | Ok () -> Ok ()
+          | Error _ -> Error `Wrong_hash)
     with Invalid_read _ -> Error `Absent_value
 
   let cast t = (t :> read_write t)
@@ -370,7 +399,7 @@ struct
         | Error err ->
             [%log.err
               "[pack] batch failed and flush failed. Silencing flush fail. (%a)"
-                Errs.pp_error err]
+                Errs.pp err]
       in
       raise exn
     in
@@ -402,7 +431,8 @@ struct
       let append = Suffix.append_exn (Fm.suffix t.fm) in
       Val.encode_bin ~offset_of_key ~dict hash v append;
 
-      let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) -- off) in
+      let open Int63.Syntax in
+      let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) - off) in
       let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
       let () =
         let kind = Val.kind v in
@@ -434,6 +464,8 @@ struct
 
       We could clear the caches here but that really is not necessary. *)
   let close _ = Lwt.return ()
+
+  let purge_lru t = Lru.clear t.lru
 end
 
 module Make
@@ -449,7 +481,7 @@ struct
   include Inner
   include Indexable.Closeable (Inner)
 
-  let v ~config ~fm ~dict = Inner.v ~config ~fm ~dict >|= make_closeable
+  let v ~config ~fm ~dict = Inner.v ~config ~fm ~dict |> make_closeable
   let cast t = Inner.cast (get_open_exn t) |> make_closeable
 
   let integrity_check ~offset ~length k t =
@@ -459,4 +491,5 @@ struct
 
   let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
   let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
+  let purge_lru t = Inner.purge_lru (get_open_exn t)
 end

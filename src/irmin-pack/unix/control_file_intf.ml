@@ -23,6 +23,20 @@ module Payload_v3 = struct
       entries before that point may be v1 entries. V1 entries need an entry in
       index because it is the only place their lenght is stored. *)
 
+  type from_v3_gced = {
+    (* TODO(good gc): Uncomment entry_offset_suffix_start  *)
+    (* entry_offset_suffix_start : int63; *)
+    generation : int;
+  }
+  [@@deriving irmin]
+  (** [entry_offset_suffix_start] is 0 if the suffix file was never garbage
+      collected. Otherwise it is the offset of the very first entry of the
+      suffix file. Note that offsets in the suffix file are virtual. The garbage
+      collections don't reset the offsets.
+
+      [generation] is the number of past GCs. A suffix file, a prefix file and a
+      mapping containing that integer in their filename exist. *)
+
   (** [From_v1_v2_post_upgrade] corresponds to a pack store that was upgraded to
       [`V3]. It contains infos related to backward compatibility. GCs are
       forbidden on it.
@@ -39,9 +53,9 @@ module Payload_v3 = struct
       that may in the future be used to add features to the [`V3] payload. *)
   type status =
     | From_v1_v2_post_upgrade of from_v1_v2_post_upgrade
-    | From_v3
+    | From_v3_no_gc_yet
     | From_v3_used_non_minimal_indexing_strategy
-    | T0
+    | From_v3_gced of from_v3_gced
     | T1
     | T2
     | T3

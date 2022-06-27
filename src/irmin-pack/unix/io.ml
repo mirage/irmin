@@ -27,7 +27,7 @@ module Util = struct
       if w = 0 || w = length then ()
       else
         (aux [@tailcall])
-          (fd_offset ++ Int63.of_int w)
+          Int63.Syntax.(fd_offset + Int63.of_int w)
           (buffer_offset + w) (length - w)
     in
     aux fd_offset buffer_offset length
@@ -39,7 +39,7 @@ module Util = struct
       else if r = length then buffer_offset + r
       else
         (aux [@tailcall])
-          (fd_offset ++ Int63.of_int r)
+          Int63.Syntax.(fd_offset + Int63.of_int r)
           (buffer_offset + r) (length - r)
     in
     aux fd_offset 0 length
@@ -147,6 +147,8 @@ module Unix = struct
     | true -> Error `Double_close
     | false -> (
         t.closed <- true;
+        (* mark [t] as closed, even if [Unix.close] fails, since it is recommended
+           to not retry after an error. see: https://man7.org/linux/man-pages/man2/close.2.html *)
         try
           Unix.close t.fd;
           Ok ()

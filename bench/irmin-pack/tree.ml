@@ -36,18 +36,29 @@ type config = {
   keep_stat_trace : bool;
   no_summary : bool;
   empty_blobs : bool;
+  gc_every : int;
+  gc_distance_in_the_past : int;
+  gc_wait_after : int;
 }
 
 module type Store = sig
   type store_config = config
+  type key
 
-  include Irmin.Generic_key.KV with type Schema.Contents.t = bytes
+  include
+    Irmin.Generic_key.KV
+      with type Schema.Contents.t = bytes
+       and type commit_key = key
+       and type node_key = key
+       and type contents_key = key
 
   type on_commit := int -> Hash.t -> unit Lwt.t
   type on_end := unit -> unit Lwt.t
 
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+
+  val gc : repo -> commit_key -> unit
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -155,6 +166,9 @@ module Bench_suite (Store : Store) = struct
         keep_stat_trace = config.keep_stat_trace;
         empty_blobs = config.empty_blobs;
         return_type = Summary;
+        gc_every = config.gc_every;
+        gc_distance_in_the_past = config.gc_distance_in_the_past;
+        gc_wait_after = config.gc_wait_after;
       }
     in
     if config.no_summary then
@@ -184,6 +198,10 @@ struct
     include Make (Irmin_tezos.Schema)
   end
 
+  include Store
+
+  type key = commit_key
+
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
   let create_repo ~root _config =
@@ -196,7 +214,7 @@ struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  include Store
+  let gc = Store.gc ~unlink:true
 end
 
 module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
@@ -326,7 +344,7 @@ let get_suite suite_filter =
 let main () ncommits number_of_commits_to_replay suite_filter inode_config
     store_type freeze_commit path_conversion depth width nchain_trees
     nlarge_trees replay_trace_path artefacts_path keep_store keep_stat_trace
-    no_summary empty_blobs =
+    no_summary empty_blobs gc_every gc_distance_in_the_past gc_wait_after =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let number_of_commits_to_replay =
     Option.value ~default number_of_commits_to_replay
@@ -350,6 +368,9 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
       keep_stat_trace;
       no_summary;
       empty_blobs;
+      gc_every;
+      gc_distance_in_the_past;
+      gc_wait_after;
     }
   in
   Printexc.record_backtrace true;
@@ -509,6 +530,27 @@ let artefacts_path =
 let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
+let gc_every =
+  let doc = Arg.info ~doc:"Distance between calls to GC" [ "gc-every" ] in
+  Arg.(value @@ opt int 1000 doc)
+
+let gc_distance_in_the_past =
+  let doc =
+    Arg.info ~doc:"Distance between the GC commit and the latest commit"
+      [ "gc-distance-in-the-past" ]
+  in
+  Arg.(value @@ opt int 5000 doc)
+
+let gc_wait_after =
+  let doc =
+    Arg.info
+      ~doc:
+        "How many commits separate the start of a GC and the moment we wait \
+         for the end of it"
+      [ "gc-wait-after" ]
+  in
+  Arg.(value @@ opt int 0 doc)
+
 let main_term =
   Term.(
     const main
@@ -529,7 +571,10 @@ let main_term =
     $ keep_store
     $ keep_stat_trace
     $ no_summary
-    $ empty_blobs)
+    $ empty_blobs
+    $ gc_every
+    $ gc_distance_in_the_past
+    $ gc_wait_after)
 
 let deprecated_info = (Term.info [@alert "-deprecated"])
 let deprecated_exit = (Term.exit [@alert "-deprecated"])

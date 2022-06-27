@@ -39,4 +39,5 @@ struct
 
   let v = Pack.v
   let integrity_check = Pack.integrity_check
+  let purge_lru = Pack.purge_lru
 end
