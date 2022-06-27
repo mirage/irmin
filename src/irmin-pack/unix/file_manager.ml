@@ -146,7 +146,13 @@ struct
     let open Result_syntax in
     if Dict.empty_buffer t.dict then Ok ()
     else
-      let* () = Dict.flush t.dict in
+      (* NOTE we call the Stats increment function before the call to the Dict flush
+         function; in general we increment the stat before the call, everywhere in this
+         file. *)
+      let* () =
+        Stats.incr_fm_field Dict_flushes;
+        Dict.flush t.dict
+      in
       let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -162,7 +168,10 @@ struct
     let* () = flush_dict t in
     if Suffix.empty_buffer t.suffix then Ok ()
     else
-      let* () = Suffix.flush t.suffix in
+      let* () =
+        Stats.incr_fm_field Suffix_flushes;
+        Suffix.flush t.suffix
+      in
       let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
@@ -202,29 +211,38 @@ struct
   let flush_index_and_its_deps t =
     let open Result_syntax in
     let* () = flush_suffix_and_its_deps t in
-    let+ () = Index.flush ~with_fsync:t.use_fsync t.index in
+    let+ () =
+      Stats.incr_fm_field Index_flushes;
+      Index.flush ~with_fsync:t.use_fsync t.index
+    in
     ()
 
   (* Auto flushes *********************************************************** *)
 
   (** Is expected to be called by the dict when its append buffer is full so
       that the file manager flushes. *)
-  let dict_requires_a_flush_exn t = flush_dict t |> Errs.raise_if_error
+  let dict_requires_a_flush_exn t =
+    Stats.incr_fm_field Auto_dict;
+    flush_dict t |> Errs.raise_if_error
 
   (** Is expected to be called by the suffix when its append buffer is full so
       that the file manager flushes. *)
   let suffix_requires_a_flush_exn t =
+    Stats.incr_fm_field Auto_suffix;
     flush_suffix_and_its_deps t |> Errs.raise_if_error
 
   (** Is expected to be called by the index when its append buffer is full so
       that the dependendies of index are flushes. When the function returns,
       index will flush itself. *)
   let index_is_about_to_auto_flush_exn t =
+    Stats.incr_fm_field Auto_index;
     flush_suffix_and_its_deps t |> Errs.raise_if_error
 
   (* Explicit flush ********************************************************* *)
 
-  let flush t = flush_index_and_its_deps t
+  let flush t =
+    Stats.incr_fm_field Flush;
+    flush_index_and_its_deps t
 
   (* File creation ********************************************************** *)
 

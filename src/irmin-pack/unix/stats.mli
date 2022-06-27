@@ -67,29 +67,83 @@ module Index : sig
   val export : stat -> t
 end
 
-type t = { pack_store : Pack_store.stat; index : Index.stat }
+module File_manager : sig
+  type field =
+    | Dict_flushes
+    | Suffix_flushes
+    | Index_flushes
+    | Auto_dict
+    | Auto_suffix
+    | Auto_index
+    | Flush
+
+  type t = private {
+    mutable dict_flushes : int;
+    mutable suffix_flushes : int;
+    mutable index_flushes : int;
+    mutable auto_dict : int;
+    mutable auto_suffix : int;
+    mutable auto_index : int;
+    mutable flush : int;
+  }
+  [@@deriving irmin]
+
+  type stat
+
+  val export : stat -> t
+end
+
+type t = {
+  pack_store : Pack_store.stat;
+  index : Index.stat;
+  file_manager : File_manager.stat;
+}
+(** Record type for all statistics that will be collected. There is a single
+    instance (which we refer to as "the instance" below) which is returned by
+    {!get}. *)
 
 val reset_stats : unit -> unit
+(** [reset_stats ()] will call the relevant [clear] function on each field of
+    the instance. This typically resets the fields (e.g. to 0 for an int field). *)
 
 val get : unit -> t
-(** [get ()] returns the {!t} that stores the satistics. If {!report_pack_store}
-    or {!report_index} is not called before, the content will be filled with
-    default value, decided at create time (most the time, [0]). *)
+(** [get ()] returns the instance of {!t} that stores the satistics. If
+    {!report_pack_store} or {!report_index} is not called before, the content
+    will be filled with default value, decided at create time (most the time,
+    [0]). *)
 
 val report_pack_store : field:Pack_store.field -> unit
-(** [report_pack_store ~field] incrementes the [field] value in the [pack_store]
-    stats. It also incrementes the [total] field in {!Pack_store.t} when the
+(** [report_pack_store ~field] increments the [field] value in the [pack_store]
+    stats. It also increments the [total] field in {!Pack_store.t} when the
     field is related to [finds]. *)
 
 val report_index : unit -> unit
 (** [report_index ()] fills the [stats] with value from the {!Index.Stats}
-    module. *)
+    module. This essentially copies the "current" values from {!Index.Stats} to
+    the [get()] instance [index] field. *)
 
 val incr_appended_hashes : unit -> unit
+(** [incr_appended_hashes ()] increments the field [appended_hashes] for
+    [pack_store] in the instance. *)
+
 val incr_appended_offsets : unit -> unit
+(** [incr_appended_offsets] increments the field [appended_offsets] for
+    [pack_store] in the instance. *)
 
 type cache_stats = { cache_misses : float }
+
 type offset_stats = { offset_ratio : float; offset_significance : int }
+(** [offset_ratio]: [appended_offsets / (appended_offsets + appended_hashes)];
+    [offset_significance]: [appended_offsets + appended_hashes] *)
 
 val get_cache_stats : unit -> cache_stats
+(** [get_cache_stats()] uses the instance [pack_store] field to compute cache
+    misses. *)
+
 val get_offset_stats : unit -> offset_stats
+(** [get_offset_stats()] uses the instance [pack_store] field to compute offset
+    stats. *)
+
+val incr_fm_field : File_manager.field -> unit
+(** [incr_fm_field field] increments the chosen stats field for the
+    {!File_manager} *)
