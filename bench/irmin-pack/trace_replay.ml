@@ -373,6 +373,15 @@ module Make (Store : Store) = struct
     (* Manually add genesis context *)
     Hashtbl.add t.contexts 0L { tree = Store.Tree.empty () };
 
+    let finalise_gc_and_log ~wait i repo =
+      let* wait = Store.finalise_gc ~wait repo in
+      (if wait then
+       let gc_commit_key = Hashtbl.find t.key_per_commit_idx (i - 1) in
+       [%logs.app
+         "Gc ended on commit idx %d with key %a" (i - 1) pp_key gc_commit_key]);
+      Lwt.return_unit
+    in
+
     let rec aux commit_seq i =
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
@@ -383,10 +392,9 @@ module Make (Store : Store) = struct
           let* () =
             if really_wait_gc then (
               [%logs.app "Waiting gc while latest commit has idx %d" (i - 1)];
-              Store.finalise_gc ~wait:true repo)
+              finalise_gc_and_log ~wait:true i repo)
             else Lwt.return_unit
           in
-          (*TODO call finalise_gc wait:false *)
           let* () =
             if really_start_gc then (
               (* Starting GC.
@@ -406,6 +414,8 @@ module Make (Store : Store) = struct
               Store.gc repo gc_commit_key)
             else Lwt.return_unit
           in
+          (* Call finalise_gc after each commit. *)
+          let* () = finalise_gc_and_log ~wait:false i repo in
 
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in

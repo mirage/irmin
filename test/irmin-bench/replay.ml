@@ -31,10 +31,6 @@ module Store = struct
     let* wait = Store.finalise_gc ~wait:true repo in
     assert wait;
     Lwt.return_unit
-
-  let finalise_gc ~wait repo =
-    let* (_ : bool) = Store.finalise_gc ~wait repo in
-    Lwt.return_unit
 end
 
 module Replay = Irmin_traces.Trace_replay.Make (Store)
@@ -133,10 +129,6 @@ module Store_mem = struct
     assert launched;
     let* wait = Store.finalise_gc ~wait:true repo in
     assert wait;
-    Lwt.return_unit
-
-  let finalise_gc ~wait repo =
-    let* (_ : bool) = Store.finalise_gc ~wait repo in
     Lwt.return_unit
 end
 

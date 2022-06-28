@@ -59,7 +59,7 @@ module type Store = sig
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
   val gc : repo -> commit_key -> unit Lwt.t
-  val finalise_gc : wait:bool -> repo -> unit Lwt.t
+  val finalise_gc : ?wait:bool -> repo -> bool Lwt.t
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -219,10 +219,6 @@ struct
     let* (_launched : bool) =
       Store.start_gc ~unlink:true ~throttle:`Skip repo key
     in
-    Lwt.return_unit
-
-  let finalise_gc ~wait repo =
-    let* (_ : bool) = Store.finalise_gc ~wait repo in
     Lwt.return_unit
 end
 
