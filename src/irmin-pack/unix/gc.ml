@@ -155,6 +155,9 @@ module Make (Args : Args) : S with module Args := Args = struct
     (* Step 1. Open the files *)
     [%log.debug "GC: opening files in RO mode"];
     let* fm = Fm.open_ro config in
+    Errors.finalise (fun _outcome ->
+        Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
+    @@ fun () ->
     let* dict = Dict.v fm in
     let node_store = Node_store.v ~config ~fm ~dict in
     let commit_store = Commit_store.v ~config ~fm ~dict in
@@ -203,6 +206,9 @@ module Make (Args : Args) : S with module Args := Args = struct
     let suffix_path = Irmin_pack.Layout.V3.suffix ~root ~generation in
     [%log.debug "GC: creating %S" suffix_path];
     let* dst_io = Io.create ~path:suffix_path ~overwrite:false in
+    Errors.finalise (fun _outcome ->
+        Io.close dst_io |> Errs.log_if_error "GC: Close suffix")
+    @@ fun () ->
     let src_ao = Fm.suffix fm in
     let buffer = Bytes.create buffer_size in
     let hash_size = Int63.of_int Hash.hash_size in
@@ -286,11 +292,5 @@ module Make (Args : Args) : S with module Args := Args = struct
             (fun () -> ()))
     in
 
-    (* Step 9. *)
-    [%log.debug "GC: closing files"];
-    let* () = Io.close dst_io in
-    let* () = Fm.close fm in
-
-    (* Step 10. Inform the caller of the new generation *)
     Ok generation
 end

@@ -14,7 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 include Errors_base
+
+(** Finaniser for a function that returns a result and doesn't raise exceptions.
+
+    If the finiliser fails, it is recommended to log the error. *)
+let finalise finiliser f =
+  let res = f () in
+  finiliser res;
+  res
 
 module type S = sig
   (** Error manager for [RO_not_allowed], [Pack_error], [Io.misc_error] and IO's
@@ -28,6 +37,7 @@ module type S = sig
   val raise_error : [< t ] -> 'a
   val catch : (unit -> 'a) -> ('a, [> t ]) result
   val raise_if_error : ('a, [< t ]) result -> 'a
+  val log_if_error : string -> (unit, [< t ]) result -> unit
 end
 
 module Make (Io : Io.S) : S with module Io = Io = struct
@@ -52,4 +62,8 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | RO_not_allowed -> Error `Ro_not_allowed
 
   let raise_if_error = function Ok x -> x | Error e -> raise_error e
+
+  let log_if_error context = function
+    | Ok () -> ()
+    | Error e -> [%log.err "%s failed: %a" context pp e]
 end
