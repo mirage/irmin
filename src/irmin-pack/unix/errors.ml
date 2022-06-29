@@ -17,12 +17,12 @@
 open Import
 include Errors_base
 
-(** Finaniser for a function that returns a result and doesn't raise exceptions.
+(** Finaliser for a function that returns a result and doesn't raise exceptions.
 
-    If the finiliser fails, it is recommended to log the error. *)
-let finalise finiliser f =
+    If the finaliser fails, it is recommended to log the error. *)
+let finalise finaliser f =
   let res = f () in
-  finiliser res;
+  finaliser res;
   res
 
 module type S = sig
