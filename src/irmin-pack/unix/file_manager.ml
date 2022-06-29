@@ -52,6 +52,7 @@ struct
   module Dict = Dict
   module Suffix = Suffix
   module Index = Index
+  module Errs = Errs
 
   let control t = t.control
   let dict t = t.dict
@@ -541,11 +542,11 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~unlink =
+  let swap t ~generation ~copy_end_offset =
     let open Result_syntax in
     (* Step 1. Open the suffix *)
-    let* suffix =
-      let end_offset = Suffix.end_offset t.suffix in
+    let* new_suffix =
+      let end_offset = copy_end_offset in
       let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
       let dead_header_size = 0 in
       let auto_flush_threshold =
@@ -582,10 +583,35 @@ struct
 
     (* Step 3. Use the new suffix in the rw instance *)
     let old_suffix = t.suffix in
-    t.suffix <- suffix;
+    t.suffix <- new_suffix;
 
-    (* Step 4. Close, unlink and return *)
+    (* Step 4. Close and return *)
     let* () = Suffix.close old_suffix in
-    let* () = if unlink then Io.unlink (Suffix.path old_suffix) else Ok () in
     Ok ()
+
+  let write_gc_output ~root ~generation output =
+    let open Result_syntax in
+    let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+    let* io = Io.create ~path ~overwrite:true in
+    let out = Errs.to_json_string output in
+    let* () = Io.write_string io ~off:Int63.zero out in
+    Io.close io
+
+  let read_gc_output ~root ~generation =
+    let open Result_syntax in
+    let read_file () =
+      let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+      let* io = Io.open_ ~path ~readonly:true in
+      let* len = Io.read_size io in
+      let len = Int63.to_int len in
+      let* string = Io.read_to_string io ~off:Int63.zero ~len in
+      let* () = Io.close io in
+      Ok string
+    in
+    match read_file () with
+    | Error err -> Error (`Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err))
+    | Ok x ->
+        Errs.of_json_string x
+        |> Result.map_error (fun err ->
+               `Gc_process_error (Fmt.str "%a" Errs.pp err))
 end

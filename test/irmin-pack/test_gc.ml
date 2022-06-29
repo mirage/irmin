@@ -50,12 +50,17 @@ include struct
 
   let info = S.Info.empty
 
-  let gc ?unlink t commit =
+  let start_gc t commit =
     let commit_key = S.Commit.key commit in
-    S.gc ?unlink t.repo commit_key
+    let* launched =
+      S.start_gc ~unlink:false ~throttle:`Block t.repo commit_key
+    in
+    assert launched;
+    Lwt.return_unit
 
-  let wait_for_gc _ =
-    (* TODO for testing purposes its convenient to have this function. *)
+  let finalise_gc t =
+    let* wait = S.finalise_gc ~wait:true t.repo in
+    assert wait;
     Lwt.return_unit
 
   let commit t =
@@ -204,8 +209,8 @@ module Blocking_gc = struct
     let* t = checkout_exn t c1 in
     let* t, c3 = commit_3 t in
     [%log.debug "Gc c1, c2, keep c3"];
-    let () = gc t c3 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_not_found t c2 "removed c2" in
     let* () = check_3 t c3 in
@@ -225,14 +230,14 @@ module Blocking_gc = struct
     let* t = checkout_exn t c2 in
     let* t, c4 = commit_4 t in
     [%log.debug "Gc c1, c2, c3, keep c4"];
-    let () = gc t c4 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c4 in
+    let* () = finalise_gc t in
     let* t = checkout_exn t c4 in
     let* t, c5 = commit_5 t in
     let* () = check_5 t c5 in
     [%log.debug "Gc c4, keep c5"];
-    let () = gc t c5 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c5 in
+    let* () = finalise_gc t in
     let* () = check_5 t c5 in
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_not_found t c2 "removed c2" in
@@ -251,8 +256,8 @@ module Blocking_gc = struct
     let* t = checkout_exn t c2 in
     let* t, c3 = commit_3 t in
     [%log.debug "Keep c1, c2, c3"];
-    let () = gc t c1 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
     let* () = check_3 t c3 in
@@ -269,8 +274,8 @@ module Blocking_gc = struct
     let* t = checkout_exn t c_del in
     let* t, c3 = commit_3 t in
     [%log.debug "Gc c1, c_del, keep c3"];
-    let () = gc t c3 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_not_found t c_del "removed c_del" in
     let* () = check_3 t c3 in
@@ -283,8 +288,8 @@ module Blocking_gc = struct
     let* t, c2 = commit_2 t in
     let* () = check_2 t c2 in
     [%log.debug "Gc c3, keep c1, c2"];
-    let () = gc t c1 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
     let* () = check_not_found t c3 "removed c3" in
     let* () = check_2 t c2 in
     [%log.debug "Add back c3"];
@@ -302,8 +307,8 @@ module Blocking_gc = struct
     let* t = init () in
     let store_name = t.root in
     let* t, c1 = commit_1 t in
-    let () = gc t c1 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
     let* () = S.Repo.close t.repo in
@@ -313,7 +318,8 @@ module Blocking_gc = struct
     let* () = S.Repo.close t.repo in
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
     [%log.debug "Gc c1, keep c2"];
-    let () = gc t c2 in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
     let* () = S.Repo.close t.repo in
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = check_not_found t c1 "removed c1" in
@@ -331,8 +337,8 @@ module Blocking_gc = struct
     let* t, c2 = commit_2 t in
     let t = { t with parents = [ c1; c2 ] } in
     let* t, c3 = commit_3 t in
-    let () = gc t c3 in
-    let* () = wait_for_gc t in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_not_found t c2 "removed c2" in
     let* () = check_3 t c3 in
@@ -353,8 +359,8 @@ module Blocking_gc = struct
     let* t, c3 = commit_3 t in
     S.reload ro_t.repo;
     [%log.debug "Gc c1, c2, keeps c3"];
-    let () = gc t c3 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
     [%log.debug "RO finds everything before reload"];
     let* () = check_1 ro_t c1 in
     let* () = check_2 ro_t c2 in
@@ -370,8 +376,8 @@ module Blocking_gc = struct
     let* t, c5 = commit_5 t in
     S.reload ro_t.repo;
     [%log.debug "Gc c3, keep c4, c5"];
-    let () = gc t c4 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c4 in
+    let* () = finalise_gc t in
     [%log.debug "RO finds c3, c4, c5 before reload"];
     let* () = check_3 ro_t c3 in
     let* () = check_4 ro_t c4 in
@@ -393,12 +399,12 @@ module Blocking_gc = struct
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
     S.reload ro_t.repo;
-    let () = gc t c1 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
-    let () = gc t c2 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
     [%log.debug "RO finds c1, but not c2 before reload"];
     let* () = check_1 ro_t c1 in
     let* () = check_not_found ro_t c2 "c2" in
@@ -417,8 +423,8 @@ module Blocking_gc = struct
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
     let* () = S.Repo.close ro_t.repo in
-    let () = gc t c2 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
     [%log.debug "RO reopens is similar to a reload"];
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* () = check_2 ro_t c2 in
@@ -464,8 +470,8 @@ module Blocking_gc = struct
     let* t = checkout_exn t c3 in
     let* t = set t [ "a"; "b"; "e" ] "a" in
     let* c4 = commit t in
-    let () = gc t c3 in
-    let* () = wait_for_gc t.repo in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
     let* () = check t c4 in
     S.Repo.close t.repo
 

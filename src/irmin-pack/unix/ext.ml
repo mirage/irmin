@@ -16,6 +16,35 @@
 
 open! Import
 
+module Exit = struct
+  let proc_list = ref []
+  let m = Mutex.create ()
+
+  let add gc =
+    Mutex.lock m;
+    proc_list := gc :: !proc_list;
+    Mutex.unlock m
+
+  let remove gc =
+    Mutex.lock m;
+    proc_list := List.filter (fun gc' -> gc <> gc') !proc_list;
+    Mutex.unlock m
+
+  let clean_up () =
+    List.iter
+      (fun gc ->
+        try Unix.kill gc 9
+        with Unix.Unix_error (e, s1, s2) ->
+          [%log.err
+            "Killing gc process with pid %d failed with error (%s, %s, %s)" gc
+              (Unix.error_message e) s1 s2])
+      !proc_list
+end
+
+(* Register function to be called when process terminates. If there is a gc
+   process running, make sure to terminate it. *)
+let () = at_exit Exit.clean_up
+
 module Maker (Config : Conf.S) = struct
   type endpoint = unit
 
@@ -138,6 +167,8 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
+      type during_gc = { next_generation : int; pid : int; unlink : bool }
+
       module Repo = struct
         type t = {
           config : Irmin.Backend.Conf.t;
@@ -148,6 +179,7 @@ module Maker (Config : Conf.S) = struct
           fm : File_manager.t;
           dict : Dict.t;
           mutable during_batch : bool;
+          mutable during_gc : during_gc option;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -184,6 +216,7 @@ module Maker (Config : Conf.S) = struct
                      fail. (%a)"
                     Errs.pp err]
             in
+            (* Kill gc process in at_exit. *)
             raise exn
           in
           Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
@@ -218,13 +251,33 @@ module Maker (Config : Conf.S) = struct
             Branch.v ~fresh ~readonly path
           in
           let during_batch = false in
-          { config; contents; node; commit; branch; fm; dict; during_batch }
+          let during_gc = None in
+          {
+            config;
+            contents;
+            node;
+            commit;
+            branch;
+            fm;
+            dict;
+            during_batch;
+            during_gc;
+          }
 
         let close t =
-          (* Step 1 - Close the files *)
+          (* Step 1 - Kill the gc process if it is running *)
+          let () =
+            match t.during_gc with
+            | Some { pid; _ } ->
+                Unix.kill pid 9;
+                Exit.remove pid;
+                t.during_gc <- None
+            | None -> ()
+          in
+          (* Step 2 - Close the files *)
           let () = File_manager.close t.fm |> Errs.raise_if_error in
           Branch.close t.branch >>= fun () ->
-          (* Step 2 - Close the in-memory abstractions *)
+          (* Step 3 - Close the in-memory abstractions *)
           Dict.close t.dict;
           Contents.CA.close (contents_t t) >>= fun () ->
           Node.CA.close (snd (node_t t)) >>= fun () ->
@@ -233,29 +286,187 @@ module Maker (Config : Conf.S) = struct
         let flush t = File_manager.flush t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
-        let gc ?(unlink = true) t commit_key =
-          let open Result_syntax in
-          [%log.info "GC: Starting on %a" pp_key commit_key];
-          let* () =
-            if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
-          in
-          let root = Conf.root t.config in
-          let* generation = Gc.run root commit_key in
-          let* () = File_manager.swap t.fm ~generation ~unlink in
+        module Gc = struct
+          let gc_generation t =
+            let pl = File_manager.Control.payload (File_manager.control t.fm) in
+            match pl.status with
+            | From_v1_v2_post_upgrade _
+            | From_v3_used_non_minimal_indexing_strategy ->
+                Error `Gc_disallowed
+            | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+            | T14 | T15 ->
+                (* Unreachable *)
+                assert false
+            | From_v3_no_gc_yet -> Ok 0
+            | From_v3_gced x -> Ok x.generation
 
-          (* No need to purge dict here, as it is global to the store. *)
-          (* No need to purge index here. It is global too, but some hashes may
-             not point to valid offsets anymore. Pack_store will just say that
-             such keys are not member of the store. *)
-          Contents.CA.purge_lru t.contents;
-          Node.CA.purge_lru t.node;
-          Commit.CA.purge_lru t.commit;
-          [%log.info "GC: end"];
+          let start ~unlink t commit_key =
+            let open Result_syntax in
+            [%log.info "GC: Starting on %a" pp_key commit_key];
+            let* () =
+              if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
+            in
+            let root = Conf.root t.config in
+            (* Determine if the store allows GC *)
+            let* current_generation = gc_generation t in
+            let next_generation = current_generation + 1 in
+            match Lwt_unix.fork () with
+            | 0 ->
+                let (_ : int63) =
+                  Gc.run_and_output_result root commit_key
+                    ~generation:next_generation
+                in
+                exit 0
+            | pid ->
+                t.during_gc <- Some { next_generation; pid; unlink };
+                Exit.add pid;
+                Ok ()
 
-          Ok ()
+          let copy_latest_newies ~generation ~copy_end_offset ~root t =
+            let open Result_syntax in
+            let open Int63.Syntax in
+            let old_suffix = File_manager.suffix t.fm in
+            let old_end_offset = File_manager.Suffix.end_offset old_suffix in
+            let remaining = old_end_offset - copy_end_offset in
+            let new_suffix_path =
+              Irmin_pack.Layout.V3.suffix ~root ~generation
+            in
+            let* new_suffix = Io.open_ ~path:new_suffix_path ~readonly:false in
+            let buffer = Bytes.create 8192 in
+            let* () =
+              Errs.catch (fun () ->
+                  Gc.transfer_exn ~src:old_suffix ~dst:new_suffix
+                    ~off:copy_end_offset ~len:remaining buffer)
+            in
+            let* () = Io.close new_suffix in
+            Ok old_end_offset
 
-        let gc_exn ?unlink t commit_key =
-          gc ?unlink t commit_key |> Errs.raise_if_error
+          let swap_and_purge ~generation ~end_offset t =
+            let open Result_syntax in
+            let* () =
+              File_manager.swap t.fm ~generation ~copy_end_offset:end_offset
+            in
+            (* No need to purge dict here, as it is global to the store. *)
+            (* No need to purge index here. It is global too, but some hashes may
+               not point to valid offsets anymore. Pack_store will just say that
+               such keys are not member of the store. *)
+            Contents.CA.purge_lru t.contents;
+            Node.CA.purge_lru t.node;
+            Commit.CA.purge_lru t.commit;
+            [%log.info "GC: end"];
+            Ok ()
+
+          let unlink_all ~root ~generation =
+            let result =
+              let open Result_syntax in
+              (* Unlink previous suffix. *)
+              let suffix =
+                Irmin_pack.Layout.V3.suffix ~root ~generation:(generation - 1)
+              in
+              let* () = Io.unlink suffix in
+              (* Unlink current gc's result.*)
+              let result = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+              Io.unlink result
+            in
+            match result with
+            | Error e ->
+                [%log.warn
+                  "Unlinking temporary files after gc failed with error %a"
+                    Errs.pp e]
+            | Ok () -> ()
+
+          let gc_errors (status, gc_output) =
+            match (status, gc_output) with
+            | Lwt_unix.WEXITED n, Error (`Gc_process_error str) ->
+                Error (`Gc_process_error (Fmt.str "Exited %d %s" n str))
+            | Lwt_unix.WEXITED n, Error (`Corrupted_gc_result_file str) ->
+                Error (`Corrupted_gc_result_file (Fmt.str "Exited %d %s" n str))
+            | Lwt_unix.WSIGNALED n, Error (`Corrupted_gc_result_file _) ->
+                Error
+                  (`Gc_process_died_without_result_file
+                    (Fmt.str "Signaled %d" n))
+            | Lwt_unix.WSTOPPED n, Error (`Corrupted_gc_result_file _) ->
+                Error
+                  (`Gc_process_died_without_result_file
+                    (Fmt.str "Stopped %d" n))
+            | Lwt_unix.WSIGNALED n, Error (`Gc_process_error str) ->
+                Error (`Gc_process_error (Fmt.str "Signaled %d %s" n str))
+            | Lwt_unix.WSTOPPED n, Error (`Gc_process_error str) ->
+                Error
+                  (`Gc_process_died_without_result_file
+                    (Fmt.str "Stopped %d %s" n str))
+            | Lwt_unix.WEXITED _, Ok _
+            | Lwt_unix.WSIGNALED _, Ok _
+            | Lwt_unix.WSTOPPED _, Ok _ ->
+                assert false
+
+          let finalise ~wait t =
+            match t.during_gc with
+            | None -> Lwt.return_ok false
+            | Some { next_generation; pid; unlink } ->
+                let wait_flags = if wait then [] else [ Unix.WNOHANG ] in
+                let root = Conf.root t.config in
+                let go status =
+                  let gc_output =
+                    File_manager.read_gc_output ~root
+                      ~generation:next_generation
+                  in
+                  let result =
+                    let open Result_syntax in
+                    match (status, gc_output) with
+                    | Lwt_unix.WEXITED 0, Ok copy_end_offset ->
+                        let* new_suffix_end_offset =
+                          copy_latest_newies ~generation:next_generation
+                            ~copy_end_offset ~root t
+                        in
+                        let* () =
+                          swap_and_purge ~generation:next_generation
+                            ~end_offset:new_suffix_end_offset t
+                        in
+                        if unlink then
+                          unlink_all ~root ~generation:next_generation;
+                        Ok ()
+                    | _ -> gc_errors (status, gc_output)
+                  in
+                  t.during_gc <- None;
+                  Exit.remove pid;
+                  result
+                in
+                if t.during_batch then
+                  Lwt.return_error `Gc_forbidden_during_batch
+                else
+                  let* pid, status = Lwt_unix.waitpid wait_flags pid in
+                  (* Do not block if no child has died yet. In this case the waitpid
+                     returns immediately with a pid equal to 0. *)
+                  if (not wait) && pid = 0 then Lwt.return_ok false
+                  else
+                    (* If wait or the child died, then finalise the gc. *)
+                    go status |> Result.map (fun () -> true) |> Lwt.return
+
+          let start_or_wait ~unlink ~throttle t commit_key =
+            let open Lwt_result.Syntax in
+            match (t.during_gc, throttle) with
+            | None, _ ->
+                let* () = start ~unlink t commit_key |> Lwt.return in
+                Lwt.return_ok true
+            | Some _, `Block ->
+                let* (_ : bool) = finalise ~wait:true t in
+                let* () = start ~unlink t commit_key |> Lwt.return in
+                Lwt.return_ok true
+            | Some _, `Skip -> Lwt.return_ok false
+
+          let start_exn ?(unlink = true) ~throttle t commit_key =
+            let* result = start_or_wait ~unlink ~throttle t commit_key in
+            match result with
+            | Ok launched -> Lwt.return launched
+            | Error e -> Errs.raise_error e
+
+          let finalise_exn ?(wait = false) t =
+            let* result = finalise ~wait t in
+            match result with
+            | Ok waited -> Lwt.return waited
+            | Error e -> Errs.raise_error e
+        end
       end
     end
 
@@ -386,7 +597,8 @@ module Maker (Config : Conf.S) = struct
     let stats = Stats.run
     let reload = X.Repo.reload
     let flush = X.Repo.flush
-    let gc = X.Repo.gc_exn
+    let start_gc = X.Repo.Gc.start_exn
+    let finalise_gc = X.Repo.Gc.finalise_exn
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
       module File_manager = File_manager

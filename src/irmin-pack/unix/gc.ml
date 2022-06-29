@@ -18,7 +18,6 @@ open! Import
 module Payload = Control_file.Latest_payload
 
 let buffer_size = 8192
-let buffer_size_63 = Int63.of_int 8192
 
 exception Pack_error = Errors_base.Pack_error
 
@@ -71,7 +70,15 @@ end
 module type S = sig
   module Args : Args
 
-  val run : string -> Args.key -> (int, [> Args.Errs.t ]) result
+  val run_and_output_result : generation:int -> string -> Args.key -> int63
+
+  val transfer_exn :
+    src:Args.Fm.Suffix.t ->
+    dst:Args.Fm.Io.t ->
+    off:int63 ->
+    len:int63 ->
+    bytes ->
+    unit
 end
 
 module Make (Args : Args) : S with module Args := Args = struct
@@ -82,8 +89,22 @@ module Make (Args : Args) : S with module Args := Args = struct
 
   let string_of_key = Irmin.Type.to_string key_t
 
-  (** [iter_from_node_key_exn node_key _ _ ~f] calls [f] with the key of the
-      node and iterates over its children.
+  let transfer_exn ~src ~dst ~(off : int63) ~(len : int63) buffer =
+    let buffer_size = Bytes.length buffer |> Int63.of_int in
+    let rec aux off len_remaining =
+      let open Int63.Syntax in
+      let min a b = if a < b then a else b in
+      let len = min buffer_size len_remaining in
+      let len' = Int63.to_int len in
+      Fm.Suffix.read_exn src ~off ~len:len' buffer;
+      Io.write_exn dst ~off ~len:len' (Bytes.unsafe_to_string buffer);
+      let len_remaining = len_remaining - len in
+      if len_remaining > Int63.zero then aux (off + len) len_remaining
+    in
+    aux off len
+
+  (** [iter_from_node_key node_key _ _ ~f] calls [f] with the key of the node
+      and iterates over its children.
 
       [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
       if the children of [k] should be traversed or skiped. *)
@@ -146,7 +167,7 @@ module Make (Args : Args) : S with module Args := Args = struct
     in
     aux Int63.zero count
 
-  let run root commit_key =
+  let run ~generation root commit_key =
     let open Result_syntax in
     let config =
       Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 root
@@ -162,23 +183,7 @@ module Make (Args : Args) : S with module Args := Args = struct
     let node_store = Node_store.v ~config ~fm ~dict in
     let commit_store = Commit_store.v ~config ~fm ~dict in
 
-    (* Step 2. Determine if the store allows GC *)
-    let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
-    let* generation =
-      match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3_used_non_minimal_indexing_strategy
-        ->
-          Error `Gc_disallowed
-      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
-      | T15 ->
-          (* Unreachable *)
-          assert false
-      | From_v3_no_gc_yet -> Ok 1
-      | From_v3_gced x -> Ok (x.generation + 1)
-    in
-    [%log.debug "GC: next generation will be %d" generation];
-
-    (* Step 3. Make [commit_key] [Direct] *)
+    (* Step 2. Make [commit_key] [Direct] *)
     let* commit_key =
       let state : _ Irmin_pack.Pack_key.state =
         Irmin_pack.Pack_key.inspect commit_key
@@ -201,11 +206,11 @@ module Make (Args : Args) : S with module Args := Args = struct
       | Direct x -> (x.offset, x.length)
     in
 
-    (* Step 4. Create the new suffix and prepare 2 functions for read and write
+    (* Step 3. Create the new suffix and prepare 2 functions for read and write
        operations. *)
     let suffix_path = Irmin_pack.Layout.V3.suffix ~root ~generation in
     [%log.debug "GC: creating %S" suffix_path];
-    let* dst_io = Io.create ~path:suffix_path ~overwrite:false in
+    let* dst_io = Io.create ~path:suffix_path ~overwrite:true in
     Errors.finalise (fun _outcome ->
         Io.close dst_io |> Errs.log_if_error "GC: Close suffix")
     @@ fun () ->
@@ -218,33 +223,13 @@ module Make (Args : Args) : S with module Args := Args = struct
       Io.read_exn dst_io ~off:(off + hash_size) ~len:1 buffer;
       Bytes.get buffer 0 <> magic_gced
     in
-    let rec transfer_exn (off : int63) (len_remaining : int63) =
-      let open Int63.Syntax in
-      let min a b = if a < b then a else b in
-      let len : int63 = min buffer_size_63 len_remaining in
-      let len' = Int63.to_int len in
-      Fm.Suffix.read_exn src_ao ~off ~len:len' buffer;
-      Io.write_exn dst_io ~off ~len:len' (Bytes.unsafe_to_string buffer);
-      let len_remaining : int63 = len_remaining - len in
-      if len_remaining > Int63.zero then transfer_exn (off + len) len_remaining
-    in
+    let transfer_exn = transfer_exn ~src:src_ao ~dst:dst_io buffer in
 
-    (* Step 5. *)
-    [%log.debug "GC: transfering to the right side"];
-    let right_size =
-      let total_size = pl.entry_offset_suffix_end in
-      let open Int63.Syntax in
-      let x = total_size - commit_offset in
-      assert (x >= Int63.of_int commit_len);
-      x
-    in
-    let* () = Errs.catch (fun () -> transfer_exn commit_offset right_size) in
-
-    (* Step 6. *)
+    (* Step 4. *)
     [%log.debug "GC: filling the left side"];
     let* () = fill ~io:dst_io ~count:commit_offset in
 
-    (* Step 7. Transfer the parents of [commit_key].
+    (* Step 5. Transfer the parents of [commit_key].
 
        The parent(s) of [commit_key] must be included in the iteration because,
        when decoding the [Commit_value.t] at [commit_key], the parents will have
@@ -269,7 +254,7 @@ module Make (Args : Args) : S with module Args := Args = struct
         (Commit_value.parents commit)
     in
 
-    (* Step 8. Transfer the nodes and blobs. *)
+    (* Step 6. Transfer the nodes and blobs. *)
     [%log.debug "GC: transfering nodes and contents to the left side"];
     let transfer_object_exn key =
       let offset, length =
@@ -281,7 +266,7 @@ module Make (Args : Args) : S with module Args := Args = struct
       in
       if already_copied_exn offset then No_follow
       else (
-        transfer_exn offset (Int63.of_int length);
+        transfer_exn ~off:offset ~len:(Int63.of_int length);
         Follow)
     in
     let node_key = Commit_value.node commit in
@@ -292,5 +277,28 @@ module Make (Args : Args) : S with module Args := Args = struct
             (fun () -> ()))
     in
 
-    Ok generation
+    (* Step 7. *)
+    [%log.debug "GC: transfering to the right side"];
+    let* () = Fm.reload fm in
+    let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
+    let end_offset = pl.entry_offset_suffix_end in
+    let right_size =
+      let open Int63.Syntax in
+      let x = end_offset - commit_offset in
+      assert (x >= Int63.of_int commit_len);
+      x
+    in
+    let* () =
+      Errs.catch (fun () -> transfer_exn ~off:commit_offset ~len:right_size)
+    in
+
+    (* Step 9. Inform the caller of the end_offset copied. *)
+    Ok end_offset
+
+  (* No one catches errors when this function terminates. Write the result in a
+     file and terminate the process with an exception, if needed. *)
+  let run_and_output_result ~generation root commit_key =
+    let result = run ~generation root commit_key in
+    Fm.write_gc_output ~root ~generation result |> Errs.raise_if_error;
+    result |> Errs.raise_if_error
 end
