@@ -29,6 +29,13 @@ module Make
     (Errs : Io_errors.S with module Io = Control.Io) =
 struct
   module Io = Control.Io
+  module Control = Control
+  module Dict = Dict
+  module Suffix = Suffix
+  module Index = Index
+  module Errs = Errs
+  module Prefix = Io
+  module Mapping = Io
 
   type dict_consumer_data = {
     after_reload : unit -> (unit, Io.read_error) result;
@@ -40,6 +47,8 @@ struct
     dict : Dict.t;
     control : Control.t;
     mutable suffix : Suffix.t;
+    mutable prefix : Prefix.t option;
+    mutable mapping : Mapping.t option;
     index : Index.t;
     mutable dict_consumers : dict_consumer_data list;
     mutable suffix_consumers : suffix_consumer_data list;
@@ -47,12 +56,6 @@ struct
     use_fsync : bool;
     root : string;
   }
-
-  module Control = Control
-  module Dict = Dict
-  module Suffix = Suffix
-  module Index = Index
-  module Errs = Errs
 
   let control t = t.control
   let dict t = t.dict
@@ -73,8 +76,6 @@ struct
   let register_suffix_consumer t ~after_flush =
     t.suffix_consumers <- { after_flush } :: t.suffix_consumers
 
-  (* Reload ***************************************************************** *)
-
   let generation = function
     | Payload.From_v1_v2_post_upgrade _
     | From_v3_used_non_minimal_indexing_strategy | From_v3_no_gc_yet ->
@@ -85,6 +86,50 @@ struct
         assert false
     | From_v3_gced x -> x.generation
 
+  (* let reopen_prefix t ~generation =
+   *   let open Result_syntax in
+   *   let* prefix1 =
+   *     let path = Irmin_pack.Layout.V3.prefix ~root:t.root ~generation in
+   *     [%log.debug "reload: generation changed, opening %s" path];
+   *     Prefix.open_ ~readonly:true ~path
+   *   in
+   *   let prefix0 = t.prefix in
+   *   t.prefix <- Some prefix1;
+   *   match prefix0 with None -> Ok () | Some io -> Prefix.close io
+   *
+   * let reopen_mapping t ~generation =
+   *   let open Result_syntax in
+   *   let* mapping1 =
+   *     let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
+   *     [%log.debug "reload: generation changed, opening %s" path];
+   *     Mapping.open_ ~readonly:true ~path
+   *   in
+   *   let mapping0 = t.mapping in
+   *   t.mapping <- Some mapping1;
+   *   match mapping0 with None -> Ok () | Some io -> Mapping.close io *)
+
+  let reopen_suffix t ~generation ~end_offset =
+    let open Result_syntax in
+    let* suffix1 =
+      let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
+      [%log.debug "reload: generation changed, opening %s" path];
+      Suffix.open_ro ~path ~end_offset ~dead_header_size:0
+    in
+    let suffix0 = t.suffix in
+    t.suffix <- suffix1;
+    Suffix.close suffix0
+
+  let only_open_after_gc ~generation ~path =
+    ignore (generation, path);
+    Ok None
+    (* let open Result_syntax in *)
+    (* if generation = 0 then Ok None
+     * else
+     *   let* t = Io.open_ ~path ~readonly:true in
+     *   Ok (Some t) *)
+
+  (* Reload ***************************************************************** *)
+
   let reload t =
     let open Result_syntax in
     let* () = Index.reload t.index in
@@ -93,23 +138,16 @@ struct
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
-      (* Check if generation changed. If it did, reopen suffix. *)
+      (* Check if generation changed. If it did, reopen suffix, prefix and
+         mapping. *)
       let* () =
         let gen0 = generation pl0.status in
         let gen1 = generation pl1.status in
         if gen0 = gen1 then Ok ()
         else
-          let* suffix1 =
-            let path =
-              Irmin_pack.Layout.V3.suffix ~root:t.root ~generation:gen1
-            in
-            let end_offset = pl1.entry_offset_suffix_end in
-            [%log.debug "reload: generation changed, opening %s" path];
-            Suffix.open_ro ~path ~end_offset ~dead_header_size:0
-          in
-          let suffix0 = t.suffix in
-          t.suffix <- suffix1;
-          Suffix.close suffix0
+          let end_offset = pl1.entry_offset_suffix_end in
+          let* () = reopen_suffix t ~generation:gen1 ~end_offset in
+          Ok ()
       in
       (* Update end offsets. This prevents the readonly instance to read data
          flushed to disk by the readwrite, between calls to reload. *)
@@ -278,6 +316,14 @@ struct
       let cb () = suffix_requires_a_flush_exn (get_instance ()) in
       make_suffix ~path ~auto_flush_threshold ~auto_flush_callback:cb
     in
+    let* prefix =
+      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      only_open_after_gc ~generation ~path
+    in
+    let* mapping =
+      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      only_open_after_gc ~generation ~path
+    in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
       let auto_flush_threshold =
@@ -299,6 +345,8 @@ struct
         dict;
         control;
         suffix;
+        prefix;
+        mapping;
         use_fsync;
         index;
         dict_consumers = [];
@@ -488,6 +536,14 @@ struct
       let end_offset = pl.entry_offset_suffix_end in
       Suffix.open_ro ~path ~end_offset ~dead_header_size
     in
+    let* prefix =
+      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      only_open_after_gc ~path ~generation
+    in
+    let* mapping =
+      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      only_open_after_gc ~path ~generation
+    in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
       let end_offset = pl.dict_offset_end in
@@ -504,6 +560,8 @@ struct
         dict;
         control;
         suffix;
+        prefix;
+        mapping;
         use_fsync;
         indexing_strategy;
         index;
@@ -573,7 +631,10 @@ struct
           | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
           | T14 | T15 ->
               assert false
-          | From_v3_gced _ | From_v3_no_gc_yet -> From_v3_gced { generation }
+          | From_v3_gced _ | From_v3_no_gc_yet ->
+              let entry_offset_suffix_start = Int63.zero in
+              (* TODO: [entry_offset_suffix_start] should come from parameters *)
+              From_v3_gced { entry_offset_suffix_start; generation }
         in
         { pl with status }
       in
@@ -614,4 +675,6 @@ struct
         Errs.of_json_string x
         |> Result.map_error (fun err ->
                `Gc_process_error (Fmt.str "%a" Errs.pp err))
+
+  let readonly t = Suffix.readonly t.suffix
 end

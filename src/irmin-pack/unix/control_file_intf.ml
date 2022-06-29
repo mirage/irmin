@@ -23,11 +23,7 @@ module Payload_v3 = struct
       entries before that point may be v1 entries. V1 entries need an entry in
       index because it is the only place their lenght is stored. *)
 
-  type from_v3_gced = {
-    (* TODO(good gc): Uncomment entry_offset_suffix_start  *)
-    (* entry_offset_suffix_start : int63; *)
-    generation : int;
-  }
+  type from_v3_gced = { entry_offset_suffix_start : int63; generation : int }
   [@@deriving irmin]
   (** [entry_offset_suffix_start] is 0 if the suffix file was never garbage
       collected. Otherwise it is the offset of the very first entry of the

@@ -287,7 +287,7 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
 
 type pair = int63 * int [@@deriving irmin ~encode_bin]
 
-module Make (Errs : Errors.S with module Io = Io.Unix) = struct
+module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
   module Ao = Append_only_file.Make (Io.Unix)
 
   let create ~root ~generation ~register_entries =

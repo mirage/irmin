@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
+
 module type S = sig
   (** Abstraction that governs the lifetime of the various files that are part
       of a pack store (except the branch store).
@@ -179,7 +181,7 @@ module type S = sig
   val swap :
     t ->
     generation:int ->
-    copy_end_offset:Import.int63 ->
+    copy_end_offset:int63 ->
     (unit, [> swap_error ]) result
 
   type write_gc_output_error :=
@@ -192,7 +194,7 @@ module type S = sig
   val write_gc_output :
     root:string ->
     generation:int ->
-    (Import.int63, Errs.t) result ->
+    (int63, Errs.t) result ->
     (unit, [> write_gc_output_error ]) result
   (** Used by the gc process at the end to write its output in
       store.<generation>.out. *)
@@ -201,11 +203,11 @@ module type S = sig
     [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
 
   val read_gc_output :
-    root:string ->
-    generation:int ->
-    (Import.int63, [> read_gc_output_error ]) result
+    root:string -> generation:int -> (int63, [> read_gc_output_error ]) result
   (** Used by the main process, after the gc process finished, to read
       store.<generation>.out. *)
+
+  val readonly : t -> bool
 end
 
 module type Sigs = sig

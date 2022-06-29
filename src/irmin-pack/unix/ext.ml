@@ -66,6 +66,7 @@ module Maker (Config : Conf.S) = struct
     module Aof = Append_only_file.Make (Io)
     module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
     module Dict = Dict.Make (File_manager)
+    module Dispatcher = Dispatcher.Make (File_manager)
     module XKey = Pack_key.Make (H)
 
     module X = struct
@@ -78,7 +79,8 @@ module Maker (Config : Conf.S) = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
 
         module CA =
-          Pack_store.Make (File_manager) (Dict) (H) (Pack_value) (Errs)
+          Pack_store.Make (File_manager) (Dict) (Dispatcher) (H) (Pack_value)
+            (Errs)
 
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
@@ -91,7 +93,8 @@ module Maker (Config : Conf.S) = struct
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
           module Pack' =
-            Pack_store.Make (File_manager) (Dict) (H) (Inter.Raw) (Errs)
+            Pack_store.Make (File_manager) (Dict) (Dispatcher) (H) (Inter.Raw)
+              (Errs)
 
           include Inode.Make_persistent (H) (Value) (Inter) (Pack')
         end
@@ -118,7 +121,8 @@ module Maker (Config : Conf.S) = struct
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
 
         module CA =
-          Pack_store.Make (File_manager) (Dict) (H) (Pack_value) (Errs)
+          Pack_store.Make (File_manager) (Dict) (Dispatcher) (H) (Pack_value)
+            (Errs)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
@@ -157,6 +161,7 @@ module Maker (Config : Conf.S) = struct
         module Fm = File_manager
         module Errs = Errs
         module Dict = Dict
+        module Dispatcher = Dispatcher
         module Hash = Schema.Hash
         module Node_value = Node.CA.Inter.Val
         module Node_store = Node.CA
@@ -178,6 +183,7 @@ module Maker (Config : Conf.S) = struct
           branch : Branch.t;
           fm : File_manager.t;
           dict : Dict.t;
+          dispatcher : Dispatcher.t;
           mutable during_batch : bool;
           mutable during_gc : during_gc option;
         }
@@ -240,9 +246,10 @@ module Maker (Config : Conf.S) = struct
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
           let dict = Dict.v fm |> Errs.raise_if_error in
-          let contents = Contents.CA.v ~config ~fm ~dict in
-          let node = Node.CA.v ~config ~fm ~dict in
-          let commit = Commit.CA.v ~config ~fm ~dict in
+          let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
+          let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher in
+          let node = Node.CA.v ~config ~fm ~dict ~dispatcher in
+          let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher in
           let+ branch =
             let root = Conf.root config in
             let fresh = Conf.fresh config in
@@ -262,6 +269,7 @@ module Maker (Config : Conf.S) = struct
             dict;
             during_batch;
             during_gc;
+            dispatcher;
           }
 
         let close t =
@@ -626,7 +634,8 @@ module Maker (Config : Conf.S) = struct
         module Hash = H
         module Inode = X.Node.CA
         module Contents_pack = X.Contents.CA
-        module File_manager = File_manager
+        module Fm = File_manager
+        module Dispatcher = Dispatcher
       end)
 
       include S

@@ -29,7 +29,6 @@ module Make (Args : Args) = struct
   open Args
   module Inode_pack = Inode.Pack
   module Pack_index = Pack_index.Make (Hash)
-  module Fm = File_manager
 
   let pp_hash = Irmin.Type.pp Hash.t
   let pp_key = Irmin.Type.pp Inode_pack.Key.t
@@ -49,7 +48,8 @@ module Make (Args : Args) = struct
       Index_unix.Make (Pack_index.Key) (Value_unit) (Index.Cache.Unbounded)
 
     type t = {
-      fm : File_manager.t;
+      fm : Fm.t;
+      dispatcher : Dispatcher.t;
       log_size : int;
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
@@ -59,9 +59,10 @@ module Make (Args : Args) = struct
       (* In order to read from the pack files, we need to open at least two
          files: suffix and control. We just open the file manager for
          simplicity. *)
-      let fm = Fm.open_ro config |> Result.get_ok in
+      let fm = Fm.open_ro config |> Fm.Errs.raise_if_error in
+      let dispatcher = Dispatcher.v fm |> Fm.Errs.raise_if_error in
       let log_size = Conf.index_log_size config in
-      { fm; log_size; inode_pack; contents_pack }
+      { fm; dispatcher; log_size; inode_pack; contents_pack }
 
     let close t = Fm.close t.fm
 
@@ -79,7 +80,7 @@ module Make (Args : Args) = struct
 
     let io_read_and_decode_entry_prefix ~off t =
       let entry_prefix : Inode_pack.Entry_prefix.t =
-        Inode_pack.read_and_decode_entry_prefix ~off t.fm
+        Inode_pack.read_and_decode_entry_prefix ~off t.dispatcher
       in
       let length =
         match Inode_pack.Entry_prefix.total_entry_length entry_prefix with

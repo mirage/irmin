@@ -10,8 +10,15 @@ module type S = sig
 
   type file_manager
   type dict
+  type dispatcher
 
-  val v : config:Irmin.Backend.Conf.t -> fm:file_manager -> dict:dict -> read t
+  val v :
+    config:Irmin.Backend.Conf.t ->
+    fm:file_manager ->
+    dict:dict ->
+    dispatcher:dispatcher ->
+    read t
+
   val cast : read t -> read_write t
 
   (** @inline *)
@@ -33,7 +40,7 @@ module type S = sig
     val total_entry_length : t -> int option
   end
 
-  val read_and_decode_entry_prefix : off:int63 -> file_manager -> Entry_prefix.t
+  val read_and_decode_entry_prefix : off:int63 -> dispatcher -> Entry_prefix.t
   (** Read the entry prefix at offset [off]. *)
 
   val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
@@ -50,6 +57,7 @@ module type Sigs = sig
   module Make
       (Fm : File_manager.S)
       (Dict : Dict.S with module Fm = Fm)
+      (Dispatcher : Dispatcher.S with module Fm = Fm)
       (Hash : Irmin.Hash.S with type t = Fm.Index.key)
       (Val : Pack_value.Persistent
                with type hash := Hash.t
@@ -60,5 +68,6 @@ module type Sigs = sig
        and type hash = Hash.t
        and type value = Val.t
        and type file_manager = Fm.t
+       and type dispatcher = Dispatcher.t
        and type dict = Dict.t
 end
