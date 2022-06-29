@@ -310,8 +310,11 @@ module Maker (Config : Conf.S) = struct
             (* Determine if the store allows GC *)
             let* current_generation = gc_generation t in
             let next_generation = current_generation + 1 in
+            Stdlib.flush_all ();
             match Lwt_unix.fork () with
             | 0 ->
+                Lwt_main.Exit_hooks.remove_all ();
+                Lwt_main.abandon_yielded_and_paused ();
                 let (_ : int63) =
                   Gc.run_and_output_result root commit_key
                     ~generation:next_generation
