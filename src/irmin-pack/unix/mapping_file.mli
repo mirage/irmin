@@ -1,6 +1,6 @@
 open! Import
 
-module Make (Errs : Errors.S with module Io = Io.Unix) : sig
+module Make (Errs : Io_errors.S with module Io = Io.Unix) : sig
   val create :
     root:string ->
     generation:int ->

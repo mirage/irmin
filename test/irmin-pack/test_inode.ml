@@ -52,9 +52,11 @@ struct
     Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
 
   module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+  module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
   module Pack =
-    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash)
+    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Dispatcher)
+      (Schema.Hash)
       (Inter.Raw)
       (Errs)
 
@@ -66,7 +68,8 @@ struct
       (Schema.Contents)
 
   module Contents_store =
-    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash)
+    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Dispatcher)
+      (Schema.Hash)
       (Contents_value)
       (Errs)
 
@@ -117,8 +120,9 @@ struct
       let config = config ~indexing_strategy ~readonly:false ~fresh:true root in
       let fm = get_fm config in
       let dict = Dict.v fm |> Errs.raise_if_error in
-      let store = Inode.v ~config ~fm ~dict in
-      let store_contents = Contents_store.v ~config ~fm ~dict in
+      let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
+      let store = Inode.v ~config ~fm ~dict ~dispatcher in
+      let store_contents = Contents_store.v ~config ~fm ~dict ~dispatcher in
       let+ foo, bar =
         Contents_store.batch store_contents (fun writer ->
             let* foo = Contents_store.add writer Contents.foo in

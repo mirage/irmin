@@ -22,9 +22,10 @@ let buffer_size = 8192
 exception Pack_error = Errors.Pack_error
 
 module type Args = sig
-  module Fm : File_manager.S
+  module Fm : File_manager.S with module Io = Io.Unix
   module Dict : Dict.S with module Fm = Fm
   module Errs : Io_errors.S with module Io = Fm.Io
+  module Dispatcher : Dispatcher.S with module Fm = Fm
 
   type hash
   type key = hash Irmin_pack.Pack_key.t [@@deriving irmin]
@@ -45,7 +46,12 @@ module type Args = sig
   module Node_store : sig
     type 'a t
 
-    val v : config:Irmin.Backend.Conf.t -> fm:Fm.t -> dict:Dict.t -> read t
+    val v :
+      config:Irmin.Backend.Conf.t ->
+      fm:Fm.t ->
+      dict:Dict.t ->
+      dispatcher:Dispatcher.t ->
+      read t
 
     val unsafe_find :
       check_integrity:bool -> [< read ] t -> key -> Node_value.t option
@@ -64,6 +70,7 @@ module type Args = sig
        and type key = key
        and type file_manager = Fm.t
        and type dict = Dict.t
+       and type dispatcher = Dispatcher.t
        and type hash = hash
 end
 
@@ -84,6 +91,7 @@ end
 module Make (Args : Args) : S with module Args := Args = struct
   open Args
   module Io = Fm.Io
+  module Mapping_file = Mapping_file.Make (Errs)
 
   type action = Follow | No_follow
 
@@ -180,22 +188,18 @@ module Make (Args : Args) : S with module Args := Args = struct
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
     @@ fun () ->
     let* dict = Dict.v fm in
-    let node_store = Node_store.v ~config ~fm ~dict in
-    let commit_store = Commit_store.v ~config ~fm ~dict in
+    let* dispatcher = Dispatcher.v fm in
+    let node_store = Node_store.v ~config ~fm ~dict ~dispatcher in
+    let commit_store = Commit_store.v ~config ~fm ~dict ~dispatcher in
 
-    (* Step 2. Make [commit_key] [Direct] *)
-    let* commit_key =
-      let state : _ Irmin_pack.Pack_key.state =
-        Irmin_pack.Pack_key.inspect commit_key
-      in
-      match state with
-      | Direct _ -> Ok commit_key
-      | Indexed h -> (
-          match Commit_store.index_direct_with_kind commit_store h with
-          | None ->
-              Error
-                (`Commit_key_is_indexed_and_dangling (string_of_key commit_key))
-          | Some (k, _kind) -> Ok k)
+    (* Step 2. Load commit which will make [commit_key] [Direct] if it's not
+       already the case. *)
+    let* commit =
+      match
+        Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
+      with
+      | None -> Error (`Dangling_key (string_of_key commit_key))
+      | Some commit -> Ok commit
     in
     let commit_offset, commit_len =
       let state : _ Irmin_pack.Pack_key.state =
@@ -204,6 +208,42 @@ module Make (Args : Args) : S with module Args := Args = struct
       match state with
       | Indexed _ -> assert false
       | Direct x -> (x.offset, x.length)
+    in
+
+    (* Step ?. Create the new mapping. *)
+    let* () =
+      (* Step ?.1 Start [Mapping_file] routine which will create the
+         reachable file. *)
+      (fun f -> Mapping_file.create ~root ~generation ~register_entries:f)
+      @@ fun ~register_entry ->
+      (* Step ?.2 Put the commit parents in the reachable file. *)
+      let register_object_exn key =
+        match Irmin_pack.Pack_key.inspect key with
+        | Indexed _ ->
+            raise
+              (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
+        | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
+      in
+      List.iter register_object_exn (Commit_value.parents commit);
+
+      (* Step ?.3 Put the nodes and contents in the reachable file. *)
+      let register_object_exn key =
+        match Irmin_pack.Pack_key.inspect key with
+        | Indexed _ ->
+            raise
+              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
+        | Direct { offset; length; _ } ->
+            register_entry ~off:offset ~len:length;
+            Follow
+      in
+      let node_key = Commit_value.node commit in
+      let (_ : action) = register_object_exn node_key in
+      iter_from_node_key_exn node_key node_store ~f:register_object_exn
+        (fun () -> ());
+
+      (* Step ?.4 Return and let the [Mapping_file] routine create the mapping
+         file. *)
+      ()
     in
 
     (* Step 3. Create the new suffix and prepare 2 functions for read and write
@@ -238,13 +278,6 @@ module Make (Args : Args) : S with module Args := Args = struct
        There is no need to transfer [commit_key] itself because it is in
        right. *)
     [%log.debug "GC: transfering commit parent(s) to the left side"];
-    let* commit =
-      match
-        Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
-      with
-      | None -> Error (`Dangling_key (string_of_key commit_key))
-      | Some commit -> Ok commit
-    in
     let* () =
       List.fold_left
         (fun result parent_commit_key ->

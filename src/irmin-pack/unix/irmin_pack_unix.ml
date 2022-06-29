@@ -6,6 +6,7 @@ module Io_legacy = Io_legacy
 module Checks = Checks
 module Atomic_write = Atomic_write
 module Dict = Dict
+module Dispatcher = Dispatcher
 module Io = Io
 module Errors = Errors
 module Io_errors = Io_errors

@@ -53,7 +53,8 @@ type base_error =
   | `Commit_parent_key_is_indexed of string
   | `Gc_process_error of string
   | `Corrupted_gc_result_file of string
-  | `Gc_process_died_without_result_file of string ]
+  | `Gc_process_died_without_result_file of string
+  | `Gc_forbidden_on_32bit_platforms ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific
