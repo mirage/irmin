@@ -30,6 +30,8 @@ let fresh_name =
     let name = Filename.concat test_dir ("test-gc" ^ string_of_int !c) in
     name
 
+let tc name f = Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
+
 include struct
   module S = struct
     module Maker = Irmin_pack_unix.Maker (Conf)
@@ -50,12 +52,12 @@ include struct
 
   let info = S.Info.empty
 
-  let start_gc t commit =
+  let start_gc ?(throttle = `Block) t commit =
     let commit_key = S.Commit.key commit in
-    let* launched =
-      S.start_gc ~unlink:false ~throttle:`Block t.repo commit_key
-    in
-    assert launched;
+    let* launched = S.start_gc ~unlink:false ~throttle t.repo commit_key in
+    (match (throttle, launched) with
+    | `Block, true | `Skip, false -> ()
+    | _ -> Alcotest.failf "start_gc returned unexpected result %b" launched);
     Lwt.return_unit
 
   let finalise_gc t =
@@ -475,11 +477,21 @@ module Blocking_gc = struct
     let* () = check t c4 in
     S.Repo.close t.repo
 
-  let tests =
-    let tc name f =
-      Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
+  (** Check that calling gc during a batch raises an error. *)
+  let gc_during_batch () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* _ =
+      Alcotest.check_raises_lwt "Should not call gc in batch"
+        (Irmin_pack_unix.Errors.Pack_error `Gc_forbidden_during_batch)
+        (fun () ->
+          S.Backend.Repo.batch t.repo (fun _ _ _ ->
+              let* () = start_gc t c1 in
+              finalise_gc t))
     in
+    S.Repo.close t.repo
 
+  let tests =
     [
       tc "Test one gc" one_gc;
       tc "Test twice gc" two_gc;
@@ -492,9 +504,198 @@ module Blocking_gc = struct
       tc "Test ro close" ro_close;
       tc "Test ro reload after open" ro_reload_after_v;
       tc "Test lru" gc_lru;
+      tc "Test gc during batch" gc_during_batch;
     ]
 end
 
 module Concurrent_gc = struct
-  let tests = []
+  (** Check that finding old objects during a gc works. *)
+  let find_during_gc ~lru_size () =
+    let* t = init ~lru_size () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug "Gc c1 keep c2"];
+    let* () = start_gc t c2 in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_2 t c2 in
+    S.Repo.close t.repo
+
+  (** Check adding new objects during a gc and finding them after the gc. *)
+  let add_during_gc ~lru_size () =
+    let* t = init ~lru_size () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug "Gc c1 keep c2"];
+    let* () = start_gc t c2 in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
+  let find_during_gc_with_lru = find_during_gc ~lru_size:100
+  let add_during_gc_with_lru = add_during_gc ~lru_size:100
+  let find_during_gc = find_during_gc ~lru_size:0
+  let add_during_gc = add_during_gc ~lru_size:0
+
+  (** Check that RO can find old objects during gc. Also that RO can still find
+      removed objects before a call to [reload]. *)
+  let ro_find_during_gc () =
+    let* t = init () in
+    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug "Gc c1 keep c2"];
+    let* () = start_gc t c2 in
+    S.reload ro_t.repo;
+    let* () = check_1 ro_t c1 in
+    S.reload ro_t.repo;
+    let* () = check_2 ro_t c2 in
+    let* () = finalise_gc t in
+    let* () = check_1 ro_t c1 in
+    let* () = check_2 ro_t c2 in
+    S.reload ro_t.repo;
+    let* () = check_not_found ro_t c1 "removed c1" in
+    let* () = check_2 t c2 in
+    let* () = S.Repo.close t.repo in
+    S.Repo.close ro_t.repo
+
+  (** Check that RO can find objects added during gc, but only after a call to
+      [reload]. *)
+  let ro_add_during_gc () =
+    let* t = init () in
+    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug "Gc c1 keep c2"];
+    let* () = start_gc t c2 in
+    S.reload ro_t.repo;
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    S.reload ro_t.repo;
+    let* t = checkout_exn t c2 in
+    let* t, c4 = commit_4 t in
+    let* () = finalise_gc t in
+    let* () = check_not_found ro_t c4 "not yet loaded c4" in
+    let* () = check_1 ro_t c1 in
+    let* () = check_2 ro_t c2 in
+    let* () = check_3 ro_t c3 in
+    S.reload ro_t.repo;
+    let* () = check_not_found ro_t c1 "removed c1" in
+    let* () = check_4 ro_t c4 in
+    let* () = S.Repo.close t.repo in
+    S.Repo.close ro_t.repo
+
+  (** Check that RO can call [reload] during a second gc, even after no reloads
+      occured during the first gc. *)
+  let ro_reload_after_second_gc () =
+    let* t = init () in
+    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug "Gc c1 keep c2"];
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    [%log.debug "Gc c2 keep c3"];
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
+    S.reload ro_t.repo;
+    let* () = check_not_found ro_t c1 "removed c1" in
+    let* () = check_not_found ro_t c2 "removed c2" in
+    let* () = check_3 t c3 in
+    let* () = S.Repo.close t.repo in
+    S.Repo.close ro_t.repo
+
+  (** Check that calling close during a gc kills the gc without finalising it.
+      On reopening the store, the following gc works fine. *)
+  let close_during_gc () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let* () = S.Repo.close t.repo in
+    let* t = init ~readonly:false ~fresh:false ~root:t.root () in
+    let* () = check_1 t c1 in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    let* t = checkout_exn t c2 in
+    S.Repo.close t.repo
+
+  (** Check skipping a gc. *)
+  let test_skip () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc ~throttle:`Skip t c3 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
+  (** Check blocking a gc, while waiting for the previous one to finish. *)
+  let test_block () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc ~throttle:`Block t c3 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_not_found t c2 "removed c2" in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
+  let test_skip_then_block () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc ~throttle:`Skip t c3 in
+    let* () = start_gc ~throttle:`Block t c3 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_not_found t c2 "removed c2" in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
+  let tests =
+    [
+      tc "Test find_during_gc" find_during_gc;
+      tc "Test add_during_gc" add_during_gc;
+      tc "Test find_during_gc_with_lru" find_during_gc_with_lru;
+      tc "Test add_during_gc_with_lru" add_during_gc_with_lru;
+      tc "Test ro_find_during_gc" ro_find_during_gc;
+      tc "Test ro_add_during_gc" ro_add_during_gc;
+      tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
+      tc "Test close_during_gc" close_during_gc;
+      tc "Test skip gc" test_skip;
+      tc "Test block gc" test_block;
+      tc "Test skip_then_block gc" test_skip_then_block;
+    ]
 end
