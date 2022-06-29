@@ -384,8 +384,10 @@ struct
     let open Result_syntax in
     (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
     let* io = Io.open_ ~path ~readonly:true in
+    Errors.finalise (fun _ ->
+        Io.close io |> Errs.log_if_error "FM: read_offset_from_legacy_file")
+    @@ fun () ->
     let* s = Io.read_to_string io ~off:Int63.zero ~len:8 in
-    let* () = Io.close io in
     let x = decode_int63 s in
     Ok x
 
@@ -393,9 +395,11 @@ struct
     let open Result_syntax in
     (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
     let* io = Io.open_ ~path ~readonly:true in
+    Errors.finalise (fun _ ->
+        Io.close io |> Errs.log_if_error "FM: read_version_from_legacy_file")
+    @@ fun () ->
     let off = Int63.of_int 8 in
     let* s = Io.read_to_string io ~off ~len:8 in
-    let* () = Io.close io in
     match Version.of_bin s with
     | Some x -> Ok x
     | None -> Error `Corrupted_legacy_file
