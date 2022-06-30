@@ -98,6 +98,7 @@ let servers =
     (`Quick, Test_mem.suite);
     (`Quick, Test_git.suite);
     (`Quick, Test_fs_unix.suite);
+    (`Quick, Test_git_unix.suite);
   ]
 
 module Conf = Irmin_http.Conf

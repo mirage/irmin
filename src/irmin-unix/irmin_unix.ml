@@ -21,7 +21,7 @@ module I = Info.Make (Irmin.Info.Default)
 let info = I.v
 
 module Info = Info.Make
-module Git = Xgit
+module Git = Irmin_git_unix
 module Http = Http
 module Graphql = Graphql
 module FS = Irmin_fs_unix

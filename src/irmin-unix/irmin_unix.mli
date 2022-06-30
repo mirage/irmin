@@ -45,21 +45,8 @@ module FS : module type of Irmin_fs_unix
 (** File system backends, using {{:https://github.com/janestreet/bin_prot}
     bin_prot}. *)
 
+module Git : module type of Irmin_git_unix
 (** Bidirectional Git backends. *)
-module Git : sig
-  (** {1 Git Store} *)
-
-  include Xgit_intf.Sigs
-  (** @inline *)
-
-  module Maker (G : Irmin_git.G) : Backend with module G = G
-
-  module FS : Backend with module G = Git_unix.Store
-  (** Embed an Irmin store into a local Git repository. *)
-
-  module Mem : Backend with module G = Irmin_git.Mem
-  (** Embed an Irmin store into an in-memory Git repository. *)
-end
 
 (** REST (over HTTP) backend.. *)
 module Http : sig
