@@ -703,7 +703,8 @@ module Concurrent_gc = struct
       if killed then
         Alcotest.check_raises_lwt "Gc process killed"
           (Irmin_pack_unix.Errors.Pack_error
-             (`Gc_process_died_without_result_file "Signaled -7"))
+             (`Gc_process_died_without_result_file
+               "Signaled -7 \"No_such_file_or_directory\""))
           (fun () -> finalise_gc t)
       else Lwt.return_unit
     in

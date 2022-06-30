@@ -300,6 +300,20 @@ module Maker (Config : Conf.S) = struct
             | From_v3_no_gc_yet -> Ok 0
             | From_v3_gced x -> Ok x.generation
 
+          let unlink_result_file ~root ~generation =
+            let result_file =
+              Irmin_pack.Layout.V3.gc_result ~root ~generation
+            in
+            match Io.unlink result_file with
+            | Ok () -> ()
+            | Error (`Sys_error msg as err) ->
+                if msg <> Fmt.str "%s: No such file or directory" result_file
+                then
+                  [%log.warn
+                    "Unlinking temporary files from previous failed gc. Failed \
+                     with error %a"
+                    Errs.pp err]
+
           let start ~unlink t commit_key =
             let open Result_syntax in
             [%log.info "GC: Starting on %a" pp_key commit_key];
@@ -310,6 +324,9 @@ module Maker (Config : Conf.S) = struct
             (* Determine if the store allows GC *)
             let* current_generation = gc_generation t in
             let next_generation = current_generation + 1 in
+            (* Unlink next gc's result file, in case it is on disk, for instance
+               after a failed gc. *)
+            unlink_result_file ~root ~generation:next_generation;
             Stdlib.flush_all ();
             match Lwt_unix.fork () with
             | 0 ->
@@ -319,7 +336,10 @@ module Maker (Config : Conf.S) = struct
                   Gc.run_and_output_result root commit_key
                     ~generation:next_generation
                 in
-                exit 0
+                (* Once the gc is finished, the child process kills itself to
+                   avoid calling at_exit functions in upstream code. *)
+                Unix.kill (Unix.getpid ()) 9;
+                assert false (* unreachable *)
             | pid ->
                 t.during_gc <- Some { next_generation; pid; unlink };
                 Exit.add pid;
@@ -374,27 +394,27 @@ module Maker (Config : Conf.S) = struct
             match result with
             | Error e ->
                 [%log.warn
-                  "Unlinking temporary files after gc failed with error %a"
+                  "Unlinking temporary files after gc, failed with error %a"
                     Errs.pp e]
             | Ok () -> ()
 
           let gc_errors (status, gc_output) =
             match (status, gc_output) with
+            | Lwt_unix.WSIGNALED n, Error (`Gc_process_error str) ->
+                Error (`Gc_process_error (Fmt.str "Signaled %d %s" n str))
+            | Lwt_unix.WSIGNALED n, Error (`Corrupted_gc_result_file str) ->
+                Error
+                  (`Gc_process_died_without_result_file
+                    (Fmt.str "Signaled %d %s" n str))
             | Lwt_unix.WEXITED n, Error (`Gc_process_error str) ->
                 Error (`Gc_process_error (Fmt.str "Exited %d %s" n str))
             | Lwt_unix.WEXITED n, Error (`Corrupted_gc_result_file str) ->
-                Error (`Corrupted_gc_result_file (Fmt.str "Exited %d %s" n str))
-            | Lwt_unix.WSIGNALED n, Error (`Corrupted_gc_result_file _) ->
                 Error
                   (`Gc_process_died_without_result_file
-                    (Fmt.str "Signaled %d" n))
-            | Lwt_unix.WSTOPPED n, Error (`Corrupted_gc_result_file _) ->
-                Error
-                  (`Gc_process_died_without_result_file
-                    (Fmt.str "Stopped %d" n))
-            | Lwt_unix.WSIGNALED n, Error (`Gc_process_error str) ->
-                Error (`Gc_process_error (Fmt.str "Signaled %d %s" n str))
+                    (Fmt.str "Exited %d %s" n str))
             | Lwt_unix.WSTOPPED n, Error (`Gc_process_error str) ->
+                Error (`Gc_process_error (Fmt.str "Stopped %d %s" n str))
+            | Lwt_unix.WSTOPPED n, Error (`Corrupted_gc_result_file str) ->
                 Error
                   (`Gc_process_died_without_result_file
                     (Fmt.str "Stopped %d %s" n str))
@@ -417,7 +437,7 @@ module Maker (Config : Conf.S) = struct
                   let result =
                     let open Result_syntax in
                     match (status, gc_output) with
-                    | Lwt_unix.WEXITED 0, Ok copy_end_offset ->
+                    | Lwt_unix.WSIGNALED _, Ok copy_end_offset ->
                         let* new_suffix_end_offset =
                           copy_latest_newies ~generation:next_generation
                             ~copy_end_offset ~root t
