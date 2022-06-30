@@ -233,12 +233,12 @@ module Maker (Config : Conf.S) = struct
           Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
 
         let v config =
+          let root = Irmin_pack.Conf.root config in
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
             if readonly then File_manager.open_ro config |> Errs.raise_if_error
             else
               let fresh = Irmin_pack.Conf.fresh config in
-              let root = Irmin_pack.Conf.root config in
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
                   File_manager.create_rw ~overwrite:false config
@@ -251,7 +251,7 @@ module Maker (Config : Conf.S) = struct
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
           let dict = Dict.v fm |> Errs.raise_if_error in
-          let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
+          let dispatcher = Dispatcher.v ~root fm |> Errs.raise_if_error in
           let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher in
           let node = Node.CA.v ~config ~fm ~dict ~dispatcher in
           let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher in
@@ -300,19 +300,6 @@ module Maker (Config : Conf.S) = struct
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
         module Gc = struct
-          let gc_generation t =
-            let pl = File_manager.Control.payload (File_manager.control t.fm) in
-            match pl.status with
-            | From_v1_v2_post_upgrade _
-            | From_v3_used_non_minimal_indexing_strategy ->
-                Error `Gc_disallowed
-            | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-            | T14 | T15 ->
-                (* Unreachable *)
-                assert false
-            | From_v3_no_gc_yet -> Ok 0
-            | From_v3_gced x -> Ok x.generation
-
           let start ~unlink t commit_key =
             let open Result_syntax in
             [%log.info "GC: Starting on %a" pp_key commit_key];
@@ -342,8 +329,8 @@ module Maker (Config : Conf.S) = struct
               | Indexed _ -> assert false
             in
             let root = Conf.root t.config in
-            (* Determine if the store allows GC *)
-            let* current_generation = gc_generation t in
+            (* TODO: Determine if the store allows GC *)
+            let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
             Stdlib.flush_all ();
             match Lwt_unix.fork () with

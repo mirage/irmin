@@ -22,7 +22,7 @@ let buffer_size = 8192
 exception Pack_error = Errors.Pack_error
 
 module type Args = sig
-  (* The following [with module Io = Io.Unix] constraint forces unix *)
+  (* The following [with module Io = Io.Unix] forces unix *)
   module Fm : File_manager.S with module Io = Io.Unix
   module Dict : Dict.S with module Fm = Fm
   module Errs : Io_errors.S with module Io = Fm.Io
@@ -208,7 +208,7 @@ module Make (Args : Args) : S with module Args := Args = struct
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
     @@ fun () ->
     let* dict = Dict.v fm in
-    let* dispatcher = Dispatcher.v fm in
+    let* dispatcher = Dispatcher.v ~root fm in
     let node_store = Node_store.v ~config ~fm ~dict ~dispatcher in
     let commit_store = Commit_store.v ~config ~fm ~dict ~dispatcher in
 
@@ -244,6 +244,7 @@ module Make (Args : Args) : S with module Args := Args = struct
               (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
         | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
       in
+      Fmt.epr "\nregister commit parents\n%!";
       List.iter register_object_exn (Commit_value.parents commit);
 
       (* Step ?.3 Put the nodes and contents in the reachable file. *)
@@ -256,8 +257,10 @@ module Make (Args : Args) : S with module Args := Args = struct
             register_entry ~off:offset ~len:length;
             Follow
       in
+      Fmt.epr "\nregister node_key\n%!";
       let node_key = Commit_value.node commit in
       let (_ : action) = register_object_exn node_key in
+      Fmt.epr "\nregister the rest\n%!";
       iter_from_node_key_exn node_key node_store ~f:register_object_exn
         (fun () -> ());
 
@@ -269,20 +272,20 @@ module Make (Args : Args) : S with module Args := Args = struct
     ignore transfer_append_exn;
 
     (* Step ?. Create the new prefix. *)
-    let mapping_ref = ref None in
+    let prefix_ref = ref None in
     let auto_flush_callback () =
-      match !mapping_ref with
+      match !prefix_ref with
       | None -> assert false
       | Some x -> Ao.flush x |> Errs.raise_if_error
     in
-    let* mapping =
+    let* prefix =
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
       Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
         ~auto_flush_callback
     in
-    mapping_ref := Some mapping;
+    prefix_ref := Some prefix;
     Errors.finalise (fun _outcome ->
-        Ao.close mapping |> Errs.log_if_error "GC: Close mapping")
+        Ao.close prefix |> Errs.log_if_error "GC: Close prefix")
     @@ fun () ->
     ();
 
@@ -290,15 +293,19 @@ module Make (Args : Args) : S with module Args := Args = struct
     let buffer = Bytes.create buffer_size in
     let* () =
       let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      let* mapping = Io.open_ ~path ~readonly:true in
+      Errors.finalise (fun _ ->
+          Io.close mapping |> Errs.log_if_error "GC: Close mapping")
+      @@ fun () ->
       let read_exn = Dispatcher.read_exn dispatcher in
-      let append_exn = Ao.append_exn mapping in
+      let append_exn = Ao.append_exn prefix in
       let f ~off ~len =
         let len = Int63.of_int len in
         transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
       in
-      Mapping_file.iter ~path f
+      Mapping_file.iter mapping f
     in
-    let* () = Ao.flush mapping in
+    let* () = Ao.flush prefix in
 
     (* Step 3. Create the new suffix and prepare 2 functions for read and write
        operations. *)

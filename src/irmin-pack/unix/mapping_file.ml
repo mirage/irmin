@@ -326,6 +326,11 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     let register_entry ~off ~len =
       (* Write [off, len] in native-endian encoding because it will be read
          with mmap. *)
+
+      if (Int63.to_int off) < 500 then
+        Fmt.epr "register_entry < 500: %d %d\n%!" (Int63.to_int off) len;
+
+
       Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
       Bytes.set_int64_ne buffer 8 (Int64.of_int len);
       Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
@@ -360,6 +365,12 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     (* Fill and close [file2]. *)
     let register_entry ~off ~len =
       (* Write [off, len] with repr because it will be read with repr. *)
+
+      (* if off < 500 then *)
+        (* Fmt.epr "\nregister_entry < 500: %d %d\n%!" off len; *)
+      (* Fmt.epr "register_entry of middle file: %d %d\n%!" off len; *)
+
+
       let off = Int63.of_int off in
       let len = Int63.of_int len in
       encode_bin_pair (off, len) (Ao.append_exn file2)
@@ -377,7 +388,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
 
     Ok ()
 
-  let iter ~path f =
+  let iter io f =
     let buffer = Bytes.create (16 * 1000) in
     let buffer_off = ref 0 in
 
@@ -386,13 +397,9 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     let min a b = if a < b then a else b in
     let entry_bytes = of_int 16 in
     let max_entries_per_batch = of_int 1000 in
-    (* let max_bytes_per_batch = max_entries_per_batch * entry_bytes in *)
 
+    (* let max_bytes_per_batch = max_entries_per_batch * entry_bytes in *)
     let open Result_syntax in
-    let* io = Io.Unix.open_ ~path ~readonly:true in
-    Errors.finalise (fun _ ->
-        Io.Unix.close io |> Errs.log_if_error "Close mapping file")
-    @@ fun () ->
     let* byte_count = Io.Unix.read_size io in
     let entry_count = byte_count / entry_bytes in
     (* Fmt.epr "\nbyte_count:%#d entry_count:%#d\n%!" (to_int byte_count) (to_int entry_count); *)

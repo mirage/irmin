@@ -37,6 +37,8 @@ module type S = sig
   val dict : t -> Dict.t
   val suffix : t -> Suffix.t
   val index : t -> Index.t
+  val mapping : t -> Io.t option
+  val prefix : t -> Io.t option
 
   type create_error :=
     [ Io.create_error
@@ -134,25 +136,13 @@ module type S = sig
     | `Closed ]
 
   val flush : t -> (unit, [> flush_error ]) result
+  val reload : t -> (unit, [> Errs.t ]) result
 
-  type reload_error :=
-    [ `Corrupted_control_file
-    | `Double_close
-    | `Index_failure of string
-    | `Invalid_argument
-    | `Io_misc of Io.misc_error
-    | `No_such_file_or_directory
-    | `Not_a_file
-    | `Pending_flush
-    | `Closed
-    | `Read_out_of_bounds
-    | `Rw_not_allowed
-    | `Unknown_major_pack_version of string ]
-
-  val reload : t -> (unit, [> reload_error ]) result
+  val register_mapping_consumer :
+    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 
   val register_dict_consumer :
-    t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit
+    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 
   val register_suffix_consumer : t -> after_flush:(unit -> unit) -> unit
 
@@ -168,22 +158,12 @@ module type S = sig
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the files at [root]. *)
 
-  type swap_error :=
-    [ `Double_close
-    | `Io_misc of Control.Io.misc_error
-    | `No_such_file_or_directory
-    | `Not_a_file
-    | `Pending_flush
-    | `Ro_not_allowed
-    | `Closed
-    | `Sys_error of string ]
-
   val swap :
     t ->
     generation:int ->
     right_start_offset:int63 ->
     right_end_offset:int63 ->
-    (unit, [> swap_error ]) result
+    (unit, [> Errs.t ]) result
 
   type write_gc_output_error :=
     [ `Double_close
@@ -209,6 +189,7 @@ module type S = sig
       store.<generation>.out. *)
 
   val readonly : t -> bool
+  val generation : t -> int
 end
 
 module type Sigs = sig
