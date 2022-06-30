@@ -22,6 +22,7 @@ let buffer_size = 8192
 exception Pack_error = Errors.Pack_error
 
 module type Args = sig
+  (* The following [with module Io = Io.Unix] constraint forces unix *)
   module Fm : File_manager.S with module Io = Io.Unix
   module Dict : Dict.S with module Fm = Fm
   module Errs : Io_errors.S with module Io = Fm.Io
@@ -92,6 +93,7 @@ module Make (Args : Args) : S with module Args := Args = struct
   open Args
   module Io = Fm.Io
   module Mapping_file = Mapping_file.Make (Errs)
+  module Ao = Append_only_file.Make (Io)
 
   type action = Follow | No_follow
 
@@ -106,6 +108,24 @@ module Make (Args : Args) : S with module Args := Args = struct
       let len' = Int63.to_int len in
       Fm.Suffix.read_exn src ~off ~len:len' buffer;
       Io.write_exn dst ~off ~len:len' (Bytes.unsafe_to_string buffer);
+      let len_remaining = len_remaining - len in
+      if len_remaining > Int63.zero then aux (off + len) len_remaining
+    in
+    aux off len
+
+  let transfer_append_exn ~read_exn ~append_exn ~(off : int63) ~(len : int63)
+      buffer =
+    let buffer_size = Bytes.length buffer |> Int63.of_int in
+    let rec aux off len_remaining =
+      let open Int63.Syntax in
+      let min a b = if a < b then a else b in
+      let len = min buffer_size len_remaining in
+      let len' = Int63.to_int len in
+      read_exn ~off ~len:len' buffer;
+      let () =
+        if len = buffer_size then append_exn (Bytes.unsafe_to_string buffer)
+        else append_exn (String.sub (Bytes.unsafe_to_string buffer) 0 len')
+      in
       let len_remaining = len_remaining - len in
       if len_remaining > Int63.zero then aux (off + len) len_remaining
     in
@@ -246,18 +266,43 @@ module Make (Args : Args) : S with module Args := Args = struct
       ()
     in
 
+    ignore transfer_append_exn;
+
     (* Step ?. Create the new prefix. *)
+    let mapping_ref = ref None in
+    let auto_flush_callback () =
+      match !mapping_ref with
+      | None -> assert false
+      | Some x -> Ao.flush x |> Errs.raise_if_error
+    in
+    let* mapping =
+      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
+        ~auto_flush_callback
+    in
+    mapping_ref := Some mapping;
+    Errors.finalise (fun _outcome ->
+        Ao.close mapping |> Errs.log_if_error "GC: Close mapping")
+    @@ fun () ->
+    ();
+
+    (* Step ?. Transfer to the new prefix. *)
+    let buffer = Bytes.create buffer_size in
     let* () =
       let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      let read_exn = Dispatcher.read_exn dispatcher in
+      let append_exn = Ao.append_exn mapping in
       let f ~off ~len =
-        ignore (off, len);
-        ()
+        let len = Int63.of_int len in
+        transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
       in
       Mapping_file.iter ~path f
     in
+    let* () = Ao.flush mapping in
 
     (* Step 3. Create the new suffix and prepare 2 functions for read and write
        operations. *)
+    let buffer = Bytes.create buffer_size in
     let suffix_path = Irmin_pack.Layout.V3.suffix ~root ~generation in
     [%log.debug "GC: creating %S" suffix_path];
     let* dst_io = Io.create ~path:suffix_path ~overwrite:true in
@@ -265,7 +310,6 @@ module Make (Args : Args) : S with module Args := Args = struct
         Io.close dst_io |> Errs.log_if_error "GC: Close suffix")
     @@ fun () ->
     let src_ao = Fm.suffix fm in
-    let buffer = Bytes.create buffer_size in
     let hash_size = Int63.of_int Hash.hash_size in
     let already_copied_exn off =
       (* Read the [kind] byte, which lies just after the hash *)

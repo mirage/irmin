@@ -319,6 +319,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
       Ao.create_rw ~path:path0 ~overwrite:true ~auto_flush_threshold:1_000_000
         ~auto_flush_callback
     in
+    file0_ref := Some file0;
 
     (* Fill and close [file0] *)
     let buffer = Bytes.create 16 in
@@ -354,6 +355,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
       Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
         ~auto_flush_callback
     in
+    file2_ref := Some file2;
 
     (* Fill and close [file2]. *)
     let register_entry ~off ~len =
@@ -384,7 +386,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     let min a b = if a < b then a else b in
     let entry_bytes = of_int 16 in
     let max_entries_per_batch = of_int 1000 in
-    let max_bytes_per_batch = max_entries_per_batch * entry_bytes in
+    (* let max_bytes_per_batch = max_entries_per_batch * entry_bytes in *)
 
     let open Result_syntax in
     let* io = Io.Unix.open_ ~path ~readonly:true in
@@ -393,6 +395,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     @@ fun () ->
     let* byte_count = Io.Unix.read_size io in
     let entry_count = byte_count / entry_bytes in
+    (* Fmt.epr "\nbyte_count:%#d entry_count:%#d\n%!" (to_int byte_count) (to_int entry_count); *)
     let* () =
       if entry_count * entry_bytes <> byte_count then
         Error (`Corrupted_mapping_file "unexpected file size")
@@ -401,10 +404,11 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
 
     let rec load_batch i last_yielded_end_offset =
       let entries_left = entry_count - i in
+      (* Fmt.epr "load_batch i:%#d, entries_left:%#d \n%!" (to_int i) (to_int entries_left); *)
       if entries_left = zero then ()
       else
         let entries_in_batch = min entries_left max_entries_per_batch in
-        let off = i * max_bytes_per_batch in
+        let off = i * entry_bytes in
         let len = to_int (entries_in_batch * entry_bytes) in
         Io.Unix.read_exn io ~off ~len buffer;
         buffer_off := 0;
