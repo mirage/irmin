@@ -37,6 +37,7 @@ type base_error =
   | `Index_failure of string
   | `Invalid_layout
   | `Corrupted_legacy_file
+  | `Corrupted_mapping_file of string
   | `Pending_flush
   | `Rw_not_allowed
   | `Migration_needed
@@ -46,7 +47,7 @@ type base_error =
   | `Gc_forbidden_during_batch
   | `Unknown_major_pack_version of string
   | `Only_minimal_indexing_strategy_allowed
-  | `Commit_key_is_indexed_and_dangling of string
+  | `Commit_key_is_dangling of string
   | `Dangling_key of string
   | `Gc_disallowed
   | `Node_or_contents_key_is_indexed of string
