@@ -80,10 +80,12 @@ struct
       bar : Key.t;
     }
 
-    (* TODO : test the indexing strategy minimal. *)
-    let config ~readonly ~fresh name =
-      Irmin_pack.Conf.init ~fresh ~readonly
-        ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
+    let config ~indexing_strategy ~readonly ~fresh name =
+      let module Index = Irmin_pack.Indexing_strategy in
+      let indexing_strategy =
+        if indexing_strategy = `always then Index.always else Index.minimal
+      in
+      Irmin_pack.Conf.init ~fresh ~readonly ~indexing_strategy ~lru_size:0 name
 
     (* TODO : remove duplication with irmin_pack/ext.ml *)
     let get_fm config =
@@ -109,10 +111,10 @@ struct
             File_manager.open_rw config |> Errs.raise_if_error
         | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
 
-    let get_store () =
+    let get_store ~indexing_strategy () =
       [%log.app "Constructing a fresh context for use by the test"];
       rm_dir root;
-      let config = config ~readonly:false ~fresh:true root in
+      let config = config ~indexing_strategy ~readonly:false ~fresh:true root in
       let fm = get_fm config in
       let dict = Dict.v fm |> Errs.raise_if_error in
       let store = Inode.v ~config ~fm ~dict in
@@ -306,9 +308,9 @@ let check_hardcoded_hash msg h v =
   | Ok hash -> check_hash msg hash (Inter.Val.hash_exn v)
 
 (** Test add values from an empty node. *)
-let test_add_values () =
+let test_add_values ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store () in
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   check_node "hash empty node" (Inode.Val.empty ()) t >>= fun () ->
   let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
@@ -319,6 +321,10 @@ let test_add_values () =
   check_values "add x+y vs v x+y" v2 v3;
   Context.close t
 
+let test_add_values () =
+  let* () = test_add_values ~indexing_strategy:`always in
+  test_add_values ~indexing_strategy:`minimal
+
 let integrity_check ?(stable = true) v =
   Alcotest.(check bool) "check stable" (Inter.Val.stable v) stable;
   if not (Inter.Val.integrity_check v) then
@@ -327,9 +333,9 @@ let integrity_check ?(stable = true) v =
       v
 
 (** Test add to inodes. *)
-let test_add_inodes () =
+let test_add_inodes ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store () in
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
@@ -356,10 +362,14 @@ let test_add_inodes () =
   integrity_check v4 ~stable:false;
   Context.close t
 
+let test_add_inodes () =
+  let* () = test_add_inodes ~indexing_strategy:`always in
+  test_add_inodes ~indexing_strategy:`minimal
+
 (** Test remove values on an empty node. *)
-let test_remove_values () =
+let test_remove_values ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store () in
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.remove v1 "y" in
@@ -375,10 +385,14 @@ let test_remove_values () =
   Alcotest.(check bool) "v5 is empty" (Inode.Val.is_empty v5) true;
   Context.close t
 
+let test_remove_values () =
+  let* () = test_remove_values ~indexing_strategy:`always in
+  test_remove_values ~indexing_strategy:`minimal
+
 (** Test remove and add values to go from stable to unstable inodes. *)
-let test_remove_inodes () =
+let test_remove_inodes ~indexing_strategy =
   rm_dir root;
-  let* t = Context.get_store () in
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 =
     Inode.Val.of_list
@@ -403,6 +417,10 @@ let test_remove_inodes () =
   integrity_check v1;
   integrity_check v5;
   Context.close t
+
+let test_remove_inodes () =
+  let* () = test_remove_inodes ~indexing_strategy:`always in
+  test_remove_inodes ~indexing_strategy:`minimal
 
 (** For each of the 256 possible inode trees with [depth <= 3] and
     [width = Conf.entries = 2] built by [Inode.Val.v], assert that
@@ -453,8 +471,8 @@ let test_representation_uniqueness_maxdepth_3 () =
     (P.trees p);
   Lwt.return_unit
 
-let test_truncated_inodes () =
-  let* t = Context.get_store () in
+let test_truncated_inodes ~indexing_strategy =
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let to_truncated inode =
     let encode, decode =
@@ -519,8 +537,12 @@ let test_truncated_inodes () =
   (iter_steps_with_failure @@ fun step -> Inode.Val.remove v3 step);
   Context.close t
 
-let test_intermediate_inode_as_root () =
-  let* t = Context.get_store () in
+let test_truncated_inodes () =
+  let* () = test_truncated_inodes ~indexing_strategy:`always in
+  test_truncated_inodes ~indexing_strategy:`minimal
+
+let test_intermediate_inode_as_root ~indexing_strategy =
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let s000, s001, s010 =
     Inode_permutations_generator.
@@ -577,8 +599,12 @@ let test_intermediate_inode_as_root () =
   in
   Lwt.return_unit
 
-let test_concrete_inodes () =
-  let* t = Context.get_store () in
+let test_intermediate_inode_as_root () =
+  let* () = test_intermediate_inode_as_root ~indexing_strategy:`always in
+  test_intermediate_inode_as_root ~indexing_strategy:`minimal
+
+let test_concrete_inodes ~indexing_strategy =
+  let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
   let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
@@ -612,6 +638,10 @@ let test_concrete_inodes () =
   check v;
   Context.close t
 
+let test_concrete_inodes () =
+  let* () = test_concrete_inodes ~indexing_strategy:`always in
+  test_concrete_inodes ~indexing_strategy:`minimal
+
 module Inode_tezos = struct
   module S =
     Inode_modules (Conf) (Irmin_tezos.Schema)
@@ -629,9 +659,9 @@ module Inode_tezos = struct
 
   let hex_encode s = Hex.of_string s |> Hex.show
 
-  let test_encode_bin_values () =
+  let test_encode_bin_values ~indexing_strategy =
     rm_dir root;
-    let* t = S.Context.get_store () in
+    let* t = S.Context.get_store ~indexing_strategy () in
     let { S.Context.foo; _ } = t in
     let v = S.Inode.Val.of_list [ ("x", normal foo); ("z", normal foo) ] in
     let h = S.Inter.Val.hash_exn v in
@@ -663,9 +693,13 @@ module Inode_tezos = struct
     check_iter "encode_bin" (encode_bin h) v checks;
     S.Context.close t
 
-  let test_encode_bin_tree () =
+  let test_encode_bin_values () =
+    let* () = test_encode_bin_values ~indexing_strategy:`always in
+    test_encode_bin_values ~indexing_strategy:`minimal
+
+  let test_encode_bin_tree ~indexing_strategy =
     rm_dir root;
-    let* t = S.Context.get_store () in
+    let* t = S.Context.get_store ~indexing_strategy () in
     let { S.Context.foo; bar; _ } = t in
     let v =
       S.Inode.Val.of_list
@@ -703,6 +737,10 @@ module Inode_tezos = struct
     in
     check_iter "encode_bin" (encode_bin h) v checks;
     S.Context.close t
+
+  let test_encode_bin_tree () =
+    let* () = test_encode_bin_tree ~indexing_strategy:`always in
+    test_encode_bin_tree ~indexing_strategy:`minimal
 end
 
 module Child_ordering = struct
