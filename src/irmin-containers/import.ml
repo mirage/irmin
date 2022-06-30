@@ -15,3 +15,4 @@
  *)
 
 include Irmin.Export_for_backends
+module FS = Irmin_fs_unix

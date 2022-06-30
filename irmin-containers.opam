@@ -14,15 +14,14 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.03.0"}
-  "dune"       {>= "2.9.0"}
-  "irmin"      {= version}
-  "irmin-unix" {= version}
-  "irmin-git"  {= version}
-  "ppx_irmin"  {= version}
-  "lwt"        {>= "5.3.0"}
+  "ocaml"        {>= "4.03.0"}
+  "dune"         {>= "2.9.0"}
+  "irmin"        {= version}
+  "irmin-fs"     {= version}
+  "ppx_irmin"    {= version}
+  "lwt"          {>= "5.3.0"}
   "mtime"
-  "alcotest" {with-test}
+  "alcotest"     {with-test}
   "alcotest-lwt" {with-test}
 ]
 

@@ -50,8 +50,8 @@ module Make
     (V : Irmin.Type.S)
     () : S with type value = V.t
 
-(** Linked log instantiated using the {{!Irmin_unix.FS} FS backend} provided by
-    [Irmin_unix], timestamp method {!Time.Unix} and hash {!Irmin.Hash.SHA1} *)
+(** Linked log instantiated using the {{!Irmin_fs_unix} FS backend} provided by
+    [Irmin_fs_unix], timestamp method {!Time.Unix} and hash {!Irmin.Hash.SHA1} *)
 module FS (C : Stores.Content_addressable) (V : Irmin.Type.S) () :
   S with type value = V.t
 

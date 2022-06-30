@@ -61,5 +61,5 @@ module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
     Store.set_exn ~info t path (v, timestamp)
 end
 
-module FS (V : Irmin.Type.S) = Make (Irmin_unix.FS.KV) (Time.Machine) (V)
+module FS (V : Irmin.Type.S) = Make (Irmin_fs_unix.KV) (Time.Machine) (V)
 module Mem (V : Irmin.Type.S) = Make (Irmin_mem.KV) (Time.Machine) (V)

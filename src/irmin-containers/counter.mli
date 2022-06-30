@@ -46,8 +46,8 @@ end
 module Make (Backend : Irmin.KV_maker) : S
 
 module FS : S
-(** Counter instantiated using the {{!Irmin_unix.FS} FS backend} provided by
-    [Irmin_unix] *)
+(** Counter instantiated using the {{!Irmin_fs_unix} FS backend} provided by
+    [Irmin_fs_unix] *)
 
 module Mem : S
 (** Counter instantiated using the {{!Irmin_mem} in-memory backend} provided by
