@@ -131,32 +131,11 @@ struct
   end
 
   let read_and_decode_entry_prefix ~off dispatcher =
-    let io_read_at_most ~off ~len b =
-      (* Read at most [len], by checking that [(off, len)] don't go out of
-         bounds of the suffix file.
-
-         This can happen when we are reading the last entry in the file and the
-         [size_of_value_and_length_header] is smaller then [len] (for instance
-         the empty blob).
-
-         This will have to be rewritten to work with the prefix file. A solution
-         would be to implement somewhere a [read_at_most_exn] function that
-         reads in both the prefix and the suffix and that doesn't crash if the
-         read goes out of bounds. *)
-      let bytes_after_off =
-        let open Int63.Syntax in
-        Dispatcher.end_offset dispatcher - off
-      in
-      let len =
-        let open Int63.Syntax in
-        if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
-        else len
-      in
-      Dispatcher.read_exn dispatcher ~off ~len b;
-      len
-    in
     let buf = Bytes.create Entry_prefix.max_length in
-    let bytes_read = io_read_at_most ~off ~len:Entry_prefix.max_length buf in
+    let bytes_read =
+      Dispatcher.read_at_most_exn dispatcher ~off ~len:Entry_prefix.max_length
+        buf
+    in
     (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
        final entry in the pack file (if the data section of the entry is
        shorter than [Varint.max_encoded_size]. In this case, an invalid read
