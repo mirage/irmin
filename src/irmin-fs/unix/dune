@@ -1,0 +1,8 @@
+(library
+ (public_name irmin-fs.unix)
+ (name irmin_fs_unix)
+ (libraries irmin-fs lwt.unix)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

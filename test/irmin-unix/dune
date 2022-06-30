@@ -13,7 +13,6 @@
   irmin-watcher
   lwt
   lwt.unix
-  test_fs
   test_git
   test_http))
 

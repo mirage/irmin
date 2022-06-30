@@ -1,5 +1,4 @@
 (*
-
  * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -15,15 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc =
-  [
-    ("bare", Test_unix.Git.misc);
-    ("misc", Test_git.misc Test_unix.Git.store);
-    ("conf", Test_unix.Conf.misc);
-  ]
-
 let () =
-  Test_http.with_server Test_unix.Http.servers (fun () ->
-      Irmin_test.Store.run "irmin-unix" ~misc
-        ([ (`Quick, Test_unix.Git.suite) ]
-        @ Test_http.suites Test_unix.Http.servers))
+  Irmin_test.Store.run "irmin-fs.unix" ~slow:false ~misc:[]
+    [ (`Quick, Test_fs_unix.suite) ]

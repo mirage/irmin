@@ -11,6 +11,7 @@
   irmin-test
   test_mem
   test_git
+  test_fs_unix
   irmin
   irmin-http
   logs

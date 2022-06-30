@@ -41,33 +41,9 @@ val info :
     built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
     provided. *)
 
+module FS : module type of Irmin_fs_unix
 (** File system backends, using {{:https://github.com/janestreet/bin_prot}
     bin_prot}. *)
-module FS : sig
-  (** {1 File-system Store} *)
-
-  module Append_only : Irmin.Append_only.Maker
-  (** Append-only store maker. *)
-
-  module Atomic_write : Irmin.Atomic_write.Maker
-  (** Atomic-write store maker. *)
-
-  include Irmin.Maker
-  (** Irmin store maker. *)
-
-  module KV : Irmin.KV_maker
-  (** Irmin store make, where only the Contents have to be specified: branches
-      are strings and paths are string lists. *)
-
-  (** Append-only store maker, with control over the filenames shapes. *)
-  module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only.Maker
-
-  (** Read-write store maker, with control over the filename shapes. *)
-  module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
-
-  (** Irmin store maker, with control over the filename shapes. *)
-  module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
-end
 
 (** Bidirectional Git backends. *)
 module Git : sig

@@ -24,10 +24,6 @@ module Http : sig
   val servers : (Alcotest.speed_level * Irmin_test.Suite.t) list
 end
 
-module FS : sig
-  val suite : Irmin_test.Suite.t
-end
-
 module Conf : sig
   val misc : unit Alcotest.test_case list
 end

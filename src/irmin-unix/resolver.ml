@@ -295,7 +295,7 @@ module Store = struct
     v spec (module S)
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
-  let irf = create Irmin_fs.Conf.spec (module Fs)
+  let irf = create Irmin_fs.Conf.spec (module Irmin_fs_unix)
 
   let http = function
     | T { impl = Generic_keyed _; _ } ->

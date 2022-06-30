@@ -20,8 +20,9 @@ depends: [
   "astring"
   "logs"
   "lwt"        {>= "5.3.0"}
-  "irmin-test" {with-test & = version}
   "alcotest"   {with-test}
+  "irmin-test" {with-test & = version}
+  "irmin-watcher" {with-test & >= "0.2.0"}
 ]
 
 synopsis: "Generic file-system backend for Irmin"

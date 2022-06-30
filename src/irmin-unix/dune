@@ -16,8 +16,8 @@
   git-unix
   happy-eyeballs-lwt
   irmin
-  irmin-fs
   irmin-git
+  irmin-fs.unix
   irmin-graphql
   irmin-http
   irmin.mem

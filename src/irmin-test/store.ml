@@ -2436,7 +2436,7 @@ let suite (speed, x) =
     (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1090. *)
     not
       (List.mem ~equal:String.equal (Suite.name x)
-         [ "FS"; "GIT"; "HTTP.FS"; "HTTP.GIT" ])
+         [ "FS"; "FS.UNIX"; "GIT"; "HTTP.FS"; "HTTP.FS.UNIX"; "HTTP.GIT" ])
   in
   suite'
     ([

@@ -20,38 +20,6 @@ let stats () =
   let stats = Irmin_watcher.stats () in
   (stats.Irmin_watcher.watchdogs, Irmin.Backend.Watch.workers ())
 
-(* FS *)
-
-module FS = struct
-  let test_db = Test_fs.test_db
-  let config = Test_fs.config
-
-  let store =
-    Irmin_test.store (module Irmin_unix.FS) (module Irmin.Metadata.None)
-
-  let clean_dirs config =
-    let test_db =
-      Irmin.Backend.Conf.find_root config |> Option.value ~default:test_db
-    in
-    if Sys.file_exists test_db then
-      let cmd = Printf.sprintf "rm -rf %s" test_db in
-      let _ = Sys.command cmd in
-      ()
-
-  let init ~config =
-    clean_dirs config;
-    Irmin_unix.set_listen_dir_hook ();
-    Lwt.return_unit
-
-  let clean ~config =
-    clean_dirs config;
-    Irmin.Backend.Watch.(set_listen_dir_hook none);
-    Lwt.return_unit
-
-  let suite =
-    Irmin_test.Suite.create ~name:"FS" ~init ~store ~config ~clean ~stats ()
-end
-
 (* GIT *)
 
 module Git = struct
@@ -107,7 +75,7 @@ module Git = struct
 end
 
 module Http = struct
-  let servers = [ (`Quick, FS.suite); (`Quick, Git.suite) ]
+  let servers = [ (`Quick, Git.suite) ]
 end
 
 module Conf = struct

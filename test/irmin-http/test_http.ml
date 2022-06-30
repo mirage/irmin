@@ -93,7 +93,12 @@ let wait_for_the_server_to_start id =
   in
   aux 1
 
-let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
+let servers =
+  [
+    (`Quick, Test_mem.suite);
+    (`Quick, Test_git.suite);
+    (`Quick, Test_fs_unix.suite);
+  ]
 
 module Conf = Irmin_http.Conf
 
