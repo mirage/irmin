@@ -283,7 +283,10 @@ module Maker (Config : Conf.S) = struct
           Node.CA.close (snd (node_t t)) >>= fun () ->
           Commit.CA.close (snd (commit_t t))
 
-        let flush t = File_manager.flush t.fm |> Errs.raise_if_error
+        let flush_with_hook ~hook t =
+          File_manager.flush ~hook t.fm |> Errs.raise_if_error
+
+        let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
         module Gc = struct

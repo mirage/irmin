@@ -131,7 +131,10 @@ module type S = sig
     | `Ro_not_allowed
     | `Closed ]
 
-  val flush : t -> (unit, [> flush_error ]) result
+  type flush_stages := [ `After_dict | `After_suffix ]
+  type 'a hook := 'a -> unit
+
+  val flush : ?hook:flush_stages hook -> t -> (unit, [> flush_error ]) result
 
   type reload_error :=
     [ `Corrupted_control_file

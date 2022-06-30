@@ -164,9 +164,10 @@ struct
       ()
 
   (** Flush stage 2 *)
-  let flush_suffix_and_its_deps t =
+  let flush_suffix_and_its_deps ?hook t =
     let open Result_syntax in
     let* () = flush_dict t in
+    (match hook with Some h -> h `After_dict | None -> ());
     if Suffix.empty_buffer t.suffix then Ok ()
     else
       let* () =
@@ -209,9 +210,10 @@ struct
       List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
 
   (** Flush stage 3 *)
-  let flush_index_and_its_deps t =
+  let flush_index_and_its_deps ?hook t =
     let open Result_syntax in
-    let* () = flush_suffix_and_its_deps t in
+    let* () = flush_suffix_and_its_deps ?hook t in
+    (match hook with Some h -> h `After_suffix | None -> ());
     let+ () =
       Stats.incr_fm_field Index_flushes;
       Index.flush ~with_fsync:t.use_fsync t.index
@@ -241,9 +243,9 @@ struct
 
   (* Explicit flush ********************************************************* *)
 
-  let flush t =
+  let flush ?hook t =
     Stats.incr_fm_field Flush;
-    flush_index_and_its_deps t
+    flush_index_and_its_deps ?hook t
 
   (* File creation ********************************************************** *)
 
