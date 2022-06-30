@@ -69,16 +69,16 @@ exception RO_not_allowed = Irmin_pack.RO_not_allowed
 
 (** Error manager *)
 module type S = sig
-  type t
+  type t = error
 
-  val pp : Format.formatter -> t -> unit
-  val raise_error : t -> 'a
-  val log_error : string -> t -> unit
-  val catch : (unit -> 'a) -> ('a, t) result
-  val raise_if_error : ('a, t) result -> 'a
-  val log_if_error : string -> (unit, t) result -> unit
-  val to_json_string : (int63, t) result -> string
-  val of_json_string : string -> (int63, t) result
+  val pp : Format.formatter -> [< t ] -> unit
+  val raise_error : [< t ] -> 'a
+  val log_error : string -> [< t ] -> unit
+  val catch : (unit -> 'a) -> ('a, [> t ]) result
+  val raise_if_error : ('a, [< t ]) result -> 'a
+  val log_if_error : string -> (unit, [< t ]) result -> unit
+  val to_json_string : (int63, [< t ]) result -> string
+  val of_json_string : string -> (int63, [> t ]) result
 end
 
 module Base : S with type t = error = struct
@@ -98,7 +98,7 @@ module Base : S with type t = error = struct
 
   let catch f =
     try Ok (f ()) with
-    | Pack_error e -> Error (e : base_error :> t)
+    | Pack_error e -> Error (e : base_error :> [> t ])
     | RO_not_allowed -> Error `Ro_not_allowed
     | Closed -> Error `Closed
 
@@ -119,7 +119,7 @@ module Base : S with type t = error = struct
   let err_to_t = function
     | Closed -> `Closed
     | Ro_not_allowed -> `Ro_not_allowed
-    | Pack_error e -> (e : base_error :> t)
+    | Pack_error e -> (e : base_error :> [> t ])
 
   let err_result = Irmin.Type.(result int63 err_t)
 
