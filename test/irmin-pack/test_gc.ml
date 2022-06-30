@@ -684,6 +684,38 @@ module Concurrent_gc = struct
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
+  let kill_gc t =
+    let repo : S.Repo.t = t.repo in
+    match (repo.during_gc : S.X.during_gc option) with
+    | None -> Alcotest.failf "during_gc missing after call to start"
+    | Some { pid; _ } -> (
+        try
+          Unix.kill pid 9;
+          true
+        with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
+
+  let test_kill_gc_and_finalise () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let killed = kill_gc t in
+    let* () =
+      if killed then
+        Alcotest.check_raises_lwt "Gc process killed"
+          (Irmin_pack_unix.Errors.Pack_error
+             (`Gc_process_died_without_result_file "Signaled -7"))
+          (fun () -> finalise_gc t)
+      else Lwt.return_unit
+    in
+    S.Repo.close t.repo
+
+  let test_kill_gc_and_close () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let _killed = kill_gc t in
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test find_during_gc" find_during_gc;
@@ -697,5 +729,7 @@ module Concurrent_gc = struct
       tc "Test skip gc" test_skip;
       tc "Test block gc" test_block;
       tc "Test skip_then_block gc" test_skip_then_block;
+      tc "Test kill gc and finalise" test_kill_gc_and_finalise;
+      tc "Test kill gc and close" test_kill_gc_and_close;
     ]
 end
