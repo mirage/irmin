@@ -136,7 +136,6 @@ module Unix : S = struct
             file
     in
     let v ~offset ~version raw =
-      let open Int63.Syntax in
       {
         version;
         file;
@@ -144,7 +143,7 @@ module Unix : S = struct
         raw;
         readonly;
         buf = Buffer.create (4 * 1024);
-        flushed = header_size + offset;
+        flushed = Int63.Syntax.(header_size + offset);
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in

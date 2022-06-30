@@ -285,7 +285,9 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
   in
   dst_off
 
-type pair = int63 * int [@@deriving irmin ~encode_bin]
+(* Encoding of offset, length. An improvement would be to use varints to encode
+   both. *)
+type pair = int63 * int63 [@@deriving irmin ~encode_bin ~decode_bin]
 
 module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
   module Ao = Append_only_file.Make (Io.Unix)
@@ -357,6 +359,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     let register_entry ~off ~len =
       (* Write [off, len] with repr because it will be read with repr. *)
       let off = Int63.of_int off in
+      let len = Int63.of_int len in
       encode_bin_pair (off, len) (Ao.append_exn file2)
     in
     let* () =
@@ -371,4 +374,59 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     Io.Unix.unlink path1 |> ignore;
 
     Ok ()
+
+  let iter ~path f =
+    let buffer = Bytes.create (16 * 1000) in
+    let buffer_off = ref 0 in
+
+    let open Int63.Syntax in
+    let open Int63 in
+    let min a b = if a < b then a else b in
+    let entry_bytes = of_int 16 in
+    let max_entries_per_batch = of_int 1000 in
+    let max_bytes_per_batch = max_entries_per_batch * entry_bytes in
+
+    let open Result_syntax in
+    let* io = Io.Unix.open_ ~path ~readonly:true in
+    Errors.finalise (fun _ ->
+        Io.Unix.close io |> Errs.log_if_error "Close mapping file")
+    @@ fun () ->
+    let* byte_count = Io.Unix.read_size io in
+    let entry_count = byte_count / entry_bytes in
+    let* () =
+      if entry_count * entry_bytes <> byte_count then
+        Error (`Corrupted_mapping_file "unexpected file size")
+      else Ok ()
+    in
+
+    let rec load_batch i last_yielded_end_offset =
+      let entries_left = entry_count - i in
+      if entries_left = zero then ()
+      else
+        let entries_in_batch = min entries_left max_entries_per_batch in
+        let off = i * max_bytes_per_batch in
+        let len = to_int (entries_in_batch * entry_bytes) in
+        Io.Unix.read_exn io ~off ~len buffer;
+        buffer_off := 0;
+        yield_entries i (i + entries_in_batch) last_yielded_end_offset
+    and yield_entries i end_i last_yielded_end_offset =
+      if i = end_i then load_batch i last_yielded_end_offset
+      else
+        let off, len =
+          (* Decoding a pair of int can't fail *)
+          decode_bin_pair (Bytes.unsafe_to_string buffer) buffer_off
+        in
+        let () =
+          if off < last_yielded_end_offset then
+            let msg =
+              Fmt.str "Found off:%a len:%a but the previous entry ends as at %a"
+                Int63.pp off Int63.pp len Int63.pp last_yielded_end_offset
+            in
+            raise (Errors.Pack_error (`Corrupted_mapping_file msg))
+        in
+        f ~off ~len:(to_int len);
+        let last_yielded_end_offset = off + len in
+        yield_entries (succ i) end_i last_yielded_end_offset
+    in
+    Errs.catch (fun () -> load_batch zero zero)
 end

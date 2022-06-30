@@ -19,4 +19,12 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) : sig
 
       Creates temporary files in [root] that are unlinked before the function
       returns. *)
+
+  val iter :
+    path:string -> (off:int63 -> len:int -> unit) -> (unit, [> Errs.t ]) result
+  (** Iterate over the entries of the mapping file at [path].
+
+      It is guaranteed for the offsets to be iterated in monotonic order.
+
+      It is guaranteed that entries don't overlap. *)
 end

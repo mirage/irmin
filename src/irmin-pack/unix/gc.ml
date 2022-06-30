@@ -198,7 +198,7 @@ module Make (Args : Args) : S with module Args := Args = struct
       match
         Commit_store.unsafe_find ~check_integrity:false commit_store commit_key
       with
-      | None -> Error (`Dangling_key (string_of_key commit_key))
+      | None -> Error (`Commit_key_is_dangling (string_of_key commit_key))
       | Some commit -> Ok commit
     in
     let commit_offset, commit_len =
@@ -244,6 +244,16 @@ module Make (Args : Args) : S with module Args := Args = struct
       (* Step ?.4 Return and let the [Mapping_file] routine create the mapping
          file. *)
       ()
+    in
+
+    (* Step ?. Create the new prefix. *)
+    let* () =
+      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      let f ~off ~len =
+        ignore (off, len);
+        ()
+      in
+      Mapping_file.iter ~path f
     in
 
     (* Step 3. Create the new suffix and prepare 2 functions for read and write
