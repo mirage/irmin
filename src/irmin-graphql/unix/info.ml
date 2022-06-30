@@ -14,16 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let set_listen_dir_hook = Hook.init
+module Make (I : Irmin.Info.S) = struct
+  include I
 
-module I = Info.Make (Irmin.Info.Default)
-
-let info = I.v
-
-module Info = Info.Make
-module Git = Irmin_git_unix
-module Http = Irmin_http_unix
-module Graphql = Irmin_graphql_unix
-module FS = Irmin_fs_unix
-module Cli = Cli
-module Resolver = Resolver
+  let v ?author fmt =
+    Fmt.kstr
+      (fun message () ->
+        let date = Int64.of_float (Unix.gettimeofday ()) in
+        let author =
+          match author with
+          | Some a -> a
+          | None ->
+              (* XXX: get "git config user.name" *)
+              Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname ())
+                (Unix.getpid ())
+        in
+        v ~author ~message date)
+      fmt
+end

@@ -55,6 +55,6 @@ val set_listen_dir_hook : unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching changes in
     directories. *)
 
-module Graphql = Graphql
+module Graphql : module type of Irmin_graphql_unix
 module Cli = Cli
 module Resolver = Resolver

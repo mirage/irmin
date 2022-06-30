@@ -14,16 +14,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Server = struct
-  module Remote = struct
-    module None = struct
-      let remote = None
+type remote_fn =
+  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+
+module Server : sig
+  module Remote : sig
+    module None : sig
+      val remote : remote_fn option
     end
   end
 
+  module Make
+      (S : Irmin.Generic_key.S) (Remote : sig
+        val remote : remote_fn option
+      end) :
+    Irmin_graphql.Server.S
+      with type repo = S.repo
+       and type server = Cohttp_lwt_unix.Server.t
+
   module Make_ext
       (S : Irmin.Generic_key.S) (Remote : sig
-        val remote : Resolver.Store.remote_fn option
+        val remote : remote_fn option
       end)
       (T : Irmin_graphql.Server.CUSTOM_TYPES
              with type path := S.path
@@ -33,41 +44,8 @@ module Server = struct
               and type branch := S.branch
               and type commit_key := S.commit_key
               and type contents_key := S.contents_key
-              and type node_key := S.node_key) =
-    Irmin_graphql.Server.Make_ext
-      (Cohttp_lwt_unix.Server)
-      (struct
-        module Info = Info.Make (S.Info)
-
-        type info = S.info
-
-        let info = Info.v
-
-        let remote =
-          match Remote.remote with
-          | Some fn -> Some (fun ?headers v -> fn ?headers v)
-          | None -> None
-      end)
-      (S)
-      (T)
-
-  module Make
-      (S : Irmin.Generic_key.S) (Remote : sig
-        val remote : Resolver.Store.remote_fn option
-      end) =
-    Irmin_graphql.Server.Make
-      (Cohttp_lwt_unix.Server)
-      (struct
-        module Info = Info.Make (S.Info)
-
-        type info = S.info
-
-        let info = Info.v
-
-        let remote =
-          match Remote.remote with
-          | Some fn -> Some (fun ?headers v -> fn ?headers v)
-          | None -> None
-      end)
-      (S)
+              and type node_key := S.node_key) :
+    Irmin_graphql.Server.S
+      with type repo = S.repo
+       and type server = Cohttp_lwt_unix.Server.t
 end

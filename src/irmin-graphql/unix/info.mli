@@ -14,16 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let set_listen_dir_hook = Hook.init
+module Make (I : Irmin.Info.S) : sig
+  include Irmin.Info.S with type t = I.t
 
-module I = Info.Make (Irmin.Info.Default)
-
-let info = I.v
-
-module Info = Info.Make
-module Git = Irmin_git_unix
-module Http = Irmin_http_unix
-module Graphql = Irmin_graphql_unix
-module FS = Irmin_fs_unix
-module Cli = Cli
-module Resolver = Resolver
+  val v : ?author:string -> ('b, Format.formatter, unit, f) format4 -> 'b
+end

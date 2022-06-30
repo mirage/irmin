@@ -6,7 +6,7 @@
   alcotest-lwt
   yojson
   irmin
-  irmin-graphql
+  irmin-graphql.unix
   irmin.mem
   cohttp-lwt-unix
   logs.fmt
