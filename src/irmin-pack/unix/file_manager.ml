@@ -86,27 +86,27 @@ struct
         assert false
     | From_v3_gced x -> x.generation
 
-  (* let reopen_prefix t ~generation =
-   *   let open Result_syntax in
-   *   let* prefix1 =
-   *     let path = Irmin_pack.Layout.V3.prefix ~root:t.root ~generation in
-   *     [%log.debug "reload: generation changed, opening %s" path];
-   *     Prefix.open_ ~readonly:true ~path
-   *   in
-   *   let prefix0 = t.prefix in
-   *   t.prefix <- Some prefix1;
-   *   match prefix0 with None -> Ok () | Some io -> Prefix.close io
-   *
-   * let reopen_mapping t ~generation =
-   *   let open Result_syntax in
-   *   let* mapping1 =
-   *     let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
-   *     [%log.debug "reload: generation changed, opening %s" path];
-   *     Mapping.open_ ~readonly:true ~path
-   *   in
-   *   let mapping0 = t.mapping in
-   *   t.mapping <- Some mapping1;
-   *   match mapping0 with None -> Ok () | Some io -> Mapping.close io *)
+  let reopen_prefix t ~generation =
+    let open Result_syntax in
+    let* prefix1 =
+      let path = Irmin_pack.Layout.V3.prefix ~root:t.root ~generation in
+      [%log.debug "reload: generation changed, opening %s" path];
+      Prefix.open_ ~readonly:true ~path
+    in
+    let prefix0 = t.prefix in
+    t.prefix <- Some prefix1;
+    match prefix0 with None -> Ok () | Some io -> Prefix.close io
+
+  let reopen_mapping t ~generation =
+    let open Result_syntax in
+    let* mapping1 =
+      let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
+      [%log.debug "reload: generation changed, opening %s" path];
+      Mapping.open_ ~readonly:true ~path
+    in
+    let mapping0 = t.mapping in
+    t.mapping <- Some mapping1;
+    match mapping0 with None -> Ok () | Some io -> Mapping.close io
 
   let reopen_suffix t ~generation ~end_offset =
     let open Result_syntax in
@@ -120,13 +120,11 @@ struct
     Suffix.close suffix0
 
   let only_open_after_gc ~generation ~path =
-    ignore (generation, path);
-    Ok None
-    (* let open Result_syntax in *)
-    (* if generation = 0 then Ok None
-     * else
-     *   let* t = Io.open_ ~path ~readonly:true in
-     *   Ok (Some t) *)
+    let open Result_syntax in
+    if generation = 0 then Ok None
+    else
+      let* t = Io.open_ ~path ~readonly:true in
+      Ok (Some t)
 
   (* Reload ***************************************************************** *)
 
@@ -147,6 +145,8 @@ struct
         else
           let end_offset = pl1.entry_offset_suffix_end in
           let* () = reopen_suffix t ~generation:gen1 ~end_offset in
+          let* () = reopen_mapping t ~generation:gen1 in
+          let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
       in
       (* Update end offsets. This prevents the readonly instance to read data
@@ -600,11 +600,11 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~copy_end_offset =
+  let swap t ~generation ~right_start_offset ~right_end_offset =
     let open Result_syntax in
     (* Step 1. Open the suffix *)
     let* new_suffix =
-      let end_offset = copy_end_offset in
+      let end_offset = right_end_offset in
       let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
       let dead_header_size = 0 in
       let auto_flush_threshold =
@@ -632,8 +632,7 @@ struct
           | T14 | T15 ->
               assert false
           | From_v3_gced _ | From_v3_no_gc_yet ->
-              let entry_offset_suffix_start = Int63.zero in
-              (* TODO: [entry_offset_suffix_start] should come from parameters *)
+              let entry_offset_suffix_start = right_start_offset in
               From_v3_gced { entry_offset_suffix_start; generation }
         in
         { pl with status }

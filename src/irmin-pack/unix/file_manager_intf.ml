@@ -181,7 +181,8 @@ module type S = sig
   val swap :
     t ->
     generation:int ->
-    copy_end_offset:int63 ->
+    right_start_offset:int63 ->
+    right_end_offset:int63 ->
     (unit, [> swap_error ]) result
 
   type write_gc_output_error :=

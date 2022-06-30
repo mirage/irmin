@@ -172,7 +172,12 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
-      type during_gc = { next_generation : int; pid : int; unlink : bool }
+      type during_gc = {
+        next_generation : int;
+        pid : int;
+        unlink : bool;
+        offset : int63;
+      }
 
       module Repo = struct
         type t = {
@@ -328,6 +333,28 @@ module Maker (Config : Conf.S) = struct
             let* () =
               if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
             in
+            let* commit_key =
+              let state : _ Irmin_pack.Pack_key.state =
+                Irmin_pack.Pack_key.inspect commit_key
+              in
+              match state with
+              | Direct _ -> Ok commit_key
+              | Indexed h -> (
+                  match Commit.CA.index_direct_with_kind t.commit h with
+                  | None ->
+                      Error
+                        (`Commit_key_is_dangling
+                          (Irmin.Type.to_string XKey.t commit_key))
+                  | Some (k, _kind) -> Ok k)
+            in
+            let offset =
+              let state : _ Irmin_pack.Pack_key.state =
+                Irmin_pack.Pack_key.inspect commit_key
+              in
+              match state with
+              | Direct x -> x.offset
+              | Indexed _ -> assert false
+            in
             let root = Conf.root t.config in
             (* Determine if the store allows GC *)
             let* current_generation = gc_generation t in
@@ -349,7 +376,7 @@ module Maker (Config : Conf.S) = struct
                 Unix.kill (Unix.getpid ()) 9;
                 assert false (* unreachable *)
             | pid ->
-                t.during_gc <- Some { next_generation; pid; unlink };
+                t.during_gc <- Some { next_generation; pid; unlink; offset };
                 Exit.add pid;
                 Ok ()
 
@@ -372,10 +399,12 @@ module Maker (Config : Conf.S) = struct
             let* () = Io.close new_suffix in
             Ok old_end_offset
 
-          let swap_and_purge ~generation ~end_offset t =
+          let swap_and_purge ~generation ~right_start_offset ~right_end_offset t
+              =
             let open Result_syntax in
             let* () =
-              File_manager.swap t.fm ~generation ~copy_end_offset:end_offset
+              File_manager.swap t.fm ~generation ~right_start_offset
+                ~right_end_offset
             in
             (* No need to purge dict here, as it is global to the store. *)
             (* No need to purge index here. It is global too, but some hashes may
@@ -434,7 +463,7 @@ module Maker (Config : Conf.S) = struct
           let finalise ~wait t =
             match t.during_gc with
             | None -> Lwt.return_ok false
-            | Some { next_generation; pid; unlink } ->
+            | Some { next_generation; pid; unlink; offset } ->
                 let wait_flags = if wait then [] else [ Unix.WNOHANG ] in
                 let root = Conf.root t.config in
                 let go status =
@@ -452,7 +481,8 @@ module Maker (Config : Conf.S) = struct
                         in
                         let* () =
                           swap_and_purge ~generation:next_generation
-                            ~end_offset:new_suffix_end_offset t
+                            ~right_start_offset:offset
+                            ~right_end_offset:new_suffix_end_offset t
                         in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
