@@ -63,12 +63,10 @@ module Unix = struct
   type read_error =
     [ `Io_misc of misc_error
     | `Read_out_of_bounds
-    | `Read_on_closed
+    | `Closed
     | `Invalid_argument ]
 
-  type write_error =
-    [ `Io_misc of misc_error | `Ro_not_allowed | `Write_on_closed ]
-
+  type write_error = [ `Io_misc of misc_error | `Ro_not_allowed | `Closed ]
   type close_error = [ `Io_misc of misc_error | `Double_close ]
 
   type mkdir_error =
@@ -155,11 +153,10 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let write_exn t ~off ~len s =
-    if String.length s < len then
-      raise (Errors_base.Pack_error `Invalid_argument);
+    if String.length s < len then raise (Errors.Pack_error `Invalid_argument);
     match (t.closed, t.readonly) with
-    | true, _ -> raise (Errors_base.Pack_error `Write_on_closed)
-    | _, true -> raise Errors_base.RO_not_allowed
+    | true, _ -> raise Errors.Closed
+    | _, true -> raise Errors.RO_not_allowed
     | _ ->
         (* really_write and following do not mutate the given buffer, so
            Bytes.unsafe_of_string is actually safe *)
@@ -171,13 +168,13 @@ module Unix = struct
   let write_string t ~off s =
     let len = String.length s in
     try Ok (write_exn t ~off ~len s) with
-    | Errors_base.Pack_error (`Write_on_closed as e) -> Error e
-    | Errors_base.RO_not_allowed -> Error `Ro_not_allowed
+    | Errors.Closed -> Error `Closed
+    | Errors.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let fsync t =
     match (t.closed, t.readonly) with
-    | true, _ -> Error `Write_on_closed
+    | true, _ -> Error `Closed
     | _, true -> Error `Ro_not_allowed
     | _ -> (
         try
@@ -186,10 +183,9 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let read_exn t ~off ~len buf =
-    if len > Bytes.length buf then
-      raise (Errors_base.Pack_error `Invalid_argument);
+    if len > Bytes.length buf then raise (Errors.Pack_error `Invalid_argument);
     match t.closed with
-    | true -> raise (Errors_base.Pack_error `Read_on_closed)
+    | true -> raise Errors.Closed
     | false ->
         let nread = Util.really_read t.fd off len buf in
         Index.Stats.add_read nread;
@@ -197,7 +193,7 @@ module Unix = struct
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
              - the normal API allows return of a short string *)
-          raise (Errors_base.Pack_error `Read_out_of_bounds)
+          raise (Errors.Pack_error `Read_out_of_bounds)
 
   let read_to_string t ~off ~len =
     let buf = Bytes.create len in
@@ -205,14 +201,14 @@ module Unix = struct
       read_exn t ~off ~len buf;
       Ok (Bytes.unsafe_to_string buf)
     with
-    | Errors_base.Pack_error
-        ((`Invalid_argument | `Read_on_closed | `Read_out_of_bounds) as e) ->
+    | Errors.Pack_error ((`Invalid_argument | `Read_out_of_bounds) as e) ->
         Error e
+    | Errors.Closed -> Error `Closed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
   let read_size t =
     match t.closed with
-    | true -> Error `Read_on_closed
+    | true -> Error `Closed
     | false -> (
         try Ok Unix.LargeFile.((fstat t.fd).st_size |> Int63.of_int64)
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))

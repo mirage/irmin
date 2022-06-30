@@ -117,7 +117,7 @@ module Make (Io : Io.S) = struct
     let open Int63.Syntax in
     let off' = off + Int63.of_int len in
     if off' > t.persisted_end_offset then
-      raise (Errors_base.Pack_error `Read_out_of_bounds);
+      raise (Errors.Pack_error `Read_out_of_bounds);
     let off = off + t.dead_header_size in
     Io.read_exn t.io ~off ~len b
 

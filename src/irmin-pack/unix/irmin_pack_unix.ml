@@ -8,6 +8,7 @@ module Atomic_write = Atomic_write
 module Dict = Dict
 module Io = Io
 module Errors = Errors
+module Io_errors = Io_errors
 module Control_file = Control_file
 module Append_only_file = Append_only_file
 module File_manager = File_manager

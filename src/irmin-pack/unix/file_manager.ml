@@ -26,7 +26,7 @@ module Make
     (Dict : Append_only_file.S with module Io = Control.Io)
     (Suffix : Append_only_file.S with module Io = Control.Io)
     (Index : Pack_index.S)
-    (Errs : Errors.S with module Io = Control.Io) =
+    (Errs : Io_errors.S with module Io = Control.Io) =
 struct
   module Io = Control.Io
 
@@ -519,7 +519,7 @@ struct
       let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
       match read_version_from_legacy_file path with
       | Ok v -> Ok v
-      | Error `Double_close | Error `Invalid_argument | Error `Read_on_closed ->
+      | Error `Double_close | Error `Invalid_argument | Error `Closed ->
           assert false
       | Error `No_such_file_or_directory -> Error `Invalid_layout
       | Error `Not_a_file -> Error `Invalid_layout
@@ -536,7 +536,7 @@ struct
         | Ok _ -> Ok `V3
         | Error `No_such_file_or_directory -> v2_or_v1 ()
         | Error `Not_a_file -> Error `Invalid_layout
-        | Error `Read_on_closed -> assert false
+        | Error `Closed -> assert false
         | Error
             ( `Io_misc _ | `Corrupted_control_file
             | `Unknown_major_pack_version _ ) as e ->

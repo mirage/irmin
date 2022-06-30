@@ -44,7 +44,7 @@ struct
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
   module Io = Irmin_pack_unix.Io.Unix
-  module Errs = Irmin_pack_unix.Errors.Make (Io)
+  module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Control = Irmin_pack_unix.Control_file.Make (Io)
   module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
 

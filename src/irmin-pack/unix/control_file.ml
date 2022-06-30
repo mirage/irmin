@@ -80,9 +80,7 @@ module Make (Io : Io.S) = struct
     | Error (`Read_out_of_bounds | `Corrupted_control_file) ->
         Error `Corrupted_control_file
     | Error `Invalid_argument -> assert false
-    | Error (`Io_misc _ | `Read_on_closed | `Unknown_major_pack_version _) as e
-      ->
-        e
+    | Error (`Io_misc _ | `Closed | `Unknown_major_pack_version _) as e -> e
 
   let create_rw ~path ~overwrite payload =
     let open Result_syntax in
