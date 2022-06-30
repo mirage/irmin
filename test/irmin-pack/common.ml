@@ -85,9 +85,12 @@ module File_manager =
   Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
 
 module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
 module Pack =
-  Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Schema.Hash) (Contents)
+  Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Dispatcher)
+    (Schema.Hash)
+    (Contents)
     (Errs)
 
 module Branch =
@@ -149,10 +152,11 @@ struct
     let f = ref (fun () -> ()) in
     let config = config ~readonly ~fresh name in
     let fm = get_fm config in
+    let dispatcher = Dispatcher.v ~root:name fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
     let dict = Dict.v fm |> Errs.raise_if_error in
-    let pack = Pack.v ~config ~fm ~dict in
+    let pack = Pack.v ~config ~fm ~dict ~dispatcher in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm } |> Lwt.return
 

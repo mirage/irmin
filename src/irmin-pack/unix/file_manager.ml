@@ -29,51 +29,57 @@ module Make
     (Errs : Io_errors.S with module Io = Control.Io) =
 struct
   module Io = Control.Io
-
-  type dict_consumer_data = {
-    after_reload : unit -> (unit, Io.read_error) result;
-  }
-
-  type suffix_consumer_data = { after_flush : unit -> unit }
-
-  type t = {
-    dict : Dict.t;
-    control : Control.t;
-    mutable suffix : Suffix.t;
-    index : Index.t;
-    mutable dict_consumers : dict_consumer_data list;
-    mutable suffix_consumers : suffix_consumer_data list;
-    indexing_strategy : Irmin_pack.Indexing_strategy.t;
-    use_fsync : bool;
-    root : string;
-  }
-
   module Control = Control
   module Dict = Dict
   module Suffix = Suffix
   module Index = Index
   module Errs = Errs
+  module Prefix = Io
+  module Mapping = Io
+
+  type after_reload_consumer = { after_reload : unit -> (unit, Errs.t) result }
+  type after_flush_consumer = { after_flush : unit -> unit }
+
+  type t = {
+    dict : Dict.t;
+    control : Control.t;
+    mutable suffix : Suffix.t;
+    mutable prefix : Prefix.t option;
+    mutable mapping : Mapping.t option;
+    index : Index.t;
+    mutable mapping_consumers : after_reload_consumer list;
+    mutable dict_consumers : after_reload_consumer list;
+    mutable suffix_consumers : after_flush_consumer list;
+    indexing_strategy : Irmin_pack.Indexing_strategy.t;
+    use_fsync : bool;
+    root : string;
+  }
 
   let control t = t.control
   let dict t = t.dict
   let suffix t = t.suffix
   let index t = t.index
+  let mapping t = t.mapping
+  let prefix t = t.prefix
 
   let close t =
     let open Result_syntax in
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
     let* () = Suffix.close t.suffix in
+    let* () = Option.might Mapping.close t.mapping in
+    let* () = Option.might Prefix.close t.prefix in
     let+ () = Index.close t.index in
     ()
+
+  let register_mapping_consumer t ~after_reload =
+    t.mapping_consumers <- { after_reload } :: t.mapping_consumers
 
   let register_dict_consumer t ~after_reload =
     t.dict_consumers <- { after_reload } :: t.dict_consumers
 
   let register_suffix_consumer t ~after_flush =
     t.suffix_consumers <- { after_flush } :: t.suffix_consumers
-
-  (* Reload ***************************************************************** *)
 
   let generation = function
     | Payload.From_v1_v2_post_upgrade _
@@ -85,53 +91,6 @@ struct
         assert false
     | From_v3_gced x -> x.generation
 
-  let reload ?hook t =
-    let open Result_syntax in
-    let* () = Index.reload t.index in
-    (match hook with Some h -> h `After_index | None -> ());
-    let pl0 = Control.payload t.control in
-    let* () = Control.reload t.control in
-    (match hook with Some h -> h `After_control | None -> ());
-    let pl1 : Payload.t = Control.payload t.control in
-    if pl0 = pl1 then Ok ()
-    else
-      (* Check if generation changed. If it did, reopen suffix. *)
-      let* () =
-        let gen0 = generation pl0.status in
-        let gen1 = generation pl1.status in
-        if gen0 = gen1 then Ok ()
-        else
-          let* suffix1 =
-            let path =
-              Irmin_pack.Layout.V3.suffix ~root:t.root ~generation:gen1
-            in
-            let end_offset = pl1.entry_offset_suffix_end in
-            [%log.debug "reload: generation changed, opening %s" path];
-            Suffix.open_ro ~path ~end_offset ~dead_header_size:0
-          in
-          let suffix0 = t.suffix in
-          t.suffix <- suffix1;
-          Suffix.close suffix0
-      in
-      (* Update end offsets. This prevents the readonly instance to read data
-         flushed to disk by the readwrite, between calls to reload. *)
-      let* () =
-        Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
-      in
-      (match hook with Some h -> h `After_suffix | None -> ());
-      let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
-      let+ () =
-        let res =
-          List.fold_left
-            (fun acc { after_reload } -> Result.bind acc after_reload)
-            (Ok ()) t.dict_consumers
-        in
-        (* The following dirty trick casts the result from
-           [read_error] to [ [>read_error] ]. *)
-        match res with Ok () -> Ok () | Error (#Io.read_error as e) -> Error e
-      in
-      ()
-
   (** Flush stages *************************************************************
 
       The irmin-pack files are only mutated during calls to one of the 3
@@ -141,18 +100,11 @@ struct
       - During a GC.
       - When the branch store is modified. *)
 
-  (* TODO: Stat on flushes:
-     - How many calls to Dict.flush/Suffix.flush/Index.flush
-     - How many calls to [flush] and the 3 auto ones. *)
-
   (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
     if Dict.empty_buffer t.dict then Ok ()
     else
-      (* NOTE we call the Stats increment function before the call to the Dict flush
-         function; in general we increment the stat before the call, everywhere in this
-         file. *)
       let* () =
         Stats.incr_fm_field Dict_flushes;
         Dict.flush t.dict
@@ -250,7 +202,63 @@ struct
     Stats.incr_fm_field Flush;
     flush_index_and_its_deps ?hook t
 
-  (* File creation ********************************************************** *)
+  (* Constructors *********************************************************** *)
+
+  let reopen_prefix t ~generation =
+    let open Result_syntax in
+    let* prefix1 =
+      let path = Irmin_pack.Layout.V3.prefix ~root:t.root ~generation in
+      [%log.debug "reload: generation changed, opening %s" path];
+      Prefix.open_ ~readonly:true ~path
+    in
+    let prefix0 = t.prefix in
+    t.prefix <- Some prefix1;
+    match prefix0 with None -> Ok () | Some io -> Prefix.close io
+
+  let reopen_mapping t ~generation =
+    let open Result_syntax in
+    let* mapping1 =
+      let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
+      [%log.debug "reload: generation changed, opening %s" path];
+      Mapping.open_ ~readonly:true ~path
+    in
+    let mapping0 = t.mapping in
+    t.mapping <- Some mapping1;
+    match mapping0 with None -> Ok () | Some io -> Mapping.close io
+
+  let reopen_suffix t ~generation ~end_offset =
+    let open Result_syntax in
+    (* Invariant: reopen suffix is only called on V3 suffix files, for which
+       dead_header_size is 0. *)
+    let dead_header_size = 0 in
+    [%log.debug
+      "reopen_suffix gen:%d end_offset:%d\n%!" generation
+        (Int63.to_int end_offset)];
+    let readonly = Suffix.readonly t.suffix in
+    let* suffix1 =
+      let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
+      [%log.debug "reload: generation changed, opening %s" path];
+      if readonly then Suffix.open_ro ~path ~end_offset ~dead_header_size
+      else
+        let auto_flush_threshold =
+          match Suffix.auto_flush_threshold t.suffix with
+          | None -> assert false
+          | Some x -> x
+        in
+        let cb () = suffix_requires_a_flush_exn t in
+        Suffix.open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
+          ~auto_flush_callback:cb
+    in
+    let suffix0 = t.suffix in
+    t.suffix <- suffix1;
+    Suffix.close suffix0
+
+  let only_open_after_gc ~generation ~path =
+    let open Result_syntax in
+    if generation = 0 then Ok None
+    else
+      let* t = Io.open_ ~path ~readonly:true in
+      Ok (Some t)
 
   let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
       =
@@ -283,6 +291,14 @@ struct
       let cb () = suffix_requires_a_flush_exn (get_instance ()) in
       make_suffix ~path ~auto_flush_threshold ~auto_flush_callback:cb
     in
+    let* prefix =
+      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      only_open_after_gc ~generation ~path
+    in
+    let* mapping =
+      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      only_open_after_gc ~generation ~path
+    in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
       let auto_flush_threshold =
@@ -304,8 +320,11 @@ struct
         dict;
         control;
         suffix;
+        prefix;
+        mapping;
         use_fsync;
         index;
+        mapping_consumers = [];
         dict_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
@@ -319,6 +338,62 @@ struct
     let root = Irmin_pack.Conf.root config in
     let path = Irmin_pack.Layout.V3.control ~root in
     Control.create_rw ~path ~overwrite pl
+
+  (* Reload ***************************************************************** *)
+
+  let reload ?hook t =
+    let open Result_syntax in
+    let* () = Index.reload t.index in
+    (match hook with Some h -> h `After_index | None -> ());
+    let pl0 = Control.payload t.control in
+    let* () = Control.reload t.control in
+    (match hook with Some h -> h `After_control | None -> ());
+    let pl1 : Payload.t = Control.payload t.control in
+    if pl0 = pl1 then Ok ()
+    else
+      (* Check if generation changed. If it did, reopen suffix, prefix and
+         mapping. *)
+      let* () =
+        let gen0 = generation pl0.status in
+        let gen1 = generation pl1.status in
+        if gen0 = gen1 then Ok ()
+        else
+          let end_offset = pl1.entry_offset_suffix_end in
+          let* () = reopen_suffix t ~generation:gen1 ~end_offset in
+          let* () = reopen_mapping t ~generation:gen1 in
+          let* () = reopen_prefix t ~generation:gen1 in
+          Ok ()
+      in
+      (* Update end offsets. This prevents the readonly instance to read data
+         flushed to disk by the readwrite, between calls to reload. *)
+      let* () =
+        Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
+      in
+      (match hook with Some h -> h `After_suffix | None -> ());
+      let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
+      let* () =
+        let res =
+          List.fold_left
+            (fun acc { after_reload } -> Result.bind acc after_reload)
+            (Ok ()) t.dict_consumers
+        in
+        (* The following dirty trick casts the result from
+           [read_error] to [ [>read_error] ]. *)
+        match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
+      in
+      let* () =
+        let res =
+          List.fold_left
+            (fun acc { after_reload } -> Result.bind acc after_reload)
+            (Ok ()) t.mapping_consumers
+        in
+        (* The following dirty trick casts the result from
+           [read_error] to [ [>read_error] ]. *)
+        match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
+      in
+      Ok ()
+
+  (* File creation ********************************************************** *)
 
   let create_rw ~overwrite config =
     let open Result_syntax in
@@ -493,6 +568,14 @@ struct
       let end_offset = pl.entry_offset_suffix_end in
       Suffix.open_ro ~path ~end_offset ~dead_header_size
     in
+    let* prefix =
+      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      only_open_after_gc ~path ~generation
+    in
+    let* mapping =
+      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+      only_open_after_gc ~path ~generation
+    in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
       let end_offset = pl.dict_offset_end in
@@ -509,9 +592,12 @@ struct
         dict;
         control;
         suffix;
+        prefix;
+        mapping;
         use_fsync;
         indexing_strategy;
         index;
+        mapping_consumers = [];
         dict_consumers = [];
         suffix_consumers = [];
         root;
@@ -547,25 +633,34 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~copy_end_offset =
+  let swap t ~generation ~right_start_offset ~right_end_offset =
     let open Result_syntax in
-    (* Step 1. Open the suffix *)
-    let* new_suffix =
-      let end_offset = copy_end_offset in
-      let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
-      let dead_header_size = 0 in
-      let auto_flush_threshold =
-        match Suffix.auto_flush_threshold t.suffix with
-        | Some x -> x
-        | None -> assert false
+    [%log.debug
+      "Gc in main: swap %d %#d %#d\n%!" generation
+        (Int63.to_int right_start_offset)
+        (Int63.to_int right_end_offset)];
+    (* Step 1. Reopen files *)
+    let* () = reopen_prefix t ~generation in
+    let* () = reopen_mapping t ~generation in
+    (* When opening the suffix in append_only we need to provide a (real) suffix
+       offset, computed from the global ones. *)
+    let open Int63.Syntax in
+    let suffix_end_offset = right_end_offset - right_start_offset in
+    let* () = reopen_suffix t ~generation ~end_offset:suffix_end_offset in
+
+    (* Step 2. Reload mapping consumers (i.e. dispatcher) *)
+    let* () =
+      let res =
+        List.fold_left
+          (fun acc { after_reload } -> Result.bind acc after_reload)
+          (Ok ()) t.mapping_consumers
       in
-      let cb () = suffix_requires_a_flush_exn t in
-      [%log.debug "GC: opening new suffix in rw mode: %s" path];
-      Suffix.open_rw ~end_offset ~dead_header_size ~path ~auto_flush_threshold
-        ~auto_flush_callback:cb
+      (* The following dirty trick casts the result from
+           [read_error] to [ [>read_error] ]. *)
+      match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
     in
 
-    (* Step 2. Update the control file *)
+    (* Step 3. Update the control file *)
     let* () =
       let pl = Control.payload t.control in
       let pl =
@@ -578,20 +673,16 @@ struct
           | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
           | T14 | T15 ->
               assert false
-          | From_v3_gced _ | From_v3_no_gc_yet -> From_v3_gced { generation }
+          | From_v3_gced _ | From_v3_no_gc_yet ->
+              let entry_offset_suffix_start = right_start_offset in
+              From_v3_gced { entry_offset_suffix_start; generation }
         in
-        { pl with status }
+        { pl with status; entry_offset_suffix_end = suffix_end_offset }
       in
       [%log.debug "GC: writing new control_file"];
       Control.set_payload t.control pl
     in
 
-    (* Step 3. Use the new suffix in the rw instance *)
-    let old_suffix = t.suffix in
-    t.suffix <- new_suffix;
-
-    (* Step 4. Close and return *)
-    let* () = Suffix.close old_suffix in
     Ok ()
 
   let write_gc_output ~root ~generation output =
@@ -601,6 +692,10 @@ struct
     let out = Errs.to_json_string output in
     let* () = Io.write_string io ~off:Int63.zero out in
     Io.close io
+
+  type read_gc_output_error =
+    [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
+  [@@deriving irmin]
 
   let read_gc_output ~root ~generation =
     let open Result_syntax in
@@ -619,4 +714,29 @@ struct
         Errs.of_json_string x
         |> Result.map_error (fun err ->
                `Gc_process_error (Fmt.str "%a" Errs.pp err))
+
+  let readonly t = Suffix.readonly t.suffix
+
+  let generation t =
+    let pl = Control.payload t.control in
+    match pl.status with
+    | From_v1_v2_post_upgrade _ | From_v3_used_non_minimal_indexing_strategy ->
+        0
+    | From_v3_no_gc_yet -> 0
+    | From_v3_gced x -> x.generation
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        (* Unreachable *)
+        assert false
+
+  let gc_allowed t =
+    let pl = Control.payload t.control in
+    match pl.status with
+    | From_v1_v2_post_upgrade _ | From_v3_used_non_minimal_indexing_strategy ->
+        false
+    | From_v3_no_gc_yet | From_v3_gced _ -> true
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        (* Unreachable *)
+        assert false
 end

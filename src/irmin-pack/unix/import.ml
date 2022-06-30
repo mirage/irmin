@@ -28,6 +28,8 @@ module Int63 = struct
   module Syntax = struct
     let ( + ) = add
     let ( - ) = sub
+    let ( * ) = mul
+    let ( / ) = div
     let ( < ) a b = compare a b < 0
     let ( <= ) a b = compare a b <= 0
     let ( > ) a b = compare a b > 0

@@ -18,16 +18,21 @@ open! Import
 
 module type Args = sig
   module Hash : Irmin.Hash.S
-  module File_manager : File_manager.S
+  module Fm : File_manager.S
+  module Dispatcher : Dispatcher.S with module Fm = Fm
 
   module Inode :
     Inode.Persistent
       with type hash := Hash.t
        and type key = Hash.t Pack_key.t
-       and type file_manager = File_manager.t
+       and type file_manager = Fm.t
+       and type dispatcher = Dispatcher.t
 
   module Contents_pack :
-    Pack_store.S with type hash := Hash.t and type key = Hash.t Pack_key.t
+    Pack_store.S
+      with type hash := Hash.t
+       and type key = Hash.t Pack_key.t
+       and type dispatcher = Dispatcher.t
 end
 
 module type Sigs = sig
@@ -52,7 +57,7 @@ module type Sigs = sig
         ( unit,
           [> `Double_close
           | `Index_failure of string
-          | `Io_misc of File_manager.Io.misc_error
+          | `Io_misc of Fm.Io.misc_error
           | `Pending_flush ] )
         result
     end

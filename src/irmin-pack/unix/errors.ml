@@ -37,6 +37,7 @@ type base_error =
   | `Index_failure of string
   | `Invalid_layout
   | `Corrupted_legacy_file
+  | `Corrupted_mapping_file of string
   | `Pending_flush
   | `Rw_not_allowed
   | `Migration_needed
@@ -46,14 +47,17 @@ type base_error =
   | `Gc_forbidden_during_batch
   | `Unknown_major_pack_version of string
   | `Only_minimal_indexing_strategy_allowed
-  | `Commit_key_is_indexed_and_dangling of string
+  | `Commit_key_is_dangling of string
   | `Dangling_key of string
   | `Gc_disallowed
   | `Node_or_contents_key_is_indexed of string
   | `Commit_parent_key_is_indexed of string
   | `Gc_process_error of string
   | `Corrupted_gc_result_file of string
-  | `Gc_process_died_without_result_file of string ]
+  | `Gc_process_died_without_result_file of string
+  | `Gc_forbidden_on_32bit_platforms
+  | `Invalid_prefix_read of string
+  | `Invalid_read_of_gced_object of string ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific
@@ -69,16 +73,16 @@ exception RO_not_allowed = Irmin_pack.RO_not_allowed
 
 (** Error manager *)
 module type S = sig
-  type t
+  type t = error
 
-  val pp : Format.formatter -> t -> unit
-  val raise_error : t -> 'a
-  val log_error : string -> t -> unit
-  val catch : (unit -> 'a) -> ('a, t) result
-  val raise_if_error : ('a, t) result -> 'a
-  val log_if_error : string -> (unit, t) result -> unit
-  val to_json_string : (int63, t) result -> string
-  val of_json_string : string -> (int63, t) result
+  val pp : Format.formatter -> [< t ] -> unit
+  val raise_error : [< t ] -> 'a
+  val log_error : string -> [< t ] -> unit
+  val catch : (unit -> 'a) -> ('a, [> t ]) result
+  val raise_if_error : ('a, [< t ]) result -> 'a
+  val log_if_error : string -> (unit, [< t ]) result -> unit
+  val to_json_string : (int63, [< t ]) result -> string
+  val of_json_string : string -> (int63, [> t ]) result
 end
 
 module Base : S with type t = error = struct
@@ -98,7 +102,7 @@ module Base : S with type t = error = struct
 
   let catch f =
     try Ok (f ()) with
-    | Pack_error e -> Error (e : base_error :> t)
+    | Pack_error e -> Error (e : base_error :> [> t ])
     | RO_not_allowed -> Error `Ro_not_allowed
     | Closed -> Error `Closed
 
@@ -119,7 +123,7 @@ module Base : S with type t = error = struct
   let err_to_t = function
     | Closed -> `Closed
     | Ro_not_allowed -> `Ro_not_allowed
-    | Pack_error e -> (e : base_error :> t)
+    | Pack_error e -> (e : base_error :> [> t ])
 
   let err_result = Irmin.Type.(result int63 err_t)
 
