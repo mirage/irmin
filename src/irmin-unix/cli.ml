@@ -17,6 +17,7 @@
 open! Import
 open Cmdliner
 open Resolver
+module Http = Irmin_http_unix
 
 let deprecated_info = (Term.info [@alert "-deprecated"])
 let deprecated_man_format = (Term.man_format [@alert "-deprecated"])

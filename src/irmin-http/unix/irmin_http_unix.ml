@@ -14,17 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module HTTP = struct
+module type Sock = sig
+  val sock : string
+end
+
+module DefaultSock = struct
+  let sock = "/var/run/irmin.sock"
+end
+
+module type Http_client = sig
+  include module type of Cohttp_lwt_unix.Client
+
+  val ctx : unit -> ctx option
+end
+
+module Http_client (P : Sock) = struct
   include Cohttp_lwt_unix.Client
 
   let ctx () =
     let resolver =
       let h = Hashtbl.create 1 in
-      Hashtbl.add h "irmin" (`Unix_domain_socket "/var/run/irmin.sock");
+      Hashtbl.add h "irmin" (`Unix_domain_socket P.sock);
       Resolver_lwt_unix.static h
     in
     Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
 end
 
-module Client = Irmin_http.Client (HTTP)
+module Client = Irmin_http.Client (Http_client (DefaultSock))
 module Server = Irmin_http.Server (Cohttp_lwt_unix.Server)

@@ -22,7 +22,7 @@ let info = I.v
 
 module Info = Info.Make
 module Git = Irmin_git_unix
-module Http = Http
+module Http = Irmin_http_unix
 module Graphql = Graphql
 module FS = Irmin_fs_unix
 module Cli = Cli

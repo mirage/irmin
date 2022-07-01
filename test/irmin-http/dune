@@ -14,7 +14,7 @@
   test_fs_unix
   test_git_unix
   irmin
-  irmin-http
+  irmin-http.unix
   logs
   lwt
   lwt.unix

@@ -48,29 +48,8 @@ module FS : module type of Irmin_fs_unix
 module Git : module type of Irmin_git_unix
 (** Bidirectional Git backends. *)
 
+module Http : module type of Irmin_http_unix
 (** REST (over HTTP) backend.. *)
-module Http : sig
-  (** {1 HTTP client} *)
-
-  (** [Make] provides bindings to the remote HTTP server.
-
-      Only the {{!Irmin.S.Backend} low-level operations} are forwarded to the
-      server, all the high-level logic is done on the client. Hence a high-level
-      operation might take multiple RTTs. *)
-  module Client (S : Irmin.S) :
-    Irmin.S
-      with type hash = S.Hash.t
-       and module Schema = S.Schema
-       and type Backend.Remote.endpoint = unit
-
-  (** {1 HTTP server} *)
-
-  (** Server-side of the REST API over HTTP. *)
-  module Server (S : Irmin.S) :
-    Irmin_http.SERVER
-      with type repo = S.Repo.t
-       and type t = Cohttp_lwt_unix.Server.t
-end
 
 val set_listen_dir_hook : unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching changes in

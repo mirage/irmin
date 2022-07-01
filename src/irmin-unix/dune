@@ -19,7 +19,7 @@
   irmin-git.unix
   irmin-fs.unix
   irmin-graphql
-  irmin-http
+  irmin-http.unix
   irmin.mem
   irmin-pack
   irmin-pack.unix

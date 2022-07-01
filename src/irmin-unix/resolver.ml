@@ -18,6 +18,7 @@ open! Import
 open Cmdliner
 open Astring
 module Xgit = Irmin_git_unix
+module Http = Irmin_http_unix
 
 let global_option_section = "COMMON OPTIONS"
 
