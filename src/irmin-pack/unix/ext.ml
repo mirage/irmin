@@ -286,6 +286,9 @@ module Maker (Config : Conf.S) = struct
         let flush_with_hook ~hook t =
           File_manager.flush ~hook t.fm |> Errs.raise_if_error
 
+        let reload_with_hook ~hook t =
+          File_manager.reload ~hook t.fm |> Errs.raise_if_error
+
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 

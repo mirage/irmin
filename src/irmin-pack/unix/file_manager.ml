@@ -85,11 +85,13 @@ struct
         assert false
     | From_v3_gced x -> x.generation
 
-  let reload t =
+  let reload ?hook t =
     let open Result_syntax in
     let* () = Index.reload t.index in
+    (match hook with Some h -> h `After_index | None -> ());
     let pl0 = Control.payload t.control in
     let* () = Control.reload t.control in
+    (match hook with Some h -> h `After_control | None -> ());
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
@@ -116,6 +118,7 @@ struct
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
+      (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
       let+ () =
         let res =

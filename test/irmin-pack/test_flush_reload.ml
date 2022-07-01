@@ -83,7 +83,6 @@ let write1_suffix model =
   Model.write1_suffix model
 
 let write1_index model =
-  write1_dict model;
   write1_suffix model;
   Model.preload_index model;
   Model.write1_index model
@@ -110,6 +109,14 @@ let write1_no_flush bstore nstore cstore =
   let* _ = Store.put_borphan' bstore in
   Lwt.return_unit
 
+(* These tests always open both RW and RO without any data in the model. *)
+let start t =
+  let* () = start_rw t in
+  let* () = open_ro t S2_before_write in
+  let rw = Option.get t.rw |> snd in
+  let ro = Option.get t.ro |> snd in
+  Lwt.return (rw, ro)
+
 (* Open both stores. RW writes but does not flush - we do this by running the
    rest of the test inside the [batch]. Then reload the RO at different phases
    during the flush. *)
@@ -119,19 +126,16 @@ let test_one t ~(ro_reload_at : phase_flush) =
     if ro_reload_at = phase then reload_ro t phase;
     check_ro t
   in
-  let* () = start_rw t in
-  (* Open RO in a stage without any data in the model. *)
-  let* () = open_ro t S2_before_write in
-  let rw_repo = Option.get t.rw |> snd in
+  let* rw, _ = start t in
   let* () =
-    Store.S.Backend.Repo.batch rw_repo (fun bstore nstore cstore ->
+    Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
         let* () = write1_no_flush bstore nstore cstore in
         let () = aux S1_before_flush in
         let hook = function
           | `After_dict -> aux S2_after_flush_dict
           | `After_suffix -> aux S3_after_flush_suffix
         in
-        let () = Store.S.X.Repo.flush_with_hook ~hook rw_repo in
+        let () = Store.S.X.Repo.flush_with_hook ~hook rw in
         let () = aux S4_after_flush in
         Lwt.return_unit)
   in
@@ -142,12 +146,12 @@ let test_one_guarded setup ~ro_reload_at =
   let* () = test_one t ~ro_reload_at in
   close_everything t
 
-let test () =
-  let setup =
-    (* We are using indexing strategy always here to have more entries in index
-       for the flush tests. *)
-    { start_mode = From_scratch; indexing_strategy = `always; lru_size = 0 }
-  in
+let setup =
+  (* We are using indexing strategy always here to have more entries in index
+     for the flush/reload tests. *)
+  { start_mode = From_scratch; indexing_strategy = `always; lru_size = 0 }
+
+let test_flush () =
   let t = test_one_guarded setup in
   let* () = t ~ro_reload_at:S1_before_flush in
   let* () = t ~ro_reload_at:S2_after_flush_dict in
@@ -155,8 +159,96 @@ let test () =
   let* () = t ~ro_reload_at:S4_after_flush in
   Lwt.return_unit
 
+type phase_reload =
+  | S1_before_reload
+  | S2_after_reload_index
+  | S3_after_reload_control
+  | S4_after_reload_suffix
+  | S5_after_reload
+[@@deriving irmin ~pp]
+
+let write1_index model =
+  Model.preload_index model;
+  Model.write1_index model
+
+let write1_suffix model =
+  Model.preload_suffix model;
+  Model.write1_suffix model
+
+let write1_dict model =
+  Model.preload_dict model;
+  Model.write1_dict model
+
+let write_all model =
+  write1_index model;
+  write1_suffix model;
+  write1_dict model
+
+let flush_rw t (current_phase : phase_reload) =
+  [%logs.app
+    "*** flush_rw %a, %a" pp_setup t.setup pp_phase_reload current_phase];
+  let () =
+    match t.ro with
+    | None -> assert false
+    | Some (model, _) -> (
+        match current_phase with
+        | S1_before_reload -> write_all model
+        | S2_after_reload_index ->
+            write1_dict model;
+            write1_suffix model
+        | S3_after_reload_control | S4_after_reload_suffix | S5_after_reload ->
+            (* If the control has not changed, suffix and dict are not reloaded. *)
+            ())
+  in
+  match t.rw with None -> assert false | Some (_, repo) -> Store.S.flush repo
+
+let check_ro t =
+  match t.ro with
+  | None -> assert false
+  | Some (model, repo) ->
+      check_dict repo model;
+      check_index repo model;
+      check_suffix repo model
+
+let test_one t ~(rw_flush_at : phase_reload) =
+  let aux phase = if rw_flush_at = phase then flush_rw t phase in
+  let* rw, ro = start t in
+  let reload_ro () =
+    Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
+        let* () = write1_no_flush bstore nstore cstore in
+        let () = aux S1_before_reload in
+        let hook = function
+          | `After_index -> aux S2_after_reload_index
+          | `After_control -> aux S3_after_reload_control
+          | `After_suffix -> aux S4_after_reload_suffix
+        in
+        let () = Store.S.X.Repo.reload_with_hook ~hook ro in
+        let () = aux S5_after_reload in
+        Lwt.return_unit)
+  in
+  let () = check_ro t in
+  let* () = reload_ro () in
+  let () = check_ro t in
+  Lwt.return_unit
+
+let test_one_guarded setup ~rw_flush_at =
+  let t = create_test_env setup in
+  let* () = test_one t ~rw_flush_at in
+  close_everything t
+
+let test_reload () =
+  let t = test_one_guarded setup in
+  let* () = t ~rw_flush_at:S1_before_reload in
+  let* () = t ~rw_flush_at:S2_after_reload_index in
+  let* () = t ~rw_flush_at:S3_after_reload_control in
+  let* () = t ~rw_flush_at:S4_after_reload_suffix in
+  let* () = t ~rw_flush_at:S5_after_reload in
+  Lwt.return_unit
+
 let tests =
   [
     Alcotest.test_case "Reload during flush stages" `Quick (fun () ->
-        Lwt_main.run (test ()));
+        Lwt_main.run (test_flush ()));
+    Alcotest.test_case "Flush during reload stages" `Quick (fun () ->
+        Lwt_main.run (test_reload ()));
   ]
