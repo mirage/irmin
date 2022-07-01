@@ -66,6 +66,7 @@ installed by running:
 ```
 
 The following packages have been made available on `opam`:
+
 - `irmin` - the base package, plus an in-memory storage implementation
 - `irmin-chunk` - chunked storage
 - `irmin-fs` - filesystem-based storage using `bin_prot`
@@ -111,7 +112,7 @@ Git-based, filesystem-backed store.
 open Lwt.Syntax
 
 (* Irmin store with string contents *)
-module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 
 (* Database configuration *)
 let config = Irmin_git.config ~bare:true "/tmp/irmin/test"

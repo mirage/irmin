@@ -24,7 +24,7 @@ let url, user, token =
   if Array.length Sys.argv = 4 then (Sys.argv.(1), Sys.argv.(2), Sys.argv.(3))
   else failwith "usage: push.exe url user token"
 
-module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 module Sync = Irmin.Sync.Make (Store)
 
 let headers =

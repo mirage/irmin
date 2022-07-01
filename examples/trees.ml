@@ -17,7 +17,7 @@
 (* example of using the tree API *)
 
 open Lwt.Syntax
-module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 module Tree = Store.Tree
 
 let info = Irmin_unix.info

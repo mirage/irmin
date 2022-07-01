@@ -111,7 +111,7 @@ end = struct
 end
 
 (* Build an Irmin store containing log files. *)
-module Store = Irmin_unix.Git.FS.KV (Log)
+module Store = Irmin_git_unix.FS.KV (Log)
 
 (* Set-up the local configuration of the Git repository. *)
 let config = Irmin_git.config ~bare:true Config.root
