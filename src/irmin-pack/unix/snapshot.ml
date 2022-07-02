@@ -98,7 +98,7 @@ module Make (Args : Args) = struct
     (* Get the childrens offsets and then read their keys at that offset. *)
     let decode_children_offsets ~off ~len t =
       let buf = Bytes.create len in
-      Fm.Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
+      Dispatcher.read_exn t.dispatcher ~off ~len buf;
       let entry_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];
         io_read_and_decode_entry_prefix ~off:offset t

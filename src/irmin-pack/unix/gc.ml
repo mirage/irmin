@@ -80,9 +80,9 @@ module type S = sig
 
   val run_and_output_result : generation:int -> string -> Args.key -> int63
 
-  val transfer_exn :
-    src:Args.Fm.Suffix.t ->
-    dst:Args.Fm.Io.t ->
+  val transfer_append_exn :
+    read_exn:(off:int63 -> len:int -> bytes -> unit) ->
+    append_exn:(string -> unit) ->
     off:int63 ->
     len:int63 ->
     bytes ->
@@ -95,23 +95,10 @@ module Make (Args : Args) : S with module Args := Args = struct
   module Mapping_file = Mapping_file.Make (Errs)
   module Ao = Append_only_file.Make (Io)
 
-  type action = Follow | No_follow
+  (* TODO. *)
+  type action = Follow
 
   let string_of_key = Irmin.Type.to_string key_t
-
-  let transfer_exn ~src ~dst ~(off : int63) ~(len : int63) buffer =
-    let buffer_size = Bytes.length buffer |> Int63.of_int in
-    let rec aux off len_remaining =
-      let open Int63.Syntax in
-      let min a b = if a < b then a else b in
-      let len = min buffer_size len_remaining in
-      let len' = Int63.to_int len in
-      Fm.Suffix.read_exn src ~off ~len:len' buffer;
-      Io.write_exn dst ~off ~len:len' (Bytes.unsafe_to_string buffer);
-      let len_remaining = len_remaining - len in
-      if len_remaining > Int63.zero then aux (off + len) len_remaining
-    in
-    aux off len
 
   let transfer_append_exn ~read_exn ~append_exn ~(off : int63) ~(len : int63)
       buffer =
@@ -153,10 +140,11 @@ module Make (Args : Args) : S with module Args := Args = struct
             k ()
         | `Inode key | `Node key -> (
             match f key with
-            | No_follow -> k ()
+            (* | No_follow -> k () *)
             | Follow -> iter_from_node_key_exn key node_store ~f k))
 
-  let magic_gced = Pack_value.Kind.to_magic Pack_value.Kind.Gced
+  (* TODO remove it*)
+  let _magic_gced = Pack_value.Kind.to_magic Pack_value.Kind.Gced
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
      disk in order to correctly deserialised the gced commit. *)
@@ -165,35 +153,20 @@ module Make (Args : Args) : S with module Args := Args = struct
 
   (* Transfer the commit with a different magic. Note that this is modifying
      existing written data. *)
-  let transfer_parent_commit ~src ~dst key =
-    let open Result_syntax in
-    let* off, len =
+  let transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key =
+    let off, len =
       match Irmin_pack.Pack_key.inspect key with
-      | Indexed _ -> Error (`Commit_parent_key_is_indexed (string_of_key key))
-      | Direct { offset; length; _ } -> Ok (offset, length)
+      | Indexed _ ->
+          (* As this is the second time we are reading this key, this case is
+             unreachable. *)
+          assert false
+      | Direct { offset; length; _ } -> (offset, length)
     in
-    let* s = Fm.Suffix.read_to_string src ~off ~len in
-    let s = Bytes.of_string s in
-    Bytes.set s Hash.hash_size magic_parent;
-    Io.write_string dst ~off (Bytes.unsafe_to_string s)
-
-  let fill ~io ~count =
-    let open Result_syntax in
-    let buffer = String.make buffer_size magic_gced in
-    let buffer_size = Int63.of_int buffer_size in
-    let rec aux off count =
-      let open Int63.Syntax in
-      if count = Int63.zero then Ok ()
-      else if count < buffer_size then
-        let buffer = String.make (Int63.to_int count) magic_gced in
-        Io.write_string io ~off buffer
-      else
-        let* () = Io.write_string io ~off buffer in
-        let off = off + buffer_size in
-        let count = count - buffer_size in
-        aux off count
-    in
-    aux Int63.zero count
+    let buffer = Bytes.create len in
+    read_exn ~off ~len buffer;
+    let poff = Dispatcher.poff_of_entry_exn ~off ~len mapping in
+    Bytes.set buffer Hash.hash_size magic_parent;
+    write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
 
   let run ~generation root commit_key =
     let open Result_syntax in
@@ -230,13 +203,16 @@ module Make (Args : Args) : S with module Args := Args = struct
       | Direct x -> (x.offset, x.length)
     in
 
-    (* Step ?. Create the new mapping. *)
+    (* Step 3. Create the new mapping. *)
     let* () =
-      (* Step ?.1 Start [Mapping_file] routine which will create the
+      (* Step 3.1 Start [Mapping_file] routine which will create the
          reachable file. *)
       (fun f -> Mapping_file.create ~root ~generation ~register_entries:f)
       @@ fun ~register_entry ->
-      (* Step ?.2 Put the commit parents in the reachable file. *)
+      (* Step 3.2 Put the commit parents in the reachable file.
+         The parent(s) of [commit_key] must be included in the iteration
+         because, when decoding the [Commit_value.t] at [commit_key], the
+         parents will have to be read in order to produce a key for them. *)
       let register_object_exn key =
         match Irmin_pack.Pack_key.inspect key with
         | Indexed _ ->
@@ -244,10 +220,9 @@ module Make (Args : Args) : S with module Args := Args = struct
               (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
         | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
       in
-      Fmt.epr "\nregister commit parents\n%!";
       List.iter register_object_exn (Commit_value.parents commit);
 
-      (* Step ?.3 Put the nodes and contents in the reachable file. *)
+      (* Step 3.3 Put the nodes and contents in the reachable file. *)
       let register_object_exn key =
         match Irmin_pack.Pack_key.inspect key with
         | Indexed _ ->
@@ -257,136 +232,117 @@ module Make (Args : Args) : S with module Args := Args = struct
             register_entry ~off:offset ~len:length;
             Follow
       in
-      Fmt.epr "\nregister node_key\n%!";
       let node_key = Commit_value.node commit in
       let (_ : action) = register_object_exn node_key in
-      Fmt.epr "\nregister the rest\n%!";
       iter_from_node_key_exn node_key node_store ~f:register_object_exn
         (fun () -> ());
 
-      (* Step ?.4 Return and let the [Mapping_file] routine create the mapping
+      (* Step 3.4 Return and let the [Mapping_file] routine create the mapping
          file. *)
       ()
     in
 
-    ignore transfer_append_exn;
-
-    (* Step ?. Create the new prefix. *)
-    let prefix_ref = ref None in
-    let auto_flush_callback () =
-      match !prefix_ref with
-      | None -> assert false
-      | Some x -> Ao.flush x |> Errs.raise_if_error
-    in
-    let* prefix =
-      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
-      Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
-        ~auto_flush_callback
-    in
-    prefix_ref := Some prefix;
-    Errors.finalise (fun _outcome ->
-        Ao.close prefix |> Errs.log_if_error "GC: Close prefix")
-    @@ fun () ->
-    ();
-
-    (* Step ?. Transfer to the new prefix. *)
-    let buffer = Bytes.create buffer_size in
+    let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+    let* mapping = Io.open_ ~path ~readonly:true in
     let* () =
-      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
-      let* mapping = Io.open_ ~path ~readonly:true in
       Errors.finalise (fun _ ->
           Io.close mapping |> Errs.log_if_error "GC: Close mapping")
       @@ fun () ->
-      let read_exn = Dispatcher.read_exn dispatcher in
-      let append_exn = Ao.append_exn prefix in
-      let f ~off ~len =
-        let len = Int63.of_int len in
-        transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
-      in
-      Mapping_file.iter mapping f
-    in
-    let* () = Ao.flush prefix in
+      ();
 
-    (* Step 3. Create the new suffix and prepare 2 functions for read and write
+      (* Step 4. Create the new prefix. *)
+      let prefix_ref = ref None in
+      let auto_flush_callback () =
+        match !prefix_ref with
+        | None -> assert false
+        | Some x -> Ao.flush x |> Errs.raise_if_error
+      in
+      let* prefix =
+        let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+        Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
+          ~auto_flush_callback
+      in
+      prefix_ref := Some prefix;
+      let* () =
+        Errors.finalise (fun _outcome ->
+            Ao.close prefix |> Errs.log_if_error "GC: Close prefix")
+        @@ fun () ->
+        ();
+
+        (* Step 5. Transfer to the new prefix, flush and close. *)
+        [%log.debug "GC: transfering to the new prefix"];
+        let buffer = Bytes.create buffer_size in
+        (* Step 5.1. Transfer all. *)
+        let read_exn = Dispatcher.read_exn dispatcher in
+        let append_exn = Ao.append_exn prefix in
+        let f ~off ~len =
+          let len = Int63.of_int len in
+          transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
+        in
+        let* () = Mapping_file.iter mapping f in
+        Ao.flush prefix
+      in
+      (* Step 5.2. Transfer again the parent commits but with a modified
+         magic. Load the mapping in memory to do a safe localisation of the
+         parent commits. Reopen the new prefix, this time _not_ in append-only
+         as we have to modify data inside the file. *)
+      let* in_memory_map = Dispatcher.load_mapping mapping in
+      let read_exn = Dispatcher.read_exn dispatcher in
+      let* prefix =
+        let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+        Io.open_ ~path ~readonly:false
+      in
+      let* () =
+        Errors.finalise (fun _outcome ->
+            Io.close prefix |> Errs.log_if_error "GC: Close prefix")
+        @@ fun () ->
+        let write_exn = Io.write_exn prefix in
+        List.iter
+          (fun key ->
+            transfer_parent_commit_exn ~read_exn ~write_exn
+              ~mapping:in_memory_map key)
+          (Commit_value.parents commit);
+        Ok ()
+      in
+      Ok ()
+    in
+
+    (* Step 6. Create the new suffix and prepare 2 functions for read and write
        operations. *)
     let buffer = Bytes.create buffer_size in
-    let suffix_path = Irmin_pack.Layout.V3.suffix ~root ~generation in
-    [%log.debug "GC: creating %S" suffix_path];
-    let* dst_io = Io.create ~path:suffix_path ~overwrite:true in
+    [%log.debug "GC: creating new suffix"];
+    let* suffix =
+      let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+      Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
+        ~auto_flush_callback:Fun.id
+    in
     Errors.finalise (fun _outcome ->
-        Io.close dst_io |> Errs.log_if_error "GC: Close suffix")
+        Ao.close suffix |> Errs.log_if_error "GC: Close suffix")
     @@ fun () ->
-    let src_ao = Fm.suffix fm in
-    let hash_size = Int63.of_int Hash.hash_size in
-    let already_copied_exn off =
-      (* Read the [kind] byte, which lies just after the hash *)
-      let open Int63.Syntax in
-      Io.read_exn dst_io ~off:(off + hash_size) ~len:1 buffer;
-      Bytes.get buffer 0 <> magic_gced
-    in
-    let transfer_exn = transfer_exn ~src:src_ao ~dst:dst_io buffer in
+    let read_exn = Dispatcher.read_exn dispatcher in
+    let append_exn = Ao.append_exn suffix in
+    let transfer_exn = transfer_append_exn ~read_exn ~append_exn buffer in
 
-    (* Step 4. *)
-    [%log.debug "GC: filling the left side"];
-    let* () = fill ~io:dst_io ~count:commit_offset in
-
-    (* Step 5. Transfer the parents of [commit_key].
-
-       The parent(s) of [commit_key] must be included in the iteration because,
-       when decoding the [Commit_value.t] at [commit_key], the parents will have
-       to be read in order to produce a key for them.
-
-       There is no need to transfer [commit_key] itself because it is in
-       right. *)
-    [%log.debug "GC: transfering commit parent(s) to the left side"];
-    let* () =
-      List.fold_left
-        (fun result parent_commit_key ->
-          let* () = result in
-          transfer_parent_commit ~src:src_ao ~dst:dst_io parent_commit_key)
-        (Ok ())
-        (Commit_value.parents commit)
-    in
-
-    (* Step 6. Transfer the nodes and blobs. *)
-    [%log.debug "GC: transfering nodes and contents to the left side"];
-    let transfer_object_exn key =
-      let offset, length =
-        match Irmin_pack.Pack_key.inspect key with
-        | Indexed _ ->
-            raise
-              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-        | Direct { offset; length; _ } -> (offset, length)
-      in
-      if already_copied_exn offset then No_follow
-      else (
-        transfer_exn ~off:offset ~len:(Int63.of_int length);
-        Follow)
-    in
-    let node_key = Commit_value.node commit in
-    let* (_ : action) = Errs.catch (fun () -> transfer_object_exn node_key) in
-    let* () =
-      Errs.catch (fun () ->
-          iter_from_node_key_exn node_key node_store ~f:transfer_object_exn
-            (fun () -> ()))
-    in
-
-    (* Step 7. *)
-    [%log.debug "GC: transfering to the right side"];
+    (* Step 7. Transfer to the next suffix. *)
+    [%log.debug "GC: transfering to the new suffix"];
     let* () = Fm.reload fm in
     let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
-    let end_offset = pl.entry_offset_suffix_end in
+    let end_offset =
+      Dispatcher.offset_of_suffix_off dispatcher pl.entry_offset_suffix_end
+    in
     let right_size =
       let open Int63.Syntax in
       let x = end_offset - commit_offset in
       assert (x >= Int63.of_int commit_len);
       x
     in
+    let flush_and_raise () = Ao.flush suffix |> Errs.raise_if_error in
     let* () =
-      Errs.catch (fun () -> transfer_exn ~off:commit_offset ~len:right_size)
+      Errs.catch (fun () ->
+          transfer_exn ~off:commit_offset ~len:right_size;
+          flush_and_raise ())
     in
-
-    (* Step 9. Inform the caller of the end_offset copied. *)
+    (* Step 8. Inform the caller of the end_offset copied. *)
     Ok end_offset
 
   (* No one catches errors when this function terminates. Write the result in a

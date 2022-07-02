@@ -540,10 +540,39 @@ module Concurrent_gc = struct
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
+  (** Check adding new objects during a gc and finding them after the gc. *)
+  let several_gc ~lru_size () =
+    let* t = init ~lru_size () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = finalise_gc t in
+    let* () = start_gc t c2 in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = finalise_gc t in
+    let* () = start_gc t c3 in
+    let* t = checkout_exn t c3 in
+    let* t, c4 = commit_4 t in
+    let* () = finalise_gc t in
+    let* () = start_gc t c4 in
+    let* t = checkout_exn t c4 in
+    let* t, c5 = commit_5 t in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_not_found t c2 "removed c2" in
+    let* () = check_not_found t c3 "removed c3" in
+    let* () = check_4 t c4 in
+    let* () = check_5 t c5 in
+    S.Repo.close t.repo
+
   let find_during_gc_with_lru = find_during_gc ~lru_size:100
   let add_during_gc_with_lru = add_during_gc ~lru_size:100
+  let several_gc_with_lru = several_gc ~lru_size:100
   let find_during_gc = find_during_gc ~lru_size:0
   let add_during_gc = add_during_gc ~lru_size:0
+  let several_gc = several_gc ~lru_size:0
 
   (** Check that RO can find old objects during gc. Also that RO can still find
       removed objects before a call to [reload]. *)
@@ -657,7 +686,7 @@ module Concurrent_gc = struct
     let* () = start_gc t c1 in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
-    let* () = start_gc t c2 in
+    let* () = start_gc ~throttle:`Block t c2 in
     let* t = checkout_exn t c2 in
     let* t, c3 = commit_3 t in
     let* () = start_gc ~throttle:`Block t c3 in
@@ -717,12 +746,34 @@ module Concurrent_gc = struct
     let _killed = kill_gc t in
     S.Repo.close t.repo
 
+  let test_finalise_hook () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let c3 = ref None in
+    let hook = function
+      | `Before_latest_newies ->
+          let* t = checkout_exn t c2 in
+          let* _, c = commit_3 t in
+          c3 := Some c;
+          Lwt.return_unit
+    in
+    let* wait = S.finalise_gc_with_hook ~wait:true ~hook t.repo in
+    assert wait;
+    let c3 = Option.get !c3 in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test find_during_gc" find_during_gc;
       tc "Test add_during_gc" add_during_gc;
+      tc "Test several_gc" several_gc;
       tc "Test find_during_gc_with_lru" find_during_gc_with_lru;
       tc "Test add_during_gc_with_lru" add_during_gc_with_lru;
+      tc "Test several_gc_with_lru" several_gc_with_lru;
       tc "Test ro_find_during_gc" ro_find_during_gc;
       tc "Test ro_add_during_gc" ro_add_during_gc;
       tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
@@ -732,5 +783,6 @@ module Concurrent_gc = struct
       tc "Test skip_then_block gc" test_skip_then_block;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;
+      tc "Test finalise with hook" test_finalise_hook;
     ]
 end

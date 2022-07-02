@@ -361,7 +361,7 @@ module Make (Store : Store) = struct
     let max_ncommits = config.number_of_commits_to_replay in
     with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commit"
     @@ fun prog ->
-       Fmt.epr "\n%!";
+    Fmt.epr "\n%!";
     let t =
       {
         contexts = Hashtbl.create 3;
