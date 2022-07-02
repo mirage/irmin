@@ -10,14 +10,32 @@ module type S = sig
 
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** [read_exn] either reads in the prefix or the suffix file, depending on
-      [off]. See [Io.read_exn] for the arguments. *)
+      [off]. See [Io.read_exn] for the arguments. If it tries to read a gced
+      object, an exception is raised. *)
 
   val read_at_most_exn : t -> off:int63 -> len:int -> bytes -> int
+  (** [read_at_most_exn] is similar to [read_exn] but if the end of file is
+      reached while reading [len] bytes, then only the available bytes are read.
+      No [`Read_out_of_bounds] error is raised. The number of bytes read are
+      returned. *)
 
   val end_offset : t -> int63
   (** [end_offset] is the end offsets of the pack entries, counting that the
       prefix doesn't start at 0. It counts the entries not yet flushed from the
       prefix. *)
+
+  val read_exn_if_not_gced : t -> off:int63 -> len:int -> bytes -> bool
+  (** Similar to [read_exn] but returns false if the object was gced, instead of
+      raising an expection. *)
+
+  val offset_of_suffix_off : t -> int63 -> int63
+  (** [offset_of_suffix_off t suffix_off] converts a suffix offset into a
+      (global) offset. *)
+
+  type mapping
+
+  val load_mapping : Fm.Io.t -> (mapping, [> Fm.Errs.t ]) result
+  val poff_of_entry_exn : mapping -> off:int63 -> len:int -> int63
 end
 
 module Intmap = Map.Make (Int63)
@@ -32,46 +50,41 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Errs = Fm.Errs
   module Control = Fm.Control
 
+  let read_suffix = ref 0
+  let read_prefix = ref 0
+  (*TODO move them in stats*)
+
   type mapping_value = { poff : int63; len : int }
-  (** [poff] is a prefix offset (i.e. an offset in the prefix file *)
+  (** [poff] is a prefix offset (i.e. an offset in the prefix file), [len] is
+      the length of the chunk starting at [poff]. *)
 
-  let a = ref 0
-  let b = ref 0
-  let c = ref 0
+  type mapping = mapping_value Intmap.t
 
-  let print w =
-    Fmt.epr "\n%s: pid:%d %#d %#d %#d \n%!" w (Unix.getpid ()) !a !b !c
-
-  let () = at_exit (fun () -> print "at_exit")
-
-  type t = {
-    fm : Fm.t;
-    mutable mapping : mapping_value Intmap.t;
-    root : string;
-  }
+  type t = { fm : Fm.t; mutable mapping : mapping; root : string }
   (** [mapping] is a map from global offset to (offset,len) pairs in the prefix
       file *)
 
+  let load_mapping io =
+    let open Result_syntax in
+    let open Int63 in
+    let open Int63.Syntax in
+    let mapping = ref Intmap.empty in
+    let poff = ref zero in
+    let f ~off ~len =
+      Fmt.epr "chunk: off %d len %d poff %d\n%!" (to_int off) len (to_int !poff);
+      mapping := Intmap.add off { poff = !poff; len } !mapping;
+      poff := !poff + of_int len
+    in
+    let* () = Mapping_file.iter io f in
+    Ok !mapping
+
   let reload t =
-    print "reload";
     let open Result_syntax in
     let* mapping =
       match Fm.mapping t.fm with
       | None -> Ok Intmap.empty
-      | Some io ->
-          let mapping = ref Intmap.empty in
-          let open Int63 in
-          let open Int63.Syntax in
-          let poff = ref zero in
-          let f ~off ~len =
-            (* Fmt.epr "chunk: %d %d\n%!" (to_int off) len; *)
-            mapping := Intmap.add off { poff = !poff; len } !mapping;
-            poff := !poff + of_int len
-          in
-          let* () = Mapping_file.iter io f in
-          Ok !mapping
+      | Some io -> load_mapping io
     in
-    Fmt.epr "mapping cardinal %d\n%!" (Intmap.cardinal mapping);
     t.mapping <- mapping;
     Ok ()
 
@@ -93,55 +106,101 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         assert false
     | From_v3_gced { entry_offset_suffix_start; _ } -> entry_offset_suffix_start
 
-  let end_offset t = Suffix.end_offset (Fm.suffix t.fm)
-  (* TODO: Swap to right formula *)
-  (* let open Int63.Syntax in *)
-  (* Suffix.end_offset (Fm.suffix t.fm) + entry_offset_suffix_start t *)
+  (* The suffix only know the real offsets, it is in the dispatcher that global
+     offsets are translated into real ones (i.e. in prefix or suffix offsets). *)
+  let end_offset t =
+    let open Int63.Syntax in
+    Suffix.end_offset (Fm.suffix t.fm) + entry_offset_suffix_start t
 
-  let chunk_of_off_exn { mapping; _ } off_start =
+  (* Adjust the read in suffix, as the global offset [off] is
+     [off] = [entry_offset_suffix_start] + [suffix_offset]. *)
+  let suffix_off_of_offset t off =
+    let open Int63.Syntax in
+    let entry_offset_suffix_start = entry_offset_suffix_start t in
+    off - entry_offset_suffix_start
+
+  let offset_of_suffix_off t suffix_off =
+    let open Int63.Syntax in
+    let entry_offset_suffix_start = entry_offset_suffix_start t in
+    suffix_off + entry_offset_suffix_start
+
+  (* Find the last chunk which is before [off_start] (or at [off_start]). If no
+     chunk found, then the entry was possibly gced (case 1). If [off_start] is
+     after the entry's chunk then the entry was possibly gced (case 2). Note
+     that for these two cases we cannot distinguished between trying to read a
+     gced entry, or doing an invalid read. We expose two [read_exn] functions
+     and we handled this upstream. *)
+  let chunk_of_off_exn mapping off_start =
     let open Int63 in
     let open Int63.Syntax in
     match
-      (* Looking for the last chunk which is before [off] (or at [off]). *)
       Intmap.find_last_opt
         (fun chunk_off_start -> chunk_off_start <= off_start)
         mapping
     with
     | None ->
         (* Case 1: The entry if before the very first chunk (or there are no
-           chunks) *)
-        assert false (* TODO *)
+           chunks). Possibly the entry was gced. *)
+        let s =
+          Fmt.str "offset %a is before the first chunk, or the prefix is empty"
+            Int63.pp off_start
+        in
+        raise (Errors.Pack_error (`Invalid_read_of_gced_object s))
     | Some (chunk_off_start, chunk) ->
         assert (chunk_off_start <= off_start);
         let chunk_len = chunk.len in
         let chunk_off_end = chunk_off_start + of_int chunk_len in
 
-        (* Case 2: The entry starts after the chunk *)
-        if chunk_off_end <= off_start then assert false (* TODO *);
+        (* Case 2: The entry starts after the chunk. Possibly the entry was
+           gced. *)
+        (if chunk_off_end <= off_start then
+         let s =
+           Fmt.str
+             "offset %a is supposed to be contained in chunk \
+              (off=%a,poff=%a,len=%d) but starts after chunk"
+             Int63.pp off_start Int63.pp chunk_off_start Int63.pp chunk.poff
+             chunk.len
+         in
+         raise (Errors.Pack_error (`Invalid_read_of_gced_object s)));
 
         let shift_in_chunk = off_start - chunk_off_start in
         let max_entry_len = of_int chunk_len - shift_in_chunk in
 
         (chunk, shift_in_chunk, max_entry_len)
 
-  let poff_of_entry_exn t off len =
-    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn t off in
+  (* After we find the chunk of an entry, we check that a read is possible in the
+     chunk. If it's not, this is always an invalid read. *)
+  let poff_of_entry_exn mapping ~off ~len =
+    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn mapping off in
 
     (* Case 3: The entry ends after the chunk *)
     let open Int63 in
     let open Int63.Syntax in
-    if of_int len > max_entry_len then assert false (* TODO *);
+    (if of_int len > max_entry_len then
+     let s =
+       Fmt.str
+         "entry (off=%a, len=%d) is supposed to be contained in chunk \
+          (poff=%a,len=%d) and starting at %a but is larger than it can be\n\
+         \ contained in chunk" Int63.pp off len Int63.pp chunk.poff chunk.len
+         Int63.pp shift_in_chunk
+     in
+     raise (Errors.Pack_error (`Invalid_prefix_read s)));
 
     (* Case 4: Success *)
     chunk.poff + shift_in_chunk
+
+  let get_prefix fm =
+    match Fm.prefix fm with
+    | Some prefix -> prefix
+    | None -> raise (Errors.Pack_error (`Invalid_prefix_read "no prefix found"))
 
   let read_exn t ~off ~len buf =
     let open Int63.Syntax in
     let entry_offset_suffix_start = entry_offset_suffix_start t in
     if off >= entry_offset_suffix_start then (
-      incr a;
-      (* Fmt.epr "read suff\n%!"; *)
-      try Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf
+      incr read_suffix;
+      let suffix_off = suffix_off_of_offset t off in
+      try Suffix.read_exn (Fm.suffix t.fm) ~off:suffix_off ~len buf
       with e ->
         let to_int = Int63.to_int in
         Fmt.epr "\n%!";
@@ -152,12 +211,17 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         Fmt.epr "\n%!";
         raise e)
     else (
-      incr b;
-      (* Fmt.epr "read off\n%!"; *)
-      let poff = poff_of_entry_exn t off len in
-      (* TODO: Change that optionget *)
-      Io.read_exn (Fm.prefix t.fm |> Option.get) ~off:poff ~len buf;
+      incr read_prefix;
+      let poff = poff_of_entry_exn t.mapping ~off ~len in
+      let prefix = get_prefix t.fm in
+      Io.read_exn prefix ~off:poff ~len buf;
       ())
+
+  let read_exn_if_not_gced t ~off ~len buf =
+    try
+      read_exn t ~off ~len buf;
+      true
+    with Errors.Pack_error (`Invalid_read_of_gced_object _) -> false
 
   let read_at_most_from_suffix_exn t ~off ~len buf =
     let bytes_after_off = Int63.sub (end_offset t) off in
@@ -166,20 +230,20 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
       else len
     in
-    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
+    let suffix_off = suffix_off_of_offset t off in
+    Suffix.read_exn (Fm.suffix t.fm) ~off:suffix_off ~len buf;
     len
 
   let read_at_most_from_prefix_exn t ~off ~len buf =
-    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn t off in
+    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn t.mapping off in
     let fm = t.fm in
-
     let open Int63 in
     let open Int63.Syntax in
     let min a b = if a < b then a else b in
     let len = min max_entry_len (of_int len) |> to_int in
     let poff = chunk.poff + shift_in_chunk in
-    (* TODO: Change that optionget *)
-    Io.read_exn (Fm.prefix fm |> Option.get) ~off:poff ~len buf;
+    let prefix = get_prefix fm in
+    Io.read_exn prefix ~off:poff ~len buf;
     len
 
   let read_at_most_exn t ~off ~len buf =

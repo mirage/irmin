@@ -45,7 +45,6 @@ struct
     control : Control.t;
     mutable suffix : Suffix.t;
     mutable prefix : Prefix.t option;
-    (* TODO: No need for mapping here *)
     mutable mapping : Mapping.t option;
     index : Index.t;
     mutable mapping_consumers : after_reload_consumer list;
@@ -99,18 +98,11 @@ struct
       - During a GC.
       - When the branch store is modified. *)
 
-  (* TODO: Stat on flushes:
-     - How many calls to Dict.flush/Suffix.flush/Index.flush
-     - How many calls to [flush] and the 3 auto ones. *)
-
   (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
     if Dict.empty_buffer t.dict then Ok ()
     else
-      (* NOTE we call the Stats increment function before the call to the Dict flush
-         function; in general we increment the stat before the call, everywhere in this
-         file. *)
       let* () =
         Stats.incr_fm_field Dict_flushes;
         Dict.flush t.dict
@@ -232,9 +224,12 @@ struct
 
   let reopen_suffix t ~generation ~end_offset =
     let open Result_syntax in
-    (* TODO: dead_header_size *)
+    (* Invariant: reopen suffix is only called on V3 suffix files, for which
+       dead_header_size is 0. *)
     let dead_header_size = 0 in
-    Fmt.epr "> reopen_suffix gen:%d end_offset:%d\n%!" generation (Int63.to_int end_offset);
+    [%log.debug
+      "reopen_suffix gen:%d end_offset:%d\n%!" generation
+        (Int63.to_int end_offset)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
       let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
@@ -633,11 +628,18 @@ struct
 
   let swap t ~generation ~right_start_offset ~right_end_offset =
     let open Result_syntax in
-    Fmt.epr "> swap %d %#d %#d\n%!" generation (Int63.to_int right_start_offset) (Int63.to_int right_end_offset);
+    [%log.debug
+      "Gc in main: swap %d %#d %#d\n%!" generation
+        (Int63.to_int right_start_offset)
+        (Int63.to_int right_end_offset)];
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
-    let* () = reopen_suffix t ~generation ~end_offset:right_end_offset in
+    (* When opening the suffix in append_only we need to provide a (real) suffix
+       offset, computed from the global ones. *)
+    let open Int63.Syntax in
+    let suffix_end_offset = right_end_offset - right_start_offset in
+    let* () = reopen_suffix t ~generation ~end_offset:suffix_end_offset in
 
     (* Step 2. Reload mapping consumers (i.e. dispatcher) *)
     let* () =
@@ -668,7 +670,7 @@ struct
               let entry_offset_suffix_start = right_start_offset in
               From_v3_gced { entry_offset_suffix_start; generation }
         in
-        { pl with status }
+        { pl with status; entry_offset_suffix_end = suffix_end_offset }
       in
       [%log.debug "GC: writing new control_file"];
       Control.set_payload t.control pl
@@ -711,6 +713,17 @@ struct
         0
     | From_v3_no_gc_yet -> 0
     | From_v3_gced x -> x.generation
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        (* Unreachable *)
+        assert false
+
+  let gc_allowed t =
+    let pl = Control.payload t.control in
+    match pl.status with
+    | From_v1_v2_post_upgrade _ | From_v3_used_non_minimal_indexing_strategy ->
+        false
+    | From_v3_no_gc_yet | From_v3_gced _ -> true
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         (* Unreachable *)

@@ -190,6 +190,7 @@ module type S = sig
 
   val readonly : t -> bool
   val generation : t -> int
+  val gc_allowed : t -> bool
 end
 
 module type Sigs = sig

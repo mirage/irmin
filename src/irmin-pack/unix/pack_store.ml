@@ -176,8 +176,8 @@ struct
   let io_read_and_decode_hash_if_not_gced ~off t =
     let len = Hash.hash_size + 1 in
     let buf = Bytes.create len in
-    Dispatcher.read_exn t.dispatcher ~off ~len buf;
-    if gced buf then None
+    let found = Dispatcher.read_exn_if_not_gced t.dispatcher ~off ~len buf in
+    if (not found) || gced buf then None
     else
       let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       Some hash
@@ -247,8 +247,8 @@ struct
             len Int63.pp off Int63.pp io_offset
     in
     let buf = Bytes.create len in
-    Dispatcher.read_exn t.dispatcher ~off ~len buf;
-    if gced buf then None
+    let found = Dispatcher.read_exn_if_not_gced t.dispatcher ~off ~len buf in
+    if (not found) || gced buf then None
     else
       let key_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];

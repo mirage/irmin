@@ -46,7 +46,6 @@ type base_error =
   | `Gc_process_error of string
   | `Corrupted_gc_result_file of string
   | `Gc_process_died_without_result_file of string
-  | `Close_during_gc
   | `Gc_forbidden_on_32bit_platforms ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except

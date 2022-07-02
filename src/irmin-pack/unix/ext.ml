@@ -35,7 +35,7 @@ module Exit = struct
       (fun gc ->
         try Unix.kill gc 9
         with Unix.Unix_error (e, s1, s2) ->
-          [%log.err
+          [%log.warn
             "Killing gc process with pid %d failed with error (%s, %s, %s)" gc
               (Unix.error_message e) s1 s2])
       !proc_list
@@ -329,7 +329,10 @@ module Maker (Config : Conf.S) = struct
               | Indexed _ -> assert false
             in
             let root = Conf.root t.config in
-            (* TODO: Determine if the store allows GC *)
+            let* () =
+              if not (File_manager.gc_allowed t.fm) then Error `Gc_disallowed
+              else Ok ()
+            in
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
             Stdlib.flush_all ();
@@ -347,23 +350,55 @@ module Maker (Config : Conf.S) = struct
                 Exit.add pid;
                 Ok ()
 
-          let copy_latest_newies ~generation ~copy_end_offset ~root t =
+          let open_new_suffix ~root ~generation ~end_offset =
+            let open Result_syntax in
+            let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+            (* As the new suffix is necessarily in V3, the dead_header_size is
+               0. *)
+            let dead_header_size = 0 in
+            let auto_flush_threshold = 1_000_000 in
+            let suffix_ref = ref None in
+            let auto_flush_callback () =
+              match !suffix_ref with
+              | None -> assert false
+              | Some x -> Aof.flush x |> Errs.raise_if_error
+            in
+            let* suffix =
+              Aof.open_rw ~path ~end_offset ~dead_header_size
+                ~auto_flush_callback ~auto_flush_threshold
+            in
+            suffix_ref := Some suffix;
+            Ok suffix
+
+          let transfer_latest_newies ~generation ~right_start_offset
+              ~copy_end_offset ~root t =
+            [%log.debug "Gc in main: transfer latest newies"];
             let open Result_syntax in
             let open Int63.Syntax in
-            let old_suffix = File_manager.suffix t.fm in
-            let old_end_offset = File_manager.Suffix.end_offset old_suffix in
+            let old_end_offset = Dispatcher.end_offset t.dispatcher in
             let remaining = old_end_offset - copy_end_offset in
-            let new_suffix_path =
-              Irmin_pack.Layout.V3.suffix ~root ~generation
+            (* When opening the suffix in append_only we need to provide a
+               (real) suffix offset, computed from the global ones. *)
+            let suffix_end_offset = copy_end_offset - right_start_offset in
+            let* new_suffix =
+              open_new_suffix ~root ~generation ~end_offset:suffix_end_offset
             in
-            let* new_suffix = Io.open_ ~path:new_suffix_path ~readonly:false in
+            Errors.finalise (fun _ ->
+                Aof.close new_suffix
+                |> Errs.log_if_error "GC: Close suffix after copy latest newies")
+            @@ fun () ->
             let buffer = Bytes.create 8192 in
+            let read_exn = Dispatcher.read_exn t.dispatcher in
+            let append_exn = Aof.append_exn new_suffix in
+            let flush_and_raise () =
+              Aof.flush new_suffix |> Errs.raise_if_error
+            in
             let* () =
               Errs.catch (fun () ->
-                  Gc.transfer_exn ~src:old_suffix ~dst:new_suffix
-                    ~off:copy_end_offset ~len:remaining buffer)
+                  Gc.transfer_append_exn ~read_exn ~append_exn
+                    ~off:copy_end_offset ~len:remaining buffer;
+                  flush_and_raise ())
             in
-            let* () = Io.close new_suffix in
             Ok old_end_offset
 
           let swap_and_purge ~generation ~right_start_offset ~right_end_offset t
@@ -427,7 +462,7 @@ module Maker (Config : Conf.S) = struct
             | Lwt_unix.WSTOPPED _, Ok _ ->
                 assert false
 
-          let finalise ~wait t =
+          let finalise ?hook ~wait t =
             match t.during_gc with
             | None -> Lwt.return_ok false
             | Some { next_generation; pid; unlink; offset } ->
@@ -443,8 +478,8 @@ module Maker (Config : Conf.S) = struct
                     match (status, gc_output) with
                     | Lwt_unix.WEXITED 0, Ok copy_end_offset ->
                         let* new_suffix_end_offset =
-                          copy_latest_newies ~generation:next_generation
-                            ~copy_end_offset ~root t
+                          transfer_latest_newies ~generation:next_generation
+                            ~right_start_offset:offset ~copy_end_offset ~root t
                         in
                         let* () =
                           swap_and_purge ~generation:next_generation
@@ -468,6 +503,14 @@ module Maker (Config : Conf.S) = struct
                      returns immediately with a pid equal to 0. *)
                   if (not wait) && pid = 0 then Lwt.return_ok false
                   else
+                    (* Use a hook for test: it simulate the case where something
+                       happened between the moment the gc process stopped and the
+                       main process waited for it. *)
+                    let* () =
+                      match hook with
+                      | Some h -> h `Before_latest_newies
+                      | None -> Lwt.return_unit
+                    in
                     (* If wait or the child died, then finalise the gc. *)
                     go status |> Result.map (fun () -> true) |> Lwt.return
 
@@ -478,6 +521,9 @@ module Maker (Config : Conf.S) = struct
                 let* () = start ~unlink t commit_key |> Lwt.return in
                 Lwt.return_ok true
             | Some _, `Block ->
+                (* The result of finalise is not useful here: if there is no
+                   running gc, then finalise returns false, otherwise its waits
+                   and returns true. *)
                 let* (_ : bool) = finalise ~wait:true t in
                 let* () = start ~unlink t commit_key |> Lwt.return in
                 Lwt.return_ok true
@@ -489,8 +535,8 @@ module Maker (Config : Conf.S) = struct
             | Ok launched -> Lwt.return launched
             | Error e -> Errs.raise_error e
 
-          let finalise_exn ?(wait = false) t =
-            let* result = finalise ~wait t in
+          let finalise_exn ?hook ?(wait = false) t =
+            let* result = finalise ?hook ~wait t in
             match result with
             | Ok waited -> Lwt.return waited
             | Error e -> Errs.raise_error e
@@ -626,7 +672,8 @@ module Maker (Config : Conf.S) = struct
     let reload = X.Repo.reload
     let flush = X.Repo.flush
     let start_gc = X.Repo.Gc.start_exn
-    let finalise_gc = X.Repo.Gc.finalise_exn
+    let finalise_gc = X.Repo.Gc.finalise_exn ?hook:None
+    let finalise_gc_with_hook = X.Repo.Gc.finalise_exn
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
       module File_manager = File_manager
