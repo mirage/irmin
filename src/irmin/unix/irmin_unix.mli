@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2022 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,3 +13,22 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+(** {1 Irmin Unix utilities}
+
+    This module provides utilities for Unix applications. *)
+
+module Info = Info.Make
+
+val info :
+  ?author:string ->
+  ('a, Format.formatter, unit, unit -> Irmin.Info.default) format4 ->
+  'a
+(** [info fmt ()] creates a fresh commit info, with the {{!Irmin.Info.S.date}
+    date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.S.author} author}
+    built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
+    provided. *)
+
+val set_listen_dir_hook : unit -> unit
+(** Install {!Irmin_watcher.hook} as the listen hook for watching changes in
+    directories. *)

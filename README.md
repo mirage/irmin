@@ -77,7 +77,6 @@ The following packages have been made available on `opam`:
 - `irmin-mirage` - mirage compatibility
 - `irmin-mirage-git` - Git compatible storage for mirage
 - `irmin-mirage-graphql` - mirage compatible GraphQL server
-- `irmin-unix` - unix compatibility
 - `irmin-pack` - compressed, on-disk, posix backend
 - `ppx_irmin` - PPX deriver for Irmin content types (see [README_PPX.md][ppx_irmin-readme])
 - `irmin-containers` - collection of simple, ready-to-use mergeable data structures

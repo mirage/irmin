@@ -25,7 +25,6 @@ module Make (I : Irmin.Info.S) = struct
           match author with
           | Some a -> a
           | None ->
-              (* XXX: get "git config user.name" *)
               Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname ())
                 (Unix.getpid ())
         in

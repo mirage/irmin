@@ -22,8 +22,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (config @-> returning repo)
       (fun config ->
         let (s, config) : config = Root.get_config config in
-        let (module Store) = Irmin_unix.Resolver.Store.generic_keyed s in
-        let remote = Irmin_unix.Resolver.Store.remote s in
+        let (module Store) = Irmin_cli.Resolver.Store.generic_keyed s in
+        let remote = Irmin_cli.Resolver.Store.remote s in
         let repo : Store.repo = run (Store.Repo.v config) in
         Root.create_repo
           (module Store)

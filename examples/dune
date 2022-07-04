@@ -10,7 +10,15 @@
   push
   custom_graphql
   fold)
- (libraries astring cohttp fmt git irmin irmin-git irmin-unix lwt lwt.unix)
+ (libraries
+  astring
+  cohttp
+  fmt
+  irmin.unix
+  irmin-git.unix
+  irmin-graphql.unix
+  lwt
+  lwt.unix)
  (preprocess
   (pps ppx_irmin)))
 
@@ -30,7 +38,7 @@
 
 (alias
  (name runtest)
- (package irmin-unix)
+ (package irmin-git)
  (deps
   readme.exe
   trees.exe
