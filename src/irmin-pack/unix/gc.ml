@@ -95,8 +95,15 @@ module Make (Args : Args) : S with module Args := Args = struct
   module Mapping_file = Mapping_file.Make (Errs)
   module Ao = Append_only_file.Make (Io)
 
-  (* TODO. *)
-  type action = Follow
+  module X = struct
+    type t = key [@@deriving irmin]
+
+    let equal = Irmin.Type.(unstage (equal t))
+    let hash = Irmin.Type.(unstage (short_hash key_t))
+    let hash (t : t) : int = hash t
+  end
+
+  module Table = Hashtbl.Make (X)
 
   let string_of_key = Irmin.Type.to_string key_t
 
@@ -123,25 +130,34 @@ module Make (Args : Args) : S with module Args := Args = struct
 
       [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
       if the children of [k] should be traversed or skiped. *)
-  let rec iter_from_node_key_exn node_key node_store ~f k =
-    match Node_store.unsafe_find ~check_integrity:false node_store node_key with
-    | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
-    | Some node ->
-        iter_from_node_children_exn node_store ~f (Node_value.pred node) k
-
-  and iter_from_node_children_exn node_store ~f children k =
-    match children with
-    | [] -> k ()
-    | (_step, kinded_key) :: tl -> (
-        let k () = iter_from_node_children_exn node_store ~f tl k in
-        match kinded_key with
-        | `Contents key ->
-            let (_ : action) = f key in
-            k ()
-        | `Inode key | `Node key -> (
-            match f key with
-            (* | No_follow -> k () *)
-            | Follow -> iter_from_node_key_exn key node_store ~f k))
+  let iter node_key node_store ~f k =
+    let marks = Table.create 1024 in
+    let mark key = Table.add marks key () in
+    let has_mark key = Table.mem marks key in
+    let rec iter_from_node_key_exn node_key node_store ~f k =
+      match
+        Node_store.unsafe_find ~check_integrity:false node_store node_key
+      with
+      | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
+      | Some node ->
+          iter_from_node_children_exn node_store ~f (Node_value.pred node) k
+    and iter_from_node_children_exn node_store ~f children k =
+      match children with
+      | [] -> k ()
+      | (_step, kinded_key) :: tl -> (
+          let k () = iter_from_node_children_exn node_store ~f tl k in
+          match kinded_key with
+          | `Contents key ->
+              f key;
+              k ()
+          | `Inode key | `Node key ->
+              if has_mark key then k ()
+              else (
+                f key;
+                mark key;
+                iter_from_node_key_exn key node_store ~f k))
+    in
+    iter_from_node_key_exn node_key node_store ~f k
 
   (* TODO remove it*)
   let _magic_gced = Pack_value.Kind.to_magic Pack_value.Kind.Gced
@@ -228,14 +244,11 @@ module Make (Args : Args) : S with module Args := Args = struct
         | Indexed _ ->
             raise
               (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-        | Direct { offset; length; _ } ->
-            register_entry ~off:offset ~len:length;
-            Follow
+        | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
       in
       let node_key = Commit_value.node commit in
-      let (_ : action) = register_object_exn node_key in
-      iter_from_node_key_exn node_key node_store ~f:register_object_exn
-        (fun () -> ());
+      let () = register_object_exn node_key in
+      iter node_key node_store ~f:register_object_exn (fun () -> ());
 
       (* Step 3.4 Return and let the [Mapping_file] routine create the mapping
          file. *)
