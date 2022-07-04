@@ -67,6 +67,8 @@ struct
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
     let* () = Suffix.close t.suffix in
+    let* () = Option.might Mapping.close t.mapping in
+    let* () = Option.might Prefix.close t.prefix in
     let+ () = Index.close t.index in
     ()
 

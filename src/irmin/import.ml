@@ -34,6 +34,7 @@ module Option = struct
   (** @closed *)
 
   let of_result = function Ok x -> Some x | Error _ -> None
+  let might f = function Some x -> f x | None -> Ok ()
 end
 
 module List = struct
