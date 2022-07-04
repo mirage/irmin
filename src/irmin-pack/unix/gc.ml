@@ -96,10 +96,10 @@ module Make (Args : Args) : S with module Args := Args = struct
   module Ao = Append_only_file.Make (Io)
 
   module X = struct
-    type t = key [@@deriving irmin]
+    type t = int63 [@@deriving irmin]
 
     let equal = Irmin.Type.(unstage (equal t))
-    let hash = Irmin.Type.(unstage (short_hash key_t))
+    let hash = Irmin.Type.(unstage (short_hash t))
     let hash (t : t) : int = hash t
   end
 
@@ -132,8 +132,8 @@ module Make (Args : Args) : S with module Args := Args = struct
       if the children of [k] should be traversed or skiped. *)
   let iter node_key node_store ~f k =
     let marks = Table.create 1024 in
-    let mark key = Table.add marks key () in
-    let has_mark key = Table.mem marks key in
+    let mark offset = Table.add marks offset () in
+    let has_mark offset = Table.mem marks offset in
     let rec iter_from_node_key_exn node_key node_store ~f k =
       match
         Node_store.unsafe_find ~check_integrity:false node_store node_key
@@ -148,13 +148,13 @@ module Make (Args : Args) : S with module Args := Args = struct
           let k () = iter_from_node_children_exn node_store ~f tl k in
           match kinded_key with
           | `Contents key ->
-              f key;
+              let (_ : int63) = f key in
               k ()
           | `Inode key | `Node key ->
-              if has_mark key then k ()
+              let offset = f key in
+              if has_mark offset then k ()
               else (
-                f key;
-                mark key;
+                mark offset;
                 iter_from_node_key_exn key node_store ~f k))
     in
     iter_from_node_key_exn node_key node_store ~f k
@@ -261,10 +261,12 @@ module Make (Args : Args) : S with module Args := Args = struct
         | Indexed _ ->
             raise
               (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-        | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
+        | Direct { offset; length; _ } ->
+            register_entry ~off:offset ~len:length;
+            offset
       in
       let node_key = Commit_value.node commit in
-      let () = register_object_exn node_key in
+      let (_ : int63) = register_object_exn node_key in
       iter node_key node_store ~f:register_object_exn (fun () -> ());
 
       (* Step 3.4 Return and let the [Mapping_file] routine create the mapping

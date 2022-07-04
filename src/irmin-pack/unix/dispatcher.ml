@@ -71,7 +71,6 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let mapping = ref Intmap.empty in
     let poff = ref zero in
     let f ~off ~len =
-      Fmt.epr "chunk: off %d len %d poff %d\n%!" (to_int off) len (to_int !poff);
       mapping := Intmap.add off { poff = !poff; len } !mapping;
       poff := !poff + of_int len
     in
