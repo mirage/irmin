@@ -184,6 +184,23 @@ module Make (Args : Args) : S with module Args := Args = struct
     Bytes.set buffer Hash.hash_size magic_parent;
     write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
 
+  let create_new_suffix ~root ~generation =
+    let open Result_syntax in
+    let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+    let auto_flush_threshold = 1_000_000 in
+    let suffix_ref = ref None in
+    let auto_flush_callback () =
+      match !suffix_ref with
+      | None -> assert false
+      | Some x -> Ao.flush x |> Errs.raise_if_error
+    in
+    let* suffix =
+      Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold
+        ~auto_flush_callback
+    in
+    suffix_ref := Some suffix;
+    Ok suffix
+
   let run ~generation root commit_key =
     let open Result_syntax in
     let config =
@@ -324,11 +341,7 @@ module Make (Args : Args) : S with module Args := Args = struct
        operations. *)
     let buffer = Bytes.create buffer_size in
     [%log.debug "GC: creating new suffix"];
-    let* suffix =
-      let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
-      Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
-        ~auto_flush_callback:Fun.id
-    in
+    let* suffix = create_new_suffix ~root ~generation in
     Errors.finalise (fun _outcome ->
         Ao.close suffix |> Errs.log_if_error "GC: Close suffix")
     @@ fun () ->
