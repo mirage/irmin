@@ -446,6 +446,23 @@ module Maker (Config : Conf.S) = struct
                 Irmin_pack.Layout.V3.suffix ~root ~generation:(generation - 1)
               in
               let* () = Io.unlink suffix in
+              let* () =
+                if generation >= 2 then
+                  (* Unlink previous prefix. *)
+                  let prefix =
+                    Irmin_pack.Layout.V3.prefix ~root
+                      ~generation:(generation - 1)
+                  in
+                  let* () = Io.unlink prefix in
+                  (* Unlink previous mapping. *)
+                  let mapping =
+                    Irmin_pack.Layout.V3.mapping ~root
+                      ~generation:(generation - 1)
+                  in
+                  let* () = Io.unlink mapping in
+                  Ok ()
+                else Ok ()
+              in
               (* Unlink current gc's result.*)
               let result = Irmin_pack.Layout.V3.gc_result ~root ~generation in
               Io.unlink result
