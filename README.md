@@ -49,12 +49,11 @@ API documentation can be found online at [https://mirage.github.io/irmin](https:
 Please ensure to install the minimum `opam` and `ocaml` versions. Find the latest
 version and install instructions on [ocaml.org](https://ocaml.org/docs/install.html).
 
-To install Irmin with the command-line tool and all optional dependencies using
-`opam`:
+To install Irmin with the command-line tool and all unix backends using `opam`:
 
 <!-- $MDX skip -->
 ```bash
-  opam install irmin-unix
+  opam install irmin-cli
 ```
 
 A minimal installation containing the reference in-memory backend can be
@@ -65,7 +64,7 @@ installed by running:
   opam install irmin
 ```
 
-The following packages have been made available on `opam`:
+The following packages have are available on `opam`:
 
 - `irmin` - the base package, plus an in-memory storage implementation
 - `irmin-chunk` - chunked storage
@@ -160,7 +159,7 @@ which can be executed in the same way.
 ### Command-line
 
 The same thing can also be accomplished using `irmin`, the command-line
-application installed with `irmin-unix`, by running:
+application installed with `irmin-cli`, by running:
 
 ```bash
 $ echo "root: ." > irmin.yml
@@ -180,7 +179,7 @@ specific command.
 
 ## Issues
 
-Feel free to to report any issues using the [GitHub bugtracker](https://github.com/mirage/irmin/issues).
+Feel free to report any issues using the [GitHub bugtracker](https://github.com/mirage/irmin/issues).
 
 ## License
 
