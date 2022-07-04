@@ -69,6 +69,7 @@ The following packages have been made available on `opam`:
 
 - `irmin` - the base package, plus an in-memory storage implementation
 - `irmin-chunk` - chunked storage
+- `irmin-cli` - a simple command-line tool
 - `irmin-fs` - filesystem-based storage using `bin_prot`
 - `irmin-git` - Git compatible storage
 - `irmin-graphql` - GraphQL server
