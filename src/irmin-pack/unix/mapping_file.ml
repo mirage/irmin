@@ -326,11 +326,8 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     let register_entry ~off ~len =
       (* Write [off, len] in native-endian encoding because it will be read
          with mmap. *)
-
-      if (Int63.to_int off) < 500 then
-        Fmt.epr "register_entry < 500: %d %d\n%!" (Int63.to_int off) len;
-
-
+      (* if Int63.to_int off < 500 then
+       *   Fmt.epr "register_entry < 500: %d %d\n%!" (Int63.to_int off) len; *)
       Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
       Bytes.set_int64_ne buffer 8 (Int64.of_int len);
       Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
@@ -367,10 +364,8 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
       (* Write [off, len] with repr because it will be read with repr. *)
 
       (* if off < 500 then *)
-        (* Fmt.epr "\nregister_entry < 500: %d %d\n%!" off len; *)
+      (* Fmt.epr "\nregister_entry < 500: %d %d\n%!" off len; *)
       (* Fmt.epr "register_entry of middle file: %d %d\n%!" off len; *)
-
-
       let off = Int63.of_int off in
       let len = Int63.of_int len in
       encode_bin_pair (off, len) (Ao.append_exn file2)
