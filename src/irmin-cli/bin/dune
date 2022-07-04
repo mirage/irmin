@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (public_name irmin)
+ (package irmin-cli)
+ (libraries irmin-cli))

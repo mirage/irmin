@@ -56,5 +56,5 @@ val set_listen_dir_hook : unit -> unit
     directories. *)
 
 module Graphql : module type of Irmin_graphql_unix
-module Cli = Cli
-module Resolver = Resolver
+module Cli : module type of Irmin_cli
+module Resolver : module type of Irmin_cli.Resolver

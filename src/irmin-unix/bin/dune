@@ -1,5 +1,0 @@
-(executable
- (name main)
- (public_name irmin)
- (package irmin-unix)
- (libraries irmin-unix))

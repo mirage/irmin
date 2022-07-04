@@ -2,13 +2,13 @@
  (name plugin)
  (modes plugin)
  (modules plugin)
- (libraries irmin-unix))
+ (libraries irmin-cli))
 
 (alias
  (name runtest)
- (package irmin-unix)
+ (package irmin-cli)
  (deps plugin.cmxs))
 
 (cram
- (package irmin-unix)
+ (package irmin-cli)
  (deps %{bin:irmin} plugin.cmxs))

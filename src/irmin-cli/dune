@@ -1,0 +1,23 @@
+(library
+ (name irmin_cli)
+ (public_name irmin-cli)
+ (libraries
+  astring
+  dynlink
+  irmin
+  irmin-tezos
+  irmin-pack.unix
+  irmin-git.unix
+  irmin-fs.unix
+  irmin-graphql.unix
+  irmin-http.unix
+  irmin-watcher
+  cmdliner
+  git-unix
+  cohttp-lwt-unix
+  unix
+  yaml)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

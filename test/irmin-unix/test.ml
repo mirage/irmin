@@ -15,5 +15,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [ ("conf", Test_unix.Conf.misc) ]
+let misc = []
 let () = Irmin_test.Store.run "irmin-unix" ~misc []

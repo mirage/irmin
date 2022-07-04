@@ -24,13 +24,7 @@
 (rule
  (alias runtest)
  (package irmin-unix)
- (locks ../http)
- (deps test.yml)
  (action
   (chdir
    %{workspace_root}
    (run %{exe:test.exe} -q --color=always))))
-
-(cram
- (package irmin-unix)
- (deps %{bin:irmin}))
