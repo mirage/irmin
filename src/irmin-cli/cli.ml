@@ -17,7 +17,6 @@
 open! Import
 open Cmdliner
 open Resolver
-module Http = Irmin_http_unix
 module Graphql = Irmin_graphql_unix
 
 let deprecated_info = (Term.info [@alert "-deprecated"])
@@ -121,66 +120,6 @@ let init =
     term =
       (let init (S (_, _store, _)) = run Lwt.return_unit in
        Term.(mk init $ store ()));
-  }
-
-(* HTTP *)
-let http =
-  {
-    name = "http";
-    doc = "Run http server";
-    man = [];
-    term =
-      (let uri =
-         let doc =
-           Arg.info ~docv:"URI" [ "a"; "address" ]
-             ~doc:
-               "Start the Irmin server on the given socket address. Examples \
-                include http://localhost:8080 and launchd://Listener."
-         in
-         Arg.(value & opt string "http://localhost:8080" & doc)
-       in
-       let init (S (impl, store, _)) uri =
-         let (module S) =
-           match Store.Impl.hash_keyed impl with
-           | Some x -> x
-           | None ->
-               Fmt.failwith
-                 "Unsupported backend: can't start an HTTP server with a store \
-                  that is not keyed by hashes"
-         in
-         run
-           (let* t = store in
-            let module HTTP = Http.Server (S) in
-            let uri = Uri.of_string uri in
-            let spec = HTTP.v (S.repo t) in
-            match Uri.scheme uri with
-            | Some "launchd" ->
-                let uri, name =
-                  match Uri.host uri with
-                  | None -> (Uri.with_host uri (Some "Listener"), "Listener")
-                  | Some name -> (uri, name)
-                in
-                [%logs.info "daemon: %s" (Uri.to_string uri)];
-                Cohttp_lwt_unix.Server.create ~timeout:3600
-                  ~mode:(`Launchd name) spec
-            | _ ->
-                let uri =
-                  match Uri.host uri with
-                  | None -> Uri.with_host uri (Some "localhost")
-                  | Some _ -> uri
-                in
-                let port, uri =
-                  match Uri.port uri with
-                  | None -> (8080, Uri.with_port uri (Some 8080))
-                  | Some p -> (p, uri)
-                in
-                [%logs.info "daemon: %s" (Uri.to_string uri)];
-                Printf.printf "Server starting on port %d.\n%!" port;
-                Cohttp_lwt_unix.Server.create ~timeout:3600
-                  ~mode:(`TCP (`Port port))
-                  spec)
-       in
-       Term.(mk init $ store () $ uri));
   }
 
 let print fmt = Fmt.kstr print_endline fmt
@@ -738,9 +677,9 @@ let config_man =
         \         command and applied using the $(b,--opt) flag.";
       `S Manpage.s_examples;
       `P
-        "Here is an example $(b,irmin.yml) for accessing a local http irmin \
-         store. This $(b,irmin.yml) prevents the user from having to specify \
-         the $(b,store) and $(b,root) options for every command.";
+        "Here is an example $(b,irmin.yml) for accessing a local irmin store. \
+         This $(b,irmin.yml) prevents the user from having to specify the \
+         $(b,store) and $(b,root) options for every command.";
       `Pre "    \\$ cat irmin.yml\n    store: pack\n    root: /path/to/my/store";
     ]
     @ help_sections )
@@ -1014,7 +953,6 @@ let default =
       \    watch       %s\n\
       \    dot         %s\n\
       \    graphql     %s\n\
-      \    http        %s\n\
       \    options     %s\n\
       \    branches    %s\n\
       \    log         %s\n\n\
@@ -1022,7 +960,7 @@ let default =
        %!"
       init.doc get.doc set.doc remove.doc list.doc tree.doc clone.doc fetch.doc
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
-      graphql.doc http.doc options.doc branches.doc log.doc
+      graphql.doc options.doc branches.doc log.doc
   in
   ( Term.(mk usage $ const ()),
     deprecated_info "irmin" ~version:Irmin.version ~sdocs:global_option_section
@@ -1033,7 +971,6 @@ let commands =
     [
       help;
       init;
-      http;
       get;
       set;
       remove;

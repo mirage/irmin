@@ -1,8 +1,0 @@
-(library
- (public_name irmin-http.unix)
- (name irmin_http_unix)
- (libraries cohttp-lwt-unix irmin-http lwt.unix)
- (preprocess
-  (pps ppx_irmin.internal))
- (instrumentation
-  (backend bisect_ppx)))
