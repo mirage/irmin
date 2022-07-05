@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2022 Thomas Gazagnaire <thomas@gazagnaire.org>
  * Copyright (c) 2017 Grégoire Henry <gregoire.henry@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any

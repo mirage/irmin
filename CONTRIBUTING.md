@@ -42,7 +42,7 @@ several years, the copyright lines may look as follows:
 
 ```
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2013-2022 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
  *
 ```
