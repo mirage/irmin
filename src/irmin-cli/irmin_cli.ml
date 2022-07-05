@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,16 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let set_listen_dir_hook = Hook.init
-
-module I = Info.Make (Irmin.Info.Default)
-
-let info = I.v
-
-module Info = Info.Make
-module Git = Irmin_git_unix
-module Http = Irmin_http_unix
-module Graphql = Irmin_graphql_unix
-module FS = Irmin_fs_unix
-module Cli = Irmin_cli
-module Resolver = Irmin_cli.Resolver
+include Cli
+module Resolver = Resolver

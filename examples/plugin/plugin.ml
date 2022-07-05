@@ -1,4 +1,4 @@
-open Irmin_unix
+open Irmin_cli
 
 (* Adding a new content type *)
 

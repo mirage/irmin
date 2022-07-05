@@ -23,7 +23,7 @@ module Graphql = Irmin_graphql_unix
 let deprecated_info = (Term.info [@alert "-deprecated"])
 let deprecated_man_format = (Term.man_format [@alert "-deprecated"])
 let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
-let () = Hook.init ()
+let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
 
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
     ?(author = "irmin") fmt =
