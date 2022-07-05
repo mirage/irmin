@@ -16,9 +16,12 @@
 
 - **irmin-http**
   - Add unix subpackage, `irmin-http.unix` (#1948, @metanivek)
-  
+
 - **irmin-cli**
   - Add new package for `irmin` command-line tool (#1951, @metanivek)
+
+- **irmin-pack**
+  - Add a GC (TODO)
 
 ### Changed
 
