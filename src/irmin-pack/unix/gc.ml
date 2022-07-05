@@ -305,7 +305,7 @@ module Make (Args : Args) : S with module Args := Args = struct
         [%log.debug "GC: transfering to the new prefix"];
         let buffer = Bytes.create buffer_size in
         (* Step 5.1. Transfer all. *)
-        let read_exn = Dispatcher.read_exn dispatcher in
+        let read_exn = Dispatcher.read_in_prefix_and_suffix_exn dispatcher in
         let append_exn = Ao.append_exn prefix in
         let f ~off ~len =
           let len = Int63.of_int len in
@@ -326,7 +326,8 @@ module Make (Args : Args) : S with module Args := Args = struct
       in
       let* () =
         Errors.finalise (fun _outcome ->
-            Io.close prefix |> Errs.log_if_error "GC: Close prefix")
+            Io.close prefix
+            |> Errs.log_if_error "GC: Close prefix after parent rewrite")
         @@ fun () ->
         let write_exn = Io.write_exn prefix in
         List.iter

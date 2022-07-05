@@ -32,6 +32,10 @@ module type S = sig
   (** [offset_of_suffix_off t suffix_off] converts a suffix offset into a
       (global) offset. *)
 
+  val read_in_prefix_and_suffix_exn : t -> off:int63 -> len:int -> bytes -> unit
+  (** Simlar to [read_exn] but if [off + len] is greater than the end of the
+      prefix, it will read the remaining in the prefix. *)
+
   type mapping
 
   val load_mapping : Fm.Io.t -> (mapping, [> Fm.Errs.t ]) result
@@ -215,6 +219,22 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       let prefix = get_prefix t.fm in
       Io.read_exn prefix ~off:poff ~len buf;
       ())
+
+  let read_in_prefix_and_suffix_exn t ~off ~len buf =
+    let ( -- ) a b = a - b in
+    let open Int63.Syntax in
+    let entry_offset_suffix_start = entry_offset_suffix_start t in
+    if
+      off < entry_offset_suffix_start
+      && off + Int63.of_int len > entry_offset_suffix_start
+    then (
+      let read_in_prefix = entry_offset_suffix_start - off |> Int63.to_int in
+      read_exn t ~off ~len:read_in_prefix buf;
+      let read_in_suffix = len -- read_in_prefix in
+      let buf_suffix = Bytes.create read_in_suffix in
+      read_exn t ~off:entry_offset_suffix_start ~len:read_in_suffix buf_suffix;
+      Bytes.blit buf_suffix 0 buf read_in_prefix read_in_suffix)
+    else read_exn t ~off ~len buf
 
   let read_exn_if_not_gced t ~off ~len buf =
     try
