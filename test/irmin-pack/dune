@@ -11,7 +11,8 @@
   test_pack_version_bump
   test_snapshot
   test_upgrade
-  test_gc)
+  test_gc
+  test_flush_reload)
  (libraries
   alcotest
   fmt

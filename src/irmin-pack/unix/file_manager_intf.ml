@@ -131,7 +131,10 @@ module type S = sig
     | `Ro_not_allowed
     | `Closed ]
 
-  val flush : t -> (unit, [> flush_error ]) result
+  type flush_stages := [ `After_dict | `After_suffix ]
+  type 'a hook := 'a -> unit
+
+  val flush : ?hook:flush_stages hook -> t -> (unit, [> flush_error ]) result
 
   type reload_error :=
     [ `Corrupted_control_file
@@ -147,7 +150,9 @@ module type S = sig
     | `Rw_not_allowed
     | `Unknown_major_pack_version of string ]
 
-  val reload : t -> (unit, [> reload_error ]) result
+  type reload_stages := [ `After_index | `After_control | `After_suffix ]
+
+  val reload : ?hook:reload_stages hook -> t -> (unit, [> reload_error ]) result
 
   val register_dict_consumer :
     t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit

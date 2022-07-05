@@ -85,11 +85,13 @@ struct
         assert false
     | From_v3_gced x -> x.generation
 
-  let reload t =
+  let reload ?hook t =
     let open Result_syntax in
     let* () = Index.reload t.index in
+    (match hook with Some h -> h `After_index | None -> ());
     let pl0 = Control.payload t.control in
     let* () = Control.reload t.control in
+    (match hook with Some h -> h `After_control | None -> ());
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
@@ -116,6 +118,7 @@ struct
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
+      (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
       let+ () =
         let res =
@@ -164,9 +167,10 @@ struct
       ()
 
   (** Flush stage 2 *)
-  let flush_suffix_and_its_deps t =
+  let flush_suffix_and_its_deps ?hook t =
     let open Result_syntax in
     let* () = flush_dict t in
+    (match hook with Some h -> h `After_dict | None -> ());
     if Suffix.empty_buffer t.suffix then Ok ()
     else
       let* () =
@@ -209,9 +213,10 @@ struct
       List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
 
   (** Flush stage 3 *)
-  let flush_index_and_its_deps t =
+  let flush_index_and_its_deps ?hook t =
     let open Result_syntax in
-    let* () = flush_suffix_and_its_deps t in
+    let* () = flush_suffix_and_its_deps ?hook t in
+    (match hook with Some h -> h `After_suffix | None -> ());
     let+ () =
       Stats.incr_fm_field Index_flushes;
       Index.flush ~with_fsync:t.use_fsync t.index
@@ -241,9 +246,9 @@ struct
 
   (* Explicit flush ********************************************************* *)
 
-  let flush t =
+  let flush ?hook t =
     Stats.incr_fm_field Flush;
-    flush_index_and_its_deps t
+    flush_index_and_its_deps ?hook t
 
   (* File creation ********************************************************** *)
 

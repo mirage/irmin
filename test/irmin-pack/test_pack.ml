@@ -509,4 +509,5 @@ let misc =
     ("upgrade", Test_upgrade.tests);
     ("blocking gc", Test_gc.Blocking_gc.tests);
     ("concurrent gc", Test_gc.Concurrent_gc.tests);
+    ("flush", Test_flush_reload.tests);
   ]
