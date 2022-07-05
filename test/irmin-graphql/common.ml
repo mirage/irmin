@@ -31,17 +31,11 @@ let ctx =
   Cohttp_lwt_unix.Client.custom_ctx ~resolver ()
 
 module Server =
-  Irmin_graphql.Server.Make
-    (Cohttp_lwt_unix.Server)
+  Irmin_graphql_unix.Server.Make
+    (Store)
     (struct
       let remote = None
-
-      type info = Store.info
-
-      let info ?(author = "graphql-test-author") =
-        Format.kasprintf (fun message () -> Store.Info.v ~author ~message 0L)
     end)
-    (Store)
 
 let mkdir d =
   Lwt.catch

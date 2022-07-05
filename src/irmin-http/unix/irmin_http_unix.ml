@@ -14,13 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Client (S : Irmin.S) :
-  Irmin.S
-    with type hash = S.Hash.t
-     and module Schema = S.Schema
-     and type Backend.Remote.endpoint = unit
+module type Sock = sig
+  val sock : string
+end
 
-module Server (S : Irmin.S) :
-  Irmin_http.SERVER
-    with type repo = S.Repo.t
-     and type t = Cohttp_lwt_unix.Server.t
+module DefaultSock = struct
+  let sock = "/var/run/irmin.sock"
+end
+
+module type Http_client = sig
+  include module type of Cohttp_lwt_unix.Client
+
+  val ctx : unit -> ctx option
+end
+
+module Http_client (P : Sock) = struct
+  include Cohttp_lwt_unix.Client
+
+  let ctx () =
+    let resolver =
+      let h = Hashtbl.create 1 in
+      Hashtbl.add h "irmin" (`Unix_domain_socket P.sock);
+      Resolver_lwt_unix.static h
+    in
+    Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+end
+
+module Client = Irmin_http.Client (Http_client (DefaultSock))
+module Server = Irmin_http.Server (Cohttp_lwt_unix.Server)

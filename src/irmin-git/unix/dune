@@ -1,0 +1,8 @@
+(library
+ (public_name irmin-git.unix)
+ (name irmin_git_unix)
+ (libraries cohttp-lwt-unix git-unix irmin-git lwt.unix)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

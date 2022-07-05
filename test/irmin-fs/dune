@@ -1,15 +1,31 @@
 (library
  (name test_fs)
  (modules test_fs)
- (libraries irmin irmin-fs irmin-test lwt))
+ (libraries irmin-fs irmin-test lwt))
+
+(library
+ (name test_fs_unix)
+ (modules test_fs_unix)
+ (libraries test_fs irmin irmin-fs.unix irmin-test irmin-watcher lwt))
 
 (executable
  (name test)
  (modules test)
  (libraries alcotest irmin irmin-test test_fs))
 
+(executable
+ (name test_unix)
+ (modules test_unix)
+ (libraries alcotest irmin irmin-test test_fs_unix))
+
 (rule
  (alias runtest)
  (package irmin-fs)
  (action
-  (run ./test.exe -q --color=always)))
+  (run %{exe:test.exe} -q --color=always)))
+
+(rule
+ (alias runtest)
+ (package irmin-fs)
+ (action
+  (run %{exe:test_unix.exe} -q --color=always)))

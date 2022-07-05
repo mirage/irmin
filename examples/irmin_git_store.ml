@@ -20,7 +20,7 @@ open Lwt.Syntax
 
 let info = Irmin_unix.info
 
-module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 
 let update t k v =
   let msg = Fmt.str "Updating /%s" (String.concat "/" k) in

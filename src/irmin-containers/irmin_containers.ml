@@ -23,7 +23,7 @@
     data structures with two backends:
 
     - the {{!Irmin_mem} in-memory backend} provided by {!Irmin_mem}
-    - the {{!Irmin_unix.FS} FS backend} provided by {!Irmin_unix}. *)
+    - the {{!Irmin_fs_unix} FS backend} provided by {!Irmin_fs_unix}. *)
 
 (** {1 Data structures} *)
 

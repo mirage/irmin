@@ -162,7 +162,7 @@ struct
 end
 
 module FS (C : Stores.Content_addressable) (V : Irmin.Type.S) () =
-  Make (Irmin_unix.FS.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()
+  Make (Irmin_fs_unix.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()
 
 module Mem (C : Stores.Content_addressable) (V : Irmin.Type.S) () =
   Make (Irmin_mem.KV) (C) (Time.Machine) (Irmin.Hash.SHA1) (V) ()

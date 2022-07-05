@@ -45,8 +45,8 @@ end
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) :
   S with type value = V.t
 
-(** Blob log instantiated using the {{!Irmin_unix.FS} FS backend} provided by
-    [Irmin_unix] and the timestamp method {!Time.Unix} *)
+(** Blob log instantiated using the {{!Irmin_fs_unix} FS backend} provided by
+    [Irmin_fs_unix] and the timestamp method {!Time.Unix} *)
 module FS (V : Irmin.Type.S) : S with type value = V.t
 
 (** Blob log instantiated using the {{!Irmin_mem} in-memory backend} provided by

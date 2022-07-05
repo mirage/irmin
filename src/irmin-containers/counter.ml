@@ -55,5 +55,5 @@ module Make (Backend : Irmin.KV_maker) = struct
   let read ~path t = Store.find t path >|= function None -> 0L | Some v -> v
 end
 
-module FS = Make (Irmin_unix.FS.KV)
+module FS = Make (Irmin_fs_unix.KV)
 module Mem = Make (Irmin_mem.KV)

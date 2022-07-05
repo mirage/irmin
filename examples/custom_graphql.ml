@@ -103,7 +103,7 @@ module Remote = struct
 end
 
 module Server =
-  Irmin_unix.Graphql.Server.Make_ext (Store) (Remote) (Custom_types)
+  Irmin_graphql_unix.Server.Make_ext (Store) (Remote) (Custom_types)
 
 let main () =
   Config.init ();

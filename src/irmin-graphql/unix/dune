@@ -1,0 +1,8 @@
+(library
+ (public_name irmin-graphql.unix)
+ (name irmin_graphql_unix)
+ (libraries cohttp-lwt-unix irmin-graphql git-unix lwt.unix)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

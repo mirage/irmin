@@ -14,17 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module HTTP = struct
-  include Cohttp_lwt_unix.Client
+module Make (I : Irmin.Info.S) : sig
+  include Irmin.Info.S with type t = I.t
 
-  let ctx () =
-    let resolver =
-      let h = Hashtbl.create 1 in
-      Hashtbl.add h "irmin" (`Unix_domain_socket "/var/run/irmin.sock");
-      Resolver_lwt_unix.static h
-    in
-    Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+  val v : ?author:string -> ('b, Format.formatter, unit, f) format4 -> 'b
 end
-
-module Client = Irmin_http.Client (HTTP)
-module Server = Irmin_http.Server (Cohttp_lwt_unix.Server)

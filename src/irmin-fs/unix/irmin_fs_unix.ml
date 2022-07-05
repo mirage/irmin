@@ -14,9 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
+include Irmin.Export_for_backends
 
-let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
+let src = Logs.Src.create "fs.unix" ~doc:"logs fs unix events"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 

@@ -16,13 +16,31 @@
  (preprocess
   (pps ppx_irmin ppx_irmin.internal)))
 
+(library
+ (name test_git_unix)
+ (modules test_git_unix)
+ (libraries test_git irmin-unix irmin-git.unix irmin-watcher)
+ (preprocess
+  (pps ppx_irmin ppx_irmin.internal)))
+
 (executable
  (name test)
  (modules test)
  (libraries alcotest irmin irmin-test test_git))
 
+(executable
+ (name test_unix)
+ (modules test_unix)
+ (libraries alcotest irmin irmin-test test_git_unix))
+
 (rule
  (alias runtest)
  (package irmin-git)
  (action
-  (run ./test.exe -q --color=always)))
+  (run %{exe:test.exe} -q --color=always)))
+
+(rule
+ (alias runtest)
+ (package irmin-git)
+ (action
+  (run %{exe:test_unix.exe} -q --color=always)))

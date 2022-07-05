@@ -17,6 +17,8 @@
 open! Import
 open Cmdliner
 open Astring
+module Xgit = Irmin_git_unix
+module Http = Irmin_http_unix
 
 let global_option_section = "COMMON OPTIONS"
 
@@ -295,7 +297,7 @@ module Store = struct
     v spec (module S)
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
-  let irf = create Irmin_fs.Conf.spec (module Fs)
+  let irf = create Irmin_fs.Conf.spec (module Irmin_fs_unix)
 
   let http = function
     | T { impl = Generic_keyed _; _ } ->

@@ -14,6 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf : sig
-  val misc : unit Alcotest.test_case list
-end
+let () =
+  Irmin_test.Store.run "irmin-fs.unix" ~slow:false ~misc:[]
+    [ (`Quick, Test_fs_unix.suite) ]

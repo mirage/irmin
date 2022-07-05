@@ -28,34 +28,28 @@ let socket t = test_http_dir / Fmt.str "irmin-%a.sock" pp t
 let pid_file t = test_http_dir / Fmt.str "irmin-test-%a.pid" pp t
 let tmp_file file = file ^ ".tmp"
 
-module Client (P : sig
+module Client = Irmin_http_unix.Http_client
+
+module Sock (P : sig
   val id : id
 end) =
 struct
-  include Cohttp_lwt_unix.Client
-
-  let ctx () =
-    let resolver =
-      let h = Hashtbl.create 1 in
-      Hashtbl.add h "irmin" (`Unix_domain_socket (socket P.id));
-      Resolver_lwt_unix.static h
-    in
-    Some (Cohttp_lwt_unix.Client.custom_ctx ~resolver ())
+  let sock = socket P.id
 end
 
 let http_store id (module S : Irmin_test.S) =
-  let module P = struct
+  let module P = Sock (struct
     let id = id
-  end in
+  end) in
   let module M = Irmin_http.Client (Client (P)) (S) in
   (module M : Irmin_test.S)
 
 let remove file = try Unix.unlink file with _ -> ()
 
 let check_connection id =
-  let module Client = Client (struct
+  let module Client = Client (Sock (struct
     let id = id
-  end) in
+  end)) in
   let ctx = Client.ctx () in
   let rec loop n =
     let url =
@@ -93,7 +87,13 @@ let wait_for_the_server_to_start id =
   in
   aux 1
 
-let servers = [ (`Quick, Test_mem.suite); (`Quick, Test_git.suite) ]
+let servers =
+  [
+    (`Quick, Test_mem.suite);
+    (`Quick, Test_git.suite);
+    (`Quick, Test_fs_unix.suite);
+    (`Quick, Test_git_unix.suite);
+  ]
 
 module Conf = Irmin_http.Conf
 
@@ -148,7 +148,7 @@ let serve servers n id =
       (Irmin_test.Suite.name server)
       (root (Irmin_test.Suite.config server))];
   let (module Server : Irmin_test.S) = get_store server in
-  let module HTTP = Irmin_http.Server (Cohttp_lwt_unix.Server) (Server) in
+  let module HTTP = Irmin_http_unix.Server (Server) in
   let test = { name = Irmin_test.Suite.name server; id } in
   let socket = socket test in
   let server () =

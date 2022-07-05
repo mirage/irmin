@@ -22,7 +22,7 @@ let path =
   if Array.length Sys.argv = 2 then Sys.argv.(1)
   else "git://github.com/mirage/ocaml-git.git"
 
-module Store = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 module Sync = Irmin.Sync.Make (Store)
 
 let test () =

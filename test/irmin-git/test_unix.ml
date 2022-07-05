@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,6 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf : sig
-  val misc : unit Alcotest.test_case list
-end
+let misc = [ ("misc", Test_git.misc Test_git_unix.store) ]
+let suites = [ (`Quick, Test_git_unix.suite) ]
+let () = Irmin_test.Store.run "irmin-git.unix" ~misc ~slow:false suites

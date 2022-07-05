@@ -14,6 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf : sig
-  val misc : unit Alcotest.test_case list
+module Make (I : Irmin.Info.S) = struct
+  include I
+
+  let v ?author fmt =
+    Fmt.kstr
+      (fun message () ->
+        let date = Int64.of_float (Unix.gettimeofday ()) in
+        let author =
+          match author with
+          | Some a -> a
+          | None ->
+              (* XXX: get "git config user.name" *)
+              Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname ())
+                (Unix.getpid ())
+        in
+        v ~author ~message date)
+      fmt
 end

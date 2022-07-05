@@ -5,6 +5,18 @@
 - **irmin**
   - Add `Tree.seq` to `Tree`'s public API (#1923, @metanivek)
 
+- **irmin-fs**
+  - Add unix subpackage, `irmin-fs.unix` (#1948, @metanivek)
+
+- **irmin-git**
+  - Add unix subpackage, `irmin-git.unix` (#1948, @metanivek)
+
+- **irmin-graphql**
+  - Add unix subpackage, `irmin-graphql.unix` (#1948, @metanivek)
+
+- **irmin-http**
+  - Add unix subpackage, `irmin-http.unix` (#1948, @metanivek)
+
 ### Changed
 
 - **irmin**

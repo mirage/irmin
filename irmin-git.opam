@@ -20,17 +20,18 @@ depends: [
   "irmin"      {= version}
   "ppx_irmin"  {= version}
   "git"        {>= "3.7.0"}
+  "git-unix"   {>= "3.7.0"}
   "digestif"   {>= "0.9.0"}
   "cstruct"
   "fmt"
   "astring"
+  "cohttp-lwt-unix"
   "fpath"
   "logs"
   "lwt"        {>= "5.3.0"}
   "uri"
   "mimic"
   "irmin-test" {with-test & = version}
-  "git-unix"   {with-test & >= "3.7.0"}
   "mtime"      {with-test & >= "1.0.0"}
   "alcotest"   {with-test}
 ]

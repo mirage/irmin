@@ -14,6 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conf : sig
-  val misc : unit Alcotest.test_case list
+module type Sock = sig
+  val sock : string
 end
+
+module type Http_client = sig
+  include module type of Cohttp_lwt_unix.Client
+
+  val ctx : unit -> ctx option
+end
+
+module Http_client (P : Sock) : Http_client
+
+module Client (S : Irmin.S) :
+  Irmin.S
+    with type hash = S.Hash.t
+     and module Schema = S.Schema
+     and type Backend.Remote.endpoint = unit
+
+module Server (S : Irmin.S) :
+  Irmin_http.SERVER
+    with type repo = S.Repo.t
+     and type t = Cohttp_lwt_unix.Server.t
