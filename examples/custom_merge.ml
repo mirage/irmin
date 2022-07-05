@@ -117,7 +117,7 @@ module Store = Irmin_git_unix.FS.KV (Log)
 let config = Irmin_git.config ~bare:true Config.root
 
 (* Convenient alias for the info function for commit messages *)
-let info = Irmin_unix.info
+let info = Irmin_git_unix.info
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =

@@ -18,7 +18,7 @@
 
 open Lwt.Syntax
 
-let info = Irmin_unix.info
+let info = Irmin_git_unix.info
 
 module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 

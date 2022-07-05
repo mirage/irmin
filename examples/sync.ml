@@ -16,7 +16,7 @@
 
 open Lwt.Syntax
 
-let info = Irmin_unix.info
+let info = Irmin_git_unix.info
 
 let path =
   if Array.length Sys.argv = 2 then Sys.argv.(1)

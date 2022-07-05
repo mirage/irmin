@@ -308,3 +308,4 @@ module KV = Irmin_fs.KV (IO)
 module Append_only_ext = Irmin_fs.Append_only_ext (IO)
 module Atomic_write_ext = Irmin_fs.Atomic_write_ext (IO)
 module Maker_ext = Irmin_fs.Maker_ext (IO)
+include Irmin_unix
