@@ -25,6 +25,7 @@ end)
 module Make_without_close_checks
     (Fm : File_manager.S)
     (Dict : Dict.S)
+    (Dispatcher : Dispatcher.S with module Fm = Fm)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
@@ -45,6 +46,7 @@ struct
 
   type file_manager = Fm.t
   type dict = Dict.t
+  type dispatcher = Dispatcher.t
 
   type 'a t = {
     lru : Val.t Lru.t;
@@ -52,6 +54,7 @@ struct
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     fm : Fm.t;
     dict : Dict.t;
+    dispatcher : Dispatcher.t;
   }
 
   type hash = Hash.t [@@deriving irmin ~pp ~equal ~decode_bin]
@@ -71,13 +74,13 @@ struct
 
   let index t hash = Lwt.return (index_direct t hash)
 
-  let v ~config ~fm ~dict =
+  let v ~config ~fm ~dict ~dispatcher =
     let indexing_strategy = Conf.indexing_strategy config in
     let lru_size = Conf.lru_size config in
     let staging = Tbl.create 127 in
     let lru = Lru.create lru_size in
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
-    { lru; staging; indexing_strategy; fm; dict }
+    { lru; staging; indexing_strategy; fm; dict; dispatcher }
 
   type span = { offset : int63; length : int }
   (** The type of contiguous ranges of bytes in the pack file. *)
@@ -127,33 +130,12 @@ struct
       Option.map (fun len -> min_length + len) t.size_of_value_and_length_header
   end
 
-  let read_and_decode_entry_prefix ~off fm =
-    let io_read_at_most ~off ~len b =
-      (* Read at most [len], by checking that [(off, len)] don't go out of
-         bounds of the suffix file.
-
-         This can happen when we are reading the last entry in the file and the
-         [size_of_value_and_length_header] is smaller then [len] (for instance
-         the empty blob).
-
-         This will have to be rewritten to work with the prefix file. A solution
-         would be to implement somewhere a [read_at_most_exn] function that
-         reads in both the prefix and the suffix and that doesn't crash if the
-         read goes out of bounds. *)
-      let bytes_after_off =
-        let open Int63.Syntax in
-        Suffix.end_offset (Fm.suffix fm) - off
-      in
-      let len =
-        let open Int63.Syntax in
-        if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
-        else len
-      in
-      Suffix.read_exn (Fm.suffix fm) ~off ~len b;
-      len
-    in
+  let read_and_decode_entry_prefix ~off dispatcher =
     let buf = Bytes.create Entry_prefix.max_length in
-    let bytes_read = io_read_at_most ~off ~len:Entry_prefix.max_length buf in
+    let bytes_read =
+      Dispatcher.read_at_most_exn dispatcher ~off ~len:Entry_prefix.max_length
+        buf
+    in
     (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
        final entry in the pack file (if the data section of the entry is
        shorter than [Varint.max_encoded_size]. In this case, an invalid read
@@ -183,7 +165,7 @@ struct
     { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
   let io_read_and_decode_entry_prefix ~off t =
-    read_and_decode_entry_prefix ~off t.fm
+    read_and_decode_entry_prefix ~off t.dispatcher
 
   (* This function assumes magic is written at hash_size + 1 for every
      object. *)
@@ -194,8 +176,8 @@ struct
   let io_read_and_decode_hash_if_not_gced ~off t =
     let len = Hash.hash_size + 1 in
     let buf = Bytes.create len in
-    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    if gced buf then None
+    let found = Dispatcher.read_if_not_gced t.dispatcher ~off ~len buf in
+    if (not found) || gced buf then None
     else
       let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       Some hash
@@ -205,7 +187,7 @@ struct
     match key with
     | Indexed hash -> Index.mem (Fm.index t.fm) hash
     | Direct { offset; _ } -> (
-        let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
+        let io_offset = Dispatcher.end_offset t.dispatcher in
         let minimal_entry_length = Entry_prefix.min_length in
         let open Int63.Syntax in
         if offset + Int63.of_int minimal_entry_length > io_offset then (
@@ -253,8 +235,8 @@ struct
 
   let io_read_and_decode_if_not_gced ~off ~len t =
     let () =
-      if not (Suffix.readonly (Fm.suffix t.fm)) then
-        let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
+      if not (Fm.readonly t.fm) then
+        let io_offset = Dispatcher.end_offset t.dispatcher in
         let open Int63.Syntax in
         if off + Int63.of_int len > io_offset then
           (* This is likely a store corruption. We raise [Invalid_read]
@@ -265,8 +247,8 @@ struct
             len Int63.pp off Int63.pp io_offset
     in
     let buf = Bytes.create len in
-    Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
-    if gced buf then None
+    let found = Dispatcher.read_if_not_gced t.dispatcher ~off ~len buf in
+    if (not found) || gced buf then None
     else
       let key_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];
@@ -315,7 +297,7 @@ struct
             ~length:entry_span.length;
           (Stats.Pack_store.Pack_indexed, entry_span)
     in
-    let io_offset = Suffix.end_offset (Fm.suffix t.fm) in
+    let io_offset = Dispatcher.end_offset t.dispatcher in
     let open Int63.Syntax in
     if offset + Int63.of_int length > io_offset then (
       (* Can't fit an entry into this suffix of the store, so this key
@@ -424,7 +406,7 @@ struct
                 Some offset)
       in
       let dict = Dict.index t.dict in
-      let off = Suffix.end_offset (Fm.suffix t.fm) in
+      let off = Dispatcher.end_offset t.dispatcher in
 
       (* [encode_bin] will most likely call [append] several time. One of these
          call may trigger an auto flush. *)
@@ -432,7 +414,7 @@ struct
       Val.encode_bin ~offset_of_key ~dict hash v append;
 
       let open Int63.Syntax in
-      let len = Int63.to_int (Suffix.end_offset (Fm.suffix t.fm) - off) in
+      let len = Int63.to_int (Dispatcher.end_offset t.dispatcher - off) in
       let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
       let () =
         let kind = Val.kind v in
@@ -471,17 +453,22 @@ end
 module Make
     (Fm : File_manager.S)
     (Dict : Dict.S)
+    (Dispatcher : Dispatcher.S with module Fm = Fm)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
              with type hash := Hash.t
               and type key := Hash.t Pack_key.t)
     (Errs : Io_errors.S with module Io = Fm.Io) =
 struct
-  module Inner = Make_without_close_checks (Fm) (Dict) (Hash) (Val) (Errs)
+  module Inner =
+    Make_without_close_checks (Fm) (Dict) (Dispatcher) (Hash) (Val) (Errs)
+
   include Inner
   include Indexable.Closeable (Inner)
 
-  let v ~config ~fm ~dict = Inner.v ~config ~fm ~dict |> make_closeable
+  let v ~config ~fm ~dict ~dispatcher =
+    Inner.v ~config ~fm ~dict ~dispatcher |> make_closeable
+
   let cast t = Inner.cast (get_open_exn t) |> make_closeable
 
   let integrity_check ~offset ~length k t =

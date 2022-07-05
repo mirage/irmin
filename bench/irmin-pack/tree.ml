@@ -217,7 +217,7 @@ struct
 
   let gc repo key =
     let* (_launched : bool) =
-      Store.start_gc ~unlink:true ~throttle:`Skip repo key
+      Store.start_gc ~unlink:true ~throttle:`Block repo key
     in
     Lwt.return_unit
 end

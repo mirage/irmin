@@ -29,7 +29,6 @@ module Make (Args : Args) = struct
   open Args
   module Inode_pack = Inode.Pack
   module Pack_index = Pack_index.Make (Hash)
-  module Fm = File_manager
 
   let pp_hash = Irmin.Type.pp Hash.t
   let pp_key = Irmin.Type.pp Inode_pack.Key.t
@@ -49,7 +48,8 @@ module Make (Args : Args) = struct
       Index_unix.Make (Pack_index.Key) (Value_unit) (Index.Cache.Unbounded)
 
     type t = {
-      fm : File_manager.t;
+      fm : Fm.t;
+      dispatcher : Dispatcher.t;
       log_size : int;
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
@@ -59,9 +59,13 @@ module Make (Args : Args) = struct
       (* In order to read from the pack files, we need to open at least two
          files: suffix and control. We just open the file manager for
          simplicity. *)
-      let fm = Fm.open_ro config |> Result.get_ok in
+      let fm = Fm.open_ro config |> Fm.Errs.raise_if_error in
+      let dispatcher =
+        let root = Conf.root config in
+        Dispatcher.v ~root fm |> Fm.Errs.raise_if_error
+      in
       let log_size = Conf.index_log_size config in
-      { fm; log_size; inode_pack; contents_pack }
+      { fm; dispatcher; log_size; inode_pack; contents_pack }
 
     let close t = Fm.close t.fm
 
@@ -79,7 +83,7 @@ module Make (Args : Args) = struct
 
     let io_read_and_decode_entry_prefix ~off t =
       let entry_prefix : Inode_pack.Entry_prefix.t =
-        Inode_pack.read_and_decode_entry_prefix ~off t.fm
+        Inode_pack.read_and_decode_entry_prefix ~off t.dispatcher
       in
       let length =
         match Inode_pack.Entry_prefix.total_entry_length entry_prefix with
@@ -94,7 +98,7 @@ module Make (Args : Args) = struct
     (* Get the childrens offsets and then read their keys at that offset. *)
     let decode_children_offsets ~off ~len t =
       let buf = Bytes.create len in
-      Fm.Suffix.read_exn (Fm.suffix t.fm) ~off ~len buf;
+      Dispatcher.read_exn t.dispatcher ~off ~len buf;
       let entry_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];
         io_read_and_decode_entry_prefix ~off:offset t

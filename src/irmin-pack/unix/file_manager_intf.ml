@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
+
 module type S = sig
   (** Abstraction that governs the lifetime of the various files that are part
       of a pack store (except the branch store).
@@ -35,6 +37,8 @@ module type S = sig
   val dict : t -> Dict.t
   val suffix : t -> Suffix.t
   val index : t -> Index.t
+  val mapping : t -> Io.t option
+  val prefix : t -> Io.t option
 
   type create_error :=
     [ Io.create_error
@@ -136,26 +140,15 @@ module type S = sig
 
   val flush : ?hook:flush_stages hook -> t -> (unit, [> flush_error ]) result
 
-  type reload_error :=
-    [ `Corrupted_control_file
-    | `Double_close
-    | `Index_failure of string
-    | `Invalid_argument
-    | `Io_misc of Io.misc_error
-    | `No_such_file_or_directory
-    | `Not_a_file
-    | `Pending_flush
-    | `Closed
-    | `Read_out_of_bounds
-    | `Rw_not_allowed
-    | `Unknown_major_pack_version of string ]
-
   type reload_stages := [ `After_index | `After_control | `After_suffix ]
 
-  val reload : ?hook:reload_stages hook -> t -> (unit, [> reload_error ]) result
+  val reload : ?hook:reload_stages hook -> t -> (unit, [> Errs.t ]) result
+
+  val register_mapping_consumer :
+    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 
   val register_dict_consumer :
-    t -> after_reload:(unit -> (unit, Io.read_error) result) -> unit
+    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 
   val register_suffix_consumer : t -> after_flush:(unit -> unit) -> unit
 
@@ -171,21 +164,12 @@ module type S = sig
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the files at [root]. *)
 
-  type swap_error :=
-    [ `Double_close
-    | `Io_misc of Control.Io.misc_error
-    | `No_such_file_or_directory
-    | `Not_a_file
-    | `Pending_flush
-    | `Ro_not_allowed
-    | `Closed
-    | `Sys_error of string ]
-
   val swap :
     t ->
     generation:int ->
-    copy_end_offset:Import.int63 ->
-    (unit, [> swap_error ]) result
+    right_start_offset:int63 ->
+    right_end_offset:int63 ->
+    (unit, [> Errs.t ]) result
 
   type write_gc_output_error :=
     [ `Double_close
@@ -197,20 +181,23 @@ module type S = sig
   val write_gc_output :
     root:string ->
     generation:int ->
-    (Import.int63, Errs.t) result ->
+    (int63, Errs.t) result ->
     (unit, [> write_gc_output_error ]) result
   (** Used by the gc process at the end to write its output in
       store.<generation>.out. *)
 
-  type read_gc_output_error :=
+  type read_gc_output_error =
     [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
+  [@@deriving irmin]
 
   val read_gc_output :
-    root:string ->
-    generation:int ->
-    (Import.int63, [> read_gc_output_error ]) result
+    root:string -> generation:int -> (int63, [> read_gc_output_error ]) result
   (** Used by the main process, after the gc process finished, to read
       store.<generation>.out. *)
+
+  val readonly : t -> bool
+  val generation : t -> int
+  val gc_allowed : t -> bool
 end
 
 module type Sigs = sig
