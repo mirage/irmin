@@ -688,6 +688,10 @@ struct
     let* () = Io.write_string io ~off:Int63.zero out in
     Io.close io
 
+  type read_gc_output_error =
+    [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
+  [@@deriving irmin]
+
   let read_gc_output ~root ~generation =
     let open Result_syntax in
     let read_file () =

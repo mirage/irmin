@@ -717,9 +717,9 @@ module Concurrent_gc = struct
     let repo : S.Repo.t = t.repo in
     match (repo.during_gc : S.X.during_gc option) with
     | None -> Alcotest.failf "during_gc missing after call to start"
-    | Some { pid; _ } -> (
+    | Some { task; _ } -> (
         try
-          Unix.kill pid 9;
+          Irmin_pack_unix.Io.Unix.cancel task;
           true
         with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
 
@@ -733,7 +733,7 @@ module Concurrent_gc = struct
         Alcotest.check_raises_lwt "Gc process killed"
           (Irmin_pack_unix.Errors.Pack_error
              (`Gc_process_died_without_result_file
-               "Signaled -7 \"No_such_file_or_directory\""))
+               "cancelled \"No_such_file_or_directory\""))
           (fun () -> finalise_gc t)
       else Lwt.return_unit
     in

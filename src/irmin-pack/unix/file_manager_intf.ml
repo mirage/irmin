@@ -180,8 +180,9 @@ module type S = sig
   (** Used by the gc process at the end to write its output in
       store.<generation>.out. *)
 
-  type read_gc_output_error :=
+  type read_gc_output_error =
     [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
+  [@@deriving irmin]
 
   val read_gc_output :
     root:string -> generation:int -> (int63, [> read_gc_output_error ]) result

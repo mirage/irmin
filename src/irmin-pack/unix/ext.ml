@@ -16,35 +16,6 @@
 
 open! Import
 
-module Exit = struct
-  let proc_list = ref []
-  let m = Mutex.create ()
-
-  let add gc =
-    Mutex.lock m;
-    proc_list := gc :: !proc_list;
-    Mutex.unlock m
-
-  let remove gc =
-    Mutex.lock m;
-    proc_list := List.filter (fun gc' -> gc <> gc') !proc_list;
-    Mutex.unlock m
-
-  let clean_up () =
-    List.iter
-      (fun gc ->
-        try Unix.kill gc 9
-        with Unix.Unix_error (e, s1, s2) ->
-          [%log.warn
-            "Killing gc process with pid %d failed with error (%s, %s, %s)" gc
-              (Unix.error_message e) s1 s2])
-      !proc_list
-end
-
-(* Register function to be called when process terminates. If there is a gc
-   process running, make sure to terminate it. *)
-let () = at_exit Exit.clean_up
-
 module Maker (Config : Conf.S) = struct
   type endpoint = unit
 
@@ -174,7 +145,7 @@ module Maker (Config : Conf.S) = struct
 
       type during_gc = {
         next_generation : int;
-        pid : int;
+        task : Io.task;
         unlink : bool;
         offset : int63;
       }
@@ -281,9 +252,8 @@ module Maker (Config : Conf.S) = struct
           (* Step 1 - Kill the gc process if it is running *)
           let () =
             match t.during_gc with
-            | Some { pid; _ } ->
-                Unix.kill pid 9;
-                Exit.remove pid;
+            | Some { task; _ } ->
+                Io.cancel task;
                 t.during_gc <- None
             | None -> ()
           in
@@ -352,23 +322,16 @@ module Maker (Config : Conf.S) = struct
             (* Unlink next gc's result file, in case it is on disk, for instance
                after a failed gc. *)
             unlink_result_file ~root ~generation:next_generation;
-            Stdlib.flush_all ();
-            match Lwt_unix.fork () with
-            | 0 ->
-                Lwt_main.Exit_hooks.remove_all ();
-                Lwt_main.abandon_yielded_and_paused ();
-                let (_ : int63) =
-                  Gc.run_and_output_result root commit_key
-                    ~generation:next_generation
-                in
-                (* Once the gc is finished, the child process kills itself to
-                   avoid calling at_exit functions in upstream code. *)
-                Unix.kill (Unix.getpid ()) 9;
-                assert false (* unreachable *)
-            | pid ->
-                t.during_gc <- Some { next_generation; pid; unlink; offset };
-                Exit.add pid;
-                Ok ()
+            let task =
+              Io.async (fun () ->
+                  let (_ : int63) =
+                    Gc.run_and_output_result root commit_key
+                      ~generation:next_generation
+                  in
+                  ())
+            in
+            t.during_gc <- Some { next_generation; task; unlink; offset };
+            Ok ()
 
           let open_new_suffix ~root ~generation ~end_offset =
             let open Result_syntax in
@@ -438,6 +401,9 @@ module Maker (Config : Conf.S) = struct
             [%log.info "GC: end"];
             Ok ()
 
+          let pp_status = Irmin.Type.pp Io.status_t
+          let pp_gc_error = Irmin.Type.pp File_manager.read_gc_output_error_t
+
           let unlink_all ~root ~generation =
             let result =
               let open Result_syntax in
@@ -474,38 +440,33 @@ module Maker (Config : Conf.S) = struct
                     Errs.pp e]
             | Ok () -> ()
 
-          let gc_errors (status, gc_output) =
+          let gc_errors status gc_output =
+            let extend_error s = function
+              | `Gc_process_error str ->
+                  `Gc_process_error (Fmt.str "%s %s" s str)
+              | `Corrupted_gc_result_file str ->
+                  `Gc_process_died_without_result_file (Fmt.str "%s %s" s str)
+            in
             match (status, gc_output) with
-            | Lwt_unix.WSIGNALED n, Error (`Gc_process_error str) ->
-                Error (`Gc_process_error (Fmt.str "Signaled %d %s" n str))
-            | Lwt_unix.WSIGNALED n, Error (`Corrupted_gc_result_file str) ->
-                Error
-                  (`Gc_process_died_without_result_file
-                    (Fmt.str "Signaled %d %s" n str))
-            | Lwt_unix.WEXITED n, Error (`Gc_process_error str) ->
-                Error (`Gc_process_error (Fmt.str "Exited %d %s" n str))
-            | Lwt_unix.WEXITED n, Error (`Corrupted_gc_result_file str) ->
-                Error
-                  (`Gc_process_died_without_result_file
-                    (Fmt.str "Exited %d %s" n str))
-            | Lwt_unix.WSTOPPED n, Error (`Gc_process_error str) ->
-                Error (`Gc_process_error (Fmt.str "Stopped %d %s" n str))
-            | Lwt_unix.WSTOPPED n, Error (`Corrupted_gc_result_file str) ->
-                Error
-                  (`Gc_process_died_without_result_file
-                    (Fmt.str "Stopped %d %s" n str))
-            | Lwt_unix.WEXITED _, Ok _
-            | Lwt_unix.WSIGNALED _, Ok _
-            | Lwt_unix.WSTOPPED _, Ok _ ->
-                assert false
+            | `Failure s, Error e -> Error (extend_error s e)
+            | `Cancelled, Error e -> Error (extend_error "cancelled" e)
+            | `Success, Error e -> Error (extend_error "success" e)
+            | `Cancelled, Ok _ -> Error (`Gc_process_error "cancelled")
+            | `Failure s, Ok _ -> Error (`Gc_process_error s)
+            | `Success, Ok _ -> assert false
+            | `Running, _ -> assert false
 
           let finalise ?hook ~wait t =
             match t.during_gc with
             | None -> Lwt.return_ok false
-            | Some { next_generation; pid; unlink; offset } ->
-                let wait_flags = if wait then [] else [ Unix.WNOHANG ] in
-                let root = Conf.root t.config in
+            | Some { next_generation; task; unlink; offset } -> (
                 let go status =
+                  let* () =
+                    match hook with
+                    | Some h -> h `Before_latest_newies
+                    | None -> Lwt.return_unit
+                  in
+                  let root = Conf.root t.config in
                   let gc_output =
                     File_manager.read_gc_output ~root
                       ~generation:next_generation
@@ -513,7 +474,7 @@ module Maker (Config : Conf.S) = struct
                   let result =
                     let open Result_syntax in
                     match (status, gc_output) with
-                    | Lwt_unix.WSIGNALED _, Ok copy_end_offset ->
+                    | `Success, Ok copy_end_offset ->
                         let* new_suffix_end_offset =
                           transfer_latest_newies ~generation:next_generation
                             ~right_start_offset:offset ~copy_end_offset ~root t
@@ -525,31 +486,23 @@ module Maker (Config : Conf.S) = struct
                         in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
-                        Ok ()
-                    | _ -> gc_errors (status, gc_output)
+                        Ok true
+                    | _ -> gc_errors status gc_output
                   in
                   t.during_gc <- None;
-                  Exit.remove pid;
-                  result
+                  Lwt.return result
                 in
                 if t.during_batch then
                   Lwt.return_error `Gc_forbidden_during_batch
                 else
-                  let* pid, status = Lwt_unix.waitpid wait_flags pid in
-                  (* Do not block if no child has died yet. In this case the waitpid
-                     returns immediately with a pid equal to 0. *)
-                  if (not wait) && pid = 0 then Lwt.return_ok false
-                  else
-                    (* Use a hook for test: it simulate the case where something
-                       happened between the moment the gc process stopped and the
-                       main process waited for it. *)
-                    let* () =
-                      match hook with
-                      | Some h -> h `Before_latest_newies
-                      | None -> Lwt.return_unit
-                    in
-                    (* If wait or the child died, then finalise the gc. *)
-                    go status |> Result.map (fun () -> true) |> Lwt.return
+                  match wait with
+                  | false -> (
+                      match Io.status task with
+                      | `Running -> Lwt.return_ok false
+                      | status -> go status)
+                  | true ->
+                      let* status = Io.await task in
+                      go status)
 
           let start_or_wait ~unlink ~throttle t commit_key =
             let open Lwt_result.Syntax in
