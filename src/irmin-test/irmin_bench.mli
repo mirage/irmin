@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2021 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2022 Thomas Gazagnaire <thomas@gazagnaire.org>
  * Copyright (c) 2019      Etienne Millon
  *
  * Permission to use, copy, modify, and distribute this software for any

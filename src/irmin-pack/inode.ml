@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2021 Tarides <contact@tarides.com>
+ * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -577,7 +577,7 @@ struct
 
       A tree of inode only made of [Intact] tags is similar to a [Total] layout.
 
-      As of Irmin 2.4 (February 2021), inode deserialisation using Repr happens
+      As of Irmin 2.4 (February 2022), inode deserialisation using Repr happens
       in [irmin/slice.ml] and [irmin/sync_ext.ml], and maybe some other places.
 
       At some point we might want to forbid such deserialisations and instead
