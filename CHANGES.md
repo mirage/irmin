@@ -29,6 +29,11 @@
   - Replaced `Tree.node_fn` type with more general `Tree.folder` type to
     represent the different ways to use `Tree.fold` (#1918, @metanivek)
 
+- **irmin-unix**
+  - Removed the `irmin-unix` package. Unix backends are now subpackages of their
+    relevant backend (see `irmin-fs.unix` and `irmin-git.unix`). The CLI tool is
+    in `irmin-cli`. For common unix utilities, see `irmin.unix`. (#1953, @metanivek)
+    
 ### Fixed
 
 ## 3.3.1 (2022-06-22)
