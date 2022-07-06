@@ -38,7 +38,7 @@ let minimal : t =
          indexed (as they may be referenced via hash by other V0 objects), and
          this must be accounted for when reconstructing the index. *)
       true
-  | Gced | Dangling_parent_commit -> assert false
+  | Dangling_parent_commit -> assert false
 
 let minimal_with_contents : t =
  fun ~value_length:_ -> function
@@ -47,6 +47,6 @@ let minimal_with_contents : t =
   | Inode_v2_nonroot -> false
   | Contents -> true
   | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> true
-  | Gced | Dangling_parent_commit -> assert false
+  | Dangling_parent_commit -> assert false
 
 let default = always

@@ -187,7 +187,7 @@ struct
      object. *)
   let gced buf =
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
-    kind = Pack_value.Kind.Gced || kind = Pack_value.Kind.Dangling_parent_commit
+    kind = Pack_value.Kind.Dangling_parent_commit
 
   let io_read_and_decode_hash_if_not_gced ~off t =
     let len = Hash.hash_size + 1 in
