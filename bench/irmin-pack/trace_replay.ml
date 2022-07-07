@@ -374,11 +374,14 @@ module Make (Store : Store) = struct
     Hashtbl.add t.contexts 0L { tree = Store.Tree.empty () };
 
     let finalise_gc_and_log ~wait i repo =
+      let counter = Mtime_clock.counter () in
       let* wait = Store.finalise_gc ~wait repo in
+      let dt = Mtime_clock.count counter in
       (if wait then
        let gc_commit_key = Hashtbl.find t.key_per_commit_idx (i - 1) in
        [%logs.app
-         "Gc ended on commit idx %d with key %a" (i - 1) pp_key gc_commit_key]);
+         "Gc ended on commit idx %d with key %a, it took %a" (i - 1) pp_key
+           gc_commit_key Mtime.Span.pp dt]);
       Lwt.return_unit
     in
 
