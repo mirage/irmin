@@ -38,11 +38,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
        modifications of that code need to ensure this remains the case); then in call to
        Bytes.unsafe_to_string we give up ownership of buf (we do not modify the buffer
        afterwards) and get ownership of resulting string; so this use is safe. *)
-    let v =
-      decode_bin
-        (Bytes.unsafe_to_string buf (* safe: see comment above *))
-        pos_ref
-    in
+    let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
     assert (!pos_ref = 4);
     Int32.to_int v
 
