@@ -104,9 +104,11 @@ struct
     let key =
       match Conf.inode_child_order with
       | `Hash_bits ->
-          fun s -> Bytes.unsafe_of_string (hash_to_bin_string (Step.hash s)) (* possibly unsafe use of Bytes.unsafe_of_string? depends on what the rest of the code does; if we don't leak the bytes, and don't mutate them, maybe this is safe? not sure *)
+          fun s -> Bytes.unsafe_of_string (hash_to_bin_string (Step.hash s))
+          (* possibly unsafe use of Bytes.unsafe_of_string? depends on what the rest of the code does; if we don't leak the bytes, and don't mutate them, maybe this is safe? not sure *)
       | `Seeded_hash | `Custom _ ->
-          fun s -> Bytes.unsafe_of_string (step_to_bin_string s) (* as previous line - not sure *)
+          fun s -> Bytes.unsafe_of_string (step_to_bin_string s)
+    (* as previous line - not sure *)
 
     (* Assume [k = cryto_hash(step)] (see {!key}) and [Conf.entry] can
        can represented with [n] bits. Then, [hash_bits ~depth k] is

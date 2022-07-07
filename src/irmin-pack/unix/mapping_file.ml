@@ -346,7 +346,8 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
        *   Fmt.epr "register_entry < 500: %d %d\n%!" (Int63.to_int off) len; *)
       Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
       Bytes.set_int64_ne buffer 8 (Int64.of_int len);
-      Ao.append_exn file0 (Bytes.unsafe_to_string buffer) (* clearly unsafe!!! *)
+      Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
+      (* clearly unsafe!!! *)
     in
     let* () = Errs.catch (fun () -> register_entries ~register_entry) in
     let* () = Ao.flush file0 in
@@ -436,7 +437,8 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
       else
         let off, len =
           (* Decoding a pair of int can't fail *)
-          decode_bin_pair (Bytes.unsafe_to_string buffer) buffer_off (* possibly safe; depends on implementation of decode_bin_pair and all other libraries involved *)
+          decode_bin_pair (Bytes.unsafe_to_string buffer) buffer_off
+          (* possibly safe; depends on implementation of decode_bin_pair and all other libraries involved *)
         in
         let () =
           if off < last_yielded_end_offset then

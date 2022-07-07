@@ -254,7 +254,8 @@ end = struct
         let buffer_off, off, missing_hash =
           match
             decode_entry_exn ~off
-              ~buffer:(Bytes.unsafe_to_string !buffer) (* could be safe or unsafe; depends on implementation of decode_entry_exn *)
+              ~buffer:(Bytes.unsafe_to_string !buffer)
+                (* could be safe or unsafe; depends on implementation of decode_entry_exn *)
               ~buffer_off
           with
           | { key; data } ->
