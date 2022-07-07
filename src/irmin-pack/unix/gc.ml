@@ -159,9 +159,6 @@ module Make (Args : Args) : S with module Args := Args = struct
     in
     iter_from_node_key_exn node_key node_store ~f k
 
-  (* TODO remove it*)
-  let _magic_gced = Pack_value.Kind.to_magic Pack_value.Kind.Gced
-
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
      disk in order to correctly deserialised the gced commit. *)
   let magic_parent =

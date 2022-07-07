@@ -192,7 +192,7 @@ end = struct
     | Commit_v1 | Commit_v2 -> Commit.decode_bin_length
     | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot ->
         Inode.decode_bin_length
-    | Gced | Dangling_parent_commit -> assert false
+    | Dangling_parent_commit -> assert false
 
   let decode_entry_exn ~off ~buffer ~buffer_off =
     try
