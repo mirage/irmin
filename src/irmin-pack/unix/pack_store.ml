@@ -208,11 +208,7 @@ struct
          assume Dispatcher.read_if_not_gced returns unique ownership; then call to
          Bytes.unsafe_to_string gives up ownerhsip of buf for ownership of resulting
          string. This is safe. *)
-      let hash =
-        decode_bin_hash
-          (Bytes.unsafe_to_string buf (* safe: see comment above *))
-          (ref 0)
-      in
+      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       Some hash
 
   let pack_file_contains_key t k =
@@ -312,9 +308,11 @@ struct
       let key_of_hash = Pack_key.v_indexed in
       let dict = Dict.find t.dict in
       let v =
+        (* Bytes.unsafe_to_string usage: buf created, uniquely owned; after creation, we
+           assume Dispatcher.read_if_not_gced returns unique ownership; we give up unique
+           ownership in call to Bytes.unsafe_to_string. This is safe. *)
         Val.decode_bin ~key_of_offset ~key_of_hash ~dict
           (Bytes.unsafe_to_string buf)
-          (* safe? buf created, filled, not changed subsequently, not leaked outside this function so no subsequent mutations *)
           (ref 0)
       in
       Some v

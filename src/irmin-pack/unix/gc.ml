@@ -184,7 +184,6 @@ module Make (Args : Args) : S with module Args := Args = struct
        ownership to buffer (we do not modify it thereafter) in return for ownership of the
        resulting string, which we pass to write_exn. This usage is safe. *)
     write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
-  (* safe: see comment above *)
 
   let create_new_suffix ~root ~generation =
     let open Result_syntax in
