@@ -199,7 +199,7 @@ module Unix = struct
     let buf = Bytes.create len in
     try
       read_exn t ~off ~len buf;
-      Ok (Bytes.unsafe_to_string buf)
+      Ok (Bytes.unsafe_to_string buf) (* safe: buf local, not leaked, not modified after return *)
     with
     | Errors.Pack_error ((`Invalid_argument | `Read_out_of_bounds) as e) ->
         Error e

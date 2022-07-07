@@ -161,7 +161,7 @@ struct
         "Attempted to read an entry at offset %a in the pack file, but got \
          only %d bytes"
         Int63.pp off bytes_read;
-    let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+    let hash = decode_bin_hash (Bytes.unsafe_to_string buf (* possibly unsafe; but if we assume buf is not mutated after "bytes_read" above, and given buf is created at the beginning of this function, this might actually be safe; TODO provide a clear reason that this is safe *)) (ref 0) in
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
     let size_of_value_and_length_header =
       match Val.length_header kind with
@@ -173,7 +173,7 @@ struct
              correctly): *)
           let pos_ref = ref length_header_start in
           let length_header =
-            Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
+            Varint.decode_bin (Bytes.unsafe_to_string buf) (* as above, this is potentially safe, but need clear reasoning *) pos_ref
           in
           let length_header_length = !pos_ref - length_header_start in
           Some (length_header_length + length_header)
@@ -195,7 +195,7 @@ struct
     let found = Dispatcher.read_if_not_gced t.dispatcher ~off ~len buf in
     if (not found) || gced buf then None
     else
-      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+      let hash = decode_bin_hash (Bytes.unsafe_to_string buf (* safe: buf local to function, not mutated after initially filled *) ) (ref 0) in 
       Some hash
 
   let pack_file_contains_key t k =
@@ -296,7 +296,7 @@ struct
       let dict = Dict.find t.dict in
       let v =
         Val.decode_bin ~key_of_offset ~key_of_hash ~dict
-          (Bytes.unsafe_to_string buf)
+          (Bytes.unsafe_to_string buf) (* safe? buf created, filled, not changed subsequently, not leaked outside this function so no subsequent mutations *)
           (ref 0)
       in
       Some v

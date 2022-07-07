@@ -105,7 +105,7 @@ module Make (Args : Args) = struct
       in
       let entry_of_hash hash = key_of_hash hash t.inode_pack in
       Inode.Raw.decode_children_offsets ~entry_of_offset ~entry_of_hash
-        (Bytes.unsafe_to_string buf)
+        (Bytes.unsafe_to_string buf) (* safe - buf local to this function, ownership handed to Inode.Raw.decode_children_offsets; nothing can mutate buf subsequently *)
         (ref 0)
 
     type visit = { visited : Hash.t -> bool; set_visit : Hash.t -> unit }
@@ -226,7 +226,7 @@ module Make (Args : Args) = struct
         let buf = Bytes.create encoded_size in
         Bytes.set_int64_be buf 0 (Int63.to_int64 off);
         Bytes.set_int32_be buf 8 (Int32.of_int len);
-        Bytes.unsafe_to_string buf
+        Bytes.unsafe_to_string buf (* safe: buf local to this function; buf not mutated after return *)
 
       let decode s pos : t =
         let buf = Bytes.unsafe_of_string s in

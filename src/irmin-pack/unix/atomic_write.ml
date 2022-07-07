@@ -33,7 +33,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     assert (n = 4);
     (file_pos := Int63.Syntax.(!file_pos + Int63.of_int 4));
     let pos_ref = ref 0 in
-    let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
+    let v = decode_bin (Bytes.unsafe_to_string buf (* safe: buf is local, not leaked, not modified after call to decode_bin *)) pos_ref in 
     assert (!pos_ref = 4);
     Int32.to_int v
 
