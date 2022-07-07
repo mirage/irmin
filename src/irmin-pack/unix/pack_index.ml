@@ -46,8 +46,10 @@ module Make (K : Irmin.Hash.S) = struct
       Bytes.unsafe_to_string buf (* safe: see comment above *)
 
     let decode s pos : t =
+      (* Bytes.unsafe_of_string usage: s is shared ownership; buf is shared ownership (we
+         cannot mutate buf); we assume the Bytes.get... functions require only shared
+         ownership. This usage is safe. *)
       let buf = Bytes.unsafe_of_string s in
-      (* safe: buf only used for reading locally within this function *)
       let off = Bytes.get_int64_be buf pos |> Int63.of_int64 in
       let len = Bytes.get_int32_be buf (pos + 8) |> Int32.to_int in
       let kind = Bytes.get buf (pos + 12) |> Pack_value.Kind.of_magic_exn in
