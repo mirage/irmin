@@ -84,34 +84,36 @@ end
 
 module Bench_suite (Store : Store) = struct
   module Info = Info (Store.Info)
-
-  let init_commit repo =
-    Store.Commit.v repo ~info:(Info.f ()) ~parents:[] (Store.Tree.empty ())
-
   module Key = Store.Backend.Commit.Key
   module Trees = Generate_trees (Store)
   module Trace_replay = Trace_replay.Make (Store)
 
   let checkout_and_commit repo prev_commit f =
-    Store.Commit.of_key repo prev_commit >>= function
-    | None -> Lwt.fail_with "commit not found"
-    | Some commit ->
-        let tree = Store.Commit.tree commit in
+    match prev_commit with
+    | None ->
+        let tree = Store.Tree.empty () in
         let* tree = f tree in
-        Store.Commit.v repo ~info:(Info.f ()) ~parents:[ prev_commit ] tree
+        Store.Commit.v repo ~info:(Info.f ()) ~parents:[] tree
+    | Some prev_commit -> (
+        let prev_commit = Store.Commit.key prev_commit in
+        Store.Commit.of_key repo prev_commit >>= function
+        | None -> Lwt.fail_with "commit not found"
+        | Some commit ->
+            let tree = Store.Commit.tree commit in
+            let* tree = f tree in
+            Store.Commit.v repo ~info:(Info.f ()) ~parents:[ prev_commit ] tree)
 
   let add_commits ~message repo ncommits on_commit on_end f () =
     with_progress_bar ~message ~n:ncommits ~unit:"commit" @@ fun prog ->
-    let* c = init_commit repo in
     let rec aux c i =
       if i >= ncommits then on_end ()
       else
-        let* c' = checkout_and_commit repo (Store.Commit.key c) f in
+        let* c' = checkout_and_commit repo c f in
         let* () = on_commit i (Store.Commit.hash c') in
         prog 1;
-        aux c' (i + 1)
+        aux (Some c') (i + 1)
     in
-    aux c 0
+    aux None 0
 
   let run_large config =
     reset_stats ();
