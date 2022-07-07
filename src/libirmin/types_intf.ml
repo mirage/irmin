@@ -16,13 +16,13 @@
 
 open Ctypes
 
-type config = Irmin_unix.Resolver.Store.t * Irmin.config
+type config = Irmin_cli.Resolver.Store.t * Irmin.config
 
 type 'a repo = {
   mutable error : string option;
   repo_mod : (module Irmin.Generic_key.S with type repo = 'a);
   repo : 'a;
-  remote : Irmin_unix.Resolver.Store.remote_fn option;
+  remote : Irmin_cli.Resolver.Store.remote_fn option;
 }
 
 type 'a store = {

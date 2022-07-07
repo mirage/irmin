@@ -24,3 +24,7 @@ module KV : Irmin.KV_maker
 module Append_only_ext (C : Irmin_fs.Config) : Irmin.Append_only.Maker
 module Atomic_write_ext (C : Irmin_fs.Config) : Irmin.Atomic_write.Maker
 module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
+
+(** {1 Common Unix utilities} *)
+
+include module type of Irmin_unix

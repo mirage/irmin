@@ -15,3 +15,4 @@
  *)
 
 include Xgit
+include Irmin_unix

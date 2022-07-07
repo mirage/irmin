@@ -19,7 +19,7 @@
 (library
  (name test_git_unix)
  (modules test_git_unix)
- (libraries test_git irmin-unix irmin-git.unix irmin-watcher)
+ (libraries test_git irmin.unix irmin-git.unix irmin-watcher)
  (preprocess
   (pps ppx_irmin ppx_irmin.internal)))
 

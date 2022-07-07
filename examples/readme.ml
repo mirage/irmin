@@ -10,7 +10,7 @@ let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
 let author = "Example <example@example.com>"
 
 (* Commit information *)
-let info fmt = Irmin_unix.info ~author fmt
+let info fmt = Irmin_git_unix.info ~author fmt
 
 let main =
   (* Open the repo *)

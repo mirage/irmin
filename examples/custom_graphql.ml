@@ -33,7 +33,7 @@ module Car = struct
   let merge = Irmin.Merge.(option (idempotent t))
 end
 
-module Store = Irmin_unix.Git.Mem.KV (Car)
+module Store = Irmin_git_unix.Mem.KV (Car)
 
 module Custom_types = struct
   module Defaults = Irmin_graphql.Server.Default_types (Store)

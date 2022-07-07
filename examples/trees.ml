@@ -20,7 +20,7 @@ open Lwt.Syntax
 module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 module Tree = Store.Tree
 
-let info = Irmin_unix.info
+let info = Irmin_git_unix.info
 
 type t1 = int
 type t2 = { x : string; y : t1 }

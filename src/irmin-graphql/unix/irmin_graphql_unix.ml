@@ -40,7 +40,7 @@ module Server = struct
     Irmin_graphql.Server.Make_ext
       (Cohttp_lwt_unix.Server)
       (struct
-        module Info = Info.Make (S.Info)
+        module Info = Irmin_unix.Info (S.Info)
 
         type info = S.info
 
@@ -61,7 +61,7 @@ module Server = struct
     Irmin_graphql.Server.Make
       (Cohttp_lwt_unix.Server)
       (struct
-        module Info = Info.Make (S.Info)
+        module Info = Irmin_unix.Info (S.Info)
 
         type info = S.info
 

@@ -18,7 +18,7 @@
 
 open Lwt.Syntax
 
-let info = Irmin_unix.info
+let info = Irmin_git_unix.info
 
 let url, user, token =
   if Array.length Sys.argv = 4 then (Sys.argv.(1), Sys.argv.(2), Sys.argv.(3))
