@@ -43,12 +43,13 @@ module Make (K : Irmin.Hash.S) = struct
          functions above return unique ownership of buf. Then in the call to
          Bytes.unsafe_to_string we give up unique ownership of buf for ownership of the
          resulting string. This is safe. *)
-      Bytes.unsafe_to_string buf (* safe: see comment above *)
+      Bytes.unsafe_to_string buf
 
     let decode s pos : t =
       (* Bytes.unsafe_of_string usage: s is shared ownership; buf is shared ownership (we
-         cannot mutate buf); we assume the Bytes.get... functions require only shared
-         ownership. This usage is safe. *)
+         cannot mutate buf) and the lifetime of buf ends on return from this function; we
+         assume the Bytes.get... functions require only shared ownership. This usage is
+         safe. *)
       let buf = Bytes.unsafe_of_string s in
       let off = Bytes.get_int64_be buf pos |> Int63.of_int64 in
       let len = Bytes.get_int32_be buf (pos + 8) |> Int32.to_int in

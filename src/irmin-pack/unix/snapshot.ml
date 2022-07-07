@@ -231,7 +231,8 @@ module Make (Args : Args) = struct
         Bytes.set_int32_be buf 8 (Int32.of_int len);
         (* Bytes.unsafe_to_string usage: buf is local, uniquely owned; we assume the
            Bytes.set... functions return unique ownership; then Bytes.unsafe_to_string
-           gives up unique ownership of buf. This is safe. *)
+           gives up unique ownership of buf to get shared ownership of the resulting
+           string, which is then returned. buf is no longer accessible. This is safe. *)
         Bytes.unsafe_to_string buf
 
       let decode s pos : t =
