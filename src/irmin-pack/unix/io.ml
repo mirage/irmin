@@ -160,7 +160,7 @@ module Unix = struct
     | _ ->
         (* really_write and following do not mutate the given buffer, so
            Bytes.unsafe_of_string is actually safe *)
-        let buf = Bytes.unsafe_of_string s in
+        let buf = Bytes.unsafe_of_string s (* safe - see comment 1 line above *) in
         let () = Util.really_write t.fd off buf 0 len in
         Index.Stats.add_write len;
         ()
