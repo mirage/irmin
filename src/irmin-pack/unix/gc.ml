@@ -117,10 +117,8 @@ module Make (Args : Args) : S with module Args := Args = struct
       let len' = Int63.to_int len in
       read_exn ~off ~len:len' buffer;
       let () =
-        if len = buffer_size then append_exn (Bytes.unsafe_to_string buffer)
-          (* likely unsafe: buffer passed in, subject to mutations; append_exn retains ref to string; buffer can then be mutated, altering string value in append_exn cache *)
-        else append_exn (String.sub (Bytes.unsafe_to_string buffer) 0 len')
-        (* likely unsafe, as previous line *)
+        if len = buffer_size then append_exn (Bytes.to_string buffer)
+        else append_exn (String.sub (Bytes.to_string buffer) 0 len')
       in
       let len_remaining = len_remaining - len in
       if len_remaining > Int63.zero then aux (off + len) len_remaining

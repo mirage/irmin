@@ -162,11 +162,12 @@ struct
          only %d bytes"
         Int63.pp off bytes_read;
     let hash =
-      decode_bin_hash
-        (Bytes.unsafe_to_string
-           buf
-           (* possibly unsafe; but if we assume buf is not mutated after "bytes_read" above, and given buf is created at the beginning of this function, this might actually be safe; TODO provide a clear reason that this is safe *))
-        (ref 0)
+      (* Bytes.unsafe_to_string usage: buf is created locally, so we have unique
+         ownership; we assume Dispatcher.read_at_most_exn returns unique ownership; use of
+         Bytes.unsafe_to_string converts buffer to shared ownership; the rest of the code
+         seems to require only shared ownership (buffer is read, but not mutated). This is
+         safe. *)
+      decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
     in
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
     let size_of_value_and_length_header =
@@ -178,11 +179,10 @@ struct
              variable-length length field (if they exist / were read
              correctly): *)
           let pos_ref = ref length_header_start in
+          (* Bytes.unsafe_to_string usage: buf is shared at this point; we assume
+             Varint.decode_bin requires only shared ownership. This usage is safe. *)
           let length_header =
-            Varint.decode_bin
-              (Bytes.unsafe_to_string buf)
-              (* as above, this is potentially safe, but need clear reasoning *)
-              pos_ref
+            Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
           in
           let length_header_length = !pos_ref - length_header_start in
           Some (length_header_length + length_header)

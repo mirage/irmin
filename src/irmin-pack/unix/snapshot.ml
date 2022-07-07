@@ -232,14 +232,13 @@ module Make (Args : Args) = struct
         (* Bytes.unsafe_to_string usage: buf is local, uniquely owned; we assume the
            Bytes.set... functions return unique ownership; then Bytes.unsafe_to_string
            gives up unique ownership of buf. This is safe. *)
-        Bytes.unsafe_to_string buf (* safe: see comment above *)
+        Bytes.unsafe_to_string buf
 
       let decode s pos : t =
         (* Bytes.unsafe_of_string usage: s is shared; buf is shared (we cannot mutate it);
            we assume Bytes.get_... functions need shared ownership only. This usage is
            safe. *)
         let buf = Bytes.unsafe_of_string s in
-        (* safe: buf is created locally, not mutated, not leaked *)
         let off = Bytes.get_int64_be buf pos |> Int63.of_int64 in
         let len = Bytes.get_int32_be buf (pos + 8) |> Int32.to_int in
         (off, len)
