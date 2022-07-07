@@ -280,7 +280,20 @@ struct
     (* 1. Create a ref for dependency injections for auto flushes *)
     let instance = ref None in
     let get_instance () =
-      match !instance with None -> assert false | Some x -> x
+      match !instance with
+      | None ->
+          [%log.warn
+            "%s: instance was accessed whilst None; this is unexpected during \
+             normal node operation"
+            __FILE__];
+          [%log.warn
+            "%s: the stack trace is %s" __FILE__
+              Printexc.(get_callstack 20 |> raw_backtrace_to_string)];
+          (* get_instance is used by the callback functions below; if we reach this point, a
+             callback was invoked whilst instance was None; it should be the case that we
+             can ignore the callback *)
+          assert false
+      | Some x -> x
     in
     (* 2. Open the other files *)
     let* suffix =
@@ -310,7 +323,15 @@ struct
     let* index =
       let log_size = Conf.index_log_size config in
       let throttle = Conf.merge_throttle config in
-      let cb () = index_is_about_to_auto_flush_exn (get_instance ()) in
+      let cb () =
+        (* when creating the index, the index may call flush_callback, see
+           https://github.com/mirage/irmin/issues/1963; so we can't assume that instance
+           is set to Some _ in get_instance(); instead, we check instance, and just ignore
+           the callback if the instance is None *)
+        match !instance with
+        | None -> ()
+        | Some _ -> index_is_about_to_auto_flush_exn (get_instance ())
+      in
       (* [cb] will not be called during calls to [index.flush] because we will
          use [~no_callback:()] *)
       make_index ~flush_callback:cb ~readonly:false ~throttle ~log_size root
