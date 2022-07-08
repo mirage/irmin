@@ -217,9 +217,15 @@ struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
+  let finalise_gc ?wait repo =
+    let* r = Store.Gc.finalise_exn ?wait repo in
+    match r with
+    | `Idle | `Running -> Lwt.return false
+    | `Finalised -> Lwt.return true
+
   let gc repo key =
     let* (_launched : bool) =
-      Store.start_gc ~unlink:true ~throttle:`Block repo key
+      Store.Gc.start_exn ~unlink:true ~throttle:`Block repo key
     in
     Lwt.return_unit
 end

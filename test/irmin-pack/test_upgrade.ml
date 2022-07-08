@@ -241,11 +241,12 @@ module Store = struct
 
   let gc repo =
     let k = key_of_entry c1 in
-    let* launched = S.start_gc ~unlink:true ~throttle:`Block repo k in
+    let* launched = S.Gc.start_exn ~unlink:true ~throttle:`Block repo k in
     assert launched;
-    let* wait = S.finalise_gc ~wait:true repo in
-    assert wait;
-    Lwt.return_unit
+    let* result = S.Gc.finalise_exn ~wait:true repo in
+    match result with
+    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
+    | `Finalised -> Lwt.return_unit
 
   let dict_find_opt (repo : S.repo) step = S.Dict.find repo.dict step
 

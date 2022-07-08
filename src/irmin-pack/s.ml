@@ -55,41 +55,104 @@ module type Specifics = sig
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)
 
-  val start_gc :
-    ?unlink:bool ->
-    throttle:[ `Block | `Skip ] ->
-    repo ->
-    commit_key ->
-    bool Lwt.t
-  (** [start_gc] tries to start the gc process and returns true if the gc is
-      launched.
+  module Gc : sig
+    (** GC *)
 
-      If [unlink] is false then temporary files and files from the previous
-      generation will be kept on disk after the gc finished. This option is
-      useful for debugging. The default is true.
+    type throttle = [ `Block | `Skip ]
+    (** Type to control how to handle an already running GC process.
 
-      If [throttle] is [Skip] and there is a concurrent gc, [start_gc] returns
-      false immediately without launching a second gc. If [throttle] is [Block]
-      and there is a concurrent gc, [start_gc] blocks waiting for the previous
-      gc to finish and only after launches a second gc. If the previous GC
-      failed, the function returns without launching a new GC.
+        [Block] means to wait until it finishes, and iff it succeeds, start a
+        new GC process
 
-      TODO: Detail exceptions raised. *)
+        [Skip] means ignore requests for a new GC process if one is already
+        running *)
 
-  val finalise_gc : ?wait:bool -> repo -> bool Lwt.t
-  (** [finalise_gc ?wait repo] waits for the gc process to finish in order to
-      finalise it. It returns true if a GC was finalised.
+    (** {2 Low-level API} *)
 
-      Finalising consists of mutating [repo] so that it points to the new file
-      and to flush the internal caches that could be referencing GCed objects.
+    val start_exn :
+      ?unlink:bool -> throttle:throttle -> repo -> commit_key -> bool Lwt.t
+    (** [start_exn] tries to start the gc process and returns true if the gc is
+        launched.
 
-      If [wait = true] (the default), the call blocks until the GC process
-      finishes. If [wait = false] it either returns [false], raises an exception
-      or finalises and returns [true].
+        If [unlink] is false then temporary files and files from the previous
+        generation will be kept on disk after the gc finished. This option is
+        useful for debugging. The default is true.
 
-      If there are no running gcs, the call is a no-op and it returns false.
+        If [throttle] is [Skip] and there is a concurrent gc, [start_exn]
+        returns false immediately without launching a second gc. If [throttle]
+        is [Block] and there is a concurrent gc, [start_exn] blocks waiting for
+        the previous gc to finish and only after launches a second gc. If the
+        previous GC failed, the function returns without launching a new GC.
 
-      TODO: Detail exceptions raised. *)
+        TODO: Detail exceptions raised. *)
+
+    type process_state = [ `Idle | `Running | `Finalised ]
+    (** The state of the GC process after calling {!finalise_exn} *)
+
+    val finalise_exn : ?wait:bool -> repo -> process_state Lwt.t
+    (** [finalise_exn ?wait repo] waits for the GC process to finish in order to
+        finalise it. It returns the state of the GC process from the point of
+        view of the function call; subsequent calls of [finalise_exn] after a
+        return of [`Finalised] will return [`Idle].
+
+        Finalising consists of mutating [repo] so that it points to the new file
+        and to flush the internal caches that could be referencing GCed objects.
+
+        If [wait = true] (the default), the call blocks until the GC process
+        finishes. If [wait = false], finalisation will occur if the process has
+        ended.
+
+        If there are no running GCs, the call is a no-op and it returns [`Idle].
+
+        TODO: Detail exceptions raised. *)
+
+    (** {2 High-level API} *)
+
+    type msg = [ `Msg of string ]
+    (** Pretty-print error messages meant for informational purposes, like
+        logging *)
+
+    type stats = { elapsed : float }
+    (** Stats for a successful GC run *)
+
+    val run :
+      ?finished:((stats, msg) result -> unit) ->
+      repo ->
+      commit_key ->
+      (bool, msg) result Lwt.t
+    (** [run repo commit_key] attempts to start a GC process for a [repo] by
+        discarding all data prior to [commit_key]. If a GC process is already
+        running, a new one will not be started.
+
+        [run] will also finalise the GC process automaticlly. For more detailed
+        control, see {!start_exn} and {!finalise_exn}.
+
+        When the GC process is finalised, [finished] is called with the result
+        of finalisation.
+
+        To monitor progress of GC, see {!wait} or {!is_finished}.
+
+        Returns whether a GC process successfully started or not.
+
+        All exceptions that [Irmin_pack] knows how to handle are caught and
+        returned as pretty-print error messages; others are re-raised. The error
+        messages should be used only for informational purposes, like logging. *)
+
+    val wait : repo -> (unit, msg) result Lwt.t
+    (** [wait repo] blocks until GC is finished or is idle.
+
+        All exceptions that [Irmin_pack] knows how to handle are caught and
+        returned as pretty-print error messages; others are re-raised. The error
+        messages should be used only for informational purposes, like logging. *)
+
+    val is_finished : repo -> (bool, msg) result Lwt.t
+    (** [is_finished repo] is [Ok true] if a GC is finished (or idle) and
+        [Ok false] if a GC is running for the given [repo].
+
+        All exceptions that [Irmin_pack] knows how to handle are caught and
+        returned as pretty-print error messages; others are re-raised. The error
+        messages should be used only for informational purposes, like logging. *)
+  end
 end
 
 module type S = sig
