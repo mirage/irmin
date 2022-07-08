@@ -152,10 +152,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
         }
 
     let now () =
-      Mtime_clock.now ()
-      |> Mtime.to_uint64_ns
-      |> Int64.to_float
-      |> ( *. ) Mtime.ns_to_s
+      Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float |> ( *. ) 1e-9
 
     let create store_path prev_merge_durations =
       Def.

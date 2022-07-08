@@ -675,10 +675,10 @@ let test start_mode () =
 (** Product on start_mode *)
 let tests =
   [
-    Alcotest.test_case "upgrade From_v3" `Quick (fun () ->
-        Lwt_main.run (test From_v3 ()));
-    Alcotest.test_case "upgrade From_v2" `Quick (fun () ->
-        Lwt_main.run (test From_v2 ()));
-    Alcotest.test_case "upgrade From_scratch" `Quick (fun () ->
-        Lwt_main.run (test From_scratch ()));
+    Alcotest_lwt.test_case "upgrade From_v3" `Quick (fun _switch () ->
+        test From_v3 ());
+    Alcotest_lwt.test_case "upgrade From_v2" `Quick (fun _switch () ->
+        test From_v2 ());
+    Alcotest_lwt.test_case "upgrade From_scratch" `Quick (fun _switch () ->
+        test From_scratch ());
   ]

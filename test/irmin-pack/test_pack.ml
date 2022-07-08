@@ -177,8 +177,10 @@ module Dict = struct
 
   let tests =
     [
-      Alcotest.test_case "dict" `Quick test_dict;
-      Alcotest.test_case "RO dict" `Quick test_readonly_dict;
+      Alcotest_lwt.test_case "dict" `Quick (fun _ () ->
+          Lwt.return (test_dict ()));
+      Alcotest_lwt.test_case "RO dict" `Quick (fun _ () ->
+          Lwt.return (test_readonly_dict ()));
     ]
 end
 
@@ -399,17 +401,17 @@ module Pack = struct
 
   let tests =
     [
-      Alcotest.test_case "pack" `Quick (fun () -> Lwt_main.run (test_pack ()));
-      Alcotest.test_case "RO pack" `Quick (fun () ->
-          Lwt_main.run (test_readonly_pack ()));
-      Alcotest.test_case "close" `Quick (fun () ->
-          Lwt_main.run (test_close_pack ()));
-      Alcotest.test_case "close readonly" `Quick (fun () ->
-          Lwt_main.run (test_close_pack_more ()));
-      Alcotest.test_case "readonly reload, index flush" `Quick (fun () ->
-          Lwt_main.run (readonly_reload_index_flush ()));
-      Alcotest.test_case "readonly find, index flush" `Quick (fun () ->
-          Lwt_main.run (readonly_find_index_flush ()));
+      Alcotest_lwt.test_case "pack" `Quick (fun _switch () -> test_pack ());
+      Alcotest_lwt.test_case "RO pack" `Quick (fun _switch () ->
+          test_readonly_pack ());
+      Alcotest_lwt.test_case "close" `Quick (fun _switch () ->
+          test_close_pack ());
+      Alcotest_lwt.test_case "close readonly" `Quick (fun _switch () ->
+          test_close_pack_more ());
+      Alcotest_lwt.test_case "readonly reload, index flush" `Quick
+        (fun _switch () -> readonly_reload_index_flush ());
+      Alcotest_lwt.test_case "readonly find, index flush" `Quick
+        (fun _switch () -> readonly_find_index_flush ());
     ]
 end
 
@@ -487,10 +489,9 @@ module Branch = struct
 
   let tests =
     [
-      Alcotest.test_case "branch" `Quick (fun () ->
-          Lwt_main.run (test_branch ()));
-      Alcotest.test_case "branch close" `Quick (fun () ->
-          Lwt_main.run (test_close_branch ()));
+      Alcotest_lwt.test_case "branch" `Quick (fun _switch -> test_branch);
+      Alcotest_lwt.test_case "branch close" `Quick (fun _switch ->
+          test_close_branch);
     ]
 end
 

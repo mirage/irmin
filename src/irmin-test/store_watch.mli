@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (_ : Logs.LOG) : Common.Store_tests
+module Make (_ : Logs.LOG) (_ : Common.Sleep) : Common.Store_tests

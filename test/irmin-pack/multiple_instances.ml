@@ -106,9 +106,7 @@ let ro_reload_after_close () =
   binding (check_binding ro c1) >>= fun () -> S.Repo.close ro
 
 let tests =
-  let tc name test =
-    Alcotest.test_case name `Quick (fun () -> Lwt_main.run (test ()))
-  in
+  let tc name test = Alcotest_lwt.test_case name `Quick (fun _switch -> test) in
   [
     tc "Test open ro after rw closed" open_ro_after_rw_closed;
     tc "Test ro reload after add" ro_reload_after_add;

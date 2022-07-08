@@ -694,28 +694,28 @@ let test_reexport_node () =
 
 let tests =
   [
-    Alcotest.test_case "fold over keys in sorted order" `Quick (fun () ->
-        Lwt_main.run (test_fold_sorted ()));
-    Alcotest.test_case "fold over keys in random order" `Quick (fun () ->
-        Lwt_main.run (test_fold_random ()));
-    Alcotest.test_case "fold over keys in undefined order" `Quick (fun () ->
-        Lwt_main.run (test_fold_undefined ()));
-    Alcotest.test_case "test Merkle proof for large inodes" `Quick (fun () ->
-        Lwt_main.run (test_large_inode ()));
-    Alcotest.test_case "test Merkle proof for small inodes" `Quick (fun () ->
-        Lwt_main.run (test_small_inode ()));
-    Alcotest.test_case "test deeper Merkle proof" `Quick (fun () ->
-        Lwt_main.run (test_deeper_proof ()));
-    Alcotest.test_case "test large Merkle proof" `Slow (fun () ->
-        Lwt_main.run (test_large_proofs ()));
-    Alcotest.test_case "test extenders in stream proof" `Quick (fun () ->
-        Lwt_main.run (test_extenders ()));
-    Alcotest.test_case "test hardcoded stream proof" `Quick (fun () ->
-        Lwt_main.run (test_hardcoded_stream ()));
-    Alcotest.test_case "test hardcoded proof" `Quick (fun () ->
-        Lwt_main.run (test_hardcoded_proof ()));
-    Alcotest.test_case "test stream proof exn" `Quick (fun () ->
-        Lwt_main.run (test_proof_exn ()));
-    Alcotest.test_case "test reexport node" `Quick (fun () ->
-        Lwt_main.run (test_reexport_node ()));
+    Alcotest_lwt.test_case "fold over keys in sorted order" `Quick
+      (fun _switch -> test_fold_sorted);
+    Alcotest_lwt.test_case "fold over keys in random order" `Quick
+      (fun _switch -> test_fold_random);
+    Alcotest_lwt.test_case "fold over keys in undefined order" `Quick
+      (fun _switch -> test_fold_undefined);
+    Alcotest_lwt.test_case "test Merkle proof for large inodes" `Quick
+      (fun _switch -> test_large_inode);
+    Alcotest_lwt.test_case "test Merkle proof for small inodes" `Quick
+      (fun _switch -> test_small_inode);
+    Alcotest_lwt.test_case "test deeper Merkle proof" `Quick (fun _switch ->
+        test_deeper_proof);
+    Alcotest_lwt.test_case "test large Merkle proof" `Slow (fun _switch ->
+        test_large_proofs);
+    Alcotest_lwt.test_case "test extenders in stream proof" `Quick
+      (fun _switch -> test_extenders);
+    Alcotest_lwt.test_case "test hardcoded stream proof" `Quick (fun _switch ->
+        test_hardcoded_stream);
+    Alcotest_lwt.test_case "test hardcoded proof" `Quick (fun _switch ->
+        test_hardcoded_proof);
+    Alcotest_lwt.test_case "test stream proof exn" `Quick (fun _switch ->
+        test_proof_exn);
+    Alcotest_lwt.test_case "test reexport node" `Quick (fun _switch ->
+        test_reexport_node);
   ]

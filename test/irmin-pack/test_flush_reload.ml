@@ -247,8 +247,8 @@ let test_reload () =
 
 let tests =
   [
-    Alcotest.test_case "Reload during flush stages" `Quick (fun () ->
-        Lwt_main.run (test_flush ()));
-    Alcotest.test_case "Flush during reload stages" `Quick (fun () ->
-        Lwt_main.run (test_reload ()));
+    Alcotest_lwt.test_case "Reload during flush stages" `Quick
+      (fun _switch () -> test_flush ());
+    Alcotest_lwt.test_case "Flush during reload stages" `Quick
+      (fun _switch () -> test_reload ());
   ]

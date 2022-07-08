@@ -22,7 +22,7 @@ let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
 
 let run f () =
-  Lwt_main.run (f ());
+  let+ () = f () in
   flush stderr;
   flush stdout
 
@@ -77,5 +77,7 @@ let stable =
     ] )
 
 let () =
-  Irmin_test.Store.run "irmin-chunk" ~slow:true ~misc:[ simple; stable ]
-    [ (`Quick, Test_chunk.suite) ]
+  Lwt_main.run
+  @@ Irmin_test.Store.run "irmin-chunk" ~slow:true ~misc:[ simple; stable ]
+       ~sleep:Lwt_unix.sleep
+       [ (`Quick, Test_chunk.suite) ]

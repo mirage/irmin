@@ -16,4 +16,8 @@
 
 let misc = [ ("misc", Test_git.misc Test_git_unix.store) ]
 let suites = [ (`Quick, Test_git_unix.suite) ]
-let () = Irmin_test.Store.run "irmin-git.unix" ~misc ~slow:false suites
+
+let () =
+  Lwt_main.run
+  @@ Irmin_test.Store.run "irmin-git.unix" ~misc ~slow:false
+       ~sleep:Lwt_unix.sleep suites

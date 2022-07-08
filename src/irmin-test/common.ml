@@ -130,7 +130,7 @@ module Suite = struct
 end
 
 module type Store_tests = functor (S : Generic_key) -> sig
-  val tests : (string * (Suite.t -> unit -> unit)) list
+  val tests : (string * (Suite.t -> unit -> unit Lwt.t)) list
 end
 
 module Make_helpers (S : Generic_key) = struct
@@ -215,48 +215,47 @@ module Make_helpers (S : Generic_key) = struct
   let run (x : Suite.t) test =
     let repo_ptr = ref None in
     let config_ptr = ref None in
-    Lwt_main.run
-      (Lwt.catch
-         (fun () ->
-           let module Conf = Irmin.Backend.Conf in
-           let generate_random_root config =
-             let id = Random.int 100 |> string_of_int in
-             let root_value =
-               match Conf.find_root config with
-               | None -> "test_" ^ id
-               | Some v -> v ^ "_" ^ id
-             in
-             let root_key = Conf.(root (spec config)) in
-             Conf.add config root_key root_value
-           in
-           let config = generate_random_root x.config in
-           config_ptr := Some config;
-           let* () = x.init ~config in
-           let* repo = S.Repo.v config in
-           repo_ptr := Some repo;
-           let* () = test repo in
-           let* () =
-             (* [test] might have already closed the repo. That
-                [ignore_thunk_errors] shall be removed as soon as all stores
-                support double closes. *)
-             ignore_thunk_errors (fun () -> S.Repo.close repo)
-           in
-           x.clean ~config)
-         (fun exn ->
-           (* [test] failed, attempt an errorless cleanup and forward the right
-              backtrace to the user. *)
-           let bt = Printexc.get_raw_backtrace () in
-           let* () =
-             match !repo_ptr with
-             | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
-             | None -> Lwt.return_unit
-           in
-           let+ () =
-             match !config_ptr with
-             | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
-             | None -> Lwt.return_unit
-           in
-           Printexc.raise_with_backtrace exn bt))
+    Lwt.catch
+      (fun () ->
+        let module Conf = Irmin.Backend.Conf in
+        let generate_random_root config =
+          let id = Random.int 100 |> string_of_int in
+          let root_value =
+            match Conf.find_root config with
+            | None -> "test_" ^ id
+            | Some v -> v ^ "_" ^ id
+          in
+          let root_key = Conf.(root (spec config)) in
+          Conf.add config root_key root_value
+        in
+        let config = generate_random_root x.config in
+        config_ptr := Some config;
+        let* () = x.init ~config in
+        let* repo = S.Repo.v config in
+        repo_ptr := Some repo;
+        let* () = test repo in
+        let* () =
+          (* [test] might have already closed the repo. That
+             [ignore_thunk_errors] shall be removed as soon as all stores
+             support double closes. *)
+          ignore_thunk_errors (fun () -> S.Repo.close repo)
+        in
+        x.clean ~config)
+      (fun exn ->
+        (* [test] failed, attempt an errorless cleanup and forward the right
+           backtrace to the user. *)
+        let bt = Printexc.get_raw_backtrace () in
+        let* () =
+          match !repo_ptr with
+          | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
+          | None -> Lwt.return_unit
+        in
+        let+ () =
+          match !config_ptr with
+          | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
+          | None -> Lwt.return_unit
+        in
+        Printexc.raise_with_backtrace exn bt)
 end
 
 let filter_src src =
@@ -319,3 +318,7 @@ let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
             msg (Printexc.to_string exn) (Printexc.to_string e))
 
 module T = Irmin.Type
+
+module type Sleep = sig
+  val sleep : float -> unit Lwt.t
+end

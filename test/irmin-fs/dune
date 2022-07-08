@@ -11,7 +11,7 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest irmin irmin-test test_fs))
+ (libraries alcotest lwt.unix irmin irmin-test test_fs))
 
 (executable
  (name test_unix)

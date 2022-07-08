@@ -11,6 +11,7 @@
   alcotest
   alcotest-lwt
   lwt
+  lwt.unix
   hex
   logs
   logs.fmt))

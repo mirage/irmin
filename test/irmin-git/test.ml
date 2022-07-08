@@ -17,5 +17,6 @@
 let misc = [ ("misc", Test_git.(misc mem)) ]
 
 let () =
-  Irmin_test.Store.run "irmin-git" ~slow:true ~misc
-    [ (`Quick, Test_git.suite); (`Quick, Test_git.suite_generic) ]
+  Lwt_main.run
+  @@ Irmin_test.Store.run "irmin-git" ~slow:true ~misc ~sleep:Lwt_unix.sleep
+       [ (`Quick, Test_git.suite); (`Quick, Test_git.suite_generic) ]

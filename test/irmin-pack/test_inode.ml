@@ -808,7 +808,7 @@ module Child_ordering = struct
     assert (chosen_bit = 0 || chosen_bit = 1);
     chosen_bit
 
-  let test_seeded_hash () =
+  let test_seeded_hash _switch () =
     let entries = Irmin_tezos.Conf.entries in
     let reference ~depth step =
       abs (Step.short_hash ~seed:depth step) mod entries
@@ -825,7 +825,8 @@ module Child_ordering = struct
       let step = random_string 8 and depth = Random.int 10 in
       let expected = reference ~depth step in
       check_child_index __POS__ (module Order) ~expected ~step ~depth
-    done
+    done;
+    Lwt.return_unit
 
   let hash_bits_max_depth ~log2_entries =
     (* For a given [depth], the final bit of the corresponding index is at
@@ -838,7 +839,7 @@ module Child_ordering = struct
     in
     aux 0
 
-  let test_hash_bits () =
+  let test_hash_bits _switch () =
     (* [entries] is required to be a power of 2 greater than 1 and less than
        2048, so we test every possible value here: *)
     for log2_entries = 1 to 10 do
@@ -875,9 +876,10 @@ module Child_ordering = struct
           (module Order)
           ~step ~depth:(max_depth + 1)
       done
-    done
+    done;
+    Lwt.return_unit
 
-  let test_custom () =
+  let test_custom _switch () =
     let entries = 16 in
     let square_index ~depth step =
       let a = depth and b = int_of_string (Bytes.unsafe_to_string step) in
@@ -887,12 +889,13 @@ module Child_ordering = struct
     check_child_index __POS__ (module Order) ~depth:1 ~step:"1" ~expected:1;
     check_child_index __POS__ (module Order) ~depth:2 ~step:"2" ~expected:4;
     check_child_index __POS__ (module Order) ~depth:3 ~step:"3" ~expected:9;
-    ()
+    ();
+    Lwt.return_unit
 end
 
 let tests =
-  let tc_sync name f = Alcotest.test_case name `Quick f in
-  let tc name f = tc_sync name (fun () -> Lwt_main.run (f ())) in
+  let tc_sync name f = Alcotest_lwt.test_case name `Quick f in
+  let tc name f = tc_sync name (fun _switch -> f) in
   (* Test disabled because it relies on being able to serialise concrete inodes,
      which is not possible following the introduction of structured keys. *)
   let _ = tc "test truncated inodes" test_truncated_inodes in

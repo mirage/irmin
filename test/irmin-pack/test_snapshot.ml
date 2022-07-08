@@ -251,9 +251,7 @@ let test_gced_store_on_disk () =
   S.Repo.close repo_import
 
 let tests =
-  let tc name f =
-    Alcotest.test_case name `Quick (fun () -> Lwt_main.run (f ()))
-  in
+  let tc name f = Alcotest_lwt.test_case name `Quick (fun _switch () -> f ()) in
   [
     tc "in memory minimal" test_in_memory_minimal;
     tc "in memory always" test_in_memory_always;

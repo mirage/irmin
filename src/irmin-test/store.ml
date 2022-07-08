@@ -2412,9 +2412,9 @@ module Make (S : Generic_key) = struct
       S.Backend.Repo.close repo
     in
     (* Test collisions with the empty node (and its commit), *)
-    run x (test @@ fun () -> S.Tree.empty () |> Lwt.return);
+    let* () = run x (test @@ fun () -> S.Tree.empty () |> Lwt.return) in
     (* with a length one node, *)
-    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1);
+    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1) >>= fun () ->
     (* and with a length >256 node (which is the threshold for unstable inodes
        in irmin pack). *)
     run x (test @@ fun () -> add_entries (S.Tree.empty ()) 260)
@@ -2427,11 +2427,14 @@ let suite' l ?(prefix = "") (_, x) =
 
 let when_ b x = if b then x else []
 
-let suite (speed, x) =
+let suite sleep (speed, x) =
   let (module S) = Suite.store_generic_key x in
+  let module Zzz = struct
+    let sleep = sleep
+  end in
   let module T = Make (S) in
   let module T_graph = Store_graph.Make (S) in
-  let module T_watch = Store_watch.Make (Log) (S) in
+  let module T_watch = Store_watch.Make (Log) (Zzz) (S) in
   let with_tree_enabled =
     (* Disabled for flakiness. See https://github.com/mirage/irmin/issues/1090. *)
     not
@@ -2494,7 +2497,7 @@ let slow_suite (speed, x) =
     ]
     (speed, x)
 
-let run name ?(slow = false) ?random_seed ~misc tl =
+let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
   let () =
     match random_seed with
     | Some x -> Random.init x
@@ -2503,6 +2506,6 @@ let run name ?(slow = false) ?random_seed ~misc tl =
   Printexc.record_backtrace true;
   (* Ensure that failures occuring in async lwt threads are raised. *)
   (Lwt.async_exception_hook := fun exn -> raise exn);
-  let tl1 = List.map suite tl in
+  let tl1 = List.map (suite sleep) tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
-  Alcotest.run name (misc @ tl1)
+  Alcotest_lwt.run name (misc @ tl1)
