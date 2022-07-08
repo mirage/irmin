@@ -253,6 +253,9 @@ end = struct
       else
         let buffer_off, off, missing_hash =
           match
+            (* Bytes.unsafe_to_string usage: possibly safe, depending on details of
+               implementation of decode_entry_exn TODO either justify clearly that this is
+               safe, or change to use safe Bytes.to_string *)
             decode_entry_exn ~off
               ~buffer:(Bytes.unsafe_to_string !buffer)
               ~buffer_off

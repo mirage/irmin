@@ -104,8 +104,12 @@ struct
     let key =
       match Conf.inode_child_order with
       | `Hash_bits ->
+          (* Bytes.unsafe_of_string usage: possibly safe TODO justify safety, or switch to
+             use the safe Bytes.of_string *)
           fun s -> Bytes.unsafe_of_string (hash_to_bin_string (Step.hash s))
       | `Seeded_hash | `Custom _ ->
+          (* Bytes.unsafe_of_string usage: possibly safe TODO justify safety, or switch to
+             use the safe Bytes.of_string *)
           fun s -> Bytes.unsafe_of_string (step_to_bin_string s)
 
     (* Assume [k = cryto_hash(step)] (see {!key}) and [Conf.entry] can

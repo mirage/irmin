@@ -33,6 +33,11 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     assert (n = 4);
     (file_pos := Int63.Syntax.(!file_pos + Int63.of_int 4));
     let pos_ref = ref 0 in
+    (* Bytes.unsafe_to_string usage: We assume Io_legacy.read_block returns unique
+       ownership of buf back to this function (this assumption holds currently; subsequent
+       modifications of that code need to ensure this remains the case); then in call to
+       Bytes.unsafe_to_string we give up ownership of buf (we do not modify the buffer
+       afterwards) and get ownership of resulting string; so this use is safe. *)
     let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
     assert (!pos_ref = 4);
     Int32.to_int v

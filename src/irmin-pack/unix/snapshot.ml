@@ -104,8 +104,11 @@ module Make (Args : Args) = struct
         io_read_and_decode_entry_prefix ~off:offset t
       in
       let entry_of_hash hash = key_of_hash hash t.inode_pack in
+      (* Bytes.unsafe_to_string usage: buf is created locally, uniquely owned; we assume
+         Dispatcher.read_exn returns unique ownership; then call to Bytes.unsafe_to_string
+         gives up unique ownership of buf. This is safe. *)
       Inode.Raw.decode_children_offsets ~entry_of_offset ~entry_of_hash
-        (Bytes.unsafe_to_string buf)
+        (Bytes.unsafe_to_string buf) (* safe: see comment above *)
         (ref 0)
 
     type visit = { visited : Hash.t -> bool; set_visit : Hash.t -> unit }
@@ -226,9 +229,16 @@ module Make (Args : Args) = struct
         let buf = Bytes.create encoded_size in
         Bytes.set_int64_be buf 0 (Int63.to_int64 off);
         Bytes.set_int32_be buf 8 (Int32.of_int len);
+        (* Bytes.unsafe_to_string usage: buf is local, uniquely owned; we assume the
+           Bytes.set... functions return unique ownership; then Bytes.unsafe_to_string
+           gives up unique ownership of buf to get shared ownership of the resulting
+           string, which is then returned. buf is no longer accessible. This is safe. *)
         Bytes.unsafe_to_string buf
 
       let decode s pos : t =
+        (* Bytes.unsafe_of_string usage: s is shared; buf is shared (we cannot mutate it);
+           we assume Bytes.get_... functions need shared ownership only. This usage is
+           safe. *)
         let buf = Bytes.unsafe_of_string s in
         let off = Bytes.get_int64_be buf pos |> Int63.of_int64 in
         let len = Bytes.get_int32_be buf (pos + 8) |> Int32.to_int in

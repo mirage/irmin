@@ -117,8 +117,8 @@ module Make (Args : Args) : S with module Args := Args = struct
       let len' = Int63.to_int len in
       read_exn ~off ~len:len' buffer;
       let () =
-        if len = buffer_size then append_exn (Bytes.unsafe_to_string buffer)
-        else append_exn (String.sub (Bytes.unsafe_to_string buffer) 0 len')
+        if len = buffer_size then append_exn (Bytes.to_string buffer)
+        else append_exn (String.sub (Bytes.to_string buffer) 0 len')
       in
       let len_remaining = len_remaining - len in
       if len_remaining > Int63.zero then aux (off + len) len_remaining
@@ -179,6 +179,10 @@ module Make (Args : Args) : S with module Args := Args = struct
     read_exn ~off ~len buffer;
     let poff = Dispatcher.poff_of_entry_exn ~off ~len mapping in
     Bytes.set buffer Hash.hash_size magic_parent;
+    (* Bytes.unsafe_to_string usage: We assume read_exn returns unique ownership of buffer
+       to this function. Then at the call to Bytes.unsafe_to_string we give up unique
+       ownership to buffer (we do not modify it thereafter) in return for ownership of the
+       resulting string, which we pass to write_exn. This usage is safe. *)
     write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
 
   let create_new_suffix ~root ~generation =

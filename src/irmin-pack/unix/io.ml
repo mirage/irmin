@@ -158,8 +158,9 @@ module Unix = struct
     | true, _ -> raise Errors.Closed
     | _, true -> raise Errors.RO_not_allowed
     | _ ->
-        (* really_write and following do not mutate the given buffer, so
-           Bytes.unsafe_of_string is actually safe *)
+        (* Bytes.unsafe_of_string usage: s has shared ownership; we assume that
+           Util.really_write does not mutate buf (i.e., only needs shared ownership). This
+           usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
         let () = Util.really_write t.fd off buf 0 len in
         Index.Stats.add_write len;
@@ -199,6 +200,10 @@ module Unix = struct
     let buf = Bytes.create len in
     try
       read_exn t ~off ~len buf;
+      (* Bytes.unsafe_to_string usage: buf is local to this function, so uniquely
+         owned. We assume read_exn returns unique ownership of buf to this function. Then
+         at the call to Bytes.unsafe_to_string we give up unique ownership of buf for
+         ownership of the string. This is safe. *)
       Ok (Bytes.unsafe_to_string buf)
     with
     | Errors.Pack_error ((`Invalid_argument | `Read_out_of_bounds) as e) ->

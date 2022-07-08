@@ -338,14 +338,17 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     file0_ref := Some file0;
 
     (* Fill and close [file0] *)
-    let buffer = Bytes.create 16 in
     let register_entry ~off ~len =
       (* Write [off, len] in native-endian encoding because it will be read
          with mmap. *)
       (* if Int63.to_int off < 500 then
        *   Fmt.epr "register_entry < 500: %d %d\n%!" (Int63.to_int off) len; *)
+      let buffer = Bytes.create 16 in
       Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
       Bytes.set_int64_ne buffer 8 (Int64.of_int len);
+      (* Bytes.unsafe_to_string usage: buffer is uniquely owned; we assume
+         Bytes.set_int64_ne returns unique ownership; we give up ownership of buffer in
+         conversion to string. This is safe. *)
       Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
     in
     let* () = Errs.catch (fun () -> register_entries ~register_entry) in
@@ -436,6 +439,8 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
       else
         let off, len =
           (* Decoding a pair of int can't fail *)
+          (* Bytes.unsafe_to_string usage: possibly safe TODO justify safety, or convert
+             to Bytes.to_string *)
           decode_bin_pair (Bytes.unsafe_to_string buffer) buffer_off
         in
         let () =

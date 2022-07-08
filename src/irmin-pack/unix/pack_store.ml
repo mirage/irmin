@@ -161,7 +161,14 @@ struct
         "Attempted to read an entry at offset %a in the pack file, but got \
          only %d bytes"
         Int63.pp off bytes_read;
-    let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+    let hash =
+      (* Bytes.unsafe_to_string usage: buf is created locally, so we have unique
+         ownership; we assume Dispatcher.read_at_most_exn returns unique ownership; use of
+         Bytes.unsafe_to_string converts buffer to shared ownership; the rest of the code
+         seems to require only shared ownership (buffer is read, but not mutated). This is
+         safe. *)
+      decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
+    in
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
     let size_of_value_and_length_header =
       match Val.length_header kind with
@@ -172,6 +179,8 @@ struct
              variable-length length field (if they exist / were read
              correctly): *)
           let pos_ref = ref length_header_start in
+          (* Bytes.unsafe_to_string usage: buf is shared at this point; we assume
+             Varint.decode_bin requires only shared ownership. This usage is safe. *)
           let length_header =
             Varint.decode_bin (Bytes.unsafe_to_string buf) pos_ref
           in
@@ -195,6 +204,10 @@ struct
     let found = Dispatcher.read_if_not_gced t.dispatcher ~off ~len buf in
     if (not found) || gced buf then None
     else
+      (* Bytes.unsafe_to_string usafe: buf is create in this function, uniquely owned; we
+         assume Dispatcher.read_if_not_gced returns unique ownership; then call to
+         Bytes.unsafe_to_string gives up ownerhsip of buf for ownership of resulting
+         string. This is safe. *)
       let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       Some hash
 
@@ -295,6 +308,9 @@ struct
       let key_of_hash = Pack_key.v_indexed in
       let dict = Dict.find t.dict in
       let v =
+        (* Bytes.unsafe_to_string usage: buf created, uniquely owned; after creation, we
+           assume Dispatcher.read_if_not_gced returns unique ownership; we give up unique
+           ownership in call to Bytes.unsafe_to_string. This is safe. *)
         Val.decode_bin ~key_of_offset ~key_of_hash ~dict
           (Bytes.unsafe_to_string buf)
           (ref 0)
