@@ -171,14 +171,17 @@ let test_on_disk_always =
 
 let start_gc repo commit =
   let commit_key = S.Commit.key commit in
-  let* launched = S.start_gc ~unlink:false ~throttle:`Block repo commit_key in
+  let* launched =
+    S.Gc.start_exn ~unlink:false ~throttle:`Block repo commit_key
+  in
   assert launched;
   Lwt.return_unit
 
 let finalise_gc repo =
-  let* wait = S.finalise_gc ~wait:true repo in
-  assert wait;
-  Lwt.return_unit
+  let* result = S.Gc.finalise_exn ~wait:true repo in
+  match result with
+  | `Idle | `Running -> Alcotest.fail "expected finalised gc"
+  | `Finalised -> Lwt.return_unit
 
 let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
   (* create the store *)

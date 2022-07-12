@@ -464,7 +464,7 @@ module Maker (Config : Conf.S) = struct
 
           let finalise ?hook ~wait t =
             match t.during_gc with
-            | None -> Lwt.return_ok false
+            | None -> Lwt.return_ok `Idle
             | Some { next_generation; task; unlink; offset } -> (
                 let go status =
                   let* () =
@@ -492,7 +492,7 @@ module Maker (Config : Conf.S) = struct
                         in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
-                        Ok true
+                        Ok `Finalised
                     | _ -> gc_errors status gc_output
                   in
                   t.during_gc <- None;
@@ -504,7 +504,7 @@ module Maker (Config : Conf.S) = struct
                   match wait with
                   | false -> (
                       match Io.status task with
-                      | `Running -> Lwt.return_ok false
+                      | `Running -> Lwt.return_ok `Running
                       | status -> go status)
                   | true ->
                       let* status = Io.await task in
@@ -520,7 +520,7 @@ module Maker (Config : Conf.S) = struct
                 (* The result of finalise is not useful here: if there is no
                    running gc, then finalise returns false, otherwise its waits
                    and returns true. *)
-                let* (_ : bool) = finalise ~wait:true t in
+                let* _ = finalise ~wait:true t in
                 let* () = start ~unlink t commit_key |> Lwt.return in
                 Lwt.return_ok true
             | Some _, `Skip -> Lwt.return_ok false
@@ -667,9 +667,72 @@ module Maker (Config : Conf.S) = struct
     let stats = Stats.run
     let reload = X.Repo.reload
     let flush = X.Repo.flush
-    let start_gc = X.Repo.Gc.start_exn
-    let finalise_gc = X.Repo.Gc.finalise_exn ?hook:None
-    let finalise_gc_with_hook = X.Repo.Gc.finalise_exn
+
+    module Gc = struct
+      type throttle = [ `Block | `Skip ]
+      type msg = [ `Msg of string ]
+      type stats = { elapsed : float }
+      type process_state = [ `Idle | `Running | `Finalised ]
+
+      let catch_errors context error =
+        let err =
+          match error with
+          | Errors.Pack_error error ->
+              Fmt.str "Pack_error: %a" Errors.pp_base_error error
+          | Irmin.Closed -> "Irmin.Closed"
+          | Irmin_pack.RO_not_allowed -> "Irmin_pack.RO_not_allowed"
+          | Unix.Unix_error (err, s1, s2) ->
+              let pp = Irmin.Type.pp Io.misc_error_t in
+              Fmt.str "Unix_error: %a" pp (err, s1, s2)
+          | exn -> raise exn
+        in
+        let error_msg = Fmt.str "[%s] resulted in error: %s" context err in
+        Lwt.return_error (`Msg error_msg)
+
+      let finalise_exn_with_hook = X.Repo.Gc.finalise_exn
+      let finalise_exn = finalise_exn_with_hook ?hook:None
+      let start_exn = X.Repo.Gc.start_exn
+
+      let start repo commit_key =
+        try
+          let* started =
+            start_exn ~unlink:true ~throttle:`Skip repo commit_key
+          in
+          Lwt.return_ok started
+        with exn -> catch_errors "Start GC" exn
+
+      let is_finished repo =
+        try
+          let* finished = finalise_exn ~wait:false repo in
+          match finished with
+          | `Idle | `Finalised -> Lwt.return_ok true
+          | `Running -> Lwt.return_ok false
+        with exn -> catch_errors "Check GC" exn
+
+      let wait repo =
+        try
+          let* _ = finalise_exn ~wait:true repo in
+          Lwt.return_ok ()
+        with exn -> catch_errors "Wait for GC" exn
+
+      let run ?(finished = fun _ -> ()) repo commit_key =
+        let* started = start repo commit_key in
+        match started with
+        | Ok r ->
+            if r then
+              (* start top-level Lwt thread to track finalisation *)
+              Lwt.async (fun () ->
+                  let c0 = Mtime_clock.counter () in
+                  let* results = wait repo in
+                  match results with
+                  | Ok _ ->
+                      let elapsed = Mtime_clock.count c0 |> Mtime.Span.to_ms in
+                      let stats = Ok { elapsed } in
+                      Lwt.return @@ finished stats
+                  | Error _ as e -> Lwt.return @@ finished e);
+            Lwt.return_ok r
+        | Error _ as e -> Lwt.return e
+    end
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
       module File_manager = File_manager

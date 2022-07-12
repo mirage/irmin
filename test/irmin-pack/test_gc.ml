@@ -54,16 +54,17 @@ include struct
 
   let start_gc ?(throttle = `Block) t commit =
     let commit_key = S.Commit.key commit in
-    let* launched = S.start_gc ~unlink:false ~throttle t.repo commit_key in
+    let* launched = S.Gc.start_exn ~unlink:false ~throttle t.repo commit_key in
     (match (throttle, launched) with
     | `Block, true | `Skip, false -> ()
     | _ -> Alcotest.failf "start_gc returned unexpected result %b" launched);
     Lwt.return_unit
 
   let finalise_gc t =
-    let* wait = S.finalise_gc ~wait:true t.repo in
-    assert wait;
-    Lwt.return_unit
+    let* result = S.Gc.finalise_exn ~wait:true t.repo in
+    match result with
+    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
+    | `Finalised -> Lwt.return_unit
 
   let commit t =
     let parents = List.map S.Commit.key t.parents in
@@ -760,11 +761,13 @@ module Concurrent_gc = struct
           c3 := Some c;
           Lwt.return_unit
     in
-    let* wait = S.finalise_gc_with_hook ~wait:true ~hook t.repo in
-    assert wait;
-    let c3 = Option.get !c3 in
-    let* () = check_3 t c3 in
-    S.Repo.close t.repo
+    let* result = S.Gc.finalise_exn_with_hook ~wait:true ~hook t.repo in
+    match result with
+    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
+    | `Finalised ->
+        let c3 = Option.get !c3 in
+        let* () = check_3 t c3 in
+        S.Repo.close t.repo
 
   let tests =
     [

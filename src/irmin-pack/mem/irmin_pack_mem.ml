@@ -174,7 +174,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
         let finalise_gc ?wait _ =
           ignore wait;
-          Lwt.return false
+          Lwt.return `Idle
       end
     end
 
@@ -197,14 +197,29 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
       end
     end
 
+    module Gc = struct
+      type throttle = [ `Block | `Skip ]
+      type msg = [ `Msg of string ]
+      type stats = { elapsed : float }
+      type process_state = [ `Idle | `Running | `Finalised ]
+
+      let start_exn = X.Repo.start_gc
+      let finalise_exn = X.Repo.finalise_gc
+
+      let run ?finished _ _ =
+        ignore finished;
+        Lwt.return_ok false
+
+      let wait _ = Lwt.return_ok ()
+      let is_finished _ = Lwt.return_ok true
+    end
+
     let integrity_check_inodes ?heads:_ _ =
       Lwt.return
         (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
 
     let reload = X.Repo.reload
     let flush = X.Repo.flush
-    let start_gc = X.Repo.start_gc
-    let finalise_gc = X.Repo.finalise_gc
     let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
     let traverse_pack_file _ _ = ()
     let test_traverse_pack_file _ _ = ()
