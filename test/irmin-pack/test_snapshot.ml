@@ -171,9 +171,7 @@ let test_on_disk_always =
 
 let start_gc repo commit =
   let commit_key = S.Commit.key commit in
-  let* launched =
-    S.Gc.start_exn ~unlink:false ~throttle:`Block repo commit_key
-  in
+  let* launched = S.Gc.start_exn ~unlink:false repo commit_key in
   assert launched;
   Lwt.return_unit
 

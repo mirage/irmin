@@ -58,31 +58,15 @@ module type Specifics = sig
   module Gc : sig
     (** GC *)
 
-    type throttle = [ `Block | `Skip ]
-    (** Type to control how to handle an already running GC process.
-
-        [Block] means to wait until it finishes, and iff it succeeds, start a
-        new GC process
-
-        [Skip] means ignore requests for a new GC process if one is already
-        running *)
-
     (** {2 Low-level API} *)
 
-    val start_exn :
-      ?unlink:bool -> throttle:throttle -> repo -> commit_key -> bool Lwt.t
-    (** [start_exn] tries to start the gc process and returns true if the gc is
-        launched.
+    val start_exn : ?unlink:bool -> repo -> commit_key -> bool Lwt.t
+    (** [start_exn] tries to start the GC process and returns true if the GC is
+        launched. If a GC is already running, a new one is not started.
 
         If [unlink] is false then temporary files and files from the previous
-        generation will be kept on disk after the gc finished. This option is
-        useful for debugging. The default is true.
-
-        If [throttle] is [Skip] and there is a concurrent gc, [start_exn]
-        returns false immediately without launching a second gc. If [throttle]
-        is [Block] and there is a concurrent gc, [start_exn] blocks waiting for
-        the previous gc to finish and only after launches a second gc. If the
-        previous GC failed, the function returns without launching a new GC.
+        generation will be kept on disk after the GC finished. This option is
+        useful for debugging. The default is [true].
 
         TODO: Detail exceptions raised. *)
 

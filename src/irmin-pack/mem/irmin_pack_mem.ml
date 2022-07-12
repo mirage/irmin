@@ -167,9 +167,8 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         let reload _ = ()
         let flush _ = ()
 
-        let start_gc ?unlink ~throttle _ _ =
+        let start_gc ?unlink _ _ =
           ignore unlink;
-          ignore throttle;
           Lwt.return false
 
         let finalise_gc ?wait _ =
@@ -198,7 +197,6 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     end
 
     module Gc = struct
-      type throttle = [ `Block | `Skip ]
       type msg = [ `Msg of string ]
       type stats = { elapsed : float }
       type process_state = [ `Idle | `Running | `Finalised ]

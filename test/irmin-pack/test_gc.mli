@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Blocking_gc : sig
+module Gc : sig
   val tests : unit Alcotest_lwt.test_case list
 end
 

@@ -241,7 +241,7 @@ module Store = struct
 
   let gc repo =
     let k = key_of_entry c1 in
-    let* launched = S.Gc.start_exn ~unlink:true ~throttle:`Block repo k in
+    let* launched = S.Gc.start_exn ~unlink:true repo k in
     assert launched;
     let* result = S.Gc.finalise_exn ~wait:true repo in
     match result with
