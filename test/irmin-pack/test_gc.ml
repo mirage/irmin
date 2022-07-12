@@ -52,12 +52,9 @@ include struct
 
   let info = S.Info.empty
 
-  let start_gc ?(throttle = `Block) t commit =
+  let start_gc t commit =
     let commit_key = S.Commit.key commit in
-    let* launched = S.Gc.start_exn ~unlink:false ~throttle t.repo commit_key in
-    (match (throttle, launched) with
-    | `Block, true | `Skip, false -> ()
-    | _ -> Alcotest.failf "start_gc returned unexpected result %b" launched);
+    let* _launched = S.Gc.start_exn ~unlink:false t.repo commit_key in
     Lwt.return_unit
 
   let finalise_gc t =
@@ -199,7 +196,7 @@ let check_not_found t key msg =
   | None -> Lwt.return_unit
   | Some _ -> Alcotest.failf "should not find %s" msg
 
-module Blocking_gc = struct
+module Gc = struct
   (** Check that gc preserves and deletes commits accordingly. *)
   let one_gc () =
     (* c1 - c2            *)
@@ -664,7 +661,7 @@ module Concurrent_gc = struct
     let* t = checkout_exn t c2 in
     S.Repo.close t.repo
 
-  (** Check skipping a gc. *)
+  (** Check starting a gc before a previous is finalised. *)
   let test_skip () =
     let* t = init () in
     let* t, c1 = commit_1 t in
@@ -673,44 +670,10 @@ module Concurrent_gc = struct
     let* () = start_gc t c2 in
     let* t = checkout_exn t c2 in
     let* t, c3 = commit_3 t in
-    let* () = start_gc ~throttle:`Skip t c3 in
+    let* () = start_gc t c3 in
     let* () = finalise_gc t in
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_2 t c2 in
-    let* () = check_3 t c3 in
-    S.Repo.close t.repo
-
-  (** Check blocking a gc, while waiting for the previous one to finish. *)
-  let test_block () =
-    let* t = init () in
-    let* t, c1 = commit_1 t in
-    let* () = start_gc t c1 in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* () = start_gc ~throttle:`Block t c2 in
-    let* t = checkout_exn t c2 in
-    let* t, c3 = commit_3 t in
-    let* () = start_gc ~throttle:`Block t c3 in
-    let* () = finalise_gc t in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c2 "removed c2" in
-    let* () = check_3 t c3 in
-    S.Repo.close t.repo
-
-  let test_skip_then_block () =
-    let* t = init () in
-    let* t, c1 = commit_1 t in
-    let* () = start_gc t c1 in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* () = start_gc t c2 in
-    let* t = checkout_exn t c2 in
-    let* t, c3 = commit_3 t in
-    let* () = start_gc ~throttle:`Skip t c3 in
-    let* () = start_gc ~throttle:`Block t c3 in
-    let* () = finalise_gc t in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c2 "removed c2" in
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
@@ -782,8 +745,6 @@ module Concurrent_gc = struct
       tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
       tc "Test close_during_gc" close_during_gc;
       tc "Test skip gc" test_skip;
-      tc "Test block gc" test_block;
-      tc "Test skip_then_block gc" test_skip_then_block;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;
       tc "Test finalise with hook" test_finalise_hook;

@@ -32,7 +32,7 @@ module Store = struct
     | `Finalised -> Lwt.return true
 
   let gc repo key =
-    let* launched = Store.Gc.start_exn ~unlink:true ~throttle:`Skip repo key in
+    let* launched = Store.Gc.start_exn ~unlink:true repo key in
     assert launched;
     let* wait = finalise_gc ~wait:true repo in
     assert wait;
@@ -137,7 +137,7 @@ module Store_mem = struct
     | `Finalised -> Lwt.return true
 
   let gc repo key =
-    let* launched = Store.Gc.start_exn ~unlink:true ~throttle:`Skip repo key in
+    let* launched = Store.Gc.start_exn ~unlink:true repo key in
     assert launched;
     let* wait = finalise_gc ~wait:true repo in
     assert wait;

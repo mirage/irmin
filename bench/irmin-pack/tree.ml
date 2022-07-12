@@ -224,9 +224,7 @@ struct
     | `Finalised -> Lwt.return true
 
   let gc repo key =
-    let* (_launched : bool) =
-      Store.Gc.start_exn ~unlink:true ~throttle:`Block repo key
-    in
+    let* (_launched : bool) = Store.Gc.start_exn ~unlink:true repo key in
     Lwt.return_unit
 end
 

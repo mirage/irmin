@@ -510,23 +510,18 @@ module Maker (Config : Conf.S) = struct
                       let* status = Io.await task in
                       go status)
 
-          let start_or_wait ~unlink ~throttle t commit_key =
+          let start_or_skip ~unlink t commit_key =
             let open Lwt_result.Syntax in
-            match (t.during_gc, throttle) with
-            | None, _ ->
+            match t.during_gc with
+            | None ->
                 let* () = start ~unlink t commit_key |> Lwt.return in
                 Lwt.return_ok true
-            | Some _, `Block ->
-                (* The result of finalise is not useful here: if there is no
-                   running gc, then finalise returns false, otherwise its waits
-                   and returns true. *)
-                let* _ = finalise ~wait:true t in
-                let* () = start ~unlink t commit_key |> Lwt.return in
-                Lwt.return_ok true
-            | Some _, `Skip -> Lwt.return_ok false
+            | Some _ ->
+                [%log.info "Repo is alreadying running GC. Skipping."];
+                Lwt.return_ok false
 
-          let start_exn ?(unlink = true) ~throttle t commit_key =
-            let* result = start_or_wait ~unlink ~throttle t commit_key in
+          let start_exn ?(unlink = true) t commit_key =
+            let* result = start_or_skip ~unlink t commit_key in
             match result with
             | Ok launched -> Lwt.return launched
             | Error e -> Errs.raise_error e
@@ -669,7 +664,6 @@ module Maker (Config : Conf.S) = struct
     let flush = X.Repo.flush
 
     module Gc = struct
-      type throttle = [ `Block | `Skip ]
       type msg = [ `Msg of string ]
       type stats = { elapsed : float }
       type process_state = [ `Idle | `Running | `Finalised ]
@@ -695,9 +689,7 @@ module Maker (Config : Conf.S) = struct
 
       let start repo commit_key =
         try
-          let* started =
-            start_exn ~unlink:true ~throttle:`Skip repo commit_key
-          in
+          let* started = start_exn ~unlink:true repo commit_key in
           Lwt.return_ok started
         with exn -> catch_errors "Start GC" exn
 
