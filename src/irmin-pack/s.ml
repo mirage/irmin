@@ -56,7 +56,10 @@ module type Specifics = sig
       by a readonly instance.*)
 
   module Gc : sig
-    (** GC *)
+    (** GC
+
+        Two levels of API are provided for GC. View them as mutually exclusive.
+        Behavior when mixing usage of the APIs is undefined. *)
 
     (** {2 Low-level API} *)
 
@@ -84,7 +87,8 @@ module type Specifics = sig
 
         If [wait = true] (the default), the call blocks until the GC process
         finishes. If [wait = false], finalisation will occur if the process has
-        ended.
+        ended. Behavior is undefined if [finalise_exn] is called from multiple
+        threads with [wait = true].
 
         If there are no running GCs, the call is a no-op and it returns [`Idle].
 
@@ -108,8 +112,10 @@ module type Specifics = sig
         discarding all data prior to [commit_key]. If a GC process is already
         running, a new one will not be started.
 
-        [run] will also finalise the GC process automaticlly. For more detailed
-        control, see {!start_exn} and {!finalise_exn}.
+        [run] will also finalise the GC process automatically. To ensure proper
+        finalisation, make sure your program provides time for Lwt to give CPU
+        time to the background finaliser, using [Lwt.pause] if needed. For more
+        detailed control, see {!start_exn} and {!finalise_exn}.
 
         When the GC process is finalised, [finished] is called with the result
         of finalisation.

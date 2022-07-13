@@ -702,20 +702,37 @@ module Maker (Config : Conf.S) = struct
         with exn -> catch_errors "Check GC" exn
 
       let wait repo =
-        try
-          let* _ = finalise_exn ~wait:true repo in
-          Lwt.return_ok ()
-        with exn -> catch_errors "Wait for GC" exn
+        (* Use a loop to check status to avoid issues with
+           multiple calls to the underlying blocking implementation.
+           {!run} is the only high-level api that uses the blocking
+           implementation. *)
+        let rec check () =
+          let* is_finished = is_finished repo in
+          match is_finished with
+          | Ok true -> Lwt.return_ok ()
+          | Ok false ->
+              let* () = Lwt_unix.sleep 0.1 in
+              check ()
+          | Error _ as e -> Lwt.return e
+        in
+        check ()
 
       let run ?(finished = fun _ -> ()) repo commit_key =
         let* started = start repo commit_key in
         match started with
         | Ok r ->
             if r then
-              (* start top-level Lwt thread to track finalisation *)
               Lwt.async (fun () ->
                   let c0 = Mtime_clock.counter () in
-                  let* results = wait repo in
+                  let* results =
+                    (* Instead of using {!wait}, call {!finalise_exn} directly
+                       with [~wait:true] to force a blocking call to the underlying
+                       implementation *)
+                    try
+                      let* _ = finalise_exn ~wait:true repo in
+                      Lwt.return_ok ()
+                    with exn -> catch_errors "Wait for GC" exn
+                  in
                   match results with
                   | Ok _ ->
                       let elapsed = Mtime_clock.count c0 |> Mtime.Span.to_ms in
