@@ -283,194 +283,228 @@ struct
     node_key_value : ('ctx, Store.node_key option) Schema.typ;
   }
 
-  let store_schema =
-    let kinded_key = Schema.union "KindedKey" in
-    let node = Schema.union "Node" in
-    Schema.fix @@ fun recursive ->
-    let commit =
-      Schema.(
-        recursive.obj "Commit" ~fields:(fun t ->
-            [
-              field "tree" ~typ:(non_null t.tree) ~args:[] ~resolve:(fun _ c ->
-                  (Store.Commit.tree c, Store.Path.empty));
-              field "parents"
-                ~typ:(non_null (list (non_null Types.Commit_key.schema_typ)))
-                ~args:[]
-                ~resolve:(fun _ c -> Store.Commit.parents c);
-              field "info" ~typ:(non_null t.info) ~args:[] ~resolve:(fun _ c ->
-                  Store.Commit.info c);
-              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                ~resolve:(fun _ c -> Store.Commit.hash c);
-              field "key" ~typ:(non_null Types.Commit_key.schema_typ) ~args:[]
-                ~resolve:(fun _ c -> Store.Commit.key c);
-            ]))
-    in
-    let info =
-      Schema.(
-        obj "Info"
-          ~fields:
-            [
-              field "date" ~typ:(non_null string) ~args:[] ~resolve:(fun _ i ->
-                  Info.date i |> Int64.to_string);
-              field "author" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ i -> Info.author i);
-              field "message" ~typ:(non_null string) ~args:[]
-                ~resolve:(fun _ i -> Info.message i);
-            ])
-    in
-    let tree =
-      Schema.(
-        recursive.obj "Tree" ~fields:(fun t ->
-            [
-              field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
-                ~resolve:(fun _ (_, path) -> path);
-              io_field "get"
-                ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
-                ~typ:Types.Contents.schema_typ
-                ~resolve:(fun _ (tree, _) path ->
-                  Store.Tree.find tree path >|= Result.ok);
-              io_field "get_contents"
-                ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
-                ~typ:t.contents
-                ~resolve:(fun _ (tree, tree_path) path ->
-                  Store.Tree.find_all tree path
-                  >|= Option.map (fun (c, m) ->
-                          let path' = concat_path tree_path path in
-                          (c, m, path'))
-                  >|= Result.ok);
-              io_field "get_tree"
-                ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
-                ~typ:t.tree
-                ~resolve:(fun _ (tree, tree_path) path ->
-                  Store.Tree.find_tree tree path
-                  >|= Option.map (fun tree ->
-                          let tree_path' = concat_path tree_path path in
-                          (tree, tree_path'))
-                  >|= Result.ok);
-              io_field "list_contents_recursively" ~args:[]
-                ~typ:(non_null (list (non_null t.contents)))
-                ~resolve:(fun _ (tree, path) ->
-                  let rec tree_list ?(acc = []) tree path =
-                    match Store.Tree.destruct tree with
-                    | `Contents (c, m) ->
-                        Store.Tree.Contents.force_exn c >|= fun c ->
-                        (c, m, path) :: acc
-                    | `Node _ ->
-                        let* l = Store.Tree.list tree Store.Path.empty in
-                        Lwt_list.fold_left_s
-                          (fun acc (step, t) ->
-                            let path' = Store.Path.rcons path step in
-                            tree_list t path' ~acc)
-                          acc l
-                        >|= List.rev
-                  in
-                  tree_list tree path >>= Lwt.return_ok);
-              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
-              field "key" ~typ:kinded_key ~args:[] ~resolve:(fun _ (tree, _) ->
-                  match Store.Tree.key tree with
-                  | Some (`Contents (k, m)) ->
-                      Some
-                        (Schema.add_type kinded_key t.contents_key_value (k, m))
-                  | Some (`Node k) ->
-                      Some (Schema.add_type kinded_key t.node_key_value k)
-                  | None -> None);
-              io_field "list"
-                ~typ:(non_null (list (non_null node)))
-                ~args:[]
-                ~resolve:(fun _ (tree, tree_path) ->
-                  Store.Tree.list tree Store.Path.empty
-                  >>= Lwt_list.map_s (fun (step, tree) ->
-                          let absolute_path = Store.Path.rcons tree_path step in
-                          match Store.Tree.destruct tree with
-                          | `Contents (c, m) ->
-                              let+ c = Store.Tree.Contents.force_exn c in
-                              Schema.add_type node t.contents
-                                (c, m, absolute_path)
-                          | _ ->
-                              Lwt.return
-                                (Schema.add_type node t.tree
-                                   (tree, absolute_path)))
-                  >|= Result.ok);
-            ]))
-    in
-    let branch =
-      Schema.(
-        recursive.obj "Branch" ~fields:(fun t ->
-            [
-              field "name" ~typ:(non_null Types.Branch.schema_typ) ~args:[]
-                ~resolve:(fun _ (_, b) -> b);
-              io_field "head" ~args:[] ~typ:t.commit ~resolve:(fun _ (t, _) ->
-                  Store.Head.find t >|= Result.ok);
-              io_field "tree" ~args:[] ~typ:(non_null t.tree)
-                ~resolve:(fun _ (t, _) ->
-                  let+ tree = Store.tree t in
-                  Ok (tree, Store.Path.empty));
-              io_field "last_modified"
-                ~typ:(non_null (list (non_null t.commit)))
-                ~args:
-                  Arg.
-                    [
-                      arg "path" ~typ:(non_null Input.path);
-                      arg "depth" ~typ:int;
-                      arg "n" ~typ:int;
-                    ]
-                ~resolve:(fun _ (t, _) path depth n ->
-                  Store.last_modified ?depth ?n t path >|= Result.ok);
-              io_field "lcas"
-                ~typ:(non_null (list (non_null t.commit)))
-                ~args:Arg.[ arg "commit" ~typ:(non_null Input.hash) ]
-                ~resolve:(fun _ (t, _) commit ->
-                  Store.Commit.of_hash (Store.repo t) commit >>= function
-                  | Some commit -> (
-                      Store.lcas_with_commit t commit >>= function
-                      | Ok lcas -> Lwt.return (Ok lcas)
-                      | Error e ->
-                          let msg = Irmin.Type.to_string Store.lca_error_t e in
-                          Lwt.return (Error msg))
-                  | None -> Lwt.return (Error "Commit not found"));
-            ]))
-    in
-    let contents =
-      Schema.(
-        obj "Contents"
-          ~fields:
-            [
-              field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
-                ~resolve:(fun _ (_, _, path) -> path);
-              field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
-                ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
-              field "value" ~typ:(non_null Types.Contents.schema_typ) ~args:[]
-                ~resolve:(fun _ (contents, _, _) -> contents);
-              field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                ~resolve:(fun _ (contents, _, _) ->
-                  Store.Contents.hash contents);
-            ])
-    in
+  let rec store_schema =
+    lazy
+      ( Schema.fix @@ fun recursive ->
+        let commit =
+          Schema.(
+            recursive.obj "Commit" ~fields:(fun t ->
+                [
+                  field "tree" ~typ:(non_null t.tree) ~args:[]
+                    ~resolve:(fun _ c ->
+                      (Store.Commit.tree c, Store.Path.empty));
+                  field "parents"
+                    ~typ:
+                      (non_null (list (non_null Types.Commit_key.schema_typ)))
+                    ~args:[]
+                    ~resolve:(fun _ c -> Store.Commit.parents c);
+                  field "info" ~typ:(non_null t.info) ~args:[]
+                    ~resolve:(fun _ c -> Store.Commit.info c);
+                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                    ~resolve:(fun _ c -> Store.Commit.hash c);
+                  field "key" ~typ:(non_null Types.Commit_key.schema_typ)
+                    ~args:[] ~resolve:(fun _ c -> Store.Commit.key c);
+                ]))
+        in
+        let info =
+          Schema.(
+            obj "Info"
+              ~fields:
+                [
+                  field "date" ~typ:(non_null string) ~args:[]
+                    ~resolve:(fun _ i -> Info.date i |> Int64.to_string);
+                  field "author" ~typ:(non_null string) ~args:[]
+                    ~resolve:(fun _ i -> Info.author i);
+                  field "message" ~typ:(non_null string) ~args:[]
+                    ~resolve:(fun _ i -> Info.message i);
+                ])
+        in
+        let tree =
+          Schema.(
+            recursive.obj "Tree" ~fields:(fun t ->
+                [
+                  field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+                    ~resolve:(fun _ (_, path) -> path);
+                  io_field "get"
+                    ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
+                    ~typ:Types.Contents.schema_typ
+                    ~resolve:(fun _ (tree, _) path ->
+                      Store.Tree.find tree path >|= Result.ok);
+                  io_field "get_contents"
+                    ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
+                    ~typ:t.contents
+                    ~resolve:(fun _ (tree, tree_path) path ->
+                      Store.Tree.find_all tree path
+                      >|= Option.map (fun (c, m) ->
+                              let path' = concat_path tree_path path in
+                              (c, m, path'))
+                      >|= Result.ok);
+                  io_field "get_tree"
+                    ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
+                    ~typ:t.tree
+                    ~resolve:(fun _ (tree, tree_path) path ->
+                      Store.Tree.find_tree tree path
+                      >|= Option.map (fun tree ->
+                              let tree_path' = concat_path tree_path path in
+                              (tree, tree_path'))
+                      >|= Result.ok);
+                  io_field "list_contents_recursively" ~args:[]
+                    ~typ:(non_null (list (non_null t.contents)))
+                    ~resolve:(fun _ (tree, path) ->
+                      let rec tree_list ?(acc = []) tree path =
+                        match Store.Tree.destruct tree with
+                        | `Contents (c, m) ->
+                            Store.Tree.Contents.force_exn c >|= fun c ->
+                            (c, m, path) :: acc
+                        | `Node _ ->
+                            let* l = Store.Tree.list tree Store.Path.empty in
+                            Lwt_list.fold_left_s
+                              (fun acc (step, t) ->
+                                let path' = Store.Path.rcons path step in
+                                tree_list t path' ~acc)
+                              acc l
+                            >|= List.rev
+                      in
+                      tree_list tree path >>= Lwt.return_ok);
+                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                    ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
+                  field "key" ~typ:kinded_key ~args:[]
+                    ~resolve:(fun _ (tree, _) ->
+                      match Store.Tree.key tree with
+                      | Some (`Contents (k, m)) ->
+                          let f = Lazy.force contents_key_as_kinded_key in
+                          Some (f (k, m))
+                      | Some (`Node k) ->
+                          let f = Lazy.force node_key_as_kinded_key in
+                          Some (f k)
+                      | None -> None);
+                  io_field "list"
+                    ~typ:(non_null (list (non_null node)))
+                    ~args:[]
+                    ~resolve:(fun _ (tree, tree_path) ->
+                      Store.Tree.list tree Store.Path.empty
+                      >>= Lwt_list.map_s (fun (step, tree) ->
+                              let absolute_path =
+                                Store.Path.rcons tree_path step
+                              in
+                              match Store.Tree.destruct tree with
+                              | `Contents (c, m) ->
+                                  let+ c = Store.Tree.Contents.force_exn c in
+                                  let f = Lazy.force contents_as_node in
+                                  f (c, m, absolute_path)
+                              | _ ->
+                                  let f = Lazy.force tree_as_node in
+                                  Lwt.return (f (tree, absolute_path)))
+                      >|= Result.ok);
+                ]))
+        in
+        let branch =
+          Schema.(
+            recursive.obj "Branch" ~fields:(fun t ->
+                [
+                  field "name" ~typ:(non_null Types.Branch.schema_typ) ~args:[]
+                    ~resolve:(fun _ (_, b) -> b);
+                  io_field "head" ~args:[] ~typ:t.commit
+                    ~resolve:(fun _ (t, _) -> Store.Head.find t >|= Result.ok);
+                  io_field "tree" ~args:[] ~typ:(non_null t.tree)
+                    ~resolve:(fun _ (t, _) ->
+                      let+ tree = Store.tree t in
+                      Ok (tree, Store.Path.empty));
+                  io_field "last_modified"
+                    ~typ:(non_null (list (non_null t.commit)))
+                    ~args:
+                      Arg.
+                        [
+                          arg "path" ~typ:(non_null Input.path);
+                          arg "depth" ~typ:int;
+                          arg "n" ~typ:int;
+                        ]
+                    ~resolve:(fun _ (t, _) path depth n ->
+                      Store.last_modified ?depth ?n t path >|= Result.ok);
+                  io_field "lcas"
+                    ~typ:(non_null (list (non_null t.commit)))
+                    ~args:Arg.[ arg "commit" ~typ:(non_null Input.hash) ]
+                    ~resolve:(fun _ (t, _) commit ->
+                      Store.Commit.of_hash (Store.repo t) commit >>= function
+                      | Some commit -> (
+                          Store.lcas_with_commit t commit >>= function
+                          | Ok lcas -> Lwt.return (Ok lcas)
+                          | Error e ->
+                              let msg =
+                                Irmin.Type.to_string Store.lca_error_t e
+                              in
+                              Lwt.return (Error msg))
+                      | None -> Lwt.return (Error "Commit not found"));
+                ]))
+        in
+        let contents =
+          Schema.(
+            obj "Contents"
+              ~fields:
+                [
+                  field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+                    ~resolve:(fun _ (_, _, path) -> path);
+                  field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
+                    ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
+                  field "value" ~typ:(non_null Types.Contents.schema_typ)
+                    ~args:[] ~resolve:(fun _ (contents, _, _) -> contents);
+                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                    ~resolve:(fun _ (contents, _, _) ->
+                      Store.Contents.hash contents);
+                ])
+        in
 
-    let contents_key_value =
-      Schema.(
-        obj "ContentsKey"
-          ~fields:
-            [
-              field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
-                ~args:[] ~resolve:(fun _ (_, metadata) -> metadata);
-              field "contents" ~typ:(non_null Types.Contents_key.schema_typ)
-                ~args:[] ~resolve:(fun _ (key, _) -> key);
-            ])
-    in
-    let node_key_value =
-      Schema.(
-        obj "NodeKey"
-          ~fields:
-            [
-              field "node" ~typ:(non_null Types.Node_key.schema_typ) ~args:[]
-                ~resolve:(fun _ x -> x);
-            ])
-    in
-    { commit; info; tree; branch; contents; contents_key_value; node_key_value }
+        let contents_key_value =
+          Schema.(
+            obj "ContentsKey"
+              ~fields:
+                [
+                  field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
+                    ~args:[] ~resolve:(fun _ (_, metadata) -> metadata);
+                  field "contents" ~typ:(non_null Types.Contents_key.schema_typ)
+                    ~args:[] ~resolve:(fun _ (key, _) -> key);
+                ])
+        in
+        let node_key_value =
+          Schema.(
+            obj "NodeKey"
+              ~fields:
+                [
+                  field "node" ~typ:(non_null Types.Node_key.schema_typ)
+                    ~args:[] ~resolve:(fun _ x -> x);
+                ])
+        in
+        {
+          commit;
+          info;
+          tree;
+          branch;
+          contents;
+          contents_key_value;
+          node_key_value;
+        } )
+
+  and kinded_key = Schema.union "KindedKey"
+  and node = Schema.union "Node"
+  and tree_as_node = lazy (Schema.add_type node (Lazy.force store_schema).tree)
+
+  and contents_as_node =
+    lazy (Schema.add_type node (Lazy.force store_schema).contents)
+
+  and node_key_as_kinded_key =
+    lazy (Schema.add_type kinded_key (Lazy.force store_schema).node_key_value)
+
+  and contents_key_as_kinded_key =
+    lazy
+      (Schema.add_type kinded_key (Lazy.force store_schema).contents_key_value)
 
   [@@@ocaml.warning "-5"]
+
+  let _ = Lazy.force tree_as_node
+  let _ = Lazy.force contents_as_node
+  let _ = Lazy.force node_key_as_kinded_key
+  let _ = Lazy.force contents_key_as_kinded_key
+  let store_schema = Lazy.force store_schema
 
   let err_write e =
     Lwt.return (Error (Irmin.Type.to_string Store.write_error_t e))
