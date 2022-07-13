@@ -56,7 +56,10 @@ module type Specifics = sig
       by a readonly instance.*)
 
   module Gc : sig
-    (** GC *)
+    (** GC
+
+        Two levels of API are provided for GC. View them as mutually exclusive.
+        Behavior when mixing usage of the APIs is undefined. *)
 
     (** {2 Low-level API} *)
 
@@ -84,7 +87,8 @@ module type Specifics = sig
 
         If [wait = true] (the default), the call blocks until the GC process
         finishes. If [wait = false], finalisation will occur if the process has
-        ended.
+        ended. Behavior is undefined if [finalise_exn] is called from multiple
+        threads with [wait = true].
 
         If there are no running GCs, the call is a no-op and it returns [`Idle].
 
