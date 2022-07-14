@@ -22,7 +22,11 @@ module type S = sig
       required.
 
       It is not resistant to race condictions. There should not be concurrent
-      modifications of the files. *)
+      modifications of the files. 
+
+      These functions are essentially invoking the underlying functions from {!Unix}
+      directly; there is no buffering for example.
+  *)
 
   type t
 
