@@ -101,8 +101,14 @@ module type Store = sig
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
-  val gc : repo -> commit_key -> unit Lwt.t
-  val finalise_gc : ?wait:bool -> repo -> bool Lwt.t
+  val gc_wait : repo -> unit Lwt.t
+  val gc_is_finished : repo -> bool
+
+  val gc_run :
+    ?finished:((float, string) result -> unit) ->
+    repo ->
+    commit_key ->
+    unit Lwt.t
 end
 
 module type Sigs = sig

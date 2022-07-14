@@ -157,6 +157,7 @@ module Make (Store : Store) = struct
     contexts : (int64, context) Hashtbl.t;
     hash_corresps : (Def.hash, Store.commit_key) Hashtbl.t;
     mutable commits_since_start_or_gc : int;
+    mutable current_commit_idx : int;
     key_per_commit_idx : (int, Store.commit_key) Hashtbl.t;
   }
 
@@ -366,26 +367,13 @@ module Make (Store : Store) = struct
         contexts = Hashtbl.create 3;
         hash_corresps = Hashtbl.create 3;
         commits_since_start_or_gc = 0;
+        current_commit_idx = 0;
         key_per_commit_idx = Hashtbl.create 3;
       }
     in
 
     (* Manually add genesis context *)
     Hashtbl.add t.contexts 0L { tree = Store.Tree.empty () };
-
-    let finalise_gc_and_log ~wait i repo =
-      let counter = Mtime_clock.counter () in
-      let* did_finalise = Store.finalise_gc ~wait repo in
-      (if did_finalise then
-       let dt = Mtime_clock.count counter in
-       let idx = i - 1 in
-       if Hashtbl.mem t.key_per_commit_idx idx then
-         let gc_commit_key = Hashtbl.find t.key_per_commit_idx idx in
-         [%logs.app
-           "Gc ended on commit idx %d with key %a, it took %a" idx pp_key
-             gc_commit_key Mtime.Span.pp dt]);
-      Lwt.return_unit
-    in
 
     let rec aux commit_seq i =
       match commit_seq () with
@@ -396,8 +384,9 @@ module Make (Store : Store) = struct
           in
           let* () =
             if really_wait_gc then (
-              [%logs.app "Waiting gc while latest commit has idx %d" (i - 1)];
-              finalise_gc_and_log ~wait:true i repo)
+              [%logs.app
+                "Waiting gc while latest commit has idx %d" t.current_commit_idx];
+              Store.gc_wait repo)
             else Lwt.return_unit
           in
           let* () =
@@ -406,22 +395,32 @@ module Make (Store : Store) = struct
 
                  TODO: If the GC-commit is an orphan commit we will have
                  problems. *)
-              let gc_commit_idx = i - config.gc_distance_in_the_past - 1 in
+              let gc_commit_idx =
+                t.current_commit_idx - config.gc_distance_in_the_past
+              in
               let gc_commit_key =
                 Hashtbl.find t.key_per_commit_idx gc_commit_idx
               in
+              let gc_start_commit_idx = t.current_commit_idx in
+              (* used in closure below to know start commit of gc process *)
               t.commits_since_start_or_gc <- 0;
               [%logs.app
                 "Starting gc on commit idx %d with key %a while latest commit \
                  has idx %d with key %a"
-                gc_commit_idx pp_key gc_commit_key (i - 1) pp_key
-                  (Hashtbl.find t.key_per_commit_idx (i - 1))];
-              Store.gc repo gc_commit_key)
+                gc_commit_idx pp_key gc_commit_key gc_start_commit_idx pp_key
+                  (Hashtbl.find t.key_per_commit_idx t.current_commit_idx)];
+              let finished = function
+                | Ok elapsed ->
+                    let commit_idx = t.current_commit_idx in
+                    let commit_duration = commit_idx - gc_start_commit_idx in
+                    [%logs.app
+                      "Gc ended after %d commits, it took %.4fms"
+                        commit_duration elapsed]
+                | Error s -> failwith s
+              in
+              Store.gc_run ~finished repo gc_commit_key)
             else Lwt.return_unit
           in
-          (* Call finalise_gc after each commit. *)
-          let* () = finalise_gc_and_log ~wait:false i repo in
-
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
@@ -433,6 +432,7 @@ module Make (Store : Store) = struct
               (Hashtbl.find t.key_per_commit_idx i
               |> Store.Backend.Commit.Key.to_hash)
           in
+          t.current_commit_idx <- i;
           t.commits_since_start_or_gc <- t.commits_since_start_or_gc + 1;
           prog 1;
           aux commit_seq (i + 1)

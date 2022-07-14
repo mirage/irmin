@@ -25,18 +25,23 @@ module Store = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let finalise_gc ?wait repo =
-    let* r = Store.Gc.finalise_exn ?wait repo in
-    match r with
-    | `Idle | `Running -> Lwt.return false
-    | `Finalised _ -> Lwt.return true
+  let gc_is_finished = Store.Gc.is_finished
 
-  let gc repo key =
-    let* launched = Store.Gc.start_exn ~unlink:true repo key in
-    assert launched;
-    let* wait = finalise_gc ~wait:true repo in
-    assert wait;
-    Lwt.return_unit
+  let gc_wait repo =
+    let* r = Store.Gc.wait repo in
+    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
+
+  let gc_run ?(finished = fun _ -> ()) repo key =
+    let f (result : (Store.Gc.stats option, Store.Gc.msg) result) =
+      match result with
+      | Error (`Msg err) -> finished @@ Error err
+      | Ok (Some s) -> finished @@ Ok s.elapsed
+      | Ok None -> finished @@ Ok 0.
+    in
+    let* launched = Store.Gc.run ~finished:f repo key in
+    match launched with
+    | Ok _ -> Lwt.return_unit
+    | Error (`Msg err) -> failwith err
 end
 
 module Replay = Irmin_traces.Trace_replay.Make (Store)
@@ -130,18 +135,23 @@ module Store_mem = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let finalise_gc ?wait repo =
-    let* r = Store.Gc.finalise_exn ?wait repo in
-    match r with
-    | `Idle | `Running -> Lwt.return false
-    | `Finalised _ -> Lwt.return true
+  let gc_is_finished = Store.Gc.is_finished
 
-  let gc repo key =
-    let* launched = Store.Gc.start_exn ~unlink:true repo key in
-    assert launched;
-    let* wait = finalise_gc ~wait:true repo in
-    assert wait;
-    Lwt.return_unit
+  let gc_wait repo =
+    let* r = Store.Gc.wait repo in
+    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
+
+  let gc_run ?(finished = fun _ -> ()) repo key =
+    let f (result : (Store.Gc.stats option, Store.Gc.msg) result) =
+      match result with
+      | Error (`Msg err) -> finished @@ Error err
+      | Ok (Some s) -> finished @@ Ok s.elapsed
+      | Ok None -> finished @@ Ok 0.
+    in
+    let* launched = Store.Gc.run ~finished:f repo key in
+    match launched with
+    | Ok _ -> Lwt.return_unit
+    | Error (`Msg err) -> failwith err
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)
