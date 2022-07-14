@@ -248,8 +248,8 @@ module Unix = struct
 
   (* Async using fork/waitpid*)
 
-  (** This module supports async below. There is a per-process list of pid, that will be
-      killed when [clean_up] is called. *)
+  (** This module supports async below. There is a per-process list of pid, that
+      will be killed when [clean_up] is called. *)
   module Exit = struct
     let proc_list = ref []
     let m = Mutex.create ()
@@ -300,10 +300,11 @@ module Unix = struct
         { pid; status = `Running }
 
   let status_of_process_status = function
-    | Lwt_unix.WSIGNALED x when x = Sys.sigkill -> 
-      (* x is actually -7; -7 is the Sys.sigkill definition (not the OS' 9 as might be
-         expected) *)
-        `Success (* the child is killing itself when it's done *)
+    | Lwt_unix.WSIGNALED x when x = Sys.sigkill ->
+        (* x is actually -7; -7 is the Sys.sigkill definition (not the OS' 9 as might be
+           expected) *)
+        `Success
+        (* the child is killing itself when it's done *)
     | Lwt_unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
     | Lwt_unix.WEXITED n -> `Failure (Fmt.str "Exited %d" n)
     | Lwt_unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
