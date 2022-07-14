@@ -373,20 +373,6 @@ module Make (Store : Store) = struct
     (* Manually add genesis context *)
     Hashtbl.add t.contexts 0L { tree = Store.Tree.empty () };
 
-    let finalise_gc_and_log ~wait i repo =
-      let counter = Mtime_clock.counter () in
-      let* did_finalise = Store.finalise_gc ~wait repo in
-      (if did_finalise then
-       let dt = Mtime_clock.count counter in
-       let idx = i - 1 in
-       if Hashtbl.mem t.key_per_commit_idx idx then
-         let gc_commit_key = Hashtbl.find t.key_per_commit_idx idx in
-         [%logs.app
-           "Gc ended on commit idx %d with key %a, it took %a" idx pp_key
-             gc_commit_key Mtime.Span.pp dt]);
-      Lwt.return_unit
-    in
-
     let rec aux commit_seq i =
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
@@ -397,7 +383,8 @@ module Make (Store : Store) = struct
           let* () =
             if really_wait_gc then (
               [%logs.app "Waiting gc while latest commit has idx %d" (i - 1)];
-              finalise_gc_and_log ~wait:true i repo)
+              Fmt.(pf stdout "waiting threads %d \n" (Lwt_unix.wait_count ()));
+              Store.gc_wait repo (* finalise_gc_and_log ~wait:true i repo *))
             else Lwt.return_unit
           in
           let* () =
@@ -416,12 +403,17 @@ module Make (Store : Store) = struct
                  has idx %d with key %a"
                 gc_commit_idx pp_key gc_commit_key (i - 1) pp_key
                   (Hashtbl.find t.key_per_commit_idx (i - 1))];
-              Store.gc repo gc_commit_key)
+              let finished = function
+                | Ok elapsed ->
+                    [%logs.app
+                      "Gc ended on commit idx %d with key %a, it took %.4fms"
+                        gc_commit_idx pp_key gc_commit_key elapsed]
+                | Error s -> failwith s
+              in
+              Store.gc_run ~finished repo gc_commit_key
+              (* Store.gc repo gc_commit_key *))
             else Lwt.return_unit
           in
-          (* Call finalise_gc after each commit. *)
-          let* () = finalise_gc_and_log ~wait:false i repo in
-
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
@@ -435,6 +427,7 @@ module Make (Store : Store) = struct
           in
           t.commits_since_start_or_gc <- t.commits_since_start_or_gc + 1;
           prog 1;
+          let* _ = Lwt.pause () in
           aux commit_seq (i + 1)
     in
     aux commit_seq 0

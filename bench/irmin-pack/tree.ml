@@ -58,8 +58,15 @@ module type Store = sig
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
-  val gc : repo -> commit_key -> unit Lwt.t
-  val finalise_gc : ?wait:bool -> repo -> bool Lwt.t
+  val gc_run :
+    ?finished:((float, string) result -> unit) ->
+    repo ->
+    commit_key ->
+    unit Lwt.t
+
+  val gc_is_finished : repo -> bool Lwt.t
+
+  val gc_wait : repo -> unit Lwt.t
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -217,15 +224,26 @@ struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let finalise_gc ?wait repo =
-    let* r = Store.Gc.finalise_exn ?wait repo in
+  let gc_is_finished repo =
+    let* r = Store.Gc.is_finished repo in
     match r with
-    | `Idle | `Running -> Lwt.return false
-    | `Finalised -> Lwt.return true
+    | Error (`Msg err) -> failwith err
+    | Ok x -> Lwt.return x
+  
+  let gc_wait repo =
+    let* r = Store.Gc.wait repo in
+    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
 
-  let gc repo key =
-    let* (_launched : bool) = Store.Gc.start_exn ~unlink:true repo key in
-    Lwt.return_unit
+  let gc_run ?(finished = fun _ -> ()) repo key =
+    let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
+      match result with
+      | Error (`Msg err) -> finished @@ Error err
+      | Ok s -> finished @@ Ok s.elapsed
+    in
+    let* launched = Store.Gc.run ~finished:f repo key in
+    match launched with
+    | Ok _ -> Lwt.return_unit
+    | Error (`Msg err) -> failwith err
 end
 
 module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
