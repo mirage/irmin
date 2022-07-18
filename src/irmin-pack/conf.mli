@@ -23,7 +23,13 @@ type inode_child_order =
 
 module type S = sig
   val entries : int
+  (** The branching factor of the inode tree. 32 is a good choice for general
+      applications. *)
+
   val stable_hash : int
+  (** This offers a way to conditional base hashing on node entries instead of
+      inodes. It is available for some backwards compatibility applications, but
+      for most applications, this should be set to 0. *)
 
   val contents_length_header : length_header
   (** Describes the length header of the user's contents values when
@@ -39,6 +45,9 @@ module type S = sig
         information). *)
 
   val inode_child_order : inode_child_order
+  (** The strategy used for sorting entries. [`Hash_bits] is the recommended
+      choice. [`Seeded_hash] is vunerable to attacks if storing user-generated
+      keys. *)
 
   val forbid_empty_dir_persistence : bool
   (** If [true], irmin-pack raises [Failure] if it is asked to save the empty
@@ -52,6 +61,12 @@ end
 val spec : Irmin.Backend.Conf.Spec.t
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
+(** Strategy for when attempting to write when the index log is full and waiting
+    for an in-progress merge to complete.
+
+    - [`Block_writes] will block writes
+    - [`Overcommit_memory] will allow writes by growing the in-memory cache
+      indefinitely *)
 
 module Key : sig
   val fresh : bool Irmin.Backend.Conf.key
@@ -68,16 +83,46 @@ module Key : sig
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
+(** Flag to indicate that the store will start with fresh data on disk. Warning:
+    setting this to [true] will delete existing data. Default is [false]. *)
+
 val lru_size : Irmin.Backend.Conf.t -> int
+(** Size, in number of entries, of LRU cache. Default [100_000]. *)
+
 val index_log_size : Irmin.Backend.Conf.t -> int
+(** Size, in number of entries, of index log. Default [2_500_000]. *)
+
 val readonly : Irmin.Backend.Conf.t -> bool
+(** Flag for opening data in read-only mode. Default [false]. *)
+
 val merge_throttle : Irmin.Backend.Conf.t -> merge_throttle
+(** Strategy for how to handle writes when index log is full and a merge is
+    in-progress. Default [`Block_writes]. *)
+
 val root : Irmin.Backend.Conf.t -> string
+(** Location of directory for saving data on disk.
+
+    Note: The path before the root directory must exist. Only the final
+    directory in the path will be created if it is missing. *)
+
 val indexing_strategy : Irmin.Backend.Conf.t -> Indexing_strategy.t
+(** Strategy for choosing which objects to index. See {!Indexing_strategy.t} for
+    more discussion. Default {!Indexing_strategy.default} *)
+
 val use_fsync : Irmin.Backend.Conf.t -> bool
+(** Flag to indicate that fsync should be used to enforce durability when
+    flushing data to disk. Default [false]. *)
+
 val dict_auto_flush_threshold : Irmin.Backend.Conf.t -> int
+(** Size, in bytes, when automatic flushing of dict file to disk. Default
+    [1_000_000]. *)
+
 val suffix_auto_flush_threshold : Irmin.Backend.Conf.t -> int
+(** Size, in bytes, when automatic flushing of suffix file to disk. Default
+    [1_000_000]. *)
+
 val no_migrate : Irmin.Backend.Conf.t -> bool
+(** Flag to prevent migration of data. Default [false]. *)
 
 val init :
   ?fresh:bool ->
@@ -92,3 +137,5 @@ val init :
   ?no_migrate:bool ->
   string ->
   Irmin.config
+(** [init root] creates a backend configuration for storing data with default
+    configuration parameters and stored at [root]. Flags are documented above. *)
