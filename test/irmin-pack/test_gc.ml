@@ -508,7 +508,7 @@ end
 
 module Concurrent_gc = struct
   (** Check that finding old objects during a gc works. *)
-  let find_during_gc ~lru_size () =
+  let find_running_gc ~lru_size () =
     let* t = init ~lru_size () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
@@ -523,7 +523,7 @@ module Concurrent_gc = struct
     S.Repo.close t.repo
 
   (** Check adding new objects during a gc and finding them after the gc. *)
-  let add_during_gc ~lru_size () =
+  let add_running_gc ~lru_size () =
     let* t = init ~lru_size () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
@@ -565,16 +565,16 @@ module Concurrent_gc = struct
     let* () = check_5 t c5 in
     S.Repo.close t.repo
 
-  let find_during_gc_with_lru = find_during_gc ~lru_size:100
-  let add_during_gc_with_lru = add_during_gc ~lru_size:100
+  let find_running_gc_with_lru = find_running_gc ~lru_size:100
+  let add_running_gc_with_lru = add_running_gc ~lru_size:100
   let several_gc_with_lru = several_gc ~lru_size:100
-  let find_during_gc = find_during_gc ~lru_size:0
-  let add_during_gc = add_during_gc ~lru_size:0
+  let find_running_gc = find_running_gc ~lru_size:0
+  let add_running_gc = add_running_gc ~lru_size:0
   let several_gc = several_gc ~lru_size:0
 
   (** Check that RO can find old objects during gc. Also that RO can still find
       removed objects before a call to [reload]. *)
-  let ro_find_during_gc () =
+  let ro_find_running_gc () =
     let* t = init () in
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
@@ -597,7 +597,7 @@ module Concurrent_gc = struct
 
   (** Check that RO can find objects added during gc, but only after a call to
       [reload]. *)
-  let ro_add_during_gc () =
+  let ro_add_running_gc () =
     let* t = init () in
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
@@ -647,7 +647,7 @@ module Concurrent_gc = struct
 
   (** Check that calling close during a gc kills the gc without finalising it.
       On reopening the store, the following gc works fine. *)
-  let close_during_gc () =
+  let close_running_gc () =
     let* t = init () in
     let* t, c1 = commit_1 t in
     let* () = start_gc t c1 in
@@ -679,8 +679,8 @@ module Concurrent_gc = struct
 
   let kill_gc t =
     let repo : S.Repo.t = t.repo in
-    match (repo.during_gc : S.X.during_gc option) with
-    | None -> Alcotest.failf "during_gc missing after call to start"
+    match (repo.running_gc : S.X.gc option) with
+    | None -> Alcotest.failf "running_gc missing after call to start"
     | Some { task; _ } -> (
         try
           Irmin_pack_unix.Io.Unix.cancel task;
@@ -734,16 +734,16 @@ module Concurrent_gc = struct
 
   let tests =
     [
-      tc "Test find_during_gc" find_during_gc;
-      tc "Test add_during_gc" add_during_gc;
+      tc "Test find_running_gc" find_running_gc;
+      tc "Test add_running_gc" add_running_gc;
       tc "Test several_gc" several_gc;
-      tc "Test find_during_gc_with_lru" find_during_gc_with_lru;
-      tc "Test add_during_gc_with_lru" add_during_gc_with_lru;
+      tc "Test find_running_gc_with_lru" find_running_gc_with_lru;
+      tc "Test add_running_gc_with_lru" add_running_gc_with_lru;
       tc "Test several_gc_with_lru" several_gc_with_lru;
-      tc "Test ro_find_during_gc" ro_find_during_gc;
-      tc "Test ro_add_during_gc" ro_add_during_gc;
+      tc "Test ro_find_running_gc" ro_find_running_gc;
+      tc "Test ro_add_running_gc" ro_add_running_gc;
       tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
-      tc "Test close_during_gc" close_during_gc;
+      tc "Test close_running_gc" close_running_gc;
       tc "Test skip gc" test_skip;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;

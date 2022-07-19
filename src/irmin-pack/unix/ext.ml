@@ -145,7 +145,7 @@ module Maker (Config : Conf.S) = struct
 
       type gc_stats = { elapsed : float }
 
-      type during_gc = {
+      type gc = {
         next_generation : int;
         task : Io.task;
         unlink : bool;
@@ -166,7 +166,7 @@ module Maker (Config : Conf.S) = struct
           dict : Dict.t;
           dispatcher : Dispatcher.t;
           mutable during_batch : bool;
-          mutable during_gc : during_gc option;
+          mutable running_gc : gc option;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -175,38 +175,6 @@ module Maker (Config : Conf.S) = struct
         let commit_t t : 'a Commit.t = (node_t t, t.commit)
         let branch_t t = t.branch
         let config t = t.config
-
-        let batch t f =
-          t.during_batch <- true;
-          let contents = Contents.CA.cast t.contents in
-          let node = Node.CA.Pack.cast t.node in
-          let commit = Commit.CA.cast t.commit in
-          let contents : 'a Contents.t = contents in
-          let node : 'a Node.t = (contents, node) in
-          let commit : 'a Commit.t = (node, commit) in
-          let on_success res =
-            t.during_batch <- false;
-            File_manager.flush t.fm |> Errs.raise_if_error;
-            Lwt.return res
-          in
-          let on_fail exn =
-            t.during_batch <- false;
-            [%log.info
-              "[pack] batch failed. calling flush. (%s)"
-                (Printexc.to_string exn)];
-            let () =
-              match File_manager.flush t.fm with
-              | Ok () -> ()
-              | Error err ->
-                  [%log.err
-                    "[pack] batch failed and flush failed. Silencing flush \
-                     fail. (%a)"
-                    Errs.pp err]
-            in
-            (* Kill gc process in at_exit. *)
-            raise exn
-          in
-          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
 
         let v config =
           let root = Irmin_pack.Conf.root config in
@@ -239,7 +207,7 @@ module Maker (Config : Conf.S) = struct
             Branch.v ~fresh ~readonly path
           in
           let during_batch = false in
-          let during_gc = None in
+          let running_gc = None in
           {
             config;
             contents;
@@ -249,17 +217,17 @@ module Maker (Config : Conf.S) = struct
             fm;
             dict;
             during_batch;
-            during_gc;
+            running_gc;
             dispatcher;
           }
 
         let close t =
           (* Step 1 - Kill the gc process if it is running *)
           let () =
-            match t.during_gc with
+            match t.running_gc with
             | Some { task; _ } ->
                 Io.cancel task;
-                t.during_gc <- None
+                t.running_gc <- None
             | None -> ()
           in
           (* Step 2 - Close the files *)
@@ -346,7 +314,7 @@ module Maker (Config : Conf.S) = struct
               fun () -> Mtime_clock.count c0 |> Mtime.Span.to_ms
             in
             let promise, resolver = Lwt.wait () in
-            t.during_gc <-
+            t.running_gc <-
               Some
                 {
                   next_generation;
@@ -483,7 +451,7 @@ module Maker (Config : Conf.S) = struct
             | `Running, _ -> assert false
 
           let finalise ?hook ~wait t =
-            match t.during_gc with
+            match t.running_gc with
             | None -> Lwt.return_ok `Idle
             | Some
                 { next_generation; task; unlink; offset; elapsed; resolver; _ }
@@ -523,7 +491,7 @@ module Maker (Config : Conf.S) = struct
                         let () = Lwt.wakeup_later resolver err in
                         err
                   in
-                  t.during_gc <- None;
+                  t.running_gc <- None;
                   Lwt.return result
                 in
                 if t.during_batch then
@@ -540,7 +508,7 @@ module Maker (Config : Conf.S) = struct
 
           let start_or_skip ~unlink t commit_key =
             let open Lwt_result.Syntax in
-            match t.during_gc with
+            match t.running_gc with
             | None ->
                 let* () = start ~unlink t commit_key |> Lwt.return in
                 Lwt.return_ok true
@@ -560,13 +528,48 @@ module Maker (Config : Conf.S) = struct
             | Ok waited -> Lwt.return waited
             | Error e -> Errs.raise_error e
 
-          let is_finished t = Option.is_none t.during_gc
+          let is_finished t = Option.is_none t.running_gc
 
           let on_finalise t f =
-            match t.during_gc with
+            match t.running_gc with
             | None -> ()
             | Some x -> Lwt.on_success x.promise f
         end
+
+        let batch t f =
+          let try_finalise () = Gc.finalise_exn ~wait:false t in
+          let* _ = try_finalise () in
+          t.during_batch <- true;
+          let contents = Contents.CA.cast t.contents in
+          let node = Node.CA.Pack.cast t.node in
+          let commit = Commit.CA.cast t.commit in
+          let contents : 'a Contents.t = contents in
+          let node : 'a Node.t = (contents, node) in
+          let commit : 'a Commit.t = (node, commit) in
+          let on_success res =
+            t.during_batch <- false;
+            File_manager.flush t.fm |> Errs.raise_if_error;
+            let* _ = try_finalise () in
+            Lwt.return res
+          in
+          let on_fail exn =
+            t.during_batch <- false;
+            [%log.info
+              "[pack] batch failed. calling flush. (%s)"
+                (Printexc.to_string exn)];
+            let () =
+              match File_manager.flush t.fm with
+              | Ok () -> ()
+              | Error err ->
+                  [%log.err
+                    "[pack] batch failed and flush failed. Silencing flush \
+                     fail. (%a)"
+                    Errs.pp err]
+            in
+            (* Kill gc process in at_exit. *)
+            raise exn
+          in
+          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
       end
     end
 
