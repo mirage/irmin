@@ -401,8 +401,11 @@ module Maker (Config : Conf.S) = struct
             (* No need to purge index here. It is global too, but some hashes may
                not point to valid offsets anymore. Pack_store will just say that
                such keys are not member of the store. *)
-            Contents.CA.purge_lru t.contents;
-            Node.CA.purge_lru t.node;
+            (* We're also not purging the [Contents] or [Node] stores because
+               even though they may contain entries with invalid offsets after
+               garbage collection they're not reachable from any commit. This means
+               that unless a user requests a value directly using an invalid offset
+               these values won't be accessed *)
             Commit.CA.purge_lru t.commit;
             [%log.info "GC: end"];
             Ok ()
