@@ -125,6 +125,8 @@ module type Specifics = sig
     val wait : repo -> (stats option, msg) result Lwt.t
     (** [wait repo] blocks until GC is finished or is idle.
 
+        If a GC finalises, its stats are returned.
+
         All exceptions that [Irmin_pack] knows how to handle are caught and
         returned as pretty-print error messages; others are re-raised. The error
         messages should be used only for informational purposes, like logging. *)

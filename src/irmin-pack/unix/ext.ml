@@ -151,6 +151,8 @@ module Maker (Config : Conf.S) = struct
         unlink : bool;
         offset : int63;
         elapsed : unit -> float;
+        resolver : (gc_stats option, Errs.t) result Lwt.u;
+        promise : (gc_stats option, Errs.t) result Lwt.t;
       }
 
       module Repo = struct
@@ -343,8 +345,18 @@ module Maker (Config : Conf.S) = struct
               let c0 = Mtime_clock.counter () in
               fun () -> Mtime_clock.count c0 |> Mtime.Span.to_ms
             in
+            let promise, resolver = Lwt.wait () in
             t.during_gc <-
-              Some { next_generation; task; unlink; offset; elapsed };
+              Some
+                {
+                  next_generation;
+                  task;
+                  unlink;
+                  offset;
+                  elapsed;
+                  promise;
+                  resolver;
+                };
             Ok ()
 
           let open_new_suffix ~root ~generation ~end_offset =
@@ -473,7 +485,9 @@ module Maker (Config : Conf.S) = struct
           let finalise ?hook ~wait t =
             match t.during_gc with
             | None -> Lwt.return_ok `Idle
-            | Some { next_generation; task; unlink; offset; elapsed } -> (
+            | Some
+                { next_generation; task; unlink; offset; elapsed; resolver; _ }
+              -> (
                 let go status =
                   let* () =
                     match hook with
@@ -499,10 +513,15 @@ module Maker (Config : Conf.S) = struct
                             ~right_end_offset:new_suffix_end_offset t
                         in
                         let elapsed = elapsed () in
+                        let stats = { elapsed } in
+                        let () = Lwt.wakeup_later resolver (Ok (Some stats)) in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
-                        Ok (`Finalised { elapsed })
-                    | _ -> gc_errors status gc_output
+                        Ok (`Finalised stats)
+                    | _ ->
+                        let err = gc_errors status gc_output in
+                        let () = Lwt.wakeup_later resolver err in
+                        err
                   in
                   t.during_gc <- None;
                   Lwt.return result
@@ -542,6 +561,11 @@ module Maker (Config : Conf.S) = struct
             | Error e -> Errs.raise_error e
 
           let is_finished t = Option.is_none t.during_gc
+
+          let on_finalise t f =
+            match t.during_gc with
+            | None -> ()
+            | Some x -> Lwt.on_success x.promise f
         end
       end
     end
@@ -694,6 +718,11 @@ module Maker (Config : Conf.S) = struct
         let error_msg = Fmt.str "[%s] resulted in error: %s" context err in
         Lwt.return_error (`Msg error_msg)
 
+      let map_errors context (error : Errs.t) =
+        let err = Fmt.str "%a" Errs.pp error in
+        let err_msg = Fmt.str "[%s] resulted in error: %s" context err in
+        `Msg err_msg
+
       let finalise_exn_with_hook = X.Repo.Gc.finalise_exn
       let finalise_exn = finalise_exn_with_hook ?hook:None
       let start_exn = X.Repo.Gc.start_exn
@@ -721,12 +750,12 @@ module Maker (Config : Conf.S) = struct
         match started with
         | Ok r ->
             if r then
-              (* start top-level Lwt thread to track finalisation *)
-              Lwt.async (fun () ->
-                  let* results = wait repo in
-                  match results with
-                  | Ok _ as ok -> Lwt.return @@ finished ok
-                  | Error _ as e -> Lwt.return @@ finished e);
+              X.Repo.Gc.on_finalise repo (fun finalisation_r ->
+                  match finalisation_r with
+                  | Ok _ as stats -> finished stats
+                  | Error err ->
+                      let err_msg = map_errors "Finalise GC" err in
+                      finished @@ Error err_msg);
             Lwt.return_ok r
         | Error _ as e -> Lwt.return e
     end
