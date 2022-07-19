@@ -246,7 +246,7 @@ module Store = struct
     let* result = S.Gc.finalise_exn ~wait:true repo in
     match result with
     | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised -> Lwt.return_unit
+    | `Finalised _ -> Lwt.return_unit
 
   let dict_find_opt (repo : S.repo) step = S.Dict.find repo.dict step
 

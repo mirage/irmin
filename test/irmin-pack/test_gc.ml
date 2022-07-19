@@ -61,7 +61,7 @@ include struct
     let* result = S.Gc.finalise_exn ~wait:true t.repo in
     match result with
     | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised -> Lwt.return_unit
+    | `Finalised _ -> Lwt.return_unit
 
   let commit t =
     let parents = List.map S.Commit.key t.parents in
@@ -727,7 +727,7 @@ module Concurrent_gc = struct
     let* result = S.Gc.finalise_exn_with_hook ~wait:true ~hook t.repo in
     match result with
     | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised ->
+    | `Finalised _ ->
         let c3 = Option.get !c3 in
         let* () = check_3 t c3 in
         S.Repo.close t.repo

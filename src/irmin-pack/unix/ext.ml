@@ -143,11 +143,14 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
+      type gc_stats = { elapsed : float }
+
       type during_gc = {
         next_generation : int;
         task : Io.task;
         unlink : bool;
         offset : int63;
+        elapsed : unit -> float;
       }
 
       module Repo = struct
@@ -336,7 +339,12 @@ module Maker (Config : Conf.S) = struct
                   in
                   ())
             in
-            t.during_gc <- Some { next_generation; task; unlink; offset };
+            let elapsed =
+              let c0 = Mtime_clock.counter () in
+              fun () -> Mtime_clock.count c0 |> Mtime.Span.to_ms
+            in
+            t.during_gc <-
+              Some { next_generation; task; unlink; offset; elapsed };
             Ok ()
 
           let open_new_suffix ~root ~generation ~end_offset =
@@ -465,7 +473,7 @@ module Maker (Config : Conf.S) = struct
           let finalise ?hook ~wait t =
             match t.during_gc with
             | None -> Lwt.return_ok `Idle
-            | Some { next_generation; task; unlink; offset } -> (
+            | Some { next_generation; task; unlink; offset; elapsed } -> (
                 let go status =
                   let* () =
                     match hook with
@@ -490,9 +498,10 @@ module Maker (Config : Conf.S) = struct
                             ~right_start_offset:offset
                             ~right_end_offset:new_suffix_end_offset t
                         in
+                        let elapsed = elapsed () in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
-                        Ok `Finalised
+                        Ok (`Finalised { elapsed })
                     | _ -> gc_errors status gc_output
                   in
                   t.during_gc <- None;
@@ -665,8 +674,8 @@ module Maker (Config : Conf.S) = struct
 
     module Gc = struct
       type msg = [ `Msg of string ]
-      type stats = { elapsed : float }
-      type process_state = [ `Idle | `Running | `Finalised ]
+      type stats = X.gc_stats = { elapsed : float }
+      type process_state = [ `Idle | `Running | `Finalised of stats ]
 
       let catch_errors context error =
         let err =
@@ -697,14 +706,18 @@ module Maker (Config : Conf.S) = struct
         try
           let* finished = finalise_exn ~wait:false repo in
           match finished with
-          | `Idle | `Finalised -> Lwt.return_ok true
+          | `Idle | `Finalised _ -> Lwt.return_ok true
           | `Running -> Lwt.return_ok false
         with exn -> catch_errors "Check GC" exn
 
       let wait repo =
         try
-          let* _ = finalise_exn ~wait:true repo in
-          Lwt.return_ok ()
+          let* result = finalise_exn ~wait:true repo in
+          match result with
+          | `Running ->
+              assert false (* [~wait:true] should never return [Running] *)
+          | `Idle -> Lwt.return_ok None
+          | `Finalised stats -> Lwt.return_ok @@ Some stats
         with exn -> catch_errors "Wait for GC" exn
 
       let run ?(finished = fun _ -> ()) repo commit_key =
@@ -714,13 +727,9 @@ module Maker (Config : Conf.S) = struct
             if r then
               (* start top-level Lwt thread to track finalisation *)
               Lwt.async (fun () ->
-                  let c0 = Mtime_clock.counter () in
                   let* results = wait repo in
                   match results with
-                  | Ok _ ->
-                      let elapsed = Mtime_clock.count c0 |> Mtime.Span.to_ms in
-                      let stats = Ok { elapsed } in
-                      Lwt.return @@ finished stats
+                  | Ok _ as ok -> Lwt.return @@ finished ok
                   | Error _ as e -> Lwt.return @@ finished e);
             Lwt.return_ok r
         | Error _ as e -> Lwt.return e

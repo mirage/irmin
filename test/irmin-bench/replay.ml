@@ -29,7 +29,7 @@ module Store = struct
     let* r = Store.Gc.finalise_exn ?wait repo in
     match r with
     | `Idle | `Running -> Lwt.return false
-    | `Finalised -> Lwt.return true
+    | `Finalised _ -> Lwt.return true
 
   let gc repo key =
     let* launched = Store.Gc.start_exn ~unlink:true repo key in
@@ -134,7 +134,7 @@ module Store_mem = struct
     let* r = Store.Gc.finalise_exn ?wait repo in
     match r with
     | `Idle | `Running -> Lwt.return false
-    | `Finalised -> Lwt.return true
+    | `Finalised _ -> Lwt.return true
 
   let gc repo key =
     let* launched = Store.Gc.start_exn ~unlink:true repo key in
