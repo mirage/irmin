@@ -129,13 +129,9 @@ module type Specifics = sig
         returned as pretty-print error messages; others are re-raised. The error
         messages should be used only for informational purposes, like logging. *)
 
-    val is_finished : repo -> (bool, msg) result Lwt.t
-    (** [is_finished repo] is [Ok true] if a GC is finished (or idle) and
-        [Ok false] if a GC is running for the given [repo].
-
-        All exceptions that [Irmin_pack] knows how to handle are caught and
-        returned as pretty-print error messages; others are re-raised. The error
-        messages should be used only for informational purposes, like logging. *)
+    val is_finished : repo -> bool
+    (** [is_finished repo] is [true] if a GC is finished (or idle) and [false]
+        if a GC is running for the given [repo]. *)
   end
 end
 

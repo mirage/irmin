@@ -540,6 +540,8 @@ module Maker (Config : Conf.S) = struct
             match result with
             | Ok waited -> Lwt.return waited
             | Error e -> Errs.raise_error e
+
+          let is_finished t = Option.is_none t.during_gc
         end
       end
     end
@@ -702,13 +704,7 @@ module Maker (Config : Conf.S) = struct
           Lwt.return_ok started
         with exn -> catch_errors "Start GC" exn
 
-      let is_finished repo =
-        try
-          let* finished = finalise_exn ~wait:false repo in
-          match finished with
-          | `Idle | `Finalised _ -> Lwt.return_ok true
-          | `Running -> Lwt.return_ok false
-        with exn -> catch_errors "Check GC" exn
+      let is_finished = X.Repo.Gc.is_finished
 
       let wait repo =
         try
