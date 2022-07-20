@@ -33,7 +33,10 @@
   - Removed the `irmin-unix` package. Unix backends are now subpackages of their
     relevant backend (see `irmin-fs.unix` and `irmin-git.unix`). The CLI tool is
     in `irmin-cli`. For common unix utilities, see `irmin.unix`. (#1953, @metanivek)
-    
+
+- **irmin-graphql**
+  - Updated to `graphql.0.14.0` (#1843, @patricoferris, @zshipko)
+
 ### Fixed
 
 ## 3.3.1 (2022-06-22)
