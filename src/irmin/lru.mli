@@ -23,4 +23,6 @@ module Make (H : Hashtbl.HashedType) : sig
   val find : 'a t -> H.t -> 'a
   val mem : 'a t -> H.t -> bool
   val clear : 'a t -> unit
+  val iter : 'a t -> (H.t -> 'a -> unit) -> unit
+  val remove : 'a t -> H.t -> unit
 end

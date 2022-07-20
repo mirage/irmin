@@ -57,6 +57,16 @@ module Make (H : Hashtbl.HashedType) = struct
     let node x = { value = x; prev = None; next = None }
     let create () = { first = None; last = None }
 
+    let iter t f =
+      let rec aux f = function
+        | Some n ->
+            let next = n.next in
+            f n.value;
+            aux f next
+        | _ -> ()
+      in
+      aux f t.first
+
     let clear t =
       t.first <- None;
       t.last <- None
@@ -119,6 +129,8 @@ module Make (H : Hashtbl.HashedType) = struct
     | true ->
         promote t k;
         true
+
+  let iter t f = Q.iter t.q (fun (k, v) -> f k v)
 
   let clear t =
     HT.clear t.ht;

@@ -34,6 +34,7 @@ depends: [
   "hex"      {with-test}
   "alcotest" {>= "1.1.0" & with-test}
   "alcotest-lwt" {with-test}
+  "qcheck-alcotest" {with-test}
   "vector" {with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
   "bisect_ppx" {dev & >= "2.5.0"}
