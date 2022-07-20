@@ -450,18 +450,13 @@ module Maker (Config : Conf.S) = struct
             | `Success, Ok _ -> assert false
             | `Running, _ -> assert false
 
-          let finalise ?hook ~wait t =
+          let finalise ~wait t =
             match t.running_gc with
             | None -> Lwt.return_ok `Idle
             | Some
                 { next_generation; task; unlink; offset; elapsed; resolver; _ }
               -> (
                 let go status =
-                  let* () =
-                    match hook with
-                    | Some h -> h `Before_latest_newies
-                    | None -> Lwt.return_unit
-                  in
                   let root = Conf.root t.config in
                   let gc_output =
                     File_manager.read_gc_output ~root
@@ -522,8 +517,8 @@ module Maker (Config : Conf.S) = struct
             | Ok launched -> Lwt.return launched
             | Error e -> Errs.raise_error e
 
-          let finalise_exn ?hook ?(wait = false) t =
-            let* result = finalise ?hook ~wait t in
+          let finalise_exn ?(wait = false) t =
+            let* result = finalise ~wait t in
             match result with
             | Ok waited -> Lwt.return waited
             | Error e -> Errs.raise_error e
@@ -726,8 +721,7 @@ module Maker (Config : Conf.S) = struct
         let err_msg = Fmt.str "[%s] resulted in error: %s" context err in
         `Msg err_msg
 
-      let finalise_exn_with_hook = X.Repo.Gc.finalise_exn
-      let finalise_exn = finalise_exn_with_hook ?hook:None
+      let finalise_exn = X.Repo.Gc.finalise_exn
       let start_exn = X.Repo.Gc.start_exn
 
       let start repo commit_key =

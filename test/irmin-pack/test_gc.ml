@@ -710,28 +710,6 @@ module Concurrent_gc = struct
     let _killed = kill_gc t in
     S.Repo.close t.repo
 
-  let test_finalise_hook () =
-    let* t = init () in
-    let* t, c1 = commit_1 t in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* () = start_gc t c2 in
-    let c3 = ref None in
-    let hook = function
-      | `Before_latest_newies ->
-          let* t = checkout_exn t c2 in
-          let* _, c = commit_3 t in
-          c3 := Some c;
-          Lwt.return_unit
-    in
-    let* result = S.Gc.finalise_exn_with_hook ~wait:true ~hook t.repo in
-    match result with
-    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised _ ->
-        let c3 = Option.get !c3 in
-        let* () = check_3 t c3 in
-        S.Repo.close t.repo
-
   let tests =
     [
       tc "Test find_running_gc" find_running_gc;
@@ -747,6 +725,5 @@ module Concurrent_gc = struct
       tc "Test skip gc" test_skip;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;
-      tc "Test finalise with hook" test_finalise_hook;
     ]
 end
