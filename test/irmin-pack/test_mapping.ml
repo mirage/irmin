@@ -91,7 +91,7 @@ let produce_suffix_segmentation len seed =
   in
   List.to_seq elts |> Array.of_seq
 
-(** Randomly procude a subset of the [full_seg] segmentation. *)
+(** Randomly produce a subset of the [full_seg] segmentation. *)
 let produce_suffix_segmentation_subset full_seg ~seed ~max_len =
   let rng = Random.State.make [| seed |] in
   let len = Random.State.int rng max_len |> max 1 |> min max_len in
