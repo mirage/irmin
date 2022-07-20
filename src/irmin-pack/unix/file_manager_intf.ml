@@ -37,7 +37,10 @@ module type S = sig
   val dict : t -> Dict.t
   val suffix : t -> Suffix.t
   val index : t -> Index.t
-  val mapping : t -> Io.t option
+
+  val mapping : t -> string option
+  (** path to mapping file *)
+
   val prefix : t -> Io.t option
 
   type create_error :=

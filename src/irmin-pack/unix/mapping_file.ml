@@ -51,10 +51,6 @@ let chunk_sz = 1_000_000 / 8
 (* Set to 0 until we find decide what to do about sequential traversal of pack files *)
 let gap_tolerance = 0
 
-module BigArr1 = Bigarray.Array1
-
-type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-
 module Int_mmap : sig
   type t = private {
     fn : string;
@@ -111,16 +107,6 @@ end = struct
     t.arr <- Bigarray.(Array1.create Int c_layout 0);
     ()
 end
-
-(** Essentially the Y combinator; useful for anonymous recursive functions. The
-    k argument is the recursive callExample:
-
-    {[
-      iter_k (fun ~k n -> if n = 0 then 1 else n * k (n - 1))
-    ]} *)
-let iter_k f (x : 'a) =
-  let rec k x = f ~k x in
-  k x
 
 (** [sort_chunks ~arr] sorts each chunk in the bigarray [arr].
 
@@ -365,36 +351,38 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     Int_mmap.close file0;
     Io.Unix.unlink path0 |> ignore;
 
-    (* Create [file2] *)
-    let file2_ref = ref None in
-    let auto_flush_callback () =
-      match !file2_ref with
-      | None -> assert false
-      | Some x -> Ao.flush x |> Errs.raise_if_error
-    in
-    let* file2 =
-      Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
-        ~auto_flush_callback
-    in
-    file2_ref := Some file2;
-
-    (* Fill and close [file2]. *)
+    (* Create [file2]; currently this uses mmap format *)
+    let module Util = struct
+      (** [output_int_ne oc i] writes [i] to [oc] using native endian format,
+          suitable for reading by mmap; not thread safe - shared buffer *)
+      let output_int_ne =
+        let buf = Bytes.create 8 in
+        fun oc i ->
+          Bytes.set_int64_ne buf 0 (Int64.of_int i);
+          (* NOTE Stdlib.output_binary_int always uses big-endian, but mmap is (presumably)
+             arch dependent, hence we use set_int64_ne *)
+          Stdlib.output_bytes oc buf;
+          ()
+    end in
+    let file2 = Stdlib.open_out_bin path2 in
+    (* Fill and close [file2] *)
+    let poff = ref 0 in
+    (* offset in prefix file *)
     let register_entry ~off ~len =
-      (* Write [off, len] with repr because it will be read with repr. *)
-
-      (* if off < 500 then *)
-      (* Fmt.epr "\nregister_entry < 500: %d %d\n%!" off len; *)
-      (* Fmt.epr "register_entry of middle file: %d %d\n%!" off len; *)
-      let off = Int63.of_int off in
-      let len = Int63.of_int len in
-      encode_bin_pair (off, len) (Ao.append_exn file2)
+      (* NOTE mmap-contents: the order of ints that are output: the virtual offset, the
+         offset-in-prefix and the length; this is used when the file is read back in *)
+      Util.output_int_ne file2 off;
+      Util.output_int_ne file2 !poff;
+      Util.output_int_ne file2 len;
+      poff := !poff + len;
+      ()
     in
     let* () =
       Errs.catch (fun () ->
           calculate_extents_oc ~src_is_sorted:() ~src:file1.arr ~register_entry)
     in
-    let* () = Ao.flush file2 in
-    let* () = Ao.close file2 in
+    let _ = Stdlib.flush file2 in
+    let _ = Stdlib.close_out file2 in
 
     (* Close and unlink [file1] *)
     Int_mmap.close file1;
@@ -402,58 +390,35 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
 
     Ok ()
 
-  let iter io f =
-    let buffer = Bytes.create (16 * 1000) in
-    let buffer_off = ref 0 in
+  type mapping_as_int_bigarray = Int_bigarray of int_bigarray
 
-    let open Int63.Syntax in
-    let open Int63 in
-    let min a b = if a < b then a else b in
-    let entry_bytes = of_int 16 in
-    let max_entries_per_batch = of_int 1000 in
+  let empty_mapping = Int_bigarray Bigarray.(Array1.create int c_layout 0)
 
-    (* let max_bytes_per_batch = max_entries_per_batch * entry_bytes in *)
-    let open Result_syntax in
-    let* byte_count = Io.Unix.read_size io in
-    let entry_count = byte_count / entry_bytes in
-    (* Fmt.epr "\nbyte_count:%#d entry_count:%#d\n%!" (to_int byte_count) (to_int entry_count); *)
-    let* () =
-      if entry_count * entry_bytes <> byte_count then
-        Error (`Corrupted_mapping_file "unexpected file size")
-      else Ok ()
-    in
+  let load_mapping_as_mmap path =
+    match Io.Unix.classify_path path with
+    | `File -> (
+        let mmap = Int_mmap.open_ ~fn:path ~sz:(-1) in
+        let arr = mmap.arr in
+        (* we expect the arr to hold (off,poff,len) tuples *)
+        match BigArr1.dim arr mod 3 = 0 with
+        | true ->
+            (* we guarantee that the size of the arr is a multiple of 3 *)
+            Int_mmap.close mmap;
+            Ok (Int_bigarray arr)
+        | false ->
+            Error
+              (`Corrupted_mapping_file
+                (__FILE__ ^ ": mapping mmap size was not a multiple of 3")))
+    | _ -> Error `No_such_file_or_directory
 
-    let rec load_batch i last_yielded_end_offset =
-      let entries_left = entry_count - i in
-      (* Fmt.epr "load_batch i:%#d, entries_left:%#d \n%!" (to_int i) (to_int entries_left); *)
-      if entries_left = zero then ()
-      else
-        let entries_in_batch = min entries_left max_entries_per_batch in
-        let off = i * entry_bytes in
-        let len = to_int (entries_in_batch * entry_bytes) in
-        Io.Unix.read_exn io ~off ~len buffer;
-        buffer_off := 0;
-        yield_entries i (i + entries_in_batch) last_yielded_end_offset
-    and yield_entries i end_i last_yielded_end_offset =
-      if i = end_i then load_batch i last_yielded_end_offset
-      else
-        let off, len =
-          (* Decoding a pair of int can't fail *)
-          (* Bytes.unsafe_to_string usage: possibly safe TODO justify safety, or convert
-             to Bytes.to_string *)
-          decode_bin_pair (Bytes.unsafe_to_string buffer) buffer_off
-        in
-        let () =
-          if off < last_yielded_end_offset then
-            let msg =
-              Fmt.str "Found off:%a len:%a but the previous entry ends as at %a"
-                Int63.pp off Int63.pp len Int63.pp last_yielded_end_offset
-            in
-            raise (Errors.Pack_error (`Corrupted_mapping_file msg))
-        in
-        f ~off ~len:(to_int len);
-        let last_yielded_end_offset = off + len in
-        yield_entries (succ i) end_i last_yielded_end_offset
-    in
-    Errs.catch (fun () -> load_batch zero zero)
+  let iter_mmap (Int_bigarray arr) f =
+    let sz = BigArr1.dim arr in
+    assert (sz mod 3 = 0);
+    (* guaranteed by type [mapping_as_int_bigarray] *)
+    Errs.catch (fun () ->
+        for i = 0 to (sz / 3) - 1 do
+          (* see note mmap-contents above: every 3 ints corresponds to (off,poff,len) *)
+          f ~off:(arr.{3 * i} |> Int63.of_int) ~len:arr.{(3 * i) + 2}
+        done;
+        ())
 end

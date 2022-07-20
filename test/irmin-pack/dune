@@ -13,7 +13,8 @@
   test_upgrade
   test_gc
   test_flush_reload
-  test_mapping)
+  test_mapping
+  test_nearest_leq)
  (libraries
   alcotest
   fmt

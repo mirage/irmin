@@ -55,3 +55,19 @@ module Result_syntax = struct
   let ( let+ ) res f = Result.map f res
   let ( let* ) res f = Result.bind res f
 end
+
+type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
+(** [int_bigarray] is the raw type for the mapping file data, exposed via mmap *)
+
+module BigArr1 = Bigarray.Array1
+(** Simple module alias *)
+
+(** Essentially the Y combinator; useful for anonymous recursive functions. The
+    k argument is the recursive call. Example:
+
+    {[
+      iter_k (fun ~k n -> if n = 0 then 1 else n * k (n - 1))
+    ]} *)
+let iter_k f (x : 'a) =
+  let rec k x = f ~k x in
+  k x

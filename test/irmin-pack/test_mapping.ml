@@ -34,11 +34,12 @@ let process_on_disk pairs =
     Mapping_file.create ~root:test_dir ~generation:0 ~register_entries
     |> Errs.raise_if_error
   in
-  let io = Io.open_ ~path:mapping_path ~readonly:true |> Errs.raise_if_error in
+  let mf =
+    Mapping_file.load_mapping_as_mmap mapping_path |> Errs.raise_if_error
+  in
   let l = ref [] in
   let f ~off ~len = l := (Int63.to_int off, len) :: !l in
-  Mapping_file.iter io f |> Errs.raise_if_error;
-  Io.close io |> ignore;
+  Mapping_file.iter_mmap mf f |> Errs.raise_if_error;
   !l |> List.rev
 
 (** Emulate the behaviour of the [Mapping_file] routines to process [pairs] *)

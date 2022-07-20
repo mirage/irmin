@@ -33,42 +33,76 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let read_prefix = ref 0
   (*TODO move them in stats*)
 
-  type mapping_value = { poff : int63; len : int }
-  (** [poff] is a prefix offset (i.e. an offset in the prefix file), [len] is
-      the length of the chunk starting at [poff]. *)
+  type mapping = Mapping_file.mapping_as_int_bigarray
 
-  type mapping = mapping_value Intmap.t
+  module Mapping_util = struct
+    type entry = { off : int63; poff : int63; len : int }
+    (** [entry] is a type for the return value from {!find_nearest_leq}; see doc
+        for {!type:mapping} above. *)
+
+    let nearest_leq = Utils.nearest_leq
+
+    (** [find_nearest_leq ~mapping off] returns the entry in [mapping] whose
+        offset is the nearest [<=] the given [off] *)
+    let find_nearest_leq ~(mapping : mapping) off =
+      match mapping with
+      | Int_bigarray arr -> (
+          match BigArr1.dim arr with
+          | 0 ->
+              (* NOTE this is probably an error case; perhaps log an error *)
+              [%log.warn
+                "%s: mapping array had 0 length; this is probably an error"
+                  __FILE__];
+              None
+          | len -> (
+              assert (len mod 3 = 0);
+              (* see invariant-mapping-array *)
+              let actual_len = len / 3 in
+              (* see invariant-mapping-array: we want to perform binary search wrt. the
+                 first int in each consecutive triple *)
+              let get arr i = arr.{i * 3} in
+              match
+                nearest_leq ~arr ~get ~lo:0 ~hi:(actual_len - 1)
+                  ~key:(Int63.to_int off)
+              with
+              | `All_gt_key -> None
+              | `Some i ->
+                  (* NOTE the i returned is as seen via [get] above, i.e., we need to multiply
+                     by 3 to get the actual index in the array *)
+                  let off, poff, len =
+                    (arr.{3 * i}, arr.{(3 * i) + 1}, arr.{(3 * i) + 2})
+                  in
+                  Some { off = Int63.of_int off; poff = Int63.of_int poff; len }
+              ))
+  end
 
   type t = { fm : Fm.t; mutable mapping : mapping; root : string }
   (** [mapping] is a map from global offset to (offset,len) pairs in the prefix
       file *)
 
-  let load_mapping io =
+  let empty_mapping = Mapping_file.empty_mapping
+
+  let load_mapping path =
     let open Result_syntax in
-    let open Int63 in
-    let open Int63.Syntax in
-    let mapping = ref Intmap.empty in
-    let poff = ref zero in
-    let f ~off ~len =
-      mapping := Intmap.add off { poff = !poff; len } !mapping;
-      poff := !poff + of_int len
-    in
-    let* () = Mapping_file.iter io f in
-    Ok !mapping
+    let* arr = Mapping_file.load_mapping_as_mmap path in
+    (* NOTE arr is an array of tuples (off,poff,len); see invariant-mapping-array *)
+    Ok arr
 
   let reload t =
     let open Result_syntax in
     let* mapping =
       match Fm.mapping t.fm with
-      | None -> Ok Intmap.empty
-      | Some io -> load_mapping io
+      | None -> Ok empty_mapping
+      (* presumably this mapping is not used subsequently, i.e., the suffix file starts
+         from virtual offset 0, and the prefix will never be inspected *)
+      | Some path -> load_mapping path
     in
     t.mapping <- mapping;
     Ok ()
 
   let v ~root fm =
     let open Result_syntax in
-    let t = { fm; mapping = Intmap.empty; root } in
+    let t = { fm; mapping = empty_mapping; root } in
     Fm.register_mapping_consumer fm ~after_reload:(fun () -> reload t);
     let* () = reload t in
     Ok t
@@ -109,13 +143,11 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
      gced entry, or doing an invalid read. We expose two [read_exn] functions
      and we handled this upstream. *)
   let chunk_of_off_exn mapping off_start =
+    (* NOTE off_start is a virtual offset *)
     let open Int63 in
     let open Int63.Syntax in
-    match
-      Intmap.find_last_opt
-        (fun chunk_off_start -> chunk_off_start <= off_start)
-        mapping
-    with
+    let res = Mapping_util.find_nearest_leq ~mapping off_start in
+    match res with
     | None ->
         (* Case 1: The entry if before the very first chunk (or there are no
            chunks). Possibly the entry was gced. *)
@@ -124,9 +156,10 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
             Int63.pp off_start
         in
         raise (Errors.Pack_error (`Invalid_read_of_gced_object s))
-    | Some (chunk_off_start, chunk) ->
+    | Some (entry : Mapping_util.entry) ->
+        let chunk_off_start = entry.off in
         assert (chunk_off_start <= off_start);
-        let chunk_len = chunk.len in
+        let chunk_len = entry.len in
         let chunk_off_end = chunk_off_start + of_int chunk_len in
 
         (* Case 2: The entry starts after the chunk. Possibly the entry was
@@ -136,15 +169,15 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
            Fmt.str
              "offset %a is supposed to be contained in chunk \
               (off=%a,poff=%a,len=%d) but starts after chunk"
-             Int63.pp off_start Int63.pp chunk_off_start Int63.pp chunk.poff
-             chunk.len
+             Int63.pp off_start Int63.pp chunk_off_start Int63.pp entry.poff
+             entry.len
          in
          raise (Errors.Pack_error (`Invalid_read_of_gced_object s)));
 
         let shift_in_chunk = off_start - chunk_off_start in
         let max_entry_len = of_int chunk_len - shift_in_chunk in
 
-        (chunk, shift_in_chunk, max_entry_len)
+        (entry, shift_in_chunk, max_entry_len)
 
   (* After we find the chunk of an entry, we check that a read is possible in the
      chunk. If it's not, this is always an invalid read. *)
