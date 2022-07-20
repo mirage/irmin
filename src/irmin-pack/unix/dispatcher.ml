@@ -33,11 +33,15 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let read_prefix = ref 0
   (*TODO move them in stats*)
 
-  type mapping_value = { poff : int63; len : int }
+  type mapping_value = { poff : int63; len : int } [@@deriving irmin ~pp]
   (** [poff] is a prefix offset (i.e. an offset in the prefix file), [len] is
       the length of the chunk starting at [poff]. *)
 
   type mapping = mapping_value Intmap.t
+
+  let pp_mapping ppf t =
+    Fmt.(Dump.list (Dump.pair Int63.pp pp_mapping_value))
+      ppf (Intmap.bindings t)
 
   type t = { fm : Fm.t; mutable mapping : mapping; root : string }
   (** [mapping] is a map from global offset to (offset,len) pairs in the prefix
@@ -65,6 +69,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     in
     t.mapping <- mapping;
     Ok ()
+
+  let mapping t = t.mapping
 
   let v ~root fm =
     let open Result_syntax in

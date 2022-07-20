@@ -56,7 +56,7 @@ module type Persistent = sig
 
   val to_snapshot : Raw.t -> Snapshot.inode
   val of_snapshot : 'a t -> index:(hash -> key) -> Snapshot.inode -> value
-  val purge_lru : 'a t -> unit
+  val purge_lru : (int63 -> bool) -> 'a t -> unit
 end
 
 module type Sigs = sig

@@ -401,9 +401,34 @@ module Maker (Config : Conf.S) = struct
             (* No need to purge index here. It is global too, but some hashes may
                not point to valid offsets anymore. Pack_store will just say that
                such keys are not member of the store. *)
-            Contents.CA.purge_lru t.contents;
-            Node.CA.purge_lru t.node;
-            Commit.CA.purge_lru t.commit;
+            let is_dead off =
+              let d = Dispatcher.mapping t.dispatcher in
+              let min_off = Dispatcher.entry_offset_suffix_start t.dispatcher in
+              if Int63.(compare off min_off >= 0) then
+                (* off is in the suffix file, it's definitely alive *)
+                false
+              else
+                try
+                  let (_ : int63) =
+                    Dispatcher.poff_of_entry_exn d ~off ~len:10
+                  in
+                  (* off is in a valid range in the prefix file, it
+                     might be alive, let's keep it *)
+                  false
+                with Errors.Pack_error _ ->
+                  (* off is not in a valid range in the prefix file, it's
+                     dead *)
+                  true
+            in
+            Commit.CA.purge_lru
+              (fun _ ->
+                (* the parent of the GC commits are kept in the prefix file
+                   for decoding but they are definitely dead - we could be
+                   more fine-grained but this doesn't really matter here. *)
+                true)
+              t.commit;
+            Contents.CA.purge_lru is_dead t.contents;
+            Node.CA.purge_lru is_dead t.node;
             [%log.info "GC: end"];
             Ok ()
 

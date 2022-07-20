@@ -479,7 +479,7 @@ struct
       We could clear the caches here but that really is not necessary. *)
   let close _ = Lwt.return ()
 
-  let purge_lru t = Lru.clear t.lru
+  let purge_lru f t = Lru.iter t.lru (fun k _ -> if f k then Lru.remove t.lru k)
 end
 
 module Make
@@ -510,5 +510,5 @@ struct
 
   let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
   let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
-  let purge_lru t = Inner.purge_lru (get_open_exn t)
+  let purge_lru f t = Inner.purge_lru f (get_open_exn t)
 end

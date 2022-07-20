@@ -62,7 +62,7 @@ module type S = sig
   val index_direct_with_kind : 'a t -> hash -> (key * Pack_value.Kind.t) option
   (** Returns the key and the kind of an object indexed by hash. *)
 
-  val purge_lru : 'a t -> unit
+  val purge_lru : (int63 -> bool) -> 'a t -> unit
 end
 
 module type Sigs = sig

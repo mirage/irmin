@@ -53,8 +53,11 @@ module type S = sig
 
   type mapping
 
+  val pp_mapping : mapping Fmt.t
   val load_mapping : Fm.Io.t -> (mapping, [> Fm.Errs.t ]) result
+  val mapping : t -> mapping
   val poff_of_entry_exn : mapping -> off:int63 -> len:int -> int63
+  val entry_offset_suffix_start : t -> int63
 end
 
 module type Sigs = sig
