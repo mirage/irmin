@@ -133,6 +133,7 @@ module Make (H : Hashtbl.HashedType) = struct
   let iter t f = Q.iter t.q (fun (k, v) -> f k v)
 
   let clear t =
+    t.w <- 0;
     HT.clear t.ht;
     Q.clear t.q
 end
