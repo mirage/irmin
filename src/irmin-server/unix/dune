@@ -1,0 +1,10 @@
+(library
+ (name irmin_server_unix)
+ (public_name irmin-server.unix)
+ (libraries
+  irmin-server
+  lwt.unix
+  conduit-lwt-unix
+  websocket-lwt-unix
+  digestif.ocaml
+  irmin-pack))

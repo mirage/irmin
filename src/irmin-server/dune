@@ -1,0 +1,6 @@
+(library
+ (name irmin_server)
+ (public_name irmin-server)
+ (libraries logs fmt irmin lwt cmdliner)
+ (preprocess
+  (pps ppx_irmin)))

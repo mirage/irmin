@@ -1,0 +1,9 @@
+(library
+ (name irmin_client_unix)
+ (public_name irmin-client.unix)
+ (libraries
+  irmin-client
+  lwt.unix
+  websocket-lwt-unix
+  conduit-lwt-unix
+  irmin-server))

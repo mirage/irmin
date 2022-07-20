@@ -1,0 +1,25 @@
+opam-version: "2.0"
+synopsis: "A high-performance server for Irmin"
+maintainer: "Zach Shipko <zachshipko@gmail.com>"
+authors: "Zach Shipko <zachshipko@gmail.com>"
+license: "ISC"
+homepage: "https://github.com/mirage/irmin"
+doc: "https://irmin.org"
+bug-reports: "https://github.com/mirage/irmin/issues"
+depends: [
+  "ocaml" {>= "4.08.0"}
+  "dune" {>= "2.0.0"}
+  "optint" {>= "0.1.0"}
+  "irmin" {= version}
+  "uri"
+  "fmt"
+  "cmdliner" {>= "1.0.4"}
+  "logs" {>= "0.7.0"}
+  "lwt" {>= "5.4.0"}
+  "ppx_irmin" {= version}
+]
+build: [
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name] {with-test}
+]

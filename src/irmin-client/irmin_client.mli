@@ -1,0 +1,1 @@
+include Irmin_client_intf.Irmin_client
