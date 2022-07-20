@@ -232,8 +232,7 @@ struct
        dead_header_size is 0. *)
     let dead_header_size = 0 in
     [%log.debug
-      "reopen_suffix gen:%d end_offset:%d\n%!" generation
-        (Int63.to_int end_offset)];
+      "reopen_suffix gen:%d end_offset:%d" generation (Int63.to_int end_offset)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
       let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
@@ -657,7 +656,7 @@ struct
   let swap t ~generation ~right_start_offset ~right_end_offset =
     let open Result_syntax in
     [%log.debug
-      "Gc in main: swap %d %#d %#d\n%!" generation
+      "Gc in main: swap %d %#d %#d" generation
         (Int63.to_int right_start_offset)
         (Int63.to_int right_end_offset)];
     (* Step 1. Reopen files *)
