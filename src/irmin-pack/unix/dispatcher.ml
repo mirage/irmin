@@ -43,17 +43,15 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   (** [mapping] is a map from global offset to (offset,len) pairs in the prefix
       file *)
 
-  let load_mapping io =
-    let open Result_syntax in
-    let open Int63 in
-    let open Int63.Syntax in
+  let load_mapping path =
     let mapping = ref Intmap.empty in
-    let poff = ref zero in
+    let poff = ref Int63.zero in
     let f ~off ~len =
       mapping := Intmap.add off { poff = !poff; len } !mapping;
-      poff := !poff + of_int len
+      poff := Int63.(Syntax.(!poff + of_int len))
     in
-    let* () = Mapping_file.iter io f in
+    let arr = Mapping_file.load_mapping_as_mmap path in
+    Mapping_file.iter_mmap arr f;
     Ok !mapping
 
   let reload t =
@@ -61,7 +59,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let* mapping =
       match Fm.mapping t.fm with
       | None -> Ok Intmap.empty
-      | Some io -> load_mapping io
+      | Some path -> load_mapping path
     in
     t.mapping <- mapping;
     Ok ()

@@ -45,7 +45,7 @@ struct
     control : Control.t;
     mutable suffix : Suffix.t;
     mutable prefix : Prefix.t option;
-    mutable mapping : Mapping.t option;
+    mutable mapping : string option;
     index : Index.t;
     mutable mapping_consumers : after_reload_consumer list;
     mutable dict_consumers : after_reload_consumer list;
@@ -67,7 +67,6 @@ struct
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
     let* () = Suffix.close t.suffix in
-    let* () = Option.might Mapping.close t.mapping in
     let* () = Option.might Prefix.close t.prefix in
     let+ () = Index.close t.index in
     ()
@@ -216,15 +215,13 @@ struct
     match prefix0 with None -> Ok () | Some io -> Prefix.close io
 
   let reopen_mapping t ~generation =
-    let open Result_syntax in
-    let* mapping1 =
-      let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
-      [%log.debug "reload: generation changed, opening %s" path];
-      Mapping.open_ ~readonly:true ~path
-    in
-    let mapping0 = t.mapping in
-    t.mapping <- Some mapping1;
-    match mapping0 with None -> Ok () | Some io -> Mapping.close io
+    let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
+    [%log.debug "reload: generation changed, opening %s" path];
+    (* NOTE the log line assumes the generation has changed; thus, even though t.mapping
+       may be None for generation 0, by this point generation > 0 *)
+    assert (generation > 0);
+    t.mapping <- Some path;
+    ()
 
   let reopen_suffix t ~generation ~end_offset =
     let open Result_syntax in
@@ -308,9 +305,10 @@ struct
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
       only_open_after_gc ~generation ~path
     in
-    let* mapping =
-      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
-      only_open_after_gc ~generation ~path
+    let mapping =
+      match generation with
+      | 0 -> None (* generation 0 has no mapping *)
+      | _ -> Some (Irmin_pack.Layout.V3.mapping ~root ~generation)
     in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
@@ -381,7 +379,7 @@ struct
         else
           let end_offset = pl1.entry_offset_suffix_end in
           let* () = reopen_suffix t ~generation:gen1 ~end_offset in
-          let* () = reopen_mapping t ~generation:gen1 in
+          let () = reopen_mapping t ~generation:gen1 in
           let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
       in
@@ -593,9 +591,10 @@ struct
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
       only_open_after_gc ~path ~generation
     in
-    let* mapping =
-      let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
-      only_open_after_gc ~path ~generation
+    let mapping =
+      match generation with
+      | 0 -> None (* generation 0 has no mapping *)
+      | _ -> Some (Irmin_pack.Layout.V3.mapping ~root ~generation)
     in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
@@ -662,7 +661,7 @@ struct
         (Int63.to_int right_end_offset)];
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
-    let* () = reopen_mapping t ~generation in
+    let () = reopen_mapping t ~generation in
     (* When opening the suffix in append_only we need to provide a (real) suffix
        offset, computed from the global ones. *)
     let open Int63.Syntax in

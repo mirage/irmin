@@ -275,14 +275,9 @@ module Make (Args : Args) : S with module Args := Args = struct
       ()
     in
 
-    let path = Irmin_pack.Layout.V3.mapping ~root ~generation in
-    let* mapping = Io.open_ ~path ~readonly:true in
+    let mapping_path = Irmin_pack.Layout.V3.mapping ~root ~generation in
+    let mapping = Mapping_file.load_mapping_as_mmap mapping_path in
     let* () =
-      Errors.finalise (fun _ ->
-          Io.close mapping |> Errs.log_if_error "GC: Close mapping")
-      @@ fun () ->
-      ();
-
       (* Step 4. Create the new prefix. *)
       let prefix_ref = ref None in
       let auto_flush_callback () =
@@ -312,14 +307,14 @@ module Make (Args : Args) : S with module Args := Args = struct
           let len = Int63.of_int len in
           transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
         in
-        let* () = Mapping_file.iter mapping f in
+        let () = Mapping_file.iter_mmap mapping f in
         Ao.flush prefix
       in
       (* Step 5.2. Transfer again the parent commits but with a modified
          magic. Load the mapping in memory to do a safe localisation of the
          parent commits. Reopen the new prefix, this time _not_ in append-only
          as we have to modify data inside the file. *)
-      let* in_memory_map = Dispatcher.load_mapping mapping in
+      let* in_memory_map = Dispatcher.load_mapping mapping_path in
       let read_exn = Dispatcher.read_exn dispatcher in
       let* prefix =
         let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
