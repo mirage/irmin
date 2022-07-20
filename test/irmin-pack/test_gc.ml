@@ -60,8 +60,9 @@ include struct
   let finalise_gc t =
     let* result = S.Gc.finalise_exn ~wait:true t.repo in
     match result with
-    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised _ -> Lwt.return_unit
+    | `Running -> Alcotest.fail "expected finalised gc"
+    (* consider `Idle as success because gc can finalise during commit as well *)
+    | `Idle | `Finalised _ -> Lwt.return_unit
 
   let commit t =
     let parents = List.map S.Commit.key t.parents in
