@@ -12,7 +12,8 @@
   test_snapshot
   test_upgrade
   test_gc
-  test_flush_reload)
+  test_flush_reload
+  test_mapping)
  (libraries
   alcotest
   fmt

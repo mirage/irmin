@@ -511,4 +511,5 @@ let misc =
     ("gc", Test_gc.Gc.tests);
     ("concurrent gc", Test_gc.Concurrent_gc.tests);
     ("flush", Test_flush_reload.tests);
+    ("mapping", Test_mapping.tests);
   ]
