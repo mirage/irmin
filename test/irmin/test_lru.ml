@@ -27,8 +27,6 @@ module M = struct
     let all = ref [] in
     iter t (fun k v -> all := (k, v) :: !all);
     List.sort compare !all
-
-  let clear t = iter t (fun k _ -> remove t k)
 end
 
 module M' = struct
