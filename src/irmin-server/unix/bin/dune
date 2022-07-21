@@ -1,0 +1,5 @@
+(executable
+ (public_name irmin-server)
+ (package irmin-server)
+ (name server)
+ (libraries irmin-server.unix irmin.unix irmin-cli fmt.cli logs.cli fmt.tty))
