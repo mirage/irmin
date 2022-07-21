@@ -43,7 +43,13 @@ module type S = sig
     dead_header_size:int ->
     auto_flush_threshold:int ->
     auto_flush_callback:(unit -> unit) ->
-    (t, [> Io.open_error ]) result
+    ( t,
+      [> Io.open_error
+      | `Closed
+      | `Invalid_argument
+      | `Read_out_of_bounds
+      | `Inconsistent_store ] )
+    result
   (** Create a rw instance of [t] by opening an existing file at [path].
 
       {3 End Offset}
@@ -77,7 +83,13 @@ module type S = sig
     path:string ->
     end_offset:int63 ->
     dead_header_size:int ->
-    (t, [> Io.open_error ]) result
+    ( t,
+      [> Io.open_error
+      | `Closed
+      | `Inconsistent_store
+      | `Invalid_argument
+      | `Read_out_of_bounds ] )
+    result
   (** Create a ro instance of [t] by opening an existing file at [path] *)
 
   val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
