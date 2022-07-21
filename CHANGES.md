@@ -22,6 +22,8 @@
 
 - **irmin-pack**
   - Add a GC (TODO)
+  - Add a consistency check for the files on disk when opening store (#2004,
+  @icristescu)
 
 ### Changed
 
