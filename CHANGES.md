@@ -39,6 +39,11 @@
 
 ### Fixed
 
+- **irmin**
+  - Fix a bug in Irmin.LRU.clear that disables the cache completly
+    after a clear. This is not used in any production code as only
+    the GC is clearing LRU so far (#1998, @samoht)
+
 ## 3.3.1 (2022-06-22)
 
 ### Fixed

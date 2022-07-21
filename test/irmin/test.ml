@@ -22,6 +22,7 @@ let lift_suite_to_lwt :
 
 let suite =
   [
+    ("lru", Test_lru.suite |> lift_suite_to_lwt);
     ("tree", Test_tree.suite);
     ("node", Test_node.suite |> lift_suite_to_lwt);
     ("hash", Test_hash.suite);

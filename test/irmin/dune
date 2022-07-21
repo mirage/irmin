@@ -14,4 +14,5 @@
   lwt.unix
   hex
   logs
-  logs.fmt))
+  logs.fmt
+  qcheck-alcotest))
