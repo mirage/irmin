@@ -421,7 +421,6 @@ struct
 
   let unsafe_append ~ensure_unique ~overcommit t hash v =
     let unguarded_append () =
-      [%log.debug "[pack] append %a" pp_hash hash];
       let offset_of_key k =
         match Pack_key.inspect k with
         | Direct { offset; _ } ->
@@ -456,7 +455,7 @@ struct
       in
       Tbl.add t.staging hash v;
       Lru.add t.lru off v;
-      [%log.debug "[pack] append done %a <- %a" pp_hash hash pp_key key];
+      [%log.debug "[pack] append %a" pp_key key];
       key
     in
     match ensure_unique with
