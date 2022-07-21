@@ -181,6 +181,7 @@ struct
     val of_hash : hash Lazy.t -> t
     val promote_exn : t -> key -> unit
     val to_hash : t -> hash
+    val to_lazy_hash : t -> hash Lazy.t
     val to_key_exn : t -> key
     val is_key : t -> bool
   end = struct
@@ -222,6 +223,9 @@ struct
 
     let to_hash t =
       match !t with Hash h -> Lazy.force h | Key k -> Key.to_hash k
+
+    let to_lazy_hash t =
+      match !t with Hash h -> h | Key k -> lazy (Key.to_hash k)
 
     let is_key t = match !t with Key _ -> true | _ -> false
 
@@ -284,7 +288,7 @@ struct
       let v_t = v_t vref_t in
       let pre_hash_v = pre_hash_v vref_t in
       let pre_hash x = pre_hash_v x.v in
-      record "Bin.t" (fun hash root v -> { hash = lazy hash; root; v })
+      record "Bin.t" (fun hash root v -> { hash = Lazy.from_val hash; root; v })
       |+ field "hash" H.t (fun t -> Lazy.force t.hash)
       |+ field "root" bool (fun t -> t.root)
       |+ field "v" v_t (fun t -> t.v)
@@ -920,7 +924,7 @@ struct
 
     let to_bin layout mode t =
       let v = to_bin_v layout mode t.v in
-      Bin.v ~root:(is_root t) ~hash:(lazy (Val_ref.to_hash t.v_ref)) v
+      Bin.v ~root:(is_root t) ~hash:(Val_ref.to_lazy_hash t.v_ref) v
 
     type len = [ `Eq of int | `Ge of int ] [@@deriving irmin]
 
@@ -1106,7 +1110,7 @@ struct
                           let k = Key.unfindable_of_hash pointer in
                           Ptr.of_key la k
                       | Truncated ->
-                          let v_ref = Val_ref.of_hash (lazy pointer) in
+                          let v_ref = Val_ref.of_hash (Lazy.from_val pointer) in
                           (Broken v_ref : a)
                     in
                     entries.(index) <- Some ptr
@@ -1114,7 +1118,7 @@ struct
                     let hash = hash v in
                     if not (hash_equal hash pointer) then
                       raise (Invalid_hash (hash, pointer, t));
-                    let v_ref = Val_ref.of_hash (lazy pointer) in
+                    let v_ref = Val_ref.of_hash (Lazy.from_val pointer) in
                     let t = { v_ref; root = false; v } in
                     entries.(index) <- Some (Ptr.of_target la t))
               tr.pointers;
@@ -1554,7 +1558,7 @@ struct
             let proofs =
               List.fold_left
                 (fun acc (e : _ Concrete.pointer) ->
-                  let hash = lazy e.pointer in
+                  let hash = Lazy.from_val e.pointer in
                   proof_of_concrete hash e.tree (fun proof ->
                       (e.index, proof) :: acc))
                 [] (List.rev tr.pointers)
@@ -1603,7 +1607,7 @@ struct
           | (index, proof) :: proofs ->
               concrete_of_proof ~depth:(depth + 1) proof (fun pointer tree ->
                   let ps = { Concrete.tree; pointer; index } :: ps in
-                  let h = Val_ref.of_hash (lazy pointer) in
+                  let h = Val_ref.of_hash (Lazy.from_val pointer) in
                   let es = (index, Broken h) :: es in
                   aux ps es proofs)
         in
@@ -1627,7 +1631,7 @@ struct
             Concrete.Values bindings
           else to_concrete ~force:false la t
         in
-        proof_of_concrete (lazy (Val_ref.to_hash t.v_ref)) p
+        proof_of_concrete (Val_ref.to_lazy_hash t.v_ref) p
 
       let of_proof (Partial _ as la) ~depth (proof : t) =
         match proof with
@@ -1871,7 +1875,7 @@ struct
       in
       let root = Compress.is_root i in
       let v = t i.tv in
-      Bin.v ~root ~hash:(lazy i.hash) v
+      Bin.v ~root ~hash:(Lazy.from_val i.hash) v
 
     let decode_bin_length = decode_compress_length
 
