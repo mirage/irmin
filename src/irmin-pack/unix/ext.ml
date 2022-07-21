@@ -381,10 +381,14 @@ module Maker (Config : Conf.S) = struct
           let swap_and_purge ~generation ~right_start_offset ~right_end_offset t
               =
             let open Result_syntax in
+            let c0 = Mtime_clock.counter () in
+
             let* () =
               File_manager.swap t.fm ~generation ~right_start_offset
                 ~right_end_offset
             in
+            let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
+
             (* No need to purge dict here, as it is global to the store. *)
             (* No need to purge index here. It is global too, but some hashes may
                not point to valid offsets anymore. Pack_store will just say that
@@ -392,6 +396,9 @@ module Maker (Config : Conf.S) = struct
             Contents.CA.purge_lru t.contents;
             Node.CA.purge_lru t.node;
             Commit.CA.purge_lru t.commit;
+            let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
+            [%log.debug
+              "Gc swap and purge: %.0fus, %.0fus" span1 (span2 -. span1)];
             [%log.info "GC: end"];
             Ok ()
 
@@ -457,11 +464,13 @@ module Maker (Config : Conf.S) = struct
                 { next_generation; task; unlink; offset; elapsed; resolver; _ }
               -> (
                 let go status =
+                  let c0 = Mtime_clock.counter () in
                   let root = Conf.root t.config in
                   let gc_output =
                     File_manager.read_gc_output ~root
                       ~generation:next_generation
                   in
+                  let span1 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
                   let result =
                     let open Result_syntax in
                     match (status, gc_output) with
@@ -470,6 +479,7 @@ module Maker (Config : Conf.S) = struct
                           transfer_latest_newies ~generation:next_generation
                             ~right_start_offset:offset ~copy_end_offset ~root t
                         in
+                        let span2 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
                         let* () =
                           swap_and_purge ~generation:next_generation
                             ~right_start_offset:offset
@@ -478,8 +488,15 @@ module Maker (Config : Conf.S) = struct
                         let elapsed = elapsed () in
                         let stats = { elapsed } in
                         let () = Lwt.wakeup_later resolver (Ok (Some stats)) in
+                        let span3 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
+                        let span4 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
+                        [%log.debug
+                          "Gc ended, timers: %.4fns %.4fns %.4fns %.4fns \
+                           remaining newies %a"
+                          span1 span2 span3 span4 Int63.pp
+                            (Int63.sub new_suffix_end_offset copy_end_offset)];
                         Ok (`Finalised stats)
                     | _ ->
                         let err = gc_errors status gc_output in
@@ -532,6 +549,8 @@ module Maker (Config : Conf.S) = struct
         end
 
         let batch t f =
+          [%log.debug "[pack] batch start"];
+          let c0 = Mtime_clock.counter () in
           let try_finalise () = Gc.finalise_exn ~wait:false t in
           let* _ = try_finalise () in
           t.during_batch <- true;
@@ -542,6 +561,8 @@ module Maker (Config : Conf.S) = struct
           let node : 'a Node.t = (contents, node) in
           let commit : 'a Commit.t = (node, commit) in
           let on_success res =
+            let s = Mtime_clock.count c0 |> Mtime.Span.to_us in
+            [%log.info "[pack] batch completed in %.2fms" (s /. 1000.)];
             t.during_batch <- false;
             File_manager.flush t.fm |> Errs.raise_if_error;
             let* _ = try_finalise () in

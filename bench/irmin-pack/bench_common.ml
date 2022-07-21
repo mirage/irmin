@@ -16,7 +16,7 @@
 
 open Irmin.Export_for_backends
 
-let now_s () = Mtime.Span.to_s (Mtime_clock.elapsed ())
+let now_s () = Mtime.Span.to_us (Mtime_clock.elapsed ())
 
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =
