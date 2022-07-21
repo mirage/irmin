@@ -1445,9 +1445,9 @@ struct
           Array.iter (Option.iter iter_ptr) arr
       in
       let rec aux ~depth t =
-        [%log.debug "save depth:%d" depth];
         match t.v with
         | Values _ -> (
+            [%log.debug "Inode.save values depth:%d" depth];
             let unguarded_add hash =
               let value =
                 (* NOTE: the choice of [Bin.mode] is irrelevant (and this
@@ -1464,6 +1464,7 @@ struct
                 if mem key then key else unguarded_add (Key.to_hash key)
             | Hash hash -> unguarded_add (Lazy.force hash))
         | Tree n ->
+            [%log.debug "Inode.save tree depth:%d" depth];
             let save_dirty t k =
               let key =
                 match Val_ref.inspect t.v_ref with
