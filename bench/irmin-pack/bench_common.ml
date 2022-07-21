@@ -16,7 +16,15 @@
 
 open Irmin.Export_for_backends
 
-let now_s () = Mtime.Span.to_us (Mtime_clock.elapsed ())
+let c0 = Mtime_clock.counter ()
+let now_us () = Mtime_clock.count c0 |> Mtime.Span.to_us
+let last = ref (now_us ())
+
+let dt_us () =
+  let l = now_us () in
+  let d = l -. !last in
+  last := l;
+  d
 
 let reporter ?(prefix = "") () =
   let report src level ~over k msgf =
@@ -26,7 +34,7 @@ let reporter ?(prefix = "") () =
     in
     let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
     let with_stamp h _tags k fmt =
-      let dt = now_s () in
+      let dt = dt_us () in
       Fmt.kpf k ppf
         ("%s%+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
         prefix dt Logs_fmt.pp_header (level, h)
