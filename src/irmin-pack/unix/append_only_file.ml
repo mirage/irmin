@@ -46,10 +46,25 @@ module Make (Io : Io.S) = struct
       rw_perm = Some { buf; auto_flush_threshold; auto_flush_callback };
     }
 
+  (** A store is consistent if the real offset of the suffix/dict files is the
+      one recorded in the control file. When opening the store, the offset from
+      the control file is passed as the [end_offset] argument to the [open_ro],
+      [open_rw] functions. The [end_offset] from the control file is then used
+      as the real offset.
+
+      In case of a crash, if the real offset is larger than the [end_offset], we
+      can safely revert back to [end_offset]. If not, then the store is
+      corrupted, an error is returned. *)
+  let check_consistent_store ~end_offset io =
+    let open Result_syntax in
+    let* real_offset = Io.read_size io in
+    if real_offset < end_offset then Error `Inconsistent_store else Ok ()
+
   let open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
       ~auto_flush_callback =
     let open Result_syntax in
-    let+ io = Io.open_ ~path ~readonly:false in
+    let* io = Io.open_ ~path ~readonly:false in
+    let+ () = check_consistent_store ~end_offset io in
     let persisted_end_offset = end_offset in
     let dead_header_size = Int63.of_int dead_header_size in
     let buf = Buffer.create 0 in
@@ -62,7 +77,8 @@ module Make (Io : Io.S) = struct
 
   let open_ro ~path ~end_offset ~dead_header_size =
     let open Result_syntax in
-    let+ io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~path ~readonly:true in
+    let+ () = check_consistent_store ~end_offset io in
     let persisted_end_offset = end_offset in
     let dead_header_size = Int63.of_int dead_header_size in
     { io; persisted_end_offset; dead_header_size; rw_perm = None }

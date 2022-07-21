@@ -36,7 +36,8 @@ type error =
   | `Corrupted_control_file
   | `Sys_error of string
   | `V3_store_from_the_future
-  | `Unknown_major_pack_version of string ]
+  | `Unknown_major_pack_version of string
+  | `Inconsistent_store ]
 [@@deriving irmin ~pp]
 (** [error] is the type of all errors that can occur in a [result], except
     [`Io_misc] which depends on the Io module used. *)
@@ -63,7 +64,8 @@ type error' =
   | `V3_store_from_the_future
   | `Sys_error of string
   | `V3_store_from_the_future
-  | `Unknown_major_pack_version of string ]
+  | `Unknown_major_pack_version of string
+  | `Inconsistent_store ]
 (** [error'] is the payload of the [Pack_error] exception.
 
     [error'] is [error] without [`Ro_not_allowed], because there exist a
