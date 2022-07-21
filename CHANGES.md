@@ -1,3 +1,10 @@
+## 3.3.2
+
+### Fixed
+
+- Add a consistency check for the files on disk when opening store
+  (#2004, @icristescu)
+
 ## 3.3.1 (2022-06-22)
 
 ### Fixed
