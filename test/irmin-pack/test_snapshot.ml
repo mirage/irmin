@@ -179,7 +179,7 @@ let finalise_gc repo =
   let* result = S.Gc.finalise_exn ~wait:true repo in
   match result with
   | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-  | `Finalised -> Lwt.return_unit
+  | `Finalised _ -> Lwt.return_unit
 
 let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
   (* create the store *)

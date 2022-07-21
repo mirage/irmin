@@ -58,6 +58,12 @@ module type Specifics = sig
   module Gc : sig
     (** GC *)
 
+    type stats = { elapsed : float }
+    (** Stats for a successful GC run *)
+
+    type process_state = [ `Idle | `Running | `Finalised of stats ]
+    (** The state of the GC process after calling {!finalise_exn} *)
+
     (** {2 Low-level API} *)
 
     val start_exn : ?unlink:bool -> repo -> commit_key -> bool Lwt.t
@@ -69,9 +75,6 @@ module type Specifics = sig
         useful for debugging. The default is [true].
 
         TODO: Detail exceptions raised. *)
-
-    type process_state = [ `Idle | `Running | `Finalised ]
-    (** The state of the GC process after calling {!finalise_exn} *)
 
     val finalise_exn : ?wait:bool -> repo -> process_state Lwt.t
     (** [finalise_exn ?wait repo] waits for the GC process to finish in order to
@@ -96,11 +99,8 @@ module type Specifics = sig
     (** Pretty-print error messages meant for informational purposes, like
         logging *)
 
-    type stats = { elapsed : float }
-    (** Stats for a successful GC run *)
-
     val run :
-      ?finished:((stats, msg) result -> unit) ->
+      ?finished:((stats option, msg) result -> unit) ->
       repo ->
       commit_key ->
       (bool, msg) result Lwt.t
@@ -122,20 +122,18 @@ module type Specifics = sig
         returned as pretty-print error messages; others are re-raised. The error
         messages should be used only for informational purposes, like logging. *)
 
-    val wait : repo -> (unit, msg) result Lwt.t
+    val wait : repo -> (stats option, msg) result Lwt.t
     (** [wait repo] blocks until GC is finished or is idle.
 
-        All exceptions that [Irmin_pack] knows how to handle are caught and
-        returned as pretty-print error messages; others are re-raised. The error
-        messages should be used only for informational purposes, like logging. *)
-
-    val is_finished : repo -> (bool, msg) result Lwt.t
-    (** [is_finished repo] is [Ok true] if a GC is finished (or idle) and
-        [Ok false] if a GC is running for the given [repo].
+        If a GC finalises, its stats are returned.
 
         All exceptions that [Irmin_pack] knows how to handle are caught and
         returned as pretty-print error messages; others are re-raised. The error
         messages should be used only for informational purposes, like logging. *)
+
+    val is_finished : repo -> bool
+    (** [is_finished repo] is [true] if a GC is finished (or idle) and [false]
+        if a GC is running for the given [repo]. *)
   end
 end
 

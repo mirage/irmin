@@ -143,11 +143,16 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
-      type during_gc = {
+      type gc_stats = { elapsed : float }
+
+      type gc = {
         next_generation : int;
         task : Io.task;
         unlink : bool;
         offset : int63;
+        elapsed : unit -> float;
+        resolver : (gc_stats option, Errs.t) result Lwt.u;
+        promise : (gc_stats option, Errs.t) result Lwt.t;
       }
 
       module Repo = struct
@@ -161,7 +166,7 @@ module Maker (Config : Conf.S) = struct
           dict : Dict.t;
           dispatcher : Dispatcher.t;
           mutable during_batch : bool;
-          mutable during_gc : during_gc option;
+          mutable running_gc : gc option;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -170,38 +175,6 @@ module Maker (Config : Conf.S) = struct
         let commit_t t : 'a Commit.t = (node_t t, t.commit)
         let branch_t t = t.branch
         let config t = t.config
-
-        let batch t f =
-          t.during_batch <- true;
-          let contents = Contents.CA.cast t.contents in
-          let node = Node.CA.Pack.cast t.node in
-          let commit = Commit.CA.cast t.commit in
-          let contents : 'a Contents.t = contents in
-          let node : 'a Node.t = (contents, node) in
-          let commit : 'a Commit.t = (node, commit) in
-          let on_success res =
-            t.during_batch <- false;
-            File_manager.flush t.fm |> Errs.raise_if_error;
-            Lwt.return res
-          in
-          let on_fail exn =
-            t.during_batch <- false;
-            [%log.info
-              "[pack] batch failed. calling flush. (%s)"
-                (Printexc.to_string exn)];
-            let () =
-              match File_manager.flush t.fm with
-              | Ok () -> ()
-              | Error err ->
-                  [%log.err
-                    "[pack] batch failed and flush failed. Silencing flush \
-                     fail. (%a)"
-                    Errs.pp err]
-            in
-            (* Kill gc process in at_exit. *)
-            raise exn
-          in
-          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
 
         let v config =
           let root = Irmin_pack.Conf.root config in
@@ -234,7 +207,7 @@ module Maker (Config : Conf.S) = struct
             Branch.v ~fresh ~readonly path
           in
           let during_batch = false in
-          let during_gc = None in
+          let running_gc = None in
           {
             config;
             contents;
@@ -244,17 +217,17 @@ module Maker (Config : Conf.S) = struct
             fm;
             dict;
             during_batch;
-            during_gc;
+            running_gc;
             dispatcher;
           }
 
         let close t =
           (* Step 1 - Kill the gc process if it is running *)
           let () =
-            match t.during_gc with
+            match t.running_gc with
             | Some { task; _ } ->
                 Io.cancel task;
-                t.during_gc <- None
+                t.running_gc <- None
             | None -> ()
           in
           (* Step 2 - Close the files *)
@@ -336,7 +309,22 @@ module Maker (Config : Conf.S) = struct
                   in
                   ())
             in
-            t.during_gc <- Some { next_generation; task; unlink; offset };
+            let elapsed =
+              let c0 = Mtime_clock.counter () in
+              fun () -> Mtime_clock.count c0 |> Mtime.Span.to_ms
+            in
+            let promise, resolver = Lwt.wait () in
+            t.running_gc <-
+              Some
+                {
+                  next_generation;
+                  task;
+                  unlink;
+                  offset;
+                  elapsed;
+                  promise;
+                  resolver;
+                };
             Ok ()
 
           let open_new_suffix ~root ~generation ~end_offset =
@@ -462,16 +450,13 @@ module Maker (Config : Conf.S) = struct
             | `Success, Ok _ -> assert false
             | `Running, _ -> assert false
 
-          let finalise ?hook ~wait t =
-            match t.during_gc with
+          let finalise ~wait t =
+            match t.running_gc with
             | None -> Lwt.return_ok `Idle
-            | Some { next_generation; task; unlink; offset } -> (
+            | Some
+                { next_generation; task; unlink; offset; elapsed; resolver; _ }
+              -> (
                 let go status =
-                  let* () =
-                    match hook with
-                    | Some h -> h `Before_latest_newies
-                    | None -> Lwt.return_unit
-                  in
                   let root = Conf.root t.config in
                   let gc_output =
                     File_manager.read_gc_output ~root
@@ -490,12 +475,18 @@ module Maker (Config : Conf.S) = struct
                             ~right_start_offset:offset
                             ~right_end_offset:new_suffix_end_offset t
                         in
+                        let elapsed = elapsed () in
+                        let stats = { elapsed } in
+                        let () = Lwt.wakeup_later resolver (Ok (Some stats)) in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
-                        Ok `Finalised
-                    | _ -> gc_errors status gc_output
+                        Ok (`Finalised stats)
+                    | _ ->
+                        let err = gc_errors status gc_output in
+                        let () = Lwt.wakeup_later resolver err in
+                        err
                   in
-                  t.during_gc <- None;
+                  t.running_gc <- None;
                   Lwt.return result
                 in
                 if t.during_batch then
@@ -512,7 +503,7 @@ module Maker (Config : Conf.S) = struct
 
           let start_or_skip ~unlink t commit_key =
             let open Lwt_result.Syntax in
-            match t.during_gc with
+            match t.running_gc with
             | None ->
                 let* () = start ~unlink t commit_key |> Lwt.return in
                 Lwt.return_ok true
@@ -526,12 +517,54 @@ module Maker (Config : Conf.S) = struct
             | Ok launched -> Lwt.return launched
             | Error e -> Errs.raise_error e
 
-          let finalise_exn ?hook ?(wait = false) t =
-            let* result = finalise ?hook ~wait t in
+          let finalise_exn ?(wait = false) t =
+            let* result = finalise ~wait t in
             match result with
             | Ok waited -> Lwt.return waited
             | Error e -> Errs.raise_error e
+
+          let is_finished t = Option.is_none t.running_gc
+
+          let on_finalise t f =
+            match t.running_gc with
+            | None -> ()
+            | Some x -> Lwt.on_success x.promise f
         end
+
+        let batch t f =
+          let try_finalise () = Gc.finalise_exn ~wait:false t in
+          let* _ = try_finalise () in
+          t.during_batch <- true;
+          let contents = Contents.CA.cast t.contents in
+          let node = Node.CA.Pack.cast t.node in
+          let commit = Commit.CA.cast t.commit in
+          let contents : 'a Contents.t = contents in
+          let node : 'a Node.t = (contents, node) in
+          let commit : 'a Commit.t = (node, commit) in
+          let on_success res =
+            t.during_batch <- false;
+            File_manager.flush t.fm |> Errs.raise_if_error;
+            let* _ = try_finalise () in
+            Lwt.return res
+          in
+          let on_fail exn =
+            t.during_batch <- false;
+            [%log.info
+              "[pack] batch failed. calling flush. (%s)"
+                (Printexc.to_string exn)];
+            let () =
+              match File_manager.flush t.fm with
+              | Ok () -> ()
+              | Error err ->
+                  [%log.err
+                    "[pack] batch failed and flush failed. Silencing flush \
+                     fail. (%a)"
+                    Errs.pp err]
+            in
+            (* Kill gc process in at_exit. *)
+            raise exn
+          in
+          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
       end
     end
 
@@ -665,8 +698,8 @@ module Maker (Config : Conf.S) = struct
 
     module Gc = struct
       type msg = [ `Msg of string ]
-      type stats = { elapsed : float }
-      type process_state = [ `Idle | `Running | `Finalised ]
+      type stats = X.gc_stats = { elapsed : float }
+      type process_state = [ `Idle | `Running | `Finalised of stats ]
 
       let catch_errors context error =
         let err =
@@ -683,8 +716,12 @@ module Maker (Config : Conf.S) = struct
         let error_msg = Fmt.str "[%s] resulted in error: %s" context err in
         Lwt.return_error (`Msg error_msg)
 
-      let finalise_exn_with_hook = X.Repo.Gc.finalise_exn
-      let finalise_exn = finalise_exn_with_hook ?hook:None
+      let map_errors context (error : Errs.t) =
+        let err = Fmt.str "%a" Errs.pp error in
+        let err_msg = Fmt.str "[%s] resulted in error: %s" context err in
+        `Msg err_msg
+
+      let finalise_exn = X.Repo.Gc.finalise_exn
       let start_exn = X.Repo.Gc.start_exn
 
       let start repo commit_key =
@@ -693,18 +730,16 @@ module Maker (Config : Conf.S) = struct
           Lwt.return_ok started
         with exn -> catch_errors "Start GC" exn
 
-      let is_finished repo =
-        try
-          let* finished = finalise_exn ~wait:false repo in
-          match finished with
-          | `Idle | `Finalised -> Lwt.return_ok true
-          | `Running -> Lwt.return_ok false
-        with exn -> catch_errors "Check GC" exn
+      let is_finished = X.Repo.Gc.is_finished
 
       let wait repo =
         try
-          let* _ = finalise_exn ~wait:true repo in
-          Lwt.return_ok ()
+          let* result = finalise_exn ~wait:true repo in
+          match result with
+          | `Running ->
+              assert false (* [~wait:true] should never return [Running] *)
+          | `Idle -> Lwt.return_ok None
+          | `Finalised stats -> Lwt.return_ok @@ Some stats
         with exn -> catch_errors "Wait for GC" exn
 
       let run ?(finished = fun _ -> ()) repo commit_key =
@@ -712,16 +747,12 @@ module Maker (Config : Conf.S) = struct
         match started with
         | Ok r ->
             if r then
-              (* start top-level Lwt thread to track finalisation *)
-              Lwt.async (fun () ->
-                  let c0 = Mtime_clock.counter () in
-                  let* results = wait repo in
-                  match results with
-                  | Ok _ ->
-                      let elapsed = Mtime_clock.count c0 |> Mtime.Span.to_ms in
-                      let stats = Ok { elapsed } in
-                      Lwt.return @@ finished stats
-                  | Error _ as e -> Lwt.return @@ finished e);
+              X.Repo.Gc.on_finalise repo (fun finalisation_r ->
+                  match finalisation_r with
+                  | Ok _ as stats -> finished stats
+                  | Error err ->
+                      let err_msg = map_errors "Finalise GC" err in
+                      finished @@ Error err_msg);
             Lwt.return_ok r
         | Error _ as e -> Lwt.return e
     end

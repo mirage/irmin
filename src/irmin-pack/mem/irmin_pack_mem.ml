@@ -199,7 +199,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
     module Gc = struct
       type msg = [ `Msg of string ]
       type stats = { elapsed : float }
-      type process_state = [ `Idle | `Running | `Finalised ]
+      type process_state = [ `Idle | `Running | `Finalised of stats ]
 
       let start_exn = X.Repo.start_gc
       let finalise_exn = X.Repo.finalise_gc
@@ -208,8 +208,8 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         ignore finished;
         Lwt.return_ok false
 
-      let wait _ = Lwt.return_ok ()
-      let is_finished _ = Lwt.return_ok true
+      let wait _ = Lwt.return_ok None
+      let is_finished _ = true
     end
 
     let integrity_check_inodes ?heads:_ _ =

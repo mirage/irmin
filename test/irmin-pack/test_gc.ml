@@ -60,8 +60,9 @@ include struct
   let finalise_gc t =
     let* result = S.Gc.finalise_exn ~wait:true t.repo in
     match result with
-    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised -> Lwt.return_unit
+    | `Running -> Alcotest.fail "expected finalised gc"
+    (* consider `Idle as success because gc can finalise during commit as well *)
+    | `Idle | `Finalised _ -> Lwt.return_unit
 
   let commit t =
     let parents = List.map S.Commit.key t.parents in
@@ -508,7 +509,7 @@ end
 
 module Concurrent_gc = struct
   (** Check that finding old objects during a gc works. *)
-  let find_during_gc ~lru_size () =
+  let find_running_gc ~lru_size () =
     let* t = init ~lru_size () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
@@ -523,7 +524,7 @@ module Concurrent_gc = struct
     S.Repo.close t.repo
 
   (** Check adding new objects during a gc and finding them after the gc. *)
-  let add_during_gc ~lru_size () =
+  let add_running_gc ~lru_size () =
     let* t = init ~lru_size () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
@@ -565,16 +566,16 @@ module Concurrent_gc = struct
     let* () = check_5 t c5 in
     S.Repo.close t.repo
 
-  let find_during_gc_with_lru = find_during_gc ~lru_size:100
-  let add_during_gc_with_lru = add_during_gc ~lru_size:100
+  let find_running_gc_with_lru = find_running_gc ~lru_size:100
+  let add_running_gc_with_lru = add_running_gc ~lru_size:100
   let several_gc_with_lru = several_gc ~lru_size:100
-  let find_during_gc = find_during_gc ~lru_size:0
-  let add_during_gc = add_during_gc ~lru_size:0
+  let find_running_gc = find_running_gc ~lru_size:0
+  let add_running_gc = add_running_gc ~lru_size:0
   let several_gc = several_gc ~lru_size:0
 
   (** Check that RO can find old objects during gc. Also that RO can still find
       removed objects before a call to [reload]. *)
-  let ro_find_during_gc () =
+  let ro_find_running_gc () =
     let* t = init () in
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
@@ -597,7 +598,7 @@ module Concurrent_gc = struct
 
   (** Check that RO can find objects added during gc, but only after a call to
       [reload]. *)
-  let ro_add_during_gc () =
+  let ro_add_running_gc () =
     let* t = init () in
     let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
@@ -647,7 +648,7 @@ module Concurrent_gc = struct
 
   (** Check that calling close during a gc kills the gc without finalising it.
       On reopening the store, the following gc works fine. *)
-  let close_during_gc () =
+  let close_running_gc () =
     let* t = init () in
     let* t, c1 = commit_1 t in
     let* () = start_gc t c1 in
@@ -679,8 +680,8 @@ module Concurrent_gc = struct
 
   let kill_gc t =
     let repo : S.Repo.t = t.repo in
-    match (repo.during_gc : S.X.during_gc option) with
-    | None -> Alcotest.failf "during_gc missing after call to start"
+    match (repo.running_gc : S.X.gc option) with
+    | None -> Alcotest.failf "running_gc missing after call to start"
     | Some { task; _ } -> (
         try
           Irmin_pack_unix.Io.Unix.cancel task;
@@ -710,43 +711,20 @@ module Concurrent_gc = struct
     let _killed = kill_gc t in
     S.Repo.close t.repo
 
-  let test_finalise_hook () =
-    let* t = init () in
-    let* t, c1 = commit_1 t in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* () = start_gc t c2 in
-    let c3 = ref None in
-    let hook = function
-      | `Before_latest_newies ->
-          let* t = checkout_exn t c2 in
-          let* _, c = commit_3 t in
-          c3 := Some c;
-          Lwt.return_unit
-    in
-    let* result = S.Gc.finalise_exn_with_hook ~wait:true ~hook t.repo in
-    match result with
-    | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised ->
-        let c3 = Option.get !c3 in
-        let* () = check_3 t c3 in
-        S.Repo.close t.repo
-
   let tests =
     [
-      tc "Test find_during_gc" find_during_gc;
-      tc "Test add_during_gc" add_during_gc;
+      tc "Test find_running_gc" find_running_gc;
+      tc "Test add_running_gc" add_running_gc;
       tc "Test several_gc" several_gc;
-      tc "Test find_during_gc_with_lru" find_during_gc_with_lru;
-      tc "Test add_during_gc_with_lru" add_during_gc_with_lru;
+      tc "Test find_running_gc_with_lru" find_running_gc_with_lru;
+      tc "Test add_running_gc_with_lru" add_running_gc_with_lru;
       tc "Test several_gc_with_lru" several_gc_with_lru;
-      tc "Test ro_find_during_gc" ro_find_during_gc;
-      tc "Test ro_add_during_gc" ro_add_during_gc;
+      tc "Test ro_find_running_gc" ro_find_running_gc;
+      tc "Test ro_add_running_gc" ro_add_running_gc;
       tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
-      tc "Test close_during_gc" close_during_gc;
+      tc "Test close_running_gc" close_running_gc;
       tc "Test skip gc" test_skip;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;
-      tc "Test finalise with hook" test_finalise_hook;
     ]
 end
