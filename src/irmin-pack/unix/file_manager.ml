@@ -659,6 +659,7 @@ struct
       "Gc in main: swap %d %#d %#d" generation
         (Int63.to_int right_start_offset)
         (Int63.to_int right_end_offset)];
+    let c0 = Mtime_clock.counter () in
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
@@ -667,6 +668,7 @@ struct
     let open Int63.Syntax in
     let suffix_end_offset = right_end_offset - right_start_offset in
     let* () = reopen_suffix t ~generation ~end_offset:suffix_end_offset in
+    let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
     (* Step 2. Reload mapping consumers (i.e. dispatcher) *)
     let* () =
@@ -679,6 +681,7 @@ struct
            [read_error] to [ [>read_error] ]. *)
       match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
     in
+    let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
     (* Step 3. Update the control file *)
     let* () =
@@ -703,6 +706,10 @@ struct
       Control.set_payload t.control pl
     in
 
+    let span3 = Mtime_clock.count c0 |> Mtime.Span.to_us in
+    [%log.debug
+      "Gc reopen files, reload map, update control: %.0fus, %.0fus, %.0fus"
+        span1 (span2 -. span1) (span3 -. span2)];
     Ok ()
 
   let write_gc_output ~root ~generation output =
