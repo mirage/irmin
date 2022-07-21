@@ -79,7 +79,8 @@ module type S = sig
     | `Only_minimal_indexing_strategy_allowed
     | `Unknown_major_pack_version of string
     | `Index_failure of string
-    | `Sys_error of string ]
+    | `Sys_error of string
+    | `Inconsistent_store ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Note on SWMR consistency: It is undefined for a reader to attempt and
@@ -104,7 +105,10 @@ module type S = sig
     | `Closed
     | `V3_store_from_the_future
     | `Index_failure of string
-    | `Unknown_major_pack_version of string ]
+    | `Unknown_major_pack_version of string
+    | `Inconsistent_store
+    | `Invalid_argument
+    | `Read_out_of_bounds ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Note on SWMR consistency: TODO: doc
