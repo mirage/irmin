@@ -420,6 +420,14 @@ struct
     Lwt.try_bind (fun () -> f (cast t)) on_success on_fail
 
   let unsafe_append ~ensure_unique ~overcommit t hash v =
+    let kind = Val.kind v in
+    let use_index =
+      (* the index is required for non-minimal indexing strategies and
+         for commits. *)
+      (not (Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy))
+      || kind = Commit_v1
+      || kind = Commit_v2
+    in
     let unguarded_append () =
       let offset_of_key k =
         match Pack_key.inspect k with
@@ -448,7 +456,6 @@ struct
       let len = Int63.to_int (Dispatcher.end_offset t.dispatcher - off) in
       let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
       let () =
-        let kind = Val.kind v in
         let should_index = t.indexing_strategy ~value_length:len kind in
         if should_index then
           Index.add ~overcommit (Fm.index t.fm) hash (off, len, kind)
@@ -458,7 +465,7 @@ struct
       [%log.debug "[pack] append %a" pp_key key];
       key
     in
-    match ensure_unique with
+    match ensure_unique && use_index with
     | false -> unguarded_append ()
     | true -> (
         match index_direct t hash with
