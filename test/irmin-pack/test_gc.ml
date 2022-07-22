@@ -146,14 +146,14 @@ let check_tree_1 tree =
 
 let check_1 t c =
   S.Commit.of_key t.repo (S.Commit.key c) >>= function
-  | None -> Alcotest.fail "no hash found in repo"
+  | None -> Alcotest.fail "no hash found in repo for check_1"
   | Some commit ->
       let tree = S.Commit.tree commit in
       check_tree_1 tree
 
 let check_2 t c =
   S.Commit.of_key t.repo (S.Commit.key c) >>= function
-  | None -> Alcotest.fail "no hash found in repo"
+  | None -> Alcotest.fail "no hash found in repo for check_2"
   | Some commit ->
       let tree = S.Commit.tree commit in
       let* () = check_blob tree [ "a"; "d" ] "Mars" in
@@ -162,21 +162,21 @@ let check_2 t c =
 
 let check_3 t c =
   S.Commit.of_key t.repo (S.Commit.key c) >>= function
-  | None -> Alcotest.fail "no hash found in repo"
+  | None -> Alcotest.fail "no hash found in repo for check_3"
   | Some commit ->
       let tree = S.Commit.tree commit in
       check_blob tree [ "a"; "f" ] "Fevrier"
 
 let check_4 t c =
   S.Commit.of_key t.repo (S.Commit.key c) >>= function
-  | None -> Alcotest.fail "no hash found in repo"
+  | None -> Alcotest.fail "no hash found in repo for check_4"
   | Some commit ->
       let tree = S.Commit.tree commit in
       check_blob tree [ "a"; "e" ] "Mars"
 
 let check_5 t c =
   S.Commit.of_key t.repo (S.Commit.key c) >>= function
-  | None -> Alcotest.fail "no hash found in repo"
+  | None -> Alcotest.fail "no hash found in repo for check_5"
   | Some commit ->
       let tree = S.Commit.tree commit in
       let* () = check_blob tree [ "e"; "a" ] "Avril" in
@@ -186,7 +186,7 @@ let check_5 t c =
 
 let check_del_1 t c =
   S.Commit.of_key t.repo (S.Commit.key c) >>= function
-  | None -> Alcotest.fail "no hash found in repo"
+  | None -> Alcotest.fail "no hash found in repo for check_del_1"
   | Some commit ->
       let tree = S.Commit.tree commit in
       check_none tree [ "a"; "c" ]
