@@ -485,9 +485,6 @@ module Maker (Config : Conf.S) = struct
                             ~right_start_offset:offset
                             ~right_end_offset:new_suffix_end_offset t
                         in
-                        let elapsed = elapsed () in
-                        let stats = { elapsed } in
-                        let () = Lwt.wakeup_later resolver (Ok (Some stats)) in
                         let span3 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
                         if unlink then
                           unlink_all ~root ~generation:next_generation;
@@ -497,6 +494,9 @@ module Maker (Config : Conf.S) = struct
                            remaining newies %a"
                           span1 span2 span3 span4 Int63.pp
                             (Int63.sub new_suffix_end_offset copy_end_offset)];
+                        let elapsed = elapsed () in
+                        let stats = { elapsed } in
+                        let () = Lwt.wakeup_later resolver (Ok (Some stats)) in
                         Ok (`Finalised stats)
                     | _ ->
                         let err = gc_errors status gc_output in
