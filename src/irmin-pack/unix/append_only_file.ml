@@ -60,9 +60,7 @@ module Make (Io : Io.S) = struct
     let open Result_syntax in
     let* real_offset = Io.read_size io in
     let dead_header_size = Int63.of_int dead_header_size in
-    let real_offset_without_header =
-      Int63.Syntax.(real_offset - dead_header_size)
-    in
+    let real_offset_without_header = Int63.(sub real_offset dead_header_size) in
     if real_offset_without_header < end_offset then Error `Inconsistent_store
     else (
       if real_offset_without_header > end_offset then
