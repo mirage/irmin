@@ -1,9 +1,11 @@
-## 3.3.2
+## 3.3.2 (2022-07-25)
 
 ### Fixed
 
 - Add a consistency check for the files on disk when opening store
-  (#2004, @icristescu)
+  (#2004, #2007, #@icristescu)
+- Fix `irmin-tezos` CLI and `./tezos-node storage` to work with
+  v2 inodes (#1903, @icristescu, @Ngoguey42)
 
 ## 3.3.1 (2022-06-22)
 
