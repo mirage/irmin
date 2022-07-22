@@ -76,13 +76,6 @@ struct
 
     type entry = string * M.value
 
-    (* Irmin 1.4 uses int8 to store filename lengths.
-
-       Irmin 2 use a variable-size encoding for strings; this is using int8
-       for strings of size stricly less than 128 (e.g. 2^7) which happen to
-       be the case for all filenames ever produced by Irmin 1.4. *)
-    let step_t = Irmin.Type.string
-
     let metadata_t =
       let some = "\255\000\000\000\000\000\000\000" in
       let none = "\000\000\000\000\000\000\000\000" in
@@ -103,7 +96,7 @@ struct
       let open Irmin.Type in
       record "Tree.entry" (fun _ _ _ -> assert false)
       |+ field "kind" metadata_t metadata_of_entry
-      |+ field "name" step_t fst
+      |+ field "name" string fst
       |+ field "hash" Hash.t hash_of_entry
       |> sealr
 
@@ -111,15 +104,7 @@ struct
       Irmin.Type.(list ~len:`Int64 entry_t)
 
     let pre_hash_entries = Irmin.Type.(unstage (pre_hash entries_t))
-    let compare_entry (x, _) (y, _) = String.compare x y
-    let step_to_string = Irmin.Type.(unstage (to_bin_string Path.step_t))
-    let str_key (k, v) = (step_to_string k, v)
-
-    let pre_hash t =
-      M.list t
-      |> List.map str_key
-      |> List.fast_sort compare_entry
-      |> pre_hash_entries
+    let pre_hash t = M.list t |> pre_hash_entries
   end
 
   include M
