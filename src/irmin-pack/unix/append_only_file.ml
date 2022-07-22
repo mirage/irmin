@@ -52,19 +52,31 @@ module Make (Io : Io.S) = struct
       [open_rw] functions. The [end_offset] from the control file is then used
       as the real offset.
 
-      In case of a crash, if the real offset is larger than the [end_offset], we
-      can safely revert back to [end_offset]. If not, then the store is
-      corrupted, an error is returned. *)
-  let check_consistent_store ~end_offset io =
+      In case of a crash, we can only recover if the [end_offset] is smaller
+      than the real offset. We cannot recover otherwise, because we have no
+      guarantees that the last object fsynced to disk is written entirely to
+      disk. *)
+  let check_consistent_store ~end_offset ~dead_header_size io =
     let open Result_syntax in
     let* real_offset = Io.read_size io in
-    if real_offset < end_offset then Error `Inconsistent_store else Ok ()
+    let dead_header_size = Int63.of_int dead_header_size in
+    let real_offset_without_header =
+      Int63.Syntax.(real_offset - dead_header_size)
+    in
+    if real_offset_without_header < end_offset then Error `Inconsistent_store
+    else (
+      if real_offset_without_header > end_offset then
+        [%log.warn
+          "The end offset in the control file %a is smaller than the offset on \
+           disk %a for %s; the store was closed in a inconsistent state."
+          Int63.pp end_offset Int63.pp real_offset_without_header (Io.path io)];
+      Ok ())
 
   let open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
       ~auto_flush_callback =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:false in
-    let+ () = check_consistent_store ~end_offset io in
+    let+ () = check_consistent_store ~end_offset ~dead_header_size io in
     let persisted_end_offset = end_offset in
     let dead_header_size = Int63.of_int dead_header_size in
     let buf = Buffer.create 0 in
@@ -78,7 +90,7 @@ module Make (Io : Io.S) = struct
   let open_ro ~path ~end_offset ~dead_header_size =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:true in
-    let+ () = check_consistent_store ~end_offset io in
+    let+ () = check_consistent_store ~end_offset ~dead_header_size io in
     let persisted_end_offset = end_offset in
     let dead_header_size = Int63.of_int dead_header_size in
     { io; persisted_end_offset; dead_header_size; rw_perm = None }
