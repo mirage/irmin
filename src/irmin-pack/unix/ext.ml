@@ -153,6 +153,7 @@ module Maker (Config : Conf.S) = struct
         elapsed : unit -> float;
         resolver : (gc_stats option, Errs.t) result Lwt.u;
         promise : (gc_stats option, Errs.t) result Lwt.t;
+        use_auto_finalisation : bool;
       }
 
       module Repo = struct
@@ -263,7 +264,7 @@ module Maker (Config : Conf.S) = struct
                      with error %a"
                     Errs.pp err]
 
-          let start ~unlink t commit_key =
+          let start ~unlink ~use_auto_finalisation t commit_key =
             let open Result_syntax in
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
@@ -324,6 +325,7 @@ module Maker (Config : Conf.S) = struct
                   elapsed;
                   promise;
                   resolver;
+                  use_auto_finalisation;
                 };
             Ok ()
 
@@ -518,18 +520,23 @@ module Maker (Config : Conf.S) = struct
                       let* status = Io.await task in
                       go status)
 
-          let start_or_skip ~unlink t commit_key =
+          let start_or_skip ~unlink ~use_auto_finalisation t commit_key =
             let open Lwt_result.Syntax in
             match t.running_gc with
             | None ->
-                let* () = start ~unlink t commit_key |> Lwt.return in
+                let* () =
+                  start ~unlink ~use_auto_finalisation t commit_key
+                  |> Lwt.return
+                in
                 Lwt.return_ok true
             | Some _ ->
                 [%log.info "Repo is alreadying running GC. Skipping."];
                 Lwt.return_ok false
 
-          let start_exn ?(unlink = true) t commit_key =
-            let* result = start_or_skip ~unlink t commit_key in
+          let start_exn ?(unlink = true) ~use_auto_finalisation t commit_key =
+            let* result =
+              start_or_skip ~unlink ~use_auto_finalisation t commit_key
+            in
             match result with
             | Ok launched -> Lwt.return launched
             | Error e -> Errs.raise_error e
@@ -546,12 +553,22 @@ module Maker (Config : Conf.S) = struct
             match t.running_gc with
             | None -> ()
             | Some x -> Lwt.on_success x.promise f
+
+          let try_auto_finalise_exn t =
+            match t.running_gc with
+            | None -> Lwt.return_unit
+            | Some gc -> (
+                match gc.use_auto_finalisation with
+                | false -> Lwt.return_unit
+                | true ->
+                    let* _ = finalise_exn ~wait:false t in
+                    Lwt.return_unit)
         end
 
         let batch t f =
           [%log.debug "[pack] batch start"];
           let c0 = Mtime_clock.counter () in
-          let try_finalise () = Gc.finalise_exn ~wait:false t in
+          let try_finalise () = Gc.try_auto_finalise_exn t in
           let* _ = try_finalise () in
           t.during_batch <- true;
           let contents = Contents.CA.cast t.contents in
@@ -743,11 +760,14 @@ module Maker (Config : Conf.S) = struct
         `Msg err_msg
 
       let finalise_exn = X.Repo.Gc.finalise_exn
-      let start_exn = X.Repo.Gc.start_exn
+      let start_exn = X.Repo.Gc.start_exn ~use_auto_finalisation:false
 
       let start repo commit_key =
         try
-          let* started = start_exn ~unlink:true repo commit_key in
+          let* started =
+            X.Repo.Gc.start_exn ~unlink:true ~use_auto_finalisation:true repo
+              commit_key
+          in
           Lwt.return_ok started
         with exn -> catch_errors "Start GC" exn
 
