@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Suffix (irmin-pack.Irmin_pack_unix.Maker.Make.Dict.Fm.Suffix)</title><link rel="stylesheet" href="../../../../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../../../../index.html">irmin-pack</a> &#x00BB; <a href="../../../../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../../../../index.html">Maker</a> &#x00BB; <a href="../../../index.html">Make</a> &#x00BB; <a href="../../index.html">Dict</a> &#x00BB; <a href="../index.html">Fm</a> &#x00BB; Suffix</nav><header class="odoc-preamble"><h1>Module <code><span>Fm.Suffix</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module" id="module-Io" class="anchored"><a href="#module-Io" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Io/index.html">Io</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec type" id="type-t" class="anchored"><a href="#type-t" class="anchor"></a><code><span><span class="keyword">type</span> t</span><span> = <a href="../../../File_manager/Suffix/index.html#type-t">File_manager.Suffix.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-create_rw" class="anchored"><a href="#val-create_rw" class="anchor"></a><code><span><span class="keyword">val</span> create_rw : 
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Suffix (irmin-pack.Irmin_pack_unix.Maker.Make.Dict.Fm.Suffix)</title><link rel="stylesheet" href="../../../../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.1"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../../../../index.html">irmin-pack</a> &#x00BB; <a href="../../../../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../../../../index.html">Maker</a> &#x00BB; <a href="../../../index.html">Make</a> &#x00BB; <a href="../../index.html">Dict</a> &#x00BB; <a href="../index.html">Fm</a> &#x00BB; Suffix</nav><header class="odoc-preamble"><h1>Module <code><span>Fm.Suffix</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module" id="module-Io" class="anchored"><a href="#module-Io" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Io/index.html">Io</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec type" id="type-t" class="anchored"><a href="#type-t" class="anchor"></a><code><span><span class="keyword">type</span> t</span><span> = <a href="../../../File_manager/Suffix/index.html#type-t">File_manager.Suffix.t</a></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-create_rw" class="anchored"><a href="#val-create_rw" class="anchor"></a><code><span><span class="keyword">val</span> create_rw : 
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>overwrite:bool <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_threshold:int <span class="arrow">&#45;&gt;</span></span>
@@ -10,11 +10,27 @@
   <span>dead_header_size:int <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_threshold:int <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_callback:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
-  <span><span>( <a href="#type-t">t</a>, <span>[&gt; <a href="Io/index.html#type-open_error">Io.open_error</a> ]</span> )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-open_ro" class="anchored"><a href="#val-open_ro" class="anchor"></a><code><span><span class="keyword">val</span> open_ro : 
+  <span><span>( <a href="#type-t">t</a>,
+    <span>[&gt; `Inconsistent_store
+    <span>| `Invalid_argument</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `No_such_file_or_directory</span>
+    <span>| `Not_a_file</span>
+    <span>| `Read_on_closed</span>
+    <span>| `Read_out_of_bounds</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-open_ro" class="anchored"><a href="#val-open_ro" class="anchor"></a><code><span><span class="keyword">val</span> open_ro : 
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>end_offset:<span class="xref-unresolved">Optint</span>.Int63.t <span class="arrow">&#45;&gt;</span></span>
   <span>dead_header_size:int <span class="arrow">&#45;&gt;</span></span>
-  <span><span>( <a href="#type-t">t</a>, <span>[&gt; <a href="Io/index.html#type-open_error">Io.open_error</a> ]</span> )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-close" class="anchored"><a href="#val-close" class="anchor"></a><code><span><span class="keyword">val</span> close : 
+  <span><span>( <a href="#type-t">t</a>,
+    <span>[&gt; `Inconsistent_store
+    <span>| `Invalid_argument</span>
+    <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
+    <span>| `No_such_file_or_directory</span>
+    <span>| `Not_a_file</span>
+    <span>| `Read_on_closed</span>
+    <span>| `Read_out_of_bounds</span> ]</span> )</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-close" class="anchored"><a href="#val-close" class="anchor"></a><code><span><span class="keyword">val</span> close : 
   <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
   <span><span>( unit, <span>[&gt; `Double_close <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span> <span>| `Pending_flush</span> ]</span> )</span>
     <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-end_offset" class="anchored"><a href="#val-end_offset" class="anchor"></a><code><span><span class="keyword">val</span> end_offset : <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> <span class="xref-unresolved">Optint</span>.Int63.t</span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-read_to_string" class="anchored"><a href="#val-read_to_string" class="anchor"></a><code><span><span class="keyword">val</span> read_to_string : 

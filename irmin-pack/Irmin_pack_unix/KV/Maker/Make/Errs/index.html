@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Errs (irmin-pack.Irmin_pack_unix.KV.Maker.Make.Errs)</title><link rel="stylesheet" href="../../../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../../../index.html">irmin-pack</a> &#x00BB; <a href="../../../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../../../index.html">KV</a> &#x00BB; <a href="../../index.html">Maker</a> &#x00BB; <a href="../index.html">Make</a> &#x00BB; Errs</nav><header class="odoc-preamble"><h1>Module <code><span>Make.Errs</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module" id="module-Io" class="anchored"><a href="#module-Io" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Io/index.html">Io</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-pp_error" class="anchored"><a href="#val-pp_error" class="anchor"></a><code><span><span class="keyword">val</span> pp_error : 
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Errs (irmin-pack.Irmin_pack_unix.KV.Maker.Make.Errs)</title><link rel="stylesheet" href="../../../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.1"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../../../index.html">irmin-pack</a> &#x00BB; <a href="../../../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../../../index.html">KV</a> &#x00BB; <a href="../../index.html">Maker</a> &#x00BB; <a href="../index.html">Make</a> &#x00BB; Errs</nav><header class="odoc-preamble"><h1>Module <code><span>Make.Errs</span></code></h1></header><div class="odoc-content"><div class="odoc-spec"><div class="spec module" id="module-Io" class="anchored"><a href="#module-Io" class="anchor"></a><code><span><span class="keyword">module</span> <a href="Io/index.html">Io</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-pp_error" class="anchored"><a href="#val-pp_error" class="anchor"></a><code><span><span class="keyword">val</span> pp_error : 
   <span><span class="xref-unresolved">Stdlib</span>.Format.formatter <span class="arrow">&#45;&gt;</span></span>
   <span><span>[&lt; `Corrupted_control_file
   <span>| `Corrupted_legacy_file</span>
   <span>| `Decoding_error</span>
   <span>| `Double_close</span>
   <span><span>| `File_exists</span> of string</span>
+  <span>| `Inconsistent_store</span>
   <span><span>| `Index_failure</span> of string</span>
   <span>| `Invalid_argument</span>
   <span>| `Invalid_layout</span>
@@ -30,6 +31,7 @@
   <span>| `Decoding_error</span>
   <span>| `Double_close</span>
   <span><span>| `File_exists</span> of string</span>
+  <span>| `Inconsistent_store</span>
   <span><span>| `Index_failure</span> of string</span>
   <span>| `Invalid_argument</span>
   <span>| `Invalid_layout</span>
@@ -55,6 +57,7 @@
     <span>| `Decoding_error</span>
     <span>| `Double_close</span>
     <span><span>| `File_exists</span> of string</span>
+    <span>| `Inconsistent_store</span>
     <span><span>| `Index_failure</span> of string</span>
     <span>| `Invalid_argument</span>
     <span>| `Invalid_layout</span>
