@@ -103,8 +103,17 @@ struct
     let entries_t : entry list Irmin.Type.t =
       Irmin.Type.(list ~len:`Int64 entry_t)
 
+    let pre_hash_entry = Irmin.Type.(unstage (pre_hash entry_t))
     let pre_hash_entries = Irmin.Type.(unstage (pre_hash entries_t))
-    let pre_hash t = M.list t |> pre_hash_entries
+    let encode_bin_int64 = Irmin.Type.(unstage (pre_hash int64))
+
+    let pre_hash t f =
+      match M.length t with
+      | 0 -> pre_hash_entries [] f
+      | 1 ->
+          encode_bin_int64 1L f;
+          pre_hash_entry (List.hd (M.list t)) f
+      | _ -> pre_hash_entries (M.list t) f
   end
 
   include M
