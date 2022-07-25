@@ -70,6 +70,9 @@ module type Specifics = sig
     (** [start_exn] tries to start the GC process and returns true if the GC is
         launched. If a GC is already running, a new one is not started.
 
+        The GC process will not be automatically finalised. The caller is
+        responsible for calling {!finalise_exn}.
+
         If [unlink] is false then temporary files and files from the previous
         generation will be kept on disk after the GC finished. This option is
         useful for debugging. The default is [true].
