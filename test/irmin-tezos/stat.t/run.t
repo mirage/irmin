@@ -16,10 +16,7 @@ Running stat on a v3 store
   }
 
 Running index-integrity-check on a v3 store minimal
-  $ STORE=PACK ../irmin_fsck.exe integrity-check-index ../data/pack 2>&1 | cat -e
-  >> Beginning index checking with parameters: { log_size = 2500000 }$
-  ^[[?25lChecking index    0.0 B   00:00 [-----------------------------------------]   0%^MChecking index    1.7 KiB 00:00 [#########################################] 100%^M$
-  ^[[?25h>> Success in 452us. Store statistics:$
+  $ STORE=PACK ../irmin_fsck.exe integrity-check-index ../data/pack --color=never 2>&1 | cat -e | tail -n 10
     { "Commit_v1" = 0;$
       "Commit_v2" = 3;$
       "Contents" = 3;$
