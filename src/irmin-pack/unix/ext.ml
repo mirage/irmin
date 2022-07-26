@@ -151,8 +151,8 @@ module Maker (Config : Conf.S) = struct
         unlink : bool;
         offset : int63;
         elapsed : unit -> float;
-        resolver : (gc_stats option, Errs.t) result Lwt.u;
-        promise : (gc_stats option, Errs.t) result Lwt.t;
+        resolver : (gc_stats, Errs.t) result Lwt.u;
+        promise : (gc_stats, Errs.t) result Lwt.t;
         use_auto_finalisation : bool;
       }
 
@@ -498,7 +498,7 @@ module Maker (Config : Conf.S) = struct
                             (Int63.sub new_suffix_end_offset copy_end_offset)];
                         let elapsed = elapsed () in
                         let stats = { elapsed } in
-                        let () = Lwt.wakeup_later resolver (Ok (Some stats)) in
+                        let () = Lwt.wakeup_later resolver (Ok stats) in
                         Ok (`Finalised stats)
                     | _ ->
                         let err = gc_errors status gc_output in
