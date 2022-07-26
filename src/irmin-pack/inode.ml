@@ -308,25 +308,10 @@ struct
     type pack_offset = int63 [@@deriving irmin]
     type name = Indirect of dict_key | Direct of step
     type address = Offset of pack_offset | Hash of H.t [@@deriving irmin]
-    type ptr = { index : int; hash : address }
-
-    let ptr_t : ptr Irmin.Type.t =
-      let open Irmin.Type in
-      record "Compress.ptr" (fun index hash -> { index; hash })
-      |+ field "index" int (fun t -> t.index)
-      |+ field "hash" address_t (fun t -> t.hash)
-      |> sealr
+    type ptr = { index : int; hash : address } [@@deriving irmin]
 
     type tree = { depth : int; length : int; entries : ptr list }
-
-    let tree_t : tree Irmin.Type.t =
-      let open Irmin.Type in
-      record "Compress.tree" (fun depth length entries ->
-          { depth; length; entries })
-      |+ field "depth" int (fun t -> t.depth)
-      |+ field "length" int (fun t -> t.length)
-      |+ field "entries" (list ptr_t) (fun t -> t.entries)
-      |> sealr
+    [@@deriving irmin]
 
     type value =
       | Contents of name * address * metadata
@@ -496,7 +481,7 @@ struct
     let tagged_v_t =
       Irmin.Type.like ~bin:(encode_bin_tv, decode_bin_tv, size_of_tv) tagged_v_t
 
-    type t = { hash : H.t; tv : tagged_v }
+    type t = { hash : H.t; tv : tagged_v } [@@deriving irmin]
 
     let v ~root ~hash v =
       let length = no_length in
@@ -532,13 +517,6 @@ struct
           depth = 0
       | { tv = V1_root _; _ } -> true
       | { tv = V1_nonroot _; _ } -> false
-
-    let t =
-      let open Irmin.Type in
-      record "Compress.t" (fun hash tv -> { hash; tv })
-      |+ field "hash" H.t (fun t -> t.hash)
-      |+ field "tagged_v" tagged_v_t (fun t -> t.tv)
-      |> sealr
   end
 
   (** [Val_impl] defines the recursive structure of inodes.
