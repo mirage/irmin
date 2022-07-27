@@ -100,10 +100,9 @@ let gc_all_but_head repo branch =
   let* head = Store.Head.get branch in
   let head_key = Store.Commit.key head in
   let finished = function
-    | Ok (Some (r : Store.Gc.stats)) ->
+    | Ok (r : Store.Gc.stats) ->
         Printf.printf "GC finished in %.4fms. Size of repo: %.2fMB.\n" r.elapsed
           (megabytes_of_path Repo_config.root)
-    | Ok None -> Printf.printf "GC finished without stats\n"
     | Error (`Msg err) -> print_endline err
   in
   let+ launched = Store.Gc.run ~finished repo head_key in
