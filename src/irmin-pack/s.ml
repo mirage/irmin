@@ -58,7 +58,7 @@ module type Specifics = sig
   module Gc : sig
     (** GC *)
 
-    type stats = { elapsed : float }
+    type stats = { elapsed : float; finalisation_duration : float }
     (** Stats for a successful GC run *)
 
     type process_state = [ `Idle | `Running | `Finalised of stats ]

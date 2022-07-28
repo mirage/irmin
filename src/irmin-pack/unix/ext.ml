@@ -143,7 +143,7 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
-      type gc_stats = { elapsed : float }
+      type gc_stats = { elapsed : float; finalisation_duration : float }
 
       type gc = {
         next_generation : int;
@@ -467,6 +467,7 @@ module Maker (Config : Conf.S) = struct
               -> (
                 let go status =
                   let c0 = Mtime_clock.counter () in
+                  let start = elapsed () in
                   let root = Conf.root t.config in
                   let gc_output =
                     File_manager.read_gc_output ~root
@@ -497,7 +498,8 @@ module Maker (Config : Conf.S) = struct
                           span1 span2 span3 span4 Int63.pp
                             (Int63.sub new_suffix_end_offset copy_end_offset)];
                         let elapsed = elapsed () in
-                        let stats = { elapsed } in
+                        let finalisation_duration = elapsed -. start in
+                        let stats = { elapsed; finalisation_duration } in
                         let () = Lwt.wakeup_later resolver (Ok stats) in
                         Ok (`Finalised stats)
                     | _ ->
@@ -736,7 +738,12 @@ module Maker (Config : Conf.S) = struct
 
     module Gc = struct
       type msg = [ `Msg of string ]
-      type stats = X.gc_stats = { elapsed : float }
+
+      type stats = X.gc_stats = {
+        elapsed : float;
+        finalisation_duration : float;
+      }
+
       type process_state = [ `Idle | `Running | `Finalised of stats ]
 
       let catch_errors context error =
