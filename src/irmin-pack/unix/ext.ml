@@ -143,7 +143,7 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
-      type gc_stats = { elapsed : float; finalisation_duration : float }
+      type gc_stats = { duration : float; finalisation_duration : float }
 
       type gc = {
         next_generation : int;
@@ -497,9 +497,9 @@ module Maker (Config : Conf.S) = struct
                            remaining newies %a"
                           span1 span2 span3 span4 Int63.pp
                             (Int63.sub new_suffix_end_offset copy_end_offset)];
-                        let elapsed = elapsed () in
-                        let finalisation_duration = elapsed -. start in
-                        let stats = { elapsed; finalisation_duration } in
+                        let duration = elapsed () in
+                        let finalisation_duration = duration -. start in
+                        let stats = { duration; finalisation_duration } in
                         let () = Lwt.wakeup_later resolver (Ok stats) in
                         Ok (`Finalised stats)
                     | _ ->
@@ -740,7 +740,7 @@ module Maker (Config : Conf.S) = struct
       type msg = [ `Msg of string ]
 
       type stats = X.gc_stats = {
-        elapsed : float;
+        duration : float;
         finalisation_duration : float;
       }
 

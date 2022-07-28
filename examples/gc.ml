@@ -104,7 +104,7 @@ let gc_all_but_head repo branch =
         Printf.printf
           "GC finished in %.4fms. Finalisation took %.4fms. Size of repo: \
            %.2fMB.\n"
-          r.elapsed r.finalisation_duration
+          r.duration r.finalisation_duration
           (megabytes_of_path Repo_config.root)
     | Error (`Msg err) -> print_endline err
   in
