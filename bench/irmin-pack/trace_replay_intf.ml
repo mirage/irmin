@@ -102,7 +102,6 @@ module type Store = sig
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
   val gc_wait : repo -> unit Lwt.t
-  val gc_is_finished : repo -> bool
 
   val gc_run :
     ?finished:((float, string) result -> unit) ->

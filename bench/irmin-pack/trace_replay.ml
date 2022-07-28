@@ -157,7 +157,8 @@ module Make (Store : Store) = struct
     contexts : (int64, context) Hashtbl.t;
     hash_corresps : (Def.hash, Store.commit_key) Hashtbl.t;
     mutable commits_since_start_or_gc : int;
-    mutable current_commit_idx : int;
+    mutable latest_commit_idx : int;
+        (** the most recent commit idx to be replayed. initial value is -1 *)
     key_per_commit_idx : (int, Store.commit_key) Hashtbl.t;
   }
 
@@ -367,7 +368,7 @@ module Make (Store : Store) = struct
         contexts = Hashtbl.create 3;
         hash_corresps = Hashtbl.create 3;
         commits_since_start_or_gc = 0;
-        current_commit_idx = 0;
+        latest_commit_idx = -1;
         key_per_commit_idx = Hashtbl.create 3;
       }
     in
@@ -385,7 +386,7 @@ module Make (Store : Store) = struct
           let* () =
             if really_wait_gc then (
               [%logs.app
-                "Waiting gc while latest commit has idx %d" t.current_commit_idx];
+                "Waiting gc while latest commit has idx %d" t.latest_commit_idx];
               Store.gc_wait repo)
             else Lwt.return_unit
           in
@@ -396,22 +397,22 @@ module Make (Store : Store) = struct
                  TODO: If the GC-commit is an orphan commit we will have
                  problems. *)
               let gc_commit_idx =
-                t.current_commit_idx - config.gc_distance_in_the_past
+                t.latest_commit_idx - config.gc_distance_in_the_past
               in
               let gc_commit_key =
                 Hashtbl.find t.key_per_commit_idx gc_commit_idx
               in
-              let gc_start_commit_idx = t.current_commit_idx in
+              let gc_start_commit_idx = t.latest_commit_idx in
               (* used in closure below to know start commit of gc process *)
               t.commits_since_start_or_gc <- 0;
               [%logs.app
                 "Starting gc on commit idx %d with key %a while latest commit \
                  has idx %d with key %a"
                 gc_commit_idx pp_key gc_commit_key gc_start_commit_idx pp_key
-                  (Hashtbl.find t.key_per_commit_idx t.current_commit_idx)];
+                  (Hashtbl.find t.key_per_commit_idx t.latest_commit_idx)];
               let finished = function
                 | Ok elapsed ->
-                    let commit_idx = t.current_commit_idx in
+                    let commit_idx = t.latest_commit_idx in
                     let commit_duration = commit_idx - gc_start_commit_idx in
                     [%logs.app
                       "Gc ended after %d commits, it took %.4fms"
@@ -422,20 +423,21 @@ module Make (Store : Store) = struct
             else Lwt.return_unit
           in
           let* () = add_operations t repo ops i stats check_hash empty_blobs in
+          t.latest_commit_idx <- i;
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
           if (len0, len1) <> (0, 1) then
             [%logs.app
-              "\nAfter commit %6d we have %d/%d history sizes" i len0 len1];
+              "\nAfter commit %6d we have %d/%d history sizes"
+                t.latest_commit_idx len0 len1];
           let* () =
-            on_commit i
-              (Hashtbl.find t.key_per_commit_idx i
+            on_commit t.latest_commit_idx
+              (Hashtbl.find t.key_per_commit_idx t.latest_commit_idx
               |> Store.Backend.Commit.Key.to_hash)
           in
-          t.current_commit_idx <- i;
           t.commits_since_start_or_gc <- t.commits_since_start_or_gc + 1;
           prog 1;
-          aux commit_seq (i + 1)
+          aux commit_seq (t.latest_commit_idx + 1)
     in
     aux commit_seq 0
 

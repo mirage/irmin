@@ -64,7 +64,6 @@ module type Store = sig
     commit_key ->
     unit Lwt.t
 
-  val gc_is_finished : repo -> bool
   val gc_wait : repo -> unit Lwt.t
 end
 
@@ -223,8 +222,6 @@ struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let gc_is_finished = Store.Gc.is_finished
-
   let gc_wait repo =
     let* r = Store.Gc.wait repo in
     match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
@@ -238,7 +235,8 @@ struct
     in
     let* launched = Store.Gc.run ~finished:f repo key in
     match launched with
-    | Ok _ -> Lwt.return_unit
+    | Ok true -> Lwt.return_unit
+    | Ok false -> [%logs.app "GC skipped"] |> Lwt.return
     | Error (`Msg err) -> failwith err
 end
 
