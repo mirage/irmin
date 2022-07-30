@@ -58,8 +58,10 @@ module type Store = sig
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
+  type gc_stats = { duration : float; finalisation_duration : float }
+
   val gc_run :
-    ?finished:((float, string) result -> unit) ->
+    ?finished:((gc_stats, string) result -> unit) ->
     repo ->
     commit_key ->
     unit Lwt.t
@@ -226,12 +228,16 @@ struct
     let* r = Store.Gc.wait repo in
     match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
 
+  type gc_stats = Store.Gc.stats = {
+    duration : float;
+    finalisation_duration : float;
+  }
+
   let gc_run ?(finished = fun _ -> ()) repo key =
-    let f (result : (Store.Gc.stats option, Store.Gc.msg) result) =
+    let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
-      | Ok (Some s) -> finished @@ Ok s.elapsed
-      | Ok None -> finished @@ Ok 0.
+      | Ok _ as s -> finished @@ s
     in
     let* launched = Store.Gc.run ~finished:f repo key in
     match launched with

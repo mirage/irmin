@@ -103,8 +103,10 @@ module type Store = sig
 
   val gc_wait : repo -> unit Lwt.t
 
+  type gc_stats = { duration : float; finalisation_duration : float }
+
   val gc_run :
-    ?finished:((float, string) result -> unit) ->
+    ?finished:((gc_stats, string) result -> unit) ->
     repo ->
     commit_key ->
     unit Lwt.t

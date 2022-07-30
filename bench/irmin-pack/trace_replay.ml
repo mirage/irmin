@@ -411,12 +411,13 @@ module Make (Store : Store) = struct
                 gc_commit_idx pp_key gc_commit_key gc_start_commit_idx pp_key
                   (Hashtbl.find t.key_per_commit_idx t.latest_commit_idx)];
               let finished = function
-                | Ok elapsed ->
+                | Ok (stats : Store.gc_stats) ->
                     let commit_idx = t.latest_commit_idx in
                     let commit_duration = commit_idx - gc_start_commit_idx in
                     [%logs.app
-                      "Gc ended after %d commits, it took %.4fms"
-                        commit_duration elapsed]
+                      "Gc ended after %d commits, gc took %.4fms, finalisation \
+                       took %.4fms"
+                      commit_duration stats.duration stats.finalisation_duration]
                 | Error s -> failwith s
               in
               Store.gc_run ~finished repo gc_commit_key)
