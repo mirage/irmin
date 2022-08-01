@@ -3,13 +3,13 @@ synopsis: "A client for irmin-server"
 maintainer: "Zach Shipko <zachshipko@gmail.com>"
 authors: "Zach Shipko <zachshipko@gmail.com>"
 license: "ISC"
-homepage: "https://github.com/mirage/irmin-server"
-doc: "https://zshipko.github.io/irmin-server"
-bug-reports: "https://github.com/zshipko/irmin-server/issues"
+homepage: "https://github.com/mirage/irmin"
+doc: "https://irmin.org"
+bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "2.0.0"}
-  "irmin-server-internal" {= version}
+  "irmin-server" {= version}
   "ipaddr"
 ]
 build: [
@@ -17,4 +17,4 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name] {with-test}
 ]
-dev-repo: "git+ssh://github.com/zshipko/irmin-server"
+dev-repo: "git+ssh://github.com/mirage/irmin"
