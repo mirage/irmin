@@ -17,4 +17,11 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name] {with-test}
 ]
+depopts: [
+  "websocket-lwt-unix"
+  "conduit-lwt-unix"
+  "lwt-dllist"
+  "js_of_ocaml-lwt"
+  "brr"
+]
 dev-repo: "git+ssh://github.com/mirage/irmin"

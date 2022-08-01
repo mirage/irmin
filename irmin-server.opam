@@ -18,6 +18,10 @@ depends: [
   "lwt" {>= "5.4.0"}
   "ppx_irmin" {= version}
 ]
+depopts: [
+  "conduit-lwt-unit"
+  "websocket-lwt-unix"
+]
 build: [
   ["dune" "subst"] {pinned}
   ["dune" "build" "-p" name "-j" jobs]
