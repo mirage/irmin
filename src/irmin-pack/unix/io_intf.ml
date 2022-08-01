@@ -128,18 +128,6 @@ module type S = sig
 
   val catch_misc_error :
     (unit -> 'a) -> ('a, [> `Io_misc of misc_error ]) result
-
-  (** Simple async/await *)
-
-  type task
-
-  type status = [ `Running | `Success | `Cancelled | `Failure of string ]
-  [@@deriving irmin]
-
-  val async : (unit -> unit) -> task
-  val await : task -> status Lwt.t
-  val status : task -> status
-  val cancel : task -> unit
 end
 
 module type Sigs = sig

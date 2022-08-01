@@ -32,6 +32,7 @@ module Maker (Config : Conf.S) = struct
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
     module Io = Io.Unix
+    module Async = Async.Unix
     module Errs = Io_errors.Make (Io)
     module Control = Control_file.Make (Io)
     module Aof = Append_only_file.Make (Io)
@@ -147,7 +148,7 @@ module Maker (Config : Conf.S) = struct
 
       type gc = {
         next_generation : int;
-        task : Io.task;
+        task : Async.task;
         unlink : bool;
         offset : int63;
         elapsed : unit -> float;
@@ -227,7 +228,7 @@ module Maker (Config : Conf.S) = struct
           let () =
             match t.running_gc with
             | Some { task; _ } ->
-                Io.cancel task;
+                Async.cancel task;
                 t.running_gc <- None
             | None -> ()
           in
@@ -303,7 +304,7 @@ module Maker (Config : Conf.S) = struct
                after a failed gc. *)
             unlink_result_file ~root ~generation:next_generation;
             let task =
-              Io.async (fun () ->
+              Async.async (fun () ->
                   let (_ : int63) =
                     Gc.run_and_output_result root commit_key
                       ~generation:next_generation
@@ -404,7 +405,7 @@ module Maker (Config : Conf.S) = struct
             [%log.info "GC: end"];
             Ok ()
 
-          let pp_status = Irmin.Type.pp Io.status_t
+          let pp_status = Irmin.Type.pp Async.status_t
           let pp_gc_error = Irmin.Type.pp File_manager.read_gc_output_error_t
 
           let unlink_all ~root ~generation =
@@ -515,11 +516,11 @@ module Maker (Config : Conf.S) = struct
                 else
                   match wait with
                   | false -> (
-                      match Io.status task with
+                      match Async.status task with
                       | `Running -> Lwt.return_ok `Running
                       | status -> go status)
                   | true ->
-                      let* status = Io.await task in
+                      let* status = Async.await task in
                       go status)
 
           let start_or_skip ~unlink ~use_auto_finalisation t commit_key =

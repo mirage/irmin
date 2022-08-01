@@ -24,6 +24,7 @@ module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher
 module Io = Io
+module Async = Async
 module Errors = Errors
 module Io_errors = Io_errors
 module Control_file = Control_file
