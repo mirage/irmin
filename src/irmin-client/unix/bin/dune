@@ -2,4 +2,11 @@
  (public_name irmin-client)
  (package irmin-client)
  (name client)
- (libraries irmin-client.unix irmin-cli fmt.cli logs.cli fmt.tty))
+ (libraries
+  irmin-client.unix
+  websocket-lwt-unix
+  conduit-lwt-unix
+  irmin-cli
+  fmt.cli
+  logs.cli
+  fmt.tty))

@@ -24,6 +24,8 @@
   irmin-watcher
   irmin-server.unix
   irmin-client.unix
+  websocket-lwt-unix
+  conduit-lwt-unix
   lwt
   lwt.unix)
  (preprocess

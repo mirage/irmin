@@ -37,6 +37,7 @@ depends: [
   "conduit"
   "conduit-lwt"
   "conduit-lwt-unix"
+  "websocket-lwt-unix"
   "logs"
   "uri"
   "cmdliner"

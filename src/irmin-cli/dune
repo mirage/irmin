@@ -11,6 +11,8 @@
   irmin-fs.unix
   irmin-graphql.unix
   irmin-server.unix
+  websocket-lwt-unix
+  conduit-lwt-unix
   irmin-watcher
   cmdliner
   git-unix
