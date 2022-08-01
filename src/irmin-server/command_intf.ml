@@ -4,7 +4,8 @@ module type S = sig
   module Store : Irmin.Generic_key.S
   (** Irmin [Store] type *)
 
-  (** [Tree] wraps [Store.Tree] to avoid encoding/decoding trees more than needed *)
+  (** [Tree] wraps [Store.Tree] to avoid encoding/decoding trees more than
+      needed *)
   module Tree :
     Tree.S
       with type kinded_key = Store.Tree.kinded_key
