@@ -31,19 +31,41 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) : sig
 
       Returns an error if the platform is not 64bits.
 
-      Works on both little-endian and big-endian platforms.
-
       Creates temporary files in [root] that are unlinked before the function
       returns. *)
 
-  val iter :
-    Io.Unix.t -> (off:int63 -> len:int -> unit) -> (unit, [> Errs.t ]) result
-  (** [iter ~path f] Iterate over the entries of the mapping file at [path].
+  type mapping_as_int_bigarray = private
+    | Int_bigarray of int_bigarray
+        (** [mapping_as_int_bigarray] holds the [int_bigarray] loaded from an
+            mmap. NOTE invariant-mapping-array: The [int_bigarray] holds ints;
+            each consecutive group of 3 ints corresponds to a tuple
+            [(off,poff,len)], where [off] is the virtual offset; [poff] is the
+            offset in the prefix file; and [len] is the length of the
+            corresponding chunk in the prefix file. The size of the array is
+            always a multiple of 3. *)
+
+  val empty_mapping : mapping_as_int_bigarray
+
+  val load_mapping_as_mmap :
+    string -> (mapping_as_int_bigarray, [> Errs.t ]) result
+  (** [load_mapping_as_mmap path] returns an mmap-backed [int_bigarray];
+      assuming the path is for a mapping file previously created via [create],
+      the array should hold triples of [(off,poff,len)] data, where [off] is a
+      virtual offset, [poff] is an offset in the prefix file for a live region
+      of data, and [len] is the length of the region *)
+
+  val iter_mmap :
+    mapping_as_int_bigarray ->
+    (off:int63 -> len:int -> unit) ->
+    (unit, [> Errs.t ]) result
+  (** [iter_mmap arr f] calls [f] on each [(off,len)] pair in [arr], starting
+      from the beginning of [arr]. This is a common pattern in the rest of the
+      code, so exposed as a helper function here.
 
       It is guaranteed for the offsets to be iterated in monotonic order.
 
       It is guaranteed that entries don't overlap.
 
       The exceptions raised by [f] are caught and returned (as long as they are
-      known by [Errs]. *)
+      known by [Errs]). *)
 end

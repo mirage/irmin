@@ -512,4 +512,5 @@ let misc =
     ("concurrent gc", Test_gc.Concurrent_gc.tests);
     ("flush", Test_flush_reload.tests);
     ("mapping", Test_mapping.tests);
+    ("test_nearest_leq", Test_nearest_leq.tests);
   ]

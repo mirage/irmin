@@ -40,8 +40,15 @@ module V3 = struct
   let sorted ~generation =
     toplevel ("store." ^ string_of_int generation ^ ".sorted")
 
-  let mapping ~generation =
-    toplevel ("store." ^ string_of_int generation ^ ".mapping")
+  let mapping =
+    (* if we use mmap for the mapping file, then the mapping file is not portable between
+       architectures with different endianness; to avoid the possibility that a
+       little-endian file is used on a big-endian arch (or vice versa) we use a filename
+       that is not portable between archs; since the common case is little endian, we make
+       this the "default" empty suffix, and for big endian we add ".be" *)
+    let empty_or_be = match Sys.big_endian with false -> "" | true -> ".be" in
+    fun ~generation ->
+      toplevel ("store." ^ string_of_int generation ^ ".mapping" ^ empty_or_be)
 
   let prefix ~generation =
     toplevel ("store." ^ string_of_int generation ^ ".prefix")
