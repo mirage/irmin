@@ -148,7 +148,7 @@ module Maker (Config : Conf.S) = struct
 
       type gc = {
         next_generation : int;
-        task : Async.task;
+        task : Async.t;
         unlink : bool;
         offset : int63;
         elapsed : unit -> float;

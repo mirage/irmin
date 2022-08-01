@@ -18,10 +18,7 @@ open! Import
 include Async_intf
 
 module Unix = struct
-  (* Async using fork/waitpid*)
-
-  (** This module supports async below. There is a per-process list of pid, that
-      will be killed when [clean_up] is called. *)
+  (** [Exit] is a stack of PIDs to kill [at_exit]. *)
   module Exit = struct
     let proc_list = ref []
     let m = Mutex.create ()
@@ -36,7 +33,8 @@ module Unix = struct
       proc_list := List.filter (fun gc' -> gc <> gc') !proc_list;
       Mutex.unlock m
 
-    let clean_up () =
+    let () =
+      at_exit @@ fun () ->
       List.iter
         (fun gc ->
           try Unix.kill gc 9
@@ -47,14 +45,13 @@ module Unix = struct
         !proc_list
   end
 
-  (* Register function to be called when process terminates. If there is a gc
-     process running, make sure to terminate it. *)
-  let () = at_exit Exit.clean_up
+  type outcome = [ `Success | `Cancelled | `Failure of string ]
+  [@@deriving irmin]
 
   type status = [ `Running | `Success | `Cancelled | `Failure of string ]
   [@@deriving irmin]
 
-  type task = { pid : int; mutable status : status }
+  type t = { pid : int; mutable status : status }
 
   let async f =
     Stdlib.flush_all ();
@@ -64,17 +61,18 @@ module Unix = struct
         Lwt_main.abandon_yielded_and_paused ();
         f ();
         (* Once the gc is finished, the child process kills itself to
-           avoid calling at_exit functions in upstream code. *)
+           avoid calling at_exit functions and avoir executing the rest
+           of the call stack. *)
         Unix.kill (Unix.getpid ()) 9;
         assert false (* unreachable *)
     | pid ->
         Exit.add pid;
         { pid; status = `Running }
 
-  let status_of_process_status = function
+  let status_of_process_outcome = function
     | Lwt_unix.WSIGNALED x when x = Sys.sigkill ->
-        (* x is actually -7; -7 is the Sys.sigkill definition (not the OS' 9 as might be
-           expected) *)
+        (* x is actually -7; -7 is the Sys.sigkill definition (not the OS' 9 as
+           might be expected) *)
         `Success
         (* the child is killing itself when it's done *)
     | Lwt_unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
@@ -86,36 +84,33 @@ module Unix = struct
       match t.status with
       | `Running ->
           let pid, _ = Unix.waitpid [ Unix.WNOHANG ] t.pid in
-          (* Do not block if no child has died yet. In this case the waitpid
-             returns immediately with a pid equal to 0. *)
           if pid = 0 then (
+            (* Child process is still running *)
             Unix.kill t.pid 9;
             Exit.remove t.pid)
       | _ -> ()
     in
     t.status <- `Cancelled
 
-  let status t : status =
+  let status t =
     match t.status with
     | `Running ->
         let pid, status = Unix.waitpid [ Unix.WNOHANG ] t.pid in
-        (* Do not block if no child has died yet. In this case the waitpid
-           returns immediately with a pid equal to 0. *)
         if pid = 0 then `Running
         else
-          let s = status_of_process_status status in
+          let s = status_of_process_outcome status in
           Exit.remove pid;
           t.status <- s;
           s
-    | s -> s
+    | #outcome as s -> s
 
   let await t =
     match t.status with
     | `Running ->
         let+ pid, status = Lwt_unix.waitpid [] t.pid in
-        let s = status_of_process_status status in
+        let s = status_of_process_outcome status in
         Exit.remove pid;
         t.status <- s;
         s
-    | s -> Lwt.return send
+    | #outcome as s -> Lwt.return s
 end

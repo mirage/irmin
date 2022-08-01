@@ -15,17 +15,33 @@
  *)
 
 module type S = sig
-  (** Simple async/await *)
+  (** Basic abstraction for a worker. *)
 
-  type task
+  type t
+  (** A task *)
 
-  type status = [ `Running | `Success | `Cancelled | `Failure of string ]
+  type outcome = [ `Success | `Cancelled | `Failure of string ]
   [@@deriving irmin]
 
-  val async : (unit -> unit) -> task
-  val await : task -> status Lwt.t
-  val status : task -> status
-  val cancel : task -> unit
+  type status = [ outcome | `Running ] [@@deriving irmin]
+
+  val async : (unit -> unit) -> t
+  (** Start a task. *)
+
+  val await : t -> [> outcome ] Lwt.t
+  (** If running, wait for a task to finish and return its outcome.
+
+      If not running, return the oucome of the task. *)
+
+  val status : t -> [> status ]
+  (** If running, refresh the status of the task, without blocking.
+
+      If not running, return the oucome of the task. *)
+
+  val cancel : t -> unit
+  (** If running, cancel the task.
+
+      If not running, do nothing. *)
 end
 
 module type Sigs = sig
