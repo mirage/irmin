@@ -684,7 +684,7 @@ module Concurrent_gc = struct
     | None -> Alcotest.failf "running_gc missing after call to start"
     | Some { task; _ } -> (
         try
-          Irmin_pack_unix.Io.Unix.cancel task;
+          Irmin_pack_unix.Async.Unix.cancel task;
           true
         with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
 
