@@ -35,7 +35,6 @@ depends: [
   "mtime"      {with-test & >= "1.0.0"}
   "alcotest"   {with-test}
 ]
-available: [ arch != "s390x" ] # temporary disable until ocaml-git works properly
 
 synopsis: "Git backend for Irmin"
 description: """
