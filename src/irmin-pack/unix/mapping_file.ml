@@ -43,7 +43,9 @@ include Mapping_file_intf
 module BigArr1 = Bigarray.Array1
 
 type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-(** [int_bigarray] is the raw type for the mapping file data, exposed via mmap *)
+
+type int64_bigarray =
+  (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 (* each entry consists of [step] ints; there is the possibility to generalize to
    arbitrary step sizes, but the following code always works with (key,value) pairs, ie
@@ -107,6 +109,43 @@ end = struct
     (* following tries to make the array unreachable, so GC'able; however, no guarantee
        that arr actually is unreachable *)
     t.arr <- Bigarray.(Array1.create Int c_layout 0);
+    ()
+end
+
+module Int64_mmap : sig
+  type t = private {
+    fn : string;
+    fd : Unix.file_descr;
+    mutable arr : int64_bigarray;
+  }
+
+  val open_ : fn:string -> sz:int -> t
+  (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size
+      of the underlying file *)
+
+  val close : t -> unit
+end = struct
+  type t = { fn : string; fd : Unix.file_descr; mutable arr : int64_bigarray }
+
+  (* NOTE both following are shared *)
+  let shared = true
+
+  (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
+     different size (eg because we want the file to grow) we can provide it explicitly *)
+  let open_ ~fn ~sz =
+    assert (Sys.file_exists fn);
+    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
+    let arr =
+      let open Bigarray in
+      Unix.map_file fd Int64 c_layout shared [| sz |] |> array1_of_genarray
+    in
+    { fn; fd; arr }
+
+  let close t =
+    Unix.close t.fd;
+    (* following tries to make the array unreachable, so GC'able; however, no guarantee
+       that arr actually is unreachable *)
+    t.arr <- Bigarray.(Array1.create Int64 c_layout 0);
     ()
 end
 
@@ -294,18 +333,18 @@ module Make (Io : Io.S) = struct
   module Ao = Append_only_file.Make (Io)
   module Errs = Io_errors.Make (Io)
 
-  type t = { arr : int_bigarray; root : string; generation : int }
+  type t = { arr : int64_bigarray; root : string; generation : int }
 
   let open_map ~root ~generation =
     let path = Irmin_pack.Layout.V3.mapping ~generation ~root in
     match Io.classify_path path with
     | `File -> (
-        let mmap = Int_mmap.open_ ~fn:path ~sz:(-1) in
+        let mmap = Int64_mmap.open_ ~fn:path ~sz:(-1) in
         let arr = mmap.arr in
         let len = BigArr1.dim arr in
         match len > 0 && len mod 3 = 0 with
         | true ->
-            Int_mmap.close mmap;
+            Int64_mmap.close mmap;
             Ok { root; generation; arr }
         | false ->
             Error
@@ -390,7 +429,7 @@ module Make (Io : Io.S) = struct
     let encode =
       let buf = Bytes.create 8 in
       fun i ->
-        Bytes.set_int64_ne buf 0 (Int64.of_int i);
+        Bytes.set_int64_le buf 0 (Int64.of_int i);
         Bytes.unsafe_to_string buf
     in
     let register_entry ~off ~len =
@@ -415,9 +454,23 @@ module Make (Io : Io.S) = struct
 
   let entry_count arr = BigArr1.dim arr / 3
   let entry_idx i = i * 3
-  let entry_off arr i = arr.{entry_idx i} |> Int63.of_int
-  let entry_poff arr i = arr.{entry_idx i + 1} |> Int63.of_int
-  let entry_len arr i = arr.{entry_idx i + 2}
+
+  let conv_int64 : int64 -> int =
+   fun i ->
+    (if Sys.big_endian then (
+     (* We set [buf] to contain exactly what is stored on disk. Since the current
+        platform is BE, we've interpreted what was written on disk using a BE
+        decoding scheme. To do the opposite operation we must use a BE encoding
+        scheme, hence [set_int64_be]. *)
+     let buf = Bytes.create 8 in
+     Bytes.set_int64_be buf 0 i;
+     Bytes.get_int64_le buf 0)
+    else i)
+    |> Int64.to_int
+
+  let entry_off arr i = arr.{entry_idx i} |> conv_int64 |> Int63.of_int
+  let entry_poff arr i = arr.{entry_idx i + 1} |> conv_int64 |> Int63.of_int
+  let entry_len arr i = arr.{entry_idx i + 2} |> conv_int64
 
   let iter { arr; _ } f =
     Errs.catch (fun () ->
@@ -429,7 +482,7 @@ module Make (Io : Io.S) = struct
   type entry = { off : int63; poff : int63; len : int }
 
   let find_nearest_leq { arr; _ } off =
-    let get arr i = arr.{entry_idx i} in
+    let get arr i = arr.{entry_idx i} |> conv_int64 in
     match
       Utils.nearest_leq ~arr ~get ~lo:0
         ~hi:(entry_count arr - 1)
