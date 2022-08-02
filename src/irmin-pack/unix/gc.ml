@@ -92,7 +92,7 @@ end
 module Make (Args : Args) : S with module Args := Args = struct
   open Args
   module Io = Fm.Io
-  module Mapping_file = Mapping_file.Make (Errs)
+  module Mapping_file = Fm.Mapping_file
   module Ao = Append_only_file.Make (Io)
 
   module X = struct
@@ -177,13 +177,16 @@ module Make (Args : Args) : S with module Args := Args = struct
     in
     let buffer = Bytes.create len in
     read_exn ~off ~len buffer;
-    let poff = Dispatcher.poff_of_entry_exn ~off ~len mapping in
-    Bytes.set buffer Hash.hash_size magic_parent;
-    (* Bytes.unsafe_to_string usage: We assume read_exn returns unique ownership of buffer
-       to this function. Then at the call to Bytes.unsafe_to_string we give up unique
-       ownership to buffer (we do not modify it thereafter) in return for ownership of the
-       resulting string, which we pass to write_exn. This usage is safe. *)
-    write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
+    let entry = Mapping_file.find_nearest_leq mapping off in
+    match entry with
+    | None -> assert false
+    | Some { poff; _ } ->
+        Bytes.set buffer Hash.hash_size magic_parent;
+        (* Bytes.unsafe_to_string usage: We assume read_exn returns unique ownership of buffer
+           to this function. Then at the call to Bytes.unsafe_to_string we give up unique
+           ownership to buffer (we do not modify it thereafter) in return for ownership of the
+           resulting string, which we pass to write_exn. This usage is safe. *)
+        write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
 
   let create_new_suffix ~root ~generation =
     let open Result_syntax in
@@ -238,7 +241,7 @@ module Make (Args : Args) : S with module Args := Args = struct
     in
 
     (* Step 3. Create the new mapping. *)
-    let* () =
+    let* mapping =
       (* Step 3.1 Start [Mapping_file] routine which will create the
          reachable file. *)
       (fun f -> Mapping_file.create ~root ~generation ~register_entries:f)
@@ -275,8 +278,6 @@ module Make (Args : Args) : S with module Args := Args = struct
       ()
     in
 
-    let mapping_path = Irmin_pack.Layout.V3.mapping ~root ~generation in
-    let* mapping = Mapping_file.load_mapping_as_mmap mapping_path in
     let* () =
       (* Step 4. Create the new prefix. *)
       let prefix_ref = ref None in
@@ -307,14 +308,12 @@ module Make (Args : Args) : S with module Args := Args = struct
           let len = Int63.of_int len in
           transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
         in
-        let* () = Mapping_file.iter_mmap mapping f in
+        let* () = Mapping_file.iter mapping f in
         Ao.flush prefix
       in
       (* Step 5.2. Transfer again the parent commits but with a modified
-         magic. Load the mapping in memory to do a safe localisation of the
-         parent commits. Reopen the new prefix, this time _not_ in append-only
+         magic. Reopen the new prefix, this time _not_ in append-only
          as we have to modify data inside the file. *)
-      let* in_memory_map = Dispatcher.load_mapping mapping_path in
       let read_exn = Dispatcher.read_exn dispatcher in
       let* prefix =
         let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
@@ -328,8 +327,7 @@ module Make (Args : Args) : S with module Args := Args = struct
         let write_exn = Io.write_exn prefix in
         List.iter
           (fun key ->
-            transfer_parent_commit_exn ~read_exn ~write_exn
-              ~mapping:in_memory_map key)
+            transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key)
           (Commit_value.parents commit);
         Ok ()
       in

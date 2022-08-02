@@ -39,6 +39,11 @@
     smaller. *)
 
 open! Import
+include Mapping_file_intf
+module BigArr1 = Bigarray.Array1
+
+type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
+(** [int_bigarray] is the raw type for the mapping file data, exposed via mmap *)
 
 (* each entry consists of [step] ints; there is the possibility to generalize to
    arbitrary step sizes, but the following code always works with (key,value) pairs, ie
@@ -66,9 +71,6 @@ module Int_mmap : sig
 
   val close : t -> unit
 end = struct
-  type int_bigarray =
-    (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-
   type t = { fn : string; fd : Unix.file_descr; mutable arr : int_bigarray }
 
   (* NOTE both following are shared *)
@@ -291,10 +293,33 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
    both. *)
 type pair = int63 * int63 [@@deriving irmin ~encode_bin ~decode_bin]
 
-module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
-  module Ao = Append_only_file.Make (Io.Unix)
+module Make (Io : Io.S) = struct
+  module Io = Io
+  module Ao = Append_only_file.Make (Io)
+  module Errs = Io_errors.Make (Io)
+
+  type t = { arr : int_bigarray; root : string; generation : int }
+
+  let open_map ~root ~generation =
+    let path = Irmin_pack.Layout.V3.mapping ~generation ~root in
+    match Io.classify_path path with
+    | `File -> (
+        let mmap = Int_mmap.open_ ~fn:path ~sz:(-1) in
+        let arr = mmap.arr in
+        let len = BigArr1.dim arr in
+        match len > 0 && len mod 3 = 0 with
+        | true ->
+            Int_mmap.close mmap;
+            Ok { root; generation; arr }
+        | false ->
+            Error
+              (`Corrupted_mapping_file
+                (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
+        )
+    | _ -> Error `No_such_file_or_directory
 
   let create ~root ~generation ~register_entries =
+    assert (generation > 0);
     let open Result_syntax in
     let path0 = Irmin_pack.Layout.V3.reachable ~generation ~root in
     let path1 = Irmin_pack.Layout.V3.sorted ~generation ~root in
@@ -306,9 +331,9 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     in
 
     (* Unlink the 3 files and ignore errors (typically no such file) *)
-    Io.Unix.unlink path0 |> ignore;
-    Io.Unix.unlink path1 |> ignore;
-    Io.Unix.unlink path2 |> ignore;
+    Io.unlink path0 |> ignore;
+    Io.unlink path1 |> ignore;
+    Io.unlink path2 |> ignore;
 
     (* Create [file0] *)
     let file0_ref = ref None in
@@ -349,7 +374,7 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
 
     (* Close and unlink [file0] *)
     Int_mmap.close file0;
-    Io.Unix.unlink path0 |> ignore;
+    Io.unlink path0 |> ignore;
 
     (* Create [file2]; currently this uses mmap format *)
     let module Util = struct
@@ -386,39 +411,37 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
 
     (* Close and unlink [file1] *)
     Int_mmap.close file1;
-    Io.Unix.unlink path1 |> ignore;
+    Io.unlink path1 |> ignore;
 
-    Ok ()
+    (* Open created map *)
+    open_map ~root ~generation
 
-  type mapping_as_int_bigarray = Int_bigarray of int_bigarray
+  let entry_count arr = BigArr1.dim arr / 3
+  let entry_idx i = i * 3
+  let entry_off arr i = arr.{entry_idx i} |> Int63.of_int
+  let entry_poff arr i = arr.{entry_idx i + 1} |> Int63.of_int
+  let entry_len arr i = arr.{entry_idx i + 2}
 
-  let empty_mapping = Int_bigarray Bigarray.(Array1.create int c_layout 0)
-
-  let load_mapping_as_mmap path =
-    match Io.Unix.classify_path path with
-    | `File -> (
-        let mmap = Int_mmap.open_ ~fn:path ~sz:(-1) in
-        let arr = mmap.arr in
-        (* we expect the arr to hold (off,poff,len) tuples *)
-        match BigArr1.dim arr mod 3 = 0 with
-        | true ->
-            (* we guarantee that the size of the arr is a multiple of 3 *)
-            Int_mmap.close mmap;
-            Ok (Int_bigarray arr)
-        | false ->
-            Error
-              (`Corrupted_mapping_file
-                (__FILE__ ^ ": mapping mmap size was not a multiple of 3")))
-    | _ -> Error `No_such_file_or_directory
-
-  let iter_mmap (Int_bigarray arr) f =
-    let sz = BigArr1.dim arr in
-    assert (sz mod 3 = 0);
-    (* guaranteed by type [mapping_as_int_bigarray] *)
+  let iter { arr; _ } f =
     Errs.catch (fun () ->
-        for i = 0 to (sz / 3) - 1 do
-          (* see note mmap-contents above: every 3 ints corresponds to (off,poff,len) *)
-          f ~off:(arr.{3 * i} |> Int63.of_int) ~len:arr.{(3 * i) + 2}
+        for i = 0 to entry_count arr - 1 do
+          f ~off:(entry_off arr i) ~len:(entry_len arr i)
         done;
         ())
+
+  type entry = { off : int63; poff : int63; len : int }
+
+  let find_nearest_leq { arr; _ } off =
+    let get arr i = arr.{entry_idx i} in
+    match
+      Utils.nearest_leq ~arr ~get ~lo:0
+        ~hi:(entry_count arr - 1)
+        ~key:(Int63.to_int off)
+    with
+    | `All_gt_key -> None
+    | `Some i ->
+        let off = entry_off arr i in
+        let poff = entry_poff arr i in
+        let len = entry_len arr i in
+        Some { off; poff; len }
 end
