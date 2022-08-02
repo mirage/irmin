@@ -20,4 +20,5 @@ build: [
 ]
 dev-repo: "git+https://github.com/mirage/irmin.git"
 
-available: [ arch != "arm64" ] # disabled because of SEGFAULT
+# Disabled on arm64 linux and s390x because of a SEGFAULT in tests
+available: [ (arch != "arm64" | os = "macos") & arch != "s390x" ] 
