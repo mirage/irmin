@@ -18,6 +18,7 @@ open Import
 
 module type S = sig
   module Fm : File_manager.S
+  module Mapping_file : Mapping_file.S with module Io = Fm.Io
 
   type t
 
@@ -50,15 +51,6 @@ module type S = sig
   val read_in_prefix_and_suffix_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** Simlar to [read_exn] but if [off + len] is greater than the end of the
       prefix, it will read the remaining in the prefix. *)
-
-  type mapping
-  (** [mapping] implements a map from global offset to [(offset,len)] in the
-      prefix file *)
-
-  val load_mapping : string -> (mapping, [> Fm.Errs.t ]) result
-  (** [load_mapping path] loads the [mapping] from the given path and returns it *)
-
-  val poff_of_entry_exn : mapping -> off:int63 -> len:int -> int63
 end
 
 module type Sigs = sig

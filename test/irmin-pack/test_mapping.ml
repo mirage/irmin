@@ -18,10 +18,9 @@ open! Import
 module Int63 = Optint.Int63
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
-module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Errs)
+module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Io)
 
 let test_dir = Filename.concat "_build" "test-pack-mapping"
-let mapping_path = Irmin_pack.Layout.V3.mapping ~generation:0 ~root:test_dir
 
 (** Call the [Mapping_file] routines to process [pairs] *)
 let process_on_disk pairs =
@@ -30,16 +29,13 @@ let process_on_disk pairs =
       (fun (off, len) -> register_entry ~off:(Int63.of_int off) ~len)
       pairs
   in
-  let () =
-    Mapping_file.create ~root:test_dir ~generation:0 ~register_entries
+  let mapping =
+    Mapping_file.create ~root:test_dir ~generation:1 ~register_entries
     |> Errs.raise_if_error
-  in
-  let mf =
-    Mapping_file.load_mapping_as_mmap mapping_path |> Errs.raise_if_error
   in
   let l = ref [] in
   let f ~off ~len = l := (Int63.to_int off, len) :: !l in
-  Mapping_file.iter_mmap mf f |> Errs.raise_if_error;
+  Mapping_file.iter mapping f |> Errs.raise_if_error;
   !l |> List.rev
 
 (** Emulate the behaviour of the [Mapping_file] routines to process [pairs] *)

@@ -17,7 +17,6 @@
 open Import
 include Dispatcher_intf
 module Payload = Control_file.Latest_payload
-module Intmap = Map.Make (Int63)
 
 (* The following [with module Io = Io.Unix] forces unix *)
 module Make (Fm : File_manager.S with module Io = Io.Unix) :
@@ -25,7 +24,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Fm = Fm
   module Io = Fm.Io
   module Suffix = Fm.Suffix
-  module Mapping_file = Mapping_file.Make (Fm.Errs)
+  module Mapping_file = Fm.Mapping_file
   module Errs = Fm.Errs
   module Control = Fm.Control
 
@@ -33,78 +32,10 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let read_prefix = ref 0
   (*TODO move them in stats*)
 
-  type mapping = Mapping_file.mapping_as_int_bigarray
-
-  module Mapping_util = struct
-    type entry = { off : int63; poff : int63; len : int }
-    (** [entry] is a type for the return value from {!find_nearest_leq}; see doc
-        for {!type:mapping} above. *)
-
-    let nearest_leq = Utils.nearest_leq
-
-    (** [find_nearest_leq ~mapping off] returns the entry in [mapping] whose
-        offset is the nearest [<=] the given [off] *)
-    let find_nearest_leq ~(mapping : mapping) off =
-      match mapping with
-      | Int_bigarray arr -> (
-          match BigArr1.dim arr with
-          | 0 ->
-              (* NOTE this is probably an error case; perhaps log an error *)
-              [%log.warn
-                "%s: mapping array had 0 length; this is probably an error"
-                  __FILE__];
-              None
-          | len -> (
-              assert (len mod 3 = 0);
-              (* see invariant-mapping-array *)
-              let actual_len = len / 3 in
-              (* see invariant-mapping-array: we want to perform binary search wrt. the
-                 first int in each consecutive triple *)
-              let get arr i = arr.{i * 3} in
-              match
-                nearest_leq ~arr ~get ~lo:0 ~hi:(actual_len - 1)
-                  ~key:(Int63.to_int off)
-              with
-              | `All_gt_key -> None
-              | `Some i ->
-                  (* NOTE the i returned is as seen via [get] above, i.e., we need to multiply
-                     by 3 to get the actual index in the array *)
-                  let off, poff, len =
-                    (arr.{3 * i}, arr.{(3 * i) + 1}, arr.{(3 * i) + 2})
-                  in
-                  Some { off = Int63.of_int off; poff = Int63.of_int poff; len }
-              ))
-  end
-
-  type t = { fm : Fm.t; mutable mapping : mapping; root : string }
-  (** [mapping] is a map from global offset to (offset,len) pairs in the prefix
-      file *)
-
-  let empty_mapping = Mapping_file.empty_mapping
-
-  let load_mapping path =
-    let open Result_syntax in
-    let* arr = Mapping_file.load_mapping_as_mmap path in
-    (* NOTE arr is an array of tuples (off,poff,len); see invariant-mapping-array *)
-    Ok arr
-
-  let reload t =
-    let open Result_syntax in
-    let* mapping =
-      match Fm.mapping t.fm with
-      | None -> Ok empty_mapping
-      (* presumably this mapping is not used subsequently, i.e., the suffix file starts
-         from virtual offset 0, and the prefix will never be inspected *)
-      | Some path -> load_mapping path
-    in
-    t.mapping <- mapping;
-    Ok ()
+  type t = { fm : Fm.t; root : string }
 
   let v ~root fm =
-    let open Result_syntax in
-    let t = { fm; mapping = empty_mapping; root } in
-    Fm.register_mapping_consumer fm ~after_reload:(fun () -> reload t);
-    let* () = reload t in
+    let t = { fm; root } in
     Ok t
 
   let entry_offset_suffix_start t =
@@ -146,7 +77,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     (* NOTE off_start is a virtual offset *)
     let open Int63 in
     let open Int63.Syntax in
-    let res = Mapping_util.find_nearest_leq ~mapping off_start in
+    let res = Mapping_file.find_nearest_leq mapping off_start in
     match res with
     | None ->
         (* Case 1: The entry if before the very first chunk (or there are no
@@ -156,7 +87,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
             Int63.pp off_start
         in
         raise (Errors.Pack_error (`Invalid_read_of_gced_object s))
-    | Some (entry : Mapping_util.entry) ->
+    | Some entry ->
         let chunk_off_start = entry.off in
         assert (chunk_off_start <= off_start);
         let chunk_len = entry.len in
@@ -205,6 +136,12 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     | Some prefix -> prefix
     | None -> raise (Errors.Pack_error (`Invalid_prefix_read "no prefix found"))
 
+  let get_mapping fm =
+    match Fm.mapping fm with
+    | Some mapping -> mapping
+    | None ->
+        raise (Errors.Pack_error (`Invalid_mapping_read "no mapping found"))
+
   let read_exn t ~off ~len buf =
     let open Int63.Syntax in
     let entry_offset_suffix_start = entry_offset_suffix_start t in
@@ -223,7 +160,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         raise e)
     else (
       incr read_prefix;
-      let poff = poff_of_entry_exn t.mapping ~off ~len in
+      let mapping = get_mapping t.fm in
+      let poff = poff_of_entry_exn mapping ~off ~len in
       let prefix = get_prefix t.fm in
       Io.read_exn prefix ~off:poff ~len buf;
       ())
@@ -262,7 +200,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     len
 
   let read_at_most_from_prefix_exn t ~off ~len buf =
-    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn t.mapping off in
+    let mapping = get_mapping t.fm in
+    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn mapping off in
     let fm = t.fm in
     let open Int63 in
     let open Int63.Syntax in

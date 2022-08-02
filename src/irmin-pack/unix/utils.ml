@@ -67,35 +67,18 @@ end
     [arr] that is [<=] the given key. Routine is based on binary search. *)
 let nearest_leq ~arr ~get ~lo ~hi ~key =
   assert (lo <= hi);
-  match get arr lo <= key with
-  | false ->
-      (* trivial case: arr[lo] > key; so all arr entries greater than key, since arr is
-         sorted *)
-      `All_gt_key
-  | true -> (
-      (* NOTE arr[lo] <= key *)
-      (* trivial case: arr[hi] <= key; then within the range lo,hi the nearest leq entry
-         is at index hi *)
-      match get arr hi <= key with
-      | true -> `Some hi
-      | false ->
-          (* NOTE key < arr[hi] *)
-          (lo, hi)
-          |> iter_k (fun ~k:kont (lo, hi) ->
-                 (* loop invariants *)
-                 assert (get arr lo <= key && key < get arr hi);
-                 assert (lo < hi);
-                 (* follows from arr[lo] <= key < arr[hi] *)
-                 match lo + 1 = hi with
-                 | true -> `Some lo
-                 | false -> (
-                     (* NOTE at least one entry between arr[lo] and arr[hi] *)
-                     assert (lo + 2 <= hi);
-                     let mid = (lo + hi) / 2 in
-                     let arr_mid = get arr mid in
-                     match arr_mid <= key with
-                     | true -> kont (mid, hi)
-                     | false ->
-                         (* NOTE we can't call kont with mid-1 because we need the loop invariant
-                            (key < arr[hi]) to hold *)
-                         kont (lo, mid))))
+  if get arr lo > key then `All_gt_key
+  else if get arr hi <= key then `Some hi
+  else
+    let interval lo hi =
+      assert (get arr lo <= key && key < get arr hi);
+      assert (lo < hi);
+      (lo, hi)
+    in
+    interval lo hi
+    |> iter_k (fun ~k (lo, hi) ->
+           if lo + 1 = hi then `Some lo
+           else
+             let mid = (lo + hi) / 2 in
+             if get arr mid <= key then k (interval mid hi)
+             else k (interval lo mid))

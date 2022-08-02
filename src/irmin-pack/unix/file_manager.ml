@@ -35,7 +35,7 @@ struct
   module Index = Index
   module Errs = Errs
   module Prefix = Io
-  module Mapping = Io
+  module Mapping_file = Mapping_file.Make (Io)
 
   type after_reload_consumer = { after_reload : unit -> (unit, Errs.t) result }
   type after_flush_consumer = { after_flush : unit -> unit }
@@ -45,7 +45,7 @@ struct
     control : Control.t;
     mutable suffix : Suffix.t;
     mutable prefix : Prefix.t option;
-    mutable mapping : string option;
+    mutable mapping : Mapping_file.t option;
     index : Index.t;
     mutable mapping_consumers : after_reload_consumer list;
     mutable dict_consumers : after_reload_consumer list;
@@ -214,14 +214,20 @@ struct
     t.prefix <- Some prefix1;
     match prefix0 with None -> Ok () | Some io -> Prefix.close io
 
+  let open_mapping ~root ~generation =
+    let open Result_syntax in
+    if generation = 0 then Ok None
+    else
+      let* m = Mapping_file.open_map ~root ~generation in
+      Ok (Some m)
+
   let reopen_mapping t ~generation =
-    let path = Irmin_pack.Layout.V3.mapping ~root:t.root ~generation in
-    [%log.debug "reload: generation changed, opening %s" path];
-    (* NOTE the log line assumes the generation has changed; thus, even though t.mapping
-       may be None for generation 0, by this point generation > 0 *)
-    assert (generation > 0);
-    t.mapping <- Some path;
-    ()
+    let open Result_syntax in
+    let root = t.root in
+    let* mapping = open_mapping ~root ~generation in
+    [%log.debug "reload: generation %d; root %s" generation root];
+    t.mapping <- mapping;
+    Ok ()
 
   let reopen_suffix t ~generation ~end_offset =
     let open Result_syntax in
@@ -304,11 +310,7 @@ struct
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
       only_open_after_gc ~generation ~path
     in
-    let mapping =
-      match generation with
-      | 0 -> None (* generation 0 has no mapping *)
-      | _ -> Some (Irmin_pack.Layout.V3.mapping ~root ~generation)
-    in
+    let* mapping = open_mapping ~root ~generation in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
       let auto_flush_threshold =
@@ -378,7 +380,7 @@ struct
         else
           let end_offset = pl1.entry_offset_suffix_end in
           let* () = reopen_suffix t ~generation:gen1 ~end_offset in
-          let () = reopen_mapping t ~generation:gen1 in
+          let* () = reopen_mapping t ~generation:gen1 in
           let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
       in
@@ -590,11 +592,7 @@ struct
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
       only_open_after_gc ~path ~generation
     in
-    let mapping =
-      match generation with
-      | 0 -> None (* generation 0 has no mapping *)
-      | _ -> Some (Irmin_pack.Layout.V3.mapping ~root ~generation)
-    in
+    let* mapping = open_mapping ~root ~generation in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
       let end_offset = pl.dict_offset_end in
@@ -661,7 +659,7 @@ struct
     let c0 = Mtime_clock.counter () in
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
-    let () = reopen_mapping t ~generation in
+    let* () = reopen_mapping t ~generation in
     (* When opening the suffix in append_only we need to provide a (real) suffix
        offset, computed from the global ones. *)
     let open Int63.Syntax in

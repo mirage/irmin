@@ -39,6 +39,13 @@
     smaller. *)
 
 open! Import
+include Mapping_file_intf
+module BigArr1 = Bigarray.Array1
+
+type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
+
+type int64_bigarray =
+  (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 (* each entry consists of [step] ints; there is the possibility to generalize to
    arbitrary step sizes, but the following code always works with (key,value) pairs, ie
@@ -66,9 +73,6 @@ module Int_mmap : sig
 
   val close : t -> unit
 end = struct
-  type int_bigarray =
-    (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-
   type t = { fn : string; fd : Unix.file_descr; mutable arr : int_bigarray }
 
   (* NOTE both following are shared *)
@@ -105,6 +109,43 @@ end = struct
     (* following tries to make the array unreachable, so GC'able; however, no guarantee
        that arr actually is unreachable *)
     t.arr <- Bigarray.(Array1.create Int c_layout 0);
+    ()
+end
+
+module Int64_mmap : sig
+  type t = private {
+    fn : string;
+    fd : Unix.file_descr;
+    mutable arr : int64_bigarray;
+  }
+
+  val open_ : fn:string -> sz:int -> t
+  (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size
+      of the underlying file *)
+
+  val close : t -> unit
+end = struct
+  type t = { fn : string; fd : Unix.file_descr; mutable arr : int64_bigarray }
+
+  (* NOTE both following are shared *)
+  let shared = true
+
+  (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
+     different size (eg because we want the file to grow) we can provide it explicitly *)
+  let open_ ~fn ~sz =
+    assert (Sys.file_exists fn);
+    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
+    let arr =
+      let open Bigarray in
+      Unix.map_file fd Int64 c_layout shared [| sz |] |> array1_of_genarray
+    in
+    { fn; fd; arr }
+
+  let close t =
+    Unix.close t.fd;
+    (* following tries to make the array unreachable, so GC'able; however, no guarantee
+       that arr actually is unreachable *)
+    t.arr <- Bigarray.(Array1.create Int64 c_layout 0);
     ()
 end
 
@@ -287,14 +328,33 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
   in
   dst_off
 
-(* Encoding of offset, length. An improvement would be to use varints to encode
-   both. *)
-type pair = int63 * int63 [@@deriving irmin ~encode_bin ~decode_bin]
+module Make (Io : Io.S) = struct
+  module Io = Io
+  module Ao = Append_only_file.Make (Io)
+  module Errs = Io_errors.Make (Io)
 
-module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
-  module Ao = Append_only_file.Make (Io.Unix)
+  type t = { arr : int64_bigarray; root : string; generation : int }
+
+  let open_map ~root ~generation =
+    let path = Irmin_pack.Layout.V3.mapping ~generation ~root in
+    match Io.classify_path path with
+    | `File -> (
+        let mmap = Int64_mmap.open_ ~fn:path ~sz:(-1) in
+        let arr = mmap.arr in
+        let len = BigArr1.dim arr in
+        match len > 0 && len mod 3 = 0 with
+        | true ->
+            Int64_mmap.close mmap;
+            Ok { root; generation; arr }
+        | false ->
+            Error
+              (`Corrupted_mapping_file
+                (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
+        )
+    | _ -> Error `No_such_file_or_directory
 
   let create ~root ~generation ~register_entries =
+    assert (generation > 0);
     let open Result_syntax in
     let path0 = Irmin_pack.Layout.V3.reachable ~generation ~root in
     let path1 = Irmin_pack.Layout.V3.sorted ~generation ~root in
@@ -306,9 +366,9 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
     in
 
     (* Unlink the 3 files and ignore errors (typically no such file) *)
-    Io.Unix.unlink path0 |> ignore;
-    Io.Unix.unlink path1 |> ignore;
-    Io.Unix.unlink path2 |> ignore;
+    Io.unlink path0 |> ignore;
+    Io.unlink path1 |> ignore;
+    Io.unlink path2 |> ignore;
 
     (* Create [file0] *)
     let file0_ref = ref None in
@@ -349,76 +409,89 @@ module Make (Errs : Io_errors.S with module Io = Io.Unix) = struct
 
     (* Close and unlink [file0] *)
     Int_mmap.close file0;
-    Io.Unix.unlink path0 |> ignore;
+    Io.unlink path0 |> ignore;
 
-    (* Create [file2]; currently this uses mmap format *)
-    let module Util = struct
-      (** [output_int_ne oc i] writes [i] to [oc] using native endian format,
-          suitable for reading by mmap; not thread safe - shared buffer *)
-      let output_int_ne =
-        let buf = Bytes.create 8 in
-        fun oc i ->
-          Bytes.set_int64_ne buf 0 (Int64.of_int i);
-          (* NOTE Stdlib.output_binary_int always uses big-endian, but mmap is (presumably)
-             arch dependent, hence we use set_int64_ne *)
-          Stdlib.output_bytes oc buf;
-          ()
-    end in
-    let file2 = Stdlib.open_out_bin path2 in
+    (* Create [file2] *)
+    let file2_ref = ref None in
+    let auto_flush_callback () =
+      match !file2_ref with
+      | None -> assert false
+      | Some x -> Ao.flush x |> Errs.raise_if_error
+    in
+    let* file2 =
+      Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
+        ~auto_flush_callback
+    in
+    file2_ref := Some file2;
+
     (* Fill and close [file2] *)
     let poff = ref 0 in
-    (* offset in prefix file *)
+    let encode =
+      let buf = Bytes.create 8 in
+      fun i ->
+        Bytes.set_int64_le buf 0 (Int64.of_int i);
+        Bytes.unsafe_to_string buf
+    in
     let register_entry ~off ~len =
-      (* NOTE mmap-contents: the order of ints that are output: the virtual offset, the
-         offset-in-prefix and the length; this is used when the file is read back in *)
-      Util.output_int_ne file2 off;
-      Util.output_int_ne file2 !poff;
-      Util.output_int_ne file2 len;
-      poff := !poff + len;
-      ()
+      Ao.append_exn file2 (encode off);
+      Ao.append_exn file2 (encode !poff);
+      Ao.append_exn file2 (encode len);
+      poff := !poff + len
     in
     let* () =
       Errs.catch (fun () ->
           calculate_extents_oc ~src_is_sorted:() ~src:file1.arr ~register_entry)
     in
-    let _ = Stdlib.flush file2 in
-    let _ = Stdlib.close_out file2 in
+    let* () = Ao.flush file2 in
+    let* () = Ao.close file2 in
 
     (* Close and unlink [file1] *)
     Int_mmap.close file1;
-    Io.Unix.unlink path1 |> ignore;
+    Io.unlink path1 |> ignore;
 
-    Ok ()
+    (* Open created map *)
+    open_map ~root ~generation
 
-  type mapping_as_int_bigarray = Int_bigarray of int_bigarray
+  let entry_count arr = BigArr1.dim arr / 3
+  let entry_idx i = i * 3
 
-  let empty_mapping = Int_bigarray Bigarray.(Array1.create int c_layout 0)
+  let conv_int64 : int64 -> int =
+   fun i ->
+    (if Sys.big_endian then (
+     (* We set [buf] to contain exactly what is stored on disk. Since the current
+        platform is BE, we've interpreted what was written on disk using a BE
+        decoding scheme. To do the opposite operation we must use a BE encoding
+        scheme, hence [set_int64_be]. *)
+     let buf = Bytes.create 8 in
+     Bytes.set_int64_be buf 0 i;
+     Bytes.get_int64_le buf 0)
+    else i)
+    |> Int64.to_int
 
-  let load_mapping_as_mmap path =
-    match Io.Unix.classify_path path with
-    | `File -> (
-        let mmap = Int_mmap.open_ ~fn:path ~sz:(-1) in
-        let arr = mmap.arr in
-        (* we expect the arr to hold (off,poff,len) tuples *)
-        match BigArr1.dim arr mod 3 = 0 with
-        | true ->
-            (* we guarantee that the size of the arr is a multiple of 3 *)
-            Int_mmap.close mmap;
-            Ok (Int_bigarray arr)
-        | false ->
-            Error
-              (`Corrupted_mapping_file
-                (__FILE__ ^ ": mapping mmap size was not a multiple of 3")))
-    | _ -> Error `No_such_file_or_directory
+  let entry_off arr i = arr.{entry_idx i} |> conv_int64 |> Int63.of_int
+  let entry_poff arr i = arr.{entry_idx i + 1} |> conv_int64 |> Int63.of_int
+  let entry_len arr i = arr.{entry_idx i + 2} |> conv_int64
 
-  let iter_mmap (Int_bigarray arr) f =
-    let sz = BigArr1.dim arr in
-    assert (sz mod 3 = 0);
-    (* guaranteed by type [mapping_as_int_bigarray] *)
+  let iter { arr; _ } f =
     Errs.catch (fun () ->
-        for i = 0 to (sz / 3) - 1 do
-          (* see note mmap-contents above: every 3 ints corresponds to (off,poff,len) *)
-          f ~off:(arr.{3 * i} |> Int63.of_int) ~len:arr.{(3 * i) + 2}
+        for i = 0 to entry_count arr - 1 do
+          f ~off:(entry_off arr i) ~len:(entry_len arr i)
         done;
         ())
+
+  type entry = { off : int63; poff : int63; len : int }
+
+  let find_nearest_leq { arr; _ } off =
+    let get arr i = arr.{entry_idx i} |> conv_int64 in
+    match
+      Utils.nearest_leq ~arr ~get ~lo:0
+        ~hi:(entry_count arr - 1)
+        ~key:(Int63.to_int off)
+    with
+    | `All_gt_key -> None
+    | `Some i ->
+        let off = entry_off arr i in
+        let poff = entry_poff arr i in
+        let len = entry_len arr i in
+        Some { off; poff; len }
 end

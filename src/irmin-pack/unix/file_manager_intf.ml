@@ -30,6 +30,7 @@ module type S = sig
   module Suffix : Append_only_file.S with module Io = Io
   module Index : Pack_index.S
   module Errs : Io_errors.S with module Io = Io
+  module Mapping_file : Mapping_file.S with module Io = Io
 
   type t
 
@@ -37,10 +38,7 @@ module type S = sig
   val dict : t -> Dict.t
   val suffix : t -> Suffix.t
   val index : t -> Index.t
-
-  val mapping : t -> string option
-  (** path to mapping file *)
-
+  val mapping : t -> Mapping_file.t option
   val prefix : t -> Io.t option
 
   type create_error :=
@@ -48,6 +46,7 @@ module type S = sig
     | Io.write_error
     | Io.open_error
     | Io.mkdir_error
+    | `Corrupted_mapping_file of string
     | `Not_a_directory of string
     | `Index_failure of string ]
 
@@ -64,6 +63,7 @@ module type S = sig
 
   type open_rw_error :=
     [ `Corrupted_control_file
+    | `Corrupted_mapping_file of string
     | `Double_close
     | `Closed
     | `File_exists of string
@@ -100,6 +100,7 @@ module type S = sig
 
   type open_ro_error :=
     [ `Corrupted_control_file
+    | `Corrupted_mapping_file of string
     | `File_exists of string
     | `Io_misc of Io.misc_error
     | `Migration_needed
