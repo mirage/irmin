@@ -289,10 +289,6 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
   in
   dst_off
 
-(* Encoding of offset, length. An improvement would be to use varints to encode
-   both. *)
-type pair = int63 * int63 [@@deriving irmin ~encode_bin ~decode_bin]
-
 module Make (Io : Io.S) = struct
   module Io = Io
   module Ao = Append_only_file.Make (Io)
@@ -376,38 +372,39 @@ module Make (Io : Io.S) = struct
     Int_mmap.close file0;
     Io.unlink path0 |> ignore;
 
-    (* Create [file2]; currently this uses mmap format *)
-    let module Util = struct
-      (** [output_int_ne oc i] writes [i] to [oc] using native endian format,
-          suitable for reading by mmap; not thread safe - shared buffer *)
-      let output_int_ne =
-        let buf = Bytes.create 8 in
-        fun oc i ->
-          Bytes.set_int64_ne buf 0 (Int64.of_int i);
-          (* NOTE Stdlib.output_binary_int always uses big-endian, but mmap is (presumably)
-             arch dependent, hence we use set_int64_ne *)
-          Stdlib.output_bytes oc buf;
-          ()
-    end in
-    let file2 = Stdlib.open_out_bin path2 in
+    (* Create [file2] *)
+    let file2_ref = ref None in
+    let auto_flush_callback () =
+      match !file2_ref with
+      | None -> assert false
+      | Some x -> Ao.flush x |> Errs.raise_if_error
+    in
+    let* file2 =
+      Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
+        ~auto_flush_callback
+    in
+    file2_ref := Some file2;
+
     (* Fill and close [file2] *)
     let poff = ref 0 in
-    (* offset in prefix file *)
+    let encode =
+      let buf = Bytes.create 8 in
+      fun i ->
+        Bytes.set_int64_ne buf 0 (Int64.of_int i);
+        Bytes.unsafe_to_string buf
+    in
     let register_entry ~off ~len =
-      (* NOTE mmap-contents: the order of ints that are output: the virtual offset, the
-         offset-in-prefix and the length; this is used when the file is read back in *)
-      Util.output_int_ne file2 off;
-      Util.output_int_ne file2 !poff;
-      Util.output_int_ne file2 len;
-      poff := !poff + len;
-      ()
+      Ao.append_exn file2 (encode off);
+      Ao.append_exn file2 (encode !poff);
+      Ao.append_exn file2 (encode len);
+      poff := !poff + len
     in
     let* () =
       Errs.catch (fun () ->
           calculate_extents_oc ~src_is_sorted:() ~src:file1.arr ~register_entry)
     in
-    let _ = Stdlib.flush file2 in
-    let _ = Stdlib.close_out file2 in
+    let* () = Ao.flush file2 in
+    let* () = Ao.close file2 in
 
     (* Close and unlink [file1] *)
     Int_mmap.close file1;
