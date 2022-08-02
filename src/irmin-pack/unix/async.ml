@@ -59,7 +59,10 @@ module Unix = struct
     | 0 ->
         Lwt_main.Exit_hooks.remove_all ();
         Lwt_main.abandon_yielded_and_paused ();
-        f ();
+        (try f ()
+         with e ->
+           [%log.err
+             "Unhandled exception in child process %s" (Printexc.to_string e)]);
         (* Once the gc is finished, the child process kills itself to
            avoid calling at_exit functions and avoir executing the rest
            of the call stack. *)
