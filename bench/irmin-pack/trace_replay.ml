@@ -416,7 +416,8 @@ module Make (Store : Store) = struct
                     let commit_duration = commit_idx - gc_start_commit_idx in
                     [%logs.app
                       "Gc ended after %d commits, %a" commit_duration
-                        (Repr.pp Store.gc_stats_t) stats]
+                        (Repr.pp Store.gc_stats_t) stats];
+                    Lwt.return_unit
                 | Error s -> failwith s
               in
               Store.gc_run ~finished repo gc_commit_key)
