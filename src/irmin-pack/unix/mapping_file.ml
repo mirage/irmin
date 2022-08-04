@@ -371,17 +371,11 @@ module Make (Io : Io.S) = struct
     Io.unlink path2 |> ignore;
 
     (* Create [file0] *)
-    let file0_ref = ref None in
-    let auto_flush_callback () =
-      match !file0_ref with
-      | None -> assert false
-      | Some x -> Ao.flush x |> Errs.raise_if_error
-    in
+    let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
     let* file0 =
       Ao.create_rw ~path:path0 ~overwrite:true ~auto_flush_threshold:1_000_000
         ~auto_flush_callback
     in
-    file0_ref := Some file0;
 
     (* Fill and close [file0] *)
     let register_entry ~off ~len =
@@ -412,17 +406,11 @@ module Make (Io : Io.S) = struct
     Io.unlink path0 |> ignore;
 
     (* Create [file2] *)
-    let file2_ref = ref None in
-    let auto_flush_callback () =
-      match !file2_ref with
-      | None -> assert false
-      | Some x -> Ao.flush x |> Errs.raise_if_error
-    in
+    let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
     let* file2 =
       Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
         ~auto_flush_callback
     in
-    file2_ref := Some file2;
 
     (* Fill and close [file2] *)
     let poff = ref 0 in

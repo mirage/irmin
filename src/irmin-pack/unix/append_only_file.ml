@@ -20,19 +20,19 @@ include Append_only_file_intf
 module Make (Io : Io.S) = struct
   module Io = Io
 
-  type rw_perm = {
-    buf : Buffer.t;
-    auto_flush_threshold : int;
-    auto_flush_callback : unit -> unit;
-  }
-  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
-
   type t = {
     io : Io.t;
     mutable persisted_end_offset : int63;
     dead_header_size : int63;
     rw_perm : rw_perm option;
   }
+
+  and rw_perm = {
+    buf : Buffer.t;
+    auto_flush_threshold : int;
+    auto_flush_callback : t -> unit;
+  }
+  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
 
   let create_rw ~path ~overwrite ~auto_flush_threshold ~auto_flush_callback =
     let open Result_syntax in
@@ -164,6 +164,6 @@ module Make (Io : Io.S) = struct
         assert (Buffer.length rw_perm.buf < rw_perm.auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;
         if Buffer.length rw_perm.buf >= rw_perm.auto_flush_threshold then (
-          rw_perm.auto_flush_callback ();
+          rw_perm.auto_flush_callback t;
           assert (empty_buffer t))
 end

@@ -337,17 +337,11 @@ module Maker (Config : Conf.S) = struct
                0. *)
             let dead_header_size = 0 in
             let auto_flush_threshold = 1_000_000 in
-            let suffix_ref = ref None in
-            let auto_flush_callback () =
-              match !suffix_ref with
-              | None -> assert false
-              | Some x -> Aof.flush x |> Errs.raise_if_error
-            in
+            let auto_flush_callback x = Aof.flush x |> Errs.raise_if_error in
             let* suffix =
               Aof.open_rw ~path ~end_offset ~dead_header_size
                 ~auto_flush_callback ~auto_flush_threshold
             in
-            suffix_ref := Some suffix;
             Ok suffix
 
           let transfer_latest_newies ~generation ~right_start_offset

@@ -192,17 +192,11 @@ module Make (Args : Args) : S with module Args := Args = struct
     let open Result_syntax in
     let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
     let auto_flush_threshold = 1_000_000 in
-    let suffix_ref = ref None in
-    let auto_flush_callback () =
-      match !suffix_ref with
-      | None -> assert false
-      | Some x -> Ao.flush x |> Errs.raise_if_error
-    in
+    let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
     let* suffix =
       Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold
         ~auto_flush_callback
     in
-    suffix_ref := Some suffix;
     Ok suffix
 
   let run ~generation root commit_key =
@@ -280,18 +274,12 @@ module Make (Args : Args) : S with module Args := Args = struct
 
     let* () =
       (* Step 4. Create the new prefix. *)
-      let prefix_ref = ref None in
-      let auto_flush_callback () =
-        match !prefix_ref with
-        | None -> assert false
-        | Some x -> Ao.flush x |> Errs.raise_if_error
-      in
+      let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
       let* prefix =
         let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
         Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
           ~auto_flush_callback
       in
-      prefix_ref := Some prefix;
       let* () =
         Errors.finalise (fun _outcome ->
             Ao.close prefix |> Errs.log_if_error "GC: Close prefix")
