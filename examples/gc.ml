@@ -102,8 +102,7 @@ let gc_all_but_head repo branch =
   let finished = function
     | Ok (r : Store.Gc.stats) ->
         Printf.printf
-          "GC finished in %.4fms. Finalisation took %.4fms. Size of repo: \
-           %.2fMB.\n"
+          "GC finished in %.4fs. Finalisation took %.4fs. Size of repo: %.2fMB.\n"
           r.duration r.finalisation_duration
           (megabytes_of_path Repo_config.root)
     | Error (`Msg err) -> print_endline err

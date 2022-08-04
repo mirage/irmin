@@ -198,7 +198,17 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
     module Gc = struct
       type msg = [ `Msg of string ]
-      type stats = { duration : float; finalisation_duration : float }
+
+      type stats = {
+        duration : float;
+        finalisation_duration : float;
+        read_gc_output_duration : float;
+        transfer_latest_newies_duration : float;
+        swap_duration : float;
+        unlink_duration : float;
+      }
+      [@@deriving irmin]
+
       type process_state = [ `Idle | `Running | `Finalised of stats ]
 
       let start_exn = X.Repo.start_gc

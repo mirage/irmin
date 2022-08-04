@@ -103,7 +103,15 @@ module type Store = sig
 
   val gc_wait : repo -> unit Lwt.t
 
-  type gc_stats = { duration : float; finalisation_duration : float }
+  type gc_stats = {
+    duration : float;
+    finalisation_duration : float;
+    read_gc_output_duration : float;
+    transfer_latest_newies_duration : float;
+    swap_duration : float;
+    unlink_duration : float;
+  }
+  [@@deriving irmin]
 
   val gc_run :
     ?finished:((gc_stats, string) result -> unit) ->
