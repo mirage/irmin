@@ -1,9 +1,5 @@
 Running stat on a v3 store
-  $ STORE=PACK ../irmin_fsck.exe stat ../data/pack 2>&1 | cat -e
-  >> Getting statistics for store: `../data/pack'$
-  $
-  ^[[?25l                                                                               ^M                                                                               ^M$
-  ^[[?25h{$
+  $ STORE=PACK ../irmin_fsck.exe stat ../data/pack 2>&1 | cat -e | tail -n 10
     "hash_size": {$
       "Bytes": 64$
     },$
@@ -16,7 +12,7 @@ Running stat on a v3 store
   }
 
 Running index-integrity-check on a v3 store minimal
-  $ STORE=PACK ../irmin_fsck.exe integrity-check-index ../data/pack --color=never 2>&1 | cat -e | tail -n 10
+  $ STORE=PACK ../irmin_fsck.exe integrity-check-index ../data/pack 2>&1 | cat -e | tail -n 10
     { "Commit_v1" = 0;$
       "Commit_v2" = 3;$
       "Contents" = 3;$
