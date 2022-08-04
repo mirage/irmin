@@ -29,7 +29,9 @@ end
 
 module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   module KMap = Map.Make (struct
-    type t = K.t [@@deriving irmin ~compare]
+    type t = K.t
+
+    let compare = Irmin.Type.(unstage (compare K.t))
   end)
 
   type key = K.t

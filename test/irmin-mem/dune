@@ -6,7 +6,7 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest qcheck-alcotest lwt.unix irmin-test test_mem))
+ (libraries alcotest lwt.unix irmin-test test_mem))
 
 (rule
  (alias runtest)

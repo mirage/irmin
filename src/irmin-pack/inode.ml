@@ -160,9 +160,15 @@ struct
       | `Custom f -> f
   end
 
-  module StepMap = Small_map.Make (struct
-    type t = T.step [@@deriving irmin]
-  end)
+  module StepMap = struct
+    include Map.Make (struct
+      type t = T.step
+
+      let compare = T.compare_step
+    end)
+
+    let of_list l = List.fold_left (fun acc (k, v) -> add k v acc) empty l
+  end
 
   module Val_ref : sig
     open T
