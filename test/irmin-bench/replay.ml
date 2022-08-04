@@ -32,7 +32,12 @@ module Store = struct
   type gc_stats = Store.Gc.stats = {
     duration : float;
     finalisation_duration : float;
+    read_gc_output_duration : float;
+    transfer_latest_newies_duration : float;
+    swap_duration : float;
+    unlink_duration : float;
   }
+  [@@deriving irmin]
 
   let gc_run ?(finished = fun _ -> ()) repo key =
     let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
@@ -145,7 +150,12 @@ module Store_mem = struct
   type gc_stats = Store.Gc.stats = {
     duration : float;
     finalisation_duration : float;
+    read_gc_output_duration : float;
+    transfer_latest_newies_duration : float;
+    swap_duration : float;
+    unlink_duration : float;
   }
+  [@@deriving irmin]
 
   let gc_run ?(finished = fun _ -> ()) repo key =
     let f (result : (Store.Gc.stats, Store.Gc.msg) result) =

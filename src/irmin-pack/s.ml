@@ -58,8 +58,16 @@ module type Specifics = sig
   module Gc : sig
     (** GC *)
 
-    type stats = { duration : float; finalisation_duration : float }
-    (** Stats for a successful GC run. Times are in milliseconds. *)
+    type stats = {
+      duration : float;
+      finalisation_duration : float;
+      read_gc_output_duration : float;
+      transfer_latest_newies_duration : float;
+      swap_duration : float;
+      unlink_duration : float;
+    }
+    [@@deriving irmin]
+    (** Stats for a successful GC run. Times are in seconds. *)
 
     type process_state = [ `Idle | `Running | `Finalised of stats ]
     (** The state of the GC process after calling {!finalise_exn} *)

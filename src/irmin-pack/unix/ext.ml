@@ -144,7 +144,15 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
-      type gc_stats = { duration : float; finalisation_duration : float }
+      type gc_stats = {
+        duration : float;
+        finalisation_duration : float;
+        read_gc_output_duration : float;
+        transfer_latest_newies_duration : float;
+        swap_duration : float;
+        unlink_duration : float;
+      }
+      [@@deriving irmin ~pp]
 
       type gc = {
         next_generation : int;
@@ -313,7 +321,7 @@ module Maker (Config : Conf.S) = struct
             in
             let elapsed =
               let c0 = Mtime_clock.counter () in
-              fun () -> Mtime_clock.count c0 |> Mtime.Span.to_ms
+              fun () -> Mtime_clock.count c0 |> Mtime.Span.to_s
             in
             let promise, resolver = Lwt.wait () in
             t.running_gc <-
@@ -390,7 +398,7 @@ module Maker (Config : Conf.S) = struct
               File_manager.swap t.fm ~generation ~right_start_offset
                 ~right_end_offset
             in
-            let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
+            let span1 = Mtime_clock.count c0 |> Mtime.Span.to_s in
 
             (* No need to purge dict here, as it is global to the store. *)
             (* No need to purge index here. It is global too, but some hashes may
@@ -399,9 +407,9 @@ module Maker (Config : Conf.S) = struct
             Contents.CA.purge_lru t.contents;
             Node.CA.purge_lru t.node;
             Commit.CA.purge_lru t.commit;
-            let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
+            let span2 = Mtime_clock.count c0 |> Mtime.Span.to_s in
             [%log.debug
-              "Gc swap and purge: %.0fus, %.0fus" span1 (span2 -. span1)];
+              "Gc swap and purge: %.6fs, %.6fs" span1 (span2 -. span1)];
             [%log.info "GC: end"];
             Ok ()
 
@@ -467,42 +475,71 @@ module Maker (Config : Conf.S) = struct
                 { next_generation; task; unlink; offset; elapsed; resolver; _ }
               -> (
                 let go status =
-                  let c0 = Mtime_clock.counter () in
                   let start = elapsed () in
+                  let s =
+                    ref
+                      {
+                        duration = 0.;
+                        finalisation_duration = 0.;
+                        read_gc_output_duration = 0.;
+                        transfer_latest_newies_duration = 0.;
+                        swap_duration = 0.;
+                        unlink_duration = 0.;
+                      }
+                  in
                   let root = Conf.root t.config in
+                  let time on_end f =
+                    let counter = Mtime_clock.counter () in
+                    let res = f () in
+                    on_end (Mtime_clock.count counter |> Mtime.Span.to_s);
+                    res
+                  in
+
                   let gc_output =
+                    time (fun t -> s := { !s with read_gc_output_duration = t })
+                    @@ fun () ->
                     File_manager.read_gc_output ~root
                       ~generation:next_generation
                   in
-                  let span1 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
+
                   let result =
                     let open Result_syntax in
                     match (status, gc_output) with
                     | `Success, Ok copy_end_offset ->
                         let* new_suffix_end_offset =
+                          time (fun t ->
+                              s :=
+                                { !s with transfer_latest_newies_duration = t })
+                          @@ fun () ->
                           transfer_latest_newies ~generation:next_generation
                             ~right_start_offset:offset ~copy_end_offset ~root t
                         in
-                        let span2 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
                         let* () =
+                          time (fun t -> s := { !s with swap_duration = t })
+                          @@ fun () ->
                           swap_and_purge ~generation:next_generation
                             ~right_start_offset:offset
                             ~right_end_offset:new_suffix_end_offset t
                         in
-                        let span3 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
-                        if unlink then
-                          unlink_all ~root ~generation:next_generation;
-                        let span4 = Mtime_clock.count c0 |> Mtime.Span.to_ns in
-                        [%log.debug
-                          "Gc ended, timers: %.4fns %.4fns %.4fns %.4fns \
-                           remaining newies %a"
-                          span1 span2 span3 span4 Int63.pp
-                            (Int63.sub new_suffix_end_offset copy_end_offset)];
+                        (if unlink then
+                         time (fun t -> s := { !s with unlink_duration = t })
+                         @@ fun () ->
+                         unlink_all ~root ~generation:next_generation);
+
                         let duration = elapsed () in
-                        let finalisation_duration = duration -. start in
-                        let stats = { duration; finalisation_duration } in
-                        let () = Lwt.wakeup_later resolver (Ok stats) in
-                        Ok (`Finalised stats)
+                        s :=
+                          {
+                            !s with
+                            duration;
+                            finalisation_duration = duration -. start;
+                          };
+
+                        [%log.debug
+                          "Gc ended. %a, newies bytes:%a" pp_gc_stats !s
+                            Int63.pp
+                            (Int63.sub new_suffix_end_offset copy_end_offset)];
+                        let () = Lwt.wakeup_later resolver (Ok !s) in
+                        Ok (`Finalised !s)
                     | _ ->
                         let err = gc_errors status gc_output in
                         let () = Lwt.wakeup_later resolver err in
@@ -581,8 +618,8 @@ module Maker (Config : Conf.S) = struct
           let node : 'a Node.t = (contents, node) in
           let commit : 'a Commit.t = (node, commit) in
           let on_success res =
-            let s = Mtime_clock.count c0 |> Mtime.Span.to_us in
-            [%log.info "[pack] batch completed in %.2fms" (s /. 1000.)];
+            let s = Mtime_clock.count c0 |> Mtime.Span.to_s in
+            [%log.info "[pack] batch completed in %.6fs" s];
             t.during_batch <- false;
             File_manager.flush t.fm |> Errs.raise_if_error;
             let* _ = try_finalise () in
@@ -743,7 +780,12 @@ module Maker (Config : Conf.S) = struct
       type stats = X.gc_stats = {
         duration : float;
         finalisation_duration : float;
+        read_gc_output_duration : float;
+        transfer_latest_newies_duration : float;
+        swap_duration : float;
+        unlink_duration : float;
       }
+      [@@deriving irmin]
 
       type process_state = [ `Idle | `Running | `Finalised of stats ]
 
