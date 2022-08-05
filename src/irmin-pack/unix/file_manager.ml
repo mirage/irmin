@@ -247,7 +247,7 @@ struct
           | None -> assert false
           | Some x -> x
         in
-        let cb () = suffix_requires_a_flush_exn t in
+        let cb _ = suffix_requires_a_flush_exn t in
         Suffix.open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
           ~auto_flush_callback:cb
     in
@@ -303,7 +303,7 @@ struct
       let auto_flush_threshold =
         Irmin_pack.Conf.suffix_auto_flush_threshold config
       in
-      let cb () = suffix_requires_a_flush_exn (get_instance ()) in
+      let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
       make_suffix ~path ~auto_flush_threshold ~auto_flush_callback:cb
     in
     let* prefix =
@@ -316,7 +316,7 @@ struct
       let auto_flush_threshold =
         Irmin_pack.Conf.dict_auto_flush_threshold config
       in
-      let cb () = dict_requires_a_flush_exn (get_instance ()) in
+      let cb _ = dict_requires_a_flush_exn (get_instance ()) in
       make_dict ~path ~auto_flush_threshold ~auto_flush_callback:cb
     in
     let* index =

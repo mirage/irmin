@@ -33,7 +33,7 @@ module type S = sig
     path:string ->
     overwrite:bool ->
     auto_flush_threshold:int ->
-    auto_flush_callback:(unit -> unit) ->
+    auto_flush_callback:(t -> unit) ->
     (t, [> Io.create_error ]) result
   (** Create a rw instance of [t] by creating the file. *)
 
@@ -42,7 +42,7 @@ module type S = sig
     end_offset:int63 ->
     dead_header_size:int ->
     auto_flush_threshold:int ->
-    auto_flush_callback:(unit -> unit) ->
+    auto_flush_callback:(t -> unit) ->
     ( t,
       [> Io.open_error
       | `Closed
