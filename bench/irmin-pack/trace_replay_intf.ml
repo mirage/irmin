@@ -114,7 +114,7 @@ module type Store = sig
   [@@deriving irmin]
 
   val gc_run :
-    ?finished:((gc_stats, string) result -> unit) ->
+    ?finished:((gc_stats, string) result -> unit Lwt.t) ->
     repo ->
     commit_key ->
     unit Lwt.t

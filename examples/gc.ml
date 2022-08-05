@@ -105,7 +105,8 @@ let gc_all_but_head repo branch =
           "GC finished in %.4fs. Finalisation took %.4fs. Size of repo: %.2fMB.\n"
           r.duration r.finalisation_duration
           (megabytes_of_path Repo_config.root)
-    | Error (`Msg err) -> print_endline err
+        |> Lwt.return
+    | Error (`Msg err) -> print_endline err |> Lwt.return
   in
   let+ launched = Store.Gc.run ~finished repo head_key in
   match launched with

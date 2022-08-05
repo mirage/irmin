@@ -111,7 +111,7 @@ module type Specifics = sig
         logging *)
 
     val run :
-      ?finished:((stats, msg) result -> unit) ->
+      ?finished:((stats, msg) result -> unit Lwt.t) ->
       repo ->
       commit_key ->
       (bool, msg) result Lwt.t

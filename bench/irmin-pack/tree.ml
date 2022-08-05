@@ -69,7 +69,7 @@ module type Store = sig
   [@@deriving irmin]
 
   val gc_run :
-    ?finished:((gc_stats, string) result -> unit) ->
+    ?finished:((gc_stats, string) result -> unit Lwt.t) ->
     repo ->
     commit_key ->
     unit Lwt.t
@@ -246,7 +246,7 @@ struct
   }
   [@@deriving irmin]
 
-  let gc_run ?(finished = fun _ -> ()) repo key =
+  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
     let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err

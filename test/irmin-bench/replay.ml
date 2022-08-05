@@ -39,7 +39,7 @@ module Store = struct
   }
   [@@deriving irmin]
 
-  let gc_run ?(finished = fun _ -> ()) repo key =
+  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
     let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
@@ -157,7 +157,7 @@ module Store_mem = struct
   }
   [@@deriving irmin]
 
-  let gc_run ?(finished = fun _ -> ()) repo key =
+  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
     let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err

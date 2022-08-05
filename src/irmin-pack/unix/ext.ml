@@ -586,7 +586,15 @@ module Maker (Config : Conf.S) = struct
           let on_finalise t f =
             match t.running_gc with
             | None -> ()
-            | Some x -> Lwt.on_success x.promise f
+            | Some x ->
+                (* Ignore returned promise since the purpose of this
+                   function is to add asynchronous callbacks to the GC
+                   process -- this promise binding is an internal
+                   implementation detail. This is safe since the callback
+                   [f] is attached to [t.running_gc.promise], which is
+                   referenced for the lifetime of a GC process. *)
+                let _ = Lwt.bind x.promise f in
+                ()
 
           let try_auto_finalise_exn t =
             match t.running_gc with
@@ -827,7 +835,7 @@ module Maker (Config : Conf.S) = struct
           | `Finalised stats -> Lwt.return_ok @@ Some stats
         with exn -> catch_errors "Wait for GC" exn
 
-      let run ?(finished = fun _ -> ()) repo commit_key =
+      let run ?(finished = fun _ -> Lwt.return_unit) repo commit_key =
         let* started = start repo commit_key in
         match started with
         | Ok r ->
