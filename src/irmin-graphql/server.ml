@@ -456,7 +456,7 @@ struct
 
         let contents_key_value =
           Schema.(
-            obj "ContentsKey"
+            obj "ContentsKeyValue"
               ~fields:
                 [
                   field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
@@ -467,7 +467,7 @@ struct
         in
         let node_key_value =
           Schema.(
-            obj "NodeKey"
+            obj "NodeKeyValue"
               ~fields:
                 [
                   field "node" ~typ:(non_null Types.Node_key.schema_typ)
