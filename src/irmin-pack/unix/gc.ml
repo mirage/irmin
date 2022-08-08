@@ -118,7 +118,7 @@ module Make (Args : Args) : S with module Args := Args = struct
       read_exn ~off ~len:len' buffer;
       let () =
         if len = buffer_size then append_exn (Bytes.to_string buffer)
-        else append_exn (String.sub (Bytes.to_string buffer) 0 len')
+        else append_exn (Bytes.sub_string buffer 0 len')
       in
       let len_remaining = len_remaining - len in
       if len_remaining > Int63.zero then aux (off + len) len_remaining
@@ -225,7 +225,7 @@ module Make (Args : Args) : S with module Args := Args = struct
       | None -> Error (`Commit_key_is_dangling (string_of_key commit_key))
       | Some commit -> Ok commit
     in
-    let commit_offset, commit_len =
+    let commit_offset, _ =
       let state : _ Irmin_pack.Pack_key.state =
         Irmin_pack.Pack_key.inspect commit_key
       in
@@ -336,25 +336,39 @@ module Make (Args : Args) : S with module Args := Args = struct
 
     (* Step 7. Transfer to the next suffix. *)
     [%log.debug "GC: transfering to the new suffix"];
-    let* () = Fm.reload fm in
-    let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
-    let end_offset =
-      Dispatcher.offset_of_suffix_off dispatcher pl.entry_offset_suffix_end
-    in
-    let right_size =
-      let open Int63.Syntax in
-      let x = end_offset - commit_offset in
-      assert (x >= Int63.of_int commit_len);
-      x
+    let num_iterations = 7 in
+    (* [transfer_loop] is needed because after garbage collection there may be new objects
+       at the end of the suffix file that need to be copied over *)
+    let rec transfer_loop i ~off =
+      if i = 0 then off
+      else
+        let () = Fm.reload fm |> Errs.raise_if_error in
+        let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
+        let end_offset =
+          Dispatcher.offset_of_suffix_off dispatcher pl.entry_offset_suffix_end
+        in
+        let len = Int63.Syntax.(end_offset - off) in
+        [%log.debug
+          "GC: transfer_loop iteration %d, offset %a, length %a"
+            (num_iterations - i + 1)
+            Int63.pp off Int63.pp len];
+        let () = transfer_exn ~off ~len in
+        (* Check how many bytes are left, [4096*5] is selected because it is roughly the
+           number of bytes that requires a read from the block device on ext4 *)
+        if Int63.to_int len < 4096 * 5 then end_offset
+        else
+          let off = Int63.Syntax.(off + len) in
+          transfer_loop ~off (i - 1)
     in
     let flush_and_raise () = Ao.flush suffix |> Errs.raise_if_error in
-    let* () =
+    let* offs =
       Errs.catch (fun () ->
-          transfer_exn ~off:commit_offset ~len:right_size;
-          flush_and_raise ())
+          let offs = transfer_loop ~off:commit_offset num_iterations in
+          flush_and_raise ();
+          offs)
     in
     (* Step 8. Inform the caller of the end_offset copied. *)
-    Ok end_offset
+    Ok offs
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate the process with an exception, if needed. *)
