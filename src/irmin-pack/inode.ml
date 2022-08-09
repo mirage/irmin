@@ -1206,7 +1206,7 @@ struct
         let v_ref =
           Val_ref.of_hash
             (lazy
-              (let vs = seq layout t in
+              (let vs = seq layout ~cache:false t in
                Node.hash (Node.of_seq vs)))
         in
         { v_ref; v = t.v; root = true }
