@@ -21,6 +21,7 @@ depends: [
 depopts: [
   "conduit-lwt-unit"
   "websocket-lwt-unix"
+  "cohttp-lwt-unix"
 ]
 build: [
   ["dune" "subst"] {pinned}

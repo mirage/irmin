@@ -7,5 +7,6 @@
   lwt.unix
   conduit-lwt-unix
   websocket-lwt-unix
+  cohttp-lwt-unix
   digestif.ocaml
   irmin-pack))
