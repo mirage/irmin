@@ -412,16 +412,20 @@ struct
     [@@deriving irmin]
 
     let encode_bin_tv_staggered ({ v; _ } as tv) kind f =
-      (* We need to write [length] before [v], but we will know [length]
-         after [v] is encoded. The solution is to first encode [v], then write
-         [length] and then write [v]. *)
-      let l = ref [] in
-      encode_bin_v v (fun s -> l := s :: !l);
-      let length = List.fold_left (fun acc s -> acc + String.length s) 0 !l in
-      tv.length <- length;
-      encode_bin_kind kind f;
-      encode_bin_int length f;
-      List.iter f (List.rev !l)
+      match size_of_v v with
+      | Some length ->
+          tv.length <- length;
+          encode_bin_kind kind f;
+          encode_bin_int length f;
+          encode_bin_v v f
+      | None ->
+          let buf = Buffer.create 1024 in
+          encode_bin_v v (Buffer.add_string buf);
+          let length = Buffer.length buf in
+          tv.length <- length;
+          encode_bin_kind kind f;
+          encode_bin_int length f;
+          f (Buffer.contents buf)
 
     let encode_bin_tv tv f =
       match tv with
