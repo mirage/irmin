@@ -77,31 +77,26 @@ module Typed (K : S) (V : Type.S) = struct
 end
 
 module V1 (K : S) : S with type t = K.t = struct
-  type t = K.t
+  type t = K.t [@@deriving irmin ~encode_bin ~decode_bin]
 
   let hash = K.hash
   let short_hash = K.short_hash
   let short_hash_substring = K.short_hash_substring
   let hash_size = K.hash_size
+  let int64_to_bin_string = Type.(unstage (to_bin_string int64))
+  let hash_size_str = int64_to_bin_string (Int64.of_int K.hash_size)
   let to_raw_string = K.to_raw_string
   let unsafe_of_raw_string = K.unsafe_of_raw_string
-  let h = Type.string_of `Int64
-  let to_bin_key = Type.unstage (Type.to_bin_string K.t)
-  let of_bin_key = Type.unstage (Type.of_bin_string K.t)
-  let size_of = Type.Size.using to_bin_key (Type.Size.t h)
 
-  let encode_bin =
-    let encode_bin = Type.unstage (Type.encode_bin h) in
-    fun e -> encode_bin (to_bin_key e)
+  let encode_bin e f =
+    f hash_size_str;
+    encode_bin e f
 
-  let decode_bin =
-    let decode_bin = Type.unstage (Type.decode_bin h) in
-    fun buf pos_ref ->
-      let v = decode_bin buf pos_ref in
-      match of_bin_key v with
-      | Ok v -> v
-      | Error (`Msg e) -> Fmt.failwith "decode_bin: %s" e
+  let decode_bin buf pos_ref =
+    pos_ref := !pos_ref + 8;
+    decode_bin buf pos_ref
 
+  let size_of = Type.Size.custom_static (8 + hash_size)
   let t = Type.like K.t ~bin:(encode_bin, decode_bin, size_of)
 end
 
