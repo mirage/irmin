@@ -874,6 +874,17 @@ struct
           seq_tree layout (Array.to_seq t.entries) ~depth ~cache k ~off ~len
       | Values vs -> seq_values layout (StepMap.to_seq vs) k ~off ~len
 
+    let list_v layout v ~cache k ~off ~len =
+      match v with
+      | Tree _ ->
+          let s () = seq_v layout v ~cache k ~off ~len in
+          List.of_seq s
+      | Values vs ->
+          if off = 0 && len = Int.max_int then StepMap.bindings vs
+          else
+            let seq () = seq_values layout (StepMap.to_seq vs) k ~off ~len in
+            List.of_seq seq
+
     let empty_continuation : cont = fun ~off:_ ~len:_ -> Seq.Nil
 
     let seq layout ?offset:(off = 0) ?length:(len = Int.max_int) ?(cache = true)
@@ -882,6 +893,13 @@ struct
       if len < 0 then invalid_arg "Invalid pagination length";
       if len = 0 then Seq.empty
       else fun () -> seq_v layout t.v ~cache empty_continuation ~off ~len
+
+    let list layout ?offset:(off = 0) ?length:(len = Int.max_int)
+        ?(cache = true) t : (step * value) list =
+      if off < 0 then invalid_arg "Invalid pagination offset";
+      if len < 0 then invalid_arg "Invalid pagination length";
+      if len = 0 then []
+      else list_v layout t.v ~cache empty_continuation ~off ~len
 
     let seq_tree layout ?(cache = true) i : (step * value) Seq.t =
       let off = 0 in
@@ -1995,7 +2013,7 @@ struct
       apply t { f = (fun layout v -> I.seq layout ?offset ?length ?cache v) }
 
     let list ?offset ?length ?cache t =
-      List.of_seq (seq ?offset ?length ?cache t)
+      apply t { f = (fun layout v -> I.list layout ?offset ?length ?cache v) }
 
     let empty () = of_list []
     let is_empty t = apply t { f = (fun _ v -> I.is_empty v) }
