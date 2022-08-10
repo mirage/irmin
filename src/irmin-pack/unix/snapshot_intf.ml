@@ -58,7 +58,8 @@ module type Sigs = sig
           [> `Double_close
           | `Index_failure of string
           | `Io_misc of Fm.Io.misc_error
-          | `Pending_flush ] )
+          | `Pending_flush
+          | `Ro_not_allowed ] )
         result
     end
 

@@ -36,7 +36,10 @@ module type S = sig
     string ->
     t
 
-  type error := [ `Index_failure of string | `Io_misc of Io.Unix.misc_error ]
+  type error :=
+    [ `Index_failure of string
+    | `Io_misc of Io.Unix.misc_error
+    | `Ro_not_allowed ]
 
   val v :
     ?flush_callback:(unit -> unit) ->

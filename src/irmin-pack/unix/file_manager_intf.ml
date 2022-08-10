@@ -112,7 +112,8 @@ module type S = sig
     | `Unknown_major_pack_version of string
     | `Inconsistent_store
     | `Invalid_argument
-    | `Read_out_of_bounds ]
+    | `Read_out_of_bounds
+    | `Ro_not_allowed ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Note on SWMR consistency: TODO: doc
@@ -126,7 +127,8 @@ module type S = sig
     [ `Double_close
     | `Index_failure of string
     | `Io_misc of Io.misc_error
-    | `Pending_flush ]
+    | `Pending_flush
+    | `Ro_not_allowed ]
 
   val close : t -> (unit, [> close_error ]) result
   (** Close all the files.
