@@ -36,7 +36,10 @@ module type S = sig
     string ->
     t
 
-  type error :=
+  type create_error :=
+    [ `Index_failure of string | `Io_misc of Io.Unix.misc_error ]
+
+  type write_error :=
     [ `Index_failure of string
     | `Io_misc of Io.Unix.misc_error
     | `Ro_not_allowed ]
@@ -49,12 +52,12 @@ module type S = sig
     ?lru_size:int ->
     log_size:int ->
     string ->
-    (t, [> error ]) result
+    (t, [> create_error ]) result
 
-  val reload : t -> (unit, [> error ]) result
-  val close : t -> (unit, [> error ]) result
+  val reload : t -> (unit, [> write_error ]) result
+  val close : t -> (unit, [> write_error ]) result
   val close_exn : t -> unit
-  val flush : t -> with_fsync:bool -> (unit, [> error ]) result
+  val flush : t -> with_fsync:bool -> (unit, [> write_error ]) result
   val find : t -> key -> value option
   val add : ?overcommit:bool -> t -> key -> value -> unit
   val merge : t -> unit
