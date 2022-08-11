@@ -1,4 +1,5 @@
 (*
+
  * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -93,7 +94,7 @@ module Make (K : Irmin.Hash.S) = struct
       close_exn t;
       Ok ()
     with
-    | I.RO_not_allowed -> assert false
+    | I.RO_not_allowed -> Error `Ro_not_allowed
     | Index_unix.Private.Raw.Not_written -> assert false
     | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
     | Failure msg -> Error (`Index_failure msg)
@@ -103,7 +104,7 @@ module Make (K : Irmin.Hash.S) = struct
       Index.sync t;
       Ok ()
     with
-    | I.RO_not_allowed -> assert false
+    | I.RO_not_allowed -> Error `Ro_not_allowed
     | Index_unix.Private.Raw.Not_written -> assert false
     | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
     | Failure msg -> Error (`Index_failure msg)
@@ -113,7 +114,7 @@ module Make (K : Irmin.Hash.S) = struct
       Index.flush ~no_callback:() ~with_fsync t;
       Ok ()
     with
-    | I.RO_not_allowed -> assert false
+    | I.RO_not_allowed -> Error `Ro_not_allowed
     | Index_unix.Private.Raw.Not_written -> assert false
     | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
     | Failure msg -> Error (`Index_failure msg)
