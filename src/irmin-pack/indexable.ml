@@ -17,66 +17,22 @@
 include Indexable_intf
 open! Import
 
-(* FIXME: remove code duplication with irmin/indexable *)
-module Closeable (S : S) = struct
-  type 'a t = { closed : bool ref; t : 'a S.t }
-  type key = S.key
-  type hash = S.hash
-  type value = S.value
+module Closeable (CA : S) = struct
+  include Irmin.Indexable.Check_closed_store (CA)
 
-  module Key = S.Key
+  (** override of {!Irmin.Indexable.S.add} to allow read-only *)
+  let add t v = (get_open_exn t |> CA.add) v
 
-  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
+  (** override of {!Irmin.Indexable.S.unsafe_add} to allow read-only *)
+  let unsafe_add t k v = (get_open_exn t |> CA.unsafe_add) k v
 
-  let mem t k =
-    check_not_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_not_closed t;
-    S.find t.t k
-
-  let index t h =
-    check_not_closed t;
-    S.index t.t h
-
-  let index_direct t h =
-    check_not_closed t;
-    S.index_direct t.t h
-
-  let add t v =
-    check_not_closed t;
-    S.add t.t v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    S.unsafe_add t.t k v
-
-  let batch t f =
-    check_not_closed t;
-    S.batch t.t (fun w -> f { t = w; closed = t.closed })
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t)
+  let index_direct t h = (get_open_exn t |> CA.index_direct) h
 
   let unsafe_append ~ensure_unique ~overcommit t k v =
-    check_not_closed t;
-    S.unsafe_append ~ensure_unique ~overcommit t.t k v
+    (get_open_exn t |> CA.unsafe_append ~ensure_unique ~overcommit) k v
 
-  let unsafe_mem t k =
-    check_not_closed t;
-    S.unsafe_mem t.t k
+  let unsafe_mem t k = (get_open_exn t |> CA.unsafe_mem) k
 
   let unsafe_find ~check_integrity t k =
-    check_not_closed t;
-    S.unsafe_find ~check_integrity t.t k
-
-  let make_closeable t = { closed = ref false; t }
-
-  let get_open_exn t =
-    check_not_closed t;
-    t.t
+    (get_open_exn t |> CA.unsafe_find ~check_integrity) k
 end

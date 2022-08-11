@@ -132,5 +132,18 @@ module type Sigs = sig
        and type hash = Key.t
        and type value = S.value
 
+  module Check_closed_store (CA : S) : sig
+    include
+      S with type key = CA.key and type hash = CA.hash and type value = CA.value
+
+    val make_closeable : 'a CA.t -> 'a t
+    (** [make_closeable t] returns a version of [t] that raises {!Irmin.Closed}
+        if an operation is performed when it is already closed. *)
+
+    val get_open_exn : 'a t -> 'a CA.t
+    (** [get_open_exn t] returns the store (without close checks) if it is open;
+        otherwise raises {!Irmin.Closed} *)
+  end
+
   module Check_closed (M : Maker) : Maker
 end
