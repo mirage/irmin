@@ -21,51 +21,25 @@ module Check_closed_store (AW : S) = struct
   type t = { closed : bool ref; t : AW.t }
   type key = AW.key
   type value = AW.value
-
-  let make_closeable t = { closed = ref false; t }
-  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
-
-  let get_open_exn t =
-    check_not_closed t;
-    t.t
-
-  let mem t k =
-    check_not_closed t;
-    AW.mem t.t k
-
-  let find t k =
-    check_not_closed t;
-    AW.find t.t k
-
-  let set t k v =
-    check_not_closed t;
-    AW.set t.t k v
-
-  let test_and_set t k ~test ~set =
-    check_not_closed t;
-    AW.test_and_set t.t k ~test ~set
-
-  let remove t k =
-    check_not_closed t;
-    AW.remove t.t k
-
-  let list t =
-    check_not_closed t;
-    AW.list t.t
-
   type watch = AW.watch
 
-  let watch t ?init f =
-    check_not_closed t;
-    AW.watch t.t ?init f
+  let make_closeable t = { closed = ref false; t }
 
-  let watch_key t k ?init f =
-    check_not_closed t;
-    AW.watch_key t.t k ?init f
+  let get_open_exn t =
+    if !(t.closed) then raise Store_properties.Closed else t.t
 
-  let unwatch t w =
-    check_not_closed t;
-    AW.unwatch t.t w
+  let mem t k = (get_open_exn t |> AW.mem) k
+  let find t k = (get_open_exn t |> AW.find) k
+  let set t k v = (get_open_exn t |> AW.set) k v
+
+  let test_and_set t k ~test ~set =
+    (get_open_exn t |> AW.test_and_set) k ~test ~set
+
+  let remove t k = (get_open_exn t |> AW.remove) k
+  let list t = get_open_exn t |> AW.list
+  let watch t ?init f = (get_open_exn t |> AW.watch) ?init f
+  let watch_key t k ?init f = (get_open_exn t |> AW.watch_key) k ?init f
+  let unwatch t w = (get_open_exn t |> AW.unwatch) w
 
   let close t =
     if !(t.closed) then Lwt.return_unit
@@ -73,9 +47,7 @@ module Check_closed_store (AW : S) = struct
       t.closed := true;
       AW.close t.t)
 
-  let clear t =
-    check_not_closed t;
-    AW.clear t.t
+  let clear t = get_open_exn t |> AW.clear
 end
 
 module Check_closed (Make_atomic_write : Maker) (K : Type.S) (V : Type.S) =

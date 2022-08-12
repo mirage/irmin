@@ -53,35 +53,18 @@ module Check_closed_store (CA : S) = struct
   type hash = CA.hash
 
   let make_closeable t = { closed = ref false; t }
-  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
 
   let get_open_exn t =
-    check_not_closed t;
-    t.t
+    if !(t.closed) then raise Store_properties.Closed else t.t
 
-  let mem t k =
-    check_not_closed t;
-    CA.mem t.t k
-
-  let index t h =
-    check_not_closed t;
-    CA.index t.t h
-
-  let find t k =
-    check_not_closed t;
-    CA.find t.t k
-
-  let add t v =
-    check_not_closed t;
-    CA.add t.t v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    CA.unsafe_add t.t k v
+  let mem t k = (get_open_exn t |> CA.mem) k
+  let index t h = (get_open_exn t |> CA.index) h
+  let find t k = (get_open_exn t |> CA.find) k
+  let add t v = (get_open_exn t |> CA.add) v
+  let unsafe_add t k v = (get_open_exn t |> CA.unsafe_add) k v
 
   let batch t f =
-    check_not_closed t;
-    CA.batch t.t (fun w -> f { t = w; closed = t.closed })
+    (get_open_exn t |> CA.batch) (fun w -> f { t = w; closed = t.closed })
 
   let close t =
     if !(t.closed) then Lwt.return_unit
