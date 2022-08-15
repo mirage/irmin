@@ -51,6 +51,6 @@ module type Sigs = sig
       S with type key = CA.key and type hash = CA.hash and type value = CA.value
 
     val make_closeable : 'a CA.t -> 'a t
-    val get_open_exn : 'a t -> 'a CA.t
+    val get_if_open_exn : 'a t -> 'a CA.t
   end
 end

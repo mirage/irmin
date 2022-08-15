@@ -30,65 +30,8 @@ module Value = struct
   end
 end
 
-(* FIXME: remove code duplication with irmin/atomic_write *)
 module Closeable (AW : S) = struct
-  type t = { closed : bool ref; t : AW.t }
-  type key = AW.key
-  type value = AW.value
+  include Irmin.Atomic_write.Check_closed_store (AW)
 
-  let check_not_closed t = if !(t.closed) then raise Irmin.Closed
-
-  let mem t k =
-    check_not_closed t;
-    AW.mem t.t k
-
-  let find t k =
-    check_not_closed t;
-    AW.find t.t k
-
-  let set t k v =
-    check_not_closed t;
-    AW.set t.t k v
-
-  let test_and_set t k ~test ~set =
-    check_not_closed t;
-    AW.test_and_set t.t k ~test ~set
-
-  let remove t k =
-    check_not_closed t;
-    AW.remove t.t k
-
-  let list t =
-    check_not_closed t;
-    AW.list t.t
-
-  type watch = AW.watch
-
-  let watch t ?init f =
-    check_not_closed t;
-    AW.watch t.t ?init f
-
-  let watch_key t k ?init f =
-    check_not_closed t;
-    AW.watch_key t.t k ?init f
-
-  let unwatch t w =
-    check_not_closed t;
-    AW.unwatch t.t w
-
-  let make_closeable t = { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      AW.close t.t)
-
-  let clear t =
-    check_not_closed t;
-    AW.clear t.t
-
-  let flush t =
-    check_not_closed t;
-    AW.flush t.t
+  let flush t = get_if_open_exn t |> AW.flush
 end

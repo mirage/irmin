@@ -17,65 +17,45 @@
 open Import
 include Atomic_write_intf
 
-module Check_closed (Make_atomic_write : Maker) (K : Type.S) (V : Type.S) =
-struct
-  module S = Make_atomic_write (K) (V)
+module Check_closed_store (AW : S) = struct
+  type t = { closed : bool ref; t : AW.t }
+  type key = AW.key
+  type value = AW.value
+  type watch = AW.watch
 
-  type t = { closed : bool ref; t : S.t }
-  type key = S.key
-  type value = S.value
+  let make_closeable t = { closed = ref false; t }
 
-  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
+  let get_if_open_exn t =
+    if !(t.closed) then raise Store_properties.Closed else t.t
 
-  let mem t k =
-    check_not_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_not_closed t;
-    S.find t.t k
-
-  let set t k v =
-    check_not_closed t;
-    S.set t.t k v
+  let mem t k = (get_if_open_exn t |> AW.mem) k
+  let find t k = (get_if_open_exn t |> AW.find) k
+  let set t k v = (get_if_open_exn t |> AW.set) k v
 
   let test_and_set t k ~test ~set =
-    check_not_closed t;
-    S.test_and_set t.t k ~test ~set
+    (get_if_open_exn t |> AW.test_and_set) k ~test ~set
 
-  let remove t k =
-    check_not_closed t;
-    S.remove t.t k
-
-  let list t =
-    check_not_closed t;
-    S.list t.t
-
-  type watch = S.watch
-
-  let watch t ?init f =
-    check_not_closed t;
-    S.watch t.t ?init f
-
-  let watch_key t k ?init f =
-    check_not_closed t;
-    S.watch_key t.t k ?init f
-
-  let unwatch t w =
-    check_not_closed t;
-    S.unwatch t.t w
-
-  let v conf =
-    let+ t = S.v conf in
-    { closed = ref false; t }
+  let remove t k = (get_if_open_exn t |> AW.remove) k
+  let list t = get_if_open_exn t |> AW.list
+  let watch t ?init f = (get_if_open_exn t |> AW.watch) ?init f
+  let watch_key t k ?init f = (get_if_open_exn t |> AW.watch_key) k ?init f
+  let unwatch t w = (get_if_open_exn t |> AW.unwatch) w
 
   let close t =
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t)
+      AW.close t.t)
 
-  let clear t =
-    check_not_closed t;
-    S.clear t.t
+  let clear t = get_if_open_exn t |> AW.clear
+end
+
+module Check_closed (Make_atomic_write : Maker) (K : Type.S) (V : Type.S) =
+struct
+  module AW = Make_atomic_write (K) (V)
+  include Check_closed_store (AW)
+
+  let v conf =
+    let+ t = AW.v conf in
+    { closed = ref false; t }
 end

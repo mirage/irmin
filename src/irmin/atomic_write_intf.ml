@@ -90,5 +90,21 @@ module type Sigs = sig
   module type S = S
   module type Maker = Maker
 
+  module Check_closed_store (AW : S) : sig
+    include
+      S
+        with type key = AW.key
+         and type value = AW.value
+         and type watch = AW.watch
+
+    val make_closeable : AW.t -> t
+    (** [make_closeable t] returns a version of [t] that raises {!Irmin.Closed}
+        if an operation is performed when it is already closed. *)
+
+    val get_if_open_exn : t -> AW.t
+    (** [get_if_open_exn t] returns the store (without close checks) if it is
+        open; otherwise raises {!Irmin.Closed} *)
+  end
+
   module Check_closed (M : Maker) : Maker
 end
