@@ -21,18 +21,18 @@ module Closeable (CA : S) = struct
   include Irmin.Indexable.Check_closed_store (CA)
 
   (** override of {!Irmin.Indexable.S.add} to allow read-only *)
-  let add t v = (get_open_exn t |> CA.add) v
+  let add t v = (get_if_open_exn t |> CA.add) v
 
   (** override of {!Irmin.Indexable.S.unsafe_add} to allow read-only *)
-  let unsafe_add t k v = (get_open_exn t |> CA.unsafe_add) k v
+  let unsafe_add t k v = (get_if_open_exn t |> CA.unsafe_add) k v
 
-  let index_direct t h = (get_open_exn t |> CA.index_direct) h
+  let index_direct t h = (get_if_open_exn t |> CA.index_direct) h
 
   let unsafe_append ~ensure_unique ~overcommit t k v =
-    (get_open_exn t |> CA.unsafe_append ~ensure_unique ~overcommit) k v
+    (get_if_open_exn t |> CA.unsafe_append ~ensure_unique ~overcommit) k v
 
-  let unsafe_mem t k = (get_open_exn t |> CA.unsafe_mem) k
+  let unsafe_mem t k = (get_if_open_exn t |> CA.unsafe_mem) k
 
   let unsafe_find ~check_integrity t k =
-    (get_open_exn t |> CA.unsafe_find ~check_integrity) k
+    (get_if_open_exn t |> CA.unsafe_find ~check_integrity) k
 end

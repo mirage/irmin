@@ -140,9 +140,9 @@ module type Sigs = sig
     (** [make_closeable t] returns a version of [t] that raises {!Irmin.Closed}
         if an operation is performed when it is already closed. *)
 
-    val get_open_exn : 'a t -> 'a CA.t
-    (** [get_open_exn t] returns the store (without close checks) if it is open;
-        otherwise raises {!Irmin.Closed} *)
+    val get_if_open_exn : 'a t -> 'a CA.t
+    (** [get_if_open_exn t] returns the store (without close checks) if it is
+        open; otherwise raises {!Irmin.Closed} *)
   end
 
   module Check_closed (M : Maker) : Maker

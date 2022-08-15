@@ -33,5 +33,5 @@ end
 module Closeable (AW : S) = struct
   include Irmin.Atomic_write.Check_closed_store (AW)
 
-  let flush t = get_open_exn t |> AW.flush
+  let flush t = get_if_open_exn t |> AW.flush
 end

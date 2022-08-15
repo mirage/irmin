@@ -54,17 +54,17 @@ module Check_closed_store (CA : S) = struct
 
   let make_closeable t = { closed = ref false; t }
 
-  let get_open_exn t =
+  let get_if_open_exn t =
     if !(t.closed) then raise Store_properties.Closed else t.t
 
-  let mem t k = (get_open_exn t |> CA.mem) k
-  let index t h = (get_open_exn t |> CA.index) h
-  let find t k = (get_open_exn t |> CA.find) k
-  let add t v = (get_open_exn t |> CA.add) v
-  let unsafe_add t k v = (get_open_exn t |> CA.unsafe_add) k v
+  let mem t k = (get_if_open_exn t |> CA.mem) k
+  let index t h = (get_if_open_exn t |> CA.index) h
+  let find t k = (get_if_open_exn t |> CA.find) k
+  let add t v = (get_if_open_exn t |> CA.add) v
+  let unsafe_add t k v = (get_if_open_exn t |> CA.unsafe_add) k v
 
   let batch t f =
-    (get_open_exn t |> CA.batch) (fun w -> f { t = w; closed = t.closed })
+    (get_if_open_exn t |> CA.batch) (fun w -> f { t = w; closed = t.closed })
 
   let close t =
     if !(t.closed) then Lwt.return_unit

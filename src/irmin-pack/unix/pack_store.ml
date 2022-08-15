@@ -507,14 +507,17 @@ struct
   let v ~config ~fm ~dict ~dispatcher =
     Inner.v ~config ~fm ~dict ~dispatcher |> make_closeable
 
-  let cast t = Inner.cast (get_open_exn t) |> make_closeable
+  let cast t = Inner.cast (get_if_open_exn t) |> make_closeable
 
   let integrity_check ~offset ~length k t =
-    Inner.integrity_check ~offset ~length k (get_open_exn t)
+    Inner.integrity_check ~offset ~length k (get_if_open_exn t)
 
   module Entry_prefix = Inner.Entry_prefix
 
   let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
-  let index_direct_with_kind t = Inner.index_direct_with_kind (get_open_exn t)
-  let purge_lru t = Inner.purge_lru (get_open_exn t)
+
+  let index_direct_with_kind t =
+    Inner.index_direct_with_kind (get_if_open_exn t)
+
+  let purge_lru t = Inner.purge_lru (get_if_open_exn t)
 end
