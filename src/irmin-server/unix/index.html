@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Irmin</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #222;
+        color: #ddd;
+        min-width: 600px;
+      }
+
+      #list { margin: auto; padding: 5px; }
+      #list li {
+        list-style-type: none;
+        margin: 5px;
+        padding: 0px;
+        border: 1px solid #ddd;
+        color: #ddd;
+        display: flex;
+        clear: both;
+      }
+
+      #list li:hover {
+        background: #ddd;
+        color: #222;
+        cursor: pointer;
+      }
+
+      #list li:hover span.item-kind {
+        border: 1px solid #222;
+      }
+
+      #list li span {
+        display: inline-block;
+        padding: 10px;
+      }
+
+      #list li span.item-path {
+        margin-left: 0px;
+        line-break: anywhere;
+      }
+
+      #list li span.item-hash {
+        margin-right: 10px;
+        font-family: monospace;
+        margin-top: auto;
+        margin-bottom: auto;
+        margin-left: auto;
+        vertical-align: middle;
+      }
+
+      #list li span.item-kind {
+        padding: 2px;
+        border: 1px solid #ddd;
+        width: 75px;
+        height: 20px;
+        vertical-align: middle;
+        text-align: center;
+        margin-top: auto;
+        margin-bottom: auto;
+        margin-right: 10px;
+      }
+
+      #path, #branch {
+        padding: 5px;
+        margin: 5px;
+        font-size: 110%%;
+        border: 1px solid #ddd;
+        width: 75%%;
+        background: #222;
+        color: #ddd;
+      }
+
+      #contents {
+        padding: 5px;
+        margin: 5px;
+        font-family: monospace;
+        font-size: 130%%;
+      }
+
+      h1, h2 {
+        padding: 5px;
+        margin: 5px;
+      }
+
+      #up, #home, #refresh {
+        display: inline-block;
+        width: 25px;
+        height: 25px;
+        padding: 7px;
+        margin-top: 6px;
+        color: white;
+        vertical-align: top;
+        text-align: center;
+        text-decoration: none;
+      }
+
+
+      #up:hover, #home:hover, #refresh:hover {
+        cursor: pointer;
+        color: #222;
+        background: #ddd;
+      }
+
+    .no-select {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    .text-select {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+    }
+
+    .content-hash {
+      font-size: 115%%;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 20px;
+      display: table;
+    }
+
+    .branch-area, .path-area {
+      font-weight: normal;
+    }
+
+    .branch-area img, .path-area img {
+      vertical-align: middle;
+      width: 30px;
+      padding-bottom: 5px;
+      filter: invert(100%%);
+    }
+    </style>
+  </head>
+  <body class="no-select">
+    <a href="/" style="float: right">
+      <img width="75px" style="margin-right:20px; margin-top:10px;" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTE5IiBoZWlnaHQ9IjE4NSIgdmlld0JveD0iMCAwIDUxOSAxODUiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMjA2IDE1NVY0OUgyMjEuODkzVjE1NUgyMDZaTTI3My42NzggODIuOTJDMjgwLjg2NCA4Mi45MiAyODYuNDM4IDg0LjY2MzEgMjkwLjQgODguMTQ5M0wyODMuMDc1IDk5LjMxNDdDMjgwLjMxMSA5Ny42MTg3IDI3Ni45MDIgOTYuNzcwNyAyNzIuODQ5IDk2Ljc3MDdDMjY3Ljk2NiA5Ni43NzA3IDI2My43MDQgOTguNjc4NyAyNjAuMDY1IDEwMi40OTVDMjU2LjQyNiAxMDYuMzExIDI1NC42MDYgMTExLjE4NyAyNTQuNjA2IDExNy4xMjNWMTU1SDIzOS4yNjZWODQuMzMzM0gyNTMuMjI0TDI1NC4wNTQgOTQuMjI2N0MyNTkuNTgyIDg2LjY4ODkgMjY2LjEyMyA4Mi45MiAyNzMuNjc4IDgyLjkyWk0zNzUuNjI5IDgyLjkyQzM4My4yNzYgODIuOTIgMzg5LjQ5NSA4NS40MTY5IDM5NC4yODYgOTAuNDEwN0MzOTkuMDc3IDk1LjQwNDQgNDAxLjQ3MiAxMDEuODU5IDQwMS40NzIgMTA5Ljc3M1YxNTVIMzg1Ljk5NFYxMTEuNjExQzM4NS45OTQgMTA3LjM3MSAzODQuNjM1IDEwMy44MzcgMzgxLjkxNyAxMDEuMDExQzM3OS4xOTkgOTguMTg0IDM3NS43NjcgOTYuNzcwNyAzNzEuNjIxIDk2Ljc3MDdDMzY3LjE5OSA5Ni43NzA3IDM2My41MTMgOTguMzAxOCAzNjAuNTY1IDEwMS4zNjRDMzU3LjYxNyAxMDQuNDI2IDM1Ni4xNDMgMTA4LjE3MiAzNTYuMTQzIDExMi42VjE1NUgzNDAuNjY1VjExMS42MTFDMzQwLjY2NSAxMDcuMzcxIDMzOS4zMDYgMTAzLjgzNyAzMzYuNTg4IDEwMS4wMTFDMzMzLjg3IDk4LjE4NCAzMzAuNDM4IDk2Ljc3MDcgMzI2LjI5MiA5Ni43NzA3QzMyMS45NjIgOTYuNzcwNyAzMTguMjc2IDk4LjMwMTggMzE1LjIzNiAxMDEuMzY0QzMxMi4xOTYgMTA0LjQyNiAzMTAuNjc2IDEwOC4xNzIgMzEwLjY3NiAxMTIuNlYxNTVIMjk1LjMzNlY4NC4zMzMzSDMwOS4yOTRMMzA5Ljk4NSA5MS45NjUzQzMxNS40MiA4NS45MzUxIDMyMi4yMzggODIuOTIgMzMwLjQzOCA4Mi45MkMzNDAuMjA0IDgyLjkyIDM0Ny40MzYgODYuODMwMiAzNTIuMTM1IDk0LjY1MDdDMzU3Ljg0NyA4Ni44MzAyIDM2NS42NzkgODIuOTIgMzc1LjYyOSA4Mi45MlpNNDI4LjEwNSA3MS42MTMzQzQyNS41MjUgNzEuNjEzMyA0MjMuMzE0IDcwLjY5NDcgNDIxLjQ3MSA2OC44NTczQzQxOS42MjkgNjcuMDIgNDE4LjcwNyA2NC43ODIyIDQxOC43MDcgNjIuMTQ0QzQxOC43MDcgNTkuNTA1OCA0MTkuNjI5IDU3LjI0NDQgNDIxLjQ3MSA1NS4zNkM0MjMuMzE0IDUzLjQ3NTYgNDI1LjUyNSA1Mi41MzMzIDQyOC4xMDUgNTIuNTMzM0M0MzAuNjg1IDUyLjUzMzMgNDMyLjg5NiA1My40NzU2IDQzNC43MzggNTUuMzZDNDM2LjU4MSA1Ny4yNDQ0IDQzNy41MDIgNTkuNTA1OCA0MzcuNTAyIDYyLjE0NEM0MzcuNTAyIDY0Ljc4MjIgNDM2LjU4MSA2Ny4wMiA0MzQuNzM4IDY4Ljg1NzNDNDMyLjg5NiA3MC42OTQ3IDQzMC42ODUgNzEuNjEzMyA0MjguMTA1IDcxLjYxMzNaTTQyMC4zNjYgMTU1Vjg0LjMzMzNINDM1LjcwNlYxNTVINDIwLjM2NlpNNDkyLjA1MSA4Mi45MkM0OTkuODgzIDgyLjkyIDUwNi4zMzIgODUuNDY0IDUxMS4zOTkgOTAuNTUyQzUxNi40NjYgOTUuNjQgNTE5IDEwMi4yMzYgNTE5IDExMC4zMzlWMTU1SDUwMy41MjJWMTEyLjE3NkM1MDMuNTIyIDEwNy43NDggNTAyLjAyNSAxMDQuMDczIDQ5OS4wMyAxMDEuMTUyQzQ5Ni4wMzYgOTguMjMxMSA0OTIuMjM2IDk2Ljc3MDcgNDg3LjYyOSA5Ni43NzA3QzQ4Mi45MyA5Ni43NzA3IDQ3OC45NDUgOTguMzQ4OSA0NzUuNjc1IDEwMS41MDVDNDcyLjQwNCAxMDQuNjYyIDQ3MC43NjkgMTA4LjUwMSA0NzAuNzY5IDExMy4wMjRWMTU1SDQ1NS40MjlWODQuMzMzM0g0NjkuMzg3TDQ3MC4yMTYgOTIuNjcyQzQ3NS44MzYgODYuMTcwNyA0ODMuMTE0IDgyLjkyIDQ5Mi4wNTEgODIuOTJaIiBmaWxsPSIjRkZGRkZGIi8+CjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNNzAuMzEwNSA1Mi45NDgzQzcwLjI4MyA1MS44MDM2IDcwLjk1NjMgNTAuNjk4NiA3Mi4xODIyIDQ5Ljg3NjVDNzMuNDA4MSA0OS4wNTQ0IDc1LjA4NjMgNDguNTgyNSA3Ni44NDc1IDQ4LjU2NDdDNzguNjQ0NyA0OC41NDY0IDgwLjM3NjUgNDkuMDAyNCA4MS42NDc1IDQ5LjgyODVDODIuOTE4NCA1MC42NTQ2IDgzLjYyIDUxLjc4MDIgODMuNTkxOSA1Mi45NDgzVjc5LjI1M0wxMTIuMDUxIDUwLjU3ODRDMTEzLjI1NiA0OS4zMzY0IDExNC44OTMgNDguNjE1IDExNi42MTcgNDguNTY2N0MxMTkuMzUgNDguNDkxMyAxMjEuODQ5IDUwLjEwOTEgMTIyLjkxNSA1Mi42NDMzQzEyMy45ODEgNTUuMTc3NiAxMjMuMzk3IDU4LjExMDggMTIxLjQ0MyA2MC4wMzVMODMuNTkxOSA5OC4xNzI5VjExOC43MkM4My41OTMgMTE4Ljc4OSA4My41OTMgMTE4Ljg1OSA4My41OTE5IDExOC45MjhWMTI2LjA4OUwxMTIuMDUxIDk3LjQxNDdDMTEzLjI1NiA5Ni4xNzI4IDExNC44OTMgOTUuNDUxMyAxMTYuNjE3IDk1LjQwM0MxMTkuMzUgOTUuMzI3NyAxMjEuODQ5IDk2Ljk0NTUgMTIyLjkxNSA5OS40Nzk3QzEyMy45ODEgMTAyLjAxNCAxMjMuMzk3IDEwNC45NDcgMTIxLjQ0MyAxMDYuODcxTDgzLjU5MTkgMTQ1LjAwOVYxODAuMzg2TDc3LjQ3MjUgMTg0LjAxNUw3MC4zMTA1IDE3OS43M1YxNDIuMzQ0QzcwLjMwOTUgMTQyLjI3NCA3MC4zMDk1IDE0Mi4yMDUgNzAuMzEwNSAxNDIuMTM1VjEyMS41ODdMMzIuNDgzNCA4My40NzIyQzMwLjUzOTQgODEuNTc4MSAyOS45MzExIDc4LjY4NTggMzAuOTQ1NSA3Ni4xNjA3QzMxLjk2IDczLjYzNTYgMzQuMzk0MyA3MS45ODI3IDM3LjA5OTQgNzEuOTgyM0MzOC44OTg0IDcxLjk4MjUgNDAuNjIwNCA3Mi43MTc4IDQxLjg3MTEgNzQuMDE5OUw3MC4zMTA1IDEwMi42NzVWOTUuNTA3M0M3MC4zMDk1IDk1LjQzNzcgNzAuMzA5NSA5NS4zNjgxIDcwLjMxMDUgOTUuMjk4N1Y1Mi45NDgzWk03Ny41IDBMMTU1IDQ2VjEzOEw3Ny41IDE4NEwwIDEzOFY0Nkw3Ny41IDBaIiBmaWxsPSIjRkZGRkZGIi8+Cjwvc3ZnPgo=">
+    </a>
+    <h2 class="branch-area">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAACgklEQVRIS8WXTUgVURiGtVVQ1EKTIktrkVBi1CZw46KiP5KkBItAbGFE0Z8IRpvaVdSi0gha5MJ+FhaEhqBJ5iJaiKkVVCi1CBEtMCkrjfR54QyM071n5s6dwQ8ezpl7zvneme/8fOdmZsyTZQbQVZ8VMA6TAfoH6uInvBcv9bAa/sI9OG1eIpBAsk424W0MaocZGICVsAy6YCv8S0fZJtyL402wHx7DIuiELVAKLXEJ/8bxD8h2CZykfh3OwaUEwupbYqL0gvJbmFAPMmgNbID3xsEDygo4DJpvtx3i4RYsNT9+pzwGGvOf2UJ9lt7XYBQeQgHsgGFTVzQc20zlFWg9NIH86uVkmprXXmWb8AI6K6wnXIO+UNdK7/M4auS5Eqrhjmk7Snkb7sKRVITVNx8+uQZJoMrrhOc22AlF8Ma0q95v2nbHJXwFx7VwE04ZkRuUitZlqItLOBfHCn8WDIGmcC18BW1JTdEc8zu58ukdJNRyqtX/EpYYhQnKYnjnFdVzlMLyNwbOvpdgYSLRqIU3mnA7Wk+o7ItbWFuvGcpcQkom2o4JLZ1QL8TjKtDBoqN0u0thyrTp8IlEuBsvH0FJIieZU36/CBcs7SkvLpsvp01Z6wDoq5NaqqG2+fpj5vQ8pS4NVgsr/AuvCrsShg6Jt/AUkqZB71v4JQkde8c9g3p4VqIY8fuqsKGuYeBV0MpUTl0Hu+Az6GD4GZewcxFYj8AHI3Kf8iCUg/ZtaLOF2nb1UbZR1gltQS572hqPYDE8A90oNMetoVUZaBPWFbbDOHeut0oAz0FX39iut9LcAw2QB9OgC94Z0L+KtMxvH8u5+iw3Ytq/kVgQ4UiEvE5mARsShR+0flsNAAAAAElFTkSuQmCC">
+      <input id="branch" value="%s" />
+    </div>
+    <h2 class="path-area">
+      <img alt="svgImg" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHg9IjBweCIgeT0iMHB4Igp3aWR0aD0iNTAiIGhlaWdodD0iNTAiCnZpZXdCb3g9IjAgMCA1MCA1MCIKc3R5bGU9IiBmaWxsOiMwMDAwMDA7Ij48cGF0aCBkPSJNIDMgNCBDIDEuMzU1NDY5IDQgMCA1LjM1NTQ2OSAwIDcgTCAwIDQzLjkwNjI1IEMgLTAuMDYyNSA0NC4xMzY3MTkgLTAuMDM5MDYyNSA0NC4zNzg5MDYgMC4wNjI1IDQ0LjU5Mzc1IEMgMC4zNDM3NSA0NS45NTcwMzEgMS41NjI1IDQ3IDMgNDcgTCA0MiA0NyBDIDQzLjQ5MjE4OCA0NyA0NC43MTg3NSA0NS44NzUgNDQuOTM3NSA0NC40Mzc1IEMgNDQuOTQ1MzEzIDQ0LjM3NSA0NC45NjQ4NDQgNDQuMzEyNSA0NC45Njg3NSA0NC4yNSBDIDQ0Ljk2ODc1IDQ0LjIzMDQ2OSA0NC45Njg3NSA0NC4yMDcwMzEgNDQuOTY4NzUgNDQuMTg3NSBMIDQ1IDQ0LjAzMTI1IEMgNDUgNDQuMDE5NTMxIDQ1IDQ0LjAxMTcxOSA0NSA0NCBMIDQ5Ljk2ODc1IDE3LjE4NzUgTCA1MCAxNy4wOTM3NSBMIDUwIDE3IEMgNTAgMTUuMzU1NDY5IDQ4LjY0NDUzMSAxNCA0NyAxNCBMIDQ3IDExIEMgNDcgOS4zNTU0NjkgNDUuNjQ0NTMxIDggNDQgOCBMIDE4LjAzMTI1IDggQyAxOC4wMzUxNTYgOC4wMDM5MDYgMTguMDIzNDM4IDggMTggOCBDIDE3Ljk2ODc1IDcuOTc2NTYzIDE3Ljg3ODkwNiA3LjkwMjM0NCAxNy43MTg3NSA3LjcxODc1IEMgMTcuNDcyNjU2IDcuNDM3NSAxNy4xODc1IDYuOTY4NzUgMTYuODc1IDYuNDY4NzUgQyAxNi41NjI1IDUuOTY4NzUgMTYuMjI2NTYzIDUuNDM3NSAxNS44MTI1IDQuOTY4NzUgQyAxNS4zOTg0MzggNC41IDE0LjgyMDMxMyA0IDE0IDQgWiBNIDMgNiBMIDE0IDYgQyAxMy45Mzc1IDYgMTQuMDY2NDA2IDYgMTQuMzEyNSA2LjI4MTI1IEMgMTQuNTU4NTk0IDYuNTYyNSAxNC44NDM3NSA3LjAzMTI1IDE1LjE1NjI1IDcuNTMxMjUgQyAxNS40Njg3NSA4LjAzMTI1IDE1LjgxMjUgOC41NjI1IDE2LjIxODc1IDkuMDMxMjUgQyAxNi42MjUgOS41IDE3LjE3OTY4OCAxMCAxOCAxMCBMIDQ0IDEwIEMgNDQuNTYyNSAxMCA0NSAxMC40Mzc1IDQ1IDExIEwgNDUgMTQgTCA4IDE0IEMgNi40MjU3ODEgMTQgNS4xNzE4NzUgMTUuMjY1NjI1IDUuMDYyNSAxNi44MTI1IEwgNS4wMzEyNSAxNi44MTI1IEwgNSAxNyBMIDIgMzMuMTg3NSBMIDIgNyBDIDIgNi40Mzc1IDIuNDM3NSA2IDMgNiBaIE0gOCAxNiBMIDQ3IDE2IEMgNDcuNTYyNSAxNiA0OCAxNi40Mzc1IDQ4IDE3IEwgNDMuMDkzNzUgNDMuNTMxMjUgTCA0My4wNjI1IDQzLjU5Mzc1IEMgNDMuMDUwNzgxIDQzLjYzMjgxMyA0My4wMzkwNjMgNDMuNjc1NzgxIDQzLjAzMTI1IDQzLjcxODc1IEMgNDMuMDE5NTMxIDQzLjc1NzgxMyA0My4wMDc4MTMgNDMuODAwNzgxIDQzIDQzLjg0Mzc1IEMgNDMgNDMuODYzMjgxIDQzIDQzLjg4NjcxOSA0MyA0My45MDYyNSBDIDQzIDQzLjkxNzk2OSA0MyA0My45MjU3ODEgNDMgNDMuOTM3NSBDIDQyLjk4NDM3NSA0My45ODgyODEgNDIuOTc2NTYzIDQ0LjAzOTA2MyA0Mi45Njg3NSA0NC4wOTM3NSBDIDQyLjk2NDg0NCA0NC4xMjUgNDIuOTcyNjU2IDQ0LjE1NjI1IDQyLjk2ODc1IDQ0LjE4NzUgQyA0Mi45NjQ4NDQgNDQuMjMwNDY5IDQyLjk2NDg0NCA0NC4yNjk1MzEgNDIuOTY4NzUgNDQuMzEyNSBDIDQyLjg0Mzc1IDQ0LjcxODc1IDQyLjQ1NzAzMSA0NSA0MiA0NSBMIDMgNDUgQyAyLjQzNzUgNDUgMiA0NC41NjI1IDIgNDQgTCA2Ljk2ODc1IDE3LjE4NzUgTCA3IDE3LjA5Mzc1IEwgNyAxNyBDIDcgMTYuNDM3NSA3LjQzNzUgMTYgOCAxNiBaIj48L3BhdGg+PC9zdmc+"/>
+      <input id="path" value="%s"/>
+      <span class="no-select" id="up">&uarr;</span>
+      <span class="no-select" id="refresh">&#8635;</span>
+    </h2>
+    <ul id="list" class="text-select"></ul>
+    <div id="contents" class="text-select"></div>
+    <script>
+      let list = document.getElementById("list");
+      let pathInput = document.getElementById("path");
+      let branchInput = document.getElementById("branch");
+      function makeElem(data){
+        var elem = document.createElement("li");
+        var path = document.createElement("span");
+        var hash = document.createElement("span");
+        var kind = document.createElement("span");
+
+        path.classList.add("item-path");
+        path.innerHTML = data.path;
+
+        kind.classList.add("item-kind");
+        kind.innerHTML = data.kind;
+
+        hash.classList.add("item-hash");
+        hash.innerHTML = data.hash;
+
+        elem.appendChild(path);
+        elem.appendChild(hash);
+        elem.appendChild(kind);
+
+        elem.onclick = function(){
+          update(this.firstChild.innerHTML, branchInput.value);
+        }
+        return elem;
+      }
+
+
+      function hexdump(buffer, blockSize) {
+          blockSize = blockSize || 16;
+          var lines = [];
+          var hex = "0123456789ABCDEF";
+          for (var b = 0; b < buffer.length; b += blockSize) {
+              var block = buffer.slice(b, Math.min(b + blockSize, buffer.length));
+              var addr = ("0000" + b.toString(16)).slice(-4);
+              var codes = block.split('').map(function (ch) {
+                  var code = ch.charCodeAt(0);
+                  return " " + hex[(0xF0 & code) >> 4] + hex[0x0F & code];
+              }).join("");
+              codes += "&nbsp;&nbsp;&nbsp;".repeat(blockSize - block.length);
+              var chars = block.replace(/[\x00-\x1F\x20]/g, '.');
+              chars +=  " ".repeat(blockSize - block.length);
+              lines.push(addr + " | " + codes + " | " + chars);
+          }
+          return lines.join("<br>");
+      }
+
+      function getContents(data) {
+        if (typeof data.contents === "string") return data.contents;
+
+        if (data.contents.base64){
+          let b = atob(data.contents.base64);
+          let s = hexdump(b);
+          return s;
+        }
+
+        return JSON.stringify(data.contents);
+      }
+
+      function update(path, branch) {
+        let state = history.state || {};
+        if (state.path !== path || state.branch !== branch){
+          history.pushState({path: path, branch: branch}, '');
+        }
+
+        fetch(path + "?branch=" + branch, {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+          list.innerHTML = "";
+          document.getElementById("contents").innerHTML = "";
+          if (data.contents !== undefined){
+            let html = "<div class='content-hash'>" + data.hash + "</div>";
+            html += getContents(data);
+            document.getElementById("contents").innerHTML = html;
+            return;
+          }
+          for(var i = 0; i < data.length; i++){
+            list.appendChild(makeElem(data[i]));
+          }
+        });
+      }
+
+      update(pathInput.value, branchInput.value);
+
+      pathInput.onkeydown = function(e){
+        if (e.keyCode == 13){
+          update(e.target.value, branchInput.value);
+        }
+      }
+
+      branchInput.onkeydown = function(e){
+        if (e.keyCode == 13){
+          update(pathInput.value, e.target.value);
+        }
+      }
+
+      document.getElementById("up").onclick = function() {
+        update(pathInput.value.substring(0, pathInput.value.lastIndexOf('/')), branchInput.value);
+      }
+
+      document.getElementById("refresh").onclick = function() {
+        list.innerHTML = "";
+        update(pathInput.value, branchInput.value);
+      }
+
+      window.onpopstate = function(event){
+        if (event.state !== null){
+          update(event.state.path, event.state.branch);
+        }
+      }
+    </script>
+  </body>
+</html>

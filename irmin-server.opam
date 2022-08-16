@@ -22,6 +22,7 @@ depopts: [
   "conduit-lwt-unit"
   "websocket-lwt-unix"
   "cohttp-lwt-unix"
+  "ppx_blob"
 ]
 build: [
   ["dune" "subst"] {pinned}

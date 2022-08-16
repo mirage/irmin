@@ -27,6 +27,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   type t = {
     ctx : Conduit_lwt_unix.ctx;
     uri : Uri.t;
+    dashboard : Conduit_lwt_unix.server option;
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
     repo : Store.Repo.t;
@@ -46,7 +47,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ~uri config =
+  let v ?tls_config ?dashboard ~uri config =
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -80,7 +81,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let clients = Hashtbl.create 8 in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; config; repo; clients; info }
+    { ctx; uri; server; dashboard; config; repo; clients; info }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
@@ -254,7 +255,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
 
   let on_exn x = Logs.err (fun l -> l "EXCEPTION: %s" (Printexc.to_string x))
 
-  let dashboard t =
+  let dashboard t mode =
     let list store prefix =
       let* keys = Store.list store prefix in
       let+ keys =
@@ -271,8 +272,16 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       in
       List.filter_map Fun.id keys
     in
-    let data_callback prefix =
-      let* store = Store.main t.repo in
+    let data_callback prefix branch =
+      let* store =
+        match branch with
+        | `Hash commit -> (
+            let* commit = Store.Commit.of_hash t.repo commit in
+            match commit with
+            | Some commit -> Store.of_commit commit
+            | None -> failwith "Invalid commit")
+        | `Branch branch -> Store.of_branch t.repo branch
+      in
       let* is_contents =
         Store.kind store prefix >|= fun x -> x = Some `Contents
       in
@@ -280,11 +289,21 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       if is_contents then
         let* contents = Store.get store prefix in
         let contents' = Irmin.Type.to_json_string Store.contents_t contents in
+        let* last_mod = Store.last_modified store prefix in
+        let last_mod =
+          String.concat ", "
+            (List.map
+               (fun c ->
+                 Store.Commit.hash c |> Irmin.Type.to_json_string Store.hash_t)
+               last_mod)
+        in
         let body =
           Cohttp_lwt.Body.of_string
-            (Printf.sprintf {|{"contents": %s, "hash": %s}|} contents'
+            (Printf.sprintf
+               {|{"contents": %s, "hash": %s, "last_modified": [%s]}|} contents'
                (Irmin.Type.to_json_string Store.hash_t
-                  (Store.Contents.hash contents)))
+                  (Store.Contents.hash contents))
+               last_mod)
         in
         Lwt.return (res, body)
       else
@@ -307,185 +326,35 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       let* () = Cohttp_lwt.Body.drain_body body in
       let uri = Cohttp_lwt_unix.Request.uri req in
       let path = Uri.path uri in
+      let branch_name =
+        Uri.get_query_param uri "branch" |> Option.value ~default:"main"
+      in
+      let branch =
+        match Irmin.Type.of_string Store.hash_t branch_name with
+        | Ok x -> `Hash x
+        | Error _ ->
+            `Branch
+              (Result.get_ok @@ Irmin.Type.of_string Store.branch_t branch_name)
+      in
       let prefix = Irmin.Type.of_string Store.path_t path |> Result.get_ok in
       let meth = Cohttp_lwt_unix.Request.meth req in
       match meth with
-      | `POST -> data_callback prefix
+      | `POST -> data_callback prefix branch
       | `GET ->
           let res = Cohttp_lwt_unix.Response.make () in
           let body =
             Cohttp_lwt.Body.of_string
-            @@ Printf.sprintf
-                 {|
-          <html>
-            <head>
-              <meta charset="utf-8"/>
-              <title>Irmin</title>
-              <style>
-                body {
-                  font-family: sans-serif;
-                }
-
-                #list { margin: auto; padding: 5px; }
-                #list li {
-                  list-style-type: none;
-                  margin: 5px;
-                  padding: 0px;
-                  border: 1px solid #ddd;
-                  display: block;
-                }
-
-                #list li:hover {
-                  background: #FFFFCC;
-                  cursor: pointer;
-                }
-
-                #list li span {
-                  display: inline-block;
-                  padding: 10px;
-                }
-
-                #list li span.item-path {
-                  margin-left: 0px;
-                }
-
-                #list li span.item-hash {
-                  margin-left: 10px;
-                  font-family: monospace;
-                }
-
-                #list li span.item-kind {
-                  padding: 2px;
-                  border: 1px solid #ddd;
-                  width: 75px;
-                  text-align: center;
-                }
-
-                #path {
-                  padding: 5px;
-                  margin: 5px;
-                  font-size: 110%%;
-                  border: 1px solid black;
-                }
-
-                #contents {
-                  padding: 5px;
-                  margin: 5px;
-                  font-family: monospace;
-                }
-
-                h1, h2 {
-                  padding: 5px;
-                  margin: 5px;
-                }
-
-                #up:hover {
-                  cursor: pointer;
-                  color: white;
-                  background: black;
-                }
-
-              .no-select {
-                -webkit-user-select: none;
-                -moz-user-select: none;
-                -ms-user-select: none;
-                user-select: none;
-              }
-
-              .text-select {
-                -webkit-user-select: text;
-                -moz-user-select: text;
-                -ms-user-select: text;
-                user-select: text;
-              }
-
-              .content-hash {
-                font-size: 115%%;
-                border: 1px solid #ddd;
-                padding: 10px;
-                margin-bottom: 20px;
-                display: table;
-              }
-              </style>
-            </head>
-            <body class="no-select">
-              <h1 class="no-select">Irmin Explorer</h1>
-              <h2 class="no-select">Path: <input id="path" value="%s"/><span class="no-select" id="up">&uarr;</span></h2>
-              <ul id="list" class="text-select"></ul>
-              <div id="contents" class="text-select"></div>
-              <script>
-                let list = document.getElementById("list");
-                let pathInput = document.getElementById("path");
-                function makeElem(data){
-                  var elem = document.createElement("li");
-                  var path = document.createElement("span");
-                  var hash = document.createElement("span");
-                  var kind = document.createElement("span");
-
-                  path.classList.add("item-path");
-                  path.innerHTML = data.path;
-
-                  kind.classList.add("item-kind");
-                  kind.innerHTML = data.kind;
-
-                  hash.classList.add("item-hash");
-                  hash.innerHTML = data.hash;
-
-                  elem.appendChild(path);
-                  elem.appendChild(kind);
-                  elem.appendChild(hash);
-
-                  elem.onclick = function(){
-                    update(this.firstChild.innerHTML);
-                  }
-                  return elem;
-                }
-
-                function update(path='') {
-                  pathInput.value = path;
-                  fetch(path, {method: 'POST'})
-                  .then(r => r.json())
-                  .then(data => {
-                    list.innerHTML = "";
-                    document.getElementById("contents").innerHTML = "";
-                    if (data.contents !== undefined){
-                      document.getElementById("contents").innerHTML = "<div class='content-hash'>" + data.hash + "</div>" + data.contents;
-                      return;
-                    }
-                    for(var i = 0; i < data.length; i++){
-                      list.appendChild(makeElem(data[i]));
-                    }
-                    history.pushState({path: pathInput.value || "/"}, '');
-                  });
-                }
-
-                update();
-
-                pathInput.onkeydown = function(e){
-                  if (e.keyCode == 13){
-                    console.log(e);
-                    update(e.target.value);
-                  }
-                }
-
-                document.getElementById("up").onclick = function() {
-                  update(pathInput.value.substring(0, pathInput.value.lastIndexOf('/')));
-                }
-
-                window.onpopstate = function(event){
-                  update(event.state.path);
-                }
-              </script>
-            </body>
-          </html>
-          |}
-                 path
+            @@ Printf.sprintf [%blob "index.html"] branch_name path
           in
           Lwt.return (res, body)
-      | _ -> failwith "XXX"
+      | _ ->
+          let status = `Not_found in
+          let res = Cohttp_lwt_unix.Response.make ~status () in
+          let body = Cohttp_lwt.Body.of_string "Not found" in
+          Lwt.return (res, body)
     in
     let server = Cohttp_lwt_unix.Server.make ~callback () in
-    Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 9999)) server
+    Cohttp_lwt_unix.Server.create ~mode server
 
   let serve ?stop t =
     let unlink () =
@@ -503,8 +372,12 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
           unlink ();
           exit 0)
     in
-    let () = Lwt.async (fun () -> dashboard t) in
-    let* () =
+    let dashboard =
+      match t.dashboard with
+      | Some server -> dashboard t server
+      | None -> Lwt.return_unit
+    in
+    let server =
       match Uri.scheme t.uri with
       | Some "ws" | Some "wss" ->
           Websocket_lwt_unix.establish_standard_server ~ctx:t.ctx ~mode:t.server
@@ -515,5 +388,6 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
           Conduit_lwt_unix.serve ?stop ~ctx:t.ctx ~on_exn ~mode:t.server
             (fun _ ic oc -> callback t ic oc)
     in
+    let* () = Lwt.join [ server; dashboard ] in
     Lwt.wrap (fun () -> unlink ())
 end

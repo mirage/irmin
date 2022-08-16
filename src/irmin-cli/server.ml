@@ -29,8 +29,8 @@ let setup_log =
   Cmdliner.Term.(
     const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
-    (module Codec : Conn.Codec.S) fingerprint =
+let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
+    ~config_path (module Codec : Conn.Codec.S) fingerprint =
   let store, config =
     Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
   in
@@ -51,21 +51,26 @@ let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
     in
     let uri = Irmin.Backend.Conf.(get config) Irmin_server.Cli.Conf.Key.uri in
     let config = if readonly then Server.readonly config else config in
-    let* server = Server.v ?tls_config ~uri config in
+    let dashboard =
+      match dashboard with
+      | Some port -> Some (`TCP (`Port port))
+      | None -> None
+    in
+    let* server = Server.v ?tls_config ?dashboard ~uri config in
     let root = match root with Some root -> root | None -> "" in
     Logs.app (fun l -> l "Listening on %a, store: %s" Uri.pp_hum uri root);
     Server.serve server
 
 let main readonly root uri tls (store, hash, contents) codec config_path
-    fingerprint () =
+    dashboard fingerprint () =
   let codec =
     match codec with
     | `Bin -> (module Conn.Codec.Bin : Conn.Codec.S)
     | `Json -> (module Conn.Codec.Json)
   in
   Lwt_main.run
-  @@ main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path codec
-       fingerprint
+  @@ main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
+       ~dashboard codec fingerprint
 
 open Cmdliner
 
@@ -96,6 +101,12 @@ let fingerprint =
   in
   Arg.(value @@ flag doc)
 
+let dashboard =
+  let doc =
+    Arg.info ~docs:"" ~doc:"HTTP server port for dashboard" [ "dashboard" ]
+  in
+  Arg.(value @@ opt (some int) None doc)
+
 let main_term =
   Term.(
     const main
@@ -106,5 +117,6 @@ let main_term =
     $ Resolver.Store.term ()
     $ Irmin_server.Cli.codec
     $ Irmin_server.Cli.config_path
+    $ dashboard
     $ fingerprint
     $ setup_log)
