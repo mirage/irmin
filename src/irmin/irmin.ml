@@ -224,3 +224,21 @@ let remote_store (type t) (module M : Generic_key.S with type t = t) (t : t) =
 module Metadata = Metadata
 module Json_tree = Store.Json_tree
 module Export_for_backends = Export_for_backends
+module Storage = Storage
+
+module Of_storage (M : Storage.Make) (H : Hash.S) (V : Contents.S) = struct
+  module CA = Storage.Content_addressable (M)
+  module AW = Storage.Atomic_write (M)
+  module Maker = Maker (CA) (AW)
+
+  include Maker.Make (struct
+    module Hash = H
+    module Contents = V
+    module Info = Info.Default
+    module Metadata = Metadata.None
+    module Path = Path.String_list
+    module Branch = Branch.String
+    module Node = Node.Make (Hash) (Path) (Metadata)
+    module Commit = Commit.Make (Hash)
+  end)
+end

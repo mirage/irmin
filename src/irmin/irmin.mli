@@ -481,6 +481,12 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
 module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
   KV_maker with type endpoint = unit and type metadata = unit
 
+module Storage = Storage
+
+(** Key-value store creator using {!Storage.Make}. *)
+module Of_storage (M : Storage.Make) (H : Hash.S) (V : Contents.S) :
+  KV with type hash = H.t and module Schema.Contents = V
+
 (** Advanced store creator. *)
 module Of_backend (B : Backend.S) :
   Generic_key.S
