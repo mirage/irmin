@@ -9,6 +9,7 @@
   custom_merge
   push
   custom_graphql
+  custom_storage
   fold
   gc)
  (libraries
@@ -37,7 +38,8 @@
   custom_merge.exe
   custom_graphql.exe
   fold.exe
-  gc.exe))
+  gc.exe
+  custom_storage.exe))
 
 (alias
  (name runtest)
