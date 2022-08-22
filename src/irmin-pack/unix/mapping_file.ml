@@ -431,6 +431,7 @@ module Make (Io : Io.S) = struct
           calculate_extents_oc ~src_is_sorted:() ~src:file1.arr ~register_entry)
     in
     let* () = Ao.flush file2 in
+    let* () = Ao.fsync file2 in
     let* () = Ao.close file2 in
 
     (* Close and unlink [file1] *)
