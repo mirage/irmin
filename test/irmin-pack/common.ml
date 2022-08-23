@@ -58,6 +58,7 @@ module Contents = struct
 
   let hash = H.hash
   let magic = 'B'
+  let weight _ = 1
   let encode_triple = Irmin.Type.(unstage (encode_bin (triple H.t char t)))
   let decode_triple = Irmin.Type.(unstage (decode_bin (triple H.t char t)))
   let length_header = Fun.const (Some `Varint)

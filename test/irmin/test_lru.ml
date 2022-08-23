@@ -55,7 +55,7 @@ let apply t = function Add (k, v) -> M.add t k v | Clear -> M.clear t
 let apply' t = function Add (k, v) -> M'.replace t k v | Clear -> M'.clear t
 
 let run_aux create apply t =
-  let state = create 100 in
+  let state = create () in
   let rec aux = function
     | [] -> ()
     | h :: rest ->
@@ -65,14 +65,24 @@ let run_aux create apply t =
   aux t;
   state
 
-let run = run_aux M.create apply
-let run' = run_aux M'.create apply'
+let run = run_aux (fun () -> M.create 100) apply
+let run' = run_aux (fun () -> M'.create 100) apply'
 let eq m m' = M.bindings m = M'.bindings m'
 let arbitrary_action = QCheck.make gen_action ~print:print_action
 
-let test =
+let test_map =
   QCheck.Test.make ~name:"Maps" ~count:10_000
     QCheck.(list arbitrary_action)
     (fun t -> eq (run t) (run' t))
 
-let suite = [ QCheck_alcotest.to_alcotest test ]
+let test_weight =
+  QCheck.Test.make ~name:"Weights" ~count:10_000
+    QCheck.(list arbitrary_action)
+    (fun t ->
+      let cap = 5 in
+      let tbl = run_aux (fun () -> M.create ~weight:(fun k -> k) cap) apply t in
+      let elts = M.bindings tbl in
+      let w = List.fold_left (fun acc (_, v) -> acc + v) 0 elts in
+      w <= cap)
+
+let suite = List.map QCheck_alcotest.to_alcotest [ test_map; test_weight ]

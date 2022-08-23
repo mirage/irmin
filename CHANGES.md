@@ -39,6 +39,8 @@
     demonstration of usage.
   - Add a consistency check for the files on disk when opening store (#2004,
   @icristescu)
+  - Add a `weight` parameter in the LRU implementation to bound
+    memory usage (#2050, @samoht)
 
 ### Changed
 

@@ -32,6 +32,9 @@ module type S = sig
   (** Describes the length header formats for the {i data} sections of pack
       entries. *)
 
+  val weight : t -> int
+  (** [weight t] is the [t]'s LRU weight. *)
+
   val encode_bin :
     dict:(string -> int option) ->
     offset_of_key:(key -> int63 option) ->

@@ -94,7 +94,13 @@ struct
     let indexing_strategy = Conf.indexing_strategy config in
     let lru_size = Conf.lru_size config in
     let staging = Tbl.create 127 in
-    let lru = Lru.create lru_size in
+    let weight v =
+      (* if a value is bigger than 10% of the total capacity,
+         we skip it by giving it a large weight. *)
+      let w = Val.weight v in
+      if w > lru_size / 10 then max_int else w
+    in
+    let lru = Lru.create ~weight lru_size in
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
     { lru; staging; indexing_strategy; fm; dict; dispatcher }
 

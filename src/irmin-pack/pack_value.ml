@@ -117,7 +117,7 @@ module Of_contents
 struct
   module Hash = Irmin.Hash.Typed (Hash) (Data)
 
-  type t = Data.t [@@deriving irmin]
+  type t = Data.t [@@deriving irmin ~size_of]
   type key = Key.t
   type hash = Hash.t
 
@@ -137,6 +137,18 @@ struct
 
   let decode_bin_length = get_dynamic_sizer_exn value
   let kind _ = kind
+
+  let weight =
+    (* Normalise the weight of the blob, assuming that the 'average'
+       size for a blob is 1k bytes. *)
+    let normalise n = max 1 (n / 1_000) in
+    match Irmin.Type.Size.of_value t with
+    | Unknown ->
+        (* this should not happen unless the user has specified a very
+           weird content type. *)
+        Fun.const max_int
+    | Dynamic f -> fun v -> normalise (f v)
+    | Static n -> Fun.const (normalise n)
 end
 
 module Of_commit
@@ -154,6 +166,7 @@ struct
 
   let hash = Hash.hash
   let kind _ = Kind.Commit_v2
+  let weight _ = 1
 
   (* A commit implementation that uses integer offsets for addresses where possible. *)
   module Commit_direct = struct
