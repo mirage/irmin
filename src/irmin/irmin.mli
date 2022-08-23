@@ -128,6 +128,7 @@ module Contents = Contents
 module Branch = Branch
 module Node = Node
 module Commit = Commit
+module Key = Key
 
 type remote = Remote.t = ..
 (** The type for remote stores. *)
@@ -155,10 +156,17 @@ module Backend : sig
   module Remote = Remote
 
   module type S = Backend.S
-  (** The complete collection of backend implementations. *)
+  (** The modules that define a complete Irmin backend. Apply an implementation
+      to {!Of_backend} to create an Irmin store. *)
 end
 
-module Key = Key
+module Storage = Storage
+(** [Storage] provides {!Storage.Make} for defining a custom storage layer that
+    can be used to create Irmin stores. Unlike {!Backend.S}, an implementation
+    of {!Storage.Make} is only concerned with storing and retrieving keys and
+    values. It can be used to create stores for {!Backend.S} through something
+    like {!Storage.Content_addressable} or, primarily, with {!Of_storage} to
+    automatically construct an Irmin store. *)
 
 (** {1 High-level Stores}
 
@@ -199,17 +207,16 @@ module Schema = Schema
 (** Store schemas *)
 
 (** [Maker] is the signature exposed by any backend providing {!S}
-    implementations. [M] is the implementation of user-defined metadata, [C] is
-    the one for user-defined contents, [B] is the implementation for branches
-    and [H] is the implementation for object (blobs, trees, commits) hashes. It
-    does not use any native synchronization primitives. *)
+    implementations. {!Maker.Make} is parameterised by {!Schema.S}. It does not
+    use any native synchronization primitives. *)
 module type Maker = sig
   include Store.Maker
   (** @inline *)
 end
 
 (** [KV_maker] is like {!Maker} but where everything except the contents is
-    replaced by sensible default implementations. *)
+    replaced by sensible default implementations. {!KV_maker.Make} is
+    parameterised by {!Contents.S} *)
 module type KV_maker = sig
   include Store.KV_maker
   (** @inline *)
@@ -462,32 +469,34 @@ module Dot (S : Generic_key.S) : Dot.S with type db = S.t
     either a concrete implementation of {!S} or a functor providing {!S} once
     applied.
 
-    There are two ways to create a concrete {!Irmin.S} implementation:
+    Ways to create a concrete {!Irmin.S} implementation:
 
-    - {!Make} creates a store where all the objects are stored in the same
-      store, using the same internal keys format and a custom binary format
-      based on {{:https://github.com/janestreet/bin_prot} bin_prot}, with no
-      native synchronization primitives: it is usually what is needed to quickly
-      create a new backend.
-    - {!Make_ext} creates a store with a {e deep} embedding of each of the
-      internal stores into separate store, with total control over the binary
-      format and using the native synchronization protocols when available. *)
+    - Define a {!Storage.Make} for a custom storage layer and apply to
+      {!Of_storage} along with desired {!Hash.S} and {!Contents.S}.
+    - Define a {!Backend.S} and apply to {!Of_backend}.
+    - Define a {!Content_addressable.Maker} for an object store and a
+      {!Atomic_write.Maker} for a reference store. Apply to {!module-Maker} and
+      call {!Maker.Make} with a defined {!Schema.S} or apply to
+      {!module-KV_maker} and call {!KV_maker.Make} with the desired
+      {!Contents.S}. *)
 
-(** Simple store creator. Use the same type of all of the internal keys and
-    store all the values in the same store. *)
+(** [Maker] uses the same type for all internal keys and store all the values in
+    the same store. *)
 module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
   Maker with type endpoint = unit
 
+(** [KV_maker] is like {!module-Maker} but uses sensible default implementations
+    for everything except the contents type. *)
 module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
   KV_maker with type endpoint = unit and type metadata = unit
 
-module Storage = Storage
-
-(** Key-value store creator using {!Storage.Make}. *)
+(** [Of_storage] uses a custom storage layer and chosen hash and contents type
+    to create a key-value store. *)
 module Of_storage (M : Storage.Make) (H : Hash.S) (V : Contents.S) :
   KV with type hash = H.t and module Schema.Contents = V
 
-(** Advanced store creator. *)
+(** [Of_backend] gives full control over store creation through definining a
+    {!Backend.S}. *)
 module Of_backend (B : Backend.S) :
   Generic_key.S
     with module Schema = B.Schema
