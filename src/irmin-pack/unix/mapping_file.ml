@@ -381,8 +381,6 @@ module Make (Io : Io.S) = struct
     let register_entry ~off ~len =
       (* Write [off, len] in native-endian encoding because it will be read
          with mmap. *)
-      (* if Int63.to_int off < 500 then
-       *   Fmt.epr "register_entry < 500: %d %d\n%!" (Int63.to_int off) len; *)
       let buffer = Bytes.create 16 in
       Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
       Bytes.set_int64_ne buffer 8 (Int64.of_int len);
@@ -446,10 +444,17 @@ module Make (Io : Io.S) = struct
   let conv_int64 : int64 -> int =
    fun i ->
     (if Sys.big_endian then (
-     (* We set [buf] to contain exactly what is stored on disk. Since the current
-        platform is BE, we've interpreted what was written on disk using a BE
-        decoding scheme. To do the opposite operation we must use a BE encoding
-        scheme, hence [set_int64_be]. *)
+     (* We are currently on a BE platform but the ints are encoded as LE in the
+        file. We've just read a LE int using a BE decoding scheme. Let's fix
+        this.
+
+        The first step is to set [buf] to contain exactly what is stored on
+        disk. Since the current platform is BE, we've interpreted what was
+        written on disk using a BE decoding scheme. To do the opposite operation
+        we must use a BE encoding scheme, hence [set_int64_be].
+
+        Now that [buf] mimics what was on disk, the second step consist of
+        decoding it using a LE function, hence [get_int64_le]. *)
      let buf = Bytes.create 8 in
      Bytes.set_int64_be buf 0 i;
      Bytes.get_int64_le buf 0)

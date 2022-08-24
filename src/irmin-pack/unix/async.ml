@@ -18,31 +18,29 @@ open! Import
 include Async_intf
 
 module Unix = struct
-  (** [Exit] is a stack of PIDs to kill [at_exit]. *)
+  let kill_no_err pid =
+    try Unix.kill pid 9
+    with Unix.Unix_error (e, s1, s2) ->
+      [%log.warn
+        "Killing process with pid %d failed with error (%s, %s, %s)" pid
+          (Unix.error_message e) s1 s2]
+
+  (** [Exit] is a stack of PIDs that will be killed [at_exit]. *)
   module Exit = struct
     let proc_list = ref []
     let m = Mutex.create ()
 
-    let add gc =
+    let add pid =
       Mutex.lock m;
-      proc_list := gc :: !proc_list;
+      proc_list := pid :: !proc_list;
       Mutex.unlock m
 
-    let remove gc =
+    let remove pid =
       Mutex.lock m;
-      proc_list := List.filter (fun gc' -> gc <> gc') !proc_list;
+      proc_list := List.filter (fun pid' -> pid <> pid') !proc_list;
       Mutex.unlock m
 
-    let () =
-      at_exit @@ fun () ->
-      List.iter
-        (fun gc ->
-          try Unix.kill gc 9
-          with Unix.Unix_error (e, s1, s2) ->
-            [%log.warn
-              "Killing gc process with pid %d failed with error (%s, %s, %s)" gc
-                (Unix.error_message e) s1 s2])
-        !proc_list
+    let () = at_exit @@ fun () -> List.iter kill_no_err !proc_list
   end
 
   type outcome = [ `Success | `Cancelled | `Failure of string ]
@@ -63,9 +61,9 @@ module Unix = struct
          with e ->
            [%log.err
              "Unhandled exception in child process %s" (Printexc.to_string e)]);
-        (* Once the gc is finished, the child process kills itself to
-           avoid calling at_exit functions and avoir executing the rest
-           of the call stack. *)
+        (* Once finished, the child process kills itself to avoid calling
+           at_exit functions and also to avoid executing the rest of the call
+           stack (this would typically be a problem with alcotest). *)
         Unix.kill (Unix.getpid ()) 9;
         assert false (* unreachable *)
     | pid ->
@@ -88,8 +86,8 @@ module Unix = struct
       | `Running ->
           let pid, _ = Unix.waitpid [ Unix.WNOHANG ] t.pid in
           if pid = 0 then (
-            (* Child process is still running *)
-            Unix.kill t.pid 9;
+            (* Child process is still running. *)
+            kill_no_err t.pid;
             Exit.remove t.pid)
       | _ -> ()
     in
