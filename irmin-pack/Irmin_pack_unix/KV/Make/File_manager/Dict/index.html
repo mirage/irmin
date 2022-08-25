@@ -3,32 +3,32 @@
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>overwrite:bool <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_threshold:int <span class="arrow">&#45;&gt;</span></span>
-  <span>auto_flush_callback:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>auto_flush_callback:<span>( <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
   <span><span>( <a href="#type-t">t</a>, <span>[&gt; <a href="Io/index.html#type-create_error">Io.create_error</a> ]</span> )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-open_rw" class="anchored"><a href="#val-open_rw" class="anchor"></a><code><span><span class="keyword">val</span> open_rw : 
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>end_offset:<span class="xref-unresolved">Optint</span>.Int63.t <span class="arrow">&#45;&gt;</span></span>
   <span>dead_header_size:int <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_threshold:int <span class="arrow">&#45;&gt;</span></span>
-  <span>auto_flush_callback:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>auto_flush_callback:<span>( <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
   <span><span>( <a href="#type-t">t</a>,
-    <span>[&gt; `Inconsistent_store
+    <span>[&gt; `Closed
+    <span>| `Inconsistent_store</span>
     <span>| `Invalid_argument</span>
     <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
     <span>| `No_such_file_or_directory</span>
     <span>| `Not_a_file</span>
-    <span>| `Read_on_closed</span>
     <span>| `Read_out_of_bounds</span> ]</span> )</span>
     <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-open_ro" class="anchored"><a href="#val-open_ro" class="anchor"></a><code><span><span class="keyword">val</span> open_ro : 
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>end_offset:<span class="xref-unresolved">Optint</span>.Int63.t <span class="arrow">&#45;&gt;</span></span>
   <span>dead_header_size:int <span class="arrow">&#45;&gt;</span></span>
   <span><span>( <a href="#type-t">t</a>,
-    <span>[&gt; `Inconsistent_store
+    <span>[&gt; `Closed
+    <span>| `Inconsistent_store</span>
     <span>| `Invalid_argument</span>
     <span><span>| `Io_misc</span> of <a href="Io/index.html#type-misc_error">Io.misc_error</a></span>
     <span>| `No_such_file_or_directory</span>
     <span>| `Not_a_file</span>
-    <span>| `Read_on_closed</span>
     <span>| `Read_out_of_bounds</span> ]</span> )</span>
     <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value" id="val-close" class="anchored"><a href="#val-close" class="anchor"></a><code><span><span class="keyword">val</span> close : 
   <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>

@@ -3,16 +3,16 @@
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>overwrite:bool <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_threshold:int <span class="arrow">&#45;&gt;</span></span>
-  <span>auto_flush_callback:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>auto_flush_callback:<span>( <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
   <span><span>( <a href="#type-t">t</a>, <span>[&gt; <a href="Io/index.html#type-create_error">Io.create_error</a> ]</span> )</span> <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div><div class="spec-doc"><p>Create a rw instance of <code>t</code> by creating the file.</p></div></div><div class="odoc-spec"><div class="spec value" id="val-open_rw" class="anchored"><a href="#val-open_rw" class="anchor"></a><code><span><span class="keyword">val</span> open_rw : 
   <span>path:string <span class="arrow">&#45;&gt;</span></span>
   <span>end_offset:<span class="xref-unresolved">Optint</span>.Int63.t <span class="arrow">&#45;&gt;</span></span>
   <span>dead_header_size:int <span class="arrow">&#45;&gt;</span></span>
   <span>auto_flush_threshold:int <span class="arrow">&#45;&gt;</span></span>
-  <span>auto_flush_callback:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>auto_flush_callback:<span>( <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span> unit )</span> <span class="arrow">&#45;&gt;</span></span>
   <span><span>( <a href="#type-t">t</a>,
     <span>[&gt; <a href="Io/index.html#type-open_error">Io.open_error</a>
-    <span>| `Read_on_closed</span>
+    <span>| `Closed</span>
     <span>| `Invalid_argument</span>
     <span>| `Read_out_of_bounds</span>
     <span>| `Inconsistent_store</span> ]</span> )</span>
@@ -22,7 +22,7 @@
   <span>dead_header_size:int <span class="arrow">&#45;&gt;</span></span>
   <span><span>( <a href="#type-t">t</a>,
     <span>[&gt; <a href="Io/index.html#type-open_error">Io.open_error</a>
-    <span>| `Read_on_closed</span>
+    <span>| `Closed</span>
     <span>| `Inconsistent_store</span>
     <span>| `Invalid_argument</span>
     <span>| `Read_out_of_bounds</span> ]</span> )</span>
