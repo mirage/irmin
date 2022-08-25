@@ -23,8 +23,9 @@
 - **irmin-pack**
   - Add a garbage collection feature, allowing a user to discard commits older
     than a specified commit.  This feature is only enabled for stores that use
-    `Indexing_strategy.minimal`. See `examples/gc.ml` for a demonstration of
-    usage.
+    `Indexing_strategy.minimal`. The primary API is `Store.Gc.run`,
+    `Store.Gc.wait`, and `Store.Gc.is_finished`. See `examples/gc.ml` for a
+    demonstration of usage.
   - Add a consistency check for the files on disk when opening store (#2004,
   @icristescu)
 
