@@ -23,7 +23,7 @@ let tree_t leaf_t =
   mu (fun tree_t ->
       variant "tree" (fun branch leaf -> function
           | Branch (x1, x2, x3) -> branch (x1, x2, x3)
-          | Leaf   (x1, x2)     -> leaf (x1, x2))
+          | Leaf   x1           -> leaf x1
       |~ case1 "Branch" (triple tree_t (option bool) tree_t) (fun (x1, x2, x3) -> Branch (x1, x2, x3))
       |~ case1 "Leaf"   leaf_t                               (fun x1 -> Leaf x1)
       |> sealv)
