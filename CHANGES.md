@@ -21,7 +21,10 @@
   - Add new package for `irmin` command-line tool (#1951, @metanivek)
 
 - **irmin-pack**
-  - Add a GC (TODO)
+  - Add a garbage collection feature, allowing a user to discard commits older
+    than a specified commit.  This feature is only enabled for stores that use
+    `Indexing_strategy.minimal`. See `examples/gc.ml` for a demonstration of
+    usage.
   - Add a consistency check for the files on disk when opening store (#2004,
   @icristescu)
 
