@@ -20,7 +20,7 @@ depends: [
   "index"        {>= "1.6.0"}
   "fmt"
   "logs"
-  "lwt"          {>= "5.3.0"}
+  "lwt"          {>= "5.4.0"}
   "mtime"
   "cmdliner"
   "optint"       {>= "0.1.0"}
