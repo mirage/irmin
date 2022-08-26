@@ -146,6 +146,8 @@ tags and re-perform the required release steps:
 ```sh
 ; git tag -d X.Y.Z                        #  Erase git tag locally
 ; git push -d upstream X.Y.Z              #  Erase git tag on GitHib
+
+; dune-release tag                        #  Re-create tag
 ; dune-release distrib --skip-tests
 ; dune-release publish distrib --verbose
 ; dune-release publish doc --verbose      # ... if necessary
