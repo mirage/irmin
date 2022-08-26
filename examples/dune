@@ -41,7 +41,7 @@
 
 (alias
  (name runtest)
- (package irmin-git)
+ (package irmin-cli)
  (deps
   readme.exe
   trees.exe
