@@ -30,6 +30,7 @@ depends: [
   "lwt"             {>= "5.3.0"}
   "uri"
   "irmin-git"       {with-test & = version}
+  "irmin-fs"        {with-test & = version}
   "irmin-test"      {with-test & = version}
   "git-unix"        {with-test & >= "3.5.0"}
   "digestif"        {with-test & >= "0.9.0"}
