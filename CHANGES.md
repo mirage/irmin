@@ -1,3 +1,14 @@
+## Unreleased
+
+### Added
+
+- **irmin**
+  - Add `Storage` module for creating custom storage layers (#2047, @metanivek)
+  
+### Changed
+
+### Fixed
+
 ## 3.4.0 (2022-08-25)
 
 ### Added
