@@ -94,7 +94,10 @@ module Make
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
     (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info) :
-  S with type repo = Store.repo and type server = Server.t
+  S
+    with type repo = Store.repo
+     and type server = Server.t
+     and module IO = Server.IO
 
 (** Create a GraphQL server with custom GraphQL types. *)
 module Make_ext
@@ -110,4 +113,7 @@ module Make_ext
                 and type commit_key := Store.commit_key
                 and type contents_key := Store.contents_key
                 and type node_key := Store.node_key) :
-  S with type repo = Store.repo and type server = Server.t
+  S
+    with type repo = Store.repo
+     and type server = Server.t
+     and module IO = Server.IO
