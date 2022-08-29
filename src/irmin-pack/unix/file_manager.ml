@@ -136,9 +136,7 @@ struct
           | From_v1_v2_post_upgrade _ -> pl.status
           | From_v3_gced _ -> pl.status
           | From_v3_no_gc_yet ->
-              (* Using physical equality to test which indexing_strategy
-                 we are using. Might not be great in the long term. *)
-              if t.indexing_strategy == Irmin_pack.Indexing_strategy.minimal
+              if Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy
               then pl.status
               else (
                 [%log.warn
@@ -207,7 +205,7 @@ struct
     let open Result_syntax in
     let* prefix1 =
       let path = Irmin_pack.Layout.V3.prefix ~root:t.root ~generation in
-      [%log.debug "reload: generation changed, opening %s" path];
+      [%log.debug "reload: opening %s" path];
       Prefix.open_ ~readonly:true ~path
     in
     let prefix0 = t.prefix in
@@ -225,7 +223,7 @@ struct
     let open Result_syntax in
     let root = t.root in
     let* mapping = open_mapping ~root ~generation in
-    [%log.debug "reload: generation %d; root %s" generation root];
+    [%log.debug "reload: opening %s" root];
     t.mapping <- mapping;
     Ok ()
 
@@ -363,16 +361,17 @@ struct
 
   let reload ?hook t =
     let open Result_syntax in
+    (* Step 1. Reread index *)
     let* () = Index.reload t.index in
     (match hook with Some h -> h `After_index | None -> ());
     let pl0 = Control.payload t.control in
+    (* Step 2. Reread control file *)
     let* () = Control.reload t.control in
     (match hook with Some h -> h `After_control | None -> ());
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
-      (* Check if generation changed. If it did, reopen suffix, prefix and
-         mapping. *)
+      (* Step 3. Reopen files if generation changed. *)
       let* () =
         let gen0 = generation pl0.status in
         let gen1 = generation pl1.status in
@@ -384,13 +383,13 @@ struct
           let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
       in
-      (* Update end offsets. This prevents the readonly instance to read data
-         flushed to disk by the readwrite, between calls to reload. *)
+      (* Step 4. Update end offsets *)
       let* () =
         Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
       in
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
+      (* Step 5. Notify the dict consumers that they must reload *)
       let* () =
         let res =
           List.fold_left
@@ -401,6 +400,7 @@ struct
            [read_error] to [ [>read_error] ]. *)
         match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
       in
+      (* Step 6. Notify the mapping consumers that they must reload *)
       let* () =
         let res =
           List.fold_left
@@ -457,9 +457,7 @@ struct
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
       | From_v3_gced _ ->
           let indexing_strategy = Conf.indexing_strategy config in
-          (* Using physical equality to test which indexing_strategy
-             we are using. Might not be great in the long term. *)
-          if indexing_strategy == Irmin_pack.Indexing_strategy.minimal then Ok 0
+          if Irmin_pack.Indexing_strategy.is_minimal indexing_strategy then Ok 0
           else Error `Only_minimal_indexing_strategy_allowed
       | From_v3_no_gc_yet | From_v3_used_non_minimal_indexing_strategy -> Ok 0
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
@@ -479,8 +477,6 @@ struct
     in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
 
-  let decode_int63 buf = Int63.decode ~off:0 buf
-
   let read_offset_from_legacy_file path =
     let open Result_syntax in
     (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
@@ -489,7 +485,7 @@ struct
         Io.close io |> Errs.log_if_error "FM: read_offset_from_legacy_file")
     @@ fun () ->
     let* s = Io.read_to_string io ~off:Int63.zero ~len:8 in
-    let x = decode_int63 s in
+    let x = Int63.decode ~off:0 s in
     Ok x
 
   let read_version_from_legacy_file path =
@@ -532,8 +528,7 @@ struct
     let root = Irmin_pack.Conf.root config in
     let suffix_path = Irmin_pack.Layout.V1_and_v2.pack ~root in
     match Io.classify_path suffix_path with
-    | `Directory -> Error `Invalid_layout
-    | `No_such_file_or_directory | `Other -> Error `Invalid_layout
+    | `Directory | `No_such_file_or_directory | `Other -> Error `Invalid_layout
     | `File -> open_rw_migrate_from_v1_v2 config
 
   let open_rw config =
@@ -564,10 +559,12 @@ struct
       Control.open_ ~readonly:true ~path
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
-           | `No_such_file_or_directory ->
+           | `No_such_file_or_directory -> (
                let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
-               if Io.classify_path pack = `File then `Migration_needed
-               else `No_such_file_or_directory
+               match Io.classify_path pack with
+               | `File -> `Migration_needed
+               | `No_such_file_or_directory -> `No_such_file_or_directory
+               | `Directory | `Other -> `Invalid_layout)
            | error -> error)
     in
     let pl : Payload.t = Control.payload control in
@@ -657,13 +654,16 @@ struct
         (Int63.to_int right_start_offset)
         (Int63.to_int right_end_offset)];
     let c0 = Mtime_clock.counter () in
+
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
-    (* When opening the suffix in append_only we need to provide a (real) suffix
-       offset, computed from the global ones. *)
-    let open Int63.Syntax in
-    let suffix_end_offset = right_end_offset - right_start_offset in
+    (* Opening the suffix requires passing it its length. We compute it from the
+       global offsets *)
+    let suffix_end_offset =
+      let open Int63.Syntax in
+      right_end_offset - right_start_offset
+    in
     let* () = reopen_suffix t ~generation ~end_offset:suffix_end_offset in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
@@ -685,7 +685,6 @@ struct
       let pl = Control.payload t.control in
       let pl =
         let open Payload in
-        (* [swap] will logically only be called while in one of the 2 statuses. *)
         let status =
           match pl.status with
           | From_v1_v2_post_upgrade _ -> assert false
@@ -732,12 +731,9 @@ struct
       let* () = Io.close io in
       Ok string
     in
-    match read_file () with
-    | Error err -> Error (`Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err))
-    | Ok x ->
-        Errs.of_json_string x
-        |> Result.map_error (fun err ->
-               `Gc_process_error (Fmt.str "%a" Errs.pp err))
+    let wrap_error err = `Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err) in
+    let* s = read_file () |> Result.map_error wrap_error in
+    Errs.of_json_string s |> Result.map_error wrap_error
 
   let readonly t = Suffix.readonly t.suffix
 

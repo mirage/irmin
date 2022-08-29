@@ -28,10 +28,6 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Errs = Fm.Errs
   module Control = Fm.Control
 
-  let read_suffix = ref 0
-  let read_prefix = ref 0
-  (*TODO move them in stats*)
-
   type t = { fm : Fm.t; root : string }
 
   let v ~root fm =
@@ -146,7 +142,6 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let open Int63.Syntax in
     let entry_offset_suffix_start = entry_offset_suffix_start t in
     if off >= entry_offset_suffix_start then (
-      incr read_suffix;
       let suffix_off = suffix_off_of_offset t off in
       try Suffix.read_exn (Fm.suffix t.fm) ~off:suffix_off ~len buf
       with e ->
@@ -158,13 +153,12 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
           (to_int @@ end_offset t);
         Fmt.epr "\n%!";
         raise e)
-    else (
-      incr read_prefix;
+    else
       let mapping = get_mapping t.fm in
       let poff = poff_of_entry_exn mapping ~off ~len in
       let prefix = get_prefix t.fm in
       Io.read_exn prefix ~off:poff ~len buf;
-      ())
+      ()
 
   let read_in_prefix_and_suffix_exn t ~off ~len buf =
     let ( -- ) a b = a - b in

@@ -20,9 +20,43 @@ module type S = sig
   (** Abstraction that governs the lifetime of the various files that are part
       of a pack store (except the branch store).
 
-      The file manager handles the files one by one and makes explicit all the
-      interactions between them (except the index which is handled at a high
-      level). *)
+      The file manager (FM) handles the files one by one and makes explicit all
+      the interactions between them (except the index which is handled from a
+      high level API). This allows to gain confidence on SWMR consistency and
+      crash consistency.
+
+      {2 Two types of guarantees}
+
+      Irmin_pack_unix supports the SWMR access scheme. It means that it is
+      undefined for the files to be opened twice in RW mode by 2 FMs. It also
+      means that it is undefined for a FM in RW mode to be used simultaneously
+      from 2 different fibers.
+
+      Irmin_pack_unix aims to be (crash) consistent (in the ACID sense). In case
+      of a system failure (e.g. power outage), the files should be left in a
+      consistent state for later uses.
+
+      Ensuring SWMR consistency is easier than ensuring crash consistency
+      because the of the OS's shared page cache.
+
+      {2 Files mutations}
+
+      Here are all the moments where the files managed may be mutated:
+
+      - 1. During [create_rw].
+      - 2. During [open_rw] if a major version upgrade is necessary.
+      - 3. During the flush routines in file_manager.
+      - 4. During a GC, from the worker.
+      - 5. At the end of a GC, from the RW fiber, in [swap].
+      - 6. During integrity check routines.
+
+      1. 2. and 6. don't support SWMR and leave the store in an undefined state
+      in case of crash.
+
+      4. operates on files private to the worker. It doesn't necessitate to
+      worry about crash concistency and SWMR.
+
+      3. and 5. are highly critical. *)
 
   module Io : Io.S
   module Control : Control_file.S with module Io = Io
@@ -33,6 +67,8 @@ module type S = sig
   module Mapping_file : Mapping_file.S with module Io = Io
 
   type t
+
+  (** A series of getters to the underlying files managed. *)
 
   val control : t -> Control.t
   val dict : t -> Dict.t
@@ -52,7 +88,9 @@ module type S = sig
 
   val create_rw :
     overwrite:bool -> Irmin.Backend.Conf.t -> (t, [> create_error ]) result
-  (** Note on SWMR consistency: It is undefined for a reader to attempt an
+  (** Create a rw instance of [t] by creating the files.
+
+      Note on SWMR consistency: It is undefined for a reader to attempt an
       opening before [create_rw] is over.
 
       Note on crash consistency: Crashing during [create_rw] leaves the storage
@@ -86,22 +124,28 @@ module type S = sig
     | `Inconsistent_store ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
-  (** Note on SWMR consistency: It is undefined for a reader to attempt and
-      opening during an [open_rw].
+  (** Create a rw instance of [t] by opening existing files.
 
-      Note on crash consistency: If [open_rw] crashes during
-      [open_rw_migrate_from_v1_v2], the storage is left in an undefined state.
-      Otherwise the storage is unaffected.
+      If the pack store has already been garbage collected, opening with a
+      non-minimal indexing strategy will return an error.
 
-      Note on errors: If [open_rw] returns an error during
-      [open_rw_migrate_from_v1_v2], the storage is left in an undefined state.
-      Otherwise the storage is unaffected. Anyhow, some file descriptors might
-      not be closed. *)
+      If [no_migrate = false] in the config, the store will undergo a major
+      version upgrade if necessary.
+
+      Note on SWMR consistency: It is undefined for a reader to attempt an
+      opening during an [open_rw], because of major version upgrades.
+
+      Note on crash consistency: If [open_rw] crashes during a major version
+      upgrade, the storage is left in an undefined state. Otherwise the storage
+      is unaffected.
+
+      Note on errors: If [open_rw] returns an error during a major version
+      upgrade, the storage is left in an undefined state. Otherwise the storage
+      is unaffected. Anyhow, some file descriptors might not be closed. *)
 
   type open_ro_error :=
     [ `Corrupted_control_file
     | `Corrupted_mapping_file of string
-    | `File_exists of string
     | `Io_misc of Io.misc_error
     | `Migration_needed
     | `No_such_file_or_directory
@@ -113,12 +157,18 @@ module type S = sig
     | `Inconsistent_store
     | `Invalid_argument
     | `Read_out_of_bounds
-    | `Ro_not_allowed ]
+    | `Invalid_layout ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
-  (** Note on SWMR consistency: TODO: doc
+  (** Create a ro instance of [t] by opening existing files.
 
-      Note on crash consistency: The storage is never mutated.
+      Note on SWMR consistency: [open_ro] is supposed to work whichever the
+      state of the pack store and the writer, with 2 exceptions: 1. the files
+      must exist and [create_rw] must be over and 2. during a major version
+      upgrade of the files (which occurs during a [open_rw]).
+
+      Note on crash consistency: Crashes during [open_ro] cause no issues
+      because it doesn't mutate the storage.
 
       Note on errors: The storage is never mutated. Some file descriptors might
       not be closed. *)
@@ -135,9 +185,7 @@ module type S = sig
 
       This call fails if the append buffers are not in a flushed stated. This
       situation will most likely never occur because the append buffers will
-      contain data only during the scope of a batch function.
-
-      After *)
+      contain data only during the scope of a batch function. *)
 
   type flush_error :=
     [ `Index_failure of string
@@ -149,10 +197,15 @@ module type S = sig
   type 'a hook := 'a -> unit
 
   val flush : ?hook:flush_stages hook -> t -> (unit, [> flush_error ]) result
+  (** Execute the flush routine. Note that this routine may be automatically
+      triggered when buffers are filled. *)
 
   type reload_stages := [ `After_index | `After_control | `After_suffix ]
 
   val reload : ?hook:reload_stages hook -> t -> (unit, [> Errs.t ]) result
+  (** Execute the reload routine.
+
+      Is a no-op if the control file did not change. *)
 
   val register_mapping_consumer :
     t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
@@ -172,7 +225,7 @@ module type S = sig
     | `Unknown_major_pack_version of string ]
 
   val version : root:string -> (Import.Version.t, [> version_error ]) result
-  (** [version ~root] is the version of the files at [root]. *)
+  (** [version ~root] is the version of the pack stores at [root]. *)
 
   val swap :
     t ->
@@ -180,6 +233,9 @@ module type S = sig
     right_start_offset:int63 ->
     right_end_offset:int63 ->
     (unit, [> Errs.t ]) result
+  (** Swaps to using files from the GC [generation]. The offsets
+      [right_start_offset] and [right_end_offset] are used to properly load the
+      suffix. The control file is also updated. *)
 
   type write_gc_output_error :=
     [ `Double_close
@@ -194,7 +250,7 @@ module type S = sig
     (int63, Errs.t) result ->
     (unit, [> write_gc_output_error ]) result
   (** Used by the gc process at the end to write its output in
-      store.<generation>.out. *)
+      [store.<generation>.out]. *)
 
   type read_gc_output_error =
     [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
@@ -203,7 +259,7 @@ module type S = sig
   val read_gc_output :
     root:string -> generation:int -> (int63, [> read_gc_output_error ]) result
   (** Used by the main process, after the gc process finished, to read
-      store.<generation>.out. *)
+      [store.<generation>.out]. *)
 
   val readonly : t -> bool
   val generation : t -> int

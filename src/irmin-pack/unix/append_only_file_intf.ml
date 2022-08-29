@@ -23,7 +23,7 @@ module type S = sig
       mirage, eio_linux).
 
       It comprises a persistent file, an append buffer and take care of
-      automatically shifting offsets to deal with legacy headers. *)
+      automatically shifting offsets to deal with legacy file headers. *)
 
   module Io : Io.S
 
@@ -35,7 +35,7 @@ module type S = sig
     auto_flush_threshold:int ->
     auto_flush_callback:(t -> unit) ->
     (t, [> Io.create_error ]) result
-  (** Create a rw instance of [t] by creating the file. *)
+  (** Create a rw instance of [t] by creating the file at [path]. *)
 
   val open_rw :
     path:string ->
@@ -73,11 +73,11 @@ module type S = sig
 
       {3 Auto Flushes}
 
-      One of the goal of the [Append_only_file] abstraction is to provide
+      One of the goals of the [Append_only_file] abstraction is to provide
       buffered appends. [auto_flush_threshold] is the soft cap after which the
       buffer should be flushed. If a call to [append_exn] fills the buffer,
       [auto_flush_callback] will be called so that the parent abstraction takes
-      care of the flush procedure. *)
+      care of the flush procedure, which is expected to call [flush]. *)
 
   val open_ro :
     path:string ->
@@ -117,21 +117,25 @@ module type S = sig
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** [read_exn t ~off ~len b] puts the [len] bytes of [t] at [off] to [b].
 
-      Raises [Io.Read_error]
+      [read_to_string] should always be favored over [read_exn], except when
+      performences matter.
+
+      It is not possible to read from an offset further than [end_offset t].
+
+      Raises [Io.Read_error] and [Errors.Pack_error `Read_out_of_bounds].
 
       {3 RW mode}
 
       Attempting to read from the append buffer results in an
       [`Read_out_of_bounds] error. This feature could easily be implemented in
-      the future if ever needed. It was not needed with io_legacy.
-
-      {3 RO mode}
-
-      It is not possible to read from an offset further than [end_offset t]. *)
+      the future if ever needed. It was not needed with io_legacy. *)
 
   val append_exn : t -> string -> unit
   (** [append_exn t ~off b] writes [b] to the end of [t]. Might trigger an auto
       flush.
+
+      Grows [end_offset], but the parent abstraction is expected to persist this
+      somewhere (e.g. in the control file).
 
       Post-condition: [end_offset t - end_offset (old t) = String.length b].
 
@@ -139,7 +143,7 @@ module type S = sig
 
       {3 RW mode}
 
-      Always raises [Io.Write_error `Ro_not_allowed] *)
+      Always raises [Errors.RO_not_allowed] *)
 
   val flush : t -> (unit, [> Io.write_error ]) result
   (** Flush the append buffer. Does not call [fsync].
@@ -156,7 +160,8 @@ module type S = sig
       Always returns [Error `Ro_not_allowed]. *)
 
   val refresh_end_offset : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
-  (** Ingest the new end offset of the file.
+  (** Ingest the new end offset of the file. Typically happens in RO mode when
+      the control file has been re-read.
 
       {3 RW mode}
 

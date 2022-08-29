@@ -18,7 +18,14 @@ open! Import
 
 module type S = sig
   type t
-  (** A mapping file is a map from global offsets to prefix offsets. *)
+  (** A mapping file is a collection of chunks which contain 3 integers. A
+      length, the global offset ([off]) of the chunk and the offset of the chunk
+      in the prefix file ([poff]).
+
+      The chunks have consecutive [poff] with respect to their lengths.
+
+      There is no need to close a [t] because its underlying file-descriptor is
+      always closed. *)
 
   module Io : Io.S
   module Errs : Io_errors.S with module Io = Io
@@ -44,7 +51,7 @@ module type S = sig
       returns. *)
 
   val open_map : root:string -> generation:int -> (t, [> open_error ]) result
-  (** [open_map ~root ~generation] opens a mapping file reading. *)
+  (** [open_map ~root ~generation] opens a mapping file. *)
 
   val iter : t -> (off:int63 -> len:int -> unit) -> (unit, [> Errs.t ]) result
   (** [iter mapping f] calls [f] on each [(off,len)] pair in [mapping].

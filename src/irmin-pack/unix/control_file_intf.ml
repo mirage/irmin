@@ -37,13 +37,15 @@ module Payload_v3 = struct
       [`V3]. It contains infos related to backward compatibility. GCs are
       forbidden on it.
 
-      [From_v3] corresponds to a pack store that was created using [`V3] code.
-      It never underwent a GC.
+      [From_v3_no_gc_yet] corresponds to a pack store that was created using
+      [`V3] code. It never underwent a GC.
 
       [From_v3_used_non_minimal_indexing_strategy] corresponds to a pack store
       that was created using [`V3] code. It never underwent a GC and it will
       never be possible to GC it because entries were pushed using a non-minimal
       indexing strategy.
+
+      [From_v3_gced] is a store that was GCed at least once.
 
       The [T*] tags are provisional tags that the binary decoder is aware of and
       that may in the future be used to add features to the [`V3] payload. *)
@@ -78,7 +80,7 @@ module Payload_v3 = struct
   (** The [`V3] payload of the irmin-pack control file. [`V3] is a major
       version. If [`V4] ever exists, it will have its own dedicated payload, but
       the [`V3] definition will still have to stick in the codebase for backward
-      compatibilty of old irmin-pack directories.
+      compatibilty of old pack stores.
 
       A store may only change its major version during an [open_rw] in
       [File_manager]. Note that upgrading a major version is the only reason why
@@ -187,7 +189,7 @@ module type S = sig
   val fsync : t -> (unit, [> Io.write_error ]) result
   (** {3 RW mode}
 
-      Tell the os to fush its internal buffers.
+      Tell the OS to fush its internal buffers.
 
       {3 RO mode}
 
