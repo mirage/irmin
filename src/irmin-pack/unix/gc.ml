@@ -309,7 +309,8 @@ module Make (Args : Args) : S with module Args := Args = struct
       in
       let* () =
         Errors.finalise (fun _outcome ->
-            Io.close prefix
+            Io.fsync prefix
+            >>= (fun _ -> Io.close prefix)
             |> Errs.log_if_error "GC: Close prefix after parent rewrite")
         @@ fun () ->
         let write_exn = Io.write_exn prefix in
@@ -328,7 +329,9 @@ module Make (Args : Args) : S with module Args := Args = struct
     [%log.debug "GC: creating new suffix"];
     let* suffix = create_new_suffix ~root ~generation in
     Errors.finalise (fun _outcome ->
-        Ao.close suffix |> Errs.log_if_error "GC: Close suffix")
+        Ao.fsync suffix
+        >>= (fun _ -> Ao.close suffix)
+        |> Errs.log_if_error "GC: Close suffix")
     @@ fun () ->
     let read_exn = Dispatcher.read_exn dispatcher in
     let append_exn = Ao.append_exn suffix in

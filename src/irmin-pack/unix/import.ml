@@ -53,7 +53,8 @@ module Indexable = Irmin_pack.Indexable
 
 module Result_syntax = struct
   let ( let+ ) res f = Result.map f res
-  let ( let* ) res f = Result.bind res f
+  let ( let* ) = Result.bind
+  let ( >>= ) = Result.bind
 end
 
 (** Essentially the Y combinator; useful for anonymous recursive functions. The

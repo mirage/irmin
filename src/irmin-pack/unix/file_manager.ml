@@ -714,6 +714,7 @@ struct
     let* io = Io.create ~path ~overwrite:true in
     let out = Errs.to_json_string output in
     let* () = Io.write_string io ~off:Int63.zero out in
+    let* () = Io.fsync io in
     Io.close io
 
   type read_gc_output_error =
