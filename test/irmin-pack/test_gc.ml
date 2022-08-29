@@ -680,11 +680,11 @@ module Concurrent_gc = struct
 
   let kill_gc t =
     let repo : S.Repo.t = t.repo in
-    match (repo.running_gc : S.X.gc option) with
+    match (repo.running_gc : S.X.Repo.running_gc option) with
     | None -> Alcotest.failf "running_gc missing after call to start"
-    | Some { task; _ } -> (
+    | Some { gc; _ } -> (
         try
-          Irmin_pack_unix.Async.Unix.cancel task;
+          S.X.Gc.cancel gc;
           true
         with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
 
