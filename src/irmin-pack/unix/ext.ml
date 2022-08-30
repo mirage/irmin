@@ -274,26 +274,18 @@ module Maker (Config : Conf.S) = struct
             t.running_gc <- Some { gc; use_auto_finalisation };
             Ok ()
 
-          let start_or_skip ~unlink ~use_auto_finalisation t commit_key =
-            let open Lwt_result.Syntax in
+          let start_exn ?(unlink = true) ~use_auto_finalisation t commit_key =
             match t.running_gc with
-            | None ->
-                let* () =
-                  start ~unlink ~use_auto_finalisation t commit_key
-                  |> Lwt.return
-                in
-                Lwt.return_ok true
             | Some _ ->
                 [%log.info "Repo is alreadying running GC. Skipping."];
-                Lwt.return_ok false
-
-          let start_exn ?(unlink = true) ~use_auto_finalisation t commit_key =
-            let* result =
-              start_or_skip ~unlink ~use_auto_finalisation t commit_key
-            in
-            match result with
-            | Ok launched -> Lwt.return launched
-            | Error e -> Errs.raise_error e
+                Lwt.return false
+            | None -> (
+                let result =
+                  start ~unlink ~use_auto_finalisation t commit_key
+                in
+                match result with
+                | Ok _ -> Lwt.return true
+                | Error e -> Errs.raise_error e)
 
           let finalise_exn ?(wait = false) t =
             let* result =
