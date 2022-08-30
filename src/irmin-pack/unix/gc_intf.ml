@@ -114,9 +114,7 @@ module type S = sig
     ([> `Running | `Finalised of stats ], Args.Errs.t) result Lwt.t
   (** [finalise ~wait t] returns the state of the GC process.
 
-      If [wait = true], the call will block until GC finishes.
-
-      Calling [finalise] after a call that returns [`Finalised] is undefined. *)
+      If [wait = true], the call will block until GC finishes. *)
 
   val on_finalise : t -> ((stats, Args.Errs.t) result -> unit Lwt.t) -> unit
   (** Attaches a callback to the GC process, which will be called when the GC
