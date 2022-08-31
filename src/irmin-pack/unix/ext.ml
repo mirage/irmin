@@ -32,7 +32,6 @@ module Maker (Config : Conf.S) = struct
     module H = Schema.Hash
     module Index = Pack_index.Make (H)
     module Io = Io.Unix
-    module Async = Async.Unix
     module Errs = Io_errors.Make (Io)
     module Control = Control_file.Make (Io)
     module Aof = Append_only_file.Make (Io)
@@ -130,11 +129,13 @@ module Maker (Config : Conf.S) = struct
       module Remote = Irmin.Backend.Remote.None (Commit.Key) (B)
 
       module Gc = Gc.Make (struct
+        module Async = Async.Unix
         module Fm = File_manager
         module Errs = Errs
         module Dict = Dict
         module Dispatcher = Dispatcher
         module Hash = Schema.Hash
+        module Contents_store = Contents.CA
         module Node_value = Node.CA.Inter.Val
         module Node_store = Node.CA
         module Commit_value = Commit.Value
@@ -144,28 +145,9 @@ module Maker (Config : Conf.S) = struct
         type key = Node_value.node_key [@@deriving irmin]
       end)
 
-      type gc_stats = {
-        duration : float;
-        finalisation_duration : float;
-        read_gc_output_duration : float;
-        transfer_latest_newies_duration : float;
-        swap_duration : float;
-        unlink_duration : float;
-      }
-      [@@deriving irmin ~pp]
-
-      type gc = {
-        next_generation : int;
-        task : Async.t;
-        unlink : bool;
-        offset : int63;
-        elapsed : unit -> float;
-        resolver : (gc_stats, Errs.t) result Lwt.u;
-        promise : (gc_stats, Errs.t) result Lwt.t;
-        use_auto_finalisation : bool;
-      }
-
       module Repo = struct
+        type running_gc = { gc : Gc.t; use_auto_finalisation : bool }
+
         type t = {
           config : Irmin.Backend.Conf.t;
           contents : read Contents.CA.t;
@@ -176,7 +158,7 @@ module Maker (Config : Conf.S) = struct
           dict : Dict.t;
           dispatcher : Dispatcher.t;
           mutable during_batch : bool;
-          mutable running_gc : gc option;
+          mutable running_gc : running_gc option;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -231,24 +213,6 @@ module Maker (Config : Conf.S) = struct
             dispatcher;
           }
 
-        let close t =
-          (* Step 1 - Kill the gc process if it is running *)
-          let () =
-            match t.running_gc with
-            | Some { task; _ } ->
-                Async.cancel task;
-                t.running_gc <- None
-            | None -> ()
-          in
-          (* Step 2 - Close the files *)
-          let () = File_manager.close t.fm |> Errs.raise_if_error in
-          Branch.close t.branch >>= fun () ->
-          (* Step 3 - Close the in-memory abstractions *)
-          Dict.close t.dict;
-          Contents.CA.close (contents_t t) >>= fun () ->
-          Node.CA.close (snd (node_t t)) >>= fun () ->
-          Commit.CA.close (snd (commit_t t))
-
         let flush_with_hook ~hook t =
           File_manager.flush ~hook t.fm |> Errs.raise_if_error
 
@@ -259,19 +223,13 @@ module Maker (Config : Conf.S) = struct
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
         module Gc = struct
-          let unlink_result_file ~root ~generation =
-            let result_file =
-              Irmin_pack.Layout.V3.gc_result ~root ~generation
-            in
-            match Io.unlink result_file with
-            | Ok () -> ()
-            | Error (`Sys_error msg as err) ->
-                if msg <> Fmt.str "%s: No such file or directory" result_file
-                then
-                  [%log.warn
-                    "Unlinking temporary files from previous failed gc. Failed \
-                     with error %a"
-                    Errs.pp err]
+          let cancel t =
+            match t.running_gc with
+            | Some { gc; _ } ->
+                Gc.cancel gc;
+                t.running_gc <- None;
+                true
+            | None -> false
 
           let start ~unlink ~use_auto_finalisation t commit_key =
             let open Result_syntax in
@@ -308,276 +266,40 @@ module Maker (Config : Conf.S) = struct
             in
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
-            (* Unlink next gc's result file, in case it is on disk, for instance
-               after a failed gc. *)
-            unlink_result_file ~root ~generation:next_generation;
-            let task =
-              Async.async (fun () ->
-                  let (_ : int63) =
-                    Gc.run_and_output_result root commit_key
-                      ~generation:next_generation
-                  in
-                  ())
+            let gc =
+              Gc.v ~root ~generation:next_generation ~unlink ~offset
+                ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
+                ~node:t.node ~commit:t.commit commit_key
             in
-            let elapsed =
-              let c0 = Mtime_clock.counter () in
-              fun () -> Mtime_clock.count c0 |> Mtime.Span.to_s
-            in
-            let promise, resolver = Lwt.wait () in
-            t.running_gc <-
-              Some
-                {
-                  next_generation;
-                  task;
-                  unlink;
-                  offset;
-                  elapsed;
-                  promise;
-                  resolver;
-                  use_auto_finalisation;
-                };
+            t.running_gc <- Some { gc; use_auto_finalisation };
             Ok ()
-
-          let open_new_suffix ~root ~generation ~end_offset =
-            let open Result_syntax in
-            let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
-            (* As the new suffix is necessarily in V3, the dead_header_size is
-               0. *)
-            let dead_header_size = 0 in
-            let auto_flush_threshold = 1_000_000 in
-            let auto_flush_callback x = Aof.flush x |> Errs.raise_if_error in
-            let* suffix =
-              Aof.open_rw ~path ~end_offset ~dead_header_size
-                ~auto_flush_callback ~auto_flush_threshold
-            in
-            Ok suffix
-
-          let transfer_latest_newies ~generation ~right_start_offset
-              ~copy_end_offset ~root t =
-            [%log.debug "Gc in main: transfer latest newies"];
-            let open Result_syntax in
-            let open Int63.Syntax in
-            let old_end_offset = Dispatcher.end_offset t.dispatcher in
-            let remaining = old_end_offset - copy_end_offset in
-            (* When opening the suffix in append_only we need to provide a
-               (real) suffix offset, computed from the global ones. *)
-            let suffix_end_offset = copy_end_offset - right_start_offset in
-            let* new_suffix =
-              open_new_suffix ~root ~generation ~end_offset:suffix_end_offset
-            in
-            Errors.finalise (fun _ ->
-                Aof.close new_suffix
-                |> Errs.log_if_error "GC: Close suffix after copy latest newies")
-            @@ fun () ->
-            let buffer = Bytes.create 8192 in
-            let read_exn = Dispatcher.read_exn t.dispatcher in
-            let append_exn = Aof.append_exn new_suffix in
-            let flush_and_raise () =
-              Aof.flush new_suffix |> Errs.raise_if_error
-            in
-            let* () =
-              Errs.catch (fun () ->
-                  Gc.transfer_append_exn ~read_exn ~append_exn
-                    ~off:copy_end_offset ~len:remaining buffer;
-                  flush_and_raise ())
-            in
-            Ok old_end_offset
-
-          let swap_and_purge ~generation ~right_start_offset ~right_end_offset t
-              =
-            let open Result_syntax in
-            let c0 = Mtime_clock.counter () in
-
-            let* () =
-              File_manager.swap t.fm ~generation ~right_start_offset
-                ~right_end_offset
-            in
-            let span1 = Mtime_clock.count c0 |> Mtime.Span.to_s in
-
-            (* No need to purge dict here, as it is global to the store. *)
-            (* No need to purge index here. It is global too, but some hashes may
-               not point to valid offsets anymore. Pack_store will just say that
-               such keys are not member of the store. *)
-            Contents.CA.purge_lru t.contents;
-            Node.CA.purge_lru t.node;
-            Commit.CA.purge_lru t.commit;
-            let span2 = Mtime_clock.count c0 |> Mtime.Span.to_s in
-            [%log.debug
-              "Gc swap and purge: %.6fs, %.6fs" span1 (span2 -. span1)];
-            [%log.info "GC: end"];
-            Ok ()
-
-          let pp_status = Irmin.Type.pp Async.status_t
-          let pp_gc_error = Irmin.Type.pp File_manager.read_gc_output_error_t
-
-          let unlink_all ~root ~generation =
-            let result =
-              let open Result_syntax in
-              (* Unlink previous suffix. *)
-              let suffix =
-                Irmin_pack.Layout.V3.suffix ~root ~generation:(generation - 1)
-              in
-              let* () = Io.unlink suffix in
-              let* () =
-                if generation >= 2 then
-                  (* Unlink previous prefix. *)
-                  let prefix =
-                    Irmin_pack.Layout.V3.prefix ~root
-                      ~generation:(generation - 1)
-                  in
-                  let* () = Io.unlink prefix in
-                  (* Unlink previous mapping. *)
-                  let mapping =
-                    Irmin_pack.Layout.V3.mapping ~root
-                      ~generation:(generation - 1)
-                  in
-                  let* () = Io.unlink mapping in
-                  Ok ()
-                else Ok ()
-              in
-              (* Unlink current gc's result.*)
-              let result = Irmin_pack.Layout.V3.gc_result ~root ~generation in
-              Io.unlink result
-            in
-            match result with
-            | Error e ->
-                [%log.warn
-                  "Unlinking temporary files after gc, failed with error %a"
-                    Errs.pp e]
-            | Ok () -> ()
-
-          let gc_errors status gc_output =
-            let extend_error s = function
-              | `Gc_process_error str ->
-                  `Gc_process_error (Fmt.str "%s %s" s str)
-              | `Corrupted_gc_result_file str ->
-                  `Gc_process_died_without_result_file (Fmt.str "%s %s" s str)
-            in
-            match (status, gc_output) with
-            | `Failure s, Error e -> Error (extend_error s e)
-            | `Cancelled, Error e -> Error (extend_error "cancelled" e)
-            | `Success, Error e -> Error (extend_error "success" e)
-            | `Cancelled, Ok _ -> Error (`Gc_process_error "cancelled")
-            | `Failure s, Ok _ -> Error (`Gc_process_error s)
-            | `Success, Ok _ -> assert false
-            | `Running, _ -> assert false
-
-          let finalise ~wait t =
-            match t.running_gc with
-            | None -> Lwt.return_ok `Idle
-            | Some
-                { next_generation; task; unlink; offset; elapsed; resolver; _ }
-              -> (
-                let go status =
-                  let start = elapsed () in
-                  let s =
-                    ref
-                      {
-                        duration = 0.;
-                        finalisation_duration = 0.;
-                        read_gc_output_duration = 0.;
-                        transfer_latest_newies_duration = 0.;
-                        swap_duration = 0.;
-                        unlink_duration = 0.;
-                      }
-                  in
-                  let root = Conf.root t.config in
-                  let time on_end f =
-                    let counter = Mtime_clock.counter () in
-                    let res = f () in
-                    on_end (Mtime_clock.count counter |> Mtime.Span.to_s);
-                    res
-                  in
-
-                  let gc_output =
-                    time (fun t -> s := { !s with read_gc_output_duration = t })
-                    @@ fun () ->
-                    File_manager.read_gc_output ~root
-                      ~generation:next_generation
-                  in
-
-                  let result =
-                    let open Result_syntax in
-                    match (status, gc_output) with
-                    | `Success, Ok copy_end_offset ->
-                        let* new_suffix_end_offset =
-                          time (fun t ->
-                              s :=
-                                { !s with transfer_latest_newies_duration = t })
-                          @@ fun () ->
-                          transfer_latest_newies ~generation:next_generation
-                            ~right_start_offset:offset ~copy_end_offset ~root t
-                        in
-                        let* () =
-                          time (fun t -> s := { !s with swap_duration = t })
-                          @@ fun () ->
-                          swap_and_purge ~generation:next_generation
-                            ~right_start_offset:offset
-                            ~right_end_offset:new_suffix_end_offset t
-                        in
-                        (if unlink then
-                         time (fun t -> s := { !s with unlink_duration = t })
-                         @@ fun () ->
-                         unlink_all ~root ~generation:next_generation);
-
-                        let duration = elapsed () in
-                        s :=
-                          {
-                            !s with
-                            duration;
-                            finalisation_duration = duration -. start;
-                          };
-
-                        [%log.debug
-                          "Gc ended. %a, newies bytes:%a" pp_gc_stats !s
-                            Int63.pp
-                            (Int63.sub new_suffix_end_offset copy_end_offset)];
-                        let () = Lwt.wakeup_later resolver (Ok !s) in
-                        Ok (`Finalised !s)
-                    | _ ->
-                        let err = gc_errors status gc_output in
-                        let () = Lwt.wakeup_later resolver err in
-                        err
-                  in
-                  t.running_gc <- None;
-                  Lwt.return result
-                in
-                if t.during_batch then
-                  Lwt.return_error `Gc_forbidden_during_batch
-                else
-                  match wait with
-                  | false -> (
-                      match Async.status task with
-                      | `Running -> Lwt.return_ok `Running
-                      | status -> go status)
-                  | true ->
-                      let* status = Async.await task in
-                      go status)
-
-          let start_or_skip ~unlink ~use_auto_finalisation t commit_key =
-            let open Lwt_result.Syntax in
-            match t.running_gc with
-            | None ->
-                let* () =
-                  start ~unlink ~use_auto_finalisation t commit_key
-                  |> Lwt.return
-                in
-                Lwt.return_ok true
-            | Some _ ->
-                [%log.info "Repo is alreadying running GC. Skipping."];
-                Lwt.return_ok false
 
           let start_exn ?(unlink = true) ~use_auto_finalisation t commit_key =
-            let* result =
-              start_or_skip ~unlink ~use_auto_finalisation t commit_key
-            in
-            match result with
-            | Ok launched -> Lwt.return launched
-            | Error e -> Errs.raise_error e
+            match t.running_gc with
+            | Some _ ->
+                [%log.info "Repo is alreadying running GC. Skipping."];
+                Lwt.return false
+            | None -> (
+                let result =
+                  start ~unlink ~use_auto_finalisation t commit_key
+                in
+                match result with
+                | Ok _ -> Lwt.return true
+                | Error e -> Errs.raise_error e)
 
           let finalise_exn ?(wait = false) t =
-            let* result = finalise ~wait t in
+            let* result =
+              match t.running_gc with
+              | None -> Lwt.return_ok `Idle
+              | Some { gc; _ } ->
+                  if t.during_batch then
+                    Lwt.return_error `Gc_forbidden_during_batch
+                  else Gc.finalise ~wait gc
+            in
             match result with
+            | Ok (`Finalised _ as x) ->
+                t.running_gc <- None;
+                Lwt.return x
             | Ok waited -> Lwt.return waited
             | Error e -> Errs.raise_error e
 
@@ -586,25 +308,15 @@ module Maker (Config : Conf.S) = struct
           let on_finalise t f =
             match t.running_gc with
             | None -> ()
-            | Some x ->
-                (* Ignore returned promise since the purpose of this
-                   function is to add asynchronous callbacks to the GC
-                   process -- this promise binding is an internal
-                   implementation detail. This is safe since the callback
-                   [f] is attached to [t.running_gc.promise], which is
-                   referenced for the lifetime of a GC process. *)
-                let _ = Lwt.bind x.promise f in
-                ()
+            | Some { gc; _ } -> Gc.on_finalise gc f
 
           let try_auto_finalise_exn t =
             match t.running_gc with
-            | None -> Lwt.return_unit
-            | Some gc -> (
-                match gc.use_auto_finalisation with
-                | false -> Lwt.return_unit
-                | true ->
-                    let* _ = finalise_exn ~wait:false t in
-                    Lwt.return_unit)
+            | None | Some { use_auto_finalisation = false; _ } ->
+                Lwt.return_unit
+            | Some { use_auto_finalisation = true; _ } ->
+                let* _ = finalise_exn ~wait:false t in
+                Lwt.return_unit
         end
 
         let batch t f =
@@ -645,6 +357,18 @@ module Maker (Config : Conf.S) = struct
             raise exn
           in
           Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
+
+        let close t =
+          (* Step 1 - Kill the gc process if it is running *)
+          let _ = Gc.cancel t in
+          (* Step 2 - Close the files *)
+          let () = File_manager.close t.fm |> Errs.raise_if_error in
+          Branch.close t.branch >>= fun () ->
+          (* Step 3 - Close the in-memory abstractions *)
+          Dict.close t.dict;
+          Contents.CA.close (contents_t t) >>= fun () ->
+          Node.CA.close (snd (node_t t)) >>= fun () ->
+          Commit.CA.close (snd (commit_t t))
       end
     end
 
@@ -779,7 +503,7 @@ module Maker (Config : Conf.S) = struct
     module Gc = struct
       type msg = [ `Msg of string ]
 
-      type stats = X.gc_stats = {
+      type stats = Gc.stats = {
         duration : float;
         finalisation_duration : float;
         read_gc_output_duration : float;
