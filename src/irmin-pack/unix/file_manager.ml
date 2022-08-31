@@ -47,7 +47,6 @@ struct
     mutable prefix : Prefix.t option;
     mutable mapping : Mapping_file.t option;
     index : Index.t;
-    mutable mapping_consumers : after_reload_consumer list;
     mutable dict_consumers : after_reload_consumer list;
     mutable suffix_consumers : after_flush_consumer list;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
@@ -70,9 +69,6 @@ struct
     let* () = Option.might Prefix.close t.prefix in
     let+ () = Index.close t.index in
     ()
-
-  let register_mapping_consumer t ~after_reload =
-    t.mapping_consumers <- { after_reload } :: t.mapping_consumers
 
   let register_dict_consumer t ~after_reload =
     t.dict_consumers <- { after_reload } :: t.dict_consumers
@@ -342,7 +338,6 @@ struct
         mapping;
         use_fsync;
         index;
-        mapping_consumers = [];
         dict_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
@@ -395,17 +390,6 @@ struct
           List.fold_left
             (fun acc { after_reload } -> Result.bind acc after_reload)
             (Ok ()) t.dict_consumers
-        in
-        (* The following dirty trick casts the result from
-           [read_error] to [ [>read_error] ]. *)
-        match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
-      in
-      (* Step 6. Notify the mapping consumers that they must reload *)
-      let* () =
-        let res =
-          List.fold_left
-            (fun acc { after_reload } -> Result.bind acc after_reload)
-            (Ok ()) t.mapping_consumers
         in
         (* The following dirty trick casts the result from
            [read_error] to [ [>read_error] ]. *)
@@ -611,7 +595,6 @@ struct
         use_fsync;
         indexing_strategy;
         index;
-        mapping_consumers = [];
         dict_consumers = [];
         suffix_consumers = [];
         root;
@@ -667,20 +650,7 @@ struct
     let* () = reopen_suffix t ~generation ~end_offset:suffix_end_offset in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
-    (* Step 2. Reload mapping consumers (i.e. dispatcher) *)
-    let* () =
-      let res =
-        List.fold_left
-          (fun acc { after_reload } -> Result.bind acc after_reload)
-          (Ok ()) t.mapping_consumers
-      in
-      (* The following dirty trick casts the result from
-           [read_error] to [ [>read_error] ]. *)
-      match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
-    in
-    let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
-
-    (* Step 3. Update the control file *)
+    (* Step 2. Update the control file *)
     let* () =
       let pl = Control.payload t.control in
       let pl =
@@ -702,10 +672,9 @@ struct
       Control.set_payload t.control pl
     in
 
-    let span3 = Mtime_clock.count c0 |> Mtime.Span.to_us in
+    let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
     [%log.debug
-      "Gc reopen files, reload map, update control: %.0fus, %.0fus, %.0fus"
-        span1 (span2 -. span1) (span3 -. span2)];
+      "Gc reopen files, update control: %.0fus, %.0fus" span1 (span2 -. span1)];
     Ok ()
 
   let write_gc_output ~root ~generation output =
