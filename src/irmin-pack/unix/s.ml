@@ -81,9 +81,9 @@ module type S = sig
         Finalising consists of mutating [repo] so that it points to the new file
         and to flush the internal caches that could be referencing GCed objects.
 
-        If [wait = true] (the default), the call blocks until the GC process
-        finishes. If [wait = false], finalisation will occur if the process has
-        ended.
+        If [wait = true] (the default), the calling process blocks until the GC
+        process finishes. If [wait = false], finalisation will occur if the
+        process has ended.
 
         If there are no running GCs, the call is a no-op and it returns [`Idle].
 
@@ -119,7 +119,7 @@ module type S = sig
         messages should be used only for informational purposes, like logging. *)
 
     val wait : repo -> (stats option, msg) result Lwt.t
-    (** [wait repo] blocks until GC is finished or is idle.
+    (** [wait repo] blocks the process until GC is finished or is idle.
 
         If a GC finalises, its stats are returned.
 
