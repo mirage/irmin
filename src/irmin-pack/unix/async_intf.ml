@@ -28,7 +28,7 @@ module type S = sig
   val async : (unit -> unit) -> t
   (** Start a task. *)
 
-  val await : t -> [> outcome ] Lwt.t
+  val await : t -> [> outcome ]
   (** If running, wait for a task to finish and return its outcome.
 
       If not running, return the oucome of the task. *)

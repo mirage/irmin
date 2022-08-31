@@ -71,14 +71,14 @@ module Unix = struct
         { pid; status = `Running }
 
   let status_of_process_outcome = function
-    | Lwt_unix.WSIGNALED x when x = Sys.sigkill ->
+    | Unix.WSIGNALED x when x = Sys.sigkill ->
         (* x is actually -7; -7 is the Sys.sigkill definition (not the OS' 9 as
            might be expected) *)
         `Success
         (* the child is killing itself when it's done *)
-    | Lwt_unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
-    | Lwt_unix.WEXITED n -> `Failure (Fmt.str "Exited %d" n)
-    | Lwt_unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
+    | Unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
+    | Unix.WEXITED n -> `Failure (Fmt.str "Exited %d" n)
+    | Unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
 
   let cancel t =
     let () =
@@ -108,10 +108,10 @@ module Unix = struct
   let await t =
     match t.status with
     | `Running ->
-        let+ pid, status = Lwt_unix.waitpid [] t.pid in
+        let pid, status = Unix.waitpid [] t.pid in
         let s = status_of_process_outcome status in
         Exit.remove pid;
         t.status <- s;
         s
-    | #outcome as s -> Lwt.return s
+    | #outcome as s -> s
 end

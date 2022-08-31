@@ -547,7 +547,7 @@ module Make (Args : Args) = struct
 
   let finalise ~wait t =
     match t.stats with
-    | Some stats -> Lwt.return_ok (`Finalised stats)
+    | Some stats -> Ok (`Finalised stats)
     | None -> (
         let go status =
           let start = t.elapsed () in
@@ -614,14 +614,14 @@ module Make (Args : Args) = struct
                 let () = Lwt.wakeup_later t.resolver err in
                 err
           in
-          Lwt.return result
+          result
         in
         if wait then
-          let* status = Async.await t.task in
+          let status = Async.await t.task in
           go status
         else
           match Async.status t.task with
-          | `Running -> Lwt.return_ok `Running
+          | `Running -> Ok `Running
           | status -> go status)
 
   let on_finalise t f =

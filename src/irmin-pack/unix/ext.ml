@@ -291,7 +291,7 @@ module Maker (Config : Conf.S) = struct
               | Some { gc; _ } ->
                   if t.during_batch then
                     Lwt.return_error `Gc_forbidden_during_batch
-                  else Gc.finalise ~wait gc
+                  else Gc.finalise ~wait gc |> Lwt.return
             in
             match result with
             | Ok (`Finalised _ as x) ->

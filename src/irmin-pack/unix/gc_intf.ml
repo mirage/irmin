@@ -109,9 +109,7 @@ module type S = sig
   (** Creates and starts a new GC process. *)
 
   val finalise :
-    wait:bool ->
-    t ->
-    ([> `Running | `Finalised of stats ], Args.Errs.t) result Lwt.t
+    wait:bool -> t -> ([> `Running | `Finalised of stats ], Args.Errs.t) result
   (** [finalise ~wait t] returns the state of the GC process.
 
       If [wait = true], the call will block until GC finishes. *)
