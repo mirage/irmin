@@ -43,7 +43,15 @@ module Worker = struct
     open Args
     module Io = Fm.Io
     module Mapping_file = Fm.Mapping_file
-    module Ao = Append_only_file.Make (Io)
+
+    module Ao = struct
+      include Append_only_file.Make (Fm.Io)
+
+      let create_rw_exn ~path ~auto_flush_callback =
+        create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
+          ~auto_flush_callback
+        |> Errs.raise_if_error
+    end
 
     module X = struct
       type t = int63 [@@deriving irmin]
@@ -139,15 +147,9 @@ module Worker = struct
           write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
 
     let create_new_suffix ~root ~generation =
-      let open Result_syntax in
       let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
-      let auto_flush_threshold = 1_000_000 in
       let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
-      let* suffix =
-        Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold
-          ~auto_flush_callback
-      in
-      Ok suffix
+      Ao.create_rw_exn ~path ~auto_flush_callback
 
     let run ~generation root commit_key =
       let open Result_syntax in
@@ -157,24 +159,26 @@ module Worker = struct
 
       (* Step 1. Open the files *)
       [%log.debug "GC: opening files in RO mode"];
-      let* fm = Fm.open_ro config in
-      Errors.finalise (fun _outcome ->
+      let fm = Fm.open_ro config |> Errs.raise_if_error in
+      Errors.finalise_exn (fun _outcome ->
           Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
       @@ fun () ->
-      let* dict = Dict.v fm in
-      let* dispatcher = Dispatcher.v ~root fm in
+      let dict = Dict.v fm |> Errs.raise_if_error in
+      let dispatcher = Dispatcher.v ~root fm |> Errs.raise_if_error in
       let node_store = Node_store.v ~config ~fm ~dict ~dispatcher in
       let commit_store = Commit_store.v ~config ~fm ~dict ~dispatcher in
 
       (* Step 2. Load commit which will make [commit_key] [Direct] if it's not
          already the case. *)
-      let* commit =
+      let commit =
         match
           Commit_store.unsafe_find ~check_integrity:false commit_store
             commit_key
         with
-        | None -> Error (`Commit_key_is_dangling (string_of_key commit_key))
-        | Some commit -> Ok commit
+        | None ->
+            Errs.raise_error
+              (`Commit_key_is_dangling (string_of_key commit_key))
+        | Some commit -> commit
       in
       let commit_offset, _ =
         let state : _ Irmin_pack.Pack_key.state =
@@ -186,10 +190,12 @@ module Worker = struct
       in
 
       (* Step 3. Create the new mapping. *)
-      let* mapping =
+      let mapping =
         (* Step 3.1 Start [Mapping_file] routine which will create the
            reachable file. *)
-        (fun f -> Mapping_file.create ~root ~generation ~register_entries:f)
+        (fun f ->
+          Mapping_file.create ~root ~generation ~register_entries:f
+          |> Errs.raise_if_error)
         @@ fun ~register_entry ->
         (* Step 3.2 Put the commit parents in the reachable file.
            The parent(s) of [commit_key] must be included in the iteration
@@ -225,16 +231,15 @@ module Worker = struct
         ()
       in
 
-      let* () =
+      let () =
         (* Step 4. Create the new prefix. *)
-        let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
-        let* prefix =
+        let prefix =
           let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
-          Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
-            ~auto_flush_callback
+          let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
+          Ao.create_rw_exn ~path ~auto_flush_callback
         in
-        let* () =
-          Errors.finalise (fun _outcome ->
+        let () =
+          Errors.finalise_exn (fun _outcome ->
               Ao.close prefix |> Errs.log_if_error "GC: Close prefix")
           @@ fun () ->
           ();
@@ -249,39 +254,35 @@ module Worker = struct
             let len = Int63.of_int len in
             transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
           in
-          let* () = Mapping_file.iter mapping f in
-          Ao.flush prefix
+          let () = Mapping_file.iter_exn mapping f in
+          Ao.flush prefix |> Errs.raise_if_error
         in
         (* Step 5.2. Transfer again the parent commits but with a modified
            magic. Reopen the new prefix, this time _not_ in append-only
            as we have to modify data inside the file. *)
         let read_exn = Dispatcher.read_exn dispatcher in
-        let* prefix =
+        let prefix =
           let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
-          Io.open_ ~path ~readonly:false
+          Io.open_ ~path ~readonly:false |> Errs.raise_if_error
         in
-        let* () =
-          Errors.finalise (fun _outcome ->
-              Io.fsync prefix
-              >>= (fun _ -> Io.close prefix)
-              |> Errs.log_if_error "GC: Close prefix after parent rewrite")
-          @@ fun () ->
-          let write_exn = Io.write_exn prefix in
-          List.iter
-            (fun key ->
-              transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key)
-            (Commit_value.parents commit);
-          Ok ()
-        in
-        Ok ()
+        Errors.finalise_exn (fun _outcome ->
+            Io.fsync prefix
+            >>= (fun _ -> Io.close prefix)
+            |> Errs.log_if_error "GC: Close prefix after parent rewrite")
+        @@ fun () ->
+        let write_exn = Io.write_exn prefix in
+        List.iter
+          (fun key ->
+            transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key)
+          (Commit_value.parents commit)
       in
 
       (* Step 6. Create the new suffix and prepare 2 functions for read and write
          operations. *)
       let buffer = Bytes.create buffer_size in
       [%log.debug "GC: creating new suffix"];
-      let* suffix = create_new_suffix ~root ~generation in
-      Errors.finalise (fun _outcome ->
+      let suffix = create_new_suffix ~root ~generation in
+      Errors.finalise_exn (fun _outcome ->
           Ao.fsync suffix
           >>= (fun _ -> Ao.close suffix)
           |> Errs.log_if_error "GC: Close suffix")
@@ -317,20 +318,16 @@ module Worker = struct
             let off = Int63.Syntax.(off + len) in
             transfer_loop ~off (i - 1)
       in
-      let flush_and_raise () = Ao.flush suffix |> Errs.raise_if_error in
-      let* offs =
-        Errs.catch (fun () ->
-            let offs = transfer_loop ~off:commit_offset num_iterations in
-            flush_and_raise ();
-            offs)
-      in
+      let offs = transfer_loop ~off:commit_offset num_iterations in
+      Ao.flush suffix |> Errs.raise_if_error;
+
       (* Step 8. Inform the caller of the end_offset copied. *)
-      Ok offs
+      offs
 
     (* No one catches errors when this function terminates. Write the result in a
        file and terminate the process with an exception, if needed. *)
     let run_and_output_result ~generation root commit_key =
-      let result = run ~generation root commit_key in
+      let result = Errs.catch (fun () -> run ~generation root commit_key) in
       let write_result = Fm.write_gc_output ~root ~generation result in
       write_result |> Errs.raise_if_error;
       result |> Errs.raise_if_error

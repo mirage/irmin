@@ -466,11 +466,14 @@ module Make (Io : Io.S) = struct
   let entry_poff arr i = arr.{entry_idx i + 1} |> conv_int64 |> Int63.of_int
   let entry_len arr i = arr.{entry_idx i + 2} |> conv_int64
 
-  let iter { arr; _ } f =
+  let iter_exn { arr; _ } f =
+    for i = 0 to entry_count arr - 1 do
+      f ~off:(entry_off arr i) ~len:(entry_len arr i)
+    done
+
+  let iter t f =
     Errs.catch (fun () ->
-        for i = 0 to entry_count arr - 1 do
-          f ~off:(entry_off arr i) ~len:(entry_len arr i)
-        done;
+        iter_exn t f;
         ())
 
   type entry = { off : int63; poff : int63; len : int }
