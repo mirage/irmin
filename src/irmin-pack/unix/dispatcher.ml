@@ -29,10 +29,31 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Control = Fm.Control
 
   type t = { fm : Fm.t; root : string }
+  type location = Prefix | Suffix [@@deriving irmin]
+
+  type accessor = { poff : int63; len : int; location : location }
+  [@@deriving irmin]
+  (** [poff] is a physical offset in a file. It is meant to be passed to [Io] or
+      [Append_only]
+
+      [len] is a number of bytes following [poff].
+
+      [location] is a file identifier. *)
 
   let v ~root fm =
     let t = { fm; root } in
     Ok t
+
+  let get_prefix t =
+    match Fm.prefix t.fm with
+    | Some prefix -> prefix
+    | None -> raise (Errors.Pack_error (`Invalid_prefix_read "no prefix found"))
+
+  let get_mapping t =
+    match Fm.mapping t.fm with
+    | Some mapping -> mapping
+    | None ->
+        raise (Errors.Pack_error (`Invalid_mapping_read "no mapping found"))
 
   let entry_offset_suffix_start t =
     let pl = Control.payload (Fm.control t.fm) in
@@ -51,114 +72,160 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let open Int63.Syntax in
     Suffix.end_offset (Fm.suffix t.fm) + entry_offset_suffix_start t
 
-  (* Adjust the read in suffix, as the global offset [off] is
-     [off] = [entry_offset_suffix_start] + [suffix_offset]. *)
-  let suffix_off_of_offset t off =
-    let open Int63.Syntax in
-    let entry_offset_suffix_start = entry_offset_suffix_start t in
-    off - entry_offset_suffix_start
+  module Suffix_arithmetic = struct
+    (* Adjust the read in suffix, as the global offset [off] is
+       [off] = [entry_offset_suffix_start] + [suffix_offset]. *)
+    let poff_of_off t off =
+      let open Int63.Syntax in
+      let entry_offset_suffix_start = entry_offset_suffix_start t in
+      off - entry_offset_suffix_start
 
-  let offset_of_suffix_off t suffix_off =
-    let open Int63.Syntax in
-    let entry_offset_suffix_start = entry_offset_suffix_start t in
-    suffix_off + entry_offset_suffix_start
+    let off_of_poff t suffix_off =
+      let open Int63.Syntax in
+      let entry_offset_suffix_start = entry_offset_suffix_start t in
+      suffix_off + entry_offset_suffix_start
+  end
 
-  (* Find the last chunk which is before [off_start] (or at [off_start]). If no
-     chunk found, then the entry was possibly gced (case 1). If [off_start] is
-     after the entry's chunk then the entry was possibly gced (case 2). Note
-     that for these two cases we cannot distinguished between trying to read a
-     gced entry, or doing an invalid read. We expose two [read_exn] functions
-     and we handled this upstream. *)
-  let chunk_of_off_exn mapping off_start =
-    (* NOTE off_start is a virtual offset *)
-    let open Int63 in
-    let open Int63.Syntax in
-    let res = Mapping_file.find_nearest_leq mapping off_start in
-    match res with
-    | None ->
-        (* Case 1: The entry if before the very first chunk (or there are no
-           chunks). Possibly the entry was gced. *)
-        let s =
-          Fmt.str "offset %a is before the first chunk, or the prefix is empty"
-            Int63.pp off_start
-        in
-        raise (Errors.Pack_error (`Invalid_read_of_gced_object s))
-    | Some entry ->
-        let chunk_off_start = entry.off in
-        assert (chunk_off_start <= off_start);
-        let chunk_len = entry.len in
-        let chunk_off_end = chunk_off_start + of_int chunk_len in
+  let offset_of_suffix_off = Suffix_arithmetic.off_of_poff
 
-        (* Case 2: The entry starts after the chunk. Possibly the entry was
-           gced. *)
-        (if chunk_off_end <= off_start then
-         let s =
-           Fmt.str
-             "offset %a is supposed to be contained in chunk \
-              (off=%a,poff=%a,len=%d) but starts after chunk"
-             Int63.pp off_start Int63.pp chunk_off_start Int63.pp entry.poff
-             entry.len
-         in
-         raise (Errors.Pack_error (`Invalid_read_of_gced_object s)));
+  module Prefix_arithmetic = struct
+    (* Find the last chunk which is before [off_start] (or at [off_start]). If no
+       chunk found, then the entry was possibly gced (case 1). If [off_start] is
+       after the entry's chunk then the entry was possibly gced (case 2). Note
+       that for these two cases we cannot distinguished between trying to read a
+       gced entry, or doing an invalid read. We expose two [read_exn] functions
+       and we handled this upstream. *)
+    let chunk_of_off_exn mapping off_start =
+      (* NOTE off_start is a virtual offset *)
+      let open Int63 in
+      let open Int63.Syntax in
+      let res = Mapping_file.find_nearest_leq mapping off_start in
+      match res with
+      | None ->
+          (* Case 1: The entry if before the very first chunk (or there are no
+             chunks). Possibly the entry was gced. *)
+          let s =
+            Fmt.str
+              "offset %a is before the first chunk, or the prefix is empty"
+              Int63.pp off_start
+          in
+          raise (Errors.Pack_error (`Invalid_read_of_gced_object s))
+      | Some entry ->
+          let chunk_off_start = entry.off in
+          assert (chunk_off_start <= off_start);
+          let chunk_len = entry.len in
+          let chunk_off_end = chunk_off_start + of_int chunk_len in
 
-        let shift_in_chunk = off_start - chunk_off_start in
-        let max_entry_len = of_int chunk_len - shift_in_chunk in
+          (* Case 2: The entry starts after the chunk. Possibly the entry was
+             gced. *)
+          (if chunk_off_end <= off_start then
+           let s =
+             Fmt.str
+               "offset %a is supposed to be contained in chunk \
+                (off=%a,poff=%a,len=%d) but starts after chunk"
+               Int63.pp off_start Int63.pp chunk_off_start Int63.pp entry.poff
+               entry.len
+           in
+           raise (Errors.Pack_error (`Invalid_read_of_gced_object s)));
 
-        (entry, shift_in_chunk, max_entry_len)
+          let shift_in_chunk = off_start - chunk_off_start in
+          let max_entry_len = of_int chunk_len - shift_in_chunk in
+          assert (max_entry_len >= Int63.zero);
 
-  (* After we find the chunk of an entry, we check that a read is possible in the
-     chunk. If it's not, this is always an invalid read. *)
-  let poff_of_entry_exn mapping ~off ~len =
-    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn mapping off in
+          (entry, shift_in_chunk, max_entry_len)
 
-    (* Case 3: The entry ends after the chunk *)
-    let open Int63 in
-    let open Int63.Syntax in
-    (if of_int len > max_entry_len then
-     let s =
-       Fmt.str
-         "entry (off=%a, len=%d) is supposed to be contained in chunk \
-          (poff=%a,len=%d) and starting at %a but is larger than it can be\n\
-         \ contained in chunk" Int63.pp off len Int63.pp chunk.poff chunk.len
-         Int63.pp shift_in_chunk
-     in
-     raise (Errors.Pack_error (`Invalid_prefix_read s)));
+    (* After we find the chunk of an entry, we check that a read is possible in the
+       chunk. If it's not, this is always an invalid read. *)
+    let poff_of_entry_exn mapping ~off ~len =
+      let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn mapping off in
 
-    (* Case 4: Success *)
-    chunk.poff + shift_in_chunk
+      (* Case 3: The entry ends after the chunk *)
+      let open Int63 in
+      let open Int63.Syntax in
+      (if of_int len > max_entry_len then
+       let s =
+         Fmt.str
+           "entry (off=%a, len=%d) is supposed to be contained in chunk \
+            (poff=%a,len=%d) and starting at %a but is larger than it can be\n\
+           \ contained in chunk" Int63.pp off len Int63.pp chunk.poff chunk.len
+           Int63.pp shift_in_chunk
+       in
+       raise (Errors.Pack_error (`Invalid_prefix_read s)));
 
-  let get_prefix fm =
-    match Fm.prefix fm with
-    | Some prefix -> prefix
-    | None -> raise (Errors.Pack_error (`Invalid_prefix_read "no prefix found"))
+      (* Case 4: Success *)
+      chunk.poff + shift_in_chunk
+  end
 
-  let get_mapping fm =
-    match Fm.mapping fm with
-    | Some mapping -> mapping
-    | None ->
-        raise (Errors.Pack_error (`Invalid_mapping_read "no mapping found"))
+  module Accessor = struct
+    let v_in_suffix_exn t ~off ~len =
+      let open Int63.Syntax in
+      let entry_end_offset = off + Int63.of_int len in
+      if entry_end_offset > end_offset t then
+        raise (Errors.Pack_error `Read_out_of_bounds)
+      else
+        let poff = Suffix_arithmetic.poff_of_off t off in
+        { poff; len; location = Suffix }
+
+    let v_in_prefix_exn t ~off ~len =
+      let poff =
+        Prefix_arithmetic.poff_of_entry_exn (get_mapping t) ~off ~len
+      in
+      { poff; len; location = Prefix }
+
+    let v_exn t ~off ~len =
+      let open Int63.Syntax in
+      let entry_offset_suffix_start = entry_offset_suffix_start t in
+      if off >= entry_offset_suffix_start then v_in_suffix_exn t ~off ~len
+      else v_in_prefix_exn t ~off ~len
+
+    let v_range_in_suffix_exn t ~off ~min_len ~max_len =
+      let min_len = Int63.of_int min_len in
+      let max_len = Int63.of_int max_len in
+      let len =
+        let open Int63.Syntax in
+        let bytes_after_off = end_offset t - off in
+        if bytes_after_off < min_len then
+          raise (Errors.Pack_error `Read_out_of_bounds)
+        else if bytes_after_off > max_len then max_len
+        else bytes_after_off
+      in
+      let poff = Suffix_arithmetic.poff_of_off t off in
+      { poff; len = Int63.to_int len; location = Suffix }
+
+    let v_range_in_prefix_exn t ~off ~min_len ~max_len =
+      let mapping = get_mapping t in
+      let chunk, shift_in_chunk, max_entry_len =
+        Prefix_arithmetic.chunk_of_off_exn mapping off
+      in
+      let open Int63 in
+      let open Int63.Syntax in
+      let len =
+        let min_len = of_int min_len in
+        let max_len = of_int max_len in
+        if max_entry_len < min_len then
+          raise (Errors.Pack_error `Read_out_of_bounds)
+        else if max_entry_len > max_len then max_len
+        else max_entry_len
+      in
+      let poff = chunk.poff + shift_in_chunk in
+      let len = Int63.to_int len in
+      { poff; len; location = Prefix }
+
+    let v_range_exn t ~off ~min_len ~max_len =
+      let open Int63.Syntax in
+      let entry_offset_suffix_start = entry_offset_suffix_start t in
+      if off >= entry_offset_suffix_start then
+        v_range_in_suffix_exn t ~off ~min_len ~max_len
+      else v_range_in_prefix_exn t ~off ~min_len ~max_len
+  end
+
+  let read_from_accessor_exn t { poff; len; location } buf =
+    match location with
+    | Prefix -> Io.read_exn (get_prefix t) ~off:poff ~len buf
+    | Suffix -> Suffix.read_exn (Fm.suffix t.fm) ~off:poff ~len buf
 
   let read_exn t ~off ~len buf =
-    let open Int63.Syntax in
-    let entry_offset_suffix_start = entry_offset_suffix_start t in
-    if off >= entry_offset_suffix_start then (
-      let suffix_off = suffix_off_of_offset t off in
-      try Suffix.read_exn (Fm.suffix t.fm) ~off:suffix_off ~len buf
-      with e ->
-        let to_int = Int63.to_int in
-        Fmt.epr "\n%!";
-        Fmt.epr "exception!\n%!";
-        Fmt.epr "%#d %#d %#d %#d\n%!" (to_int off) len
-          (to_int entry_offset_suffix_start)
-          (to_int @@ end_offset t);
-        Fmt.epr "\n%!";
-        raise e)
-    else
-      let mapping = get_mapping t.fm in
-      let poff = poff_of_entry_exn mapping ~off ~len in
-      let prefix = get_prefix t.fm in
-      Io.read_exn prefix ~off:poff ~len buf;
-      ()
+    read_from_accessor_exn t (Accessor.v_exn t ~off ~len) buf
 
   let read_in_prefix_and_suffix_exn t ~off ~len buf =
     let ( -- ) a b = a - b in
@@ -182,34 +249,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       true
     with Errors.Pack_error (`Invalid_read_of_gced_object _) -> false
 
-  let read_at_most_from_suffix_exn t ~off ~len buf =
-    let bytes_after_off = Int63.sub (end_offset t) off in
-    let len =
-      let open Int63.Syntax in
-      if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
-      else len
-    in
-    let suffix_off = suffix_off_of_offset t off in
-    Suffix.read_exn (Fm.suffix t.fm) ~off:suffix_off ~len buf;
-    len
-
-  let read_at_most_from_prefix_exn t ~off ~len buf =
-    let mapping = get_mapping t.fm in
-    let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn mapping off in
-    let fm = t.fm in
-    let open Int63 in
-    let open Int63.Syntax in
-    let min a b = if a < b then a else b in
-    let len = min max_entry_len (of_int len) |> to_int in
-    let poff = chunk.poff + shift_in_chunk in
-    let prefix = get_prefix fm in
-    Io.read_exn prefix ~off:poff ~len buf;
-    len
-
   let read_at_most_exn t ~off ~len buf =
-    let open Int63.Syntax in
-    let entry_offset_suffix_start = entry_offset_suffix_start t in
-    if off >= entry_offset_suffix_start then
-      read_at_most_from_suffix_exn t ~off ~len buf
-    else read_at_most_from_prefix_exn t ~off ~len buf
+    let accessor = Accessor.v_range_exn t ~off ~min_len:1 ~max_len:len in
+    read_from_accessor_exn t accessor buf;
+    accessor.len
 end
