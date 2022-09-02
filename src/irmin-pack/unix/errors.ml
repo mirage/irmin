@@ -24,6 +24,16 @@ let finalise finaliser f =
   finaliser res;
   res
 
+(** Finaliser for a function that might raise exceptions. *)
+let finalise_exn finaliser f =
+  try
+    let res = f () in
+    finaliser (Some res);
+    res
+  with exn ->
+    finaliser None;
+    raise exn
+
 type base_error =
   [ `Double_close
   | `File_exists of string

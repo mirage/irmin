@@ -63,6 +63,9 @@ module type S = sig
       The exceptions raised by [f] are caught and returned (as long as they are
       known by [Errs]). *)
 
+  val iter_exn : t -> (off:int63 -> len:int -> unit) -> unit
+  (** Similar to [iter mapping f] but raises exceptions. *)
+
   type entry = { off : int63; poff : int63; len : int }
 
   val find_nearest_leq : t -> int63 -> entry option
