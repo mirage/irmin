@@ -346,7 +346,7 @@ module IO_mem = struct
       l
 
   let with_lock l f =
-    match l with None -> f () | Some l -> Eio.Mutex.with_lock l f
+    match l with None -> f () | Some l -> Eio.Mutex.use_rw ~protect:false l f
 
   let set_listen_hook () =
     let h _ dir f =
