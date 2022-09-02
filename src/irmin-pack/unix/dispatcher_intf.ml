@@ -22,27 +22,38 @@ module type S = sig
 
   type t
 
+  type accessor
+  (** An [accessor] designates a valid readable area in one of the pack files.
+
+      Accessors are meant to be used from within the [Irmin_pack_unix]
+      implementation. Their validity is only checked at creation time, so they
+      are not meant to be kept for a long time. (e.g. if kept over a GC
+      finalisation, an accessor could no longer point to a valid area because
+      the GC changes the domain of valid readable areas) *)
+
   val v : root:string -> Fm.t -> (t, [> Fm.Errs.t ]) result
 
-  val read_exn : t -> off:int63 -> len:int -> bytes -> unit
-  (** [read_exn] either reads in the prefix or the suffix file, depending on
-      [off]. See [Io.read_exn] for the arguments. If it tries to read a gced
-      object, an exception is raised. *)
+  val create_accessor_exn : t -> off:int63 -> len:int -> accessor
+  (** [create_accessor_exn] returns an accessor if [off] and [len] designate a
+      readable area of the pack files, otherwise it raises one of
+      [Errors.Pack_error `Read_out_of_bounds],
+      [Errors.Pack_error (`Invalid_prefix_read _)] and
+      [Errors.Pack_error (`Invalid_read_of_gced_object _)]. *)
 
-  val read_at_most_exn : t -> off:int63 -> len:int -> bytes -> int
-  (** [read_at_most_exn] is similar to [read_exn] but if the end of file is
-      reached while reading [len] bytes, then only the available bytes are read.
-      No [`Read_out_of_bounds] error is raised. The number of bytes read are
-      returned. *)
+  val create_accessor_from_range_exn :
+    t -> off:int63 -> min_len:int -> max_len:int -> accessor
+  (** [create_accessor_from_maxlen_exn] is similar to [create_accessor_exn]
+      except that the precise length of the span will be decided during the
+      call. *)
+
+  val read_exn : t -> accessor -> bytes -> unit
+  (** [read_exn] either reads in the prefix or the suffix file, depending on
+      [accessor]. *)
 
   val end_offset : t -> int63
   (** [end_offset] is the end offsets of the pack entries, counting that the
       prefix doesn't start at 0. It counts the entries not yet flushed from the
       prefix. *)
-
-  val read_if_not_gced : t -> off:int63 -> len:int -> bytes -> bool
-  (** Similar to [read_exn] but returns false if the object was gced, instead of
-      raising an expection. *)
 
   val offset_of_suffix_off : t -> int63 -> int63
   (** [offset_of_suffix_off t suffix_off] converts a suffix offset into a

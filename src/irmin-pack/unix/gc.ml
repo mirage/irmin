@@ -260,7 +260,10 @@ module Worker = struct
         (* Step 5.2. Transfer again the parent commits but with a modified
            magic. Reopen the new prefix, this time _not_ in append-only
            as we have to modify data inside the file. *)
-        let read_exn = Dispatcher.read_exn dispatcher in
+        let read_exn ~off ~len buf =
+          let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
+          Dispatcher.read_exn dispatcher accessor buf
+        in
         let prefix =
           let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
           Io.open_ ~path ~readonly:false |> Errs.raise_if_error
@@ -287,7 +290,10 @@ module Worker = struct
           >>= (fun _ -> Ao.close suffix)
           |> Errs.log_if_error "GC: Close suffix")
       @@ fun () ->
-      let read_exn = Dispatcher.read_exn dispatcher in
+      let read_exn ~off ~len buf =
+        let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
+        Dispatcher.read_exn dispatcher accessor buf
+      in
       let append_exn = Ao.append_exn suffix in
       let transfer_exn = transfer_append_exn ~read_exn ~append_exn buffer in
 
@@ -436,7 +442,10 @@ module Make (Args : Args) = struct
         |> Errs.log_if_error "GC: Close suffix after copy latest newies")
     @@ fun () ->
     let buffer = Bytes.create 8192 in
-    let read_exn = Dispatcher.read_exn t.dispatcher in
+    let read_exn ~off ~len buf =
+      let accessor = Dispatcher.create_accessor_exn t.dispatcher ~off ~len in
+      Dispatcher.read_exn t.dispatcher accessor buf
+    in
     let append_exn = Ao.append_exn new_suffix in
     let flush_and_raise () = Ao.flush new_suffix |> Errs.raise_if_error in
     let* () =

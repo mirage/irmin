@@ -219,13 +219,10 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       else v_range_in_prefix_exn t ~off ~min_len ~max_len
   end
 
-  let read_from_accessor_exn t { poff; len; location } buf =
+  let read_exn t { poff; len; location } buf =
     match location with
     | Prefix -> Io.read_exn (get_prefix t) ~off:poff ~len buf
     | Suffix -> Suffix.read_exn (Fm.suffix t.fm) ~off:poff ~len buf
-
-  let read_exn t ~off ~len buf =
-    read_from_accessor_exn t (Accessor.v_exn t ~off ~len) buf
 
   let read_in_prefix_and_suffix_exn t ~off ~len buf =
     let ( -- ) a b = a - b in
@@ -236,21 +233,17 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       && off + Int63.of_int len > entry_offset_suffix_start
     then (
       let read_in_prefix = entry_offset_suffix_start - off |> Int63.to_int in
-      read_exn t ~off ~len:read_in_prefix buf;
+      let accessor = Accessor.v_exn t ~off ~len:read_in_prefix in
+      read_exn t accessor buf;
       let read_in_suffix = len -- read_in_prefix in
       let buf_suffix = Bytes.create read_in_suffix in
-      read_exn t ~off:entry_offset_suffix_start ~len:read_in_suffix buf_suffix;
+      let accessor =
+        Accessor.v_exn t ~off:entry_offset_suffix_start ~len:read_in_suffix
+      in
+      read_exn t accessor buf;
       Bytes.blit buf_suffix 0 buf read_in_prefix read_in_suffix)
-    else read_exn t ~off ~len buf
+    else read_exn t (Accessor.v_exn t ~off ~len) buf
 
-  let read_if_not_gced t ~off ~len buf =
-    try
-      read_exn t ~off ~len buf;
-      true
-    with Errors.Pack_error (`Invalid_read_of_gced_object _) -> false
-
-  let read_at_most_exn t ~off ~len buf =
-    let accessor = Accessor.v_range_exn t ~off ~min_len:1 ~max_len:len in
-    read_from_accessor_exn t accessor buf;
-    accessor.len
+  let create_accessor_exn = Accessor.v_exn
+  let create_accessor_from_range_exn = Accessor.v_range_exn
 end
