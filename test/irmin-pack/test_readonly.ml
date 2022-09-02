@@ -17,8 +17,8 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-instances"
-let src = Logs.Src.create "tests.instances" ~doc:"Tests"
+let root = Filename.concat "_build" "test-readonly"
+let src = Logs.Src.create "tests.readonly" ~doc:"Tests read-only stores"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 

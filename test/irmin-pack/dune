@@ -2,7 +2,7 @@
  (name test_pack)
  (modules
   test_pack
-  multiple_instances
+  test_readonly
   test_existing_stores
   test_inode
   test_tree
