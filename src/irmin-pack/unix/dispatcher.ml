@@ -246,4 +246,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
   let create_accessor_exn = Accessor.v_exn
   let create_accessor_from_range_exn = Accessor.v_range_exn
+
+  let shrink_accessor_exn a ~new_len =
+    if new_len > a.len then failwith "shrink_accessor_exn to larger accessor";
+    { a with len = new_len }
 end

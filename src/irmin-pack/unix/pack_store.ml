@@ -27,6 +27,7 @@ end
 
 exception Invalid_read of string
 exception Corrupted_store of string
+exception Dangling_hash
 
 let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
@@ -77,6 +78,27 @@ struct
   type key = Key.t [@@deriving irmin ~pp]
   type value = Val.t [@@deriving irmin ~pp]
 
+  let accessor_of_key t k =
+    match Pack_key.inspect k with
+    | Indexed hash -> (
+        match Index.find (Fm.index t.fm) hash with
+        | None -> raise Dangling_hash
+        | Some (off, len, _kind) ->
+            Pack_key.promote_exn k ~offset:off ~length:len;
+            Dispatcher.create_accessor_exn t.dispatcher ~off ~len)
+    | Direct { offset = off; length = len; _ } ->
+        Dispatcher.create_accessor_exn t.dispatcher ~off ~len
+
+  let len_of_direct_key k =
+    match Pack_key.inspect k with
+    | Indexed _ -> assert false
+    | Direct { length; _ } -> length
+
+  let off_of_direct_key k =
+    match Pack_key.inspect k with
+    | Indexed _ -> assert false
+    | Direct { offset; _ } -> offset
+
   let index_direct_with_kind t hash =
     [%log.debug "index %a" pp_hash hash];
     match Index.find (Fm.index t.fm) hash with
@@ -97,32 +119,6 @@ struct
     let lru = Lru.create lru_size in
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
     { lru; staging; indexing_strategy; fm; dict; dispatcher }
-
-  type span = { offset : int63; length : int }
-  (** The type of contiguous ranges of bytes in the pack file. *)
-
-  (** Refer to the index for the position of a pack entry, assuming it is
-      indexed: *)
-  let get_entry_span_from_index_exn t hash : span =
-    match index_direct t hash with
-    | Some key' -> (
-        match Pack_key.inspect key' with
-        | Direct { offset; length; _ } -> { offset; length }
-        | Indexed _ ->
-            (* [index_direct] returns only [Direct] keys. *)
-            assert false)
-    | None ->
-        corrupted_store "Unexpected object %a missing from index" pp_hash hash
-
-  let offset_of_key t k =
-    match Pack_key.inspect k with
-    | Direct { offset; _ } -> offset
-    | Indexed hash ->
-        let entry_span = get_entry_span_from_index_exn t hash in
-        (* Cache the offset and length information in the existing key: *)
-        Pack_key.promote_exn k ~offset:entry_span.offset
-          ~length:entry_span.length;
-        entry_span.offset
 
   module Entry_prefix = struct
     type t = {
@@ -165,10 +161,10 @@ struct
     Dispatcher.read_exn dispatcher accessor buf;
     let hash =
       (* Bytes.unsafe_to_string usage: buf is created locally, so we have unique
-         ownership; we assume Dispatcher.read_at_most_exn returns unique ownership; use of
-         Bytes.unsafe_to_string converts buffer to shared ownership; the rest of the code
-         seems to require only shared ownership (buffer is read, but not mutated). This is
-         safe. *)
+         ownership; we assume Dispatcher.read_at_most_exn returns unique
+         ownership; use of Bytes.unsafe_to_string converts buffer to shared
+         ownership; the rest of the code seems to require only shared ownership
+         (buffer is read, but not mutated). This is safe. *)
       decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
     in
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
@@ -191,73 +187,59 @@ struct
     in
     { Entry_prefix.hash; kind; size_of_value_and_length_header }
 
-  let io_read_and_decode_entry_prefix ~off t =
-    read_and_decode_entry_prefix ~off t.dispatcher
-
   (* This function assumes magic is written at hash_size + 1 for every
      object. *)
   let gced buf =
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
     kind = Pack_value.Kind.Dangling_parent_commit
 
-  let io_read_and_decode_hash_if_not_gced ~off t =
-    let len = Hash.hash_size + 1 in
-    let buf = Bytes.create len in
-    let ( let* ) = Option.bind in
-    let* accessor =
-      try Some (Dispatcher.create_accessor_exn t.dispatcher ~off ~len)
-      with Errors.Pack_error (`Invalid_read_of_gced_object _) -> None
-    in
-    Dispatcher.read_exn t.dispatcher accessor buf;
-    if gced buf then None
-    else
-      (* Bytes.unsafe_to_string usafe: buf is create in this function, uniquely owned; we
-           assume Dispatcher.read_if_not_gced returns unique ownership; then call to
-           Bytes.unsafe_to_string gives up ownerhsip of buf for ownership of resulting
-           string. This is safe. *)
-      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
-      Some hash
-
   let pack_file_contains_key t k =
-    let key = Pack_key.inspect k in
-    match key with
-    | Indexed hash -> Index.mem (Fm.index t.fm) hash
-    | Direct { offset; _ } -> (
-        let io_offset = Dispatcher.end_offset t.dispatcher in
-        let minimal_entry_length = Entry_prefix.min_length in
-        let open Int63.Syntax in
-        if offset + Int63.of_int minimal_entry_length > io_offset then (
-          (* Can't fit an entry into this suffix of the store, so this key
-             isn't (yet) valid. If we're a read-only instance, the key may
-             become valid on [reload]; otherwise we know that this key wasn't
-             constructed for this store. *)
-          if not (Control.readonly (Fm.control t.fm)) then
-            invalid_read
-              "invalid key %a checked for membership (IO offset = %a)" pp_key k
-              Int63.pp io_offset;
-          false)
+    match accessor_of_key t k with
+    | exception Dangling_hash -> false
+    | exception Errors.Pack_error `Read_out_of_bounds ->
+        (* Can't fit an entry into this suffix of the store, so this key
+           isn't (yet) valid. If we're a read-only instance, the key may
+           become valid on [reload]; otherwise we know that this key wasn't
+           constructed for this store. *)
+        (if not (Control.readonly (Fm.control t.fm)) then
+         let io_offset = Dispatcher.end_offset t.dispatcher in
+         invalid_read "invalid key %a checked for membership (IO offset = %a)"
+           pp_key k Int63.pp io_offset);
+        false
+    | exception Errors.Pack_error (`Invalid_read_of_gced_object _) -> false
+    | exception Errors.Pack_error (`Invalid_prefix_read _) -> false
+    | accessor ->
+        let len = Hash.hash_size + 1 in
+        let accessor = Dispatcher.shrink_accessor_exn accessor ~new_len:len in
+        let buf = Bytes.create len in
+        Dispatcher.read_exn t.dispatcher accessor buf;
+        if gced buf then false
         else
-          (* Read the hash explicitly as an integrity check: *)
-          match io_read_and_decode_hash_if_not_gced ~off:offset t with
-          | None -> false
-          | Some hash ->
-              let expected_hash = Key.to_hash k in
-              if not (equal_hash hash expected_hash) then
-                invalid_read
-                  "invalid key %a checked for membership (read hash %a at this \
-                   offset instead)"
-                  pp_key k pp_hash hash;
-              (* At this point we consider the key to be contained in the pack
-                 file. However, we could also be in the presence of a forged (or
-                 unlucky) key that points to an offset that mimics a real pack
-                 entry (e.g. in the middle of a blob). *)
-              true)
+          (* Bytes.unsafe_to_string usage: [buf] is local and never reused after
+             the call to [decode_bin_hash]. *)
+          let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+          if not (equal_hash hash (Key.to_hash k)) then
+            invalid_read
+              "invalid key %a checked for membership (read hash %a at this \
+               offset instead)"
+              pp_key k pp_hash hash;
+          (* At this point we consider the key to be contained in the pack
+             file. However, we could also be in the presence of a forged (or
+             unlucky) key that points to an offset that mimics a real pack
+             entry (e.g. in the middle of a blob). *)
+          true
 
   let unsafe_mem t k =
     [%log.debug "[pack] mem %a" pp_key k];
-    Tbl.mem t.staging (Key.to_hash k)
-    || Lru.mem t.lru (offset_of_key t k)
-    || pack_file_contains_key t k
+    match Pack_key.inspect k with
+    | Indexed hash ->
+        (* The key doesn't contain an offset, let's skip the lookup in [lru] and
+           go straight to disk read. *)
+        Tbl.mem t.staging hash || pack_file_contains_key t k
+    | Direct { offset; hash; _ } ->
+        Tbl.mem t.staging hash
+        || Lru.mem t.lru offset
+        || pack_file_contains_key t k
 
   let mem t k =
     let b = unsafe_mem t k in
@@ -269,139 +251,136 @@ struct
 
   let check_key k v = check_hash (Key.to_hash k) v
 
-  let io_read_and_decode_if_not_gced ~off ~len t =
-    let () =
-      if not (Fm.readonly t.fm) then
+  (** Produce a key from an offset in the context of decoding inode and commit
+      children. *)
+  let key_of_offset t offset =
+    [%log.debug "key_of_offset: %a" Int63.pp offset];
+    (* Attempt to eagerly read the length at the same time as reading the
+       hash in order to save an extra IO read when dereferencing the key: *)
+    let entry_prefix = read_and_decode_entry_prefix t.dispatcher ~off:offset in
+    (* This function is called on the parents of a commit when deserialising
+       it. Dangling_parent_commit are usually treated as removed objects,
+       except here, where in order to correctly deserialise the gced commit,
+       they are treated as kept commits. *)
+    let kind =
+      if entry_prefix.kind = Pack_value.Kind.Dangling_parent_commit then
+        Pack_value.Kind.Commit_v2
+      else entry_prefix.kind
+    in
+    let entry_prefix = { entry_prefix with kind } in
+    match Entry_prefix.total_entry_length entry_prefix with
+    | Some length -> Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
+    | None ->
+        (* NOTE: we could store [offset] in this key, but since we know the
+           entry doesn't have a length header we'll need to check the index
+           when dereferencing this key anyway. {i Not} storing the offset
+           avoids doing another failed check in the pack file for the length
+           header during [find]. *)
+        Pack_key.v_indexed entry_prefix.hash
+
+  let find_in_pack_file t key =
+    match accessor_of_key t key with
+    | exception Dangling_hash -> None
+    | exception Errors.Pack_error `Read_out_of_bounds -> (
+        (* Can't fit an entry into this suffix of the store, so this key
+         * isn't (yet) valid. If we're a read-only instance, the key may
+         * become valid on [reload]; otherwise we know that this key wasn't
+         * constructed for this store. *)
         let io_offset = Dispatcher.end_offset t.dispatcher in
-        let open Int63.Syntax in
-        if off + Int63.of_int len > io_offset then
-          (* This is likely a store corruption. We raise [Invalid_read]
-             specifically so that [integrity_check] below can handle it. *)
-          invalid_read
-            "Got request to read %d bytes (at offset %a), but max IO offset is \
-             %a"
-            len Int63.pp off Int63.pp io_offset
-    in
-    let buf = Bytes.create len in
-
-    let ( let* ) = Option.bind in
-    let* accessor =
-      try Some (Dispatcher.create_accessor_exn t.dispatcher ~off ~len)
-      with Errors.Pack_error (`Invalid_read_of_gced_object _) -> None
-    in
-    Dispatcher.read_exn t.dispatcher accessor buf;
-    if gced buf then None
-    else
-      let key_of_offset offset =
-        [%log.debug "key_of_offset: %a" Int63.pp offset];
-        (* Attempt to eagerly read the length at the same time as reading the
-           hash in order to save an extra IO read when dereferencing the key: *)
-        let entry_prefix = io_read_and_decode_entry_prefix ~off:offset t in
-        (* This function is called on the parents of a commit when deserialising
-           it. Dangling_parent_commit are usually treated as removed objects,
-           except here, where in order to correctly deserialise the gced commit,
-           they are treated as kept commits. *)
-        let kind =
-          if entry_prefix.kind = Pack_value.Kind.Dangling_parent_commit then
-            Pack_value.Kind.Commit_v2
-          else entry_prefix.kind
-        in
-        let entry_prefix = { entry_prefix with kind } in
-        match Entry_prefix.total_entry_length entry_prefix with
-        | Some length ->
-            Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
-        | None ->
-            (* NOTE: we could store [offset] in this key, but since we know the
-               entry doesn't have a length header we'll need to check the index
-               when dereferencing this key anyway. {i Not} storing the offset
-               avoids doing another failed check in the pack file for the length
-               header during [find]. *)
-            Pack_key.v_indexed entry_prefix.hash
-      in
-      let key_of_hash = Pack_key.v_indexed in
-      let dict = Dict.find t.dict in
-      let v =
-        (* Bytes.unsafe_to_string usage: buf created, uniquely owned; after creation, we
-           assume Dispatcher.read_if_not_gced returns unique ownership; we give up unique
-           ownership in call to Bytes.unsafe_to_string. This is safe. *)
-        Val.decode_bin ~key_of_offset ~key_of_hash ~dict
-          (Bytes.unsafe_to_string buf)
-          (ref 0)
-      in
-      Some v
-
-  let find_in_pack_file ~check_integrity t key =
-    let loc, { offset; length } =
-      match Pack_key.inspect key with
-      | Direct { offset; length; _ } ->
-          (Stats.Pack_store.Pack_direct, { offset; length })
-      | Indexed hash ->
-          let entry_span = get_entry_span_from_index_exn t hash in
-          (* Cache the offset and length information in the existing key: *)
-          Pack_key.promote_exn key ~offset:entry_span.offset
-            ~length:entry_span.length;
-          (Stats.Pack_store.Pack_indexed, entry_span)
-    in
-    let io_offset = Dispatcher.end_offset t.dispatcher in
-    let open Int63.Syntax in
-    if offset + Int63.of_int length > io_offset then (
-      (* Can't fit an entry into this suffix of the store, so this key
-         isn't (yet) valid. If we're a read-only instance, the key may
-         become valid on [reload]; otherwise we know that this key wasn't
-         constructed for this store. *)
-      match Control.readonly (Fm.control t.fm) with
-      | false ->
-          invalid_read "attempt to dereference invalid key %a (IO offset = %a)"
-            pp_key key Int63.pp io_offset
-      | true ->
-          [%log.debug
-            "Direct store key references an unknown starting offset %a (length \
-             = %d, IO offset = %a)"
-            Int63.pp offset length Int63.pp io_offset];
-          (Stats.Pack_store.Not_found, None))
-    else
-      match io_read_and_decode_if_not_gced ~off:offset ~len:length t with
-      | Some v ->
-          Lru.add t.lru offset v;
-          (if check_integrity then
-           check_key key v |> function
-           | Ok () -> ()
-           | Error (expected, got) ->
-               corrupted_store "Got hash %a, expecting %a (for val: %a)."
-                 pp_hash got pp_hash expected pp_value v);
-          (loc, Some v)
-      | None -> (* TODO: add a new counter in stats*) (loc, None)
+        match Control.readonly (Fm.control t.fm) with
+        | false ->
+            invalid_read
+              "attempt to dereference invalid key %a (IO offset = %a)" pp_key
+              key Int63.pp io_offset
+        | true ->
+            [%log.debug
+              "Direct store key references an unknown starting offset %a \
+               (length = %d, IO offset = %a)"
+              Int63.pp (off_of_direct_key key) (len_of_direct_key key) Int63.pp
+                io_offset];
+            None)
+    | exception Errors.Pack_error (`Invalid_read_of_gced_object _) -> None
+    | exception (Errors.Pack_error (`Invalid_prefix_read _) as e) -> raise e
+    | accessor ->
+        let buf = Bytes.create (len_of_direct_key key) in
+        Dispatcher.read_exn t.dispatcher accessor buf;
+        if gced buf then None
+        else
+          let key_of_offset = key_of_offset t in
+          let key_of_hash = Pack_key.v_indexed in
+          let dict = Dict.find t.dict in
+          let v =
+            (* Bytes.unsafe_to_string usage: buf created, uniquely owned; after
+               creation, we assume Dispatcher.read_if_not_gced returns unique
+               ownership; we give up unique ownership in call to
+               [Bytes.unsafe_to_string]. This is safe. *)
+            Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+              (Bytes.unsafe_to_string buf)
+              (ref 0)
+          in
+          Some v
 
   let unsafe_find ~check_integrity t k =
     [%log.debug "[pack] find %a" pp_key k];
-    let hash = Key.to_hash k in
-    let off = offset_of_key t k in
-    let location, value =
-      match Tbl.find t.staging hash with
-      | v ->
-          Lru.add t.lru off v;
-          (Stats.Pack_store.Staging, Some v)
-      | exception Not_found -> (
-          match Lru.find t.lru off with
-          | v -> (Stats.Pack_store.Lru, Some v)
-          | exception Not_found -> find_in_pack_file ~check_integrity t k)
+    let find_location = ref Stats.Pack_store.Not_found in
+    let find_in_pack_file_guarded ~is_indexed =
+      let res = find_in_pack_file t k in
+      Option.iter
+        (fun v ->
+          if is_indexed then find_location := Stats.Pack_store.Pack_indexed
+          else find_location := Stats.Pack_store.Pack_direct;
+          Lru.add t.lru (off_of_direct_key k) v;
+          if check_integrity then
+            check_key k v |> function
+            | Ok () -> ()
+            | Error (expected, got) ->
+                corrupted_store "Got hash %a, expecting %a (for val: %a)."
+                  pp_hash got pp_hash expected pp_value v)
+        res;
+      res
     in
-    Stats.report_pack_store ~field:location;
-    value
+    let value_opt =
+      match Pack_key.inspect k with
+      | Indexed hash -> (
+          match Tbl.find t.staging hash with
+          | v ->
+              (* Hit in staging, but we don't have offset to put in LRU *)
+              find_location := Stats.Pack_store.Staging;
+              Some v
+          | exception Not_found -> find_in_pack_file_guarded ~is_indexed:true)
+      | Direct { offset; hash; _ } -> (
+          match Tbl.find t.staging hash with
+          | v ->
+              Lru.add t.lru offset v;
+              find_location := Stats.Pack_store.Staging;
+              Some v
+          | exception Not_found -> (
+              match Lru.find t.lru offset with
+              | v ->
+                  find_location := Stats.Pack_store.Lru;
+                  Some v
+              | exception Not_found ->
+                  find_in_pack_file_guarded ~is_indexed:false))
+    in
+    Stats.report_pack_store ~field:!find_location;
+    value_opt
 
   let find t k =
     let v = unsafe_find ~check_integrity:true t k in
     Lwt.return v
 
   let integrity_check ~offset ~length hash t =
-    try
-      match io_read_and_decode_if_not_gced ~off:offset ~len:length t with
-      | None -> Error `Wrong_hash (*TODO: new error for reading gced objects.*)
-      | Some value -> (
-          match check_hash hash value with
-          | Ok () -> Ok ()
-          | Error _ -> Error `Wrong_hash)
-    with Invalid_read _ -> Error `Absent_value
+    let k = Pack_key.v_direct ~hash ~offset ~length in
+    (* TODO: new error for reading gced objects. *)
+    match find_in_pack_file t k with
+    | exception Errors.Pack_error (`Invalid_prefix_read _) ->
+        Error `Absent_value
+    | exception Invalid_read _ -> Error `Absent_value
+    | None -> Error `Wrong_hash
+    | Some value -> (
+        match check_hash hash value with
+        | Ok () -> Ok ()
+        | Error _ -> Error `Wrong_hash)
 
   let cast t = (t :> read_write t)
 
@@ -480,10 +459,9 @@ struct
     in
     match ensure_unique && use_index with
     | false -> unguarded_append ()
-    | true -> (
-        match index_direct t hash with
-        | None -> unguarded_append ()
-        | Some key -> key)
+    | true ->
+        let key = Pack_key.v_indexed hash in
+        if unsafe_mem t key then key else unguarded_append ()
 
   let unsafe_add t hash v =
     unsafe_append ~ensure_unique:true ~overcommit:false t hash v |> Lwt.return
