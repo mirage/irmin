@@ -18,6 +18,3 @@ module Info = Info.Make
 module I = Info (Irmin.Info.Default)
 
 let info = I.v
-
-let set_listen_dir_hook () =
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook

@@ -30,7 +30,6 @@ depends: [
   "mtime" {>= "1.0.0"}
   "bigstringaf" { >= "0.2.0" }
   "ppx_irmin" {= version}
-  "irmin-watcher" {>= "0.2.0"}
   "hex"      {with-test}
   "alcotest" {>= "1.1.0" & with-test}
   "alcotest-lwt" {with-test}

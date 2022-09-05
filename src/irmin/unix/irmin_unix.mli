@@ -28,7 +28,3 @@ val info :
     date} set to [Unix.gettimeoday ()] and the {{!Irmin.Info.S.author} author}
     built using [Unix.gethostname()] and [Unix.getpid()] if [author] is not
     provided. *)
-
-val set_listen_dir_hook : unit -> unit
-(** Install {!Irmin_watcher.hook} as the listen hook for watching changes in
-    directories. *)
