@@ -501,7 +501,7 @@ let misc =
     ("dict-files", Dict.tests);
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
-    ("instances", Multiple_instances.tests);
+    ("read-only", Test_readonly.tests);
     ("existing stores", Test_existing_stores.tests);
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);

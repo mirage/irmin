@@ -321,42 +321,45 @@ module Maker (Config : Conf.S) = struct
 
         let batch t f =
           [%log.debug "[pack] batch start"];
-          let c0 = Mtime_clock.counter () in
-          let try_finalise () = Gc.try_auto_finalise_exn t in
-          let* _ = try_finalise () in
-          t.during_batch <- true;
-          let contents = Contents.CA.cast t.contents in
-          let node = Node.CA.Pack.cast t.node in
-          let commit = Commit.CA.cast t.commit in
-          let contents : 'a Contents.t = contents in
-          let node : 'a Node.t = (contents, node) in
-          let commit : 'a Commit.t = (node, commit) in
-          let on_success res =
-            let s = Mtime_clock.count c0 |> Mtime.Span.to_s in
-            [%log.info "[pack] batch completed in %.6fs" s];
-            t.during_batch <- false;
-            File_manager.flush t.fm |> Errs.raise_if_error;
+          let readonly = Irmin_pack.Conf.readonly t.config in
+          if readonly then Errs.raise_error `Ro_not_allowed
+          else
+            let c0 = Mtime_clock.counter () in
+            let try_finalise () = Gc.try_auto_finalise_exn t in
             let* _ = try_finalise () in
-            Lwt.return res
-          in
-          let on_fail exn =
-            t.during_batch <- false;
-            [%log.info
-              "[pack] batch failed. calling flush. (%s)"
-                (Printexc.to_string exn)];
-            let () =
-              match File_manager.flush t.fm with
-              | Ok () -> ()
-              | Error err ->
-                  [%log.err
-                    "[pack] batch failed and flush failed. Silencing flush \
-                     fail. (%a)"
-                    Errs.pp err]
+            t.during_batch <- true;
+            let contents = Contents.CA.cast t.contents in
+            let node = Node.CA.Pack.cast t.node in
+            let commit = Commit.CA.cast t.commit in
+            let contents : 'a Contents.t = contents in
+            let node : 'a Node.t = (contents, node) in
+            let commit : 'a Commit.t = (node, commit) in
+            let on_success res =
+              let s = Mtime_clock.count c0 |> Mtime.Span.to_s in
+              [%log.info "[pack] batch completed in %.6fs" s];
+              t.during_batch <- false;
+              File_manager.flush t.fm |> Errs.raise_if_error;
+              let* _ = try_finalise () in
+              Lwt.return res
             in
-            (* Kill gc process in at_exit. *)
-            raise exn
-          in
-          Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
+            let on_fail exn =
+              t.during_batch <- false;
+              [%log.info
+                "[pack] batch failed. calling flush. (%s)"
+                  (Printexc.to_string exn)];
+              let () =
+                match File_manager.flush t.fm with
+                | Ok () -> ()
+                | Error err ->
+                    [%log.err
+                      "[pack] batch failed and flush failed. Silencing flush \
+                       fail. (%a)"
+                      Errs.pp err]
+              in
+              (* Kill gc process in at_exit. *)
+              raise exn
+            in
+            Lwt.try_bind (fun () -> f contents node commit) on_success on_fail
 
         let close t =
           (* Step 1 - Kill the gc process if it is running *)

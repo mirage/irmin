@@ -17,8 +17,8 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-instances"
-let src = Logs.Src.create "tests.instances" ~doc:"Tests"
+let root = Filename.concat "_build" "test-readonly"
+let src = Logs.Src.create "tests.readonly" ~doc:"Tests read-only stores"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -105,10 +105,20 @@ let ro_reload_after_close () =
   S.reload ro;
   binding (check_binding ro c1) >>= fun () -> S.Repo.close ro
 
+let ro_batch () =
+  let* rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
+  let* ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  Alcotest.check_raises_lwt "Read-only store throws RO_not_allowed exception"
+    Irmin_pack_unix.Errors.RO_not_allowed (fun () ->
+      S.Backend.Repo.batch ro (fun _ _ _ -> Lwt.return_unit))
+  >>= fun () ->
+  S.Repo.close ro >>= fun () -> S.Repo.close rw
+
 let tests =
   let tc name test = Alcotest_lwt.test_case name `Quick (fun _switch -> test) in
   [
     tc "Test open ro after rw closed" open_ro_after_rw_closed;
     tc "Test ro reload after add" ro_reload_after_add;
     tc "Test ro reload after close" ro_reload_after_close;
+    tc "Test ro batch" ro_batch;
   ]
