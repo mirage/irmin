@@ -412,11 +412,12 @@ module Make (Io : Io.S) = struct
 
     (* Fill and close [file2] *)
     let poff = ref 0 in
-    let encode =
+    let encode i =
       let buf = Bytes.create 8 in
-      fun i ->
-        Bytes.set_int64_le buf 0 (Int64.of_int i);
-        Bytes.unsafe_to_string buf
+      Bytes.set_int64_le buf 0 (Int64.of_int i);
+      (* Bytes.unsafe_to_string is safe since [buf] will not be modified after
+         this function returns. We give up ownership. *)
+      Bytes.unsafe_to_string buf
     in
     let register_entry ~off ~len =
       Ao.append_exn file2 (encode off);
