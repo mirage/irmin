@@ -7,6 +7,9 @@
   
 ### Changed
 
+- **irmin**
+  - Removed `Irmin_unix.set_listen_dir_hook` (#2071, @zshipko)
+
 ### Fixed
 
 ## 3.4.0 (2022-08-25)

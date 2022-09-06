@@ -1,7 +1,7 @@
 (library
  (name irmin_unix)
  (public_name irmin.unix)
- (libraries irmin unix irmin-watcher)
+ (libraries irmin unix)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation
