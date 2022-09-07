@@ -148,19 +148,21 @@ struct
 
   let read_and_decode_entry_prefix ~off dispatcher =
     let buf = Bytes.create Entry_prefix.max_length in
-    let bytes_read =
-      Dispatcher.read_at_most_exn dispatcher ~off ~len:Entry_prefix.max_length
-        buf
+    let accessor =
+      (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
+         final entry in the pack file (if the data section of the entry is
+         shorter than [Varint.max_encoded_size]. In this case, an invalid read
+         may be discovered below when attempting to decode the length header. *)
+      try
+        Dispatcher.create_accessor_from_range_exn dispatcher ~off
+          ~min_len:Entry_prefix.min_length ~max_len:Entry_prefix.max_length
+      with Errors.Pack_error `Read_out_of_bounds ->
+        invalid_read
+          "Attempted to read an entry at offset %a in the pack file, but got \
+           less than %d bytes"
+          Int63.pp off Entry_prefix.min_length
     in
-    (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
-       final entry in the pack file (if the data section of the entry is
-       shorter than [Varint.max_encoded_size]. In this case, an invalid read
-       may be discovered below when attempting to decode the length header. *)
-    if bytes_read < Entry_prefix.min_length then
-      invalid_read
-        "Attempted to read an entry at offset %a in the pack file, but got \
-         only %d bytes"
-        Int63.pp off bytes_read;
+    Dispatcher.read_exn dispatcher accessor buf;
     let hash =
       (* Bytes.unsafe_to_string usage: buf is created locally, so we have unique
          ownership; we assume Dispatcher.read_at_most_exn returns unique ownership; use of
@@ -201,13 +203,18 @@ struct
   let io_read_and_decode_hash_if_not_gced ~off t =
     let len = Hash.hash_size + 1 in
     let buf = Bytes.create len in
-    let found = Dispatcher.read_if_not_gced t.dispatcher ~off ~len buf in
-    if (not found) || gced buf then None
+    let ( let* ) = Option.bind in
+    let* accessor =
+      try Some (Dispatcher.create_accessor_exn t.dispatcher ~off ~len)
+      with Errors.Pack_error (`Invalid_read_of_gced_object _) -> None
+    in
+    Dispatcher.read_exn t.dispatcher accessor buf;
+    if gced buf then None
     else
       (* Bytes.unsafe_to_string usafe: buf is create in this function, uniquely owned; we
-         assume Dispatcher.read_if_not_gced returns unique ownership; then call to
-         Bytes.unsafe_to_string gives up ownerhsip of buf for ownership of resulting
-         string. This is safe. *)
+           assume Dispatcher.read_if_not_gced returns unique ownership; then call to
+           Bytes.unsafe_to_string gives up ownerhsip of buf for ownership of resulting
+           string. This is safe. *)
       let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
       Some hash
 
@@ -276,8 +283,14 @@ struct
             len Int63.pp off Int63.pp io_offset
     in
     let buf = Bytes.create len in
-    let found = Dispatcher.read_if_not_gced t.dispatcher ~off ~len buf in
-    if (not found) || gced buf then None
+
+    let ( let* ) = Option.bind in
+    let* accessor =
+      try Some (Dispatcher.create_accessor_exn t.dispatcher ~off ~len)
+      with Errors.Pack_error (`Invalid_read_of_gced_object _) -> None
+    in
+    Dispatcher.read_exn t.dispatcher accessor buf;
+    if gced buf then None
     else
       let key_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];
