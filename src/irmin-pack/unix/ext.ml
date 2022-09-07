@@ -220,6 +220,7 @@ module Maker (Config : Conf.S) = struct
           File_manager.reload ~hook t.fm |> Errs.raise_if_error
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
+        let fsync t = File_manager.fsync t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
         module Gc = struct
@@ -502,6 +503,7 @@ module Maker (Config : Conf.S) = struct
     let stats = Stats.run
     let reload = X.Repo.reload
     let flush = X.Repo.flush
+    let fsync = X.Repo.fsync
 
     module Gc = struct
       type msg = [ `Msg of string ]
@@ -645,6 +647,7 @@ module Maker (Config : Conf.S) = struct
 
         let close process repo =
           flush repo;
+          fsync repo;
           Import.close process
       end
     end
