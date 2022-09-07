@@ -145,6 +145,9 @@ module type Specifics = sig
     val is_finished : repo -> bool
     (** [is_finished repo] is [true] if a GC is finished (or idle) and [false]
         if a GC is running for the given [repo]. *)
+
+    val is_allowed : repo -> bool
+    (** [is_allowed repo] returns true if a gc can be run on the store. *)
   end
 end
 

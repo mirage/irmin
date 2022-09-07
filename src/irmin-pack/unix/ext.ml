@@ -575,6 +575,8 @@ module Maker (Config : Conf.S) = struct
                       finished @@ Error err_msg);
             Lwt.return_ok r
         | Error _ as e -> Lwt.return e
+
+      let is_allowed repo = File_manager.gc_allowed repo.X.Repo.fm
     end
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
