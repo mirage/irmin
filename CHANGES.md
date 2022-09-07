@@ -4,7 +4,10 @@
 
 - **irmin**
   - Add `Storage` module for creating custom storage layers (#2047, @metanivek)
-  
+
+- **irmin-pack**
+  - Add `Gc.is_allowed` (#2076, @icristescu)
+
 ### Changed
 
 - **irmin**

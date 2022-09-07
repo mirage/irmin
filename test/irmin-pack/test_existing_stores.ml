@@ -144,6 +144,15 @@ module Test_reconstruct = struct
       "Checking old bindings are still reachable post index reconstruction)"];
     let* r = S.Repo.v conf in
     check_repo r archive >>= fun () -> S.Repo.close r
+
+  let test_gc_allowed () =
+    setup_test_env ();
+    let conf = config ~readonly:false ~fresh:false root_v1 in
+    let* repo = S.Repo.v conf in
+    let allowed = S.Gc.is_allowed repo in
+    Alcotest.(check bool)
+      "gc not allowed on stores with V1 objects" allowed false;
+    S.Repo.close repo
 end
 
 module Test_corrupted_stores = struct
@@ -218,6 +227,8 @@ let tests =
   [
     Alcotest_lwt.test_case "Test index reconstruction" `Quick (fun _switch ->
         Test_reconstruct.test_reconstruct);
+    Alcotest_lwt.test_case "Test gc not allowed" `Quick (fun _switch ->
+        Test_reconstruct.test_gc_allowed);
     Alcotest_lwt.test_case "Test integrity check" `Quick (fun _switch ->
         Test_corrupted_stores.test);
     Alcotest_lwt.test_case "Test integrity check for inodes" `Quick

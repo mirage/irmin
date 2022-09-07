@@ -220,6 +220,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
       let wait _ = Lwt.return_ok None
       let is_finished _ = true
+      let is_allowed _ = false
     end
 
     let integrity_check_inodes ?heads:_ _ =
