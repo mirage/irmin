@@ -490,6 +490,36 @@ module Gc = struct
     in
     S.Repo.close t.repo
 
+  (** Add back commits after they were gced. *)
+  let add_back_gced_commit () =
+    (* c1 - c2 - c3                *)
+    (*              gc(c3)         *)
+    (*                     c1 - c2 *)
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    [%log.debug "Keep c3 remove c1 c2"];
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_not_found t c2 "removed c2" in
+    let* t, c1_again =
+      commit_1 { t with tree = S.Tree.empty (); parents = [] }
+    in
+    Alcotest.check_repr S.Hash.t "added commit has the same hash as gced one"
+      (S.Commit.hash c1_again) (S.Commit.hash c1);
+    let* () = check_1 t c1_again in
+    let* t = checkout_exn t c1_again in
+    let* t, c2_again = commit_2 t in
+    Alcotest.check_repr S.Hash.t "added commit has the same hash as gced one"
+      (S.Commit.hash c2_again) (S.Commit.hash c2);
+    let* () = check_2 t c2_again in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test one gc" one_gc;
@@ -504,6 +534,7 @@ module Gc = struct
       tc "Test ro reload after open" ro_reload_after_v;
       tc "Test lru" gc_lru;
       tc "Test gc during batch" gc_during_batch;
+      tc "Test add back gced commit" add_back_gced_commit;
     ]
 end
 
