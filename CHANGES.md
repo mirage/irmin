@@ -15,6 +15,12 @@
 
 ### Fixed
 
+- **irmin-pack**
+  - Fix the behaviour of irmin-pack regarding hashes and keys to GCed objects.
+    It used to not correctly ignore these entries, which could have resulted in
+    various bugs. E.g. the impossibility to append an object that used to be
+    dead and that has its hash in index. (#2070, @Ngoguey42)
+
 ## 3.4.0 (2022-08-25)
 
 ### Added

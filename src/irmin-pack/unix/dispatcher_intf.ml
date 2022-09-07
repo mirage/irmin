@@ -46,6 +46,10 @@ module type S = sig
       except that the precise length of the span will be decided during the
       call. *)
 
+  val shrink_accessor_exn : accessor -> new_len:int -> accessor
+  (** [shrink_accessor_exn a ~new_len] is [a] where the length is smaller than
+      in [a].*)
+
   val read_exn : t -> accessor -> bytes -> unit
   (** [read_exn] either reads in the prefix or the suffix file, depending on
       [accessor]. *)
