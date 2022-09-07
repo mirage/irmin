@@ -2,7 +2,8 @@
  (name irmin_server_unix)
  (public_name irmin-server.unix)
  (optional)
- (preprocess (pps ppx_blob))
+ (preprocess
+  (pps ppx_blob))
  (preprocessor_deps index.html)
  (libraries
   irmin-server
