@@ -694,6 +694,28 @@ struct
             >>= function
             | Ok _ -> Store.Head.find t >|= Result.ok
             | Error e -> err_write e);
+        io_field "test_set_and_get" ~typ:store_schema.commit
+          ~doc:
+            "Update a value with \"set\" argument if \"test\" matches the \
+             current value. The commit returned is gauranteed to be that of a \
+             successful update to the store."
+          ~args:
+            Arg.
+              [
+                arg "branch" ~typ:Input.branch;
+                arg "path" ~typ:(non_null Input.path);
+                arg "test" ~typ:Input.value;
+                arg "set" ~typ:Input.value;
+                arg "info" ~typ:Input.info;
+              ]
+          ~resolve:(fun _ _src branch k test set i ->
+            let* t = mk_branch s branch in
+            let* info, retries, allow_empty, parents = txn_args s i in
+            Store.test_set_and_get ?retries ?allow_empty ?parents ~info t k
+              ~test ~set
+            >>= function
+            | Ok _ as v -> Lwt.return v
+            | Error e -> err_write e);
         io_field "test_and_set_branch" ~typ:(non_null bool)
           ~doc:
             "Update a branch with \"set\" argument if \"test\" matches the \
