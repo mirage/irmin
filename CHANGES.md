@@ -1,4 +1,4 @@
-## Unreleased
+## 3.4.1 (2022-09-07)
 
 ### Added
 
@@ -7,6 +7,8 @@
 
 - **irmin-pack**
   - Add `Gc.is_allowed` (#2076, @icristescu)
+  - Add a `weight` parameter in the LRU implementation to bound
+    memory usage (#2050, @samoht)
 
 ### Changed
 
@@ -51,8 +53,6 @@
     demonstration of usage.
   - Add a consistency check for the files on disk when opening store (#2004,
   @icristescu)
-  - Add a `weight` parameter in the LRU implementation to bound
-    memory usage (#2050, @samoht)
 
 ### Changed
 
