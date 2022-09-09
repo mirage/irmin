@@ -40,14 +40,12 @@ end
 
 type int63 = Int63.t [@@deriving irmin]
 
-module Pack_value = Irmin_pack.Pack_value
 module Version = Irmin_pack.Version
 
 module type S = Irmin_pack.S
 
 module Conf = Irmin_pack.Conf
 module Layout = Irmin_pack.Layout
-module Pack_key = Irmin_pack.Pack_key
 module Stats = Stats
 module Indexable = Irmin_pack.Indexable
 

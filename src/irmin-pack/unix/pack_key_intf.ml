@@ -16,18 +16,6 @@
 
 open! Import
 
-module type S = sig
-  include Irmin.Key.S
-
-  val null : t
-
-  val unfindable_of_hash : hash -> t
-  (** [unfindable_of_hash h] is a key [k] such that [to_hash k = h], with an
-      unspecified internal representation. This function enables an efficient
-      implmentation of "portable" inodes, but is otherwise unused. Attempting to
-      dereference a key constructed in this way results in undefined behaviour. *)
-end
-
 module type Sigs = sig
   type 'hash t
   (** The type of {i keys} referencing values stored in the [irmin-pack]
@@ -90,7 +78,7 @@ module type Sigs = sig
     type hash
 
     (** @inline *)
-    include S with type t = hash t and type hash := hash
+    include Irmin_pack.Pack_key.S with type t = hash t and type hash := hash
   end
 
   module Make (Hash : Irmin.Hash.S) : S with type hash = Hash.t

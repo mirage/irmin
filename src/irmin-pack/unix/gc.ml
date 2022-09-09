@@ -126,7 +126,7 @@ module Worker = struct
        existing written data. *)
     let transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key =
       let off, len =
-        match Irmin_pack.Pack_key.inspect key with
+        match Pack_key.inspect key with
         | Indexed _ ->
             (* As this is the second time we are reading this key, this case is
                unreachable. *)
@@ -181,9 +181,7 @@ module Worker = struct
         | Some commit -> commit
       in
       let commit_offset, _ =
-        let state : _ Irmin_pack.Pack_key.state =
-          Irmin_pack.Pack_key.inspect commit_key
-        in
+        let state : _ Pack_key.state = Pack_key.inspect commit_key in
         match state with
         | Indexed _ -> assert false
         | Direct x -> (x.offset, x.length)
@@ -202,7 +200,7 @@ module Worker = struct
            because, when decoding the [Commit_value.t] at [commit_key], the
            parents will have to be read in order to produce a key for them. *)
         let register_object_exn key =
-          match Irmin_pack.Pack_key.inspect key with
+          match Pack_key.inspect key with
           | Indexed _ ->
               raise
                 (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
@@ -213,7 +211,7 @@ module Worker = struct
 
         (* Step 3.3 Put the nodes and contents in the reachable file. *)
         let register_object_exn key =
-          match Irmin_pack.Pack_key.inspect key with
+          match Pack_key.inspect key with
           | Indexed _ ->
               raise
                 (Pack_error

@@ -239,9 +239,7 @@ module Maker (Config : Conf.S) = struct
               if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
             in
             let* commit_key =
-              let state : _ Irmin_pack.Pack_key.state =
-                Irmin_pack.Pack_key.inspect commit_key
-              in
+              let state : _ Pack_key.state = Pack_key.inspect commit_key in
               match state with
               | Direct _ -> Ok commit_key
               | Indexed h -> (
@@ -253,9 +251,7 @@ module Maker (Config : Conf.S) = struct
                   | Some (k, _kind) -> Ok k)
             in
             let offset =
-              let state : _ Irmin_pack.Pack_key.state =
-                Irmin_pack.Pack_key.inspect commit_key
-              in
+              let state : _ Pack_key.state = Pack_key.inspect commit_key in
               match state with
               | Direct x -> x.offset
               | Indexed _ -> assert false

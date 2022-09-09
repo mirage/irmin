@@ -24,7 +24,7 @@ module type Args = sig
   module Dispatcher : Dispatcher.S with module Fm = Fm
 
   type hash
-  type key = hash Irmin_pack.Pack_key.t [@@deriving irmin]
+  type key = hash Pack_key.t [@@deriving irmin]
 
   module Hash : sig
     val hash_size : int

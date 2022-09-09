@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,18 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Schema = Schema
-module Conf : Irmin_pack.Conf.S
+include Irmin_pack.Pack_value
 
-module Store :
-  Irmin_pack_unix.S
-    with type Schema.Hash.t = Schema.Hash.t
-     and type Schema.Branch.t = Schema.Branch.t
-     and type Schema.Metadata.t = Schema.Metadata.t
-     and type Schema.Path.t = Schema.Path.t
-     and type Schema.Path.step = Schema.Path.step
-     and type Schema.Contents.t = Schema.Contents.t
-     and type Backend.Remote.endpoint = unit
-     and type contents_key = Schema.Hash.t Irmin_pack_unix.Pack_key.t
-     and type node_key = Schema.Hash.t Irmin_pack_unix.Pack_key.t
-     and type commit_key = Schema.Hash.t Irmin_pack_unix.Pack_key.t
+module type Persistent = sig
+  type hash
+
+  include S with type hash := hash and type key = hash Pack_key.t
+end

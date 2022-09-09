@@ -98,7 +98,6 @@ end
 type ('h, 'a) value = { hash : 'h; kind : Kind.t; v : 'a } [@@deriving irmin]
 
 module type S = S with type kind := Kind.t
-module type Persistent = Persistent with type kind := Kind.t
 
 let get_dynamic_sizer_exn : type a. a Irmin.Type.t -> string -> int -> int =
  fun typ ->
