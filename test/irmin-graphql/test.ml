@@ -168,6 +168,50 @@ let test_mutation : test_case =
   Alcotest.(check string) "Contents equal" "bar" result';
   Alcotest.(check string) "Contents equal stored value" "bar" value
 
+let test_mutation_test_set_and_get : test_case =
+ fun store ->
+  (* {parents: [], allow_empty: false, retries: 1, message: "Hello", author: "Me"} *)
+  let message = "A commit message" in
+  let vars =
+    [
+      ( "info",
+        `Assoc
+          [
+            ("parents", `List []);
+            ("allow_empty", `Bool false);
+            ("retries", `Int 1);
+            ("message", `String message);
+            ("author", `String "irmin-test-graphql");
+          ] );
+    ]
+  in
+  let m =
+    mutation
+    @@ func "test_set_and_get"
+         ~params:
+           [
+             ("info", var "info");
+             ("path", string "foo");
+             ("test", string "bar");
+             ("set", string "baz");
+           ]
+    @@ func "info"
+    @@ field "message"
+  in
+  let* exec_message = exec ~vars m Json.to_string in
+  let q =
+    query
+    @@ func "main"
+    @@ func "tree"
+    @@ func "get_contents" ~params:[ ("path", string "foo") ]
+    @@ field "value"
+  in
+  let* value = Store.get store [ "foo" ] in
+  let+ result' = exec q Json.to_string in
+  Alcotest.(check string) "Contents equal" "baz" result';
+  Alcotest.(check string) "Contents equal stored value" "baz" value;
+  Alcotest.(check string) "Same commit message" message exec_message
+
 let test_update_tree : test_case =
  fun store ->
   let* commit = Store.Head.get store in
@@ -275,6 +319,7 @@ let suite store =
         test_case "get_last_modified" test_get_last_modified;
         test_case "commit" test_commit;
         test_case "mutation" test_mutation;
+        test_case "mutation_test-set-and-get" test_mutation_test_set_and_get;
         test_case "update_tree" test_update_tree;
         test_case "remove" test_remove;
         test_case "branches" test_branch_list;

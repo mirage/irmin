@@ -5,6 +5,8 @@
 - **irmin**
   - Add `test_set_and_get*` functions to retrieve commit associated with an update to the store (#2075, @patricoferris)
 
+- **irmin-graphql**
+  -  Expose `test_set_and_get` function as a new mutation (#2075, @patricoferris)
 
 ## 3.4.1 (2022-09-07)
 
