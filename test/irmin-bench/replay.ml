@@ -143,11 +143,9 @@ module Store_mem = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
-  let gc_wait repo =
-    let* r = Store.Gc.wait repo in
-    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
+  let gc_wait _repo = Lwt.return_unit
 
-  type gc_stats = Store.Gc.stats = {
+  type gc_stats = {
     duration : float;
     finalisation_duration : float;
     read_gc_output_duration : float;
@@ -157,17 +155,7 @@ module Store_mem = struct
   }
   [@@deriving irmin]
 
-  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
-    let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
-      match result with
-      | Error (`Msg err) -> finished @@ Error err
-      | Ok _ as s -> finished @@ s
-    in
-    let* launched = Store.Gc.run ~finished:f repo key in
-    match launched with
-    | Ok true -> Lwt.return_unit
-    | Ok false -> [%logs.app "GC skipped"] |> Lwt.return
-    | Error (`Msg err) -> failwith err
+  let gc_run ?finished:_ _repo _key = Lwt.return_unit
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)

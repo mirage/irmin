@@ -16,24 +16,9 @@
 
 open! Import
 
-exception RO_not_allowed
-
-module type Checkable = sig
-  type 'a t
-  type hash
-
-  val integrity_check :
-    offset:int63 ->
-    length:int ->
-    hash ->
-    _ t ->
-    (unit, [ `Wrong_hash | `Absent_value ]) result
-end
-
-(** [Irmin-pack]-specific extensions to the [Store] module type. *)
-module type Specifics = sig
-  type repo
-  type commit_key
+(** [Irmin-pack-unix]-specific extensions to the [Store] module type. *)
+module type S = sig
+  include Irmin.Generic_key.S
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -149,11 +134,6 @@ module type Specifics = sig
     val is_allowed : repo -> bool
     (** [is_allowed repo] returns true if a gc can be run on the store. *)
   end
-end
-
-module type S = sig
-  include Irmin.Generic_key.S
-  include Specifics with type repo := repo and type commit_key := commit_key
 
   val integrity_check_inodes :
     ?heads:commit list ->

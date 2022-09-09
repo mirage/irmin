@@ -18,8 +18,6 @@ include Irmin_pack_intf
 
 let config = Conf.init
 
-exception RO_not_allowed = S.RO_not_allowed
-
 module Indexing_strategy = Indexing_strategy
 module Indexable = Indexable
 module Atomic_write = Atomic_write
@@ -33,4 +31,3 @@ module Layout = Layout
 module Inode = Inode
 module Pack_key = Pack_key
 module Pack_value = Pack_value
-module S = S
