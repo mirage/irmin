@@ -200,6 +200,16 @@ module type S = sig
   (** Execute the flush routine. Note that this routine may be automatically
       triggered when buffers are filled. *)
 
+  type fsync_error := flush_error
+
+  val fsync : t -> (unit, [> fsync_error ]) result
+  (** [fsync] executes an fsync for all files of the file manager.
+
+      Note: This function exists primarily for operations like snapshot imports.
+      If fsync is enabled for the store (see {!Irmin_pack.Config.use_fsync}),
+      calls to {!flush} will also call fsync and therefore there is little need
+      to call this function directly. *)
+
   type reload_stages := [ `After_index | `After_control | `After_suffix ]
 
   val reload : ?hook:reload_stages hook -> t -> (unit, [> Errs.t ]) result

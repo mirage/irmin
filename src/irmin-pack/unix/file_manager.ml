@@ -195,6 +195,18 @@ struct
     Stats.incr_fm_field Flush;
     flush_index_and_its_deps ?hook t
 
+  (* Explicit fsync ********************************************************* *)
+
+  let fsync t =
+    let open Result_syntax in
+    let* _ = Dict.fsync t.dict in
+    let* _ = Suffix.fsync t.suffix in
+    let* _ = Control.fsync t.control in
+    let* _ =
+      match t.prefix with None -> Ok () | Some prefix -> Prefix.fsync prefix
+    in
+    Index.flush ~with_fsync:true t.index
+
   (* Constructors *********************************************************** *)
 
   let reopen_prefix t ~generation =
