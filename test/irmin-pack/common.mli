@@ -62,6 +62,8 @@ module Alcotest : sig
     'a ->
     'a ->
     unit
+
+  val testable_repr : 'a Irmin.Type.t -> 'a Alcotest.testable
 end
 
 module Index : module type of Irmin_pack_unix.Index.Make (Schema.Hash)

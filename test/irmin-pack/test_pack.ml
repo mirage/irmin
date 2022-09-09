@@ -495,6 +495,40 @@ module Branch = struct
     ]
 end
 
+module Layout = struct
+  let test_classify_filename () =
+    let module V1_and_v2 = Irmin_pack.Layout.V1_and_v2 in
+    let module V3 = Irmin_pack.Layout.V3 in
+    let c =
+      Alcotest.(
+        check (option (testable_repr Irmin_pack.Layout.classification_t)))
+        ""
+    in
+    let classif = Irmin_pack.Layout.classify_filename in
+    c (Some `V1_or_v2_pack) (V1_and_v2.pack ~root:"" |> classif);
+    c (Some `Branch) (V3.branch ~root:"" |> classif);
+    c (Some `Dict) (V3.dict ~root:"" |> classif);
+    c (Some (`Gc_result 0)) (V3.gc_result ~generation:0 ~root:"" |> classif);
+    c (Some (`Reachable 1)) (V3.reachable ~generation:1 ~root:"" |> classif);
+    c (Some (`Sorted 10)) (V3.sorted ~generation:10 ~root:"" |> classif);
+    c (Some (`Mapping 100)) (V3.mapping ~generation:100 ~root:"" |> classif);
+    c (Some (`Prefix 1000)) (V3.prefix ~generation:1000 ~root:"" |> classif);
+    c None (V3.prefix ~generation:(-1) ~root:"" |> classif);
+    c None (classif "store.toto");
+    c None (classif "store.");
+    c None (classif "store");
+    c None (classif "store.00.prefix");
+    c None (classif "store.01.prefix");
+    c None (classif "./store.0.prefix");
+    Lwt.return_unit
+
+  let tests =
+    [
+      Alcotest_lwt.test_case "classify_filename" `Quick (fun _switch ->
+          test_classify_filename);
+    ]
+end
+
 let misc =
   [
     ("hashes", Test_hashes.tests);
@@ -513,4 +547,5 @@ let misc =
     ("flush", Test_flush_reload.tests);
     ("mapping", Test_mapping.tests);
     ("test_nearest_leq", Test_nearest_leq.tests);
+    ("layout", Layout.tests);
   ]
