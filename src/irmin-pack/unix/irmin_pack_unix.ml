@@ -34,6 +34,8 @@ module Maker = Ext.Maker
 module Mapping_file = Mapping_file
 module Utils = Utils
 
+module type S = S.S
+
 module KV (Config : Irmin_pack.Conf.S) = struct
   type endpoint = unit
   type hash = Irmin.Schema.default_hash

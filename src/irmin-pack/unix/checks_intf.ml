@@ -106,7 +106,7 @@ end
 
 module type Store = sig
   include Irmin.S
-  include Irmin_pack.S with type repo := repo and type commit := commit
+  include S.S with type repo := repo and type commit := commit
 end
 
 type integrity_error = [ `Wrong_hash | `Absent_value ]

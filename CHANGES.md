@@ -8,6 +8,12 @@
 - **irmin-graphql**
   -  Expose `test_set_and_get` function as a new mutation (#2075, @patricoferris)
 
+### Changed
+
+- **irmin-pack**
+  - `irmin_pack_mem` no longer exposes disk specifics functions (#2081,
+  @icristescu)
+
 ## 3.4.1 (2022-09-07)
 
 ### Added

@@ -205,14 +205,50 @@ module Bench_suite (Store : Store) = struct
             ([ "" ], [ summary ]))
 end
 
-module Make_basic (Maker : functor (_ : Irmin_pack.Conf.S) ->
-  Irmin_pack.Maker)
-(Conf : Irmin_pack.Conf.S) =
-struct
+module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
   type store_config = config
 
   module Store = struct
-    open Maker (Conf)
+    open Irmin_pack_mem.Maker (Conf)
+    include Make (Irmin_tezos.Schema)
+  end
+
+  include Store
+
+  type key = commit_key
+
+  let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
+
+  let create_repo ~root _config =
+    let conf =
+      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
+    in
+    prepare_artefacts_dir root;
+    let* repo = Store.Repo.v conf in
+    let on_commit _ _ = Lwt.return_unit in
+    let on_end () = Lwt.return_unit in
+    Lwt.return (repo, on_commit, on_end)
+
+  let gc_wait _repo = Lwt.return_unit
+
+  type gc_stats = {
+    duration : float;
+    finalisation_duration : float;
+    read_gc_output_duration : float;
+    transfer_latest_newies_duration : float;
+    swap_duration : float;
+    unlink_duration : float;
+  }
+  [@@deriving irmin]
+
+  let gc_run ?finished:_ _repo _key = Lwt.return_unit
+end
+
+module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
+  type store_config = config
+
+  module Store = struct
+    open Irmin_pack_unix.Maker (Conf)
     include Make (Irmin_tezos.Schema)
   end
 
@@ -258,9 +294,6 @@ struct
     | Ok false -> [%logs.app "GC skipped"] |> Lwt.return
     | Error (`Msg err) -> failwith err
 end
-
-module Make_store_mem = Make_basic (Irmin_pack_mem.Maker)
-module Make_store_pack = Make_basic (Irmin_pack_unix.Maker)
 
 module type B = sig
   val run_large : config -> (Format.formatter -> unit) Lwt.t

@@ -38,7 +38,7 @@ module type S = sig
   val cast : read t -> read_write t
 
   (** @inline *)
-  include Irmin_pack.S.Checkable with type 'a t := 'a t and type hash := hash
+  include Irmin_pack.Checkable with type 'a t := 'a t and type hash := hash
 
   module Entry_prefix : sig
     type t = {

@@ -13,11 +13,51 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open! Import
 
-module type S = S.S
-module type Specifics = S.Specifics
-module type Maker = S.Maker
-module type Maker_persistent = S.Maker_persistent
+exception RO_not_allowed
+
+module type Checkable = sig
+  type 'a t
+  type hash
+
+  val integrity_check :
+    offset:int63 ->
+    length:int ->
+    hash ->
+    _ t ->
+    (unit, [ `Wrong_hash | `Absent_value ]) result
+end
+
+module type S = Irmin.Generic_key.S
+
+module S_is_a_store (X : S) : Irmin.Generic_key.S = X
+
+module type Maker = sig
+  type endpoint = unit
+
+  include Irmin.Key.Store_spec.S
+
+  module Make (Schema : Irmin.Schema.Extended) :
+    S
+    (* We can't have `with module Schema = Schema` here, since the Schema
+       on the RHS contains more information than the one on the LHS. We _want_
+       to do something like `with module Schema = (Schema : Irmin.Schema.S)`,
+       but this isn't supported.
+
+       TODO: extract these extensions as a separate functor argument instead. *)
+      with type Schema.Hash.t = Schema.Hash.t
+       and type Schema.Branch.t = Schema.Branch.t
+       and type Schema.Metadata.t = Schema.Metadata.t
+       and type Schema.Path.t = Schema.Path.t
+       and type Schema.Path.step = Schema.Path.step
+       and type Schema.Contents.t = Schema.Contents.t
+       and type Schema.Info.t = Schema.Info.t
+       and type contents_key = (Schema.Hash.t, Schema.Contents.t) contents_key
+       and type node_key = Schema.Hash.t node_key
+       and type commit_key = Schema.Hash.t commit_key
+       and type Backend.Remote.endpoint = endpoint
+end
 
 module type Sigs = sig
   module Conf = Conf
@@ -44,14 +84,12 @@ module type Sigs = sig
   exception RO_not_allowed
 
   module type S = S
-  module type Specifics = Specifics
   module type Maker = Maker
-  module type Maker_persistent = Maker_persistent
+  module type Checkable = Checkable
 
   module Stats = Stats
   module Layout = Layout
   module Indexable = Indexable
   module Atomic_write = Atomic_write
   module Version = Version
-  module S = S
 end

@@ -162,76 +162,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
           Node.Indexable.close (snd (node_t t)) >>= fun () ->
           Commit.Indexable.close (snd (commit_t t)) >>= fun () ->
           Branch.close t.branch
-
-        (* An in-memory store is always in reload. *)
-        let reload _ = ()
-        let flush _ = ()
-
-        let start_gc ?unlink _ _ =
-          ignore unlink;
-          Lwt.return false
-
-        let finalise_gc ?wait _ =
-          ignore wait;
-          Lwt.return `Idle
       end
     end
 
     include Irmin.Of_backend (X)
-
-    module Snapshot = struct
-      include X.Node.Indexable.Inter.Snapshot
-
-      type t = Inode of inode | Blob of Backend.Contents.Val.t
-      [@@deriving irmin]
-
-      let export ?on_disk:_ _ _ ~root_key:_ = Fmt.failwith "not implemented"
-
-      module Import = struct
-        type process = unit
-
-        let v ?on_disk:_ _ = Fmt.failwith "not implemented"
-        let save_elt _ _ = Fmt.failwith "not implemented"
-        let close _ = Fmt.failwith "not implemented"
-      end
-    end
-
-    module Gc = struct
-      type msg = [ `Msg of string ]
-
-      type stats = {
-        duration : float;
-        finalisation_duration : float;
-        read_gc_output_duration : float;
-        transfer_latest_newies_duration : float;
-        swap_duration : float;
-        unlink_duration : float;
-      }
-      [@@deriving irmin]
-
-      type process_state = [ `Idle | `Running | `Finalised of stats ]
-
-      let start_exn = X.Repo.start_gc
-      let finalise_exn = X.Repo.finalise_gc
-
-      let run ?finished _ _ =
-        ignore finished;
-        Lwt.return_ok false
-
-      let wait _ = Lwt.return_ok None
-      let is_finished _ = true
-      let is_allowed _ = false
-    end
-
-    let integrity_check_inodes ?heads:_ _ =
-      Lwt.return
-        (Error (`Msg "Not supported: integrity checking of in-memory inodes"))
-
-    let reload = X.Repo.reload
-    let flush = X.Repo.flush
-    let integrity_check ?ppf:_ ~auto_repair:_ _t = Ok `No_error
-    let traverse_pack_file _ _ = ()
-    let test_traverse_pack_file _ _ = ()
-    let stats ~dump_blob_paths_to:_ ~commit:_ _ = Lwt.return_unit
   end
 end
