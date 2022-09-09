@@ -715,9 +715,9 @@ module Make (B : Backend.S) = struct
         Lwt.return (Error (`Too_many_retries retries))
       else
         fn () >>= function
-        | Ok true -> Lwt.return (Ok ())
+        | Ok (c, true) -> Lwt.return (Ok c)
         | Error e -> Lwt.return (Error e)
-        | Ok false ->
+        | Ok (_, false) ->
             done_once := true;
             aux (i + 1)
     in
@@ -793,7 +793,7 @@ module Make (B : Backend.S) = struct
     let* new_tree = f s.tree in
     (* if no change and [allow_empty = true] then, do nothing *)
     if same_tree s.tree new_tree && (not allow_empty) && s.head <> None then
-      Lwt.return (Ok true)
+      Lwt.return (Ok (None, true))
     else
       merge_tree s.root key ~current_tree:s.tree ~new_tree >>= function
       | Error e -> Lwt.return (Error e)
@@ -803,7 +803,7 @@ module Make (B : Backend.S) = struct
           let parents = List.map Commit.key parents in
           let* c = Commit.v (repo t) ~info ~parents root in
           let* r = add_commit t s.head (c, root_tree (Tree.destruct root)) in
-          Lwt.return (Ok r)
+          Lwt.return (Ok (Some c, r))
 
   let ok x = Ok x
 
@@ -816,9 +816,15 @@ module Make (B : Backend.S) = struct
     | None -> Tree.remove root key >|= ok
     | Some tree -> Tree.add_tree root key tree >|= ok
 
+  let ignore_commit
+      (c : (commit option, [> `Too_many_retries of int ]) result Lwt.t) =
+    Lwt_result.map (fun _ -> ()) c
+
   let set_tree ?(retries = 13) ?allow_empty ?parents ~info t k v =
     [%log.debug "set %a" pp_path k];
-    retry ~retries @@ fun () ->
+    ignore_commit
+    @@ retry ~retries
+    @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_some v
 
@@ -827,7 +833,9 @@ module Make (B : Backend.S) = struct
 
   let remove ?(retries = 13) ?allow_empty ?parents ~info t k =
     [%log.debug "debug %a" pp_path k];
-    retry ~retries @@ fun () ->
+    ignore_commit
+    @@ retry ~retries
+    @@ fun () ->
     update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_none
 
@@ -849,12 +857,32 @@ module Make (B : Backend.S) = struct
         if Tree.equal test v then set_tree_once root key ~new_tree ~current_tree
         else err_test current_tree
 
-  let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
-      ~set =
+  let test_set_and_get_tree ?(retries = 13) ?allow_empty ?parents ~info t k
+      ~test ~set =
     [%log.debug "test-and-set %a" pp_path k];
     retry ~retries @@ fun () ->
     update t k ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
     @@ fun _tree -> Lwt.return set
+
+  let test_set_and_get_tree_exn ?retries ?allow_empty ?parents ~info t k ~test
+      ~set =
+    test_set_and_get_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+    >>= fail "test_set_and_get_tree_exn"
+
+  let test_set_and_get ?retries ?allow_empty ?parents ~info t k ~test ~set =
+    let test = Option.map Tree.of_contents test in
+    let set = Option.map Tree.of_contents set in
+    test_set_and_get_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+
+  let test_set_and_get_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
+    test_set_and_get ?retries ?allow_empty ?parents ~info t k ~test ~set
+    >>= fail "test_set_and_get_exn"
+
+  let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
+      ~set =
+    [%log.debug "test-and-set %a" pp_path k];
+    ignore_commit
+    @@ test_set_and_get_tree ~retries ?allow_empty ?parents ~info t k ~test ~set
 
   let test_and_set_tree_exn ?retries ?allow_empty ?parents ~info t k ~test ~set
       =
@@ -862,9 +890,8 @@ module Make (B : Backend.S) = struct
     >>= fail "test_and_set_tree_exn"
 
   let test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set =
-    let test = Option.map Tree.of_contents test in
-    let set = Option.map Tree.of_contents set in
-    test_and_set_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+    ignore_commit
+    @@ test_set_and_get ?retries ?allow_empty ?parents ~info t k ~test ~set
 
   let test_and_set_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
     test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set
@@ -878,7 +905,9 @@ module Make (B : Backend.S) = struct
 
   let merge_tree ?(retries = 13) ?allow_empty ?parents ~info ~old t k tree =
     [%log.debug "merge %a" pp_path k];
-    retry ~retries @@ fun () ->
+    ignore_commit
+    @@ retry ~retries
+    @@ fun () ->
     update t k ?allow_empty ?parents ~info (merge_once ~old) @@ fun _tree ->
     Lwt.return tree
 

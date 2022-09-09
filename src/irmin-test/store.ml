@@ -999,6 +999,43 @@ module Make (S : Generic_key) = struct
     in
     run x test
 
+  let test_atomic x () =
+    let test repo =
+      let check_commit = check T.(option (S.commit_t repo)) in
+      let* t = S.main repo in
+      let* _c_empty =
+        S.test_set_and_get_exn t ~info:(infof "init") [ "a"; "b" ] ~test:None
+          ~set:(Some v1)
+      in
+      let* c_none =
+        S.test_set_and_get_exn t ~info:(infof "init") [ "a"; "b" ]
+          ~test:(Some v1) ~set:(Some v1)
+      in
+      check_commit "No commit" None c_none;
+      let message0 = "first" in
+      let message1 = "second" in
+      let v3 = "v3" in
+      let* c0 =
+        S.test_set_and_get_exn t ~info:(infof "%s" message0) [ "a"; "b" ]
+          ~test:(Some v1) ~set:(Some v2)
+      in
+      let c0 = Option.get c0 in
+      let c0_message = S.Commit.info c0 |> S.Info.message in
+      Alcotest.(check string) "commit0" message0 c0_message;
+      let* c1 =
+        S.test_set_and_get_exn t ~info:(infof "%s" message1) [ "a"; "b" ]
+          ~test:(Some v2) ~set:(Some v3)
+      in
+      let* c0_store = S.of_commit c0 in
+      let* v2' = S.get c0_store [ "a"; "b" ] in
+      Alcotest.(check string) "commit0 value" v2 v2';
+      let* c1_store = S.of_commit (Option.get c1) in
+      let* v3' = S.get c1_store [ "a"; "b" ] in
+      Alcotest.(check string) "commit1 value" v3 v3';
+      S.Repo.close repo
+    in
+    run x test
+
   let stats_t = Alcotest.testable (Irmin.Type.pp_dump S.Tree.stats_t) ( = )
 
   let empty_stats =
@@ -2466,6 +2503,7 @@ let suite sleep (speed, x) =
        ("Empty stores", speed, T.test_empty x);
        ("Backend node manipulation", speed, T.test_backend_nodes x);
        ("High-level store operations", speed, T.test_stores x);
+       ("High-level atomic store operations", speed, T.test_atomic x);
        ("High-level store merges", speed, T.test_merge x);
        ("Unrelated merges", speed, T.test_merge_unrelated x);
        ("Low-level concurrency", speed, T.test_concurrent_low x);

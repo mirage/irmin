@@ -737,6 +737,59 @@ module type S_generic_key = sig
     unit Lwt.t
   (** [test_and_set_tree_exn] is like {!test_and_set_exn} but for trees. *)
 
+  val test_set_and_get :
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:(unit -> info) ->
+    t ->
+    path ->
+    test:contents option ->
+    set:contents option ->
+    (commit option, write_error) result Lwt.t
+  (** [test_set_and_get] is like {!test_and_set} except it also returns the
+      commit associated with updating the store with the new value if the
+      [test_and_set] is successful. No commit is returned if there was no update
+      to the store. *)
+
+  val test_set_and_get_exn :
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:(unit -> info) ->
+    t ->
+    path ->
+    test:contents option ->
+    set:contents option ->
+    commit option Lwt.t
+  (** [test_set_and_get_exn] is like {!test_set_and_get} but raises [Failure _]
+      instead. *)
+
+  val test_set_and_get_tree :
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:(unit -> info) ->
+    t ->
+    path ->
+    test:tree option ->
+    set:tree option ->
+    (commit option, write_error) result Lwt.t
+  (** [test_set_and_get_tree] is like {!test_set_and_get} but for a {!tree} *)
+
+  val test_set_and_get_tree_exn :
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:(unit -> info) ->
+    t ->
+    path ->
+    test:tree option ->
+    set:tree option ->
+    commit option Lwt.t
+  (** [test_set_and_get_tree_exn] is like {!test_set_and_get_tree} but raises
+      [Failure _] instead. *)
+
   val merge :
     ?retries:int ->
     ?allow_empty:bool ->
