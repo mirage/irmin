@@ -46,7 +46,6 @@ module type S = Irmin_pack.S
 
 module Conf = Irmin_pack.Conf
 module Layout = Irmin_pack.Layout
-module Stats = Stats
 module Indexable = Irmin_pack.Indexable
 
 module Result_syntax = struct
