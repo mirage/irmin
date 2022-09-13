@@ -336,36 +336,13 @@ let rev_calculate_extents_oc ~(src_is_revsorted : unit) ~(src : int_bigarray)
     assert (src_sz mod step_2 = 0);
     ()
   in
-  let n = src_sz - 2 in
-  let off, len = (src.{n}, src.{n + 1}) in
-  let regions_combined = ref 0 in
-  let dst_off =
-    (* iterate over entries in src, combining adjacent entries *)
-    (n - 2, off, len)
-    |> iter_k (fun ~k (src_off, off, len) ->
-           match src_off < 0 with
-           | true ->
-               (* write out "current" extent *)
-               register_entry ~off ~len;
-               ()
-           | false -> (
-               (* check if we can combine the next region *)
-               let off', len' = (src.{src_off}, src.{src_off + 1}) in
-               assert (off' >= off + len);
-               match off' <= off + len + gap_tolerance with
-               | false ->
-                   (* we can't, so write out current extent and move to next *)
-                   register_entry ~off ~len;
-                   k (src_off - 2, off', len')
-               | true ->
-                   (* we can combine *)
-                   incr regions_combined;
-                   assert (off <= off');
-                   (* offs are sorted *)
-                   let len = max len (off' + len' - off) in
-                   k (src_off - 2, off, len)))
+  let rec rev src_off =
+    if src_off >= 0 then (
+      let off, len = (src.{src_off}, src.{src_off + 1}) in
+      register_entry ~off ~len;
+      rev (src_off - 2))
   in
-  dst_off
+  rev (src_sz - 2)
 
 module Make (Io : Io.S) = struct
   module Io = Io
@@ -505,7 +482,7 @@ module Make (Io : Io.S) = struct
     in
 
     (* Fill and close [file0] *)
-    let register_entry ~off ~len =
+    let append_entry ~off ~len =
       (* Write [off, len] in native-endian encoding because it will be read
          with mmap. *)
       let buffer = Bytes.create 16 in
@@ -516,7 +493,27 @@ module Make (Io : Io.S) = struct
          conversion to string. This is safe. *)
       Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
     in
+    (* Check if we can collapse consecutive entries *)
+    let current_entry = ref None in
+    let register_entry ~off ~len =
+      let current =
+        match !current_entry with
+        | None -> (off, len)
+        | Some (off', len') ->
+            let dist = Int63.to_int (Int63.sub off' off) in
+            if dist <= len + gap_tolerance then (off, dist + len')
+            else (
+              append_entry ~off:off' ~len:len';
+              (off, len))
+      in
+      current_entry := Some current
+    in
     let* () = Errs.catch (fun () -> register_entries ~register_entry) in
+    (* Flush pending entry *)
+    (match !current_entry with
+    | None -> ()
+    | Some (off, len) -> append_entry ~off ~len);
+
     let* () = Ao.flush file0 in
     let* () = Ao.close file0 in
 
