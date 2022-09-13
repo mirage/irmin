@@ -33,54 +33,56 @@ module Make (Args : Gc_args.S) = struct
       |> Errs.raise_if_error
   end
 
-  module X = struct
+  let string_of_key = Irmin.Type.to_string key_t
+
+  module Offset_rev = struct
     type t = int63 [@@deriving irmin]
 
     let equal = Irmin.Type.(unstage (equal t))
     let hash = Irmin.Type.(unstage (short_hash t))
     let hash (t : t) : int = hash t
+    let compare a b = Int63.compare b a
   end
 
-  module Table = Hashtbl.Make (X)
-
-  let string_of_key = Irmin.Type.to_string key_t
+  module Table = Hashtbl.Make (Offset_rev)
+  module Priority_queue = Binary_heap.Make (Offset_rev)
 
   (** [iter_reachable node_key _ ~f] calls [f ~off ~len] once on all the tree
       objects' offset and length reachable from [node_key]. *)
   let iter_reachable node_key node_store ~f =
+    let todos = Priority_queue.create ~dummy:Int63.zero 1024 in
     let marks = Table.create 1024 in
-    let mark offset = Table.add marks offset () in
-    let has_mark offset = Table.mem marks offset in
-    let rec iter_from_node_key_exn node_key k =
+    let rec loop () =
+      if not (Priority_queue.is_empty todos) then (
+        let offset = Priority_queue.pop_minimum todos in
+        let length, kinded_key = Table.find marks offset in
+        Table.remove marks offset;
+        f ~off:offset ~len:length;
+        (match kinded_key with
+        | `Inode key | `Node key -> iter_node key
+        | _ -> ());
+        loop ())
+    and iter_node node_key =
       match
         Node_store.unsafe_find ~check_integrity:false node_store node_key
       with
       | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
-      | Some node -> iter_from_node_children_exn ~f (Node_value.pred node) k
-    and iter_from_node_children_exn ~f children k =
-      match children with
-      | [] -> k ()
-      | (_step, kinded_key) :: tl ->
-          let k () = iter_from_node_children_exn ~f tl k in
-          step kinded_key k
-    and step kinded_key k =
+      | Some node -> List.iter schedule_child (Node_value.pred node)
+    and schedule_child (_step, kinded_key) =
       let (`Contents key | `Inode key | `Node key) = kinded_key in
-      let off, len =
+      let offset, length =
         match Pack_key.inspect key with
         | Indexed _ ->
             raise
               (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
         | Direct { offset; length; _ } -> (offset, length)
       in
-      if has_mark off then k ()
-      else (
-        mark off;
-        f ~off ~len;
-        match kinded_key with
-        | `Contents _ -> k ()
-        | `Inode _ | `Node _ -> iter_from_node_key_exn key k)
+      if not (Table.mem marks offset) then (
+        Table.add marks offset (length, kinded_key);
+        Priority_queue.add todos offset)
     in
-    iter_from_node_key_exn node_key (fun () -> ())
+    iter_node node_key;
+    loop ()
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
      disk in order to correctly deserialised the gced commit. *)
