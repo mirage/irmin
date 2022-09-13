@@ -54,6 +54,16 @@ module type S = sig
       Creates temporary files in [root] that are unlinked before the function
       returns. *)
 
+  val create_rev :
+    ?report_file_sizes:(int63 -> unit) ->
+    root:string ->
+    generation:int ->
+    register_entries:(register_entry:(off:int63 -> len:int -> unit) -> unit) ->
+    unit ->
+    (t, Errs.t) result
+  (** Same as [create], but expects [register_entries] to produce live entries
+      in decreasing offset order. *)
+
   val open_map : root:string -> generation:int -> (t, [> open_error ]) result
   (** [open_map ~root ~generation] opens a mapping file. *)
 

@@ -311,7 +311,7 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
            | false -> (
                (* check if we can combine the next region *)
                let off', len' = (src.{src_off}, src.{src_off + 1}) in
-               assert (off' >= off + len);
+               assert (off <= off');
                match off' <= off + len + gap_tolerance with
                | false ->
                    (* we can't, so write out current extent and move to next *)
@@ -324,6 +324,46 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
                    (* offs are sorted *)
                    let len = max len (off' + len' - off) in
                    k (src_off + 2, off, len)))
+  in
+  dst_off
+
+let rev_calculate_extents_oc ~(src_is_revsorted : unit) ~(src : int_bigarray)
+    ~(register_entry : off:int -> len:int -> unit) : unit =
+  ignore src_is_revsorted;
+  let src_sz = BigArr1.dim src in
+  let _ =
+    assert (src_sz >= 2);
+    assert (src_sz mod step_2 = 0);
+    ()
+  in
+  let n = src_sz - 2 in
+  let off, len = (src.{n}, src.{n + 1}) in
+  let regions_combined = ref 0 in
+  let dst_off =
+    (* iterate over entries in src, combining adjacent entries *)
+    (n - 2, off, len)
+    |> iter_k (fun ~k (src_off, off, len) ->
+           match src_off < 0 with
+           | true ->
+               (* write out "current" extent *)
+               register_entry ~off ~len;
+               ()
+           | false -> (
+               (* check if we can combine the next region *)
+               let off', len' = (src.{src_off}, src.{src_off + 1}) in
+               assert (off' >= off + len);
+               match off' <= off + len + gap_tolerance with
+               | false ->
+                   (* we can't, so write out current extent and move to next *)
+                   register_entry ~off ~len;
+                   k (src_off - 2, off', len')
+               | true ->
+                   (* we can combine *)
+                   incr regions_combined;
+                   assert (off <= off');
+                   (* offs are sorted *)
+                   let len = max len (off' + len' - off) in
+                   k (src_off - 2, off, len)))
   in
   dst_off
 
@@ -439,6 +479,87 @@ module Make (Io : Io.S) = struct
       (fun f -> f (reachable_size, sorted_size, mapping_size))
       report_file_sizes;
     Io.unlink path1 |> ignore;
+
+    (* Open created map *)
+    open_map ~root ~generation
+
+  let create_rev ?report_file_sizes ~root ~generation ~register_entries () =
+    assert (generation > 0);
+    let open Result_syntax in
+    let path0 = Irmin_pack.Layout.V3.reachable ~generation ~root in
+    let path2 = Irmin_pack.Layout.V3.mapping ~generation ~root in
+
+    let* () =
+      if Sys.word_size <> 64 then Error `Gc_forbidden_on_32bit_platforms
+      else Ok ()
+    in
+
+    (* Unlink the 3 files and ignore errors (typically no such file) *)
+    Io.unlink path0 |> ignore;
+    Io.unlink path2 |> ignore;
+
+    (* Create [file0] *)
+    let* file0 =
+      Ao.create_rw ~path:path0 ~overwrite:true ~auto_flush_threshold:1_000_000
+        ~auto_flush_procedure:`Internal
+    in
+
+    (* Fill and close [file0] *)
+    let register_entry ~off ~len =
+      (* Write [off, len] in native-endian encoding because it will be read
+         with mmap. *)
+      let buffer = Bytes.create 16 in
+      Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
+      Bytes.set_int64_ne buffer 8 (Int64.of_int len);
+      (* Bytes.unsafe_to_string usage: buffer is uniquely owned; we assume
+         Bytes.set_int64_ne returns unique ownership; we give up ownership of buffer in
+         conversion to string. This is safe. *)
+      Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
+    in
+    let* () = Errs.catch (fun () -> register_entries ~register_entry) in
+    let* () = Ao.flush file0 in
+    let* () = Ao.close file0 in
+
+    (* Reopen [file0] but as an mmap *)
+    let file0 = Int_mmap.open_ro ~fn:path0 ~sz:(-1) in
+
+    (* Create [file2] *)
+    let* file2 =
+      Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
+        ~auto_flush_procedure:`Internal
+    in
+
+    (* Fill and close [file2] *)
+    let poff = ref 0 in
+    let encode i =
+      let buf = Bytes.create 8 in
+      Bytes.set_int64_le buf 0 (Int64.of_int i);
+      (* Bytes.unsafe_to_string is safe since [buf] will not be modified after
+         this function returns. We give up ownership. *)
+      Bytes.unsafe_to_string buf
+    in
+    let register_entry ~off ~len =
+      Ao.append_exn file2 (encode off);
+      Ao.append_exn file2 (encode !poff);
+      Ao.append_exn file2 (encode len);
+      poff := !poff + len
+    in
+    let* () =
+      Errs.catch (fun () ->
+          rev_calculate_extents_oc ~src_is_revsorted:() ~src:file0.arr
+            ~register_entry)
+    in
+
+    (* Close and unlink [file0] *)
+    Int_mmap.close file0;
+    Io.unlink path0 |> ignore;
+
+    let* () = Ao.flush file2 in
+    let* () = Ao.fsync file2 in
+    let mapping_size = Ao.end_poff file2 in
+    let* () = Ao.close file2 in
+
+    Option.iter (fun f -> f mapping_size) report_file_sizes;
 
     (* Open created map *)
     open_map ~root ~generation

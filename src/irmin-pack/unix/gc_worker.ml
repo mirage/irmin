@@ -211,13 +211,8 @@ module Make (Args : Gc_args.S) = struct
       (* Step 3.1 Start [Mapping_file] routine which will create the
          reachable file. *)
       stats := Gc_stats.Worker.finish_current_step !stats "mapping: start";
-      let report_file_sizes (reachable_size, sorted_size, mapping_size) =
-        stats := Gc_stats.Worker.add_file_size !stats "reachable" reachable_size;
-        stats := Gc_stats.Worker.add_file_size !stats "sorted" sorted_size;
-        stats := Gc_stats.Worker.add_file_size !stats "mapping" mapping_size
-      in
       (fun f ->
-        Mapping_file.create ~report_file_sizes ~root:new_files_path ~generation
+        Mapping_file.create_rev ~root:new_files_path ~generation
           ~register_entries:f ()
         |> Errs.raise_if_error)
       @@ fun ~register_entry ->
