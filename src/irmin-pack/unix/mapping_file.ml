@@ -311,7 +311,7 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
            | false -> (
                (* check if we can combine the next region *)
                let off', len' = (src.{src_off}, src.{src_off + 1}) in
-               assert (off <= off');
+               assert (off' >= off + len);
                match off' <= off + len + gap_tolerance with
                | false ->
                    (* we can't, so write out current extent and move to next *)

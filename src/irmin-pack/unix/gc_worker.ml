@@ -45,39 +45,42 @@ module Make (Args : Gc_args.S) = struct
 
   let string_of_key = Irmin.Type.to_string key_t
 
-  (** [iter_from_node_key node_key _ _ ~f] calls [f] with the key of the node
-      and iterates over its children.
-
-      [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
-      if the children of [k] should be traversed or skiped. *)
-  let iter node_key node_store ~f k =
+  (** [iter_reachable node_key _ ~f] calls [f ~off ~len] once on all the tree
+      objects' offset and length reachable from [node_key]. *)
+  let iter_reachable node_key node_store ~f =
     let marks = Table.create 1024 in
     let mark offset = Table.add marks offset () in
     let has_mark offset = Table.mem marks offset in
-    let rec iter_from_node_key_exn node_key node_store ~f k =
+    let rec iter_from_node_key_exn node_key k =
       match
         Node_store.unsafe_find ~check_integrity:false node_store node_key
       with
       | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
-      | Some node ->
-          iter_from_node_children_exn node_store ~f (Node_value.pred node) k
-    and iter_from_node_children_exn node_store ~f children k =
+      | Some node -> iter_from_node_children_exn ~f (Node_value.pred node) k
+    and iter_from_node_children_exn ~f children k =
       match children with
       | [] -> k ()
-      | (_step, kinded_key) :: tl -> (
-          let k () = iter_from_node_children_exn node_store ~f tl k in
-          match kinded_key with
-          | `Contents key ->
-              let (_ : int63) = f key in
-              k ()
-          | `Inode key | `Node key ->
-              let offset = f key in
-              if has_mark offset then k ()
-              else (
-                mark offset;
-                iter_from_node_key_exn key node_store ~f k))
+      | (_step, kinded_key) :: tl ->
+          let k () = iter_from_node_children_exn ~f tl k in
+          step kinded_key k
+    and step kinded_key k =
+      let (`Contents key | `Inode key | `Node key) = kinded_key in
+      let off, len =
+        match Pack_key.inspect key with
+        | Indexed _ ->
+            raise
+              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
+        | Direct { offset; length; _ } -> (offset, length)
+      in
+      if has_mark off then k ()
+      else (
+        mark off;
+        f ~off ~len;
+        match kinded_key with
+        | `Contents _ -> k ()
+        | `Inode _ | `Node _ -> iter_from_node_key_exn key k)
     in
-    iter_from_node_key_exn node_key node_store ~f k
+    iter_from_node_key_exn node_key (fun () -> ())
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
      disk in order to correctly deserialised the gced commit. *)
@@ -221,7 +224,7 @@ module Make (Args : Gc_args.S) = struct
       in
       let node_key = Commit_value.node commit in
       let (_ : int63) = register_object_exn node_key in
-      iter node_key node_store ~f:register_object_exn (fun () -> ());
+      iter_reachable node_key node_store ~f:register_entry;
 
       (* Step 3.5 Return and let the [Mapping_file] routine create the mapping
          file. *)
