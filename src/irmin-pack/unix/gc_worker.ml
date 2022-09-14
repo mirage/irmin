@@ -35,29 +35,45 @@ module Make (Args : Gc_args.S) = struct
 
   let string_of_key = Irmin.Type.to_string key_t
 
-  module Offset_rev = struct
-    type t = int63 [@@deriving irmin]
+  module Priority_queue = struct
+    module Offset_rev = struct
+      type t = int63
 
-    let equal = Irmin.Type.(unstage (equal t))
-    let hash = Irmin.Type.(unstage (short_hash t))
-    let hash (t : t) : int = hash t
-    let compare a b = Int63.compare b a
+      let equal = Int63.equal
+      let hash (t : t) = Hashtbl.hash t
+      let compare a b = Int63.compare b a
+    end
+
+    module Table = Hashtbl.Make (Offset_rev)
+    module Pq = Binary_heap.Make (Offset_rev)
+
+    type 'a t = { pq : Pq.t; marks : 'a Table.t }
+
+    let create size =
+      { pq = Pq.create ~dummy:Int63.zero size; marks = Table.create size }
+
+    let is_empty t = Pq.is_empty t.pq
+
+    let pop { pq; marks } =
+      let elt = Pq.pop_minimum pq in
+      let payload = Table.find marks elt in
+      Table.remove marks elt;
+      (elt, payload)
+
+    let add { pq; marks } elt payload =
+      if not (Table.mem marks elt) then (
+        Table.add marks elt payload;
+        Pq.add pq elt)
   end
 
-  module Table = Hashtbl.Make (Offset_rev)
-  module Priority_queue = Binary_heap.Make (Offset_rev)
-
-  (** [iter_reachable commit _ ~f] calls [f ~off ~len] once with the [offset]
-      and [length] of all the tree objects and immediate parent commits
-      reachable from [commit]. *)
+  (** [iter_reachable commit _ ~f] calls [f ~off ~len] once for each [offset]
+      and [length] of the reachable tree objects and immediate parent commits
+      from [commit]. *)
   let iter_reachable commit node_store ~f =
-    let todos = Priority_queue.create ~dummy:Int63.zero 1024 in
-    let marks = Table.create 1024 in
+    let todos = Priority_queue.create 1024 in
     let rec loop () =
       if not (Priority_queue.is_empty todos) then (
-        let offset = Priority_queue.pop_minimum todos in
-        let length, key_opt = Table.find marks offset in
-        Table.remove marks offset;
+        let offset, (length, key_opt) = Priority_queue.pop todos in
         f ~off:offset ~len:length;
         (match key_opt with None -> () | Some key -> iter_node key);
         loop ())
@@ -68,9 +84,9 @@ module Make (Args : Gc_args.S) = struct
       | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
       | Some node ->
           List.iter
-            (fun (_step, kinded_key) -> schedule_child kinded_key)
+            (fun (_step, kinded_key) -> schedule_kinded kinded_key)
             (Node_value.pred node)
-    and schedule_child kinded_key =
+    and schedule_kinded kinded_key =
       let key, key_opt =
         match kinded_key with
         | `Contents key -> (key, None)
@@ -85,9 +101,7 @@ module Make (Args : Gc_args.S) = struct
       in
       schedule offset length key_opt
     and schedule offset length key_opt =
-      if not (Table.mem marks offset) then (
-        Table.add marks offset (length, key_opt);
-        Priority_queue.add todos offset)
+      Priority_queue.add todos offset (length, key_opt)
     in
     (* Include the commit parents in the reachable file.
        The parent(s) of [commit] must be included in the iteration
@@ -100,7 +114,7 @@ module Make (Args : Gc_args.S) = struct
       | Direct { offset; length; _ } -> schedule offset length None
     in
     List.iter schedule_parent_exn (Commit_value.parents commit);
-    schedule_child (`Node (Commit_value.node commit));
+    schedule_kinded (`Node (Commit_value.node commit));
     loop ()
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
