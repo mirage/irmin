@@ -714,13 +714,6 @@ struct
     let* x = remove_exn ?retries ?allow_empty ?parents ~info store path in
     Lwt.return_ok x
 
-  let get store path =
-    let* x = find store path in
-    match x with
-    | None ->
-        invalid_arg ("Contents not found: " ^ Irmin.Type.to_string path_t path)
-    | Some x -> Lwt.return x
-
   let find_tree store path =
     let repo = repo store in
     let+ concrete =
