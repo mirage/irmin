@@ -255,7 +255,7 @@ struct
         in
         let cb _ = suffix_requires_a_flush_exn t in
         Suffix.open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
-          ~auto_flush_callback:cb
+          ~auto_flush_procedure:(`External cb)
     in
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
@@ -310,7 +310,8 @@ struct
         Irmin_pack.Conf.suffix_auto_flush_threshold config
       in
       let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
-      make_suffix ~path ~auto_flush_threshold ~auto_flush_callback:cb
+      make_suffix ~path ~auto_flush_threshold
+        ~auto_flush_procedure:(`External cb)
     in
     let* prefix =
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
@@ -323,7 +324,7 @@ struct
         Irmin_pack.Conf.dict_auto_flush_threshold config
       in
       let cb _ = dict_requires_a_flush_exn (get_instance ()) in
-      make_dict ~path ~auto_flush_threshold ~auto_flush_callback:cb
+      make_dict ~path ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
     in
     let* index =
       let log_size = Conf.index_log_size config in

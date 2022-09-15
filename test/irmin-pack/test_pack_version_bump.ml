@@ -30,7 +30,7 @@ module Private = struct
   module Io = Irmin_pack_unix.Io.Unix
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Control = Irmin_pack_unix.Control_file.Make (Io)
-  module Aof = Irmin_pack_unix.Append_only_file.Make (Io)
+  module Aof = Irmin_pack_unix.Append_only_file.Make (Io) (Errs)
 
   module File_manager =
     Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
