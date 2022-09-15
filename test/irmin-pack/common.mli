@@ -67,7 +67,7 @@ module Alcotest : sig
 end
 
 module Index : module type of Irmin_pack_unix.Index.Make (Schema.Hash)
-module Key : Irmin_pack.Pack_key.S with type hash = Schema.Hash.t
+module Key : Irmin_pack_unix.Pack_key.S with type hash = Schema.Hash.t
 
 module Pack :
   Irmin_pack_unix.Pack_store.S

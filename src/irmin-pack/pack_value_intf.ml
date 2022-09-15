@@ -50,12 +50,6 @@ module type S = sig
   val decode_bin_length : string -> int -> int
 end
 
-module type Persistent = sig
-  type hash
-
-  include S with type hash := hash and type key = hash Pack_key.t
-end
-
 module type T = sig
   type t
 end
@@ -91,7 +85,6 @@ module type Sigs = sig
   end
 
   module type S = S with type kind := Kind.t
-  module type Persistent = Persistent with type kind := Kind.t
   module type Config = Config
 
   module Of_contents

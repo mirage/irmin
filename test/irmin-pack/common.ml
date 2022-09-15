@@ -76,7 +76,7 @@ end
 
 module I = Irmin_pack_unix.Index
 module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
-module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
+module Key = Irmin_pack_unix.Pack_key.Make (Schema.Hash)
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
 module Control = Irmin_pack_unix.Control_file.Make (Io)

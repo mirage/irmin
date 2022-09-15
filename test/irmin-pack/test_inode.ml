@@ -31,7 +31,7 @@ module Inode_modules
       val bar : Schema.Contents.t
     end) =
 struct
-  module Key = Irmin_pack.Pack_key.Make (Schema.Hash)
+  module Key = Irmin_pack_unix.Pack_key.Make (Schema.Hash)
 
   module Node =
     Irmin.Node.Generic_key.Make_v2 (Schema.Hash) (Schema.Path) (Schema.Metadata)
