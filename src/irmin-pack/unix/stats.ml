@@ -17,29 +17,9 @@
 module Metrics = Irmin.Metrics
 
 module Pack_store = struct
+  include Stats_intf.Pack_store
+
   type Metrics.origin += Pack_store_stats
-
-  type field =
-    | Appended_hashes
-    | Appended_offsets
-    | Staging
-    | Lru
-    | Pack_direct
-    | Pack_indexed
-    | Not_found
-  [@@deriving irmin]
-
-  type t = {
-    mutable appended_hashes : int;
-    mutable appended_offsets : int;
-    mutable total : int;
-    mutable from_staging : int;
-    mutable from_lru : int;
-    mutable from_pack_direct : int;
-    mutable from_pack_indexed : int;
-  }
-  [@@deriving irmin]
-
   type stat = t Metrics.t
 
   let create_pack_store () =
@@ -107,26 +87,9 @@ module Pack_store = struct
 end
 
 module Index = struct
-  module S = Index.Stats
+  include Stats_intf.Index
 
   type Metrics.origin += Index_stats
-
-  type t = Index.Stats.t = {
-    mutable bytes_read : int;
-    mutable nb_reads : int;
-    mutable bytes_written : int;
-    mutable nb_writes : int;
-    mutable nb_merge : int;
-    mutable merge_durations : float list;
-    mutable nb_replace : int;
-    mutable replace_durations : float list;
-    mutable nb_sync : int;
-    mutable time_sync : float;
-    mutable lru_hits : int;
-    mutable lru_misses : int;
-  }
-  [@@deriving irmin]
-
   type stat = t Metrics.t
 
   let create_index () =
@@ -165,25 +128,16 @@ module Index = struct
     Metrics.v ~origin:Index_stats ~name:"index_metric" ~initial_state t
 
   let report index =
-    let modifier = Metrics.Replace (fun _ -> Index.Stats.get ()) in
+    let modifier = Metrics.Replace (fun _ -> S.get ()) in
     Metrics.(update index modifier)
 
   let export m = Metrics.state m
 end
 
 module File_manager = struct
-  type Metrics.origin += File_manager
+  include Stats_intf.File_manager
 
-  type t = {
-    mutable dict_flushes : int;
-    mutable suffix_flushes : int;
-    mutable index_flushes : int;
-    mutable auto_dict : int;
-    mutable auto_suffix : int;
-    mutable auto_index : int;
-    mutable flush : int;
-  }
-  [@@deriving irmin]
+  type Metrics.origin += File_manager
 
   (* NOTE return a new instance each time, since fields are mutable *)
   let create () =
