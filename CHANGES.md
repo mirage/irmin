@@ -13,6 +13,8 @@
 - **irmin-pack**
   - `irmin_pack_mem` no longer exposes disk specifics functions (#2081,
   @icristescu)
+  - Move unix specific details for `Pack_key` and `Pack_value` from `irmin-pack`
+    to `irmin-pack.unix` (#2084, @metanivek)
 
 ## 3.4.1 (2022-09-07)
 
