@@ -110,6 +110,7 @@ module Index = struct
 
   let clear (data : stat) =
     let s = Metrics.state data in
+    Index.Stats.reset_stats ();
     s.bytes_read <- 0;
     s.nb_reads <- 0;
     s.bytes_written <- 0;
