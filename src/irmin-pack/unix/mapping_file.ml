@@ -330,8 +330,8 @@ let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
 
 module Make (Io : Io.S) = struct
   module Io = Io
-  module Ao = Append_only_file.Make (Io)
   module Errs = Io_errors.Make (Io)
+  module Ao = Append_only_file.Make (Io) (Errs)
 
   type t = { arr : int64_bigarray; root : string; generation : int }
 
@@ -371,10 +371,9 @@ module Make (Io : Io.S) = struct
     Io.unlink path2 |> ignore;
 
     (* Create [file0] *)
-    let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
     let* file0 =
       Ao.create_rw ~path:path0 ~overwrite:true ~auto_flush_threshold:1_000_000
-        ~auto_flush_callback
+        ~auto_flush_procedure:`Internal
     in
 
     (* Fill and close [file0] *)
@@ -404,10 +403,9 @@ module Make (Io : Io.S) = struct
     Io.unlink path0 |> ignore;
 
     (* Create [file2] *)
-    let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
     let* file2 =
       Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
-        ~auto_flush_callback
+        ~auto_flush_procedure:`Internal
     in
 
     (* Fill and close [file2] *)

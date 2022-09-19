@@ -17,8 +17,9 @@
 open Import
 include Append_only_file_intf
 
-module Make (Io : Io.S) = struct
+module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
+  module Errs = Errs
 
   type t = {
     io : Io.t;
@@ -27,14 +28,16 @@ module Make (Io : Io.S) = struct
     rw_perm : rw_perm option;
   }
 
+  and auto_flush_procedure = [ `Internal | `External of t -> unit ]
+
   and rw_perm = {
     buf : Buffer.t;
     auto_flush_threshold : int;
-    auto_flush_callback : t -> unit;
+    auto_flush_procedure : auto_flush_procedure;
   }
   (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
 
-  let create_rw ~path ~overwrite ~auto_flush_threshold ~auto_flush_callback =
+  let create_rw ~path ~overwrite ~auto_flush_threshold ~auto_flush_procedure =
     let open Result_syntax in
     let+ io = Io.create ~path ~overwrite in
     let persisted_end_offset = Int63.zero in
@@ -43,7 +46,7 @@ module Make (Io : Io.S) = struct
       io;
       persisted_end_offset;
       dead_header_size = Int63.zero;
-      rw_perm = Some { buf; auto_flush_threshold; auto_flush_callback };
+      rw_perm = Some { buf; auto_flush_threshold; auto_flush_procedure };
     }
 
   (** A store is consistent if the real offset of the suffix/dict files is the
@@ -73,7 +76,7 @@ module Make (Io : Io.S) = struct
       Ok ())
 
   let open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
-      ~auto_flush_callback =
+      ~auto_flush_procedure =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:false in
     let+ () = check_consistent_store ~end_offset ~dead_header_size io in
@@ -84,7 +87,7 @@ module Make (Io : Io.S) = struct
       io;
       persisted_end_offset;
       dead_header_size;
-      rw_perm = Some { buf; auto_flush_threshold; auto_flush_callback };
+      rw_perm = Some { buf; auto_flush_threshold; auto_flush_procedure };
     }
 
   let open_ro ~path ~end_offset ~dead_header_size =
@@ -160,10 +163,13 @@ module Make (Io : Io.S) = struct
   let append_exn t s =
     match t.rw_perm with
     | None -> raise Errors.RO_not_allowed
-    | Some rw_perm ->
+    | Some rw_perm -> (
         assert (Buffer.length rw_perm.buf < rw_perm.auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;
-        if Buffer.length rw_perm.buf >= rw_perm.auto_flush_threshold then (
-          rw_perm.auto_flush_callback t;
-          assert (empty_buffer t))
+        if Buffer.length rw_perm.buf >= rw_perm.auto_flush_threshold then
+          match rw_perm.auto_flush_procedure with
+          | `Internal -> flush t |> Errs.raise_if_error
+          | `External cb ->
+              cb t;
+              assert (empty_buffer t))
 end

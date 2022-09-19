@@ -45,11 +45,11 @@ module Worker = struct
     module Mapping_file = Fm.Mapping_file
 
     module Ao = struct
-      include Append_only_file.Make (Fm.Io)
+      include Append_only_file.Make (Fm.Io) (Errs)
 
-      let create_rw_exn ~path ~auto_flush_callback =
+      let create_rw_exn ~path =
         create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
-          ~auto_flush_callback
+          ~auto_flush_procedure:`Internal
         |> Errs.raise_if_error
     end
 
@@ -148,8 +148,7 @@ module Worker = struct
 
     let create_new_suffix ~root ~generation =
       let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
-      let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
-      Ao.create_rw_exn ~path ~auto_flush_callback
+      Ao.create_rw_exn ~path
 
     let run ~generation root commit_key =
       let open Result_syntax in
@@ -233,8 +232,7 @@ module Worker = struct
         (* Step 4. Create the new prefix. *)
         let prefix =
           let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
-          let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
-          Ao.create_rw_exn ~path ~auto_flush_callback
+          Ao.create_rw_exn ~path
         in
         let () =
           Errors.finalise_exn (fun _outcome ->
@@ -343,7 +341,7 @@ module Make (Args : Args) = struct
   module Args = Args
   open Args
   module Io = Fm.Io
-  module Ao = Append_only_file.Make (Io)
+  module Ao = Append_only_file.Make (Io) (Errs)
   module Worker = Worker.Make (Args)
 
   type t = {
@@ -418,10 +416,9 @@ module Make (Args : Args) = struct
        0. *)
     let dead_header_size = 0 in
     let auto_flush_threshold = 1_000_000 in
-    let auto_flush_callback x = Ao.flush x |> Errs.raise_if_error in
     let* suffix =
-      Ao.open_rw ~path ~end_offset ~dead_header_size ~auto_flush_callback
-        ~auto_flush_threshold
+      Ao.open_rw ~path ~end_offset ~dead_header_size
+        ~auto_flush_procedure:`Internal ~auto_flush_threshold
     in
     Ok suffix
 
