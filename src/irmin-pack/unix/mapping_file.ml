@@ -500,6 +500,8 @@ module Make (Io : Io.S) = struct
         match !current_entry with
         | None -> (off, len)
         | Some (off', len') ->
+            if off >= off' then
+              invalid_arg "register_entry: offsets are not strictly decreasing";
             let dist = Int63.to_int (Int63.sub off' off) in
             if dist <= len + gap_tolerance then (off, dist + len')
             else (
@@ -508,12 +510,14 @@ module Make (Io : Io.S) = struct
       in
       current_entry := Some current
     in
-    let* () = Errs.catch (fun () -> register_entries ~register_entry) in
-    (* Flush pending entry *)
-    (match !current_entry with
-    | None -> ()
-    | Some (off, len) -> append_entry ~off ~len);
-
+    let* () =
+      Errs.catch (fun () ->
+          register_entries ~register_entry;
+          (* Flush pending entry *)
+          match !current_entry with
+          | None -> ()
+          | Some (off, len) -> append_entry ~off ~len)
+    in
     let* () = Ao.flush file0 in
     let* () = Ao.close file0 in
 
