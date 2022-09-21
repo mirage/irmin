@@ -28,7 +28,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Errs = Fm.Errs
   module Control = Fm.Control
 
-  type t = { fm : Fm.t; root : string }
+  type t = { fm : Fm.t }
   type location = Prefix | Suffix [@@deriving irmin]
 
   type accessor = { poff : int63; len : int; location : location }
@@ -40,8 +40,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
       [location] is a file identifier. *)
 
-  let v ~root fm =
-    let t = { fm; root } in
+  let v fm =
+    let t = { fm } in
     Ok t
 
   let get_prefix t =
@@ -250,4 +250,77 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let shrink_accessor_exn a ~new_len =
     if new_len > a.len then failwith "shrink_accessor_exn to larger accessor";
     { a with len = new_len }
+
+  module Sequential = struct
+    let create_accessor_exn prefix_len suffix_len ~off ~len =
+      let open Int63.Syntax in
+      if off >= prefix_len then
+        let off = off - prefix_len in
+        let entry_end_offset = off + Int63.of_int len in
+        if entry_end_offset > suffix_len then
+          raise (Errors.Pack_error `Read_out_of_bounds)
+        else { poff = off; len; location = Suffix }
+      else
+        let entry_end_offset = off + Int63.of_int len in
+        if entry_end_offset > prefix_len then
+          raise (Errors.Pack_error `Read_out_of_bounds)
+        else { poff = off; len; location = Prefix }
+
+    let create_accessor_from_range_exn prefix_len suffix_len ~off ~min_len
+        ~max_len =
+      let open Int63.Syntax in
+      if off >= prefix_len then
+        let off = off - prefix_len in
+        let max_entry_len = suffix_len - off in
+        let len =
+          let min_len = Int63.of_int min_len in
+          let max_len = Int63.of_int max_len in
+          if suffix_len < min_len then
+            raise (Errors.Pack_error `Read_out_of_bounds)
+          else if max_entry_len > max_len then max_len
+          else max_entry_len
+        in
+        let len = Int63.to_int len in
+        { poff = off; len; location = Suffix }
+      else
+        let max_entry_len = prefix_len - off in
+        let len =
+          let min_len = Int63.of_int min_len in
+          let max_len = Int63.of_int max_len in
+          if prefix_len < min_len then
+            raise (Errors.Pack_error `Read_out_of_bounds)
+          else if max_entry_len > max_len then max_len
+          else max_entry_len
+        in
+        let len = Int63.to_int len in
+        { poff = off; len; location = Prefix }
+
+    let create_accessor_seq t ~min_header_len ~max_header_len ~read_len =
+      let open Int63.Syntax in
+      let buf = Bytes.create max_header_len in
+      let prefix_len =
+        match Fm.prefix t.fm with
+        | Some prefix -> (
+            match Io.read_size prefix with
+            | Ok len -> len
+            | Error _ -> Int63.zero)
+        | None -> Int63.zero
+      in
+      let suffix_len = Fm.Suffix.end_offset (Fm.suffix t.fm) in
+      let end_offset = prefix_len + suffix_len in
+      let f off =
+        if off < end_offset then (
+          let accessor =
+            create_accessor_from_range_exn prefix_len suffix_len ~off
+              ~min_len:min_header_len ~max_len:max_header_len
+          in
+          read_exn t accessor buf;
+          let len = read_len buf in
+          Some
+            ( (off, create_accessor_exn prefix_len suffix_len ~off ~len),
+              Int63.(add off (of_int len)) ))
+        else None
+      in
+      Seq.unfold f Int63.zero
+  end
 end

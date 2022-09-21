@@ -163,7 +163,7 @@ module Worker = struct
           Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
       @@ fun () ->
       let dict = Dict.v fm |> Errs.raise_if_error in
-      let dispatcher = Dispatcher.v ~root fm |> Errs.raise_if_error in
+      let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
       let node_store = Node_store.v ~config ~fm ~dict ~dispatcher in
       let commit_store = Commit_store.v ~config ~fm ~dict ~dispatcher in
 

@@ -120,7 +120,7 @@ struct
       let config = config ~indexing_strategy ~readonly:false ~fresh:true root in
       let fm = get_fm config in
       let dict = Dict.v fm |> Errs.raise_if_error in
-      let dispatcher = Dispatcher.v ~root fm |> Errs.raise_if_error in
+      let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
       let store = Inode.v ~config ~fm ~dict ~dispatcher in
       let store_contents = Contents_store.v ~config ~fm ~dict ~dispatcher in
       let+ foo, bar =
