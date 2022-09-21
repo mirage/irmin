@@ -212,8 +212,11 @@ module Make (Args : Gc_args.S) = struct
          reachable file. *)
       stats := Gc_stats.Worker.finish_current_step !stats "mapping: start";
       (fun f ->
-        Mapping_file.create_rev ~root:new_files_path ~generation
-          ~register_entries:f ()
+        let report_mapping_size size =
+          stats := Gc_stats.Worker.add_file_size !stats "mapping" size
+        in
+        Mapping_file.create ~report_mapping_size ~root:new_files_path
+          ~generation ~register_entries:f ()
         |> Errs.raise_if_error)
       @@ fun ~register_entry ->
       (* Step 3.2 If the commit parents are referenced by offset, then include
@@ -226,12 +229,16 @@ module Make (Args : Gc_args.S) = struct
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "mapping: commits to reachable";
+      let register_entry ~off ~len =
+        stats := Gc_stats.Worker.incr_objects_traversed !stats;
+        register_entry ~off ~len
+      in
       let register_object_exn key =
         match Pack_key.inspect key with
-        | Indexed _ -> ()
         | Direct { offset; length; _ } ->
             stats := Gc_stats.Worker.incr_objects_traversed !stats;
             register_entry ~off:offset ~len:length
+        | Indexed _ -> ()
       in
 
       (* Step 3.3 Put the commit in the reachable file. *)

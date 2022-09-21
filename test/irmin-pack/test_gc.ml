@@ -620,8 +620,6 @@ module Gc = struct
         [
           ("mapping", 72);
           ("prefix", 316);
-          ("sorted", 128);
-          ("reachable", 128);
           ("old_mapping", 48);
           ("old_prefix", 267);
         ]

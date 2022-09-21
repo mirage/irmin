@@ -26,7 +26,9 @@ let test_dir = Filename.concat "_build" "test-pack-mapping"
 let process_on_disk pairs =
   let register_entries ~register_entry =
     List.iter
-      (fun (off, len) -> register_entry ~off:(Int63.of_int off) ~len)
+      (fun (off, len) ->
+        Format.printf "%i (+%i) => %i@." off len (off + len);
+        register_entry ~off:(Int63.of_int off) ~len)
       pairs
   in
   let mapping =
@@ -89,18 +91,16 @@ let produce_suffix_segmentation len seed =
   List.to_seq elts |> Array.of_seq
 
 (** Randomly produce a subset of the [full_seg] segmentation. *)
-let produce_suffix_segmentation_subset full_seg ~seed ~max_len =
+let produce_suffix_segmentation_subset full_seg ~seed =
   let rng = Random.State.make [| seed |] in
-  let len = Random.State.int rng max_len |> max 1 |> min max_len in
-  List.init len (fun _ ->
-      let i = Random.State.int rng (Array.length full_seg) in
-      let off, len = full_seg.(i) in
-      if Random.State.bool rng then (off, len)
+  List.filter_map (fun (off, len) ->
+      if Random.State.bool rng then None
       else
         let len = Random.State.int rng len |> max 1 in
-        (off, len))
+        Some (off, len))
+  @@ Array.to_list full_seg
 
-let test ~full_seg_length ~seg_subset_max_length ~random_test_count =
+let test ~full_seg_length ~random_test_count =
   (* [mkdir] may fail if the directory exists. The files in it will be
      overwritten at computation time. *)
   Io.mkdir test_dir |> ignore;
@@ -109,9 +109,7 @@ let test ~full_seg_length ~seg_subset_max_length ~random_test_count =
   let rec aux i =
     if i >= random_test_count then ()
     else (
-      produce_suffix_segmentation_subset seg ~seed:i
-        ~max_len:seg_subset_max_length
-      |> test;
+      produce_suffix_segmentation_subset seg ~seed:i |> test;
       aux (i + 1))
   in
   aux 0;
@@ -120,11 +118,7 @@ let test ~full_seg_length ~seg_subset_max_length ~random_test_count =
 let tests =
   [
     Alcotest_lwt.test_case "test mapping on small inputs" `Quick
-      (fun _switch () ->
-        test ~full_seg_length:10 ~seg_subset_max_length:30
-          ~random_test_count:1000);
+      (fun _switch () -> test ~full_seg_length:10 ~random_test_count:1000);
     Alcotest_lwt.test_case "test mapping on large inputs" `Quick
-      (fun _switch () ->
-        test ~full_seg_length:10000 ~seg_subset_max_length:30000
-          ~random_test_count:100);
+      (fun _switch () -> test ~full_seg_length:10000 ~random_test_count:100);
   ]
