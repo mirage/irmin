@@ -266,14 +266,14 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
   let create_sequential_accessor_seq t ~min_header_len ~max_header_len ~read_len
       =
-    let chunks =
+    let preffix_chunks =
       match Fm.mapping t.fm with
       | Some mapping ->
-          let chunks = ref [] in
+          let preffix_chunks = ref [] in
           Mapping_file.iter mapping (fun ~off ~len ->
-              chunks := (off, len) :: !chunks)
+              preffix_chunks := (off, len) :: !preffix_chunks)
           |> Errs.raise_if_error;
-          List.rev !chunks
+          List.rev !preffix_chunks
       | None -> []
     in
     let suffix_end_offset = Fm.Suffix.end_offset (Fm.suffix t.fm) in
@@ -286,7 +286,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       in
       read_exn t accessor buf;
       let entry_len = read_len buf in
-      entry_len, create_sequential_accessor_exn location rem_len ~poff ~len:entry_len
+      ( entry_len,
+        create_sequential_accessor_exn location rem_len ~poff ~len:entry_len )
     in
     let rec suffix_accessors poff () =
       let open Seq in
@@ -295,7 +296,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       else
         let rem_len = Int63.to_int (suffix_end_offset - poff) in
         let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
-        let r = entry_offset_suffix_start + poff, accessor in
+        let r = (entry_offset_suffix_start + poff, accessor) in
         let poff = poff + Int63.of_int entry_len in
         let f = suffix_accessors poff in
         Cons (r, f)
@@ -308,7 +309,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
           if rem_len <= 0 then prefix_accessors poff acc ()
           else
             let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
-            let r = off, accessor in
+            let r = (off, accessor) in
             let rem_len = rem_len - entry_len in
             let open Int63.Syntax in
             let poff = poff + Int63.of_int entry_len in
@@ -316,5 +317,5 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
             let f = prefix_accessors poff ((off, rem_len) :: acc) in
             Cons (r, f)
     in
-    prefix_accessors Int63.zero chunks
+    prefix_accessors Int63.zero preffix_chunks
 end
