@@ -278,12 +278,12 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     in
     let suffix_end_offset = Fm.Suffix.end_offset (Fm.suffix t.fm) in
     let entry_offset_suffix_start = entry_offset_suffix_start t in
-    let buf = Bytes.create max_header_len in
     let get_entry_accessor rem_len location poff =
       let accessor =
         create_sequential_accessor_from_range_exn location rem_len ~poff
           ~min_len:min_header_len ~max_len:max_header_len
       in
+      let buf = Bytes.create max_header_len in
       read_exn t accessor buf;
       let entry_len = read_len buf in
       ( entry_len,
