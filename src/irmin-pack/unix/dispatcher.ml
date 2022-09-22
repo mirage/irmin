@@ -279,23 +279,23 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let suffix_end_offset = Fm.Suffix.end_offset (Fm.suffix t.fm) in
     let entry_offset_suffix_start = entry_offset_suffix_start t in
     let buf = Bytes.create max_header_len in
+    let get_entry_accessor rem_len location poff =
+      let accessor =
+        create_sequential_accessor_from_range_exn location rem_len ~poff
+          ~min_len:min_header_len ~max_len:max_header_len
+      in
+      read_exn t accessor buf;
+      let entry_len = read_len buf in
+      entry_len, create_sequential_accessor_exn location rem_len ~poff ~len:entry_len
+    in
     let rec suffix_accessors poff () =
       let open Seq in
       let open Int63.Syntax in
       if poff >= suffix_end_offset then Nil
       else
         let rem_len = Int63.to_int (suffix_end_offset - poff) in
-        let accessor =
-          create_sequential_accessor_from_range_exn Suffix rem_len ~poff
-            ~min_len:min_header_len ~max_len:max_header_len
-        in
-        read_exn t accessor buf;
-        let entry_len = read_len buf in
-        let r =
-          ( entry_offset_suffix_start + poff,
-            create_sequential_accessor_exn Suffix rem_len ~poff ~len:entry_len
-          )
-        in
+        let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
+        let r = entry_offset_suffix_start + poff, accessor in
         let poff = poff + Int63.of_int entry_len in
         let f = suffix_accessors poff in
         Cons (r, f)
@@ -307,17 +307,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       | (off, rem_len) :: acc ->
           if rem_len <= 0 then prefix_accessors poff acc ()
           else
-            let accessor =
-              create_sequential_accessor_from_range_exn Prefix rem_len ~poff
-                ~min_len:min_header_len ~max_len:max_header_len
-            in
-            read_exn t accessor buf;
-            let entry_len = read_len buf in
-            let r =
-              ( off,
-                create_sequential_accessor_exn Prefix rem_len ~poff
-                  ~len:entry_len )
-            in
+            let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
+            let r = off, accessor in
             let rem_len = rem_len - entry_len in
             let open Int63.Syntax in
             let poff = poff + Int63.of_int entry_len in
