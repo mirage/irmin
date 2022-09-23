@@ -153,7 +153,7 @@ struct
     let f = ref (fun () -> ()) in
     let config = config ~readonly ~fresh name in
     let fm = get_fm config in
-    let dispatcher = Dispatcher.v ~root:name fm |> Errs.raise_if_error in
+    let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
     let dict = Dict.v fm |> Errs.raise_if_error in

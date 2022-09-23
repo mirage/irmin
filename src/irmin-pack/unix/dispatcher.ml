@@ -28,7 +28,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Errs = Fm.Errs
   module Control = Fm.Control
 
-  type t = { fm : Fm.t; root : string }
+  type t = { fm : Fm.t }
   type location = Prefix | Suffix [@@deriving irmin]
 
   type accessor = { poff : int63; len : int; location : location }
@@ -40,8 +40,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
       [location] is a file identifier. *)
 
-  let v ~root fm =
-    let t = { fm; root } in
+  let v fm =
+    let t = { fm } in
     Ok t
 
   let get_prefix t =
@@ -250,4 +250,72 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let shrink_accessor_exn a ~new_len =
     if new_len > a.len then failwith "shrink_accessor_exn to larger accessor";
     { a with len = new_len }
+
+  let create_sequential_accessor_exn location rem_len ~poff ~len =
+    if len > rem_len then raise (Errors.Pack_error `Read_out_of_bounds)
+    else { poff; len; location }
+
+  let create_sequential_accessor_from_range_exn location rem_len ~poff ~min_len
+      ~max_len =
+    let len =
+      if rem_len < min_len then raise (Errors.Pack_error `Read_out_of_bounds)
+      else if rem_len > max_len then max_len
+      else rem_len
+    in
+    { poff; len; location }
+
+  let create_sequential_accessor_seq t ~min_header_len ~max_header_len ~read_len
+      =
+    let preffix_chunks =
+      match Fm.mapping t.fm with
+      | Some mapping ->
+          let preffix_chunks = ref [] in
+          Mapping_file.iter mapping (fun ~off ~len ->
+              preffix_chunks := (off, len) :: !preffix_chunks)
+          |> Errs.raise_if_error;
+          List.rev !preffix_chunks
+      | None -> []
+    in
+    let suffix_end_offset = Fm.Suffix.end_offset (Fm.suffix t.fm) in
+    let entry_offset_suffix_start = entry_offset_suffix_start t in
+    let get_entry_accessor rem_len location poff =
+      let accessor =
+        create_sequential_accessor_from_range_exn location rem_len ~poff
+          ~min_len:min_header_len ~max_len:max_header_len
+      in
+      let buf = Bytes.create max_header_len in
+      read_exn t accessor buf;
+      let entry_len = read_len buf in
+      ( entry_len,
+        create_sequential_accessor_exn location rem_len ~poff ~len:entry_len )
+    in
+    let rec suffix_accessors poff () =
+      let open Seq in
+      let open Int63.Syntax in
+      if poff >= suffix_end_offset then Nil
+      else
+        let rem_len = Int63.to_int (suffix_end_offset - poff) in
+        let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
+        let r = (entry_offset_suffix_start + poff, accessor) in
+        let poff = poff + Int63.of_int entry_len in
+        let f = suffix_accessors poff in
+        Cons (r, f)
+    in
+    let rec prefix_accessors poff acc () =
+      let open Seq in
+      match acc with
+      | [] -> suffix_accessors Int63.zero ()
+      | (off, rem_len) :: acc ->
+          if rem_len <= 0 then prefix_accessors poff acc ()
+          else
+            let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
+            let r = (off, accessor) in
+            let rem_len = rem_len - entry_len in
+            let open Int63.Syntax in
+            let poff = poff + Int63.of_int entry_len in
+            let off = off + Int63.of_int entry_len in
+            let f = prefix_accessors poff ((off, rem_len) :: acc) in
+            Cons (r, f)
+    in
+    prefix_accessors Int63.zero preffix_chunks
 end

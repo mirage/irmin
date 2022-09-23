@@ -187,7 +187,7 @@ module Maker (Config : Conf.S) = struct
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
           let dict = Dict.v fm |> Errs.raise_if_error in
-          let dispatcher = Dispatcher.v ~root fm |> Errs.raise_if_error in
+          let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
           let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher in
           let node = Node.CA.v ~config ~fm ~dict ~dispatcher in
           let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher in
