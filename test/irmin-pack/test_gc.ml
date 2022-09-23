@@ -32,7 +32,7 @@ let fresh_name =
 
 let tc name f = Alcotest_lwt.test_case name `Quick (fun _switch () -> f ())
 
-include struct
+module Store = struct
   module S = struct
     module Maker = Irmin_pack_unix.Maker (Conf)
     include Maker.Make (Schema)
@@ -97,39 +97,51 @@ include struct
     let+ repo = S.Repo.v (config ~readonly ~fresh ~lru_size root) in
     let tree = S.Tree.empty () in
     { root; repo; tree; parents = [] }
+
+  let config root = config ~lru_size:0 ~readonly:false ~fresh:true root
+
+  let init_with_config config =
+    let+ repo = S.Repo.v config in
+    let root = Irmin_pack.Conf.root config in
+    let tree = S.Tree.empty () in
+    { root; repo; tree; parents = [] }
+
+  let close t = S.Repo.close t.repo
+
+  (** Predefined commits. *)
+  let commit_1 t =
+    let* t = set t [ "a"; "b" ] "Novembre" in
+    let* t = set t [ "a"; "c" ] "Juin" in
+    let+ h = commit t in
+    (t, h)
+
+  let commit_2 t =
+    let* t = set t [ "a"; "d" ] "Mars" in
+    let+ h = commit t in
+    (t, h)
+
+  let commit_3 t =
+    let* t = set t [ "a"; "f" ] "Fevrier" in
+    let+ h = commit t in
+    (t, h)
+
+  let commit_4 t =
+    let* t = set t [ "a"; "e" ] "Mars" in
+    let+ h = commit t in
+    (t, h)
+
+  let commit_5 t =
+    let* t = set t [ "e"; "a" ] "Avril" in
+    let+ h = commit t in
+    (t, h)
+
+  let commit_del t =
+    let* t = del t [ "a"; "c" ] in
+    let+ h = commit t in
+    (t, h)
 end
 
-(** Predefined commits. *)
-let commit_1 t =
-  let* t = set t [ "a"; "b" ] "Novembre" in
-  let* t = set t [ "a"; "c" ] "Juin" in
-  let+ h = commit t in
-  (t, h)
-
-let commit_2 t =
-  let* t = set t [ "a"; "d" ] "Mars" in
-  let+ h = commit t in
-  (t, h)
-
-let commit_3 t =
-  let* t = set t [ "a"; "f" ] "Fevrier" in
-  let+ h = commit t in
-  (t, h)
-
-let commit_4 t =
-  let* t = set t [ "a"; "e" ] "Mars" in
-  let+ h = commit t in
-  (t, h)
-
-let commit_5 t =
-  let* t = set t [ "e"; "a" ] "Avril" in
-  let+ h = commit t in
-  (t, h)
-
-let commit_del t =
-  let* t = del t [ "a"; "c" ] in
-  let+ h = commit t in
-  (t, h)
+include Store
 
 (** Wrappers for testing. *)
 let check_blob tree key expected =

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,26 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Gc : sig
-  val tests : unit Alcotest_lwt.test_case list
-end
-
-module Concurrent_gc : sig
-  val tests : unit Alcotest_lwt.test_case list
-end
-
-module Store : sig
-  module S : Irmin_pack.S
-
-  type t
-
-  val config : string -> Irmin.config
-  val init_with_config : Irmin.config -> t Lwt.t
-  val close : t -> unit Lwt.t
-  val start_gc : t -> S.commit -> unit Lwt.t
-  val finalise_gc : t -> unit Lwt.t
-  val commit_1 : t -> (t * S.commit) Lwt.t
-  val commit_2 : t -> (t * S.commit) Lwt.t
-  val commit_3 : t -> (t * S.commit) Lwt.t
-  val checkout_exn : t -> S.commit -> t Lwt.t
-end
+val tests : unit Alcotest_lwt.test_case list
