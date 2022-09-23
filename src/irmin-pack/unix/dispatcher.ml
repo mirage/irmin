@@ -308,7 +308,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       | (off, rem_len) :: acc ->
           if rem_len <= 0 then prefix_accessors poff acc ()
           else
-            let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
+            let entry_len, accessor = get_entry_accessor rem_len Prefix poff in
             let r = (off, accessor) in
             let rem_len = rem_len - entry_len in
             let open Int63.Syntax in

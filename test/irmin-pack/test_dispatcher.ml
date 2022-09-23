@@ -78,7 +78,7 @@ let check_hex msg buf expected =
 let test_read () =
   let* config = setup_store () in
   let fm = File_manager.open_ro config |> Errs.raise_if_error in
-  let dsp = Dispatcher.v ~root fm |> Errs.raise_if_error in
+  let dsp = Dispatcher.v fm |> Errs.raise_if_error in
   let _ =
     Alcotest.check_raises "cannot read node_1"
       (Irmin_pack_unix.Errors.Pack_error
