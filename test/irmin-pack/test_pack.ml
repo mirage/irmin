@@ -548,4 +548,5 @@ let misc =
     ("mapping", Test_mapping.tests);
     ("test_nearest_leq", Test_nearest_leq.tests);
     ("layout", Layout.tests);
+    ("dispatcher", Test_dispatcher.tests);
   ]
