@@ -1,0 +1,35 @@
+opam-version: "2.0"
+maintainer:   "Gwenaelle@tarides.com"
+authors:      ["Gwenaëlle Lecat" "Nicolas Goguey"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+available: arch != "arm32" & arch != "x86_32"
+
+depends: [
+  "ocaml"       {>= "4.01.0"}
+  "dune"        {>= "2.9.0"}
+  "irmin-tezos" {= version}
+  "irmin-pack"  {= version}
+  "cmdliner"
+  "notty"       {>= "0.2.3"}
+  "hex"
+  "irmin-test"  {with-test & = version}
+  "alcotest"    {with-test}
+]
+
+synopsis: "Utils for Irmin tezos"
+description: """
+`Irmin-tezos-utils` defines useful binaries and libraries for
+an internal use of irmin, like inspecting tezos stores, pack
+files and such.
+"""
