@@ -690,34 +690,6 @@ struct
       "Gc reopen files, update control: %.0fus, %.0fus" span1 (span2 -. span1)];
     Ok ()
 
-  let write_gc_output ~root ~generation output =
-    let open Result_syntax in
-    let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
-    let* io = Io.create ~path ~overwrite:true in
-    let out = Errs.to_json_string output in
-    let* () = Io.write_string io ~off:Int63.zero out in
-    let* () = Io.fsync io in
-    Io.close io
-
-  type read_gc_output_error =
-    [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
-  [@@deriving irmin]
-
-  let read_gc_output ~root ~generation =
-    let open Result_syntax in
-    let read_file () =
-      let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
-      let* io = Io.open_ ~path ~readonly:true in
-      let* len = Io.read_size io in
-      let len = Int63.to_int len in
-      let* string = Io.read_to_string io ~off:Int63.zero ~len in
-      let* () = Io.close io in
-      Ok string
-    in
-    let wrap_error err = `Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err) in
-    let* s = read_file () |> Result.map_error wrap_error in
-    Errs.of_json_string s |> Result.map_error wrap_error
-
   let readonly t = Suffix.readonly t.suffix
 
   let generation t =

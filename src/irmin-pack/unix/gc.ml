@@ -326,11 +326,20 @@ module Worker = struct
       (* Step 8. Inform the caller of the end_offset copied. *)
       offs
 
+    let write_gc_output ~root ~generation output =
+      let open Result_syntax in
+      let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+      let* io = Io.create ~path ~overwrite:true in
+      let out = Errs.to_json_string output in
+      let* () = Io.write_string io ~off:Int63.zero out in
+      let* () = Io.fsync io in
+      Io.close io
+
     (* No one catches errors when this function terminates. Write the result in a
        file and terminate the process with an exception, if needed. *)
     let run_and_output_result ~generation root commit_key =
       let result = Errs.catch (fun () -> run ~generation root commit_key) in
-      let write_result = Fm.write_gc_output ~root ~generation result in
+      let write_result = write_gc_output ~root ~generation result in
       write_result |> Errs.raise_if_error;
       result |> Errs.raise_if_error
   end
@@ -521,6 +530,21 @@ module Make (Args : Args) = struct
     | `Success, Ok _ -> assert false
     | `Running, _ -> assert false
 
+  let read_gc_output ~root ~generation =
+    let open Result_syntax in
+    let read_file () =
+      let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+      let* io = Io.open_ ~path ~readonly:true in
+      let* len = Io.read_size io in
+      let len = Int63.to_int len in
+      let* string = Io.read_to_string io ~off:Int63.zero ~len in
+      let* () = Io.close io in
+      Ok string
+    in
+    let wrap_error err = `Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err) in
+    let* s = read_file () |> Result.map_error wrap_error in
+    Errs.of_json_string s |> Result.map_error wrap_error
+
   let finalise ~wait t =
     match t.stats with
     | Some stats -> Lwt.return_ok (`Finalised stats)
@@ -547,7 +571,7 @@ module Make (Args : Args) = struct
 
           let gc_output =
             time (fun t -> s := { !s with read_gc_output_duration = t })
-            @@ fun () -> Fm.read_gc_output ~root:t.root ~generation:t.generation
+            @@ fun () -> read_gc_output ~root:t.root ~generation:t.generation
           in
 
           let result =

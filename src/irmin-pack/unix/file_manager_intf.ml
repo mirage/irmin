@@ -244,30 +244,6 @@ module type S = sig
       [right_start_offset] and [right_end_offset] are used to properly load the
       suffix. The control file is also updated. *)
 
-  type write_gc_output_error :=
-    [ `Double_close
-    | `File_exists of string
-    | `Io_misc of Io.misc_error
-    | `Ro_not_allowed
-    | `Closed ]
-
-  val write_gc_output :
-    root:string ->
-    generation:int ->
-    (int63, Errs.t) result ->
-    (unit, [> write_gc_output_error ]) result
-  (** Used by the gc process at the end to write its output in
-      [store.<generation>.out]. *)
-
-  type read_gc_output_error =
-    [ `Corrupted_gc_result_file of string | `Gc_process_error of string ]
-  [@@deriving irmin]
-
-  val read_gc_output :
-    root:string -> generation:int -> (int63, [> read_gc_output_error ]) result
-  (** Used by the main process, after the gc process finished, to read
-      [store.<generation>.out]. *)
-
   val readonly : t -> bool
   val generation : t -> int
   val gc_allowed : t -> bool
