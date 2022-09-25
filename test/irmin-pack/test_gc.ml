@@ -52,9 +52,9 @@ module Store = struct
 
   let info = S.Info.empty
 
-  let start_gc t commit =
+  let start_gc ?(unlink = false) t commit =
     let commit_key = S.Commit.key commit in
-    let* _launched = S.Gc.start_exn ~unlink:false t.repo commit_key in
+    let* _launched = S.Gc.start_exn ~unlink t.repo commit_key in
     Lwt.return_unit
 
   let finalise_gc t =
@@ -320,20 +320,36 @@ module Gc = struct
     let* t = init () in
     let store_name = t.root in
     let* t, c1 = commit_1 t in
-    let* () = start_gc t c1 in
+    let* () = start_gc ~unlink:false t c1 in
     let* () = finalise_gc t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
     let* () = S.Repo.close t.repo in
+    Alcotest.(check bool)
+      "unlink:false" true
+      (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
+    let* t = init ~readonly:true ~fresh:false ~root:store_name () in
+    let* () = S.Repo.close t.repo in
+    Alcotest.(check bool)
+      "RO no clean up" true
+      (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
+    let* t = init ~readonly:false ~fresh:false ~root:store_name () in
+    let* () = S.Repo.close t.repo in
+    Alcotest.(check bool)
+      "RW cleaned up" false
+      (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
     let* () = S.Repo.close t.repo in
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
     [%log.debug "Gc c1, keep c2"];
-    let* () = start_gc t c2 in
+    let* () = start_gc ~unlink:true t c2 in
     let* () = finalise_gc t in
     let* () = S.Repo.close t.repo in
+    Alcotest.(check bool)
+      "unlink:true" false
+      (Sys.file_exists (Filename.concat store_name "store.1.suffix"));
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = check_not_found t c1 "removed c1" in
     let* () = check_2 t c2 in

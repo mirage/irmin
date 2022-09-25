@@ -268,6 +268,30 @@ struct
       let* t = Io.open_ ~path ~readonly:true in
       Ok (Some t)
 
+  (** Remove any residual files not needed by the current generation. *)
+  let clean ~generation ~root =
+    let expected_files = Irmin_pack.Layout.V3.all ~generation ~root in
+    let files = Array.to_list (Sys.readdir root) in
+    let to_remove =
+      List.filter
+        (fun filename ->
+          match Irmin_pack.Layout.classify_filename filename with
+          | None | Some (`Branch | `Dict | `V1_or_v2_pack) -> false
+          | Some (`Suffix g | `Prefix g | `Mapping g) -> g <> generation
+          | Some (`Reachable _ | `Sorted _ | `Gc_result _) -> true)
+        files
+    in
+    List.iter
+      (fun residual ->
+        let filename = Filename.concat root residual in
+        [%log.debug "Remove residual file %s" filename];
+        assert (not (List.mem ~equal:String.equal residual expected_files));
+        match Io.unlink filename with
+        | Ok () -> ()
+        | Error (`Sys_error error) ->
+            [%log.warn "Could not remove residual file %s: %s" filename error])
+      to_remove
+
   let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
       =
     let open Result_syntax in
@@ -285,6 +309,7 @@ struct
       | T15 ->
           assert false
     in
+    clean ~generation ~root;
     (* 1. Create a ref for dependency injections for auto flushes *)
     let instance = ref None in
     let get_instance () =

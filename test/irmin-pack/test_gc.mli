@@ -30,7 +30,7 @@ module Store : sig
   val config : string -> Irmin.config
   val init_with_config : Irmin.config -> t Lwt.t
   val close : t -> unit Lwt.t
-  val start_gc : t -> S.commit -> unit Lwt.t
+  val start_gc : ?unlink:bool -> t -> S.commit -> unit Lwt.t
   val finalise_gc : t -> unit Lwt.t
   val commit_1 : t -> (t * S.commit) Lwt.t
   val commit_2 : t -> (t * S.commit) Lwt.t

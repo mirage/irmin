@@ -15,6 +15,7 @@
   @icristescu)
   - Move unix specific details for `Pack_key` and `Pack_value` from `irmin-pack`
     to `irmin-pack.unix` (#2084, @metanivek)
+  - Remove unnecessary files at `open_rw` and after a failed GC (#2095, @art-w)
 
 ## 3.4.1 (2022-09-07)
 

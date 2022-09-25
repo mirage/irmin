@@ -513,6 +513,7 @@ module Layout = struct
     c (Some (`Sorted 10)) (V3.sorted ~generation:10 ~root:"" |> classif);
     c (Some (`Mapping 100)) (V3.mapping ~generation:100 ~root:"" |> classif);
     c (Some (`Prefix 1000)) (V3.prefix ~generation:1000 ~root:"" |> classif);
+    c (Some (`Suffix 42)) (V3.suffix ~generation:42 ~root:"" |> classif);
     c None (V3.prefix ~generation:(-1) ~root:"" |> classif);
     c None (classif "store.toto");
     c None (classif "store.");
