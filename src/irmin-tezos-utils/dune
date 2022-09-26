@@ -1,0 +1,17 @@
+(executable
+ (public_name irmin-pack-inspect)
+ (package irmin-tezos-utils)
+ (name main)
+ (modules main parse show files import)
+ (libraries
+  irmin-pack
+  irmin-pack.unix
+  irmin-tezos
+  notty
+  notty.unix
+  index.unix
+  hex
+  ptime
+  cmdliner)
+ (preprocess
+  (pps ppx_repr)))

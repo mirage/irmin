@@ -99,6 +99,29 @@ module type S = sig
   val save : ?allow_non_root:bool -> 'a t -> value -> key
 end
 
+module type Compress = sig
+  type step
+  type hash
+  type metadata
+  type dict_key = int
+  type pack_offset = int63
+  type name = Indirect of dict_key | Direct of step
+  type address = Offset of pack_offset | Hash of hash
+  type ptr = { index : dict_key; hash : address }
+  type tree = { depth : dict_key; length : dict_key; entries : ptr list }
+  type value = Contents of name * address * metadata | Node of name * address
+  type v = Values of value list | Tree of tree
+  type v1 = { mutable length : int; v : v }
+
+  type tagged_v =
+    | V0_stable of v
+    | V0_unstable of v
+    | V1_root of v1
+    | V1_nonroot of v1
+
+  type t = { hash : hash; tv : tagged_v } [@@deriving irmin]
+end
+
 (** Unstable internal API agnostic about the underlying storage. Use it only to
     implement or test inodes. *)
 module type Internal = sig
@@ -209,6 +232,12 @@ module type Internal = sig
   end
 
   val to_snapshot : Raw.t -> Snapshot.inode
+
+  module Compress :
+    Compress
+      with type hash := hash
+       and type step := Val.step
+       and type metadata := Val.metadata
 
   module Child_ordering : Child_ordering with type step := Val.step
 end
