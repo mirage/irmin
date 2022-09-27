@@ -37,6 +37,8 @@ module Worker = struct
       len:int63 ->
       bytes ->
       unit
+
+    type gc_output = (int63, Args.Errs.t) result [@@deriving irmin]
   end
 
   module Make (Args : Args) : S with module Args := Args = struct
@@ -326,11 +328,13 @@ module Worker = struct
       (* Step 8. Inform the caller of the end_offset copied. *)
       offs
 
+    type gc_output = (int63, Args.Errs.t) result [@@deriving irmin]
+
     let write_gc_output ~root ~generation output =
       let open Result_syntax in
       let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
       let* io = Io.create ~path ~overwrite:true in
-      let out = Errs.to_json_string output in
+      let out = Irmin.Type.to_json_string gc_output_t output in
       let* () = Io.write_string io ~off:Int63.zero out in
       let* () = Io.fsync io in
       Io.close io
@@ -381,7 +385,7 @@ module Make (Args : Args) = struct
             [%log.warn
               "Unlinking temporary files from previous failed gc. Failed with \
                error %a"
-              Errs.pp err]
+              (Irmin.Type.pp Errs.t) err]
     in
     (* Unlink next gc's result file, in case it is on disk, for instance
        after a failed gc. *)
@@ -512,7 +516,8 @@ module Make (Args : Args) = struct
     match result with
     | Error e ->
         [%log.warn
-          "Unlinking temporary files after gc, failed with error %a" Errs.pp e]
+          "Unlinking temporary files after gc, failed with error %a"
+            (Irmin.Type.pp Errs.t) e]
     | Ok () -> ()
 
   let gc_errors status gc_output =
@@ -540,9 +545,14 @@ module Make (Args : Args) = struct
       let* () = Io.close io in
       Ok string
     in
-    let wrap_error err = `Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err) in
-    let* s = read_file () |> Result.map_error wrap_error in
-    Errs.of_json_string s |> Result.map_error wrap_error
+    let read_error err =
+      `Corrupted_gc_result_file (Irmin.Type.to_string Errs.t err)
+    in
+    let gc_error err = `Gc_process_error (Irmin.Type.to_string Errs.t err) in
+    let* s = read_file () |> Result.map_error read_error in
+    match Irmin.Type.of_json_string Worker.gc_output_t s with
+    | Error (`Msg error) -> Error (`Corrupted_gc_result_file error)
+    | Ok ok -> ok |> Result.map_error gc_error
 
   let clean_after_abort t =
     Fm.cleanup ~root:t.root ~generation:(t.generation - 1)

@@ -353,7 +353,7 @@ module Maker (Config : Conf.S) = struct
                     [%log.err
                       "[pack] batch failed and flush failed. Silencing flush \
                        fail. (%a)"
-                      Errs.pp err]
+                      (Irmin.Type.pp Errs.t) err]
               in
               (* Kill gc process in at_exit. *)
               raise exn
@@ -534,8 +534,10 @@ module Maker (Config : Conf.S) = struct
         Lwt.return_error (`Msg error_msg)
 
       let map_errors context (error : Errs.t) =
-        let err = Fmt.str "%a" Errs.pp error in
-        let err_msg = Fmt.str "[%s] resulted in error: %s" context err in
+        let err_msg =
+          Fmt.str "[%s] resulted in error: %a" context (Irmin.Type.pp Errs.t)
+            error
+        in
         `Msg err_msg
 
       let finalise_exn = X.Repo.Gc.finalise_exn

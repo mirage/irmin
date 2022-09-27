@@ -37,7 +37,7 @@ module type S = sig
     root:string ->
     generation:int ->
     register_entries:(register_entry:(off:int63 -> len:int -> unit) -> unit) ->
-    (t, [> Errs.t ]) result
+    (t, Errs.t) result
   (** [create] creates inside the directory [root] a mapping file. It never
       raises exceptions.
 
@@ -53,7 +53,7 @@ module type S = sig
   val open_map : root:string -> generation:int -> (t, [> open_error ]) result
   (** [open_map ~root ~generation] opens a mapping file. *)
 
-  val iter : t -> (off:int63 -> len:int -> unit) -> (unit, [> Errs.t ]) result
+  val iter : t -> (off:int63 -> len:int -> unit) -> (unit, Errs.t) result
   (** [iter mapping f] calls [f] on each [(off,len)] pair in [mapping].
 
       It is guaranteed for the offsets to be iterated in monotonic order.
