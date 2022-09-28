@@ -55,3 +55,8 @@
   irmin_git_store.exe
   custom_merge.exe
   fold.exe))
+
+(mdx
+ (files merkle_proofs.md)
+ ; (preludes merkle_proofs_prelude.ml)
+ (packages irmin-git irmin))

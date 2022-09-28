@@ -2838,6 +2838,10 @@ module Make (P : Backend.S) = struct
               "Bad_stream %s: %s" e.context e.reason
         | e -> Lwt.fail e)
 
+  let hash_of_proof_state state =
+    let env = Env.empty () in
+    Proof.load_proof ~env state Fun.id
+
   module Private = struct
     let get_env = get_env
 
