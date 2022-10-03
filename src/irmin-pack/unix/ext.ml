@@ -253,7 +253,9 @@ module Maker (Config : Conf.S) = struct
             let offset =
               let state : _ Pack_key.state = Pack_key.inspect commit_key in
               match state with
-              | Direct x -> x.offset
+              | Direct x ->
+                  let len = x.length |> Int63.of_int in
+                  Int63.Syntax.(x.offset + len)
               | Indexed _ -> assert false
             in
             let root = Conf.root t.config in

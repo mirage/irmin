@@ -16,12 +16,14 @@
 
 (** Code for running in an async GC worker thread. *)
 
+open! Import
 module Payload = Control_file.Latest_payload
 
 module Make (Args : Gc_args.S) : sig
   module Args : Gc_args.S
 
-  val run_and_output_result : generation:int -> string -> Args.key -> unit
+  val run_and_output_result :
+    generation:int -> string -> Args.key -> int63 -> unit
 
   type gc_output = (Stats.Latest_gc.worker, Args.Errs.t) result
   [@@deriving irmin]

@@ -109,7 +109,7 @@ module Make (Args : Gc_args.S) = struct
     let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
     Ao.create_rw_exn ~path
 
-  let run ~generation root commit_key =
+  let run ~generation root commit_key new_prefix_end_offset =
     let open Result_syntax in
     let config =
       Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 root
@@ -137,12 +137,6 @@ module Make (Args : Gc_args.S) = struct
       | None ->
           Errs.raise_error (`Commit_key_is_dangling (string_of_key commit_key))
       | Some commit -> commit
-    in
-    let commit_offset, _ =
-      let state : _ Pack_key.state = Pack_key.inspect commit_key in
-      match state with
-      | Indexed _ -> assert false
-      | Direct x -> (x.offset, x.length)
     in
 
     (* Step 3. Create the new mapping. *)
@@ -177,7 +171,10 @@ module Make (Args : Gc_args.S) = struct
       in
       List.iter register_object_exn (Commit_value.parents commit);
 
-      (* Step 3.3 Put the nodes and contents in the reachable file. *)
+      (* Step 3.3 Put the commit in the reachable file. *)
+      register_object_exn commit_key;
+
+      (* Step 3.4 Put the nodes and contents in the reachable file. *)
       stats :=
         Gc_stats.Worker.finish_current_step !stats "mapping: objects to sorted";
       let register_object_exn key =
@@ -194,7 +191,7 @@ module Make (Args : Gc_args.S) = struct
       let (_ : int63) = register_object_exn node_key in
       iter node_key node_store ~f:register_object_exn (fun () -> ());
 
-      (* Step 3.4 Return and let the [Mapping_file] routine create the mapping
+      (* Step 3.5 Return and let the [Mapping_file] routine create the mapping
          file. *)
       stats := Gc_stats.Worker.finish_current_step !stats "mapping: of sorted";
       ()
@@ -294,7 +291,7 @@ module Make (Args : Gc_args.S) = struct
           transfer_loop ~off (i - 1)
     in
     let new_end_suffix_offset =
-      transfer_loop ~off:commit_offset num_iterations
+      transfer_loop ~off:new_prefix_end_offset num_iterations
     in
     stats := Gc_stats.Worker.add_file_size !stats "suffix" new_end_suffix_offset;
     Ao.flush suffix |> Errs.raise_if_error;
@@ -316,8 +313,11 @@ module Make (Args : Gc_args.S) = struct
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
-  let run_and_output_result ~generation root commit_key =
-    let result = Errs.catch (fun () -> run ~generation root commit_key) in
+  let run_and_output_result ~generation root commit_key new_prefix_end_offset =
+    let result =
+      Errs.catch (fun () ->
+          run ~generation root commit_key new_prefix_end_offset)
+    in
     let write_result = write_gc_output ~root ~generation result in
     write_result |> Errs.log_if_error "writing gc output"
   (* No need to raise or log if [result] is [Error _], we've written it in
