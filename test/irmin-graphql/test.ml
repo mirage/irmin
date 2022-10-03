@@ -212,6 +212,20 @@ let test_mutation_test_set_and_get : test_case =
   Alcotest.(check string) "Contents equal stored value" "baz" value;
   Alcotest.(check string) "Same commit message" message exec_message
 
+let test_contents_hash : test_case =
+ fun _store ->
+  let v = "bar" in
+  let m =
+    query
+    @@ func "contents_hash" ~params:[ ("value", string v) ]
+    @@ field "hash"
+  in
+  let+ hash = exec m Json.to_string in
+  let actual_hash =
+    Store.Contents.hash v |> Irmin.Type.to_string Store.Hash.t
+  in
+  Alcotest.(check string) "Content hash equal" actual_hash hash
+
 let test_update_tree : test_case =
  fun store ->
   let* commit = Store.Head.get store in
@@ -318,6 +332,7 @@ let suite store =
         test_case "get_tree-list" test_get_tree_list;
         test_case "get_last_modified" test_get_last_modified;
         test_case "commit" test_commit;
+        test_case "contents_hash" test_contents_hash;
         test_case "mutation" test_mutation;
         test_case "mutation_test-set-and-get" test_mutation_test_set_and_get;
         test_case "update_tree" test_update_tree;
