@@ -7,6 +7,7 @@
 
 - **irmin-graphql**
   -  Expose `test_set_and_get` function as a new mutation (#2075, @patricoferris)
+  -  Add `contents_hash` function to get a value's hash (#2099, @patricoferris)
 
 ### Changed
 
