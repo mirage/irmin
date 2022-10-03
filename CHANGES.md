@@ -8,6 +8,9 @@
 - **irmin-graphql**
   -  Expose `test_set_and_get` function as a new mutation (#2075, @patricoferris)
 
+- **irmin-pack**
+  - Expose `Gc.cancel` to abort a running GC (#2101, @art-w)
+
 ### Changed
 
 - **irmin-pack**
