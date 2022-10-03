@@ -234,6 +234,10 @@ module type S = sig
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 
+  val cleanup : root:string -> generation:int -> unit
+  (** [cleanup ~root ~generation] removes any residual files in directory [root]
+      not needed by the current [generation]. *)
+
   val swap :
     t ->
     generation:int ->

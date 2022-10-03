@@ -742,9 +742,7 @@ module Concurrent_gc = struct
     match (repo.running_gc : S.X.Repo.running_gc option) with
     | None -> Alcotest.failf "running_gc missing after call to start"
     | Some { gc; _ } -> (
-        try
-          S.X.Gc.cancel gc;
-          true
+        try S.X.Gc.cancel gc
         with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
 
   let test_kill_gc_and_finalise () =

@@ -528,7 +528,6 @@ module Make (Args : Args) = struct
     | `Cancelled, Ok _ -> Error (`Gc_process_error "cancelled")
     | `Failure s, Ok _ -> Error (`Gc_process_error s)
     | `Success, Ok _ -> assert false
-    | `Running, _ -> assert false
 
   let read_gc_output ~root ~generation =
     let open Result_syntax in
@@ -544,6 +543,9 @@ module Make (Args : Args) = struct
     let wrap_error err = `Corrupted_gc_result_file (Fmt.str "%a" Errs.pp err) in
     let* s = read_file () |> Result.map_error wrap_error in
     Errs.of_json_string s |> Result.map_error wrap_error
+
+  let clean_after_abort t =
+    Fm.cleanup ~root:t.root ~generation:(t.generation - 1)
 
   let finalise ~wait t =
     match t.stats with
@@ -610,6 +612,7 @@ module Make (Args : Args) = struct
                 let () = Lwt.wakeup_later t.resolver (Ok !s) in
                 Ok (`Finalised !s)
             | _ ->
+                clean_after_abort t;
                 let err = gc_errors status gc_output in
                 let () = Lwt.wakeup_later t.resolver err in
                 err
@@ -622,7 +625,7 @@ module Make (Args : Args) = struct
         else
           match Async.status t.task with
           | `Running -> Lwt.return_ok `Running
-          | status -> go status)
+          | #Async.outcome as status -> go status)
 
   let on_finalise t f =
     (* Ignore returned promise since the purpose of this
@@ -634,5 +637,8 @@ module Make (Args : Args) = struct
     let _ = Lwt.bind t.promise f in
     ()
 
-  let cancel t = Async.cancel t.task
+  let cancel t =
+    let cancelled = Async.cancel t.task in
+    if cancelled then clean_after_abort t;
+    cancelled
 end

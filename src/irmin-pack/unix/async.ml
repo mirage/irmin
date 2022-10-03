@@ -81,17 +81,17 @@ module Unix = struct
     | Lwt_unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
 
   let cancel t =
-    let () =
-      match t.status with
-      | `Running ->
-          let pid, _ = Unix.waitpid [ Unix.WNOHANG ] t.pid in
-          if pid = 0 then (
-            (* Child process is still running. *)
-            kill_no_err t.pid;
-            Exit.remove t.pid)
-      | _ -> ()
-    in
-    t.status <- `Cancelled
+    match t.status with
+    | `Running ->
+        let pid, _ = Unix.waitpid [ Unix.WNOHANG ] t.pid in
+        if pid = 0 then (
+          (* Child process is still running. *)
+          kill_no_err t.pid;
+          Exit.remove t.pid;
+          t.status <- `Cancelled;
+          true)
+        else false
+    | _ -> false
 
   let status t =
     match t.status with

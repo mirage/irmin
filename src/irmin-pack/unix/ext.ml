@@ -227,9 +227,9 @@ module Maker (Config : Conf.S) = struct
           let cancel t =
             match t.running_gc with
             | Some { gc; _ } ->
-                Gc.cancel gc;
+                let cancelled = Gc.cancel gc in
                 t.running_gc <- None;
-                true
+                cancelled
             | None -> false
 
           let start ~unlink ~use_auto_finalisation t commit_key =
@@ -298,7 +298,9 @@ module Maker (Config : Conf.S) = struct
                 t.running_gc <- None;
                 Lwt.return x
             | Ok waited -> Lwt.return waited
-            | Error e -> Errs.raise_error e
+            | Error e ->
+                t.running_gc <- None;
+                Errs.raise_error e
 
           let is_finished t = Option.is_none t.running_gc
 

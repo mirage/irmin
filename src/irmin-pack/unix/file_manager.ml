@@ -268,9 +268,7 @@ struct
       let* t = Io.open_ ~path ~readonly:true in
       Ok (Some t)
 
-  (** Remove any residual files not needed by the current generation. *)
-  let clean ~generation ~root =
-    let expected_files = Irmin_pack.Layout.V3.all ~generation ~root in
+  let cleanup ~root ~generation =
     let files = Array.to_list (Sys.readdir root) in
     let to_remove =
       List.filter
@@ -285,7 +283,6 @@ struct
       (fun residual ->
         let filename = Filename.concat root residual in
         [%log.debug "Remove residual file %s" filename];
-        assert (not (List.mem ~equal:String.equal residual expected_files));
         match Io.unlink filename with
         | Ok () -> ()
         | Error (`Sys_error error) ->
@@ -309,7 +306,7 @@ struct
       | T15 ->
           assert false
     in
-    clean ~generation ~root;
+    cleanup ~root ~generation;
     (* 1. Create a ref for dependency injections for auto flushes *)
     let instance = ref None in
     let get_instance () =
