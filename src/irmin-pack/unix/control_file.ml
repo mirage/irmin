@@ -69,9 +69,8 @@ module Make (Io : Io.S) = struct
 
   let read io =
     let open Result_syntax in
-    let* len = Io.read_size io in
-    let len = Int63.to_int len in
-    let* string = Io.read_to_string io ~off:Int63.zero ~len in
+    let* string = Io.read_all_to_string io in
+    assert (String.length string <= Io.page_size);
     Data.of_bin_string string
 
   let read io =

@@ -211,6 +211,23 @@ module Unix = struct
     | Errors.Closed -> Error `Closed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  let page_size = 4096
+
+  let read_all_to_string t =
+    let buf = Buffer.create 0 in
+    let len = page_size in
+    let bytes = Bytes.create len in
+    let rec aux ~off =
+      let nread = Util.really_read t.fd off len bytes in
+      if nread > 0 then (
+        Buffer.add_subbytes buf bytes 0 nread;
+        aux ~off:Int63.(add off (of_int nread)))
+    in
+    try
+      aux ~off:Int63.zero;
+      Ok (Buffer.contents buf)
+    with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+
   let read_size t =
     match t.closed with
     | true -> Error `Closed
@@ -220,7 +237,6 @@ module Unix = struct
 
   let readonly t = t.readonly
   let path t = t.path
-  let page_size = 4096
 
   let move_file ~src ~dst =
     try

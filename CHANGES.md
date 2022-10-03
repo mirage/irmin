@@ -16,6 +16,11 @@
   - Move unix specific details for `Pack_key` and `Pack_value` from `irmin-pack`
     to `irmin-pack.unix` (#2084, @metanivek)
 
+### Fixed
+
+- **irmin-pack**
+  - Fix data race in RO instances when reading control file (#2100, @Ngoguey42)
+
 ## 3.4.1 (2022-09-07)
 
 ### Added
