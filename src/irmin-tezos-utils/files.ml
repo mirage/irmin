@@ -138,7 +138,7 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
     else acc
 
   let load_dict (dict : File_manager.Dict.t) buffer =
-    let max_offset = File_manager.Dict.end_offset dict in
+    let max_offset = File_manager.Dict.end_poff dict in
     let off = Int63.zero in
     let dict = traverse_dict dict max_offset buffer off [] in
     List.rev dict
