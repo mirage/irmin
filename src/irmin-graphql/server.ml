@@ -918,6 +918,11 @@ struct
             ~typ:Types.Contents.schema_typ
             ~args:Arg.[ arg "hash" ~typ:(non_null Input.hash) ]
             ~resolve:(fun _ _src k -> Store.Contents.of_hash s k >|= Result.ok);
+          io_field "contents_hash" ~doc:"Get the hash of some contents"
+            ~typ:(non_null Types.Hash.schema_typ)
+            ~args:Arg.[ arg "value" ~typ:(non_null Input.value) ]
+            ~resolve:(fun _ _src c ->
+              Lwt.return (Store.Contents.hash c) >|= Result.ok);
           io_field "commit_of_key" ~doc:"Find commit by key"
             ~typ:store_schema.commit
             ~args:Arg.[ arg "key" ~typ:(non_null Input.commit_key) ]
