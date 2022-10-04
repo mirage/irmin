@@ -18,7 +18,11 @@ open! Import
 open Io_intf
 module Syscalls = Index_unix.Syscalls
 
-(* File utils, taken from index.unix package *)
+(* File utils, taken from index.unix package.
+
+   These functions need to read from a loop because the underlying
+   implementation will not read/write more than a constant called
+   [UNIX_BUFFER_SIZE]. *)
 module Util = struct
   let really_write fd fd_offset buffer buffer_offset length =
     let rec aux fd_offset buffer_offset length =
