@@ -120,7 +120,7 @@ module type S = sig
   (** Attaches a callback to the GC process, which will be called when the GC
       finalises. *)
 
-  val cancel : t -> unit
+  val cancel : t -> bool
 end
 
 module type Sigs = sig

@@ -22,56 +22,76 @@ open Errors
 module type S = sig
   module Io : Io.S
 
-  type t = [ Base.t | `Io_misc of Io.misc_error ]
+  type t = [ Base.t | `Io_misc of Io.misc_error ] [@@deriving irmin]
 
-  val pp : Format.formatter -> [< t ] -> unit
   val raise_error : [< t ] -> 'a
   val log_error : string -> [< t ] -> unit
-  val catch : (unit -> 'a) -> ('a, [> t ]) result
+  val catch : (unit -> 'a) -> ('a, t) result
   val raise_if_error : ('a, [< t ]) result -> 'a
   val log_if_error : string -> (unit, [< t ]) result -> unit
-  val to_json_string : (int63, [< t ]) result -> string
-  val of_json_string : string -> (int63, [> t ]) result
 end
 
 module Make (Io : Io.S) : S with module Io = Io = struct
   module Io = Io
 
-  type misc_error = Io.misc_error [@@deriving irmin ~pp]
-  type io_error = [ `Io_misc of misc_error ] [@@deriving irmin]
-  type t = [ Base.t | io_error ]
-
-  let pp ppf = function
-    | `Io_misc e -> pp_misc_error ppf e
-    | #error as e -> Base.pp ppf e
+  (* Inline the definition of the polymorphic variant for the ppx. *)
+  type t =
+    [ `Double_close
+    | `File_exists of string
+    | `Invalid_parent_directory
+    | `No_such_file_or_directory
+    | `Not_a_file
+    | `Read_out_of_bounds
+    | `Invalid_argument
+    | `Decoding_error
+    | `Not_a_directory of string
+    | `Index_failure of string
+    | `Invalid_layout
+    | `Corrupted_legacy_file
+    | `Corrupted_mapping_file of string
+    | `Pending_flush
+    | `Rw_not_allowed
+    | `Migration_needed
+    | `Corrupted_control_file
+    | `Sys_error of string
+    | `V3_store_from_the_future
+    | `Gc_forbidden_during_batch
+    | `Unknown_major_pack_version of string
+    | `Only_minimal_indexing_strategy_allowed
+    | `Commit_key_is_dangling of string
+    | `Dangling_key of string
+    | `Gc_disallowed
+    | `Node_or_contents_key_is_indexed of string
+    | `Commit_parent_key_is_indexed of string
+    | `Gc_process_error of string
+    | `Corrupted_gc_result_file of string
+    | `Gc_process_died_without_result_file of string
+    | `Gc_forbidden_on_32bit_platforms
+    | `Invalid_prefix_read of string
+    | `Invalid_mapping_read of string
+    | `Invalid_read_of_gced_object of string
+    | `Inconsistent_store
+    | `Closed
+    | `Ro_not_allowed
+    | `Io_misc of Io.misc_error ]
+  [@@deriving irmin]
 
   let raise_error = function
     | `Io_misc e -> Io.raise_misc_error e
     | #error as e -> Base.raise_error e
 
-  let log_error context e = [%log.err "%s failed: %a" context pp e]
+  let log_error context e =
+    [%log.err "%s failed: %a" context (Irmin.Type.pp t) (e :> t)]
 
   let catch f =
-    try Io.catch_misc_error f with _ as ex -> Base.catch (fun () -> raise ex)
+    match Base.catch (fun () -> Io.catch_misc_error f) with
+    | Ok (Ok v) -> Ok v
+    | Ok (Error e) -> Error (e :> t)
+    | Error e -> Error (e :> t)
 
   let raise_if_error = function Ok x -> x | Error e -> raise_error e
 
   let log_if_error context = function
     | Ok _ -> ()
     | Error e -> log_error context e
-
-  let io_err_result = Irmin.Type.(result int63 io_error_t)
-
-  let to_json_string result =
-    match result with
-    | Ok _ as v -> v |> Irmin.Type.to_json_string io_err_result
-    | Error e -> (
-        match e with
-        | `Io_misc _ as e -> Error e |> Irmin.Type.to_json_string io_err_result
-        | #error as e -> Error e |> Base.to_json_string)
-
-  let of_json_string string =
-    match Irmin.Type.of_json_string io_err_result string with
-    | Error (`Msg _) -> Base.of_json_string string
-    | Ok result -> (result : (_, io_error) result :> (_, [> t ]) result)
 end

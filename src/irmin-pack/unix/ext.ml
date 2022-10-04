@@ -227,9 +227,9 @@ module Maker (Config : Conf.S) = struct
           let cancel t =
             match t.running_gc with
             | Some { gc; _ } ->
-                Gc.cancel gc;
+                let cancelled = Gc.cancel gc in
                 t.running_gc <- None;
-                true
+                cancelled
             | None -> false
 
           let start ~unlink ~use_auto_finalisation t commit_key =
@@ -298,7 +298,9 @@ module Maker (Config : Conf.S) = struct
                 t.running_gc <- None;
                 Lwt.return x
             | Ok waited -> Lwt.return waited
-            | Error e -> Errs.raise_error e
+            | Error e ->
+                t.running_gc <- None;
+                Errs.raise_error e
 
           let is_finished t = Option.is_none t.running_gc
 
@@ -351,7 +353,7 @@ module Maker (Config : Conf.S) = struct
                     [%log.err
                       "[pack] batch failed and flush failed. Silencing flush \
                        fail. (%a)"
-                      Errs.pp err]
+                      (Irmin.Type.pp Errs.t) err]
               in
               (* Kill gc process in at_exit. *)
               raise exn
@@ -532,8 +534,10 @@ module Maker (Config : Conf.S) = struct
         Lwt.return_error (`Msg error_msg)
 
       let map_errors context (error : Errs.t) =
-        let err = Fmt.str "%a" Errs.pp error in
-        let err_msg = Fmt.str "[%s] resulted in error: %s" context err in
+        let err_msg =
+          Fmt.str "[%s] resulted in error: %a" context (Irmin.Type.pp Errs.t)
+            error
+        in
         `Msg err_msg
 
       let finalise_exn = X.Repo.Gc.finalise_exn

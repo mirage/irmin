@@ -411,7 +411,7 @@ struct
         | Error err ->
             [%log.err
               "[pack] batch failed and flush failed. Silencing flush fail. (%a)"
-                Errs.pp err]
+                (Irmin.Type.pp Errs.t) err]
       in
       raise exn
     in

@@ -83,7 +83,7 @@ let get_values r = List.filter_map (Ring.get r) [ 1; 10; 1000 ]
 let main store_path info_last_path info_next_path idx_path =
   let conf = Irmin_pack.Conf.init store_path in
   match Files.File_manager.open_ro conf with
-  | Error exn -> Fmt.pr "%a\n%!" Files.Errs.pp exn
+  | Error exn -> Fmt.pr "%a\n%!" (Irmin.Type.pp Files.Errs.t) exn
   | Ok fm ->
       let info_fd =
         Unix.openfile info_last_path Unix.[ O_RDWR; O_CREAT; O_TRUNC ] 0o644

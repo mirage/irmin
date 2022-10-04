@@ -71,6 +71,7 @@ type classification =
   | `Prefix of int
   | `Reachable of int
   | `Sorted of int
+  | `Suffix of int
   | `V1_or_v2_pack ]
 [@@deriving irmin]
 
@@ -89,4 +90,6 @@ let classify_filename s : classification option =
       Some (`Mapping (int_of_string g))
   | [ "store"; g; "prefix" ] when is_number g ->
       Some (`Prefix (int_of_string g))
+  | [ "store"; g; "suffix" ] when is_number g ->
+      Some (`Suffix (int_of_string g))
   | _ -> None

@@ -38,10 +38,10 @@ module type S = sig
 
       If not running, return the oucome of the task. *)
 
-  val cancel : t -> unit
-  (** If running, cancel the task.
+  val cancel : t -> bool
+  (** If running, cancel the task and return [true].
 
-      If not running, do nothing. *)
+      If not running, do nothing and return [false]. *)
 end
 
 module type Sigs = sig
