@@ -16,11 +16,10 @@
 
 open! Import
 open Io_intf
+module Syscalls = Index_unix.Syscalls
 
 (* File utils, taken from index.unix package *)
 module Util = struct
-  module Syscalls = Index_unix.Syscalls
-
   let really_write fd fd_offset buffer buffer_offset length =
     let rec aux fd_offset buffer_offset length =
       let w = Syscalls.pwrite ~fd ~fd_offset ~buffer ~buffer_offset ~length in
@@ -214,14 +213,20 @@ module Unix = struct
   let page_size = 4096
 
   let read_all_to_string t =
+    let open Result_syntax in
+    let* () = if t.closed then Error `Closed else Ok () in
     let buf = Buffer.create 0 in
     let len = page_size in
     let bytes = Bytes.create len in
     let rec aux ~off =
-      let nread = Util.really_read t.fd off len bytes in
+      let nread =
+        Syscalls.pread ~fd:t.fd ~fd_offset:off ~buffer:bytes ~buffer_offset:0
+          ~length:len
+      in
       if nread > 0 then (
+        Index.Stats.add_read nread;
         Buffer.add_subbytes buf bytes 0 nread;
-        aux ~off:Int63.(add off (of_int nread)))
+        if nread = len then aux ~off:Int63.(add off (of_int nread)))
     in
     try
       aux ~off:Int63.zero;
