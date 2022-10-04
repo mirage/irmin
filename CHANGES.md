@@ -21,6 +21,11 @@
     to `irmin-pack.unix` (#2084, @metanivek)
   - Remove unnecessary files at `open_rw` and after a failed GC (#2095, @art-w)
 
+### Fixed
+
+- **irmin-pack**
+  - Fix data race in RO instances when reading control file (#2100, @Ngoguey42)
+
 ## 3.4.1 (2022-09-07)
 
 ### Added

@@ -16,11 +16,14 @@
 
 open! Import
 open Io_intf
+module Syscalls = Index_unix.Syscalls
 
-(* File utils, taken from index.unix package *)
+(* File utils, taken from index.unix package.
+
+   These functions need to read from a loop because the underlying
+   implementation will not read/write more than a constant called
+   [UNIX_BUFFER_SIZE]. *)
 module Util = struct
-  module Syscalls = Index_unix.Syscalls
-
   let really_write fd fd_offset buffer buffer_offset length =
     let rec aux fd_offset buffer_offset length =
       let w = Syscalls.pwrite ~fd ~fd_offset ~buffer ~buffer_offset ~length in
@@ -211,6 +214,29 @@ module Unix = struct
     | Errors.Closed -> Error `Closed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  let page_size = 4096
+
+  let read_all_to_string t =
+    let open Result_syntax in
+    let* () = if t.closed then Error `Closed else Ok () in
+    let buf = Buffer.create 0 in
+    let len = page_size in
+    let bytes = Bytes.create len in
+    let rec aux ~off =
+      let nread =
+        Syscalls.pread ~fd:t.fd ~fd_offset:off ~buffer:bytes ~buffer_offset:0
+          ~length:len
+      in
+      if nread > 0 then (
+        Index.Stats.add_read nread;
+        Buffer.add_subbytes buf bytes 0 nread;
+        if nread = len then aux ~off:Int63.(add off (of_int nread)))
+    in
+    try
+      aux ~off:Int63.zero;
+      Ok (Buffer.contents buf)
+    with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+
   let read_size t =
     match t.closed with
     | true -> Error `Closed
@@ -220,7 +246,6 @@ module Unix = struct
 
   let readonly t = t.readonly
   let path t = t.path
-  let page_size = 4096
 
   let move_file ~src ~dst =
     try
