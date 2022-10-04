@@ -15,3 +15,9 @@
   cmdliner)
  (preprocess
   (pps ppx_repr)))
+
+(rule
+ (alias runtest)
+ (package irmin-tezos-utils)
+ (deps main.exe)
+ (action (progn)))

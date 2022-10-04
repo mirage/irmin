@@ -55,7 +55,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     | None ->
         raise (Errors.Pack_error (`Invalid_mapping_read "no mapping found"))
 
-  let entry_offset_suffix_start t =
+  let suffix_start_offset t =
     let pl = Control.payload (Fm.control t.fm) in
     match pl.status with
     | Payload.From_v1_v2_post_upgrade _
@@ -64,29 +64,29 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         assert false
-    | From_v3_gced { entry_offset_suffix_start; _ } -> entry_offset_suffix_start
+    | From_v3_gced { suffix_start_offset; _ } -> suffix_start_offset
 
   (* The suffix only know the real offsets, it is in the dispatcher that global
      offsets are translated into real ones (i.e. in prefix or suffix offsets). *)
   let end_offset t =
     let open Int63.Syntax in
-    Suffix.end_offset (Fm.suffix t.fm) + entry_offset_suffix_start t
+    Suffix.end_poff (Fm.suffix t.fm) + suffix_start_offset t
 
   module Suffix_arithmetic = struct
     (* Adjust the read in suffix, as the global offset [off] is
-       [off] = [entry_offset_suffix_start] + [suffix_offset]. *)
+       [off] = [suffix_start_offset] + [suffix_offset]. *)
     let poff_of_off t off =
       let open Int63.Syntax in
-      let entry_offset_suffix_start = entry_offset_suffix_start t in
-      off - entry_offset_suffix_start
+      let suffix_start_offset = suffix_start_offset t in
+      off - suffix_start_offset
 
     let off_of_poff t suffix_off =
       let open Int63.Syntax in
-      let entry_offset_suffix_start = entry_offset_suffix_start t in
-      suffix_off + entry_offset_suffix_start
+      let suffix_start_offset = suffix_start_offset t in
+      suffix_off + suffix_start_offset
   end
 
-  let offset_of_suffix_off = Suffix_arithmetic.off_of_poff
+  let offset_of_suffix_poff = Suffix_arithmetic.off_of_poff
 
   module Prefix_arithmetic = struct
     (* Find the last chunk which is before [off_start] (or at [off_start]). If no
@@ -174,8 +174,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
     let v_exn t ~off ~len =
       let open Int63.Syntax in
-      let entry_offset_suffix_start = entry_offset_suffix_start t in
-      if off >= entry_offset_suffix_start then v_in_suffix_exn t ~off ~len
+      let suffix_start_offset = suffix_start_offset t in
+      if off >= suffix_start_offset then v_in_suffix_exn t ~off ~len
       else v_in_prefix_exn t ~off ~len
 
     let v_range_in_suffix_exn t ~off ~min_len ~max_len =
@@ -213,8 +213,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
     let v_range_exn t ~off ~min_len ~max_len =
       let open Int63.Syntax in
-      let entry_offset_suffix_start = entry_offset_suffix_start t in
-      if off >= entry_offset_suffix_start then
+      let suffix_start_offset = suffix_start_offset t in
+      if off >= suffix_start_offset then
         v_range_in_suffix_exn t ~off ~min_len ~max_len
       else v_range_in_prefix_exn t ~off ~min_len ~max_len
   end
@@ -227,18 +227,16 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let read_in_prefix_and_suffix_exn t ~off ~len buf =
     let ( -- ) a b = a - b in
     let open Int63.Syntax in
-    let entry_offset_suffix_start = entry_offset_suffix_start t in
-    if
-      off < entry_offset_suffix_start
-      && off + Int63.of_int len > entry_offset_suffix_start
+    let suffix_start_offset = suffix_start_offset t in
+    if off < suffix_start_offset && off + Int63.of_int len > suffix_start_offset
     then (
-      let read_in_prefix = entry_offset_suffix_start - off |> Int63.to_int in
+      let read_in_prefix = suffix_start_offset - off |> Int63.to_int in
       let accessor = Accessor.v_exn t ~off ~len:read_in_prefix in
       read_exn t accessor buf;
       let read_in_suffix = len -- read_in_prefix in
       let buf_suffix = Bytes.create read_in_suffix in
       let accessor =
-        Accessor.v_exn t ~off:entry_offset_suffix_start ~len:read_in_suffix
+        Accessor.v_exn t ~off:suffix_start_offset ~len:read_in_suffix
       in
       read_exn t accessor buf;
       Bytes.blit buf_suffix 0 buf read_in_prefix read_in_suffix)
@@ -276,8 +274,8 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
           List.rev !preffix_chunks
       | None -> []
     in
-    let suffix_end_offset = Fm.Suffix.end_offset (Fm.suffix t.fm) in
-    let entry_offset_suffix_start = entry_offset_suffix_start t in
+    let suffix_end_poff = Fm.Suffix.end_poff (Fm.suffix t.fm) in
+    let suffix_start_offset = suffix_start_offset t in
     let get_entry_accessor rem_len location poff =
       let accessor =
         create_sequential_accessor_from_range_exn location rem_len ~poff
@@ -292,11 +290,11 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let rec suffix_accessors poff () =
       let open Seq in
       let open Int63.Syntax in
-      if poff >= suffix_end_offset then Nil
+      if poff >= suffix_end_poff then Nil
       else
-        let rem_len = Int63.to_int (suffix_end_offset - poff) in
+        let rem_len = Int63.to_int (suffix_end_poff - poff) in
         let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
-        let r = (entry_offset_suffix_start + poff, accessor) in
+        let r = (suffix_start_offset + poff, accessor) in
         let poff = poff + Int63.of_int entry_len in
         let f = suffix_accessors poff in
         Cons (r, f)

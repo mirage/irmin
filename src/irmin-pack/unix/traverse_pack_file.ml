@@ -216,7 +216,7 @@ end = struct
   let io_read_at_most ~off ~len b suffix =
     let bytes_after_off =
       let open Int63.Syntax in
-      File_manager.Suffix.end_offset suffix - off
+      File_manager.Suffix.end_poff suffix - off
     in
     let len =
       let open Int63.Syntax in
@@ -316,7 +316,7 @@ end = struct
     let run_duration = Mtime_clock.counter () in
     let fm = File_manager.open_ro config |> Errs.raise_if_error in
     let suffix = File_manager.suffix fm in
-    let total = File_manager.Suffix.end_offset suffix in
+    let total = File_manager.Suffix.end_poff suffix in
     let stats, missing_hash =
       let bar =
         let open Progress.Line.Using_int63 in

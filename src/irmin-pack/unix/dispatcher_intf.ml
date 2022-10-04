@@ -73,8 +73,8 @@ module type S = sig
       prefix doesn't start at 0. It counts the entries not yet flushed from the
       prefix. *)
 
-  val offset_of_suffix_off : t -> int63 -> int63
-  (** [offset_of_suffix_off t suffix_off] converts a suffix offset into a
+  val offset_of_suffix_poff : t -> int63 -> int63
+  (** [offset_of_suffix_poff t suffix_off] converts a suffix offset into a
       (global) offset. *)
 
   val read_in_prefix_and_suffix_exn : t -> off:int63 -> len:int -> bytes -> unit

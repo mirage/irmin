@@ -31,7 +31,7 @@ module Worker = struct
     val run_and_output_result : generation:int -> string -> Args.key -> int63
 
     val transfer_append_exn :
-      read_exn:(off:int63 -> len:int -> bytes -> unit) ->
+      dispatcher:Args.Dispatcher.t ->
       append_exn:(string -> unit) ->
       off:int63 ->
       len:int63 ->
@@ -67,8 +67,9 @@ module Worker = struct
 
     let string_of_key = Irmin.Type.to_string key_t
 
-    let transfer_append_exn ~read_exn ~append_exn ~(off : int63) ~(len : int63)
-        buffer =
+    let transfer_append_exn ~dispatcher ~append_exn ~(off : int63)
+        ~(len : int63) buffer =
+      let read_exn = Dispatcher.read_in_prefix_and_suffix_exn dispatcher in
       let buffer_size = Bytes.length buffer |> Int63.of_int in
       let rec aux off len_remaining =
         let open Int63.Syntax in
@@ -246,11 +247,10 @@ module Worker = struct
           [%log.debug "GC: transfering to the new prefix"];
           let buffer = Bytes.create buffer_size in
           (* Step 5.1. Transfer all. *)
-          let read_exn = Dispatcher.read_in_prefix_and_suffix_exn dispatcher in
           let append_exn = Ao.append_exn prefix in
           let f ~off ~len =
             let len = Int63.of_int len in
-            transfer_append_exn ~read_exn ~append_exn ~off ~len buffer
+            transfer_append_exn ~dispatcher ~append_exn ~off ~len buffer
           in
           let () = Mapping_file.iter_exn mapping f in
           Ao.flush prefix |> Errs.raise_if_error
@@ -288,12 +288,8 @@ module Worker = struct
           >>= (fun _ -> Ao.close suffix)
           |> Errs.log_if_error "GC: Close suffix")
       @@ fun () ->
-      let read_exn ~off ~len buf =
-        let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
-        Dispatcher.read_exn dispatcher accessor buf
-      in
       let append_exn = Ao.append_exn suffix in
-      let transfer_exn = transfer_append_exn ~read_exn ~append_exn buffer in
+      let transfer_exn = transfer_append_exn ~dispatcher ~append_exn buffer in
 
       (* Step 7. Transfer to the next suffix. *)
       [%log.debug "GC: transfering to the new suffix"];
@@ -306,8 +302,7 @@ module Worker = struct
           let () = Fm.reload fm |> Errs.raise_if_error in
           let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
           let end_offset =
-            Dispatcher.offset_of_suffix_off dispatcher
-              pl.entry_offset_suffix_end
+            Dispatcher.offset_of_suffix_poff dispatcher pl.suffix_end_poff
           in
           let len = Int63.Syntax.(end_offset - off) in
           [%log.debug
@@ -322,11 +317,13 @@ module Worker = struct
             let off = Int63.Syntax.(off + len) in
             transfer_loop ~off (i - 1)
       in
-      let offs = transfer_loop ~off:commit_offset num_iterations in
+      let new_suffix_end_offset =
+        transfer_loop ~off:commit_offset num_iterations
+      in
       Ao.flush suffix |> Errs.raise_if_error;
 
       (* Step 8. Inform the caller of the end_offset copied. *)
-      offs
+      new_suffix_end_offset
 
     type gc_output = (int63, Args.Errs.t) result [@@deriving irmin]
 
@@ -422,7 +419,7 @@ module Make (Args : Args) = struct
       stats = None;
     }
 
-  let open_new_suffix ~end_offset { root; generation; _ } =
+  let open_new_suffix ~end_poff { root; generation; _ } =
     let open Result_syntax in
     let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
     (* As the new suffix is necessarily in V3, the dead_header_size is
@@ -430,47 +427,43 @@ module Make (Args : Args) = struct
     let dead_header_size = 0 in
     let auto_flush_threshold = 1_000_000 in
     let* suffix =
-      Ao.open_rw ~path ~end_offset ~dead_header_size
+      Ao.open_rw ~path ~end_poff ~dead_header_size
         ~auto_flush_procedure:`Internal ~auto_flush_threshold
     in
     Ok suffix
 
-  let transfer_latest_newies ~right_start_offset ~copy_end_offset t =
+  let transfer_latest_newies ~new_suffix_start_offset ~new_suffix_end_offset t =
     [%log.debug "Gc in main: transfer latest newies"];
     let open Result_syntax in
     let open Int63.Syntax in
-    let old_end_offset = Dispatcher.end_offset t.dispatcher in
-    let remaining = old_end_offset - copy_end_offset in
-    (* When opening the suffix in append_only we need to provide a
-       (real) suffix offset, computed from the global ones. *)
-    let suffix_end_offset = copy_end_offset - right_start_offset in
-    let* new_suffix = open_new_suffix ~end_offset:suffix_end_offset t in
+    let old_suffix_end_offset = Dispatcher.end_offset t.dispatcher in
+    let remaining = old_suffix_end_offset - new_suffix_end_offset in
+    (* When opening the suffix we need to provide a physical offset. We compute
+       it from the global ones. *)
+    let suffix_end_poff = new_suffix_end_offset - new_suffix_start_offset in
+    let* new_suffix = open_new_suffix ~end_poff:suffix_end_poff t in
     Errors.finalise (fun _ ->
         Ao.close new_suffix
         |> Errs.log_if_error "GC: Close suffix after copy latest newies")
     @@ fun () ->
     let buffer = Bytes.create 8192 in
-    let read_exn ~off ~len buf =
-      let accessor = Dispatcher.create_accessor_exn t.dispatcher ~off ~len in
-      Dispatcher.read_exn t.dispatcher accessor buf
-    in
     let append_exn = Ao.append_exn new_suffix in
     let flush_and_raise () = Ao.flush new_suffix |> Errs.raise_if_error in
     let* () =
       Errs.catch (fun () ->
-          Worker.transfer_append_exn ~read_exn ~append_exn ~off:copy_end_offset
-            ~len:remaining buffer;
+          Worker.transfer_append_exn ~dispatcher:t.dispatcher ~append_exn
+            ~off:new_suffix_end_offset ~len:remaining buffer;
           flush_and_raise ())
     in
-    Ok old_end_offset
+    Ok old_suffix_end_offset
 
-  let swap_and_purge ~right_start_offset ~right_end_offset t =
+  let swap_and_purge ~new_suffix_start_offset ~new_suffix_end_offset t =
     let open Result_syntax in
     let c0 = Mtime_clock.counter () in
 
     let* () =
-      Fm.swap t.fm ~generation:t.generation ~right_start_offset
-        ~right_end_offset
+      Fm.swap t.fm ~generation:t.generation ~new_suffix_start_offset
+        ~new_suffix_end_offset
     in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_s in
 
@@ -589,19 +582,19 @@ module Make (Args : Args) = struct
           let result =
             let open Result_syntax in
             match (status, gc_output) with
-            | `Success, Ok copy_end_offset ->
+            | `Success, Ok new_suffix_end_offset_before ->
                 let* new_suffix_end_offset =
                   time (fun t ->
                       s := { !s with transfer_latest_newies_duration = t })
                   @@ fun () ->
-                  transfer_latest_newies ~right_start_offset:t.offset
-                    ~copy_end_offset t
+                  transfer_latest_newies ~new_suffix_start_offset:t.offset
+                    ~new_suffix_end_offset:new_suffix_end_offset_before t
                 in
                 let* () =
                   time (fun t -> s := { !s with swap_duration = t })
                   @@ fun () ->
-                  swap_and_purge ~right_start_offset:t.offset
-                    ~right_end_offset:new_suffix_end_offset t
+                  swap_and_purge ~new_suffix_start_offset:t.offset
+                    ~new_suffix_end_offset t
                 in
                 (if t.unlink then
                  time (fun t -> s := { !s with unlink_duration = t })
@@ -618,7 +611,8 @@ module Make (Args : Args) = struct
 
                 [%log.debug
                   "Gc ended. %a, newies bytes:%a" pp_stats !s Int63.pp
-                    (Int63.sub new_suffix_end_offset copy_end_offset)];
+                    (Int63.sub new_suffix_end_offset
+                       new_suffix_end_offset_before)];
                 let () = Lwt.wakeup_later t.resolver (Ok !s) in
                 Ok (`Finalised !s)
             | _ ->

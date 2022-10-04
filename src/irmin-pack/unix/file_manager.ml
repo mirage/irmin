@@ -107,7 +107,7 @@ struct
       let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
       let* () =
         let pl : Payload.t = Control.payload t.control in
-        let pl = { pl with dict_offset_end = Dict.end_offset t.dict } in
+        let pl = { pl with dict_end_poff = Dict.end_poff t.dict } in
         Control.set_payload t.control pl
       in
       let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
@@ -146,11 +146,7 @@ struct
               assert false
         in
         let pl =
-          {
-            pl with
-            entry_offset_suffix_end = Suffix.end_offset t.suffix;
-            status;
-          }
+          { pl with suffix_end_poff = Suffix.end_poff t.suffix; status }
         in
         Control.set_payload t.control pl
       in
@@ -235,18 +231,18 @@ struct
     t.mapping <- mapping;
     Ok ()
 
-  let reopen_suffix t ~generation ~end_offset =
+  let reopen_suffix t ~generation ~end_poff =
     let open Result_syntax in
     (* Invariant: reopen suffix is only called on V3 suffix files, for which
        dead_header_size is 0. *)
     let dead_header_size = 0 in
     [%log.debug
-      "reopen_suffix gen:%d end_offset:%d" generation (Int63.to_int end_offset)];
+      "reopen_suffix gen:%d end_poff:%d" generation (Int63.to_int end_poff)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
       let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
       [%log.debug "reload: generation changed, opening %s" path];
-      if readonly then Suffix.open_ro ~path ~end_offset ~dead_header_size
+      if readonly then Suffix.open_ro ~path ~end_poff ~dead_header_size
       else
         let auto_flush_threshold =
           match Suffix.auto_flush_threshold t.suffix with
@@ -254,7 +250,7 @@ struct
           | Some x -> x
         in
         let cb _ = suffix_requires_a_flush_exn t in
-        Suffix.open_rw ~path ~end_offset ~dead_header_size ~auto_flush_threshold
+        Suffix.open_rw ~path ~end_poff ~dead_header_size ~auto_flush_threshold
           ~auto_flush_procedure:(`External cb)
     in
     let suffix0 = t.suffix in
@@ -407,18 +403,16 @@ struct
         let gen1 = generation pl1.status in
         if gen0 = gen1 then Ok ()
         else
-          let end_offset = pl1.entry_offset_suffix_end in
-          let* () = reopen_suffix t ~generation:gen1 ~end_offset in
+          let end_poff = pl1.suffix_end_poff in
+          let* () = reopen_suffix t ~generation:gen1 ~end_poff in
           let* () = reopen_mapping t ~generation:gen1 in
           let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
       in
       (* Step 4. Update end offsets *)
-      let* () =
-        Suffix.refresh_end_offset t.suffix pl1.entry_offset_suffix_end
-      in
+      let* () = Suffix.refresh_end_poff t.suffix pl1.suffix_end_poff in
       (match hook with Some h -> h `After_suffix | None -> ());
-      let* () = Dict.refresh_end_offset t.dict pl1.dict_offset_end in
+      let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in
       (* Step 5. Notify the dict consumers that they must reload *)
       let* () =
         let res =
@@ -449,7 +443,7 @@ struct
       let status = From_v3_no_gc_yet in
       let pl =
         let z = Int63.zero in
-        { dict_offset_end = z; entry_offset_suffix_end = z; status }
+        { dict_end_poff = z; suffix_end_poff = z; status }
       in
       create_control_file ~overwrite config pl
     in
@@ -483,13 +477,9 @@ struct
       | T15 ->
           Error `V3_store_from_the_future
     in
-    let make_dict =
-      let end_offset = pl.dict_offset_end in
-      Dict.open_rw ~end_offset ~dead_header_size
-    in
+    let make_dict = Dict.open_rw ~end_poff:pl.dict_end_poff ~dead_header_size in
     let make_suffix =
-      let end_offset = pl.entry_offset_suffix_end in
-      Suffix.open_rw ~end_offset ~dead_header_size
+      Suffix.open_rw ~end_poff:pl.suffix_end_poff ~dead_header_size
     in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size root
@@ -525,8 +515,8 @@ struct
     let root = Irmin_pack.Conf.root config in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let dst = Irmin_pack.Layout.V3.suffix ~root ~generation:0 in
-    let* entry_offset_suffix_end = read_offset_from_legacy_file src in
-    let* dict_offset_end =
+    let* suffix_end_poff = read_offset_from_legacy_file src in
+    let* dict_end_poff =
       let path = Irmin_pack.Layout.V3.dict ~root in
       read_offset_from_legacy_file path
     in
@@ -535,9 +525,9 @@ struct
       let open Payload in
       let status =
         From_v1_v2_post_upgrade
-          { entry_offset_at_upgrade_to_v3 = entry_offset_suffix_end }
+          { entry_offset_at_upgrade_to_v3 = suffix_end_poff }
       in
-      let pl = { dict_offset_end; entry_offset_suffix_end; status } in
+      let pl = { dict_end_poff; suffix_end_poff; status } in
       create_control_file ~overwrite:false config pl
     in
     let* () = Control.close control in
@@ -601,8 +591,7 @@ struct
     (* 2. Open the other files *)
     let* suffix =
       let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
-      let end_offset = pl.entry_offset_suffix_end in
-      Suffix.open_ro ~path ~end_offset ~dead_header_size
+      Suffix.open_ro ~path ~end_poff:pl.suffix_end_poff ~dead_header_size
     in
     let* prefix =
       let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
@@ -611,8 +600,7 @@ struct
     let* mapping = open_mapping ~root ~generation in
     let* dict =
       let path = Irmin_pack.Layout.V3.dict ~root in
-      let end_offset = pl.dict_offset_end in
-      Dict.open_ro ~path ~end_offset ~dead_header_size
+      Dict.open_ro ~path ~end_poff:pl.dict_end_poff ~dead_header_size
     in
     let* index =
       let log_size = Conf.index_log_size config in
@@ -665,12 +653,12 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~right_start_offset ~right_end_offset =
+  let swap t ~generation ~new_suffix_start_offset ~new_suffix_end_offset =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap %d %#d %#d" generation
-        (Int63.to_int right_start_offset)
-        (Int63.to_int right_end_offset)];
+        (Int63.to_int new_suffix_start_offset)
+        (Int63.to_int new_suffix_end_offset)];
     let c0 = Mtime_clock.counter () in
 
     (* Step 1. Reopen files *)
@@ -678,11 +666,11 @@ struct
     let* () = reopen_mapping t ~generation in
     (* Opening the suffix requires passing it its length. We compute it from the
        global offsets *)
-    let suffix_end_offset =
+    let suffix_end_poff =
       let open Int63.Syntax in
-      right_end_offset - right_start_offset
+      new_suffix_end_offset - new_suffix_start_offset
     in
-    let* () = reopen_suffix t ~generation ~end_offset:suffix_end_offset in
+    let* () = reopen_suffix t ~generation ~end_poff:suffix_end_poff in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
     (* Step 2. Update the control file *)
@@ -698,10 +686,10 @@ struct
           | T14 | T15 ->
               assert false
           | From_v3_gced _ | From_v3_no_gc_yet ->
-              let entry_offset_suffix_start = right_start_offset in
-              From_v3_gced { entry_offset_suffix_start; generation }
+              let suffix_start_offset = new_suffix_start_offset in
+              From_v3_gced { suffix_start_offset; generation }
         in
-        { pl with status; entry_offset_suffix_end = suffix_end_offset }
+        { pl with status; suffix_end_poff }
       in
       [%log.debug "GC: writing new control_file"];
       Control.set_payload t.control pl

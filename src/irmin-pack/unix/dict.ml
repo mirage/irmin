@@ -30,7 +30,7 @@ module Make (Fm : File_manager.S) = struct
 
   module File = struct
     let append_exn t = Fm.Dict.append_exn (Fm.dict t.fm)
-    let offset t = Fm.Dict.end_offset (Fm.dict t.fm)
+    let offset t = Fm.Dict.end_poff (Fm.dict t.fm)
     let read_to_string t = Fm.Dict.read_to_string (Fm.dict t.fm)
   end
 
