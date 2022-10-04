@@ -23,12 +23,12 @@ module Payload_v3 = struct
       entries before that point may be v1 entries. V1 entries need an entry in
       index because it is the only place their lenght is stored. *)
 
-  type from_v3_gced = { entry_offset_suffix_start : int63; generation : int }
+  type from_v3_gced = { suffix_start_offset : int63; generation : int }
   [@@deriving irmin]
-  (** [entry_offset_suffix_start] is 0 if the suffix file was never garbage
-      collected. Otherwise it is the offset of the very first entry of the
-      suffix file. Note that offsets in the suffix file are virtual. The garbage
-      collections don't reset the offsets.
+  (** [suffix_start_offset] is 0 if the suffix file was never garbage collected.
+      Otherwise it is the offset of the very first entry of the suffix file.
+      Note that offsets in the suffix file are virtual. The garbage collections
+      don't reset the offsets.
 
       [generation] is the number of past GCs. A suffix file, a prefix file and a
       mapping containing that integer in their filename exist. *)
@@ -71,11 +71,7 @@ module Payload_v3 = struct
     | T15
   [@@deriving irmin]
 
-  type t = {
-    dict_offset_end : int63;
-    entry_offset_suffix_end : int63;
-    status : status;
-  }
+  type t = { dict_end_poff : int63; suffix_end_poff : int63; status : status }
   [@@deriving irmin]
   (** The [`V3] payload of the irmin-pack control file. [`V3] is a major
       version. If [`V4] ever exists, it will have its own dedicated payload, but
@@ -96,12 +92,11 @@ module Payload_v3 = struct
 
       {3 Fields}
 
-      [dict_offset_end] is the offset in the dict file just after the last valid
+      [dict_end_poff] is the offset in the dict file just after the last valid
       dict bytes. The next data to be pushed to the dict will be pushed at this
       offset.
 
-      [entry_offset_suffix_end] is similar to [dict_offset_end] but for the
-      suffix file.
+      [suffix_end_poff] is similar to [dict_end_poff] but for the suffix file.
 
       [status] is a variant that encode the state of the irmin-pack directory.
       This field MUST be the last field of the record, in order to allow

@@ -49,7 +49,7 @@ module type S = sig
 
   val open_rw :
     path:string ->
-    end_offset:int63 ->
+    end_poff:int63 ->
     dead_header_size:int ->
     auto_flush_threshold:int ->
     auto_flush_procedure:auto_flush_procedure ->
@@ -67,16 +67,16 @@ module type S = sig
       The file has an end offset at which new data will be saved. While this
       information could be computed by looking at the size of the file, we
       prefer storing that information elsewhere (i.e. in the control file). This
-      is why [open_rw] and [open_ro] take an [end_offset] parameter, and also
-      why [refresh_end_offset] exists. The abstractions above [Append_only_file]
-      are responsible for reading/writing the offsets from/to the control file.
+      is why [open_rw] and [open_ro] take an [end_poff] parameter, and also why
+      [refresh_end_poff] exists. The abstractions above [Append_only_file] are
+      responsible for reading/writing the offsets from/to the control file.
 
       {3 [dead_header_size]}
 
       Designates a small area at the beginning of the file that should be
       ignored. The offsets start after that area.
 
-      The actual persisted size of a file is [end_offset + dead_header_size].
+      The actual persisted size of a file is [end_poff + dead_header_size].
 
       This concept exists in order to keep supporting [`V1] and [`V2] pack
       stores with [`V3].
@@ -92,7 +92,7 @@ module type S = sig
 
   val open_ro :
     path:string ->
-    end_offset:int63 ->
+    end_poff:int63 ->
     dead_header_size:int ->
     ( t,
       [> Io.open_error
@@ -109,8 +109,8 @@ module type S = sig
       The internal buffer is expected to be in a flushed state when [close] is
       called. Otherwise, an error is returned. *)
 
-  val end_offset : t -> int63
-  (** [end_offset t] is the number of bytes of the file. That function doesn't
+  val end_poff : t -> int63
+  (** [end_poff t] is the number of bytes of the file. That function doesn't
       perform IO.
 
       {3 RW mode}
@@ -120,7 +120,7 @@ module type S = sig
       {3 RO mode}
 
       This information originates from the latest reload of the control file.
-      Calling [refresh_end_offset t] updates [end_offset]. *)
+      Calling [refresh_end_poff t] updates [end_poff]. *)
 
   val read_to_string :
     t -> off:int63 -> len:int -> (string, [> Io.read_error ]) result
@@ -131,7 +131,7 @@ module type S = sig
       [read_to_string] should always be favored over [read_exn], except when
       performences matter.
 
-      It is not possible to read from an offset further than [end_offset t].
+      It is not possible to read from an offset further than [end_poff t].
 
       Raises [Io.Read_error] and [Errors.Pack_error `Read_out_of_bounds].
 
@@ -145,10 +145,10 @@ module type S = sig
   (** [append_exn t ~off b] writes [b] to the end of [t]. Might trigger an auto
       flush.
 
-      Grows [end_offset], but the parent abstraction is expected to persist this
+      Grows [end_poff], but the parent abstraction is expected to persist this
       somewhere (e.g. in the control file).
 
-      Post-condition: [end_offset t - end_offset (old t) = String.length b].
+      Post-condition: [end_poff t - end_poff (old t) = String.length b].
 
       Raises [Io.Write_error]
 
@@ -170,7 +170,7 @@ module type S = sig
 
       Always returns [Error `Ro_not_allowed]. *)
 
-  val refresh_end_offset : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
+  val refresh_end_poff : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
   (** Ingest the new end offset of the file. Typically happens in RO mode when
       the control file has been re-read.
 

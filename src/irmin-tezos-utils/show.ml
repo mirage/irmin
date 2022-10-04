@@ -718,13 +718,12 @@ let main store_path info_last_path info_next_path index_path =
   let dispatcher = Files.Dispatcher.v fm |> Files.Errs.raise_if_error in
   let pl = Files.File_manager.Control.payload (Files.File_manager.control fm) in
   let max_offset =
-    (* TODO: Rename [pl.entry_offset_suffix_end] to [suffix_length] *)
+    (* TODO: Rename [pl.suffix_end_poff] to [suffix_length] *)
     match pl.status with
     | From_v1_v2_post_upgrade _ | From_v3_no_gc_yet
     | From_v3_used_non_minimal_indexing_strategy ->
-        pl.entry_offset_suffix_end
-    | From_v3_gced x ->
-        Int63.add x.entry_offset_suffix_start pl.entry_offset_suffix_end
+        pl.suffix_end_poff
+    | From_v3_gced x -> Int63.add x.suffix_start_offset pl.suffix_end_poff
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         assert false
