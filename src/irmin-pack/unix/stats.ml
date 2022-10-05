@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 module Metrics = Irmin.Metrics
 
 module Pack_store = struct
@@ -129,7 +130,7 @@ module Index = struct
     Metrics.v ~origin:Index_stats ~name:"index_metric" ~initial_state t
 
   let report index =
-    let modifier = Metrics.Replace (fun _ -> S.get ()) in
+    let modifier = Metrics.Replace (fun _ -> Stats_intf.Index.S.get ()) in
     Metrics.(update index modifier)
 
   let export m = Metrics.state m
@@ -197,10 +198,61 @@ module File_manager = struct
     Metrics.update t (Metrics.Mutate f)
 end
 
+module Latest_gc = struct
+  include Stats_intf.Latest_gc
+
+  type Metrics.origin += Latest_gc
+  type stat = t Metrics.t
+
+  (* [stats] is the latest_gc stats.
+     [t] is [stats option].
+     [stat] is the [Metrics] wrapper around [t] *)
+
+  let init : unit -> stat =
+   fun () ->
+    let initial_state = None in
+    Metrics.v ~origin:Latest_gc ~name:"latest_gc_metric" ~initial_state t
+
+  let clear : stat -> unit =
+   fun m -> Metrics.update m (Metrics.Replace (fun _ -> None))
+
+  let export : stat -> t = Metrics.state
+
+  let update : stats -> stat -> unit =
+   fun stat m -> Metrics.update m (Metrics.Replace (fun _ -> Some stat))
+
+  let new_suffix_end_offset_before_finalise worker =
+    match List.assoc_opt "suffix" worker.files with
+    | Some x -> x
+    | None -> assert false
+
+  let finalise_duration t =
+    let steps = t.steps |> List.map (fun (k, v) -> (k, v.wall)) in
+    let duration = steps |> List.map snd |> List.fold_left Float.add 0. in
+    duration
+    -. List.assoc "worker startup" steps
+    -. List.assoc "before finalise" steps
+
+  let total_duration t =
+    let steps = t.steps |> List.map (fun (k, v) -> (k, v.wall)) in
+    steps |> List.map snd |> List.fold_left Float.add 0.
+
+  let finalise_suffix_transfer t =
+    let open Int63.Syntax in
+    let size_of_the_new_suffix_file =
+      t.after_suffix_end_offset - t.before_suffix_end_offset
+    in
+    let copied_by_the_worker =
+      t.worker.suffix_transfers |> List.fold_left Int63.add Int63.zero
+    in
+    size_of_the_new_suffix_file - copied_by_the_worker
+end
+
 type t = {
   pack_store : Pack_store.stat;
   index : Index.stat;
   file_manager : File_manager.stat;
+  latest_gc : Latest_gc.stat;
 }
 
 let s =
@@ -208,12 +260,14 @@ let s =
     pack_store = Pack_store.init ();
     index = Index.init ();
     file_manager = File_manager.init ();
+    latest_gc = Latest_gc.init ();
   }
 
 let reset_stats () =
   Pack_store.clear s.pack_store;
   Index.clear s.index;
   File_manager.clear s.file_manager;
+  Latest_gc.clear s.latest_gc;
   ()
 
 let get () = s
@@ -247,3 +301,4 @@ let get_offset_stats () =
   }
 
 let incr_fm_field field = File_manager.update ~field s.file_manager
+let report_latest_gc x = Latest_gc.update x s.latest_gc

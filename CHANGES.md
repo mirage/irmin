@@ -11,6 +11,8 @@
 
 - **irmin-pack**
   - Expose `Gc.cancel` to abort a running GC (#2101, @art-w)
+  - Add `Irmin_pack_unix.Stats.Latest_gc` which is now the parameter of GC's
+    `finished` callback (#2089, @Ngoguey42)
 
 ### Changed
 

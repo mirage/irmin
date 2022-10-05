@@ -73,6 +73,10 @@ module type S = sig
       prefix doesn't start at 0. It counts the entries not yet flushed from the
       prefix. *)
 
+  val suffix_start_offset : t -> int63
+  (** [suffix_start_offset] is the offsets of the first pack entry in the
+      suffix. All pack entries in the prefix fit below [suffix_start_offset]. *)
+
   val offset_of_suffix_poff : t -> int63 -> int63
   (** [offset_of_suffix_poff t suffix_off] converts a suffix offset into a
       (global) offset. *)

@@ -100,10 +100,14 @@ let gc_all_but_head repo branch =
   let* head = Store.Head.get branch in
   let head_key = Store.Commit.key head in
   let finished = function
-    | Ok (r : Store.Gc.stats) ->
+    | Ok stats ->
+        let duration = Irmin_pack_unix.Stats.Latest_gc.total_duration stats in
+        let finalise_duration =
+          Irmin_pack_unix.Stats.Latest_gc.finalise_duration stats
+        in
         Printf.printf
-          "GC finished in %.4fs. Finalisation took %.4fs. Size of repo: %.2fMB.\n"
-          r.duration r.finalisation_duration
+          "GC finished in %.4fs. Finalise took %.4fs. Size of repo: %.2fMB.\n"
+          duration finalise_duration
           (megabytes_of_path Repo_config.root)
         |> Lwt.return
     | Error (`Msg err) -> print_endline err |> Lwt.return

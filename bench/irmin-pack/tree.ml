@@ -58,18 +58,10 @@ module type Store = sig
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
-  type gc_stats = {
-    duration : float;
-    finalisation_duration : float;
-    read_gc_output_duration : float;
-    transfer_latest_newies_duration : float;
-    swap_duration : float;
-    unlink_duration : float;
-  }
-  [@@deriving irmin]
+  type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
   val gc_run :
-    ?finished:((gc_stats, string) result -> unit Lwt.t) ->
+    ?finished:((stats, string) result -> unit Lwt.t) ->
     repo ->
     commit_key ->
     unit Lwt.t
@@ -230,17 +222,6 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
     Lwt.return (repo, on_commit, on_end)
 
   let gc_wait _repo = Lwt.return_unit
-
-  type gc_stats = {
-    duration : float;
-    finalisation_duration : float;
-    read_gc_output_duration : float;
-    transfer_latest_newies_duration : float;
-    swap_duration : float;
-    unlink_duration : float;
-  }
-  [@@deriving irmin]
-
   let gc_run ?finished:_ _repo _key = Lwt.return_unit
 end
 
@@ -272,21 +253,11 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
     let* r = Store.Gc.wait repo in
     match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
 
-  type gc_stats = Store.Gc.stats = {
-    duration : float;
-    finalisation_duration : float;
-    read_gc_output_duration : float;
-    transfer_latest_newies_duration : float;
-    swap_duration : float;
-    unlink_duration : float;
-  }
-  [@@deriving irmin]
-
   let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
-    let f (result : (Store.Gc.stats, Store.Gc.msg) result) =
+    let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
-      | Ok _ as s -> finished @@ s
+      | Ok stats -> finished @@ Ok stats
     in
     let* launched = Store.Gc.run ~finished:f repo key in
     match launched with

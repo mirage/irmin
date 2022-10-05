@@ -353,7 +353,7 @@ module Make (Io : Io.S) = struct
         )
     | _ -> Error `No_such_file_or_directory
 
-  let create ~root ~generation ~register_entries =
+  let create ?report_file_sizes ~root ~generation ~register_entries () =
     assert (generation > 0);
     let open Result_syntax in
     let path0 = Irmin_pack.Layout.V3.reachable ~generation ~root in
@@ -400,6 +400,7 @@ module Make (Io : Io.S) = struct
 
     (* Close and unlink [file0] *)
     Int_mmap.close file0;
+    let* reachable_size = Io.size_of_path path0 in
     Io.unlink path0 |> ignore;
 
     (* Create [file2] *)
@@ -429,10 +430,15 @@ module Make (Io : Io.S) = struct
     in
     let* () = Ao.flush file2 in
     let* () = Ao.fsync file2 in
+    let mapping_size = Ao.end_poff file2 in
     let* () = Ao.close file2 in
 
     (* Close and unlink [file1] *)
     Int_mmap.close file1;
+    let* sorted_size = Io.size_of_path path1 in
+    Option.iter
+      (fun f -> f (reachable_size, sorted_size, mapping_size))
+      report_file_sizes;
     Io.unlink path1 |> ignore;
 
     (* Open created map *)

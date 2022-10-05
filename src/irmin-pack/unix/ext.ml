@@ -434,7 +434,7 @@ module Maker (Config : Conf.S) = struct
           Fmt.(list ~sep:comma string)
           !errors
 
-    module Stats = struct
+    module Stats_computation = struct
       let pp_key = Irmin.Type.pp XKey.t
 
       let traverse_inodes ~dump_blob_paths_to commit repo =
@@ -498,7 +498,7 @@ module Maker (Config : Conf.S) = struct
         traverse_inodes ~dump_blob_paths_to key repo
     end
 
-    let stats = Stats.run
+    let stats = Stats_computation.run
     let reload = X.Repo.reload
     let flush = X.Repo.flush
     let fsync = X.Repo.fsync
@@ -506,17 +506,8 @@ module Maker (Config : Conf.S) = struct
     module Gc = struct
       type msg = [ `Msg of string ]
 
-      type stats = Gc.stats = {
-        duration : float;
-        finalisation_duration : float;
-        read_gc_output_duration : float;
-        transfer_latest_newies_duration : float;
-        swap_duration : float;
-        unlink_duration : float;
-      }
-      [@@deriving irmin]
-
-      type process_state = [ `Idle | `Running | `Finalised of stats ]
+      type process_state =
+        [ `Idle | `Running | `Finalised of Stats.Latest_gc.stats ]
 
       let catch_errors context error =
         let err =

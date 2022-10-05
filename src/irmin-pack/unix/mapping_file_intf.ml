@@ -33,10 +33,14 @@ module type S = sig
   type open_error :=
     [ `Corrupted_mapping_file of string | `No_such_file_or_directory ]
 
+  type file_sizes := int63 * int63 * int63
+
   val create :
+    ?report_file_sizes:(file_sizes -> unit) ->
     root:string ->
     generation:int ->
     register_entries:(register_entry:(off:int63 -> len:int -> unit) -> unit) ->
+    unit ->
     (t, Errs.t) result
   (** [create] creates inside the directory [root] a mapping file. It never
       raises exceptions.

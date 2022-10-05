@@ -78,16 +78,6 @@ module type Args = sig
        and type hash = hash
 end
 
-type stats = {
-  duration : float;
-  finalisation_duration : float;
-  read_gc_output_duration : float;
-  transfer_latest_newies_duration : float;
-  swap_duration : float;
-  unlink_duration : float;
-}
-[@@deriving irmin ~pp]
-
 module type S = sig
   type t
   (** A running GC process. *)
@@ -111,12 +101,14 @@ module type S = sig
   val finalise :
     wait:bool ->
     t ->
-    ([> `Running | `Finalised of stats ], Args.Errs.t) result Lwt.t
+    ([> `Running | `Finalised of Stats.Latest_gc.stats ], Args.Errs.t) result
+    Lwt.t
   (** [finalise ~wait t] returns the state of the GC process.
 
       If [wait = true], the call will block until GC finishes. *)
 
-  val on_finalise : t -> ((stats, Args.Errs.t) result -> unit Lwt.t) -> unit
+  val on_finalise :
+    t -> ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit Lwt.t) -> unit
   (** Attaches a callback to the GC process, which will be called when the GC
       finalises. *)
 
@@ -125,15 +117,5 @@ end
 
 module type Sigs = sig
   module type Args = Args
-
-  type nonrec stats = stats = {
-    duration : float;
-    finalisation_duration : float;
-    read_gc_output_duration : float;
-    transfer_latest_newies_duration : float;
-    swap_duration : float;
-    unlink_duration : float;
-  }
-
   module type S = S
 end

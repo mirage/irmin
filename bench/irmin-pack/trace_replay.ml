@@ -411,12 +411,13 @@ module Make (Store : Store) = struct
                 gc_commit_idx pp_key gc_commit_key gc_start_commit_idx pp_key
                   (Hashtbl.find t.key_per_commit_idx t.latest_commit_idx)];
               let finished = function
-                | Ok (stats : Store.gc_stats) ->
+                | Ok stats ->
                     let commit_idx = t.latest_commit_idx in
                     let commit_duration = commit_idx - gc_start_commit_idx in
                     [%logs.app
                       "Gc ended after %d commits, %a" commit_duration
-                        (Repr.pp Store.gc_stats_t) stats];
+                        (Repr.pp Irmin_pack_unix.Stats.Latest_gc.stats_t)
+                        stats];
                     Lwt.return_unit
                 | Error s -> failwith s
               in
