@@ -23,7 +23,7 @@ module type S = sig
   type t
   type location = private Prefix | Suffix [@@deriving irmin]
 
-  type accessor = private { poff : int63; len : int; location : location }
+  type accessor = private { poff : int63; len : int63; location : location }
   [@@deriving irmin]
   (** An [accessor] designates a valid readable area in one of the pack files.
 
@@ -47,6 +47,11 @@ module type S = sig
   (** [create_accessor_from_maxlen_exn] is similar to [create_accessor_exn]
       except that the precise length of the span will be decided during the
       call. *)
+
+  val create_accessor_to_prefix_exn :
+    Mapping_file.t -> off:int63 -> len:int -> accessor
+  (** [create_accessor_to_prefix_exn mapping ~off ~len] returns an accessor for
+      the prefix file associated with [mapping]. *)
 
   val shrink_accessor_exn : accessor -> new_len:int -> accessor
   (** [shrink_accessor_exn a ~new_len] is [a] where the length is smaller than
@@ -83,14 +88,24 @@ module type S = sig
   (** [offset_of_suffix_poff t suffix_off] converts a suffix offset into a
       (global) offset. *)
 
-  val read_in_prefix_and_suffix_exn : t -> off:int63 -> len:int -> bytes -> unit
-  (** Simlar to [read_exn] but if [off + len] is greater than the end of the
-      prefix, it will read the remaining in the prefix. *)
+  val read_bytes_exn : t -> f:(string -> unit) -> off:int63 -> len:int63 -> unit
+  (** [read_bytes_exn] reads a slice of the global offset space defined by [off]
+      and [len].
 
-  val create_accessor_to_prefix_exn :
-    Mapping_file.t -> off:int63 -> len:int -> accessor
-  (** [create_accessor_to_prefix_exn mapping ~off ~len] returns an accessor for
-      the prefix file associated with [mapping]. *)
+      The calls to [f] ignore the objects boundaries (i.e. the string passed to
+      [f] will most of the time not be the beginning of an object).
+
+      The strings passed to [f] are safe. They can be kept around, they are not
+      the result of an [unsafe_to_string] conversion.
+
+      The call will fail if the [(off, len)] range is invalid. It will succeed
+      in these cases:
+
+      - If the range designates a slice of the suffix.
+      - If the range designates a slice of contiguous live bytes in the prefix
+      - If the range designates a slice of contiguous live bytes that starts in
+        the prefix and ends in the suffix. This implies that the last chunk of
+        the prefix is contiguous to the start of the suffix. *)
 end
 
 module type Sigs = sig

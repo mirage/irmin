@@ -223,23 +223,57 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     | Prefix -> Io.read_exn (get_prefix t) ~off:poff ~len buf
     | Suffix -> Suffix.read_exn (Fm.suffix t.fm) ~off:poff ~len buf
 
-  let read_in_prefix_and_suffix_exn t ~off ~len buf =
-    let ( -- ) a b = a - b in
+  let read_bytes_exn t ~f ~off ~len =
     let open Int63.Syntax in
-    let suffix_start_offset = suffix_start_offset t in
-    if off < suffix_start_offset && off + Int63.of_int len > suffix_start_offset
-    then (
-      let read_in_prefix = suffix_start_offset - off |> Int63.to_int in
-      let accessor = Accessor.v_exn t ~off ~len:read_in_prefix in
-      read_exn t accessor buf;
-      let read_in_suffix = len -- read_in_prefix in
-      let buf_suffix = Bytes.create read_in_suffix in
-      let accessor =
-        Accessor.v_exn t ~off:suffix_start_offset ~len:read_in_suffix
-      in
-      read_exn t accessor buf_suffix;
-      Bytes.blit buf_suffix 0 buf read_in_prefix read_in_suffix)
-    else read_exn t (Accessor.v_exn t ~off ~len) buf
+    let bytes_in_prefix =
+      let prefix_bytes_after_off = suffix_start_offset t - off in
+      if prefix_bytes_after_off <= Int63.zero then Int63.zero
+      else min len prefix_bytes_after_off
+    in
+    let bytes_in_suffix =
+      if bytes_in_prefix < len then len - bytes_in_prefix else Int63.zero
+    in
+    assert (bytes_in_prefix + bytes_in_suffix = len);
+    let prefix_accessor_opt =
+      if bytes_in_prefix > Int63.zero then
+        Some (Accessor.v_exn t ~off ~len:bytes_in_prefix)
+      else None
+    in
+    let suffix_accessor_opt =
+      if bytes_in_suffix > Int63.zero then
+        let off = off + bytes_in_prefix in
+        Some (Accessor.v_exn t ~off ~len:bytes_in_suffix)
+      else None
+    in
+
+    (* Now that we have the accessor(s), we're sure the range is valid:
+       - it doesn't include dead data from the prefix,
+       - it doesn't go after the end of the suffix.
+
+       Go for read. *)
+    let max_read_size = 8192 in
+    let buffer = Bytes.create max_read_size in
+    let max_read_size = Int63.of_int max_read_size in
+    let rec aux accessor =
+      if accessor.len = Int63.zero then ()
+      else if accessor.len < max_read_size then (
+        read_exn t accessor buffer;
+        f (Bytes.sub_string buffer 0 (Int63.to_int accessor.len)))
+      else
+        let left, right =
+          ( { accessor with len = max_read_size },
+            {
+              accessor with
+              poff = accessor.poff + max_read_size;
+              len = accessor.len - max_read_size;
+            } )
+        in
+        read_exn t left buffer;
+        f (Bytes.to_string buffer);
+        aux right
+    in
+    Option.iter aux prefix_accessor_opt;
+    Option.iter aux suffix_accessor_opt
 
   let create_accessor_exn t ~off ~len =
     let len = Int63.of_int len in
@@ -250,10 +284,9 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let max_len = Int63.of_int max_len in
     Accessor.v_range_exn t ~off ~min_len ~max_len
 
-  let create_accessor_to_prefix_exn  t ~off ~len =
+  let create_accessor_to_prefix_exn t ~off ~len =
     let len = Int63.of_int len in
-    Accessor.v_exn t ~off ~len
-    Accessor.v_in_prefix_exn
+    Accessor.v_in_prefix_exn t ~off ~len
 
   let shrink_accessor_exn a ~new_len =
     let open Int63.Syntax in
