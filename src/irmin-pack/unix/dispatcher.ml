@@ -31,7 +31,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   type t = { fm : Fm.t }
   type location = Prefix | Suffix [@@deriving irmin]
 
-  type accessor = { poff : int63; len : int; location : location }
+  type accessor = { poff : int63; len : int63; location : location }
   [@@deriving irmin]
   (** [poff] is a physical offset in a file. It is meant to be passed to [Io] or
       [Append_only]
@@ -140,15 +140,14 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       let chunk, shift_in_chunk, max_entry_len = chunk_of_off_exn mapping off in
 
       (* Case 3: The entry ends after the chunk *)
-      let open Int63 in
       let open Int63.Syntax in
-      (if of_int len > max_entry_len then
+      (if len > max_entry_len then
        let s =
          Fmt.str
-           "entry (off=%a, len=%d) is supposed to be contained in chunk \
+           "entry (off=%a, len=%a) is supposed to be contained in chunk \
             (poff=%a,len=%d) and starting at %a but is larger than it can be\n\
-           \ contained in chunk" Int63.pp off len Int63.pp chunk.poff chunk.len
-           Int63.pp shift_in_chunk
+           \ contained in chunk" Int63.pp off Int63.pp len Int63.pp chunk.poff
+           chunk.len Int63.pp shift_in_chunk
        in
        raise (Errors.Pack_error (`Invalid_prefix_read s)));
 
@@ -159,7 +158,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Accessor = struct
     let v_in_suffix_exn t ~off ~len =
       let open Int63.Syntax in
-      let entry_end_offset = off + Int63.of_int len in
+      let entry_end_offset = off + len in
       if entry_end_offset > end_offset t then
         raise (Errors.Pack_error `Read_out_of_bounds)
       else
@@ -177,8 +176,6 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       else v_in_prefix_exn (get_mapping t) ~off ~len
 
     let v_range_in_suffix_exn t ~off ~min_len ~max_len =
-      let min_len = Int63.of_int min_len in
-      let max_len = Int63.of_int max_len in
       let len =
         let open Int63.Syntax in
         let bytes_after_off = end_offset t - off in
@@ -188,25 +185,21 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         else bytes_after_off
       in
       let poff = Suffix_arithmetic.poff_of_off t off in
-      { poff; len = Int63.to_int len; location = Suffix }
+      { poff; len; location = Suffix }
 
     let v_range_in_prefix_exn t ~off ~min_len ~max_len =
       let mapping = get_mapping t in
       let chunk, shift_in_chunk, max_entry_len =
         Prefix_arithmetic.chunk_of_off_exn mapping off
       in
-      let open Int63 in
       let open Int63.Syntax in
       let len =
-        let min_len = of_int min_len in
-        let max_len = of_int max_len in
         if max_entry_len < min_len then
           raise (Errors.Pack_error `Read_out_of_bounds)
         else if max_entry_len > max_len then max_len
         else max_entry_len
       in
       let poff = chunk.poff + shift_in_chunk in
-      let len = Int63.to_int len in
       { poff; len; location = Prefix }
 
     let v_range_exn t ~off ~min_len ~max_len =
@@ -218,6 +211,14 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   end
 
   let read_exn t { poff; len; location } buf =
+    assert (len <= Int63.of_int Stdlib.max_int);
+    (* This assetion cannot be triggered because:
+
+       - The user of Dispatcher's API is only able to construct accessors from
+         [int].
+       - The internals of this file may construct very large accessors but they
+         will be chopped before being passed to [read_exn]. *)
+    let len = Int63.to_int len in
     match location with
     | Prefix -> Io.read_exn (get_prefix t) ~off:poff ~len buf
     | Suffix -> Suffix.read_exn (Fm.suffix t.fm) ~off:poff ~len buf
@@ -240,17 +241,29 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       Bytes.blit buf_suffix 0 buf read_in_prefix read_in_suffix)
     else read_exn t (Accessor.v_exn t ~off ~len) buf
 
-  let create_accessor_exn = Accessor.v_exn
-  let create_accessor_from_range_exn = Accessor.v_range_exn
-  let create_accessor_to_prefix_exn = Accessor.v_in_prefix_exn
+  let create_accessor_exn t ~off ~len =
+    let len = Int63.of_int len in
+    Accessor.v_exn t ~off ~len
+
+  let create_accessor_from_range_exn t ~off ~min_len ~max_len =
+    let min_len = Int63.of_int min_len in
+    let max_len = Int63.of_int max_len in
+    Accessor.v_range_exn t ~off ~min_len ~max_len
+
+  let create_accessor_to_prefix_exn  t ~off ~len =
+    let len = Int63.of_int len in
+    Accessor.v_exn t ~off ~len
+    Accessor.v_in_prefix_exn
 
   let shrink_accessor_exn a ~new_len =
+    let open Int63.Syntax in
+    let new_len = Int63.of_int new_len in
     if new_len > a.len then failwith "shrink_accessor_exn to larger accessor";
     { a with len = new_len }
 
   let create_sequential_accessor_exn location rem_len ~poff ~len =
     if len > rem_len then raise (Errors.Pack_error `Read_out_of_bounds)
-    else { poff; len; location }
+    else { poff; len = Int63.of_int len; location }
 
   let create_sequential_accessor_from_range_exn location rem_len ~poff ~min_len
       ~max_len =
@@ -259,7 +272,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       else if rem_len > max_len then max_len
       else rem_len
     in
-    { poff; len; location }
+    { poff; len = Int63.of_int len; location }
 
   let create_sequential_accessor_seq t ~min_header_len ~max_header_len ~read_len
       =
