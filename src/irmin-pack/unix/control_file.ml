@@ -64,7 +64,9 @@ module Make (Io : Io.S) = struct
   let write io payload =
     let s = Data.(to_bin_string (V3 payload)) in
 
-    (* The data must fit inside a single page for atomic updates of the file *)
+    (* The data must fit inside a single page for atomic updates of the file.
+       This is only true for some file systems. This system will have to be
+       reworked for [V3]. *)
     assert (String.length s <= Io.page_size);
 
     Io.write_string io ~off:Int63.zero s
@@ -73,7 +75,7 @@ module Make (Io : Io.S) = struct
     let open Result_syntax in
     let* string = Io.read_all_to_string io in
     (* Since the control file is expected to fit in a page,
-       [read_all_to_string] is atomic.
+       [read_all_to_string] is atomic. This is only true for some file systems.
 
        If [string] is larger than a page, it either means that the file is
        corrupted or that the major version is not supported. Either way it will

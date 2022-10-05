@@ -91,8 +91,7 @@ module type S = sig
     t -> (string, [> `Io_misc of misc_error | `Closed ]) result
   (** [read_to_string t] is the contents full contents of the file.
 
-      The individual pages are guaranteed to be read atomically, however there
-      is no guarantee that all pages are read atomically. *)
+      The individual pages are not guaranteed to be read atomically. *)
 
   val read_size : t -> (int63, [> read_error ]) result
   (** [read_size t] is the number of bytes of the file handled by [t].
