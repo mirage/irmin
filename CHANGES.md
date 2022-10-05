@@ -12,6 +12,10 @@
 - **irmin-pack**
   - Expose `Gc.cancel` to abort a running GC (#2101, @art-w)
 
+- **irmin-tezos-utils**
+  - Add package `irmin-tezos-utils` containing a graphical tool for manual pack
+    files analysis. (#1939, @clecat)
+
 ### Changed
 
 - **irmin-pack**
@@ -37,10 +41,6 @@
   - Add `Gc.is_allowed` (#2076, @icristescu)
   - Add a `weight` parameter in the LRU implementation to bound
     memory usage (#2050, @samoht)
-
-- **irmin-tezos-utils**
-  - Add package `irmin-tezos-utils` containing a graphical tool for manual pack
-    files analysis. (#1939, @clecat)
 
 ### Changed
 
