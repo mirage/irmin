@@ -238,7 +238,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       let accessor =
         Accessor.v_exn t ~off:suffix_start_offset ~len:read_in_suffix
       in
-      read_exn t accessor buf;
+      read_exn t accessor buf_suffix;
       Bytes.blit buf_suffix 0 buf read_in_prefix read_in_suffix)
     else read_exn t (Accessor.v_exn t ~off ~len) buf
 
