@@ -64,7 +64,7 @@ module Store = struct
     (* consider `Idle as success because gc can finalise during commit as well *)
     | `Idle | `Finalised _ -> Lwt.return_unit
 
-  let commit t =
+  let commit ?(info = info) t =
     let parents = List.map S.Commit.key t.parents in
     let+ h = S.Commit.v t.repo ~info ~parents t.tree in
     S.Tree.clear t.tree;
@@ -138,6 +138,13 @@ module Store = struct
   let commit_del t =
     let* t = del t [ "a"; "c" ] in
     let+ h = commit t in
+    (t, h)
+
+  let commit_1_different_author t =
+    let info = S.Info.v ~author:"someone" Int64.zero in
+    let* t = set t [ "a"; "b" ] "Novembre" in
+    let* t = set t [ "a"; "c" ] "Juin" in
+    let+ h = commit ~info t in
     (t, h)
 end
 
@@ -548,6 +555,18 @@ module Gc = struct
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
+  let gc_similar_commits () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
+    let* t = checkout_exn t c1 in
+    let* t, c1_again = commit_1_different_author t in
+    let* () = start_gc t c1_again in
+    let* () = finalise_gc t in
+    let* () = check_1 t c1_again in
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test one gc" one_gc;
@@ -563,6 +582,7 @@ module Gc = struct
       tc "Test lru" gc_lru;
       tc "Test gc during batch" gc_during_batch;
       tc "Test add back gced commit" add_back_gced_commit;
+      tc "Test gc on similar commits" gc_similar_commits;
     ]
 end
 
