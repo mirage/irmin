@@ -21,6 +21,12 @@ module Plv3 = struct
   include Payload_v3
 
   let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
+end
+
+module Plv4 = struct
+  include Payload_v4
+
+  let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
   let to_bin_string = Irmin.Type.to_bin_string t |> Irmin.Type.unstage
 end
 
@@ -29,10 +35,11 @@ module Version = Irmin_pack.Version
 module Data (Io : Io.S) = struct
   (** Type of what's encoded in the control file. The variant tag is encoded as
       a [Version.t]. *)
-  type t = V3 of Plv3.t
+  type t = V3 of Plv3.t | V4 of Plv4.t
 
   let to_bin_string = function
-    | V3 payload -> Version.to_bin `V3 ^ Plv3.to_bin_string payload
+    | V3 _ -> assert false
+    | V4 payload -> Version.to_bin `V4 ^ Plv4.to_bin_string payload
 
   let of_bin_string s =
     let open Result_syntax in
@@ -46,12 +53,17 @@ module Data (Io : Io.S) = struct
       | None -> Error (`Unknown_major_pack_version left)
       | Some `V3 when len > Io.page_size -> Error `Corrupted_control_file
       | Some `V3 -> Ok `V3
+      | Some `V4 -> Ok `V4
       | Some (`V1 | `V2) -> assert false
     in
     match version with
     | `V3 -> (
         match Plv3.of_bin_string right with
         | Ok x -> Ok (V3 x)
+        | Error _ -> Error `Corrupted_control_file)
+    | `V4 -> (
+        match Plv4.of_bin_string right with
+        | Ok x -> Ok (V4 x)
         | Error _ -> Error `Corrupted_control_file)
 end
 
@@ -61,12 +73,37 @@ module Make (Io : Io.S) = struct
 
   type t = { io : Io.t; mutable payload : Latest_payload.t }
 
+  let upgrade_v3_to_v4 (pl : Payload_v3.t) : Payload_v4.t =
+    let status =
+      match pl.status with
+      | From_v1_v2_post_upgrade x -> Payload_v4.From_v1_v2_post_upgrade x
+      | From_v3_no_gc_yet -> No_gc_yet
+      | From_v3_used_non_minimal_indexing_strategy ->
+          Used_non_minimal_indexing_strategy
+      | From_v3_gced x ->
+          Gced
+            {
+              suffix_start_offset = x.suffix_start_offset;
+              generation = x.generation;
+              oldest_live_commit_offset = x.suffix_start_offset;
+            }
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
+          assert false
+    in
+    {
+      dict_end_poff = pl.dict_end_poff;
+      suffix_end_poff = pl.suffix_end_poff;
+      status;
+      upgraded_from_v3_to_v4 = true;
+    }
+
   let write io payload =
-    let s = Data.(to_bin_string (V3 payload)) in
+    let s = Data.(to_bin_string (V4 payload)) in
 
     (* The data must fit inside a single page for atomic updates of the file.
        This is only true for some file systems. This system will have to be
-       reworked for [V3]. *)
+       reworked for [V4]. *)
     assert (String.length s <= Io.page_size);
 
     Io.write_string io ~off:Int63.zero s
@@ -80,7 +117,10 @@ module Make (Io : Io.S) = struct
        If [string] is larger than a page, it either means that the file is
        corrupted or that the major version is not supported. Either way it will
        be handled by [Data.of_bin_string]. *)
-    Data.of_bin_string string
+    let+ payload = Data.of_bin_string string in
+    match payload with
+    | V4 payload -> payload
+    | V3 payload -> upgrade_v3_to_v4 payload
 
   let create_rw ~path ~overwrite payload =
     let open Result_syntax in
@@ -91,8 +131,7 @@ module Make (Io : Io.S) = struct
   let open_ ~path ~readonly =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly in
-    let+ data = read io in
-    let payload = match data with Data.V3 payload -> payload in
+    let+ payload = read io in
     { io; payload }
 
   let close t = Io.close t.io
@@ -103,8 +142,7 @@ module Make (Io : Io.S) = struct
     let open Result_syntax in
     if not @@ Io.readonly t.io then Error `Rw_not_allowed
     else
-      let+ data = read t.io in
-      let payload = match data with Data.V3 payload -> payload in
+      let+ payload = read t.io in
       t.payload <- payload
 
   let set_payload t payload =

@@ -103,7 +103,64 @@ module Payload_v3 = struct
       extensions *)
 end
 
-module Latest_payload = Payload_v3
+module Payload_v4 = struct
+  type gced = {
+    suffix_start_offset : int63;
+    generation : int;
+    oldest_live_commit_offset : int63;
+  }
+  [@@deriving irmin]
+  (** Similar to [from_v3_gced]. [oldest_live_commit_offset] is the commit on
+      which the latest gc was called on. *)
+
+  (** [From_v1_v2_post_upgrade] similar to [Payload_v3.From_v1_v2_post_upgrade]
+
+      [No_gc_yet] corresponds to a pack store that was created using [`V3] or
+      above. It never underwent a GC.
+
+      [Used_non_minimal_indexing_strategy] corresponds to a pack store that was
+      created using [`V3] or above. It never underwent a GC and it will never be
+      possible to GC it because entries were pushed using a non-minimal indexing
+      strategy.
+
+      [Gced] is a [`V3] or [`V4] store that was GCed at least once.
+
+      The [T*] tags are provisional tags that the binary decoder is aware of and
+      that may in the future be used to add features to the [`V3] payload. *)
+  type status =
+    | From_v1_v2_post_upgrade of Payload_v3.from_v1_v2_post_upgrade
+    | No_gc_yet
+    | Used_non_minimal_indexing_strategy
+    | Gced of gced
+    | T1
+    | T2
+    | T3
+    | T4
+    | T5
+    | T6
+    | T7
+    | T8
+    | T9
+    | T10
+    | T11
+    | T12
+    | T13
+    | T14
+    | T15
+  [@@deriving irmin]
+
+  type t = {
+    dict_end_poff : int63;
+    suffix_end_poff : int63;
+    status : status;
+    upgraded_from_v3_to_v4 : bool;
+  }
+  [@@deriving irmin]
+  (** Similar to [`V3] payload. [upgraded_from_v3_to_v4] recalls if the store
+      was originally created in [`V3]. *)
+end
+
+module Latest_payload = Payload_v4
 
 module type S = sig
   (** Abstraction for irmin-pack's control file.
@@ -192,8 +249,9 @@ module type S = sig
 end
 
 module type Sigs = sig
-  module Latest_payload = Payload_v3
+  module Latest_payload = Payload_v4
   module Payload_v3 = Payload_v3
+  module Payload_v4 = Payload_v4
 
   module type S = S
 

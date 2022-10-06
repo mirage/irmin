@@ -17,13 +17,22 @@
 (* For every new version, update the [version] type and [versions]
    headers. *)
 
-type t = [ `V1 | `V2 | `V3 ] [@@deriving irmin]
+type t = [ `V1 | `V2 | `V3 | `V4 ] [@@deriving irmin]
 
 let latest = `V3
-let enum = [ (`V1, "00000001"); (`V2, "00000002"); (`V3, "00000003") ]
-let pp = Fmt.of_to_string (function `V1 -> "v1" | `V2 -> "v2" | `V3 -> "v3")
+
+let enum =
+  [ (`V1, "00000001"); (`V2, "00000002"); (`V3, "00000003"); (`V4, "00000004") ]
+
+let pp =
+  Fmt.of_to_string (function
+    | `V1 -> "v1"
+    | `V2 -> "v2"
+    | `V3 -> "v3"
+    | `V4 -> "v4")
+
 let to_bin v = List.assoc v enum
-let to_int = function `V1 -> 1 | `V2 -> 2 | `V3 -> 3
+let to_int = function `V1 -> 1 | `V2 -> 2 | `V3 -> 3 | `V4 -> 4
 let compare a b = Int.compare (to_int a) (to_int b)
 let encode_bin t f = to_bin t |> f
 
@@ -34,6 +43,7 @@ let decode_bin s offref =
     | "00000001" -> `V1
     | "00000002" -> `V2
     | "00000003" -> `V3
+    | "00000004" -> `V4
     | _ -> failwith "Couldn't decode pack version"
   in
   offref := !offref + 8;

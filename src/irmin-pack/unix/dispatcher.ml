@@ -58,13 +58,13 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   let suffix_start_offset t =
     let pl = Control.payload (Fm.control t.fm) in
     match pl.status with
-    | Payload.From_v1_v2_post_upgrade _
-    | From_v3_used_non_minimal_indexing_strategy | From_v3_no_gc_yet ->
+    | Payload.From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy
+    | No_gc_yet ->
         Int63.zero
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         assert false
-    | From_v3_gced { suffix_start_offset; _ } -> suffix_start_offset
+    | Gced { suffix_start_offset; _ } -> suffix_start_offset
 
   (* The suffix only know the real offsets, it is in the dispatcher that global
      offsets are translated into real ones (i.e. in prefix or suffix offsets). *)

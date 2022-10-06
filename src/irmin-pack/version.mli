@@ -26,7 +26,7 @@
     file). The upgrade of a store to [`V3] was done silently when opening a
     store in rw mode. *)
 
-type t = [ `V1 | `V2 | `V3 ] [@@deriving irmin]
+type t = [ `V1 | `V2 | `V3 | `V4 ] [@@deriving irmin]
 (** The type for version numbers. *)
 
 val compare : t -> t -> int
