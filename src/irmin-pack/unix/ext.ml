@@ -584,6 +584,7 @@ module Maker (Config : Conf.S) = struct
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct
       module File_manager = File_manager
+      module Dispatcher = Dispatcher
       module Hash = H
       module Index = Index
       module Inode = X.Node.CA

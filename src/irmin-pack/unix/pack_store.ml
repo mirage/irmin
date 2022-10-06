@@ -17,14 +17,6 @@
 open Import
 include Pack_store_intf
 
-module Varint = struct
-  type t = int [@@deriving irmin ~decode_bin]
-
-  (** LEB128 stores 7 bits per byte. An OCaml [int] has at most 63 bits.
-      [63 / 7] equals [9]. *)
-  let max_encoded_size = 9
-end
-
 exception Invalid_read of string
 exception Corrupted_store of string
 exception Dangling_hash
