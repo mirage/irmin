@@ -166,17 +166,15 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         let poff = Suffix_arithmetic.poff_of_off t off in
         { poff; len; location = Suffix }
 
-    let v_in_prefix_exn t ~off ~len =
-      let poff =
-        Prefix_arithmetic.poff_of_entry_exn (get_mapping t) ~off ~len
-      in
+    let v_in_prefix_exn mapping ~off ~len =
+      let poff = Prefix_arithmetic.poff_of_entry_exn mapping ~off ~len in
       { poff; len; location = Prefix }
 
     let v_exn t ~off ~len =
       let open Int63.Syntax in
       let suffix_start_offset = suffix_start_offset t in
       if off >= suffix_start_offset then v_in_suffix_exn t ~off ~len
-      else v_in_prefix_exn t ~off ~len
+      else v_in_prefix_exn (get_mapping t) ~off ~len
 
     let v_range_in_suffix_exn t ~off ~min_len ~max_len =
       let min_len = Int63.of_int min_len in
@@ -244,6 +242,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
   let create_accessor_exn = Accessor.v_exn
   let create_accessor_from_range_exn = Accessor.v_range_exn
+  let create_accessor_to_prefix_exn = Accessor.v_in_prefix_exn
 
   let shrink_accessor_exn a ~new_len =
     if new_len > a.len then failwith "shrink_accessor_exn to larger accessor";
