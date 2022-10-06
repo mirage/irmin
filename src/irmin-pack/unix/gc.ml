@@ -44,7 +44,7 @@ module Worker = struct
   module Make (Args : Args) : S with module Args := Args = struct
     open Args
     module Io = Fm.Io
-    module Mapping_file = Fm.Mapping_file
+    module Mapping_file = Dispatcher.Mapping_file
 
     module Ao = struct
       include Append_only_file.Make (Fm.Io) (Errs)
@@ -138,16 +138,15 @@ module Worker = struct
       in
       let buffer = Bytes.create len in
       read_exn ~off ~len buffer;
-      let entry = Mapping_file.find_nearest_leq mapping off in
-      match entry with
-      | None -> assert false
-      | Some { poff; _ } ->
-          Bytes.set buffer Hash.hash_size magic_parent;
-          (* Bytes.unsafe_to_string usage: We assume read_exn returns unique ownership of buffer
-             to this function. Then at the call to Bytes.unsafe_to_string we give up unique
-             ownership to buffer (we do not modify it thereafter) in return for ownership of the
-             resulting string, which we pass to write_exn. This usage is safe. *)
-          write_exn ~off:poff ~len (Bytes.unsafe_to_string buffer)
+      let accessor =
+        Dispatcher.create_accessor_to_prefix_exn mapping ~off ~len
+      in
+      Bytes.set buffer Hash.hash_size magic_parent;
+      (* Bytes.unsafe_to_string usage: We assume read_exn returns unique ownership of buffer
+         to this function. Then at the call to Bytes.unsafe_to_string we give up unique
+         ownership to buffer (we do not modify it thereafter) in return for ownership of the
+         resulting string, which we pass to write_exn. This usage is safe. *)
+      write_exn ~off:accessor.poff ~len (Bytes.unsafe_to_string buffer)
 
     let create_new_suffix ~root ~generation =
       let path = Irmin_pack.Layout.V3.suffix ~root ~generation in

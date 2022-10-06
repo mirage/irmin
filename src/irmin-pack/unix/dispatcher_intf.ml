@@ -21,8 +21,10 @@ module type S = sig
   module Mapping_file : Mapping_file.S with module Io = Fm.Io
 
   type t
+  type location = private Prefix | Suffix [@@deriving irmin]
 
-  type accessor
+  type accessor = private { poff : int63; len : int; location : location }
+  [@@deriving irmin]
   (** An [accessor] designates a valid readable area in one of the pack files.
 
       Accessors are meant to be used from within the [Irmin_pack_unix]
@@ -80,6 +82,11 @@ module type S = sig
   val read_in_prefix_and_suffix_exn : t -> off:int63 -> len:int -> bytes -> unit
   (** Simlar to [read_exn] but if [off + len] is greater than the end of the
       prefix, it will read the remaining in the prefix. *)
+
+  val create_accessor_to_prefix_exn :
+    Mapping_file.t -> off:int63 -> len:int -> accessor
+  (** [create_accessor_to_prefix_exn mapping ~off ~len] returns an accessor for
+      the prefix file associated with [mapping]. *)
 end
 
 module type Sigs = sig
