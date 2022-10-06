@@ -31,6 +31,8 @@
 
 - **irmin-pack**
   - Fix data race in RO instances when reading control file (#2100, @Ngoguey42)
+  - Fix bugs in gc related to commits that share the same tree. (#2106,
+    @icristescu)
 
 ### Fixed
 
