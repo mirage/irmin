@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Make (irmin-mirage-git.Irmin_mirage_git.Mem.Make)</title><link rel="stylesheet" href="../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../index.html">irmin-mirage-git</a> &#x00BB; <a href="../../index.html">Irmin_mirage_git</a> &#x00BB; <a href="../index.html">Mem</a> &#x00BB; Make</nav><header class="odoc-preamble"><h1>Module <code><span>Mem.Make</span></code></h1></header><nav class="odoc-toc"><ul><li><a href="#parameters">Parameters</a></li><li><a href="#signature">Signature</a></li></ul></nav><div class="odoc-content"><h2 id="parameters"><a href="#parameters" class="anchor"></a>Parameters</h2><div class="odoc-spec"><div class="spec parameter" id="argument-1-Schema" class="anchored"><a href="#argument-1-Schema" class="anchor"></a><code><span><span class="keyword">module</span> </span><span><a href="argument-1-Schema/index.html">Schema</a></span><span> : 
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Make (irmin-mirage-git.Irmin_mirage_git.Mem.Make)</title><link rel="stylesheet" href="../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.1.1"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../index.html">irmin-mirage-git</a> &#x00BB; <a href="../../index.html">Irmin_mirage_git</a> &#x00BB; <a href="../index.html">Mem</a> &#x00BB; Make</nav><header class="odoc-preamble"><h1>Module <code><span>Mem.Make</span></code></h1></header><nav class="odoc-toc"><ul><li><a href="#parameters">Parameters</a></li><li><a href="#signature">Signature</a></li></ul></nav><div class="odoc-content"><h2 id="parameters"><a href="#parameters" class="anchor"></a>Parameters</h2><div class="odoc-spec"><div class="spec parameter" id="argument-1-Schema" class="anchored"><a href="#argument-1-Schema" class="anchor"></a><code><span><span class="keyword">module</span> </span><span><a href="argument-1-Schema/index.html">Schema</a></span><span> : 
   <a href="../../../../irmin-git/Irmin_git/Schema/module-type-S/index.html">Irmin_git.Schema.S</a>
     <span class="keyword">with</span> <span><span class="keyword">type</span> <a href="../../../../irmin-git/Irmin_git/Schema/module-type-S/Hash/index.html#type-t">Hash.t</a> = <a href="../G/index.html#type-hash">G.hash</a></span>
      <span class="keyword">and</span> <span><span class="keyword">type</span> <a href="../../../../irmin-git/Irmin_git/Schema/module-type-S/Node/index.html#type-t">Node.t</a> = <a href="../G/Value/Tree/index.html#type-t">G.Value.Tree.t</a></span>
@@ -93,7 +93,43 @@
   <span><a href="#type-path">path</a> <span class="arrow">&#45;&gt;</span></span>
   <span>test:<span><a href="#type-tree">tree</a> option</span> <span class="arrow">&#45;&gt;</span></span>
   <span>set:<span><a href="#type-tree">tree</a> option</span> <span class="arrow">&#45;&gt;</span></span>
-  <span>unit <span class="xref-unresolved">Lwt</span>.t</span></span></code></div><div class="spec-doc"><p><code>test_and_set_tree_exn</code> is like <a href="#val-test_and_set_exn"><code>test_and_set_exn</code></a> but for trees.</p></div></div><div class="odoc-spec"><div class="spec value" id="val-merge" class="anchored"><a href="#val-merge" class="anchor"></a><code><span><span class="keyword">val</span> merge : 
+  <span>unit <span class="xref-unresolved">Lwt</span>.t</span></span></code></div><div class="spec-doc"><p><code>test_and_set_tree_exn</code> is like <a href="#val-test_and_set_exn"><code>test_and_set_exn</code></a> but for trees.</p></div></div><div class="odoc-spec"><div class="spec value" id="val-test_set_and_get" class="anchored"><a href="#val-test_set_and_get" class="anchor"></a><code><span><span class="keyword">val</span> test_set_and_get : 
+  <span>?retries:int <span class="arrow">&#45;&gt;</span></span>
+  <span>?allow_empty:bool <span class="arrow">&#45;&gt;</span></span>
+  <span>?parents:<span><a href="#type-commit">commit</a> list</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>info:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> <a href="#type-info">info</a> )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-path">path</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>test:<span><a href="#type-contents">contents</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>set:<span><a href="#type-contents">contents</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><span>( <span><a href="#type-commit">commit</a> option</span>, <a href="#type-write_error">write_error</a> )</span> <span class="xref-unresolved">Stdlib</span>.result</span> <span class="xref-unresolved">Lwt</span>.t</span></span></code></div><div class="spec-doc"><p><code>test_set_and_get</code> is like <a href="#val-test_and_set"><code>test_and_set</code></a> except it also returns the commit associated with updating the store with the new value if the <code>test_and_set</code> is successful. No commit is returned if there was no update to the store.</p></div></div><div class="odoc-spec"><div class="spec value" id="val-test_set_and_get_exn" class="anchored"><a href="#val-test_set_and_get_exn" class="anchor"></a><code><span><span class="keyword">val</span> test_set_and_get_exn : 
+  <span>?retries:int <span class="arrow">&#45;&gt;</span></span>
+  <span>?allow_empty:bool <span class="arrow">&#45;&gt;</span></span>
+  <span>?parents:<span><a href="#type-commit">commit</a> list</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>info:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> <a href="#type-info">info</a> )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-path">path</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>test:<span><a href="#type-contents">contents</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>set:<span><a href="#type-contents">contents</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><a href="#type-commit">commit</a> option</span> <span class="xref-unresolved">Lwt</span>.t</span></span></code></div><div class="spec-doc"><p><code>test_set_and_get_exn</code> is like <a href="#val-test_set_and_get"><code>test_set_and_get</code></a> but raises <code>Failure _</code> instead.</p></div></div><div class="odoc-spec"><div class="spec value" id="val-test_set_and_get_tree" class="anchored"><a href="#val-test_set_and_get_tree" class="anchor"></a><code><span><span class="keyword">val</span> test_set_and_get_tree : 
+  <span>?retries:int <span class="arrow">&#45;&gt;</span></span>
+  <span>?allow_empty:bool <span class="arrow">&#45;&gt;</span></span>
+  <span>?parents:<span><a href="#type-commit">commit</a> list</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>info:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> <a href="#type-info">info</a> )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-path">path</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>test:<span><a href="#type-tree">tree</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>set:<span><a href="#type-tree">tree</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><span>( <span><a href="#type-commit">commit</a> option</span>, <a href="#type-write_error">write_error</a> )</span> <span class="xref-unresolved">Stdlib</span>.result</span> <span class="xref-unresolved">Lwt</span>.t</span></span></code></div><div class="spec-doc"><p><code>test_set_and_get_tree</code> is like <a href="#val-test_set_and_get"><code>test_set_and_get</code></a> but for a <a href="#val-tree"><code>tree</code></a></p></div></div><div class="odoc-spec"><div class="spec value" id="val-test_set_and_get_tree_exn" class="anchored"><a href="#val-test_set_and_get_tree_exn" class="anchor"></a><code><span><span class="keyword">val</span> test_set_and_get_tree_exn : 
+  <span>?retries:int <span class="arrow">&#45;&gt;</span></span>
+  <span>?allow_empty:bool <span class="arrow">&#45;&gt;</span></span>
+  <span>?parents:<span><a href="#type-commit">commit</a> list</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>info:<span>( <span>unit <span class="arrow">&#45;&gt;</span></span> <a href="#type-info">info</a> )</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-t">t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="#type-path">path</a> <span class="arrow">&#45;&gt;</span></span>
+  <span>test:<span><a href="#type-tree">tree</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>set:<span><a href="#type-tree">tree</a> option</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><a href="#type-commit">commit</a> option</span> <span class="xref-unresolved">Lwt</span>.t</span></span></code></div><div class="spec-doc"><p><code>test_set_and_get_tree_exn</code> is like <a href="#val-test_set_and_get_tree"><code>test_set_and_get_tree</code></a> but raises <code>Failure _</code> instead.</p></div></div><div class="odoc-spec"><div class="spec value" id="val-merge" class="anchored"><a href="#val-merge" class="anchor"></a><code><span><span class="keyword">val</span> merge : 
   <span>?retries:int <span class="arrow">&#45;&gt;</span></span>
   <span>?allow_empty:bool <span class="arrow">&#45;&gt;</span></span>
   <span>?parents:<span><a href="#type-commit">commit</a> list</span> <span class="arrow">&#45;&gt;</span></span>
