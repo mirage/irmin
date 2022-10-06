@@ -85,10 +85,11 @@ module Make (Io : Io.S) = struct
             {
               suffix_start_offset = x.suffix_start_offset;
               generation = x.generation;
-              oldest_live_commit_offset = x.suffix_start_offset;
+              latest_gc_target_offset = x.suffix_start_offset;
             }
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
+          (* Unreachable *)
           assert false
     in
     {

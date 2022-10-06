@@ -107,10 +107,10 @@ module Payload_v4 = struct
   type gced = {
     suffix_start_offset : int63;
     generation : int;
-    oldest_live_commit_offset : int63;
+    latest_gc_target_offset : int63;
   }
   [@@deriving irmin]
-  (** Similar to [from_v3_gced]. [oldest_live_commit_offset] is the commit on
+  (** Similar to [from_v3_gced]. [latest_gc_target_offset] is the commit on
       which the latest gc was called on. *)
 
   (** [From_v1_v2_post_upgrade] similar to [Payload_v3.From_v1_v2_post_upgrade]

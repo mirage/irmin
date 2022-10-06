@@ -27,7 +27,6 @@ module Make (Args : Gc_args.S) : sig
     root:string ->
     generation:int ->
     unlink:bool ->
-    offset:int63 ->
     dispatcher:Args.Dispatcher.t ->
     fm:Args.Fm.t ->
     contents:read Args.Contents_store.t ->

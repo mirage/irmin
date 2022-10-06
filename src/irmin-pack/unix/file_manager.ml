@@ -663,7 +663,8 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~new_suffix_start_offset ~new_suffix_end_offset =
+  let swap t ~generation ~new_suffix_start_offset ~new_suffix_end_offset
+      ~latest_gc_target_offset =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap %d %#d %#d" generation
@@ -697,8 +698,7 @@ struct
               assert false
           | Gced _ | No_gc_yet ->
               let suffix_start_offset = new_suffix_start_offset in
-              Gced
-                { suffix_start_offset; generation; oldest_live_commit_offset }
+              Gced { suffix_start_offset; generation; latest_gc_target_offset }
         in
         { pl with status; suffix_end_poff }
       in
