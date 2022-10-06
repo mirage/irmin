@@ -244,6 +244,20 @@ module Unix = struct
         try Ok Unix.LargeFile.((fstat t.fd).st_size |> Int63.of_int64)
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
+  let size_of_path s =
+    let open Result_syntax in
+    let* io = open_ ~path:s ~readonly:true in
+    let res =
+      match read_size io with
+      | Error `Closed -> assert false
+      | Error (`Io_misc _) as x -> x
+      | Ok _ as x -> x
+    in
+    match close io with
+    | Error `Double_close -> assert false
+    | Error (`Io_misc _) as x -> x
+    | Ok () -> res
+
   let readonly t = t.readonly
   let path t = t.path
 

@@ -43,18 +43,8 @@ module type S = sig
   module Gc : sig
     (** GC *)
 
-    type stats = {
-      duration : float;
-      finalisation_duration : float;
-      read_gc_output_duration : float;
-      transfer_latest_newies_duration : float;
-      swap_duration : float;
-      unlink_duration : float;
-    }
-    [@@deriving irmin]
-    (** Stats for a successful GC run. Times are in seconds. *)
-
-    type process_state = [ `Idle | `Running | `Finalised of stats ]
+    type process_state =
+      [ `Idle | `Running | `Finalised of Stats.Latest_gc.stats ]
     (** The state of the GC process after calling {!finalise_exn} *)
 
     (** {2 Low-level API} *)
@@ -96,7 +86,7 @@ module type S = sig
         logging *)
 
     val run :
-      ?finished:((stats, msg) result -> unit Lwt.t) ->
+      ?finished:((Stats.Latest_gc.stats, msg) result -> unit Lwt.t) ->
       repo ->
       commit_key ->
       (bool, msg) result Lwt.t
@@ -118,7 +108,7 @@ module type S = sig
         returned as pretty-print error messages; others are re-raised. The error
         messages should be used only for informational purposes, like logging. *)
 
-    val wait : repo -> (stats option, msg) result Lwt.t
+    val wait : repo -> (Stats.Latest_gc.stats option, msg) result Lwt.t
     (** [wait repo] blocks until GC is finished or is idle.
 
         If a GC finalises, its stats are returned.

@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
+
 module Pack_store = struct
   type field =
     | Appended_hashes
@@ -82,6 +84,104 @@ module File_manager = struct
   [@@deriving irmin]
 end
 
+module Latest_gc = struct
+  type rusage = {
+    maxrss : int64;
+    minflt : int64;
+    majflt : int64;
+    inblock : int64;
+    oublock : int64;
+    nvcsw : int64;
+    nivcsw : int64;
+  }
+  [@@deriving irmin]
+
+  type ocaml_gc = {
+    minor_words : float;
+    promoted_words : float;
+    major_words : float;
+    minor_collections : int;
+    major_collections : int;
+    heap_words : int;
+    compactions : int;
+    top_heap_words : int;
+    stack_size : int;
+  }
+  [@@deriving irmin]
+
+  type duration = { wall : float; sys : float; user : float } [@@deriving irmin]
+  (** Timings in seconds *)
+
+  type step = {
+    duration : duration;
+    rusage : rusage;
+    ocaml_gc : ocaml_gc;
+    index : Index.t;
+    pack_store : Pack_store.t;
+    inode : Irmin_pack.Stats.Inode.t;
+  }
+  [@@deriving irmin]
+  (** Stats gathered for one worker step *)
+
+  type worker = {
+    initial_maxrss : int64;
+    initial_heap_words : int;
+    initial_top_heap_words : int;
+    initial_stack_size : int;
+    steps : (string * step) list;
+    files : (string * int63) list;
+    objects_traversed : int63;
+    suffix_transfers : int63 list;
+  }
+  [@@deriving irmin]
+  (** Stats produced by the worker. They are meant to be transmited to the
+      parent process through the gc result JSON file.
+
+      [steps] is the list of all step names associated with the timing of these
+      steps plus stats recorded at the end of the step. An association lists is
+      used here instead of types because in the future the exact list of tasks
+      may change and we don't want the rigidity of types, especially because
+      these informations will end up appearing in a file format.
+
+      Since the worker lives in a fork, [rusage] and [ocaml_gc] contain stats
+      that are impacted by what happened in the main process, prior to the fork.
+      The [init_*] fields reflect this.
+
+      The total wall time of the worker is the sum of all [wall] fields in
+      [steps].
+
+      [files] contains the size of files created by the GC. And association list
+      is used instead of plain types for the same reason as [steps]/
+
+      [suffix_transfers] contains an int for each transfer loop to the new
+      suffix. That integer corresponds to the number of bytes copied during that
+      loop. The sum of these integers is equal to the "suffix" step in [files]. *)
+
+  type stats = {
+    commit_offset : int63;
+    before_suffix_start_offset : int63;
+    before_suffix_end_offset : int63;
+    after_suffix_start_offset : int63;
+    after_suffix_end_offset : int63;
+    steps : (string * duration) list;
+    worker : worker;
+  }
+  [@@deriving irmin]
+  (** All the stats for a single successful GC run.
+
+      [commit_offset] is the offset of the commit provided by the irmin user.
+
+      The [before_*] (and [after_*]) offsets track the state of the suffix
+      before (and after) the GC.
+
+      [steps] has a similar meaning as [steps] in [worker] but for the main
+      process. *)
+
+  type t = stats option [@@deriving irmin]
+  (** [Latest_gc.t] is an [option] type because before the first gc end, there
+      are no gc stats to expose. *)
+end
+
 module type Sigs = sig
   module Pack_store : sig
     include module type of Pack_store with type t = Pack_store.t
@@ -93,7 +193,7 @@ module type Sigs = sig
   end
 
   module Index : sig
-    include module type of Index
+    include module type of Index with type t = Index.t
 
     type stat
 
@@ -101,17 +201,50 @@ module type Sigs = sig
   end
 
   module File_manager : sig
-    include module type of File_manager
+    include module type of File_manager with type t = File_manager.t
 
     type stat
 
     val export : stat -> t
   end
 
+  module Latest_gc : sig
+    include
+      module type of Latest_gc
+        with type duration = Latest_gc.duration
+        with type ocaml_gc = Latest_gc.ocaml_gc
+        with type rusage = Latest_gc.rusage
+        with type step = Latest_gc.step
+        with type worker = Latest_gc.worker
+        with type stats = Latest_gc.stats
+        with type t = Latest_gc.t
+
+    type stat
+
+    val export : stat -> t
+    val new_suffix_end_offset_before_finalise : worker -> int63
+
+    val finalise_duration : stats -> float
+    (** Time taken by the GC finalisation in seconds. It includes the time it
+        took to wait for the worker to finish in case of [~wait:true]. *)
+
+    val total_duration : stats -> float
+    (** Total wall duration of the GC in seconds, from the call to GC and to the
+        end of finalise. This duration contains the time it takes for the user
+        to trigger a finalise while the worker is over. *)
+
+    val finalise_suffix_transfer : stats -> int63
+    (** [finalise_suffix_transfer stats] is the number of bytes appended to the
+        new suffix by the finalise step of the GC. Before this, the worker
+        already appended bytes to the new suffix, this is reported in
+        [worker.suffix_transfers]. *)
+  end
+
   type t = {
     pack_store : Pack_store.stat;
     index : Index.stat;
     file_manager : File_manager.stat;
+    latest_gc : Latest_gc.stat;
   }
   (** Record type for all statistics that will be collected. There is a single
       instance (which we refer to as "the instance" below) which is returned by
@@ -163,4 +296,8 @@ module type Sigs = sig
   val incr_fm_field : File_manager.field -> unit
   (** [incr_fm_field field] increments the chosen stats field for the
       {!File_manager} *)
+
+  val report_latest_gc : Latest_gc.stats -> unit
+  (** [report_latest_gc gc_stats] sets [(get ()).latest_gc] to the stats of the
+      latest successful GC. *)
 end

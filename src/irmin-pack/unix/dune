@@ -12,7 +12,8 @@
   lwt.unix
   mtime
   cmdliner
-  optint)
+  optint
+  rusage)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

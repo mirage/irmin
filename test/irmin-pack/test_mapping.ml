@@ -30,7 +30,7 @@ let process_on_disk pairs =
       pairs
   in
   let mapping =
-    Mapping_file.create ~root:test_dir ~generation:1 ~register_entries
+    Mapping_file.create ~root:test_dir ~generation:1 ~register_entries ()
     |> Errs.raise_if_error
   in
   let l = ref [] in

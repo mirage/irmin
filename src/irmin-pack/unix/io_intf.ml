@@ -99,6 +99,12 @@ module type S = sig
       This function is expensive in the unix implementation because it performs
       syscalls. *)
 
+  val size_of_path :
+    string ->
+    ( int63,
+      [> `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ] )
+    result
+
   val classify_path :
     string -> [> `File | `Directory | `No_such_file_or_directory | `Other ]
 
