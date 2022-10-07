@@ -195,7 +195,7 @@ module Maker (Config : Conf.S) = struct
             let root = Conf.root config in
             let fresh = Conf.fresh config in
             let readonly = Conf.readonly config in
-            let path = Irmin_pack.Layout.V3.branch ~root in
+            let path = Irmin_pack.Layout.V4.branch ~root in
             Branch.v ~fresh ~readonly path
           in
           let during_batch = false in

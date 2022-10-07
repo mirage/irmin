@@ -498,7 +498,7 @@ end
 module Layout = struct
   let test_classify_filename () =
     let module V1_and_v2 = Irmin_pack.Layout.V1_and_v2 in
-    let module V3 = Irmin_pack.Layout.V3 in
+    let module V4 = Irmin_pack.Layout.V4 in
     let c =
       Alcotest.(
         check (option (testable_repr Irmin_pack.Layout.classification_t)))
@@ -506,15 +506,15 @@ module Layout = struct
     in
     let classif = Irmin_pack.Layout.classify_filename in
     c (Some `V1_or_v2_pack) (V1_and_v2.pack ~root:"" |> classif);
-    c (Some `Branch) (V3.branch ~root:"" |> classif);
-    c (Some `Dict) (V3.dict ~root:"" |> classif);
-    c (Some (`Gc_result 0)) (V3.gc_result ~generation:0 ~root:"" |> classif);
-    c (Some (`Reachable 1)) (V3.reachable ~generation:1 ~root:"" |> classif);
-    c (Some (`Sorted 10)) (V3.sorted ~generation:10 ~root:"" |> classif);
-    c (Some (`Mapping 100)) (V3.mapping ~generation:100 ~root:"" |> classif);
-    c (Some (`Prefix 1000)) (V3.prefix ~generation:1000 ~root:"" |> classif);
-    c (Some (`Suffix 42)) (V3.suffix ~generation:42 ~root:"" |> classif);
-    c None (V3.prefix ~generation:(-1) ~root:"" |> classif);
+    c (Some `Branch) (V4.branch ~root:"" |> classif);
+    c (Some `Dict) (V4.dict ~root:"" |> classif);
+    c (Some (`Gc_result 0)) (V4.gc_result ~generation:0 ~root:"" |> classif);
+    c (Some (`Reachable 1)) (V4.reachable ~generation:1 ~root:"" |> classif);
+    c (Some (`Sorted 10)) (V4.sorted ~generation:10 ~root:"" |> classif);
+    c (Some (`Mapping 100)) (V4.mapping ~generation:100 ~root:"" |> classif);
+    c (Some (`Prefix 1000)) (V4.prefix ~generation:1000 ~root:"" |> classif);
+    c (Some (`Suffix 42)) (V4.suffix_chunk ~chunk_idx:42 ~root:"" |> classif);
+    c None (V4.prefix ~generation:(-1) ~root:"" |> classif);
     c None (classif "store.toto");
     c None (classif "store.");
     c None (classif "store");

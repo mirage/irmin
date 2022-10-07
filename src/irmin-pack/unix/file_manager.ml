@@ -208,7 +208,7 @@ struct
   let reopen_prefix t ~generation =
     let open Result_syntax in
     let* prefix1 =
-      let path = Irmin_pack.Layout.V3.prefix ~root:t.root ~generation in
+      let path = Irmin_pack.Layout.V4.prefix ~root:t.root ~generation in
       [%log.debug "reload: opening %s" path];
       Prefix.open_ ~readonly:true ~path
     in
@@ -240,7 +240,9 @@ struct
       "reopen_suffix gen:%d end_poff:%d" generation (Int63.to_int end_poff)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
-      let path = Irmin_pack.Layout.V3.suffix ~root:t.root ~generation in
+      let path =
+        Irmin_pack.Layout.V4.suffix_chunk ~root:t.root ~chunk_idx:generation
+      in
       [%log.debug "reload: generation changed, opening %s" path];
       if readonly then Suffix.open_ro ~path ~end_poff ~dead_header_size
       else
@@ -323,7 +325,9 @@ struct
     in
     (* 2. Open the other files *)
     let* suffix =
-      let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+      let path =
+        Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation
+      in
       let auto_flush_threshold =
         Irmin_pack.Conf.suffix_auto_flush_threshold config
       in
@@ -332,12 +336,12 @@ struct
         ~auto_flush_procedure:(`External cb)
     in
     let* prefix =
-      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
       only_open_after_gc ~generation ~path
     in
     let* mapping = open_mapping ~root ~generation in
     let* dict =
-      let path = Irmin_pack.Layout.V3.dict ~root in
+      let path = Irmin_pack.Layout.V4.dict ~root in
       let auto_flush_threshold =
         Irmin_pack.Conf.dict_auto_flush_threshold config
       in
@@ -380,7 +384,7 @@ struct
 
   let create_control_file ~overwrite config pl =
     let root = Irmin_pack.Conf.root config in
-    let path = Irmin_pack.Layout.V3.control ~root in
+    let path = Irmin_pack.Layout.V4.control ~root in
     Control.create_rw ~path ~overwrite pl
 
   (* Reload ***************************************************************** *)
@@ -461,7 +465,7 @@ struct
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let* control =
-      let path = Irmin_pack.Layout.V3.control ~root in
+      let path = Irmin_pack.Layout.V4.control ~root in
       Control.open_ ~readonly:false ~path
     in
     let pl : Payload.t = Control.payload control in
@@ -514,10 +518,10 @@ struct
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
-    let dst = Irmin_pack.Layout.V3.suffix ~root ~generation:0 in
+    let dst = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:0 in
     let* suffix_end_poff = read_offset_from_legacy_file src in
     let* dict_end_poff =
-      let path = Irmin_pack.Layout.V3.dict ~root in
+      let path = Irmin_pack.Layout.V4.dict ~root in
       read_offset_from_legacy_file path
     in
     let* () = Io.move_file ~src ~dst in
@@ -547,7 +551,7 @@ struct
     | `File | `Other -> Error (`Not_a_directory root)
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
     | `Directory -> (
-        let path = Irmin_pack.Layout.V3.control ~root in
+        let path = Irmin_pack.Layout.V4.control ~root in
         match Io.classify_path path with
         | `File -> open_rw_with_control_file config
         | `No_such_file_or_directory ->
@@ -564,7 +568,7 @@ struct
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     (* 1. Open the control file *)
     let* control =
-      let path = Irmin_pack.Layout.V3.control ~root in
+      let path = Irmin_pack.Layout.V4.control ~root in
       Control.open_ ~readonly:true ~path
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
@@ -590,16 +594,18 @@ struct
     let generation = generation pl.status in
     (* 2. Open the other files *)
     let* suffix =
-      let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+      let path =
+        Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation
+      in
       Suffix.open_ro ~path ~end_poff:pl.suffix_end_poff ~dead_header_size
     in
     let* prefix =
-      let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+      let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
       only_open_after_gc ~path ~generation
     in
     let* mapping = open_mapping ~root ~generation in
     let* dict =
-      let path = Irmin_pack.Layout.V3.dict ~root in
+      let path = Irmin_pack.Layout.V4.dict ~root in
       Dict.open_ro ~path ~end_poff:pl.dict_end_poff ~dead_header_size
     in
     let* index =
@@ -642,7 +648,7 @@ struct
     | `No_such_file_or_directory -> Error `No_such_file_or_directory
     | `File | `Other -> Error (`Not_a_directory root)
     | `Directory -> (
-        let path = Irmin_pack.Layout.V3.control ~root in
+        let path = Irmin_pack.Layout.V4.control ~root in
         match Control.open_ ~path ~readonly:true with
         | Ok _ -> Ok `V3
         | Error `No_such_file_or_directory -> v2_or_v1 ()

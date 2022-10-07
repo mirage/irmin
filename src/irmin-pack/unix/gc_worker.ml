@@ -106,7 +106,7 @@ module Make (Args : Gc_args.S) = struct
     write_exn ~off:accessor.poff ~len (Bytes.unsafe_to_string buffer)
 
   let create_new_suffix ~root ~generation =
-    let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+    let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation in
     Ao.create_rw_exn ~path
 
   let run ~generation root commit_key new_prefix_end_offset =
@@ -201,7 +201,7 @@ module Make (Args : Gc_args.S) = struct
       (* Step 4. Create the new prefix. *)
       stats := Gc_stats.Worker.finish_current_step !stats "prefix: start";
       let prefix =
-        let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+        let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
         Ao.create_rw_exn ~path
       in
       let () =
@@ -235,7 +235,7 @@ module Make (Args : Gc_args.S) = struct
         Dispatcher.read_exn dispatcher accessor buf
       in
       let prefix =
-        let path = Irmin_pack.Layout.V3.prefix ~root ~generation in
+        let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
         Io.open_ ~path ~readonly:false |> Errs.raise_if_error
       in
       Errors.finalise_exn (fun _outcome ->
@@ -304,7 +304,7 @@ module Make (Args : Gc_args.S) = struct
 
   let write_gc_output ~root ~generation output =
     let open Result_syntax in
-    let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+    let path = Irmin_pack.Layout.V4.gc_result ~root ~generation in
     let* io = Io.create ~path ~overwrite:true in
     let out = Irmin.Type.to_json_string gc_output_t output in
     let* () = Io.write_string io ~off:Int63.zero out in

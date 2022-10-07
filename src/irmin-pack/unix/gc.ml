@@ -59,7 +59,7 @@ module Make (Args : Gc_args.S) = struct
         ~after_suffix_start_offset
     in
     let unlink_result_file () =
-      let result_file = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+      let result_file = Irmin_pack.Layout.V4.gc_result ~root ~generation in
       match Io.unlink result_file with
       | Ok () -> ()
       | Error (`Sys_error msg as err) ->
@@ -102,7 +102,7 @@ module Make (Args : Gc_args.S) = struct
 
   let open_new_suffix ~end_poff { root; generation; _ } =
     let open Result_syntax in
-    let path = Irmin_pack.Layout.V3.suffix ~root ~generation in
+    let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation in
     (* As the new suffix is necessarily in V3, the dead_header_size is
        0. *)
     let dead_header_size = 0 in
@@ -158,26 +158,26 @@ module Make (Args : Gc_args.S) = struct
       let open Result_syntax in
       (* Unlink previous suffix. *)
       let suffix =
-        Irmin_pack.Layout.V3.suffix ~root ~generation:(generation - 1)
+        Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:(generation - 1)
       in
       let* () = Io.unlink suffix in
       let* () =
         if generation >= 2 then
           (* Unlink previous prefix. *)
           let prefix =
-            Irmin_pack.Layout.V3.prefix ~root ~generation:(generation - 1)
+            Irmin_pack.Layout.V4.prefix ~root ~generation:(generation - 1)
           in
           let* () = Io.unlink prefix in
           (* Unlink previous mapping. *)
           let mapping =
-            Irmin_pack.Layout.V3.mapping ~root ~generation:(generation - 1)
+            Irmin_pack.Layout.V4.mapping ~root ~generation:(generation - 1)
           in
           let* () = Io.unlink mapping in
           Ok ()
         else Ok ()
       in
       (* Unlink current gc's result.*)
-      let result = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+      let result = Irmin_pack.Layout.V4.gc_result ~root ~generation in
       Io.unlink result
     in
     match result with
@@ -204,7 +204,7 @@ module Make (Args : Gc_args.S) = struct
   let read_gc_output ~root ~generation =
     let open Result_syntax in
     let read_file () =
-      let path = Irmin_pack.Layout.V3.gc_result ~root ~generation in
+      let path = Irmin_pack.Layout.V4.gc_result ~root ~generation in
       let* io = Io.open_ ~path ~readonly:true in
       let* len = Io.read_size io in
       let len = Int63.to_int len in
