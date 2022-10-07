@@ -16,7 +16,7 @@
 
 open! Import
 
-module type Args = sig
+module type S = sig
   module Fm : File_manager.S with module Io = Io.Unix
   module Async : Async.S
   module Dict : Dict.S with module Fm = Fm
@@ -76,46 +76,4 @@ module type Args = sig
        and type dict = Dict.t
        and type dispatcher = Dispatcher.t
        and type hash = hash
-end
-
-module type S = sig
-  type t
-  (** A running GC process. *)
-
-  module Args : Args
-
-  val v :
-    root:string ->
-    generation:int ->
-    unlink:bool ->
-    offset:int63 ->
-    dispatcher:Args.Dispatcher.t ->
-    fm:Args.Fm.t ->
-    contents:read Args.Contents_store.t ->
-    node:read Args.Node_store.t ->
-    commit:read Args.Commit_store.t ->
-    Args.key ->
-    t
-  (** Creates and starts a new GC process. *)
-
-  val finalise :
-    wait:bool ->
-    t ->
-    ([> `Running | `Finalised of Stats.Latest_gc.stats ], Args.Errs.t) result
-    Lwt.t
-  (** [finalise ~wait t] returns the state of the GC process.
-
-      If [wait = true], the call will block until GC finishes. *)
-
-  val on_finalise :
-    t -> ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit Lwt.t) -> unit
-  (** Attaches a callback to the GC process, which will be called when the GC
-      finalises. *)
-
-  val cancel : t -> bool
-end
-
-module type Sigs = sig
-  module type Args = Args
-  module type S = S
 end
