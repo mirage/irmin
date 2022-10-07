@@ -50,6 +50,30 @@ module V3 = struct
     [ suffix ~generation ~root; branch ~root; dict ~root; control ~root ]
 end
 
+module V4 = struct
+  let branch = toplevel "store.branches"
+  let dict = toplevel "store.dict"
+  let control = toplevel "store.control"
+
+  let suffix_chunk ~chunk_idx =
+    toplevel ("store." ^ string_of_int chunk_idx ^ ".suffix")
+
+  let gc_result ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".out")
+
+  let reachable ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".reachable")
+
+  let sorted ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".sorted")
+
+  let mapping ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".mapping")
+
+  let prefix ~generation =
+    toplevel ("store." ^ string_of_int generation ^ ".prefix")
+end
+
 (** [is_number] is a less generic than [Stdlib.int_of_string_opt]. It matches
     this equivalent regex: {v "([1-9][0-9]*|0)" v}. *)
 let is_number s =
