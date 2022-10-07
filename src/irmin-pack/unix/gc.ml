@@ -323,22 +323,12 @@ end
 module Worker = struct
   module Payload = Control_file.Latest_payload
 
-  let buffer_size = 8192
-
   exception Pack_error = Errors.Pack_error
 
   module type S = sig
     module Args : Args
 
     val run_and_output_result : generation:int -> string -> Args.key -> unit
-
-    val transfer_append_exn :
-      dispatcher:Args.Dispatcher.t ->
-      append_exn:(string -> unit) ->
-      off:int63 ->
-      len:int63 ->
-      bytes ->
-      unit
 
     type gc_output = (Stats.Latest_gc.worker, Args.Errs.t) result
     [@@deriving irmin]
@@ -369,25 +359,6 @@ module Worker = struct
     module Table = Hashtbl.Make (X)
 
     let string_of_key = Irmin.Type.to_string key_t
-
-    let transfer_append_exn ~dispatcher ~append_exn ~(off : int63)
-        ~(len : int63) buffer =
-      let read_exn = Dispatcher.read_in_prefix_and_suffix_exn dispatcher in
-      let buffer_size = Bytes.length buffer |> Int63.of_int in
-      let rec aux off len_remaining =
-        let open Int63.Syntax in
-        let min a b = if a < b then a else b in
-        let len = min buffer_size len_remaining in
-        let len' = Int63.to_int len in
-        read_exn ~off ~len:len' buffer;
-        let () =
-          if len = buffer_size then append_exn (Bytes.to_string buffer)
-          else append_exn (Bytes.sub_string buffer 0 len')
-        in
-        let len_remaining = len_remaining - len in
-        if len_remaining > Int63.zero then aux (off + len) len_remaining
-      in
-      aux off len
 
     (** [iter_from_node_key node_key _ _ ~f] calls [f] with the key of the node
         and iterates over its children.
@@ -567,12 +538,11 @@ module Worker = struct
           (* Step 5. Transfer to the new prefix, flush and close. *)
           [%log.debug "GC: transfering to the new prefix"];
           stats := Worker_stats.finish_current_step !stats "prefix: transfer";
-          let buffer = Bytes.create buffer_size in
           (* Step 5.1. Transfer all. *)
           let append_exn = Ao.append_exn prefix in
           let f ~off ~len =
             let len = Int63.of_int len in
-            transfer_append_exn ~dispatcher ~append_exn ~off ~len buffer
+            Dispatcher.read_bytes_exn dispatcher ~f:append_exn ~off ~len
           in
           let () = Mapping_file.iter_exn mapping f in
           Ao.flush prefix |> Errs.raise_if_error
@@ -606,7 +576,6 @@ module Worker = struct
       (* Step 6. Create the new suffix and prepare 2 functions for read and write
          operations. *)
       stats := Worker_stats.finish_current_step !stats "suffix: start";
-      let buffer = Bytes.create buffer_size in
       [%log.debug "GC: creating new suffix"];
       let suffix = create_new_suffix ~root ~generation in
       Errors.finalise_exn (fun _outcome ->
@@ -615,7 +584,6 @@ module Worker = struct
           |> Errs.log_if_error "GC: Close suffix")
       @@ fun () ->
       let append_exn = Ao.append_exn suffix in
-      let transfer_exn = transfer_append_exn ~dispatcher ~append_exn buffer in
 
       (* Step 7. Transfer to the next suffix. *)
       [%log.debug "GC: transfering to the new suffix"];
@@ -637,7 +605,9 @@ module Worker = struct
               (num_iterations - i + 1)
               Int63.pp off Int63.pp len];
           stats := Worker_stats.add_suffix_transfer !stats len;
-          let () = transfer_exn ~off ~len in
+          let () =
+            Dispatcher.read_bytes_exn dispatcher ~f:append_exn ~off ~len
+          in
           (* Check how many bytes are left, [4096*5] is selected because it is roughly the
              number of bytes that requires a read from the block device on ext4 *)
           if Int63.to_int len < 4096 * 5 then end_offset
@@ -788,13 +758,12 @@ module Make (Args : Args) = struct
         Ao.close new_suffix
         |> Errs.log_if_error "GC: Close suffix after copy latest newies")
     @@ fun () ->
-    let buffer = Bytes.create 8192 in
     let append_exn = Ao.append_exn new_suffix in
     let flush_and_raise () = Ao.flush new_suffix |> Errs.raise_if_error in
     let* () =
       Errs.catch (fun () ->
-          Worker.transfer_append_exn ~dispatcher:t.dispatcher ~append_exn
-            ~off:new_suffix_end_offset ~len:remaining buffer;
+          Dispatcher.read_bytes_exn t.dispatcher ~f:append_exn
+            ~off:new_suffix_end_offset ~len:remaining;
           flush_and_raise ())
     in
     Ok old_suffix_end_offset
