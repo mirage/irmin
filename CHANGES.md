@@ -1,3 +1,15 @@
+## Unreleased
+
+### Added
+
+- **irmin-pack**
+  - Add `Irmin_pack_unix.Stats.Latest_gc` which is now the parameter of GC's
+    `finished` callback (#2089, @Ngoguey42)
+
+### Changed
+
+### Fixed
+
 ## 3.4.2 (2022-10-06)
 
 ### Added
