@@ -15,5 +15,7 @@
  *)
 
 let () =
+  Eio_main.run @@ fun env ->
+  Irmin_fs.run env#fs @@ fun () ->
   Irmin_test.Store.run "irmin-fs" ~slow:true ~misc:[] ~sleep:Eio_unix.sleep
        [ (`Quick, Test_fs.suite) ]

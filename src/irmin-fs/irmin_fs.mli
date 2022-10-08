@@ -33,12 +33,12 @@ val config : string -> Irmin.config
 module type IO = sig
   (** {1 File-system abstractions} *)
 
-  type path = string
+  type path = Eio.Fs.dir Eio.Path.t
   (** The type for paths. *)
 
   (** {2 Read operations} *)
 
-  val rec_files : path -> string list
+  val rec_files : path -> path list
   (** [rec_files dir] is the list of files recursively present in [dir] and all
       of its sub-directories. Return filenames prefixed by [dir]. *)
 
@@ -63,7 +63,7 @@ module type IO = sig
   (** Atomic writes. *)
 
   val test_and_set_file :
-    ?temp_dir:string ->
+    ?temp_dir:path ->
     lock:lock ->
     path ->
     test:string option ->
@@ -83,9 +83,10 @@ module KV (IO : IO) : Irmin.KV_maker with type info = Irmin.Info.default
 (** {2 Advanced configuration} *)
 
 module type Config = sig
+  open Eio
   (** Same as [Config] but gives more control on the file hierarchy. *)
 
-  val dir : string -> string
+  val dir : Fs.dir Path.t -> Fs.dir Path.t
   (** [dir root] is the sub-directory to look for the keys. *)
 
   val file_of_key : string -> string
@@ -107,3 +108,5 @@ module IO_mem : sig
   val clear : unit -> unit
   val set_listen_hook : unit -> unit
 end
+
+val run : Eio.Fs.dir Eio.Path.t -> (unit -> 'a) -> 'a 
