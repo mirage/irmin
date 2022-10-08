@@ -23,55 +23,55 @@ let path = [ "tmp"; "blob" ]
 let config () = B.Store.Repo.v (Irmin_mem.config ())
 let merge_into_exn = merge_into_exn (module B.Store)
 
-let test_empty_read _ () =
-  config ()
-  >>= B.Store.main
-  >>= B.read_all ~path
-  >|= Alcotest.(check (list string)) "checked - reading empty log" []
+let test_empty_read () =
+  let config = config () in
+  let main = B.Store.main config in
+  B.read_all ~path main
+  |> Alcotest.(check (list string)) "checked - reading empty log" []
 
-let test_append _ () =
-  let* t = config () >>= B.Store.main in
-  B.append ~path t "main.1" >>= fun () ->
-  B.append ~path t "main.2" >>= fun () ->
+let test_append () =
+  let t = config () |> B.Store.main in
+  B.append ~path t "main.1";
+  B.append ~path t "main.2";
   B.read_all ~path t
-  >|= Alcotest.(check (list string))
+  |> Alcotest.(check (list string))
         "checked - log after appending" [ "main.2"; "main.1" ]
 
-let test_clone_merge _ () =
-  let* t = config () >>= B.Store.main in
-  let* b = B.Store.clone ~src:t ~dst:"cl" in
-  B.append ~path b "clone.1" >>= fun () ->
-  B.append ~path t "main.3" >>= fun () ->
-  merge_into_exn b ~into:t >>= fun () ->
+let test_clone_merge () =
+  let t = config () |> B.Store.main in
+  let b = B.Store.clone ~src:t ~dst:"cl" in
+  B.append ~path b "clone.1";
+  B.append ~path t "main.3";
+  merge_into_exn b ~into:t;
   B.read_all ~path t
-  >|= Alcotest.(check (list string))
+  |> Alcotest.(check (list string))
         "checked - log after appending"
         [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
-let test_branch_merge _ () =
-  let* r = config () in
-  let* b1 = B.Store.of_branch r "b1" in
-  let* b2 = B.Store.of_branch r "b2" in
-  let* b3 = B.Store.of_branch r "b3" in
-  let* b4 = B.Store.of_branch r "b4" in
-  B.append ~path b1 "b1.1" >>= fun () ->
-  B.append ~path b2 "b2.1" >>= fun () ->
-  B.append ~path b1 "b1.2" >>= fun () ->
-  B.append ~path b1 "b1.3" >>= fun () ->
-  B.append ~path b2 "b2.2" >>= fun () ->
-  B.append ~path b1 "b1.4" >>= fun () ->
-  merge_into_exn b1 ~into:b3 >>= fun () ->
-  merge_into_exn b2 ~into:b3 >>= fun () ->
-  merge_into_exn b2 ~into:b4 >>= fun () ->
-  merge_into_exn b1 ~into:b4 >>= fun () ->
-  let* () =
+let test_branch_merge () =
+  let r = config () in
+  let b1 = B.Store.of_branch r "b1" in
+  let b2 = B.Store.of_branch r "b2" in
+  let b3 = B.Store.of_branch r "b3" in
+  let b4 = B.Store.of_branch r "b4" in
+  B.append ~path b1 "b1.1";
+  B.append ~path b2 "b2.1";
+  B.append ~path b1 "b1.2";
+  B.append ~path b1 "b1.3";
+  B.append ~path b2 "b2.2";
+  B.append ~path b1 "b1.4";
+  merge_into_exn b1 ~into:b3;
+  merge_into_exn b2 ~into:b3;
+  merge_into_exn b2 ~into:b4;
+  merge_into_exn b1 ~into:b4;
+  let () =
     B.read_all ~path b3
-    >|= Alcotest.(check (list string))
+    |> Alcotest.(check (list string))
           "checked - value of b3"
           [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
   in
   B.read_all ~path b4
-  >|= Alcotest.(check (list string))
+  |> Alcotest.(check (list string))
         "checked - value of b4"
         [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
 
@@ -79,12 +79,12 @@ let test_cases =
   [
     ( "blob_log",
       [
-        Alcotest_lwt.test_case "Read empty log" `Quick test_empty_read;
-        Alcotest_lwt.test_case "Append" `Quick test_append;
+        Alcotest.test_case "Read empty log" `Quick test_empty_read;
+        Alcotest.test_case "Append" `Quick test_append;
       ] );
     ( "blob_log store",
       [
-        Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
-        Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
+        Alcotest.test_case "Clone and merge" `Quick test_clone_merge;
+        Alcotest.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
