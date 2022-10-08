@@ -15,37 +15,38 @@
  *)
 
 open! Import
+open Eio
 open Astring
 
 let src = Logs.Src.create "irmin.fs" ~doc:"Irmin disk persistence"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let ( / ) = Filename.concat
+let ( / ) = Path.( / )
 
 module type Config = sig
-  val dir : string -> string
+  val dir : Fs.dir Path.t -> Fs.dir Path.t
   val file_of_key : string -> string
   val key_of_file : string -> string
 end
 
 module type IO = sig
-  type path = string
+  type path = Fs.dir Path.t
 
-  val rec_files : path -> string list
+  val rec_files : path -> path list
   val file_exists : path -> bool
   val read_file : path -> string option
   val mkdir : path -> unit
 
   type lock
 
-  val lock_file : string -> lock
+  val lock_file : path -> lock
   val write_file : ?temp_dir:path -> ?lock:lock -> path -> string -> unit
 
   val test_and_set_file :
     ?temp_dir:path ->
     lock:lock ->
-    string ->
+    path ->
     test:string option ->
     set:string option ->
     bool
@@ -75,12 +76,14 @@ module Read_only_ext
 struct
   type key = K.t
   type value = V.t
-  type 'a t = { path : string }
+  type 'a t = { path : Fs.dir Path.t }
 
   let get_path config = Option.value Conf.(find_root config) ~default:"."
 
   let v config =
-    let path = get_path config in
+    let fs = Irmin.Backend.Conf.Env.fs () in
+    let path = Path.(fs / get_path config) in
+    Eio.traceln "%a" Path.pp path;
     IO.mkdir path;
     { path }
 
@@ -119,9 +122,9 @@ struct
     [%log.debug "list"];
     let files = IO.rec_files (S.dir t.path) in
     let files =
-      let p = String.length t.path in
+      let p = String.length (snd t.path) in
       List.fold_left
-        (fun acc file ->
+        (fun acc (_, file) ->
           let n = String.length file in
           if n <= p + 1 then acc
           else
@@ -215,7 +218,7 @@ struct
           [%log.err "listen_dir: %s" e];
           None
     in
-    W.listen_dir t.w dir ~key ~value:(RO.find t.t)
+    W.listen_dir t.w (snd dir) ~key ~value:(RO.find t.t)
 
   let watch_key t key ?init f =
     let stop = listen_dir t in
@@ -291,10 +294,10 @@ module Ref = struct
       if Sys.os_type <> "Win32" then key
       else String.concat ~sep:Filename.dir_sep (String.cuts ~sep:"/" key)
     in
-    "refs" / file
+    Filename.concat "refs" file
 
   let key_of_file file =
-    let key = string_chop_prefix ~prefix:("refs" / "") file in
+    let key = string_chop_prefix ~prefix:(Filename.concat "refs" "") file in
     if Sys.os_type <> "Win32" then key
     else String.concat ~sep:"/" (String.cuts ~sep:Filename.dir_sep key)
 end
@@ -305,9 +308,11 @@ module Obj = struct
   let file_of_key k =
     let pre = String.with_range k ~len:2 in
     let suf = String.with_range k ~first:2 in
+    let ( / ) = Filename.concat in 
     "objects" / pre / suf
 
   let key_of_file path =
+    let ( / ) = Filename.concat in 
     let path = string_chop_prefix ~prefix:("objects" / "") path in
     let path = String.cuts ~sep:Filename.dir_sep path in
     let path = String.concat ~sep:"" path in
@@ -328,17 +333,17 @@ end
 module IO_mem = struct
   type t = {
     watches : (string, string -> unit) Hashtbl.t;
-    files : (string, string) Hashtbl.t;
+    files : (Fs.dir Path.t, string) Hashtbl.t;
   }
 
   let t = { watches = Hashtbl.create 3; files = Hashtbl.create 13 }
 
-  type path = string
+  type path = Fs.dir Path.t
   type lock = Eio.Mutex.t
 
   let locks = Hashtbl.create 10
 
-  let lock_file file =
+  let lock_file (_, file) =
     try Hashtbl.find locks file
     with Not_found ->
       let l = Eio.Mutex.create () in
@@ -366,9 +371,9 @@ module IO_mem = struct
   let remove_file ?lock file =
     with_lock lock (fun () -> Hashtbl.remove t.files file)
 
-  let rec_files dir =
+  let rec_files (_, dir) =
     Hashtbl.fold
-      (fun k _ acc -> if String.is_prefix ~affix:dir k then k :: acc else acc)
+      (fun ((_, k) as v) _ acc -> if String.is_prefix ~affix:dir k then v :: acc else acc)
       t.files []
 
   let file_exists file = Hashtbl.mem t.files file
@@ -379,8 +384,8 @@ module IO_mem = struct
       Some buf
     with Not_found -> None
 
-  let write_file ?temp_dir:_ ?lock file v =
-    let () = with_lock lock (fun () -> Hashtbl.replace t.files file v) in
+  let write_file ?temp_dir:_ ?lock ((_, file) as f) v =
+    let () = with_lock lock (fun () -> Hashtbl.replace t.files f v) in
     notify file
 
   let equal x y =
@@ -403,7 +408,7 @@ module IO_mem = struct
               Hashtbl.replace t.files file v;
               true
       in
-      let () = if b then notify file in
+      let () = if b then notify (snd file) in
       b
     in
     with_lock (Some lock) f
@@ -418,3 +423,14 @@ module Maker_is_a_maker : Irmin.Maker = Maker (IO_mem)
 
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
 module KV_is_a_KV : Irmin.KV_maker = KV (IO_mem)
+
+let run (fs : Fs.dir Path.t) fn =
+  Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_watch_switch sw;
+  let open Effect.Deep in
+  try_with fn () {
+    effc = fun (type a) (e : a Effect.t) ->
+      match e with
+      | Irmin.Backend.Conf.Env.Fs -> Some (fun (k : (a, _) continuation) -> continue k fs)
+      | _ -> None
+  }

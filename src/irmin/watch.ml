@@ -61,7 +61,7 @@ let scheduler () =
           (s, Eio.Stream.add s)
         in
         incr workers_r;
-        let sw = Option.get !watch_switch in
+        let sw = try Option.get !watch_switch with _ -> failwith "Big Yikes" in
         (Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream);
         (* Lwt.async (fun () ->
             (* FIXME: we would like to skip some updates if more recent ones
