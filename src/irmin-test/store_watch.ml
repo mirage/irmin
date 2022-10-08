@@ -372,5 +372,6 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
         TODO: work out why, fix it, and re-enable it.
         See https://github.com/mirage/irmin/issues/1447. *)
     let _ = ("Basic operations", test_watches) in
-    [ ("Callbacks and exceptions", test_watch_exn) ]
+    let _ = [ ("Callbacks and exceptions", test_watch_exn) ] in 
+    []
 end

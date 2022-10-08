@@ -22,7 +22,7 @@ let key_t : Test_chunk.Key.t Alcotest.testable = (module Test_chunk.Key)
 let value_t : Test_chunk.Value.t Alcotest.testable = (module Test_chunk.Value)
 
 let run f () =
-  let+ () = f () in
+  let () = f () in
   flush stderr;
   flush stdout
 
@@ -31,19 +31,19 @@ let hash_contents x = hash ("B" ^ x)
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))
 
 let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
-  let* t = AO.v () in
+  let t = AO.v () in
   let test size =
     let name = Printf.sprintf "size %d" size in
     let v = String.make size 'x' in
-    let* k = AO.batch t (fun t -> AO.add t v) in
+    let k = AO.batch t (fun t -> AO.add t v) in
     (if stable then
      let str = value_to_bin v in
      Alcotest.(check key_t) (name ^ " is stable") k (hash_contents str));
-    let+ v' = AO.find t k in
+    let v' = AO.find t k in
     Alcotest.(check @@ option value_t) name (Some v) v'
   in
   let x = 40 in
-  Lwt_list.iter_s test
+  List.iter test
     [
       x - 1;
       x;
@@ -77,7 +77,7 @@ let stable =
     ] )
 
 let () =
-  Lwt_main.run
-  @@ Irmin_test.Store.run "irmin-chunk" ~slow:true ~misc:[ simple; stable ]
-       ~sleep:Lwt_unix.sleep
+  Eio_main.run @@ fun _env ->
+  Irmin_test.Store.run "irmin-chunk" ~slow:true ~misc:[ simple; stable ]
+       ~sleep:Eio_unix.sleep
        [ (`Quick, Test_chunk.suite) ]

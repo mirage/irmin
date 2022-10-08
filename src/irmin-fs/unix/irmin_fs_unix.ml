@@ -15,13 +15,14 @@
  *)
 
 include Irmin.Export_for_backends
+open Eio
 
 let src = Logs.Src.create "fs.unix" ~doc:"logs fs unix events"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 module IO = struct
-  let mkdir_pool = Lwt_pool.create 1 (fun () -> Lwt.return_unit)
+  let mkdir_pool = Eio_pool.create 1 (fun () -> ())
   let mmap_threshold = 4096
 
   (* Files smaller than this are loaded using [read].  Use of mmap is
@@ -34,77 +35,74 @@ module IO = struct
      reference. *)
 
   (* Pool of opened files *)
-  let openfile_pool = Lwt_pool.create 200 (fun () -> Lwt.return_unit)
+  let openfile_pool = Eio_pool.create 200 (fun () -> ())
 
   let protect_unix_exn = function
-    | Unix.Unix_error _ as e -> Lwt.fail (Failure (Printexc.to_string e))
-    | e -> Lwt.fail e
+    | Unix.Unix_error _ as e -> raise (Failure (Printexc.to_string e))
+    | e -> raise e
 
   let ignore_enoent = function
-    | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return_unit
-    | e -> Lwt.fail e
+    | Unix.Unix_error (Unix.ENOENT, _, _) -> ()
+    | e -> raise e
 
-  let protect f x = Lwt.catch (fun () -> f x) protect_unix_exn
-  let safe f x = Lwt.catch (fun () -> f x) ignore_enoent
+  let protect f x = try f x with exn -> protect_unix_exn exn
+  let safe f x = try f x with exn -> ignore_enoent exn
 
   let mkdir dirname =
-    let rec aux dir =
-      if Sys.file_exists dir && Sys.is_directory dir then Lwt.return_unit
-      else
-        let clear =
-          if Sys.file_exists dir then (
-            [%log.debug "%s already exists but is a file, removing." dir];
-            safe Lwt_unix.unlink dir)
-          else Lwt.return_unit
-        in
-        clear >>= fun () ->
-        aux (Filename.dirname dir) >>= fun () ->
-        [%log.debug "mkdir %s" dir];
-        protect (Lwt_unix.mkdir dir) 0o755
+    let rec aux ((_, path) as dir) =
+      if Sys.file_exists path && Sys.is_directory path then ()
+      else begin
+        if Sys.file_exists path then (
+          [%log.debug "%s already exists but is a file, removing." path];
+          safe Path.unlink dir);
+        let parent = (fst dir, Filename.dirname @@ snd dir) in
+        aux parent;
+        [%log.debug "mkdir %s" path];
+        protect (Path.mkdir ~perm:0o755) dir 
+    end
     in
-    Lwt_pool.use mkdir_pool (fun () -> aux dirname)
+    (* TODO: Pool *)
+    Eio_pool.use mkdir_pool (fun () -> aux dirname)
 
-  let file_exists f =
-    Lwt.catch
-      (fun () -> Lwt_unix.file_exists f)
-      (function
-        (* See https://github.com/ocsigen/lwt/issues/316 *)
-        | Unix.Unix_error (Unix.ENOTDIR, _, _) -> Lwt.return_false
-        | e -> Lwt.fail e)
+  let file_exists (_, f) =
+    try Sys.file_exists f with 
+      (* See https://github.com/ocsigen/lwt/issues/316 *)
+      | Unix.Unix_error (Unix.ENOTDIR, _, _) -> false
+      | e -> raise e
 
   module Lock = struct
     let is_stale max_age file =
-      Lwt.catch
-        (fun () ->
-          let+ s = Lwt_unix.stat file in
+      try
+          let s = Eio_unix.run_in_systhread (fun () -> Unix.stat file) in
           if s.Unix.st_mtime < 1.0 (* ??? *) then false
-          else Unix.gettimeofday () -. s.Unix.st_mtime > max_age)
-        (function
-          | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return_false
-          | e -> Lwt.fail e)
+          else Unix.gettimeofday () -. s.Unix.st_mtime > max_age
+    with
+          | Unix.Unix_error (Unix.ENOENT, _, _) -> false
+          | e -> raise e
 
-    let unlock file = Lwt_unix.unlink file
+    let unlock file = Path.unlink file
 
-    let lock ?(max_age = 10. *. 60. (* 10 minutes *)) ?(sleep = 0.001) file =
+    let lock ?(max_age = 10. *. 60. (* 10 minutes *)) ?(sleep = 0.001) ((_, file) as fcap) =
       let rec aux i =
         [%log.debug "lock %s %d" file i];
-        let* is_stale = is_stale max_age file in
+        let is_stale = is_stale max_age file in
         if is_stale then (
           [%log.err "%s is stale, removing it." file];
-          unlock file >>= fun () -> aux 1)
+          unlock fcap;
+          aux 1)
         else
           let create () =
             let pid = Unix.getpid () in
-            mkdir (Filename.dirname file) >>= fun () ->
-            let* fd =
-              Lwt_unix.openfile file
-                [ Unix.O_CREAT; Unix.O_RDWR; Unix.O_EXCL ]
-                0o600
+            let parent = (fst fcap, Filename.dirname file) in
+            mkdir parent;
+            Switch.run @@ fun sw ->
+            let flow =
+              Path.open_out ~sw fcap
+                ~create:(`If_missing 0o600)
             in
-            let oc = Lwt_io.of_fd ~mode:Lwt_io.Output fd in
-            Lwt_io.write_int oc pid >>= fun () -> Lwt_unix.close fd
+            Flow.copy_string (string_of_int pid) flow
           in
-          Lwt.catch create (function
+          try create () with
             | Unix.Unix_error (Unix.EEXIST, _, _) ->
                 let backoff =
                   1.
@@ -112,18 +110,18 @@ module IO = struct
                        (let i = float i in
                         i *. i)
                 in
-                Lwt_unix.sleep (sleep *. backoff) >>= fun () -> aux (i + 1)
-            | e -> Lwt.fail e)
+                Eio_unix.sleep (sleep *. backoff); aux (i + 1)
+            | e -> raise e
       in
       aux 1
 
     let with_lock file fn =
       match file with
       | None -> fn ()
-      | Some f -> lock f >>= fun () -> Lwt.finalize fn (fun () -> unlock f)
+      | Some f -> lock f; Fun.protect fn ~finally:(fun () -> unlock f)
   end
 
-  type path = string
+  type path = Eio.Fs.dir Eio.Path.t
 
   (* we use file locking *)
   type lock = path
@@ -131,172 +129,141 @@ module IO = struct
   let lock_file x = x
   let file_exists = file_exists
 
-  let list_files kind dir =
+  let list_files kind ((_, dir) as v) =
     if Sys.file_exists dir && Sys.is_directory dir then
-      let d = Sys.readdir dir in
-      let d = Array.to_list d in
-      let d = List.map (Filename.concat dir) d in
-      let d = List.filter kind d in
+      let d = Path.read_dir v in
       let d = List.sort String.compare d in
-      Lwt.return d
-    else Lwt.return_nil
+      let d = List.map (Path.(/) v) d in
+      let d = List.filter kind d in
+      d
+    else []
 
   let directories dir =
-    list_files (fun f -> try Sys.is_directory f with Sys_error _ -> false) dir
+    list_files (fun (_, f) -> try Sys.is_directory f with Sys_error _ -> false) dir
 
   let files dir =
     list_files
-      (fun f -> try not (Sys.is_directory f) with Sys_error _ -> false)
+      (fun (_, f) -> try not (Sys.is_directory f) with Sys_error _ -> false)
       dir
 
   let write_string fd b =
-    let rec rwrite fd buf ofs len =
-      let* n = Lwt_unix.write_string fd buf ofs len in
-      if len = 0 then Lwt.fail End_of_file
-      else if n < len then rwrite fd buf (ofs + n) (len - n)
-      else Lwt.return_unit
-    in
-    match String.length b with 0 -> Lwt.return_unit | len -> rwrite fd b 0 len
+    match String.length b with 0 -> () | _len -> Flow.copy_string b fd
 
-  let delays = Array.init 20 (fun i -> 0.1 *. (float i ** 2.))
+  let _delays = Array.init 20 (fun i -> 0.1 *. (float i ** 2.))
 
   let command fmt =
     Printf.ksprintf
       (fun str ->
         [%log.debug "[exec] %s" str];
         let i = Sys.command str in
-        if i <> 0 then [%log.debug "[exec] error %d" i];
-        Lwt.return_unit)
+        if i <> 0 then [%log.debug "[exec] error %d" i])
       fmt
 
   let remove_dir dir =
     if Sys.os_type = "Win32" then command "cmd /d /v:off /c rd /s /q %S" dir
     else command "rm -rf %S" dir
 
-  let remove_file ?lock file =
+  let remove_file ?lock ((_, file) as f) =
     Lock.with_lock lock (fun () ->
-        Lwt.catch
-          (fun () -> Lwt_unix.unlink file)
-          (function
+        try Path.unlink f with
             (* On Windows, [EACCES] can also occur in an attempt to
                rename a file or directory or to remove an existing
                directory. *)
             | Unix.Unix_error (Unix.EACCES, _, _)
             | Unix.Unix_error (Unix.EISDIR, _, _) ->
                 remove_dir file
-            | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return_unit
-            | e -> Lwt.fail e))
+            | Unix.Unix_error (Unix.ENOENT, _, _) | Fs.Not_found _ -> ()
+            | e -> raise e)
 
-  let rename =
-    if Sys.os_type <> "Win32" then Lwt_unix.rename
-    else fun tmp file ->
-      let rec aux i =
-        Lwt.catch
-          (fun () -> Lwt_unix.rename tmp file)
-          (function
-            (* On Windows, [EACCES] can also occur in an attempt to
-                 rename a file or directory or to remove an existing
-                 directory. *)
-            | Unix.Unix_error (Unix.EACCES, _, _) as e ->
-                if i >= Array.length delays then Lwt.fail e
-                else
-                  let* exists = file_exists file in
-                  if exists && Sys.is_directory file then
-                    remove_dir file >>= fun () -> aux (i + 1)
-                  else (
-                    [%log.debug "Got EACCES, retrying in %.1fs" delays.(i)];
-                    Lwt_unix.sleep delays.(i) >>= fun () -> aux (i + 1))
-            | e -> Lwt.fail e)
-      in
-      aux 0
+  let rename tmp file = Path.rename tmp file
 
   let with_write_file ?temp_dir file fn =
-    let* () =
-      match temp_dir with None -> Lwt.return_unit | Some d -> mkdir d
+    let () =
+      match temp_dir with None -> () | Some d -> mkdir d
     in
-    let dir = Filename.dirname file in
-    mkdir dir >>= fun () ->
-    let tmp = Filename.temp_file ?temp_dir (Filename.basename file) "write" in
-    Lwt_pool.use openfile_pool (fun () ->
-        [%log.debug "Writing %s (%s)" file tmp];
-        let* fd =
-          let open Lwt_unix in
-          openfile tmp [ O_WRONLY; O_NONBLOCK; O_CREAT; O_TRUNC ] 0o644
-        in
-        let* () =
-          Lwt.finalize (fun () -> protect fn fd) (fun () -> Lwt_unix.close fd)
-        in
-        rename tmp file)
+    let dir = (fst file, Filename.dirname @@ snd file) in
+    mkdir dir;
+    let temp_dir_path = Option.get temp_dir in
+    let temp_dir = snd temp_dir_path in
+    let file_f = snd file in
+    let tmp_f = Filename.temp_file ~temp_dir (Filename.basename file_f) "write" in
+    let tmp_name = Filename.basename tmp_f in
+    Eio_pool.use openfile_pool (fun () ->
+        [%log.debug "Writing %s (%s) %s %s" file_f tmp_f (snd temp_dir_path) (snd file)];
+        Path.(with_open_out ~create:(`If_missing 0o644) (temp_dir_path / tmp_name) fn);
+        rename Path.(temp_dir_path / tmp_name) file)
 
   let read_file_with_read file size =
-    let chunk_size = max 4096 (min size 0x100000) in
-    let buf = Bytes.create size in
-    let flags = [ Unix.O_RDONLY ] in
-    let perm = 0o0 in
-    let* fd = Lwt_unix.openfile file flags perm in
-    let rec aux off =
-      let read_size = min chunk_size (size - off) in
-      let* read = Lwt_unix.read fd buf off read_size in
-      let off = off + read in
-      if off >= size then Lwt.return (Bytes.unsafe_to_string buf) else aux off
-    in
-    Lwt.finalize (fun () -> aux 0) (fun () -> Lwt_unix.close fd)
+    (* let chunk_size = max 4096 (min size 0x100000) in *)
+    let buf = Cstruct.create size in
+    (* let flags = [ Unix.O_RDONLY ] in
+    let perm = 0o0 in *)
+    (* let* fd = Lwt_unix.openfile file flags perm in *)
+    Path.with_open_in file @@ fun flow ->
+    try
+      Flow.read_exact flow buf;
+      Cstruct.to_string buf
+    with End_of_file -> Cstruct.to_string buf
 
   let read_file_with_mmap file =
+    let open Bigarray in
     let fd = Unix.(openfile file [ O_RDONLY; O_NONBLOCK ] 0o644) in
-    let ba = Lwt_bytes.map_file ~fd ~shared:false () in
+    let ba = 
+      Unix.map_file fd char c_layout false [| -1 |]
+      |> Bigarray.array1_of_genarray
+    in
     Unix.close fd;
 
     (* XXX(samoht): ideally we should not do a copy here. *)
-    Lwt.return (Lwt_bytes.to_string ba)
+    (Bigstringaf.to_string ba)
 
   let read_file file =
-    Lwt.catch
-      (fun () ->
-        Lwt_pool.use openfile_pool (fun () ->
-            [%log.debug "Reading %s" file];
-            let* stats = Lwt_unix.stat file in
-            let size = stats.Lwt_unix.st_size in
-            let+ buf =
-              if size >= mmap_threshold then read_file_with_mmap file
+    let file_f = snd file in
+    try
+        Eio_pool.use openfile_pool (fun () ->
+            [%log.debug "Reading %s" file_f];
+            let stats = Unix.stat file_f in
+            let size = stats.Unix.st_size in
+            let buf =
+              if size >= mmap_threshold then read_file_with_mmap file_f
               else read_file_with_read file size
             in
-            Some buf))
-      (function
-        | Unix.Unix_error _ | Sys_error _ -> Lwt.return_none | e -> Lwt.fail e)
+            Some buf)
+      with
+        | Unix.Unix_error _ | Sys_error _ -> None | e -> raise e
 
   let write_file ?temp_dir ?lock file b =
     let write () =
       with_write_file file ?temp_dir (fun fd -> write_string fd b)
     in
     Lock.with_lock lock (fun () ->
-        Lwt.catch write (function
-          | Unix.Unix_error (Unix.EISDIR, _, _) -> remove_dir file >>= write
-          | e -> Lwt.fail e))
+        try write () with
+          | Unix.Unix_error (Unix.EISDIR, _, _) -> remove_dir (snd file); write ()
+          | e -> raise e)
 
   let test_and_set_file ?temp_dir ~lock file ~test ~set =
     Lock.with_lock (Some lock) (fun () ->
-        let* v = read_file file in
+        let v = read_file file in
         let equal =
           match (test, v) with
           | None, None -> true
-          | Some x, Some y -> String.equal x y
+          | Some x, Some y -> x = y (* TODO *)
           | _ -> false
         in
-        if not equal then Lwt.return_false
+        if not equal then false
         else
-          let+ () =
+          let () =
             match set with
             | None -> remove_file file
             | Some v -> write_file ?temp_dir file v
           in
           true)
 
-  let rec_files dir =
+  let rec_files dir : Fs.dir Path.t list =
     let rec aux accu dir =
-      let* ds = directories dir in
-      let* fs = files dir in
-      Lwt_list.fold_left_s aux (fs @ accu) ds
+      let ds = directories dir in
+      let fs = files dir in
+      List.fold_left aux (fs @ accu) ds
     in
     aux [] dir
 end
