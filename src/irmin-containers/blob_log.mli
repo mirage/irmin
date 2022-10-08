@@ -33,10 +33,10 @@ module type S = sig
   type value
   (** Type of log entry *)
 
-  val append : path:Store.path -> Store.t -> value -> unit Lwt.t
+  val append : path:Store.path -> Store.t -> value -> unit
   (** Append an entry to the log *)
 
-  val read_all : path:Store.path -> Store.t -> value list Lwt.t
+  val read_all : path:Store.path -> Store.t -> value list
   (** Read the entire log *)
 end
 
