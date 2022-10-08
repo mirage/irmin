@@ -11,12 +11,12 @@
 (executable
  (name test)
  (modules test)
- (libraries alcotest lwt.unix irmin irmin-test test_fs))
+ (libraries alcotest eio_main irmin irmin-test test_fs))
 
 (executable
  (name test_unix)
  (modules test_unix)
- (libraries alcotest irmin irmin-test test_fs_unix))
+ (libraries alcotest eio_main irmin irmin-test test_fs_unix))
 
 (rule
  (alias runtest)

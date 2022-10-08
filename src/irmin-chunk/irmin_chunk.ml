@@ -147,16 +147,16 @@ struct
     let find_leaves t root =
       let rec aux acc { Chunk.v; _ } =
         match v with
-        | Chunk.Data d -> Lwt.return (d :: acc)
+        | Chunk.Data d -> d :: acc
         | Chunk.Index i ->
-            Lwt_list.fold_left_s
+            List.fold_left
               (fun acc key ->
-                CA.find t.db key >>= function
-                | None -> Lwt.return acc
+                match CA.find t.db key with
+                | None -> acc
                 | Some v -> aux acc v)
               acc i
       in
-      aux [] root >|= List.rev
+      aux [] root |> List.rev
 
     (* partition a list into a list of elements of at most size [n] *)
     let list_partition n l =
@@ -171,15 +171,15 @@ struct
     let add t ~key l =
       let rec aux = function
         | [] -> invalid_arg "Irmin_chunk.Tree.add"
-        | [ k ] -> Lwt.return k
+        | [ k ] -> k
         | l -> (
             let n =
               if List.length l >= t.max_children then t.max_children
               else List.length l
             in
             match list_partition n l with
-            | [ i ] -> AO.add t.db key (index t i) >|= fun () -> key
-            | l -> Lwt_list.map_p (fun i -> CA.add t.db (index t i)) l >>= aux)
+            | [ i ] -> AO.add t.db key (index t i); key
+            | l -> Fiber.map (fun i -> CA.add t.db (index t i)) l |> aux)
       in
       aux l
   end
@@ -197,32 +197,32 @@ struct
     [%log.debug
       "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
         chunk_size H.hash_size max_data max_children];
-    let+ db = CA.v config in
+    let db = CA.v config in
     { chunking; db; chunk_size; max_children; max_data }
 
-  let close _ = Lwt.return_unit
+  let close _ = ()
   let batch t f = CA.batch t.db (fun db -> f { t with db })
 
   let find_leaves t key =
-    AO.find t.db key >>= function
-    | None -> Lwt.return_none (* shallow objects *)
-    | Some x -> Tree.find_leaves t x >|= Option.some
+    match AO.find t.db key with
+    | None -> None (* shallow objects *)
+    | Some x -> Tree.find_leaves t x |> Option.some
 
   let check_hash k v =
     let k' = H.hash (pre_hash_value v) in
-    if equal_key k k' then Lwt.return_unit
+    if equal_key k k' then ()
     else
-      Fmt.kstr Lwt.fail_invalid_arg "corrupted value: got %a, expecting %a"
+      Fmt.kstr failwith "corrupted value: got %a, expecting %a"
         pp_key k' pp_key k
 
   let find t key =
-    find_leaves t key >>= function
-    | None -> Lwt.return_none
+    match find_leaves t key with
+    | None -> None
     | Some bufs -> (
         let buf = String.concat "" bufs in
         match value_of_bin_string buf with
-        | Ok va -> check_hash key va >|= fun () -> Some va
-        | Error _ -> Lwt.return_none)
+        | Ok va -> check_hash key va; Some va
+        | Error _ -> None)
 
   let list_range ~init ~stop ~step =
     let rec aux acc n =
@@ -232,9 +232,10 @@ struct
 
   let unsafe_add_buffer t key buf =
     let len = String.length buf in
-    if len <= t.max_data then
-      AO.add t.db key (data t buf) >|= fun () ->
+    if len <= t.max_data then begin
+      AO.add t.db key (data t buf);
       [%log.debug "add -> %a (no split)" pp_key key]
+    end
     else
       let offs = list_range ~init:0 ~stop:len ~step:t.max_data in
       let aux off =
@@ -242,13 +243,13 @@ struct
         let payload = String.sub buf off len in
         CA.add t.db (data t payload)
       in
-      let+ k = Lwt_list.map_s aux offs >>= Tree.add ~key t in
+      let k = List.map aux offs |> Tree.add ~key t in
       [%log.debug "add -> %a (split)" pp_key k]
 
   let add t v =
     let buf = value_to_bin_string v in
     let key = H.hash (pre_hash_value v) in
-    let+ () = unsafe_add_buffer t key buf in
+    let () = unsafe_add_buffer t key buf in
     key
 
   let unsafe_add t key v =
