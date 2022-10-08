@@ -1,6 +1,6 @@
 (executable
  (name test)
- (libraries alcotest alcotest-lwt irmin-containers))
+ (libraries alcotest eio_main irmin-containers))
 
 (rule
  (alias runtest)
