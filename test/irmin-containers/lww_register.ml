@@ -30,67 +30,67 @@ let merge_into_exn = merge_into_exn (module L.Store)
 let path = [ "tmp"; "lww" ]
 let config () = L.Store.Repo.v (Irmin_mem.config ())
 
-let test_empty_read _ () =
+let test_empty_read () =
   config ()
-  >>= L.Store.main
-  >>= L.read ~path
-  >|= Alcotest.(check (option int))
+  |> L.Store.main
+  |> L.read ~path
+  |> Alcotest.(check (option int))
         "checked - reading register without writing" None
 
-let test_write _ () =
-  let* t = config () >>= L.Store.main in
-  L.write ~path t 1 >>= fun () ->
-  L.write ~path t 3 >>= fun () ->
+let test_write () =
+  let t = config () |> L.Store.main in
+  L.write ~path t 1;
+  L.write ~path t 3;
   L.read ~path t
-  >|= Alcotest.(check (option int)) "checked - writing to register" (Some 3)
+  |> Alcotest.(check (option int)) "checked - writing to register" (Some 3)
 
-let test_clone_merge _ () =
-  let* t = config () >>= L.Store.main in
-  let* b = L.Store.clone ~src:t ~dst:"cl" in
-  L.write ~path t 5 >>= fun () ->
-  L.write ~path b 10 >>= fun () ->
-  let* () =
+let test_clone_merge () =
+  let t = config () |> L.Store.main in
+  let b = L.Store.clone ~src:t ~dst:"cl" in
+  L.write ~path t 5;
+  L.write ~path b 10;
+  let () =
     L.read ~path t
-    >|= Alcotest.(check (option int)) "checked - value of main" (Some 5)
+    |> Alcotest.(check (option int)) "checked - value of main" (Some 5)
   in
-  let* () =
+  let () =
     L.read ~path b
-    >|= Alcotest.(check (option int)) "checked - value of clone" (Some 10)
+    |> Alcotest.(check (option int)) "checked - value of clone" (Some 10)
   in
-  merge_into_exn b ~into:t >>= fun () ->
+  merge_into_exn b ~into:t;
   L.read ~path t
-  >|= Alcotest.(check (option int))
+  |> Alcotest.(check (option int))
         "checked - value of main after merging" (Some 10)
 
-let test_branch_merge _ () =
-  let* r = config () in
-  let* b1 = L.Store.of_branch r "b1" in
-  let* b2 = L.Store.of_branch r "b2" in
-  let* b3 = L.Store.of_branch r "b3" in
-  let* b4 = L.Store.of_branch r "b4" in
-  L.write ~path b1 6 >>= fun () ->
-  L.write ~path b2 3 >>= fun () ->
-  merge_into_exn b1 ~into:b3 >>= fun () ->
-  merge_into_exn b2 ~into:b3 >>= fun () ->
-  merge_into_exn b2 ~into:b4 >>= fun () ->
-  merge_into_exn b1 ~into:b4 >>= fun () ->
-  let* () =
+let test_branch_merge () =
+  let r = config () in
+  let b1 = L.Store.of_branch r "b1" in
+  let b2 = L.Store.of_branch r "b2" in
+  let b3 = L.Store.of_branch r "b3" in
+  let b4 = L.Store.of_branch r "b4" in
+  L.write ~path b1 6;
+  L.write ~path b2 3;
+  merge_into_exn b1 ~into:b3;
+  merge_into_exn b2 ~into:b3;
+  merge_into_exn b2 ~into:b4;
+  merge_into_exn b1 ~into:b4;
+  let () =
     L.read ~path b3
-    >|= Alcotest.(check (option int)) "checked - value of b3" (Some 3)
+    |> Alcotest.(check (option int)) "checked - value of b3" (Some 3)
   in
   L.read ~path b4
-  >|= Alcotest.(check (option int)) "checked - value of b4" (Some 3)
+  |> Alcotest.(check (option int)) "checked - value of b4" (Some 3)
 
 let test_cases =
   [
     ( "lww_register",
       [
-        Alcotest_lwt.test_case "Read" `Quick test_empty_read;
-        Alcotest_lwt.test_case "Write" `Quick test_write;
+        Alcotest.test_case "Read" `Quick test_empty_read;
+        Alcotest.test_case "Write" `Quick test_write;
       ] );
     ( "lww_register store",
       [
-        Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
-        Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
+        Alcotest.test_case "Clone and merge" `Quick test_clone_merge;
+        Alcotest.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
