@@ -2,11 +2,23 @@
 
 ### Added
 
+- **irmin-pack**
+  - Add `Irmin_pack_unix.Stats.Latest_gc` which is now the parameter of GC's
+    `finished` callback (#2089, @Ngoguey42)
+
+### Changed
+
+### Fixed
+
+## 3.4.2 (2022-10-06)
+
+### Added
+
 - **irmin**
-  - Add `test_set_and_get*` functions to retrieve commit associated with an update to the store (#2075, @patricoferris)
+  - Add `test_set_and_get*` functions to retrieve commit associated with an update to the store (#2074, @patricoferris)
 
 - **irmin-graphql**
-  -  Expose `test_set_and_get` function as a new mutation (#2075, @patricoferris)
+  -  Expose `test_set_and_get` function as a new mutation (#2074, @patricoferris)
   -  Add `contents_hash` function to get a value's hash (#2099, @patricoferris)
 
 - **irmin-pack**
@@ -33,10 +45,6 @@
   - Fix data race in RO instances when reading control file (#2100, @Ngoguey42)
   - Fix bugs in gc related to commits that share the same tree. (#2106,
     @icristescu)
-
-### Fixed
-
-- **irmin-pack**
   - Fix the traverse pack files commands in the `irmin-tezos` CLI to work with
     gced stores. (#1919, @icristescu)
 

@@ -20,8 +20,9 @@ depends: [
   "dune"        {>= "2.9.0"}
   "irmin-tezos" {= version}
   "irmin-pack"  {= version}
-  "cmdliner"
+  "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
+  "ptime"
   "hex"
   "irmin-test"  {with-test & = version}
   "alcotest"    {with-test}

@@ -59,4 +59,5 @@
 (mdx
  (files merkle_proofs.md)
  ; (preludes merkle_proofs_prelude.ml)
- (packages irmin-git irmin))
+ (package irmin-cli)
+ (packages irmin-cli))
