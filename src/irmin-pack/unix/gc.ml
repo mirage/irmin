@@ -78,7 +78,7 @@ module Make (Args : Gc_args.S) = struct
     (* start worker task *)
     let task =
       Async.async (fun () ->
-          Worker.run_and_output_result root commit_key ~generation)
+          Worker.run_and_output_result root commit_key offset ~generation)
     in
     let partial_stats =
       Gc_stats.Main.finish_current_step partial_stats "before finalise"

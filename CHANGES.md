@@ -38,6 +38,7 @@
   - Move unix specific details for `Pack_key` and `Pack_value` from `irmin-pack`
     to `irmin-pack.unix` (#2084, @metanivek)
   - Remove unnecessary files at `open_rw` and after a failed GC (#2095, @art-w)
+  - Move the gc commit from the suffix file to the prefix. (#2102, @icristescu)
 
 ### Fixed
 
