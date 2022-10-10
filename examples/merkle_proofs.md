@@ -31,7 +31,7 @@ module Store = Irmin_git_unix.FS.KV (Contents)
 Open a repo.
 
 ```ocaml
-# let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
+# let config = Irmin_git.config ~bare:true "./tmp-irmin/test"
   let repo = Lwt_main.run (Store.Repo.v config);;
 val config : Irmin.config = <abstr>
 val repo : Store.repo = <abstr>
