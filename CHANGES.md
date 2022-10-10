@@ -5,8 +5,13 @@
 - **irmin-pack**
   - Add `Irmin_pack_unix.Stats.Latest_gc` which is now the parameter of GC's
     `finished` callback (#2089, @Ngoguey42)
+  - Add `Gc.oldest_live_commit` which returns the key of the commit on which the
+    latest gc was called on. (#2110, @icristescu)
 
 ### Changed
+
+- **irmin-pack**
+  - Upgraded on-disk format to version 4. (#2110, @icristescu)
 
 ### Fixed
 
