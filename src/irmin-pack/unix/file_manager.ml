@@ -684,7 +684,11 @@ struct
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
     (* Opening the suffix requires passing it its length. We compute it from the
-       global offsets *)
+       global offsets
+
+       TODO: this calculation of [suffix_end_poff] only works with one chunk.
+       this code will be removed once we have chunk GC.
+    *)
     let suffix_end_poff =
       let open Int63.Syntax in
       new_suffix_end_offset - new_suffix_start_offset

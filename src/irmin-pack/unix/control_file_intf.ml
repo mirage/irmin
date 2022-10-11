@@ -151,6 +151,10 @@ module Payload_v4 = struct
 
   type t = {
     dict_end_poff : int63;
+    (* TODO: rename [suffix_end_poff] to something that clearly communicates its role.
+
+       See corresponding todo in {!Chunked_suffix}.
+    *)
     suffix_end_poff : int63;
     upgraded_from_v3_to_v4 : bool;
     checksum : int63;

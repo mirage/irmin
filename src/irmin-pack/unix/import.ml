@@ -20,6 +20,20 @@ let src = Logs.Src.create "irmin-pack.unix" ~doc:"irmin-pack unix backend"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+module Array = struct
+  include Array
+
+  let find_opt p a =
+    let n = length a in
+    let rec loop i =
+      if i = n then None
+      else
+        let x = get a i in
+        if p x then Some x else loop (succ i)
+    in
+    loop 0
+end
+
 module Int63 = struct
   include Optint.Int63
 
