@@ -35,7 +35,11 @@ module Maker (Config : Conf.S) = struct
     module Errs = Io_errors.Make (Io)
     module Control = Control_file.Make (Io)
     module Aof = Append_only_file.Make (Io) (Errs)
-    module File_manager = File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
+    module Suffix = Chunked_suffix.Make (Io) (Errs)
+
+    module File_manager =
+      File_manager.Make (Control) (Aof) (Suffix) (Index) (Errs)
+
     module Dict = Dict.Make (File_manager)
     module Dispatcher = Dispatcher.Make (File_manager)
     module XKey = Pack_key.Make (H)

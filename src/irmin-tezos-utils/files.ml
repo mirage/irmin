@@ -18,11 +18,11 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Control_file = Irmin_pack_unix.Control_file.Make (Io)
   module Append_only_file = Irmin_pack_unix.Append_only_file.Make (Io) (Errs)
+  module Suffix = Irmin_pack_unix.Chunked_suffix.Make (Io) (Errs)
   module Pack_index = Irmin_pack_unix.Index.Make (Hash)
 
   module File_manager =
-    Irmin_pack_unix.File_manager.Make (Control_file) (Append_only_file)
-      (Append_only_file)
+    Irmin_pack_unix.File_manager.Make (Control_file) (Append_only_file) (Suffix)
       (Pack_index)
       (Errs)
 

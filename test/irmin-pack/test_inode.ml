@@ -47,9 +47,10 @@ struct
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Control = Irmin_pack_unix.Control_file.Make (Io)
   module Aof = Irmin_pack_unix.Append_only_file.Make (Io) (Errs)
+  module Suffix = Irmin_pack_unix.Chunked_suffix.Make (Io) (Errs)
 
   module File_manager =
-    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Aof) (Index) (Errs)
+    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Suffix) (Index) (Errs)
 
   module Dict = Irmin_pack_unix.Dict.Make (File_manager)
   module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
