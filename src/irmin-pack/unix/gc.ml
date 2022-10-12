@@ -39,10 +39,21 @@ module Make (Args : Gc_args.S) = struct
     commit : read Commit_store.t;
     mutable partial_stats : Gc_stats.Main.t;
     mutable resulting_stats : Stats.Latest_gc.stats option;
+    latest_gc_target_offset : int63;
   }
 
-  let v ~root ~generation ~unlink ~offset ~dispatcher ~fm ~contents ~node
-      ~commit commit_key =
+  let v ~root ~generation ~unlink ~dispatcher ~fm ~contents ~node ~commit
+      commit_key =
+    let offset, latest_gc_target_offset =
+      let state : _ Pack_key.state = Pack_key.inspect commit_key in
+      match state with
+      | Direct x ->
+          let len = x.length |> Int63.of_int in
+          (Int63.Syntax.(x.offset + len), x.offset)
+      | Indexed _ ->
+          (* The caller of this function lifted the key to a direct one. *)
+          assert false
+    in
     let partial_stats =
       let commit_offset = offset in
       let before_suffix_start_offset =
@@ -83,6 +94,7 @@ module Make (Args : Gc_args.S) = struct
     let partial_stats =
       Gc_stats.Main.finish_current_step partial_stats "before finalise"
     in
+
     {
       root;
       generation;
@@ -98,6 +110,7 @@ module Make (Args : Gc_args.S) = struct
       commit;
       partial_stats;
       resulting_stats = None;
+      latest_gc_target_offset;
     }
 
   let open_new_suffix ~end_poff { root; generation; _ } =
@@ -142,6 +155,7 @@ module Make (Args : Gc_args.S) = struct
     let* () =
       Fm.swap t.fm ~generation:t.generation ~new_suffix_start_offset
         ~new_suffix_end_offset
+        ~latest_gc_target_offset:t.latest_gc_target_offset
     in
 
     (* No need to purge dict here, as it is global to the store. *)

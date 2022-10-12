@@ -127,6 +127,10 @@ module type S = sig
 
     val is_allowed : repo -> bool
     (** [is_allowed repo] returns true if a gc can be run on the store. *)
+
+    val latest_gc_target : repo -> commit_key option
+    (** [latest_gc_target] returns the commit key on which the latest, finished
+        gc was called on. *)
   end
 
   val integrity_check_inodes :

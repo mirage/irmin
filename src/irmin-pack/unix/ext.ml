@@ -250,14 +250,6 @@ module Maker (Config : Conf.S) = struct
                           (Irmin.Type.to_string XKey.t commit_key))
                   | Some (k, _kind) -> Ok k)
             in
-            let offset =
-              let state : _ Pack_key.state = Pack_key.inspect commit_key in
-              match state with
-              | Direct x ->
-                  let len = x.length |> Int63.of_int in
-                  Int63.Syntax.(x.offset + len)
-              | Indexed _ -> assert false
-            in
             let root = Conf.root t.config in
             let* () =
               if not (File_manager.gc_allowed t.fm) then Error `Gc_disallowed
@@ -266,7 +258,7 @@ module Maker (Config : Conf.S) = struct
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
             let gc =
-              Gc.v ~root ~generation:next_generation ~unlink ~offset
+              Gc.v ~root ~generation:next_generation ~unlink
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
                 ~node:t.node ~commit:t.commit commit_key
             in
@@ -318,6 +310,31 @@ module Maker (Config : Conf.S) = struct
             | Some { use_auto_finalisation = true; _ } ->
                 let* _ = finalise_exn ~wait:false t in
                 Lwt.return_unit
+
+          let latest_gc_target t =
+            let pl = Control.payload (File_manager.control t.fm) in
+            match pl.status with
+            | From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy
+            | No_gc_yet ->
+                None
+            | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+            | T14 | T15 ->
+                assert false
+            | Gced { latest_gc_target_offset = offset; _ } -> (
+                let entry =
+                  Commit.CA.read_and_decode_entry_prefix ~off:offset
+                    t.dispatcher
+                in
+                match Commit.CA.Entry_prefix.total_entry_length entry with
+                | None ->
+                    (* Commits on which this operation is supported have a
+                       length in their header. *)
+                    assert false
+                | Some length ->
+                    let key =
+                      Pack_key.v_direct ~offset ~length ~hash:entry.hash
+                    in
+                    Some key)
         end
 
         let batch t f =
@@ -573,6 +590,7 @@ module Maker (Config : Conf.S) = struct
 
       let is_allowed repo = File_manager.gc_allowed repo.X.Repo.fm
       let cancel repo = X.Repo.Gc.cancel repo
+      let latest_gc_target = X.Repo.Gc.latest_gc_target
     end
 
     module Traverse_pack_file = Traverse_pack_file.Make (struct

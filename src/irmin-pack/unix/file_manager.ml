@@ -77,14 +77,14 @@ struct
     t.suffix_consumers <- { after_flush } :: t.suffix_consumers
 
   let generation = function
-    | Payload.From_v1_v2_post_upgrade _
-    | From_v3_used_non_minimal_indexing_strategy | From_v3_no_gc_yet ->
+    | Payload.From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy
+    | No_gc_yet ->
         0
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         (* Unreachable *)
         assert false
-    | From_v3_gced x -> x.generation
+    | Gced x -> x.generation
 
   (** Flush stages *************************************************************
 
@@ -130,17 +130,17 @@ struct
         let status =
           match pl.status with
           | From_v1_v2_post_upgrade _ -> pl.status
-          | From_v3_gced _ -> pl.status
-          | From_v3_no_gc_yet ->
+          | Gced _ -> pl.status
+          | No_gc_yet ->
               if Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy
               then pl.status
               else (
                 [%log.warn
-                  "Updating the control file from [From_v3] to \
-                   [From_v3_used_non_minimal_indexing_strategy]. It won't be \
-                   possible to GC this irmin-pack store anymore."];
-                Payload.From_v3_used_non_minimal_indexing_strategy)
-          | From_v3_used_non_minimal_indexing_strategy -> pl.status
+                  "Updating the control file to \
+                   [Used_non_minimal_indexing_strategy]. It won't be possible \
+                   to GC this irmin-pack store anymore."];
+                Payload.Used_non_minimal_indexing_strategy)
+          | Used_non_minimal_indexing_strategy -> pl.status
           | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
           | T14 | T15 ->
               assert false
@@ -294,10 +294,10 @@ struct
     let pl : Payload.t = Control.payload control in
     let generation =
       match pl.status with
-      | From_v1_v2_post_upgrade _ | From_v3_no_gc_yet
-      | From_v3_used_non_minimal_indexing_strategy ->
+      | From_v1_v2_post_upgrade _ | No_gc_yet
+      | Used_non_minimal_indexing_strategy ->
           0
-      | From_v3_gced x -> x.generation
+      | Gced x -> x.generation
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
           assert false
@@ -440,10 +440,15 @@ struct
     in
     let* control =
       let open Payload in
-      let status = From_v3_no_gc_yet in
+      let status = No_gc_yet in
       let pl =
         let z = Int63.zero in
-        { dict_end_poff = z; suffix_end_poff = z; status }
+        {
+          dict_end_poff = z;
+          suffix_end_poff = z;
+          status;
+          upgraded_from_v3_to_v4 = false;
+        }
       in
       create_control_file ~overwrite config pl
     in
@@ -468,11 +473,11 @@ struct
     let* dead_header_size =
       match pl.status with
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
-      | From_v3_gced _ ->
+      | Gced _ ->
           let indexing_strategy = Conf.indexing_strategy config in
           if Irmin_pack.Indexing_strategy.is_minimal indexing_strategy then Ok 0
           else Error `Only_minimal_indexing_strategy_allowed
-      | From_v3_no_gc_yet | From_v3_used_non_minimal_indexing_strategy -> Ok 0
+      | No_gc_yet | Used_non_minimal_indexing_strategy -> Ok 0
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
           Error `V3_store_from_the_future
@@ -527,7 +532,14 @@ struct
         From_v1_v2_post_upgrade
           { entry_offset_at_upgrade_to_v3 = suffix_end_poff }
       in
-      let pl = { dict_end_poff; suffix_end_poff; status } in
+      let pl =
+        {
+          dict_end_poff;
+          suffix_end_poff;
+          status;
+          upgraded_from_v3_to_v4 = false;
+        }
+      in
       create_control_file ~overwrite:false config pl
     in
     let* () = Control.close control in
@@ -580,9 +592,7 @@ struct
     let* dead_header_size =
       match pl.status with
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
-      | From_v3_no_gc_yet | From_v3_gced _
-      | From_v3_used_non_minimal_indexing_strategy ->
-          Ok 0
+      | No_gc_yet | Gced _ | Used_non_minimal_indexing_strategy -> Ok 0
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
           Error `V3_store_from_the_future
@@ -653,7 +663,8 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~new_suffix_start_offset ~new_suffix_end_offset =
+  let swap t ~generation ~new_suffix_start_offset ~new_suffix_end_offset
+      ~latest_gc_target_offset =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap %d %#d %#d" generation
@@ -681,13 +692,13 @@ struct
         let status =
           match pl.status with
           | From_v1_v2_post_upgrade _ -> assert false
-          | From_v3_used_non_minimal_indexing_strategy -> assert false
+          | Used_non_minimal_indexing_strategy -> assert false
           | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
           | T14 | T15 ->
               assert false
-          | From_v3_gced _ | From_v3_no_gc_yet ->
+          | Gced _ | No_gc_yet ->
               let suffix_start_offset = new_suffix_start_offset in
-              From_v3_gced { suffix_start_offset; generation }
+              Gced { suffix_start_offset; generation; latest_gc_target_offset }
         in
         { pl with status; suffix_end_poff }
       in
@@ -705,10 +716,9 @@ struct
   let generation t =
     let pl = Control.payload t.control in
     match pl.status with
-    | From_v1_v2_post_upgrade _ | From_v3_used_non_minimal_indexing_strategy ->
-        0
-    | From_v3_no_gc_yet -> 0
-    | From_v3_gced x -> x.generation
+    | From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy -> 0
+    | No_gc_yet -> 0
+    | Gced x -> x.generation
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         (* Unreachable *)
@@ -717,9 +727,8 @@ struct
   let gc_allowed t =
     let pl = Control.payload t.control in
     match pl.status with
-    | From_v1_v2_post_upgrade _ | From_v3_used_non_minimal_indexing_strategy ->
-        false
-    | From_v3_no_gc_yet | From_v3_gced _ -> true
+    | From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy -> false
+    | No_gc_yet | Gced _ -> true
     | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
     | T15 ->
         (* Unreachable *)

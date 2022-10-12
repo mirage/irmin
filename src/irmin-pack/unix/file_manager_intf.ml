@@ -243,6 +243,7 @@ module type S = sig
     generation:int ->
     new_suffix_start_offset:int63 ->
     new_suffix_end_offset:int63 ->
+    latest_gc_target_offset:int63 ->
     (unit, [> Errs.t ]) result
   (** Swaps to using files from the GC [generation]. The offsets
       [new_suffix_start_offset] and [new_suffix_end_offset] are used to properly

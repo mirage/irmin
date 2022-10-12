@@ -567,6 +567,33 @@ module Gc = struct
     let* () = check_1 t c1_again in
     S.Repo.close t.repo
 
+  (** Check [Gc.latest_gc_target]. *)
+  let latest_gc_target () =
+    let* t = init () in
+    let check_latest_gc_target expected =
+      let got = S.Gc.latest_gc_target t.repo in
+      match (got, expected) with
+      | None, None -> ()
+      | Some got, Some expected ->
+          Alcotest.check_repr S.commit_key_t "oldest_live_commit" got
+            (S.Commit.key expected)
+      | _ -> Alcotest.fail "Check of oldest_live_commit failed"
+    in
+
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    check_latest_gc_target None;
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    check_latest_gc_target (Some c2);
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
+    check_latest_gc_target (Some c3);
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test one gc" one_gc;
@@ -583,6 +610,7 @@ module Gc = struct
       tc "Test gc during batch" gc_during_batch;
       tc "Test add back gced commit" add_back_gced_commit;
       tc "Test gc on similar commits" gc_similar_commits;
+      tc "Test oldest live commit" latest_gc_target;
     ]
 end
 
