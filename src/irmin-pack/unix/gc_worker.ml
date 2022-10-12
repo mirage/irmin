@@ -109,6 +109,19 @@ module Make (Args : Gc_args.S) = struct
     let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation in
     Ao.create_rw_exn ~path
 
+  let report_old_file_sizes ~root ~generation stats =
+    let open Result_syntax in
+    let* prefix_size =
+      if generation = 0 then Ok Int63.zero
+      else Irmin_pack.Layout.V3.prefix ~root ~generation |> Io.size_of_path
+    in
+    let+ mapping_size =
+      if generation = 0 then Ok Int63.zero
+      else Irmin_pack.Layout.V3.mapping ~root ~generation |> Io.size_of_path
+    in
+    stats := Gc_stats.Worker.add_file_size !stats "old_prefix" prefix_size;
+    stats := Gc_stats.Worker.add_file_size !stats "old_mapping" mapping_size
+
   let run ~generation root commit_key new_prefix_end_offset =
     let open Result_syntax in
     let config =
@@ -118,6 +131,10 @@ module Make (Args : Gc_args.S) = struct
     (* Step 1. Open the files *)
     [%log.debug "GC: opening files in RO mode"];
     let stats = ref (Gc_stats.Worker.create "open files") in
+    let () =
+      report_old_file_sizes ~root ~generation:(generation - 1) stats |> ignore
+    in
+
     let fm = Fm.open_ro config |> Errs.raise_if_error in
     Errors.finalise_exn (fun _outcome ->
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
