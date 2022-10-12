@@ -336,7 +336,7 @@ module Make (Io : Io.S) = struct
   type t = { arr : int64_bigarray; root : string; generation : int }
 
   let open_map ~root ~generation =
-    let path = Irmin_pack.Layout.V3.mapping ~generation ~root in
+    let path = Irmin_pack.Layout.V4.mapping ~generation ~root in
     match Io.classify_path path with
     | `File -> (
         let mmap = Int64_mmap.open_ ~fn:path ~sz:(-1) in
@@ -356,9 +356,9 @@ module Make (Io : Io.S) = struct
   let create ?report_file_sizes ~root ~generation ~register_entries () =
     assert (generation > 0);
     let open Result_syntax in
-    let path0 = Irmin_pack.Layout.V3.reachable ~generation ~root in
-    let path1 = Irmin_pack.Layout.V3.sorted ~generation ~root in
-    let path2 = Irmin_pack.Layout.V3.mapping ~generation ~root in
+    let path0 = Irmin_pack.Layout.V4.reachable ~generation ~root in
+    let path1 = Irmin_pack.Layout.V4.sorted ~generation ~root in
+    let path2 = Irmin_pack.Layout.V4.mapping ~generation ~root in
 
     let* () =
       if Sys.word_size <> 64 then Error `Gc_forbidden_on_32bit_platforms
