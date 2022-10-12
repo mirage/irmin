@@ -1,6 +1,12 @@
 (executable
  (name test)
- (libraries alcotest irmin_traces fpath irmin-tezos irmin-pack.mem)
+ (libraries
+  alcotest
+  irmin_traces
+  fpath
+  irmin-tezos
+  irmin-pack.mem
+  irmin-test)
  (preprocess
   (pps ppx_irmin.internal)))
 
