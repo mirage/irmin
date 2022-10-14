@@ -12,6 +12,7 @@
 
 - **irmin-pack**
   - Upgraded on-disk format to version 4. (#2110, @icristescu)
+  - Detecting control file corruption with a checksum (#2119, @art-w)
 
 ### Fixed
 

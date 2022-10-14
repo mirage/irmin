@@ -450,6 +450,7 @@ struct
         {
           dict_end_poff = z;
           suffix_end_poff = z;
+          checksum = z;
           status;
           upgraded_from_v3_to_v4 = false;
         }
@@ -540,6 +541,7 @@ struct
         {
           dict_end_poff;
           suffix_end_poff;
+          checksum = Int63.zero;
           status;
           upgraded_from_v3_to_v4 = false;
         }
