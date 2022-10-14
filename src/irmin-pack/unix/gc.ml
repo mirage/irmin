@@ -235,8 +235,7 @@ module Make (Args : Gc_args.S) = struct
     | Error (`Msg error) -> Error (`Corrupted_gc_result_file error)
     | Ok ok -> ok |> Result.map_error gc_error
 
-  let clean_after_abort t =
-    Fm.cleanup ~root:t.root ~generation:(t.generation - 1)
+  let clean_after_abort t = Fm.cleanup t.fm
 
   let finalise ~wait t =
     match t.resulting_stats with

@@ -73,7 +73,9 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Inconsistent_store
     | `Closed
     | `Ro_not_allowed
-    | `Io_misc of Io.misc_error ]
+    | `Io_misc of Io.misc_error
+    | `Split_forbidden_during_batch
+    | `Multiple_empty_chunks ]
   [@@deriving irmin]
 
   let raise_error = function

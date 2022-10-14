@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include File_manager_intf
 open Import
 module Payload = Control_file.Latest_payload
 include File_manager_intf
@@ -233,12 +232,12 @@ struct
 
   let reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff =
     let open Result_syntax in
-    (* Invariant: reopen suffix is only called on V3 suffix files, for which
-       dead_header_size is 0. *)
+    (* Invariant: reopen suffix is only called on V3 (and above) suffix files,
+       for which dead_header_size is 0. *)
     let dead_header_size = 0 in
     [%log.debug
-      "reopen_suffix chunk_start_idx:%d end_poff:%d" chunk_start_idx
-        (Int63.to_int end_poff)];
+      "reopen_suffix chunk_start_idx:%d chunk_num:%d end_poff:%d"
+        chunk_start_idx chunk_num (Int63.to_int end_poff)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
       let root = t.root in
@@ -267,14 +266,16 @@ struct
       let* t = Io.open_ ~path ~readonly:true in
       Ok (Some t)
 
-  let cleanup ~root ~generation =
+  let cleanup ~root ~generation ~chunk_start_idx ~chunk_num =
     let files = Array.to_list (Sys.readdir root) in
     let to_remove =
       List.filter
         (fun filename ->
           match Irmin_pack.Layout.classify_filename filename with
           | None | Some (`Branch | `Control | `Dict | `V1_or_v2_pack) -> false
-          | Some (`Suffix g | `Prefix g | `Mapping g) -> g <> generation
+          | Some (`Prefix g | `Mapping g) -> g <> generation
+          | Some (`Suffix idx) ->
+              idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
           | Some (`Reachable _ | `Sorted _ | `Gc_result _) -> true)
         files
     in
@@ -305,7 +306,9 @@ struct
       | T15 ->
           assert false
     in
-    cleanup ~root ~generation;
+    let chunk_start_idx = pl.chunk_start_idx in
+    let chunk_num = pl.chunk_num in
+    cleanup ~root ~generation ~chunk_start_idx ~chunk_num;
     (* 1. Create a ref for dependency injections for auto flushes *)
     let instance = ref None in
     let get_instance () =
@@ -398,16 +401,29 @@ struct
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
     else
-      (* Step 3. Reopen files if generation changed. *)
+      (* Step 3. Reopen files if generation or chunk_num changed. *)
       let* () =
         let gen0 = generation pl0.status in
         let gen1 = generation pl1.status in
+        let chunk_num0 = pl0.chunk_num in
+        let chunk_num1 = pl1.chunk_num in
+        let chunk_start_idx0 = pl0.chunk_start_idx in
+        let chunk_start_idx1 = pl1.chunk_start_idx in
+        let* () =
+          if
+            chunk_num0 <> chunk_num1
+            || chunk_start_idx0 <> chunk_start_idx1
+               (* TODO: remove this last check, kept for passing the tests. *)
+            || gen0 <> gen1
+          then
+            let end_poff = pl1.suffix_end_poff in
+            (* TODO: remove this max, kept for passing the tests. *)
+            let chunk_start_idx = max chunk_start_idx1 gen1 in
+            reopen_suffix t ~chunk_start_idx ~end_poff ~chunk_num:chunk_num1
+          else Ok ()
+        in
         if gen0 = gen1 then Ok ()
         else
-          let end_poff = pl1.suffix_end_poff in
-          let chunk_start_idx = pl1.chunk_start_idx in
-          let chunk_num = pl1.chunk_num in
-          let* () = reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff in
           let* () = reopen_mapping t ~generation:gen1 in
           let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
@@ -695,41 +711,43 @@ struct
       let open Int63.Syntax in
       new_suffix_end_offset - new_suffix_start_offset
     in
-    let pl =
-      let open Payload in
-      let status =
-        match pl.status with
-        | From_v1_v2_post_upgrade _ -> assert false
-        | Used_non_minimal_indexing_strategy -> assert false
-        | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-        | T14 | T15 ->
-            assert false
-        | Gced _ | No_gc_yet ->
-            let suffix_start_offset = new_suffix_start_offset in
-            Gced
-              {
-                suffix_start_offset;
-                generation;
-                latest_gc_target_offset;
-                suffix_dead_bytes = Int63.zero;
-              }
-      in
-      (* TODO using generation for starting chunk idx works since we only have
-         only one chunk at a time. this will change once we have chunk based GC. *)
-      { pl with status; suffix_end_poff; chunk_start_idx = generation }
-    in
-
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
+    (* TODO: remove this max, kept for the tests. *)
+    let chunk_start_idx = max pl.chunk_start_idx generation in
     let* () =
-      reopen_suffix t ~chunk_start_idx:pl.chunk_start_idx
-        ~chunk_num:pl.chunk_num ~end_poff:pl.suffix_end_poff
+      reopen_suffix t ~chunk_start_idx ~end_poff:suffix_end_poff
+        ~chunk_num:pl.chunk_num
     in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
     (* Step 2. Update the control file *)
     let* () =
+      let pl =
+        let open Payload in
+        let status =
+          match pl.status with
+          | From_v1_v2_post_upgrade _ -> assert false
+          | Used_non_minimal_indexing_strategy -> assert false
+          | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+          | T14 | T15 ->
+              assert false
+          | Gced _ | No_gc_yet ->
+              let suffix_start_offset = new_suffix_start_offset in
+              Gced
+                {
+                  suffix_start_offset;
+                  generation;
+                  latest_gc_target_offset;
+                  suffix_dead_bytes = Int63.zero;
+                }
+        in
+
+        (* TODO using generation for starting chunk idx works since we only have
+           only one chunk at a time. this will change once we have chunk based GC. *)
+        { pl with status; suffix_end_poff; chunk_start_idx = generation }
+      in
       [%log.debug "GC: writing new control_file"];
       Control.set_payload t.control pl
     in
@@ -761,4 +779,42 @@ struct
     | T15 ->
         (* Unreachable *)
         assert false
+
+  (* TODO : this does not work yet with GC. *)
+  let split t =
+    let open Result_syntax in
+    (* Step 1. Create a new chunk file *)
+    let auto_flush_threshold =
+      match Suffix.auto_flush_threshold t.suffix with
+      | None -> assert false
+      | Some x -> x
+    in
+    let cb _ = suffix_requires_a_flush_exn t in
+    let* () =
+      Suffix.add_chunk ~auto_flush_threshold
+        ~auto_flush_procedure:(`External cb) t.suffix
+    in
+
+    (* Step 2. Update the control file *)
+    let pl = Control.payload t.control in
+    let pl =
+      let open Payload in
+      let chunk_num = succ pl.chunk_num in
+      (* Update the control file with the poff of the last chunk. As last chunk
+         is fresh, the poff is zero. *)
+      let suffix_end_poff = Int63.zero in
+      { pl with chunk_num; suffix_end_poff }
+    in
+    [%log.debug
+      "split: update control_file chunk_start_idx:%d chunk_num:%d"
+        pl.chunk_start_idx pl.chunk_num];
+    Control.set_payload t.control pl
+
+  let cleanup t =
+    let root = t.root in
+    let pl : Payload.t = Control.payload t.control in
+    let generation = generation t - 1 in
+    let chunk_start_idx = pl.chunk_start_idx in
+    let chunk_num = pl.chunk_num in
+    cleanup ~root ~generation ~chunk_start_idx ~chunk_num
 end

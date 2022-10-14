@@ -22,6 +22,10 @@ module Concurrent_gc : sig
   val tests : unit Alcotest_lwt.test_case list
 end
 
+module Split : sig
+  val tests : unit Alcotest_lwt.test_case list
+end
+
 module Store : sig
   module S : Irmin_pack.S
 

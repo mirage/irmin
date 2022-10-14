@@ -30,6 +30,13 @@ let fresh_name =
     let name = Filename.concat test_dir ("test-gc" ^ string_of_int !c) in
     name
 
+let create_test_env () =
+  let ( / ) = Filename.concat in
+  let root_archive = "test" / "irmin-pack" / "data" / "version_3_minimal" in
+  let root_local_build = "_build" / "test-gc" in
+  setup_test_env ~root_archive ~root_local_build;
+  root_local_build
+
 let tc name f = Alcotest_lwt.test_case name `Quick (fun _switch () -> f ())
 
 module Store = struct
@@ -873,5 +880,163 @@ module Concurrent_gc = struct
       tc "Test skip gc" test_skip;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;
+    ]
+end
+
+module Split = struct
+  let two_splits () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    [%log.debug "created chunk2, find in chunk1"];
+    let* () = check_1 t c1 in
+    let* t, c2 = commit_2 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    [%log.debug "created chunk3, find in chunk1, chunk2, chunk3"];
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
+  let ro_two_splits () =
+    let* t = init () in
+    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    [%log.debug "created chunk2, find in chunk1"];
+    S.reload ro_t.repo;
+    let* () = check_1 ro_t c1 in
+    let* t, c2 = commit_2 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c2 in
+    S.reload ro_t.repo;
+    let* t, c3 = commit_3 t in
+    [%log.debug "created chunk3, find in chunk1, chunk2, chunk3"];
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let* () = check_not_found ro_t c3 "c3 is not yet reloaded" in
+    S.reload ro_t.repo;
+    let* () = check_3 t c3 in
+    let* () = S.Repo.close t.repo in
+    S.Repo.close ro_t.repo
+
+  let check_preexisting_commit t =
+    let s = "22e159de13b427226e5901defd17f0c14e744205" in
+    let h =
+      match Irmin.Type.(of_string Schema.Hash.t) s with
+      | Error (`Msg s) -> Alcotest.failf "failed hash_of_string %s" s
+      | Ok h -> h
+    in
+    let* c = S.Commit.of_hash t.repo h in
+    match c with
+    | None -> Alcotest.failf "Commit %s not found" s
+    | Some commit ->
+        let tree = S.Commit.tree commit in
+        let+ got = S.Tree.find tree [ "step-n01"; "step-b01" ] in
+        Alcotest.(check (option string)) "find blob" (Some "b01") got
+
+  let two_splits_v3_migrated_store () =
+    let root = create_test_env () in
+    let* t = init ~readonly:false ~fresh:false ~root () in
+    let () = S.split t.repo in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug
+      "chunk1 consists of the preexisting V3 suffix, created chunk2 and chunk3"];
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let* () = check_preexisting_commit t in
+    S.Repo.close t.repo
+
+  let close_and_split () =
+    let* t = init () in
+    let root = t.root in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    [%log.debug "created chunk1, chunk2"];
+    let* () = S.Repo.close t.repo in
+    let* t = init ~readonly:false ~fresh:false ~root () in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    [%log.debug "created chunk3"];
+    let* () = S.Repo.close t.repo in
+    let* t = init ~readonly:true ~fresh:false ~root () in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
+  let two_gc_then_split () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
+
+    (* TODO: for now gc create an empty chunk, to replace by simple call to
+       split.*)
+    let () =
+      Alcotest.check_raises "To remove"
+        (Irmin_pack_unix.Errors.Pack_error `Multiple_empty_chunks) (fun () ->
+          S.split t.repo)
+    in
+
+    (* let () = S.split t.repo in *)
+    let* t = checkout_exn t c3 in
+    let* t, c4 = commit_4 t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_not_found t c2 "removed c2" in
+    let* () = check_3 t c3 in
+    let* () = check_4 t c4 in
+    S.Repo.close t.repo
+
+  (* TODO : following tests not working for now.*)
+  let _split_and_gc () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    let* () = check_2 t c2 in
+    let* () = check_not_found t c1 "removed c1" in
+    S.Repo.close t.repo
+
+  let _another_split_and_gc () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    S.Repo.close t.repo
+
+  let tests =
+    [
+      tc "Test two splits" two_splits;
+      tc "Test two splits for ro" ro_two_splits;
+      tc "Test splits on V3 store" two_splits_v3_migrated_store;
+      tc "Test split and close" close_and_split;
+      tc "Test two gc followed by split" two_gc_then_split;
     ]
 end

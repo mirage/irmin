@@ -227,6 +227,18 @@ module Maker (Config : Conf.S) = struct
         let fsync t = File_manager.fsync t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
+        let split t =
+          let open Result_syntax in
+          let readonly = Irmin_pack.Conf.readonly t.config in
+          let* () = if readonly then Error `Ro_not_allowed else Ok () in
+          let* () =
+            if t.during_batch then Error `Split_forbidden_during_batch
+            else Ok ()
+          in
+          File_manager.split t.fm
+
+        let split_exn repo = split repo |> Errs.raise_if_error
+
         module Gc = struct
           let cancel t =
             match t.running_gc with
@@ -525,6 +537,7 @@ module Maker (Config : Conf.S) = struct
     let reload = X.Repo.reload
     let flush = X.Repo.flush
     let fsync = X.Repo.fsync
+    let split = X.Repo.split_exn
 
     module Gc = struct
       type msg = [ `Msg of string ]

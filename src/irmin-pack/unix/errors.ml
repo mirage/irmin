@@ -69,7 +69,9 @@ type base_error =
   | `Invalid_prefix_read of string
   | `Invalid_mapping_read of string
   | `Invalid_read_of_gced_object of string
-  | `Inconsistent_store ]
+  | `Inconsistent_store
+  | `Split_forbidden_during_batch
+  | `Multiple_empty_chunks ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific
