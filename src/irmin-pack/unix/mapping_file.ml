@@ -67,8 +67,8 @@ module Int_mmap : sig
 
   val create : fn:string -> sz:int -> t
 
-  val open_ : fn:string -> sz:int -> t
-  (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size
+  val open_ro : fn:string -> sz:int -> t
+  (** NOTE [open_ro ~fn ~sz] can use [sz=-1] to open with size based on the size
       of the underlying file *)
 
   val close : t -> unit
@@ -76,9 +76,9 @@ end = struct
   type t = { fn : string; fd : Unix.file_descr; mutable arr : int_bigarray }
 
   (* NOTE both following are shared *)
-  let shared = true
 
   let create ~fn ~sz =
+    let shared = true in
     assert (
       (not (Sys.file_exists fn))
       ||
@@ -95,9 +95,10 @@ end = struct
 
   (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
      different size (eg because we want the file to grow) we can provide it explicitly *)
-  let open_ ~fn ~sz =
+  let open_ro ~fn ~sz =
+    let shared = false in
     assert (Sys.file_exists fn);
-    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
+    let fd = Unix.(openfile fn [ O_RDONLY ] 0o660) in
     let arr =
       let open Bigarray in
       Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
@@ -119,7 +120,7 @@ module Int64_mmap : sig
     mutable arr : int64_bigarray;
   }
 
-  val open_ : fn:string -> sz:int -> t
+  val open_ro : fn:string -> sz:int -> t
   (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size
       of the underlying file *)
 
@@ -127,14 +128,12 @@ module Int64_mmap : sig
 end = struct
   type t = { fn : string; fd : Unix.file_descr; mutable arr : int64_bigarray }
 
-  (* NOTE both following are shared *)
-  let shared = true
-
   (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
      different size (eg because we want the file to grow) we can provide it explicitly *)
-  let open_ ~fn ~sz =
+  let open_ro ~fn ~sz =
+    let shared = false in
     assert (Sys.file_exists fn);
-    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
+    let fd = Unix.(openfile fn [ O_RDONLY ] 0o660) in
     let arr =
       let open Bigarray in
       Unix.map_file fd Int64 c_layout shared [| sz |] |> array1_of_genarray
@@ -339,7 +338,7 @@ module Make (Io : Io.S) = struct
     let path = Irmin_pack.Layout.V3.mapping ~generation ~root in
     match Io.classify_path path with
     | `File -> (
-        let mmap = Int64_mmap.open_ ~fn:path ~sz:(-1) in
+        let mmap = Int64_mmap.open_ro ~fn:path ~sz:(-1) in
         let arr = mmap.arr in
         let len = BigArr1.dim arr in
         match len > 0 && len mod 3 = 0 with
@@ -393,7 +392,7 @@ module Make (Io : Io.S) = struct
     let* () = Ao.close file0 in
 
     (* Reopen [file0] but as an mmap, create [file1] and fill it. *)
-    let file0 = Int_mmap.open_ ~fn:path0 ~sz:(-1) in
+    let file0 = Int_mmap.open_ro ~fn:path0 ~sz:(-1) in
     let sz = BigArr1.dim file0.Int_mmap.arr in
     let file1 = Int_mmap.create ~fn:path1 ~sz in
     let* () = Errs.catch (fun () -> sort ~src:file0.arr ~dst:file1.arr) in
