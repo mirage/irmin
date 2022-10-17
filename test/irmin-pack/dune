@@ -15,7 +15,8 @@
   test_flush_reload
   test_mapping
   test_nearest_leq
-  test_dispatcher)
+  test_dispatcher
+  test_corrupted)
  (libraries
   alcotest
   fmt
