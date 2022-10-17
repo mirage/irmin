@@ -272,7 +272,7 @@ struct
       List.filter
         (fun filename ->
           match Irmin_pack.Layout.classify_filename filename with
-          | None | Some (`Branch | `Dict | `V1_or_v2_pack) -> false
+          | None | Some (`Branch | `Control | `Dict | `V1_or_v2_pack) -> false
           | Some (`Suffix g | `Prefix g | `Mapping g) -> g <> generation
           | Some (`Reachable _ | `Sorted _ | `Gc_result _) -> true)
         files
