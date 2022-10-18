@@ -89,6 +89,7 @@ let is_number s =
 
 type classification =
   [ `Branch
+  | `Control
   | `Dict
   | `Gc_result of int
   | `Mapping of int
@@ -103,6 +104,7 @@ let classify_filename s : classification option =
   match String.split_on_char '.' s with
   | [ "store"; "pack" ] -> Some `V1_or_v2_pack
   | [ "store"; "branches" ] -> Some `Branch
+  | [ "store"; "control" ] -> Some `Control
   | [ "store"; "dict" ] -> Some `Dict
   | [ "store"; g; "out" ] when is_number g ->
       Some (`Gc_result (int_of_string g))

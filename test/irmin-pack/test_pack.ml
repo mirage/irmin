@@ -507,6 +507,7 @@ module Layout = struct
     let classif = Irmin_pack.Layout.classify_filename in
     c (Some `V1_or_v2_pack) (V1_and_v2.pack ~root:"" |> classif);
     c (Some `Branch) (V4.branch ~root:"" |> classif);
+    c (Some `Control) (V4.control ~root:"" |> classif);
     c (Some `Dict) (V4.dict ~root:"" |> classif);
     c (Some (`Gc_result 0)) (V4.gc_result ~generation:0 ~root:"" |> classif);
     c (Some (`Reachable 1)) (V4.reachable ~generation:1 ~root:"" |> classif);
