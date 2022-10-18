@@ -22,6 +22,10 @@ let archive_v2_minimal = "test" / "irmin-pack" / "data" / "version_2_minimal"
 let archive_v2_always = "test" / "irmin-pack" / "data" / "version_2_always"
 let archive_v3_minimal = "test" / "irmin-pack" / "data" / "version_3_minimal"
 let archive_v3_always = "test" / "irmin-pack" / "data" / "version_3_always"
+
+let archive_v3_minimal_gced =
+  "test" / "irmin-pack" / "data" / "version_3_minimal_gced"
+
 let root_local_build = "_build" / "test-upgrade"
 
 type pack_entry = {
@@ -83,7 +87,8 @@ let index_entries =
 let key_of_entry x =
   Irmin_pack_unix.Pack_key.v_direct ~hash:x.h ~offset:x.o ~length:x.l
 
-type start_mode = From_v2 | From_v3 | From_scratch [@@deriving irmin]
+type start_mode = From_v2 | From_v3 | From_scratch | From_v3_c0_gced
+[@@deriving irmin]
 
 type setup = {
   indexing_strategy : [ `always | `minimal ];
@@ -121,7 +126,8 @@ module Model = struct
     Hashtbl.replace t.dict "step-n01" ()
 
   let preload_suffix t =
-    Hashtbl.replace t.suffix borphan.o ();
+    if t.setup.start_mode <> From_v3_c0_gced then
+      Hashtbl.replace t.suffix borphan.o ();
     Hashtbl.replace t.suffix b01.o ();
     Hashtbl.replace t.suffix n01.o ();
     Hashtbl.replace t.suffix n0.o ();
@@ -462,7 +468,14 @@ let create_test_env setup =
           else archive_v3_minimal
         in
         setup_test_env ~root_archive ~root_local_build
+    | From_v3_c0_gced ->
+        let root_archive =
+          if setup.indexing_strategy = `minimal then archive_v3_minimal_gced
+          else assert false
+        in
+        setup_test_env ~root_archive ~root_local_build
   in
+
   { setup; rw = None; ro = None }
 
 (** One of the 4 rw mutations *)
@@ -474,7 +487,7 @@ let start_rw t =
     | None ->
         let model =
           match t.setup.start_mode with
-          | From_v2 | From_v3 ->
+          | From_v2 | From_v3 | From_v3_c0_gced ->
               (* Model with pre-loaded data. *)
               let m = Model.v t.setup in
               Model.preload m;
@@ -523,7 +536,7 @@ let gc_rw t =
                   Store.gc repo)
             in
             raise Skip_the_rest_of_that_test
-        | (From_v3 | From_scratch), `minimal -> Store.gc repo
+        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal -> Store.gc repo
       in
       Lwt.return_unit
 
@@ -548,13 +561,17 @@ let open_ro t current_phase =
           match (t.setup.start_mode, current_phase) with
           | From_scratch, (S1_before_start | S2_before_write) ->
               Model.create_empty t.setup
-          | (From_v2 | From_v3), (S1_before_start | S2_before_write) ->
+          | ( (From_v2 | From_v3 | From_v3_c0_gced),
+              (S1_before_start | S2_before_write) ) ->
               Model.create_after_preload t.setup
-          | (From_v2 | From_v3 | From_scratch), S3_before_gc ->
+          | (From_v2 | From_v3 | From_v3_c0_gced | From_scratch), S3_before_gc
+            ->
               Model.create_after_write1 t.setup
-          | (From_v2 | From_v3 | From_scratch), S4_before_write ->
+          | ( (From_v2 | From_v3 | From_v3_c0_gced | From_scratch),
+              S4_before_write ) ->
               Model.create_after_gc t.setup
-          | (From_v2 | From_v3 | From_scratch), S5_before_close ->
+          | ( (From_v2 | From_v3 | From_v3_c0_gced | From_scratch),
+              S5_before_close ) ->
               Model.create_after_write2 t.setup
         in
         let fail_and_skip error =
@@ -573,7 +590,7 @@ let open_ro t current_phase =
           | From_scratch, S1_before_start ->
               fail_and_skip `No_such_file_or_directory
           | From_v2, S1_before_start -> fail_and_skip `Migration_needed
-          | (From_v2 | From_v3 | From_scratch), _ ->
+          | (From_v2 | From_v3 | From_v3_c0_gced | From_scratch), _ ->
               Store.v t.setup ~readonly:true ~fresh:false root_local_build
         in
         (model, repo)
@@ -667,6 +684,10 @@ let test start_mode indexing_strategy =
   let* () = test start_mode indexing_strategy 100 in
   Lwt.return_unit
 
+let test_gced_store () =
+  let* () = test From_v3_c0_gced `minimal in
+  Lwt.return_unit
+
 (** Product on indexing_strategy *)
 let test start_mode () =
   let* () = test start_mode `minimal in
@@ -682,4 +703,6 @@ let tests =
         test From_v2 ());
     Alcotest_lwt.test_case "upgrade From_scratch" `Quick (fun _switch () ->
         test From_scratch ());
+    Alcotest_lwt.test_case "upgrade From_v3 after Gc" `Quick (fun _switch () ->
+        test_gced_store ());
   ]
