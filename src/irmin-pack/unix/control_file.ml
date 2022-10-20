@@ -86,6 +86,7 @@ module Make (Io : Io.S) = struct
     Int63.equal (checksum payload) payload.checksum
 
   let upgrade_v3_to_v4 (pl : Payload_v3.t) : Payload_v4.t =
+    let chunk_start_idx = ref 0 in
     let status =
       match pl.status with
       | From_v1_v2_post_upgrade x -> Payload_v4.From_v1_v2_post_upgrade x
@@ -93,11 +94,13 @@ module Make (Io : Io.S) = struct
       | From_v3_used_non_minimal_indexing_strategy ->
           Used_non_minimal_indexing_strategy
       | From_v3_gced x ->
+          chunk_start_idx := x.generation;
           Gced
             {
               suffix_start_offset = x.suffix_start_offset;
               generation = x.generation;
               latest_gc_target_offset = x.suffix_start_offset;
+              suffix_dead_bytes = Int63.zero;
             }
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
@@ -110,6 +113,8 @@ module Make (Io : Io.S) = struct
       status;
       upgraded_from_v3_to_v4 = true;
       checksum = Int63.zero;
+      chunk_start_idx = !chunk_start_idx;
+      chunk_num = 1;
     }
 
   let write io payload =

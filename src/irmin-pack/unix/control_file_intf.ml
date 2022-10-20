@@ -71,7 +71,11 @@ module Payload_v3 = struct
     | T15
   [@@deriving irmin]
 
-  type t = { dict_end_poff : int63; suffix_end_poff : int63; status : status }
+  type t = {
+    dict_end_poff : int63;
+    suffix_end_poff : int63;
+    status : status; (* must be last to allow extensions *)
+  }
   [@@deriving irmin]
   (** The [`V3] payload of the irmin-pack control file. [`V3] is a major
       version. If [`V4] ever exists, it will have its own dedicated payload, but
@@ -108,10 +112,16 @@ module Payload_v4 = struct
     suffix_start_offset : int63;
     generation : int;
     latest_gc_target_offset : int63;
+    suffix_dead_bytes : int63;
   }
   [@@deriving irmin]
-  (** Similar to [from_v3_gced]. [latest_gc_target_offset] is the commit on
-      which the latest gc was called on. *)
+  (** Similar to [from_v3_gced]. New fields:
+
+      [latest_gc_target_offset] is the commit on which the latest gc was called
+      on.
+
+      [suffix_dead_bytes] is the number of bytes at the beginning of the suffix
+      that should be considered unreachable after a GC. *)
 
   (** [From_v1_v2_post_upgrade] similar to [Payload_v3.From_v1_v2_post_upgrade]
 
@@ -126,7 +136,7 @@ module Payload_v4 = struct
       [Gced] is a [`V3] or [`V4] store that was GCed at least once.
 
       The [T*] tags are provisional tags that the binary decoder is aware of and
-      that may in the future be used to add features to the [`V3] payload. *)
+      that may in the future be used to add features to the [`V4] payload. *)
   type status =
     | From_v1_v2_post_upgrade of Payload_v3.from_v1_v2_post_upgrade
     | No_gc_yet
@@ -158,11 +168,19 @@ module Payload_v4 = struct
     suffix_end_poff : int63;
     upgraded_from_v3_to_v4 : bool;
     checksum : int63;
-    status : status;
+    chunk_start_idx : int;
+    chunk_num : int;
+    status : status; (* must be last to allow extensions *)
   }
   [@@deriving irmin]
-  (** Similar to [`V3] payload. [upgraded_from_v3_to_v4] recalls if the store
-      was originally created in [`V3]. *)
+  (** Similar to [`V3] payload. New fields:
+
+      [upgraded_from_v3_to_v4] recalls if the store was originally created in
+      [`V3].
+
+      [chunk_start_idx] is the index for the starting chunk of the suffix
+
+      [chunk_num] is the number of chunks in the suffix *)
 end
 
 module Latest_payload = Payload_v4
