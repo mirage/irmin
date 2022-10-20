@@ -13,6 +13,8 @@
   mtime
   cmdliner
   optint
+  checkseum
+  checkseum.ocaml
   rusage)
  (preprocess
   (pps ppx_irmin.internal))

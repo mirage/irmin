@@ -551,4 +551,5 @@ let misc =
     ("test_nearest_leq", Test_nearest_leq.tests);
     ("layout", Layout.tests);
     ("dispatcher", Test_dispatcher.tests);
+    ("corrupted", Test_corrupted.tests);
   ]

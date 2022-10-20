@@ -152,8 +152,9 @@ module Payload_v4 = struct
   type t = {
     dict_end_poff : int63;
     suffix_end_poff : int63;
-    status : status;
     upgraded_from_v3_to_v4 : bool;
+    checksum : int63;
+    status : status;
   }
   [@@deriving irmin]
   (** Similar to [`V3] payload. [upgraded_from_v3_to_v4] recalls if the store

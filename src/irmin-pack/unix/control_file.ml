@@ -73,6 +73,18 @@ module Make (Io : Io.S) = struct
 
   type t = { io : Io.t; mutable payload : Latest_payload.t }
 
+  let pre_hash_payload = Irmin.Type.(unstage (pre_hash Latest_payload.t))
+
+  let checksum payload =
+    let open Checkseum in
+    let result = ref Adler32.default in
+    pre_hash_payload { payload with checksum = Int63.zero } (fun str ->
+        result := Adler32.digest_string str 0 (String.length str) !result);
+    Int63.of_int (Optint.to_int !result)
+
+  let checksum_is_valid payload =
+    Int63.equal (checksum payload) payload.checksum
+
   let upgrade_v3_to_v4 (pl : Payload_v3.t) : Payload_v4.t =
     let status =
       match pl.status with
@@ -97,9 +109,11 @@ module Make (Io : Io.S) = struct
       suffix_end_poff = pl.suffix_end_poff;
       status;
       upgraded_from_v3_to_v4 = true;
+      checksum = Int63.zero;
     }
 
   let write io payload =
+    let payload = { payload with Payload_v4.checksum = checksum payload } in
     let s = Data.(to_bin_string (V4 payload)) in
 
     (* The data must fit inside a single page for atomic updates of the file.
@@ -113,15 +127,17 @@ module Make (Io : Io.S) = struct
     let open Result_syntax in
     let* string = Io.read_all_to_string io in
     (* Since the control file is expected to fit in a page,
-       [read_all_to_string] is atomic. This is only true for some file systems.
+       [read_all_to_string] should be atomic for most filesystems.
 
-       If [string] is larger than a page, it either means that the file is
+       If [string] is larger than a page, it either means that the file can be
        corrupted or that the major version is not supported. Either way it will
-       be handled by [Data.of_bin_string]. *)
-    let+ payload = Data.of_bin_string string in
+       be detected by [Data.of_bin_string] or have an invalid checksum. *)
+    let* payload = Data.of_bin_string string in
     match payload with
-    | V4 payload -> payload
-    | V3 payload -> upgrade_v3_to_v4 payload
+    | V3 payload -> Ok (upgrade_v3_to_v4 payload)
+    | V4 payload ->
+        if checksum_is_valid payload then Ok payload
+        else Error `Corrupted_control_file
 
   let create_rw ~path ~overwrite payload =
     let open Result_syntax in
