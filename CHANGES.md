@@ -13,6 +13,8 @@
 - **irmin-pack**
   - Upgraded on-disk format to version 4. (#2110, @icristescu)
   - Detecting control file corruption with a checksum (#2119, @art-w)
+  - Change on-disk layout of the suffix from a single file to a multiple,
+    chunked file design (#2115, @metanivek)
 
 ### Fixed
 
