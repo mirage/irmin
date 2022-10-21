@@ -231,18 +231,18 @@ struct
     t.mapping <- mapping;
     Ok ()
 
-  let reopen_suffix t ~generation ~end_poff =
+  let reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff =
     let open Result_syntax in
     (* Invariant: reopen suffix is only called on V3 suffix files, for which
        dead_header_size is 0. *)
     let dead_header_size = 0 in
     [%log.debug
-      "reopen_suffix gen:%d end_poff:%d" generation (Int63.to_int end_poff)];
+      "reopen_suffix chunk_start_idx:%d end_poff:%d" chunk_start_idx
+        (Int63.to_int end_poff)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
       let root = t.root in
-      let start_idx = generation in
-      let chunk_num = 1 in
+      let start_idx = chunk_start_idx in
       [%log.debug "reload: generation changed, opening suffix"];
       if readonly then
         Suffix.open_ro ~root ~end_poff ~dead_header_size ~start_idx ~chunk_num
@@ -330,8 +330,7 @@ struct
         Irmin_pack.Conf.suffix_auto_flush_threshold config
       in
       let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
-      make_suffix ~start_idx:generation ~auto_flush_threshold
-        ~auto_flush_procedure:(`External cb)
+      make_suffix ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
     in
     let* prefix =
       let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
@@ -406,7 +405,9 @@ struct
         if gen0 = gen1 then Ok ()
         else
           let end_poff = pl1.suffix_end_poff in
-          let* () = reopen_suffix t ~generation:gen1 ~end_poff in
+          let chunk_start_idx = pl1.chunk_start_idx in
+          let chunk_num = pl1.chunk_num in
+          let* () = reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff in
           let* () = reopen_mapping t ~generation:gen1 in
           let* () = reopen_prefix t ~generation:gen1 in
           Ok ()
@@ -451,12 +452,14 @@ struct
           checksum = z;
           status;
           upgraded_from_v3_to_v4 = false;
+          chunk_start_idx = 0;
+          chunk_num = 1;
         }
       in
       create_control_file ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~overwrite in
-    let make_suffix = Suffix.create_rw ~root ~overwrite in
+    let make_suffix = Suffix.create_rw ~root ~overwrite ~start_idx:0 in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
@@ -487,8 +490,8 @@ struct
     in
     let make_dict = Dict.open_rw ~end_poff:pl.dict_end_poff ~dead_header_size in
     let make_suffix =
-      Suffix.open_rw ~root ~end_poff:pl.suffix_end_poff ~chunk_num:1
-        ~dead_header_size
+      Suffix.open_rw ~root ~end_poff:pl.suffix_end_poff
+        ~start_idx:pl.chunk_start_idx ~chunk_num:pl.chunk_num ~dead_header_size
     in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size root
@@ -523,7 +526,10 @@ struct
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
-    let dst = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:0 in
+    let chunk_start_idx = 0 in
+    let dst =
+      Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:chunk_start_idx
+    in
     let* suffix_end_poff = read_offset_from_legacy_file src in
     let* dict_end_poff =
       let path = Irmin_pack.Layout.V4.dict ~root in
@@ -543,6 +549,8 @@ struct
           checksum = Int63.zero;
           status;
           upgraded_from_v3_to_v4 = false;
+          chunk_start_idx;
+          chunk_num = 1;
         }
       in
       create_control_file ~overwrite:false config pl
@@ -605,8 +613,8 @@ struct
     let generation = generation pl.status in
     (* 2. Open the other files *)
     let* suffix =
-      Suffix.open_ro ~root ~end_poff:pl.suffix_end_poff ~start_idx:generation
-        ~chunk_num:1 ~dead_header_size
+      Suffix.open_ro ~root ~end_poff:pl.suffix_end_poff
+        ~start_idx:pl.chunk_start_idx ~chunk_num:pl.chunk_num ~dead_header_size
     in
     let* prefix =
       let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
@@ -676,10 +684,7 @@ struct
         (Int63.to_int new_suffix_start_offset)
         (Int63.to_int new_suffix_end_offset)];
     let c0 = Mtime_clock.counter () in
-
-    (* Step 1. Reopen files *)
-    let* () = reopen_prefix t ~generation in
-    let* () = reopen_mapping t ~generation in
+    let pl = Control.payload t.control in
     (* Opening the suffix requires passing it its length. We compute it from the
        global offsets
 
@@ -690,27 +695,41 @@ struct
       let open Int63.Syntax in
       new_suffix_end_offset - new_suffix_start_offset
     in
-    let* () = reopen_suffix t ~generation ~end_poff:suffix_end_poff in
+    let pl =
+      let open Payload in
+      let status =
+        match pl.status with
+        | From_v1_v2_post_upgrade _ -> assert false
+        | Used_non_minimal_indexing_strategy -> assert false
+        | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+        | T14 | T15 ->
+            assert false
+        | Gced _ | No_gc_yet ->
+            let suffix_start_offset = new_suffix_start_offset in
+            Gced
+              {
+                suffix_start_offset;
+                generation;
+                latest_gc_target_offset;
+                suffix_dead_bytes = Int63.zero;
+              }
+      in
+      (* TODO using generation for starting chunk idx works since we only have
+         only one chunk at a time. this will change once we have chunk based GC. *)
+      { pl with status; suffix_end_poff; chunk_start_idx = generation }
+    in
+
+    (* Step 1. Reopen files *)
+    let* () = reopen_prefix t ~generation in
+    let* () = reopen_mapping t ~generation in
+    let* () =
+      reopen_suffix t ~chunk_start_idx:pl.chunk_start_idx
+        ~chunk_num:pl.chunk_num ~end_poff:pl.suffix_end_poff
+    in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
     (* Step 2. Update the control file *)
     let* () =
-      let pl = Control.payload t.control in
-      let pl =
-        let open Payload in
-        let status =
-          match pl.status with
-          | From_v1_v2_post_upgrade _ -> assert false
-          | Used_non_minimal_indexing_strategy -> assert false
-          | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-          | T14 | T15 ->
-              assert false
-          | Gced _ | No_gc_yet ->
-              let suffix_start_offset = new_suffix_start_offset in
-              Gced { suffix_start_offset; generation; latest_gc_target_offset }
-        in
-        { pl with status; suffix_end_poff }
-      in
       [%log.debug "GC: writing new control_file"];
       Control.set_payload t.control pl
     in
