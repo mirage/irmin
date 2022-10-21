@@ -241,13 +241,16 @@ module type S = sig
   val swap :
     t ->
     generation:int ->
-    new_suffix_start_offset:int63 ->
-    new_suffix_end_offset:int63 ->
+    suffix_start_offset:int63 ->
+    chunk_start_idx:int ->
+    chunk_num:int ->
+    suffix_dead_bytes:int63 ->
     latest_gc_target_offset:int63 ->
     (unit, [> Errs.t ]) result
-  (** Swaps to using files from the GC [generation]. The offsets
-      [new_suffix_start_offset] and [new_suffix_end_offset] are used to properly
-      load the suffix. The control file is also updated. *)
+  (** Swaps to using files from the GC [generation]. The values
+      [suffix_start_offset], [chunk_start_idx], [chunk_num], and
+      [suffix_dead_bytes] are used to properly load and read the suffix after a
+      GC. The control file is also updated on disk. *)
 
   val readonly : t -> bool
   val generation : t -> int

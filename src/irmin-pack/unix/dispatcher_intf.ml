@@ -84,9 +84,13 @@ module type S = sig
   (** [suffix_start_offset] is the offsets of the first pack entry in the
       suffix. All pack entries in the prefix fit below [suffix_start_offset]. *)
 
-  val offset_of_suffix_poff : t -> int63 -> int63
-  (** [offset_of_suffix_poff t suffix_off] converts a suffix offset into a
-      (global) offset. *)
+  val offset_of_soff : t -> int63 -> int63
+  (** [offset_of_soff t suffix_off] converts a suffix offset into a (global)
+      offset. *)
+
+  val soff_of_offset : t -> int63 -> int63
+  (** [soff_of_offset t global_offset] converts a global offset to a suffix
+      offset. *)
 
   val read_bytes_exn : t -> f:(string -> unit) -> off:int63 -> len:int63 -> unit
   (** [read_bytes_exn] reads a slice of the global offset space defined by [off]
