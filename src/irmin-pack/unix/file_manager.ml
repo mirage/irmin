@@ -24,7 +24,7 @@ let legacy_io_header_size = 16
 module Make
     (Control : Control_file.S with module Io = Io.Unix)
     (Dict : Append_only_file.S with module Io = Control.Io)
-    (Suffix : Append_only_file.S with module Io = Control.Io)
+    (Suffix : Chunked_suffix.S with module Io = Control.Io)
     (Index : Pack_index.S)
     (Errs : Io_errors.S with module Io = Control.Io) =
 struct
@@ -240,11 +240,12 @@ struct
       "reopen_suffix gen:%d end_poff:%d" generation (Int63.to_int end_poff)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
-      let path =
-        Irmin_pack.Layout.V4.suffix_chunk ~root:t.root ~chunk_idx:generation
-      in
-      [%log.debug "reload: generation changed, opening %s" path];
-      if readonly then Suffix.open_ro ~path ~end_poff ~dead_header_size
+      let root = t.root in
+      let start_idx = generation in
+      let chunk_num = 1 in
+      [%log.debug "reload: generation changed, opening suffix"];
+      if readonly then
+        Suffix.open_ro ~root ~end_poff ~dead_header_size ~start_idx ~chunk_num
       else
         let auto_flush_threshold =
           match Suffix.auto_flush_threshold t.suffix with
@@ -252,8 +253,8 @@ struct
           | Some x -> x
         in
         let cb _ = suffix_requires_a_flush_exn t in
-        Suffix.open_rw ~path ~end_poff ~dead_header_size ~auto_flush_threshold
-          ~auto_flush_procedure:(`External cb)
+        Suffix.open_rw ~root ~end_poff ~dead_header_size ~start_idx ~chunk_num
+          ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
     in
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
@@ -325,14 +326,11 @@ struct
     in
     (* 2. Open the other files *)
     let* suffix =
-      let path =
-        Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation
-      in
       let auto_flush_threshold =
         Irmin_pack.Conf.suffix_auto_flush_threshold config
       in
       let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
-      make_suffix ~path ~auto_flush_threshold
+      make_suffix ~start_idx:generation ~auto_flush_threshold
         ~auto_flush_procedure:(`External cb)
     in
     let* prefix =
@@ -458,7 +456,7 @@ struct
       create_control_file ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~overwrite in
-    let make_suffix = Suffix.create_rw ~overwrite in
+    let make_suffix = Suffix.create_rw ~root ~overwrite in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
@@ -489,7 +487,8 @@ struct
     in
     let make_dict = Dict.open_rw ~end_poff:pl.dict_end_poff ~dead_header_size in
     let make_suffix =
-      Suffix.open_rw ~end_poff:pl.suffix_end_poff ~dead_header_size
+      Suffix.open_rw ~root ~end_poff:pl.suffix_end_poff ~chunk_num:1
+        ~dead_header_size
     in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size root
@@ -606,10 +605,8 @@ struct
     let generation = generation pl.status in
     (* 2. Open the other files *)
     let* suffix =
-      let path =
-        Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation
-      in
-      Suffix.open_ro ~path ~end_poff:pl.suffix_end_poff ~dead_header_size
+      Suffix.open_ro ~root ~end_poff:pl.suffix_end_poff ~start_idx:generation
+        ~chunk_num:1 ~dead_header_size
     in
     let* prefix =
       let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
@@ -684,7 +681,11 @@ struct
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
     (* Opening the suffix requires passing it its length. We compute it from the
-       global offsets *)
+       global offsets
+
+       TODO: this calculation of [suffix_end_poff] only works with one chunk.
+       this code will be removed once we have chunk GC.
+    *)
     let suffix_end_poff =
       let open Int63.Syntax in
       new_suffix_end_offset - new_suffix_start_offset
