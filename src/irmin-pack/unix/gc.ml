@@ -42,8 +42,8 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~root ~generation ~unlink ~dispatcher ~fm ~contents ~node ~commit
-      commit_key =
+  let v ~root ~new_files_path ~generation ~unlink ~dispatcher ~fm ~contents
+      ~node ~commit commit_key =
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
       match state with
@@ -84,7 +84,7 @@ module Make (Args : Gc_args.S) = struct
     let task =
       Async.async (fun () ->
           Worker.run_and_output_result root commit_key new_suffix_start_offset
-            ~generation)
+            ~generation ~new_files_path)
     in
     let partial_stats =
       Gc_stats.Main.finish_current_step partial_stats "before finalise"
@@ -281,6 +281,16 @@ module Make (Args : Gc_args.S) = struct
           match Async.status t.task with
           | `Running -> Lwt.return_ok `Running
           | #Async.outcome as status -> go status)
+
+  let finalise_without_swap t =
+    let* status = Async.await t.task in
+    match status with
+    | `Success ->
+        Lwt.return (t.latest_gc_target_offset, t.new_suffix_start_offset)
+    | _ ->
+        let gc_output = read_gc_output ~root:t.root ~generation:t.generation in
+        let r = gc_errors status gc_output |> Errs.raise_if_error in
+        Lwt.return r
 
   let on_finalise t f =
     (* Ignore returned promise since the purpose of this

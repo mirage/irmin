@@ -553,4 +553,5 @@ let misc =
     ("layout", Layout.tests);
     ("dispatcher", Test_dispatcher.tests);
     ("corrupted", Test_corrupted.tests);
+    ("snapshot_gc", Test_gc.Snapshot.tests);
   ]

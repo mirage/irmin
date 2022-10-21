@@ -1133,3 +1133,68 @@ module Split = struct
       tc "Test commits and splits during GC" commits_and_splits_during_gc;
     ]
 end
+
+module Snapshot = struct
+  let export t commit =
+    let commit_key = S.Commit.key commit in
+    S.create_one_commit_store t.repo commit_key
+
+  let snapshot_rw () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let root_snap = Filename.concat t.root "snap" in
+    let* () = export t c1 root_snap in
+    [%log.debug "store works after export"];
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    let* () = S.Repo.close t.repo in
+    [%log.debug "open store from import in rw"];
+    let* t = init ~readonly:false ~fresh:false ~root:root_snap () in
+    let* t = checkout_exn t c1 in
+    let* () = check_1 t c1 in
+    let* () = check_not_found t c2 "c2 not commited yet" in
+    let* t, c2 = commit_2 t in
+    let* () = check_2 t c2 in
+    S.Repo.close t.repo
+
+  let snapshot_import_in_ro () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let root_snap = Filename.concat t.root "snap" in
+    let* () = export t c1 root_snap in
+    let* () = S.Repo.close t.repo in
+    [%log.debug "open store from import in ro"];
+    let* t = init ~readonly:true ~fresh:false ~root:root_snap () in
+    let* t = checkout_exn t c1 in
+    let* () = check_1 t c1 in
+    S.Repo.close t.repo
+
+  let snapshot_export_in_ro () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = S.Repo.close t.repo in
+    [%log.debug "open store in readonly to export"];
+    let* t = init ~readonly:false ~fresh:false ~root:t.root () in
+    let root_snap = Filename.concat t.root "snap" in
+    let* () = export t c1 root_snap in
+    [%log.debug "store works after export in readonly"];
+    let* t = checkout_exn t c1 in
+    let* () = check_1 t c1 in
+    let* () = S.Repo.close t.repo in
+    [%log.debug "open store from snapshot"];
+    let* t = init ~readonly:false ~fresh:false ~root:root_snap () in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    S.Repo.close t.repo
+
+  let tests =
+    [
+      tc "Import/export in rw" snapshot_rw;
+      tc "Import in ro" snapshot_import_in_ro;
+      tc "Export in ro" snapshot_export_in_ro;
+    ]
+end

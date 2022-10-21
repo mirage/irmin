@@ -53,6 +53,15 @@ module type S = sig
 
       TODO: Detail exceptions raised. *)
 
+  val create_one_commit_store : repo -> commit_key -> string -> unit Lwt.t
+  (** [create_one_commit_store t key path] creates a new store at [path] from
+      the existing one, containing only one commit, specified by the [key]. Note
+      that this operation is blocking.
+
+      It requires that the files existing on disk when the operation is
+      launched, remain on disk until the operation completes. In particular, a
+      Gc running in a different process could remove files from disk. *)
+
   module Gc : sig
     (** GC *)
 

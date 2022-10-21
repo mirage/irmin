@@ -23,7 +23,12 @@ module Make (Args : Gc_args.S) : sig
   module Args : Gc_args.S
 
   val run_and_output_result :
-    generation:int -> string -> Args.key -> int63 -> unit
+    generation:int ->
+    new_files_path:string ->
+    string ->
+    Args.key ->
+    int63 ->
+    unit
 
   type suffix_params = {
     start_offset : int63;

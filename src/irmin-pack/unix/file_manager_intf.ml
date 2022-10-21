@@ -256,6 +256,19 @@ module type S = sig
   val generation : t -> int
   val gc_allowed : t -> bool
   val split : t -> (unit, [> Errs.t ]) result
+
+  val create_one_commit_store :
+    t ->
+    Irmin.Backend.Conf.t ->
+    generation:int ->
+    latest_gc_target_offset:int63 ->
+    suffix_start_offset:int63 ->
+    Index.key Pack_key.t ->
+    (unit, [> open_rw_error | close_error ]) result
+  (** [create_one_commit_store t conf generation new_store_root key] is called
+      when creating a new store at [new_store_root] from the existing one,
+      containing only one commit, specified by the [key]. Ths new store will use
+      configuration options from [conf] and set to [generation]. *)
 end
 
 module type Sigs = sig

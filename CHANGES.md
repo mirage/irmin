@@ -9,6 +9,8 @@
     latest gc was called on. (#2110, @icristescu)
   - Add `split` to create a new suffix chunk. Subsequent writes will append to
     this chunk until `split` is called again. (#2118, @icristescu)
+  - Add `create_one_commit_store` to create a new store from the existing one,
+    containing only one commit. (#2125, @icristescu)
 
 ### Changed
 

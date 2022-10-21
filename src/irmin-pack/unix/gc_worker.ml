@@ -134,7 +134,7 @@ module Make (Args : Gc_args.S) = struct
 
   type gc_output = (gc_results, Args.Errs.t) result [@@deriving irmin]
 
-  let run ~generation root commit_key new_suffix_start_offset =
+  let run ~generation ~new_files_path root commit_key new_suffix_start_offset =
     let open Result_syntax in
     let config =
       Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 root
@@ -179,7 +179,7 @@ module Make (Args : Gc_args.S) = struct
         stats := Gc_stats.Worker.add_file_size !stats "mapping" mapping_size
       in
       (fun f ->
-        Mapping_file.create ~report_file_sizes ~root ~generation
+        Mapping_file.create ~report_file_sizes ~root:new_files_path ~generation
           ~register_entries:f ()
         |> Errs.raise_if_error)
       @@ fun ~register_entry ->
@@ -230,7 +230,9 @@ module Make (Args : Gc_args.S) = struct
       (* Step 4. Create the new prefix. *)
       stats := Gc_stats.Worker.finish_current_step !stats "prefix: start";
       let prefix =
-        let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
+        let path =
+          Irmin_pack.Layout.V4.prefix ~root:new_files_path ~generation
+        in
         Ao.create_rw_exn ~path
       in
       let () =
@@ -262,7 +264,9 @@ module Make (Args : Gc_args.S) = struct
         Dispatcher.read_exn dispatcher accessor buf
       in
       let prefix =
-        let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
+        let path =
+          Irmin_pack.Layout.V4.prefix ~root:new_files_path ~generation
+        in
         Io.open_ ~path ~readonly:false |> Errs.raise_if_error
       in
       Errors.finalise_exn (fun _outcome ->
@@ -357,11 +361,12 @@ module Make (Args : Gc_args.S) = struct
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
-  let run_and_output_result ~generation root commit_key new_suffix_start_offset
-      =
+  let run_and_output_result ~generation ~new_files_path root commit_key
+      new_suffix_start_offset =
     let result =
       Errs.catch (fun () ->
-          run ~generation root commit_key new_suffix_start_offset)
+          run ~generation ~new_files_path root commit_key
+            new_suffix_start_offset)
     in
     let write_result = write_gc_output ~root ~generation result in
     write_result |> Errs.log_if_error "writing gc output"

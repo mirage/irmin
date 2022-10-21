@@ -243,24 +243,26 @@ module Maker (Config : Conf.S) = struct
                 cancelled
             | None -> false
 
-          let start ~unlink ~use_auto_finalisation t commit_key =
+          let direct_commit_key t key =
+            let state : _ Pack_key.state = Pack_key.inspect key in
+            match state with
+            | Direct _ -> Ok key
+            | Indexed h -> (
+                match Commit.CA.index_direct_with_kind t.commit h with
+                | None ->
+                    Error
+                      (`Commit_key_is_dangling
+                        (Irmin.Type.to_string XKey.t key))
+                | Some (k, _kind) -> Ok k)
+
+          let start ~unlink ~use_auto_finalisation ~new_files_path t commit_key
+              =
             let open Result_syntax in
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
               if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
             in
-            let* commit_key =
-              let state : _ Pack_key.state = Pack_key.inspect commit_key in
-              match state with
-              | Direct _ -> Ok commit_key
-              | Indexed h -> (
-                  match Commit.CA.index_direct_with_kind t.commit h with
-                  | None ->
-                      Error
-                        (`Commit_key_is_dangling
-                          (Irmin.Type.to_string XKey.t commit_key))
-                  | Some (k, _kind) -> Ok k)
-            in
+            let* commit_key = direct_commit_key t commit_key in
             let root = Conf.root t.config in
             let* () =
               if not (File_manager.gc_allowed t.fm) then Error `Gc_disallowed
@@ -271,19 +273,21 @@ module Maker (Config : Conf.S) = struct
             let gc =
               Gc.v ~root ~generation:next_generation ~unlink
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
-                ~node:t.node ~commit:t.commit commit_key
+                ~node:t.node ~commit:t.commit ~new_files_path commit_key
             in
             t.running_gc <- Some { gc; use_auto_finalisation };
             Ok ()
 
-          let start_exn ?(unlink = true) ~use_auto_finalisation t commit_key =
+          let start_exn ?(unlink = true) ~use_auto_finalisation ~new_files_path
+              t commit_key =
             match t.running_gc with
             | Some _ ->
                 [%log.info "Repo is alreadying running GC. Skipping."];
                 Lwt.return false
             | None -> (
                 let result =
-                  start ~unlink ~use_auto_finalisation t commit_key
+                  start ~unlink ~use_auto_finalisation ~new_files_path t
+                    commit_key
                 in
                 match result with
                 | Ok _ -> Lwt.return true
@@ -346,6 +350,43 @@ module Maker (Config : Conf.S) = struct
                       Pack_key.v_direct ~offset ~length ~hash:entry.hash
                     in
                     Some key)
+
+          let create_one_commit_store t commit_key path =
+            let () =
+              match Io.classify_path path with
+              | `Directory -> ()
+              | `No_such_file_or_directory ->
+                  Io.mkdir path |> Errs.raise_if_error
+              | _ -> Errs.raise_error `Invalid_layout
+            in
+            let commit_key =
+              direct_commit_key t commit_key |> Errs.raise_if_error
+            in
+            let* launched =
+              start_exn ~use_auto_finalisation:false ~new_files_path:path t
+                commit_key
+            in
+            let () =
+              if not launched then Errs.raise_error `Forbidden_during_gc
+            in
+            let* latest_gc_target_offset, suffix_start_offset =
+              match t.running_gc with
+              | None -> assert false
+              | Some { gc; _ } -> Gc.finalise_without_swap gc
+            in
+            let generation = File_manager.generation t.fm + 1 in
+            let config = Irmin.Backend.Conf.add t.config Conf.Key.root path in
+            let () =
+              File_manager.create_one_commit_store t.fm config ~generation
+                ~latest_gc_target_offset ~suffix_start_offset commit_key
+              |> Errs.raise_if_error
+            in
+            let branch_path = Irmin_pack.Layout.V4.branch ~root:path in
+            let* branch_store =
+              Branch.v ~fresh:true ~readonly:false branch_path
+            in
+            let* () = Branch.close branch_store in
+            Lwt.return_unit
         end
 
         let batch t f =
@@ -533,6 +574,7 @@ module Maker (Config : Conf.S) = struct
     let flush = X.Repo.flush
     let fsync = X.Repo.fsync
     let split = X.Repo.split_exn
+    let create_one_commit_store = X.Repo.Gc.create_one_commit_store
 
     module Gc = struct
       type msg = [ `Msg of string ]
@@ -563,13 +605,18 @@ module Maker (Config : Conf.S) = struct
         `Msg err_msg
 
       let finalise_exn = X.Repo.Gc.finalise_exn
-      let start_exn = X.Repo.Gc.start_exn ~use_auto_finalisation:false
+
+      let start_exn ?unlink t =
+        let root = Irmin_pack.Conf.root t.X.Repo.config in
+        X.Repo.Gc.start_exn ?unlink ~use_auto_finalisation:false
+          ~new_files_path:root t
 
       let start repo commit_key =
+        let root = Irmin_pack.Conf.root repo.X.Repo.config in
         try
           let* started =
-            X.Repo.Gc.start_exn ~unlink:true ~use_auto_finalisation:true repo
-              commit_key
+            X.Repo.Gc.start_exn ~unlink:true ~use_auto_finalisation:true
+              ~new_files_path:root repo commit_key
           in
           Lwt.return_ok started
         with exn -> catch_errors "Start GC" exn

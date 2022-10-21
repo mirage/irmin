@@ -267,6 +267,12 @@ module Unix = struct
       Ok ()
     with Sys_error msg -> Error (`Sys_error msg)
 
+  let copy_file ~src ~dst =
+    let cmd = Filename.quote_command "cp" [ "-p"; src; dst ] in
+    match Sys.command cmd with
+    | 0 -> Ok ()
+    | n -> Error (`Sys_error (Int.to_string n))
+
   let mkdir path =
     match (classify_path (Filename.dirname path), classify_path path) with
     | `Directory, `No_such_file_or_directory -> (
