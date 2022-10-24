@@ -2,6 +2,10 @@ open! Import
 
 let test_dir = Filename.concat "_build" "test-pack-trace-replay"
 
+let () =
+  Logs.set_level (Some Logs.Debug);
+  Logs.set_reporter (Irmin_test.reporter ())
+
 module Conf = Irmin_tezos.Conf
 
 module Store = struct
@@ -59,7 +63,7 @@ let goto_project_root () =
       Unix.chdir (Fpath.to_string root)
   | _ -> ()
 
-let replay_1_commit () =
+let setup_env () =
   goto_project_root ();
   let trace_path =
     let open Fpath in
@@ -72,7 +76,10 @@ let replay_1_commit () =
     [%logs.debug "exec: %s\n%!" cmd];
     let _ = Sys.command cmd in
     ());
+  trace_path
 
+let replay_1_commit () =
+  let trace_path = setup_env () in
   let replay_config : _ Replay.config =
     {
       number_of_commits_to_replay = 1;
@@ -140,19 +147,7 @@ end
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)
 
 let replay_1_commit_mem () =
-  goto_project_root ();
-  let trace_path =
-    let open Fpath in
-    v "test" / "irmin-bench" / "data" / "tezos_actions_1commit.repr"
-    |> to_string
-  in
-  assert (Sys.file_exists trace_path);
-  if Sys.file_exists test_dir then (
-    let cmd = Printf.sprintf "rm -rf %s" test_dir in
-    [%logs.debug "exec: %s\n%!" cmd];
-    let _ = Sys.command cmd in
-    ());
-
+  let trace_path = setup_env () in
   let replay_config : _ Irmin_traces.Trace_replay.config =
     {
       number_of_commits_to_replay = 1;
@@ -176,12 +171,13 @@ let replay_1_commit_mem () =
   ()
 
 let test_cases =
+  let tc msg f =
+    Alcotest.test_case msg `Quick (fun () -> Lwt_main.run (f ()))
+  in
   [
     ( "replay",
       [
-        Alcotest.test_case "replay_1_commit" `Quick (fun () ->
-            Lwt_main.run (replay_1_commit ()));
-        Alcotest.test_case "replay_1_commit_in_memory" `Quick (fun () ->
-            Lwt_main.run (replay_1_commit_mem ()));
+        tc "replay_1_commit" replay_1_commit;
+        tc "replay_1_commit_in_memory" replay_1_commit_mem;
       ] );
   ]

@@ -57,12 +57,17 @@ module Store = struct
     let* _launched = S.Gc.start_exn ~unlink t.repo commit_key in
     Lwt.return_unit
 
-  let finalise_gc t =
+  let finalise_gc_with_stats t =
     let* result = S.Gc.finalise_exn ~wait:true t.repo in
     match result with
     | `Running -> Alcotest.fail "expected finalised gc"
     (* consider `Idle as success because gc can finalise during commit as well *)
-    | `Idle | `Finalised _ -> Lwt.return_unit
+    | `Idle -> Lwt.return_none
+    | `Finalised stats -> Lwt.return_some stats
+
+  let finalise_gc t =
+    let* _ = finalise_gc_with_stats t in
+    Lwt.return_unit
 
   let commit ?(info = info) t =
     let parents = List.map S.Commit.key t.parents in
@@ -594,6 +599,42 @@ module Gc = struct
     check_latest_gc_target (Some c3);
     S.Repo.close t.repo
 
+  (** Check Gc stats. *)
+  let gc_stats () =
+    let check_stats (stats : Irmin_pack_unix.Stats.Latest_gc.stats) =
+      let objects_traversed = stats.worker.objects_traversed |> Int63.to_int in
+      Alcotest.(check int) "objects_traversed" objects_traversed 8;
+      let files =
+        List.map (fun (f, s) -> (f, Int63.to_int s)) stats.worker.files
+      in
+      let compare a b = String.compare (fst a) (fst b) in
+      Alcotest.(check (slist (pair string int) compare))
+        "test"
+        [
+          ("mapping", 72);
+          ("suffix", 531);
+          ("prefix", 316);
+          ("sorted", 128);
+          ("reachable", 128);
+          ("old_mapping", 48);
+          ("old_prefix", 267);
+        ]
+        files
+    in
+
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc t c3 in
+    let* stats = finalise_gc_with_stats t in
+    check_stats (Option.get stats);
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test one gc" one_gc;
@@ -611,6 +652,7 @@ module Gc = struct
       tc "Test add back gced commit" add_back_gced_commit;
       tc "Test gc on similar commits" gc_similar_commits;
       tc "Test oldest live commit" latest_gc_target;
+      tc "Test worker gc stats" gc_stats;
     ]
 end
 
