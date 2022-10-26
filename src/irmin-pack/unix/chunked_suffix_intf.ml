@@ -39,6 +39,13 @@ module type S = sig
     | `Inconsistent_store
     | `Read_out_of_bounds ]
 
+  type add_new_error =
+    [ open_error
+    | Io.close_error
+    | `Pending_flush
+    | `File_exists of string
+    | `Multiple_empty_chunks ]
+
   val create_rw :
     root:string ->
     start_idx:int ->
@@ -65,6 +72,12 @@ module type S = sig
     chunk_num:int ->
     (t, [> open_error ]) result
 
+  val add_chunk :
+    auto_flush_threshold:int ->
+    auto_flush_procedure:Ao.auto_flush_procedure ->
+    t ->
+    (unit, [> add_new_error ]) result
+
   val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
   val empty_buffer : t -> bool
   val flush : t -> (unit, [> Io.write_error ]) result
@@ -77,6 +90,7 @@ module type S = sig
      Possible new names: [consistency_poff], [persisted_poff].
   *)
   val end_poff : t -> int63
+  val length : t -> int63
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   val append_exn : t -> string -> unit
 

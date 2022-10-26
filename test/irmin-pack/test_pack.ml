@@ -546,6 +546,7 @@ let misc =
     ("upgrade", Test_upgrade.tests);
     ("gc", Test_gc.Gc.tests);
     ("concurrent gc", Test_gc.Concurrent_gc.tests);
+    ("split", Test_gc.Split.tests);
     ("flush", Test_flush_reload.tests);
     ("mapping", Test_mapping.tests);
     ("test_nearest_leq", Test_nearest_leq.tests);

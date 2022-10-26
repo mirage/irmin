@@ -40,6 +40,19 @@ module type S = sig
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)
 
+  val split : repo -> unit
+  (** [split t] starts a fresh chunk file for appending data. Only allowed on
+      stores that allow gc.
+
+      Raises [RO_Not_Allowed] if called by a readonly instance.
+
+      Raises [Split_forbidden_during_batch] if called inside a batch operation.
+
+      Raises [Multiple_empty_chunks] if no data was added to the currently-used
+      chunk file.
+
+      TODO: Detail exceptions raised. *)
+
   module Gc : sig
     (** GC *)
 

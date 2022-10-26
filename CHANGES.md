@@ -7,6 +7,8 @@
     `finished` callback (#2089, @Ngoguey42)
   - Add `Gc.oldest_live_commit` which returns the key of the commit on which the
     latest gc was called on. (#2110, @icristescu)
+  - Add `split` to create a new suffix chunk. Subsequent writes will append to
+    this chunk until `split` is called again. (#2118, @icristescu)
 
 ### Changed
 

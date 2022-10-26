@@ -70,7 +70,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
      offsets are translated into real ones (i.e. in prefix or suffix offsets). *)
   let end_offset t =
     let open Int63.Syntax in
-    Suffix.end_poff (Fm.suffix t.fm) + suffix_start_offset t
+    Suffix.length (Fm.suffix t.fm) + suffix_start_offset t
 
   module Suffix_arithmetic = struct
     (* Adjust the read in suffix, as the global offset [off] is
@@ -319,7 +319,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
           List.rev !preffix_chunks
       | None -> []
     in
-    let suffix_end_poff = Fm.Suffix.end_poff (Fm.suffix t.fm) in
+    let suffix_end_poff = Fm.Suffix.length (Fm.suffix t.fm) in
     let suffix_start_offset = suffix_start_offset t in
     let get_entry_accessor rem_len location poff =
       let accessor =

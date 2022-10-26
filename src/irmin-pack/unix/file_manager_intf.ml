@@ -234,9 +234,9 @@ module type S = sig
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 
-  val cleanup : root:string -> generation:int -> unit
-  (** [cleanup ~root ~generation] removes any residual files in directory [root]
-      not needed by the current [generation]. *)
+  val cleanup : t -> unit
+  (** [cleanup t] removes any residual files in directory [root] not needed by
+      the control file. *)
 
   val swap :
     t ->
@@ -252,6 +252,7 @@ module type S = sig
   val readonly : t -> bool
   val generation : t -> int
   val gc_allowed : t -> bool
+  val split : t -> (unit, [> Errs.t ]) result
 end
 
 module type Sigs = sig
