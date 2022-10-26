@@ -16,6 +16,18 @@
   - Change on-disk layout of the suffix from a single file to a multiple,
     chunked file design (#2115, @metanivek)
 
+- **irmin-git**
+  - Upgrade `irmin-git` to `git-unix.3.10.0`. (#2127, @icristescu)
+
+- **irmin-http**
+  - Upgrade `irmin-http` to `git-unix.3.10.0`. (#2127, @icristescu)
+
+- **irmin-graphql**
+  - Upgrade `irmin-graphql` to `git-unix.3.10.0`. (#2127, @icristescu)
+
+- **irmin-cli**
+  - Upgrade `irmin-cli` to `git-unix.3.10.0`. (#2127, @icristescu)
+
 ### Fixed
 
 - **irmin-pack**

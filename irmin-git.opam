@@ -20,7 +20,7 @@ depends: [
   "irmin"      {= version}
   "ppx_irmin"  {= version}
   "git"        {>= "3.7.0"}
-  "git-unix"   {>= "3.7.0"}
+  "git-unix"   {>= "3.10.0"}
   "digestif"   {>= "0.9.0"}
   "cstruct"
   "fmt"

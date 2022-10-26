@@ -24,7 +24,7 @@ depends: [
   "cohttp"
   "cohttp-lwt"
   "cohttp-lwt-unix"
-  "git-unix"        {>= "3.7.0"}
+  "git-unix"        {>= "3.10.0"}
   "fmt"
   "lwt"             {>= "5.3.0"}
   "alcotest-lwt"    {with-test & >= "1.1.0"}
