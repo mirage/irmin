@@ -140,6 +140,7 @@ module Store_mem = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
+  let split _repo = ()
   let gc_wait _repo = Lwt.return_unit
   let gc_run ?finished:_ _repo _key = Lwt.return_unit
 end

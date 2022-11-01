@@ -334,9 +334,11 @@ module Make (Store : Store) = struct
 
     let first_gc_occured = i <> commits_since_start_or_gc in
 
+    let time_to_split = commits_since_start_or_gc = config.gc_every in
+
     let time_to_start =
       (* Is it time to start GC? *)
-      if first_gc_occured then commits_since_start_or_gc = config.gc_every
+      if first_gc_occured then time_to_split
       else
         let gc_commit_idx =
           (* [i] is the replay step and also the commit index of the next
@@ -348,15 +350,17 @@ module Make (Store : Store) = struct
         in
         gc_commit_idx = 1
     in
+
     let time_to_wait =
       (* Is it time to wait GC? *)
       if first_gc_occured then commits_since_start_or_gc = config.gc_wait_after
       else false
     in
 
+    let really_split = gc_enabled && time_to_split in
     let really_start_gc = gc_enabled && time_to_start in
     let really_wait_gc = gc_wait_enabled && time_to_wait in
-    (really_wait_gc, really_start_gc)
+    (really_wait_gc, really_start_gc, really_split)
 
   let add_commits config repo commit_seq on_commit on_end stats check_hash
       empty_blobs =
@@ -380,9 +384,11 @@ module Make (Store : Store) = struct
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
-          let really_wait_gc, really_start_gc =
+          let really_wait_gc, really_start_gc, really_split =
             gc_actions config i t.commits_since_start_or_gc
           in
+          (* Split before GC to simulate how it is inteded to be used. *)
+          let () = if really_split then Store.split repo in
           let* () =
             if really_wait_gc then (
               [%logs.app
@@ -414,10 +420,16 @@ module Make (Store : Store) = struct
                 | Ok stats ->
                     let commit_idx = t.latest_commit_idx in
                     let commit_duration = commit_idx - gc_start_commit_idx in
+                    let duration =
+                      Irmin_pack_unix.Stats.Latest_gc.total_duration stats
+                    in
+                    let finalise_duration =
+                      Irmin_pack_unix.Stats.Latest_gc.finalise_duration stats
+                    in
                     [%logs.app
-                      "Gc ended after %d commits, %a" commit_duration
-                        (Repr.pp Irmin_pack_unix.Stats.Latest_gc.stats_t)
-                        stats];
+                      "Gc ended after %d commits; duration: %fs; \
+                       finalise_duration: %fs"
+                      commit_duration duration finalise_duration];
                     Lwt.return_unit
                 | Error s -> failwith s
               in
