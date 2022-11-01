@@ -85,7 +85,7 @@ module Repo_config = struct
 end
 
 (** Utility for creating commit info *)
-let info fmt = Irmin_unix.info ~author:"pack example" fmt
+let info fmt key value = Irmin_unix.info ~author:"pack example" fmt key value ()
 
 (** Utility for computing the size of a directory *)
 let rec megabytes_of_path path =
@@ -95,54 +95,89 @@ let rec megabytes_of_path path =
       0. (Sys.readdir path)
   else float_of_int Unix.((stat path).st_size) /. 1e6
 
-(** Demonstrate running GC on all commits before the head *)
-let gc_all_but_head repo branch =
-  let* head = Store.Head.get branch in
-  let head_key = Store.Commit.key head in
-  let finished = function
-    | Ok stats ->
-        let duration = Irmin_pack_unix.Stats.Latest_gc.total_duration stats in
-        let finalise_duration =
-          Irmin_pack_unix.Stats.Latest_gc.finalise_duration stats
+(** A utility module for tracking the latest commit and the commit we will want
+    to run GC for. *)
+module Tracker = struct
+  type t = {
+    mutable latest_commit : Store.commit option;
+    mutable next_gc_commit : Store.commit option;
+  }
+
+  let v () = { latest_commit = None; next_gc_commit = None }
+  let update_latest_commit t commit = t.latest_commit <- Some commit
+
+  let latest_parents t =
+    match t.latest_commit with None -> [] | Some c -> Store.Commit.parents c
+
+  let latest_tree t =
+    match t.latest_commit with
+    | None -> Store.Tree.empty ()
+    | Some c -> Store.Commit.tree c
+
+  let mark_next_gc_commit t = t.next_gc_commit <- t.latest_commit
+end
+
+(** Demonstrate running GC on a previous commit aligned to the end of a chunk
+    for ideal GC space reclamation. *)
+let run_gc repo tracker =
+  let* () =
+    match Tracker.(tracker.next_gc_commit) with
+    | None -> Lwt.return_unit
+    | Some commit -> (
+        let finished = function
+          | Ok stats ->
+              let duration =
+                Irmin_pack_unix.Stats.Latest_gc.total_duration stats
+              in
+              let finalise_duration =
+                Irmin_pack_unix.Stats.Latest_gc.finalise_duration stats
+              in
+              Printf.printf
+                "GC finished in %.4fs. Finalise took %.4fs. Size of repo: \
+                 %.2fMB.\n"
+                duration finalise_duration
+                (megabytes_of_path Repo_config.root)
+              |> Lwt.return
+          | Error (`Msg err) -> print_endline err |> Lwt.return
         in
-        Printf.printf
-          "GC finished in %.4fs. Finalise took %.4fs. Size of repo: %.2fMB.\n"
-          duration finalise_duration
-          (megabytes_of_path Repo_config.root)
-        |> Lwt.return
-    | Error (`Msg err) -> print_endline err |> Lwt.return
+        (* Launch GC *)
+        let commit_key = Store.Commit.key commit in
+        let+ launched = Store.Gc.run ~finished repo commit_key in
+        match launched with
+        | Ok false ->
+            Printf.printf "GC did not launch. Already running? %B\n"
+              (Store.Gc.is_finished repo = false)
+        | Ok true ->
+            Printf.printf "GC started. Size of repo: %.2fMB\n"
+              (megabytes_of_path Repo_config.root)
+        | Error (`Msg err) -> print_endline err)
   in
-  let+ launched = Store.Gc.run ~finished repo head_key in
-  match launched with
-  | Ok false ->
-      Printf.printf "GC did not launch. Already running? %B\n"
-        (Store.Gc.is_finished repo = false)
-  | Ok true ->
-      Printf.printf "GC started. Size of repo: %.2fMB\n"
-        (megabytes_of_path Repo_config.root)
-  | Error (`Msg err) -> print_endline err
+  (* Create new split and mark the latest commit to be the next GC commit. *)
+  let () = Store.split repo in
+  Tracker.mark_next_gc_commit tracker |> Lwt.return
 
 let main () =
-  let run_gc = true in
   let num_of_commits = 200_000 in
-  let gc_every = 5_000 in
+  let gc_every = 1_000 in
   let* repo = Store.Repo.v Repo_config.config in
-  let* main_branch = Store.main repo in
+  let tracker = Tracker.v () in
   (* Create commits *)
   let* _ =
     let rec loop i n =
-      let key = Printf.sprintf "hello%d" i in
+      let key = "hello" in
       let value = Printf.sprintf "packfile%d" i in
-      let* _ =
-        Store.set ~info:(info "add %s = %s" key value) main_branch [ key ] value
+      let* tree = Store.Tree.add (Tracker.latest_tree tracker) [ key ] value in
+      let parents = Tracker.latest_parents tracker in
+      let* commit =
+        Store.Commit.v repo ~info:(info "add %s = %s" key value) ~parents tree
       in
+      Tracker.update_latest_commit tracker commit;
       let* _ =
-        if run_gc && i mod gc_every = 0 then gc_all_but_head repo main_branch
-        else Lwt.return_unit
+        if i mod gc_every = 0 then run_gc repo tracker else Lwt.return_unit
       in
       if i >= n then Lwt.return_unit else loop (i + 1) n
     in
-    loop 0 num_of_commits
+    loop 1 num_of_commits
   in
   (* A GC may still be running. Wait for GC to finish before ending the process *)
   let* _ = Store.Gc.wait repo in
