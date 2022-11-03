@@ -60,7 +60,7 @@ module Make (Args : Gc_args.S) = struct
         Dispatcher.suffix_start_offset dispatcher
       in
       let before_suffix_end_offset = Dispatcher.end_offset dispatcher in
-      Gc_stats.Main.create "worker startup" ~commit_offset
+      Gc_stats.Main.create "worker startup" ~commit_offset ~generation
         ~before_suffix_start_offset ~before_suffix_end_offset
         ~after_suffix_start_offset:new_suffix_start_offset
     in
