@@ -188,7 +188,8 @@ module Make (Args : Gc_args.S) = struct
          because, when decoding the [Commit_value.t] at [commit_key], the
          parents will have to be read in order to produce a key for them. *)
       stats :=
-        Gc_stats.Worker.finish_current_step !stats "mapping: commits to sorted";
+        Gc_stats.Worker.finish_current_step !stats
+          "mapping: commits to reachable";
       let register_object_exn key =
         match Pack_key.inspect key with
         | Indexed _ ->
@@ -205,7 +206,8 @@ module Make (Args : Gc_args.S) = struct
 
       (* Step 3.4 Put the nodes and contents in the reachable file. *)
       stats :=
-        Gc_stats.Worker.finish_current_step !stats "mapping: objects to sorted";
+        Gc_stats.Worker.finish_current_step !stats
+          "mapping: objects to reachable";
       let register_object_exn key =
         match Pack_key.inspect key with
         | Indexed _ ->
@@ -222,7 +224,8 @@ module Make (Args : Gc_args.S) = struct
 
       (* Step 3.5 Return and let the [Mapping_file] routine create the mapping
          file. *)
-      stats := Gc_stats.Worker.finish_current_step !stats "mapping: of sorted";
+      stats :=
+        Gc_stats.Worker.finish_current_step !stats "mapping: of reachable";
       ()
     in
 
