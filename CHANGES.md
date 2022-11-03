@@ -17,6 +17,9 @@
   - Detecting control file corruption with a checksum (#2119, @art-w)
   - Change on-disk layout of the suffix from a single file to a multiple,
     chunked file design (#2115, @metanivek)
+  - Modify GC to work with new chunked suffix. See `examples/gc.ml` for a
+    demonstration of how it works with the new `split` function. (#2126,
+    @metanivek)
 
 ### Fixed
 
