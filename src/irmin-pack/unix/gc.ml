@@ -251,21 +251,22 @@ module Make (Args : Gc_args.S) = struct
                 in
                 if t.unlink then unlink_all t removable_chunk_idxs;
 
-                let partial_stats =
+                let stats =
                   let after_suffix_end_offset =
                     Dispatcher.end_offset t.dispatcher
                   in
                   Gc_stats.Main.finalise partial_stats worker_stats
                     ~after_suffix_end_offset
                 in
-                t.resulting_stats <- Some partial_stats;
+                Stats.report_latest_gc stats;
+                t.resulting_stats <- Some stats;
 
                 [%log.debug
                   "Gc ended successfully. %a"
                     (Irmin.Type.pp Stats.Latest_gc.stats_t)
-                    partial_stats];
-                let () = Lwt.wakeup_later t.resolver (Ok partial_stats) in
-                Ok (`Finalised partial_stats)
+                    stats];
+                let () = Lwt.wakeup_later t.resolver (Ok stats) in
+                Ok (`Finalised stats)
             | _ ->
                 clean_after_abort t;
                 let err = gc_errors status gc_output in
