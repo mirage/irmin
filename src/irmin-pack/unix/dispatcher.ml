@@ -29,7 +29,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   module Control = Fm.Control
 
   type t = { fm : Fm.t }
-  type location = Prefix | Suffix [@@deriving irmin]
+  type location = Prefix | Suffix [@@deriving irmin ~pp]
 
   type accessor = { poff : int63; len : int63; location : location }
   [@@deriving irmin]
@@ -66,27 +66,41 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         assert false
     | Gced { suffix_start_offset; _ } -> suffix_start_offset
 
+  let suffix_dead_bytes t =
+    let pl = Control.payload (Fm.control t.fm) in
+    match pl.status with
+    | Payload.From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy
+    | No_gc_yet ->
+        Int63.zero
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        assert false
+    | Gced { suffix_dead_bytes; _ } -> suffix_dead_bytes
+
   (* The suffix only know the real offsets, it is in the dispatcher that global
      offsets are translated into real ones (i.e. in prefix or suffix offsets). *)
   let end_offset t =
     let open Int63.Syntax in
-    Suffix.length (Fm.suffix t.fm) + suffix_start_offset t
+    Suffix.length (Fm.suffix t.fm) + suffix_start_offset t - suffix_dead_bytes t
 
   module Suffix_arithmetic = struct
     (* Adjust the read in suffix, as the global offset [off] is
-       [off] = [suffix_start_offset] + [suffix_offset]. *)
-    let poff_of_off t off =
+       [off] = [suffix_start_offset] + [soff] - [suffix_dead_bytes]. *)
+    let soff_of_off t off =
       let open Int63.Syntax in
       let suffix_start_offset = suffix_start_offset t in
-      off - suffix_start_offset
+      let suffix_dead_bytes = suffix_dead_bytes t in
+      off - suffix_start_offset + suffix_dead_bytes
 
-    let off_of_poff t suffix_off =
+    let off_of_soff t soff =
       let open Int63.Syntax in
       let suffix_start_offset = suffix_start_offset t in
-      suffix_off + suffix_start_offset
+      let suffix_dead_bytes = suffix_dead_bytes t in
+      suffix_start_offset + soff - suffix_dead_bytes
   end
 
-  let offset_of_suffix_poff = Suffix_arithmetic.off_of_poff
+  let offset_of_soff = Suffix_arithmetic.off_of_soff
+  let soff_of_offset = Suffix_arithmetic.soff_of_off
 
   module Prefix_arithmetic = struct
     (* Find the last chunk which is before [off_start] (or at [off_start]). If no
@@ -162,7 +176,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       if entry_end_offset > end_offset t then
         raise (Errors.Pack_error `Read_out_of_bounds)
       else
-        let poff = Suffix_arithmetic.poff_of_off t off in
+        let poff = Suffix_arithmetic.soff_of_off t off in
         { poff; len; location = Suffix }
 
     let v_in_prefix_exn mapping ~off ~len =
@@ -184,7 +198,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         else if bytes_after_off > max_len then max_len
         else bytes_after_off
       in
-      let poff = Suffix_arithmetic.poff_of_off t off in
+      let poff = Suffix_arithmetic.soff_of_off t off in
       { poff; len; location = Suffix }
 
     let v_range_in_prefix_exn t ~off ~min_len ~max_len =
@@ -211,6 +225,9 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
   end
 
   let read_exn t { poff; len; location } buf =
+    [%log.debug
+      "read_exn in %a at %a for %a" (Irmin.Type.pp location_t) location Int63.pp
+        poff Int63.pp len];
     assert (len <= Int63.of_int Stdlib.max_int);
     (* This assetion cannot be triggered because:
 

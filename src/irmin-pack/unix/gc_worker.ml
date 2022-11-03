@@ -105,10 +105,6 @@ module Make (Args : Gc_args.S) = struct
        resulting string, which we pass to write_exn. This usage is safe. *)
     write_exn ~off:accessor.poff ~len (Bytes.unsafe_to_string buffer)
 
-  let create_new_suffix ~root ~generation =
-    let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation in
-    Ao.create_rw_exn ~path
-
   let report_old_file_sizes ~root ~generation stats =
     let open Result_syntax in
     let* prefix_size =
@@ -122,7 +118,23 @@ module Make (Args : Gc_args.S) = struct
     stats := Gc_stats.Worker.add_file_size !stats "old_prefix" prefix_size;
     stats := Gc_stats.Worker.add_file_size !stats "old_mapping" mapping_size
 
-  let run ~generation root commit_key new_prefix_end_offset =
+  type suffix_params = {
+    start_offset : int63;
+    chunk_start_idx : int;
+    dead_bytes : int63;
+  }
+  [@@deriving irmin]
+
+  type gc_results = {
+    suffix_params : suffix_params;
+    removable_chunk_idxs : int list;
+    stats : Stats.Latest_gc.worker;
+  }
+  [@@deriving irmin]
+
+  type gc_output = (gc_results, Args.Errs.t) result [@@deriving irmin]
+
+  let run ~generation root commit_key new_suffix_start_offset =
     let open Result_syntax in
     let config =
       Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 root
@@ -227,8 +239,6 @@ module Make (Args : Gc_args.S) = struct
               Gc_stats.Worker.add_file_size !stats "prefix" (Ao.end_poff prefix);
             Ao.close prefix |> Errs.log_if_error "GC: Close prefix")
         @@ fun () ->
-        ();
-
         (* Step 5. Transfer to the new prefix, flush and close. *)
         [%log.debug "GC: transfering to the new prefix"];
         stats := Gc_stats.Worker.finish_current_step !stats "prefix: transfer";
@@ -267,57 +277,74 @@ module Make (Args : Gc_args.S) = struct
         (Commit_value.parents commit)
     in
 
-    (* Step 6. Create the new suffix and prepare 2 functions for read and write
-       operations. *)
-    stats := Gc_stats.Worker.finish_current_step !stats "suffix: start";
-    [%log.debug "GC: creating new suffix"];
-    let suffix = create_new_suffix ~root ~generation in
-    Errors.finalise_exn (fun _outcome ->
-        Ao.fsync suffix
-        >>= (fun _ -> Ao.close suffix)
-        |> Errs.log_if_error "GC: Close suffix")
-    @@ fun () ->
-    let append_exn = Ao.append_exn suffix in
-
-    (* Step 7. Transfer to the next suffix. *)
-    [%log.debug "GC: transfering to the new suffix"];
-    stats := Gc_stats.Worker.finish_current_step !stats "suffix: transfer";
-    let num_iterations = 7 in
-    (* [transfer_loop] is needed because after garbage collection there may be new objects
-       at the end of the suffix file that need to be copied over *)
-    let rec transfer_loop i ~off =
-      if i = 0 then off
-      else
-        let () = Fm.reload fm |> Errs.raise_if_error in
-        let pl : Payload.t = Fm.Control.payload (Fm.control fm) in
-        let end_offset =
-          Dispatcher.offset_of_suffix_poff dispatcher pl.suffix_end_poff
-        in
-        let len = Int63.Syntax.(end_offset - off) in
-        [%log.debug
-          "GC: transfer_loop iteration %d, offset %a, length %a"
-            (num_iterations - i + 1)
-            Int63.pp off Int63.pp len];
-        stats := Gc_stats.Worker.add_suffix_transfer !stats len;
-        let () = Dispatcher.read_bytes_exn dispatcher ~f:append_exn ~off ~len in
-        (* Check how many bytes are left, [4096*5] is selected because it is roughly the
-           number of bytes that requires a read from the block device on ext4 *)
-        if Int63.to_int len < 4096 * 5 then end_offset
-        else
-          let off = Int63.Syntax.(off + len) in
-          transfer_loop ~off (i - 1)
+    (* Step 6. Calculate post-GC suffix parameters. *)
+    let suffix_params, removable_chunk_idxs =
+      stats :=
+        Gc_stats.Worker.finish_current_step !stats
+          "suffix: calculate new values";
+      let suffix = Fm.suffix fm in
+      let soff = Dispatcher.soff_of_offset dispatcher new_suffix_start_offset in
+      (* Step 6.1. Calculate chunks that we have GCed. *)
+      let open struct
+        type chunk = { idx : int; end_suffix_off : int63 }
+      end in
+      let removable_chunks =
+        match Fm.Suffix.chunk_num suffix with
+        | 1 -> [] (* We never remove a single chunk. *)
+        | _ ->
+            Fm.Suffix.fold_chunks
+              (fun ~acc ~idx ~start_suffix_off ~end_suffix_off ~is_appendable ->
+                (* Remove chunks that end at or before our new split point.
+                   This will leave the chunk that starts with (or contains) the
+                   split point but remove all previous chunks.
+                   We never remove empty or appendable chunks. *)
+                let is_empty = start_suffix_off = end_suffix_off in
+                let ends_with_or_is_before_soff = end_suffix_off <= soff in
+                let is_removable =
+                  (not is_appendable)
+                  && (not is_empty)
+                  && ends_with_or_is_before_soff
+                in
+                if is_removable then { idx; end_suffix_off } :: acc else acc)
+              [] suffix
+      in
+      (* Step 6.2. Calculate the new chunk starting idx. *)
+      let chunk_start_idx =
+        match removable_chunks with
+        | [] -> Fm.Suffix.start_idx suffix
+        | last_removed_chunk :: _ -> succ last_removed_chunk.idx
+      in
+      (* Step 6.3. Calculate new dead bytes at the beginning of the suffix. *)
+      let suffix_dead_bytes =
+        match removable_chunks with
+        (* If no chunks are GCed, the dead bytes are equivalent to the physical
+           offset of new suffix offset. *)
+        | [] -> Dispatcher.soff_of_offset dispatcher new_suffix_start_offset
+        (* Otherwise, it is the difference between the last chunk removed's end offset
+           and the new start offset. *)
+        | last_removed_chunk :: _ ->
+            let removed_end_offset =
+              last_removed_chunk.end_suffix_off
+              |> Dispatcher.offset_of_soff dispatcher
+            in
+            Int63.Syntax.(new_suffix_start_offset - removed_end_offset)
+      in
+      (* Step 6.4. Assertions and record construction. *)
+      assert (Int63.Syntax.(suffix_dead_bytes >= Int63.zero));
+      let removable_chunk_idxs =
+        removable_chunks |> List.map (fun c -> c.idx)
+      in
+      ( {
+          start_offset = new_suffix_start_offset;
+          dead_bytes = suffix_dead_bytes;
+          chunk_start_idx;
+        },
+        removable_chunk_idxs )
     in
-    let new_end_suffix_offset =
-      transfer_loop ~off:new_prefix_end_offset num_iterations
-    in
-    stats := Gc_stats.Worker.add_file_size !stats "suffix" new_end_suffix_offset;
-    Ao.flush suffix |> Errs.raise_if_error;
 
-    (* Step 8. Finalise stats and return. *)
-    Gc_stats.Worker.finalise !stats
-
-  type gc_output = (Stats.Latest_gc.worker, Args.Errs.t) result
-  [@@deriving irmin]
+    (* Step 7. Finalise stats and return. *)
+    let stats = Gc_stats.Worker.finalise !stats in
+    { suffix_params; removable_chunk_idxs; stats }
 
   let write_gc_output ~root ~generation output =
     let open Result_syntax in
@@ -330,10 +357,11 @@ module Make (Args : Gc_args.S) = struct
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
-  let run_and_output_result ~generation root commit_key new_prefix_end_offset =
+  let run_and_output_result ~generation root commit_key new_suffix_start_offset
+      =
     let result =
       Errs.catch (fun () ->
-          run ~generation root commit_key new_prefix_end_offset)
+          run ~generation root commit_key new_suffix_start_offset)
     in
     let write_result = write_gc_output ~root ~generation result in
     write_result |> Errs.log_if_error "writing gc output"

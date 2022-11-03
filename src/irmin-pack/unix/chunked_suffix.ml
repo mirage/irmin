@@ -52,6 +52,9 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
         Raises `Read_out_of_bounds exception. *)
 
+    val fold :
+      (acc:'a -> is_appendable:bool -> chunk:chunk -> 'a) -> 'a -> t -> 'a
+
     val open_ :
       start_idx:int ->
       chunk_num:int ->
@@ -74,6 +77,13 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       (unit, [> add_new_error ]) result
 
     val length : t -> int63
+    (** [length t] is the length of bytes for all chunks *)
+
+    val start_idx : t -> int
+    (** [start_idx t] is the idx of the first chunk *)
+
+    val count : t -> int
+    (** [count t] is the number of chunks *)
   end = struct
     type t = { mutable chunks : chunk Array.t }
 
@@ -99,6 +109,14 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       Int63.Syntax.(start_offset + chunk_len)
 
     let is_legacy chunk_idx = chunk_idx = 0
+
+    let fold f acc t =
+      let appendable_idx = (appendable t).idx in
+      Array.fold_left
+        (fun acc chunk ->
+          let is_appendable = chunk.idx = appendable_idx in
+          f ~acc ~is_appendable ~chunk)
+        acc t.chunks
 
     let open_ ~start_idx ~chunk_num ~open_chunk =
       let off_acc = ref Int63.zero in
@@ -170,6 +188,9 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let length t =
       let open Int63.Syntax in
       Array.fold_left (fun sum c -> sum + Ao.end_poff c.ao) Int63.zero t.chunks
+
+    let count t = Array.length t.chunks
+    let start_idx t = t.chunks.(0).idx
   end
 
   type t = { inventory : Inventory.t; root : string; dead_header_size : int }
@@ -234,13 +255,40 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let+ inventory = Inventory.open_ ~start_idx ~chunk_num ~open_chunk in
     { inventory; root; dead_header_size }
 
+  let start_idx t = Inventory.start_idx t.inventory
+  let chunk_num t = Inventory.count t.inventory
   let appendable_ao t = (Inventory.appendable t.inventory).ao
   let end_poff t = appendable_ao t |> Ao.end_poff
   let length t = Inventory.length t.inventory
 
   let read_exn t ~off ~len buf =
-    let chunk, poff = Inventory.find ~off t.inventory in
-    Ao.read_exn chunk.ao ~off:poff ~len buf
+    let rec read progress_off suffix_off len_requested =
+      let open Int63.Syntax in
+      (* Find chunk with [suffix_off] and calculate length we can read. *)
+      let chunk, poff = Inventory.find ~off:suffix_off t.inventory in
+      let chunk_end_poff = Ao.end_poff chunk.ao in
+      let read_end_poff = poff + len_requested in
+      let len_read =
+        if read_end_poff > chunk_end_poff then chunk_end_poff - poff
+        else len_requested
+      in
+
+      (* Perform read. If this is the first read, we can use [buf]; otherwise,
+         we create a new buffer and transfer after the read. *)
+      let len_i = Int63.to_int len_read in
+      let is_first_read = progress_off = Int63.zero in
+      let ao_buf = if is_first_read then buf else Bytes.create len_i in
+      Ao.read_exn chunk.ao ~off:poff ~len:len_i ao_buf;
+      if not is_first_read then
+        Bytes.blit ao_buf 0 buf (Int63.to_int progress_off) len_i;
+
+      (* Read more if any is [rem]aining. *)
+      let rem = len_requested - len_read in
+      if rem > Int63.zero then
+        read (progress_off + len_read) (suffix_off + len_read) rem
+      else ()
+    in
+    read Int63.zero off (Int63.of_int len)
 
   let append_exn t s = Ao.append_exn (appendable_ao t) s
 
@@ -277,4 +325,13 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let readonly t = appendable_ao t |> Ao.readonly
   let auto_flush_threshold t = appendable_ao t |> Ao.auto_flush_threshold
+
+  let fold_chunks f acc t =
+    Inventory.fold
+      (fun ~acc ~is_appendable ~chunk ->
+        let len = Ao.end_poff chunk.ao in
+        let start_suffix_off = chunk.suffix_off in
+        let end_suffix_off = Int63.Syntax.(start_suffix_off + len) in
+        f ~acc ~idx:chunk.idx ~start_suffix_off ~end_suffix_off ~is_appendable)
+      acc t.inventory
 end

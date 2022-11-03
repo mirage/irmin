@@ -410,16 +410,11 @@ struct
         let chunk_start_idx0 = pl0.chunk_start_idx in
         let chunk_start_idx1 = pl1.chunk_start_idx in
         let* () =
-          if
-            chunk_num0 <> chunk_num1
-            || chunk_start_idx0 <> chunk_start_idx1
-               (* TODO: remove this last check, kept for passing the tests. *)
-            || gen0 <> gen1
+          if chunk_num0 <> chunk_num1 || chunk_start_idx0 <> chunk_start_idx1
           then
             let end_poff = pl1.suffix_end_poff in
-            (* TODO: remove this max, kept for passing the tests. *)
-            let chunk_start_idx = max chunk_start_idx1 gen1 in
-            reopen_suffix t ~chunk_start_idx ~end_poff ~chunk_num:chunk_num1
+            reopen_suffix t ~chunk_start_idx:chunk_start_idx1 ~end_poff
+              ~chunk_num:chunk_num1
           else Ok ()
         in
         if gen0 = gen1 then Ok ()
@@ -692,33 +687,22 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~new_suffix_start_offset ~new_suffix_end_offset
-      ~latest_gc_target_offset =
+  let swap t ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
+      ~suffix_dead_bytes ~latest_gc_target_offset =
     let open Result_syntax in
     [%log.debug
-      "Gc in main: swap %d %#d %#d" generation
-        (Int63.to_int new_suffix_start_offset)
-        (Int63.to_int new_suffix_end_offset)];
+      "Gc in main: swap gen %d; suffix start %a; chunk start idx %d; chunk num \
+       %d; suffix dead bytes %a"
+      generation Int63.pp suffix_start_offset chunk_start_idx chunk_num Int63.pp
+        suffix_dead_bytes];
     let c0 = Mtime_clock.counter () in
     let pl = Control.payload t.control in
-    (* Opening the suffix requires passing it its length. We compute it from the
-       global offsets
 
-       TODO: this calculation of [suffix_end_poff] only works with one chunk.
-       this code will be removed once we have chunk GC.
-    *)
-    let suffix_end_poff =
-      let open Int63.Syntax in
-      new_suffix_end_offset - new_suffix_start_offset
-    in
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
-    (* TODO: remove this max, kept for the tests. *)
-    let chunk_start_idx = max pl.chunk_start_idx generation in
     let* () =
-      reopen_suffix t ~chunk_start_idx ~end_poff:suffix_end_poff
-        ~chunk_num:pl.chunk_num
+      reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff:pl.suffix_end_poff
     in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
@@ -734,19 +718,16 @@ struct
           | T14 | T15 ->
               assert false
           | Gced _ | No_gc_yet ->
-              let suffix_start_offset = new_suffix_start_offset in
               Gced
                 {
                   suffix_start_offset;
                   generation;
                   latest_gc_target_offset;
-                  suffix_dead_bytes = Int63.zero;
+                  suffix_dead_bytes;
                 }
         in
 
-        (* TODO using generation for starting chunk idx works since we only have
-           only one chunk at a time. this will change once we have chunk based GC. *)
-        { pl with status; suffix_end_poff; chunk_start_idx = generation }
+        { pl with status; chunk_start_idx; chunk_num }
       in
       [%log.debug "GC: writing new control_file"];
       Control.set_payload t.control pl
@@ -780,7 +761,6 @@ struct
         (* Unreachable *)
         assert false
 
-  (* TODO : this does not work yet with GC. *)
   let split t =
     let open Result_syntax in
     (* Step 1. Create a new chunk file *)

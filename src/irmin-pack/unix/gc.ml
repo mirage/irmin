@@ -29,7 +29,7 @@ module Make (Args : Gc_args.S) = struct
     generation : int;
     task : Async.t;
     unlink : bool;
-    offset : int63;
+    new_suffix_start_offset : int63;
     resolver : (Stats.Latest_gc.stats, Errs.t) result Lwt.u;
     promise : (Stats.Latest_gc.stats, Errs.t) result Lwt.t;
     dispatcher : Dispatcher.t;
@@ -44,7 +44,7 @@ module Make (Args : Gc_args.S) = struct
 
   let v ~root ~generation ~unlink ~dispatcher ~fm ~contents ~node ~commit
       commit_key =
-    let offset, latest_gc_target_offset =
+    let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
       match state with
       | Direct x ->
@@ -55,19 +55,14 @@ module Make (Args : Gc_args.S) = struct
           assert false
     in
     let partial_stats =
-      let commit_offset = offset in
+      let commit_offset = latest_gc_target_offset in
       let before_suffix_start_offset =
         Dispatcher.suffix_start_offset dispatcher
       in
       let before_suffix_end_offset = Dispatcher.end_offset dispatcher in
-      let after_suffix_start_offset =
-        offset
-        (* This will not just be [offset] anymore when the commit is moved the
-           the prefix file. *)
-      in
       Gc_stats.Main.create "worker startup" ~commit_offset
         ~before_suffix_start_offset ~before_suffix_end_offset
-        ~after_suffix_start_offset
+        ~after_suffix_start_offset:new_suffix_start_offset
     in
     let unlink_result_file () =
       let result_file = Irmin_pack.Layout.V4.gc_result ~root ~generation in
@@ -83,13 +78,13 @@ module Make (Args : Gc_args.S) = struct
     (* Unlink next gc's result file, in case it is on disk, for instance
        after a failed gc. *)
     unlink_result_file ();
-    (* function to track durations *)
     (* internal promise for gc *)
     let promise, resolver = Lwt.wait () in
     (* start worker task *)
     let task =
       Async.async (fun () ->
-          Worker.run_and_output_result root commit_key offset ~generation)
+          Worker.run_and_output_result root commit_key new_suffix_start_offset
+            ~generation)
     in
     let partial_stats =
       Gc_stats.Main.finish_current_step partial_stats "before finalise"
@@ -99,7 +94,7 @@ module Make (Args : Gc_args.S) = struct
       root;
       generation;
       unlink;
-      offset;
+      new_suffix_start_offset;
       task;
       promise;
       resolver;
@@ -113,49 +108,29 @@ module Make (Args : Gc_args.S) = struct
       latest_gc_target_offset;
     }
 
-  let open_new_suffix ~end_poff { root; generation; _ } =
+  let swap_and_purge t removable_chunk_num suffix_params =
     let open Result_syntax in
-    let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:generation in
-    (* As the new suffix is necessarily in V3, the dead_header_size is
-       0. *)
-    let dead_header_size = 0 in
-    let auto_flush_threshold = 1_000_000 in
-    let* suffix =
-      Ao.open_rw ~path ~end_poff ~dead_header_size
-        ~auto_flush_procedure:`Internal ~auto_flush_threshold
+    let { generation; latest_gc_target_offset; _ } = t in
+    let Worker.
+          {
+            start_offset = suffix_start_offset;
+            chunk_start_idx;
+            dead_bytes = suffix_dead_bytes;
+          } =
+      suffix_params
     in
-    Ok suffix
+    (* Calculate chunk num in main process since more chunks could have been
+       added while GC was running. GC process only tells us how many chunks are
+       to be removed. *)
+    let suffix = Fm.suffix t.fm in
+    let chunk_num = Fm.Suffix.chunk_num suffix - removable_chunk_num in
+    (* Assert that we have at least one chunk (the appendable chunk), which
+       is guaranteed by the GC process. *)
+    assert (chunk_num >= 1);
 
-  let transfer_latest_newies ~new_suffix_start_offset ~new_suffix_end_offset t =
-    [%log.debug "Gc in main: transfer latest newies"];
-    let open Result_syntax in
-    let open Int63.Syntax in
-    let old_suffix_end_offset = Dispatcher.end_offset t.dispatcher in
-    let remaining = old_suffix_end_offset - new_suffix_end_offset in
-    (* When opening the suffix we need to provide a physical offset. We compute
-       it from the global ones. *)
-    let suffix_end_poff = new_suffix_end_offset - new_suffix_start_offset in
-    let* new_suffix = open_new_suffix ~end_poff:suffix_end_poff t in
-    Errors.finalise (fun _ ->
-        Ao.close new_suffix
-        |> Errs.log_if_error "GC: Close suffix after copy latest newies")
-    @@ fun () ->
-    let append_exn = Ao.append_exn new_suffix in
-    let flush_and_raise () = Ao.flush new_suffix |> Errs.raise_if_error in
     let* () =
-      Errs.catch (fun () ->
-          Dispatcher.read_bytes_exn t.dispatcher ~f:append_exn
-            ~off:new_suffix_end_offset ~len:remaining;
-          flush_and_raise ())
-    in
-    Ok old_suffix_end_offset
-
-  let swap_and_purge ~new_suffix_start_offset ~new_suffix_end_offset t =
-    let open Result_syntax in
-    let* () =
-      Fm.swap t.fm ~generation:t.generation ~new_suffix_start_offset
-        ~new_suffix_end_offset
-        ~latest_gc_target_offset:t.latest_gc_target_offset
+      Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
+        ~suffix_dead_bytes ~latest_gc_target_offset
     in
 
     (* No need to purge dict here, as it is global to the store. *)
@@ -167,14 +142,16 @@ module Make (Args : Gc_args.S) = struct
     Commit_store.purge_lru t.commit;
     Ok ()
 
-  let unlink_all { root; generation; _ } =
+  let unlink_all { root; generation; _ } removable_chunk_idxs =
     let result =
       let open Result_syntax in
-      (* Unlink previous suffix. *)
-      let suffix =
-        Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:(generation - 1)
+      (* Unlink suffix chunks *)
+      let* () =
+        removable_chunk_idxs
+        |> List.iter_result @@ fun chunk_idx ->
+           let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
+           Io.unlink path
       in
-      let* () = Io.unlink suffix in
       let* () =
         if generation >= 2 then
           (* Unlink previous prefix. *)
@@ -257,31 +234,22 @@ module Make (Args : Gc_args.S) = struct
           let result =
             let open Result_syntax in
             match (status, gc_output) with
-            | `Success, Ok worker_stats ->
-                let new_suffix_end_offset_before =
-                  Stats.Latest_gc.new_suffix_end_offset_before_finalise
-                    worker_stats
-                in
-                let partial_stats =
-                  Gc_stats.Main.finish_current_step partial_stats
-                    "copy latest newies"
-                in
-                let* new_suffix_end_offset =
-                  transfer_latest_newies ~new_suffix_start_offset:t.offset
-                    ~new_suffix_end_offset:new_suffix_end_offset_before t
-                in
+            | ( `Success,
+                Ok { suffix_params; removable_chunk_idxs; stats = worker_stats }
+              ) ->
                 let partial_stats =
                   Gc_stats.Main.finish_current_step partial_stats
                     "swap and purge"
                 in
                 let* () =
-                  swap_and_purge ~new_suffix_start_offset:t.offset
-                    ~new_suffix_end_offset t
+                  swap_and_purge t
+                    (List.length removable_chunk_idxs)
+                    suffix_params
                 in
                 let partial_stats =
                   Gc_stats.Main.finish_current_step partial_stats "unlink"
                 in
-                if t.unlink then unlink_all t;
+                if t.unlink then unlink_all t removable_chunk_idxs;
 
                 let partial_stats =
                   let after_suffix_end_offset =

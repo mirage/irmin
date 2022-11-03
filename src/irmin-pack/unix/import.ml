@@ -34,6 +34,14 @@ module Array = struct
     loop 0
 end
 
+module List = struct
+  include List
+
+  let rec iter_result f = function
+    | [] -> Ok ()
+    | hd :: tl -> Result.bind (f hd) (fun () -> iter_result f tl)
+end
+
 module Int63 = struct
   include Optint.Int63
 

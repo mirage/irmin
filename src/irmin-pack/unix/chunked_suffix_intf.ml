@@ -78,6 +78,8 @@ module type S = sig
     t ->
     (unit, [> add_new_error ]) result
 
+  val start_idx : t -> int
+  val chunk_num : t -> int
   val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
   val empty_buffer : t -> bool
   val flush : t -> (unit, [> Io.write_error ]) result
@@ -98,6 +100,17 @@ module type S = sig
   val refresh_end_poff : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
   val readonly : t -> bool
   val auto_flush_threshold : t -> int option
+
+  val fold_chunks :
+    (acc:'a ->
+    idx:int ->
+    start_suffix_off:int63 ->
+    end_suffix_off:int63 ->
+    is_appendable:bool ->
+    'a) ->
+    'a ->
+    t ->
+    'a
 end
 
 module type Sigs = sig

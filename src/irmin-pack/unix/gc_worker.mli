@@ -25,7 +25,20 @@ module Make (Args : Gc_args.S) : sig
   val run_and_output_result :
     generation:int -> string -> Args.key -> int63 -> unit
 
-  type gc_output = (Stats.Latest_gc.worker, Args.Errs.t) result
+  type suffix_params = {
+    start_offset : int63;
+    chunk_start_idx : int;
+    dead_bytes : int63;
+  }
   [@@deriving irmin]
+
+  type gc_results = {
+    suffix_params : suffix_params;
+    removable_chunk_idxs : int list;
+    stats : Stats.Latest_gc.worker;
+  }
+  [@@deriving irmin]
+
+  type gc_output = (gc_results, Args.Errs.t) result [@@deriving irmin]
 end
 with module Args := Args

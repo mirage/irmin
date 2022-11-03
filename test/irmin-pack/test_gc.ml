@@ -356,7 +356,7 @@ module Gc = struct
     let* () = S.Repo.close t.repo in
     Alcotest.(check bool)
       "RW cleaned up" false
-      (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
+      (Sys.file_exists (Filename.concat store_name "store.0.prefix"));
     let* t = init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
@@ -619,7 +619,6 @@ module Gc = struct
         "test"
         [
           ("mapping", 72);
-          ("suffix", 531);
           ("prefix", 316);
           ("sorted", 128);
           ("reachable", 128);
@@ -924,34 +923,62 @@ module Split = struct
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
-  let check_preexisting_commit t =
-    let s = "22e159de13b427226e5901defd17f0c14e744205" in
-    let h =
-      match Irmin.Type.(of_string Schema.Hash.t) s with
+  let load_commit t h =
+    let hash =
+      match Irmin.Type.(of_string Schema.Hash.t) h with
       | Error (`Msg s) -> Alcotest.failf "failed hash_of_string %s" s
-      | Ok h -> h
+      | Ok hash -> hash
     in
-    let* c = S.Commit.of_hash t.repo h in
-    match c with
-    | None -> Alcotest.failf "Commit %s not found" s
-    | Some commit ->
-        let tree = S.Commit.tree commit in
-        let+ got = S.Tree.find tree [ "step-n01"; "step-b01" ] in
-        Alcotest.(check (option string)) "find blob" (Some "b01") got
+    let+ commit = S.Commit.of_hash t.repo hash in
+    match commit with
+    | None -> Alcotest.failf "Commit %s not found" h
+    | Some commit -> commit
 
-  let two_splits_v3_migrated_store () =
+  let check_preexisting_commit t =
+    let h = "22e159de13b427226e5901defd17f0c14e744205" in
+    let* commit = load_commit t h in
+    let tree = S.Commit.tree commit in
+    let+ got = S.Tree.find tree [ "step-n01"; "step-b01" ] in
+    Alcotest.(check (option string)) "find blob" (Some "b01") got
+
+  let v3_migrated_store_splits_and_gc () =
     let root = create_test_env () in
     let* t = init ~readonly:false ~fresh:false ~root () in
-    let () = S.split t.repo in
+    let* c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
     let* t, c1 = commit_1 t in
     let () = S.split t.repo in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
+    let () = S.split t.repo in
     [%log.debug
-      "chunk1 consists of the preexisting V3 suffix, created chunk2 and chunk3"];
+      "chunk0 consists of the preexisting V3 suffix and c1, chunk1 is c2"];
+    let* () = check_preexisting_commit t in
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
+    [%log.debug "GC at c0"];
+    let* () = start_gc ~unlink:true t c0 in
+    let* () = finalise_gc t in
     let* () = check_preexisting_commit t in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    Alcotest.(check bool)
+      "Chunk0 still exists" true
+      (Sys.file_exists (Filename.concat t.root "store.0.suffix"));
+    [%log.debug "GC at c1"];
+    let* () = start_gc ~unlink:true t c1 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c0 "removed c0" in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    Alcotest.(check bool)
+      "Chunk0 removed" false
+      (Sys.file_exists (Filename.concat t.root "store.0.suffix"));
+    [%log.debug "GC at c2"];
+    let* () = start_gc ~unlink:true t c2 in
+    let* () = finalise_gc t in
+    let* () = check_not_found t c0 "removed c0" in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_2 t c2 in
     S.Repo.close t.repo
 
   let close_and_split () =
@@ -988,16 +1015,7 @@ module Split = struct
     let* t, c3 = commit_3 t in
     let* () = start_gc t c3 in
     let* () = finalise_gc t in
-
-    (* TODO: for now gc create an empty chunk, to replace by simple call to
-       split.*)
-    let () =
-      Alcotest.check_raises "To remove"
-        (Irmin_pack_unix.Errors.Pack_error `Multiple_empty_chunks) (fun () ->
-          S.split t.repo)
-    in
-
-    (* let () = S.split t.repo in *)
+    let () = S.split t.repo in
     let* t = checkout_exn t c3 in
     let* t, c4 = commit_4 t in
     let* () = check_not_found t c1 "removed c1" in
@@ -1006,8 +1024,39 @@ module Split = struct
     let* () = check_4 t c4 in
     S.Repo.close t.repo
 
-  (* TODO : following tests not working for now.*)
-  let _split_and_gc () =
+  let multi_split_and_gc () =
+    (* This test primarily checks that dead byte calculation
+       happens correctly by testing GCs on chunks past the first
+       one. When the calculation is incorrect, exceptions are thrown
+       when attempting to lookup keys in the store. *)
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+
+    let () = S.split t.repo in
+    let* () = start_gc t c1 in
+    let* () = finalise_gc t in
+
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+
+    let () = S.split t.repo in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+
+    let* t = checkout_exn t c3 in
+    let* t, c4 = commit_4 t in
+
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    let* () = check_4 t c4 in
+    S.Repo.close t.repo
+
+  let split_and_gc () =
     let* t = init () in
     let* t, c1 = commit_1 t in
     let () = S.split t.repo in
@@ -1019,7 +1068,7 @@ module Split = struct
     let* () = check_not_found t c1 "removed c1" in
     S.Repo.close t.repo
 
-  let _another_split_and_gc () =
+  let another_split_and_gc () =
     let* t = init () in
     let* t, c1 = commit_1 t in
     let () = S.split t.repo in
@@ -1031,12 +1080,56 @@ module Split = struct
     let* () = check_2 t c2 in
     S.Repo.close t.repo
 
+  let split_during_gc () =
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+    let* () = start_gc t c1 in
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* () = finalise_gc t in
+    let* () = check_1 t c1 in
+    let* () = check_2 t c2 in
+    S.Repo.close t.repo
+
+  let commits_and_splits_during_gc () =
+    (* This test primarily ensures that chunk num is calculated
+       correctly by intentionally creating chunks during a GC. *)
+    let* t = init () in
+    let* t, c1 = commit_1 t in
+
+    let () = S.split t.repo in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+
+    let* () = start_gc t c2 in
+    let () = S.split t.repo in
+
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+
+    let () = S.split t.repo in
+    let* t = checkout_exn t c3 in
+    let* t, c4 = commit_4 t in
+
+    let* () = finalise_gc t in
+    let* () = check_not_found t c1 "removed c1" in
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    let* () = check_4 t c4 in
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test two splits" two_splits;
       tc "Test two splits for ro" ro_two_splits;
-      tc "Test splits on V3 store" two_splits_v3_migrated_store;
+      tc "Test splits and GC on V3 store" v3_migrated_store_splits_and_gc;
       tc "Test split and close" close_and_split;
       tc "Test two gc followed by split" two_gc_then_split;
+      tc "Test split and GC" split_and_gc;
+      tc "Test multi split and GC" multi_split_and_gc;
+      tc "Test another split and GC" another_split_and_gc;
+      tc "Test split during GC" split_during_gc;
+      tc "Test commits and splits during GC" commits_and_splits_during_gc;
     ]
 end
