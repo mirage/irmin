@@ -23,9 +23,13 @@
 
 ### Fixed
 
+## 3.4.3 (2022-10-19)
+
+### Fixed
+
 - **irmin-pack**
   - Fix read-only opening flags of mapping for read-only opening of stores that
-    do not have read-write rights on the file system (#2121, @Ngoguey42)
+    do not have read-write rights on the files. (#2121, @Ngoguey42)
 
 ## 3.4.2 (2022-10-06)
 
