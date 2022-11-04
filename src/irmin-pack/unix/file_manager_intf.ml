@@ -259,15 +259,13 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (Control : Control_file.S with module Io = Io.Unix)
-      (Dict : Append_only_file.S with module Io = Control.Io)
-      (Suffix : Chunked_suffix.S with module Io = Control.Io)
-      (Index : Pack_index.S)
-      (Errs : Io_errors.S with module Io = Control.Io) :
+      (Io : Io.S)
+      (Index : Pack_index.S with module Io = Io)
+      (Mapping_file : Mapping_file.S with module Io = Io)
+      (Errs : Io_errors.S with module Io = Io) :
     S
-      with module Io = Control.Io
-       and module Control = Control
-       and module Dict = Dict
-       and module Suffix = Suffix
+      with module Io = Io
        and module Index = Index
+       and module Mapping_file = Mapping_file
+       and module Errs = Errs
 end

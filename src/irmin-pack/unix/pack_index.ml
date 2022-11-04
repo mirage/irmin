@@ -62,6 +62,7 @@ module Make (K : Irmin.Hash.S) = struct
   module I = Index
   module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)
   include Index
+  module Io = Io.Unix
 
   let v_exn =
     let cache = None in

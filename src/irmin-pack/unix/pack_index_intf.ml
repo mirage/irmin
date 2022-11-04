@@ -25,6 +25,7 @@ module type S = sig
   type value = int63 * int * Pack_value.Kind.t
 
   include Index.S with type value := value and type t := t and type key := key
+  module Io : Io.S
 
   val v_exn :
     ?flush_callback:(unit -> unit) ->
@@ -36,13 +37,10 @@ module type S = sig
     string ->
     t
 
-  type create_error :=
-    [ `Index_failure of string | `Io_misc of Io.Unix.misc_error ]
+  type create_error := [ `Index_failure of string | `Io_misc of Io.misc_error ]
 
   type write_error :=
-    [ `Index_failure of string
-    | `Io_misc of Io.Unix.misc_error
-    | `Ro_not_allowed ]
+    [ `Index_failure of string | `Io_misc of Io.misc_error | `Ro_not_allowed ]
 
   val v :
     ?flush_callback:(unit -> unit) ->
@@ -73,5 +71,5 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Make (K : Irmin.Hash.S) : S with type key = K.t
+  module Make (K : Irmin.Hash.S) : S with type key = K.t and module Io = Io.Unix
 end
