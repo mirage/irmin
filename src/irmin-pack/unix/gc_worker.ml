@@ -353,7 +353,8 @@ module Make (Args : Gc_args.S) = struct
     let out = Irmin.Type.to_json_string gc_output_t output in
     let* () = Io.write_string io ~off:Int63.zero out in
     let* () = Io.fsync io in
-    Io.close io
+    let* () = Io.close io in
+    Io.fsync_dir root
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
