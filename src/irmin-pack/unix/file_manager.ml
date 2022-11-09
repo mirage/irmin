@@ -21,20 +21,19 @@ include File_manager_intf
 let legacy_io_header_size = 16
 
 module Make
-    (Control : Control_file.S with module Io = Io.Unix)
-    (Dict : Append_only_file.S with module Io = Control.Io)
-    (Suffix : Chunked_suffix.S with module Io = Control.Io)
-    (Index : Pack_index.S)
-    (Errs : Io_errors.S with module Io = Control.Io) =
+    (Io : Io.S)
+    (Index : Pack_index.S with module Io = Io)
+    (Mapping_file : Mapping_file.S with module Io = Io)
+    (Errs : Io_errors.S with module Io = Io) =
 struct
-  module Io = Control.Io
-  module Control = Control
-  module Dict = Dict
-  module Suffix = Suffix
+  module Io = Errs.Io
   module Index = Index
-  module Errs = Errs
+  module Mapping_file = Mapping_file
+  module Errs = Io_errors.Make (Io)
+  module Control = Control_file.Make (Io)
+  module Dict = Append_only_file.Make (Io) (Errs)
+  module Suffix = Chunked_suffix.Make (Io) (Errs)
   module Prefix = Io
-  module Mapping_file = Mapping_file.Make (Io)
 
   type after_reload_consumer = { after_reload : unit -> (unit, Errs.t) result }
   type after_flush_consumer = { after_flush : unit -> unit }

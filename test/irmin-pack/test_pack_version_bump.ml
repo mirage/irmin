@@ -29,12 +29,10 @@ module Private = struct
   module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
   module Io = Irmin_pack_unix.Io.Unix
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
-  module Control = Irmin_pack_unix.Control_file.Make (Io)
-  module Aof = Irmin_pack_unix.Append_only_file.Make (Io) (Errs)
-  module Suffix = Irmin_pack_unix.Chunked_suffix.Make (Io) (Errs)
+  module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Io)
 
   module File_manager =
-    Irmin_pack_unix.File_manager.Make (Control) (Aof) (Suffix) (Index) (Errs)
+    Irmin_pack_unix.File_manager.Make (Io) (Index) (Mapping_file) (Errs)
 end
 
 module Util = struct

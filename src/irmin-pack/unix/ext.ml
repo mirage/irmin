@@ -30,16 +30,11 @@ module Maker (Config : Conf.S) = struct
     end
 
     module H = Schema.Hash
-    module Index = Pack_index.Make (H)
     module Io = Io.Unix
+    module Index = Pack_index.Make (H)
+    module Mapping_file = Mapping_file.Make (Io)
     module Errs = Io_errors.Make (Io)
-    module Control = Control_file.Make (Io)
-    module Aof = Append_only_file.Make (Io) (Errs)
-    module Suffix = Chunked_suffix.Make (Io) (Errs)
-
-    module File_manager =
-      File_manager.Make (Control) (Aof) (Suffix) (Index) (Errs)
-
+    module File_manager = File_manager.Make (Io) (Index) (Mapping_file) (Errs)
     module Dict = Dict.Make (File_manager)
     module Dispatcher = Dispatcher.Make (File_manager)
     module XKey = Pack_key.Make (H)
@@ -328,7 +323,7 @@ module Maker (Config : Conf.S) = struct
                 Lwt.return_unit
 
           let latest_gc_target t =
-            let pl = Control.payload (File_manager.control t.fm) in
+            let pl = File_manager.(Control.payload (control t.fm)) in
             match pl.status with
             | From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy
             | No_gc_yet ->
