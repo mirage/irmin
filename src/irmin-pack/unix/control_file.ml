@@ -109,7 +109,10 @@ module Make (Io : Io.S) = struct
     in
     {
       dict_end_poff = pl.dict_end_poff;
-      suffix_end_poff = pl.suffix_end_poff;
+      (* When upgrading from v3 to v4, there is only one (appendable) chunk,
+         which is the existing suffix, so we set the new [appendable_chunk_poff]
+         to [pl.suffix_end_poff]. *)
+      appendable_chunk_poff = pl.suffix_end_poff;
       status;
       upgraded_from_v3_to_v4 = true;
       checksum = Int63.zero;

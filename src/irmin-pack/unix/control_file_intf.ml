@@ -161,11 +161,7 @@ module Payload_v4 = struct
 
   type t = {
     dict_end_poff : int63;
-    (* TODO: rename [suffix_end_poff] to something that clearly communicates its role.
-
-       See corresponding todo in {!Chunked_suffix}.
-    *)
-    suffix_end_poff : int63;
+    appendable_chunk_poff : int63;
     upgraded_from_v3_to_v4 : bool;
     checksum : int63;
     chunk_start_idx : int;
@@ -173,14 +169,21 @@ module Payload_v4 = struct
     status : status; (* must be last to allow extensions *)
   }
   [@@deriving irmin]
-  (** Similar to [`V3] payload. New fields:
+  (** The same as {!Payload_v3.t}, with the following modifications:
 
-      [upgraded_from_v3_to_v4] recalls if the store was originally created in
-      [`V3].
+      New fields
 
-      [chunk_start_idx] is the index for the starting chunk of the suffix
+      - [upgraded_from_v3_to_v4] recalls if the store was originally created in
+        [`V3].
+      - [chunk_start_idx] is the index for the starting chunk of the suffix
+      - [chunk_num] is the number of chunks in the suffix
+      - [checksum] for storing a checksum of the payload
+      - [appendable_chunk_poff] is a value used by the chunked suffix. See
+        {!Chunked_suffix.S.appendable_chunk_poff} for more details.
 
-      [chunk_num] is the number of chunks in the suffix *)
+      Removed fields
+
+      - [suffix_end_poff] is replaced by [appendable_chunk_poff] *)
 end
 
 module Latest_payload = Payload_v4

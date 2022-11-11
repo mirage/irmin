@@ -144,7 +144,11 @@ struct
               assert false
         in
         let pl =
-          { pl with suffix_end_poff = Suffix.end_poff t.suffix; status }
+          {
+            pl with
+            appendable_chunk_poff = Suffix.appendable_chunk_poff t.suffix;
+            status;
+          }
         in
         Control.set_payload t.control pl
       in
@@ -229,21 +233,23 @@ struct
     t.mapping <- mapping;
     Ok ()
 
-  let reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff =
+  let reopen_suffix t ~chunk_start_idx ~chunk_num ~appendable_chunk_poff =
     let open Result_syntax in
     (* Invariant: reopen suffix is only called on V3 (and above) suffix files,
        for which dead_header_size is 0. *)
     let dead_header_size = 0 in
     [%log.debug
-      "reopen_suffix chunk_start_idx:%d chunk_num:%d end_poff:%d"
-        chunk_start_idx chunk_num (Int63.to_int end_poff)];
+      "reopen_suffix chunk_start_idx:%d chunk_num:%d appendable_chunk_poff:%d"
+        chunk_start_idx chunk_num
+        (Int63.to_int appendable_chunk_poff)];
     let readonly = Suffix.readonly t.suffix in
     let* suffix1 =
       let root = t.root in
       let start_idx = chunk_start_idx in
       [%log.debug "reload: generation changed, opening suffix"];
       if readonly then
-        Suffix.open_ro ~root ~end_poff ~dead_header_size ~start_idx ~chunk_num
+        Suffix.open_ro ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
+          ~chunk_num
       else
         let auto_flush_threshold =
           match Suffix.auto_flush_threshold t.suffix with
@@ -251,8 +257,8 @@ struct
           | Some x -> x
         in
         let cb _ = suffix_requires_a_flush_exn t in
-        Suffix.open_rw ~root ~end_poff ~dead_header_size ~start_idx ~chunk_num
-          ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
+        Suffix.open_rw ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
+          ~chunk_num ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
     in
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
@@ -411,9 +417,9 @@ struct
         let* () =
           if chunk_num0 <> chunk_num1 || chunk_start_idx0 <> chunk_start_idx1
           then
-            let end_poff = pl1.suffix_end_poff in
-            reopen_suffix t ~chunk_start_idx:chunk_start_idx1 ~end_poff
-              ~chunk_num:chunk_num1
+            let appendable_chunk_poff = pl1.appendable_chunk_poff in
+            reopen_suffix t ~chunk_start_idx:chunk_start_idx1
+              ~appendable_chunk_poff ~chunk_num:chunk_num1
           else Ok ()
         in
         if gen0 = gen1 then Ok ()
@@ -423,7 +429,9 @@ struct
           Ok ()
       in
       (* Step 4. Update end offsets *)
-      let* () = Suffix.refresh_end_poff t.suffix pl1.suffix_end_poff in
+      let* () =
+        Suffix.refresh_appendable_chunk_poff t.suffix pl1.appendable_chunk_poff
+      in
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in
       (* Step 5. Notify the dict consumers that they must reload *)
@@ -458,7 +466,7 @@ struct
         let z = Int63.zero in
         {
           dict_end_poff = z;
-          suffix_end_poff = z;
+          appendable_chunk_poff = z;
           checksum = z;
           status;
           upgraded_from_v3_to_v4 = false;
@@ -485,9 +493,19 @@ struct
       let path = Irmin_pack.Layout.V4.control ~root in
       Control.open_ ~readonly:false ~path
     in
-    let pl : Payload.t = Control.payload control in
+    let Payload.
+          {
+            status;
+            appendable_chunk_poff;
+            chunk_start_idx = start_idx;
+            chunk_num;
+            dict_end_poff;
+            _;
+          } =
+      Control.payload control
+    in
     let* dead_header_size =
-      match pl.status with
+      match status with
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
       | Gced _ ->
           let indexing_strategy = Conf.indexing_strategy config in
@@ -498,10 +516,10 @@ struct
       | T15 ->
           Error `V3_store_from_the_future
     in
-    let make_dict = Dict.open_rw ~end_poff:pl.dict_end_poff ~dead_header_size in
+    let make_dict = Dict.open_rw ~end_poff:dict_end_poff ~dead_header_size in
     let make_suffix =
-      Suffix.open_rw ~root ~end_poff:pl.suffix_end_poff
-        ~start_idx:pl.chunk_start_idx ~chunk_num:pl.chunk_num ~dead_header_size
+      Suffix.open_rw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
+        ~dead_header_size
     in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size root
@@ -555,7 +573,7 @@ struct
       let pl =
         {
           dict_end_poff;
-          suffix_end_poff;
+          appendable_chunk_poff = suffix_end_poff;
           checksum = Int63.zero;
           status;
           upgraded_from_v3_to_v4 = false;
@@ -611,20 +629,30 @@ struct
                | `Directory | `Other -> `Invalid_layout)
            | error -> error)
     in
-    let pl : Payload.t = Control.payload control in
+    let Payload.
+          {
+            status;
+            appendable_chunk_poff;
+            chunk_start_idx = start_idx;
+            chunk_num;
+            dict_end_poff;
+            _;
+          } =
+      Control.payload control
+    in
     let* dead_header_size =
-      match pl.status with
+      match status with
       | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
       | No_gc_yet | Gced _ | Used_non_minimal_indexing_strategy -> Ok 0
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
           Error `V3_store_from_the_future
     in
-    let generation = generation pl.status in
+    let generation = generation status in
     (* 2. Open the other files *)
     let* suffix =
-      Suffix.open_ro ~root ~end_poff:pl.suffix_end_poff
-        ~start_idx:pl.chunk_start_idx ~chunk_num:pl.chunk_num ~dead_header_size
+      Suffix.open_ro ~root ~appendable_chunk_poff ~start_idx ~chunk_num
+        ~dead_header_size
     in
     let* prefix =
       let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
@@ -633,7 +661,7 @@ struct
     let* mapping = open_mapping ~root ~generation in
     let* dict =
       let path = Irmin_pack.Layout.V4.dict ~root in
-      Dict.open_ro ~path ~end_poff:pl.dict_end_poff ~dead_header_size
+      Dict.open_ro ~path ~end_poff:dict_end_poff ~dead_header_size
     in
     let* index =
       let log_size = Conf.index_log_size config in
@@ -701,7 +729,8 @@ struct
     let* () = reopen_prefix t ~generation in
     let* () = reopen_mapping t ~generation in
     let* () =
-      reopen_suffix t ~chunk_start_idx ~chunk_num ~end_poff:pl.suffix_end_poff
+      reopen_suffix t ~chunk_start_idx ~chunk_num
+        ~appendable_chunk_poff:pl.appendable_chunk_poff
     in
     let span1 = Mtime_clock.count c0 |> Mtime.Span.to_us in
 
@@ -781,8 +810,8 @@ struct
       let chunk_num = succ pl.chunk_num in
       (* Update the control file with the poff of the last chunk. As last chunk
          is fresh, the poff is zero. *)
-      let suffix_end_poff = Int63.zero in
-      { pl with chunk_num; suffix_end_poff }
+      let appendable_chunk_poff = Int63.zero in
+      { pl with chunk_num; appendable_chunk_poff }
     in
     [%log.debug
       "split: update control_file chunk_start_idx:%d chunk_num:%d"

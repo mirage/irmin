@@ -213,26 +213,28 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Ao_shim = struct
     type t = { dead_header_size : int; end_poff : int63 }
 
-    let v ~path ~end_poff ~dead_header_size ~is_legacy ~is_appendable =
+    let v ~path ~appendable_chunk_poff ~dead_header_size ~is_legacy
+        ~is_appendable =
       let open Result_syntax in
       (* Only use the legacy dead_header_size for legacy chunks. *)
       let dead_header_size = if is_legacy then dead_header_size else 0 in
-      (* The appendable chunk uses the provided [end_poff]; but the others
+      (* The appendable chunk uses the provided [appendable_chunk_poff]; but the others
          read their size on disk. TODO: this is needed for the Ao module's current
          APIs but could perhaps be removed by future Ao API modifications. *)
       let+ end_poff =
-        if is_appendable then Ok end_poff else Io.size_of_path path
+        if is_appendable then Ok appendable_chunk_poff else Io.size_of_path path
       in
       { dead_header_size; end_poff }
   end
 
-  let open_rw ~root ~end_poff ~start_idx ~chunk_num ~dead_header_size
-      ~auto_flush_threshold ~auto_flush_procedure =
+  let open_rw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
+      ~dead_header_size ~auto_flush_threshold ~auto_flush_procedure =
     let open Result_syntax in
     let open_chunk ~chunk_idx ~is_legacy ~is_appendable =
       let path = chunk_path ~root ~chunk_idx in
       let* { dead_header_size; end_poff } =
-        Ao_shim.v ~path ~end_poff ~dead_header_size ~is_legacy ~is_appendable
+        Ao_shim.v ~path ~appendable_chunk_poff ~dead_header_size ~is_legacy
+          ~is_appendable
       in
       match is_appendable with
       | true ->
@@ -243,12 +245,14 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let+ inventory = Inventory.open_ ~start_idx ~chunk_num ~open_chunk in
     { inventory; root; dead_header_size }
 
-  let open_ro ~root ~end_poff ~dead_header_size ~start_idx ~chunk_num =
+  let open_ro ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
+      ~chunk_num =
     let open Result_syntax in
     let open_chunk ~chunk_idx ~is_legacy ~is_appendable =
       let path = chunk_path ~root ~chunk_idx in
       let* { dead_header_size; end_poff } =
-        Ao_shim.v ~path ~end_poff ~dead_header_size ~is_legacy ~is_appendable
+        Ao_shim.v ~path ~appendable_chunk_poff ~dead_header_size ~is_legacy
+          ~is_appendable
       in
       Ao.open_ro ~path ~end_poff ~dead_header_size
     in
@@ -258,8 +262,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let start_idx t = Inventory.start_idx t.inventory
   let chunk_num t = Inventory.count t.inventory
   let appendable_ao t = (Inventory.appendable t.inventory).ao
-  let end_poff t = appendable_ao t |> Ao.end_poff
-  let length t = Inventory.length t.inventory
+  let appendable_chunk_poff t = appendable_ao t |> Ao.end_poff
+  let end_soff t = Inventory.length t.inventory
 
   let read_exn t ~off ~len buf =
     let rec read progress_off suffix_off len_requested =
@@ -295,8 +299,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let add_chunk ~auto_flush_threshold ~auto_flush_procedure t =
     let open Result_syntax in
     let* () =
-      let end_poff = end_poff t in
-      if Int63.(compare end_poff zero = 0) then Error `Multiple_empty_chunks
+      let end_poff = appendable_chunk_poff t in
+      if Int63.(equal end_poff zero) then Error `Multiple_empty_chunks
       else Ok ()
     in
     let root = t.root in
@@ -304,8 +308,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let open_chunk ~chunk_idx ~is_legacy ~is_appendable =
       let path = chunk_path ~root ~chunk_idx in
       let* { dead_header_size; end_poff } =
-        Ao_shim.v ~path ~end_poff:Int63.zero ~dead_header_size ~is_legacy
-          ~is_appendable
+        Ao_shim.v ~path ~appendable_chunk_poff:Int63.zero ~dead_header_size
+          ~is_legacy ~is_appendable
       in
       match is_appendable with
       | true ->
@@ -320,8 +324,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let flush t = appendable_ao t |> Ao.flush
   let fsync t = appendable_ao t |> Ao.fsync
 
-  let refresh_end_poff t new_end_poff =
-    Ao.refresh_end_poff (appendable_ao t) new_end_poff
+  let refresh_appendable_chunk_poff t new_poff =
+    Ao.refresh_end_poff (appendable_ao t) new_poff
 
   let readonly t = appendable_ao t |> Ao.readonly
   let auto_flush_threshold t = appendable_ao t |> Ao.auto_flush_threshold
