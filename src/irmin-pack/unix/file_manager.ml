@@ -792,7 +792,7 @@ struct
   let cleanup t =
     let root = t.root in
     let pl : Payload.t = Control.payload t.control in
-    let generation = generation t - 1 in
+    let generation = generation t in
     let chunk_start_idx = pl.chunk_start_idx in
     let chunk_num = pl.chunk_num in
     cleanup ~root ~generation ~chunk_start_idx ~chunk_num

@@ -817,6 +817,37 @@ module Concurrent_gc = struct
     let* t = checkout_exn t c2 in
     S.Repo.close t.repo
 
+  (** Check that the cleanup routine in file manager deletes correct files. *)
+  let test_cancel_cleanup () =
+    let* t = init () in
+    (* chunk 0, commit 1 *)
+    let* t, c1 = commit_1 t in
+    let () = S.split t.repo in
+    (* chunk 1, commit 2 *)
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let () = S.split t.repo in
+    (* GC chunk 0 - important to have at least one GC to test
+       the cleanup routine's usage of generation *)
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    (* chunk 2, commit 3 *)
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    let () = S.split t.repo in
+    (* Start GC and then close repo before finalise *)
+    let* () = start_gc t c3 in
+    let* () = S.Repo.close t.repo in
+    (* Reopen store. If the cleanup on cancel deletes wrong files, the
+       store will fail to open. *)
+    let* t = init ~readonly:false ~fresh:false ~root:t.root () in
+    (* Check commits *)
+    let* () = check_not_found t c1 "removed c1" in
+    (* commit 2 is still around because its GC was interrupted *)
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    S.Repo.close t.repo
+
   (** Check starting a gc before a previous is finalised. *)
   let test_skip () =
     let* t = init () in
@@ -879,6 +910,7 @@ module Concurrent_gc = struct
       tc "Test skip gc" test_skip;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
       tc "Test kill gc and close" test_kill_gc_and_close;
+      tc "Test gc cancel cleanup" test_cancel_cleanup;
     ]
 end
 
