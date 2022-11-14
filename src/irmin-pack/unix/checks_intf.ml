@@ -59,7 +59,13 @@ module type S = sig
   (** Checks the integrity of a store *)
   module Integrity_check : sig
     include
-      Subcommand with type run := root:string -> auto_repair:bool -> unit Lwt.t
+      Subcommand
+        with type run :=
+          root:string ->
+          auto_repair:bool ->
+          always:bool ->
+          heads:string list option ->
+          unit Lwt.t
 
     val handle_result :
       ?name:string ->
@@ -123,8 +129,14 @@ module type Sigs = sig
 
   module Make (_ : Store) : S
 
-  module Index (Index : Pack_index.S) : sig
-    val integrity_check :
+  module Integrity_checks
+      (XKey : Pack_key.S)
+      (X : Irmin.Backend.S
+             with type Commit.key = XKey.t
+              and type Node.key = XKey.t
+              and type Schema.Hash.t = XKey.hash)
+      (Index : Pack_index.S) : sig
+    val check_always :
       ?ppf:Format.formatter ->
       auto_repair:bool ->
       check:
@@ -137,6 +149,47 @@ module type Sigs = sig
       ( [> `Fixed of int | `No_error ],
         [> `Cannot_fix of string | `Corrupted of int ] )
       result
+
+    val check_minimal :
+      ?ppf:Format.formatter ->
+      pred:
+        (X.Node.value ->
+        (X.Node.Path.step option
+        * [< `Contents of XKey.t | `Inode of XKey.t | `Node of XKey.t ])
+        list) ->
+      iter:
+        (contents:(XKey.hash Pack_key.t -> unit Lwt.t) ->
+        node:(XKey.t -> unit Lwt.t) ->
+        pred_node:
+          (X.Repo.t ->
+          XKey.t ->
+          [> `Contents of XKey.t | `Node of XKey.t ] list Lwt.t) ->
+        pred_commit:(X.Repo.t -> XKey.t -> [> `Node of XKey.t ] list Lwt.t) ->
+        X.Repo.t ->
+        unit Lwt.t) ->
+      check:
+        (offset:int63 ->
+        length:int ->
+        XKey.hash ->
+        (unit, [< `Absent_value | `Wrong_hash ]) result) ->
+      recompute_hash:(X.Node.value -> XKey.hash) ->
+      X.Repo.t ->
+      ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
+
+    val check_inodes :
+      iter:
+        (pred_node:
+           (X.Repo.t ->
+           XKey.t ->
+           ([> `Contents of XKey.t | `Node of XKey.t ] as 'a) list Lwt.t) ->
+        node:(XKey.t -> unit Lwt.t) ->
+        commit:(XKey.t -> unit Lwt.t) ->
+        X.Repo.t ->
+        unit Lwt.t) ->
+      pred:(X.Repo.t -> XKey.t -> 'a list Lwt.t) ->
+      check:(XKey.t -> (unit, string) result Lwt.t) ->
+      X.Repo.t ->
+      ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
   end
 
   module Stats (S : sig

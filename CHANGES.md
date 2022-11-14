@@ -4,6 +4,12 @@
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
 
+### Fixed
+
+- **irmin-pack**
+  - Integrity check of a commit works on stores using the minimal indexing
+    strategy. (#2160, @icristescu)
+
 ## 3.5.0
 
 ### Added
@@ -28,8 +34,6 @@
   - Modify GC to work with new chunked suffix. See `examples/gc.ml` for a
     demonstration of how it works with the new `split` function. (#2126,
     @metanivek)
-
-### Fixed
 
 ## 3.4.3 (2022-10-19)
 
