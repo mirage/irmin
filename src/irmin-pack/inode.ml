@@ -1235,6 +1235,15 @@ struct
       in
       { v_ref = Val_ref.of_hash t.Bin.hash; root = t.Bin.root; v }
 
+    let recompute_hash layout t =
+      if is_stable t then
+        let vs = seq layout ~cache:false t in
+        Node.hash (Node.of_seq vs)
+      else
+        let v = to_bin_v layout Bin.Ptr_any t.v in
+        let hash = Bin.V.hash v in
+        hash
+
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
       let v_ref = Val_ref.of_hash (lazy (Node.hash (Node.empty ()))) in
@@ -1772,7 +1781,7 @@ struct
     exception Invalid_depth of { expected : int; got : int; v : t }
 
     let kind (t : t) =
-      (* This is the kind of newly appended values, let's use v1 then *)
+      (* This is the kind of newly appended values, let's use v2 then *)
       if t.root then Pack_value.Kind.Inode_v2_root
       else Pack_value.Kind.Inode_v2_nonroot
 
@@ -2099,6 +2108,9 @@ struct
         Option.map (I.of_bin layout) (find' ~expected_depth h)
       and layout = I.Partial find in
       Partial (layout, I.of_bin layout v)
+
+    let recompute_hash t =
+      apply t { f = (fun layout v -> I.recompute_hash layout v) }
 
     let to_raw t =
       apply t { f = (fun layout v -> I.to_bin layout Bin.Ptr_key v) }
