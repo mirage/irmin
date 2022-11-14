@@ -1235,6 +1235,12 @@ struct
       in
       { v_ref = Val_ref.of_hash t.Bin.hash; root = t.Bin.root; v }
 
+    let recompute_stable_hash layout t =
+      if is_stable t then
+        let vs = seq layout ~cache:false t in
+        Node.hash (Node.of_seq vs)
+      else hash t
+
     let empty : 'a. 'a layout -> 'a t =
      fun _ ->
       let v_ref = Val_ref.of_hash (lazy (Node.hash (Node.empty ()))) in
@@ -1772,12 +1778,48 @@ struct
     exception Invalid_depth of { expected : int; got : int; v : t }
 
     let kind (t : t) =
-      (* This is the kind of newly appended values, let's use v1 then *)
+      (* This is the kind of newly appended values, let's use v2 then *)
       if t.root then Pack_value.Kind.Inode_v2_root
       else Pack_value.Kind.Inode_v2_nonroot
 
     let weight _ = 1
-    let hash t = Bin.hash t
+
+    let recompute_non_stable_hash (t : t) =
+      let (v : Val_ref.t Bin.v) =
+        match t.Bin.v with
+        | Values vs -> Values vs
+        | Tree t ->
+            let entries =
+              List.map
+                (fun entry ->
+                  let vref = Val_ref.of_key entry.Bin.vref in
+                  { Bin.index = entry.Bin.index; vref })
+                t.entries
+            in
+            Bin.Tree { depth = t.depth; length = t.length; entries }
+      in
+      let hash = Bin.V.hash v in
+      hash
+
+    let recompute_hash (t : t) =
+      let length =
+        match t.Bin.v with Values vs -> List.length vs | Tree vs -> vs.length
+      in
+      let stable = should_be_stable ~length ~root:t.Bin.root in
+      let hash =
+        if stable then
+          match t.Bin.v with
+          | Values vs -> Node.hash (Node.of_list vs)
+          | Tree _tr ->
+              (* we cannot check the integrity of these nodes here, as it
+                 requires loading the whole inode tree in memory, in order to
+                 convert it to a list and hash it using [Node.hash]. *)
+              Bin.hash t
+        else recompute_non_stable_hash t
+      in
+      hash
+
+    let hash t = recompute_hash t
     let step_to_bin = T.step_to_bin_string
     let step_of_bin = T.step_of_bin_string
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))
@@ -2100,6 +2142,9 @@ struct
       and layout = I.Partial find in
       Partial (layout, I.of_bin layout v)
 
+    let recompute_stable_hash t =
+      apply t { f = (fun layout v -> I.recompute_stable_hash layout v) }
+
     let to_raw t =
       apply t { f = (fun layout v -> I.to_bin layout Bin.Ptr_key v) }
 
@@ -2331,7 +2376,17 @@ struct
         | Some got ->
             if got <> expected then raise (Invalid_depth { expected; got; v }))
 
+  let equal_hash = Irmin.Type.(unstage (equal H.t))
+
+  let check_hash expected got =
+    if equal_hash expected got then ()
+    else
+      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
+        expected Inter.pp_hash got
+
   let unsafe_find ~check_integrity t k =
+    (* If the node is stable [Pack.unsafe_find] cannot check its integrity. If we
+       do it here, it will be for all values, not just the ones read from disk.*)
     match Pack.unsafe_find ~check_integrity t k with
     | None -> None
     | Some v ->
@@ -2354,13 +2409,6 @@ struct
 
   let hash_exn = Val.hash_exn
   let add t v = Lwt.return (save t v)
-  let equal_hash = Irmin.Type.(unstage (equal H.t))
-
-  let check_hash expected got =
-    if equal_hash expected got then ()
-    else
-      Fmt.invalid_arg "corrupted value: got %a, expecting %a" Inter.pp_hash
-        expected Inter.pp_hash got
 
   let unsafe_add t k v =
     check_hash k (hash_exn v);

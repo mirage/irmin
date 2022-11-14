@@ -64,6 +64,9 @@ module type Value = sig
        and type metadata := metadata
 
   val nb_children : t -> int
+
+  val recompute_stable_hash : t -> hash
+  (** Recompute hash for stable inode.*)
 end
 
 module type Raw = sig

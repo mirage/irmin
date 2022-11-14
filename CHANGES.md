@@ -31,6 +31,10 @@
 
 ### Fixed
 
+- **irmin-pack**
+  - Integrity check of a commit works on stores using the minimal indexing
+  strategy. (#2138, @icristescu)
+
 ## 3.4.3 (2022-10-19)
 
 ### Fixed
