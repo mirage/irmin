@@ -75,7 +75,8 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Ro_not_allowed
     | `Io_misc of Io.misc_error
     | `Split_forbidden_during_batch
-    | `Multiple_empty_chunks ]
+    | `Multiple_empty_chunks
+    | `Forbidden_during_gc ]
   [@@deriving irmin]
 
   let raise_error = function

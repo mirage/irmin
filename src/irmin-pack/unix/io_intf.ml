@@ -78,6 +78,9 @@ module type S = sig
   val move_file :
     src:string -> dst:string -> (unit, [> `Sys_error of string ]) result
 
+  val copy_file :
+    src:string -> dst:string -> (unit, [> `Sys_error of string ]) result
+
   val mkdir : string -> (unit, [> mkdir_error ]) result
   val unlink : string -> (unit, [> `Sys_error of string ]) result
 

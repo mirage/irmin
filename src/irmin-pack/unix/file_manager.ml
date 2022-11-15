@@ -796,4 +796,62 @@ struct
     let chunk_start_idx = pl.chunk_start_idx in
     let chunk_num = pl.chunk_num in
     cleanup ~root ~generation ~chunk_start_idx ~chunk_num
+
+  let create_one_commit_store t config ~generation ~latest_gc_target_offset
+      ~suffix_start_offset commit_key =
+    let open Result_syntax in
+    let src_root = t.root in
+    let dst_root = Irmin_pack.Conf.root config in
+    (* Step 1. Copy the dict *)
+    let src_dict = Irmin_pack.Layout.V4.dict ~root:src_root in
+    let dst_dict = Irmin_pack.Layout.V4.dict ~root:dst_root in
+    let* () = Io.copy_file ~src:src_dict ~dst:dst_dict in
+    (* Step 2. Create an empty suffix and close it. *)
+    let* suffix =
+      Suffix.create_rw ~root:dst_root ~overwrite:false
+        ~auto_flush_threshold:1_000_000 ~auto_flush_procedure:`Internal
+        ~start_idx:1
+    in
+    let* () = Suffix.close suffix in
+    (* Step 3. Create the control file and close it. *)
+    let status =
+      Payload.Gced
+        {
+          suffix_start_offset;
+          generation;
+          latest_gc_target_offset;
+          suffix_dead_bytes = Int63.zero;
+        }
+    in
+    let dict_end_poff = Io.size_of_path dst_dict |> Errs.raise_if_error in
+    let pl =
+      {
+        Payload.dict_end_poff;
+        suffix_end_poff = Int63.zero;
+        checksum = Int63.zero;
+        status;
+        upgraded_from_v3_to_v4 = false;
+        chunk_num = 1;
+        chunk_start_idx = 1;
+      }
+    in
+    let path = Irmin_pack.Layout.V4.control ~root:dst_root in
+    let* control = Control.create_rw ~path ~overwrite:false pl in
+    let* () = Control.close control in
+    (* Step 4. Create the index. *)
+    let* index =
+      let log_size = Conf.index_log_size config in
+      let throttle = Conf.merge_throttle config in
+      Index.v ~fresh:true ~flush_callback:Fun.id ~readonly:false ~throttle
+        ~log_size dst_root
+    in
+    (* Step 5. Add the commit to the index, close the index. *)
+    let () =
+      match Pack_key.inspect commit_key with
+      | Pack_key.Direct { hash; offset; length } ->
+          Index.add index hash (offset, length, Pack_value.Kind.Commit_v2)
+      | Indexed _ -> assert false
+    in
+    let* () = Index.close index in
+    Ok ()
 end

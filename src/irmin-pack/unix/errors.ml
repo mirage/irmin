@@ -71,7 +71,8 @@ type base_error =
   | `Invalid_read_of_gced_object of string
   | `Inconsistent_store
   | `Split_forbidden_during_batch
-  | `Multiple_empty_chunks ]
+  | `Multiple_empty_chunks
+  | `Forbidden_during_gc ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific

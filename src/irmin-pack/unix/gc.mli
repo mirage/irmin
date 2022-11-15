@@ -25,6 +25,7 @@ module Make (Args : Gc_args.S) : sig
 
   val v :
     root:string ->
+    new_files_path:string ->
     generation:int ->
     unlink:bool ->
     dispatcher:Args.Dispatcher.t ->
@@ -51,5 +52,12 @@ module Make (Args : Gc_args.S) : sig
       finalises. *)
 
   val cancel : t -> bool
+
+  val finalise_without_swap : t -> (int63 * int63) Lwt.t
+  (** Waits for the current gc to finish and returns immediately without
+      swapping the files and doing the other finalisation steps from [finalise].
+
+      It returns the [latest_gc_target_offset] and the
+      [new_suffix_start_offset]. *)
 end
 with module Args = Args
