@@ -25,6 +25,7 @@ depends: [
   "cmdliner"
   "optint"       {>= "0.1.0"}
   "checkseum"
+  "rusage"
   "irmin-test"   {with-test & = version}
   "alcotest-lwt" {with-test}
   "astring"      {with-test}
