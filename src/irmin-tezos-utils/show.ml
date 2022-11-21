@@ -716,19 +716,7 @@ let main store_path info_last_path info_next_path index_path =
   let conf = Irmin_pack.Conf.init store_path in
   let fm = Files.File_manager.open_ro conf |> Files.Errs.raise_if_error in
   let dispatcher = Files.Dispatcher.v fm |> Files.Errs.raise_if_error in
-  let pl = Files.File_manager.Control.payload (Files.File_manager.control fm) in
-  let max_offset =
-    (* TODO: Rename [pl.suffix_end_poff] to [suffix_length] *)
-    match pl.status with
-    | From_v1_v2_post_upgrade _ | No_gc_yet | Used_non_minimal_indexing_strategy
-      ->
-        pl.suffix_end_poff
-    | Gced x -> Int63.add x.suffix_start_offset pl.suffix_end_poff
-    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
-    | T15 ->
-        assert false
-  in
-
+  let max_offset = Files.Dispatcher.end_offset dispatcher in
   let dict = Files.File_manager.dict fm in
   let dict = Files.load_dict dict buffer in
   let info_last_fd =
@@ -738,7 +726,6 @@ let main store_path info_last_path info_next_path index_path =
     Unix.openfile info_next_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644
   in
   let idx_fd = Unix.openfile index_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644 in
-  (* let max_offset = Files.File_manager.Suffix.end_offset suffix in *)
   let max_entry, idxs = load_idxs idx_fd in
   Unix.close idx_fd;
   let entry, off_info, off_pack = List.nth idxs 0 in

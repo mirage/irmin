@@ -56,7 +56,7 @@ module type S = sig
 
   val open_rw :
     root:string ->
-    end_poff:int63 ->
+    appendable_chunk_poff:int63 ->
     start_idx:int ->
     chunk_num:int ->
     dead_header_size:int ->
@@ -66,7 +66,7 @@ module type S = sig
 
   val open_ro :
     root:string ->
-    end_poff:int63 ->
+    appendable_chunk_poff:int63 ->
     dead_header_size:int ->
     start_idx:int ->
     chunk_num:int ->
@@ -85,19 +85,35 @@ module type S = sig
   val flush : t -> (unit, [> Io.write_error ]) result
   val fsync : t -> (unit, [> Io.write_error ]) result
 
-  (* TODO: rename [end_poff] to something that represents what purpose it serves as
-     a check for what data we know has been written in the appendable chunk. Also
-     rename the corresponding control file field.
+  val appendable_chunk_poff : t -> int63
+  (** [appendable_chunk_poff t] is the number of bytes of the chunk file that is
+      currently appendable. It does not perform IO.
 
-     Possible new names: [consistency_poff], [persisted_poff].
-  *)
-  val end_poff : t -> int63
-  val length : t -> int63
+      {3 RW mode}
+
+      It also counts the bytes not flushed yet.
+
+      {3 RO mode}
+
+      This information originates from the latest reload of the control file.
+      Calling [refresh_appendable_chunk_poff t] updates [appendable_chunk_poff]. *)
+
+  val refresh_appendable_chunk_poff :
+    t -> int63 -> (unit, [> `Rw_not_allowed ]) result
+  (** Ingest the new end offset of the appendable chunk file. Typically happens
+      in RO mode when the control file has been re-read.
+
+      {3 RW mode}
+
+      Always returns [Error `Rw_not_allowed]. *)
+
+  val end_soff : t -> int63
+  (** [end_soff t] is the end offset for the chunked suffix. The valid range of
+      offsets is 0 <= off < end_soff. Therefore, [end_soff] also represents the
+      length of the chunked suffix. *)
+
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
   val append_exn : t -> string -> unit
-
-  (* TODO: rename [refresh_end_poff] to cohere with rename of [end_poff]. *)
-  val refresh_end_poff : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
   val readonly : t -> bool
   val auto_flush_threshold : t -> int option
 

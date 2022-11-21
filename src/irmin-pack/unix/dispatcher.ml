@@ -77,11 +77,11 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         assert false
     | Gced { suffix_dead_bytes; _ } -> suffix_dead_bytes
 
-  (* The suffix only know the real offsets, it is in the dispatcher that global
-     offsets are translated into real ones (i.e. in prefix or suffix offsets). *)
-  let end_offset t =
-    let open Int63.Syntax in
-    Suffix.length (Fm.suffix t.fm) + suffix_start_offset t - suffix_dead_bytes t
+  (* The dispatcher is responsible for translating between global offsets to prefix
+     or suffix offsets.
+
+     {!Suffix_arithmetic} and {!Prefix_arithmetic} encapsulate these calculations.
+  *)
 
   module Suffix_arithmetic = struct
     (* Adjust the read in suffix, as the global offset [off] is
@@ -101,6 +101,10 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
 
   let offset_of_soff = Suffix_arithmetic.off_of_soff
   let soff_of_offset = Suffix_arithmetic.soff_of_off
+
+  let end_offset t =
+    let end_soff = Suffix.end_soff (Fm.suffix t.fm) in
+    offset_of_soff t end_soff
 
   module Prefix_arithmetic = struct
     (* Find the last chunk which is before [off_start] (or at [off_start]). If no
@@ -336,7 +340,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
           List.rev !preffix_chunks
       | None -> []
     in
-    let suffix_end_poff = Fm.Suffix.length (Fm.suffix t.fm) in
+    let suffix_end_soff = Fm.Suffix.end_soff (Fm.suffix t.fm) in
     let suffix_start_offset = suffix_start_offset t in
     let get_entry_accessor rem_len location poff =
       let accessor =
@@ -349,16 +353,16 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
       ( entry_len,
         create_sequential_accessor_exn location rem_len ~poff ~len:entry_len )
     in
-    let rec suffix_accessors poff () =
+    let rec suffix_accessors soff () =
       let open Seq in
       let open Int63.Syntax in
-      if poff >= suffix_end_poff then Nil
+      if soff >= suffix_end_soff then Nil
       else
-        let rem_len = Int63.to_int (suffix_end_poff - poff) in
-        let entry_len, accessor = get_entry_accessor rem_len Suffix poff in
-        let r = (suffix_start_offset + poff, accessor) in
-        let poff = poff + Int63.of_int entry_len in
-        let f = suffix_accessors poff in
+        let rem_len = Int63.to_int (suffix_end_soff - soff) in
+        let entry_len, accessor = get_entry_accessor rem_len Suffix soff in
+        let r = (suffix_start_offset + soff, accessor) in
+        let soff = soff + Int63.of_int entry_len in
+        let f = suffix_accessors soff in
         Cons (r, f)
     in
     let rec prefix_accessors poff acc () =
