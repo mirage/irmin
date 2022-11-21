@@ -856,7 +856,7 @@ struct
     let pl =
       {
         Payload.dict_end_poff;
-        suffix_end_poff = Int63.zero;
+        appendable_chunk_poff = Int63.zero;
         checksum = Int63.zero;
         status;
         upgraded_from_v3_to_v4 = false;
