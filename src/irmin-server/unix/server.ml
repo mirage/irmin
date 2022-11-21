@@ -19,6 +19,8 @@ open Lwt.Infix
 open Irmin_server
 include Server_intf
 
+let html = [%blob "index.html"]
+
 module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   module Command = Command.Make (IO) (Codec) (Store)
   module Store = Store
@@ -283,28 +285,20 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         | `Branch branch -> Store.of_branch t.repo branch
       in
       let* is_contents =
-        Store.kind store prefix >|= fun x -> x = Some `Contents
+        Store.kind store prefix >|= function
+        | Some `Contents -> true
+        | _ -> false
       in
-      let res = Cohttp_lwt_unix.Response.make () in
+      let res = Cohttp_lwt_unix.Response.make ~status:`OK () in
       if is_contents then
         let* contents = Store.get store prefix in
         let contents' = Irmin.Type.to_json_string Store.contents_t contents in
-        let* last_mod = Store.last_modified store prefix in
-        let last_mod =
-          String.concat ", "
-            (List.map
-               (fun c ->
-                 Store.Commit.hash c |> Irmin.Type.to_json_string Store.hash_t)
-               last_mod)
-        in
         let body =
-          Cohttp_lwt.Body.of_string
-            (Printf.sprintf
-               {|{"contents": %s, "hash": %s, "last_modified": [%s]}|} contents'
-               (Irmin.Type.to_json_string Store.hash_t
-                  (Store.Contents.hash contents))
-               last_mod)
+          Printf.sprintf {|{"contents": %s, "hash": %s }|} contents'
+            (Irmin.Type.to_json_string Store.hash_t
+               (Store.Contents.hash contents))
         in
+        let body = Cohttp_lwt.Body.of_string body in
         Lwt.return (res, body)
       else
         let* keys = list store prefix in
@@ -319,6 +313,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             keys
         in
         let keys = String.concat "," keys in
+
         let body = Cohttp_lwt.Body.of_string (Printf.sprintf "[%s]" keys) in
         Lwt.return (res, body)
     in
@@ -342,14 +337,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       | `POST -> data_callback prefix branch
       | `GET ->
           let res = Cohttp_lwt_unix.Response.make () in
-          let body =
-            Cohttp_lwt.Body.of_string
-            @@ Printf.sprintf [%blob "index.html"] branch_name path
-          in
+          let body = Cohttp_lwt.Body.of_string html in
           Lwt.return (res, body)
       | _ ->
-          let status = `Not_found in
-          let res = Cohttp_lwt_unix.Response.make ~status () in
+          let res = Cohttp_lwt_unix.Response.make ~status:`Not_found () in
           let body = Cohttp_lwt.Body.of_string "Not found" in
           Lwt.return (res, body)
     in
