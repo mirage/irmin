@@ -1,0 +1,7 @@
+(executable
+  (name gc)
+  (modules gc)
+  (libraries
+   irmin
+   irmin.unix
+   irmin-pack.unix))
