@@ -60,6 +60,8 @@ module type Store = sig
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
+  val split : repo -> unit
+
   val gc_run :
     ?finished:((stats, string) result -> unit Lwt.t) ->
     repo ->
@@ -221,6 +223,7 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
 
+  let split _repo = ()
   let gc_wait _repo = Lwt.return_unit
   let gc_run ?finished:_ _repo _key = Lwt.return_unit
 end
@@ -248,6 +251,8 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
     let on_commit _ _ = Lwt.return_unit in
     let on_end () = Lwt.return_unit in
     Lwt.return (repo, on_commit, on_end)
+
+  let split = Store.split
 
   let gc_wait repo =
     let* r = Store.Gc.wait repo in

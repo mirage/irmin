@@ -101,6 +101,7 @@ module type Store = sig
   val create_repo :
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
+  val split : repo -> unit
   val gc_wait : repo -> unit Lwt.t
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
