@@ -25,7 +25,76 @@
   </em>
 </div>
 
-## About
+Irmin is based on distributed version-control systems (DVCs),
+extensively used in software development to enable developers to keep
+track of change provenance and expose modifications in the source
+code. Irmin applies DVC's principles to large-scale distributed data
+and exposes similar functions to Git (clone, push, pull, branch,
+rebase). It is highly customizable: users can define their types to
+store application-specific values and define custom storage layers (in
+memory, on disk, in a remote Redis database, in the browser,
+etc.). The Git workflow was initially designed for humans to manage
+changes within source code. Irmin scales this to hanlde automatic
+programs performing a very high number of operations per second, with
+a fully automated handling of update conflicts. Finally, Irmin exposes
+an event-driven API to define programmable dynamic behaviours to
+program distributed dataflow pipelines.
+
+Irmin was created at the University of Cambridge in 2013 to be the
+default storage layer for [MirageOS][] applications (both to store and
+orchestrate unikernel binaries and the data that these unikernels are
+using). As such, Irmin is not, strictly speaking, a complete database
+engine. Instead, similarly to other MirageOS components, it is a
+collection of libraries designed to solve different flavours of the
+challenges raised by the [CAP Theorem][]. Each application
+can select the right combination of libraries to solve its particular
+distributed problem.
+
+Irmin consists of a core of well-defined low-level data structures
+that specify how data should be persisted and be shared across
+nodes. It defines algorithms for efficient synchronization of those
+distributed low-level constructs. It also builds a collection of
+higher-level data structures that developers can use without knowing
+precisely how Irmin works underneath. Some of these components even
+have a [formal semantics][], including [Conflict-free Replicated
+Data-Types (CRDT)][]. Since it's a part of MirageOS, Irmin does not
+make strong assumptions about the OS environment that it runs in. This
+makes the system very portable: it works well for in-memory databases
+and slower persistent serialization such as SSDs, hard drives, web
+browser local storage, or even the Git file format.
+
+Irmin is primarily developed and maintained by [Tarides][], with
+contributions from many [contributors][] from various
+organizations. External maintainers and contributors are welcome.
+
+[MirageOS]: https://mirage.io
+[CAP Theorem]: http://en.wikipedia.org/wiki/CAP_theorem
+[formal semantics]: https://kcsrk.info/papers/banyan_aplas20.pdf
+[Conflict-free Replicated Data-Types (CRDT)]: https://arxiv.org/abs/2203.14518
+[Tarides]: https://tarides.com
+[contributors]: https://github.com/mirage/irmin/graphs/contributors
+
+<div class="toc">
+
+* [Features](#Features)
+* [Documentation](#Documentation)
+* [Installation](#Installation)
+  * [Prerequisites](#Prerequisites)
+  * [Development Version](#Development-Version)
+* [Usage](#Usage)
+  * [Example](#Example)
+  * [Command-line](#Commandline)
+* [Context](#Context)
+  * * [Irmin as a portable and efficient structured key-value store](#Irmin-as-a-portable-and-efficient-structured-keyvalue-store)
+    * [Irmin as a distributed store](#Irmin-as-a-distributed-store)
+    * [Irmin as a dataflow scheduler](#Irmin-as-a-dataflow-scheduler)
+* [Issues](#Issues)
+* [License](#License)
+* [Acknowledgements](#Acknowledgements)
+
+</div>
+
+## Features
 
 - **Built-in Snapshotting** - backup and restore
 - **Storage Agnostic** - you can use Irmin on top of your own storage layer
@@ -176,6 +245,121 @@ can also set flags globally using `$HOME/.irmin/config.yml`. Run
 Also see `irmin --help` for list of all commands and either
 `irmin <command> --help` or `irmin help <command>` for more help with a
 specific command.
+
+## Context
+
+Irmin's initial desing is directly inspired from
+[XenStore](https://dl.acm.org/doi/10.1145/1631687.1596581), with:
+
+- the need for efficient optimistic concurrency control features to be
+  able to let thousands of virtual machine concurrently access and
+  modify a central configuration database (the Xen stack uses XenStore
+  as an RPC mechanism to setup VM configuration on boot). Very early
+  on, the initial focus was to specify and handle [potential
+  conflicts](https://hal.inria.fr/hal-01099136v1/document) when the
+  optimistic assumptions do not usually work so well.
+- the need for a convenient way to debug and audit possible issues
+  that might happen in that system. Our [initial
+  experiments](https://mirage.io/blog/introducing-irmin-in-xenstore)
+  showed that it was possible to design a reliable system using Git as
+  backend to persist configuation data reliably (to safely restart
+  after a crash), while making system debuggin easy and go really
+  fast, thanks to efficient merging strategy.
+
+In 2014, the first release of Irmin was announced part of the MirageOS
+2.0 release [here](https://mirage.io/blog/introducing-irmin). Since
+then, several projects started using and improving Irmin. These can
+roughly be split into 3 categories: (i) use Irmin as a portable,
+structured key-value store (with expressive, mergeable types); (ii)
+use Irmin as distributed database (with a customizable consistency
+semantics) and (iii) an event-driven dataflow engine.
+
+
+#### Irmin as a portable and efficient structured key-value store
+
+- [XenStored](https://github.com/xen-project/xen/tree/master/tools/ocaml/xenstored)
+  is an information storage space shared between all the Xen virtual
+  machines running in the same host. Each virtual machines gets its
+  own path in the store. When values are changed in the store, the
+  appropriate drivers are notified. The initial OCaml implementation
+  was later extended to use Irmin
+  [here](https://github.com/mirage/ocaml-xenstore-server). More
+  details
+  [here](https://mirage.io/blog/introducing-irmin-in-xenstore).
+- [Jitsu](https://github.com/mirage/jitsu) is an experimental
+  orchestrator for unikernels. It uses Irmin to store the unikernel
+  configuration (and manage dynamic DNS entries). See more details
+  [here](https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-madhavapeddy.pdf).
+- [Cuekeeper](https://github.com/talex5/cuekeeper) is a web-based GTD
+  (a fancy TODO list) that runs entirely in the browser. It uses Irmin
+  in the browser to store data locally, with support for structured
+  concurrent editing and snapshot export and import. More details
+  [here](https://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/).
+- [Canopy](https://github.com/Engil/Canopy) and
+  [Unipi](https://github.com/roburio/unipi) both use Irmin to serve
+  static websites pull from Git repositories and deployed as
+  unikernels.
+- [Caldav](https://github.com/roburio/caldav) is using Irmin to store
+  calendar entries and back them into a Git repository. More
+  information [here](https://robur.io/Our%20Work/Projects).
+- [Datakit](https://github.com/moby/datakit) was developed at Docker
+  and provided a 9p interface to the Irmin API. It was used to manage
+  the configuration of Docker for Desktop, with merge policies on
+  upgrade, full auditing, and snapshot/rollback capabilites.
+- [Tezos](https://gitlab.com/tezos/tezos/) started using Irmin in 2017
+  to store the
+  ledger state. The first prototype used irmin-git before switching to
+  irmin-lmdb and irmin-leveldb (and now irmin-pack). More details
+  [here](https://tarides.com/blog/2019-11-21-irmin-v2#tezos-and-irmin-pack).
+
+#### Irmin as a distributed store
+
+- An [IMAP](ttps://github.com/gregtatcam/imaplet-lwt) server using
+  Irmin to store emails. More details
+  [here](https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-918.pdf). The
+  goal of that project was both to use Irmin to store emails (so using
+  Irmin as a local key-value store) but also to experiment with
+  replacing the IMAP on-wire protocol by an explicit Git push/pull
+  mechanism.
+- [irmin-ARP](https://github.com/yomimono/irmin-arp) uses Irmin to
+  store and audit ARP configuration. It's using Irmin as a local
+  key-value store for very low-level information (which are normally
+  stored very deep in the kernel layers), but the main goal was really
+  to replace the broadcasting on-wire protocol by point-to-point
+  pull/push synchronisation primitives, with a full audit log of ARP
+  operations over a network. More details
+  [here](http://somerandomidiot.com/blog/2015/04/24/what-a-distributed-version-controlled-ARP-cache-gets-you/).
+- [Banyan](https://github.com/prismlab/irmin-scylla) uses Irmin to
+  implement a distributed cache over a geo-replicated cluster. It's
+  using [Cassandra](https://cassandra.apache.org/_/index.html) as a
+  storage backend. More information
+  [here](https://kcsrk.info/papers/banyan_aplas20.pdf).
+- [irmin-fdb](https://github.com/andreas/irmin-fdb) implements an
+  Irmin store backed by
+  [FoundationDB](https://www.foundationdb.org/). More details
+  [here](https://www.youtube.com/watch?v=NArvw-9axeg&ab_channel=TheLinuxFoundation).
+
+#### Irmin as a dataflow scheduler
+
+- [Datakit CI](https://github.com/moby/datakit/tree/master/ci) is a
+  continuous integration service that monitors GitHub project and
+  tests each branch, tag and pull request. It displays the test
+  results as status indicators in the GitHub UI. It keeps all of its
+  state and logs in DataKit, rather than a traditional relational
+  database, allowing review with the usual Git tools. The core of the
+  project is a scheduler that manage dataflow pipelines across Git
+  repositories. It was used for a few years as the CI system test
+  Docker for Desktop on bare-metal and virtual machines, as well as
+  all the new opam package submissions to ocaml/opam-repository. More
+  details
+  [here](https://www.docker.com/blog/docker-unikernels-open-source/).
+- [Causal RPC](https://github.com/CraigFe/causal-rpc) implements an
+  RPC framework using Irmin as a network substrate. More details
+  [here](https://www.craigfe.io/causalrpc.pdf).
+- [CISO](https://github.com/samoht/ciso) is an experimental
+  (distributed) Continuous Integration engine for OPAM. It was
+  designed as a replacement of Datakit-CI and finally turned into
+  [ocurrent](https://github.com/ocurrent/ocurrent).
 
 ## Issues
 
