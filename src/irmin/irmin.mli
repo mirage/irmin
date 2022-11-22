@@ -14,161 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Irmin public API.
+(** The {!Irmin} module provides a common interface and types used by all
+    backends.
 
-    [Irmin] is a library to design and use persistent stores with built-in
-    snapshot, branching and reverting mechanisms. Irmin uses concepts similar to
-    {{:http://git-scm.com/} Git} but it exposes them as a high level library
-    instead of a complex command-line frontend. It features a {e bidirectional}
-    Git backend, where an application can read and persist its state using the
-    Git format, fully-compatible with the usual Git tools and workflows.
-
-    Irmin is designed to use a large variety of backends. It is written in pure
-    OCaml and does not depend on external C stubs; it is thus very portable and
-    aims to run everywhere, from Linux to browser and MirageOS unikernels.
-
-    Consult the {!examples} of use for a quick start. See also the
-    {{!Irmin_unix} documentation} for the unix backends.
-
-    {e Release %%VERSION%% - %%HOMEPAGE%%} *)
+    The prinicipal concept is the {i store} (see {!S}), which provides access to
+    persistently stored values, commits and branches. *)
 
 val version : string
 (** The version of the library. *)
 
-(** {1 Preliminaries} *)
-
-module Type = Repr
-(** Dynamic types for Irmin values, supplied by
-    {{:https://github.com/mirage/repr} [Repr]}. These values can be derived from
-    type definitions via [\[@@deriving irmin\]] (see the
-    {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
-    for [ppx_irmin]})*)
-
-module Metrics = Metrics
-(** Type agnostics mechanisms to manipulate metrics. *)
-
-module Info = Info
-(** Commit info are used to keep track of the origin of write operations in the
-    stores. [Info] models the metadata associated with commit objects in Git. *)
-
-module Merge = Merge
-(** [Merge] provides functions to build custom 3-way merge operators for various
-    user-defined contents. *)
-
-module Diff = Diff
-(** Differences between values. *)
-
-type 'a diff = 'a Diff.t
-(** The type for representing differences betwen values. *)
-
-module Perms = Perms
-
-(** {1 Low-level Stores} *)
-
-(** An Irmin store is automatically built from a number of lower-level stores,
-    each implementing fewer operations, such as {{!Content_addressable.Store}
-    content-addressable} and {{!Atomic_write.Store} atomic-write} stores. These
-    low-level stores are provided by various backends. *)
-
-module Read_only = Read_only
-(** Read-only backend backends. *)
-
-module Append_only = Append_only
-(** Append-only backend backends. *)
-
-module Indexable = Indexable
-(** Indexable backend backends. *)
-
-module Content_addressable = Content_addressable
-(** Content-addressable backends. *)
-
-module Atomic_write = Atomic_write
-(** Atomic-write stores. *)
-
-(** {1 User-Defined Contents} *)
-
-module Path = Path
-(** Store paths.
-
-    An Irmin {{!Irmin.S} store} binds {{!Path.S.t} paths} to user-defined
-    {{!Contents.S} contents}. Paths are composed by basic elements, that we call
-    {{!Path.S.step} steps}. The following [Path] module provides functions to
-    manipulate steps and paths. *)
-
-module Hash = Hash
-(** Hashing functions.
-
-    [Hash] provides user-defined hash functions to digest serialized contents.
-    Some {{!backend} backends} might be parameterized by such hash functions,
-    others might work with a fixed one (for instance, the Git format uses only
-    {{!Hash.SHA1} SHA1}).
-
-    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
-
-module Metadata = Metadata
-(** [Metadata] defines metadata that is attached to contents but stored in
-    nodes. For instance, the Git backend uses this to indicate the type of file
-    (normal, executable or symlink). *)
-
-module Contents = Contents
-(** [Contents] specifies how user-defined contents need to be {e serializable}
-    and {e mergeable}.
-
-    The user needs to provide:
-
-    - a type [t] to be used as store contents.
-    - a value type for [t] (built using the {{!Irmin.Type} Irmin.Type}
-      combinators).
-    - a 3-way [merge] function, to handle conflicts between multiple versions of
-      the same contents.
-
-    Default implementations for {{!Contents.String} idempotent string} and
-    {{!Contents.Json} JSON} contents are provided. *)
-
-module Branch = Branch
-module Node = Node
-module Commit = Commit
-module Key = Key
-
-type remote = Remote.t = ..
-(** The type for remote stores. *)
-
-type config = Conf.t
-(** The type for backend-specific configuration values.
-
-    Every backend has different configuration options, which are kept abstract
-    to the user. *)
-
-(** [Backend] defines functions only useful for creating new backends. If you
-    are just using the library (and not developing a new backend), you should
-    not use this module. *)
-module Backend : sig
-  module Conf : module type of Conf
-  (** Backend configuration.
-
-      A backend configuration is a set of {{!keys} keys} mapping to typed
-      values. Backends define their own keys. *)
-
-  module Watch = Watch
-  module Lock = Lock
-  module Lru = Lru
-  module Slice = Slice
-  module Remote = Remote
-
-  module type S = Backend.S
-  (** The modules that define a complete Irmin backend. Apply an implementation
-      to {!Of_backend} to create an Irmin store. *)
-end
-
-module Storage = Storage
-(** [Storage] provides {!Storage.Make} for defining a custom storage layer that
-    can be used to create Irmin stores. Unlike {!Backend.S}, an implementation
-    of {!Storage.Make} is only concerned with storing and retrieving keys and
-    values. It can be used to create stores for {!Backend.S} through something
-    like {!Storage.Content_addressable} or, primarily, with {!Of_storage} to
-    automatically construct an Irmin store. *)
-
-(** {1 High-level Stores}
+(** {1:stores Stores}
 
     An Irmin store is a branch-consistent store where keys are lists of steps.
 
@@ -194,6 +49,67 @@ module type S = sig
   (** @inline *)
 end
 
+(** {2 Schema} *)
+
+module Type = Repr
+(** Dynamic types for Irmin values, supplied by
+    {{:https://github.com/mirage/repr} [Repr]}. These values can be derived from
+    type definitions via [\[@@deriving irmin\]] (see the
+    {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
+    for [ppx_irmin]})*)
+
+module Hash = Hash
+(** Hashing functions.
+
+    [Hash] provides user-defined hash functions to digest serialized contents.
+    Some {{!backend} backends} might be parameterized by such hash functions,
+    others might work with a fixed one (for instance, the Git format uses only
+    {{!Hash.SHA1} SHA1}).
+
+    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
+
+module Branch = Branch
+
+module Info = Info
+(** Commit info are used to keep track of the origin of write operations in the
+    stores. [Info] models the metadata associated with commit objects in Git. *)
+
+module Node = Node
+module Commit = Commit
+
+module Metadata = Metadata
+(** [Metadata] defines metadata that is attached to contents but stored in
+    nodes. For instance, the Git backend uses this to indicate the type of file
+    (normal, executable or symlink). *)
+
+module Path = Path
+(** Store paths.
+
+    An Irmin {{!Irmin.S} store} binds {{!Path.S.t} paths} to user-defined
+    {{!Contents.S} contents}. Paths are composed by basic elements, that we call
+    {{!Path.S.step} steps}. The following [Path] module provides functions to
+    manipulate steps and paths. *)
+
+module Contents = Contents
+(** [Contents] specifies how user-defined contents need to be {e serializable}
+    and {e mergeable}.
+
+    The user needs to provide:
+
+    - a type [t] to be used as store contents.
+    - a value type for [t] (built using the {{!Irmin.Type} Irmin.Type}
+      combinators).
+    - a 3-way [merge] function, to handle conflicts between multiple versions of
+      the same contents.
+
+    Default implementations for {{!Contents.String} idempotent string} and
+    {{!Contents.Json} JSON} contents are provided. *)
+
+module Schema = Schema
+(** Store schemas *)
+
+(** {2 Common Stores} *)
+
 (** [KV] is similar to {!S} but chooses sensible implementations for path and
     branch. *)
 module type KV = sig
@@ -203,8 +119,7 @@ end
 
 module Json_tree : Store.Json_tree
 
-module Schema = Schema
-(** Store schemas *)
+(** {2 Creating Stores} *)
 
 (** [Maker] is the signature exposed by any backend providing {!S}
     implementations. {!Maker.Make} is parameterised by {!Schema.S}. It does not
@@ -221,6 +136,10 @@ module type KV_maker = sig
   include Store.KV_maker
   (** @inline *)
 end
+
+(** {2 Generic Key Stores} *)
+
+module Key = Key
 
 (** "Generic key" stores are Irmin stores in which the backend may not be keyed
     directly by the hashes of stored values. See {!Key} for more details. *)
@@ -242,53 +161,123 @@ module Generic_key : sig
        and type 'h commit_key = 'h X.Commit_store.key
 end
 
-(** {2 Synchronization} *)
+(** {1 Backends}
 
-val remote_store : (module Generic_key.S with type t = 'a) -> 'a -> remote
-(** [remote_store t] is the remote corresponding to the local store [t].
-    Synchronization is done by importing and exporting store {{!BC.slice}
-    slices}, so this is usually much slower than native synchronization using
-    {!Store.remote} but it works for all backends. *)
+    A backend is an implementation exposing either a concrete implementation of
+    {!S} or a functor providing {!S} once applied. *)
 
-module Sync = Sync
-(** Remote synchronisation. *)
+type config = Conf.t
+(** The type for backend-specific configuration values.
 
-(** {1:examples Examples}
+    Every backend has different configuration options, which are kept abstract
+    to the user. *)
 
-    These examples are in the [examples] directory of the distribution.
+(** {2 Low-level Stores} *)
 
-    {3 Syncing with a remote}
+(** An Irmin backend is built from a number of lower-level stores, each
+    implementing fewer operations, such as {{!Content_addressable.Store}
+    content-addressable} and {{!Atomic_write.Store} atomic-write} stores. *)
 
-    A simple synchronization example, using the {{!Irmin_unix.Git} Git} backend
-    and the {!Sync} helpers. The code clones a fresh repository if the
-    repository does not exist locally, otherwise it performs a fetch: in this
-    case, only the missing contents are downloaded.
+module Read_only = Read_only
+(** Read-only backend backends. *)
 
-    {[
-      open Lwt.Infix
-      module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
-      module Sync = Irmin.Sync (S)
+module Append_only = Append_only
+(** Append-only backend backends. *)
 
-      let config = Irmin_git.config "/tmp/test"
+module Indexable = Indexable
+(** Indexable backend backends. *)
 
-      let upstream =
-        if Array.length Sys.argv = 2 then
-          Uri.of_string (Store.remote Sys.argv.(1))
-        else (
-          Printf.eprintf "Usage: sync [uri]\n%!";
-          exit 1)
+module Content_addressable = Content_addressable
+(** Content-addressable backends. *)
 
-      let test () =
-        S.Repo.v config >>= S.main >>= fun t ->
-        Sync.pull_exn t upstream `Set >>= fun () ->
-        S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
+module Atomic_write = Atomic_write
+(** Atomic-write stores. *)
 
-      let () = Lwt_main.run (test ())
-    ]}
+(** [Maker] uses the same type for all internal keys and store all the values in
+    the same store. *)
+module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
+  Maker with type endpoint = unit
 
-    {3 Mergeable logs}
+(** [KV_maker] is like {!module-Maker} but uses sensible default implementations
+    for everything except the contents type. *)
+module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
+  KV_maker with type endpoint = unit and type metadata = unit
 
-    The complete code for the following can be found in
+(** {2 Backend} *)
+
+(** [Backend] defines functions only useful for creating new backends. If you
+    are just using the library (and not developing a new backend), you should
+    not use this module. *)
+module Backend : sig
+  module Conf : module type of Conf
+  (** Backend configuration.
+
+      A backend configuration is a set of {{!keys} keys} mapping to typed
+      values. Backends define their own keys. *)
+
+  module Watch = Watch
+  module Lock = Lock
+  module Lru = Lru
+  module Slice = Slice
+  module Remote = Remote
+
+  module type S = Backend.S
+  (** The modules that define a complete Irmin backend. Apply an implementation
+      to {!Of_backend} to create an Irmin store. *)
+end
+
+(** [Of_backend] gives full control over store creation through definining a
+    {!Backend.S}. *)
+module Of_backend (B : Backend.S) :
+  Generic_key.S
+    with module Schema = B.Schema
+     and type repo = B.Repo.t
+     and type slice = B.Slice.t
+     and type contents_key = B.Contents.Key.t
+     and type node_key = B.Node.Key.t
+     and type commit_key = B.Commit.Key.t
+     and module Backend = B
+
+(** {2 Storage} *)
+
+module Storage = Storage
+(** [Storage] provides {!Storage.Make} for defining a custom storage layer that
+    can be used to create Irmin stores. Unlike {!Backend.S}, an implementation
+    of {!Storage.Make} is only concerned with storing and retrieving keys and
+    values. It can be used to create stores for {!Backend.S} through something
+    like {!Storage.Content_addressable} or, primarily, with {!Of_storage} to
+    automatically construct an Irmin store. *)
+
+(** [Of_storage] uses a custom storage layer and chosen hash and contents type
+    to create a key-value store. *)
+module Of_storage (M : Storage.Make) (H : Hash.S) (V : Contents.S) :
+  KV with type hash = H.t and module Schema.Contents = V
+
+(** {2 Helpers} *)
+
+module Perms = Perms
+
+module Export_for_backends = Export_for_backends
+(** Helper module containing useful top-level types for defining Irmin backends.
+    This module is relatively unstable. *)
+
+(** {1 Advanced} *)
+
+(** {2 Custom Merge Operators} *)
+
+module Merge = Merge
+(** [Merge] provides functions to build custom 3-way merge operators for various
+    user-defined contents. *)
+
+module Diff = Diff
+(** Differences between values. *)
+
+type 'a diff = 'a Diff.t
+(** The type for representing differences betwen values. *)
+
+(** {3 Example} *)
+
+(** The complete code for the following can be found in
     [examples/custom_merge.ml].
 
     We will demonstrate the use of custom merge operators by defining mergeable
@@ -458,55 +447,55 @@ module Sync = Sync
       let () = Lwt_main.run (main ())
     ]} *)
 
+(** {2 Synchronization} *)
+
+type remote = Remote.t = ..
+(** The type for remote stores. *)
+
+val remote_store : (module Generic_key.S with type t = 'a) -> 'a -> remote
+(** [remote_store t] is the remote corresponding to the local store [t].
+    Synchronization is done by importing and exporting store {{!BC.slice}
+    slices}, so this is usually much slower than native synchronization using
+    {!Store.remote} but it works for all backends. *)
+
+module Sync = Sync
+(** Remote synchronisation. *)
+
+(** {3 Example} *)
+
+(** A simple synchronization example, using the {{!Irmin_unix.Git} Git} backend
+    and the {!Sync} helpers. The code clones a fresh repository if the
+    repository does not exist locally, otherwise it performs a fetch: in this
+    case, only the missing contents are downloaded.
+
+    The complete code for the following can be found in [examples/sync.ml].
+
+    {[
+      open Lwt.Infix
+      module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+      module Sync = Irmin.Sync (S)
+
+      let config = Irmin_git.config "/tmp/test"
+
+      let upstream =
+        if Array.length Sys.argv = 2 then
+          Uri.of_string (Store.remote Sys.argv.(1))
+        else (
+          Printf.eprintf "Usage: sync [uri]\n%!";
+          exit 1)
+
+      let test () =
+        S.Repo.v config >>= S.main >>= fun t ->
+        Sync.pull_exn t upstream `Set >>= fun () ->
+        S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
+
+      let () = Lwt_main.run (test ())
+    ]} *)
+
 (** {1 Helpers} *)
 
 (** [Dot] provides functions to export a store to the Graphviz `dot` format. *)
 module Dot (S : Generic_key.S) : Dot.S with type db = S.t
 
-(** {1:backend Backends}
-
-    API to create new Irmin backends. A backend is an implementation exposing
-    either a concrete implementation of {!S} or a functor providing {!S} once
-    applied.
-
-    Ways to create a concrete {!Irmin.S} implementation:
-
-    - Define a {!Storage.Make} for a custom storage layer and apply to
-      {!Of_storage} along with desired {!Hash.S} and {!Contents.S}.
-    - Define a {!Backend.S} and apply to {!Of_backend}.
-    - Define a {!Content_addressable.Maker} for an object store and a
-      {!Atomic_write.Maker} for a reference store. Apply to {!module-Maker} and
-      call {!Maker.Make} with a defined {!Schema.S} or apply to
-      {!module-KV_maker} and call {!KV_maker.Make} with the desired
-      {!Contents.S}. *)
-
-(** [Maker] uses the same type for all internal keys and store all the values in
-    the same store. *)
-module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
-  Maker with type endpoint = unit
-
-(** [KV_maker] is like {!module-Maker} but uses sensible default implementations
-    for everything except the contents type. *)
-module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
-  KV_maker with type endpoint = unit and type metadata = unit
-
-(** [Of_storage] uses a custom storage layer and chosen hash and contents type
-    to create a key-value store. *)
-module Of_storage (M : Storage.Make) (H : Hash.S) (V : Contents.S) :
-  KV with type hash = H.t and module Schema.Contents = V
-
-(** [Of_backend] gives full control over store creation through definining a
-    {!Backend.S}. *)
-module Of_backend (B : Backend.S) :
-  Generic_key.S
-    with module Schema = B.Schema
-     and type repo = B.Repo.t
-     and type slice = B.Slice.t
-     and type contents_key = B.Contents.Key.t
-     and type node_key = B.Node.Key.t
-     and type commit_key = B.Commit.Key.t
-     and module Backend = B
-
-module Export_for_backends = Export_for_backends
-(** Helper module containing useful top-level types for defining Irmin backends.
-    This module is relatively unstable. *)
+module Metrics = Metrics
+(** Type agnostics mechanisms to manipulate metrics. *)

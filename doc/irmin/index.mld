@@ -2,6 +2,8 @@
 
 [Irmin] is a distributed database built on the same principles as {{:https://git-scm.com} Git}. It can be used as an OCaml library that provides persistent stores with built-in snapshot, branching and reverting mechanisms.
 
+{e Release %%VERSION%% - %%HOMEPAGE%%}
+
 {1 Irmin API}
 
 The [irmin] package defines the public API of [Irmin]. The entry point of the library is the module {!Irmin}.
@@ -14,10 +16,6 @@ Irmin is designed to use a large variety of backends. Various backends are provi
 - {!Irmin_git}: A backend that exposes a bi-directional bridge to a Git repository proivded by the [irmin-git] package.
 - {!Irmin_pack}: An efficient on-disk store inspired by {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles} is provided in the [irmin-pack] package.
 - {!Irmin_mirage}: A {{:https://mirage.io/} MirageOS} compatible store is provided in the [irmin-mirage] package.
-
-{1 Examples}
-
-TODO
 
 {1 Helpers and Internal Utilities}
 
