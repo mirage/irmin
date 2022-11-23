@@ -25,6 +25,8 @@
   </em>
 </div>
 
+<hr />
+
 Irmin is based on distributed version-control systems (DVCs),
 extensively used in software development to enable developers to keep
 track of change provenance and expose modifications in the source
