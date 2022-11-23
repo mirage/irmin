@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
 open! Import
 
 exception RO_not_allowed
@@ -60,11 +61,13 @@ module type Maker = sig
 end
 
 module type Sigs = sig
-  module Conf = Conf
+  (** A space-optimiezed, on-disk store inspired by
+      {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}. *)
+
+  (** {1 Configuration} *)
+
   module Indexing_strategy = Indexing_strategy
-  module Inode = Inode
-  module Pack_key = Pack_key
-  module Pack_value = Pack_value
+  module Conf = Conf
 
   val config :
     ?fresh:bool ->
@@ -81,15 +84,37 @@ module type Sigs = sig
     Irmin.config
   (** Configuration options for stores. See {!Irmin_pack.Conf} for more details. *)
 
+  (** {1 Inode} *)
+
+  module Inode = Inode
+
+  (** {1 Keys and Values} *)
+
+  module Pack_key = Pack_key
+  module Pack_value = Pack_value
+
+  (** {1 Store} *)
+
   exception RO_not_allowed
 
   module type S = S
   module type Maker = Maker
+
+  (** {1 Integrity Check} *)
+
   module type Checkable = Checkable
 
+  (** {1 Metrics} *)
+
   module Stats = Stats
-  module Layout = Layout
+
+  (** {1 Low-level Stores} *)
+
   module Indexable = Indexable
   module Atomic_write = Atomic_write
+
+  (** {1 On-disk format} *)
+
+  module Layout = Layout
   module Version = Version
 end
