@@ -39,7 +39,7 @@ etc.). The Git workflow was initially designed for humans to manage
 changes within source code. Irmin scales this to hanlde automatic
 programs performing a very high number of operations per second, with
 a fully automated handling of update conflicts. Finally, Irmin exposes
-an event-driven API to define programmable dynamic behaviours to
+an event-driven API to define programmable dynamic behaviours and to
 program distributed dataflow pipelines.
 
 Irmin was created at the University of Cambridge in 2013 to be the
