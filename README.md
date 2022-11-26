@@ -265,7 +265,7 @@ Irmin's initial desing is directly inspired from
   experiments](https://mirage.io/blog/introducing-irmin-in-xenstore)
   showed that it was possible to design a reliable system using Git as
   backend to persist configuation data reliably (to safely restart
-  after a crash), while making system debuggin easy and go really
+  after a crash), while making system debugging easy and go really
   fast, thanks to efficient merging strategy.
 
 In 2014, the first release of Irmin was announced part of the MirageOS
