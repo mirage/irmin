@@ -32,8 +32,7 @@
   irmin
   logs.fmt
   logs.cli
-  lwt
-  lwt.unix
+  eio_main
   metrics
   metrics-unix
   irmin-test)
