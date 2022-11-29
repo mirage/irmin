@@ -15,8 +15,8 @@
  *)
 
 let () =
-  Lwt_main.run
-  @@ Irmin_test.Store.run __FILE__ ~slow:true ~misc:[] ~sleep:Lwt_unix.sleep
+  Eio_main.run @@ fun _env ->
+  Irmin_test.Store.run __FILE__ ~slow:true ~misc:[] ~sleep:Eio_unix.sleep
        [
          (`Quick, Test_store_offset.suite); (`Quick, Test_inlined_contents.suite);
        ]
