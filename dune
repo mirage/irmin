@@ -1,4 +1,4 @@
-(vendored_dirs vendors irmin-watcher ocaml-inotify)
+(vendored_dirs vendors irmin-watcher.dev ocaml-inotify)
 
 (mdx
  (files README.md)
