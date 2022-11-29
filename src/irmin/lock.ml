@@ -21,7 +21,7 @@ module type S = sig
   type t
 
   val v : unit -> t
-  val with_lock : t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+  val with_lock : t -> key -> (unit -> 'a) -> 'a
   val stats : t -> int
 end
 
@@ -36,31 +36,30 @@ module Make (K : Type.S) = struct
   module KHashtbl = Hashtbl.Make (K)
 
   type key = K.t
-  type t = { global : Lwt_mutex.t; locks : Lwt_mutex.t KHashtbl.t }
+  type t = { global : Eio.Mutex.t; locks : Eio.Mutex.t KHashtbl.t }
 
-  let v () = { global = Lwt_mutex.create (); locks = KHashtbl.create 1024 }
+  let v () = { global = Eio.Mutex.create (); locks = KHashtbl.create 1024 }
   let stats t = KHashtbl.length t.locks
 
   let lock t key () =
     let lock =
       try KHashtbl.find t.locks key
       with Not_found ->
-        let lock = Lwt_mutex.create () in
+        let lock = Eio.Mutex.create () in
         KHashtbl.add t.locks key lock;
         lock
     in
-    Lwt.return lock
+    lock
 
   let unlock t key () =
-    let () =
-      if KHashtbl.mem t.locks key then
-        let lock = KHashtbl.find t.locks key in
-        if Lwt_mutex.is_empty lock then KHashtbl.remove t.locks key
-    in
-    Lwt.return_unit
+    if KHashtbl.mem t.locks key then
+      let lock = KHashtbl.find t.locks key in
+      (* TODO: is_empty not is_locked *)
+      if Eio.Mutex.try_lock lock then KHashtbl.remove t.locks key
 
   let with_lock t k fn =
-    let* lock = Lwt_mutex.with_lock t.global (lock t k) in
-    let* r = Lwt_mutex.with_lock lock fn in
-    Lwt_mutex.with_lock t.global (unlock t k) >>= fun () -> Lwt.return r
+    let lock = Eio.Mutex.use_rw ~protect:true t.global (lock t k) in
+    let r = Eio.Mutex.use_rw ~protect:true lock fn in
+    Eio.Mutex.use_rw ~protect:true t.global (unlock t k);
+    r
 end

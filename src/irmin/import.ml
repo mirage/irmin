@@ -21,14 +21,17 @@ type read = Perms.read
 type write = Perms.write
 type read_write = Perms.read_write
 
-(** {2 Lwt syntax} *)
-
-include Lwt.Syntax
-
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-
 (** {2 Dependency extensions} *)
+
+module Fiber = struct
+  include Eio.Fiber
+  (** @closed *)
+
+  let all_p fs =
+    Eio.Switch.run @@ fun sw ->
+    let ps = List.map (fork_promise ~sw) fs in
+    List.map Eio.Promise.await_exn ps
+end
 
 module Option = struct
   include Option

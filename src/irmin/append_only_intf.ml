@@ -26,7 +26,7 @@ module type S = sig
   include Read_only.S
   (** @inline *)
 
-  val add : [> write ] t -> key -> value -> unit Lwt.t
+  val add : [> write ] t -> key -> value -> unit
   (** Write the contents of a value to the store. *)
 
   include Closeable with type 'a t := 'a t

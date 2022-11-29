@@ -33,7 +33,7 @@ end
 module type S = sig
   (** Reads basic metrics from an existing store and prints them to stdout. *)
   module Stat : sig
-    include Subcommand with type run := root:string -> unit Lwt.t
+    include Subcommand with type run := root:string -> unit
 
     (** Internal implementation utilities exposed for use in other integrity
         checks. *)
@@ -58,8 +58,7 @@ module type S = sig
 
   (** Checks the integrity of a store *)
   module Integrity_check : sig
-    include
-      Subcommand with type run := root:string -> auto_repair:bool -> unit Lwt.t
+    include Subcommand with type run := root:string -> auto_repair:bool -> unit
 
     val handle_result :
       ?name:string ->
@@ -80,7 +79,7 @@ module type S = sig
   module Integrity_check_inodes : sig
     include
       Subcommand
-        with type run := root:string -> heads:string list option -> unit Lwt.t
+        with type run := root:string -> heads:string list option -> unit
   end
 
   (** Traverses a commit to get stats on its underlying tree. *)
@@ -92,7 +91,7 @@ module type S = sig
           commit:string option ->
           dump_blob_paths_to:string option ->
           unit ->
-          unit Lwt.t
+          unit
   end
 
   val cli :

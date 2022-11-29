@@ -40,10 +40,10 @@ module type S = sig
 
   type value
 
-  val read : path:Store.path -> Store.t -> value option Lwt.t
+  val read : path:Store.path -> Store.t -> value option
 
   val write :
-    ?info:Store.Info.f -> path:Store.path -> Store.t -> value -> unit Lwt.t
+    ?info:Store.Info.f -> path:Store.path -> Store.t -> value -> unit
 end
 
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
@@ -54,7 +54,7 @@ module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
   type value = V.t
 
   let read ~path t =
-    Store.find t path >|= function None -> None | Some (v, _) -> Some v
+    Store.find t path |> function None -> None | Some (v, _) -> Some v
 
   let write ?(info = empty_info) ~path t v =
     let timestamp = T.now () in

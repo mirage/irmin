@@ -467,9 +467,8 @@ struct
   let batch (c, s) f = C.batch c (fun n -> S.batch s (fun s -> f (n, s)))
 
   let close (c, s) =
-    let* () = C.close c in
-    let+ () = S.close s in
-    ()
+    C.close c;
+    S.close s
 
   let rec merge t =
     let merge_key =
@@ -478,12 +477,10 @@ struct
     in
     let merge = Val.merge ~contents:C.(merge (fst t)) ~node:merge_key in
     let read = function
-      | None -> Lwt.return (Val.empty ())
-      | Some k -> ( find t k >|= function None -> Val.empty () | Some v -> v)
+      | None -> Val.empty ()
+      | Some k -> ( match find t k with None -> Val.empty () | Some v -> v)
     in
-    let add v =
-      if Val.is_empty v then Lwt.return_none else add t v >>= Lwt.return_some
-    in
+    let add v = if Val.is_empty v then None else Some (add t v) in
     Merge.like_lwt [%typ: Key.t option] merge read add
 end
 
@@ -526,7 +523,7 @@ module Graph (S : Store) = struct
 
   let list t n =
     [%log.debug "steps"];
-    S.find t n >|= function None -> [] | Some n -> S.Val.list n
+    match S.find t n with None -> [] | Some n -> S.Val.list n
 
   module U = struct
     type t = unit [@@deriving irmin]
@@ -545,42 +542,38 @@ module Graph (S : Store) = struct
   let equal_val = Type.(unstage (equal S.Val.t))
 
   let pred t = function
-    | `Node k -> ( S.find t k >|= function None -> [] | Some v -> edges v)
-    | _ -> Lwt.return_nil
+    | `Node k -> ( match S.find t k with None -> [] | Some v -> edges v)
+    | _ -> []
 
   let closure t ~min ~max =
     [%log.debug "closure min=%a max=%a" pp_keys min pp_keys max];
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
-    let+ g = Graph.closure ~pred:(pred t) ~min ~max () in
+    let g = Graph.closure ~pred:(pred t) ~min ~max () in
     List.fold_left
       (fun acc -> function `Node x -> x :: acc | _ -> acc)
       [] (Graph.vertex g)
 
-  let ignore_lwt _ = Lwt.return_unit
-
-  let iter t ~min ~max ?(node = ignore_lwt) ?(contents = ignore_lwt) ?edge
-      ?(skip_node = fun _ -> Lwt.return_false)
-      ?(skip_contents = fun _ -> Lwt.return_false) ?(rev = true) () =
+  let iter t ~min ~max ?(node = ignore) ?(contents = ignore) ?edge
+      ?(skip_node = fun _ -> false) ?(skip_contents = fun _ -> false)
+      ?(rev = true) () =
     let min = List.rev_map (fun x -> `Node x) min in
     let max = List.rev_map (fun x -> `Node x) max in
     let node = function
       | `Node x -> node x
       | `Contents c -> contents c
-      | `Branch _ | `Commit _ -> Lwt.return_unit
+      | `Branch _ | `Commit _ -> ()
     in
     let edge =
       Option.map
         (fun edge n pred ->
-          match (n, pred) with
-          | `Node src, `Node dst -> edge src dst
-          | _ -> Lwt.return_unit)
+          match (n, pred) with `Node src, `Node dst -> edge src dst | _ -> ())
         edge
     in
     let skip = function
       | `Node x -> skip_node x
       | `Contents c -> skip_contents c
-      | _ -> Lwt.return_false
+      | _ -> false
     in
     Graph.iter ~pred:(pred t) ~min ~max ~node ?edge ~skip ~rev ()
 
@@ -588,16 +581,16 @@ module Graph (S : Store) = struct
 
   let find_step t node step =
     [%log.debug "contents %a" pp_key node];
-    S.find t node >|= function None -> None | Some n -> S.Val.find n step
+    match S.find t node with None -> None | Some n -> S.Val.find n step
 
   let find t node path =
     [%log.debug "read_node_exn %a %a" pp_key node pp_path path];
     let rec aux node path =
       match Path.decons path with
-      | None -> Lwt.return_some (`Node node)
+      | None -> Some (`Node node)
       | Some (h, tl) -> (
-          find_step t node h >>= function
-          | (None | Some (`Contents _)) as x -> Lwt.return x
+          match find_step t node h with
+          | (None | Some (`Contents _)) as x -> x
           | Some (`Node node) -> aux node tl)
     in
     aux node path
@@ -607,42 +600,39 @@ module Graph (S : Store) = struct
   let map_one t node f label =
     [%log.debug "map_one %a" Type.(pp Path.step_t) label];
     let old_key = S.Val.find node label in
-    let* old_node =
+    let old_node =
       match old_key with
-      | None | Some (`Contents _) -> Lwt.return (S.Val.empty ())
+      | None | Some (`Contents _) -> S.Val.empty ()
       | Some (`Node k) -> (
-          S.find t k >|= function None -> S.Val.empty () | Some v -> v)
+          match S.find t k with None -> S.Val.empty () | Some v -> v)
     in
-    let* new_node = f old_node in
-    if equal_val old_node new_node then Lwt.return node
+    let new_node = f old_node in
+    if equal_val old_node new_node then node
     else if S.Val.is_empty new_node then
       let node = S.Val.remove node label in
-      if S.Val.is_empty node then Lwt.return (S.Val.empty ())
-      else Lwt.return node
+      if S.Val.is_empty node then S.Val.empty () else node
     else
-      let+ k = S.add t new_node in
+      let k = S.add t new_node in
       S.Val.add node label (`Node k)
 
   let map t node path f =
     [%log.debug "map %a %a" pp_key node pp_path path];
     let rec aux node path =
       match Path.decons path with
-      | None -> Lwt.return (f node)
+      | None -> f node
       | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
-    let* node =
-      S.find t node >|= function None -> S.Val.empty () | Some n -> n
+    let node =
+      match S.find t node with None -> S.Val.empty () | Some n -> n
     in
-    aux node path >>= S.add t
+    aux node path |> S.add t
 
   let add t node path n =
     [%log.debug "add %a %a" pp_key node pp_path path];
     match Path.rdecons path with
     | Some (path, file) -> map t node path (fun node -> S.Val.add node file n)
     | None -> (
-        match n with
-        | `Node n -> Lwt.return n
-        | `Contents _ -> failwith "TODO: Node.add")
+        match n with `Node n -> n | `Contents _ -> failwith "TODO: Node.add")
 
   let rdecons_exn path =
     match Path.rdecons path with
@@ -778,7 +768,7 @@ module V1 (N : Generic_key.S with type step = string) = struct
     let merge = N.merge ~contents ~node in
     let f ~old x y =
       let old = Merge.map_promise (fun old -> old.n) old in
-      let+ r = Merge.f merge ~old x.n y.n in
+      let r = Merge.f merge ~old x.n y.n in
       match r with Ok r -> Ok (import r) | Error e -> Error e
     in
     Merge.v t f

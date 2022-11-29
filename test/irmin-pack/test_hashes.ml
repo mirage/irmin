@@ -65,24 +65,24 @@ struct
   let build_tree steps =
     let bindings = bindings steps in
     let tree = Tree.empty () in
-    let+ tree =
-      Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree bindings
+    let tree =
+      List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
     tree
 
   let persist_tree tree =
-    let* repo = Repo.v conf in
-    let* init_commit =
+    let repo = Repo.v conf in
+    let init_commit =
       Commit.v ~parents:[] ~info:Info.empty repo
         (Tree.singleton [ "singleton-step" ] (Bytes.of_string "singleton-val"))
     in
     let h = Commit.hash init_commit in
     let info = Info.v ~author:"Tezos" 0L in
-    let* commit =
+    let commit =
       Commit.v ~parents:[ Irmin_pack_unix.Pack_key.v_indexed h ] ~info repo tree
     in
     let tree = Commit.tree commit in
-    Lwt.return (repo, tree, commit)
+    (repo, tree, commit)
 
   let check_hardcoded_hash msg expected got =
     let got = (Irmin.Type.to_string Store.Hash.t) got in
@@ -118,8 +118,7 @@ module Test_tezos_conf = struct
     in
     check_iter "pre_hash" pre_hash_val zero checks;
     Store.check_hardcoded_hash "contents hash"
-      "CoWHVKM5r2eiHQxhicqakkr5FwJfabahGBwCCWzRPCNPs79CoZty" h0;
-    Lwt.return_unit
+      "CoWHVKM5r2eiHQxhicqakkr5FwJfabahGBwCCWzRPCNPs79CoZty" h0
 
   let some_steps = [ "00"; "01" ]
 
@@ -146,9 +145,9 @@ module Test_tezos_conf = struct
     ("len of values", nb_steps) :: checks
 
   let inode_values_hash () =
-    let* tree = Store.build_tree some_steps in
-    let* repo, tree, _ = Store.persist_tree tree in
-    let* root_node =
+    let tree = Store.build_tree some_steps in
+    let repo, tree, _ = Store.persist_tree tree in
+    let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
       | `Node x -> Store.to_backend_node x
@@ -163,12 +162,11 @@ module Test_tezos_conf = struct
     check_iter "pre_hash" pre_hash_val root_node checks;
     Store.check_hardcoded_hash "node hash"
       "CoVeCU4o3dqmfdwqt2vh8LDz9X6qGbTUyLhgVvFReyzAvTf92AKx" h;
-    let* () = Store.Repo.close repo in
-    Lwt.return_unit
+    Store.Repo.close repo
 
   let commit_hash () =
-    let* tree = Store.build_tree some_steps in
-    let* repo, _, commit = Store.persist_tree tree in
+    let tree = Store.build_tree some_steps in
+    let repo, _, commit = Store.persist_tree tree in
     let commit_val = Store.to_backend_commit commit in
     let h = Commit.Hash.hash commit_val in
     let encode_bin_hash = Irmin.Type.(unstage (encode_bin Commit.Hash.t)) in
@@ -211,8 +209,7 @@ module Test_tezos_conf = struct
     check_iter "pre_hash" pre_hash_val commit_val checks;
     Store.check_hardcoded_hash "commit hash"
       "CoW7mALEs2vue5cfTMdJfSAjNmjmALYS1YyqSsYr9siLcNEcrvAm" h;
-    let* () = Store.Repo.close repo in
-    Lwt.return_unit
+    Store.Repo.close repo
 end
 
 module Test_small_conf = struct
@@ -243,9 +240,9 @@ module Test_small_conf = struct
     ]
 
   let inode_tree_hash () =
-    let* tree = Store.build_tree many_steps in
-    let* repo, tree, _ = Store.persist_tree tree in
-    let* root_node =
+    let tree = Store.build_tree many_steps in
+    let repo, tree, _ = Store.persist_tree tree in
+    let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
       | `Node x -> Store.to_backend_node x
@@ -261,8 +258,7 @@ module Test_small_conf = struct
     check_iter "pre_hash" pre_hash_val root_node checks;
     Store.check_hardcoded_hash "node hash"
       "CoWPo8s8h81q8skRqfPLTAJvq4ioFKS6rQhdRcY5nd6HQz2upwp4" h;
-    let* () = Store.Repo.close repo in
-    Lwt.return_unit
+    Store.Repo.close repo
 end
 
 module Test_V1 = struct
@@ -285,8 +281,8 @@ module Test_V1 = struct
   let many_steps = [ "00"; "01"; "02"; "03"; "04"; "05" ]
 
   let commit_hash () =
-    let* tree = Store.build_tree many_steps in
-    let* repo, _, commit = Store.persist_tree tree in
+    let tree = Store.build_tree many_steps in
+    let repo, _, commit = Store.persist_tree tree in
     let commit_val = Store.to_backend_commit commit in
     let checks =
       [
@@ -306,12 +302,11 @@ module Test_V1 = struct
     in
     let encode_bin_val = Irmin.Type.(unstage (encode_bin Commit.Val.t)) in
     check_iter "encode_bin" encode_bin_val commit_val checks;
-    let* () = Store.Repo.close repo in
-    Lwt.return_unit
+    Store.Repo.close repo
 end
 
 let tests =
-  let tc name f = Alcotest_lwt.test_case name `Quick (fun _switch -> f) in
+  let tc name f = Alcotest.test_case name `Quick f in
   [
     tc "contents hash" Test_tezos_conf.contents_hash;
     tc "inode_values hash" Test_tezos_conf.inode_values_hash;

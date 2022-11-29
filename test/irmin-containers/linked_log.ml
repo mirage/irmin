@@ -30,70 +30,70 @@ let merge_into_exn = merge_into_exn (module L.Store)
 let path = [ "tmp"; "link" ]
 let config () = L.Store.Repo.v (Irmin_mem.config ())
 
-let test_empty_read _ () =
+let test_empty_read () =
   config ()
-  >>= L.Store.main
-  >>= L.read_all ~path
-  >|= Alcotest.(check (list string)) "checked - reading empty log" []
+  |> L.Store.main
+  |> L.read_all ~path
+  |> Alcotest.(check (list string)) "checked - reading empty log" []
 
-let test_append_read_all _ () =
-  let* t = config () >>= L.Store.main in
-  L.append ~path t "main.1" >>= fun () ->
-  L.append ~path t "main.2" >>= fun () ->
+let test_append_read_all () =
+  let t = config () |> L.Store.main in
+  L.append ~path t "main.1";
+  L.append ~path t "main.2";
   L.read_all ~path t
-  >|= Alcotest.(check (list string))
+  |> Alcotest.(check (list string))
         "checked - log after appending" [ "main.2"; "main.1" ]
 
-let test_read_incr _ () =
-  let* cur = config () >>= L.Store.main >>= L.get_cursor ~path in
-  let* l, cur = L.read ~num_items:1 cur in
+let test_read_incr () =
+  let cur = config () |> L.Store.main |> L.get_cursor ~path in
+  let l, cur = L.read ~num_items:1 cur in
   Alcotest.(check (list string)) "checked - read one item" [ "main.2" ] l;
-  let* l, cur = L.read ~num_items:1 cur in
+  let l, cur = L.read ~num_items:1 cur in
   Alcotest.(check (list string)) "checked - read one more item" [ "main.1" ] l;
-  let+ l, _ = L.read ~num_items:1 cur in
+  let l, _ = L.read ~num_items:1 cur in
   Alcotest.(check (list string)) "checked - read one more item" [] l
 
-let test_read_excess _ () =
-  let* cur = config () >>= L.Store.main >>= L.get_cursor ~path in
-  let+ l, _ = L.read ~num_items:10 cur in
+let test_read_excess () =
+  let cur = config () |> L.Store.main |> L.get_cursor ~path in
+  let l, _ = L.read ~num_items:10 cur in
   Alcotest.(check (list string))
     "checked - read 10 items" [ "main.2"; "main.1" ] l
 
-let test_clone_merge _ () =
-  let* t = config () >>= L.Store.main in
-  let* b = L.Store.clone ~src:t ~dst:"cl" in
-  L.append ~path b "clone.1" >>= fun () ->
-  L.append ~path t "main.3" >>= fun () ->
-  merge_into_exn b ~into:t >>= fun () ->
+let test_clone_merge () =
+  let t = config () |> L.Store.main in
+  let b = L.Store.clone ~src:t ~dst:"cl" in
+  L.append ~path b "clone.1";
+  L.append ~path t "main.3";
+  merge_into_exn b ~into:t;
   L.read_all ~path t
-  >|= Alcotest.(check (list string))
+  |> Alcotest.(check (list string))
         "checked - log after appending"
         [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
-let test_branch_merge _ () =
-  let* r = config () in
-  let* b1 = L.Store.of_branch r "b1" in
-  let* b2 = L.Store.of_branch r "b2" in
-  let* b3 = L.Store.of_branch r "b3" in
-  let* b4 = L.Store.of_branch r "b4" in
-  L.append ~path b1 "b1.1" >>= fun () ->
-  L.append ~path b2 "b2.1" >>= fun () ->
-  L.append ~path b1 "b1.2" >>= fun () ->
-  L.append ~path b1 "b1.3" >>= fun () ->
-  L.append ~path b2 "b2.2" >>= fun () ->
-  L.append ~path b1 "b1.4" >>= fun () ->
-  merge_into_exn b1 ~into:b3 >>= fun () ->
-  merge_into_exn b2 ~into:b3 >>= fun () ->
-  merge_into_exn b2 ~into:b4 >>= fun () ->
-  merge_into_exn b1 ~into:b4 >>= fun () ->
-  let* () =
+let test_branch_merge () =
+  let r = config () in
+  let b1 = L.Store.of_branch r "b1" in
+  let b2 = L.Store.of_branch r "b2" in
+  let b3 = L.Store.of_branch r "b3" in
+  let b4 = L.Store.of_branch r "b4" in
+  L.append ~path b1 "b1.1";
+  L.append ~path b2 "b2.1";
+  L.append ~path b1 "b1.2";
+  L.append ~path b1 "b1.3";
+  L.append ~path b2 "b2.2";
+  L.append ~path b1 "b1.4";
+  merge_into_exn b1 ~into:b3;
+  merge_into_exn b2 ~into:b3;
+  merge_into_exn b2 ~into:b4;
+  merge_into_exn b1 ~into:b4;
+  let () =
     L.read_all ~path b3
-    >|= Alcotest.(check (list string))
+    |> Alcotest.(check (list string))
           "checked - value of b3"
           [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
   in
   L.read_all ~path b4
-  >|= Alcotest.(check (list string))
+  |> Alcotest.(check (list string))
         "checked - value of b4"
         [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
 
@@ -101,15 +101,15 @@ let test_cases =
   [
     ( "linked_log",
       [
-        Alcotest_lwt.test_case "Read empty log" `Quick test_empty_read;
-        Alcotest_lwt.test_case "Append and real all" `Quick test_append_read_all;
-        Alcotest_lwt.test_case "Read incrementally with cursor" `Quick
+        Alcotest.test_case "Read empty log" `Quick test_empty_read;
+        Alcotest.test_case "Append and real all" `Quick test_append_read_all;
+        Alcotest.test_case "Read incrementally with cursor" `Quick
           test_read_incr;
-        Alcotest_lwt.test_case "Read excess with cursor" `Quick test_read_excess;
+        Alcotest.test_case "Read excess with cursor" `Quick test_read_excess;
       ] );
     ( "linked_log store",
       [
-        Alcotest_lwt.test_case "Clone and merge" `Quick test_clone_merge;
-        Alcotest_lwt.test_case "Branch and merge" `Quick test_branch_merge;
+        Alcotest.test_case "Clone and merge" `Quick test_clone_merge;
+        Alcotest.test_case "Branch and merge" `Quick test_branch_merge;
       ] );
   ]
