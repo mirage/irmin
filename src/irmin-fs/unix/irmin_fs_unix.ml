@@ -98,7 +98,7 @@ module IO = struct
             Switch.run @@ fun sw ->
             let flow =
               Path.open_out ~sw fcap
-                ~create:(`If_missing 0o600)
+                ~create:(`Exclusive 0o600)
             in
             Flow.copy_string (string_of_int pid) flow
           in
@@ -190,7 +190,7 @@ module IO = struct
     let tmp_name = Filename.basename tmp_f in
     Eio_pool.use openfile_pool (fun () ->
         [%log.debug "Writing %s (%s) %s %s" file_f tmp_f (snd temp_dir_path) (snd file)];
-        Path.(with_open_out ~create:(`If_missing 0o644) (temp_dir_path / tmp_name) fn);
+        Path.(with_open_out ~create:(`Or_truncate 0o644) (temp_dir_path / tmp_name) fn);
         rename Path.(temp_dir_path / tmp_name) file)
 
   let read_file_with_read file size =
