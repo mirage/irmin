@@ -179,7 +179,7 @@ struct
             in
             match list_partition n l with
             | [ i ] -> AO.add t.db key (index t i); key
-            | l -> Fiber.map (fun i -> CA.add t.db (index t i)) l |> aux)
+            | l -> Fiber.List.map (fun i -> CA.add t.db (index t i)) l |> aux)
       in
       aux l
   end
