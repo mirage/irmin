@@ -2162,13 +2162,13 @@ module Make (S : Generic_key) = struct
       let check_test e = function
         | Error (`Test_was e') ->
             Alcotest.(check (option tree_t)) "test-was" e e'
-        | Ok () -> Alcotest.fail "error expected"
+        | Ok () -> Alcotest.fail "check_test: error expected"
         | Error e ->
             Alcotest.failf "an other error was expected: %a" pp_write_error e
       in
       let check_conflict = function
         | Error (`Conflict _) -> ()
-        | Ok () -> Alcotest.fail "error expected"
+        | Ok () -> Alcotest.fail "check_conflict: error expected"
         | Error e ->
             Alcotest.failf "an other error was expected: %a" pp_write_error e
       in

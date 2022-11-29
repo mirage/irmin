@@ -496,8 +496,7 @@ module Make (B : Backend.S) = struct
           new_h]
 
   let with_tree ~key x f =
-    match x with
-    (* Hmmmm *)
+    match x () with
     | None -> skip_key key
     | Some x ->
         changed_key key None None;
@@ -505,11 +504,11 @@ module Make (B : Backend.S) = struct
 
   let lift_tree_diff ~key tree fn = function
     | `Removed x ->
-        with_tree ~key (tree x) @@ fun v ->
+        with_tree ~key (fun () -> tree x) @@ fun v ->
         changed_key key (Some v) None;
         fn @@ `Removed (x, v)
     | `Added x ->
-        with_tree ~key (tree x) @@ fun v ->
+        with_tree ~key (fun () -> tree x) @@ fun v ->
         changed_key key None (Some v);
         fn @@ `Added (x, v)
     | `Updated (x, y) -> (
@@ -778,8 +777,8 @@ module Make (B : Backend.S) = struct
     | Some tree -> Tree.add_tree root key tree |> ok
 
   let ignore_commit
-      (_c : (commit option, [> `Too_many_retries of int ]) result) =
-    Ok ()
+      (c : (commit option, [> `Too_many_retries of int ]) result) =
+    Result.map (fun _ -> ()) c
 
   let set_tree ?clear ?(retries = 13) ?allow_empty ?parents ~info t k v =
     [%log.debug "set %a" pp_path k];

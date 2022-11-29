@@ -108,9 +108,9 @@ struct
 
   let times ~n ~init f =
     let rec go i k =
-      if i = 0 then k init else go (i - 1) (fun r -> f i r >>= k)
+      if i = 0 then k init else go (i - 1) (fun r -> k (f i r))
     in
-    go n Lwt.return
+    go n Fun.id
 
   let path ~depth n =
     let rec aux acc = function
@@ -137,42 +137,46 @@ struct
      [t.tree_add] files + one directory going to the next levele. *)
   let init t config =
     let tree = Store.Tree.empty () in
-    let* v = Store.Repo.v config >>= Store.main in
-    let* tree =
+    let v = Store.Repo.v config |> Store.main in
+    let tree =
       times ~n:t.depth ~init:tree (fun depth tree ->
           let paths = Array.init (t.tree_add + 1) (path ~depth) in
           times ~n:t.tree_add ~init:tree (fun n tree ->
               Store.Tree.add tree paths.(n) "init"))
     in
-    Store.set_tree_exn v ~info [] tree >|= fun () -> Fmt.epr "[init done]\n%!"
+    Store.set_tree_exn v ~info [] tree;
+    Fmt.epr "[init done]\n%!"
 
   let run t config size =
-    let* r = Store.Repo.v config in
-    let* v = Store.main r in
+    let r = Store.Repo.v config in
+    let v = Store.main r in
     Store.Tree.reset_counters ();
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
-    let* () =
+    let () =
       times ~n:t.ncommits ~init:() (fun i () ->
-          let* tree = Store.get_tree v [] in
+          let tree = Store.get_tree v [] in
           if i mod t.gc = 0 then Gc.full_major ();
           if i mod t.display = 0 then (
             plot_progress i t.ncommits;
             print_stats ~size ~commits:i);
-          let* tree =
+          let tree =
             times ~n:t.tree_add ~init:tree (fun n tree ->
                 Store.Tree.add tree paths.(n) (string_of_int i))
           in
-          Store.set_tree_exn v ~info [] tree >|= fun () ->
+          Store.set_tree_exn v ~info [] tree;
           if t.clear then Store.Tree.clear tree)
     in
-    Store.Repo.close r >|= fun () -> Fmt.epr "\n[run done]\n%!"
+    Store.Repo.close r;
+    Fmt.epr "\n[run done]\n%!"
 
   let main t config size =
     let root = "_build/_bench" in
     let config = config ~root in
     let size () = size ~root in
     let t = { t with root } in
-    Lwt_main.run (init t config >>= fun () -> run t config size)
+    Eio_main.run @@ fun _ -> 
+    init t config;
+    run t config size
 
   let main_term config size = Term.(const main $ t $ const config $ const size)
 
