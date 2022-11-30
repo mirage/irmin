@@ -22,21 +22,9 @@ let suffix_mem repo e =
   let k = key_of_entry e in
   try
     match e.k with
-    | `c ->
-        Store.S.X.Commit.CA.unsafe_find ~check_integrity:false
-          (snd (Store.S.X.Repo.commit_t repo))
-          k
-        |> Option.is_some
-    | `n ->
-        Store.S.X.Node.CA.unsafe_find ~check_integrity:false
-          (snd (Store.S.X.Repo.node_t repo))
-          k
-        |> Option.is_some
-    | `b ->
-        Store.S.X.Contents.CA.unsafe_find ~check_integrity:false
-          (Store.S.X.Repo.contents_t repo)
-          k
-        |> Option.is_some
+    | `c -> Store.S.Internal.suffix_commit_mem repo k
+    | `n -> Store.S.Internal.suffix_node_mem repo k
+    | `b -> Store.S.Internal.suffix_contents_mem repo k
   with Irmin_pack_unix.Pack_store.Invalid_read _ ->
     (* In RW mode, [mem] will raise an exception if the offset of the key is
        out of the bounds of the pack file *)
@@ -135,7 +123,10 @@ let test_one t ~(ro_reload_at : phase_flush) =
           | `After_dict -> aux S2_after_flush_dict
           | `After_suffix -> aux S3_after_flush_suffix
         in
-        let () = Store.S.X.Repo.flush_with_hook ~hook rw in
+        let () =
+          Store.S.Internal.(
+            File_manager.flush ~hook (file_manager rw) |> Errs.raise_if_error)
+        in
         let () = aux S4_after_flush in
         Lwt.return_unit)
   in
@@ -222,7 +213,10 @@ let test_one t ~(rw_flush_at : phase_reload) =
           | `After_control -> aux S3_after_reload_control
           | `After_suffix -> aux S4_after_reload_suffix
         in
-        let () = Store.S.X.Repo.reload_with_hook ~hook ro in
+        let () =
+          Store.S.Internal.(
+            File_manager.reload ~hook (file_manager ro) |> Errs.raise_if_error)
+        in
         let () = aux S5_after_reload in
         Lwt.return_unit)
   in

@@ -254,10 +254,11 @@ module Store = struct
     | `Idle | `Running -> Alcotest.fail "expected finalised gc"
     | `Finalised _ -> Lwt.return_unit
 
-  let dict_find_opt (repo : S.repo) step = S.Dict.find repo.dict step
+  let dict_find_opt (repo : S.repo) step =
+    S.Internal.(Dict.find (dict repo) step)
 
   let index_find_opt (repo : S.repo) hash =
-    S.Index.find (S.File_manager.index repo.fm) hash
+    S.Internal.(Index.find (File_manager.index (file_manager repo)) hash)
 
   let suffix_mem (repo : S.repo) e =
     let k = key_of_entry e in

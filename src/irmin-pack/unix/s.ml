@@ -246,6 +246,36 @@ module type S = sig
       (** [close snapshot] close the [snaphot] instance.*)
     end
   end
+
+  (** {1 Internals} *)
+
+  module Internal : sig
+    (** Unstable internal API agnostic about the underlying storage. Use it only
+        to implement or test inodes. *)
+
+    module Io = Io.Unix
+    module Errs : Io_errors.S with module Io = Io
+    module Index : Pack_index.S with type key = hash
+
+    module File_manager :
+      File_manager.S
+        with module Io = Io
+         and module Errs = Errs
+         and module Index = Index
+
+    val file_manager : repo -> File_manager.t
+
+    module Dict : Dict.S
+
+    val dict : repo -> Dict.t
+
+    module XKey : Pack_key.S with type hash = Schema.Hash.t
+
+    val suffix_commit_mem : repo -> XKey.t -> bool
+    val suffix_node_mem : repo -> XKey.t -> bool
+    val suffix_contents_mem : repo -> XKey.t -> bool
+    val kill_gc : repo -> bool
+  end
 end
 
 module S_is_a_store (X : S) : Irmin.Generic_key.S = X
