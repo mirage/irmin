@@ -33,7 +33,7 @@ module Control_file = Control_file
 module Append_only_file = Append_only_file
 module Chunked_suffix = Chunked_suffix
 module File_manager = File_manager
-module Maker = Ext.Maker
+module Maker = Store.Maker
 module Mapping_file = Mapping_file
 module Utils = Utils
 
