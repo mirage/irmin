@@ -14,12 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** {1 Store} *)
+
+module type S = S.S
+
+module Maker = Ext.Maker
+
+(** {1 Key and Values} *)
+
+module Pack_key = Pack_key
+module Pack_value = Pack_value
+
+(** {1 Internal} *)
+
 module Stats = Stats
 module Index = Pack_index
 module Inode = Inode
 module Pack_store = Pack_store
-module Pack_key = Pack_key
-module Pack_value = Pack_value
 module Io_legacy = Io_legacy
 module Checks = Checks
 module Atomic_write = Atomic_write
@@ -33,8 +44,5 @@ module Control_file = Control_file
 module Append_only_file = Append_only_file
 module Chunked_suffix = Chunked_suffix
 module File_manager = File_manager
-module Maker = Store.Maker
 module Mapping_file = Mapping_file
 module Utils = Utils
-
-module type S = S.S

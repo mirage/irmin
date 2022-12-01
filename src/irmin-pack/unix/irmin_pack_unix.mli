@@ -14,14 +14,35 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** {1 Store} *)
+
+module type S = S.S
+
+module Maker (Config : Irmin_pack.Conf.S) : S.Maker_persistent
+
+(** {1 Key and Values} *)
+
+(* module Pack_store = Pack_store *)
+module Pack_key = Pack_key
+module Pack_value = Pack_value
+
+(** {1 Integrity Checks} *)
+
+module Checks = Checks
+
+(** {1 Statistics} *)
+
 module Stats = Stats
+
+(** {1 Internal Functors and Utilities} *)
+
+(** Following functors and modules are instantiated automatically or used
+    internally when creating a store with {!Maker} or {!KV}.*)
+
 module Index = Pack_index
 module Inode = Inode
 module Pack_store = Pack_store
-module Pack_key = Pack_key
-module Pack_value = Pack_value
 module Io_legacy = Io_legacy
-module Checks = Checks
 module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher
@@ -35,7 +56,3 @@ module Chunked_suffix = Chunked_suffix
 module File_manager = File_manager
 module Mapping_file = Mapping_file
 module Utils = Utils
-
-module type S = S.S
-
-module Maker (Config : Irmin_pack.Conf.S) : S.Maker_persistent
