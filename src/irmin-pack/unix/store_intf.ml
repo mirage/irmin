@@ -311,3 +311,7 @@ module type Maker_persistent =
     with type ('h, _) contents_key = 'h Pack_key.t
      and type 'h node_key = 'h Pack_key.t
      and type 'h commit_key = 'h Pack_key.t
+
+(* This *_intf module does not have a Sigs module type as it is
+   directly exposed in the top-level interface
+   (irmin_pack_Unix.mli). *)
