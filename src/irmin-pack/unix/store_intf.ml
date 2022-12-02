@@ -312,6 +312,28 @@ module type Maker_persistent =
      and type 'h node_key = 'h Pack_key.t
      and type 'h commit_key = 'h Pack_key.t
 
+module type KV = sig
+  type endpoint = unit
+  type hash = Irmin.Schema.default_hash
+
+  include Pack_key.Store_spec
+
+  type metadata = Irmin.Metadata.None.t
+
+  module Make (C : Irmin.Contents.S) :
+    S
+      with module Schema.Contents = C
+       and type Schema.Metadata.t = metadata
+       and type Backend.Remote.endpoint = endpoint
+       and type Schema.Hash.t = hash
+       and type contents_key = (hash, C.t) contents_key
+       and type node_key = hash node_key
+       and type commit_key = hash commit_key
+       and type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Branch.t = string
+end
+
 (* This *_intf module does not have a Sigs module type as it is
    directly exposed in the top-level interface
    (irmin_pack_Unix.mli). *)

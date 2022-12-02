@@ -19,6 +19,7 @@
 module type S = Store_intf.S
 
 module Maker (Config : Irmin_pack.Conf.S) : Store_intf.Maker_persistent
+module KV (Config : Irmin_pack.Conf.S) : Store_intf.KV
 
 (** {1 Key and Values} *)
 

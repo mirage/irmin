@@ -20,6 +20,18 @@ module type S = Store_intf.S
 
 module Maker = Store.Maker
 
+module KV (Config : Irmin_pack.Conf.S) = struct
+  type endpoint = unit
+  type hash = Irmin.Schema.default_hash
+
+  include Pack_key.Store_spec
+  module Maker = Maker (Config)
+
+  type metadata = Irmin.Metadata.None.t
+
+  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
+end
+
 (** {1 Key and Values} *)
 
 module Pack_key = Pack_key
