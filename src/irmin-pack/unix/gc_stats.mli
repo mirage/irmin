@@ -23,6 +23,7 @@ module Main : sig
 
   val create :
     string ->
+    generation:int ->
     commit_offset:int63 ->
     before_suffix_start_offset:int63 ->
     before_suffix_end_offset:int63 ->

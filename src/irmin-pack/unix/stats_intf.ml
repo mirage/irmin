@@ -158,6 +158,7 @@ module Latest_gc = struct
       loop. The sum of these integers is equal to the "suffix" step in [files]. *)
 
   type stats = {
+    generation : int;
     commit_offset : int63;
     before_suffix_start_offset : int63;
     before_suffix_end_offset : int63;

@@ -59,8 +59,9 @@ module Main = struct
   type t = { stats : S.stats; timer : Steps_timer.t }
   (** [t] is the running state while computing the stats *)
 
-  let create first_stepname ~commit_offset ~before_suffix_start_offset
-      ~before_suffix_end_offset ~after_suffix_start_offset =
+  let create first_stepname ~generation ~commit_offset
+      ~before_suffix_start_offset ~before_suffix_end_offset
+      ~after_suffix_start_offset =
     let stats = Irmin.Type.(random S.stats_t |> unstage) () in
     (* [repr] provides doesn't provide a generator that fills a type with
        zeroes but it provides a random generator. Let's use it for our initial
@@ -69,6 +70,7 @@ module Main = struct
       S.
         {
           stats with
+          generation;
           steps = [];
           commit_offset;
           before_suffix_start_offset;
