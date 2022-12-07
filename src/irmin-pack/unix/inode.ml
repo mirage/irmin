@@ -57,4 +57,15 @@ struct
   let integrity_check = Pack.integrity_check
   let purge_lru = Pack.purge_lru
   let key_of_offset = Pack.key_of_offset
+
+  let unsafe_find_no_prefetch t key =
+    match Pack.unsafe_find_no_prefetch t key with
+    | None -> None
+    | Some v ->
+        let find ~expected_depth:_ k =
+          (* TODO: Remove this dead code. Can the GC traverse `Raw` values? *)
+          Pack.unsafe_find ~check_integrity:false t k
+        in
+        let v = Inter.Val.of_raw find v in
+        Some v
 end

@@ -108,9 +108,10 @@ let test ~full_seg_length ~random_test_count =
   let seg = produce_suffix_segmentation full_seg_length 42 in
   let rec aux i =
     if i >= random_test_count then ()
-    else (
-      produce_suffix_segmentation_subset seg ~seed:i |> test;
-      aux (i + 1))
+    else
+      let subset = produce_suffix_segmentation_subset seg ~seed:i in
+      if subset <> [] then test subset;
+      aux (i + 1)
   in
   aux 0;
   Lwt.return_unit

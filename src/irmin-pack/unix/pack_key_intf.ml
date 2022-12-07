@@ -21,12 +21,20 @@ module type Sigs = sig
   (** The type of {i keys} referencing values stored in the [irmin-pack]
       backend. *)
 
+  type safe = SAFE
+  and unsafe = UNSAFE
+
   (** The internal state of a key (read with {!inspect}).
 
       Invariant: keys of the form {!Indexed} always reference values that have
       entries in the index (as otherwise these keys could not be dereferenced). *)
-  type 'hash state = private
-    | Direct of { hash : 'hash; offset : int63; length : int }
+  type ('hash, _) unsafe_state = private
+    | Direct : {
+        hash : 'hash;
+        offset : int63;
+        length : int;
+      }
+        -> ('hash, safe) unsafe_state
         (** A "direct" pointer to a value stored at [offset] in the pack-file
             (with hash [hash] and length [length]). Such keys can be
             dereferenced from the store with a single IO read, without needing
@@ -40,13 +48,18 @@ module type Sigs = sig
             offsets, we fetch the length information of the child at the same
             time as fetching its hash (which we must do anyway in order to do an
             integrity check), creating keys of this form. *)
-    | Indexed of 'hash
+    | Indexed : 'hash -> ('hash, safe) unsafe_state
         (** A pointer to an object in the pack file that is indexed. Reading the
             object necessitates consulting the index, after which the key can be
             promoted to {!Direct}.
 
             Such keys result from decoding pointers to other store objects
             (nodes or commits) from commits or from the branch store. *)
+    | Offset : int63 -> ('hash, unsafe) unsafe_state
+        (** Same as [Direct], but the hash and length of the object have not
+            been fetched. Only used to speed up the GC traversal. *)
+
+  type 'hash state = ('hash, safe) unsafe_state
 
   (** {2 Undereferencable keys}
 
@@ -72,7 +85,9 @@ module type Sigs = sig
   val inspect : 'hash t -> 'hash state
   val v_direct : hash:'h -> offset:int63 -> length:int -> 'h t
   val v_indexed : 'h -> 'h t
+  val v_offset : int63 -> 'h t
   val promote_exn : 'h t -> offset:int63 -> length:int -> unit
+  val to_offset : 'h t -> int63 option
 
   module type S = sig
     type hash

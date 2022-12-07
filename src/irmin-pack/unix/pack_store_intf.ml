@@ -63,7 +63,17 @@ module type S = sig
   (** Returns the key and the kind of an object indexed by hash. *)
 
   val purge_lru : 'a t -> unit
+
   val key_of_offset : 'a t -> int63 -> key
+  (** Returns the key associated with the offset. *)
+
+  val unsafe_find_no_prefetch : 'a t -> key -> value option
+  (** Similar to [unsafe_find], returns the value associated with the [key] in
+      the store but without prefetching the [hash] and [length] of the children
+      (or doing any integrity check). As a result, the produced children keys
+      only contain their [offset] and are not usable without calling
+      [key_of_offset] first. This function only exists to optimize the GC
+      reachability traversal. *)
 end
 
 module type Sigs = sig

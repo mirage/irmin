@@ -66,27 +66,25 @@ module Make (Args : Gc_args.S) = struct
         Pq.add pq elt)
   end
 
-  (** [iter_reachable commit _ ~f] calls [f ~off ~len] once for each [offset]
-      and [length] of the reachable tree objects and immediate parent commits
-      from [commit]. *)
+  (** [iter_reachable commit node_store ~f] calls [f ~off ~len] once for each
+      [offset] and [length] of the reachable tree objects and immediate parent
+      commits from [commit] in [node_store]. *)
   let iter_reachable commit node_store ~f =
     let todos = Priority_queue.create 1024 in
     let rec loop () =
       if not (Priority_queue.is_empty todos) then (
         let offset, has_children = Priority_queue.pop todos in
         let node_key = Node_store.key_of_offset node_store offset in
-        let offset, length =
+        let length =
           match Pack_key.inspect node_key with
-          | Direct { offset; length; _ } -> (offset, length)
+          | Direct { length; _ } -> length
           | Indexed _ -> assert false
         in
         f ~off:offset ~len:length;
         if has_children then iter_node node_key;
         loop ())
     and iter_node node_key =
-      match
-        Node_store.unsafe_find ~check_integrity:false node_store node_key
-      with
+      match Node_store.unsafe_find_no_prefetch node_store node_key with
       | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
       | Some node ->
           List.iter
@@ -99,11 +97,11 @@ module Make (Args : Gc_args.S) = struct
         | `Inode key | `Node key -> (key, true)
       in
       let offset =
-        match Pack_key.inspect key with
-        | Indexed _ ->
+        match Pack_key.to_offset key with
+        | Some offset -> offset
+        | None ->
             raise
               (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-        | Direct { offset; _ } -> offset
       in
       schedule offset has_children
     and schedule offset has_children =
@@ -114,10 +112,11 @@ module Make (Args : Gc_args.S) = struct
        because, when decoding the [Commit_value.t] at [commit], the
        parents will have to be read in order to produce a key for them. *)
     let schedule_parent_exn key =
-      match Pack_key.inspect key with
-      | Indexed _ ->
-          raise (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
-      | Direct { offset; _ } -> schedule offset false
+      match Pack_key.to_offset key with
+      | Some offset -> schedule offset false
+      | None ->
+          raise
+            (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
     in
     List.iter schedule_parent_exn (Commit_value.parents commit);
     schedule_kinded (`Node (Commit_value.node commit));
@@ -241,9 +240,7 @@ module Make (Args : Gc_args.S) = struct
       in
       let register_object_exn key =
         match Pack_key.inspect key with
-        | Direct { offset; length; _ } ->
-            stats := Gc_stats.Worker.incr_objects_traversed !stats;
-            register_entry ~off:offset ~len:length
+        | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
         | Indexed _ -> ()
       in
 
