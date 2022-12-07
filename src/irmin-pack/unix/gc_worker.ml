@@ -73,9 +73,15 @@ module Make (Args : Gc_args.S) = struct
     let todos = Priority_queue.create 1024 in
     let rec loop () =
       if not (Priority_queue.is_empty todos) then (
-        let offset, (length, key_opt) = Priority_queue.pop todos in
+        let offset, has_children = Priority_queue.pop todos in
+        let node_key = Node_store.key_of_offset node_store offset in
+        let offset, length =
+          match Pack_key.inspect node_key with
+          | Direct { offset; length; _ } -> (offset, length)
+          | Indexed _ -> assert false
+        in
         f ~off:offset ~len:length;
-        (match key_opt with None -> () | Some key -> iter_node key);
+        if has_children then iter_node node_key;
         loop ())
     and iter_node node_key =
       match
@@ -87,21 +93,21 @@ module Make (Args : Gc_args.S) = struct
             (fun (_step, kinded_key) -> schedule_kinded kinded_key)
             (Node_value.pred node)
     and schedule_kinded kinded_key =
-      let key, key_opt =
+      let key, has_children =
         match kinded_key with
-        | `Contents key -> (key, None)
-        | `Inode key | `Node key -> (key, Some key)
+        | `Contents key -> (key, false)
+        | `Inode key | `Node key -> (key, true)
       in
-      let offset, length =
+      let offset =
         match Pack_key.inspect key with
         | Indexed _ ->
             raise
               (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-        | Direct { offset; length; _ } -> (offset, length)
+        | Direct { offset; _ } -> offset
       in
-      schedule offset length key_opt
-    and schedule offset length key_opt =
-      Priority_queue.add todos offset (length, key_opt)
+      schedule offset has_children
+    and schedule offset has_children =
+      Priority_queue.add todos offset has_children
     in
     (* Include the commit parents in the reachable file.
        The parent(s) of [commit] must be included in the iteration
@@ -111,7 +117,7 @@ module Make (Args : Gc_args.S) = struct
       match Pack_key.inspect key with
       | Indexed _ ->
           raise (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
-      | Direct { offset; length; _ } -> schedule offset length None
+      | Direct { offset; _ } -> schedule offset false
     in
     List.iter schedule_parent_exn (Commit_value.parents commit);
     schedule_kinded (`Node (Commit_value.node commit));

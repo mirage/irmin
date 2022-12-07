@@ -56,4 +56,5 @@ struct
   let v = Pack.v
   let integrity_check = Pack.integrity_check
   let purge_lru = Pack.purge_lru
+  let key_of_offset = Pack.key_of_offset
 end

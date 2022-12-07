@@ -509,4 +509,5 @@ struct
     Inner.index_direct_with_kind (get_if_open_exn t)
 
   let purge_lru t = Inner.purge_lru (get_if_open_exn t)
+  let key_of_offset t offset = Inner.key_of_offset (get_if_open_exn t) offset
 end

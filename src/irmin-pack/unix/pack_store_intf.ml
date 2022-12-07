@@ -63,6 +63,7 @@ module type S = sig
   (** Returns the key and the kind of an object indexed by hash. *)
 
   val purge_lru : 'a t -> unit
+  val key_of_offset : 'a t -> int63 -> key
 end
 
 module type Sigs = sig
