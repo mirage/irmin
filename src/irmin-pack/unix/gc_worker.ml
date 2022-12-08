@@ -87,23 +87,23 @@ module Make (Args : Gc_args.S) = struct
   (* Transfer the commit with a different magic. Note that this is modifying
      existing written data. *)
   let transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key =
-    let off, len =
-      match Pack_key.inspect key with
-      | Indexed _ ->
-          (* As this is the second time we are reading this key, this case is
-             unreachable. *)
-          assert false
-      | Direct { offset; length; _ } -> (offset, length)
-    in
-    let buffer = Bytes.create len in
-    read_exn ~off ~len buffer;
-    let accessor = Dispatcher.create_accessor_to_prefix_exn mapping ~off ~len in
-    Bytes.set buffer Hash.hash_size magic_parent;
-    (* Bytes.unsafe_to_string usage: We assume read_exn returns unique ownership of buffer
-       to this function. Then at the call to Bytes.unsafe_to_string we give up unique
-       ownership to buffer (we do not modify it thereafter) in return for ownership of the
-       resulting string, which we pass to write_exn. This usage is safe. *)
-    write_exn ~off:accessor.poff ~len (Bytes.unsafe_to_string buffer)
+    match Pack_key.inspect key with
+    | Indexed _ ->
+        (* Its possible that some parents are referenced by hash. *)
+        ()
+    | Direct { offset = off; length = len; _ } ->
+        let buffer = Bytes.create len in
+        read_exn ~off ~len buffer;
+        let accessor =
+          Dispatcher.create_accessor_to_prefix_exn mapping ~off ~len
+        in
+        Bytes.set buffer Hash.hash_size magic_parent;
+        (* Bytes.unsafe_to_string usage: We assume read_exn returns unique
+           ownership of buffer to this function. Then at the call to
+           Bytes.unsafe_to_string we give up unique ownership to buffer (we do
+           not modify it thereafter) in return for ownership of the resulting
+           string, which we pass to write_exn. This usage is safe. *)
+        write_exn ~off:accessor.poff ~len (Bytes.unsafe_to_string buffer)
 
   let report_old_file_sizes ~root ~generation stats =
     let open Result_syntax in
@@ -183,18 +183,19 @@ module Make (Args : Gc_args.S) = struct
           ~register_entries:f ()
         |> Errs.raise_if_error)
       @@ fun ~register_entry ->
-      (* Step 3.2 Put the commit parents in the reachable file.
-         The parent(s) of [commit_key] must be included in the iteration
-         because, when decoding the [Commit_value.t] at [commit_key], the
-         parents will have to be read in order to produce a key for them. *)
+      (* Step 3.2 If the commit parents are referenced by offset, then include
+         the commit parents in the reachable file. The parent(s) of [commit_key]
+         must be included in the iteration because, when decoding the
+         [Commit_value.t] at [commit_key], the parents will have to be read in
+         order to produce a key for them. If the parent is referenced by hash,
+         there is no need to read it from disk, as their key is of type Indexed
+         hash. *)
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "mapping: commits to reachable";
       let register_object_exn key =
         match Pack_key.inspect key with
-        | Indexed _ ->
-            raise
-              (Pack_error (`Commit_parent_key_is_indexed (string_of_key key)))
+        | Indexed _ -> ()
         | Direct { offset; length; _ } ->
             stats := Gc_stats.Worker.incr_objects_traversed !stats;
             register_entry ~off:offset ~len:length
