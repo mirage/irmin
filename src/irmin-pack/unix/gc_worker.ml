@@ -371,6 +371,7 @@ module Make (Args : Gc_args.S) = struct
           run ~generation ~new_files_path root commit_key
             new_suffix_start_offset)
     in
+    Errs.log_if_error "gc run" result;
     let write_result = write_gc_output ~root ~generation result in
     write_result |> Errs.log_if_error "writing gc output"
   (* No need to raise or log if [result] is [Error _], we've written it in
