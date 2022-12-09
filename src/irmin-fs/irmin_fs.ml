@@ -83,7 +83,6 @@ struct
   let v config =
     let fs = Irmin.Backend.Conf.Env.fs () in
     let path = Path.(fs / get_path config) in
-    Eio.traceln "%a" Path.pp path;
     IO.mkdir path;
     { path }
 
