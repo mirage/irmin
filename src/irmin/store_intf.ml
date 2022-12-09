@@ -941,9 +941,9 @@ module type S_generic_key = sig
   (** The type for merge functions. *)
 
   val merge_into : into:t -> t merge
-  (** [merge_into ~into i t] merges [t]'s current branch into [x]'s current
-      branch using the info [i]. After that operation, the two stores are still
-      independent. Similar to [git merge <branch>]. *)
+  (** [merge_into ~into:x ~info:i t] merges [t]'s current branch into [x]'s
+      current branch using the info [i]. After that operation, the two stores
+      are still independent. Similar to [git merge <branch>]. *)
 
   val merge_with_branch : t -> branch merge
   (** Same as {!val-merge} but with a branch ID. *)
