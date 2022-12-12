@@ -193,14 +193,6 @@ let flush_rw t (current_phase : phase_reload) =
   in
   match t.rw with None -> assert false | Some (_, repo) -> Store.S.flush repo
 
-let check_ro t =
-  match t.ro with
-  | None -> assert false
-  | Some (model, repo) ->
-      check_dict repo model;
-      check_index repo model;
-      check_suffix repo model
-
 let test_one t ~(rw_flush_at : phase_reload) =
   let aux phase = if rw_flush_at = phase then flush_rw t phase in
   let* rw, ro = start t in
