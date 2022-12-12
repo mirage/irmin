@@ -305,12 +305,9 @@ module type Maker = sig
        and type commit_key = Schema.Hash.t commit_key
        and type Backend.Remote.endpoint = endpoint
 end
-
-module type Maker_persistent =
-  Maker
-    with type ('h, _) contents_key = 'h Pack_key.t
-     and type 'h node_key = 'h Pack_key.t
-     and type 'h commit_key = 'h Pack_key.t
+with type ('h, _) contents_key = 'h Pack_key.t
+ and type 'h node_key = 'h Pack_key.t
+ and type 'h commit_key = 'h Pack_key.t
 
 module type KV = sig
   type endpoint = unit
@@ -334,6 +331,8 @@ module type KV = sig
        and type Schema.Branch.t = string
 end
 
-(* This *_intf module does not have a Sigs module type as it is
-   directly exposed in the top-level interface
-   (irmin_pack_Unix.mli). *)
+module type Sigs = sig
+  module type S = S
+  module type Maker = Maker
+  module type KV = KV
+end
