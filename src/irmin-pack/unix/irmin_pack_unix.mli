@@ -14,6 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** The [irmin-pack-unix] package provides an implementation of {!Irmin_pack}
+    for Unix systems.
+
+    [irmin-pack-unix] provides advanced features such as garbage collection,
+    snapshoting, integrity checks. *)
+
 (** {1 Store} *)
 
 module type S = Store.S

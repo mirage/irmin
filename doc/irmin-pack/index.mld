@@ -2,6 +2,10 @@
 
 The [irmin-pack] package provides a space-optimized, on-disk backend inspired by {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}.
 
+[irmin-pack] is designed and developed for a specific use-case and requires more in-depth backend configuration from applications. It offers additional functionality through extensions to the core Irmin API, but users interested in a more general Irmin backend with simpler configuration are recommended to use other backend such as {!Irmin_fs} or {!Irmin_git}.
+
+See [examples/irmin-pack] for examples of how to configure and use some of the additional functionality.
+
 The entry point of this library is the module {!module:Irmin_pack}.
 
 {1 Implementations}
