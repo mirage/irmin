@@ -22,6 +22,7 @@ module Conf = struct
   let contents_length_header = Some `Varint
   let inode_child_order = `Seeded_hash
   let forbid_empty_dir_persistence = true
+  let integrity_checks = `Fast_nodes
 end
 
 module Maker = Irmin_pack_unix.Maker (Conf)

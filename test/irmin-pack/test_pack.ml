@@ -81,6 +81,7 @@ let suite =
     let contents_length_header = None
     let inode_child_order = `Hash_bits
     let forbid_empty_dir_persistence = false
+    let integrity_checks = `Fast_nodes
   end in
   [
     suite_pack " { Tezos }" Index.minimal (module Irmin_tezos_conf);

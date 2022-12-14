@@ -19,12 +19,15 @@ type length_header = [ `Varint ] option
 type inode_child_order =
   [ `Seeded_hash | `Hash_bits | `Custom of depth:int -> bytes -> int ]
 
+type integrity_checks = [ `Minimal | `Fast_nodes ]
+
 module type S = sig
   val entries : int
   val stable_hash : int
   val contents_length_header : length_header
   val inode_child_order : inode_child_order
   val forbid_empty_dir_persistence : bool
+  val integrity_checks : integrity_checks
 end
 
 module Default = struct

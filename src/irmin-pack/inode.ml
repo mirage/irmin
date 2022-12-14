@@ -1819,7 +1819,11 @@ struct
       in
       hash
 
-    let hash t = recompute_hash t
+    let hash t =
+      match Conf.integrity_checks with
+      | `Fast_nodes -> recompute_hash t
+      | `Minimal -> Bin.hash t
+
     let step_to_bin = T.step_to_bin_string
     let step_of_bin = T.step_of_bin_string
     let encode_compress = Irmin.Type.(unstage (encode_bin Compress.t))

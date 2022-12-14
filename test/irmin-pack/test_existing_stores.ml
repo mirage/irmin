@@ -88,6 +88,7 @@ module Small_conf = struct
   let contents_length_header = Some `Varint
   let inode_child_order = `Hash_bits
   let forbid_empty_dir_persistence = false
+  let integrity_checks = `Fast_nodes
 end
 
 module V1_maker = Irmin_pack_unix.Maker (Small_conf)

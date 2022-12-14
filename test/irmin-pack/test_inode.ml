@@ -144,6 +144,7 @@ module Conf = struct
   let contents_length_header = Some `Varint
   let inode_child_order = `Seeded_hash
   let forbid_empty_dir_persistence = false
+  let integrity_checks = `Fast_nodes
 end
 
 module String_contents = struct

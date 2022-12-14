@@ -21,6 +21,12 @@ type inode_child_order =
   | `Hash_bits  (** crypto hash the step and extract the relevant bits. *)
   | `Custom of depth:int -> bytes -> int  (** use a custom index *) ]
 
+type integrity_checks =
+  [ `Minimal  (** check blobs and commits, used by default for <= irmin.3.5 *)
+  | `Fast_nodes
+    (** check nodes with lengths oustide of the range [entries, stable_hash] *)
+  ]
+
 module type S = sig
   val entries : int
   (** The branching factor of the inode tree. 32 is a good choice for general
@@ -56,6 +62,10 @@ module type S = sig
       string of length 1: ["\000"].
 
       See https://github.com/mirage/irmin/issues/1304 *)
+
+  val integrity_checks : integrity_checks
+  (** Set the level of integrity checks performed on reads from disk. More
+      checks impacts the performance but ensures the store integrity. *)
 end
 
 val spec : Irmin.Backend.Conf.Spec.t

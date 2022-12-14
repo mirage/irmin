@@ -22,6 +22,7 @@ module Config = struct
   let contents_length_header = Some `Varint
   let inode_child_order = `Hash_bits
   let forbid_empty_dir_persistence = false
+  let integrity_checks = `Fast_nodes
 end
 
 module KV = struct
