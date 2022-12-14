@@ -61,7 +61,6 @@ type base_error =
   | `Dangling_key of string
   | `Gc_disallowed
   | `Node_or_contents_key_is_indexed of string
-  | `Commit_parent_key_is_indexed of string
   | `Gc_process_error of string
   | `Corrupted_gc_result_file of string
   | `Gc_process_died_without_result_file of string

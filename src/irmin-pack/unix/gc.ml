@@ -285,11 +285,11 @@ module Make (Args : Gc_args.S) = struct
 
   let finalise_without_swap t =
     let* status = Async.await t.task in
-    match status with
-    | `Success ->
+    let gc_output = read_gc_output ~root:t.root ~generation:t.generation in
+    match (status, gc_output) with
+    | `Success, Ok _ ->
         Lwt.return (t.latest_gc_target_offset, t.new_suffix_start_offset)
     | _ ->
-        let gc_output = read_gc_output ~root:t.root ~generation:t.generation in
         let r = gc_errors status gc_output |> Errs.raise_if_error in
         Lwt.return r
 
