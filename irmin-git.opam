@@ -32,7 +32,7 @@ depends: [
   "uri"
   "mimic"
   "irmin-test" {with-test & = version}
-  "mtime"      {with-test & >= "1.0.0"}
+  "mtime"      {with-test & >= "1.0.0" & < "2.0.0"}
   "alcotest"   {with-test}
   "irmin-watcher" {>= "0.2.0"}
 ]
