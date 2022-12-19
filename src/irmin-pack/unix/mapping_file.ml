@@ -14,29 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** An implementation of "external sorting" (sorting on-disk data) and various
-    other related routines.
+(** The mapping file is a sorted list of intervals which allows the mapping from
+    sparse virtual offsets to compact physical offsets. It is used by the GC to
+    compact the live reachable data into the [prefix] file and delete the dead
+    intervals of data from the disk.
 
-    Most of these routines work with mmap-ed data, as a one dimensional array of
-    integers, where each pair of integers represents a [(key,value)] pair.
-
-    These routines exist to support the implementation of the sparse file. The
-    documentation in the sparse file should also be read.
-
-    Usage: We start with a file containing [(off,len)] pairs. These describe
-    which regions of a file contain data that we need when creating a sparse
-    file. We first sort these by offset, using {!sort}. We then combine adjacent
-    extents using {!calculate_extents_oc}. For example, a region [(10,10)] and a
-    region [(20,10)] will be combined into the single extent [(10,20)]. When
-    combining extents, we also want to allow some flexibility if two regions are
-    "almost adjacent". For example, a region [(10,10)] and a region [(21,10)]
-    will be combined into the single extent [(10,21)], even though there is a
-    single byte at offset 20 that we do not actually need. The parameter
-    [gap_tolerance] defines how large this gap between regions can be for them
-    to be combined in this way. The reason for doing this is that we want the
-    sparse file to have a small map if possible, and we are happy to include
-    some unneeded data in the sparse data file if this will make the map
-    smaller. *)
+    The concrete representation is a sorted array of triplets
+    [(virtual_offset, physical_offset, length)]. Given a virtual offset, its
+    physical location can be found by doing a binary search. *)
 
 open! Import
 include Mapping_file_intf
@@ -46,14 +31,6 @@ type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 type int64_bigarray =
   (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
-
-(* each entry consists of [step] ints; there is the possibility to generalize to
-   arbitrary step sizes, but the following code always works with (key,value) pairs, ie
-   step size is 2 *)
-let step_2 = 2
-
-(* Should be a multiple of 2 *)
-let chunk_sz = 1_000_000 / 8
 
 (* Set to 0 until we find decide what to do about sequential traversal of pack files *)
 let gap_tolerance = 0
@@ -65,43 +42,20 @@ module Int_mmap : sig
     mutable arr : int_bigarray;
   }
 
-  val create : fn:string -> sz:int -> t
-
-  val open_ro : fn:string -> sz:int -> t
-  (** NOTE [open_ro ~fn ~sz] can use [sz=-1] to open with size based on the size
-      of the underlying file *)
-
+  val open_rw : string -> t
   val close : t -> unit
 end = struct
   type t = { fn : string; fd : Unix.file_descr; mutable arr : int_bigarray }
 
-  (* NOTE both following are shared *)
+  (* NOTE following mmap is shared *)
 
-  let create ~fn ~sz =
+  let open_rw fn =
     let shared = true in
-    assert (
-      (not (Sys.file_exists fn))
-      ||
-      (Printf.printf "File exists: %s\n%!" fn;
-       false));
-    let fd =
-      Unix.(openfile fn [ O_CREAT; O_RDWR; O_TRUNC; O_EXCL; O_CLOEXEC ] 0o660)
-    in
-    let arr =
-      let open Bigarray in
-      Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
-    in
-    { fn; fd; arr }
-
-  (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
-     different size (eg because we want the file to grow) we can provide it explicitly *)
-  let open_ro ~fn ~sz =
-    let shared = false in
     assert (Sys.file_exists fn);
-    let fd = Unix.(openfile fn [ O_RDONLY ] 0o660) in
+    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
     let arr =
       let open Bigarray in
-      Unix.map_file fd Int c_layout shared [| sz |] |> array1_of_genarray
+      Unix.map_file fd Int c_layout shared [| -1 |] |> array1_of_genarray
     in
     { fn; fd; arr }
 
@@ -148,184 +102,40 @@ end = struct
     ()
 end
 
-(** [sort_chunks ~arr] sorts each chunk in the bigarray [arr].
-
-    The [arr] should contain [(k,v)] integer pairs stored successively in the
-    array. The last chunk may have size less than [chunk_sz] - we don't require
-    the [arr] to be sized as a multiple of [chunk_sz].
-
-    The implementation reads chunk-sized amounts of ints into memory as a list
-    of tuples, sorts the list, and writes the list back out.
-
-    [chunk_sz] is the number of ints that are kept in memory, and so the overall
-    memory usage is something like [8 * chunk_sz] (with some overhead for the
-    list.. FIXME perhaps an array would be better) *)
-let sort_chunks ~(arr : int_bigarray) =
-  let arr_sz = Bigarray.Array1.dim arr in
-  0
-  |> iter_k (fun ~k:kont1 off ->
-         match off > arr_sz with
-         | true -> ()
-         | false ->
-             let sz = min chunk_sz (arr_sz - off) in
-             (* read in as a list; we may prefer to sort an array instead *)
-             assert (sz mod step_2 = 0);
-             let xs =
-               List.init (sz / step_2) (fun i ->
-                   (arr.{off + (2 * i)}, arr.{off + (2 * i) + 1}))
-             in
-             (* sort list *)
-             let xs = List.sort (fun (k, _) (k', _) -> Int.compare k k') xs in
-             (* write back out *)
-             let _write_out =
-               (xs, off)
-               |> iter_k (fun ~k:kont2 (xs, off) ->
-                      match xs with
-                      | [] -> ()
-                      | (k, v) :: rest ->
-                          arr.{off} <- k;
-                          arr.{off + 1} <- v;
-                          kont2 (rest, off + 2))
-             in
-             (* do next chunk *)
-             kont1 (off + chunk_sz));
-  ()
-
-(* [merge_chunks ~src ~dst] takes previously sorted chunks of [(k,v)] data in
-   [src] and performs an n-way merge into [dst]. *)
-let merge_chunks ~(src : int_bigarray) ~(dst : int_bigarray) =
-  let src_sz, dst_sz = (BigArr1.dim src, BigArr1.dim dst) in
-  let _initial_checks =
-    assert (step_2 = 2);
-    assert (chunk_sz mod step_2 = 0);
-    assert (dst_sz >= src_sz);
-    ()
-  in
-  (* form subarrays of size [chunk_sz] from [src] *)
-  let xs =
-    (0, [])
-    |> iter_k (fun ~k (off, xs) ->
-           match off < src_sz with
-           | false -> xs
-           | true ->
-               let arr = BigArr1.sub src off (min chunk_sz (src_sz - off)) in
-               k (off + chunk_sz, arr :: xs))
-  in
-  (* for each subarr, we start at position 0, and successively move through the array
-     until the end; we keep the tuple (arr.{off}, off, arr) in a priority queue *)
-  let open struct
-    type pos_in_arr = { key : int; off : int; arr : int_bigarray }
-
-    (* Q stands for "priority queue" *)
-    module Q = Binary_heap.Make (struct
-      type t = pos_in_arr
-
-      let compare x y = compare x.key y.key
-    end)
-  end in
-  let xs = xs |> List.map (fun arr -> { key = arr.{0}; off = 0; arr }) in
-  (* form priority queue *)
-  let q =
-    let q =
-      Q.create
-        ~dummy:{ key = 0; off = 0; arr = BigArr1.sub src 0 0 }
-        (List.length xs)
-    in
-    let _ = xs |> List.iter (fun x -> Q.add q x) in
-    q
-  in
-  (* now repeatedly pull the min elt from q, put corresponding entry in dst, advance elt
-     offset and put elt back in q *)
-  let dst_off =
-    0
-    |> iter_k (fun ~k dst_off ->
-           match Q.is_empty q with
-           | true ->
-               (* return so we can check it is what we think it should be *)
-               dst_off
-           | false -> (
-               let { key; off; arr } = Q.pop_minimum q in
-               let v = arr.{off + 1} in
-               dst.{dst_off} <- key;
-               dst.{dst_off + 1} <- v;
-               match off + 2 < BigArr1.dim arr with
-               | true ->
-                   let off = off + 2 in
-                   Q.add q { key = arr.{off}; off; arr };
-                   k (dst_off + 2)
-               | false ->
-                   (* finished with this chunk *)
-                   k (dst_off + 2)))
-  in
-  assert (dst_off = src_sz);
-  ()
-
-(** [sort ~src ~dst] sorts the [src] array of [(k,v)] pairs and places the
-    result in [dst]. [src] and [dst] must be disjoint. [dst] must be large
-    enough to hold the result. The data is sorted in chunks; [chunk_sz] is the
-    number of ints that are kept in memory when sorting each chunk. *)
-
-(** [sort ~src ~dst] sorts the (key,value) integer data in [src] and places it
-    in [dst] ([src] and [dst] must be disjoint); [chunk_sz] is the number of
-    integers that are held in memory when sorting each chunk. *)
-let sort ~(src : int_bigarray) ~(dst : int_bigarray) =
-  sort_chunks ~arr:src;
-  merge_chunks ~src ~dst;
-  ()
-
-(** [calculate_extents_oc ~src_is_sorted ~src ~dst] uses the sorted reachability
-    data in [src] and outputs extent data on [dst]. [gap_tolerance] specifies
-    how much gap between two extents is allowed for them to be combined into a
-    single extent. *)
-
-(** [calculate_extents_oc ~src_is_sorted ~src ~dst] takes {b sorted} [(off,len)]
-    data from [src], combines adjacent extents, and outputs a minimal set of
-    (sorted) extents to [dst:out_channel]; the return value is the length of the
-    part of [dst] that was filled. [gap_tolerance] is used to provide some
-    looseness when combining extents: if the next extent starts within
-    [gap_tolerance] of the end of the previous extent, then it is combined with
-    the previous (the data in the gap, which is not originally part of an
-    extent, will be counted as part of the resulting extent). This can reduce
-    the number of extents significantly, at a cost of including gaps where the
-    data is not actually needed. *)
-let calculate_extents_oc ~(src_is_sorted : unit) ~(src : int_bigarray)
-    ~(register_entry : off:int -> len:int -> unit) : unit =
-  ignore src_is_sorted;
+(** The mapping file is created from a decreasing list of
+    [(virtual_offset, 0, length)]. We first need to reverse it such that virtual
+    offsets are in increasing order. *)
+let rev_inplace (src : int_bigarray) : unit =
   let src_sz = BigArr1.dim src in
   let _ =
-    assert (src_sz >= 2);
-    assert (src_sz mod step_2 = 0);
-    ()
+    assert (src_sz >= 3);
+    assert (src_sz mod 3 = 0)
   in
-  let off, len = (src.{0}, src.{1}) in
-  let regions_combined = ref 0 in
-  let dst_off =
-    (* iterate over entries in src, combining adjacent entries *)
-    (2, off, len)
-    |> iter_k (fun ~k (src_off, off, len) ->
-           match src_off >= src_sz with
-           | true ->
-               (* write out "current" extent *)
-               register_entry ~off ~len;
-               ()
-           | false -> (
-               (* check if we can combine the next region *)
-               let off', len' = (src.{src_off}, src.{src_off + 1}) in
-               assert (off <= off');
-               match off' <= off + len + gap_tolerance with
-               | false ->
-                   (* we can't, so write out current extent and move to next *)
-                   register_entry ~off ~len;
-                   k (src_off + 2, off', len')
-               | true ->
-                   (* we can combine *)
-                   incr regions_combined;
-                   assert (off <= off');
-                   (* offs are sorted *)
-                   let len = max len (off' + len' - off) in
-                   k (src_off + 2, off, len)))
+  let rec rev i j =
+    if i < j then (
+      let ioff, ilen = (src.{i}, src.{i + 2}) in
+      let joff, jlen = (src.{j}, src.{j + 2}) in
+      src.{i} <- joff;
+      src.{i + 2} <- jlen;
+      src.{j} <- ioff;
+      src.{j + 2} <- ilen;
+      rev (i + 3) (j - 3))
   in
-  dst_off
+  rev 0 (src_sz - 3)
+
+(** We then replace the [0] component of the triplets with the accumulated
+    length. This yields triplets [(virtual_offset, physical_offset, length)],
+    which will allow us to map virtual offsets to their physical location in the
+    prefix file. *)
+let set_prefix_offsets src =
+  let src_sz = BigArr1.dim src in
+  let rec go i poff =
+    if i < src_sz then (
+      src.{i + 1} <- poff;
+      let len = src.{i + 2} in
+      go (i + 3) (poff + len))
+  in
+  go 0 0
 
 module Make (Io : Io.S) = struct
   module Io = Io
@@ -352,93 +162,80 @@ module Make (Io : Io.S) = struct
         )
     | _ -> Error `No_such_file_or_directory
 
-  let create ?report_file_sizes ~root ~generation ~register_entries () =
+  let create ?report_mapping_size ~root ~generation ~register_entries () =
     assert (generation > 0);
     let open Result_syntax in
-    let path0 = Irmin_pack.Layout.V4.reachable ~generation ~root in
-    let path1 = Irmin_pack.Layout.V4.sorted ~generation ~root in
-    let path2 = Irmin_pack.Layout.V4.mapping ~generation ~root in
+    let path = Irmin_pack.Layout.V3.mapping ~generation ~root in
 
     let* () =
       if Sys.word_size <> 64 then Error `Gc_forbidden_on_32bit_platforms
       else Ok ()
     in
 
-    (* Unlink the 3 files and ignore errors (typically no such file) *)
-    Io.unlink path0 |> ignore;
-    Io.unlink path1 |> ignore;
-    Io.unlink path2 |> ignore;
+    (* Unlink residual and ignore errors (typically no such file) *)
+    Io.unlink path |> ignore;
 
-    (* Create [file0] *)
-    let* file0 =
-      Ao.create_rw ~path:path0 ~overwrite:true ~auto_flush_threshold:1_000_000
+    (* Create [file] *)
+    let* file =
+      Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
         ~auto_flush_procedure:`Internal
     in
 
-    (* Fill and close [file0] *)
-    let register_entry ~off ~len =
-      (* Write [off, len] in native-endian encoding because it will be read
-         with mmap. *)
-      let buffer = Bytes.create 16 in
+    (* Fill and close [file] *)
+    let append_entry ~off ~len =
+      (* Write [off, 0, len] in native-endian encoding because it will be read
+         with mmap. The [0] reserves the space for the future prefix offset. *)
+      let buffer = Bytes.create 24 in
       Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
-      Bytes.set_int64_ne buffer 8 (Int64.of_int len);
+      Bytes.set_int64_ne buffer 8 Int64.zero;
+      Bytes.set_int64_ne buffer 16 (Int64.of_int len);
       (* Bytes.unsafe_to_string usage: buffer is uniquely owned; we assume
          Bytes.set_int64_ne returns unique ownership; we give up ownership of buffer in
          conversion to string. This is safe. *)
-      Ao.append_exn file0 (Bytes.unsafe_to_string buffer)
+      Ao.append_exn file (Bytes.unsafe_to_string buffer)
     in
-    let* () = Errs.catch (fun () -> register_entries ~register_entry) in
-    let* () = Ao.flush file0 in
-    let* () = Ao.close file0 in
-
-    (* Reopen [file0] but as an mmap, create [file1] and fill it. *)
-    let file0 = Int_mmap.open_ro ~fn:path0 ~sz:(-1) in
-    let sz = BigArr1.dim file0.Int_mmap.arr in
-    let file1 = Int_mmap.create ~fn:path1 ~sz in
-    let* () = Errs.catch (fun () -> sort ~src:file0.arr ~dst:file1.arr) in
-
-    (* Close and unlink [file0] *)
-    Int_mmap.close file0;
-    let* reachable_size = Io.size_of_path path0 in
-    Io.unlink path0 |> ignore;
-
-    (* Create [file2] *)
-    let* file2 =
-      Ao.create_rw ~path:path2 ~overwrite:true ~auto_flush_threshold:1_000_000
-        ~auto_flush_procedure:`Internal
-    in
-
-    (* Fill and close [file2] *)
-    let poff = ref 0 in
-    let encode i =
-      let buf = Bytes.create 8 in
-      Bytes.set_int64_le buf 0 (Int64.of_int i);
-      (* Bytes.unsafe_to_string is safe since [buf] will not be modified after
-         this function returns. We give up ownership. *)
-      Bytes.unsafe_to_string buf
-    in
+    (* Check if we can collapse consecutive entries *)
+    let current_entry = ref None in
     let register_entry ~off ~len =
-      Ao.append_exn file2 (encode off);
-      Ao.append_exn file2 (encode !poff);
-      Ao.append_exn file2 (encode len);
-      poff := !poff + len
+      let current =
+        match !current_entry with
+        | None -> (off, len)
+        | Some (off', len') ->
+            if off >= off' then
+              invalid_arg "register_entry: offsets are not strictly decreasing";
+            let dist = Int63.to_int (Int63.sub off' off) in
+            if dist <= len + gap_tolerance then (off, dist + len')
+            else (
+              append_entry ~off:off' ~len:len';
+              (off, len))
+      in
+      current_entry := Some current
     in
     let* () =
       Errs.catch (fun () ->
-          calculate_extents_oc ~src_is_sorted:() ~src:file1.arr ~register_entry)
+          register_entries ~register_entry;
+          (* Flush pending entry *)
+          match !current_entry with
+          | None -> ()
+          | Some (off, len) -> append_entry ~off ~len)
     in
-    let* () = Ao.flush file2 in
-    let* () = Ao.fsync file2 in
-    let mapping_size = Ao.end_poff file2 in
-    let* () = Ao.close file2 in
+    let* () = Ao.flush file in
+    let* () = Ao.close file in
 
-    (* Close and unlink [file1] *)
-    Int_mmap.close file1;
-    let* sorted_size = Io.size_of_path path1 in
-    Option.iter
-      (fun f -> f (reachable_size, sorted_size, mapping_size))
-      report_file_sizes;
-    Io.unlink path1 |> ignore;
+    (* Reopen [file] but as an mmap *)
+    let file = Int_mmap.open_rw path in
+    let* () =
+      Errs.catch (fun () ->
+          rev_inplace file.arr;
+          set_prefix_offsets file.arr)
+    in
+
+    (* Flush and close new mapping [file] *)
+    let* () = Errs.catch (fun () -> Unix.fsync file.fd) in
+    Int_mmap.close file;
+
+    let* mapping_size = Io.size_of_path path in
+    Option.iter (fun f -> f mapping_size) report_mapping_size;
 
     (* Open created map *)
     open_map ~root ~generation

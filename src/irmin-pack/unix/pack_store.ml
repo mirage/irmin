@@ -87,9 +87,9 @@ struct
     | Direct { length; _ } -> length
 
   let off_of_direct_key k =
-    match Pack_key.inspect k with
-    | Indexed _ -> assert false
-    | Direct { offset; _ } -> offset
+    match Pack_key.to_offset k with
+    | None -> assert false
+    | Some offset -> offset
 
   let index_direct_with_kind t hash =
     [%log.debug "index %a" pp_hash hash];
@@ -276,7 +276,7 @@ struct
            header during [find]. *)
         Pack_key.v_indexed entry_prefix.hash
 
-  let find_in_pack_file t key =
+  let find_in_pack_file ~key_of_offset t key =
     match accessor_of_key t key with
     | exception Dangling_hash -> None
     | exception Errors.Pack_error `Read_out_of_bounds -> (
@@ -322,7 +322,7 @@ struct
     [%log.debug "[pack] find %a" pp_key k];
     let find_location = ref Stats.Pack_store.Not_found in
     let find_in_pack_file_guarded ~is_indexed =
-      let res = find_in_pack_file t k in
+      let res = find_in_pack_file ~key_of_offset t k in
       Option.iter
         (fun v ->
           if is_indexed then find_location := Stats.Pack_store.Pack_indexed
@@ -363,6 +363,10 @@ struct
     Stats.report_pack_store ~field:!find_location;
     value_opt
 
+  let unsafe_find_no_prefetch t key =
+    let key_of_offset _ = Pack_key.v_offset in
+    find_in_pack_file ~key_of_offset t key
+
   let find t k =
     let v = unsafe_find ~check_integrity:true t k in
     Lwt.return v
@@ -370,7 +374,7 @@ struct
   let integrity_check ~offset ~length hash t =
     let k = Pack_key.v_direct ~hash ~offset ~length in
     (* TODO: new error for reading gced objects. *)
-    match find_in_pack_file t k with
+    match find_in_pack_file ~key_of_offset t k with
     | exception Errors.Pack_error (`Invalid_prefix_read _) ->
         Error `Absent_value
     | exception Invalid_read _ -> Error `Absent_value
@@ -509,4 +513,8 @@ struct
     Inner.index_direct_with_kind (get_if_open_exn t)
 
   let purge_lru t = Inner.purge_lru (get_if_open_exn t)
+  let key_of_offset t offset = Inner.key_of_offset (get_if_open_exn t) offset
+
+  let unsafe_find_no_prefetch t key =
+    Inner.unsafe_find_no_prefetch (get_if_open_exn t) key
 end

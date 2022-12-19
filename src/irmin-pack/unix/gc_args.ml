@@ -58,6 +58,8 @@ module type S = sig
     val unsafe_find :
       check_integrity:bool -> [< read ] t -> key -> Node_value.t option
 
+    val key_of_offset : [< read ] t -> int63 -> key
+    val unsafe_find_no_prefetch : 'a t -> key -> Node_value.t option
     val purge_lru : 'a t -> unit
   end
 

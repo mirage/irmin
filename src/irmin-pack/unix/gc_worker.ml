@@ -33,51 +33,94 @@ module Make (Args : Gc_args.S) = struct
       |> Errs.raise_if_error
   end
 
-  module X = struct
-    type t = int63 [@@deriving irmin]
-
-    let equal = Irmin.Type.(unstage (equal t))
-    let hash = Irmin.Type.(unstage (short_hash t))
-    let hash (t : t) : int = hash t
-  end
-
-  module Table = Hashtbl.Make (X)
-
   let string_of_key = Irmin.Type.to_string key_t
 
-  (** [iter_from_node_key node_key _ _ ~f] calls [f] with the key of the node
-      and iterates over its children.
+  module Priority_queue = struct
+    module Offset_rev = struct
+      type t = int63
 
-      [f k] returns [Follow] or [No_follow], indicating the iteration algorithm
-      if the children of [k] should be traversed or skiped. *)
-  let iter node_key node_store ~f k =
-    let marks = Table.create 1024 in
-    let mark offset = Table.add marks offset () in
-    let has_mark offset = Table.mem marks offset in
-    let rec iter_from_node_key_exn node_key node_store ~f k =
-      match
-        Node_store.unsafe_find ~check_integrity:false node_store node_key
-      with
+      let equal = Int63.equal
+      let hash (t : t) = Hashtbl.hash t
+      let compare a b = Int63.compare b a
+    end
+
+    module Table = Hashtbl.Make (Offset_rev)
+    module Pq = Binary_heap.Make (Offset_rev)
+
+    type 'a t = { pq : Pq.t; marks : 'a Table.t }
+
+    let create size =
+      { pq = Pq.create ~dummy:Int63.zero size; marks = Table.create size }
+
+    let is_empty t = Pq.is_empty t.pq
+
+    let pop { pq; marks } =
+      let elt = Pq.pop_minimum pq in
+      let payload = Table.find marks elt in
+      Table.remove marks elt;
+      (elt, payload)
+
+    let add { pq; marks } elt payload =
+      if not (Table.mem marks elt) then (
+        Table.add marks elt payload;
+        Pq.add pq elt)
+  end
+
+  (** [iter_reachable commit node_store ~f] calls [f ~off ~len] once for each
+      [offset] and [length] of the reachable tree objects and immediate parent
+      commits from [commit] in [node_store]. *)
+  let iter_reachable commit node_store ~f =
+    let todos = Priority_queue.create 1024 in
+    let rec loop () =
+      if not (Priority_queue.is_empty todos) then (
+        let offset, has_children = Priority_queue.pop todos in
+        let node_key = Node_store.key_of_offset node_store offset in
+        let length =
+          match Pack_key.inspect node_key with
+          | Direct { length; _ } -> length
+          | Indexed _ -> assert false
+        in
+        f ~off:offset ~len:length;
+        if has_children then iter_node node_key;
+        loop ())
+    and iter_node node_key =
+      match Node_store.unsafe_find_no_prefetch node_store node_key with
       | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
       | Some node ->
-          iter_from_node_children_exn node_store ~f (Node_value.pred node) k
-    and iter_from_node_children_exn node_store ~f children k =
-      match children with
-      | [] -> k ()
-      | (_step, kinded_key) :: tl -> (
-          let k () = iter_from_node_children_exn node_store ~f tl k in
-          match kinded_key with
-          | `Contents key ->
-              let (_ : int63) = f key in
-              k ()
-          | `Inode key | `Node key ->
-              let offset = f key in
-              if has_mark offset then k ()
-              else (
-                mark offset;
-                iter_from_node_key_exn key node_store ~f k))
+          List.iter
+            (fun (_step, kinded_key) -> schedule_kinded kinded_key)
+            (Node_value.pred node)
+    and schedule_kinded kinded_key =
+      let key, has_children =
+        match kinded_key with
+        | `Contents key -> (key, false)
+        | `Inode key | `Node key -> (key, true)
+      in
+      let offset =
+        match Pack_key.to_offset key with
+        | Some offset -> offset
+        | None ->
+            raise
+              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
+      in
+      schedule offset has_children
+    and schedule offset has_children =
+      Priority_queue.add todos offset has_children
     in
-    iter_from_node_key_exn node_key node_store ~f k
+    (* Include the commit parents in the reachable file.
+       The parent(s) of [commit] must be included in the iteration
+       because, when decoding the [Commit_value.t] at [commit], the
+       parents will have to be read in order to produce a key for them. *)
+    let schedule_parent_exn key =
+      match Pack_key.to_offset key with
+      | Some offset -> schedule offset false
+      | None ->
+          raise
+            (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
+    in
+    List.iter schedule_parent_exn (Commit_value.parents commit);
+    schedule_kinded (`Node (Commit_value.node commit));
+    loop ()
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
      disk in order to correctly deserialised the gced commit. *)
@@ -173,14 +216,12 @@ module Make (Args : Gc_args.S) = struct
       (* Step 3.1 Start [Mapping_file] routine which will create the
          reachable file. *)
       stats := Gc_stats.Worker.finish_current_step !stats "mapping: start";
-      let report_file_sizes (reachable_size, sorted_size, mapping_size) =
-        stats := Gc_stats.Worker.add_file_size !stats "reachable" reachable_size;
-        stats := Gc_stats.Worker.add_file_size !stats "sorted" sorted_size;
-        stats := Gc_stats.Worker.add_file_size !stats "mapping" mapping_size
-      in
       (fun f ->
-        Mapping_file.create ~report_file_sizes ~root:new_files_path ~generation
-          ~register_entries:f ()
+        let report_mapping_size size =
+          stats := Gc_stats.Worker.add_file_size !stats "mapping" size
+        in
+        Mapping_file.create ~report_mapping_size ~root:new_files_path
+          ~generation ~register_entries:f ()
         |> Errs.raise_if_error)
       @@ fun ~register_entry ->
       (* Step 3.2 If the commit parents are referenced by offset, then include
@@ -193,14 +234,15 @@ module Make (Args : Gc_args.S) = struct
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "mapping: commits to reachable";
+      let register_entry ~off ~len =
+        stats := Gc_stats.Worker.incr_objects_traversed !stats;
+        register_entry ~off ~len
+      in
       let register_object_exn key =
         match Pack_key.inspect key with
+        | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
         | Indexed _ -> ()
-        | Direct { offset; length; _ } ->
-            stats := Gc_stats.Worker.incr_objects_traversed !stats;
-            register_entry ~off:offset ~len:length
       in
-      List.iter register_object_exn (Commit_value.parents commit);
 
       (* Step 3.3 Put the commit in the reachable file. *)
       register_object_exn commit_key;
@@ -209,19 +251,7 @@ module Make (Args : Gc_args.S) = struct
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "mapping: objects to reachable";
-      let register_object_exn key =
-        match Pack_key.inspect key with
-        | Indexed _ ->
-            raise
-              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-        | Direct { offset; length; _ } ->
-            stats := Gc_stats.Worker.incr_objects_traversed !stats;
-            register_entry ~off:offset ~len:length;
-            offset
-      in
-      let node_key = Commit_value.node commit in
-      let (_ : int63) = register_object_exn node_key in
-      iter node_key node_store ~f:register_object_exn (fun () -> ());
+      iter_reachable commit node_store ~f:register_entry;
 
       (* Step 3.5 Return and let the [Mapping_file] routine create the mapping
          file. *)

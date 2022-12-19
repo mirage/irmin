@@ -33,26 +33,20 @@ module type S = sig
   type open_error :=
     [ `Corrupted_mapping_file of string | `No_such_file_or_directory ]
 
-  type file_sizes := int63 * int63 * int63
-
   val create :
-    ?report_file_sizes:(file_sizes -> unit) ->
+    ?report_mapping_size:(int63 -> unit) ->
     root:string ->
     generation:int ->
     register_entries:(register_entry:(off:int63 -> len:int -> unit) -> unit) ->
     unit ->
     (t, Errs.t) result
-  (** [create] creates inside the directory [root] a mapping file. It never
-      raises exceptions.
+  (** [create] creates a mapping file inside the directory [root].
 
       [register_entries] is a user callback that is responsible for calling
-      [register_entry] for each live entry. Duplicates allowed, no specfic order
-      expected.
+      [register_entry] for each live entry. It must be called with strictly
+      decreasing offsets (or fails otherwise).
 
-      Returns an error if the platform is not 64bits.
-
-      Creates temporary files in [root] that are unlinked before the function
-      returns. *)
+      Returns an error if the platform is not 64bits. *)
 
   val open_map : root:string -> generation:int -> (t, [> open_error ]) result
   (** [open_map ~root ~generation] opens a mapping file. *)

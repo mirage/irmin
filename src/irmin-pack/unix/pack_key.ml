@@ -17,34 +17,56 @@
 open! Import
 include Pack_key_intf
 
-type 'hash state =
-  | Direct of { hash : 'hash; offset : int63; length : int }
-  | Indexed of 'hash
+type safe = SAFE
+type unsafe = UNSAFE
 
-type 'hash t = { mutable state : 'hash state }
+type (_, _) unsafe_state =
+  | Direct : {
+      hash : 'hash;
+      offset : int63;
+      length : int;
+    }
+      -> ('hash, safe) unsafe_state
+  | Indexed : 'hash -> ('hash, safe) unsafe_state
+  | Offset : int63 -> ('hash, unsafe) unsafe_state
 
-let inspect t = t.state
-let to_hash t = match t.state with Direct t -> t.hash | Indexed h -> h
+type 'hash state = ('hash, safe) unsafe_state
+type 'hash t = State : { mutable state : ('hash, _) unsafe_state } -> 'hash t
 
-let promote_exn t ~offset ~length =
-  let () =
-    match t.state with
-    | Direct _ ->
-        Fmt.failwith "Attempted to promote a key that is already Direct"
-    | Indexed _ -> ()
-  in
-  t.state <- Direct { hash = to_hash t; offset; length }
+let inspect (State t) =
+  match t.state with
+  | Offset _ -> failwith "inspect unsafe Offset"
+  | Direct d -> Direct d
+  | Indexed d -> Indexed d
+
+let to_hash (State t) =
+  match t.state with
+  | Direct t -> t.hash
+  | Indexed h -> h
+  | Offset _ -> failwith "Hash unavailable"
+
+let to_offset (State t) =
+  match t.state with
+  | Direct t -> Some t.offset
+  | Offset offset -> Some offset
+  | Indexed _ -> None
+
+let promote_exn (State t) ~offset ~length =
+  match t.state with
+  | Direct _ -> failwith "Attempted to promote a key that is already Direct"
+  | Offset _ -> failwith "Attempted to promote an offset without hash"
+  | Indexed hash -> t.state <- Direct { hash; offset; length }
 
 let t : type h. h Irmin.Type.t -> h t Irmin.Type.t =
  fun hash_t ->
   let open Irmin.Type in
   variant "t" (fun direct indexed t ->
-      match t.state with
+      match inspect t with
       | Direct { hash; offset; length } -> direct (hash, offset, length)
       | Indexed x1 -> indexed x1)
   |~ case1 "Direct" [%typ: hash * int63 * int] (fun (hash, offset, length) ->
-         { state = Direct { hash; offset; length } })
-  |~ case1 "Indexed" [%typ: hash] (fun x1 -> { state = Indexed x1 })
+         State { state = Direct { hash; offset; length } })
+  |~ case1 "Indexed" [%typ: hash] (fun x1 -> State { state = Indexed x1 })
   |> sealv
 
 let t (type hash) (hash_t : hash Irmin.Type.t) =
@@ -59,7 +81,7 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
       match Irmin.Type.Size.of_value t with
       | Static n -> n
       | Dynamic _ | Unknown ->
-          Fmt.failwith "Hash must have a fixed-width binary encoding"
+          failwith "Hash must have a fixed-width binary encoding"
   end in
   (* Equality and ordering on keys respects {i structural} equality semantics,
      meaning two objects (containing keys) are considered equal even if their
@@ -78,18 +100,21 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
   let encode_bin t f = Hash.encode_bin (to_hash t) f in
   let unboxed_encode_bin t f = Hash.unboxed_encode_bin (to_hash t) f in
   let decode_bin buf pos_ref =
-    { state = Indexed (Hash.decode_bin buf pos_ref) }
+    State { state = Indexed (Hash.decode_bin buf pos_ref) }
   in
   let unboxed_decode_bin buf pos_ref =
-    { state = Indexed (Hash.unboxed_decode_bin buf pos_ref) }
+    State { state = Indexed (Hash.unboxed_decode_bin buf pos_ref) }
   in
   let size_of = Irmin.Type.Size.custom_static Hash.encoded_size in
   Irmin.Type.like (t hash_t) ~pre_hash ~equal ~compare
     ~bin:(encode_bin, decode_bin, size_of)
     ~unboxed_bin:(unboxed_encode_bin, unboxed_decode_bin, size_of)
 
-let v_direct ~hash ~offset ~length = { state = Direct { hash; offset; length } }
-let v_indexed hash = { state = Indexed hash }
+let v_direct ~hash ~offset ~length =
+  State { state = Direct { hash; offset; length } }
+
+let v_indexed hash = State { state = Indexed hash }
+let v_offset offset = State { state = Offset offset }
 
 module type S = sig
   type hash
