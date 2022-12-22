@@ -114,9 +114,7 @@ module Make (Args : Gc_args.S) = struct
     let schedule_parent_exn key =
       match Pack_key.to_offset key with
       | Some offset -> schedule offset false
-      | None ->
-          raise
-            (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
+      | None -> ()
     in
     List.iter schedule_parent_exn (Commit_value.parents commit);
     schedule_kinded (`Node (Commit_value.node commit));
