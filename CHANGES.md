@@ -1,6 +1,8 @@
 ## Unreleased
 
 ### Changed
+
+- **irmin-pack**
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
 
