@@ -22,11 +22,13 @@ module type S = sig
 
   val integrity_check :
     ?ppf:Format.formatter ->
+    ?heads:commit list ->
     auto_repair:bool ->
     repo ->
     ( [> `Fixed of int | `No_error ],
       [> `Cannot_fix of string | `Corrupted of int ] )
     result
+    Lwt.t
   (** Checks the integrity of the repository. if [auto_repair] is [true], will
       also try to fix the issues. [ppf] is a formatter for progressive
       reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
@@ -158,7 +160,7 @@ module type S = sig
   val integrity_check_inodes :
     ?heads:commit list ->
     repo ->
-    ([> `Msg of string ], [> `Msg of string ]) result Lwt.t
+    ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
 
   val traverse_pack_file :
     [ `Reconstruct_index of [ `In_place | `Output of string ]

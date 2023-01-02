@@ -445,8 +445,24 @@ module Maker (Config : Conf.S) = struct
       end
     end
 
-    let integrity_check ?ppf ~auto_repair t =
-      let module Checks = Checks.Index (Index) in
+    include Irmin.Of_backend (X)
+    module Integrity_checks = Checks.Integrity_checks (XKey) (X) (Index)
+
+    let integrity_check_inodes ?heads t =
+      let* heads =
+        match heads with None -> Repo.heads t | Some m -> Lwt.return m
+      in
+      let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
+      let iter ~pred_node ~node ~commit t =
+        Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~pred_node ~node
+          ~commit t
+      in
+      let nodes = X.Repo.node_t t |> snd in
+      let check = X.Node.CA.integrity_check_inodes nodes in
+      let pred = Repo.default_pred_node in
+      Integrity_checks.check_inodes ~iter ~pred ~check t
+
+    let integrity_check_always ?ppf ~auto_repair t =
       let contents = X.Repo.contents_t t in
       let nodes = X.Repo.node_t t |> snd in
       let commits = X.Repo.commit_t t |> snd in
@@ -457,53 +473,36 @@ module Maker (Config : Conf.S) = struct
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
       let index = File_manager.index t.fm in
-      Checks.integrity_check ?ppf ~auto_repair ~check index
+      Integrity_checks.check_always ?ppf ~auto_repair ~check index
 
-    include Irmin.Of_backend (X)
-
-    let integrity_check_inodes ?heads t =
-      [%log.debug "Check integrity for inodes"];
-      let counter, (_, progress_nodes, progress_commits) =
-        Utils.Object_counter.start ()
-      in
-      let errors = ref [] in
-      let nodes = X.Repo.node_t t |> snd in
-      let pred_node repo key =
-        Lwt.catch
-          (fun () -> Repo.default_pred_node repo key)
-          (fun _ ->
-            errors := "Error in repo iter" :: !errors;
-            Lwt.return [])
-      in
-
-      let node k =
-        progress_nodes ();
-        X.Node.CA.integrity_check_inodes nodes k >|= function
-        | Ok () -> ()
-        | Error msg -> errors := msg :: !errors
-      in
-      let commit _ =
-        progress_commits ();
-        Lwt.return_unit
-      in
+    let integrity_check_minimal ?ppf ?heads t =
       let* heads =
         match heads with None -> Repo.heads t | Some m -> Lwt.return m
       in
       let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
-      let+ () =
-        Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~pred_node ~node
-          ~commit t
+      let iter ~contents ~node ~pred_node ~pred_commit repo =
+        Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~contents ~node
+          ~pred_node ~pred_commit repo
       in
-      Utils.Object_counter.finalise counter;
-      let pp_commits = Fmt.list ~sep:Fmt.comma Commit.pp_hash in
-      if !errors = [] then
-        Fmt.kstr (fun x -> Ok (`Msg x)) "Ok for heads %a" pp_commits heads
-      else
-        Fmt.kstr
-          (fun x -> Error (`Msg x))
-          "Inconsistent inodes found for heads %a: %a" pp_commits heads
-          Fmt.(list ~sep:comma string)
-          !errors
+      let contents = X.Repo.contents_t t in
+      let pred = X.Node.CA.Val.pred in
+      let recompute_hash = X.Node.CA.Val.recompute_hash in
+      let check ~offset ~length k =
+        X.Contents.CA.integrity_check ~offset ~length k contents
+      in
+      Integrity_checks.check_minimal ?ppf ~pred ~iter ~check ~recompute_hash t
+
+    let integrity_check ?ppf ?heads ~auto_repair t =
+      let is_minimal =
+        t.X.Repo.config
+        |> Conf.indexing_strategy
+        |> Irmin_pack.Indexing_strategy.is_minimal
+      in
+      let result =
+        if is_minimal then integrity_check_minimal ?ppf ?heads t
+        else integrity_check_always ?ppf ~auto_repair t |> Lwt.return
+      in
+      result
 
     module Stats_computation = struct
       let pp_key = Irmin.Type.pp XKey.t

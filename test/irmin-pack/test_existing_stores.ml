@@ -70,6 +70,16 @@ struct
         | None -> Alcotest.fail "could not find commit in store"
         | Some x -> Lwt.return x)
     | _ -> Alcotest.fail "could not read hash"
+
+  let bin_string_of_string c =
+    let s = ref "" in
+    let f x = s := !s ^ x in
+    let () =
+      match Irmin.Type.of_string S.Hash.t c with
+      | Ok x -> Irmin.Type.(unstage (encode_bin S.Hash.t)) x f
+      | _ -> Alcotest.fail "could not read hash"
+    in
+    !s
 end
 
 module Small_conf = struct
@@ -162,25 +172,90 @@ module Test_corrupted_stores = struct
     ( v "test" / "irmin-pack" / "data" / "corrupted" |> to_string,
       v "_build" / "test_integrity" |> to_string )
 
-  let setup_test_env () = setup_test_env ~root_archive ~root_local_build:root
+  let setup_env () = setup_test_env ~root_archive ~root_local_build:root
+
+  module S = V2 ()
+  include Test (S)
 
   let test () =
-    setup_test_env ();
-    let module S = V2 () in
+    setup_env ();
     let* rw = S.Repo.v (config ~fresh:false root) in
     [%log.app
       "integrity check on a store where 3 entries are missing from pack"];
-    (match S.integrity_check ~auto_repair:false rw with
+    let* result = S.integrity_check ~auto_repair:false rw in
+    (match result with
     | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
     | Error (`Corrupted 3) -> ()
     | _ -> Alcotest.fail "With auto_repair:false should not match");
-    (match S.integrity_check ~auto_repair:true rw with
+    let* result = S.integrity_check ~auto_repair:true rw in
+    (match result with
     | Ok (`Fixed 3) -> ()
     | _ -> Alcotest.fail "Integrity check should repair the store");
-    (match S.integrity_check ~auto_repair:false rw with
+    let* result = S.integrity_check ~auto_repair:false rw in
+    (match result with
     | Ok `No_error -> ()
     | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
+
+  let root_archive, root_local_build =
+    let open Fpath in
+    ( v "test" / "irmin-pack" / "data" / "version_3_minimal" |> to_string,
+      v "_build" / "test_corrupt_minimal" |> to_string )
+
+  let setup_env () = setup_test_env ~root_archive ~root_local_build
+
+  module IO = Irmin_pack_unix.Io.Unix
+
+  let write_corrupted_data_to_suffix () =
+    let path = Filename.concat root_local_build "store.0.suffix" in
+    let io = IO.open_ ~path ~readonly:false |> Result.get_ok in
+    let corrupted_node_hash =
+      (* the correct hash starts with '9', modified it to have an incorrect hash
+         on disk. *)
+      "1b120e5019dcc6cd90b4d9c9826c9ebbebdc0023"
+    in
+    let s = bin_string_of_string corrupted_node_hash in
+    let len = String.length s in
+    assert (len = 20);
+    IO.write_exn io ~off:(Int63.of_int 54) ~len s;
+    IO.close io |> Result.get_ok
+
+  let test_minimal () =
+    setup_env ();
+    [%log.app "integrity check on a good minimal store"];
+    let config =
+      config ~fresh:false
+        ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
+    in
+    let* rw = S.Repo.v config in
+
+    let* commit =
+      commit_of_string rw "22e159de13b427226e5901defd17f0c14e744205"
+    in
+    let* result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
+    let () =
+      match result with
+      | Ok `No_error -> ()
+      | Error (`Cannot_fix err) -> Alcotest.failf "Store is corrupted %s" err
+      | _ -> Alcotest.fail "Unexpected result of integrity_check"
+    in
+    let* () = S.Repo.close rw in
+    [%log.app "integrity check on a corrupted minimal store"];
+    write_corrupted_data_to_suffix ();
+    let* rw = S.Repo.v config in
+    let* result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
+    let () =
+      match result with
+      | Ok `No_error -> Alcotest.fail "Store is corrupted, check should fail"
+      | Error (`Cannot_fix err) ->
+          let err = String.sub err 0 33 in
+          Alcotest.(check string)
+            "corrupted store" "Inconsistencies found: Wrong_hash" err
+      | _ -> Alcotest.fail "Unexpected result of integrity_check"
+    in
+
+    let* () = S.Repo.close rw in
+    Lwt.return_unit
 end
 
 module Test_corrupted_inode = struct
@@ -267,6 +342,8 @@ let tests =
         Test_reconstruct.test_gc_allowed);
     Alcotest_lwt.test_case "Test integrity check" `Quick (fun _switch ->
         Test_corrupted_stores.test);
+    Alcotest_lwt.test_case "Test integrity check minimal stores" `Quick
+      (fun _switch -> Test_corrupted_stores.test_minimal);
     Alcotest_lwt.test_case "Test integrity check for inodes" `Quick
       (fun _switch -> Test_corrupted_inode.test);
     Alcotest_lwt.test_case "Test traverse pack on gced store" `Quick

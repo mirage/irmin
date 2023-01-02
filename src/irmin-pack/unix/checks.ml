@@ -168,7 +168,13 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check = struct
-    let conf root = Conf.init ~readonly:false ~fresh:false ~no_migrate:true root
+    let conf root always =
+      let indexing_strategy =
+        if always then Irmin_pack.Indexing_strategy.always
+        else Irmin_pack.Indexing_strategy.minimal
+      in
+      Conf.init ~readonly:false ~fresh:false ~no_migrate:true ~indexing_strategy
+        root
 
     let handle_result ?name res =
       let name = match name with Some x -> x ^ ": " | None -> "" in
@@ -180,22 +186,47 @@ module Make (Store : Store) = struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run ~root ~auto_repair =
-      let conf = conf root in
-      let+ repo = Store.Repo.v conf in
-      Store.integrity_check ~ppf:Format.err_formatter ~auto_repair repo
-      |> handle_result ?name:None
+    let run ~root ~auto_repair ~always ~heads =
+      let conf = conf root always in
+      let* repo = Store.Repo.v conf in
+      let* heads =
+        match heads with
+        | None -> Store.Repo.heads repo
+        | Some heads ->
+            Lwt_list.filter_map_s
+              (fun x ->
+                match Repr.of_string Store.Hash.t x with
+                | Ok x -> Store.Commit.of_hash repo x
+                | Error (`Msg m) -> Fmt.kstr Lwt.fail_with "Invalid hash %S" m)
+              heads
+      in
+      let+ result =
+        Store.integrity_check ~ppf:Format.err_formatter ~auto_repair ~heads repo
+      in
+      handle_result ?name:None result
+
+    let heads =
+      let open Cmdliner.Arg in
+      value
+      & opt (some (list ~sep:',' string)) None
+      & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
+
+    let auto_repair =
+      let open Cmdliner.Arg in
+      value & (flag @@ info ~doc:"Automatically repair issues" [ "auto-repair" ])
+
+    let always =
+      let open Cmdliner.Arg in
+      value & (flag @@ info ~doc:"Use always indexing strategy" [ "always" ])
 
     let term_internal =
-      let auto_repair =
-        let open Cmdliner.Arg in
-        value
-        & (flag @@ info ~doc:"Automatically repair issues" [ "auto-repair" ])
-      in
       Cmdliner.Term.(
-        const (fun root auto_repair () -> Lwt_main.run (run ~root ~auto_repair))
+        const (fun root auto_repair always heads () ->
+            Lwt_main.run (run ~root ~auto_repair ~always ~heads))
         $ path
-        $ auto_repair)
+        $ auto_repair
+        $ always
+        $ heads)
 
     let term =
       let doc = "Check integrity of an existing store." in
@@ -228,8 +259,8 @@ module Make (Store : Store) = struct
       in
       let* () =
         Store.integrity_check_inodes ~heads repo >|= function
-        | Ok (`Msg msg) -> [%logs.app "Ok: %s" msg]
-        | Error (`Msg msg) -> Fmt.failwith "Error: %s" msg
+        | Ok `No_error -> [%logs.app "Ok"]
+        | Error (`Cannot_fix msg) -> Fmt.failwith "Error: %s" msg
       in
       Store.Repo.close repo
 
@@ -336,19 +367,26 @@ module Make (Store : Store) = struct
   let cli = Cli.main
 end
 
-module Index (Index : Pack_index.S) = struct
+module Integrity_checks
+    (XKey : Pack_key.S)
+    (X : Irmin.Backend.S
+           with type Commit.key = XKey.t
+            and type Node.key = XKey.t
+            and type Schema.Hash.t = XKey.hash)
+    (Index : Pack_index.S) =
+struct
   let null =
     match Sys.os_type with
     | "Unix" | "Cygwin" -> "/dev/null"
     | "Win32" -> "NUL"
     | _ -> invalid_arg "invalid os type"
 
-  let integrity_check ?ppf ~auto_repair ~check index =
-    let ppf =
-      match ppf with
-      | Some p -> p
-      | None -> open_out null |> Format.formatter_of_out_channel
-    in
+  let set_ppf = function
+    | Some p -> p
+    | None -> open_out null |> Format.formatter_of_out_channel
+
+  let check_always ?ppf ~auto_repair ~check index =
+    let ppf = set_ppf ppf in
     Fmt.pf ppf "Running the integrity_check.\n%!";
     let nb_absent = ref 0 in
     let nb_corrupted = ref 0 in
@@ -395,6 +433,135 @@ module Index (Index : Pack_index.S) = struct
     in
     Utils.Object_counter.finalise counter;
     result
+
+  let check_minimal ?ppf ~pred ~iter ~check ~recompute_hash t =
+    let ppf = set_ppf ppf in
+    Fmt.pf ppf "Running the integrity_check.\n%!";
+    let errors = ref [] in
+    let counter, (progress_contents, progress_nodes, progress_commits) =
+      Utils.Object_counter.start ()
+    in
+    let pp_hash = Irmin.Type.pp X.Hash.t in
+    let equal_hash = Irmin.Type.(unstage (equal X.Hash.t)) in
+    let add_error err hash =
+      let msg =
+        match err with
+        | `Wrong_hash -> Fmt.str "Wrong_hash %a" pp_hash hash
+        | `Absent_value -> Fmt.str "Absent_value for hash %a" pp_hash hash
+      in
+      errors := msg :: !errors
+    in
+    let check_contents key =
+      match Pack_key.inspect key with
+      | Indexed _hash ->
+          (* TODO: The goal here is to check a "one commit" store, generated
+             by a gc, in which indexed keys cannot occur. We might want to
+             extends this to stores that have both indexed and direct keys. *)
+          Lwt.fail_with
+            "Not supported for stores which have entries obtained with irmin < \
+             3.0. If all entries were added with irmin < 3.0, please use \
+             [integrity_check] instead."
+      | Direct { offset; length; hash } -> (
+          let result = check ~offset ~length hash in
+          match result with
+          | Ok () -> Lwt.return_unit
+          | Error err ->
+              add_error err hash;
+              Lwt.return_unit)
+    in
+    (* Commits are read from disk and checked by the [find] function in [pred].
+       We need to explicitly check the contents and the nodes. *)
+    let contents key =
+      progress_contents ();
+      check_contents key
+    in
+    let pred_node repo key =
+      try
+        X.Node.find (X.Repo.node_t repo) key >|= function
+        | None ->
+            Fmt.failwith "node with hash %a not found" pp_hash
+              (XKey.to_hash key)
+        | Some v ->
+            let preds = pred v in
+            List.rev_map
+              (function
+                | s, `Inode x ->
+                    assert (s = None);
+                    `Node x
+                | _, `Node x -> `Node x
+                | _, `Contents x -> `Contents x)
+              preds
+      with _exn ->
+        add_error `Wrong_hash (XKey.to_hash key);
+        Lwt.return []
+    in
+    let check_nodes key =
+      X.Node.find (X.Repo.node_t t) key >|= function
+      | None ->
+          Fmt.failwith "node with hash %a not found" pp_hash (XKey.to_hash key)
+      | Some v ->
+          let h = XKey.to_hash key in
+          let h' = recompute_hash v in
+          if not (equal_hash h h') then add_error `Wrong_hash h
+    in
+    let node key =
+      progress_nodes ();
+      check_nodes key
+    in
+    (* Only visit the nodes of the commits and not the parents of the commit. *)
+    let pred_commit repo k =
+      try
+        progress_commits ();
+        X.Commit.find (X.Repo.commit_t repo) k >|= function
+        | None -> []
+        | Some c ->
+            let node = X.Commit.Val.node c in
+            [ `Node node ]
+      with _exn ->
+        add_error `Wrong_hash (XKey.to_hash k);
+        Lwt.return []
+    in
+
+    let+ () = iter ~contents ~node ~pred_node ~pred_commit t in
+    Utils.Object_counter.finalise counter;
+    if !errors = [] then Ok `No_error
+    else
+      Fmt.kstr
+        (fun x -> Error (`Cannot_fix x))
+        "Inconsistencies found: %a"
+        Fmt.(list ~sep:comma string)
+        !errors
+
+  let check_inodes ~iter ~pred ~check t =
+    [%log.debug "Check integrity for inodes"];
+    let counter, (_, progress_nodes, progress_commits) =
+      Utils.Object_counter.start ()
+    in
+    let errors = ref [] in
+    let pred_node repo key =
+      Lwt.catch
+        (fun () -> pred repo key)
+        (fun _ ->
+          errors := "Error in repo iter" :: !errors;
+          Lwt.return [])
+    in
+    let node k =
+      progress_nodes ();
+      check k >|= function Ok () -> () | Error msg -> errors := msg :: !errors
+    in
+    let commit _ =
+      progress_commits ();
+      Lwt.return_unit
+    in
+    let+ () = iter ~pred_node ~node ~commit t in
+    Utils.Object_counter.finalise counter;
+    if !errors = [] then Ok `No_error
+    else
+      Fmt.kstr
+        (fun x -> Error (`Cannot_fix x))
+        "Inconsistent inodes found %a"
+        Fmt.(list ~sep:comma string)
+        !errors
 end
 
 module Stats (S : sig
