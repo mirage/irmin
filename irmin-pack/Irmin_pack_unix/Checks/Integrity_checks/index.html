@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Integrity_checks (irmin-pack.Irmin_pack_unix.Checks.Integrity_checks)</title><link rel="stylesheet" href="../../../../odoc.css"/><meta charset="utf-8"/><meta name="generator" content="odoc 2.2.0"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><script src="../../../../highlight.pack.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body class="odoc"><nav class="odoc-nav"><a href="../index.html">Up</a> – <a href="../../../index.html">irmin-pack</a> &#x00BB; <a href="../../index.html">Irmin_pack_unix</a> &#x00BB; <a href="../index.html">Checks</a> &#x00BB; Integrity_checks</nav><header class="odoc-preamble"><h1>Module <code><span>Checks.Integrity_checks</span></code></h1></header><nav class="odoc-toc"><ul><li><a href="#parameters">Parameters</a></li><li><a href="#signature">Signature</a></li></ul></nav><div class="odoc-content"><h2 id="parameters"><a href="#parameters" class="anchor"></a>Parameters</h2><div class="odoc-spec"><div class="spec parameter anchored" id="argument-1-XKey"><a href="#argument-1-XKey" class="anchor"></a><code><span><span class="keyword">module</span> </span><span><a href="argument-1-XKey/index.html">XKey</a></span><span> : <a href="../../Pack_key/module-type-S/index.html">Pack_key.S</a></span></code></div></div><div class="odoc-spec"><div class="spec parameter anchored" id="argument-2-X"><a href="#argument-2-X" class="anchor"></a><code><span><span class="keyword">module</span> </span><span><a href="argument-2-X/index.html">X</a></span><span> : 
+  <a href="../../../../irmin/Irmin/Backend/module-type-S/index.html">Irmin.Backend.S</a>
+    <span class="keyword">with</span> <span><span class="keyword">type</span> <a href="../../../../irmin/Irmin/Backend/module-type-S/Commit/index.html#type-key">Commit.key</a> = <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span>
+     <span class="keyword">and</span> <span><span class="keyword">type</span> <a href="../../../../irmin/Irmin/Backend/module-type-S/Node/index.html#type-key">Node.key</a> = <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span>
+     <span class="keyword">and</span> <span><span class="keyword">type</span> <a href="../../../../irmin/Irmin/Backend/module-type-S/Schema/Hash/index.html#type-t">Schema.Hash.t</a> = <a href="argument-1-XKey/index.html#type-hash">XKey.hash</a></span></span></code></div></div><div class="odoc-spec"><div class="spec parameter anchored" id="argument-3-Index"><a href="#argument-3-Index" class="anchor"></a><code><span><span class="keyword">module</span> </span><span><a href="argument-3-Index/index.html">Index</a></span><span> : <span class="keyword">sig</span> ... <span class="keyword">end</span></span></code></div></div><h2 id="signature"><a href="#signature" class="anchor"></a>Signature</h2><div class="odoc-spec"><div class="spec value anchored" id="val-check_always"><a href="#val-check_always" class="anchor"></a><code><span><span class="keyword">val</span> check_always : 
+  <span>?ppf:<span class="xref-unresolved">Stdlib</span>.Format.formatter <span class="arrow">&#45;&gt;</span></span>
+  <span>auto_repair:bool <span class="arrow">&#45;&gt;</span></span>
+  <span>check:
+    <span>(<span>kind:<span>[&gt; `Commit <span>| `Contents</span> <span>| `Node</span> ]</span> <span class="arrow">&#45;&gt;</span></span>
+      <span>offset:<span class="xref-unresolved">Optint</span>.Int63.t <span class="arrow">&#45;&gt;</span></span>
+      <span>length:int <span class="arrow">&#45;&gt;</span></span>
+      <span><a href="argument-3-Index/index.html#type-key">Index.key</a> <span class="arrow">&#45;&gt;</span></span>
+      <span><span>(unit, <span>[&lt; `Absent_value <span>| `Wrong_hash</span> ]</span>)</span> <span class="xref-unresolved">Stdlib</span>.result</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="argument-3-Index/index.html#type-t">Index.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span>(<span>[&gt; <span>`Fixed of int</span> <span>| `No_error</span> ]</span>,
+    <span>[&gt; <span>`Cannot_fix of string</span> <span><span>| `Corrupted</span> of int</span> ]</span>)</span>
+    <span class="xref-unresolved">Stdlib</span>.result</span></span></code></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-check_minimal"><a href="#val-check_minimal" class="anchor"></a><code><span><span class="keyword">val</span> check_minimal : 
+  <span>?ppf:<span class="xref-unresolved">Stdlib</span>.Format.formatter <span class="arrow">&#45;&gt;</span></span>
+  <span>pred:
+    <span>(<span><a href="argument-2-X/Node/index.html#type-value">X.Node.value</a> <span class="arrow">&#45;&gt;</span></span>
+      <span><span>(<span><a href="argument-2-X/Schema/Path/index.html#type-step">X.Node.Path.step</a> option</span>
+       * <span>[&lt; <span>`Contents of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> <span><span>| `Inode</span> of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> <span><span>| `Node</span> of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> ]</span>)</span>
+        list</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>iter:
+    <span>(<span>contents:<span>(<span><span><a href="argument-1-XKey/index.html#type-hash">XKey.hash</a> <a href="../../Pack_key/index.html#type-t">Pack_key.t</a></span> <span class="arrow">&#45;&gt;</span></span> <span>unit <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span>node:<span>(<span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span> <span>unit <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span>pred_node:
+        <span>(<span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span>
+          <span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span>
+          <span><span><span>[&gt; <span>`Contents of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> <span><span>| `Node</span> of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> ]</span> list</span> <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span>pred_commit:<span>(<span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span> <span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span> <span><span><span>[&gt; <span>`Node of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> ]</span> list</span> <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span>
+      <span>unit <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>check:
+    <span>(<span>offset:<span class="xref-unresolved">Optint</span>.Int63.t <span class="arrow">&#45;&gt;</span></span>
+      <span>length:int <span class="arrow">&#45;&gt;</span></span>
+      <span><a href="argument-1-XKey/index.html#type-hash">XKey.hash</a> <span class="arrow">&#45;&gt;</span></span>
+      <span><span>(unit, <span>[&lt; `Absent_value <span>| `Wrong_hash</span> ]</span>)</span> <span class="xref-unresolved">Stdlib</span>.result</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>recompute_hash:<span>(<span><a href="argument-2-X/Node/index.html#type-value">X.Node.value</a> <span class="arrow">&#45;&gt;</span></span> <a href="argument-1-XKey/index.html#type-hash">XKey.hash</a>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><span>(<span>[&gt; `No_error ]</span>, <span>[&gt; <span>`Cannot_fix of string</span> ]</span>)</span> <span class="xref-unresolved">Stdlib</span>.result</span> <span class="xref-unresolved">Lwt</span>.t</span></span></code></div></div><div class="odoc-spec"><div class="spec value anchored" id="val-check_inodes"><a href="#val-check_inodes" class="anchor"></a><code><span><span class="keyword">val</span> check_inodes : 
+  <span>iter:
+    <span>(<span>pred_node:
+       <span>(<span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span>
+         <span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span>
+         <span><span><span>[&gt; <span>`Contents of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> <span><span>| `Node</span> of <a href="argument-1-XKey/index.html#type-t">XKey.t</a></span> ]</span> <span class="keyword">as</span> 'a list</span> <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span>node:<span>(<span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span> <span>unit <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span>commit:<span>(<span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span> <span>unit <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+      <span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span>
+      <span>unit <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>pred:<span>(<span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span> <span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span> <span><span><span class="type-var">'a</span> list</span> <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span>check:<span>(<span><a href="argument-1-XKey/index.html#type-t">XKey.t</a> <span class="arrow">&#45;&gt;</span></span> <span><span><span>(unit, string)</span> <span class="xref-unresolved">Stdlib</span>.result</span> <span class="xref-unresolved">Lwt</span>.t</span>)</span> <span class="arrow">&#45;&gt;</span></span>
+  <span><a href="argument-2-X/Repo/index.html#type-t">X.Repo.t</a> <span class="arrow">&#45;&gt;</span></span>
+  <span><span><span>(<span>[&gt; `No_error ]</span>, <span>[&gt; <span>`Cannot_fix of string</span> ]</span>)</span> <span class="xref-unresolved">Stdlib</span>.result</span> <span class="xref-unresolved">Lwt</span>.t</span></span></code></div></div></div></body></html>
