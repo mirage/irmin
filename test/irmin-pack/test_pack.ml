@@ -554,4 +554,5 @@ let misc =
     ("dispatcher", Test_dispatcher.tests);
     ("corrupted", Test_corrupted.tests);
     ("snapshot_gc", Test_gc.Snapshot.tests);
+    ("async tasks", Test_async.tests);
   ]

@@ -19,7 +19,7 @@ include Async_intf
 
 module Unix = struct
   let kill_no_err pid =
-    try Unix.kill pid 9
+    try Unix.kill pid Sys.sigkill
     with Unix.Unix_error (e, s1, s2) ->
       [%log.warn
         "Killing process with pid %d failed with error (%s, %s, %s)" pid
@@ -51,31 +51,35 @@ module Unix = struct
 
   type t = { pid : int; mutable status : status }
 
+  module Exit_code = struct
+    let success = 0
+    let unhandled_exn = 42
+  end
+
   let async f =
     Stdlib.flush_all ();
     match Lwt_unix.fork () with
     | 0 ->
         Lwt_main.Exit_hooks.remove_all ();
         Lwt_main.abandon_yielded_and_paused ();
-        (try f ()
-         with e ->
-           [%log.err
-             "Unhandled exception in child process %s" (Printexc.to_string e)]);
-        (* Once finished, the child process kills itself to avoid calling
-           at_exit functions and also to avoid executing the rest of the call
-           stack (this would typically be a problem with alcotest). *)
-        Unix.kill (Unix.getpid ()) 9;
-        assert false (* unreachable *)
+        let exit_code =
+          match f () with
+          | () -> Exit_code.success
+          | exception e ->
+              [%log.err
+                "Unhandled exception in child process %s" (Printexc.to_string e)];
+              Exit_code.unhandled_exn
+        in
+        (* Use [Unix._exit] to avoid calling [at_exit] hooks. *)
+        Unix._exit exit_code
     | pid ->
         Exit.add pid;
         { pid; status = `Running }
 
   let status_of_process_outcome = function
-    | Lwt_unix.WSIGNALED x when x = Sys.sigkill ->
-        (* x is actually -7; -7 is the Sys.sigkill definition (not the OS' 9 as
-           might be expected) *)
-        `Success
-        (* the child is killing itself when it's done *)
+    | Lwt_unix.WEXITED n when n = Exit_code.success -> `Success
+    | Lwt_unix.WEXITED n when n = Exit_code.unhandled_exn ->
+        `Failure "Unhandled exception"
     | Lwt_unix.WSIGNALED n -> `Failure (Fmt.str "Signaled %d" n)
     | Lwt_unix.WEXITED n -> `Failure (Fmt.str "Exited %d" n)
     | Lwt_unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
