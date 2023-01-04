@@ -14,37 +14,42 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** The [irmin-pack-unix] package provides an implementation of {!Irmin_pack}
+    for Unix systems.
+
+    [irmin-pack-unix] provides advanced features such as garbage collection,
+    snapshoting, integrity checks. *)
+
 (** {1 Store} *)
 
-module type S = Store_intf.S
+module type S = Store.S
 
-module Maker = Store.Maker
-
-module KV (Config : Irmin_pack.Conf.S) = struct
-  type endpoint = unit
-  type hash = Irmin.Schema.default_hash
-
-  include Pack_key.Store_spec
-  module Maker = Maker (Config)
-
-  type metadata = Irmin.Metadata.None.t
-
-  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
-end
+module Maker (Config : Irmin_pack.Conf.S) : Store.Maker
+module KV (Config : Irmin_pack.Conf.S) : Store.KV
 
 (** {1 Key and Values} *)
 
+(* module Pack_store = Pack_store *)
 module Pack_key = Pack_key
 module Pack_value = Pack_value
 
-(** {1 Internal} *)
+(** {1 Integrity Checks} *)
+
+module Checks = Checks
+
+(** {1 Statistics} *)
 
 module Stats = Stats
+
+(** {1 Internal Functors and Utilities} *)
+
+(** Following functors and modules are instantiated automatically or used
+    internally when creating a store with {!Maker} or {!KV}.*)
+
 module Index = Pack_index
 module Inode = Inode
 module Pack_store = Pack_store
 module Io_legacy = Io_legacy
-module Checks = Checks
 module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher

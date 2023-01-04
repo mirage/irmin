@@ -17,8 +17,15 @@
 open! Import
 
 (** [Irmin-pack-unix]-specific extensions to the [Store] module type. *)
+
 module type S = sig
+  (** An [irmin-pack-unix] store. This provides the common {!Irmin} interface
+      with [irmin-pack-unix] specific extensions. *)
+
   include Irmin.Generic_key.S
+  (** @inline *)
+
+  (** {1 Integrity Check} *)
 
   val integrity_check :
     ?ppf:Format.formatter ->
@@ -34,13 +41,26 @@ module type S = sig
       reporting. [`Fixed] and [`Corrupted] report the number of fixed/corrupted
       entries. *)
 
-  val reload : repo -> unit
-  (** [reload t] reloads a readonly pack with the files on disk. Raises
-      [invalid_argument] if called by a read-write pack.*)
+  val integrity_check_inodes :
+    ?heads:commit list ->
+    repo ->
+    ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
 
-  val flush : repo -> unit
-  (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
-      by a readonly instance.*)
+  val traverse_pack_file :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
+
+  val test_traverse_pack_file :
+    [ `Reconstruct_index of [ `In_place | `Output of string ]
+    | `Check_index
+    | `Check_and_fix_index ] ->
+    Irmin.config ->
+    unit
+
+  (** {1 Chunking} *)
 
   val split : repo -> unit
   (** [split t] starts a fresh chunk file for appending data. Only allowed on
@@ -55,6 +75,16 @@ module type S = sig
 
       TODO: Detail exceptions raised. *)
 
+  (** {1 On-disk} *)
+
+  val reload : repo -> unit
+  (** [reload t] reloads a readonly pack with the files on disk. Raises
+      [invalid_argument] if called by a read-write pack.*)
+
+  val flush : repo -> unit
+  (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
+      by a readonly instance.*)
+
   val create_one_commit_store : repo -> commit_key -> string -> unit Lwt.t
   (** [create_one_commit_store t key path] creates a new store at [path] from
       the existing one, containing only one commit, specified by the [key]. Note
@@ -64,14 +94,14 @@ module type S = sig
       launched, remain on disk until the operation completes. In particular, a
       Gc running in a different process could remove files from disk. *)
 
-  module Gc : sig
-    (** GC *)
+  (** {1 Garbage Collection} *)
 
+  module Gc : sig
     type process_state =
       [ `Idle | `Running | `Finalised of Stats.Latest_gc.stats ]
     (** The state of the GC process after calling {!finalise_exn} *)
 
-    (** {2 Low-level API} *)
+    (** {1 Low-level API} *)
 
     val start_exn : ?unlink:bool -> repo -> commit_key -> bool Lwt.t
     (** [start_exn] tries to start the GC process and returns true if the GC is
@@ -103,7 +133,7 @@ module type S = sig
 
         TODO: Detail exceptions raised. *)
 
-    (** {2 High-level API} *)
+    (** {1 High-level API} *)
 
     type msg = [ `Msg of string ]
     (** Pretty-print error messages meant for informational purposes, like
@@ -157,27 +187,7 @@ module type S = sig
         gc was called on. *)
   end
 
-  val integrity_check_inodes :
-    ?heads:commit list ->
-    repo ->
-    ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
-
-  val traverse_pack_file :
-    [ `Reconstruct_index of [ `In_place | `Output of string ]
-    | `Check_index
-    | `Check_and_fix_index ] ->
-    Irmin.config ->
-    unit
-
-  val test_traverse_pack_file :
-    [ `Reconstruct_index of [ `In_place | `Output of string ]
-    | `Check_index
-    | `Check_and_fix_index ] ->
-    Irmin.config ->
-    unit
-
-  val stats :
-    dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
+  (** {1 Snapshots} *)
 
   module Snapshot : sig
     type kinded_hash = Contents of hash * metadata | Node of hash
@@ -246,6 +256,41 @@ module type S = sig
       (** [close snapshot] close the [snaphot] instance.*)
     end
   end
+
+  (** {1 Statistics} *)
+
+  val stats :
+    dump_blob_paths_to:string option -> commit:commit -> repo -> unit Lwt.t
+
+  (** {1 Internals} *)
+
+  module Internal : sig
+    (** Unstable internal API agnostic about the underlying storage. Use it only
+        to implement or test inodes. *)
+
+    module Io = Io.Unix
+    module Errs : Io_errors.S with module Io = Io
+    module Index : Pack_index.S with type key = hash
+
+    module File_manager :
+      File_manager.S
+        with module Io = Io
+         and module Errs = Errs
+         and module Index = Index
+
+    val file_manager : repo -> File_manager.t
+
+    module Dict : Dict.S
+
+    val dict : repo -> Dict.t
+
+    module XKey : Pack_key.S with type hash = Schema.Hash.t
+
+    val suffix_commit_mem : repo -> XKey.t -> bool
+    val suffix_node_mem : repo -> XKey.t -> bool
+    val suffix_contents_mem : repo -> XKey.t -> bool
+    val kill_gc : repo -> bool
+  end
 end
 
 module S_is_a_store (X : S) : Irmin.Generic_key.S = X
@@ -275,9 +320,34 @@ module type Maker = sig
        and type commit_key = Schema.Hash.t commit_key
        and type Backend.Remote.endpoint = endpoint
 end
+with type ('h, _) contents_key = 'h Pack_key.t
+ and type 'h node_key = 'h Pack_key.t
+ and type 'h commit_key = 'h Pack_key.t
 
-module type Maker_persistent =
-  Maker
-    with type ('h, _) contents_key = 'h Pack_key.t
-     and type 'h node_key = 'h Pack_key.t
-     and type 'h commit_key = 'h Pack_key.t
+module type KV = sig
+  type endpoint = unit
+  type hash = Irmin.Schema.default_hash
+
+  include Pack_key.Store_spec
+
+  type metadata = Irmin.Metadata.None.t
+
+  module Make (C : Irmin.Contents.S) :
+    S
+      with module Schema.Contents = C
+       and type Schema.Metadata.t = metadata
+       and type Backend.Remote.endpoint = endpoint
+       and type Schema.Hash.t = hash
+       and type contents_key = (hash, C.t) contents_key
+       and type node_key = hash node_key
+       and type commit_key = hash commit_key
+       and type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Branch.t = string
+end
+
+module type Sigs = sig
+  module type S = S
+  module type Maker = Maker
+  module type KV = KV
+end

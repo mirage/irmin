@@ -15,6 +15,7 @@
  *)
 
 open! Import
+include Store_intf
 
 module Maker (Config : Conf.S) = struct
   type endpoint = unit
@@ -211,12 +212,6 @@ module Maker (Config : Conf.S) = struct
             running_gc;
             dispatcher;
           }
-
-        let flush_with_hook ~hook t =
-          File_manager.flush ~hook t.fm |> Errs.raise_if_error
-
-        let reload_with_hook ~hook t =
-          File_manager.reload ~hook t.fm |> Errs.raise_if_error
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
         let fsync t = File_manager.fsync t.fm |> Errs.raise_if_error
@@ -721,6 +716,45 @@ module Maker (Config : Conf.S) = struct
           fsync repo;
           Import.close process
       end
+    end
+
+    module Internal = struct
+      module Io = Io
+      module Errs = Errs
+      module Index = Index
+      module File_manager = File_manager
+
+      let file_manager (repo : X.Repo.t) = repo.fm
+
+      module Dict = Dict
+
+      let dict (repo : X.Repo.t) = repo.dict
+
+      module XKey = XKey
+
+      let suffix_commit_mem repo key =
+        X.Commit.CA.unsafe_find ~check_integrity:false
+          (snd (X.Repo.commit_t repo))
+          key
+        |> Option.is_some
+
+      let suffix_node_mem repo key =
+        X.Node.CA.unsafe_find ~check_integrity:false
+          (snd (X.Repo.node_t repo))
+          key
+        |> Option.is_some
+
+      let suffix_contents_mem repo key =
+        X.Contents.CA.unsafe_find ~check_integrity:false
+          (X.Repo.contents_t repo) key
+        |> Option.is_some
+
+      let kill_gc (repo : X.Repo.t) =
+        match (repo.running_gc : X.Repo.running_gc option) with
+        | None -> false
+        | Some { gc; _ } -> (
+            try X.Gc.cancel gc
+            with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
     end
   end
 end

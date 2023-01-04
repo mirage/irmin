@@ -10,8 +10,7 @@
   push
   custom_graphql
   custom_storage
-  fold
-  gc)
+  fold)
  (libraries
   astring
   cohttp
