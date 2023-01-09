@@ -3,7 +3,7 @@ synopsis: "Irmin implementation of the Tezos context hash specification"
 description: "Irmin implementation of the Tezos context hash specification"
 maintainer: "Tarides <contact@tarides.com>"
 authors: ["Thomas Gazagnaire <thomas@gazagnaire.org>"]
-license: "MIT"
+license: "ISC"
 homepage: "https://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
