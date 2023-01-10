@@ -200,9 +200,10 @@ module Make (Store : Store) = struct
                 | Error (`Msg m) -> Fmt.kstr Lwt.fail_with "Invalid hash %S" m)
               heads
       in
-      let+ result =
+      let* result =
         Store.integrity_check ~ppf:Format.err_formatter ~auto_repair ~heads repo
       in
+      let+ () = Store.Repo.close repo in
       handle_result ?name:None result
 
     let heads =
