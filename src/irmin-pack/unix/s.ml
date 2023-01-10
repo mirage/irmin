@@ -174,8 +174,7 @@ module type S = sig
     Irmin.config ->
     unit
 
-  val stats :
-    dump_blob_paths_to:string option -> commit:commit -> repo -> unit
+  val stats : dump_blob_paths_to:string option -> commit:commit -> repo -> unit
 
   module Snapshot : sig
     type kinded_hash = Contents of hash * metadata | Node of hash

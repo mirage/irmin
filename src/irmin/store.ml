@@ -620,7 +620,8 @@ module Make (B : Backend.S) = struct
             ~set:(h set)
 
     let test_and_set t ~test ~set =
-      Eio.Mutex.use_rw ~protect:true t.lock (fun () -> test_and_set_unsafe t ~test ~set)
+      Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
+          test_and_set_unsafe t ~test ~set)
 
     let fast_forward t ?max_depth ?n new_head =
       let return x = if x then Ok () else Error (`Rejected :> ff_error) in
@@ -665,7 +666,8 @@ module Make (B : Backend.S) = struct
             let c3 = Commit.of_key t.repo c3 in
             test_and_set_unsafe t ~test:head ~set:c3 |> Merge.ok
       in
-      Eio.Mutex.use_rw ~protect:true t.lock (fun () -> retry_merge "merge_head" aux)
+      Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
+          retry_merge "merge_head" aux)
   end
 
   (* Retry an operation until the optimistic lock is happy. Ensure
@@ -775,8 +777,8 @@ module Make (B : Backend.S) = struct
     | None -> Tree.remove root key |> ok
     | Some tree -> Tree.add_tree root key tree |> ok
 
-  let ignore_commit
-      (c : (commit option, [> `Too_many_retries of int ]) result) =
+  let ignore_commit (c : (commit option, [> `Too_many_retries of int ]) result)
+      =
     Result.map (fun _ -> ()) c
 
   let set_tree ?(retries = 13) ?allow_empty ?parents ~info t k v =
@@ -784,8 +786,7 @@ module Make (B : Backend.S) = struct
     ignore_commit
     @@ retry ~retries
     @@ fun () ->
-    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
-    Some v
+    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree -> Some v
 
   let set_tree_exn ?retries ?allow_empty ?parents ~info t k v =
     set_tree ?retries ?allow_empty ?parents ~info t k v |> fail "set_exn"
@@ -795,8 +796,7 @@ module Make (B : Backend.S) = struct
     ignore_commit
     @@ retry ~retries
     @@ fun () ->
-    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
-    None
+    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree -> None
 
   let remove_exn ?retries ?allow_empty ?parents ~info t k =
     remove ?retries ?allow_empty ?parents ~info t k |> fail "remove_exn"

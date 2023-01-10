@@ -261,9 +261,13 @@ end
 
 let tests =
   [
-    Alcotest.test_case "Test index reconstruction" `Quick Test_reconstruct.test_reconstruct;
-    Alcotest.test_case "Test gc not allowed" `Quick Test_reconstruct.test_gc_allowed;
+    Alcotest.test_case "Test index reconstruction" `Quick
+      Test_reconstruct.test_reconstruct;
+    Alcotest.test_case "Test gc not allowed" `Quick
+      Test_reconstruct.test_gc_allowed;
     Alcotest.test_case "Test integrity check" `Quick Test_corrupted_stores.test;
-    Alcotest.test_case "Test integrity check for inodes" `Quick Test_corrupted_inode.test;
-    Alcotest.test_case "Test traverse pack on gced store" `Quick Test_traverse_gced.test_traverse_pack;
+    Alcotest.test_case "Test integrity check for inodes" `Quick
+      Test_corrupted_inode.test;
+    Alcotest.test_case "Test traverse pack on gced store" `Quick
+      Test_traverse_gced.test_traverse_pack;
   ]

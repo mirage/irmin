@@ -15,7 +15,9 @@
  *)
 
 open! Import
-let (let*) = Result.bind
+
+let ( let* ) = Result.bind
+
 module Maker (Config : Conf.S) = struct
   type endpoint = unit
 
@@ -289,17 +291,14 @@ module Maker (Config : Conf.S) = struct
                   start ~unlink ~use_auto_finalisation ~new_files_path t
                     commit_key
                 in
-                match result with
-                | Ok _ -> true
-                | Error e -> Errs.raise_error e)
+                match result with Ok _ -> true | Error e -> Errs.raise_error e)
 
           let finalise_exn ?(wait = false) t =
             let result =
               match t.running_gc with
               | None -> Ok `Idle
               | Some { gc; _ } ->
-                  if t.during_batch then
-                    Error `Gc_forbidden_during_batch
+                  if t.during_batch then Error `Gc_forbidden_during_batch
                   else Gc.finalise ~wait gc
             in
             match result with

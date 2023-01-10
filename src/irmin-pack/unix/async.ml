@@ -56,7 +56,7 @@ module Unix = struct
     match Unix.fork () with
     | 0 ->
         (* Lwt_main.Exit_hooks.remove_all ();
-        Lwt_main.abandon_yielded_and_paused (); *)
+           Lwt_main.abandon_yielded_and_paused (); *)
         (try f ()
          with e ->
            [%log.err

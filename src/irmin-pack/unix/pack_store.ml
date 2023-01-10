@@ -403,9 +403,7 @@ struct
       in
       raise exn
     in
-    match f (cast t) with
-      | v -> on_success v
-      | exception exn -> on_fail exn
+    match f (cast t) with v -> on_success v | exception exn -> on_fail exn
 
   let unsafe_append ~ensure_unique ~overcommit t hash v =
     let kind = Val.kind v in

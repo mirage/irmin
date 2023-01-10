@@ -118,12 +118,10 @@ let test ~full_seg_length ~seg_subset_max_length ~random_test_count =
 
 let tests =
   [
-    Alcotest.test_case "test mapping on small inputs" `Quick
-      (fun () ->
+    Alcotest.test_case "test mapping on small inputs" `Quick (fun () ->
         test ~full_seg_length:10 ~seg_subset_max_length:30
           ~random_test_count:1000);
-    Alcotest.test_case "test mapping on large inputs" `Quick
-      (fun () ->
+    Alcotest.test_case "test mapping on large inputs" `Quick (fun () ->
         test ~full_seg_length:10000 ~seg_subset_max_length:30000
           ~random_test_count:100);
   ]

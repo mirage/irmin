@@ -177,12 +177,7 @@ module type S = sig
       the parameter. *)
 
   val seq :
-    t ->
-    ?offset:int ->
-    ?length:int ->
-    ?cache:bool ->
-    path ->
-    (step * t) Seq.t
+    t -> ?offset:int -> ?length:int -> ?cache:bool -> path -> (step * t) Seq.t
   (** [seq t key] follows the same behavior as {!list} but returns a sequence. *)
 
   val get : t -> path -> contents

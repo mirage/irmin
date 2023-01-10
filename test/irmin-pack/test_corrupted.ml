@@ -69,8 +69,7 @@ let test_corrupted_control_file () =
   assert (not (String.equal control_file_blob1 control_file_mix));
   write_file control_file_path control_file_mix;
   let error =
-    try Ok (Store.Repo.v (config ~fresh:false root))
-    with exn -> Error exn
+    try Ok (Store.Repo.v (config ~fresh:false root)) with exn -> Error exn
   in
   Alcotest.(check bool)
     "is corrupted" true
@@ -78,5 +77,6 @@ let test_corrupted_control_file () =
 
 let tests =
   [
-    Alcotest.test_case "Corrupted control file" `Quick test_corrupted_control_file;
+    Alcotest.test_case "Corrupted control file" `Quick
+      test_corrupted_control_file;
   ]

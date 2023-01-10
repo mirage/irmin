@@ -35,7 +35,7 @@ let test_empty_read () =
   |> L.Store.main
   |> L.read ~path
   |> Alcotest.(check (option int))
-        "checked - reading register without writing" None
+       "checked - reading register without writing" None
 
 let test_write () =
   let t = config () |> L.Store.main in
@@ -60,7 +60,7 @@ let test_clone_merge () =
   merge_into_exn b ~into:t;
   L.read ~path t
   |> Alcotest.(check (option int))
-        "checked - value of main after merging" (Some 10)
+       "checked - value of main after merging" (Some 10)
 
 let test_branch_merge () =
   let r = config () in

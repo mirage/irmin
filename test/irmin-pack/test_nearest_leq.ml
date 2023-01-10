@@ -22,6 +22,5 @@ let test_nearest_leq () =
 
 let tests =
   [
-    Alcotest.test_case "test_nearest_leq" `Quick (fun () ->
-        test_nearest_leq ());
+    Alcotest.test_case "test_nearest_leq" `Quick (fun () -> test_nearest_leq ());
   ]

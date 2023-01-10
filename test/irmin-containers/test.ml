@@ -18,7 +18,7 @@
 let () =
   Eio_main.run @@ fun _env ->
   Alcotest.run "irmin-containers"
-       (Counter.test_cases
-       @ Lww_register.test_cases
-       @ Blob_log.test_cases
-       @ Linked_log.test_cases)
+    (Counter.test_cases
+    @ Lww_register.test_cases
+    @ Blob_log.test_cases
+    @ Linked_log.test_cases)

@@ -131,9 +131,8 @@ struct
       [%log.app "Test context constructed"];
       { store; store_contents; fm; foo; bar }
 
-    let close t =
-      File_manager.close t.fm |> Errs.raise_if_error
-      (* closes dict, inodes and contents store. *)
+    let close t = File_manager.close t.fm |> Errs.raise_if_error
+    (* closes dict, inodes and contents store. *)
   end
 end
 

@@ -1401,8 +1401,7 @@ module Make (P : Backend.S) = struct
         | Some (`Lt depth) ->
             if d < depth - 1 then apply acc |> next else apply acc |> k
         | Some (`Ge depth) -> if d < depth then next acc else apply acc |> next
-        | Some (`Gt depth) ->
-            if d <= depth then next acc else apply acc |> next
+        | Some (`Gt depth) -> if d <= depth then next acc else apply acc |> next
       and aux_uniq : type r. (t, acc, r) cps_folder =
        fun ~path acc d t k ->
         if uniq = `False then (aux [@tailcall]) ~path acc d t k

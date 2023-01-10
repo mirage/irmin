@@ -33,7 +33,7 @@ module type S = sig
   val get_cursor : path:Store.path -> Store.t -> cursor
   (** Create a new cursor over the log entires at the given path *)
 
-  val read : num_items:int -> cursor -> (value list * cursor)
+  val read : num_items:int -> cursor -> value list * cursor
   (** Read at most [num_items] entries from the cursor. If the number specified
       is greater than the number of log entries from the cursor, the log is read
       till the end. If the input cursor has already reached the end, then an

@@ -52,7 +52,7 @@ module Make (Args : Gc_args.S) : sig
 
   val cancel : t -> bool
 
-  val finalise_without_swap : t -> (int63 * int63)
+  val finalise_without_swap : t -> int63 * int63
   (** Waits for the current gc to finish and returns immediately without
       swapping the files and doing the other finalisation steps from [finalise].
 

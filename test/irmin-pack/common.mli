@@ -95,10 +95,10 @@ end) : sig
     dict : Dict.t;
   }
 
-  val get_rw_pack : unit -> t 
-  val get_ro_pack : string -> t 
-  val reopen_rw : string -> t 
-  val close_pack : t -> unit 
+  val get_rw_pack : unit -> t
+  val get_ro_pack : string -> t
+  val reopen_rw : string -> t
+  val close_pack : t -> unit
 end
 
 val get : 'a option -> 'a

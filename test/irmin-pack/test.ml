@@ -16,6 +16,5 @@
 
 let () =
   Eio_main.run @@ fun _env ->
-  Irmin_test.Store.run "irmin-pack" ~misc:Test_pack.misc
-       ~sleep:Eio_unix.sleep
-       (List.map (fun s -> (`Quick, s)) Test_pack.suite)
+  Irmin_test.Store.run "irmin-pack" ~misc:Test_pack.misc ~sleep:Eio_unix.sleep
+    (List.map (fun s -> (`Quick, s)) Test_pack.suite)

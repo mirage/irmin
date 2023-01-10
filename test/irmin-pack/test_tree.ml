@@ -693,13 +693,17 @@ let tests =
   [
     Alcotest.test_case "fold over keys in sorted order" `Quick test_fold_sorted;
     Alcotest.test_case "fold over keys in random order" `Quick test_fold_random;
-    Alcotest.test_case "fold over keys in undefined order" `Quick test_fold_undefined;
-    Alcotest.test_case "test Merkle proof for large inodes" `Quick test_large_inode;
-    Alcotest.test_case "test Merkle proof for small inodes" `Quick test_small_inode;
+    Alcotest.test_case "fold over keys in undefined order" `Quick
+      test_fold_undefined;
+    Alcotest.test_case "test Merkle proof for large inodes" `Quick
+      test_large_inode;
+    Alcotest.test_case "test Merkle proof for small inodes" `Quick
+      test_small_inode;
     Alcotest.test_case "test deeper Merkle proof" `Quick test_deeper_proof;
     Alcotest.test_case "test large Merkle proof" `Slow test_large_proofs;
     Alcotest.test_case "test extenders in stream proof" `Quick test_extenders;
-    Alcotest.test_case "test hardcoded stream proof" `Quick test_hardcoded_stream;
+    Alcotest.test_case "test hardcoded stream proof" `Quick
+      test_hardcoded_stream;
     Alcotest.test_case "test hardcoded proof" `Quick test_hardcoded_proof;
     Alcotest.test_case "test stream proof exn" `Quick test_proof_exn;
     Alcotest.test_case "test reexport node" `Quick test_reexport_node;

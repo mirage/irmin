@@ -79,5 +79,5 @@ let stable =
 let () =
   Eio_main.run @@ fun _env ->
   Irmin_test.Store.run "irmin-chunk" ~slow:true ~misc:[ simple; stable ]
-       ~sleep:Eio_unix.sleep
-       [ (`Quick, Test_chunk.suite) ]
+    ~sleep:Eio_unix.sleep
+    [ (`Quick, Test_chunk.suite) ]
