@@ -180,8 +180,7 @@ let find_root (spec, d) : string option =
       match v with None -> None | Some v -> Some (Type.to_string k.ty v))
 
 module Env = struct
-
-  type _ Effect.t += 
+  type _ Effect.t +=
     | Fs : Eio.Fs.dir Eio.Path.t Effect.t
     | Net : Eio.Net.t Effect.t
 

@@ -262,7 +262,7 @@ module Make (Args : Gc_args.S) = struct
           in
 
           let result =
-            let (let*) = Result.bind in
+            let ( let* ) = Result.bind in
             match (status, gc_output) with
             | `Success, Ok gc_results ->
                 let partial_stats =

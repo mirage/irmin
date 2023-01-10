@@ -215,7 +215,8 @@ module Pack = struct
     test t.pack;
     let t' = Context.get_ro_pack t.name in
     test t'.pack;
-    Context.close_pack t; Context.close_pack t'
+    Context.close_pack t;
+    Context.close_pack t'
 
   let test_readonly_pack () =
     let t = Context.get_rw_pack () in
@@ -250,7 +251,8 @@ module Pack = struct
       let y3 = Pack.find t'.pack k3 in
       Alcotest.(check (option string)) "y3" (Some x3) y3
     in
-    Context.close_pack t; Context.close_pack t'
+    Context.close_pack t;
+    Context.close_pack t'
 
   let test_close_pack_more () =
     (*open and close in rw*)
@@ -275,7 +277,8 @@ module Pack = struct
     let t3 = Context.get_ro_pack t.name in
     let y1 = Pack.find t3.pack k1 |> get in
     Alcotest.(check string) "x1.3" x1 y1;
-    Context.close_pack t2; Context.close_pack t3
+    Context.close_pack t2;
+    Context.close_pack t3
 
   let test_close_pack () =
     let t = Context.get_rw_pack () in
@@ -400,8 +403,10 @@ module Pack = struct
       Alcotest.test_case "RO pack" `Quick test_readonly_pack;
       Alcotest.test_case "close" `Quick test_close_pack;
       Alcotest.test_case "close readonly" `Quick test_close_pack_more;
-      Alcotest.test_case "readonly reload, index flush" `Quick readonly_reload_index_flush;
-      Alcotest.test_case "readonly find, index flush" `Quick readonly_find_index_flush;
+      Alcotest.test_case "readonly reload, index flush" `Quick
+        readonly_reload_index_flush;
+      Alcotest.test_case "readonly find, index flush" `Quick
+        readonly_find_index_flush;
     ]
 end
 

@@ -109,4 +109,4 @@ module IO_mem : sig
   val set_listen_hook : unit -> unit
 end
 
-val run : Eio.Fs.dir Eio.Path.t -> (unit -> 'a) -> 'a 
+val run : Eio.Fs.dir Eio.Path.t -> (unit -> 'a) -> 'a

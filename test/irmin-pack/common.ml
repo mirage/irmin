@@ -166,7 +166,7 @@ struct
   let close_pack t =
     Index.close_exn t.index;
     File_manager.close t.fm |> Errs.raise_if_error
-    (* closes pack and dict *)
+  (* closes pack and dict *)
 end
 
 module Alcotest = struct

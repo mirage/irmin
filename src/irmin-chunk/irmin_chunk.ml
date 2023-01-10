@@ -151,9 +151,7 @@ struct
         | Chunk.Index i ->
             List.fold_left
               (fun acc key ->
-                match CA.find t.db key with
-                | None -> acc
-                | Some v -> aux acc v)
+                match CA.find t.db key with None -> acc | Some v -> aux acc v)
               acc i
       in
       aux [] root |> List.rev
@@ -178,7 +176,9 @@ struct
               else List.length l
             in
             match list_partition n l with
-            | [ i ] -> AO.add t.db key (index t i); key
+            | [ i ] ->
+                AO.add t.db key (index t i);
+                key
             | l -> Fiber.List.map (fun i -> CA.add t.db (index t i)) l |> aux)
       in
       aux l
@@ -212,8 +212,8 @@ struct
     let k' = H.hash (pre_hash_value v) in
     if equal_key k k' then ()
     else
-      Fmt.kstr failwith "corrupted value: got %a, expecting %a"
-        pp_key k' pp_key k
+      Fmt.kstr failwith "corrupted value: got %a, expecting %a" pp_key k' pp_key
+        k
 
   let find t key =
     match find_leaves t key with
@@ -221,7 +221,9 @@ struct
     | Some bufs -> (
         let buf = String.concat "" bufs in
         match value_of_bin_string buf with
-        | Ok va -> check_hash key va; Some va
+        | Ok va ->
+            check_hash key va;
+            Some va
         | Error _ -> None)
 
   let list_range ~init ~stop ~step =
@@ -232,10 +234,9 @@ struct
 
   let unsafe_add_buffer t key buf =
     let len = String.length buf in
-    if len <= t.max_data then begin
+    if len <= t.max_data then (
       AO.add t.db key (data t buf);
-      [%log.debug "add -> %a (no split)" pp_key key]
-    end
+      [%log.debug "add -> %a (no split)" pp_key key])
     else
       let offs = list_range ~init:0 ~stop:len ~step:t.max_data in
       let aux off =

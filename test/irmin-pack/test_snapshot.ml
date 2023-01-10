@@ -240,9 +240,7 @@ let test_gced_store_on_disk () =
   let repo_import =
     S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let () =
-    test_gc ~repo_export ~repo_import ~on_disk:(`Path index_on_disk) 5
-  in
+  let () = test_gc ~repo_export ~repo_import ~on_disk:(`Path index_on_disk) 5 in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
