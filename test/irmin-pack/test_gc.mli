@@ -44,8 +44,8 @@ module Store : sig
   val close : t -> unit
   val start_gc : ?unlink:bool -> t -> S.commit -> unit
   val finalise_gc : t -> unit
-  val commit_1 : t -> (t * S.commit)
-  val commit_2 : t -> (t * S.commit)
-  val commit_3 : t -> (t * S.commit)
+  val commit_1 : t -> t * S.commit
+  val commit_2 : t -> t * S.commit
+  val commit_3 : t -> t * S.commit
   val checkout_exn : t -> S.commit -> t
 end

@@ -233,9 +233,7 @@ let check_del_1 t c =
 
 let check_not_found t key msg =
   let c = S.Commit.of_hash t.repo (S.Commit.hash key) in
-  match c with
-  | None -> ()
-  | Some _ -> Alcotest.failf "should not find %s" msg
+  match c with None -> () | Some _ -> Alcotest.failf "should not find %s" msg
 
 module type Gc_backend = sig
   val init :

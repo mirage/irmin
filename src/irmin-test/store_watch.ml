@@ -195,9 +195,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
             else Alcotest.failf "%s: %a / %a" msg pp a pp b)
 
       let process ?sleep_t t head =
-        let () =
-          match sleep_t with None -> () | Some s -> Zzz.sleep s
-        in
+        let () = match sleep_t with None -> () | Some s -> Zzz.sleep s in
         let () =
           match head with
           | `Added _ -> add t
@@ -372,6 +370,6 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
         TODO: work out why, fix it, and re-enable it.
         See https://github.com/mirage/irmin/issues/1447. *)
     let _ = ("Basic operations", test_watches) in
-    let _ = [ ("Callbacks and exceptions", test_watch_exn) ] in 
+    let _ = [ ("Callbacks and exceptions", test_watch_exn) ] in
     []
 end

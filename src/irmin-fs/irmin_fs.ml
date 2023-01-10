@@ -307,11 +307,11 @@ module Obj = struct
   let file_of_key k =
     let pre = String.with_range k ~len:2 in
     let suf = String.with_range k ~first:2 in
-    let ( / ) = Filename.concat in 
+    let ( / ) = Filename.concat in
     "objects" / pre / suf
 
   let key_of_file path =
-    let ( / ) = Filename.concat in 
+    let ( / ) = Filename.concat in
     let path = string_chop_prefix ~prefix:("objects" / "") path in
     let path = String.cuts ~sep:Filename.dir_sep path in
     let path = String.concat ~sep:"" path in
@@ -372,7 +372,8 @@ module IO_mem = struct
 
   let rec_files (_, dir) =
     Hashtbl.fold
-      (fun ((_, k) as v) _ acc -> if String.is_prefix ~affix:dir k then v :: acc else acc)
+      (fun ((_, k) as v) _ acc ->
+        if String.is_prefix ~affix:dir k then v :: acc else acc)
       t.files []
 
   let file_exists file = Hashtbl.mem t.files file
@@ -427,9 +428,12 @@ let run (fs : Fs.dir Path.t) fn =
   Switch.run @@ fun sw ->
   Irmin.Backend.Watch.set_watch_switch sw;
   let open Effect.Deep in
-  try_with fn () {
-    effc = fun (type a) (e : a Effect.t) ->
-      match e with
-      | Irmin.Backend.Conf.Env.Fs -> Some (fun (k : (a, _) continuation) -> continue k fs)
-      | _ -> None
-  }
+  try_with fn ()
+    {
+      effc =
+        (fun (type a) (e : a Effect.t) ->
+          match e with
+          | Irmin.Backend.Conf.Env.Fs ->
+              Some (fun (k : (a, _) continuation) -> continue k fs)
+          | _ -> None);
+    }

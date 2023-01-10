@@ -61,7 +61,7 @@ module Unix = struct
     match Unix.fork () with
     | 0 ->
         (* Lwt_main.Exit_hooks.remove_all ();
-        Lwt_main.abandon_yielded_and_paused (); *)
+           Lwt_main.abandon_yielded_and_paused (); *)
         let exit_code =
           match f () with
           | () -> Exit_code.success

@@ -174,7 +174,7 @@ struct
     let config = config ~root in
     let size () = size ~root in
     let t = { t with root } in
-    Eio_main.run @@ fun _ -> 
+    Eio_main.run @@ fun _ ->
     init t config;
     run t config size
 

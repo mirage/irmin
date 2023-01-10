@@ -42,7 +42,7 @@ let test_append_read_all () =
   L.append ~path t "main.2";
   L.read_all ~path t
   |> Alcotest.(check (list string))
-        "checked - log after appending" [ "main.2"; "main.1" ]
+       "checked - log after appending" [ "main.2"; "main.1" ]
 
 let test_read_incr () =
   let cur = config () |> L.Store.main |> L.get_cursor ~path in
@@ -67,8 +67,8 @@ let test_clone_merge () =
   merge_into_exn b ~into:t;
   L.read_all ~path t
   |> Alcotest.(check (list string))
-        "checked - log after appending"
-        [ "main.3"; "clone.1"; "main.2"; "main.1" ]
+       "checked - log after appending"
+       [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
 let test_branch_merge () =
   let r = config () in
@@ -89,13 +89,13 @@ let test_branch_merge () =
   let () =
     L.read_all ~path b3
     |> Alcotest.(check (list string))
-          "checked - value of b3"
-          [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
+         "checked - value of b3"
+         [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
   in
   L.read_all ~path b4
   |> Alcotest.(check (list string))
-        "checked - value of b4"
-        [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
+       "checked - value of b4"
+       [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
 
 let test_cases =
   [

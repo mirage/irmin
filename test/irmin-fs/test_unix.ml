@@ -19,5 +19,5 @@ let () =
   Irmin_fs.run env#fs @@ fun () ->
   Irmin_watcher.run @@ fun () ->
   Irmin_test.Store.run "irmin-fs.unix" ~slow:false ~sleep:Eio_unix.sleep
-       ~misc:[]
-       [ (`Quick, Test_fs_unix.suite) ]
+    ~misc:[]
+    [ (`Quick, Test_fs_unix.suite) ]
