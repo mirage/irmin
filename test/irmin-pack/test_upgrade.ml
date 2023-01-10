@@ -270,7 +270,7 @@ module Store = struct
     with Irmin_pack_unix.Pack_store.Invalid_read _ ->
       (* In RW mode, [mem] will raise an exception if the offset of the key is
          out of the bounds of the pack file *)
-    false
+      false
 
   let put_borphan bstore =
     let k = S.Backend.Contents.add bstore "borphan" in
@@ -645,13 +645,13 @@ let test_one t ~ro_open_at ~ro_sync_at =
 let test_one_guarded setup ~ro_open_at ~ro_sync_at =
   let t = create_test_env setup in
   try
-      let () = test_one t ~ro_open_at ~ro_sync_at in
-      close_everything t
+    let () = test_one t ~ro_open_at ~ro_sync_at in
+    close_everything t
   with
-      | Skip_the_rest_of_that_test ->
-          [%logs.app "*** skip rest of %a" pp_setup setup];
-          close_everything t
-      | exn -> raise exn
+  | Skip_the_rest_of_that_test ->
+      [%logs.app "*** skip rest of %a" pp_setup setup];
+      close_everything t
+  | exn -> raise exn
 
 (** All possible interleaving of the ro calls (open and sync) with the rw calls
     (open, write1, gc and write2). *)

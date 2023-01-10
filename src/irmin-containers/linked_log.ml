@@ -89,7 +89,7 @@ module type S = sig
   type cursor
 
   val get_cursor : path:Store.path -> Store.t -> cursor
-  val read : num_items:int -> cursor -> (value list * cursor)
+  val read : num_items:int -> cursor -> value list * cursor
 end
 
 module Make

@@ -4,10 +4,4 @@
  (package irmin-test)
  (preprocess
   (pps ppx_irmin.internal))
- (libraries
-  irmin
-  eio_main
-  irmin.mem
-  irmin-test
-  alcotest
-  vector))
+ (libraries irmin eio_main irmin.mem irmin-test alcotest vector))

@@ -218,51 +218,51 @@ module Make_helpers (S : Generic_key) = struct
     let repo_ptr = ref None in
     let config_ptr = ref None in
     try
-        let module Conf = Irmin.Backend.Conf in
-        let generate_random_root config =
-          let sp = Conf.spec config in
-          match Conf.Spec.find_key sp "root" with
-          | None -> config
-          | Some (K k) ->
-              let id = Random.int 100 |> string_of_int in
-              let root_value =
-                match Conf.find_root config with
-                | None -> "test_" ^ id
-                | Some v -> v ^ "_" ^ id
-              in
-              let v =
-                Irmin.Type.of_string (Conf.ty k) root_value |> Result.get_ok
-              in
-              Conf.add config k v
-        in
-        let config = generate_random_root x.config in
-        config_ptr := Some config;
-        let () = x.init ~config in
-        let repo = S.Repo.v config in
-        repo_ptr := Some repo;
-        let () = test repo in
-        let () =
-          (* [test] might have already closed the repo. That
-             [ignore_thunk_errors] shall be removed as soon as all stores
-             support double closes. *)
-          ignore_thunk_errors (fun () -> S.Repo.close repo)
-        in
-        x.clean ~config
-      with exn ->
-        (* [test] failed, attempt an errorless cleanup and forward the right
-           backtrace to the user. *)
-        let bt = Printexc.get_raw_backtrace () in
-        let () =
-          match !repo_ptr with
-          | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
-          | None -> ()
-        in
-        let () =
-          match !config_ptr with
-          | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
-          | None ->()
-        in
-        Printexc.raise_with_backtrace exn bt
+      let module Conf = Irmin.Backend.Conf in
+      let generate_random_root config =
+        let sp = Conf.spec config in
+        match Conf.Spec.find_key sp "root" with
+        | None -> config
+        | Some (K k) ->
+            let id = Random.int 100 |> string_of_int in
+            let root_value =
+              match Conf.find_root config with
+              | None -> "test_" ^ id
+              | Some v -> v ^ "_" ^ id
+            in
+            let v =
+              Irmin.Type.of_string (Conf.ty k) root_value |> Result.get_ok
+            in
+            Conf.add config k v
+      in
+      let config = generate_random_root x.config in
+      config_ptr := Some config;
+      let () = x.init ~config in
+      let repo = S.Repo.v config in
+      repo_ptr := Some repo;
+      let () = test repo in
+      let () =
+        (* [test] might have already closed the repo. That
+           [ignore_thunk_errors] shall be removed as soon as all stores
+           support double closes. *)
+        ignore_thunk_errors (fun () -> S.Repo.close repo)
+      in
+      x.clean ~config
+    with exn ->
+      (* [test] failed, attempt an errorless cleanup and forward the right
+         backtrace to the user. *)
+      let bt = Printexc.get_raw_backtrace () in
+      let () =
+        match !repo_ptr with
+        | Some repo -> ignore_thunk_errors (fun () -> S.Repo.close repo)
+        | None -> ()
+      in
+      let () =
+        match !config_ptr with
+        | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
+        | None -> ()
+      in
+      Printexc.raise_with_backtrace exn bt
 end
 
 let filter_src src =
