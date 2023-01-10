@@ -28,7 +28,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
     let sleep_t = min sleep_t 1. in
     Lwt.pause () >>= fun () -> Zzz.sleep sleep_t
 
-  let now_s () = Mtime.Span.to_s (Mtime_clock.elapsed ())
+  let now_s () = Mtime.span_to_s (Mtime_clock.elapsed ())
 
   (* Re-apply [f] at intervals of [sleep_t] while [f] raises exceptions and
      [while_ ()] holds. *)

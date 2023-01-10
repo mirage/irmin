@@ -18,7 +18,7 @@ depends: [
   "ocaml"        {>= "4.02.3"}
   "dune"         {>= "2.9.0"}
   "alcotest-lwt" {>= "1.5.0"}
-  "mtime"        {>= "1.0.0" & < "2.0.0"}
+  "mtime"        {>= "2.0.0"}
   "astring"
   "fmt"
   "jsonm"

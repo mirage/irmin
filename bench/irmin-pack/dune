@@ -1,7 +1,7 @@
 (executables
  (names main)
  (public_names bench-pack)
- (modules main import)
+ (modules main)
  (package irmin-bench)
  (preprocess
   (pps ppx_irmin.internal ppx_repr))
@@ -42,7 +42,8 @@
   trace_replay
   trace_replay_intf
   tezos_history_metrics
-  trace_stat_summary_cb)
+  trace_stat_summary_cb
+  import)
  (preprocess
   (pps ppx_irmin.internal ppx_repr ppx_deriving.enum))
  (libraries

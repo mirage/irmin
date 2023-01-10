@@ -36,7 +36,7 @@ let reporter :
     in
     let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
     let with_stamp h tags k fmt =
-      let dt = Mtime.Span.to_us (Clock.count start_time) in
+      let dt = Mtime.span_to_us (Clock.count start_time) in
       let source_pos_text, source_pos_colour =
         match tags with
         | None -> (Logs.Src.name src, `Magenta)
