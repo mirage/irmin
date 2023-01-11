@@ -76,11 +76,7 @@ module Make (Args : Gc_args.S) = struct
       if not (Priority_queue.is_empty todos) then (
         let offset, has_children = Priority_queue.pop todos in
         let node_key = Node_store.key_of_offset node_store offset in
-        let length =
-          match Pack_key.inspect node_key with
-          | Direct { length; _ } -> length
-          | Indexed _ -> assert false
-        in
+        let length = Node_store.get_length_exn node_store node_key in
         f ~off:offset ~len:length;
         if has_children then iter_node node_key;
         loop ())
@@ -97,28 +93,18 @@ module Make (Args : Gc_args.S) = struct
         | `Contents key -> (key, false)
         | `Inode key | `Node key -> (key, true)
       in
-      let offset =
-        match Pack_key.to_offset key with
-        | Some offset -> offset
-        | None ->
-            raise
-              (Pack_error (`Node_or_contents_key_is_indexed (string_of_key key)))
-      in
-      schedule offset has_children
-    and schedule offset has_children =
-      Priority_queue.add todos offset has_children
+      schedule key has_children
+    and schedule key has_children =
+      match Node_store.get_offset_exn node_store key with
+      | offset -> Priority_queue.add todos offset has_children
+      | exception Pack_store.Dangling_hash -> ()
     in
     (* Include the commit parents in the reachable file.
        The parent(s) of [commit] must be included in the iteration
        because, when decoding the [Commit_value.t] at [commit], the
        parents will have to be read in order to produce a key for them. *)
-    let schedule_parent_exn key =
-      match Pack_key.to_offset key with
-      | Some offset -> schedule offset false
-      | None -> ()
-    in
-    List.iter schedule_parent_exn (Commit_value.parents commit);
-    schedule_kinded (`Node (Commit_value.node commit));
+    List.iter (fun key -> schedule key false) (Commit_value.parents commit);
+    schedule (Commit_value.node commit) true;
     loop ()
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
@@ -236,14 +222,11 @@ module Make (Args : Gc_args.S) = struct
         stats := Gc_stats.Worker.incr_objects_traversed !stats;
         register_entry ~off ~len
       in
-      let register_object_exn key =
-        match Pack_key.inspect key with
-        | Direct { offset; length; _ } -> register_entry ~off:offset ~len:length
-        | Indexed _ -> ()
-      in
 
       (* Step 3.3 Put the commit in the reachable file. *)
-      register_object_exn commit_key;
+      let off = Node_store.get_offset_exn node_store commit_key in
+      let len = Node_store.get_length_exn node_store commit_key in
+      register_entry ~off ~len;
 
       (* Step 3.4 Put the nodes and contents in the reachable file. *)
       stats :=
