@@ -6,6 +6,8 @@
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
 
+## 3.5.1
+
 ### Fixed
 
 - **irmin-pack**
