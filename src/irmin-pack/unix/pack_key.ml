@@ -51,6 +51,12 @@ let to_offset (State t) =
   | Offset offset -> Some offset
   | Indexed _ -> None
 
+let to_length (State t) =
+  match t.state with
+  | Direct t -> Some t.length
+  | Offset _ -> None
+  | Indexed _ -> None
+
 let promote_exn (State t) ~offset ~length =
   match t.state with
   | Direct _ -> failwith "Attempted to promote a key that is already Direct"
