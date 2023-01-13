@@ -65,7 +65,6 @@ module type Args = sig
   module Hash : Irmin.Hash.S
   module Index : Pack_index.S with type key := Hash.t
   module Inode : Inode.S with type hash := Hash.t
-  module Dict : Dict.S
   module Contents : Pack_value.S
   module Commit : Pack_value.S
 end
@@ -86,7 +85,7 @@ module Make (Args : Args) : sig
     unit
 end = struct
   open Args
-  module Errs = Io_errors.Make (Args.File_manager.Io)
+  module Errs = Io_errors.Make (File_manager.Io)
 
   let pp_key = Irmin.Type.pp Hash.t
   let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
@@ -236,6 +235,17 @@ end = struct
     let length_length = !pos_ref - ilength in
     Hash.hash_size + 1 + length_length + suffix_length
 
+  let guess_entry_len dispatcher ~off =
+    let min_bytes_needed_to_discover_length = Hash.hash_size + 1 in
+    let max_bytes_needed_to_discover_length =
+      min_bytes_needed_to_discover_length + Varint.max_encoded_size
+    in
+    let buffer = Bytes.create max_bytes_needed_to_discover_length in
+    Dispatcher.read_range_exn dispatcher ~off
+      ~min_len:min_bytes_needed_to_discover_length
+      ~max_len:max_bytes_needed_to_discover_length buffer;
+    decode_entry_len buffer
+
   (* Read at most [len], by checking that [(off, len)] don't go out of bounds of
      the suffix file. *)
   let io_read_at_most ~off ~len buffer dispatcher =
@@ -245,8 +255,7 @@ end = struct
       if bytes_after_off < Int63.of_int len then Int63.to_int bytes_after_off
       else len
     in
-    let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
-    Dispatcher.read_exn dispatcher accessor buffer
+    Dispatcher.read_exn dispatcher ~off ~len buffer
 
   let on_entry { data; key } stats iter_pack_entry missing_hash =
     [%log.debug "k = %a (off, len, kind) = %a" pp_key key pp_index_value data];
@@ -262,19 +271,10 @@ end = struct
   let ingest_data_file_after_v3 ~initial_buffer_size ~progress dispatcher
       iter_pack_entry =
     let stats = Stats.empty () in
-    let min_bytes_needed_to_discover_length = Hash.hash_size + 1 in
-    let max_bytes_needed_to_discover_length =
-      Hash.hash_size + 1 + Varint.max_encoded_size
-    in
-    let seq =
-      Dispatcher.create_sequential_accessor_seq dispatcher
-        ~min_header_len:min_bytes_needed_to_discover_length
-        ~max_header_len:max_bytes_needed_to_discover_length
-        ~read_len:decode_entry_len
-    in
     let buffer = Bytes.create initial_buffer_size in
-    let on_entry missing_hash (off, accessor) =
-      Dispatcher.read_exn dispatcher accessor buffer;
+    let on_entry missing_hash off =
+      let len = guess_entry_len dispatcher ~off in
+      Dispatcher.read_exn dispatcher ~off ~len buffer;
       let { key; data } =
         decode_entry_exn ~off
           ~buffer:(Bytes.unsafe_to_string buffer)
@@ -285,10 +285,20 @@ end = struct
       assert (off = off');
       Stats.add stats kind;
       progress entry_lenL;
-      on_entry { key; data } stats iter_pack_entry missing_hash
+      (entry_len, on_entry { key; data } stats iter_pack_entry missing_hash)
     in
-
-    let missing_hash = Seq.fold_left on_entry None seq in
+    let rec traverse off missing_hash =
+      match Dispatcher.next_valid_offset dispatcher ~off with
+      | None -> missing_hash
+      | Some off ->
+          let len, missing_hash = on_entry missing_hash off in
+          let after_off =
+            let open Int63.Syntax in
+            off + Int63.of_int len
+          in
+          traverse after_off missing_hash
+    in
+    let missing_hash = traverse Int63.zero None in
     (stats, missing_hash)
 
   let ingest_data_file_before_v3 ~initial_buffer_size ~progress ~total

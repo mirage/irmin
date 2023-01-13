@@ -29,10 +29,7 @@ module Private = struct
   module Index = Irmin_pack_unix.Index.Make (Schema.Hash)
   module Io = Irmin_pack_unix.Io.Unix
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
-  module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Io)
-
-  module File_manager =
-    Irmin_pack_unix.File_manager.Make (Io) (Index) (Mapping_file) (Errs)
+  module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Index) (Errs)
 end
 
 module Util = struct

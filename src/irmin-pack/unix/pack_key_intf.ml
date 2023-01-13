@@ -88,6 +88,7 @@ module type Sigs = sig
   val v_offset : int63 -> 'h t
   val promote_exn : 'h t -> offset:int63 -> length:int -> unit
   val to_offset : 'h t -> int63 option
+  val to_hash : 'h t -> 'h
 
   module type S = sig
     type hash

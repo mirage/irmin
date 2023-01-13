@@ -64,7 +64,7 @@ module type S = sig
   module Suffix : Chunked_suffix.S with module Io = Io
   module Index : Pack_index.S
   module Errs : Io_errors.S with module Io = Io
-  module Mapping_file : Mapping_file.S with module Io = Io
+  module Sparse : Sparse_file.S with module Io = Io
 
   type t
 
@@ -74,8 +74,7 @@ module type S = sig
   val dict : t -> Dict.t
   val suffix : t -> Suffix.t
   val index : t -> Index.t
-  val mapping : t -> Mapping_file.t option
-  val prefix : t -> Io.t option
+  val prefix : t -> Sparse.t option
 
   type create_error :=
     [ Io.create_error
@@ -277,11 +276,6 @@ module type Sigs = sig
   module Make
       (Io : Io.S)
       (Index : Pack_index.S with module Io = Io)
-      (Mapping_file : Mapping_file.S with module Io = Io)
       (Errs : Io_errors.S with module Io = Io) :
-    S
-      with module Io = Io
-       and module Index = Index
-       and module Mapping_file = Mapping_file
-       and module Errs = Errs
+    S with module Io = Io and module Index = Index and module Errs = Errs
 end

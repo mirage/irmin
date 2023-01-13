@@ -300,6 +300,17 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     read Int63.zero off (Int63.of_int len)
 
+  let read_range_exn t ~off ~min_len ~max_len buf =
+    let len =
+      let max_off = end_soff t in
+      let bytes_after_off = Int63.(to_int Syntax.(max_off - off)) in
+      if bytes_after_off < min_len then
+        raise (Errors.Pack_error `Read_out_of_bounds)
+      else if bytes_after_off > max_len then max_len
+      else bytes_after_off
+    in
+    read_exn t ~off ~len buf
+
   let append_exn t s = Ao.append_exn (appendable_ao t) s
 
   let add_chunk ~auto_flush_threshold ~auto_flush_procedure t =

@@ -45,11 +45,7 @@ struct
 
   module Io = Irmin_pack_unix.Io.Unix
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
-  module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Io)
-
-  module File_manager =
-    Irmin_pack_unix.File_manager.Make (Io) (Index) (Mapping_file) (Errs)
-
+  module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Index) (Errs)
   module Dict = Irmin_pack_unix.Dict.Make (File_manager)
   module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 

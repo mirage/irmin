@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Import
+open! Import
 
 module Object_counter : sig
   type t
@@ -66,22 +66,24 @@ end = struct
     (!(t.nb_contents), !(t.nb_nodes), !(t.nb_commits))
 end
 
-(** [nearest_leq ~arr ~get ~lo ~hi ~key] returns the nearest entry in the sorted
-    [arr] that is [<=] the given key. Routine is based on binary search. *)
-let nearest_leq ~arr ~get ~lo ~hi ~key =
-  assert (lo <= hi);
-  if get arr lo > key then `All_gt_key
-  else if get arr hi <= key then `Some hi
-  else
-    let interval lo hi =
-      assert (get arr lo <= key && key < get arr hi);
-      assert (lo < hi);
-      (lo, hi)
-    in
-    interval lo hi
-    |> iter_k (fun ~k (lo, hi) ->
-           if lo + 1 = hi then `Some lo
-           else
-             let mid = (lo + hi) / 2 in
-             if get arr mid <= key then k (interval mid hi)
-             else k (interval lo mid))
+(** [nearest_geq ~arr ~get ~lo ~hi ~key] returns the index of the nearest entry
+    in the sorted [arr] that is [>=] the given key. Routine is based on binary
+    search. *)
+let nearest_geq ~arr ~get ~lo ~hi ~key =
+  match Stdlib.compare key (get arr hi) with
+  | 0 -> Some hi
+  | c when c > 0 -> None
+  | _ when get arr lo >= key -> Some lo
+  | _ ->
+      let rec search lo hi =
+        assert (lo < hi);
+        assert (get arr lo < key && key < get arr hi);
+        if lo + 1 = hi then Some hi
+        else
+          let mid = (lo + hi) / 2 in
+          match Stdlib.compare key (get arr mid) with
+          | 0 -> Some mid
+          | c when c < 0 -> search lo mid
+          | _ -> search mid hi
+      in
+      search lo hi

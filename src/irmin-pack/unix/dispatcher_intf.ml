@@ -18,62 +18,19 @@ open Import
 
 module type S = sig
   module Fm : File_manager.S
-  module Mapping_file : Mapping_file.S with module Io = Fm.Io
 
   type t
-  type location = private Prefix | Suffix [@@deriving irmin]
-
-  type accessor = private { poff : int63; len : int63; location : location }
-  [@@deriving irmin]
-  (** An [accessor] designates a valid readable area in one of the pack files.
-
-      Accessors are meant to be used from within the [Irmin_pack_unix]
-      implementation. Their validity is only checked at creation time, so they
-      are not meant to be kept for a long time. (e.g. if kept over a GC
-      finalisation, an accessor could no longer point to a valid area because
-      the GC changes the domain of valid readable areas) *)
 
   val v : Fm.t -> (t, [> Fm.Errs.t ]) result
 
-  val create_accessor_exn : t -> off:int63 -> len:int -> accessor
-  (** [create_accessor_exn] returns an accessor if [off] and [len] designate a
-      readable area of the pack files, otherwise it raises one of
-      [Errors.Pack_error `Read_out_of_bounds],
-      [Errors.Pack_error (`Invalid_prefix_read _)] and
-      [Errors.Pack_error (`Invalid_read_of_gced_object _)]. *)
+  val read_exn : t -> off:int63 -> len:int -> bytes -> unit
+  (** [read_exn t ~off ~len buffer] writes into [buffer] the bytes from [off] to
+      [off+len]. *)
 
-  val create_accessor_from_range_exn :
-    t -> off:int63 -> min_len:int -> max_len:int -> accessor
-  (** [create_accessor_from_maxlen_exn] is similar to [create_accessor_exn]
-      except that the precise length of the span will be decided during the
-      call. *)
-
-  val create_accessor_to_prefix_exn :
-    Mapping_file.t -> off:int63 -> len:int -> accessor
-  (** [create_accessor_to_prefix_exn mapping ~off ~len] returns an accessor for
-      the prefix file associated with [mapping]. *)
-
-  val shrink_accessor_exn : accessor -> new_len:int -> accessor
-  (** [shrink_accessor_exn a ~new_len] is [a] where the length is smaller than
-      in [a].*)
-
-  val create_sequential_accessor_seq :
-    t ->
-    min_header_len:int ->
-    max_header_len:int ->
-    read_len:(bytes -> int) ->
-    (int63 * accessor) Seq.t
-  (** [create_sequential_accessor_seq ~min_header_len ~max_header_len ~read_len]
-      returns a sequence of accessors, which simulates iterating sequentially
-      trough the entries of a pack file. [min_header_len] & [max_header_len]
-      represents the minimum & maximum lengths required to read the header of an
-      entry. [read_len] will then be called with a buffer containing the header
-      of the entry and should return the total length of the entry (the length
-      of he header plus the length of the payload)*)
-
-  val read_exn : t -> accessor -> bytes -> unit
-  (** [read_exn] either reads in the prefix or the suffix file, depending on
-      [accessor]. *)
+  val read_range_exn :
+    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> unit
+  (** Same as [read_exn], the amount read is [max_len] if possible or at least
+      [min_len] if reading more would step over a hole in the sparse file. *)
 
   val end_offset : t -> int63
   (** [end_offset] is the end offsets of the pack entries, counting that the
@@ -110,6 +67,11 @@ module type S = sig
       - If the range designates a slice of contiguous live bytes that starts in
         the prefix and ends in the suffix. This implies that the last chunk of
         the prefix is contiguous to the start of the suffix. *)
+
+  val next_valid_offset : t -> off:int63 -> int63 option
+  (** [next_valid_offset t ~off] returns an offset greater or equal to [off]
+      that can be read. Used to iterate over the entries while skipping over the
+      holes in the sparse file. *)
 end
 
 module type Sigs = sig

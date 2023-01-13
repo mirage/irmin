@@ -82,18 +82,14 @@ let test_read () =
   let _ =
     Alcotest.check_raises "cannot read node_1"
       (Irmin_pack_unix.Errors.Pack_error
-         (`Invalid_read_of_gced_object
-           "offset 30 is before the first chunk, or the prefix is empty"))
+         (`Invalid_sparse_read "offset 30 is in a sparse hole"))
       (fun () ->
-        Dispatcher.create_accessor_exn dsp ~off:node_1.off ~len:node_1.len
-        |> ignore)
+        let buf = Bytes.create node_1.len in
+        Dispatcher.read_exn dsp ~off:node_1.off ~len:node_1.len buf)
   in
   let test_accessor msg obj =
-    let accessor =
-      Dispatcher.create_accessor_exn dsp ~off:obj.off ~len:obj.len
-    in
     let buf = Bytes.create obj.len in
-    let () = Dispatcher.read_exn dsp accessor buf in
+    Dispatcher.read_exn dsp ~off:obj.off ~len:obj.len buf;
     check_hex msg buf obj.hex
   in
   test_accessor "node_2" node_2;

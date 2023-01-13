@@ -549,7 +549,7 @@ let misc =
     ("split", Test_gc.Split.tests);
     ("flush", Test_flush_reload.tests);
     ("mapping", Test_mapping.tests);
-    ("test_nearest_leq", Test_nearest_leq.tests);
+    ("test_nearest_geq", Test_nearest_geq.tests);
     ("layout", Layout.tests);
     ("dispatcher", Test_dispatcher.tests);
     ("corrupted", Test_corrupted.tests);
