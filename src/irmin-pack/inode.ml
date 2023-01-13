@@ -688,7 +688,8 @@ struct
             | { target = Lazy key } as t -> (
                 if not force then raise_dangling_hash context (Key.to_hash key);
                 match find ~expected_depth key with
-                | None -> Fmt.failwith "%a: unknown key" pp_key key
+                | None ->
+                    Fmt.failwith "%a: unknown inode key (%s)" pp_key key context
                 | Some x ->
                     if cache then t.target <- Lazy_loaded x;
                     x))
