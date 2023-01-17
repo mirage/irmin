@@ -6,6 +6,11 @@
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
 
+### Fixed
+- **irmin-pack**
+  - Unhandled exceptions in GC worker process are now reported as a failure
+    (#2163, @metanivek)
+
 ## 3.5.1
 
 ### Fixed

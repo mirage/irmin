@@ -16,7 +16,8 @@
   test_mapping
   test_nearest_leq
   test_dispatcher
-  test_corrupted)
+  test_corrupted
+  test_async)
  (libraries
   alcotest
   fmt
