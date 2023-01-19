@@ -24,7 +24,10 @@
     to be contained in the header of other files (e.g. the version of the store
     used to be stored in each files, it is now solely stored in the control
     file). The upgrade of a store to [`V3] was done silently when opening a
-    store in rw mode. *)
+    store in rw mode.
+
+    [`V4] introduced the chunked suffix. Upgrade from [`V3] happened on first
+    write to the control file. *)
 
 type t = [ `V1 | `V2 | `V3 | `V4 ] [@@deriving irmin]
 (** The type for version numbers. *)

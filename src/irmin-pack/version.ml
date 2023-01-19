@@ -19,7 +19,7 @@
 
 type t = [ `V1 | `V2 | `V3 | `V4 ] [@@deriving irmin]
 
-let latest = `V3
+let latest = `V4
 
 let enum =
   [ (`V1, "00000001"); (`V2, "00000002"); (`V3, "00000003"); (`V4, "00000004") ]
