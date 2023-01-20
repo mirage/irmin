@@ -222,7 +222,13 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
          read their size on disk. TODO: this is needed for the Ao module's current
          APIs but could perhaps be removed by future Ao API modifications. *)
       let+ end_poff =
-        if is_appendable then Ok appendable_chunk_poff else Io.size_of_path path
+        if is_appendable then Ok appendable_chunk_poff
+        else
+          match Io.size_of_path path with
+          (* Subtract [dead_header_size] because the poff value stored in the
+             control file does the same. *)
+          | Ok s -> Ok Int63.Syntax.(s - Int63.of_int dead_header_size)
+          | Error _ as e -> e
       in
       { dead_header_size; end_poff }
   end
