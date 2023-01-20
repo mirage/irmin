@@ -74,6 +74,7 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Ro_not_allowed
     | `Io_misc of Io.misc_error
     | `Split_forbidden_during_batch
+    | `Split_disallowed
     | `Multiple_empty_chunks
     | `Forbidden_during_gc ]
   [@@deriving irmin]

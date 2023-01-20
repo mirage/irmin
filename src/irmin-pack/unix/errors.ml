@@ -70,6 +70,7 @@ type base_error =
   | `Invalid_read_of_gced_object of string
   | `Inconsistent_store
   | `Split_forbidden_during_batch
+  | `Split_disallowed
   | `Multiple_empty_chunks
   | `Forbidden_during_gc ]
 [@@deriving irmin ~pp]
