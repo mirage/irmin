@@ -179,11 +179,29 @@ module Alcotest = struct
 
   let int63 = testable Int63.pp Int63.equal
 
+  let check_raises_pack_error msg pass f =
+    Lwt.try_bind f
+      (fun _ ->
+        Alcotest.failf
+          "Fail %s: expected function to raise, but it returned instead." msg)
+      (function
+        | Irmin_pack_unix.Errors.Pack_error e as exn -> (
+            match pass e with
+            | true -> Lwt.return_unit
+            | false ->
+                Alcotest.failf
+                  "Fail %s: function raised unexpected exception %s" msg
+                  (Printexc.to_string exn))
+        | exn ->
+            Alcotest.failf
+              "Fail %s: expected function to raise Pack_error, but it raised \
+               %s instead"
+              msg (Printexc.to_string exn))
+
   (** TODO: upstream this to Alcotest *)
   let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
-    Lwt.catch
-      (fun x ->
-        let* (_ : a) = f x in
+    Lwt.try_bind f
+      (fun _ ->
         Alcotest.failf
           "Fail %s: expected function to raise %s, but it returned instead." msg
           (Printexc.to_string exn))

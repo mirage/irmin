@@ -182,7 +182,7 @@ module Maker (Config : Conf.S) = struct
                 match Io.classify_path path with
                 | `Directory -> Some path
                 | `No_such_file_or_directory ->
-                    Errs.raise_error `No_such_file_or_directory
+                    Errs.raise_error (`No_such_file_or_directory path)
                 | `File | `Other -> Errs.raise_error (`Not_a_directory path))
           in
           let fm =

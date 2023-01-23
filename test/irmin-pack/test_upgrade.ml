@@ -589,7 +589,10 @@ let open_ro t current_phase =
         let+ repo =
           match (t.setup.start_mode, current_phase) with
           | From_scratch, S1_before_start ->
-              fail_and_skip `No_such_file_or_directory
+              let missing_path =
+                Irmin_pack.Layout.V1_and_v2.pack ~root:root_local_build
+              in
+              fail_and_skip (`No_such_file_or_directory missing_path)
           | From_v2, S1_before_start -> fail_and_skip `Migration_needed
           | (From_v2 | From_v3 | From_v3_c0_gced | From_scratch), _ ->
               Store.v t.setup ~readonly:true ~fresh:false root_local_build

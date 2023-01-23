@@ -61,7 +61,9 @@ module Unix = struct
   type create_error = [ `Io_misc of misc_error | `File_exists of string ]
 
   type open_error =
-    [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
+    [ `Io_misc of misc_error
+    | `No_such_file_or_directory of string
+    | `Not_a_file ]
 
   type read_error =
     [ `Io_misc of misc_error
@@ -75,7 +77,7 @@ module Unix = struct
   type mkdir_error =
     [ `Io_misc of misc_error
     | `File_exists of string
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Invalid_parent_directory ]
 
   let raise_misc_error (x, y, z) = raise (Unix.Unix_error (x, y, z))
@@ -135,7 +137,7 @@ module Unix = struct
   let open_ ~path ~readonly =
     match classify_path path with
     | `Directory | `Other -> Error `Not_a_file
-    | `No_such_file_or_directory -> Error `No_such_file_or_directory
+    | `No_such_file_or_directory -> Error (`No_such_file_or_directory path)
     | `File -> (
         let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
         try
@@ -282,7 +284,7 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
     | `Directory, (`File | `Directory | `Other) -> Error (`File_exists path)
     | `No_such_file_or_directory, `No_such_file_or_directory ->
-        Error `No_such_file_or_directory
+        Error (`No_such_file_or_directory path)
     | _ -> Error `Invalid_parent_directory
 
   let unlink path =

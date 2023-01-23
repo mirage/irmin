@@ -53,6 +53,13 @@ module Alcotest : sig
   val int63 : Int63.t testable
   val kind : Irmin_pack.Pack_value.Kind.t testable
   val hash : Schema.Hash.t testable
+
+  val check_raises_pack_error :
+    string ->
+    (Irmin_pack_unix.Errors.base_error -> bool) ->
+    (unit -> _ Lwt.t) ->
+    unit Lwt.t
+
   val check_raises_lwt : string -> exn -> (unit -> _ Lwt.t) -> unit Lwt.t
 
   val check_repr :

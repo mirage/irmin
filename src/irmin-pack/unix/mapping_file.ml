@@ -160,7 +160,7 @@ module Make (Io : Io.S) = struct
               (`Corrupted_mapping_file
                 (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
         )
-    | _ -> Error `No_such_file_or_directory
+    | _ -> Error (`No_such_file_or_directory path)
 
   let create ?report_mapping_size ~root ~generation ~register_entries () =
     assert (generation > 0);
