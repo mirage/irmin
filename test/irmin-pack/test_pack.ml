@@ -555,4 +555,5 @@ let misc =
     ("corrupted", Test_corrupted.tests);
     ("snapshot_gc", Test_gc.Snapshot.tests);
     ("async tasks", Test_async.tests);
+    ("indexing strategy", Test_indexing_strategy.tests);
   ]
