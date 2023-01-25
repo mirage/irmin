@@ -61,10 +61,12 @@ module type S = sig
     include
       Subcommand
         with type run :=
+          ?ppf:Format.formatter ->
           root:string ->
           auto_repair:bool ->
           always:bool ->
           heads:string list option ->
+          unit ->
           unit Lwt.t
 
     val handle_result :
@@ -177,6 +179,7 @@ module type Sigs = sig
       ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
 
     val check_inodes :
+      ?ppf:Format.formatter ->
       iter:
         (pred_node:
            (X.Repo.t ->

@@ -69,8 +69,9 @@ module Make (Store : Store) = struct
 
     let traverse_index ~root log_size =
       let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
+      let ppf = Format.err_formatter in
       let bar, (progress_contents, progress_nodes, progress_commits) =
-        Utils.Object_counter.start ()
+        Utils.Object_counter.start ppf
       in
       let f _ (_, _, (kind : Pack_value.Kind.t)) =
         match kind with
@@ -186,7 +187,7 @@ module Make (Store : Store) = struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run ~root ~auto_repair ~always ~heads =
+    let run ?ppf ~root ~auto_repair ~always ~heads () =
       let conf = conf root always in
       let* repo = Store.Repo.v conf in
       let* heads =
@@ -200,9 +201,7 @@ module Make (Store : Store) = struct
                 | Error (`Msg m) -> Fmt.kstr Lwt.fail_with "Invalid hash %S" m)
               heads
       in
-      let* result =
-        Store.integrity_check ~ppf:Format.err_formatter ~auto_repair ~heads repo
-      in
+      let* result = Store.integrity_check ?ppf ~auto_repair ~heads repo in
       let+ () = Store.Repo.close repo in
       handle_result ?name:None result
 
@@ -223,7 +222,9 @@ module Make (Store : Store) = struct
     let term_internal =
       Cmdliner.Term.(
         const (fun root auto_repair always heads () ->
-            Lwt_main.run (run ~root ~auto_repair ~always ~heads))
+            Lwt_main.run
+              (run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads
+                 ()))
         $ path
         $ auto_repair
         $ always
@@ -393,7 +394,7 @@ struct
     let nb_corrupted = ref 0 in
     let exception Cannot_fix in
     let counter, (progress_contents, progress_nodes, progress_commits) =
-      Utils.Object_counter.start ()
+      Utils.Object_counter.start ppf
     in
     let f (k, (offset, length, (kind : Pack_value.Kind.t))) =
       match kind with
@@ -440,7 +441,7 @@ struct
     Fmt.pf ppf "Running the integrity_check.\n%!";
     let errors = ref [] in
     let counter, (progress_contents, progress_nodes, progress_commits) =
-      Utils.Object_counter.start ()
+      Utils.Object_counter.start ppf
     in
     let pp_hash = Irmin.Type.pp X.Hash.t in
     let equal_hash = Irmin.Type.(unstage (equal X.Hash.t)) in
@@ -533,10 +534,11 @@ struct
         Fmt.(list ~sep:comma string)
         !errors
 
-  let check_inodes ~iter ~pred ~check t =
-    [%log.debug "Check integrity for inodes"];
+  let check_inodes ?ppf ~iter ~pred ~check t =
+    let ppf = set_ppf ppf in
+    Fmt.pf ppf "Check integrity for inodes.\n%!";
     let counter, (_, progress_nodes, progress_commits) =
-      Utils.Object_counter.start ()
+      Utils.Object_counter.start ppf
     in
     let errors = ref [] in
     let pred_node repo key =

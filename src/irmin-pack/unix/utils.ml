@@ -19,7 +19,9 @@ open Import
 module Object_counter : sig
   type t
 
-  val start : unit -> t * ((unit -> unit) * (unit -> unit) * (unit -> unit))
+  val start :
+    Format.formatter -> t * ((unit -> unit) * (unit -> unit) * (unit -> unit))
+
   val finalise : t -> unit
   val finalise_with_stats : t -> int * int * int
 end = struct
@@ -32,7 +34,8 @@ end = struct
       }
         -> t
 
-  let start () =
+  let start ppf =
+    let config = Progress.Config.v ~ppf () in
     let nb_commits = ref 0 in
     let nb_nodes = ref 0 in
     let nb_contents = ref 0 in
@@ -44,7 +47,7 @@ end = struct
       in
       using count_to_string string
     in
-    let display = Progress.Display.start (Progress.Multi.line bar) in
+    let display = Progress.Display.start ~config (Progress.Multi.line bar) in
     let [ reporter ] = Progress.Display.reporters display in
     let update_fn count () =
       incr count;
