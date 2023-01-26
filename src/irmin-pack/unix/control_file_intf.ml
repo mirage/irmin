@@ -194,9 +194,34 @@ module Payload = struct
 
     module Latest = V4
   end
+
+  module Volume = struct
+    module V4 = struct
+      type t = {
+        start_offset : int63;
+        end_offset : int63;
+        mapping_end_poff : int63;
+        data_end_poff : int63;
+        checksum : int63;
+      }
+      [@@deriving irmin]
+      (** The payload for a control file of a volume.
+
+          Fields
+
+          - [start_offset] is the global offset for the start of the volume's
+            data. Used for routing reads.
+          - [end_offset] is the global offset for the end of the volume's data.
+            Used for routing reads.
+          - [mapping_end_poff] is the end offset for the mapping file. Used when
+            writing.
+          - [data_end_poff] is the end offset for the data file. Used for
+            writing. *)
+    end
+
+    module Latest = V4
+  end
 end
-
-
 
 module type S = sig
   (** Abstraction for an irmin-pack control file.
@@ -288,11 +313,18 @@ end
 module type Upper = sig
   include S with type payload := Payload.Upper.Latest.t
 end
+
+module type Volume = sig
+  include S with type payload := Payload.Volume.Latest.t
+end
+
 module type Sigs = sig
   module Payload = Payload
 
   module type S = S
   module type Upper = Upper
+  module type Volume = Volume
 
   module Upper (Io : Io.S) : Upper with module Io = Io
+  module Volume (Io : Io.S) : Volume with module Io = Io
 end

@@ -167,6 +167,63 @@ module Serde = struct
       let s = Data.(to_bin_string (V4 payload)) in
       s
   end
+
+  module Volume : S with type payload = Payload.Volume.Latest.t = struct
+    module Data = struct
+      module Plv4 = struct
+        include Payload.Volume.V4
+
+        let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
+        let to_bin_string = Irmin.Type.to_bin_string t |> Irmin.Type.unstage
+      end
+
+      (* TODO: change this to V5 when we update Version *)
+
+      (** Type of what's encoded in a volume control file. The variant tag is
+          encoded as a [Version.t]. *)
+      type t = V4 of Plv4.t
+
+      let to_bin_string = function
+        | V4 payload -> Version.to_bin `V4 ^ Plv4.to_bin_string payload
+
+      let of_bin_string s =
+        let open Result_syntax in
+        let* version, payload = extract_version_and_payload s in
+        match version with
+        | `V3 -> assert false
+        | `V4 -> (
+            match Plv4.of_bin_string payload with
+            | Ok x -> Ok (V4 x)
+            | Error _ -> Error `Corrupted_control_file)
+    end
+
+    module Payload = Data.Plv4
+
+    type payload = Payload.t
+
+    let checksum_encode_bin = Irmin.Type.(unstage (pre_hash Payload.t))
+    let set_checksum payload checksum = Payload.{ payload with checksum }
+    let get_checksum payload = payload.Payload.checksum
+
+    let of_bin_string string =
+      let open Result_syntax in
+      let* payload = Data.of_bin_string string in
+      match payload with
+      | V4 payload ->
+          if
+            Checksum.is_valid ~payload ~encode_bin:checksum_encode_bin
+              ~set_checksum ~get_checksum
+          then Ok payload
+          else Error `Corrupted_control_file
+
+    let to_bin_string payload =
+      let payload =
+        Checksum.calculate_and_set ~encode_bin:checksum_encode_bin ~set_checksum
+          ~payload
+      in
+      let s = Data.(to_bin_string (V4 payload)) in
+      s
+  end
 end
 
 module Make (Serde : Serde.S) (Io : Io.S) = struct
@@ -223,3 +280,4 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
 end
 
 module Upper = Make (Serde.Upper)
+module Volume = Make (Serde.Volume)
