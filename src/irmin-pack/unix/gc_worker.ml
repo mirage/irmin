@@ -15,7 +15,7 @@
  *)
 
 open! Import
-module Payload = Control_file.Latest_payload
+module Payload = Control_file.Payload.Upper.Latest
 
 exception Pack_error = Errors.Pack_error
 

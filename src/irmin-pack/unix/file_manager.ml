@@ -15,7 +15,7 @@
  *)
 
 open Import
-module Payload = Control_file.Latest_payload
+module Payload = Control_file.Payload.Upper.Latest
 include File_manager_intf
 
 let legacy_io_header_size = 16
@@ -30,7 +30,7 @@ struct
   module Index = Index
   module Mapping_file = Mapping_file
   module Errs = Io_errors.Make (Io)
-  module Control = Control_file.Make (Io)
+  module Control = Control_file.Upper (Io)
   module Dict = Append_only_file.Make (Io) (Errs)
   module Suffix = Chunked_suffix.Make (Io) (Errs)
   module Prefix = Io
