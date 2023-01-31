@@ -598,7 +598,7 @@ struct
     let no_migrate = Irmin_pack.Conf.no_migrate config in
     match Io.classify_path root with
     | `File | `Other -> Error (`Not_a_directory root)
-    | `No_such_file_or_directory -> Error `No_such_file_or_directory
+    | `No_such_file_or_directory -> Error (`No_such_file_or_directory root)
     | `Directory -> (
         let path = Irmin_pack.Layout.V4.control ~root in
         match Io.classify_path path with
@@ -621,11 +621,11 @@ struct
       Control.open_ ~readonly:true ~path
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
-           | `No_such_file_or_directory -> (
+           | `No_such_file_or_directory _ -> (
                let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
                match Io.classify_path pack with
                | `File -> `Migration_needed
-               | `No_such_file_or_directory -> `No_such_file_or_directory
+               | `No_such_file_or_directory -> `No_such_file_or_directory pack
                | `Directory | `Other -> `Invalid_layout)
            | error -> error)
     in
@@ -693,20 +693,20 @@ struct
       | Ok v -> Ok v
       | Error `Double_close | Error `Invalid_argument | Error `Closed ->
           assert false
-      | Error `No_such_file_or_directory -> Error `Invalid_layout
+      | Error (`No_such_file_or_directory _) -> Error `Invalid_layout
       | Error `Not_a_file -> Error `Invalid_layout
       | Error `Corrupted_legacy_file | Error `Read_out_of_bounds ->
           Error `Corrupted_legacy_file
       | Error (`Io_misc _) as e -> e
     in
     match Io.classify_path root with
-    | `No_such_file_or_directory -> Error `No_such_file_or_directory
+    | `No_such_file_or_directory -> Error (`No_such_file_or_directory root)
     | `File | `Other -> Error (`Not_a_directory root)
     | `Directory -> (
         let path = Irmin_pack.Layout.V4.control ~root in
         match Control.open_ ~path ~readonly:true with
         | Ok _ -> Ok `V3
-        | Error `No_such_file_or_directory -> v2_or_v1 ()
+        | Error (`No_such_file_or_directory _) -> v2_or_v1 ()
         | Error `Not_a_file -> Error `Invalid_layout
         | Error `Closed -> assert false
         | Error

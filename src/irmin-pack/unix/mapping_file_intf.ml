@@ -31,7 +31,7 @@ module type S = sig
   module Errs : Io_errors.S with module Io = Io
 
   type open_error :=
-    [ `Corrupted_mapping_file of string | `No_such_file_or_directory ]
+    [ `Corrupted_mapping_file of string | `No_such_file_or_directory of string ]
 
   val create :
     ?report_mapping_size:(int63 -> unit) ->

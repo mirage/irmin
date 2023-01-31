@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Added
+
+- **irmin-pack**
+  - Add configuration option, `lower_root`, to specify a path for archiving data
+    during a GC. (#2177, @metanivek)
+
 ### Changed
 
 - **irmin-pack**

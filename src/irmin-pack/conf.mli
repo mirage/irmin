@@ -74,6 +74,7 @@ module Key : sig
   val index_log_size : int Irmin.Backend.Conf.key
   val readonly : bool Irmin.Backend.Conf.key
   val root : string Irmin.Backend.Conf.key
+  val lower_root : string option Irmin.Backend.Conf.key
   val merge_throttle : merge_throttle Irmin.Backend.Conf.key
   val indexing_strategy : Indexing_strategy.t Irmin.Backend.Conf.key
   val use_fsync : bool Irmin.Backend.Conf.key
@@ -105,6 +106,9 @@ val root : Irmin.Backend.Conf.t -> string
     Note: The path before the root directory must exist. Only the final
     directory in the path will be created if it is missing. *)
 
+val lower_root : Irmin.Backend.Conf.t -> string option
+(** Optional path for lower layer directory. Default [None]. *)
+
 val indexing_strategy : Irmin.Backend.Conf.t -> Indexing_strategy.t
 (** Strategy for choosing which objects to index. See {!Indexing_strategy.t} for
     more discussion. Default {!Indexing_strategy.default} *)
@@ -135,6 +139,7 @@ val init :
   ?dict_auto_flush_threshold:int ->
   ?suffix_auto_flush_threshold:int ->
   ?no_migrate:bool ->
+  ?lower_root:string option ->
   string ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default

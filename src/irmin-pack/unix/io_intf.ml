@@ -38,7 +38,9 @@ module type S = sig
   type create_error = [ `Io_misc of misc_error | `File_exists of string ]
 
   type open_error =
-    [ `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ]
+    [ `Io_misc of misc_error
+    | `No_such_file_or_directory of string
+    | `Not_a_file ]
 
   type read_error =
     [ `Io_misc of misc_error
@@ -52,7 +54,7 @@ module type S = sig
   type mkdir_error =
     [ `Io_misc of misc_error
     | `File_exists of string
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Invalid_parent_directory ]
 
   (** {1 Safe Functions}
@@ -105,7 +107,9 @@ module type S = sig
   val size_of_path :
     string ->
     ( int63,
-      [> `Io_misc of misc_error | `No_such_file_or_directory | `Not_a_file ] )
+      [> `Io_misc of misc_error
+      | `No_such_file_or_directory of string
+      | `Not_a_file ] )
     result
 
   val classify_path :

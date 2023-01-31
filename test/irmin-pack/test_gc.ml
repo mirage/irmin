@@ -874,10 +874,9 @@ module Concurrent_gc = struct
     let killed = kill_gc t in
     let* () =
       if killed then
-        Alcotest.check_raises_lwt "Gc process killed"
-          (Irmin_pack_unix.Errors.Pack_error
-             (`Gc_process_died_without_result_file
-               "cancelled \"No_such_file_or_directory\""))
+        Alcotest.check_raises_pack_error "Gc process killed"
+          (function
+            | `Gc_process_died_without_result_file _ -> true | _ -> false)
           (fun () -> finalise_gc t)
       else Lwt.return_unit
     in

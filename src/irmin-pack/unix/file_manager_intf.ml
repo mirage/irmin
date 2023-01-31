@@ -110,7 +110,7 @@ module type S = sig
     | `Invalid_layout
     | `Io_misc of Control.Io.misc_error
     | `Migration_needed
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Not_a_directory of string
     | `Not_a_file
     | `Read_out_of_bounds
@@ -148,7 +148,7 @@ module type S = sig
     | `Corrupted_mapping_file of string
     | `Io_misc of Io.misc_error
     | `Migration_needed
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Not_a_file
     | `Closed
     | `V3_store_from_the_future
@@ -227,7 +227,7 @@ module type S = sig
     | `Corrupted_legacy_file
     | `Invalid_layout
     | `Io_misc of Io.misc_error
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Not_a_directory of string
     | `Unknown_major_pack_version of string ]
 

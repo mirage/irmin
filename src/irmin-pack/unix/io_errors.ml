@@ -39,7 +39,7 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     [ `Double_close
     | `File_exists of string
     | `Invalid_parent_directory
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Not_a_file
     | `Read_out_of_bounds
     | `Invalid_argument

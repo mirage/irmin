@@ -38,6 +38,7 @@ module Default = struct
   let dict_auto_flush_threshold = 1_000_000
   let suffix_auto_flush_threshold = 1_000_000
   let no_migrate = false
+  let lower_root = None
 end
 
 open Irmin.Backend.Conf
@@ -69,6 +70,11 @@ module Key = struct
       "merge-throttle" merge_throttle_t Default.merge_throttle
 
   let root = root spec
+
+  let lower_root =
+    key ~spec ~doc:"Optional path for lower layer directory." "lower-root"
+      Irmin.Type.(option string)
+      Default.lower_root
 
   let indexing_strategy =
     let serialisable_t = [%typ: [ `Always | `Minimal ]] in
@@ -115,6 +121,7 @@ let root config =
          the store"
   | Some root -> root
 
+let lower_root config = get config Key.lower_root
 let indexing_strategy config = get config Key.indexing_strategy
 let use_fsync config = get config Key.use_fsync
 let dict_auto_flush_threshold config = get config Key.dict_auto_flush_threshold
@@ -131,9 +138,10 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(use_fsync = Default.use_fsync)
     ?(dict_auto_flush_threshold = Default.dict_auto_flush_threshold)
     ?(suffix_auto_flush_threshold = Default.suffix_auto_flush_threshold)
-    ?(no_migrate = Default.no_migrate) root =
+    ?(no_migrate = Default.no_migrate) ?(lower_root = Default.lower_root) root =
   let config = empty spec in
   let config = add config Key.root root in
+  let config = add config Key.lower_root lower_root in
   let config = add config Key.fresh fresh in
   let config = add config Key.lru_size lru_size in
   let config = add config Key.index_log_size index_log_size in

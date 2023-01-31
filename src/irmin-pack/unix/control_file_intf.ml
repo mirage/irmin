@@ -210,7 +210,7 @@ module type S = sig
   type open_error :=
     [ `Corrupted_control_file
     | `Io_misc of Io.misc_error
-    | `No_such_file_or_directory
+    | `No_such_file_or_directory of string
     | `Not_a_file
     | `Closed
     | `Unknown_major_pack_version of string ]

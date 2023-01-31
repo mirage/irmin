@@ -80,6 +80,7 @@ module type Sigs = sig
     ?dict_auto_flush_threshold:int ->
     ?suffix_auto_flush_threshold:int ->
     ?no_migrate:bool ->
+    ?lower_root:string option ->
     string ->
     Irmin.config
   (** Configuration options for stores. See {!Irmin_pack.Conf} for more details. *)
