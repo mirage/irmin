@@ -16,6 +16,7 @@
 - **irmin-pack**
   - Unhandled exceptions in GC worker process are now reported as a failure
     (#2163, @metanivek)
+  - Fix the silent mode for the integrity checks. (#2179, @icristescu)
 
 ## 3.5.1
 
