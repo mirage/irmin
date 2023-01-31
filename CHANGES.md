@@ -5,12 +5,15 @@
 - **irmin-pack**
   - Add configuration option, `lower_root`, to specify a path for archiving data
     during a GC. (#2177, @metanivek)
+  - Add `is_split_allowed` to check if a store allows split. (#2175, @metanivek)
 
 ### Changed
 
 - **irmin-pack**
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
+  - Split now raises an exception if it is not allowed. It is not allowed on
+    stores that do not allow GC. (#2175, @metanivek)
 
 ### Fixed
 - **irmin-pack**

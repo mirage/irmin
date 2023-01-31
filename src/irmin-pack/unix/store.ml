@@ -232,19 +232,9 @@ module Maker (Config : Conf.S) = struct
         let fsync t = File_manager.fsync t.fm |> Errs.raise_if_error
         let reload t = File_manager.reload t.fm |> Errs.raise_if_error
 
-        let split t =
-          let open Result_syntax in
-          let readonly = Irmin_pack.Conf.readonly t.config in
-          let* () = if readonly then Error `Ro_not_allowed else Ok () in
-          let* () =
-            if t.during_batch then Error `Split_forbidden_during_batch
-            else Ok ()
-          in
-          File_manager.split t.fm
-
-        let split_exn repo = split repo |> Errs.raise_if_error
-
         module Gc = struct
+          let is_allowed { fm; _ } = File_manager.gc_allowed fm
+
           let cancel t =
             match t.running_gc with
             | Some { gc; _ } ->
@@ -275,8 +265,7 @@ module Maker (Config : Conf.S) = struct
             let* commit_key = direct_commit_key t commit_key in
             let root = Conf.root t.config in
             let* () =
-              if not (File_manager.gc_allowed t.fm) then Error `Gc_disallowed
-              else Ok ()
+              if not (is_allowed t) then Error `Gc_disallowed else Ok ()
             in
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
@@ -398,6 +387,23 @@ module Maker (Config : Conf.S) = struct
             let* () = Branch.close branch_store in
             Lwt.return_unit
         end
+
+        let is_split_allowed = Gc.is_allowed
+
+        let split t =
+          let open Result_syntax in
+          let readonly = Irmin_pack.Conf.readonly t.config in
+          let* () =
+            if not (is_split_allowed t) then Error `Split_disallowed else Ok ()
+          in
+          let* () = if readonly then Error `Ro_not_allowed else Ok () in
+          let* () =
+            if t.during_batch then Error `Split_forbidden_during_batch
+            else Ok ()
+          in
+          File_manager.split t.fm
+
+        let split_exn repo = split repo |> Errs.raise_if_error
 
         let batch t f =
           [%log.debug "[pack] batch start"];
@@ -582,6 +588,7 @@ module Maker (Config : Conf.S) = struct
     let reload = X.Repo.reload
     let flush = X.Repo.flush
     let fsync = X.Repo.fsync
+    let is_split_allowed = X.Repo.is_split_allowed
     let split = X.Repo.split_exn
     let create_one_commit_store = X.Repo.Gc.create_one_commit_store
 
@@ -656,7 +663,7 @@ module Maker (Config : Conf.S) = struct
             Lwt.return_ok r
         | Error _ as e -> Lwt.return e
 
-      let is_allowed repo = File_manager.gc_allowed repo.X.Repo.fm
+      let is_allowed = X.Repo.Gc.is_allowed
       let cancel repo = X.Repo.Gc.cancel repo
       let latest_gc_target = X.Repo.Gc.latest_gc_target
     end

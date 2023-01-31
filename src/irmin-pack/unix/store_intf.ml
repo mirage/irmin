@@ -73,7 +73,13 @@ module type S = sig
       Raises [Multiple_empty_chunks] if no data was added to the currently-used
       chunk file.
 
+      Raises [Split_disallowed] if {!is_split_allowed} is false.
+
       TODO: Detail exceptions raised. *)
+
+  val is_split_allowed : repo -> bool
+  (** [is_split_allowed repo] returns if split is supported. Currently returns
+      the same value as {!Gc.is_allowed}. *)
 
   (** {1 On-disk} *)
 

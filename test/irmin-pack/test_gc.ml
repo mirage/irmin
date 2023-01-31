@@ -30,6 +30,13 @@ let fresh_name =
     let name = Filename.concat test_dir ("test-gc" ^ string_of_int !c) in
     name
 
+let create_from_v2_always_test_env () =
+  let ( / ) = Filename.concat in
+  let root_archive = "test" / "irmin-pack" / "data" / "version_2_to_3_always" in
+  let root_local_build = "_build" / "test-from-v2-always-gc" in
+  setup_test_env ~root_archive ~root_local_build;
+  root_local_build
+
 let create_test_env () =
   let ( / ) = Filename.concat in
   let root_archive = "test" / "irmin-pack" / "data" / "version_3_minimal" in
@@ -1145,6 +1152,19 @@ module Split = struct
     let* () = check_4 t c4 in
     S.Repo.close t.repo
 
+  let split_always_indexed_from_v2_store () =
+    let root = create_from_v2_always_test_env () in
+    let* t = init ~readonly:false ~fresh:false ~root () in
+    let* _c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
+    let* t, _c1 = commit_1 t in
+    let f () = S.split t.repo in
+    Alcotest.check_raises "split should raise disallowed exception"
+      (Irmin_pack_unix.Errors.Pack_error `Split_disallowed) f;
+    Alcotest.(
+      check bool "is_split_allowed should be false" false
+        (S.is_split_allowed t.repo));
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test two splits" two_splits;
@@ -1157,6 +1177,8 @@ module Split = struct
       tc "Test another split and GC" another_split_and_gc;
       tc "Test split during GC" split_during_gc;
       tc "Test commits and splits during GC" commits_and_splits_during_gc;
+      tc "Test split for always indexed from v2 store"
+        split_always_indexed_from_v2_store;
     ]
 end
 
