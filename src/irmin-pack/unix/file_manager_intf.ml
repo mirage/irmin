@@ -59,7 +59,7 @@ module type S = sig
       3. and 5. are highly critical. *)
 
   module Io : Io.S
-  module Control : Control_file.S with module Io = Io
+  module Control : Control_file.Upper with module Io = Io
   module Dict : Append_only_file.S with module Io = Io
   module Suffix : Chunked_suffix.S with module Io = Io
   module Index : Pack_index.S

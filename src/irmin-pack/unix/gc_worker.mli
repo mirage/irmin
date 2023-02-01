@@ -17,7 +17,7 @@
 (** Code for running in an async GC worker thread. *)
 
 open! Import
-module Payload = Control_file.Latest_payload
+module Payload = Control_file.Payload.Upper.Latest
 
 module Make (Args : Gc_args.S) : sig
   module Args : Gc_args.S
