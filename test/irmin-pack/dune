@@ -18,7 +18,8 @@
   test_dispatcher
   test_corrupted
   test_async
-  test_indexing_strategy)
+  test_indexing_strategy
+  test_lower)
  (libraries
   alcotest
   fmt

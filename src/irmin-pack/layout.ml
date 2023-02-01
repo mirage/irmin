@@ -74,6 +74,17 @@ module V4 = struct
     toplevel ("store." ^ string_of_int generation ^ ".prefix")
 end
 
+module V5 = struct
+  include V4
+
+  module Volume = struct
+    let directory ~idx = toplevel ("volume." ^ string_of_int idx)
+    let control = toplevel "volume.control"
+    let mapping = toplevel "volume.mapping"
+    let data = toplevel "volume.data"
+  end
+end
+
 (** [is_number] is a less generic than [Stdlib.int_of_string_opt]. It matches
     this equivalent regex: {v "([1-9][0-9]*|0)" v}. *)
 let is_number s =

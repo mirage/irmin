@@ -75,7 +75,9 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Split_forbidden_during_batch
     | `Split_disallowed
     | `Multiple_empty_chunks
-    | `Forbidden_during_gc ]
+    | `Forbidden_during_gc
+    | `Multiple_empty_volumes
+    | `Volume_missing of string ]
   [@@deriving irmin]
 
   let raise_error = function
