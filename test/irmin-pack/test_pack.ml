@@ -556,4 +556,5 @@ let misc =
     ("snapshot_gc", Test_gc.Snapshot.tests);
     ("async tasks", Test_async.tests);
     ("indexing strategy", Test_indexing_strategy.tests);
+    ("lower", Test_lower.tests);
   ]

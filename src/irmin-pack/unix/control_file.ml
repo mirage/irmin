@@ -271,6 +271,13 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
       let+ payload = read t.io in
       t.payload <- payload
 
+  let read_payload ~path =
+    let open Result_syntax in
+    let* t = open_ ~path ~readonly:true in
+    let payload = payload t in
+    let+ () = close t in
+    payload
+
   let set_payload t payload =
     let open Result_syntax in
     let+ () = write t.io payload in

@@ -256,6 +256,12 @@ module type S = sig
 
   val close : t -> (unit, [> Io.close_error ]) result
 
+  val read_payload :
+    path:string -> (payload, [> open_error | Io.close_error ]) result
+  (** [read_payload ~path] reads the payload at [path]. It is a convenient way
+      to read the payload without needing to call {!open_}, {!payload},
+      {!close}. *)
+
   val payload : t -> payload
   (** [payload t] is the payload in [t].
 

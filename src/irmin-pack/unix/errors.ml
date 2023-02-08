@@ -71,7 +71,9 @@ type base_error =
   | `Split_forbidden_during_batch
   | `Split_disallowed
   | `Multiple_empty_chunks
-  | `Forbidden_during_gc ]
+  | `Forbidden_during_gc
+  | `Multiple_empty_volumes
+  | `Volume_missing of string ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific
