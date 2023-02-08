@@ -443,9 +443,10 @@ struct
           appendable_chunk_poff = z;
           checksum = z;
           status;
-          upgraded_from_v3_to_v4 = false;
+          upgraded_from = None;
           chunk_start_idx = 0;
           chunk_num = 1;
+          volume_num = 0;
         }
       in
       create_control_file ~overwrite config pl
@@ -548,9 +549,10 @@ struct
           appendable_chunk_poff = suffix_end_poff;
           checksum = Int63.zero;
           status;
-          upgraded_from_v3_to_v4 = false;
+          upgraded_from = None;
           chunk_start_idx;
           chunk_num = 1;
+          volume_num = 0;
         }
       in
       create_control_file ~overwrite:false config pl
@@ -825,9 +827,10 @@ struct
         appendable_chunk_poff = Int63.zero;
         checksum = Int63.zero;
         status;
-        upgraded_from_v3_to_v4 = false;
+        upgraded_from = None;
         chunk_num = 1;
         chunk_start_idx = 1;
+        volume_num = 0;
       }
     in
     let path = Layout.control ~root:dst_root in

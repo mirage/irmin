@@ -27,11 +27,15 @@
     store in rw mode.
 
     [`V4] introduced the chunked suffix. Upgrade from [`V3] happened on first
-    write to the control file. *)
+    write to the control file.
 
-type t = [ `V1 | `V2 | `V3 | `V4 ] [@@deriving irmin]
+    [`V5] introduced the lower layer. Upgrade happened on first write to the
+    control file. *)
+
+type t = [ `V1 | `V2 | `V3 | `V4 | `V5 ] [@@deriving irmin]
 (** The type for version numbers. *)
 
+val to_int : t -> int
 val compare : t -> t -> int
 val latest : t
 
