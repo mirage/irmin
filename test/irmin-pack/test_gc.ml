@@ -30,6 +30,13 @@ let fresh_name =
     let name = Filename.concat test_dir ("test-gc" ^ string_of_int !c) in
     name
 
+let create_v1_test_env () =
+  let ( / ) = Filename.concat in
+  let root_archive = "test" / "irmin-pack" / "data" / "version_1_large" in
+  let root_local_build = "_build" / "test-v1-gc" in
+  setup_test_env ~root_archive ~root_local_build;
+  root_local_build
+
 let create_from_v2_always_test_env () =
   let ( / ) = Filename.concat in
   let root_archive = "test" / "irmin-pack" / "data" / "version_2_to_3_always" in
@@ -59,8 +66,8 @@ module Store = struct
     tree : S.tree;
   }
 
-  let config ~lru_size ~readonly ~fresh root =
-    Irmin_pack.config ~readonly
+  let config ~lru_size ~readonly ~fresh ?lower_root root =
+    Irmin_pack.config ~readonly ?lower_root
       ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal ~fresh ~lru_size
       root
 
@@ -109,15 +116,17 @@ module Store = struct
     let* o = checkout t key in
     match o with None -> Lwt.fail Not_found | Some p -> Lwt.return p
 
-  let init ?(lru_size = 0) ?(readonly = false) ?(fresh = true) ?root () =
+  let init ?(lru_size = 0) ?(readonly = false) ?(fresh = true) ?root ?lower_root
+      () =
     (* start with a clean dir if fresh *)
     let root = Option.value root ~default:(fresh_name ()) in
     if fresh then rm_dir root;
-    let+ repo = S.Repo.v (config ~readonly ~fresh ~lru_size root) in
+    let+ repo = S.Repo.v (config ~readonly ~fresh ~lru_size ?lower_root root) in
     let tree = S.Tree.empty () in
     { root; repo; tree; parents = [] }
 
-  let config root = config ~lru_size:0 ~readonly:false ~fresh:true root
+  let config root =
+    config ~lru_size:0 ~readonly:false ~fresh:true ~lower_root:None root
 
   let init_with_config config =
     let+ repo = S.Repo.v config in
@@ -664,6 +673,83 @@ module Gc = struct
       tc "Test gc on similar commits" gc_similar_commits;
       tc "Test oldest live commit" latest_gc_target;
       tc "Test worker gc stats" gc_stats;
+    ]
+end
+
+module Gc_archival = struct
+  let gc_behaviour =
+    let pp fmt = function
+      | `Archive -> Format.pp_print_string fmt "Archive"
+      | `Delete -> Format.pp_print_string fmt "Delete"
+    in
+    Alcotest.testable pp Stdlib.( = )
+
+  let gc_availability_recent () =
+    let lower_root = create_lower_root ~mkdir:false () in
+    let* t = init ~lower_root:(Some lower_root) () in
+    Alcotest.(check gc_behaviour)
+      "recent stores with a lower use archiving gc" (S.Gc.behaviour t.repo)
+      `Archive;
+    Alcotest.(check bool)
+      "archiving gc allowed on recent stores with a lower"
+      (S.Gc.is_allowed t.repo) true;
+    let* () = S.Repo.close t.repo in
+    let* t = init () in
+    Alcotest.(check gc_behaviour)
+      "recent stores without a lower use deleting gc" (S.Gc.behaviour t.repo)
+      `Delete;
+    Alcotest.(check bool)
+      "deleting gc allowed on recent stores without a lower"
+      (S.Gc.is_allowed t.repo) true;
+    S.Repo.close t.repo
+
+  let gc_availability_old () =
+    let root = create_v1_test_env () in
+    let lower_root = create_lower_root () in
+    let* t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
+    Alcotest.(check gc_behaviour)
+      "old stores with a lower use archiving gc" (S.Gc.behaviour t.repo)
+      `Archive;
+    Alcotest.(check bool)
+      "archiving gc allowed on old stores with a lower" (S.Gc.is_allowed t.repo)
+      true;
+    let* () = S.Repo.close t.repo in
+    let root = create_v1_test_env () in
+    let* t = init ~root ~fresh:false () in
+    Alcotest.(check gc_behaviour)
+      "old stores without a lower use deleting gc" (S.Gc.behaviour t.repo)
+      `Delete;
+    Alcotest.(check bool)
+      "deleting not allowed on old stores without a lower"
+      (S.Gc.is_allowed t.repo) false;
+    S.Repo.close t.repo
+
+  let gc_reachability_old () =
+    let root = create_v1_test_env () in
+    let lower_root = create_lower_root () in
+    let* t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
+    let* main = S.main t.repo in
+    let* head = S.Head.get main in
+    let* () = start_gc t head in
+    let check_ex = function
+      | `Gc_process_error msg ->
+          msg = "Archival finalization not yet implemented"
+      | _ -> false
+    in
+    let* () =
+      Alcotest.check_raises_pack_error
+        "archiving gc should run until finalization on old stores" check_ex
+        (fun () -> finalise_gc t)
+    in
+    S.Repo.close t.repo
+
+  let tests =
+    [
+      tc "Test availability of different gc modes on recent stores"
+        gc_availability_recent;
+      tc "Test availability of different gc modes on old stores"
+        gc_availability_old;
+      tc "Test reachability on old stores" gc_reachability_old;
     ]
 end
 

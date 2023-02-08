@@ -267,6 +267,10 @@ module type S = sig
   val split : t -> (unit, [> Errs.t ]) result
   val add_volume : t -> (unit, [> Errs.t ]) result
 
+  val gc_behaviour : t -> [ `Delete | `Archive ]
+  (** Decides if the GC will delete or archive the garbage data, depending on
+      the presence of a lower layer. *)
+
   val create_one_commit_store :
     t ->
     Irmin.Backend.Conf.t ->

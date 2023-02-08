@@ -231,10 +231,12 @@ module Make (Args : Gc_args.S) = struct
             read_gc_output ~root:t.root ~generation:t.generation
           in
 
+          let action = Fm.gc_behaviour t.fm in
           let result =
             let open Result_syntax in
-            match (status, gc_output) with
+            match (status, action, gc_output) with
             | ( `Success,
+                `Delete,
                 Ok { suffix_params; removable_chunk_idxs; stats = worker_stats }
               ) ->
                 let partial_stats =
@@ -267,6 +269,16 @@ module Make (Args : Gc_args.S) = struct
                     stats];
                 let () = Lwt.wakeup_later t.resolver (Ok stats) in
                 Ok (`Finalised stats)
+            | `Success, `Archive, Ok _ ->
+                (* TODO actually archive garbage into lower volume *)
+                clean_after_abort t;
+                let err =
+                  gc_errors
+                    (`Failure "Archival finalization not yet implemented")
+                    gc_output
+                in
+                let () = Lwt.wakeup_later t.resolver err in
+                err
             | _ ->
                 clean_after_abort t;
                 let err = gc_errors status gc_output in

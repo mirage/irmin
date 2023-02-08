@@ -238,6 +238,7 @@ module Maker (Config : Conf.S) = struct
 
         module Gc = struct
           let is_allowed { fm; _ } = File_manager.gc_allowed fm
+          let behaviour { fm; _ } = File_manager.gc_behaviour fm
 
           let cancel t =
             match t.running_gc with
@@ -365,6 +366,8 @@ module Maker (Config : Conf.S) = struct
             let commit_key =
               direct_commit_key t commit_key |> Errs.raise_if_error
             in
+            (* The GC action here does not matter, since we'll not fully
+               finalise it *)
             let* launched =
               start_exn ~use_auto_finalisation:false ~new_files_path:path t
                 commit_key
@@ -652,6 +655,7 @@ module Maker (Config : Conf.S) = struct
         with exn -> catch_errors "Start GC" exn
 
       let is_finished = X.Repo.Gc.is_finished
+      let behaviour = X.Repo.Gc.behaviour
 
       let wait repo =
         try

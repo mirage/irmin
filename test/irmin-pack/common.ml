@@ -347,6 +347,29 @@ let goto_project_root () =
       Unix.chdir (Fpath.to_string root)
   | _ -> ()
 
+let rec unlink_path path =
+  match Irmin_pack_unix.Io.Unix.classify_path path with
+  | `No_such_file_or_directory -> ()
+  | `Directory ->
+      Sys.readdir path
+      |> Array.map (fun p -> Filename.concat path p)
+      |> Array.iter unlink_path;
+      Unix.rmdir path
+  | _ -> Unix.unlink path
+
+let create_lower_root =
+  let counter = ref 0 in
+  let ( let$ ) res f = f @@ Result.get_ok res in
+  fun ?(mkdir = true) () ->
+    let lower_root = "test_lower_" ^ string_of_int !counter in
+    incr counter;
+    let lower_path = Filename.concat "_build" lower_root in
+    unlink_path lower_path;
+    let$ _ =
+      if mkdir then Irmin_pack_unix.Io.Unix.mkdir lower_path else Result.ok ()
+    in
+    lower_path
+
 let setup_test_env ~root_archive ~root_local_build =
   goto_project_root ();
   rm_dir root_local_build;

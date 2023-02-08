@@ -369,9 +369,9 @@ struct
         control;
         suffix;
         prefix;
+        lower;
         use_fsync;
         index;
-        lower;
         dict_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
@@ -693,10 +693,10 @@ struct
         control;
         suffix;
         prefix;
+        lower;
         use_fsync;
         indexing_strategy;
         index;
-        lower;
         dict_consumers = [];
         suffix_consumers = [];
         root;
@@ -796,13 +796,20 @@ struct
         (* Unreachable *)
         assert false
 
+  let gc_behaviour t = match t.lower with Some _ -> `Archive | None -> `Delete
+
   let gc_allowed t =
     let pl = Control.payload t.control in
-    match pl.status with
-    | From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy -> false
-    | No_gc_yet | Gced _ -> true
-    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
-    | T15 ->
+    let action = gc_behaviour t in
+    match (action, pl.status) with
+    | `Delete, (From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy)
+      ->
+        false
+    | `Delete, (No_gc_yet | Gced _) -> true
+    | `Archive, _ -> Option.is_some t.lower
+    | ( _,
+        ( T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
+        | T14 | T15 ) ) ->
         (* Unreachable *)
         assert false
 

@@ -76,7 +76,7 @@ module Make (Args : Gc_args.S) = struct
       if not (Priority_queue.is_empty todos) then (
         let offset, has_children = Priority_queue.pop todos in
         let node_key = Node_store.key_of_offset node_store offset in
-        let length = Node_store.get_length_exn node_store node_key in
+        let length = Node_store.get_length node_store node_key in
         f ~off:offset ~len:length;
         if has_children then iter_node node_key;
         loop ())
@@ -95,7 +95,7 @@ module Make (Args : Gc_args.S) = struct
       in
       schedule key has_children
     and schedule key has_children =
-      match Node_store.get_offset_exn node_store key with
+      match Node_store.get_offset node_store key with
       | offset -> Priority_queue.add todos offset has_children
       | exception Pack_store.Dangling_hash -> ()
     in
@@ -224,8 +224,8 @@ module Make (Args : Gc_args.S) = struct
       in
 
       (* Step 3.3 Put the commit in the reachable file. *)
-      let off = Node_store.get_offset_exn node_store commit_key in
-      let len = Node_store.get_length_exn node_store commit_key in
+      let off = Node_store.get_offset node_store commit_key in
+      let len = Node_store.get_length node_store commit_key in
       register_entry ~off ~len;
 
       (* Step 3.4 Put the nodes and contents in the reachable file. *)

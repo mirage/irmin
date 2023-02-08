@@ -69,6 +69,6 @@ struct
         let v = Inter.Val.of_raw find v in
         Some v
 
-  let get_offset_exn t k = Pack.get_offset_exn t k
-  let get_length_exn t k = Pack.get_length_exn t k
+  let get_offset t k = Pack.get_offset t k
+  let get_length t k = Pack.get_length t k
 end

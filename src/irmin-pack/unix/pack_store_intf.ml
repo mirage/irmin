@@ -75,10 +75,10 @@ module type S = sig
       [key_of_offset] first. This function only exists to optimize the GC
       reachability traversal. *)
 
-  val get_offset_exn : 'a t -> key -> int63
+  val get_offset : 'a t -> key -> int63
   (** Returns the offset associated with the key. *)
 
-  val get_length_exn : 'a t -> key -> int
+  val get_length : 'a t -> key -> int
   (** Returns the length of the object associated with the key. *)
 end
 

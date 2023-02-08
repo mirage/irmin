@@ -79,25 +79,20 @@ struct
         | Some (off, len, _kind) ->
             Pack_key.promote_exn k ~offset:off ~length:len;
             (off, len))
-    | Direct { offset = off; length = len; _ } -> (off, len)
 
-  let get_offset_exn t k =
+  let get_offset t k =
     match Pack_key.to_offset k with
     | Some off -> off
     | None ->
-        let off, _ = get_location_exn t k in
+        let off, _ = get_location t k in
         off
 
-  let get_length_exn t k =
+  let get_length t k =
     match Pack_key.to_length k with
     | Some len -> len
     | None ->
-        let _, len = get_location_exn t k in
+        let _, len = get_location t k in
         len
-
-  let accessor_of_key t k =
-    let off, len = get_location_exn t k in
-    Dispatcher.create_accessor_exn t.dispatcher ~off ~len
 
   let len_of_direct_key k =
     match Pack_key.inspect k with
@@ -539,6 +534,6 @@ struct
   let unsafe_find_no_prefetch t key =
     Inner.unsafe_find_no_prefetch (get_if_open_exn t) key
 
-  let get_offset_exn t key = Inner.get_offset_exn (get_if_open_exn t) key
-  let get_length_exn t key = Inner.get_length_exn (get_if_open_exn t) key
+  let get_offset t key = Inner.get_offset (get_if_open_exn t) key
+  let get_length t key = Inner.get_length (get_if_open_exn t) key
 end

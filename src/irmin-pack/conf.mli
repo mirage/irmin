@@ -107,7 +107,11 @@ val root : Irmin.Backend.Conf.t -> string
     directory in the path will be created if it is missing. *)
 
 val lower_root : Irmin.Backend.Conf.t -> string option
-(** Optional path for lower layer directory. Default [None]. *)
+(** Optional path for lower layer directory. Default [None].
+
+    The presence or not of a lower layer has implications on the behaviour of
+    the GC: if a lower layer is present, the GC will archive data instead of
+    deleting it.*)
 
 val indexing_strategy : Irmin.Backend.Conf.t -> Indexing_strategy.t
 (** Strategy for choosing which objects to index. See {!Indexing_strategy.t} for
