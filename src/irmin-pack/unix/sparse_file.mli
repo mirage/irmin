@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Mapping_file_intf.Sigs
+include Sparse_file_intf.Sigs
 (** @inline *)

@@ -17,10 +17,9 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
   module Io = Irmin_pack_unix.Io.Unix
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Pack_index = Irmin_pack_unix.Index.Make (Hash)
-  module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Io)
 
   module File_manager =
-    Irmin_pack_unix.File_manager.Make (Io) (Pack_index) (Mapping_file) (Errs)
+    Irmin_pack_unix.File_manager.Make (Io) (Pack_index) (Errs)
 
   module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
@@ -81,34 +80,32 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
     Hash.hash_size + 1 + length_length + suffix_length
 
   let decode_entry dispatcher buffer off =
-    let accessor =
-      Dispatcher.create_accessor_from_range_exn dispatcher ~off
-        ~min_len:min_bytes_needed_to_discover_length
-        ~max_len:max_bytes_needed_to_discover_length
-    in
-    Dispatcher.read_exn dispatcher accessor buffer;
+    Dispatcher.read_range_exn dispatcher ~off
+      ~min_len:min_bytes_needed_to_discover_length
+      ~max_len:max_bytes_needed_to_discover_length buffer;
     let kind, len = decode_entry_header buffer in
-    let accessor =
-      Dispatcher.create_accessor_exn dispatcher ~off ~len:Hash.hash_size
-    in
-    Dispatcher.read_exn dispatcher accessor buffer;
+    Dispatcher.read_exn dispatcher ~off ~len:Hash.hash_size buffer;
     let hash = Bytes.sub_string buffer 0 Hash.hash_size in
-    let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
-    Dispatcher.read_exn dispatcher accessor buffer;
+    Dispatcher.read_exn dispatcher ~off ~len buffer;
     let content = Bytes.sub_string buffer 0 len in
     (hash, kind, len, content)
 
+  let guess_entry_len dispatcher ~off =
+    let min_bytes_needed_to_discover_length = Hash.hash_size + 1 in
+    let max_bytes_needed_to_discover_length =
+      min_bytes_needed_to_discover_length + Varint.max_encoded_size
+    in
+    let buffer = Bytes.create max_bytes_needed_to_discover_length in
+    Dispatcher.read_range_exn dispatcher ~off
+      ~min_len:min_bytes_needed_to_discover_length
+      ~max_len:max_bytes_needed_to_discover_length buffer;
+    decode_entry_len buffer
+
   let iter_store fm ~on_entry =
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
-    let seq =
-      Dispatcher.create_sequential_accessor_seq dispatcher
-        ~min_header_len:min_bytes_needed_to_discover_length
-        ~max_header_len:max_bytes_needed_to_discover_length
-        ~read_len:decode_entry_len
-    in
     let buffer = Bytes.create (4096 * 4096) in
-    let on_entry (off, accessor) =
-      Dispatcher.read_exn dispatcher accessor buffer;
+    let on_entry ~off ~len =
+      Dispatcher.read_exn dispatcher ~off ~len buffer;
       let kind = decode_entry_kind buffer in
       let entry =
         match kind with
@@ -119,7 +116,16 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
       in
       on_entry off entry
     in
-    Seq.iter on_entry seq
+    let rec traverse off =
+      match Dispatcher.next_valid_offset dispatcher ~off with
+      | None -> ()
+      | Some off ->
+          let len = guess_entry_len dispatcher ~off in
+          on_entry ~off ~len;
+          let next_off = Int63.add off (Int63.of_int len) in
+          traverse next_off
+    in
+    traverse Int63.zero
 
   let rec traverse_dict dict size buffer off acc =
     if off < size then (

@@ -70,16 +70,15 @@ struct
   type key = Key.t [@@deriving irmin ~pp]
   type value = Val.t [@@deriving irmin ~pp]
 
-  let accessor_of_key t k =
+  let get_location t k =
     match Pack_key.inspect k with
     | Indexed hash -> (
         match Index.find (Fm.index t.fm) hash with
         | None -> raise Dangling_hash
         | Some (off, len, _kind) ->
             Pack_key.promote_exn k ~offset:off ~length:len;
-            Dispatcher.create_accessor_exn t.dispatcher ~off ~len)
-    | Direct { offset = off; length = len; _ } ->
-        Dispatcher.create_accessor_exn t.dispatcher ~off ~len
+            (off, len))
+    | Direct { offset = off; length = len; _ } -> (off, len)
 
   let len_of_direct_key k =
     match Pack_key.inspect k with
@@ -142,21 +141,18 @@ struct
 
   let read_and_decode_entry_prefix ~off dispatcher =
     let buf = Bytes.create Entry_prefix.max_length in
-    let accessor =
-      (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
-         final entry in the pack file (if the data section of the entry is
-         shorter than [Varint.max_encoded_size]. In this case, an invalid read
-         may be discovered below when attempting to decode the length header. *)
-      try
-        Dispatcher.create_accessor_from_range_exn dispatcher ~off
-          ~min_len:Entry_prefix.min_length ~max_len:Entry_prefix.max_length
-      with Errors.Pack_error `Read_out_of_bounds ->
-        invalid_read
-          "Attempted to read an entry at offset %a in the pack file, but got \
-           less than %d bytes"
-          Int63.pp off Entry_prefix.min_length
-    in
-    Dispatcher.read_exn dispatcher accessor buf;
+    (try
+       (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
+          final entry in the pack file (if the data section of the entry is
+          shorter than [Varint.max_encoded_size]. In this case, an invalid read
+          may be discovered below when attempting to decode the length header. *)
+       Dispatcher.read_range_exn dispatcher ~off
+         ~min_len:Entry_prefix.min_length ~max_len:Entry_prefix.max_length buf
+     with Errors.Pack_error `Read_out_of_bounds ->
+       invalid_read
+         "Attempted to read an entry at offset %a in the pack file, but got \
+          less than %d bytes"
+         Int63.pp off Entry_prefix.max_length);
     let hash =
       (* Bytes.unsafe_to_string usage: buf is created locally, so we have unique
          ownership; we assume Dispatcher.read_at_most_exn returns unique
@@ -192,9 +188,30 @@ struct
     kind = Pack_value.Kind.Dangling_parent_commit
 
   let pack_file_contains_key t k =
-    match accessor_of_key t k with
-    | exception Dangling_hash -> false
-    | exception Errors.Pack_error `Read_out_of_bounds ->
+    let off, _ = get_location t k in
+    let len = Hash.hash_size + 1 in
+    let buf = Bytes.create len in
+    Dispatcher.read_exn t.dispatcher ~off ~len buf;
+    if gced buf then false
+    else
+      (* Bytes.unsafe_to_string usage: [buf] is local and never reused after
+         the call to [decode_bin_hash]. *)
+      let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
+      if not (equal_hash hash (Key.to_hash k)) then
+        invalid_read
+          "invalid key %a checked for membership (read hash %a at this offset \
+           instead)"
+          pp_key k pp_hash hash;
+      (* At this point we consider the key to be contained in the pack
+         file. However, we could also be in the presence of a forged (or
+         unlucky) key that points to an offset that mimics a real pack
+         entry (e.g. in the middle of a blob). *)
+      true
+
+  let pack_file_contains_key t k =
+    try pack_file_contains_key t k with
+    | Dangling_hash -> false
+    | Errors.Pack_error `Read_out_of_bounds ->
         (* Can't fit an entry into this suffix of the store, so this key
            isn't (yet) valid. If we're a read-only instance, the key may
            become valid on [reload]; otherwise we know that this key wasn't
@@ -204,28 +221,8 @@ struct
          invalid_read "invalid key %a checked for membership (IO offset = %a)"
            pp_key k Int63.pp io_offset);
         false
-    | exception Errors.Pack_error (`Invalid_read_of_gced_object _) -> false
-    | exception Errors.Pack_error (`Invalid_prefix_read _) -> false
-    | accessor ->
-        let len = Hash.hash_size + 1 in
-        let accessor = Dispatcher.shrink_accessor_exn accessor ~new_len:len in
-        let buf = Bytes.create len in
-        Dispatcher.read_exn t.dispatcher accessor buf;
-        if gced buf then false
-        else
-          (* Bytes.unsafe_to_string usage: [buf] is local and never reused after
-             the call to [decode_bin_hash]. *)
-          let hash = decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0) in
-          if not (equal_hash hash (Key.to_hash k)) then
-            invalid_read
-              "invalid key %a checked for membership (read hash %a at this \
-               offset instead)"
-              pp_key k pp_hash hash;
-          (* At this point we consider the key to be contained in the pack
-             file. However, we could also be in the presence of a forged (or
-             unlucky) key that points to an offset that mimics a real pack
-             entry (e.g. in the middle of a blob). *)
-          true
+    | Errors.Pack_error (`Invalid_sparse_read _) -> false
+    | Errors.Pack_error (`Invalid_prefix_read _) -> false
 
   let unsafe_mem t k =
     [%log.debug "[pack] mem %a" pp_key k];
@@ -265,21 +262,44 @@ struct
         Pack_value.Kind.Commit_v2
       else entry_prefix.kind
     in
-    let entry_prefix = { entry_prefix with kind } in
-    match Entry_prefix.total_entry_length entry_prefix with
-    | Some length -> Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
-    | None ->
-        (* NOTE: we could store [offset] in this key, but since we know the
-           entry doesn't have a length header we'll need to check the index
-           when dereferencing this key anyway. {i Not} storing the offset
-           avoids doing another failed check in the pack file for the length
-           header during [find]. *)
-        Pack_key.v_indexed entry_prefix.hash
+    let key =
+      let entry_prefix = { entry_prefix with kind } in
+      match Entry_prefix.total_entry_length entry_prefix with
+      | Some length -> Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
+      | None ->
+          (* NOTE: we could store [offset] in this key, but since we know the
+             entry doesn't have a length header we'll need to check the index
+             when dereferencing this key anyway. {i Not} storing the offset
+             avoids doing another failed check in the pack file for the length
+             header during [find]. *)
+          Pack_key.v_indexed entry_prefix.hash
+    in
+    key
 
   let find_in_pack_file ~key_of_offset t key =
-    match accessor_of_key t key with
-    | exception Dangling_hash -> None
-    | exception Errors.Pack_error `Read_out_of_bounds -> (
+    let off, len = get_location t key in
+    let buf = Bytes.create len in
+    Dispatcher.read_exn t.dispatcher ~off ~len buf;
+    if gced buf then None
+    else
+      let key_of_offset = key_of_offset t in
+      let key_of_hash = Pack_key.v_indexed in
+      let dict = Dict.find t.dict in
+      let v =
+        (* Bytes.unsafe_to_string usage: buf created, uniquely owned; after
+           creation, we assume Dispatcher.read_if_not_gced returns unique
+           ownership; we give up unique ownership in call to
+           [Bytes.unsafe_to_string]. This is safe. *)
+        Val.decode_bin ~key_of_offset ~key_of_hash ~dict
+          (Bytes.unsafe_to_string buf)
+          (ref 0)
+      in
+      Some v
+
+  let find_in_pack_file ~key_of_offset t key =
+    try find_in_pack_file ~key_of_offset t key with
+    | Dangling_hash -> None
+    | Errors.Pack_error `Read_out_of_bounds -> (
         (* Can't fit an entry into this suffix of the store, so this key
          * isn't (yet) valid. If we're a read-only instance, the key may
          * become valid on [reload]; otherwise we know that this key wasn't
@@ -297,26 +317,8 @@ struct
               Int63.pp (off_of_direct_key key) (len_of_direct_key key) Int63.pp
                 io_offset];
             None)
-    | exception Errors.Pack_error (`Invalid_read_of_gced_object _) -> None
-    | exception (Errors.Pack_error (`Invalid_prefix_read _) as e) -> raise e
-    | accessor ->
-        let buf = Bytes.create (len_of_direct_key key) in
-        Dispatcher.read_exn t.dispatcher accessor buf;
-        if gced buf then None
-        else
-          let key_of_offset = key_of_offset t in
-          let key_of_hash = Pack_key.v_indexed in
-          let dict = Dict.find t.dict in
-          let v =
-            (* Bytes.unsafe_to_string usage: buf created, uniquely owned; after
-               creation, we assume Dispatcher.read_if_not_gced returns unique
-               ownership; we give up unique ownership in call to
-               [Bytes.unsafe_to_string]. This is safe. *)
-            Val.decode_bin ~key_of_offset ~key_of_hash ~dict
-              (Bytes.unsafe_to_string buf)
-              (ref 0)
-          in
-          Some v
+    | Errors.Pack_error (`Invalid_sparse_read _) -> None
+    | Errors.Pack_error (`Invalid_prefix_read _) as e -> raise e
 
   let unsafe_find ~check_integrity t k =
     [%log.debug "[pack] find %a" pp_key k];

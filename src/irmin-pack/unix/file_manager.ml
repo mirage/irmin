@@ -23,17 +23,16 @@ let legacy_io_header_size = 16
 module Make
     (Io : Io.S)
     (Index : Pack_index.S with module Io = Io)
-    (Mapping_file : Mapping_file.S with module Io = Io)
     (Errs : Io_errors.S with module Io = Io) =
 struct
   module Io = Errs.Io
   module Index = Index
-  module Mapping_file = Mapping_file
   module Errs = Io_errors.Make (Io)
   module Control = Control_file.Upper (Io)
   module Dict = Append_only_file.Make (Io) (Errs)
   module Suffix = Chunked_suffix.Make (Io) (Errs)
-  module Prefix = Io
+  module Sparse = Sparse_file.Make (Io)
+  module Mapping_file = Sparse.Mapping_file
 
   type after_reload_consumer = { after_reload : unit -> (unit, Errs.t) result }
   type after_flush_consumer = { after_flush : unit -> unit }
@@ -42,8 +41,7 @@ struct
     dict : Dict.t;
     control : Control.t;
     mutable suffix : Suffix.t;
-    mutable prefix : Prefix.t option;
-    mutable mapping : Mapping_file.t option;
+    mutable prefix : Sparse.t option;
     index : Index.t;
     mutable dict_consumers : after_reload_consumer list;
     mutable suffix_consumers : after_flush_consumer list;
@@ -56,7 +54,6 @@ struct
   let dict t = t.dict
   let suffix t = t.suffix
   let index t = t.index
-  let mapping t = t.mapping
   let prefix t = t.prefix
 
   let close t =
@@ -64,7 +61,7 @@ struct
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
     let* () = Suffix.close t.suffix in
-    let* () = Option.might Prefix.close t.prefix in
+    let* () = Option.might Sparse.close t.prefix in
     let+ () = Index.close t.index in
     ()
 
@@ -197,41 +194,34 @@ struct
 
   let fsync t =
     let open Result_syntax in
-    let* _ = Dict.fsync t.dict in
-    let* _ = Suffix.fsync t.suffix in
-    let* _ = Control.fsync t.control in
-    let* _ =
-      match t.prefix with None -> Ok () | Some prefix -> Prefix.fsync prefix
-    in
+    let* () = Dict.fsync t.dict in
+    let* () = Suffix.fsync t.suffix in
+    let* () = Control.fsync t.control in
+    let* () = Option.might Sparse.fsync t.prefix in
     Index.flush ~with_fsync:true t.index
 
   (* Constructors *********************************************************** *)
 
-  let reopen_prefix t ~generation =
-    let open Result_syntax in
-    let* prefix1 =
-      let path = Irmin_pack.Layout.V4.prefix ~root:t.root ~generation in
-      [%log.debug "reload: opening %s" path];
-      Prefix.open_ ~readonly:true ~path
-    in
-    let prefix0 = t.prefix in
-    t.prefix <- Some prefix1;
-    match prefix0 with None -> Ok () | Some io -> Prefix.close io
+  module Layout = Irmin_pack.Layout.V4
 
-  let open_mapping ~root ~generation =
+  let open_prefix ~root ~generation =
     let open Result_syntax in
     if generation = 0 then Ok None
     else
-      let* m = Mapping_file.open_map ~root ~generation in
-      Ok (Some m)
+      let mapping = Layout.mapping ~generation ~root in
+      let data = Layout.prefix ~root ~generation in
+      let+ prefix = Sparse.open_ro ~mapping ~data in
+      Some prefix
 
-  let reopen_mapping t ~generation =
+  let reopen_prefix t ~generation =
     let open Result_syntax in
-    let root = t.root in
-    let* mapping = open_mapping ~root ~generation in
-    [%log.debug "reload: opening %s" root];
-    t.mapping <- mapping;
-    Ok ()
+    let* some_prefix = open_prefix ~root:t.root ~generation in
+    match some_prefix with
+    | None -> Ok ()
+    | Some _ ->
+        let prev_prefix = t.prefix in
+        t.prefix <- some_prefix;
+        Option.might Sparse.close prev_prefix
 
   let reopen_suffix t ~chunk_start_idx ~chunk_num ~appendable_chunk_poff =
     let open Result_syntax in
@@ -263,13 +253,6 @@ struct
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
     Suffix.close suffix0
-
-  let only_open_after_gc ~generation ~path =
-    let open Result_syntax in
-    if generation = 0 then Ok None
-    else
-      let* t = Io.open_ ~path ~readonly:true in
-      Ok (Some t)
 
   let cleanup ~root ~generation ~chunk_start_idx ~chunk_num =
     let files = Array.to_list (Sys.readdir root) in
@@ -340,13 +323,9 @@ struct
       let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
       make_suffix ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
     in
-    let* prefix =
-      let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
-      only_open_after_gc ~generation ~path
-    in
-    let* mapping = open_mapping ~root ~generation in
+    let* prefix = open_prefix ~root ~generation in
     let* dict =
-      let path = Irmin_pack.Layout.V4.dict ~root in
+      let path = Layout.dict ~root in
       let auto_flush_threshold =
         Irmin_pack.Conf.dict_auto_flush_threshold config
       in
@@ -375,7 +354,6 @@ struct
         control;
         suffix;
         prefix;
-        mapping;
         use_fsync;
         index;
         dict_consumers = [];
@@ -389,7 +367,7 @@ struct
 
   let create_control_file ~overwrite config pl =
     let root = Irmin_pack.Conf.root config in
-    let path = Irmin_pack.Layout.V4.control ~root in
+    let path = Layout.control ~root in
     Control.create_rw ~path ~overwrite pl
 
   (* Reload ***************************************************************** *)
@@ -422,11 +400,7 @@ struct
               ~appendable_chunk_poff ~chunk_num:chunk_num1
           else Ok ()
         in
-        if gen0 = gen1 then Ok ()
-        else
-          let* () = reopen_mapping t ~generation:gen1 in
-          let* () = reopen_prefix t ~generation:gen1 in
-          Ok ()
+        if gen0 = gen1 then Ok () else reopen_prefix t ~generation:gen1
       in
       (* Step 4. Update end offsets *)
       let* () =
@@ -490,7 +464,7 @@ struct
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let* control =
-      let path = Irmin_pack.Layout.V4.control ~root in
+      let path = Layout.control ~root in
       Control.open_ ~readonly:false ~path
     in
     let Payload.
@@ -555,12 +529,10 @@ struct
     let root = Irmin_pack.Conf.root config in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let chunk_start_idx = 0 in
-    let dst =
-      Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx:chunk_start_idx
-    in
+    let dst = Layout.suffix_chunk ~root ~chunk_idx:chunk_start_idx in
     let* suffix_end_poff = read_offset_from_legacy_file src in
     let* dict_end_poff =
-      let path = Irmin_pack.Layout.V4.dict ~root in
+      let path = Layout.dict ~root in
       read_offset_from_legacy_file path
     in
     let* () = Io.move_file ~src ~dst in
@@ -600,7 +572,7 @@ struct
     | `File | `Other -> Error (`Not_a_directory root)
     | `No_such_file_or_directory -> Error (`No_such_file_or_directory root)
     | `Directory -> (
-        let path = Irmin_pack.Layout.V4.control ~root in
+        let path = Layout.control ~root in
         match Io.classify_path path with
         | `File -> open_rw_with_control_file config
         | `No_such_file_or_directory ->
@@ -617,7 +589,7 @@ struct
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     (* 1. Open the control file *)
     let* control =
-      let path = Irmin_pack.Layout.V4.control ~root in
+      let path = Layout.control ~root in
       Control.open_ ~readonly:true ~path
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
@@ -654,13 +626,9 @@ struct
       Suffix.open_ro ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
-    let* prefix =
-      let path = Irmin_pack.Layout.V4.prefix ~root ~generation in
-      only_open_after_gc ~path ~generation
-    in
-    let* mapping = open_mapping ~root ~generation in
+    let* prefix = open_prefix ~root ~generation in
     let* dict =
-      let path = Irmin_pack.Layout.V4.dict ~root in
+      let path = Layout.dict ~root in
       Dict.open_ro ~path ~end_poff:dict_end_poff ~dead_header_size
     in
     let* index =
@@ -675,7 +643,6 @@ struct
         control;
         suffix;
         prefix;
-        mapping;
         use_fsync;
         indexing_strategy;
         index;
@@ -703,7 +670,7 @@ struct
     | `No_such_file_or_directory -> Error (`No_such_file_or_directory root)
     | `File | `Other -> Error (`Not_a_directory root)
     | `Directory -> (
-        let path = Irmin_pack.Layout.V4.control ~root in
+        let path = Layout.control ~root in
         match Control.open_ ~path ~readonly:true with
         | Ok _ -> Ok `V3
         | Error (`No_such_file_or_directory _) -> v2_or_v1 ()
@@ -727,7 +694,6 @@ struct
 
     (* Step 1. Reopen files *)
     let* () = reopen_prefix t ~generation in
-    let* () = reopen_mapping t ~generation in
     let* () =
       reopen_suffix t ~chunk_start_idx ~chunk_num
         ~appendable_chunk_poff:pl.appendable_chunk_poff
@@ -832,8 +798,8 @@ struct
     let src_root = t.root in
     let dst_root = Irmin_pack.Conf.root config in
     (* Step 1. Copy the dict *)
-    let src_dict = Irmin_pack.Layout.V4.dict ~root:src_root in
-    let dst_dict = Irmin_pack.Layout.V4.dict ~root:dst_root in
+    let src_dict = Layout.dict ~root:src_root in
+    let dst_dict = Layout.dict ~root:dst_root in
     let* () = Io.copy_file ~src:src_dict ~dst:dst_dict in
     (* Step 2. Create an empty suffix and close it. *)
     let* suffix =
@@ -864,7 +830,7 @@ struct
         chunk_start_idx = 1;
       }
     in
-    let path = Irmin_pack.Layout.V4.control ~root:dst_root in
+    let path = Layout.control ~root:dst_root in
     let* control = Control.create_rw ~path ~overwrite:false pl in
     let* () = Control.close control in
     (* Step 4. Create the index. *)

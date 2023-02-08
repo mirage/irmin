@@ -18,7 +18,8 @@ open! Import
 module Int63 = Optint.Int63
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
-module Mapping_file = Irmin_pack_unix.Mapping_file.Make (Io)
+module Sparse_file = Irmin_pack_unix.Sparse_file.Make (Io)
+module Mapping_file = Sparse_file.Mapping_file
 
 let test_dir = Filename.concat "_build" "test-pack-mapping"
 
@@ -31,9 +32,9 @@ let process_on_disk pairs =
         register_entry ~off:(Int63.of_int off) ~len)
       pairs
   in
+  let path = Irmin_pack.Layout.V3.mapping ~root:test_dir ~generation:1 in
   let mapping =
-    Mapping_file.create ~root:test_dir ~generation:1 ~register_entries ()
-    |> Errs.raise_if_error
+    Mapping_file.create ~path ~register_entries () |> Errs.raise_if_error
   in
   let l = ref [] in
   let f ~off ~len = l := (Int63.to_int off, len) :: !l in

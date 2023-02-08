@@ -22,7 +22,8 @@ exception Pack_error = Errors.Pack_error
 module Make (Args : Gc_args.S) = struct
   open Args
   module Io = Fm.Io
-  module Mapping_file = Dispatcher.Mapping_file
+  module Sparse = Dispatcher.Fm.Sparse
+  module Mapping_file = Sparse.Mapping_file
 
   module Ao = struct
     include Append_only_file.Make (Fm.Io) (Errs)
@@ -127,7 +128,7 @@ module Make (Args : Gc_args.S) = struct
 
   (* Transfer the commit with a different magic. Note that this is modifying
      existing written data. *)
-  let transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key =
+  let transfer_parent_commit_exn ~read_exn ~write_exn key =
     match Pack_key.inspect key with
     | Indexed _ ->
         (* Its possible that some parents are referenced by hash. *)
@@ -135,16 +136,13 @@ module Make (Args : Gc_args.S) = struct
     | Direct { offset = off; length = len; _ } ->
         let buffer = Bytes.create len in
         read_exn ~off ~len buffer;
-        let accessor =
-          Dispatcher.create_accessor_to_prefix_exn mapping ~off ~len
-        in
         Bytes.set buffer Hash.hash_size magic_parent;
         (* Bytes.unsafe_to_string usage: We assume read_exn returns unique
            ownership of buffer to this function. Then at the call to
            Bytes.unsafe_to_string we give up unique ownership to buffer (we do
            not modify it thereafter) in return for ownership of the resulting
            string, which we pass to write_exn. This usage is safe. *)
-        write_exn ~off:accessor.poff ~len (Bytes.unsafe_to_string buffer)
+        write_exn ~off ~len (Bytes.unsafe_to_string buffer)
 
   let report_old_file_sizes ~root ~generation stats =
     let open Result_syntax in
@@ -218,8 +216,10 @@ module Make (Args : Gc_args.S) = struct
         let report_mapping_size size =
           stats := Gc_stats.Worker.add_file_size !stats "mapping" size
         in
-        Mapping_file.create ~report_mapping_size ~root:new_files_path
-          ~generation ~register_entries:f ()
+        let path =
+          Irmin_pack.Layout.V3.mapping ~generation ~root:new_files_path
+        in
+        Mapping_file.create ~report_mapping_size ~path ~register_entries:f ()
         |> Errs.raise_if_error)
       @@ fun ~register_entry ->
       (* Step 3.2 If the commit parents are referenced by offset, then include
@@ -292,24 +292,23 @@ module Make (Args : Gc_args.S) = struct
         Gc_stats.Worker.finish_current_step !stats
           "prefix: rewrite commit parents";
       let read_exn ~off ~len buf =
-        let accessor = Dispatcher.create_accessor_exn dispatcher ~off ~len in
-        Dispatcher.read_exn dispatcher accessor buf
+        Dispatcher.read_exn dispatcher ~off ~len buf
       in
-      let prefix =
+      let prefix_data =
         let path =
           Irmin_pack.Layout.V4.prefix ~root:new_files_path ~generation
         in
         Io.open_ ~path ~readonly:false |> Errs.raise_if_error
       in
+      let prefix = Sparse.v ~mapping ~data:prefix_data in
       Errors.finalise_exn (fun _outcome ->
-          Io.fsync prefix
-          >>= (fun _ -> Io.close prefix)
+          Sparse.fsync prefix
+          >>= (fun _ -> Sparse.close prefix)
           |> Errs.log_if_error "GC: Close prefix after parent rewrite")
       @@ fun () ->
-      let write_exn = Io.write_exn prefix in
+      let write_exn = Sparse.write_exn prefix in
       List.iter
-        (fun key ->
-          transfer_parent_commit_exn ~read_exn ~write_exn ~mapping key)
+        (fun key -> transfer_parent_commit_exn ~read_exn ~write_exn key)
         (Commit_value.parents commit)
     in
 

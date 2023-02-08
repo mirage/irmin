@@ -113,6 +113,10 @@ module type S = sig
       length of the chunked suffix. *)
 
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
+
+  val read_range_exn :
+    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> unit
+
   val append_exn : t -> string -> unit
   val readonly : t -> bool
   val auto_flush_threshold : t -> int option
