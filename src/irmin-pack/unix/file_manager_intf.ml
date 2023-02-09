@@ -65,6 +65,7 @@ module type S = sig
   module Index : Pack_index.S
   module Errs : Io_errors.S with module Io = Io
   module Sparse : Sparse_file.S with module Io = Io
+  module Lower : Lower.S with module Io = Io
 
   type t
 
@@ -107,7 +108,7 @@ module type S = sig
     | `Index_failure of string
     | `Invalid_argument
     | `Invalid_layout
-    | `Io_misc of Control.Io.misc_error
+    | `Io_misc of Io.misc_error
     | `Migration_needed
     | `No_such_file_or_directory of string
     | `Not_a_directory of string
@@ -120,7 +121,8 @@ module type S = sig
     | `Unknown_major_pack_version of string
     | `Index_failure of string
     | `Sys_error of string
-    | `Inconsistent_store ]
+    | `Inconsistent_store
+    | `Volume_missing of string ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Create a rw instance of [t] by opening existing files.
@@ -149,6 +151,7 @@ module type S = sig
     | `Migration_needed
     | `No_such_file_or_directory of string
     | `Not_a_file
+    | `Double_close
     | `Closed
     | `V3_store_from_the_future
     | `Index_failure of string
@@ -156,7 +159,8 @@ module type S = sig
     | `Inconsistent_store
     | `Invalid_argument
     | `Read_out_of_bounds
-    | `Invalid_layout ]
+    | `Invalid_layout
+    | `Volume_missing of string ]
 
   val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Create a ro instance of [t] by opening existing files.

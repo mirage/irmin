@@ -47,7 +47,7 @@ end
 module type S = sig
   module Io : Io.S
   module Errs : Io_errors.S
-  module Volume : Volume
+  module Volume : Volume with module Io = Io
 
   type t
   type open_error = [ Volume.open_error | `Volume_missing of string ]

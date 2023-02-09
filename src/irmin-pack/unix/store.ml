@@ -169,17 +169,14 @@ module Maker (Config : Conf.S) = struct
 
         let v config =
           let root = Irmin_pack.Conf.root config in
-          let _lower_path =
-            (* Validate lower layer root directory.
-
-               TODO: The value is a placeholder which will be used
-               in subsequent chagnes. *)
+          let () =
+            (* Validate lower layer root directory. *)
             let lower_root = Irmin_pack.Conf.lower_root config in
             match lower_root with
-            | None -> None
+            | None -> ()
             | Some path -> (
                 match Io.classify_path path with
-                | `Directory -> Some path
+                | `Directory -> ()
                 | `No_such_file_or_directory ->
                     Errs.raise_error (`No_such_file_or_directory path)
                 | `File | `Other -> Errs.raise_error (`Not_a_directory path))

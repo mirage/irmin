@@ -33,6 +33,7 @@ struct
   module Suffix = Chunked_suffix.Make (Io) (Errs)
   module Sparse = Sparse_file.Make (Io)
   module Mapping_file = Sparse.Mapping_file
+  module Lower = Lower.Make (Io) (Errs)
 
   type after_reload_consumer = { after_reload : unit -> (unit, Errs.t) result }
   type after_flush_consumer = { after_flush : unit -> unit }
@@ -42,6 +43,7 @@ struct
     control : Control.t;
     mutable suffix : Suffix.t;
     mutable prefix : Sparse.t option;
+    lower : Lower.t option;
     index : Index.t;
     mutable dict_consumers : after_reload_consumer list;
     mutable suffix_consumers : after_flush_consumer list;
@@ -278,7 +280,7 @@ struct
       to_remove
 
   let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
-      =
+      ~make_lower =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
@@ -348,6 +350,8 @@ struct
          use [~no_callback:()] *)
       make_index ~flush_callback:cb ~readonly:false ~throttle ~log_size root
     in
+    (* 3. Open lower layer *)
+    let* lower = make_lower () in
     let t =
       {
         dict;
@@ -356,6 +360,7 @@ struct
         prefix;
         use_fsync;
         index;
+        lower;
         dict_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
@@ -457,13 +462,16 @@ struct
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
     in
+    let make_lower () = Ok None in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
+      ~make_lower
 
   (* Open rw **************************************************************** *)
 
   let open_rw_with_control_file config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
+    let lower_root = Irmin_pack.Conf.lower_root config in
     let* control =
       let path = Layout.control ~root in
       Control.open_ ~readonly:false ~path
@@ -475,6 +483,7 @@ struct
             chunk_start_idx = start_idx;
             chunk_num;
             dict_end_poff;
+            volume_num;
             _;
           } =
       Control.payload control
@@ -499,7 +508,17 @@ struct
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size root
     in
+    let make_lower () =
+      match lower_root with
+      | None -> Ok None
+      | Some path ->
+          let+ l = Lower.v ~readonly:false ~volume_num path in
+          (* TODO: if [volume_num] is 0, we need to migrate
+             (or return error if [no_migrate = true]) *)
+          Some l
+    in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
+      ~make_lower
 
   let read_offset_from_legacy_file path =
     let open Result_syntax in
@@ -588,6 +607,7 @@ struct
     let open Result_syntax in
     let indexing_strategy = Conf.indexing_strategy config in
     let root = Irmin_pack.Conf.root config in
+    let lower_root = Irmin_pack.Conf.lower_root config in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     (* 1. Open the control file *)
     let* control =
@@ -610,6 +630,7 @@ struct
             chunk_start_idx = start_idx;
             chunk_num;
             dict_end_poff;
+            volume_num;
             _;
           } =
       Control.payload control
@@ -638,7 +659,15 @@ struct
       let throttle = Conf.merge_throttle config in
       Index.v ~fresh:false ~readonly:true ~throttle ~log_size root
     in
-    (* 3. return with success *)
+    (* 3. Open lower layer *)
+    let* lower =
+      match lower_root with
+      | None -> Ok None
+      | Some path ->
+          let+ l = Lower.v ~readonly:true ~volume_num path in
+          Some l
+    in
+    (* 4. return with success *)
     Ok
       {
         dict;
@@ -648,6 +677,7 @@ struct
         use_fsync;
         indexing_strategy;
         index;
+        lower;
         dict_consumers = [];
         suffix_consumers = [];
         root;
