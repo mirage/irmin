@@ -27,45 +27,11 @@ open! Import
 include Mapping_file_intf
 module BigArr1 = Bigarray.Array1
 
-type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-
 type int64_bigarray =
   (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
 
 (* Set to 0 until we find decide what to do about sequential traversal of pack files *)
 let gap_tolerance = 0
-
-module Int_mmap : sig
-  type t = private {
-    fn : string;
-    fd : Unix.file_descr;
-    mutable arr : int_bigarray;
-  }
-
-  val open_rw : string -> t
-  val close : t -> unit
-end = struct
-  type t = { fn : string; fd : Unix.file_descr; mutable arr : int_bigarray }
-
-  (* NOTE following mmap is shared *)
-
-  let open_rw fn =
-    let shared = true in
-    assert (Sys.file_exists fn);
-    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
-    let arr =
-      let open Bigarray in
-      Unix.map_file fd Int c_layout shared [| -1 |] |> array1_of_genarray
-    in
-    { fn; fd; arr }
-
-  let close t =
-    Unix.close t.fd;
-    (* following tries to make the array unreachable, so GC'able; however, no guarantee
-       that arr actually is unreachable *)
-    t.arr <- Bigarray.(Array1.create Int c_layout 0);
-    ()
-end
 
 module Int64_mmap : sig
   type t = private {
@@ -78,6 +44,7 @@ module Int64_mmap : sig
   (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size
       of the underlying file *)
 
+  val open_rw : string -> t
   val close : t -> unit
 end = struct
   type t = { fn : string; fd : Unix.file_descr; mutable arr : int64_bigarray }
@@ -94,6 +61,17 @@ end = struct
     in
     { fn; fd; arr }
 
+  let open_rw fn =
+    (* NOTE following mmap is shared *)
+    let shared = true in
+    assert (Sys.file_exists fn);
+    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
+    let arr =
+      let open Bigarray in
+      Unix.map_file fd Int64 c_layout shared [| -1 |] |> array1_of_genarray
+    in
+    { fn; fd; arr }
+
   let close t =
     Unix.close t.fd;
     (* following tries to make the array unreachable, so GC'able; however, no guarantee
@@ -105,7 +83,7 @@ end
 (** The mapping file is created from a decreasing list of
     [(virtual_offset, 0, length)]. We first need to reverse it such that virtual
     offsets are in increasing order. *)
-let rev_inplace (src : int_bigarray) : unit =
+let rev_inplace (src : int64_bigarray) : unit =
   let src_sz = BigArr1.dim src in
   let _ =
     assert (src_sz >= 3);
@@ -123,6 +101,27 @@ let rev_inplace (src : int_bigarray) : unit =
   in
   rev 0 (src_sz - 3)
 
+let int64_endian : int64 -> int64 =
+ fun i ->
+  if Sys.big_endian then (
+    (* We are currently on a BE platform but the ints are encoded as LE in the
+       file. We've just read a LE int using a BE decoding scheme. Let's fix
+       this.
+
+       The first step is to set [buf] to contain exactly what is stored on
+       disk. Since the current platform is BE, we've interpreted what was
+       written on disk using a BE decoding scheme. To do the opposite operation
+       we must use a BE encoding scheme, hence [set_int64_be].
+
+       Now that [buf] mimics what was on disk, the second step consist of
+       decoding it using a LE function, hence [get_int64_le]. *)
+    let buf = Bytes.create 8 in
+    Bytes.set_int64_be buf 0 i;
+    Bytes.get_int64_le buf 0)
+  else i
+
+let conv_int64 i = Int64.to_int (int64_endian i)
+
 (** We then replace the [0] component of the triplets with the accumulated
     length. This yields triplets [(virtual_offset, physical_offset, length)],
     which will allow us to map virtual offsets to their physical location in the
@@ -131,11 +130,11 @@ let set_prefix_offsets src =
   let src_sz = BigArr1.dim src in
   let rec go i poff =
     if i < src_sz then (
-      src.{i + 1} <- poff;
-      let len = src.{i + 2} in
-      go (i + 3) (poff + len))
+      src.{i + 1} <- int64_endian poff;
+      let len = int64_endian src.{i + 2} in
+      go (i + 3) (Int64.add poff len))
   in
-  go 0 0
+  go 0 Int64.zero
 
 module Make (Io : Io.S) = struct
   module Io = Io
@@ -183,14 +182,14 @@ module Make (Io : Io.S) = struct
 
     (* Fill and close [file] *)
     let append_entry ~off ~len =
-      (* Write [off, 0, len] in native-endian encoding because it will be read
-         with mmap. The [0] reserves the space for the future prefix offset. *)
+      (* Write [off, 0, len] in little-endian encoding for portability.
+         The [0] reserves the space for the future prefix offset. *)
       let buffer = Bytes.create 24 in
-      Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
-      Bytes.set_int64_ne buffer 8 Int64.zero;
-      Bytes.set_int64_ne buffer 16 (Int64.of_int len);
+      Bytes.set_int64_le buffer 0 (Int63.to_int64 off);
+      Bytes.set_int64_le buffer 8 Int64.zero;
+      Bytes.set_int64_le buffer 16 (Int64.of_int len);
       (* Bytes.unsafe_to_string usage: buffer is uniquely owned; we assume
-         Bytes.set_int64_ne returns unique ownership; we give up ownership of buffer in
+         Bytes.set_int64_le returns unique ownership; we give up ownership of buffer in
          conversion to string. This is safe. *)
       Ao.append_exn file (Bytes.unsafe_to_string buffer)
     in
@@ -223,7 +222,7 @@ module Make (Io : Io.S) = struct
     let* () = Ao.close file in
 
     (* Reopen [file] but as an mmap *)
-    let file = Int_mmap.open_rw path in
+    let file = Int64_mmap.open_rw path in
     let* () =
       Errs.catch (fun () ->
           rev_inplace file.arr;
@@ -232,7 +231,7 @@ module Make (Io : Io.S) = struct
 
     (* Flush and close new mapping [file] *)
     let* () = Errs.catch (fun () -> Unix.fsync file.fd) in
-    Int_mmap.close file;
+    Int64_mmap.close file;
 
     let* mapping_size = Io.size_of_path path in
     Option.iter (fun f -> f mapping_size) report_mapping_size;
@@ -242,27 +241,6 @@ module Make (Io : Io.S) = struct
 
   let entry_count arr = BigArr1.dim arr / 3
   let entry_idx i = i * 3
-
-  let conv_int64 : int64 -> int =
-   fun i ->
-    (if Sys.big_endian then (
-     (* We are currently on a BE platform but the ints are encoded as LE in the
-        file. We've just read a LE int using a BE decoding scheme. Let's fix
-        this.
-
-        The first step is to set [buf] to contain exactly what is stored on
-        disk. Since the current platform is BE, we've interpreted what was
-        written on disk using a BE decoding scheme. To do the opposite operation
-        we must use a BE encoding scheme, hence [set_int64_be].
-
-        Now that [buf] mimics what was on disk, the second step consist of
-        decoding it using a LE function, hence [get_int64_le]. *)
-     let buf = Bytes.create 8 in
-     Bytes.set_int64_be buf 0 i;
-     Bytes.get_int64_le buf 0)
-    else i)
-    |> Int64.to_int
-
   let entry_off arr i = arr.{entry_idx i} |> conv_int64 |> Int63.of_int
   let entry_poff arr i = arr.{entry_idx i + 1} |> conv_int64 |> Int63.of_int
   let entry_len arr i = arr.{entry_idx i + 2} |> conv_int64
