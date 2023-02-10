@@ -401,6 +401,15 @@ module Maker (Config : Conf.S) = struct
 
         let split_exn repo = split repo |> Errs.raise_if_error
 
+        let add_volume_exn t =
+          let () =
+            if Irmin_pack.Conf.readonly t.config then
+              Errs.raise_error `Ro_not_allowed;
+            if Gc.is_finished t = false then
+              Errs.raise_error `Add_volume_forbidden_during_gc
+          in
+          File_manager.add_volume t.fm |> Errs.raise_if_error
+
         let batch t f =
           [%log.debug "[pack] batch start"];
           let readonly = Irmin_pack.Conf.readonly t.config in
@@ -586,6 +595,7 @@ module Maker (Config : Conf.S) = struct
     let fsync = X.Repo.fsync
     let is_split_allowed = X.Repo.is_split_allowed
     let split = X.Repo.split_exn
+    let add_volume = X.Repo.add_volume_exn
     let create_one_commit_store = X.Repo.Gc.create_one_commit_store
 
     module Gc = struct

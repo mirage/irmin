@@ -76,6 +76,7 @@ module type S = sig
   val suffix : t -> Suffix.t
   val index : t -> Index.t
   val prefix : t -> Sparse.t option
+  val lower : t -> Lower.t option
 
   type create_error :=
     [ Io.create_error
@@ -83,7 +84,12 @@ module type S = sig
     | Io.open_error
     | Io.mkdir_error
     | `Corrupted_mapping_file of string
+    | `Corrupted_control_file
+    | `Double_close
+    | `Unknown_major_pack_version of string
+    | `Volume_missing of string
     | `Not_a_directory of string
+    | `Multiple_empty_volumes
     | `Index_failure of string ]
 
   val create_rw :
@@ -259,6 +265,7 @@ module type S = sig
   val generation : t -> int
   val gc_allowed : t -> bool
   val split : t -> (unit, [> Errs.t ]) result
+  val add_volume : t -> (unit, [> Errs.t ]) result
 
   val create_one_commit_store :
     t ->

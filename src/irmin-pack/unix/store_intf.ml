@@ -81,6 +81,17 @@ module type S = sig
   (** [is_split_allowed repo] returns if split is supported. Currently returns
       the same value as {!Gc.is_allowed}. *)
 
+  (** {1 Lower layer} *)
+
+  val add_volume : repo -> unit
+  (** [add_volume t] creates a new empty volume in the lower layer.
+
+      Raises [RO_Not_Allowed] if called by a readonly instance.
+
+      Raises [Add_volume_forbidden_during_gc] if called while a GC is running.
+
+      Raises [Multiple_empty_volumes] if there is already an empty volume. *)
+
   (** {1 On-disk} *)
 
   val reload : repo -> unit

@@ -57,6 +57,7 @@ struct
   let suffix t = t.suffix
   let index t = t.index
   let prefix t = t.prefix
+  let lower t = t.lower
 
   let close t =
     let open Result_syntax in
@@ -278,6 +279,16 @@ struct
         | Error (`Sys_error error) ->
             [%log.warn "Could not remove residual file %s: %s" filename error])
       to_remove
+
+  let add_volume_and_update_control lower control =
+    let open Result_syntax in
+    (* Step 1. Add volume *)
+    let* _ = Lower.add_volume lower in
+    (* Step 2. Update control file *)
+    let pl = Control.payload control in
+    let pl = { pl with volume_num = Lower.volume_num lower } in
+    [%log.debug "add_volume: update control_file volume_num:%d" pl.volume_num];
+    Control.set_payload control pl
 
   let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
       ~make_lower =
@@ -815,6 +826,11 @@ struct
       "split: update control_file chunk_start_idx:%d chunk_num:%d"
         pl.chunk_start_idx pl.chunk_num];
     Control.set_payload t.control pl
+
+  let add_volume t =
+    match t.lower with
+    | None -> Ok () (* TODO: throw exception? *)
+    | Some lower -> add_volume_and_update_control lower t.control
 
   let cleanup t =
     let root = t.root in
