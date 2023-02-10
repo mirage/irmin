@@ -442,6 +442,7 @@ struct
   let create_rw ~overwrite config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
+    let lower_root = Irmin_pack.Conf.lower_root config in
     let* () =
       match (overwrite, Io.classify_path root) with
       | _, (`File | `Other) -> Error (`Not_a_directory root)
@@ -473,7 +474,14 @@ struct
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
     in
-    let make_lower () = Ok None in
+    let make_lower () =
+      match lower_root with
+      | None -> Ok None
+      | Some path ->
+          let* l = Lower.v ~readonly:false ~volume_num:0 path in
+          let+ _ = add_volume_and_update_control l control in
+          Some l
+    in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
       ~make_lower
 
