@@ -169,23 +169,31 @@ module Maker (Config : Conf.S) = struct
 
         let v config =
           let root = Irmin_pack.Conf.root config in
+          let fresh = Irmin_pack.Conf.fresh config in
           let () =
-            (* Validate lower layer root directory. *)
+            (* Validate lower layer root directory. Creating, if needed. *)
             let lower_root = Irmin_pack.Conf.lower_root config in
             match lower_root with
             | None -> ()
             | Some path -> (
-                match Io.classify_path path with
-                | `Directory -> ()
-                | `No_such_file_or_directory ->
-                    Errs.raise_error (`No_such_file_or_directory path)
-                | `File | `Other -> Errs.raise_error (`Not_a_directory path))
+                match (Io.classify_path path, fresh) with
+                | `Directory, false -> ()
+                | `Directory, true ->
+                    (* TODO: implement recurisve delete for lower root *)
+                    failwith
+                      (Fmt.str
+                         "Lower root already exists but fresh = true in \
+                          configuration. Please manually remove %s."
+                         path)
+                | `No_such_file_or_directory, _ ->
+                    Io.mkdir path |> Errs.raise_if_error
+                | (`File | `Other), _ ->
+                    Errs.raise_error (`Not_a_directory path))
           in
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
             if readonly then File_manager.open_ro config |> Errs.raise_if_error
             else
-              let fresh = Irmin_pack.Conf.fresh config in
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
                   File_manager.create_rw ~overwrite:false config
