@@ -14,4 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val tests : unit Alcotest_lwt.test_case list
+module Store : sig
+  val tests : unit Alcotest_lwt.test_case list
+end
+
+module Direct : sig
+  val tests : unit Alcotest_lwt.test_case list
+end
