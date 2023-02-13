@@ -14,6 +14,7 @@
     the need for temporary files. (#2085, @art-w)
   - Split now raises an exception if it is not allowed. It is not allowed on
     stores that do not allow GC. (#2175, @metanivek)
+  - Upgrade on-disk format to version 5. (#2184, @metanivek)
 
 ### Fixed
 - **irmin-pack**

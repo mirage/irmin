@@ -59,7 +59,7 @@ module Serde = struct
       match Version.of_bin left with
       | None -> Error (`Unknown_major_pack_version left)
       | Some (`V1 | `V2) -> assert false (* TODO: create specific error *)
-      | Some ((`V3 | `V4) as x) ->
+      | Some ((`V3 | `V4 | `V5) as x) ->
           if len > Io.Unix.page_size then
             (* TODO: make this a more specific error *)
             Error `Corrupted_control_file
@@ -72,39 +72,76 @@ module Serde = struct
       module Plv3 = struct
         include Payload.Upper.V3
 
-        let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
+        let of_bin_string = Irmin.Type.(unstage (of_bin_string t))
       end
 
       module Plv4 = struct
         include Payload.Upper.V4
 
-        let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
-        let to_bin_string = Irmin.Type.to_bin_string t |> Irmin.Type.unstage
+        let is_checksum_valid payload =
+          let encode_bin = Irmin.Type.(unstage (pre_hash t)) in
+          let set_checksum payload checksum = { payload with checksum } in
+          let get_checksum payload = payload.checksum in
+          Checksum.is_valid ~payload ~encode_bin ~set_checksum ~get_checksum
+
+        let of_bin_string = Irmin.Type.(unstage (of_bin_string t))
       end
 
-      (** Type of what's encoded in the upper layer control file. The variant
-          tag is encoded as a [Version.t]. *)
-      type t = V3 of Plv3.t | V4 of Plv4.t
+      module Plv5 = struct
+        include Payload.Upper.V5
+
+        let checksum_encode_bin = Irmin.Type.(unstage (pre_hash t))
+        let set_checksum payload checksum = { payload with checksum }
+        let get_checksum payload = payload.checksum
+
+        let is_checksum_valid payload =
+          Checksum.is_valid ~payload ~encode_bin:checksum_encode_bin
+            ~set_checksum ~get_checksum
+
+        let set_checksum payload =
+          Checksum.calculate_and_set ~encode_bin:checksum_encode_bin
+            ~set_checksum ~payload
+
+        let of_bin_string = Irmin.Type.(unstage (of_bin_string t))
+        let to_bin_string = Irmin.Type.(unstage (to_bin_string t))
+      end
+
+      type t = Valid of version | Invalid of version
+      and version = V3 of Plv3.t | V4 of Plv4.t | V5 of Plv5.t
 
       let to_bin_string = function
-        | V3 _ -> assert false
-        | V4 payload -> Version.to_bin `V4 ^ Plv4.to_bin_string payload
+        | Invalid _ | Valid (V3 _) | Valid (V4 _) -> assert false
+        | Valid (V5 payload) ->
+            let payload = Plv5.set_checksum payload in
+            Version.to_bin `V5 ^ Plv5.to_bin_string payload
 
       let of_bin_string s =
         let open Result_syntax in
         let* version, payload = extract_version_and_payload s in
-        match version with
-        | `V3 -> (
-            match Plv3.of_bin_string payload with
-            | Ok x -> Ok (V3 x)
-            | Error _ -> Error `Corrupted_control_file)
-        | `V4 -> (
-            match Plv4.of_bin_string payload with
-            | Ok x -> Ok (V4 x)
-            | Error _ -> Error `Corrupted_control_file)
+        let route_version () =
+          match version with
+          | `V3 ->
+              Plv3.of_bin_string payload >>= fun payload ->
+              Valid (V3 payload) |> Result.ok
+          | `V4 ->
+              Plv4.of_bin_string payload >>= fun payload ->
+              (match Plv4.is_checksum_valid payload with
+              | false -> Invalid (V4 payload)
+              | true -> Valid (V4 payload))
+              |> Result.ok
+          | `V5 ->
+              Plv5.of_bin_string payload >>= fun payload ->
+              (match Plv5.is_checksum_valid payload with
+              | false -> Invalid (V5 payload)
+              | true -> Valid (V5 payload))
+              |> Result.ok
+        in
+        match route_version () with
+        | Ok _ as x -> x
+        | Error _ -> Error `Corrupted_control_file
     end
 
-    module Latest = Data.Plv4
+    module Latest = Data.Plv5
 
     type payload = Latest.t
 
@@ -137,92 +174,97 @@ module Serde = struct
            to [pl.suffix_end_poff]. *)
         appendable_chunk_poff = pl.suffix_end_poff;
         status;
-        upgraded_from_v3_to_v4 = true;
+        upgraded_from = Some (Version.to_int `V3);
         checksum = Int63.zero;
         chunk_start_idx = !chunk_start_idx;
         chunk_num = 1;
+        volume_num = 0;
       }
 
-    let checksum_encode_bin = Irmin.Type.(unstage (pre_hash Latest.t))
-    let set_checksum payload checksum = Latest.{ payload with checksum }
-    let get_checksum payload = payload.Latest.checksum
+    let upgrade_from_v4 (pl : Payload.Upper.V4.t) : payload =
+      {
+        dict_end_poff = pl.dict_end_poff;
+        appendable_chunk_poff = pl.appendable_chunk_poff;
+        checksum = Int63.zero;
+        chunk_start_idx = pl.chunk_start_idx;
+        chunk_num = pl.chunk_num;
+        status = pl.status;
+        upgraded_from = Some (Version.to_int `V4);
+        volume_num = 0;
+      }
 
     let of_bin_string string =
       let open Result_syntax in
       let* payload = Data.of_bin_string string in
       match payload with
-      | V3 payload -> Ok (upgrade_from_v3 payload)
-      | V4 payload ->
-          if
-            Checksum.is_valid ~payload ~encode_bin:checksum_encode_bin
-              ~set_checksum ~get_checksum
-          then Ok payload
-          else Error `Corrupted_control_file
+      | Invalid _ -> Error `Corrupted_control_file
+      | Valid (V3 payload) -> Ok (upgrade_from_v3 payload)
+      | Valid (V4 payload) -> Ok (upgrade_from_v4 payload)
+      | Valid (V5 payload) -> Ok payload
 
-    let to_bin_string payload =
-      let payload =
-        Checksum.calculate_and_set ~encode_bin:checksum_encode_bin ~set_checksum
-          ~payload
-      in
-      let s = Data.(to_bin_string (V4 payload)) in
-      s
+    let to_bin_string payload = Data.(to_bin_string (Valid (V5 payload)))
   end
 
   module Volume : S with type payload = Payload.Volume.Latest.t = struct
     module Data = struct
-      module Plv4 = struct
-        include Payload.Volume.V4
+      module Plv5 = struct
+        include Payload.Volume.V5
 
-        let of_bin_string = Irmin.Type.of_bin_string t |> Irmin.Type.unstage
-        let to_bin_string = Irmin.Type.to_bin_string t |> Irmin.Type.unstage
+        let checksum_encode_bin = Irmin.Type.(unstage (pre_hash t))
+        let set_checksum payload checksum = { payload with checksum }
+        let get_checksum payload = payload.checksum
+
+        let is_checksum_valid payload =
+          Checksum.is_valid ~payload ~encode_bin:checksum_encode_bin
+            ~set_checksum ~get_checksum
+
+        let set_checksum payload =
+          Checksum.calculate_and_set ~encode_bin:checksum_encode_bin
+            ~set_checksum ~payload
+
+        let of_bin_string = Irmin.Type.(unstage (of_bin_string t))
+        let to_bin_string = Irmin.Type.(unstage (to_bin_string t))
       end
 
-      (* TODO: change this to V5 when we update Version *)
-
-      (** Type of what's encoded in a volume control file. The variant tag is
-          encoded as a [Version.t]. *)
-      type t = V4 of Plv4.t
+      type t = Valid of version | Invalid of version
+      and version = V5 of Plv5.t
 
       let to_bin_string = function
-        | V4 payload -> Version.to_bin `V4 ^ Plv4.to_bin_string payload
+        | Invalid _ -> assert false
+        | Valid (V5 payload) ->
+            let payload = Plv5.set_checksum payload in
+            Version.to_bin `V5 ^ Plv5.to_bin_string payload
 
       let of_bin_string s =
         let open Result_syntax in
         let* version, payload = extract_version_and_payload s in
-        match version with
-        | `V3 -> assert false
-        | `V4 -> (
-            match Plv4.of_bin_string payload with
-            | Ok x -> Ok (V4 x)
-            | Error _ -> Error `Corrupted_control_file)
+        let route_version () =
+          match version with
+          | `V3 | `V4 -> assert false
+          | `V5 ->
+              Plv5.of_bin_string payload >>= fun payload ->
+              (match Plv5.is_checksum_valid payload with
+              | false -> Invalid (V5 payload)
+              | true -> Valid (V5 payload))
+              |> Result.ok
+        in
+        match route_version () with
+        | Ok _ as x -> x
+        | Error _ -> Error `Corrupted_control_file
     end
 
-    module Payload = Data.Plv4
+    module Payload = Data.Plv5
 
     type payload = Payload.t
-
-    let checksum_encode_bin = Irmin.Type.(unstage (pre_hash Payload.t))
-    let set_checksum payload checksum = Payload.{ payload with checksum }
-    let get_checksum payload = payload.Payload.checksum
 
     let of_bin_string string =
       let open Result_syntax in
       let* payload = Data.of_bin_string string in
       match payload with
-      | V4 payload ->
-          if
-            Checksum.is_valid ~payload ~encode_bin:checksum_encode_bin
-              ~set_checksum ~get_checksum
-          then Ok payload
-          else Error `Corrupted_control_file
+      | Invalid _ -> Error `Corrupted_control_file
+      | Valid (V5 payload) -> Ok payload
 
-    let to_bin_string payload =
-      let payload =
-        Checksum.calculate_and_set ~encode_bin:checksum_encode_bin ~set_checksum
-          ~payload
-      in
-      let s = Data.(to_bin_string (V4 payload)) in
-      s
+    let to_bin_string payload = Data.(to_bin_string (Valid (V5 payload)))
   end
 end
 

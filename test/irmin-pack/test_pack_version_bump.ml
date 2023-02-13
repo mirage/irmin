@@ -91,7 +91,7 @@ module Util = struct
 
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)
-  let io_get_version ~root : [ `V1 | `V2 | `V3 | `V4 ] =
+  let io_get_version ~root : [ `V1 | `V2 | `V3 | `V4 | `V5 ] =
     File_manager.version ~root |> Errs.raise_if_error
 
   let alco_check_version ~pos ~expected ~actual =
