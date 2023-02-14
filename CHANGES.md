@@ -9,6 +9,9 @@
 
 ### Changed
 
+- **irmin**
+  - Expose type equality for `Schema.Info` to avoid defining the `info` function
+    multiple times when using similar stores (#2189, @samoht)
 - **irmin-pack**
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
