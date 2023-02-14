@@ -190,6 +190,7 @@ struct
   type metadata = Metadata.t
   type branch = Branch.t
   type hash = G.hash
+  type info = Irmin.Info.default
 
   module Make (C : Irmin.Contents.S) = Maker.Make (Schema.Make (G) (C) (Branch))
 end
@@ -218,6 +219,7 @@ struct
   type endpoint = unit
   type metadata = Metadata.t
   type hash = G.hash
+  type info = Irmin.Info.default
 
   include Irmin.Key.Store_spec.Hash_keyed
 

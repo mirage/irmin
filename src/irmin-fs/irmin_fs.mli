@@ -78,7 +78,7 @@ end
 module Append_only (IO : IO) : Irmin.Append_only.Maker
 module Atomic_write (IO : IO) : Irmin.Atomic_write.Maker
 module Maker (IO : IO) : Irmin.Maker
-module KV (IO : IO) : Irmin.KV_maker
+module KV (IO : IO) : Irmin.KV_maker with type info = Irmin.Info.default
 
 (** {2 Advanced configuration} *)
 

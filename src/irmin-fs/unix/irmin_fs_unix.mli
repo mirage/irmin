@@ -17,7 +17,7 @@
 module Append_only : Irmin.Append_only.Maker
 module Atomic_write : Irmin.Atomic_write.Maker
 include Irmin.Maker
-module KV : Irmin.KV_maker
+module KV : Irmin.KV_maker with type info = Irmin.Info.default
 
 (** {1 Extended Stores} *)
 
