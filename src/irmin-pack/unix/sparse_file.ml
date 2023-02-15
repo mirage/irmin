@@ -18,40 +18,7 @@ open Import
 include Sparse_file_intf
 module BigArr1 = Bigarray.Array1
 
-type int_bigarray = (int, Bigarray.int_elt, Bigarray.c_layout) BigArr1.t
 type int64_bigarray = (int64, Bigarray.int64_elt, Bigarray.c_layout) BigArr1.t
-
-module Int_mmap : sig
-  type t = private {
-    fn : string;
-    fd : Unix.file_descr;
-    mutable arr : int_bigarray;
-  }
-
-  val open_rw : string -> t
-  val close : t -> unit
-end = struct
-  type t = { fn : string; fd : Unix.file_descr; mutable arr : int_bigarray }
-
-  (* NOTE following mmap is shared *)
-
-  let open_rw fn =
-    let shared = true in
-    assert (Sys.file_exists fn);
-    let fd = Unix.(openfile fn [ O_RDWR ] 0o660) in
-    let arr =
-      let open Bigarray in
-      Unix.map_file fd Int c_layout shared [| -1 |] |> array1_of_genarray
-    in
-    { fn; fd; arr }
-
-  let close t =
-    Unix.close t.fd;
-    (* following tries to make the array unreachable, so GC'able; however, no guarantee
-       that arr actually is unreachable *)
-    t.arr <- Bigarray.(Array1.create Int c_layout 0);
-    ()
-end
 
 module Int64_mmap : sig
   type t = private {
@@ -91,44 +58,8 @@ end
 module Make (Io : Io.S) = struct
   module Io = Io
   module Errs = Io_errors.Make (Io)
-  module Ao = Append_only_file.Make (Io) (Errs)
 
   module Mapping_file = struct
-    (** The mapping file is created from a decreasing list of
-        [(virtual_offset, 0, length)]. We first need to reverse it such that
-        virtual offsets are in increasing order. *)
-    let rev_inplace (src : int_bigarray) : unit =
-      let src_sz = BigArr1.dim src in
-      let _ =
-        assert (src_sz >= 3);
-        assert (src_sz mod 3 = 0)
-      in
-      let rec rev i j =
-        if i < j then (
-          let ioff, ilen = (src.{i}, src.{i + 2}) in
-          let joff, jlen = (src.{j}, src.{j + 2}) in
-          src.{i} <- joff;
-          src.{i + 2} <- jlen;
-          src.{j} <- ioff;
-          src.{j + 2} <- ilen;
-          rev (i + 3) (j - 3))
-      in
-      rev 0 (src_sz - 3)
-
-    (** We then replace the [0] component of the triplets with the accumulated
-        length. This yields triplets
-        [(virtual_offset, physical_offset, length)], which will allow us to map
-        virtual offsets to their physical location in the prefix file. *)
-    let set_prefix_offsets src =
-      let src_sz = BigArr1.dim src in
-      let rec go i poff =
-        if i < src_sz then (
-          src.{i + 1} <- poff;
-          let len = src.{i + 2} in
-          go (i + 3) (poff + len))
-      in
-      go 0 0
-
     type t = { arr : int64_bigarray; path : string }
 
     let open_map ~path =
@@ -147,85 +78,6 @@ module Make (Io : Io.S) = struct
                   (__FILE__
                   ^ ": mapping mmap size did not meet size requirements")))
       | _ -> Error (`No_such_file_or_directory path)
-
-    let create ?report_mapping_size ~path ~register_entries () =
-      let open Result_syntax in
-      let* () =
-        if Sys.word_size <> 64 then Error `Gc_forbidden_on_32bit_platforms
-        else Ok ()
-      in
-
-      (* Unlink residual and ignore errors (typically no such file) *)
-      Io.unlink path |> ignore;
-
-      (* Create [file] *)
-      let* file =
-        Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold:1_000_000
-          ~auto_flush_procedure:`Internal
-      in
-
-      (* Fill and close [file] *)
-      let append_entry ~off ~len =
-        (* Write [off, 0, len] in native-endian encoding because it will be read
-           with mmap. The [0] reserves the space for the future prefix offset. *)
-        let buffer = Bytes.create 24 in
-        Bytes.set_int64_ne buffer 0 (Int63.to_int64 off);
-        Bytes.set_int64_ne buffer 8 Int64.zero;
-        Bytes.set_int64_ne buffer 16 (Int64.of_int len);
-        (* Bytes.unsafe_to_string usage: buffer is uniquely owned; we assume
-           Bytes.set_int64_ne returns unique ownership; we give up ownership of buffer in
-           conversion to string. This is safe. *)
-        Ao.append_exn file (Bytes.unsafe_to_string buffer)
-      in
-      (* Check if we can collapse consecutive entries *)
-      let current_entry = ref None in
-      let register_entry ~off ~len =
-        let current =
-          match !current_entry with
-          | None -> (off, len)
-          | Some (off', len') ->
-              if off >= off' then
-                invalid_arg
-                  "register_entry: offsets are not strictly decreasing";
-              let dist = Int63.to_int (Int63.sub off' off) in
-              if dist <= len then (off, dist + len')
-              else (
-                append_entry ~off:off' ~len:len';
-                (off, len))
-        in
-        current_entry := Some current
-      in
-      let* () =
-        Errs.catch (fun () ->
-            register_entries ~register_entry;
-            (* Flush pending entry *)
-            match !current_entry with
-            | None -> ()
-            | Some (off, len) -> append_entry ~off ~len)
-      in
-      let* () = Ao.flush file in
-      let* () = Ao.close file in
-
-      (* Reopen [file] but as an mmap *)
-      let file = Int_mmap.open_rw path in
-      let* () =
-        Errs.catch (fun () ->
-            rev_inplace file.arr;
-            set_prefix_offsets file.arr)
-      in
-
-      (* Flush and close new mapping [file] *)
-      let* () = Errs.catch (fun () -> Unix.fsync file.fd) in
-      Int_mmap.close file;
-
-      let* mapping_size = Io.size_of_path path in
-      Option.iter (fun f -> f mapping_size) report_mapping_size;
-
-      (* Open created map *)
-      open_map ~path
-
-    let entry_count arr = BigArr1.dim arr / 3
-    let entry_idx i = i * 3
 
     let conv_int64 : int64 -> int =
      fun i ->
@@ -247,6 +99,8 @@ module Make (Io : Io.S) = struct
       else i)
       |> Int64.to_int
 
+    let entry_count arr = BigArr1.dim arr / 3
+    let entry_idx i = i * 3
     let entry_off arr i = arr.{entry_idx i} |> conv_int64 |> Int63.of_int
     let entry_poff arr i = arr.{entry_idx i + 1} |> conv_int64 |> Int63.of_int
     let entry_len arr i = arr.{entry_idx i + 2} |> conv_int64
@@ -256,10 +110,7 @@ module Make (Io : Io.S) = struct
         f ~off:(entry_off arr i) ~len:(entry_len arr i)
       done
 
-    let iter t f =
-      Errs.catch (fun () ->
-          iter_exn t f;
-          ())
+    let iter t f = Errs.catch (fun () -> iter_exn t f)
 
     type entry = { off : int63; poff : int63; len : int }
 
@@ -284,18 +135,15 @@ module Make (Io : Io.S) = struct
 
   type t = { mapping : Mapping_file.t; data : Io.t }
 
-  let v ~mapping ~data = { mapping; data }
-
-  let open_ro ~mapping ~data =
+  let open_ ~readonly ~mapping ~data =
     let open Result_syntax in
     let* mapping = Mapping_file.open_map ~path:mapping in
-    let+ data = Io.open_ ~path:data ~readonly:true in
-    v ~mapping ~data
+    let+ data = Io.open_ ~path:data ~readonly in
+    { mapping; data }
 
-  let get_mapping t = t.mapping
-  let get_data t = t.data
+  let open_ro ~mapping ~data = open_ ~readonly:true ~mapping ~data
   let close t = Io.close t.data
-  let fsync t = Io.fsync t.data
+  let iter t fn = Mapping_file.iter t.mapping fn
 
   let get_poff { mapping; _ } ~off =
     match Mapping_file.find_nearest_geq mapping off with
@@ -324,15 +172,101 @@ module Make (Io : Io.S) = struct
     let len = min max_len max_entry_len in
     Io.read_exn t.data ~off:poff ~len buf
 
-  let write_exn t ~off ~len str =
-    let poff, max_entry_len = get_poff t ~off in
-    assert (len <= max_entry_len);
-    Io.write_exn t.data ~off:poff ~len str
-
   let next_valid_offset { mapping; _ } ~off =
     match Mapping_file.find_nearest_geq mapping off with
     | None -> None
     | Some entry ->
         let open Int63.Syntax in
         Some (if entry.off < off then off else entry.off)
+
+  module Wo = struct
+    type nonrec t = t
+
+    let open_wo ~mapping ~data = open_ ~readonly:false ~mapping ~data
+
+    let write_exn t ~off ~len str =
+      let poff, max_entry_len = get_poff t ~off in
+      assert (len <= max_entry_len);
+      Io.write_exn t.data ~off:poff ~len str
+
+    let fsync t = Io.fsync t.data
+    let close = close
+  end
+
+  module Ao = struct
+    module Ao = Append_only_file.Make (Io) (Errs)
+
+    type t = { mapping : Ao.t; data : Ao.t; mutable end_off : Int63.t }
+
+    let end_off t = t.end_off
+
+    let create ~mapping ~data =
+      let open Result_syntax in
+      let ao_create path =
+        Ao.create_rw ~path ~overwrite:false ~auto_flush_threshold:1_000_000
+          ~auto_flush_procedure:`Internal
+      in
+      let* mapping = ao_create mapping in
+      let+ data = ao_create data in
+      { mapping; data; end_off = Int63.zero }
+
+    let open_ao ~mapping_size ~mapping ~data =
+      let open Result_syntax in
+      let ao_open ~end_poff path =
+        Ao.open_rw ~path ~end_poff ~dead_header_size:0
+          ~auto_flush_threshold:1_000_000 ~auto_flush_procedure:`Internal
+      in
+      let* ao_mapping = ao_open ~end_poff:mapping_size mapping in
+      let* end_off, end_poff =
+        if mapping_size <= Int63.zero then Ok (Int63.zero, Int63.zero)
+        else
+          let entry_len = 3 * 8 in
+          let+ entry =
+            Ao.read_to_string ao_mapping
+              ~off:Int63.(Syntax.(mapping_size - of_int entry_len))
+              ~len:entry_len
+          in
+          let entry = Bytes.of_string entry in
+          let end_off = Bytes.get_int64_le entry 0 |> Int63.of_int64 in
+          let end_poff = Bytes.get_int64_le entry 8 |> Int63.of_int64 in
+          let len = Bytes.get_int64_le entry 16 |> Int63.of_int64 in
+          let open Int63.Syntax in
+          (end_off + len, end_poff + len)
+      in
+      let+ ao_data = ao_open ~end_poff data in
+      { mapping = ao_mapping; data = ao_data; end_off }
+
+    let check_offset_exn { end_off; _ } ~off =
+      if Int63.Syntax.(end_off > off) then
+        Fmt.failwith
+          "Sparse.Ao.append_exn at offset %a, smaller than latest offset %a"
+          Int63.pp off Int63.pp end_off
+
+    let append_seq_exn t ~off seq =
+      check_offset_exn t ~off;
+      let poff = Ao.end_poff t.data in
+      let len =
+        Seq.fold_left
+          (fun len str ->
+            Ao.append_exn t.data str;
+            len + String.length str)
+          0 seq
+      in
+      let buffer = Bytes.create 24 in
+      Bytes.set_int64_le buffer 0 (Int63.to_int64 off);
+      Bytes.set_int64_le buffer 8 (Int63.to_int64 poff);
+      Bytes.set_int64_le buffer 16 (Int64.of_int len);
+      Ao.append_exn t.mapping (Bytes.unsafe_to_string buffer);
+      t.end_off <- Int63.(Syntax.(off + of_int len))
+
+    let flush t =
+      let open Result_syntax in
+      let* () = Ao.flush t.data in
+      Ao.flush t.mapping
+
+    let close t =
+      let open Result_syntax in
+      let* () = Ao.close t.data in
+      Ao.close t.mapping
+  end
 end

@@ -19,57 +19,40 @@ module Int63 = Optint.Int63
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
 module Sparse_file = Irmin_pack_unix.Sparse_file.Make (Io)
-module Mapping_file = Sparse_file.Mapping_file
 
 let test_dir = Filename.concat "_build" "test-pack-mapping"
 
+let rec make_string_seq len () =
+  if len <= 0 then Seq.Nil
+  else
+    let quantity = min 8 len in
+    Seq.Cons (String.make quantity 'X', make_string_seq (len - quantity))
+
 (** Call the [Mapping_file] routines to process [pairs] *)
 let process_on_disk pairs =
-  let register_entries ~register_entry =
-    List.iter
-      (fun (off, len) ->
-        Format.printf "%i (+%i) => %i@." off len (off + len);
-        register_entry ~off:(Int63.of_int off) ~len)
-      pairs
-  in
-  let path = Irmin_pack.Layout.V3.mapping ~root:test_dir ~generation:1 in
-  let mapping =
-    Mapping_file.create ~path ~register_entries () |> Errs.raise_if_error
-  in
+  let mapping = Irmin_pack.Layout.V5.mapping ~root:test_dir ~generation:1 in
+  Io.unlink mapping |> ignore;
+  let data = Irmin_pack.Layout.V5.prefix ~root:test_dir ~generation:1 in
+  Io.unlink data |> ignore;
+  let sparse = Sparse_file.Ao.create ~mapping ~data |> Errs.raise_if_error in
+  List.iter
+    (fun (off, len) ->
+      Format.printf "%i (+%i) => %i@." off len (off + len);
+      let str = make_string_seq len in
+      let off = Int63.of_int off in
+      Sparse_file.Ao.append_seq_exn sparse ~off str)
+    (List.rev pairs);
+  Sparse_file.Ao.flush sparse |> Errs.raise_if_error;
+  Sparse_file.Ao.close sparse |> Errs.raise_if_error;
+  let sparse = Sparse_file.open_ro ~mapping ~data |> Errs.raise_if_error in
   let l = ref [] in
   let f ~off ~len = l := (Int63.to_int off, len) :: !l in
-  Mapping_file.iter mapping f |> Errs.raise_if_error;
+  Sparse_file.iter sparse f |> Errs.raise_if_error;
+  Sparse_file.close sparse |> Errs.raise_if_error;
   !l |> List.rev
 
 (** Emulate the behaviour of the [Mapping_file] routines to process [pairs] *)
-let process_in_mem pairs =
-  let length_per_offset =
-    let tbl = Hashtbl.create 0 in
-    List.iter
-      (fun (off, len) ->
-        let len =
-          match Hashtbl.find_opt tbl off with
-          | Some len' when len' > len -> len'
-          | _ -> len
-        in
-        Hashtbl.replace tbl off len)
-      pairs;
-    tbl
-  in
-  (* [List.map] gets the offsets, [List.sort_uniq] sort/dedups them and
-     [List.fold_left] merges the contiguous ones. *)
-  List.map fst pairs
-  |> List.sort_uniq compare
-  |> List.fold_left
-       (fun acc off ->
-         let len = Hashtbl.find length_per_offset off in
-         match acc with
-         | [] -> [ (off, len) ]
-         | (off', len') :: _ when off' + len' > off -> assert false
-         | (off', len') :: tl when off' + len' = off -> (off', len' + len) :: tl
-         | acc -> (off, len) :: acc)
-       []
-  |> List.rev
+let process_in_mem pairs = List.rev pairs
 
 let test input_entries =
   let output_entries = process_on_disk input_entries in
