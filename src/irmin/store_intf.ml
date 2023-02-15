@@ -1173,6 +1173,7 @@ module type KV_maker_generic_key = sig
   type endpoint
   type metadata
   type hash
+  type info
 
   include Key.Store_spec.S
 
@@ -1185,6 +1186,7 @@ module type KV_maker_generic_key = sig
        and type contents_key = (hash, C.t) contents_key
        and type node_key = hash node_key
        and type commit_key = hash commit_key
+       and type Schema.Info.t = info
 end
 
 module type KV_maker =

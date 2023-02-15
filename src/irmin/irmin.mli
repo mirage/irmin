@@ -201,7 +201,10 @@ module Maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
 (** [KV_maker] is like {!module-Maker} but uses sensible default implementations
     for everything except the contents type. *)
 module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) :
-  KV_maker with type endpoint = unit and type metadata = unit
+  KV_maker
+    with type endpoint = unit
+     and type metadata = unit
+     and type info = Info.default
 
 (** {2 Backend} *)
 

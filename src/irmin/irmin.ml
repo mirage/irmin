@@ -173,6 +173,7 @@ module KV_maker (CA : Content_addressable.Maker) (AW : Atomic_write.Maker) =
 struct
   type metadata = unit
   type hash = Schema.default_hash
+  type info = Info.default
 
   module Maker = Maker (CA) (AW)
   include Maker
