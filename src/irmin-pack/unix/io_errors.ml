@@ -79,7 +79,8 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Multiple_empty_volumes
     | `Volume_missing of string
     | `Add_volume_forbidden_during_gc
-    | `Add_volume_requires_lower ]
+    | `Add_volume_requires_lower
+    | `Volume_not_found of string ]
   [@@deriving irmin]
 
   let raise_error = function

@@ -21,12 +21,16 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
   module Errs = Errs
   module Control = Control_file.Volume (Io)
+  module Sparse = Sparse_file.Make (Io)
 
-  type t = {
-    mutable readonly : bool;
-    path : string;
-    control : Control_file.Payload.Volume.Latest.t option;
-  }
+  type t =
+    | Empty of { path : string }
+    | Nonempty of {
+        path : string;
+        mutable readonly : bool;
+        control : Control_file.Payload.Volume.Latest.t;
+        mutable sparse : Sparse.t option;
+      }
 
   type open_error =
     [ Io.open_error
@@ -45,14 +49,20 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
           Some payload
       | `Directory | `Other | `No_such_file_or_directory -> Ok None
     in
-    Ok { readonly; path = volume_path; control }
+    Ok
+      (let path = volume_path in
+       match control with
+       | None -> Empty { path }
+       | Some control -> Nonempty { readonly; path; control; sparse = None })
 
-  let set_readonly ~readonly t =
-    if t.readonly = readonly then Ok ()
-    else
-      (* TODO actually reopen based on readonly flag once
-         sparse file is in place *)
-      Ok (t.readonly <- readonly)
+  let set_readonly ~readonly = function
+    | Empty { path } -> Fmt.failwith "set_readonly for empty volume %s" path
+    | Nonempty t ->
+        if t.readonly = readonly then Ok ()
+        else
+          (* TODO determine how this flag works once we have a read-write
+             volume in GC *)
+          Ok (t.readonly <- readonly)
 
   let create_empty volume_path =
     let open Result_syntax in
@@ -80,27 +90,50 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
        when the store starts. *)
     v ~readonly:false volume_path
 
-  let path t = t.path
-  let control t = t.control
-  let empty_state t = if Option.is_none t.control then `Empty t else `Nonempty t
+  let path = function Empty { path } -> path | Nonempty { path; _ } -> path
 
-  let is_empty t =
-    match empty_state t with `Empty _ -> true | `Nonempty _ -> false
+  let control = function
+    | Empty _ -> None
+    | Nonempty { control; _ } -> Some control
 
-  let nonempty_control (`Nonempty t) =
-    match t.control with
-    | None -> failwith "Nonempty volume has no control"
-    | Some cf -> cf
+  let is_empty = function Empty _ -> true | Nonempty _ -> false
 
-  let start_offset t = (nonempty_control t).start_offset
-  let end_offset t = (nonempty_control t).end_offset
-
-  let contains ~offset t =
-    match empty_state t with
-    | `Empty _ -> false
-    | `Nonempty _ as t ->
+  let contains ~offset = function
+    | Empty _ -> false
+    | Nonempty { control; _ } ->
         let open Int63.Syntax in
-        start_offset t <= offset && offset < end_offset t
+        control.start_offset <= offset && offset < control.end_offset
+
+  let open_ = function
+    | Empty _ -> Ok () (* Opening an empty volume is a no-op *)
+    | Nonempty ({ path = root; sparse; _ } as t) -> (
+        match sparse with
+        | Some _ -> Ok () (* Sparse file is already open *)
+        | None ->
+            let open Result_syntax in
+            let mapping = Irmin_pack.Layout.V5.Volume.mapping ~root in
+            let data = Irmin_pack.Layout.V5.Volume.data ~root in
+            let+ sparse = Sparse.open_ro ~mapping ~data in
+            t.sparse <- Some sparse)
+
+  let close = function
+    | Empty _ -> Ok () (* Closing an empty volume is a no-op *)
+    | Nonempty ({ sparse; _ } as t) -> (
+        match sparse with
+        | None -> Error `Double_close
+        | Some s ->
+            let open Result_syntax in
+            let+ () = Sparse.close s in
+            t.sparse <- None)
+
+  let eq a b = String.equal (path a) (path b)
+
+  let read_exn ~off ~len b = function
+    | Empty _ -> ()
+    | Nonempty { sparse; _ } -> (
+        match sparse with
+        | None -> Errs.raise_error `Closed
+        | Some s -> Sparse.read_exn s ~off ~len b)
 end
 
 module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -108,7 +141,13 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Errs = Errs
   module Volume = Make_volume (Io) (Errs)
 
-  type t = { root : string; readonly : bool; mutable volumes : Volume.t array }
+  type t = {
+    root : string;
+    readonly : bool;
+    mutable volumes : Volume.t array;
+    mutable open_volume : Volume.t option;
+  }
+
   type open_error = [ Volume.open_error | `Volume_missing of string ]
   type close_error = [ | Io.close_error ]
 
@@ -119,10 +158,19 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     | `File_exists of string
     | `Invalid_parent_directory ]
 
+  let close_open_volume t =
+    match t.open_volume with
+    | None -> Ok ()
+    | Some v ->
+        let open Result_syntax in
+        let+ _ = Volume.close v in
+        t.open_volume <- None
+
   exception LoadVolumeError of open_error
 
   let load_volumes ~volume_num t =
     let open Result_syntax in
+    let* () = close_open_volume t in
     let* volumes =
       let root = t.root in
       let volume i =
@@ -143,17 +191,15 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     Ok t
 
   let v ~readonly ~volume_num root =
-    load_volumes ~volume_num { root; readonly; volumes = [||] }
+    load_volumes ~volume_num
+      { root; readonly; volumes = [||]; open_volume = None }
 
   let reload ~volume_num t =
     let open Result_syntax in
     let* _ = load_volumes ~volume_num t in
     Ok ()
 
-  let close _t =
-    (* TODO: update when actual fds are kept open *)
-    Ok ()
-
+  let close = close_open_volume
   let volume_num t = Array.length t.volumes
 
   let appendable_volume t =
@@ -178,4 +224,29 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     Ok vol
 
   let find_volume ~offset t = Array.find_opt (Volume.contains ~offset) t.volumes
+
+  let read_exn ~off ~len ?volume t b =
+    let set_open_volume t v =
+      (* Maintain one open volume at a time. *)
+      let open Result_syntax in
+      let* () =
+        match t.open_volume with
+        | None -> Ok ()
+        | Some v0 -> if Volume.eq v0 v then Ok () else close_open_volume t
+      in
+      let+ _ = Volume.open_ v in
+      t.open_volume <- Some v
+    in
+    let volume =
+      match volume with
+      | None -> (
+          match find_volume ~offset:off t with
+          | None ->
+              let err = Fmt.str "Looking for offset %d" (Int63.to_int off) in
+              Errs.raise_error (`Volume_not_found err)
+          | Some v -> v)
+      | Some v -> v
+    in
+    set_open_volume t volume |> Errs.raise_if_error;
+    Volume.read_exn ~off ~len b volume
 end

@@ -28,6 +28,7 @@ module Direct_tc = struct
   module Control = Irmin_pack_unix.Control_file.Volume (Io)
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Lower = Irmin_pack_unix.Lower.Make (Io) (Errs)
+  module Sparse = Irmin_pack_unix.Sparse_file.Make (Io)
 
   let create_control volume_path payload =
     let path = Irmin_pack.Layout.V5.Volume.control ~root:volume_path in
@@ -106,6 +107,49 @@ module Direct_tc = struct
     let$ _ = Lower.reload ~volume_num:1 lower in
     let volume = Lower.find_volume ~offset:(Int63.of_int 21) lower in
     Alcotest.(check bool) "found volume" true (Option.is_some volume);
+    let _ = Lower.close lower in
+    Lwt.return_unit
+
+  let test_read_exn () =
+    let lower_root = create_lower_root () in
+    let$ lower = Lower.v ~readonly:false ~volume_num:0 lower_root in
+    let$ volume = Lower.add_volume lower in
+    (* Manually create mapping, data, and control file for volume.
+
+       Then test that reloading and read_exn work as expected. *)
+    let volume_path = Lower.Volume.path volume in
+    let mapping_path = Irmin_pack.Layout.V5.Volume.mapping ~root:volume_path in
+    let data_path = Irmin_pack.Layout.V5.Volume.data ~root:volume_path in
+    let test_str = "hello" in
+    let len = String.length test_str in
+    let$ sparse =
+      Sparse.Ao.open_ao ~mapping_size:Int63.zero ~mapping:mapping_path
+        ~data:data_path
+    in
+    let seq = List.to_seq [ test_str ] in
+    Sparse.Ao.append_seq_exn sparse ~off:Int63.zero seq;
+    let end_offset = Sparse.Ao.end_off sparse in
+    let$ _ = Sparse.Ao.flush sparse in
+    let$ _ = Sparse.Ao.close sparse in
+    let$ mapping_end_poff = Io.size_of_path mapping_path in
+    let$ data_end_poff = Io.size_of_path data_path in
+    let payload =
+      Irmin_pack_unix.Control_file.Payload.Volume.Latest.
+        {
+          start_offset = Int63.zero;
+          end_offset;
+          mapping_end_poff;
+          data_end_poff;
+          checksum = Int63.zero;
+        }
+    in
+    let _ = create_control (Lower.Volume.path volume) payload in
+    let$ _ = Lower.reload ~volume_num:1 lower in
+    let buf = Bytes.create len in
+    let _ = Lower.read_exn ~off:Int63.zero ~len lower buf in
+    Alcotest.(check string)
+      "check volume read" test_str
+      (Bytes.unsafe_to_string buf);
     let _ = Lower.close lower in
     Lwt.return_unit
 end
@@ -221,5 +265,6 @@ module Direct = struct
         quick_tc "add volume ro" test_add_volume_ro;
         quick_tc "add multiple empty" test_add_multiple_empty;
         quick_tc "find volume" test_find_volume;
+        quick_tc "test read_exn" test_read_exn;
       ]
 end

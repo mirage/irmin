@@ -95,6 +95,13 @@ module type S = sig
 
   val find_volume : offset:int63 -> t -> Volume.t option
   (** [find_volume ~offset t] returns the {!Volume} that contains [offset]. *)
+
+  val read_exn : off:int63 -> len:int -> ?volume:Volume.t -> t -> bytes -> unit
+  (** [read_exn ~off ~len ~volume t b] will read [len] bytes from a global
+      [offset] located in [volume].
+
+      If [volume] is not provided, {!find_volume} will be used to attempt to
+      locate the correct volume for the read. *)
 end
 
 module type Sigs = sig
