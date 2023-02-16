@@ -1,5 +1,13 @@
 ## Unreleased
 
+### Added
+
+- **irmin-server**
+  - Added `irmin-server` package (#2031, @zshipko)
+- **irmin-client**
+  - Added `irmin-client` package to connect to `irmin-server` instances (#2031,
+    @zshipko)
+
 ### Fixed
 
 - **irmin-pack**
