@@ -23,6 +23,7 @@ depends: [
 ]
 build: [
   ["dune" "subst"] {dev}
-  ["dune" "build" "-p" name "-j" jobs "@runtest" {with-test & arch != "arm32" & arch != "x86_32"}]
+  ["dune" "build" "-p" name "-j" jobs "@install" "@runtest" {with-test & arch != "arm32" & arch != "x86_32"}]
+
 ]
 dev-repo: "git+https://github.com/mirage/irmin.git"
