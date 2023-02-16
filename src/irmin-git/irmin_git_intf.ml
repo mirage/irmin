@@ -147,7 +147,8 @@ module type Sigs = sig
 
   module Generic_KV
       (CA : Irmin.Content_addressable.Maker)
-      (AW : Irmin.Atomic_write.Maker) : Irmin.KV_maker with type endpoint = unit
+      (AW : Irmin.Atomic_write.Maker) :
+    Irmin.KV_maker with type endpoint = unit and type info = Irmin.Info.default
 
   (** In-memory Git store. *)
   module Mem :

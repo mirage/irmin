@@ -37,7 +37,11 @@ module Atomic_write : Irmin.Atomic_write.Maker
 (** An in-memory store with atomic-write guarantees. *)
 
 (** Constructor for in-memory KV stores. *)
-module KV : Irmin.KV_maker with type endpoint = unit and type metadata = unit
+module KV :
+  Irmin.KV_maker
+    with type endpoint = unit
+     and type metadata = unit
+     and type info = Irmin.Info.default
 
 include Irmin.Maker with type endpoint = unit
 (** Constructor for in-memory Irmin store. *)
