@@ -20,3 +20,20 @@ let codec =
   in
   let t = Arg.enum [ ("bin", `Bin); ("json", `Json) ] in
   Arg.(value & opt t `Bin doc)
+
+module Conf = struct
+  let spec = Irmin.Backend.Conf.Spec.v "server"
+
+  module Key = struct
+    let uri =
+      Irmin.Backend.Conf.key ~spec "uri" Irmin.Backend.Conf.uri default_uri
+  end
+
+  let add_uri config u = Irmin.Backend.Conf.add config Key.uri u
+
+  let v config uri =
+    let spec' = Irmin.Backend.Conf.spec config in
+    let spec = Irmin.Backend.Conf.Spec.join spec' [ spec ] in
+    let config = Irmin.Backend.Conf.with_spec config spec in
+    match uri with Some uri -> add_uri config uri | None -> config
+end

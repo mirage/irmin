@@ -267,17 +267,12 @@ let config =
     let store, config =
       Irmin_cli.Resolver.load_config ?config_path ?store ?hash ?contents ()
     in
-    let config =
-      match uri with Some uri -> Irmin_http.config uri config | None -> config
-    in
+    let config = Irmin_server.Cli.Conf.v config uri in
     let (module Store : Irmin.Generic_key.S) =
       Irmin_cli.Resolver.Store.generic_keyed store
     in
     let module Client = Irmin_client_unix.Make_codec (Codec) (Store) in
-    let uri =
-      Irmin.Backend.Conf.(get config Irmin_http.Conf.Key.uri)
-      |> Option.value ~default:Cli.default_uri
-    in
+    let uri = Irmin.Backend.Conf.(get config Irmin_server.Cli.Conf.Key.uri) in
     init ~uri ~branch ~tls (module Client)
   in
   Term.(

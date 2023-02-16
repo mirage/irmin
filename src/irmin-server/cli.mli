@@ -8,3 +8,12 @@ val config_path : string option Cmdliner.Term.t
 (** Command line argument to specify configuration path *)
 
 val codec : [ `Bin | `Json ] Cmdliner.Term.t
+
+module Conf : sig
+  module Key : sig
+    val uri: Uri.t Irmin.Backend.Conf.key
+  end
+  
+  val spec: Irmin.Backend.Conf.Spec.t
+  val v: Irmin.config -> Uri.t option -> Irmin.config
+end

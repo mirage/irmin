@@ -16,13 +16,11 @@ let setup_log =
 let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
     (module Codec : Conn.Codec.S) fingerprint =
   let store, config =
-    Irmin_cli.Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
+    Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
   in
-  let config =
-    match uri with Some uri -> Irmin_http.config uri config | None -> config
-  in
+  let config = Irmin_server.Cli.Conf.v config uri in
   let (module Store : Irmin.Generic_key.S) =
-    Irmin_cli.Resolver.Store.generic_keyed store
+    Resolver.Store.generic_keyed store
   in
   let module Server = Irmin_server_unix.Make_ext (Codec) (Store) in
   if fingerprint then
@@ -35,10 +33,7 @@ let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
       | Some (c, k) -> Some (`Cert_file c, `Key_file k)
       | _ -> None
     in
-    let uri =
-      Irmin.Backend.Conf.(get config Irmin_http.Conf.Key.uri)
-      |> Option.value ~default:Cli.default_uri
-    in
+    let uri = Irmin.Backend.Conf.(get config) Irmin_server.Cli.Conf.Key.uri in
     let config = if readonly then Server.readonly config else config in
     let* server = Server.v ?tls_config ~uri config in
     let root = match root with Some root -> root | None -> "" in
@@ -90,14 +85,10 @@ let main_term =
     const main
     $ readonly
     $ root
-    $ Cli.uri
+    $ Irmin_server.Cli.uri
     $ tls
-    $ Irmin_cli.Resolver.Store.term ()
-    $ Cli.codec
-    $ Cli.config_path
+    $ Resolver.Store.term ()
+    $ Irmin_server.Cli.codec
+    $ Irmin_server.Cli.config_path
     $ fingerprint
     $ setup_log)
-
-let[@alert "-deprecated"] () =
-  let info = Term.info "irmin-server" in
-  Term.exit @@ Term.eval (main_term, info)

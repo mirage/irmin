@@ -10,6 +10,7 @@
   irmin-git.unix
   irmin-fs.unix
   irmin-graphql.unix
+  irmin-server.unix
   irmin-watcher
   cmdliner
   git-unix
