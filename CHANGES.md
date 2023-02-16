@@ -13,8 +13,6 @@
   - Expose type equality for `Schema.Info` to avoid defining the `info` function
     multiple times when using similar stores (#2189, @samoht)
 - **irmin-pack**
-  - Improve GC reachability traversal to optimize memory, speed and remove
-    the need for temporary files. (#2085, @art-w)
   - Split now raises an exception if it is not allowed. It is not allowed on
     stores that do not allow GC. (#2175, @metanivek)
   - Upgrade on-disk format to version 5. (#2184, @metanivek)
@@ -24,6 +22,14 @@
   - Unhandled exceptions in GC worker process are now reported as a failure
     (#2163, @metanivek)
   - Fix the silent mode for the integrity checks. (#2179, @icristescu)
+  
+## 3.6.0
+
+### Changed
+
+- **irmin-pack**
+  - Improve GC reachability traversal to optimize memory, speed and remove
+    the need for temporary files. (#2085, @art-w)
 
 ## 3.5.1
 
