@@ -15,7 +15,7 @@ depends: [
   "conduit-lwt-unix"
   "lwt-dllist"
   "js_of_ocaml-lwt"
-  "brr"
+  "brr" {>= "0.0.4"}
 ]
 build: [
   ["dune" "subst"] {pinned}

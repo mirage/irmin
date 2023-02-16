@@ -253,7 +253,10 @@ module IO = struct
         Lwt.return @@ Websocket.close ws);
     let c1 = { closed = c1_switch; buff = Buff.create 4096 } in
     let c2 = { closed = c1_switch; buff = Buff.create 4096 } in
-    Brr.Ev.listen Message.Ev.message (fill_ic c1) (Websocket.as_target ws);
+    let _ev =
+      Brr.Ev.listen Message.Ev.message (fill_ic c1) (Websocket.as_target ws)
+    in
+    (* TODO: unlisten ? *)
     Lwt.async (fun () -> send_oc true c2 ws);
     (c1, c2)
 
@@ -267,13 +270,18 @@ module IO = struct
           Websocket.set_binary_type ws Websocket.Binary_type.arraybuffer
         in
         let p, r = Lwt.wait () in
-        Brr.Ev.listen Brr.Ev.open'
-          (fun _ -> Lwt.wakeup_later r ())
-          (Websocket.as_target ws);
-        Brr.Ev.listen Brr.Ev.error
-          (fun _err ->
-            Lwt.wakeup_later_exn r (Invalid_argument "Websocket Failure"))
-          (Websocket.as_target ws);
+        let _ev =
+          Brr.Ev.listen Brr.Ev.open'
+            (fun _ -> Lwt.wakeup_later r ())
+            (Websocket.as_target ws)
+        in
+        let _ev =
+          Brr.Ev.listen Brr.Ev.error
+            (fun _err ->
+              Lwt.wakeup_later_exn r (Invalid_argument "Websocket Failure"))
+            (Websocket.as_target ws)
+        in
+        (* TODO: unlisten ? *)
         if Websocket.ready_state ws = Websocket.Ready_state.open' then
           Lwt.wakeup_later r ();
         p >|= fun () -> websocket_to_flow ws
