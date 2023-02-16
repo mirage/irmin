@@ -11,19 +11,18 @@ depends: [
   "dune" {>= "2.0.0"}
   "optint" {>= "0.1.0"}
   "irmin" {= version}
+  "ppx_irmin" {= version}
   "uri"
   "fmt"
   "cmdliner" {>= "1.0.4"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.4.0"}
-  "ppx_irmin" {= version}
-]
-depopts: [
-  "conduit-lwt-unit"
+  "conduit-lwt-unix"
   "websocket-lwt-unix"
   "cohttp-lwt-unix"
   "ppx_blob"
 ]
+
 build: [
   ["dune" "subst"] {pinned}
   ["dune" "build" "-p" name "-j" jobs]

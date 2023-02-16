@@ -1,7 +1,6 @@
 (library
  (name irmin_client_unix)
  (public_name irmin-client.unix)
- (optional)
  (libraries
   irmin-client
   lwt.unix

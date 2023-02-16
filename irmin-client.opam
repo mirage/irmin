@@ -11,17 +11,15 @@ depends: [
   "dune" {>= "2.0.0"}
   "irmin-server" {= version}
   "ipaddr"
-]
-build: [
-  ["dune" "subst"] {pinned}
-  ["dune" "build" "-p" name "-j" jobs]
-  ["dune" "runtest" "-p" name] {with-test}
-]
-depopts: [
   "websocket-lwt-unix"
   "conduit-lwt-unix"
   "lwt-dllist"
   "js_of_ocaml-lwt"
   "brr"
+]
+build: [
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name] {with-test}
 ]
 dev-repo: "git+ssh://github.com/mirage/irmin"
