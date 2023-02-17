@@ -18,6 +18,8 @@ and info = { commit : int list; contents : int list; inode : int list }
 type idxs = { entry : int; off_info : off_info; off_pack : Int63.t }
 and off_info = { off_last : Int63.t; off_next : Int63.t }
 
+type history = { entry : int; off : Int63.t; kind : Kind.t }
+
 type context = {
   info_last_fd : Unix.file_descr;
   info_next_fd : Unix.file_descr;
@@ -27,6 +29,7 @@ type context = {
   dict : string list;
   max_entry : int;
   max_offset : Int63.t;
+  history : history option Ring.t;
   mutable entry : int;
   mutable entry_ctx : entry_ctx;
   mutable entry_content : entry_content;
@@ -116,6 +119,14 @@ let load_entry fd_last fd_next off_info =
 
 let reload_context c i =
   let idxs = List.nth c.idxs i in
+  if i <> c.entry then
+    Ring.add c.history
+      (Some
+         {
+           entry = c.entry;
+           off = c.entry_content.off;
+           kind = c.entry_content.kind;
+         });
   c.entry <- i;
   c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
   c.entry_content <- get_entry c idxs.off_pack
@@ -125,6 +136,14 @@ let reload_context_with_off c off =
     Option.get
     @@ List.find_opt (fun idxs -> Int63.equal off idxs.off_pack) c.idxs
   in
+  if idxs.entry <> c.entry then
+    Ring.add c.history
+      (Some
+         {
+           entry = c.entry;
+           off = c.entry_content.off;
+           kind = c.entry_content.kind;
+         });
   c.entry <- idxs.entry;
   c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
   c.entry_content <- get_entry c off
@@ -254,20 +273,36 @@ module Button = struct
   let pad b x y = { b with x = b.x + x; y = b.y + y }
 end
 
-let menu_box h w =
+let box h w =
   let open I in
   let bar = String.concat "" @@ List.init (w + 2) (fun _ -> "━") in
   let t_bar = "┏" ^ bar ^ "┓" in
   let m_bar = "┃" ^ String.make (w + 2) ' ' ^ "┃" in
-  let mf_bar = "┣" ^ bar ^ "┫" in
   let b_bar = "┗" ^ bar ^ "┛" in
   let middle =
     I.vcat (List.init h (fun _ -> string A.(fg white ++ st bold) m_bar))
   in
   string A.(fg white ++ st bold) t_bar
   <-> middle
+  <-> string A.(fg white ++ st bold) b_bar
+
+let double_box h1 h2 w =
+  let open I in
+  let bar = String.concat "" @@ List.init (w + 2) (fun _ -> "━") in
+  let t_bar = "┏" ^ bar ^ "┓" in
+  let m_bar = "┃" ^ String.make (w + 2) ' ' ^ "┃" in
+  let mf_bar = "┣" ^ bar ^ "┫" in
+  let b_bar = "┗" ^ bar ^ "┛" in
+  let middle1 =
+    I.vcat (List.init h1 (fun _ -> string A.(fg white ++ st bold) m_bar))
+  in
+  let middle2 =
+    I.vcat (List.init h2 (fun _ -> string A.(fg white ++ st bold) m_bar))
+  in
+  string A.(fg white ++ st bold) t_bar
+  <-> middle1
   <-> string A.(fg white ++ st bold) mf_bar
-  <-> string A.(fg white ++ st bold) m_bar
+  <-> middle2
   <-> string A.(fg white ++ st bold) b_bar
 
 let position_text c i =
@@ -304,19 +339,6 @@ let position_text c i =
             ~attr:A.(fg lightwhite ++ st bold)
             "to offset %#d" (Int63.to_int off_pack)
       |> pad ~l:30 ~t:1
-
-let position_box h w =
-  let open I in
-  let bar = String.concat "" @@ List.init (w + 2) (fun _ -> "━") in
-  let t_bar = "┏" ^ bar ^ "┓" in
-  let m_bar = "┃" ^ String.make (w + 2) ' ' ^ "┃" in
-  let b_bar = "┗" ^ bar ^ "┛" in
-  let middle =
-    I.vcat (List.init h (fun _ -> string A.(fg white ++ st bold) m_bar))
-  in
-  string A.(fg white ++ st bold) t_bar
-  <-> middle
-  <-> string A.(fg white ++ st bold) b_bar
 
 let get_parent_commit c i =
   let { off_info; _ } = List.nth c.idxs i in
@@ -723,6 +745,52 @@ let show_entry_content ~x_off ~y_off c =
         |> I.pad ~l:x_off ~t:y_off,
         [] )
 
+let show_history c =
+  let open I in
+  let f = function
+    | None -> (string A.(fg black) "           ", [])
+    | Some { entry; off; kind } ->
+        let color, text =
+          match kind with
+          | Commit_v1 | Commit_v2 -> (A.red, "Commit")
+          | Dangling_parent_commit -> (A.magenta, "Dangling commit")
+          | Contents -> (A.lightblue, "Contents")
+          | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
+          | Inode_v2_nonroot ->
+              (A.green, "Inode")
+        in
+        let img =
+          string A.(fg color ++ st bold) text
+          <|> I.strf
+                ~attr:A.(fg lightwhite ++ st bold)
+                " (entry %#d, offset %#d)" entry (Int63.to_int off)
+        in
+        ( img,
+          [
+            Button.
+              {
+                x = 0;
+                y = 0;
+                w = I.width img;
+                h = 1;
+                f = (fun c -> reload_context c entry);
+              };
+          ] )
+  in
+  let history, history_buttons =
+    List.map f (Ring.to_list c.history) |> List.split
+  in
+  let history_text = vcat history in
+  let history_box = double_box 1 (height history_text) (width history_text) in
+  ( void 2 1
+    <|> (void 1 1
+        <-> string A.(fg lightwhite ++ st bold) "History"
+        <-> void 1 1
+        <-> history_text)
+    </> history_box,
+    List.mapi (fun i b -> Button.pad b 2 (i + 3)) (List.flatten history_buttons)
+  )
+
 let entry_pos c l t =
   let open I in
   string A.(fg lightyellow ++ st bold) "Entry:"
@@ -742,24 +810,31 @@ let rec loop t c =
   let buttons = Menu.b c in
   let _, _, tooltip, move = buttons.(c.y).(c.x) in
   let menu_text = Menu.buttons buttons ~x_off:1 ~y_off:1 c.x c.y in
-  let menu_box = menu_box (I.height menu_text - 1) (I.width menu_text - 2) in
+  let menu_box =
+    double_box (I.height menu_text - 1) 1 (I.width menu_text - 2)
+  in
   let tooltip =
     I.string A.(fg lightwhite ++ st bold) tooltip |> I.pad ~l:2 ~t:6
   in
-  let position_text = position_text c move in
-  let position_box =
-    position_box (I.height menu_text + 1) (I.width position_text - 2)
+  let history, history_buttons = show_history c in
+  let history_pad = fst (Term.size t) - I.width history in
+  let history = history |> I.pad ~l:history_pad in
+  let history_buttons =
+    List.map (fun b -> Button.pad b history_pad 0) history_buttons
   in
+  let position_text = position_text c move in
+  let position_box = box (I.height menu_text + 1) (I.width position_text - 2) in
   let entries, entries_buttons = show_entry_content ~x_off:2 ~y_off:10 c in
   let l =
     [
       menu_text;
       tooltip;
       menu_box;
+      history;
       position_text;
       position_box;
-      entry_pos c 2 8;
       entries;
+      entry_pos c 2 8;
     ]
   in
   let b = I.zcat l in
@@ -774,7 +849,9 @@ let rec loop t c =
       f c;
       loop t c
   | `Mouse (`Press _, pos, _) ->
-      let l = List.filter_map (Button.on_press pos) entries_buttons in
+      let l =
+        List.filter_map (Button.on_press pos) (entries_buttons @ history_buttons)
+      in
       List.iter (fun f -> f c) l;
       loop t c
   | _ -> loop t c
@@ -795,6 +872,7 @@ let main store_path info_last_path info_next_path index_path =
   let idx_fd = Unix.openfile index_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644 in
   let max_entry, idxs = load_idxs idx_fd in
   Unix.close idx_fd;
+  let history = Ring.make 50 ~default:None in
   let { entry; off_info; off_pack } = List.hd idxs in
   let entry_ctx = load_entry info_last_fd info_next_fd off_info in
   let entry_content =
@@ -812,6 +890,7 @@ let main store_path info_last_path info_next_path index_path =
       max_offset;
       x = 3;
       y = 0;
+      history;
       entry;
       entry_ctx;
       entry_content;

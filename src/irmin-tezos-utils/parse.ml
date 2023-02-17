@@ -2,31 +2,23 @@ open Import
 open Files
 module Files = Make (Irmin_tezos.Conf) (Irmin_tezos.Schema)
 
-module Ring = struct
-  type t = { n : int; mutable i : int; a : int array }
-
-  let make n = { n; i = 0; a = Array.make n (-1) }
-
-  let add r x =
-    Array.set r.a r.i x;
-    r.i <- (r.i + 1) mod r.n
-
-  let get r i =
-    if i <= r.n then
-      let x = r.a.((r.i - i + r.n) mod r.n) in
-      if x <> -1 then Some x else None
-    else None
-end
-
 type ctx = { off : Int63.t; info : info }
 and info = { commits : int list; contents : int list; inodes : int list }
 
 let empty_info () = { commits = []; contents = []; inodes = [] }
 
-type info_ring = { commit : Ring.t; contents : Ring.t; inode : Ring.t }
+type info_ring = {
+  commit : int Ring.t;
+  contents : int Ring.t;
+  inode : int Ring.t;
+}
 
 let info_ring () =
-  { commit = Ring.make 1000; contents = Ring.make 1000; inode = Ring.make 1000 }
+  {
+    commit = Ring.make 1000 ~default:(-1);
+    contents = Ring.make 1000 ~default:(-1);
+    inode = Ring.make 1000 ~default:(-1);
+  }
 
 let ctx_buffer = Bytes.create (4096 * 4096)
 
