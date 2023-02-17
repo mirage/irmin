@@ -15,10 +15,13 @@ type entry_content = {
 type entry_ctx = { last : info; next : info }
 and info = { commit : int list; contents : int list; inode : int list }
 
+type idxs = { entry : int; off_info : off_info; off_pack : Int63.t }
+and off_info = { off_last : Int63.t; off_next : Int63.t }
+
 type context = {
   info_last_fd : Unix.file_descr;
   info_next_fd : Unix.file_descr;
-  idxs : (int * (Int63.t * Int63.t) * Int63.t) list;
+  idxs : idxs list;
   fm : Files.File_manager.t;
   dispatcher : Files.Dispatcher.t;
   dict : string list;
@@ -75,13 +78,14 @@ let load_idxs fd =
         let off_next_info = Int63.of_int @@ Varint.decode_bin buffer i' in
         let off_pack = Int63.of_int @@ Varint.decode_bin buffer i' in
         idx := !i' + !idx;
-        (i, (off_last_info, off_next_info), off_pack))
+        let off_info = { off_last = off_last_info; off_next = off_next_info } in
+        { entry = i; off_info; off_pack })
   in
   (max_entry, idxs)
 
-let load_entry fd_last fd_next (fd_offset_last, fd_offset_next) =
+let load_entry fd_last fd_next off_info =
   let _ =
-    read ~fd:fd_last ~buffer ~fd_offset:fd_offset_last ~buffer_offset:0
+    read ~fd:fd_last ~buffer ~fd_offset:off_info.off_last ~buffer_offset:0
       ~length:(Varint.max_encoded_size * 7)
   in
   let buf = Bytes.unsafe_to_string buffer in
@@ -95,7 +99,7 @@ let load_entry fd_last fd_next (fd_offset_last, fd_offset_next) =
   let inode = List.init n (fun _ -> Varint.decode_bin buf idx) in
   let last = { commit; contents; inode } in
   let _ =
-    read ~fd:fd_next ~buffer ~fd_offset:fd_offset_next ~buffer_offset:0
+    read ~fd:fd_next ~buffer ~fd_offset:off_info.off_next ~buffer_offset:0
       ~length:(Varint.max_encoded_size * 7)
   in
   let buf = Bytes.unsafe_to_string buffer in
@@ -111,18 +115,18 @@ let load_entry fd_last fd_next (fd_offset_last, fd_offset_next) =
   { last; next }
 
 let reload_context c i =
-  let _, off_info, off_pack = List.nth c.idxs i in
+  let idxs = List.nth c.idxs i in
   c.entry <- i;
-  c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd off_info;
-  c.entry_content <- get_entry c off_pack
+  c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
+  c.entry_content <- get_entry c idxs.off_pack
 
 let reload_context_with_off c off =
-  let entry, idx, _ =
+  let idxs =
     Option.get
-    @@ List.find_opt (fun (_, _, off') -> Int63.equal off off') c.idxs
+    @@ List.find_opt (fun idxs -> Int63.equal off idxs.off_pack) c.idxs
   in
-  c.entry <- entry;
-  c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idx;
+  c.entry <- idxs.entry;
+  c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
   c.entry_content <- get_entry c off
 
 module Menu = struct
@@ -272,7 +276,7 @@ let position_text c i =
   | Some i ->
       let d = i - c.entry in
       let entry_txt = if d = -1 || d = 1 then "entry" else "entries" in
-      let _, _, off_pack = List.nth c.idxs i in
+      let { off_pack; _ } = List.nth c.idxs i in
       let content = get_entry c off_pack in
       let open I in
       let color, text =
@@ -294,13 +298,11 @@ let position_text c i =
       in
       arrow
       <-> void 0 1
-      <-> string
-            A.(fg lightwhite ++ st bold)
-            ("by " ^ Int.to_string (abs d) ^ " " ^ entry_txt)
+      <-> strf ~attr:A.(fg lightwhite ++ st bold) "by %#d %s" (abs d) entry_txt
       <-> void 0 1
-      <-> string
-            A.(fg lightwhite ++ st bold)
-            ("to offset " ^ Int63.to_string off_pack)
+      <-> strf
+            ~attr:A.(fg lightwhite ++ st bold)
+            "to offset %#d" (Int63.to_int off_pack)
       |> pad ~l:30 ~t:1
 
 let position_box h w =
@@ -316,22 +318,54 @@ let position_box h w =
   <-> middle
   <-> string A.(fg white ++ st bold) b_bar
 
+let get_parent_commit c i =
+  let { off_info; _ } = List.nth c.idxs i in
+  let ctx = load_entry c.info_last_fd c.info_next_fd off_info in
+  List.nth ctx.next.commit 0
+
 let show_commit c (commit : Files.Commit.Commit_direct.t) =
-  let node_txt = I.string A.(fg lightred ++ st bold) "Node:" in
-  let addr_show (addr : Files.Commit.Commit_direct.address) =
+  let open I in
+  let node_txt = string A.(fg lightred ++ st bold) "Node:" in
+  let addr_show ?(parent = true) (addr : Files.Commit.Commit_direct.address) =
+    let parent_commit ~parent c i =
+      if parent then
+        let parent_commit = get_parent_commit c i in
+        let img =
+          if c.entry == parent_commit then
+            strf ~attr:A.(fg lightgreen ++ st bold) "(Added by current commit)"
+          else
+            strf
+              ~attr:A.(fg lightmagenta ++ st bold)
+              "(Added by commit at entry %#d)" parent_commit
+        in
+        ( img,
+          [
+            Button.
+              {
+                x = 0;
+                y = 1;
+                w = I.width img;
+                h = 1;
+                f = (fun c -> reload_context c parent_commit);
+              };
+          ] )
+      else (empty, [])
+    in
     match addr with
     | Offset addr -> (
         let hit_or_miss =
-          List.find_opt (fun (_, _, off) -> Int63.equal addr off) c.idxs
+          List.find_opt
+            (fun { off_pack; _ } -> Int63.equal addr off_pack)
+            c.idxs
         in
         match hit_or_miss with
         | None ->
             ( I.strf
                 ~attr:A.(fg lightwhite ++ st bold)
-                "Dangling entry (off %a)" Int63.pp addr,
+                "Dangling entry (off %#d)" (Int63.to_int addr),
               [] )
-        | Some (idx, _, off_pack) ->
-            let img =
+        | Some { entry; off_pack; _ } ->
+            let img, parent_img, parent_buttons =
               let content = get_entry c off_pack in
               let open I in
               let color, text =
@@ -343,23 +377,25 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
                 | Inode_v2_nonroot ->
                     (A.green, "Inode")
               in
-              I.strf ~attr:A.(fg lightwhite ++ st bold) "Entry %d (" idx
-              <|> I.string A.(fg color ++ st bold) text
-              <|> I.strf
-                    ~attr:A.(fg lightwhite ++ st bold)
-                    ", off %a)" Int63.pp addr
+              let parent_img, parent_buttons = parent_commit ~parent c entry in
+              ( strf ~attr:A.(fg lightwhite ++ st bold) "Entry %#d (" entry
+                <|> string A.(fg color ++ st bold) text
+                <|> strf
+                      ~attr:A.(fg lightwhite ++ st bold)
+                      ", off %#d)" (Int63.to_int addr),
+                parent_img,
+                parent_buttons )
             in
-            ( img,
-              [
-                Button.
-                  {
-                    x = 0;
-                    y = 0;
-                    w = I.width img;
-                    h = 1;
-                    f = (fun c -> reload_context_with_off c addr);
-                  };
-              ] ))
+            ( img <-> parent_img,
+              Button.
+                {
+                  x = 0;
+                  y = 0;
+                  w = I.width img;
+                  h = 1;
+                  f = (fun c -> reload_context_with_off c addr);
+                }
+              :: parent_buttons ))
     | Hash _hash ->
         (I.string A.(fg lightwhite ++ st bold) "Hash <should not happen>", [])
   in
@@ -373,7 +409,7 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
           List.split
             (List.mapi
                (fun i addr ->
-                 let node, node_button = addr_show addr in
+                 let node, node_button = addr_show ~parent:false addr in
                  (node, List.map (fun b -> Button.pad b 0 i) node_button))
                parents)
         in
@@ -414,18 +450,45 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
 let show_inode c (inode : Files.Inode.compress) =
   let open I in
   let addr_show (addr : Files.Inode.Compress.address) =
+    let parent_commit c i =
+      let current_parent_commit = List.nth c.entry_ctx.next.commit 0 in
+      let parent_commit = get_parent_commit c i in
+      let img =
+        if current_parent_commit == parent_commit then
+          strf ~attr:A.(fg lightgreen ++ st bold) "(Added by parent commit)"
+        else
+          strf
+            ~attr:A.(fg lightmagenta ++ st bold)
+            "(Added by commit at entry %#d)" parent_commit
+      in
+      ( img,
+        [
+          Button.
+            {
+              x = 0;
+              y = 1;
+              w = I.width img;
+              h = 1;
+              f = (fun c -> reload_context c parent_commit);
+            };
+        ] )
+    in
     match addr with
     | Offset addr ->
         let hit_or_miss =
-          List.find_opt (fun (_, _, off) -> Int63.equal addr off) c.idxs
+          List.find_opt
+            (fun { off_pack; _ } -> Int63.equal addr off_pack)
+            c.idxs
         in
-        let img =
+        let img, parent_img, parent_buttons =
           match hit_or_miss with
           | None ->
-              I.strf
-                ~attr:A.(fg lightwhite ++ st bold)
-                "Dangling entry (off %a)" Int63.pp addr
-          | Some (idx, _, off_pack) ->
+              ( I.strf
+                  ~attr:A.(fg lightwhite ++ st bold)
+                  "Dangling entry (off %#d)" (Int63.to_int addr),
+                I.empty,
+                [] )
+          | Some { entry; off_pack; _ } ->
               let content = get_entry c off_pack in
               let open I in
               let color, text =
@@ -437,24 +500,26 @@ let show_inode c (inode : Files.Inode.compress) =
                 | Inode_v2_nonroot ->
                     (A.green, "Inode")
               in
-              I.strf ~attr:A.(fg lightwhite ++ st bold) "Entry %d (" idx
-              <|> I.string A.(fg color ++ st bold) text
-              <|> I.strf
-                    ~attr:A.(fg lightwhite ++ st bold)
-                    ", off %a)" Int63.pp addr
+              let parent_img, parent_buttons = parent_commit c entry in
+              ( I.strf ~attr:A.(fg lightwhite ++ st bold) "Entry %#d (" entry
+                <|> I.string A.(fg color ++ st bold) text
+                <|> I.strf
+                      ~attr:A.(fg lightwhite ++ st bold)
+                      ", off %#d)" (Int63.to_int addr),
+                parent_img,
+                parent_buttons )
         in
 
-        ( img,
-          [
-            Button.
-              {
-                x = 0;
-                y = 0;
-                w = I.width img;
-                h = 1;
-                f = (fun c -> reload_context_with_off c addr);
-              };
-          ] )
+        ( img <-> parent_img,
+          Button.
+            {
+              x = 0;
+              y = 0;
+              w = I.width img;
+              h = 1;
+              f = (fun c -> reload_context_with_off c addr);
+            }
+          :: parent_buttons )
     | Hash _hash ->
         (I.string A.(fg lightwhite ++ st bold) "Hash <should not happen>", [])
   in
@@ -464,7 +529,7 @@ let show_inode c (inode : Files.Inode.compress) =
         let key = List.nth_opt c.dict dict_key in
         strf
           ~attr:A.(fg lightwhite ++ st bold)
-          "Indirect key: \'%a\' (%d)" (Fmt.option Fmt.string) key dict_key
+          "Indirect key: \'%a\' (%#d)" (Fmt.option Fmt.string) key dict_key
     | Direct step ->
         strf ~attr:A.(fg lightwhite ++ st bold) "Direct key: %s" step
   in
@@ -488,13 +553,13 @@ let show_inode c (inode : Files.Inode.compress) =
               (fun b -> Button.pad b 2 (I.height img1 + I.height img2))
               node_button )
     in
-    let img = strf ~attr:A.(fg lightred ++ st bold) "Value %d:" i in
+    let img = strf ~attr:A.(fg lightred ++ st bold) "Value %#d:" i in
     ( img <-> (void 2 0 <|> v),
       List.map (fun b -> Button.pad b 2 (I.height img)) v_buttons )
   in
   let ptr i (p : Files.Inode.Compress.ptr) =
     let ptr, ptr_button = addr_show p.hash in
-    let img = strf ~attr:A.(fg lightred ++ st bold) "Ptr %d:" i <|> void 2 0 in
+    let img = strf ~attr:A.(fg lightred ++ st bold) "Ptr %#d:" i <|> void 2 0 in
     (img <|> ptr, List.map (fun b -> Button.pad b (I.width img) i) ptr_button)
   in
   let tree (t : Files.Inode.Compress.tree) =
@@ -502,7 +567,7 @@ let show_inode c (inode : Files.Inode.compress) =
     let img =
       string A.(fg lightred ++ st bold) "Tree:"
       <-> (void 2 0
-          <|> strf ~attr:A.(fg lightwhite ++ st bold) "Depth: %d" t.depth)
+          <|> strf ~attr:A.(fg lightwhite ++ st bold) "Depth: %#d" t.depth)
     in
     ( img <-> vcat t_img,
       List.map (fun b -> Button.pad b 0 (I.height img)) (List.flatten t_buttons)
@@ -662,13 +727,15 @@ let entry_pos c l t =
   let open I in
   string A.(fg lightyellow ++ st bold) "Entry:"
   <|> void 1 0
-  <|> strf ~attr:A.(fg lightwhite ++ st bold) "%d/%d" c.entry (c.max_entry - 1)
+  <|> strf ~attr:A.(fg lightwhite ++ st bold) "%#d/%#d" c.entry (c.max_entry - 1)
   </> void 30 0
   <|> string A.(fg lightyellow ++ st bold) "Offset:"
   <|> void 1 0
   <|> strf
         ~attr:A.(fg lightwhite ++ st bold)
-        "%a/%a" Int63.pp c.entry_content.off Int63.pp (Int63.pred c.max_offset)
+        "%#d/%#d"
+        (Int63.to_int c.entry_content.off)
+        (Int63.to_int (Int63.pred c.max_offset))
   |> pad ~l ~t
 
 let rec loop t c =
@@ -728,7 +795,7 @@ let main store_path info_last_path info_next_path index_path =
   let idx_fd = Unix.openfile index_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644 in
   let max_entry, idxs = load_idxs idx_fd in
   Unix.close idx_fd;
-  let entry, off_info, off_pack = List.nth idxs 0 in
+  let { entry; off_info; off_pack } = List.hd idxs in
   let entry_ctx = load_entry info_last_fd info_next_fd off_info in
   let entry_content =
     Obj.magic "TODO: cyclical deps between entry_content and context"
