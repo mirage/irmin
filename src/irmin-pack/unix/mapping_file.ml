@@ -141,7 +141,9 @@ module Make (Io : Io.S) = struct
   module Errs = Io_errors.Make (Io)
   module Ao = Append_only_file.Make (Io) (Errs)
 
-  type t = { arr : int64_bigarray; root : string; generation : int }
+  type t = { mutable arr : int64_bigarray; root : string; generation : int }
+
+  let close t = t.arr <- Bigarray.(Array1.create Int64 c_layout 0)
 
   let open_map ~root ~generation =
     let path = Irmin_pack.Layout.V4.mapping ~generation ~root in

@@ -1186,7 +1186,15 @@ module Snapshot = struct
     let* () = check_2 t c2 in
     S.Repo.close t.repo
 
+  let lsof_count pid =
+    let+ output =
+      Lwt_process.pread ("lsof", [| "lsof"; "-p"; string_of_int pid |])
+    in
+    List.length (String.split_on_char '\n' output)
+
   let snapshot_import_in_ro () =
+    let pid_self = Unix.getpid () in
+    let* count_before = lsof_count pid_self in
     let* t = init () in
     let* t, c1 = commit_1 t in
     let root_snap = Filename.concat t.root "snap" in
@@ -1196,7 +1204,13 @@ module Snapshot = struct
     let* t = init ~readonly:true ~fresh:false ~root:root_snap () in
     let* t = checkout_exn t c1 in
     let* () = check_1 t c1 in
-    S.Repo.close t.repo
+    let* () = S.Repo.close t.repo in
+    (* [Gc.full_major] forces the release of the mmaped file *)
+    Stdlib.Gc.full_major ();
+    let+ count_after = lsof_count pid_self in
+    Alcotest.(check bool)
+      "open file descriptors" true
+      (count_after <= count_before)
 
   let snapshot_export_in_ro () =
     let* t = init () in

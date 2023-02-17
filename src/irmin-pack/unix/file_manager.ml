@@ -64,6 +64,7 @@ struct
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
     let* () = Suffix.close t.suffix in
+    Option.iter Mapping_file.close t.mapping;
     let* () = Option.might Prefix.close t.prefix in
     let+ () = Index.close t.index in
     ()
@@ -228,7 +229,9 @@ struct
   let reopen_mapping t ~generation =
     let open Result_syntax in
     let root = t.root in
+    let mapping0 = t.mapping in
     let* mapping = open_mapping ~root ~generation in
+    Option.iter Mapping_file.close mapping0;
     [%log.debug "reload: opening %s" root];
     t.mapping <- mapping;
     Ok ()

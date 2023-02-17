@@ -51,6 +51,8 @@ module type S = sig
   val open_map : root:string -> generation:int -> (t, [> open_error ]) result
   (** [open_map ~root ~generation] opens a mapping file. *)
 
+  val close : t -> unit
+
   val iter : t -> (off:int63 -> len:int -> unit) -> (unit, Errs.t) result
   (** [iter mapping f] calls [f] on each [(off,len)] pair in [mapping].
 
