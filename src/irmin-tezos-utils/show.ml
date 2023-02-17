@@ -318,34 +318,38 @@ let position_box h w =
   <-> middle
   <-> string A.(fg white ++ st bold) b_bar
 
+let get_parent_commit c i =
+  let { off_info; _ } = List.nth c.idxs i in
+  let ctx = load_entry c.info_last_fd c.info_next_fd off_info in
+  List.nth ctx.next.commit 0
+
 let show_commit c (commit : Files.Commit.Commit_direct.t) =
   let open I in
   let node_txt = string A.(fg lightred ++ st bold) "Node:" in
   let addr_show ?(parent = true) (addr : Files.Commit.Commit_direct.address) =
-    let parent_commit c i =
-      let parent_commit = c.entry in
-      let { off_info; _ } = List.nth c.idxs i in
-      let ctx = load_entry c.info_last_fd c.info_next_fd off_info in
-      let parent_commit' = List.nth ctx.next.commit 0 in
-      let img =
-        if parent_commit == parent_commit' then
-          strf ~attr:A.(fg lightgreen ++ st bold) "(Added by current commit)"
-        else
-          strf
-            ~attr:A.(fg lightmagenta ++ st bold)
-            "(Added by commit at entry %#d)" parent_commit'
-      in
-      ( img,
-        [
-          Button.
-            {
-              x = 0;
-              y = 1;
-              w = I.width img;
-              h = 1;
-              f = (fun c -> reload_context c parent_commit');
-            };
-        ] )
+    let parent_commit ~parent c i =
+      if parent then
+        let parent_commit = get_parent_commit c i in
+        let img =
+          if c.entry == parent_commit then
+            strf ~attr:A.(fg lightgreen ++ st bold) "(Added by current commit)"
+          else
+            strf
+              ~attr:A.(fg lightmagenta ++ st bold)
+              "(Added by commit at entry %#d)" parent_commit
+        in
+        ( img,
+          [
+            Button.
+              {
+                x = 0;
+                y = 1;
+                w = I.width img;
+                h = 1;
+                f = (fun c -> reload_context c parent_commit);
+              };
+          ] )
+      else (empty, [])
     in
     match addr with
     | Offset addr -> (
@@ -373,9 +377,7 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
                 | Inode_v2_nonroot ->
                     (A.green, "Inode")
               in
-              let parent_img, parent_buttons =
-                if parent then parent_commit c entry else (empty, [])
-              in
+              let parent_img, parent_buttons = parent_commit ~parent c entry in
               ( strf ~attr:A.(fg lightwhite ++ st bold) "Entry %#d (" entry
                 <|> string A.(fg color ++ st bold) text
                 <|> strf
@@ -449,17 +451,15 @@ let show_inode c (inode : Files.Inode.compress) =
   let open I in
   let addr_show (addr : Files.Inode.Compress.address) =
     let parent_commit c i =
-      let parent_commit = List.nth c.entry_ctx.next.commit 0 in
-      let { off_info; _ } = List.nth c.idxs i in
-      let ctx = load_entry c.info_last_fd c.info_next_fd off_info in
-      let parent_commit' = List.nth ctx.next.commit 0 in
+      let current_parent_commit = List.nth c.entry_ctx.next.commit 0 in
+      let parent_commit = get_parent_commit c i in
       let img =
-        if parent_commit == parent_commit' then
+        if current_parent_commit == parent_commit then
           strf ~attr:A.(fg lightgreen ++ st bold) "(Added by parent commit)"
         else
           strf
             ~attr:A.(fg lightmagenta ++ st bold)
-            "(Added by commit at entry %#d)" parent_commit'
+            "(Added by commit at entry %#d)" parent_commit
       in
       ( img,
         [
@@ -469,7 +469,7 @@ let show_inode c (inode : Files.Inode.compress) =
               y = 1;
               w = I.width img;
               h = 1;
-              f = (fun c -> reload_context c parent_commit');
+              f = (fun c -> reload_context c parent_commit);
             };
         ] )
     in
