@@ -32,6 +32,79 @@ module type IO = sig
   val close : ic * oc -> unit Lwt.t
 end
 
+(** Server-side trees. *)
+module type Batch = sig
+  type repo
+  type hash
+  type path
+  type contents_key
+  type node_key
+  type store
+  type tree
+  type contents
+  type step
+
+  include Irmin_server.Tree.S
+
+  (** Every tree generated on the server side is associated with a unique ID.
+      Mmanually call {!cleanup} to collect this ID when not in used anymore.
+
+      TODO: devise a better scheme. *)
+
+  val empty : repo -> t Lwt.t
+  val of_hash : repo -> hash -> t option Lwt.t
+  val of_path : store -> path -> t option Lwt.t
+  val of_commit : repo -> hash -> t option Lwt.t
+
+  val save :
+    repo -> t -> [ `Contents of contents_key | `Node of node_key ] Lwt.t
+
+  val to_local : repo -> t -> tree Lwt.t
+  val of_local : tree -> t Lwt.t
+
+  val of_key : kinded_key -> t
+  (** Create a tree from a key that specifies a tree that already exists in the
+      store *)
+
+  val key : repo -> t -> kinded_key Lwt.t
+  (** Get key of tree *)
+
+  val add : repo -> t -> path -> contents -> t Lwt.t
+  (** Add contents to a tree *)
+
+  val add_tree : repo -> t -> path -> t -> t Lwt.t
+
+  val find : repo -> t -> path -> contents option Lwt.t
+  (** Find the value associated with the given path *)
+
+  val find_tree : repo -> t -> path -> t option Lwt.t
+  (** Find the tree associated with the given path *)
+
+  val remove : repo -> t -> path -> t Lwt.t
+  (** Remove value from a tree, returning a new tree *)
+
+  val cleanup : repo -> t -> unit Lwt.t
+  (** Invalidate a tree, this frees the tree on the server side *)
+
+  val cleanup_all : repo -> unit Lwt.t
+  (** Cleanup all trees *)
+
+  val mem : repo -> t -> path -> bool Lwt.t
+  (** Check if a path is associated with a value *)
+
+  val mem_tree : repo -> t -> path -> bool Lwt.t
+  (** Check if a path is associated with a tree *)
+
+  val list : repo -> t -> path -> (step * [ `Contents | `Tree ]) list Lwt.t
+  (** List entries at the specified root *)
+
+  val merge : repo -> old:t -> t -> t -> t Lwt.t
+  (** Three way merge *)
+
+  val hash : repo -> t -> hash Lwt.t
+  val clear : repo -> t -> unit Lwt.t
+end
+
 module type S = sig
   include Irmin.Generic_key.S
 
@@ -58,66 +131,19 @@ module type S = sig
   module Batch : sig
     type store = t
 
-    module Tree : sig
-      include
-        Irmin_server.Tree.S
-          with type concrete = Tree.concrete
-           and type kinded_key = Tree.kinded_key
-
-      val empty : repo -> t Lwt.t
-      val of_hash : repo -> hash -> t option Lwt.t
-      val of_path : store -> path -> t option Lwt.t
-      val of_commit : repo -> hash -> t option Lwt.t
-
-      val save :
-        repo -> t -> [ `Contents of contents_key | `Node of node_key ] Lwt.t
-
-      val to_local : repo -> t -> tree Lwt.t
-      val of_local : tree -> t Lwt.t
-
-      val of_key : kinded_key -> t
-      (** Create a tree from a key that specifies a tree that already exists in
-          the store *)
-
-      val key : repo -> t -> kinded_key Lwt.t
-      (** Get key of tree *)
-
-      val add : repo -> t -> path -> contents -> t Lwt.t
-      (** Add contents to a tree *)
-
-      val add_tree : repo -> t -> path -> t -> t Lwt.t
-
-      val find : repo -> t -> path -> contents option Lwt.t
-      (** Find the value associated with the given path *)
-
-      val find_tree : repo -> t -> path -> t option Lwt.t
-      (** Find the tree associated with the given path *)
-
-      val remove : repo -> t -> path -> t Lwt.t
-      (** Remove value from a tree, returning a new tree *)
-
-      val cleanup : repo -> t -> unit Lwt.t
-      (** Invalidate a tree, this frees the tree on the server side *)
-
-      val cleanup_all : repo -> unit Lwt.t
-      (** Cleanup all trees *)
-
-      val mem : repo -> t -> path -> bool Lwt.t
-      (** Check if a path is associated with a value *)
-
-      val mem_tree : repo -> t -> path -> bool Lwt.t
-      (** Check if a path is associated with a tree *)
-
-      val list :
-        repo -> t -> path -> (Path.step * [ `Contents | `Tree ]) list Lwt.t
-      (** List entries at the specified root *)
-
-      val merge : repo -> old:t -> t -> t -> t Lwt.t
-      (** Three way merge *)
-
-      val hash : repo -> t -> hash Lwt.t
-      val clear : repo -> t -> unit Lwt.t
-    end
+    module Tree :
+      Batch
+        with type concrete = Tree.concrete
+         and type kinded_key = Tree.kinded_key
+         and type repo := repo
+         and type hash := hash
+         and type path := path
+         and type contents_key := contents_key
+         and type node_key := node_key
+         and type store := store
+         and type tree := tree
+         and type contents := contents
+         and type step := step
 
     type batch_contents =
       [ `Hash of hash | `Value of contents ] * metadata option
