@@ -14,11 +14,7 @@ type info_ring = {
 }
 
 let info_ring () =
-  {
-    commit = Ring.make 1000 ~default:(-1);
-    contents = Ring.make 1000 ~default:(-1);
-    inode = Ring.make 1000 ~default:(-1);
-  }
+  { commit = Ring.make 1000; contents = Ring.make 1000; inode = Ring.make 1000 }
 
 let ctx_buffer = Bytes.create (4096 * 4096)
 

@@ -29,7 +29,7 @@ type context = {
   dict : string list;
   max_entry : int;
   max_offset : Int63.t;
-  history : history option Ring.t;
+  history : history Ring.t;
   mutable entry : int;
   mutable entry_ctx : entry_ctx;
   mutable entry_content : entry_content;
@@ -121,12 +121,11 @@ let reload_context c i =
   let idxs = List.nth c.idxs i in
   if i <> c.entry then
     Ring.add c.history
-      (Some
-         {
-           entry = c.entry;
-           off = c.entry_content.off;
-           kind = c.entry_content.kind;
-         });
+      {
+        entry = c.entry;
+        off = c.entry_content.off;
+        kind = c.entry_content.kind;
+      };
   c.entry <- i;
   c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
   c.entry_content <- get_entry c idxs.off_pack
@@ -138,12 +137,11 @@ let reload_context_with_off c off =
   in
   if idxs.entry <> c.entry then
     Ring.add c.history
-      (Some
-         {
-           entry = c.entry;
-           off = c.entry_content.off;
-           kind = c.entry_content.kind;
-         });
+      {
+        entry = c.entry;
+        off = c.entry_content.off;
+        kind = c.entry_content.kind;
+      };
   c.entry <- idxs.entry;
   c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
   c.entry_content <- get_entry c off
@@ -872,7 +870,7 @@ let main store_path info_last_path info_next_path index_path =
   let idx_fd = Unix.openfile index_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644 in
   let max_entry, idxs = load_idxs idx_fd in
   Unix.close idx_fd;
-  let history = Ring.make 50 ~default:None in
+  let history = Ring.make 50 in
   let { entry; off_info; off_pack } = List.hd idxs in
   let entry_ctx = load_entry info_last_fd info_next_fd off_info in
   let entry_content =

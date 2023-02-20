@@ -1,21 +1,11 @@
-type 'a t = { n : int; mutable i : int; a : 'a array }
+type 'a t = { n : int; mutable i : int; a : 'a option array }
 
-let make n ~default = { n; i = 0; a = Array.make n default }
+let make n = { n; i = 0; a = Array.make n None }
 
 let add r x =
-  Array.set r.a r.i x;
+  Array.set r.a r.i (Some x);
   r.i <- (r.i + 1) mod r.n
 
-let get r i =
-  if i <= r.n then
-    let x = r.a.((r.i - i + r.n) mod r.n) in
-    if x <> -1 then Some x else None
-  else None
-
-let to_list r =
-  let rec f i acc l =
-    if i == r.i then l @ List.rev acc
-    else match l with [] -> List.rev acc | h :: t -> f (i + 1) (h :: acc) t
-  in
-  let l = Array.to_list r.a in
-  List.rev (f 0 [] l)
+let unsafe_get r i = r.a.((r.i - i + r.n) mod r.n)
+let get r i = if i <= r.n then unsafe_get r i else None
+let to_list r = List.init r.n (fun i -> get r (i + 1))
