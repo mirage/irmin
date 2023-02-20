@@ -13,7 +13,8 @@ let init () =
 let main () =
   let uri = Uri.of_string Sys.argv.(1) in
   let config = Irmin_mem.config () in
-  let* server = Server.v ~uri config in
+  let dashboard = `TCP (`Port 1234) in
+  let* server = Server.v ~uri ~dashboard config in
   let () = Format.printf "Listening on %a@." Uri.pp uri in
   Server.serve server
 
