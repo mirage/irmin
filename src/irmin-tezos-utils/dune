@@ -2,7 +2,7 @@
  (public_name irmin-pack-inspect)
  (package irmin-tezos-utils)
  (name main)
- (modules main parse show files import)
+ (modules main parse show files ring import)
  (libraries
   irmin-pack
   irmin-pack.unix
