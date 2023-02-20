@@ -30,6 +30,8 @@ module BigArr1 = Bigarray.Array1
 type int64_bigarray =
   (int64, Bigarray.int64_elt, Bigarray.c_layout) Bigarray.Array1.t
 
+external bigarray_unsafe_munmap : int64_bigarray -> unit = "bigarray_munmap"
+
 (* Set to 0 until we find decide what to do about sequential traversal of pack files *)
 let gap_tolerance = 0
 
@@ -74,10 +76,8 @@ end = struct
 
   let close t =
     Unix.close t.fd;
-    (* following tries to make the array unreachable, so GC'able; however, no guarantee
-       that arr actually is unreachable *)
-    t.arr <- Bigarray.(Array1.create Int64 c_layout 0);
-    ()
+    (* Do not call [bigarray_unsafe_munmap] here as the array is still in use *)
+    t.arr <- Bigarray.(Array1.create Int64 c_layout 0)
 end
 
 (** The mapping file is created from a decreasing list of
@@ -143,7 +143,10 @@ module Make (Io : Io.S) = struct
 
   type t = { mutable arr : int64_bigarray; root : string; generation : int }
 
-  let close t = t.arr <- Bigarray.(Array1.create Int64 c_layout 0)
+  let close t =
+    let arr = t.arr in
+    t.arr <- Bigarray.(Array1.create Int64 c_layout 0);
+    bigarray_unsafe_munmap arr
 
   let open_map ~root ~generation =
     let path = Irmin_pack.Layout.V4.mapping ~generation ~root in
@@ -233,7 +236,9 @@ module Make (Io : Io.S) = struct
 
     (* Flush and close new mapping [file] *)
     let* () = Errs.catch (fun () -> Unix.fsync file.fd) in
+    let arr = file.arr in
     Int64_mmap.close file;
+    bigarray_unsafe_munmap arr;
 
     let* mapping_size = Io.size_of_path path in
     Option.iter (fun f -> f mapping_size) report_mapping_size;

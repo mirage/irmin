@@ -1205,8 +1205,6 @@ module Snapshot = struct
     let* t = checkout_exn t c1 in
     let* () = check_1 t c1 in
     let* () = S.Repo.close t.repo in
-    (* [Gc.full_major] forces the release of the mmaped file *)
-    Stdlib.Gc.full_major ();
     let+ count_after = lsof_count pid_self in
     Alcotest.(check bool)
       "open file descriptors" true

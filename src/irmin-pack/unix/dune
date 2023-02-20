@@ -16,6 +16,9 @@
   checkseum
   checkseum.ocaml
   rusage)
+ (foreign_stubs
+  (language c)
+  (names bigarray_munmap))
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

@@ -1,5 +1,12 @@
 ## 3.6.0
 
+### Fixed
+
+- **irmin-pack**
+  - Close the mapping file descriptor. (#2196, @art-w)
+
+## 3.6.0
+
 ### Changed
 
 - **irmin-pack**
