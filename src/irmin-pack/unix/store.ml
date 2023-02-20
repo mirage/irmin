@@ -169,26 +169,31 @@ module Maker (Config : Conf.S) = struct
 
         let v config =
           let root = Irmin_pack.Conf.root config in
-          let _lower_path =
-            (* Validate lower layer root directory.
-
-               TODO: The value is a placeholder which will be used
-               in subsequent chagnes. *)
+          let fresh = Irmin_pack.Conf.fresh config in
+          let () =
+            (* Validate lower layer root directory. Creating, if needed. *)
             let lower_root = Irmin_pack.Conf.lower_root config in
             match lower_root with
-            | None -> None
+            | None -> ()
             | Some path -> (
-                match Io.classify_path path with
-                | `Directory -> Some path
-                | `No_such_file_or_directory ->
-                    Errs.raise_error (`No_such_file_or_directory path)
-                | `File | `Other -> Errs.raise_error (`Not_a_directory path))
+                match (Io.classify_path path, fresh) with
+                | `Directory, false -> ()
+                | `Directory, true ->
+                    (* TODO: implement recurisve delete for lower root *)
+                    failwith
+                      (Fmt.str
+                         "Lower root already exists but fresh = true in \
+                          configuration. Please manually remove %s."
+                         path)
+                | `No_such_file_or_directory, _ ->
+                    Io.mkdir path |> Errs.raise_if_error
+                | (`File | `Other), _ ->
+                    Errs.raise_error (`Not_a_directory path))
           in
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
             if readonly then File_manager.open_ro config |> Errs.raise_if_error
             else
-              let fresh = Irmin_pack.Conf.fresh config in
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
                   File_manager.create_rw ~overwrite:false config
@@ -404,6 +409,15 @@ module Maker (Config : Conf.S) = struct
 
         let split_exn repo = split repo |> Errs.raise_if_error
 
+        let add_volume_exn t =
+          let () =
+            if Irmin_pack.Conf.readonly t.config then
+              Errs.raise_error `Ro_not_allowed;
+            if Gc.is_finished t = false then
+              Errs.raise_error `Add_volume_forbidden_during_gc
+          in
+          File_manager.add_volume t.fm |> Errs.raise_if_error
+
         let batch t f =
           [%log.debug "[pack] batch start"];
           let readonly = Irmin_pack.Conf.readonly t.config in
@@ -589,6 +603,7 @@ module Maker (Config : Conf.S) = struct
     let fsync = X.Repo.fsync
     let is_split_allowed = X.Repo.is_split_allowed
     let split = X.Repo.split_exn
+    let add_volume = X.Repo.add_volume_exn
     let create_one_commit_store = X.Repo.Gc.create_one_commit_store
 
     module Gc = struct

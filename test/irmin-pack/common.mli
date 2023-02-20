@@ -73,6 +73,14 @@ module Alcotest : sig
   val testable_repr : 'a Irmin.Type.t -> 'a Alcotest.testable
 end
 
+module Alcotest_lwt : sig
+  include module type of Alcotest_lwt
+
+  val quick_tc : string -> (unit -> unit Lwt.t) -> unit test_case
+  (** Convenience to create a `Quick test_case that doesn't need to use a
+      switch. *)
+end
+
 module Index : module type of Irmin_pack_unix.Index.Make (Schema.Hash)
 module Key : Irmin_pack_unix.Pack_key.S with type hash = Schema.Hash.t
 

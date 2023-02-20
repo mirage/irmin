@@ -6,6 +6,8 @@
   - Add configuration option, `lower_root`, to specify a path for archiving data
     during a GC. (#2177, @metanivek)
   - Add `is_split_allowed` to check if a store allows split. (#2175, @metanivek)
+  - Add `add_volume` to allow creating new empty volume in lower layer. (#2188,
+    @metanivek)
 
 ### Changed
 

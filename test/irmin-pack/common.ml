@@ -217,6 +217,12 @@ module Alcotest = struct
   let hash = testable_repr Schema.Hash.t
 end
 
+module Alcotest_lwt = struct
+  include Alcotest_lwt
+
+  let quick_tc name f = test_case name `Quick (fun _switch () -> f ())
+end
+
 module Filename = struct
   include Filename
 
