@@ -118,7 +118,7 @@
     }
 
     .content-hash {
-      font-size: 115%;
+      font-size: 100%;
       border: 1px solid #ddd;
       padding: 10px;
       margin-bottom: 20px;
@@ -219,7 +219,7 @@
         if (state.path !== path || state.branch !== branch){
           history.pushState({path: path, branch: branch}, '');
         }
-        
+
         pathInput.value = path;
 
         fetch(path + "?branch=" + branch, {method: 'POST'})
@@ -266,7 +266,7 @@
           update(event.state.path, event.state.branch);
         }
       }
-      
+
       window.onload = function() {
         let params = new URLSearchParams(window.location.search);
         pathInput.value = window.location.pathname;
