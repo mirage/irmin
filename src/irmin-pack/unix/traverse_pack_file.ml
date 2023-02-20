@@ -274,7 +274,7 @@ end = struct
     let buffer = Bytes.create initial_buffer_size in
     let on_entry missing_hash off =
       let len = guess_entry_len dispatcher ~off in
-      Dispatcher.read_exn dispatcher ~off ~len buffer;
+      let _ = Dispatcher.read_exn dispatcher ~off ~len buffer in
       let { key; data } =
         decode_entry_exn ~off
           ~buffer:(Bytes.unsafe_to_string buffer)

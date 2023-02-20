@@ -905,7 +905,7 @@ struct
     (* Step 5. Add the commit to the index, close the index. *)
     let () =
       match Pack_key.inspect commit_key with
-      | Pack_key.Direct { hash; offset; length } ->
+      | Pack_key.Direct { hash; offset; length; _ } ->
           Index.add index hash (offset, length, Pack_value.Kind.Commit_v2)
       | Indexed _ -> assert false
     in

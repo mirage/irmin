@@ -82,14 +82,15 @@ let test_read () =
   let _ =
     Alcotest.check_raises "cannot read node_1"
       (Irmin_pack_unix.Errors.Pack_error
-         (`Invalid_sparse_read "offset 30 is in a sparse hole"))
+         (`Invalid_sparse_read (`Before, Int63.of_int 30)))
       (fun () ->
         let buf = Bytes.create node_1.len in
-        Dispatcher.read_exn dsp ~off:node_1.off ~len:node_1.len buf)
+        let _ = Dispatcher.read_exn dsp ~off:node_1.off ~len:node_1.len buf in
+        ())
   in
   let test_accessor msg obj =
     let buf = Bytes.create obj.len in
-    Dispatcher.read_exn dsp ~off:obj.off ~len:obj.len buf;
+    let _ = Dispatcher.read_exn dsp ~off:obj.off ~len:obj.len buf in
     check_hex msg buf obj.hex
   in
   test_accessor "node_2" node_2;

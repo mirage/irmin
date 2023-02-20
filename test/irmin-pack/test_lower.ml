@@ -101,11 +101,11 @@ module Direct_tc = struct
         }
     in
     let _ = create_control (Lower.Volume.path volume) payload in
-    let volume = Lower.find_volume ~offset:(Int63.of_int 21) lower in
+    let volume = Lower.find_volume ~off:(Int63.of_int 21) lower in
     Alcotest.(check bool)
       "volume not found before reload" false (Option.is_some volume);
     let$ _ = Lower.reload ~volume_num:1 lower in
-    let volume = Lower.find_volume ~offset:(Int63.of_int 21) lower in
+    let volume = Lower.find_volume ~off:(Int63.of_int 21) lower in
     Alcotest.(check bool) "found volume" true (Option.is_some volume);
     let _ = Lower.close lower in
     Lwt.return_unit

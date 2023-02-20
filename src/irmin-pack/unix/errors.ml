@@ -66,7 +66,7 @@ type base_error =
   | `Gc_process_died_without_result_file of string
   | `Gc_forbidden_on_32bit_platforms
   | `Invalid_prefix_read of string
-  | `Invalid_sparse_read of string
+  | `Invalid_sparse_read of [ `After | `Before | `Hole ] * int63
   | `Inconsistent_store
   | `Split_forbidden_during_batch
   | `Split_disallowed

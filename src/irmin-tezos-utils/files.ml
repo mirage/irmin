@@ -84,9 +84,9 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
       ~min_len:min_bytes_needed_to_discover_length
       ~max_len:max_bytes_needed_to_discover_length buffer;
     let kind, len = decode_entry_header buffer in
-    Dispatcher.read_exn dispatcher ~off ~len:Hash.hash_size buffer;
+    let _ = Dispatcher.read_exn dispatcher ~off ~len:Hash.hash_size buffer in
     let hash = Bytes.sub_string buffer 0 Hash.hash_size in
-    Dispatcher.read_exn dispatcher ~off ~len buffer;
+    let _ = Dispatcher.read_exn dispatcher ~off ~len buffer in
     let content = Bytes.sub_string buffer 0 len in
     (hash, kind, len, content)
 
@@ -105,7 +105,7 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     let buffer = Bytes.create (4096 * 4096) in
     let on_entry ~off ~len =
-      Dispatcher.read_exn dispatcher ~off ~len buffer;
+      let _ = Dispatcher.read_exn dispatcher ~off ~len buffer in
       let kind = decode_entry_kind buffer in
       let entry =
         match kind with

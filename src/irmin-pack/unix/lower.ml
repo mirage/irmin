@@ -98,11 +98,11 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let is_empty = function Empty _ -> true | Nonempty _ -> false
 
-  let contains ~offset = function
+  let contains ~off = function
     | Empty _ -> false
     | Nonempty { control; _ } ->
         let open Int63.Syntax in
-        control.start_offset <= offset && offset < control.end_offset
+        control.start_offset <= off && off < control.end_offset
 
   let open_ = function
     | Empty _ -> Ok () (* Opening an empty volume is a no-op *)
@@ -126,7 +126,9 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
             let+ () = Sparse.close s in
             t.sparse <- None)
 
-  let eq a b = String.equal (path a) (path b)
+  let identifier t = path t
+  let identifier_eq ~id t = String.equal (identifier t) id
+  let eq a b = identifier_eq ~id:(identifier b) a
 
   let read_exn ~off ~len b = function
     | Empty _ -> ()
@@ -223,7 +225,21 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     t.volumes <- Array.append t.volumes [| vol |];
     Ok vol
 
-  let find_volume ~offset t = Array.find_opt (Volume.contains ~offset) t.volumes
+  let find_volume ~off t = Array.find_opt (Volume.contains ~off) t.volumes
+
+  let find_volume_by_offset_exn ~off t =
+    match find_volume ~off t with
+    | None ->
+        let err = Fmt.str "Looking for offset %d" (Int63.to_int off) in
+        Errs.raise_error (`Volume_not_found err)
+    | Some v -> v
+
+  let find_volume_by_identifier_exn ~id t =
+    match Array.find_opt (Volume.identifier_eq ~id) t.volumes with
+    | None ->
+        let err = Fmt.str "Looking for identifier %s" id in
+        Errs.raise_error (`Volume_not_found err)
+    | Some v -> v
 
   let read_exn ~off ~len ?volume t b =
     let set_open_volume t v =
@@ -239,14 +255,10 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     let volume =
       match volume with
-      | None -> (
-          match find_volume ~offset:off t with
-          | None ->
-              let err = Fmt.str "Looking for offset %d" (Int63.to_int off) in
-              Errs.raise_error (`Volume_not_found err)
-          | Some v -> v)
-      | Some v -> v
+      | None -> find_volume_by_offset_exn t ~off
+      | Some id -> find_volume_by_identifier_exn t ~id
     in
     set_open_volume t volume |> Errs.raise_if_error;
-    Volume.read_exn ~off ~len b volume
+    Volume.read_exn ~off ~len b volume;
+    Volume.identifier volume
 end

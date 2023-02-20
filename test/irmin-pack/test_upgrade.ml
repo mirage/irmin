@@ -85,7 +85,7 @@ let index_entries =
   List.map (fun e -> (e.h, e.o)) pack_entries |> List.to_seq |> Hashtbl.of_seq
 
 let key_of_entry x =
-  Irmin_pack_unix.Pack_key.v_direct ~hash:x.h ~offset:x.o ~length:x.l
+  Irmin_pack_unix.Pack_key.v_direct ~offset:x.o ~length:x.l x.h
 
 type start_mode = From_v2 | From_v3 | From_scratch | From_v3_c0_gced
 [@@deriving irmin]
