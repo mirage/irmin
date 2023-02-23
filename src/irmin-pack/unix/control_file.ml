@@ -38,10 +38,17 @@ end
 module Serde = struct
   module type S = sig
     type payload
+    type raw_payload
 
     val of_bin_string :
       string ->
       ( payload,
+        [> `Corrupted_control_file | `Unknown_major_pack_version of string ] )
+      result
+
+    val raw_of_bin_string :
+      string ->
+      ( raw_payload,
         [> `Corrupted_control_file | `Unknown_major_pack_version of string ] )
       result
 
@@ -67,7 +74,10 @@ module Serde = struct
     in
     (version, right)
 
-  module Upper : S with type payload = Payload.Upper.Latest.t = struct
+  module Upper :
+    S
+      with type payload = Payload.Upper.Latest.t
+       and type raw_payload = Payload.Upper.raw_payload = struct
     module Data = struct
       module Plv3 = struct
         include Payload.Upper.V3
@@ -106,8 +116,14 @@ module Serde = struct
         let to_bin_string = Irmin.Type.(unstage (to_bin_string t))
       end
 
-      type t = Valid of version | Invalid of version
-      and version = V3 of Plv3.t | V4 of Plv4.t | V5 of Plv5.t
+      type t = Payload.Upper.raw_payload =
+        | Valid of version
+        | Invalid of version
+
+      and version = Payload.Upper.version =
+        | V3 of Plv3.t
+        | V4 of Plv4.t
+        | V5 of Plv5.t
 
       let to_bin_string = function
         | Invalid _ | Valid (V3 _) | Valid (V4 _) -> assert false
@@ -144,6 +160,7 @@ module Serde = struct
     module Latest = Data.Plv5
 
     type payload = Latest.t
+    type raw_payload = Data.t
 
     let upgrade_from_v3 (pl : Payload.Upper.V3.t) : payload =
       let chunk_start_idx = ref 0 in
@@ -202,10 +219,15 @@ module Serde = struct
       | Valid (V4 payload) -> Ok (upgrade_from_v4 payload)
       | Valid (V5 payload) -> Ok payload
 
+    (* Similar yo [of_bin_string] but skips version upgrade ]*)
+    let raw_of_bin_string = Data.of_bin_string
     let to_bin_string payload = Data.(to_bin_string (Valid (V5 payload)))
   end
 
-  module Volume : S with type payload = Payload.Volume.Latest.t = struct
+  module Volume :
+    S
+      with type payload = Payload.Volume.Latest.t
+       and type raw_payload = Payload.Volume.raw_payload = struct
     module Data = struct
       module Plv5 = struct
         include Payload.Volume.V5
@@ -226,8 +248,11 @@ module Serde = struct
         let to_bin_string = Irmin.Type.(unstage (to_bin_string t))
       end
 
-      type t = Valid of version | Invalid of version
-      and version = V5 of Plv5.t
+      type t = Payload.Volume.raw_payload =
+        | Valid of version
+        | Invalid of version
+
+      and version = Payload.Volume.version = V5 of Plv5.t
 
       let to_bin_string = function
         | Invalid _ -> assert false
@@ -256,6 +281,7 @@ module Serde = struct
     module Payload = Data.Plv5
 
     type payload = Payload.t
+    type raw_payload = Data.t
 
     let of_bin_string string =
       let open Result_syntax in
@@ -264,6 +290,7 @@ module Serde = struct
       | Invalid _ -> Error `Corrupted_control_file
       | Valid (V5 payload) -> Ok payload
 
+    let raw_of_bin_string = Data.of_bin_string
     let to_bin_string payload = Data.(to_bin_string (Valid (V5 payload)))
   end
 end
@@ -318,6 +345,14 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     let* t = open_ ~path ~readonly:true in
     let payload = payload t in
     let+ () = close t in
+    payload
+
+  let read_raw_payload ~path =
+    let open Result_syntax in
+    let* io = Io.open_ ~path ~readonly:true in
+    let* string = Io.read_all_to_string io in
+    let* payload = Serde.raw_of_bin_string string in
+    let+ () = Io.close io in
     payload
 
   let set_payload t payload =

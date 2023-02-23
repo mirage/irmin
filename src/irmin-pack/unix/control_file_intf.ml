@@ -248,6 +248,11 @@ module Payload = struct
             investigation. *)
     end
 
+    type version = V3 of V3.t | V4 of V4.t | V5 of V5.t [@@deriving irmin]
+
+    type raw_payload = Valid of version | Invalid of version
+    [@@deriving irmin]
+
     module Latest = V5
   end
 
@@ -275,6 +280,11 @@ module Payload = struct
             writing. *)
     end
 
+    type version = V5 of V5.t [@@deriving irmin]
+
+    type raw_payload = Valid of version | Invalid of version
+    [@@deriving irmin]
+
     module Latest = V5
   end
 end
@@ -290,6 +300,7 @@ module type S = sig
   module Io : Io.S
 
   type payload
+  type raw_payload
   type t
 
   val create_rw :
@@ -317,6 +328,9 @@ module type S = sig
   (** [read_payload ~path] reads the payload at [path]. It is a convenient way
       to read the payload without needing to call {!open_}, {!payload},
       {!close}. *)
+
+  val read_raw_payload :
+    path:string -> (raw_payload, [> open_error | Io.close_error ]) result
 
   val payload : t -> payload
   (** [payload t] is the payload in [t].
@@ -373,11 +387,17 @@ module type S = sig
 end
 
 module type Upper = sig
-  include S with type payload := Payload.Upper.Latest.t
+  include
+    S
+      with type payload := Payload.Upper.Latest.t
+       and type raw_payload := Payload.Upper.raw_payload
 end
 
 module type Volume = sig
-  include S with type payload := Payload.Volume.Latest.t
+  include
+    S
+      with type payload := Payload.Volume.Latest.t
+       and type raw_payload := Payload.Volume.raw_payload
 end
 
 module type Sigs = sig
