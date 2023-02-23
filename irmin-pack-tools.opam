@@ -18,8 +18,14 @@ available: arch != "arm32" & arch != "x86_32"
 depends: [
   "ocaml"       {>= "4.01.0"}
   "dune"        {>= "2.9.0"}
+  "irmin-tezos" {= version}
+  "irmin-pack"  {= version}
   "irmin-pack"  {= version}
   "cmdliner"    {>= "1.1.0"}
+  "cmdliner"    {>= "1.1.0"}
+  "notty"       {>= "0.2.3"}
+  "ptime"
+  "hex"
   "irmin-test"  {with-test & = version}
   "alcotest"    {with-test}
 ]
