@@ -135,17 +135,18 @@ module Store_tc = struct
       let$ _ = mkdir_if_needed lower in
       (name, lower)
 
-  let init ?(readonly = false) ?(fresh = true) ?(unlink_lower = true) ?config ()
-      =
+  let init ?(readonly = false) ?(fresh = true) ?(unlink_lower = true)
+      ?(include_lower = true) ?config () =
     (* [unlink_lower] defaults to true to make dir clean for multiple test runs. *)
     let config =
       match config with
       | None ->
           let root, lower_root = fresh_roots () in
           if unlink_lower then unlink_path lower_root;
+          let lower_root = if include_lower then Some lower_root else None in
           Irmin_pack.(
             config ~readonly ~indexing_strategy:Indexing_strategy.minimal ~fresh
-              ~lower_root:(Some lower_root) root)
+              ~lower_root root)
       | Some c -> c
     in
     Store.Repo.v config
@@ -180,6 +181,15 @@ module Store_tc = struct
     in
     Store.Repo.close repo
 
+  let test_add_volume_wo_lower () =
+    let* repo = init ~include_lower:false () in
+    let* () =
+      Alcotest.check_raises_lwt "add volume w/o lower"
+        (Irmin_pack_unix.Errors.Pack_error `Add_volume_requires_lower)
+        (fun () -> Store.add_volume repo |> Lwt.return)
+    in
+    Store.Repo.close repo
+
   let test_add_volume_reopen () =
     (* TODO: test adding a volume and reopning store to
        ensure conrol file is updated correclty. *)
@@ -193,6 +203,7 @@ module Store = struct
     Alcotest_lwt.
       [
         quick_tc "create store" test_create;
+        quick_tc "add volume with no lower" test_add_volume_wo_lower;
         quick_tc "add volume during gc" test_add_volume_during_gc;
         quick_tc "control file updated after add" test_add_volume_reopen;
       ]

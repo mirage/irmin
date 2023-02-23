@@ -74,7 +74,8 @@ type base_error =
   | `Forbidden_during_gc
   | `Multiple_empty_volumes
   | `Volume_missing of string
-  | `Add_volume_forbidden_during_gc ]
+  | `Add_volume_forbidden_during_gc
+  | `Add_volume_requires_lower ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific
