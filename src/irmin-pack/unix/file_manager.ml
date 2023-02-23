@@ -260,12 +260,12 @@ struct
     let to_remove =
       List.filter
         (fun filename ->
-          match Irmin_pack.Layout.classify_filename filename with
-          | None | Some (`Branch | `Control | `Dict | `V1_or_v2_pack) -> false
-          | Some (`Prefix g | `Mapping g) -> g <> generation
-          | Some (`Suffix idx) ->
+          match Irmin_pack.Layout.Classification.Upper.v filename with
+          | `Unknown | `Branch | `Control | `Dict | `V1_or_v2_pack -> false
+          | `Prefix g | `Mapping g -> g <> generation
+          | `Suffix idx ->
               idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
-          | Some (`Reachable _ | `Sorted _ | `Gc_result _) -> true)
+          | `Reachable _ | `Sorted _ | `Gc_result _ -> true)
         files
     in
     List.iter

@@ -98,35 +98,46 @@ let is_number s =
           acc && is_digit)
         true l
 
-type classification =
-  [ `Branch
-  | `Control
-  | `Dict
-  | `Gc_result of int
-  | `Mapping of int
-  | `Prefix of int
-  | `Reachable of int
-  | `Sorted of int
-  | `Suffix of int
-  | `V1_or_v2_pack ]
-[@@deriving irmin]
+module Classification = struct
+  module Upper = struct
+    type t =
+      [ `Branch
+      | `Control
+      | `Dict
+      | `Gc_result of int
+      | `Mapping of int
+      | `Prefix of int
+      | `Reachable of int
+      | `Sorted of int
+      | `Suffix of int
+      | `V1_or_v2_pack
+      | `Unknown ]
+    [@@deriving irmin]
 
-let classify_filename s : classification option =
-  match String.split_on_char '.' s with
-  | [ "store"; "pack" ] -> Some `V1_or_v2_pack
-  | [ "store"; "branches" ] -> Some `Branch
-  | [ "store"; "control" ] -> Some `Control
-  | [ "store"; "dict" ] -> Some `Dict
-  | [ "store"; g; "out" ] when is_number g ->
-      Some (`Gc_result (int_of_string g))
-  | [ "store"; g; "reachable" ] when is_number g ->
-      Some (`Reachable (int_of_string g))
-  | [ "store"; g; "sorted" ] when is_number g ->
-      Some (`Sorted (int_of_string g))
-  | [ "store"; g; "mapping" ] when is_number g ->
-      Some (`Mapping (int_of_string g))
-  | [ "store"; g; "prefix" ] when is_number g ->
-      Some (`Prefix (int_of_string g))
-  | [ "store"; g; "suffix" ] when is_number g ->
-      Some (`Suffix (int_of_string g))
-  | _ -> None
+    let v s : t =
+      match String.split_on_char '.' s with
+      | [ "store"; "pack" ] -> `V1_or_v2_pack
+      | [ "store"; "branches" ] -> `Branch
+      | [ "store"; "control" ] -> `Control
+      | [ "store"; "dict" ] -> `Dict
+      | [ "store"; g; "out" ] when is_number g -> `Gc_result (int_of_string g)
+      | [ "store"; g; "reachable" ] when is_number g ->
+          `Reachable (int_of_string g)
+      | [ "store"; g; "sorted" ] when is_number g -> `Sorted (int_of_string g)
+      | [ "store"; g; "mapping" ] when is_number g -> `Mapping (int_of_string g)
+      | [ "store"; g; "prefix" ] when is_number g -> `Prefix (int_of_string g)
+      | [ "store"; g; "suffix" ] when is_number g -> `Suffix (int_of_string g)
+      | _ -> `Unknown
+  end
+
+  module Volume = struct
+    type t = [ `Mapping | `Data | `Control | `Unknown ] [@@deriving irmin]
+
+    let v s : t =
+      match String.split_on_char '.' s with
+      | [ "volume"; "control" ] -> `Control
+      | [ "volume"; "mapping" ] -> `Mapping
+      | [ "volume"; "data" ] -> `Data
+      | _ -> `Unknown
+  end
+end
