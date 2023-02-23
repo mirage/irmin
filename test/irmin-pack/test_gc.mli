@@ -18,6 +18,10 @@ module Gc : sig
   val tests : unit Alcotest_lwt.test_case list
 end
 
+module Gc_archival : sig
+  val tests : unit Alcotest_lwt.test_case list
+end
+
 module Concurrent_gc : sig
   val tests : unit Alcotest_lwt.test_case list
 end

@@ -72,13 +72,27 @@ struct
 
   let get_location t k =
     match Pack_key.inspect k with
+    | Direct { offset = off; length = len; _ } -> (off, len)
     | Indexed hash -> (
         match Index.find (Fm.index t.fm) hash with
         | None -> raise Dangling_hash
         | Some (off, len, _kind) ->
             Pack_key.promote_exn k ~offset:off ~length:len;
             (off, len))
-    | Direct { offset = off; length = len; _ } -> (off, len)
+
+  let get_offset t k =
+    match Pack_key.to_offset k with
+    | Some off -> off
+    | None ->
+        let off, _ = get_location t k in
+        off
+
+  let get_length t k =
+    match Pack_key.to_length k with
+    | Some len -> len
+    | None ->
+        let _, len = get_location t k in
+        len
 
   let len_of_direct_key k =
     match Pack_key.inspect k with
@@ -519,4 +533,7 @@ struct
 
   let unsafe_find_no_prefetch t key =
     Inner.unsafe_find_no_prefetch (get_if_open_exn t) key
+
+  let get_offset t key = Inner.get_offset (get_if_open_exn t) key
+  let get_length t key = Inner.get_length (get_if_open_exn t) key
 end

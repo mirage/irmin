@@ -59,6 +59,8 @@ module type Persistent = sig
   val purge_lru : 'a t -> unit
   val key_of_offset : 'a t -> int63 -> key
   val unsafe_find_no_prefetch : 'a t -> key -> value option
+  val get_offset : 'a t -> key -> int63
+  val get_length : 'a t -> key -> int
 end
 
 module type Sigs = sig

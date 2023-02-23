@@ -74,10 +74,17 @@ module type S = sig
       only contain their [offset] and are not usable without calling
       [key_of_offset] first. This function only exists to optimize the GC
       reachability traversal. *)
+
+  val get_offset : 'a t -> key -> int63
+  (** Returns the offset associated with the key. *)
+
+  val get_length : 'a t -> key -> int
+  (** Returns the length of the object associated with the key. *)
 end
 
 module type Sigs = sig
   exception Invalid_read of string
+  exception Dangling_hash
 
   module type S = S
 

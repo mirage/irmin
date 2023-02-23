@@ -8,6 +8,8 @@
   - Add `is_split_allowed` to check if a store allows split. (#2175, @metanivek)
   - Add `add_volume` to allow creating new empty volume in lower layer. (#2188,
     @metanivek)
+  - Add a `behaviour` function to the GC to check wether the GC will archive or
+    delete data. (#2190, @Firobe)
 
 ### Changed
 
@@ -15,8 +17,12 @@
   - Expose type equality for `Schema.Info` to avoid defining the `info` function
     multiple times when using similar stores (#2189, #2193, @samoht)
 - **irmin-pack**
+  - GC now changes its behaviour depending on the presence of a lower layer.
+    (#2190, @Firobe)
   - Split now raises an exception if it is not allowed. It is not allowed on
     stores that do not allow GC. (#2175, @metanivek)
+  - GC now supports stores imported V1/V2 stores, in presence of a lower layer
+    only. (#2190, @art-w, @Firobe)
   - Upgrade on-disk format to version 5. (#2184, @metanivek)
 
 ### Fixed

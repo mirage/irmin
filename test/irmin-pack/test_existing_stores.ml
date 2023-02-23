@@ -162,7 +162,7 @@ module Test_reconstruct = struct
     let* repo = S.Repo.v conf in
     let allowed = S.Gc.is_allowed repo in
     Alcotest.(check bool)
-      "gc not allowed on stores with V1 objects" allowed false;
+      "deleting gc not allowed on stores with V1 objects" allowed false;
     S.Repo.close repo
 end
 

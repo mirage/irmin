@@ -24,30 +24,10 @@ module Io = Irmin_pack_unix.Io.Unix
 
 let ( let$ ) res f = f @@ Result.get_ok res
 
-let rec unlink path =
-  match Irmin_pack_unix.Io.Unix.classify_path path with
-  | `No_such_file_or_directory -> ()
-  | `Directory ->
-      Sys.readdir path
-      |> Array.map (fun p -> Filename.concat path p)
-      |> Array.iter unlink;
-      Unix.rmdir path
-  | _ -> Unix.unlink path
-
 module Direct_tc = struct
   module Control = Irmin_pack_unix.Control_file.Volume (Io)
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module Lower = Irmin_pack_unix.Lower.Make (Io) (Errs)
-
-  let create_lower_root =
-    let counter = ref 0 in
-    fun () ->
-      let lower_root = "test_lower_" ^ string_of_int !counter in
-      incr counter;
-      let lower_path = Filename.concat "_build" lower_root in
-      unlink lower_path;
-      let$ _ = Irmin_pack_unix.Io.Unix.mkdir lower_path in
-      lower_path
 
   let create_control volume_path payload =
     let path = Irmin_pack.Layout.V5.Volume.control ~root:volume_path in
@@ -162,7 +142,7 @@ module Store_tc = struct
       match config with
       | None ->
           let root, lower_root = fresh_roots () in
-          if unlink_lower then unlink lower_root;
+          if unlink_lower then unlink_path lower_root;
           Irmin_pack.(
             config ~readonly ~indexing_strategy:Indexing_strategy.minimal ~fresh
               ~lower_root:(Some lower_root) root)

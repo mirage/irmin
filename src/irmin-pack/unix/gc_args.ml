@@ -61,6 +61,8 @@ module type S = sig
     val key_of_offset : [< read ] t -> int63 -> key
     val unsafe_find_no_prefetch : 'a t -> key -> Node_value.t option
     val purge_lru : 'a t -> unit
+    val get_offset : 'a t -> key -> int63
+    val get_length : 'a t -> key -> int
   end
 
   module Commit_value : sig

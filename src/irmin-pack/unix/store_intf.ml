@@ -141,6 +141,7 @@ module type S = sig
 
         Finalising consists of mutating [repo] so that it points to the new file
         and to flush the internal caches that could be referencing GCed objects.
+        What is done with the discarded data depends on {!behaviour}.
 
         If [wait = true] (the default), the call blocks until the GC process
         finishes. If [wait = false], finalisation will occur if the process has
@@ -162,10 +163,11 @@ module type S = sig
       commit_key ->
       (bool, msg) result Lwt.t
     (** [run repo commit_key] attempts to start a GC process for a [repo] by
-        discarding all data prior to [commit_key]. If a GC process is already
-        running, a new one will not be started.
+        discarding or archiving all data prior to [commit_key] (depending on
+        {!behaviour}. If a GC process is already running, a new one will not be
+        started.
 
-        [run] will also finalise the GC process automaticlly. For more detailed
+        [run] will also finalise the GC process automatically. For more detailed
         control, see {!start_exn} and {!finalise_exn}.
 
         When the GC process is finalised, [finished] is called with the result
@@ -195,6 +197,14 @@ module type S = sig
     val is_finished : repo -> bool
     (** [is_finished repo] is [true] if a GC is finished (or idle) and [false]
         if a GC is running for the given [repo]. *)
+
+    val behaviour : repo -> [ `Archive | `Delete ]
+    (** [behaviour repo] returns the behaviour that the GC will have during
+        finalization.
+
+        This depends on the presence of a lower layer in the store: if a lower
+        layer is present, the GC will archive old data into that lower layer.
+        Else, it will delete that data. *)
 
     val is_allowed : repo -> bool
     (** [is_allowed repo] returns true if a gc can be run on the store. *)
