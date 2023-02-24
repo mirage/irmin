@@ -116,6 +116,7 @@ struct
     in
     let lru = Lru.create ~weight lru_size in
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
+    Fm.register_prefix_consumer fm ~after_reload:(fun () -> Ok (Lru.clear lru));
     { lru; staging; indexing_strategy; fm; dict; dispatcher }
 
   module Entry_prefix = struct
