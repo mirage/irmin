@@ -46,6 +46,7 @@ struct
     mutable mapping : Mapping_file.t option;
     index : Index.t;
     mutable dict_consumers : after_reload_consumer list;
+    mutable prefix_consumers : after_reload_consumer list;
     mutable suffix_consumers : after_flush_consumer list;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     use_fsync : bool;
@@ -71,6 +72,9 @@ struct
   let register_dict_consumer t ~after_reload =
     t.dict_consumers <- { after_reload } :: t.dict_consumers
 
+  let register_prefix_consumer t ~after_reload =
+    t.prefix_consumers <- { after_reload } :: t.prefix_consumers
+
   let register_suffix_consumer t ~after_flush =
     t.suffix_consumers <- { after_flush } :: t.suffix_consumers
 
@@ -83,6 +87,12 @@ struct
         (* Unreachable *)
         assert false
     | Gced x -> x.generation
+
+  let notify_reload_consumers consumers =
+    List.fold_left
+      (fun acc { after_reload } -> Result.bind acc after_reload)
+      (Ok ()) consumers
+    |> Result.map_error (fun err -> (err : Errs.t :> [> Errs.t ]))
 
   (** Flush stages *************************************************************
 
@@ -216,6 +226,7 @@ struct
     in
     let prefix0 = t.prefix in
     t.prefix <- Some prefix1;
+    let* () = notify_reload_consumers t.prefix_consumers in
     match prefix0 with None -> Ok () | Some io -> Prefix.close io
 
   let open_mapping ~root ~generation =
@@ -379,6 +390,7 @@ struct
         use_fsync;
         index;
         dict_consumers = [];
+        prefix_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
         root;
@@ -435,16 +447,7 @@ struct
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in
       (* Step 5. Notify the dict consumers that they must reload *)
-      let* () =
-        let res =
-          List.fold_left
-            (fun acc { after_reload } -> Result.bind acc after_reload)
-            (Ok ()) t.dict_consumers
-        in
-        (* The following dirty trick casts the result from
-           [read_error] to [ [>read_error] ]. *)
-        match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
-      in
+      let* () = notify_reload_consumers t.dict_consumers in
       Ok ()
 
   (* File creation ********************************************************** *)
@@ -680,6 +683,7 @@ struct
         indexing_strategy;
         index;
         dict_consumers = [];
+        prefix_consumers = [];
         suffix_consumers = [];
         root;
       }
