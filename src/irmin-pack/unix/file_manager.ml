@@ -842,7 +842,7 @@ struct
 
   let add_volume t =
     match t.lower with
-    | None -> Ok () (* TODO: throw exception? *)
+    | None -> Error `Add_volume_requires_lower
     | Some lower -> add_volume_and_update_control lower t.control
 
   let cleanup t =
