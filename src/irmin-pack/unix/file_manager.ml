@@ -203,7 +203,7 @@ struct
 
   (* Constructors *********************************************************** *)
 
-  module Layout = Irmin_pack.Layout.V4
+  module Layout = Irmin_pack.Layout.V5
 
   let open_prefix ~root ~generation =
     let open Result_syntax in
@@ -497,6 +497,79 @@ struct
 
   (* Open rw **************************************************************** *)
 
+  let dead_header_size_of_status = function
+    | Payload.From_v1_v2_post_upgrade _ -> legacy_io_header_size
+    | No_gc_yet | Gced _ | Used_non_minimal_indexing_strategy -> 0
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        failwith "invalid status: T1..T15"
+
+  let can_migrate_to_lower (payload : Payload.t) =
+    match payload.status with
+    | No_gc_yet | Used_non_minimal_indexing_strategy | From_v1_v2_post_upgrade _
+      ->
+        payload.chunk_num = 1 && payload.volume_num = 0
+    | Gced _ -> false
+    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+    | T15 ->
+        failwith "invalid status: T1..T15"
+
+  let migrate_to_lower ~root ~lower_root ~control (payload : Payload.t) =
+    let open Result_syntax in
+    (* Step 1. Create a lower by moving the suffix file. *)
+    let suffix_file =
+      Layout.suffix_chunk ~root ~chunk_idx:payload.chunk_start_idx
+    in
+    let dead_header_size = dead_header_size_of_status payload.status in
+    let end_offset = payload.appendable_chunk_poff in
+    let* () =
+      Lower.create_from ~src:suffix_file ~dead_header_size ~size:end_offset
+        lower_root
+    in
+    (* Step 2. Create a new empty suffix for the upper. *)
+    let chunk_start_idx = payload.chunk_start_idx + 1 in
+    let* () =
+      Suffix.create_rw ~root ~overwrite:false ~auto_flush_threshold:1_000_000
+        ~auto_flush_procedure:`Internal ~start_idx:chunk_start_idx
+      >>= Suffix.close
+    in
+    (* Step 3. Create a new empty prefix for the upper. *)
+    let generation = 1 in
+    let* () =
+      let mapping = Layout.mapping ~generation ~root in
+      let data = Layout.prefix ~root ~generation in
+      Sparse.Ao.create ~mapping ~data >>= Sparse.Ao.close
+    in
+    (* Step 4. Update the upper control file. *)
+    let payload =
+      {
+        payload with
+        chunk_start_idx;
+        appendable_chunk_poff = Int63.zero;
+        volume_num = 1;
+        status =
+          Gced
+            {
+              suffix_start_offset = end_offset;
+              generation;
+              latest_gc_target_offset = end_offset;
+              suffix_dead_bytes = Int63.zero;
+            };
+      }
+    in
+    let* () = Control.set_payload control payload in
+    Ok payload
+
+  let load_payload ~config ~root ~lower_root ~control =
+    let payload = Control.payload control in
+    match lower_root with
+    | Some lower_root when payload.volume_num = 0 ->
+        if Irmin_pack.Conf.no_migrate config then Error `Migration_needed
+        else if not (can_migrate_to_lower payload) then
+          Error `Migration_to_lower_not_allowed
+        else migrate_to_lower ~root ~lower_root ~control payload
+    | _ -> Ok payload
+
   let open_rw_with_control_file config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
@@ -505,17 +578,17 @@ struct
       let path = Layout.control ~root in
       Control.open_ ~readonly:false ~path
     in
-    let Payload.
-          {
-            status;
-            appendable_chunk_poff;
-            chunk_start_idx = start_idx;
-            chunk_num;
-            dict_end_poff;
-            volume_num;
-            _;
-          } =
-      Control.payload control
+    let* Payload.
+           {
+             status;
+             appendable_chunk_poff;
+             chunk_start_idx = start_idx;
+             chunk_num;
+             dict_end_poff;
+             volume_num;
+             _;
+           } =
+      load_payload ~config ~root ~lower_root ~control
     in
     let* dead_header_size =
       match status with
@@ -540,10 +613,9 @@ struct
     let make_lower () =
       match lower_root with
       | None -> Ok None
-      | Some path ->
-          let+ l = Lower.v ~readonly:false ~volume_num path in
-          (* TODO: if [volume_num] is 0, we need to migrate
-             (or return error if [no_migrate = true]) *)
+      | Some lower_root ->
+          assert (volume_num > 0);
+          let+ l = Lower.v ~readonly:false ~volume_num lower_root in
           Some l
     in
     finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
@@ -664,14 +736,7 @@ struct
           } =
       Control.payload control
     in
-    let* dead_header_size =
-      match status with
-      | From_v1_v2_post_upgrade _ -> Ok legacy_io_header_size
-      | No_gc_yet | Gced _ | Used_non_minimal_indexing_strategy -> Ok 0
-      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
-      | T15 ->
-          Error `V3_store_from_the_future
-    in
+    let dead_header_size = dead_header_size_of_status status in
     let generation = generation status in
     (* 2. Open the other files *)
     let* suffix =

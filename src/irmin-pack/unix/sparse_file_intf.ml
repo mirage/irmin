@@ -76,6 +76,20 @@ module type S = sig
 
     val close : t -> (unit, [> Io.close_error ]) result
     (** Close the underlying files. *)
+
+    val create_from_data :
+      mapping:string ->
+      dead_header_size:int ->
+      size:Int63.t ->
+      data:string ->
+      (int63, [> Io.create_error | Io.write_error | Io.close_error ]) result
+    (** [create_from_data ~mapping ~dead_header_size ~size ~data] initializes a
+        new sparse file on disk from the existing file [data], by creating the
+        corresponding [mapping] file. The first [dead_header_size] bytes are
+        ignored and the remaining [size] bytes of [data] are made available.
+
+        On success, returns the size of the [mapping] file to be stored in the
+        control file for consistency checking on open. *)
   end
 
   module Ao : sig

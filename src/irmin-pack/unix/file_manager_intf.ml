@@ -116,6 +116,7 @@ module type S = sig
     | `Invalid_layout
     | `Io_misc of Io.misc_error
     | `Migration_needed
+    | `Migration_to_lower_not_allowed
     | `No_such_file_or_directory of string
     | `Not_a_directory of string
     | `Not_a_file
@@ -128,7 +129,10 @@ module type S = sig
     | `Index_failure of string
     | `Sys_error of string
     | `Inconsistent_store
-    | `Volume_missing of string ]
+    | `Volume_missing of string
+    | `Multiple_empty_volumes
+    | `Invalid_parent_directory
+    | `Pending_flush ]
 
   val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Create a rw instance of [t] by opening existing files.

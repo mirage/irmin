@@ -16,6 +16,8 @@
 
 open Import
 include Lower_intf
+module Layout = Irmin_pack.Layout.V5.Volume
+module Payload = Control_file.Payload.Volume.Latest
 
 module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
@@ -27,7 +29,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     | Empty of { path : string }
     | Nonempty of {
         path : string;
-        control : Control_file.Payload.Volume.Latest.t;
+        control : Payload.t;
         mutable sparse : Sparse.t option;
       }
 
@@ -41,7 +43,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let v volume_path =
     let open Result_syntax in
     let* control =
-      let path = Irmin_pack.Layout.V5.Volume.control ~root:volume_path in
+      let path = Layout.control ~root:volume_path in
       match Io.classify_path path with
       | `File ->
           let+ payload = Control.read_payload ~path in
@@ -66,19 +68,38 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let* () = Io.mkdir volume_path in
     (* 2. Make empty mapping *)
     let* () =
-      Irmin_pack.Layout.V5.Volume.(
-        Io.create ~path:(mapping ~root:volume_path) ~overwrite:true)
+      Io.create ~path:(Layout.mapping ~root:volume_path) ~overwrite:true
       >>= Io.close
     in
     (* 3. Make empty data *)
     let* () =
-      Irmin_pack.Layout.V5.Volume.(
-        Io.create ~path:(data ~root:volume_path) ~overwrite:true)
+      Io.create ~path:(Layout.data ~root:volume_path) ~overwrite:true
       >>= Io.close
     in
     (* TODO: handle failure to create all artifacts, either here or in a cleanup
        when the store starts. *)
     v volume_path
+
+  let create_from ~src ~dead_header_size ~size lower_root =
+    let open Result_syntax in
+    let root = Layout.directory ~root:lower_root ~idx:0 in
+    let data = Layout.data ~root in
+    let mapping = Layout.mapping ~root in
+    let* () = Io.mkdir root in
+    let* () = Io.move_file ~src ~dst:data in
+    let* mapping_end_poff =
+      Sparse.Wo.create_from_data ~mapping ~dead_header_size ~size ~data
+    in
+    let payload =
+      {
+        Payload.start_offset = Int63.zero;
+        end_offset = size;
+        mapping_end_poff;
+        checksum = Int63.zero;
+      }
+    in
+    let control = Layout.control ~root in
+    Control.create_rw ~path:control ~overwrite:false payload >>= Control.close
 
   let path = function Empty { path } -> path | Nonempty { path; _ } -> path
 
@@ -101,8 +122,8 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         | Some _ -> Ok () (* Sparse file is already open *)
         | None ->
             let open Result_syntax in
-            let mapping = Irmin_pack.Layout.V5.Volume.mapping ~root in
-            let data = Irmin_pack.Layout.V5.Volume.data ~root in
+            let mapping = Layout.mapping ~root in
+            let data = Layout.data ~root in
             let+ sparse = Sparse.open_ro ~mapping ~data in
             t.sparse <- Some sparse)
 
@@ -121,10 +142,10 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let eq a b = identifier_eq ~id:(identifier b) a
 
   let read_range_exn ~off ~min_len ~max_len b = function
-    | Empty _ -> ()
+    | Empty _ -> Errs.raise_error (`Invalid_volume_read (`Empty, off))
     | Nonempty { sparse; _ } -> (
         match sparse with
-        | None -> Errs.raise_error `Closed
+        | None -> Errs.raise_error (`Invalid_volume_read (`Closed, off))
         | Some s -> Sparse.read_range_exn s ~off ~min_len ~max_len b)
 
   let archive_seq ~upper_root ~generation ~is_first ~to_archive ~off t =
@@ -167,24 +188,14 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let* () = Sparse.Ao.flush ao in
     let* () = Sparse.Ao.close ao in
     (* Prepare new control file *)
-    let start_offset, old_data_end_poff =
+    let start_offset =
       match t with
-      | Empty _ -> (off, Int63.zero)
-      | Nonempty { control; _ } -> (control.start_offset, control.data_end_poff)
-    in
-    let data_len =
-      Seq.fold_left (fun len str -> len + String.length str) 0 to_archive
-      |> Int63.of_int
+      | Empty _ -> off
+      | Nonempty { control; _ } -> control.start_offset
     in
     let new_control =
       Control_file.Payload.Volume.V5.
-        {
-          start_offset;
-          end_offset;
-          mapping_end_poff;
-          data_end_poff = Int63.add old_data_end_poff data_len;
-          checksum = Int63.zero;
-        }
+        { start_offset; end_offset; mapping_end_poff; checksum = Int63.zero }
     in
     (* Write into temporary file on disk *)
     let tmp_control_path =
@@ -235,7 +246,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let* volumes =
       let root = t.root in
       let volume i =
-        let path = Irmin_pack.Layout.V5.Volume.directory ~root ~idx:i in
+        let path = Layout.directory ~root ~idx:i in
         match Io.classify_path path with
         | `File | `Other | `No_such_file_or_directory ->
             raise (LoadVolumeError (`Volume_missing path))
@@ -277,7 +288,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     let volume_path =
       let next_idx = volume_num t in
-      Irmin_pack.Layout.V5.Volume.directory ~root:t.root ~idx:next_idx
+      Layout.directory ~root:t.root ~idx:next_idx
     in
     let* vol = Volume.create_empty volume_path in
     t.volumes <- Array.append t.volumes [| vol |];
@@ -339,4 +350,6 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let read_exn ~off ~len ?volume t b =
     read_range_exn ~off ~min_len:len ~max_len:len ?volume t b
+
+  let create_from = Volume.create_from
 end
