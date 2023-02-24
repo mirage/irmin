@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Clear LRU when calling `reload` after a GC (#2200, @metanivek)
+
 ## 3.6.0
 
 ### Changed
