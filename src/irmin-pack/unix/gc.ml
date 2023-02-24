@@ -109,7 +109,6 @@ module Make (Args : Gc_args.S) = struct
     }
 
   let swap_and_purge t removable_chunk_num modified_volume suffix_params =
-    let open Result_syntax in
     let { generation; latest_gc_target_offset; _ } = t in
     let Worker.
           {
@@ -128,19 +127,8 @@ module Make (Args : Gc_args.S) = struct
        is guaranteed by the GC process. *)
     assert (chunk_num >= 1);
 
-    let* () =
-      Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-        ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root:modified_volume
-    in
-
-    (* No need to purge dict here, as it is global to the store. *)
-    (* No need to purge index here. It is global too, but some hashes may
-       not point to valid offsets anymore. Pack_store will just say that
-       such keys are not member of the store. *)
-    Contents_store.purge_lru t.contents;
-    Node_store.purge_lru t.node;
-    Commit_store.purge_lru t.commit;
-    Ok ()
+    Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
+      ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root:modified_volume
 
   let unlink_all { root; generation; _ } removable_chunk_idxs =
     let result =
