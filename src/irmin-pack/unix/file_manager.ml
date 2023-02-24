@@ -32,7 +32,6 @@ struct
   module Dict = Append_only_file.Make (Io) (Errs)
   module Suffix = Chunked_suffix.Make (Io) (Errs)
   module Sparse = Sparse_file.Make (Io)
-  module Mapping_file = Sparse.Mapping_file
   module Lower = Lower.Make (Io) (Errs)
 
   type after_reload_consumer = { after_reload : unit -> (unit, Errs.t) result }
@@ -200,7 +199,6 @@ struct
     let* () = Dict.fsync t.dict in
     let* () = Suffix.fsync t.suffix in
     let* () = Control.fsync t.control in
-    let* () = Option.might Sparse.fsync t.prefix in
     Index.flush ~with_fsync:true t.index
 
   (* Constructors *********************************************************** *)

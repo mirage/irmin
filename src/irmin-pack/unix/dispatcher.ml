@@ -97,7 +97,7 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
         Suffix.read_range_exn (Fm.suffix t.fm) ~off ~min_len ~max_len buf
     | None -> Sparse.read_range_exn (get_prefix t) ~off ~min_len ~max_len buf
 
-  let read_bytes_exn t ~f ~off ~len =
+  let read_seq_exn t ~off ~len =
     let bytes_in_prefix =
       let open Int63.Syntax in
       let prefix_bytes_after_off = suffix_start_offset t - off in
@@ -112,28 +112,38 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let len = Int63.to_int len in
     let max_read_size = min 8192 len in
     let buffer = Bytes.create max_read_size in
-    let rec aux read_exn ~off ~len =
-      if len = 0 then ()
+    let rec aux read_exn ~off ~len () =
+      if len <= 0 then Seq.Nil
       else
         let read_len = min len max_read_size in
         read_exn ~off ~len:read_len buffer;
-        f (Bytes.sub_string buffer 0 read_len);
-        aux read_exn
-          ~off:Int63.Syntax.(off + Int63.of_int read_len)
-          ~len:(len - read_len)
+        Seq.Cons
+          ( Bytes.sub_string buffer 0 read_len,
+            aux read_exn
+              ~off:Int63.Syntax.(off + Int63.of_int read_len)
+              ~len:(len - read_len) )
     in
-    if bytes_in_prefix > Int63.zero then
-      aux
-        (Sparse.read_exn (get_prefix t))
-        ~off
-        ~len:(Int63.to_int bytes_in_prefix);
-    if bytes_in_suffix > Int63.zero then
-      let off = Int63.Syntax.(off + bytes_in_prefix) in
-      let off = soff_of_offset t off in
-      aux
-        (Suffix.read_exn (get_suffix t))
-        ~off
-        ~len:(Int63.to_int bytes_in_suffix)
+    let prefix =
+      if bytes_in_prefix <= Int63.zero then Seq.empty
+      else
+        aux
+          (Sparse.read_exn (get_prefix t))
+          ~off
+          ~len:(Int63.to_int bytes_in_prefix)
+    in
+    let suffix =
+      if bytes_in_suffix <= Int63.zero then Seq.empty
+      else
+        let off = Int63.Syntax.(off + bytes_in_prefix) in
+        let off = soff_of_offset t off in
+        aux
+          (Suffix.read_exn (get_suffix t))
+          ~off
+          ~len:(Int63.to_int bytes_in_suffix)
+    in
+    Seq.append prefix suffix
+
+  let read_bytes_exn t ~f ~off ~len = Seq.iter f (read_seq_exn t ~off ~len)
 
   let next_valid_offset t ~off =
     let open Int63.Syntax in

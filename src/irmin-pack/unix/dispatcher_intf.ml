@@ -49,6 +49,8 @@ module type S = sig
   (** [soff_of_offset t global_offset] converts a global offset to a suffix
       offset. *)
 
+  val read_seq_exn : t -> off:int63 -> len:int63 -> string Seq.t
+
   val read_bytes_exn : t -> f:(string -> unit) -> off:int63 -> len:int63 -> unit
   (** [read_bytes_exn] reads a slice of the global offset space defined by [off]
       and [len].
