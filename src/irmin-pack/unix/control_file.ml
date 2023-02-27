@@ -219,7 +219,7 @@ module Serde = struct
       | Valid (V4 payload) -> Ok (upgrade_from_v4 payload)
       | Valid (V5 payload) -> Ok payload
 
-    (* Similar yo [of_bin_string] but skips version upgrade ]*)
+    (* Similar yo [of_bin_string] but skips version upgrade *)
     let raw_of_bin_string = Data.of_bin_string
     let to_bin_string payload = Data.(to_bin_string (Valid (V5 payload)))
   end

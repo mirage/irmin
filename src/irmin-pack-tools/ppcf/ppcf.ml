@@ -28,7 +28,7 @@ let store_type =
     required
     & pos 0 (some (enum [ ("Upper", Upper); ("Volume", Volume) ])) None
     & info [] ~docv:"store type"
-        ~doc:"the type of store, either Upper or Volume")
+        ~doc:"the type of control file, either Upper or Volume")
 
 let control_file =
   Arg.(
