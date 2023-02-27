@@ -23,9 +23,22 @@ module type S = sig
 
   val v : Fm.t -> (t, [> Fm.Errs.t ]) result
 
-  val read_exn : t -> off:int63 -> len:int -> bytes -> unit
+  val read_exn :
+    t ->
+    off:int63 ->
+    len:int ->
+    ?volume_identifier:Lower.volume_identifier ->
+    bytes ->
+    Lower.volume_identifier option
   (** [read_exn t ~off ~len buffer] writes into [buffer] the bytes from [off] to
-      [off+len]. *)
+      [off+len]. If the read occurred, in a lower volume, its identifier is
+      returned.
+
+      If you know which volume to read from in the lower, provide
+      [volume_identifier] to skip checking the prefix.
+
+      Note: [read_exn] is the only read function that supports reading in the
+      lower. *)
 
   val read_range_exn :
     t -> off:int63 -> min_len:int -> max_len:int -> bytes -> unit

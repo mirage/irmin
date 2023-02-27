@@ -67,7 +67,7 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Gc_process_died_without_result_file of string
     | `Gc_forbidden_on_32bit_platforms
     | `Invalid_prefix_read of string
-    | `Invalid_sparse_read of string
+    | `Invalid_sparse_read of [ `After | `Before | `Hole ] * int63
     | `Inconsistent_store
     | `Closed
     | `Ro_not_allowed
@@ -79,7 +79,8 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Multiple_empty_volumes
     | `Volume_missing of string
     | `Add_volume_forbidden_during_gc
-    | `Add_volume_requires_lower ]
+    | `Add_volume_requires_lower
+    | `Volume_not_found of string ]
   [@@deriving irmin]
 
   let raise_error = function

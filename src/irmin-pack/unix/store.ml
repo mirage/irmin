@@ -350,9 +350,7 @@ module Maker (Config : Conf.S) = struct
                        length in their header. *)
                     assert false
                 | Some length ->
-                    let key =
-                      Pack_key.v_direct ~offset ~length ~hash:entry.hash
-                    in
+                    let key = Pack_key.v_direct ~offset ~length entry.hash in
                     Some key)
 
           let create_one_commit_store t commit_key path =

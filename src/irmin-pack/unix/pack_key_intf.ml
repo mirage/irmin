@@ -33,6 +33,7 @@ module type Sigs = sig
         hash : 'hash;
         offset : int63;
         length : int;
+        volume_identifier : Lower.volume_identifier option;
       }
         -> ('hash, safe) unsafe_state
         (** A "direct" pointer to a value stored at [offset] in the pack-file
@@ -83,10 +84,24 @@ module type Sigs = sig
         repository may not be dereferenced with respect to another by design. *)
 
   val inspect : 'hash t -> 'hash state
-  val v_direct : hash:'h -> offset:int63 -> length:int -> 'h t
+
+  val v_direct :
+    offset:int63 ->
+    length:int ->
+    ?volume_identifier:Lower.volume_identifier ->
+    'h ->
+    'h t
+
   val v_indexed : 'h -> 'h t
   val v_offset : int63 -> 'h t
-  val promote_exn : 'h t -> offset:int63 -> length:int -> unit
+
+  val promote_exn :
+    offset:int63 ->
+    length:int ->
+    ?volume_identifier:Lower.volume_identifier ->
+    'h t ->
+    unit
+
   val to_offset : 'h t -> int63 option
   val to_hash : 'h t -> 'h
   val to_length : 'h t -> int option

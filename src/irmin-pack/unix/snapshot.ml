@@ -89,13 +89,13 @@ module Make (Args : Args) = struct
             (* If the length is not on disk, the object is in index. *)
             length_of_hash entry_prefix.hash t.inode_pack
       in
-      let key = Pack_key.v_direct ~hash:entry_prefix.hash ~offset:off ~length in
+      let key = Pack_key.v_direct ~offset:off ~length entry_prefix.hash in
       (key, entry_prefix.kind)
 
     (* Get the childrens offsets and then read their keys at that offset. *)
     let decode_children_offsets ~off ~len t =
       let buf = Bytes.create len in
-      Dispatcher.read_exn t.dispatcher ~off ~len buf;
+      let _ = Dispatcher.read_exn t.dispatcher ~off ~len buf in
       let entry_of_offset offset =
         [%log.debug "key_of_offset: %a" Int63.pp offset];
         io_read_and_decode_entry_prefix ~off:offset t
@@ -126,7 +126,7 @@ module Make (Args : Args) = struct
                [Inode.Raw.decode_children_offsets] converts it to a direct key
                before the call to [aux]. *)
             assert false
-        | Direct { length; offset; hash } ->
+        | Direct { length; offset; hash; _ } ->
             if v.visited hash then Lwt.return_unit
             else (
               set_visit hash;
@@ -319,7 +319,7 @@ module Make (Args : Args) = struct
       let visited h =
         try
           let offset, length = Index.find index h in
-          let key = Pack_key.v_direct ~hash:h ~offset ~length in
+          let key = Pack_key.v_direct ~offset ~length h in
           key
         with Not_found -> hash_not_found h
       in

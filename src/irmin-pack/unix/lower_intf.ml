@@ -16,6 +16,8 @@
 
 open! Import
 
+type volume_identifier = string
+
 module type Volume = sig
   module Io : Io.S
   module Errs : Io_errors.S
@@ -42,6 +44,9 @@ module type Volume = sig
 
   val control : t -> Control_file.Payload.Volume.Latest.t option
   (** [control t] returns the control file payload for the volume. *)
+
+  val identifier : t -> volume_identifier
+  (** [identifier t] is a unique idendifier for the volume. *)
 end
 
 module type S = sig
@@ -93,12 +98,28 @@ module type S = sig
 
       If [t] is read-only, [Error `Ro_not_allowed] is returned. *)
 
-  val find_volume : offset:int63 -> t -> Volume.t option
-  (** [find_volume ~offset t] returns the {!Volume} that contains [offset]. *)
+  val find_volume : off:int63 -> t -> Volume.t option
+  (** [find_volume ~off t] returns the {!Volume} that contains [off]. *)
+
+  val read_exn :
+    off:int63 ->
+    len:int ->
+    ?volume:volume_identifier ->
+    t ->
+    bytes ->
+    volume_identifier
+  (** [read_exn ~off ~len ~volume t b] will read [len] bytes from a global [off]
+      located in the volume with identifier [volume]. The volume identifier of
+      the volume where the read occurs is returned.
+
+      If [volume] is not provided, {!find_volume} will be used to attempt to
+      locate the correct volume for the read. *)
 end
 
 module type Sigs = sig
   module type S = S
+
+  type nonrec volume_identifier = volume_identifier
 
   module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) :
     Volume with module Io = Io and module Errs = Errs

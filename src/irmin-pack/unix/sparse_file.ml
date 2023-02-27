@@ -125,12 +125,16 @@ module Make (Io : Io.S) = struct
           ~hi:(entry_count arr - 1)
           ~key:(Int63.to_int off)
       with
-      | None -> None
+      | None -> `After
       | Some i ->
-          let off = entry_off arr i in
-          let poff = entry_poff arr i in
-          let len = entry_len arr i in
-          Some { off; poff; len }
+          let entry =
+            {
+              off = entry_off arr i;
+              poff = entry_poff arr i;
+              len = entry_len arr i;
+            }
+          in
+          if i == 0 && entry.off > off then `Before entry else `Inside entry
   end
 
   type t = { mapping : Mapping_file.t; data : Io.t }
@@ -147,13 +151,12 @@ module Make (Io : Io.S) = struct
 
   let get_poff { mapping; _ } ~off =
     match Mapping_file.find_nearest_geq mapping off with
-    | None ->
-        let s = Fmt.str "offset %a is after the sparse file" Int63.pp off in
-        raise (Errors.Pack_error (`Invalid_sparse_read s))
-    | Some entry when entry.off > off ->
-        let s = Fmt.str "offset %a is in a sparse hole" Int63.pp off in
-        raise (Errors.Pack_error (`Invalid_sparse_read s))
-    | Some entry ->
+    | `After -> raise (Errors.Pack_error (`Invalid_sparse_read (`After, off)))
+    | `Before _ ->
+        raise (Errors.Pack_error (`Invalid_sparse_read (`Before, off)))
+    | `Inside entry when entry.off > off ->
+        raise (Errors.Pack_error (`Invalid_sparse_read (`Hole, off)))
+    | `Inside entry ->
         let open Int63.Syntax in
         let shift_in_entry = off - entry.off in
         let max_entry_len = Int63.of_int entry.len - shift_in_entry in
@@ -174,8 +177,9 @@ module Make (Io : Io.S) = struct
 
   let next_valid_offset { mapping; _ } ~off =
     match Mapping_file.find_nearest_geq mapping off with
-    | None -> None
-    | Some entry ->
+    | `After -> None
+    | `Before entry -> Some entry.off
+    | `Inside entry ->
         let open Int63.Syntax in
         Some (if entry.off < off then off else entry.off)
 

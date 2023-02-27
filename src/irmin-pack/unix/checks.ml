@@ -463,7 +463,7 @@ struct
             "Not supported for stores which have entries obtained with irmin < \
              3.0. If all entries were added with irmin < 3.0, please use \
              [integrity_check] instead."
-      | Direct { offset; length; hash } -> (
+      | Direct { offset; length; hash; _ } -> (
           let result = check ~offset ~length hash in
           match result with
           | Ok () -> Lwt.return_unit

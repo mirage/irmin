@@ -72,26 +72,27 @@ struct
 
   let get_location t k =
     match Pack_key.inspect k with
-    | Direct { offset = off; length = len; _ } -> (off, len)
     | Indexed hash -> (
         match Index.find (Fm.index t.fm) hash with
         | None -> raise Dangling_hash
         | Some (off, len, _kind) ->
             Pack_key.promote_exn k ~offset:off ~length:len;
-            (off, len))
+            (off, len, None))
+    | Direct { offset; length; volume_identifier; _ } ->
+        (offset, length, volume_identifier)
 
   let get_offset t k =
     match Pack_key.to_offset k with
     | Some off -> off
     | None ->
-        let off, _ = get_location t k in
+        let off, _, _ = get_location t k in
         off
 
   let get_length t k =
     match Pack_key.to_length k with
     | Some len -> len
     | None ->
-        let _, len = get_location t k in
+        let _, len, _ = get_location t k in
         len
 
   let len_of_direct_key k =
@@ -109,7 +110,7 @@ struct
     match Index.find (Fm.index t.fm) hash with
     | None -> None
     | Some (offset, length, kind) ->
-        let key = Pack_key.v_direct ~hash ~offset ~length in
+        let key = Pack_key.v_direct ~offset ~length hash in
         Some (key, kind)
 
   let index_direct t hash =
@@ -202,10 +203,10 @@ struct
     kind = Pack_value.Kind.Dangling_parent_commit
 
   let pack_file_contains_key t k =
-    let off, _ = get_location t k in
+    let off, _, volume_identifier = get_location t k in
     let len = Hash.hash_size + 1 in
     let buf = Bytes.create len in
-    Dispatcher.read_exn t.dispatcher ~off ~len buf;
+    let _ = Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf in
     if gced buf then false
     else
       (* Bytes.unsafe_to_string usage: [buf] is local and never reused after
@@ -262,7 +263,7 @@ struct
 
   (** Produce a key from an offset in the context of decoding inode and commit
       children. *)
-  let key_of_offset t offset =
+  let key_of_offset ?volume_identifier t offset =
     [%log.debug "key_of_offset: %a" Int63.pp offset];
     (* Attempt to eagerly read the length at the same time as reading the
        hash in order to save an extra IO read when dereferencing the key: *)
@@ -270,16 +271,23 @@ struct
     (* This function is called on the parents of a commit when deserialising
        it. Dangling_parent_commit are usually treated as removed objects,
        except here, where in order to correctly deserialise the gced commit,
-       they are treated as kept commits. *)
-    let kind =
-      if entry_prefix.kind = Pack_value.Kind.Dangling_parent_commit then
-        Pack_value.Kind.Commit_v2
-      else entry_prefix.kind
+       they are treated as kept commits.
+
+       Volume identifier is excplicitly set to [None] for dangling parent commits
+       so that its data will not be read from the volume (or prefix). When it is
+       read, the routing will try to find its location in a previous volume.
+    *)
+    let kind, volume_identifier =
+      match entry_prefix.kind with
+      | Pack_value.Kind.Dangling_parent_commit ->
+          (Pack_value.Kind.Commit_v2, None)
+      | kind -> (kind, volume_identifier)
     in
     let key =
       let entry_prefix = { entry_prefix with kind } in
       match Entry_prefix.total_entry_length entry_prefix with
-      | Some length -> Pack_key.v_direct ~hash:entry_prefix.hash ~offset ~length
+      | Some length ->
+          Pack_key.v_direct ~offset ~length ?volume_identifier entry_prefix.hash
       | None ->
           (* NOTE: we could store [offset] in this key, but since we know the
              entry doesn't have a length header we'll need to check the index
@@ -291,12 +299,14 @@ struct
     key
 
   let find_in_pack_file ~key_of_offset t key =
-    let off, len = get_location t key in
+    let off, len, volume_identifier = get_location t key in
     let buf = Bytes.create len in
-    Dispatcher.read_exn t.dispatcher ~off ~len buf;
+    let volume_identifier =
+      Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf
+    in
     if gced buf then None
     else
-      let key_of_offset = key_of_offset t in
+      let key_of_offset = key_of_offset ?volume_identifier t in
       let key_of_hash = Pack_key.v_indexed in
       let dict = Dict.find t.dict in
       let v =
@@ -380,7 +390,7 @@ struct
     value_opt
 
   let unsafe_find_no_prefetch t key =
-    let key_of_offset _ = Pack_key.v_offset in
+    let key_of_offset ?volume_identifier:_ _ = Pack_key.v_offset in
     find_in_pack_file ~key_of_offset t key
 
   let find t k =
@@ -388,7 +398,7 @@ struct
     Lwt.return v
 
   let integrity_check ~offset ~length hash t =
-    let k = Pack_key.v_direct ~hash ~offset ~length in
+    let k = Pack_key.v_direct ~offset ~length hash in
     (* TODO: new error for reading gced objects. *)
     match find_in_pack_file ~key_of_offset t k with
     | exception Errors.Pack_error (`Invalid_prefix_read _) ->
@@ -464,7 +474,7 @@ struct
 
       let open Int63.Syntax in
       let len = Int63.to_int (Dispatcher.end_offset t.dispatcher - off) in
-      let key = Pack_key.v_direct ~hash ~offset:off ~length:len in
+      let key = Pack_key.v_direct ~offset:off ~length:len hash in
       let () =
         let should_index = t.indexing_strategy ~value_length:len kind in
         if should_index then

@@ -66,7 +66,7 @@ type base_error =
   | `Gc_process_died_without_result_file of string
   | `Gc_forbidden_on_32bit_platforms
   | `Invalid_prefix_read of string
-  | `Invalid_sparse_read of string
+  | `Invalid_sparse_read of [ `After | `Before | `Hole ] * int63
   | `Inconsistent_store
   | `Split_forbidden_during_batch
   | `Split_disallowed
@@ -75,7 +75,8 @@ type base_error =
   | `Multiple_empty_volumes
   | `Volume_missing of string
   | `Add_volume_forbidden_during_gc
-  | `Add_volume_requires_lower ]
+  | `Add_volume_requires_lower
+  | `Volume_not_found of string ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific

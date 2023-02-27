@@ -41,7 +41,7 @@ let test_unique_when_switched () =
   in
   let get_direct_key key =
     match Irmin_pack_unix.Pack_key.inspect key with
-    | Direct { offset; hash; length } -> (offset, hash, length)
+    | Direct { offset; hash; length; _ } -> (offset, hash, length)
     | _ -> assert false
   in
   let get_key_offset key =

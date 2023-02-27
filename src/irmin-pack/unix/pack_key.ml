@@ -25,6 +25,7 @@ type (_, _) unsafe_state =
       hash : 'hash;
       offset : int63;
       length : int;
+      volume_identifier : Lower.volume_identifier option;
     }
       -> ('hash, safe) unsafe_state
   | Indexed : 'hash -> ('hash, safe) unsafe_state
@@ -57,21 +58,23 @@ let to_length (State t) =
   | Offset _ -> None
   | Indexed _ -> None
 
-let promote_exn (State t) ~offset ~length =
+let promote_exn ~offset ~length ?volume_identifier (State t) =
   match t.state with
   | Direct _ -> failwith "Attempted to promote a key that is already Direct"
   | Offset _ -> failwith "Attempted to promote an offset without hash"
-  | Indexed hash -> t.state <- Direct { hash; offset; length }
+  | Indexed hash ->
+      t.state <- Direct { hash; offset; length; volume_identifier }
 
 let t : type h. h Irmin.Type.t -> h t Irmin.Type.t =
  fun hash_t ->
   let open Irmin.Type in
   variant "t" (fun direct indexed t ->
       match inspect t with
-      | Direct { hash; offset; length } -> direct (hash, offset, length)
+      | Direct { hash; offset; length; _ } -> direct (hash, offset, length)
       | Indexed x1 -> indexed x1)
   |~ case1 "Direct" [%typ: hash * int63 * int] (fun (hash, offset, length) ->
-         State { state = Direct { hash; offset; length } })
+         State
+           { state = Direct { hash; offset; length; volume_identifier = None } })
   |~ case1 "Indexed" [%typ: hash] (fun x1 -> State { state = Indexed x1 })
   |> sealv
 
@@ -116,8 +119,8 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
     ~bin:(encode_bin, decode_bin, size_of)
     ~unboxed_bin:(unboxed_encode_bin, unboxed_decode_bin, size_of)
 
-let v_direct ~hash ~offset ~length =
-  State { state = Direct { hash; offset; length } }
+let v_direct ~offset ~length ?volume_identifier hash =
+  State { state = Direct { hash; offset; length; volume_identifier } }
 
 let v_indexed hash = State { state = Indexed hash }
 let v_offset offset = State { state = Offset offset }
@@ -141,10 +144,10 @@ module Make (Hash : Irmin.Hash.S) = struct
     let hash =
       match hash_of_bin_string buf with Ok x -> x | Error _ -> assert false
     in
-    v_direct ~hash ~offset:null_offset ~length:null_length
+    v_direct ~offset:null_offset ~length:null_length hash
 
   let unfindable_of_hash hash =
-    v_direct ~hash ~offset:null_offset ~length:null_length
+    v_direct ~offset:null_offset ~length:null_length hash
 end
 
 module type Store_spec = sig
