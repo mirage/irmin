@@ -1,6 +1,6 @@
 (executable
- (public_name irmin-pack-inspect)
- (package irmin-tezos-utils)
+ (public_name irmin-tezos-explorer)
+ (package irmin-pack-tools)
  (name main)
  (modules main parse show files ring import)
  (libraries
@@ -15,9 +15,3 @@
   cmdliner)
  (preprocess
   (pps ppx_repr)))
-
-(rule
- (alias runtest)
- (package irmin-tezos-utils)
- (deps main.exe)
- (action (progn)))

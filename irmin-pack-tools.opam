@@ -1,6 +1,6 @@
 opam-version: "2.0"
 maintainer:   "Gwenaelle@tarides.com"
-authors:      ["Gwenaëlle Lecat" "Nicolas Goguey"]
+authors:      ["Gwenaëlle Lecat"]
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
@@ -20,6 +20,8 @@ depends: [
   "dune"        {>= "2.9.0"}
   "irmin-tezos" {= version}
   "irmin-pack"  {= version}
+  "irmin-pack"  {= version}
+  "cmdliner"    {>= "1.1.0"}
   "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
   "ptime"
@@ -28,9 +30,9 @@ depends: [
   "alcotest"    {with-test}
 ]
 
-synopsis: "Utils for Irmin tezos"
+synopsis: "Utils for Irmin-pack"
 description: """
-`Irmin-tezos-utils` defines useful binaries and libraries for
-an internal use of irmin, like inspecting tezos stores, pack
-files and such.
+`Irmin-pack-tools` defines useful binaries and libraries for
+an internal use of irmin-pack, like dumping control files in
+a readable json format and such.
 """
