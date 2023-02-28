@@ -220,6 +220,9 @@ module type S = sig
   val register_dict_consumer :
     t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 
+  val register_prefix_consumer :
+    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
+
   val register_suffix_consumer : t -> after_flush:(unit -> unit) -> unit
 
   type version_error :=

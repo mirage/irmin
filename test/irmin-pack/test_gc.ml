@@ -162,6 +162,12 @@ end
 
 include Store
 
+let lru_hits () =
+  let open Irmin_pack_unix.Stats in
+  let { pack_store; _ } = get () in
+  let pack_store_t = Pack_store.export pack_store in
+  pack_store_t.from_lru
+
 (** Wrappers for testing. *)
 let check_blob tree key expected =
   let+ got = S.Tree.find tree key in
@@ -641,6 +647,27 @@ module Gc = struct
     check_stats (Option.get stats);
     S.Repo.close t.repo
 
+  (** Check that a GC clears the LRU *)
+  let gc_clears_lru () =
+    let* t = init ~lru_size:100 () in
+    (* Rreate some commits *)
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, c2 = commit_2 t in
+    let* t = checkout_exn t c2 in
+    let* t, c3 = commit_3 t in
+    (* Read some data *)
+    let* () = check_2 t c2 in
+    let* () = check_3 t c3 in
+    (* GC *)
+    let count_before_gc = lru_hits () in
+    let* () = start_gc t c2 in
+    let* () = finalise_gc t in
+    (* Read data again *)
+    let* () = check_3 t c3 in
+    Alcotest.(check int) "GC does clear LRU" count_before_gc (lru_hits ());
+    S.Repo.close t.repo
+
   let tests =
     [
       tc "Test one gc" one_gc;
@@ -659,6 +686,7 @@ module Gc = struct
       tc "Test gc on similar commits" gc_similar_commits;
       tc "Test oldest live commit" latest_gc_target;
       tc "Test worker gc stats" gc_stats;
+      tc "Test gc_clears_lru" gc_clears_lru;
     ]
 end
 
@@ -801,6 +829,39 @@ module Concurrent_gc = struct
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
+  (** Check that calling reload in RO will clear the LRU only after GC. *)
+  let ro_reload_clears_lru () =
+    let* rw_t = init () in
+    let* ro_t =
+      init ~lru_size:100 ~readonly:true ~fresh:false ~root:rw_t.root ()
+    in
+    (* Create some commits in RW *)
+    let* rw_t, c1 = commit_1 rw_t in
+    let* rw_t = checkout_exn rw_t c1 in
+    let* rw_t, c2 = commit_2 rw_t in
+    let* rw_t = checkout_exn rw_t c2 in
+    let* rw_t, c3 = commit_3 rw_t in
+    (* Reload RO to get all changes, and read some data *)
+    S.reload ro_t.repo;
+    let* () = check_3 ro_t c3 in
+    let count_before_reload = lru_hits () in
+    (* Reload should not clear LRU *)
+    S.reload ro_t.repo;
+    let* () = check_3 ro_t c3 in
+    Alcotest.(check bool)
+      "reload does not clear LRU" true
+      (count_before_reload < lru_hits ());
+    (* GC *)
+    let count_before_gc = lru_hits () in
+    let* () = start_gc rw_t c2 in
+    let* () = finalise_gc rw_t in
+    (* Reload RO to get changes and clear LRU, and read some data *)
+    S.reload ro_t.repo;
+    let* () = check_3 ro_t c3 in
+    Alcotest.(check int) "reload does clear LRU" count_before_gc (lru_hits ());
+    let* () = S.Repo.close rw_t.repo in
+    S.Repo.close ro_t.repo
+
   (** Check that calling close during a gc kills the gc without finalising it.
       On reopening the store, the following gc works fine. *)
   let close_running_gc () =
@@ -906,6 +967,7 @@ module Concurrent_gc = struct
       tc "Test ro_find_running_gc" ro_find_running_gc;
       tc "Test ro_add_running_gc" ro_add_running_gc;
       tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
+      tc "Test ro_reload_clears_lru" ro_reload_clears_lru;
       tc "Test close_running_gc" close_running_gc;
       tc "Test skip gc" test_skip;
       tc "Test kill gc and finalise" test_kill_gc_and_finalise;
