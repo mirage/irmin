@@ -130,12 +130,12 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let identifier_eq ~id t = String.equal (identifier t) id
   let eq a b = identifier_eq ~id:(identifier b) a
 
-  let read_exn ~off ~len b = function
+  let read_range_exn ~off ~min_len ~max_len b = function
     | Empty _ -> ()
     | Nonempty { sparse; _ } -> (
         match sparse with
         | None -> Errs.raise_error `Closed
-        | Some s -> Sparse.read_exn s ~off ~len b)
+        | Some s -> Sparse.read_range_exn s ~off ~min_len ~max_len b)
 end
 
 module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -241,7 +241,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         Errs.raise_error (`Volume_not_found err)
     | Some v -> v
 
-  let read_exn ~off ~len ?volume t b =
+  let read_range_exn ~off ~min_len ~max_len ?volume t b =
     let set_open_volume t v =
       (* Maintain one open volume at a time. *)
       let open Result_syntax in
@@ -259,6 +259,9 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       | Some id -> find_volume_by_identifier_exn t ~id
     in
     set_open_volume t volume |> Errs.raise_if_error;
-    Volume.read_exn ~off ~len b volume;
+    Volume.read_range_exn ~off ~min_len ~max_len b volume;
     Volume.identifier volume
+
+  let read_exn ~off ~len ?volume t b =
+    read_range_exn ~off ~min_len:len ~max_len:len ?volume t b
 end

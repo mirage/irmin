@@ -70,20 +70,22 @@ end
     in the sorted [arr] that is [>=] the given key. Routine is based on binary
     search. *)
 let nearest_geq ~arr ~get ~lo ~hi ~key =
-  match Stdlib.compare key (get arr hi) with
-  | 0 -> Some hi
-  | c when c > 0 -> None
-  | _ when get arr lo >= key -> Some lo
-  | _ ->
-      let rec search lo hi =
-        assert (lo < hi);
-        assert (get arr lo < key && key < get arr hi);
-        if lo + 1 = hi then Some hi
-        else
-          let mid = (lo + hi) / 2 in
-          match Stdlib.compare key (get arr mid) with
-          | 0 -> Some mid
-          | c when c < 0 -> search lo mid
-          | _ -> search mid hi
-      in
-      search lo hi
+  if lo > hi then None
+  else
+    match Stdlib.compare key (get arr hi) with
+    | 0 -> Some hi
+    | c when c > 0 -> None
+    | _ when get arr lo >= key -> Some lo
+    | _ ->
+        let rec search lo hi =
+          assert (lo < hi);
+          assert (get arr lo < key && key < get arr hi);
+          if lo + 1 = hi then Some hi
+          else
+            let mid = (lo + hi) / 2 in
+            match Stdlib.compare key (get arr mid) with
+            | 0 -> Some mid
+            | c when c < 0 -> search lo mid
+            | _ -> search mid hi
+        in
+        search lo hi

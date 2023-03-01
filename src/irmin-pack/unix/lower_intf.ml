@@ -114,6 +114,17 @@ module type S = sig
 
       If [volume] is not provided, {!find_volume} will be used to attempt to
       locate the correct volume for the read. *)
+
+  val read_range_exn :
+    off:int63 ->
+    min_len:int ->
+    max_len:int ->
+    ?volume:volume_identifier ->
+    t ->
+    bytes ->
+    volume_identifier
+  (** Same as [read_exn] but will read at least [min_len] bytes and at most
+      [max_len]. *)
 end
 
 module type Sigs = sig
