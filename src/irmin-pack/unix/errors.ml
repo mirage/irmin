@@ -76,6 +76,8 @@ type base_error =
   | `Volume_missing of string
   | `Add_volume_forbidden_during_gc
   | `Add_volume_requires_lower
+  | `Volume_history_discontinuous
+  | `Lower_has_no_volume
   | `Volume_not_found of string ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except

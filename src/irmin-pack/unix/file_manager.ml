@@ -255,6 +255,11 @@ struct
     t.suffix <- suffix1;
     Suffix.close suffix0
 
+  let reload_lower t ~volume_num =
+    match t.lower with
+    | Some lower -> Lower.reload ~volume_num lower
+    | None -> Ok ()
+
   let cleanup ~root ~generation ~chunk_start_idx ~chunk_num =
     let files = Array.to_list (Sys.readdir root) in
     let to_remove =
@@ -406,6 +411,7 @@ struct
         let chunk_num1 = pl1.chunk_num in
         let chunk_start_idx0 = pl0.chunk_start_idx in
         let chunk_start_idx1 = pl1.chunk_start_idx in
+        (* Step 3.1. Potentially reload suffix *)
         let* () =
           if chunk_num0 <> chunk_num1 || chunk_start_idx0 <> chunk_start_idx1
           then
@@ -414,7 +420,13 @@ struct
               ~appendable_chunk_poff ~chunk_num:chunk_num1
           else Ok ()
         in
-        if gen0 = gen1 then Ok () else reopen_prefix t ~generation:gen1
+        (* Step 3.2. Potentially reload prefix *)
+        let* () =
+          if gen0 = gen1 then Ok () else reopen_prefix t ~generation:gen1
+        in
+        (* Step 3.3. Potentially reload lower *)
+        if gen0 = gen1 && pl0.volume_num = pl1.volume_num then Ok ()
+        else reload_lower t ~volume_num:pl1.volume_num
       in
       (* Step 4. Update end offsets *)
       let* () =
@@ -731,7 +743,7 @@ struct
             e)
 
   let swap t ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset =
+      ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap gen %d; suffix start %a; chunk start idx %d; chunk num \
@@ -776,6 +788,19 @@ struct
       Control.set_payload t.control pl
     in
 
+    (* Step 3. Swap volume and reload lower if needed *)
+    let* () =
+      match volume_root with
+      | None -> Ok ()
+      | Some root ->
+          let control_tmp =
+            Irmin_pack.Layout.V5.Volume.control_tmp ~generation ~root
+          in
+          let control = Irmin_pack.Layout.V5.Volume.control ~root in
+          let* () = Io.move_file ~src:control_tmp ~dst:control in
+          reload_lower t ~volume_num:pl.volume_num
+    in
+
     let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
     [%log.debug
       "Gc reopen files, update control: %.0fus, %.0fus" span1 (span2 -. span1)];
@@ -796,6 +821,11 @@ struct
 
   let gc_behaviour t = match t.lower with Some _ -> `Archive | None -> `Delete
 
+  let gc_destination t =
+    match gc_behaviour t with
+    | `Delete -> `Delete
+    | `Archive -> `Archive (Option.get t.lower)
+
   let gc_allowed t =
     let pl = Control.payload t.control in
     let action = gc_behaviour t in
@@ -804,7 +834,7 @@ struct
       ->
         false
     | `Delete, (No_gc_yet | Gced _) -> true
-    | `Archive, _ -> Option.is_some t.lower
+    | `Archive, _ -> true
     | ( _,
         ( T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
         | T14 | T15 ) ) ->

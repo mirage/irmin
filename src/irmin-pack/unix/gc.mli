@@ -25,6 +25,7 @@ module Make (Args : Gc_args.S) : sig
 
   val v :
     root:string ->
+    lower_root:string option ->
     new_files_path:string ->
     generation:int ->
     unlink:bool ->

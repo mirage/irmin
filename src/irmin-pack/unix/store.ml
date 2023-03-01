@@ -274,8 +274,9 @@ module Maker (Config : Conf.S) = struct
             in
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
+            let lower_root = Conf.lower_root t.config in
             let gc =
-              Gc.v ~root ~generation:next_generation ~unlink
+              Gc.v ~root ~generation:next_generation ~unlink ~lower_root
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
                 ~node:t.node ~commit:t.commit ~new_files_path commit_key
             in

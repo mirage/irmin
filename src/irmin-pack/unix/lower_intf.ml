@@ -21,6 +21,7 @@ type volume_identifier = string
 module type Volume = sig
   module Io : Io.S
   module Errs : Io_errors.S
+  module Sparse : Sparse_file.S
 
   type t
 
@@ -31,10 +32,8 @@ module type Volume = sig
     | `Corrupted_control_file
     | `Unknown_major_pack_version of string ]
 
-  val v : readonly:bool -> string -> (t, [> open_error ]) result
-  (** [v ~readonly path] loads the volume at [path].
-
-      If [readonly] is true, no write operations are allowed. *)
+  val v : string -> (t, [> open_error ]) result
+  (** [v path] loads the volume at [path] in read-only. *)
 
   val path : t -> string
   (** [path t] is the directory that contains the volume. *)
@@ -114,6 +113,28 @@ module type S = sig
 
       If [volume] is not provided, {!find_volume} will be used to attempt to
       locate the correct volume for the read. *)
+
+  val set_readonly : t -> bool -> unit
+  (** [set_readonly t flag] changes the writing permission of the lower layer
+      (where [true] is read only). This should only be called by the GC worker
+      to temporarily allow RW before calling {!archive_seq_exn}. *)
+
+  val archive_seq_exn :
+    upper_root:string ->
+    generation:int ->
+    to_archive:string Seq.t ->
+    off:int63 ->
+    t ->
+    string
+  (** [archive_seq ~upper_root ~generation ~to_archive ~off t] is called by the
+      GC worker during the creation of the new [generation] to archive
+      [to_archive] at offset [off] in the lower layer and returns the root of
+      the volume where data was appended.
+
+      It is the only only write operation allowed on the lower layer, and it
+      makes no observable change as the control file is left untouched : instead
+      new changes are written to volume.gen.control, which is swapped during GC
+      finalization. *)
 
   val read_range_exn :
     off:int63 ->

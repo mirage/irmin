@@ -80,7 +80,7 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
     Hash.hash_size + 1 + length_length + suffix_length
 
   let decode_entry dispatcher buffer off =
-    let (_ : string option) =
+    let _ =
       Dispatcher.read_range_exn dispatcher ~off
         ~min_len:min_bytes_needed_to_discover_length
         ~max_len:max_bytes_needed_to_discover_length buffer
@@ -98,7 +98,7 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
       min_bytes_needed_to_discover_length + Varint.max_encoded_size
     in
     let buffer = Bytes.create max_bytes_needed_to_discover_length in
-    let (_ : string option) =
+    let _ =
       Dispatcher.read_range_exn dispatcher ~off
         ~min_len:min_bytes_needed_to_discover_length
         ~max_len:max_bytes_needed_to_discover_length buffer
