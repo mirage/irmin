@@ -221,7 +221,7 @@ struct
     in
     match Kind.of_magic_exn s.[!off + Hash.hash_size] with
     | Commit_v1 -> (Entry.V0.decode_bin s off).v
-    | Commit_v2 ->
+    | Commit_v2 | Dangling_parent_commit ->
         let { v = { Entry.V1.v = commit; _ }; _ } = Entry.V1.decode_bin s off in
         let info = commit.info in
         let node = key_of_address commit.node_offset in
