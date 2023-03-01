@@ -86,19 +86,20 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     let open Int63.Syntax in
     if off >= suffix_start_offset t then Some (soff_of_offset t off) else None
 
-  let read_exn t ~off ~len ?volume_identifier buf =
-    [%log.debug "read_exn ~off:%a ~len:%i" Int63.pp off len];
+  let read_range_exn t ~off ~min_len ~max_len ?volume_identifier buf =
+    [%log.debug
+      "read_range_exn ~off:%a ~min_len:%i ~max_len:%i" Int63.pp off min_len
+        max_len];
     let read_lower_exn ?volume () =
       let lower = Fm.lower t.fm in
       match lower with
       | None -> None
-      | Some l -> Some (Lower.read_exn l ~off ~len ?volume buf)
+      | Some l ->
+          Some (Lower.read_range_exn l ~off ~min_len ~max_len ?volume buf)
     in
     let read_sparse_then_lower_exn () =
-      match Sparse.read_exn (get_prefix t) ~off ~len buf with
-      | exception
-          (Errors.Pack_error (`Invalid_sparse_read ((`Before | `Hole), _)) as
-          exn) -> (
+      match Sparse.read_range_exn (get_prefix t) ~off ~min_len ~max_len buf with
+      | exception (Errors.Pack_error (`Invalid_sparse_read _) as exn) -> (
           match read_lower_exn () with
           | None -> raise exn
           | Some _ as identifier -> identifier)
@@ -106,20 +107,18 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     in
     match dispatch_suffix t ~off with
     | Some off ->
-        Suffix.read_exn (get_suffix t) ~off ~len buf;
+        Suffix.read_range_exn (get_suffix t) ~off ~min_len ~max_len buf;
         None
     | None -> (
         match volume_identifier with
         | None -> read_sparse_then_lower_exn ()
         | Some volume -> read_lower_exn ~volume ())
 
-  let read_range_exn t ~off ~min_len ~max_len buf =
-    match dispatch_suffix t ~off with
-    | Some off ->
-        Suffix.read_range_exn (Fm.suffix t.fm) ~off ~min_len ~max_len buf
-    | None -> Sparse.read_range_exn (get_prefix t) ~off ~min_len ~max_len buf
+  let read_exn t ~off ~len ?volume_identifier buf =
+    read_range_exn t ~off ~min_len:len ~max_len:len ?volume_identifier buf
 
   let read_seq_exn t ~off ~len =
+    (* TODO: read from lower volumes *)
     let bytes_in_prefix =
       let open Int63.Syntax in
       let prefix_bytes_after_off = suffix_start_offset t - off in

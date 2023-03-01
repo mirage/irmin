@@ -68,7 +68,7 @@ module Make (Io : Io.S) = struct
           let mmap = Int64_mmap.open_ro ~fn:path ~sz:(-1) in
           let arr = mmap.arr in
           let len = BigArr1.dim arr in
-          match len > 0 && len mod 3 = 0 with
+          match len mod 3 = 0 with
           | true ->
               Int64_mmap.close mmap;
               Ok { path; arr }

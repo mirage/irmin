@@ -41,7 +41,13 @@ module type S = sig
       lower. *)
 
   val read_range_exn :
-    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> unit
+    t ->
+    off:int63 ->
+    min_len:int ->
+    max_len:int ->
+    ?volume_identifier:Lower.volume_identifier ->
+    bytes ->
+    Lower.volume_identifier option
   (** Same as [read_exn], the amount read is [max_len] if possible or at least
       [min_len] if reading more would step over a hole in the sparse file. *)
 

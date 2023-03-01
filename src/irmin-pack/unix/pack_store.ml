@@ -154,20 +154,22 @@ struct
       Option.map (fun len -> min_length + len) t.size_of_value_and_length_header
   end
 
-  let read_and_decode_entry_prefix ~off dispatcher =
+  let read_and_decode_entry_prefix ~off ?volume_identifier dispatcher =
     let buf = Bytes.create Entry_prefix.max_length in
-    (try
-       (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
-          final entry in the pack file (if the data section of the entry is
-          shorter than [Varint.max_encoded_size]. In this case, an invalid read
-          may be discovered below when attempting to decode the length header. *)
-       Dispatcher.read_range_exn dispatcher ~off
-         ~min_len:Entry_prefix.min_length ~max_len:Entry_prefix.max_length buf
-     with Errors.Pack_error `Read_out_of_bounds ->
-       invalid_read
-         "Attempted to read an entry at offset %a in the pack file, but got \
-          less than %d bytes"
-         Int63.pp off Entry_prefix.max_length);
+    let (_volume : Lower.volume_identifier option) =
+      try
+        (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
+           final entry in the pack file (if the data section of the entry is
+           shorter than [Varint.max_encoded_size]. In this case, an invalid read
+           may be discovered below when attempting to decode the length header. *)
+        Dispatcher.read_range_exn dispatcher ?volume_identifier ~off
+          ~min_len:Entry_prefix.min_length ~max_len:Entry_prefix.max_length buf
+      with Errors.Pack_error `Read_out_of_bounds ->
+        invalid_read
+          "Attempted to read an entry at offset %a in the pack file, but got \
+           less than %d bytes"
+          Int63.pp off Entry_prefix.max_length
+    in
     let hash =
       (* Bytes.unsafe_to_string usage: buf is created locally, so we have unique
          ownership; we assume Dispatcher.read_at_most_exn returns unique
@@ -206,7 +208,9 @@ struct
     let off, _, volume_identifier = get_location t k in
     let len = Hash.hash_size + 1 in
     let buf = Bytes.create len in
-    let _ = Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf in
+    let (_volume : Lower.volume_identifier option) =
+      Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf
+    in
     if gced buf then false
     else
       (* Bytes.unsafe_to_string usage: [buf] is local and never reused after
@@ -267,7 +271,9 @@ struct
     [%log.debug "key_of_offset: %a" Int63.pp offset];
     (* Attempt to eagerly read the length at the same time as reading the
        hash in order to save an extra IO read when dereferencing the key: *)
-    let entry_prefix = read_and_decode_entry_prefix t.dispatcher ~off:offset in
+    let entry_prefix =
+      read_and_decode_entry_prefix ?volume_identifier ~off:offset t.dispatcher
+    in
     (* This function is called on the parents of a commit when deserialising
        it. Dangling_parent_commit are usually treated as removed objects,
        except here, where in order to correctly deserialise the gced commit,
@@ -533,7 +539,8 @@ struct
 
   module Entry_prefix = Inner.Entry_prefix
 
-  let read_and_decode_entry_prefix = Inner.read_and_decode_entry_prefix
+  let read_and_decode_entry_prefix ~off dispatcher =
+    Inner.read_and_decode_entry_prefix ~off dispatcher
 
   let index_direct_with_kind t =
     Inner.index_direct_with_kind (get_if_open_exn t)
