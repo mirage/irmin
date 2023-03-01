@@ -255,6 +255,14 @@ struct
     t.suffix <- suffix1;
     Suffix.close suffix0
 
+  let reload_lower t =
+    match t.lower with
+    | Some lower ->
+        (* Volume number does not change, only volume content *)
+        let volume_num = Lower.volume_num lower in
+        Lower.reload ~volume_num lower
+    | None -> Ok ()
+
   let cleanup ~root ~generation ~chunk_start_idx ~chunk_num =
     let files = Array.to_list (Sys.readdir root) in
     let to_remove =
@@ -433,6 +441,8 @@ struct
            [read_error] to [ [>read_error] ]. *)
         match res with Ok () -> Ok () | Error (#Errs.t as e) -> Error e
       in
+      (* Step 6. Reload lower volumes *)
+      let* () = reload_lower t in
       Ok ()
 
   (* File creation ********************************************************** *)
@@ -796,6 +806,11 @@ struct
 
   let gc_behaviour t = match t.lower with Some _ -> `Archive | None -> `Delete
 
+  let gc_destination t =
+    match gc_behaviour t with
+    | `Delete -> `Delete
+    | `Archive -> `Archive (Option.get t.lower)
+
   let gc_allowed t =
     let pl = Control.payload t.control in
     let action = gc_behaviour t in
@@ -804,7 +819,7 @@ struct
       ->
         false
     | `Delete, (No_gc_yet | Gced _) -> true
-    | `Archive, _ -> Option.is_some t.lower
+    | `Archive, _ -> true
     | ( _,
         ( T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
         | T14 | T15 ) ) ->

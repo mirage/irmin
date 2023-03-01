@@ -80,6 +80,10 @@ module V5 = struct
   module Volume = struct
     let directory ~idx = toplevel ("volume." ^ string_of_int idx)
     let control = toplevel "volume.control"
+
+    let control_tmp ~generation =
+      toplevel ("volume." ^ string_of_int generation ^ ".control")
+
     let mapping = toplevel "volume.mapping"
     let data = toplevel "volume.data"
   end

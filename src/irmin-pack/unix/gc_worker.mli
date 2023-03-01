@@ -23,6 +23,7 @@ module Make (Args : Gc_args.S) : sig
   module Args : Gc_args.S
 
   val run_and_output_result :
+    lower_root:string option ->
     generation:int ->
     new_files_path:string ->
     string ->
@@ -40,6 +41,7 @@ module Make (Args : Gc_args.S) : sig
   type gc_results = {
     suffix_params : suffix_params;
     removable_chunk_idxs : int list;
+    modified_volume : string option;
     stats : Stats.Latest_gc.worker;
   }
   [@@deriving irmin]

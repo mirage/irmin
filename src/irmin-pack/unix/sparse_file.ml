@@ -203,6 +203,7 @@ module Make (Io : Io.S) = struct
     type t = { mapping : Ao.t; data : Ao.t; mutable end_off : Int63.t }
 
     let end_off t = t.end_off
+    let mapping_size t = Ao.end_poff t.mapping
 
     let create ~mapping ~data =
       let open Result_syntax in

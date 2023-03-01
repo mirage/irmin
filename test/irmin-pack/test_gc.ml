@@ -244,13 +244,25 @@ let check_not_found t key msg =
   | None -> Lwt.return_unit
   | Some _ -> Alcotest.failf "should not find %s" msg
 
-module Gc = struct
+module type Gc_backend = sig
+  val init :
+    ?lru_size:int ->
+    ?readonly:bool ->
+    ?fresh:bool ->
+    ?root:string ->
+    unit ->
+    t Lwt.t
+
+  val check_gced : t -> S.commit -> string -> unit Lwt.t
+end
+
+module Gc_common (B : Gc_backend) = struct
   (** Check that gc preserves and deletes commits accordingly. *)
   let one_gc () =
     (* c1 - c2            *)
     (*   \---- c3         *)
     (*            gc(c3)  *)
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -259,8 +271,8 @@ module Gc = struct
     [%log.debug "Gc c1, c2, keep c3"];
     let* () = start_gc t c3 in
     let* () = finalise_gc t in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c2 "removed c2" in
+    let* () = B.check_gced t c1 "removed c1" in
+    let* () = B.check_gced t c2 "removed c2" in
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
@@ -269,7 +281,7 @@ module Gc = struct
     (*                gc(c4)      gc(c5) *)
     (* c1 - c2 --- c4 -------- c5        *)
     (*   \---- c3                        *)
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -287,17 +299,17 @@ module Gc = struct
     let* () = start_gc t c5 in
     let* () = finalise_gc t in
     let* () = check_5 t c5 in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c2 "removed c2" in
-    let* () = check_not_found t c3 "removed c3" in
-    let* () = check_not_found t c4 "removed c4" in
+    let* () = B.check_gced t c1 "removed c1" in
+    let* () = B.check_gced t c2 "removed c2" in
+    let* () = B.check_gced t c3 "removed c3" in
+    let* () = B.check_gced t c4 "removed c4" in
     S.Repo.close t.repo
 
   (** Check that calling gc on first commit of chain keeps everything. *)
   let gc_keeps_all () =
     (* c1 - c2 - c3        *)
     (*              gc(c1) *)
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -315,7 +327,7 @@ module Gc = struct
   let gc_add_back () =
     (* c1 - c_del - c3 ------ c1 - c2 ------- c3 *)
     (*                 gc(c3)         gc(c1)     *)
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c_del = commit_del t in
@@ -324,8 +336,8 @@ module Gc = struct
     [%log.debug "Gc c1, c_del, keep c3"];
     let* () = start_gc t c3 in
     let* () = finalise_gc t in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c_del "removed c_del" in
+    let* () = B.check_gced t c1 "removed c1" in
+    let* () = B.check_gced t c_del "removed c_del" in
     let* () = check_3 t c3 in
     let* () = check_del_1 t c3 in
     [%log.debug "Add back c1"];
@@ -338,7 +350,7 @@ module Gc = struct
     [%log.debug "Gc c3, keep c1, c2"];
     let* () = start_gc t c1 in
     let* () = finalise_gc t in
-    let* () = check_not_found t c3 "removed c3" in
+    let* () = B.check_gced t c3 "removed c3" in
     let* () = check_2 t c2 in
     [%log.debug "Add back c3"];
     let* t = checkout_exn t c2 in
@@ -352,7 +364,7 @@ module Gc = struct
     (* c1 ------ c2                        *)
     (*    gc(c1)               gc(c2)      *)
     (*             close close       close *)
-    let* t = init () in
+    let* t = B.init () in
     let store_name = t.root in
     let* t, c1 = commit_1 t in
     let* () = start_gc ~unlink:false t c1 in
@@ -363,21 +375,21 @@ module Gc = struct
     Alcotest.(check bool)
       "unlink:false" true
       (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
-    let* t = init ~readonly:true ~fresh:false ~root:store_name () in
+    let* t = B.init ~readonly:true ~fresh:false ~root:store_name () in
     let* () = S.Repo.close t.repo in
     Alcotest.(check bool)
       "RO no clean up" true
       (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
-    let* t = init ~readonly:false ~fresh:false ~root:store_name () in
+    let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = S.Repo.close t.repo in
     Alcotest.(check bool)
       "RW cleaned up" false
       (Sys.file_exists (Filename.concat store_name "store.0.prefix"));
-    let* t = init ~readonly:false ~fresh:false ~root:store_name () in
+    let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
     let* () = S.Repo.close t.repo in
-    let* t = init ~readonly:false ~fresh:false ~root:store_name () in
+    let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
     [%log.debug "Gc c1, keep c2"];
     let* () = start_gc ~unlink:true t c2 in
     let* () = finalise_gc t in
@@ -385,8 +397,8 @@ module Gc = struct
     Alcotest.(check bool)
       "unlink:true" false
       (Sys.file_exists (Filename.concat store_name "store.1.suffix"));
-    let* t = init ~readonly:false ~fresh:false ~root:store_name () in
-    let* () = check_not_found t c1 "removed c1" in
+    let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
+    let* () = B.check_gced t c1 "removed c1" in
     let* () = check_2 t c2 in
     S.Repo.close t.repo
 
@@ -395,7 +407,7 @@ module Gc = struct
     (*         gc(c3) *)
     (* c1 - c3        *)
     (* c2 -/          *)
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -403,8 +415,8 @@ module Gc = struct
     let* t, c3 = commit_3 t in
     let* () = start_gc t c3 in
     let* () = finalise_gc t in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c2 "removed c2" in
+    let* () = B.check_gced t c1 "removed c1" in
+    let* () = B.check_gced t c2 "removed c2" in
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
@@ -414,8 +426,8 @@ module Gc = struct
     (*   \- c2                                                    *)
     (*                  gc(c3)                      gc(c4)        *)
     (*           reload       reload         reload        reload *)
-    let* t = init () in
-    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t = B.init () in
+    let* ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -432,8 +444,8 @@ module Gc = struct
     S.reload ro_t.repo;
     [%log.debug "RO does not find gced commits after reload"];
     let* () = check_3 ro_t c3 in
-    let* () = check_not_found ro_t c1 "c1" in
-    let* () = check_not_found ro_t c2 "c2" in
+    let* () = B.check_gced ro_t c1 "c1" in
+    let* () = B.check_gced ro_t c2 "c2" in
     let* t = checkout_exn t c3 in
     let* t, c4 = commit_4 t in
     let* t = checkout_exn t c4 in
@@ -450,7 +462,7 @@ module Gc = struct
     [%log.debug "RO finds c4, c5 but not c3 after reload"];
     let* () = check_4 ro_t c4 in
     let* () = check_5 ro_t c5 in
-    let* () = check_not_found ro_t c3 "c3" in
+    let* () = B.check_gced ro_t c3 "c3" in
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
@@ -459,8 +471,8 @@ module Gc = struct
     (* c1 ------- c2               *)
     (*    gc(c1)     gc(c2)        *)
     (*                      reload *)
-    let* t = init () in
-    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t = B.init () in
+    let* ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
     S.reload ro_t.repo;
     let* () = start_gc t c1 in
@@ -475,14 +487,14 @@ module Gc = struct
     [%log.debug "RO finds c2, but not c1 after reload"];
     S.reload ro_t.repo;
     let* () = check_2 ro_t c2 in
-    let* () = check_not_found ro_t c1 "c1" in
+    let* () = B.check_gced ro_t c1 "c1" in
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
   (** Check that gc and close and ro work together. *)
   let ro_close () =
-    let* t = init () in
-    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* t = B.init () in
+    let* ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -490,23 +502,23 @@ module Gc = struct
     let* () = start_gc t c2 in
     let* () = finalise_gc t in
     [%log.debug "RO reopens is similar to a reload"];
-    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
     let* () = check_2 ro_t c2 in
-    let* () = check_not_found ro_t c1 "removed c1" in
+    let* () = B.check_gced ro_t c1 "removed c1" in
     let* t = checkout_exn t c2 in
     let* t, c3 = commit_3 t in
     S.reload ro_t.repo;
     let* () = check_3 t c3 in
     let* () = check_3 ro_t c3 in
-    let* () = check_not_found ro_t c1 "removed c1" in
+    let* () = B.check_gced ro_t c1 "removed c1" in
     let* () = S.Repo.close t.repo in
     S.Repo.close ro_t.repo
 
   (** Check opening RO store and calling reload right after. *)
   let ro_reload_after_v () =
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
-    let* ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    let* ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
     S.reload ro_t.repo;
     let* () = check_1 ro_t c1 in
     let* () = S.Repo.close t.repo in
@@ -522,7 +534,7 @@ module Gc = struct
           let tree = S.Commit.tree commit in
           check_blob tree [ "a"; "b"; "c" ] "b"
     in
-    let* t = init ~lru_size:100 () in
+    let* t = B.init ~lru_size:100 () in
     let* t = set t [ "a"; "b"; "c" ] "b" in
     let* c1 = commit t in
     let* t = checkout_exn t c1 in
@@ -541,7 +553,7 @@ module Gc = struct
 
   (** Check that calling gc during a batch raises an error. *)
   let gc_during_batch () =
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* _ =
       Alcotest.check_raises_lwt "Should not call gc in batch"
@@ -558,7 +570,7 @@ module Gc = struct
     (* c1 - c2 - c3                *)
     (*              gc(c3)         *)
     (*                     c1 - c2 *)
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -567,8 +579,8 @@ module Gc = struct
     [%log.debug "Keep c3 remove c1 c2"];
     let* () = start_gc t c3 in
     let* () = finalise_gc t in
-    let* () = check_not_found t c1 "removed c1" in
-    let* () = check_not_found t c2 "removed c2" in
+    let* () = B.check_gced t c1 "removed c1" in
+    let* () = B.check_gced t c2 "removed c2" in
     let* t, c1_again =
       commit_1 { t with tree = S.Tree.empty (); parents = [] }
     in
@@ -584,7 +596,7 @@ module Gc = struct
     S.Repo.close t.repo
 
   let gc_similar_commits () =
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* () = start_gc t c1 in
     let* () = finalise_gc t in
@@ -597,7 +609,7 @@ module Gc = struct
 
   (** Check [Gc.latest_gc_target]. *)
   let latest_gc_target () =
-    let* t = init () in
+    let* t = B.init () in
     let check_latest_gc_target expected =
       let got = S.Gc.latest_gc_target t.repo in
       match (got, expected) with
@@ -642,7 +654,7 @@ module Gc = struct
         files
     in
 
-    let* t = init () in
+    let* t = B.init () in
     let* t, c1 = commit_1 t in
     let* t = checkout_exn t c1 in
     let* t, c2 = commit_2 t in
@@ -674,6 +686,13 @@ module Gc = struct
       tc "Test oldest live commit" latest_gc_target;
       tc "Test worker gc stats" gc_stats;
     ]
+end
+
+module Gc = struct
+  include Gc_common (struct
+    let init = init ~lower_root:None
+    let check_gced = check_not_found
+  end)
 end
 
 module Gc_archival = struct
@@ -724,7 +743,8 @@ module Gc_archival = struct
       (S.Gc.is_allowed t.repo) false;
     S.Repo.close t.repo
 
-  let gc_reachability_old () =
+  (* TODO re-enable when lower migration is implemented *)
+  let _gc_reachability_old () =
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
     let* t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
@@ -743,14 +763,60 @@ module Gc_archival = struct
     in
     S.Repo.close t.repo
 
+  let gc_archival_fresh () =
+    let lower_root = create_lower_root ~mkdir:false () in
+    let* t = init ~fresh:true ~lower_root:(Some lower_root) () in
+    let* t, c1 = commit_1 t in
+    let* t = checkout_exn t c1 in
+    let* t, _c2 = commit_2 t in
+    let* t = checkout_exn t c1 in
+    let* t, c3 = commit_3 t in
+    let* () = start_gc t c3 in
+    let* () = finalise_gc t in
+    let fm = S.Internal.file_manager t.repo in
+    let module Fm = S.Internal.File_manager in
+    let lower =
+      match Fm.lower fm with
+      | None -> Alcotest.failf "no lower after gc"
+      | Some l -> l
+    in
+    Alcotest.(
+      check int "lower has one volume after gc" 1 (Fm.Lower.volume_num lower));
+    let volume_appended = Fm.Lower.find_volume ~off:Int63.zero lower in
+    Alcotest.(
+      check bool "lower contains history" true (Option.is_some volume_appended));
+    let volume_appended = Option.get volume_appended in
+    let control = Fm.Lower.Volume.control volume_appended |> Option.get in
+    Alcotest.(
+      check int63 "correct offset in archive" control.end_offset
+        (Int63.of_int 520));
+    let* () = check_1 t c1 in
+    S.Repo.close t.repo
+
+  module Backend = struct
+    let init ?lru_size ?readonly ?fresh ?root () =
+      let root = Option.value root ~default:(fresh_name ()) in
+      let lower_root = root ^ ".lower" in
+      init ?lru_size ?readonly ?fresh ~root ~lower_root:(Some lower_root) ()
+
+    let check_gced t c s =
+      let* c = S.Commit.of_key t.repo (S.Commit.key c) in
+      Alcotest.(check bool s true (Option.is_some c));
+      Lwt.return_unit
+  end
+
+  module Gc_common_tests = Gc_common (Backend)
+
   let tests =
     [
       tc "Test availability of different gc modes on recent stores"
         gc_availability_recent;
       tc "Test availability of different gc modes on old stores"
         gc_availability_old;
-      tc "Test reachability on old stores" gc_reachability_old;
+      tc "Test archiving GC on fresh empty store" gc_archival_fresh;
+      (* tc "Test reachability on old stores" gc_reachability_old; *)
     ]
+    @ Gc_common_tests.tests
 end
 
 module Concurrent_gc = struct

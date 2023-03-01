@@ -78,6 +78,8 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Forbidden_during_gc
     | `Multiple_empty_volumes
     | `Volume_missing of string
+    | `Volume_history_discontinuous
+    | `Lower_has_no_volume
     | `Add_volume_forbidden_during_gc
     | `Add_volume_requires_lower
     | `Volume_not_found of string ]

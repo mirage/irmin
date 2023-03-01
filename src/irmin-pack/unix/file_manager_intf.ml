@@ -261,6 +261,10 @@ module type S = sig
       [suffix_dead_bytes] are used to properly load and read the suffix after a
       GC. The control file is also updated on disk. *)
 
+  val reload_lower : t -> (unit, [> Errs.t ]) result
+  (** Reloads the content of volumes in the lower volume if there is one,
+      assuming the number of volumes has not changed. *)
+
   val readonly : t -> bool
   val generation : t -> int
   val gc_allowed : t -> bool
@@ -270,6 +274,9 @@ module type S = sig
   val gc_behaviour : t -> [ `Delete | `Archive ]
   (** Decides if the GC will delete or archive the garbage data, depending on
       the presence of a lower layer. *)
+
+  val gc_destination : t -> [ `Delete | `Archive of Lower.t ]
+  (** Returns where data discarded by the GC will end up. (see {!gc_behaviour}). *)
 
   val create_one_commit_store :
     t ->

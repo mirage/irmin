@@ -22,6 +22,7 @@ exception Pack_error = Errors.Pack_error
 module Make (Args : Gc_args.S) = struct
   open Args
   module Io = Fm.Io
+  module Lower = Fm.Lower
   module Sparse = Dispatcher.Fm.Sparse
   module Ao = Append_only_file.Make (Fm.Io) (Errs)
 
@@ -162,16 +163,19 @@ module Make (Args : Gc_args.S) = struct
   type gc_results = {
     suffix_params : suffix_params;
     removable_chunk_idxs : int list;
+    modified_volume : string option;
     stats : Stats.Latest_gc.worker;
   }
   [@@deriving irmin]
 
   type gc_output = (gc_results, Args.Errs.t) result [@@deriving irmin]
 
-  let run ~generation ~new_files_path root commit_key new_suffix_start_offset =
+  let run ~lower_root ~generation ~new_files_path root commit_key
+      new_suffix_start_offset =
     let open Result_syntax in
     let config =
-      Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 root
+      Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 ~lower_root
+        root
     in
 
     (* Step 1. Open the files *)
@@ -265,21 +269,24 @@ module Make (Args : Gc_args.S) = struct
             Sparse.Ao.append_seq_exn prefix ~off str)
           live_entries
       in
-      (* Step 5.2. Update the parent commits to be dangling.
-         Reopen the new prefix, this time in write-only as we have to modify data inside the file. *)
-      stats :=
-        Gc_stats.Worker.finish_current_step !stats
-          "prefix: rewrite commit parents";
-      let prefix = Sparse.Wo.open_wo ~mapping ~data |> Errs.raise_if_error in
-      Errors.finalise_exn (fun _outcome ->
-          Sparse.Wo.fsync prefix
-          >>= (fun _ -> Sparse.Wo.close prefix)
-          |> Errs.log_if_error "GC: Close prefix after parent rewrite")
-      @@ fun () ->
-      let write_exn = Sparse.Wo.write_exn prefix in
-      List.iter
-        (fun key -> transfer_parent_commit_exn ~write_exn key)
-        (Commit_value.parents commit)
+      (* Step 5.2.
+         Update the parent commits to be dangling, but only if we are deleting
+         the data: reopen the new prefix, this time in write-only as we have to
+         modify data inside the file. *)
+      if Fm.gc_behaviour fm = `Delete then (
+        stats :=
+          Gc_stats.Worker.finish_current_step !stats
+            "prefix: rewrite commit parents";
+        let prefix = Sparse.Wo.open_wo ~mapping ~data |> Errs.raise_if_error in
+        Errors.finalise_exn (fun _outcome ->
+            Sparse.Wo.fsync prefix
+            >>= (fun _ -> Sparse.Wo.close prefix)
+            |> Errs.log_if_error "GC: Close prefix after parent rewrite")
+        @@ fun () ->
+        let write_exn = Sparse.Wo.write_exn prefix in
+        List.iter
+          (fun key -> transfer_parent_commit_exn ~write_exn key)
+          (Commit_value.parents commit))
     in
     let () = report_new_file_sizes ~root ~generation stats |> ignore in
 
@@ -348,9 +355,28 @@ module Make (Args : Gc_args.S) = struct
         removable_chunk_idxs )
     in
 
-    (* Step 7. Finalise stats and return. *)
+    (* Step 7. If we have a lower, archive the removed chunks *)
+    let modified_volume =
+      match Fm.gc_destination fm with
+      | `Delete -> None
+      | `Archive lower ->
+          [%log.debug "GC: archiving into lower"];
+          (* off should not include old dead bytes *)
+          let off = Dispatcher.suffix_start_offset dispatcher in
+          let discarded_data =
+            (* len should include new dead bytes *)
+            let len = Int63.Syntax.(new_suffix_start_offset - off) in
+            Dispatcher.read_seq_exn dispatcher ~off ~len
+          in
+          let (_ : string list) = List.of_seq discarded_data in
+          Some
+            (Lower.archive_seq_exn ~upper_root:root ~generation
+               ~to_archive:discarded_data lower ~off)
+    in
+
+    (* Step 8. Finalise stats and return. *)
     let stats = Gc_stats.Worker.finalise !stats in
-    { suffix_params; removable_chunk_idxs; stats }
+    { suffix_params; removable_chunk_idxs; modified_volume; stats }
 
   let write_gc_output ~root ~generation output =
     let open Result_syntax in
@@ -363,11 +389,11 @@ module Make (Args : Gc_args.S) = struct
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
-  let run_and_output_result ~generation ~new_files_path root commit_key
-      new_suffix_start_offset =
+  let run_and_output_result ~lower_root ~generation ~new_files_path root
+      commit_key new_suffix_start_offset =
     let result =
       Errs.catch (fun () ->
-          run ~generation ~new_files_path root commit_key
+          run ~lower_root ~generation ~new_files_path root commit_key
             new_suffix_start_offset)
     in
     Errs.log_if_error "gc run" result;
