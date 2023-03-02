@@ -131,9 +131,9 @@ module type S = sig
       [to_archive] at offset [off] in the lower layer and returns the root of
       the volume where data was appended.
 
-      It is the only only write operation allowed on the lower layer, and it
-      makes no observable change as the control file is left untouched : instead
-      new changes are written to volume.gen.control, which is swapped during GC
+      It is the only write operation allowed on the lower layer, and it makes no
+      observable change as the control file is left untouched : instead new
+      changes are written to volume.gen.control, which is swapped during GC
       finalization. *)
 
   val read_range_exn :

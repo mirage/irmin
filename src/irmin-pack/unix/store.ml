@@ -276,7 +276,7 @@ module Maker (Config : Conf.S) = struct
             let next_generation = current_generation + 1 in
             let lower_root = Conf.lower_root t.config in
             let gc =
-              Gc.v ~root ~generation:next_generation ~unlink ~lower_root
+              Gc.v ~root ~lower_root ~generation:next_generation ~unlink
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
                 ~node:t.node ~commit:t.commit ~new_files_path commit_key
             in
