@@ -200,9 +200,11 @@ struct
 
   (* This function assumes magic is written at hash_size + 1 for every
      object. *)
-  let gced buf =
+  let gced t buf =
     let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
-    kind = Pack_value.Kind.Dangling_parent_commit
+    match (kind, Fm.gc_behaviour t.fm) with
+    | kind, `Delete -> kind = Pack_value.Kind.Dangling_parent_commit
+    | _, `Archive -> false
 
   let pack_file_contains_key t k =
     let off, _, volume_identifier = get_location t k in
@@ -211,7 +213,7 @@ struct
     let (_volume : Lower.volume_identifier option) =
       Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf
     in
-    if gced buf then false
+    if gced t buf then false
     else
       (* Bytes.unsafe_to_string usage: [buf] is local and never reused after
          the call to [decode_bin_hash]. *)
@@ -310,7 +312,7 @@ struct
     let volume_identifier =
       Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf
     in
-    if gced buf then None
+    if gced t buf then None
     else
       let key_of_offset = key_of_offset ?volume_identifier t in
       let key_of_hash = Pack_key.v_indexed in

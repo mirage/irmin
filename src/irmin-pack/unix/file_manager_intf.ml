@@ -255,11 +255,13 @@ module type S = sig
     chunk_num:int ->
     suffix_dead_bytes:int63 ->
     latest_gc_target_offset:int63 ->
+    volume_root:string option ->
     (unit, [> Errs.t ]) result
   (** Swaps to using files from the GC [generation]. The values
       [suffix_start_offset], [chunk_start_idx], [chunk_num], and
       [suffix_dead_bytes] are used to properly load and read the suffix after a
-      GC. The control file is also updated on disk. *)
+      GC. The value [volume_root] is used to reload the lower if it was modified
+      by the GC. The control file is also updated on disk. *)
 
   val readonly : t -> bool
   val generation : t -> int
@@ -270,6 +272,9 @@ module type S = sig
   val gc_behaviour : t -> [ `Delete | `Archive ]
   (** Decides if the GC will delete or archive the garbage data, depending on
       the presence of a lower layer. *)
+
+  val gc_destination : t -> [ `Delete | `Archive of Lower.t ]
+  (** Returns where data discarded by the GC will end up. (see {!gc_behaviour}). *)
 
   val create_one_commit_store :
     t ->

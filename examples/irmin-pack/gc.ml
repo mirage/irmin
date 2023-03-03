@@ -82,6 +82,16 @@ module Repo_config = struct
   let config =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
       ~dict_auto_flush_threshold ~suffix_auto_flush_threshold root
+
+  (** We can add an optional lower layer to our repository. Data discarded by
+      the GC will be stored there and still be accessible instead of being
+      deleted. *)
+  let lower_root = Some "./irmin-pack-example-lower"
+
+  (** Create a copy of the previous configuration, now with a lower layer *)
+  let config_with_lower =
+    Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
+      ~dict_auto_flush_threshold ~suffix_auto_flush_threshold ~lower_root root
 end
 
 (** Utility for creating commit info *)
@@ -119,7 +129,7 @@ end
 
 (** Demonstrate running GC on a previous commit aligned to the end of a chunk
     for ideal GC space reclamation. *)
-let run_gc repo tracker =
+let run_gc config repo tracker =
   let* () =
     match Tracker.(tracker.next_gc_commit) with
     | None -> Lwt.return_unit
@@ -134,32 +144,35 @@ let run_gc repo tracker =
               in
               Printf.printf
                 "GC finished in %.4fs. Finalise took %.4fs. Size of repo: \
-                 %.2fMB.\n"
+                 %.2fMB."
                 duration finalise_duration
-                (megabytes_of_path Repo_config.root)
-              |> Lwt.return
+                (megabytes_of_path @@ Irmin_pack.Conf.root config);
+              (match Irmin_pack.Conf.lower_root config with
+              | None -> Printf.printf "\n%!"
+              | Some lower ->
+                  Printf.printf " Size of lower layer: %.2fMB.\n"
+                    (megabytes_of_path lower));
+              Lwt.return_unit
           | Error (`Msg err) -> print_endline err |> Lwt.return
         in
         (* Launch GC *)
         let commit_key = Store.Commit.key commit in
         let+ launched = Store.Gc.run ~finished repo commit_key in
         match launched with
-        | Ok false ->
-            Printf.printf "GC did not launch. Already running? %B\n"
-              (Store.Gc.is_finished repo = false)
+        | Ok false -> ()
         | Ok true ->
             Printf.printf "GC started. Size of repo: %.2fMB\n"
-              (megabytes_of_path Repo_config.root)
+              (megabytes_of_path @@ Irmin_pack.Conf.root config)
         | Error (`Msg err) -> print_endline err)
   in
   (* Create new split and mark the latest commit to be the next GC commit. *)
   let () = Store.split repo in
   Tracker.mark_next_gc_commit tracker |> Lwt.return
 
-let main () =
+let run_experiment config =
   let num_of_commits = 200_000 in
   let gc_every = 1_000 in
-  let* repo = Store.Repo.v Repo_config.config in
+  let* repo = Store.Repo.v config in
   let tracker = Tracker.v () in
   (* Create commits *)
   let* _ =
@@ -173,7 +186,8 @@ let main () =
       in
       Tracker.update_latest_commit tracker commit;
       let* _ =
-        if i mod gc_every = 0 then run_gc repo tracker else Lwt.return_unit
+        if i mod gc_every = 0 then run_gc config repo tracker
+        else Lwt.return_unit
       in
       if i >= n then Lwt.return_unit else loop (i + 1) n
     in
@@ -183,4 +197,8 @@ let main () =
   let* _ = Store.Gc.wait repo in
   Lwt.return_unit
 
-let () = Lwt_main.run @@ main ()
+let () =
+  Printf.printf "== RUN 1: deleting discarded data ==\n";
+  Lwt_main.run (run_experiment Repo_config.config);
+  Printf.printf "== RUN 2: archiving discarded data ==\n";
+  Lwt_main.run (run_experiment Repo_config.config_with_lower)

@@ -86,6 +86,12 @@ module type S = sig
         file [t]. Attempting to append with a strictly smaller virtual offset
         will fail. *)
 
+    val mapping_size : t -> Int63.t
+    (** [end_off t] returns the current size of the mapping file associated to
+        the sparse file [t] including additions not yet flushed to the file
+        system. It can be passed to {!open_ao} as [mapping_size] when opening
+        the file again. *)
+
     val create :
       mapping:string -> data:string -> (t, [> Io.create_error ]) result
     (** [create ~mapping ~data] initializes a new empty sparse file, represented

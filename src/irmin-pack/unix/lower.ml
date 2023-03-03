@@ -27,7 +27,6 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     | Empty of { path : string }
     | Nonempty of {
         path : string;
-        mutable readonly : bool;
         control : Control_file.Payload.Volume.Latest.t;
         mutable sparse : Sparse.t option;
       }
@@ -39,7 +38,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     | `Corrupted_control_file
     | `Unknown_major_pack_version of string ]
 
-  let v ~readonly volume_path =
+  let v volume_path =
     let open Result_syntax in
     let* control =
       let path = Irmin_pack.Layout.V5.Volume.control ~root:volume_path in
@@ -53,16 +52,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       (let path = volume_path in
        match control with
        | None -> Empty { path }
-       | Some control -> Nonempty { readonly; path; control; sparse = None })
-
-  let set_readonly ~readonly = function
-    | Empty { path } -> Fmt.failwith "set_readonly for empty volume %s" path
-    | Nonempty t ->
-        if t.readonly = readonly then Ok ()
-        else
-          (* TODO determine how this flag works once we have a read-write
-             volume in GC *)
-          Ok (t.readonly <- readonly)
+       | Some control -> Nonempty { path; control; sparse = None })
 
   let create_empty volume_path =
     let open Result_syntax in
@@ -88,7 +78,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     (* TODO: handle failure to create all artifacts, either here or in a cleanup
        when the store starts. *)
-    v ~readonly:false volume_path
+    v volume_path
 
   let path = function Empty { path } -> path | Nonempty { path; _ } -> path
 
@@ -136,6 +126,75 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         match sparse with
         | None -> Errs.raise_error `Closed
         | Some s -> Sparse.read_range_exn s ~off ~min_len ~max_len b)
+
+  let archive_seq ~upper_root ~generation ~is_first ~to_archive ~off t =
+    let open Result_syntax in
+    let root = path t in
+    let* () =
+      match t with
+      | Empty _ -> Ok ()
+      | Nonempty { control; _ } ->
+          if control.end_offset = off then Ok ()
+          else Error `Volume_history_discontinuous
+    in
+    let mapping = Irmin_pack.Layout.V5.Volume.mapping ~root in
+    let data = Irmin_pack.Layout.V5.Volume.data ~root in
+    let* mapping_size =
+      match t with
+      | Empty _ when is_first -> Ok Int63.zero
+      | Empty _ ->
+          (* If this is a new volume (and not the first),
+             copy pre-GC prefix/mapping as new volume *)
+          let old_generation = pred generation in
+          let old_mapping =
+            Irmin_pack.Layout.V5.mapping ~root:upper_root
+              ~generation:old_generation
+          in
+          let old_prefix =
+            Irmin_pack.Layout.V5.prefix ~root:upper_root
+              ~generation:old_generation
+          in
+          let* () = Io.copy_file ~src:old_prefix ~dst:data in
+          let* () = Io.copy_file ~src:old_mapping ~dst:mapping in
+          Io.size_of_path mapping
+      | Nonempty { control; _ } -> Ok control.mapping_end_poff
+    in
+    (* Append archived data *)
+    let* ao = Sparse.Ao.open_ao ~mapping_size ~mapping ~data in
+    Sparse.Ao.append_seq_exn ao ~off to_archive;
+    let end_offset = Sparse.Ao.end_off ao in
+    let mapping_end_poff = Sparse.Ao.mapping_size ao in
+    let* () = Sparse.Ao.flush ao in
+    let* () = Sparse.Ao.close ao in
+    (* Prepare new control file *)
+    let start_offset, old_data_end_poff =
+      match t with
+      | Empty _ -> (off, Int63.zero)
+      | Nonempty { control; _ } -> (control.start_offset, control.data_end_poff)
+    in
+    let data_len =
+      Seq.fold_left (fun len str -> len + String.length str) 0 to_archive
+      |> Int63.of_int
+    in
+    let new_control =
+      Control_file.Payload.Volume.V5.
+        {
+          start_offset;
+          end_offset;
+          mapping_end_poff;
+          data_end_poff = Int63.add old_data_end_poff data_len;
+          checksum = Int63.zero;
+        }
+    in
+    (* Write into temporary file on disk *)
+    let tmp_control_path =
+      Irmin_pack.Layout.V5.Volume.control_tmp ~generation ~root
+    in
+    let* c =
+      Control.create_rw ~path:tmp_control_path ~overwrite:true new_control
+    in
+    let* () = Control.close c in
+    Ok root
 end
 
 module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -145,7 +204,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   type t = {
     root : string;
-    readonly : bool;
+    mutable readonly : bool;
     mutable volumes : Volume.t array;
     mutable open_volume : Volume.t option;
   }
@@ -176,13 +235,12 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let* volumes =
       let root = t.root in
       let volume i =
-        let readonly = t.readonly || i < volume_num - 1 in
         let path = Irmin_pack.Layout.V5.Volume.directory ~root ~idx:i in
         match Io.classify_path path with
         | `File | `Other | `No_such_file_or_directory ->
             raise (LoadVolumeError (`Volume_missing path))
         | `Directory -> (
-            match Volume.v ~readonly path with
+            match Volume.v path with
             | Error e -> raise (LoadVolumeError e)
             | Ok v -> v)
       in
@@ -201,6 +259,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let* _ = load_volumes ~volume_num t in
     Ok ()
 
+  let set_readonly t flag = t.readonly <- flag
   let close = close_open_volume
   let volume_num t = Array.length t.volumes
 
@@ -214,8 +273,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       match appendable_volume t with
       | None -> Ok ()
       | Some v ->
-          if Volume.is_empty v then Error `Multiple_empty_volumes
-          else Volume.set_readonly ~readonly:true v
+          if Volume.is_empty v then Error `Multiple_empty_volumes else Ok ()
     in
     let volume_path =
       let next_idx = volume_num t in
@@ -261,6 +319,23 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     set_open_volume t volume |> Errs.raise_if_error;
     Volume.read_range_exn ~off ~min_len ~max_len b volume;
     Volume.identifier volume
+
+  let archive_seq_exn ~upper_root ~generation ~to_archive ~off t =
+    Errs.raise_if_error
+      (let open Result_syntax in
+      let* () = if t.readonly then Error `Ro_not_allowed else Ok () in
+      let* v =
+        match appendable_volume t with
+        | None -> Error `Lower_has_no_volume
+        | Some v -> Ok v
+      in
+      let* () =
+        match t.open_volume with
+        | None -> Ok ()
+        | Some v0 -> if Volume.eq v0 v then close_open_volume t else Ok ()
+      in
+      let is_first = volume_num t = 1 in
+      Volume.archive_seq ~upper_root ~generation ~to_archive ~off ~is_first v)
 
   let read_exn ~off ~len ?volume t b =
     read_range_exn ~off ~min_len:len ~max_len:len ?volume t b

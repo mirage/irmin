@@ -42,8 +42,8 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~root ~new_files_path ~generation ~unlink ~dispatcher ~fm ~contents
-      ~node ~commit commit_key =
+  let v ~root ~lower_root ~new_files_path ~generation ~unlink ~dispatcher ~fm
+      ~contents ~node ~commit commit_key =
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
       match state with
@@ -84,7 +84,7 @@ module Make (Args : Gc_args.S) = struct
     let task =
       Async.async (fun () ->
           Worker.run_and_output_result root commit_key new_suffix_start_offset
-            ~generation ~new_files_path)
+            ~lower_root ~generation ~new_files_path)
     in
     let partial_stats =
       Gc_stats.Main.finish_current_step partial_stats "before finalise"
@@ -108,7 +108,7 @@ module Make (Args : Gc_args.S) = struct
       latest_gc_target_offset;
     }
 
-  let swap_and_purge t removable_chunk_num suffix_params =
+  let swap_and_purge t removable_chunk_num modified_volume suffix_params =
     let open Result_syntax in
     let { generation; latest_gc_target_offset; _ } = t in
     let Worker.
@@ -130,7 +130,7 @@ module Make (Args : Gc_args.S) = struct
 
     let* () =
       Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-        ~suffix_dead_bytes ~latest_gc_target_offset
+        ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root:modified_volume
     in
 
     (* No need to purge dict here, as it is global to the store. *)
@@ -231,14 +231,17 @@ module Make (Args : Gc_args.S) = struct
             read_gc_output ~root:t.root ~generation:t.generation
           in
 
-          let action = Fm.gc_behaviour t.fm in
           let result =
             let open Result_syntax in
-            match (status, action, gc_output) with
+            match (status, gc_output) with
             | ( `Success,
-                `Delete,
-                Ok { suffix_params; removable_chunk_idxs; stats = worker_stats }
-              ) ->
+                Ok
+                  {
+                    suffix_params;
+                    removable_chunk_idxs;
+                    stats = worker_stats;
+                    modified_volume;
+                  } ) ->
                 let partial_stats =
                   Gc_stats.Main.finish_current_step partial_stats
                     "swap and purge"
@@ -246,7 +249,7 @@ module Make (Args : Gc_args.S) = struct
                 let* () =
                   swap_and_purge t
                     (List.length removable_chunk_idxs)
-                    suffix_params
+                    modified_volume suffix_params
                 in
                 let partial_stats =
                   Gc_stats.Main.finish_current_step partial_stats "unlink"
@@ -269,16 +272,6 @@ module Make (Args : Gc_args.S) = struct
                     stats];
                 let () = Lwt.wakeup_later t.resolver (Ok stats) in
                 Ok (`Finalised stats)
-            | `Success, `Archive, Ok _ ->
-                (* TODO actually archive garbage into lower volume *)
-                clean_after_abort t;
-                let err =
-                  gc_errors
-                    (`Failure "Archival finalization not yet implemented")
-                    gc_output
-                in
-                let () = Lwt.wakeup_later t.resolver err in
-                err
             | _ ->
                 clean_after_abort t;
                 let err = gc_errors status gc_output in
