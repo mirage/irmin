@@ -10,6 +10,8 @@
     @metanivek)
   - Add a `behaviour` function to the GC to check wether the GC will archive or
     delete data. (#2190, @Firobe)
+  - Add a migration on `open_rw` to move the data to the `lower_root` if
+    the configuration was enabled (#2205, @art-w)
 
 ### Changed
 

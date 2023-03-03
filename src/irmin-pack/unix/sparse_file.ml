@@ -183,6 +183,15 @@ module Make (Io : Io.S) = struct
         let open Int63.Syntax in
         Some (if entry.off < off then off else entry.off)
 
+  let make_entry ~off ~poff ~len =
+    if Int64.(equal zero) len then ""
+    else
+      let buf = Bytes.create (3 * 8) in
+      Bytes.set_int64_le buf 0 off;
+      Bytes.set_int64_le buf 8 poff;
+      Bytes.set_int64_le buf 16 len;
+      Bytes.unsafe_to_string buf
+
   module Wo = struct
     type nonrec t = t
 
@@ -195,6 +204,18 @@ module Make (Io : Io.S) = struct
 
     let fsync t = Io.fsync t.data
     let close = close
+
+    let create_from_data ~mapping ~dead_header_size ~size ~data:_ =
+      let open Result_syntax in
+      let entry =
+        make_entry ~off:Int64.zero
+          ~poff:(Int64.of_int dead_header_size)
+          ~len:(Int63.to_int64 size)
+      in
+      let* mapping = Io.create ~path:mapping ~overwrite:false in
+      let* () = Io.write_string mapping ~off:Int63.zero entry in
+      let+ () = Io.close mapping in
+      Int63.of_int (String.length entry)
   end
 
   module Ao = struct
@@ -257,11 +278,11 @@ module Make (Io : Io.S) = struct
             len + String.length str)
           0 seq
       in
-      let buffer = Bytes.create 24 in
-      Bytes.set_int64_le buffer 0 (Int63.to_int64 off);
-      Bytes.set_int64_le buffer 8 (Int63.to_int64 poff);
-      Bytes.set_int64_le buffer 16 (Int64.of_int len);
-      Ao.append_exn t.mapping (Bytes.unsafe_to_string buffer);
+      let entry =
+        make_entry ~off:(Int63.to_int64 off) ~poff:(Int63.to_int64 poff)
+          ~len:(Int64.of_int len)
+      in
+      Ao.append_exn t.mapping entry;
       t.end_off <- Int63.(Syntax.(off + of_int len))
 
     let flush t =

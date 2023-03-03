@@ -262,7 +262,6 @@ module Payload = struct
         start_offset : int63;
         end_offset : int63;
         mapping_end_poff : int63;
-        data_end_poff : int63;
         checksum : int63;
       }
       [@@deriving irmin]
@@ -275,8 +274,6 @@ module Payload = struct
           - [end_offset] is the global offset for the end of the volume's data.
             Used for routing reads.
           - [mapping_end_poff] is the end offset for the mapping file. Used when
-            writing.
-          - [data_end_poff] is the end offset for the data file. Used for
             writing. *)
     end
 

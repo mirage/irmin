@@ -146,6 +146,19 @@ module type S = sig
     volume_identifier
   (** Same as [read_exn] but will read at least [min_len] bytes and at most
       [max_len]. *)
+
+  type create_error :=
+    [ open_error | close_error | add_error | `Sys_error of string ]
+
+  val create_from :
+    src:string ->
+    dead_header_size:int ->
+    size:Int63.t ->
+    string ->
+    (unit, [> create_error ]) result
+  (** [create_from ~src ~dead_header_size ~size lower_root] initializes the
+      first lower volume in the directory [lower_root] by moving the suffix file
+      [src] with end offset [size]. *)
 end
 
 module type Sigs = sig

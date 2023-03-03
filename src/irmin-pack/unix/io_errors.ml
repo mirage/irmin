@@ -52,6 +52,7 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Pending_flush
     | `Rw_not_allowed
     | `Migration_needed
+    | `Migration_to_lower_not_allowed
     | `Corrupted_control_file
     | `Sys_error of string
     | `V3_store_from_the_future
@@ -68,6 +69,7 @@ module Make (Io : Io.S) : S with module Io = Io = struct
     | `Gc_forbidden_on_32bit_platforms
     | `Invalid_prefix_read of string
     | `Invalid_sparse_read of [ `After | `Before | `Hole ] * int63
+    | `Invalid_volume_read of [ `Empty | `Closed ] * int63
     | `Inconsistent_store
     | `Closed
     | `Ro_not_allowed

@@ -96,7 +96,6 @@ module Direct_tc = struct
           start_offset = Int63.zero;
           end_offset = Int63.of_int 42;
           mapping_end_poff = Int63.zero;
-          data_end_poff = Int63.zero;
           checksum = Int63.zero;
         }
     in
@@ -132,14 +131,12 @@ module Direct_tc = struct
     let$ _ = Sparse.Ao.flush sparse in
     let$ _ = Sparse.Ao.close sparse in
     let$ mapping_end_poff = Io.size_of_path mapping_path in
-    let$ data_end_poff = Io.size_of_path data_path in
     let payload =
       Irmin_pack_unix.Control_file.Payload.Volume.Latest.
         {
           start_offset = Int63.zero;
           end_offset;
           mapping_end_poff;
-          data_end_poff;
           checksum = Int63.zero;
         }
     in
@@ -162,10 +159,9 @@ module Store_tc = struct
 
   let test_dir = "_build"
 
-  let mkdir_if_needed path =
-    match Io.mkdir path with
-    | Error (`File_exists _) | Ok () -> Ok ()
-    | _ as r -> r
+  let mkdir path =
+    Common.rm_dir path;
+    Io.mkdir path
 
   let fresh_roots =
     let c = ref 0 in
@@ -174,19 +170,17 @@ module Store_tc = struct
       let name =
         Filename.concat test_dir ("test_lower_store_" ^ string_of_int !c)
       in
-      let$ _ = mkdir_if_needed name in
+      let$ _ = mkdir name in
       let lower = Filename.concat name "lower" in
-      let$ _ = mkdir_if_needed lower in
+      Common.rm_dir lower;
       (name, lower)
 
-  let init ?(readonly = false) ?(fresh = true) ?(unlink_lower = true)
-      ?(include_lower = true) ?config () =
-    (* [unlink_lower] defaults to true to make dir clean for multiple test runs. *)
+  let init ?(readonly = false) ?(fresh = true) ?(include_lower = true) ?config
+      () =
     let config =
       match config with
       | None ->
           let root, lower_root = fresh_roots () in
-          if unlink_lower then unlink_path lower_root;
           let lower_root = if include_lower then Some lower_root else None in
           Irmin_pack.(
             config ~readonly ~indexing_strategy:Indexing_strategy.minimal ~fresh
@@ -195,16 +189,17 @@ module Store_tc = struct
     in
     Store.Repo.v config
 
+  let count_volumes repo =
+    let open Store.Internal in
+    file_manager repo
+    |> File_manager.lower
+    |> Option.map File_manager.Lower.volume_num
+    |> Option.value ~default:0
+
   let test_create () =
     let* repo = init () in
     (* A newly created store with a lower should have an empty volume. *)
-    let volume_num =
-      Store.Internal.(
-        file_manager repo
-        |> File_manager.lower
-        |> Option.map File_manager.Lower.volume_num
-        |> Option.value ~default:0)
-    in
+    let volume_num = count_volumes repo in
     Alcotest.(check int) "volume_num is 1" 1 volume_num;
     Store.Repo.close repo
 
@@ -238,6 +233,42 @@ module Store_tc = struct
     (* TODO: test adding a volume and reopning store to
        ensure conrol file is updated correclty. *)
     Lwt.return_unit
+
+  let test_migrate () =
+    let root, lower_root = fresh_roots () in
+    let config ?(fresh = false) ?lower_root () =
+      Irmin_pack.(
+        config ~readonly:false ~indexing_strategy:Indexing_strategy.minimal
+          ~fresh ~lower_root root)
+    in
+    (* Create without a lower *)
+    let* repo = Store.Repo.v (config ~fresh:true ()) in
+    Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
+    let* main = Store.main repo in
+    let info () = Store.Info.v ~author:"test" Int64.zero in
+    let* () = Store.set_exn ~info main [ "a" ] "a" in
+    let* () = Store.Repo.close repo in
+    (* Reopen with a lower to trigger the migration *)
+    let* repo = Store.Repo.v (config ~lower_root ()) in
+    Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
+    let* main = Store.main repo in
+    let* a = Store.get main [ "a" ] in
+    Alcotest.(check string) "migrated commit" "a" a;
+    let* () = Store.set_exn ~info main [ "a" ] "b" in
+    let* () = Store.Repo.close repo in
+    (* Reopen with the same lower and check reads *)
+    let* repo = Store.Repo.v (config ~lower_root ()) in
+    Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
+    let* main = Store.main repo in
+    let* b = Store.get main [ "a" ] in
+    Alcotest.(check string) "upper commit" "b" b;
+    let* main_commit = Store.Head.get main in
+    let parent_key = List.hd @@ Store.Commit.parents main_commit in
+    let* parent = Store.Commit.of_key repo parent_key in
+    let previous_tree = Store.Commit.tree @@ Option.get parent in
+    let* a_opt = Store.Tree.find previous_tree [ "a" ] in
+    Alcotest.(check (option string)) "upper to lower" (Some "a") a_opt;
+    Store.Repo.close repo
 end
 
 module Store = struct
@@ -250,6 +281,7 @@ module Store = struct
         quick_tc "add volume with no lower" test_add_volume_wo_lower;
         quick_tc "add volume during gc" test_add_volume_during_gc;
         quick_tc "control file updated after add" test_add_volume_reopen;
+        quick_tc "create without lower then migrate" test_migrate;
       ]
 end
 
