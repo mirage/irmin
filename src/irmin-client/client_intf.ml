@@ -128,6 +128,9 @@ module type S = sig
   val import : repo -> slice -> unit Lwt.t
   val current_branch : t -> branch Lwt.t
 
+  (** The batch API is used to have better control of when data is sent between
+      the client and server. It is designed to be similar to the [Tree] API but
+      functions in this module do not make requests to the server. *)
   module Batch : sig
     type store = t
 
@@ -150,6 +153,7 @@ module type S = sig
 
     type t =
       (path * [ `Contents of batch_contents | `Tree of Tree.t ] option) list
+    (** A batch is list of updated and their associated paths *)
 
     val v : unit -> t
     val of_tree : ?path:path -> Tree.t -> t
@@ -157,9 +161,13 @@ module type S = sig
 
     val commit :
       parents:Commit.t list -> info:Info.f -> repo -> Tree.t -> Commit.t Lwt.t
+    (** Commit a batch tree, returning the resulting commit. This will make a
+        request to the server with the entire bulk tree. *)
 
     val apply :
       ?parents:Commit.t list -> info:Info.f -> store -> path -> t -> unit Lwt.t
+    (** Submit a batch update to the server. This will make a request to the
+        server with the entire bulk update. *)
 
     val tree : repo -> t -> Tree.t -> Tree.t Lwt.t
     val find : t -> path -> batch_contents option
