@@ -175,19 +175,15 @@ module Store_tc = struct
       Common.rm_dir lower;
       (name, lower)
 
-  let init ?(readonly = false) ?(fresh = true) ?(include_lower = true) ?config
-      () =
-    let config =
-      match config with
-      | None ->
-          let root, lower_root = fresh_roots () in
-          let lower_root = if include_lower then Some lower_root else None in
-          Irmin_pack.(
-            config ~readonly ~indexing_strategy:Indexing_strategy.minimal ~fresh
-              ~lower_root root)
-      | Some c -> c
-    in
-    Store.Repo.v config
+  let config ?(readonly = false) ?(fresh = false) ?lower_root root =
+    Irmin_pack.(
+      config ~readonly ~indexing_strategy:Indexing_strategy.minimal ~fresh
+        ~lower_root root)
+
+  let init ?(readonly = false) ?(fresh = true) ?(include_lower = true) () =
+    let root, lower_root = fresh_roots () in
+    let lower_root = if include_lower then Some lower_root else None in
+    config ~readonly ~fresh ?lower_root root |> Store.Repo.v
 
   let count_volumes repo =
     let open Store.Internal in
@@ -230,26 +226,32 @@ module Store_tc = struct
     Store.Repo.close repo
 
   let test_add_volume_reopen () =
-    (* TODO: test adding a volume and reopning store to
-       ensure conrol file is updated correclty. *)
-    Lwt.return_unit
+    let root, lower_root = fresh_roots () in
+    let* repo = Store.Repo.v (config ~fresh:true ~lower_root root) in
+    let* main = Store.main repo in
+    let info () = Store.Info.v ~author:"test" Int64.zero in
+    let* () = Store.set_exn ~info main [ "a" ] "a" in
+    let* c1 = Store.Head.get main in
+    let* _ = Store.Gc.start_exn repo (Store.Commit.key c1) in
+    let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    let () = Store.add_volume repo in
+    Alcotest.(check int) "two volumes" 2 (count_volumes repo);
+    let* _ = Store.Repo.close repo in
+    let* repo = Store.Repo.v (config ~fresh:false ~lower_root root) in
+    Alcotest.(check int) "two volumes after re-open" 2 (count_volumes repo);
+    Store.Repo.close repo
 
   let test_migrate () =
     let root, lower_root = fresh_roots () in
-    let config ?(fresh = false) ?lower_root () =
-      Irmin_pack.(
-        config ~readonly:false ~indexing_strategy:Indexing_strategy.minimal
-          ~fresh ~lower_root root)
-    in
     (* Create without a lower *)
-    let* repo = Store.Repo.v (config ~fresh:true ()) in
+    let* repo = Store.Repo.v (config ~fresh:true root) in
     Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
     let* main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let* () = Store.set_exn ~info main [ "a" ] "a" in
     let* () = Store.Repo.close repo in
     (* Reopen with a lower to trigger the migration *)
-    let* repo = Store.Repo.v (config ~lower_root ()) in
+    let* repo = Store.Repo.v (config ~lower_root root) in
     Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
     let* main = Store.main repo in
     let* a = Store.get main [ "a" ] in
@@ -257,7 +259,7 @@ module Store_tc = struct
     let* () = Store.set_exn ~info main [ "a" ] "b" in
     let* () = Store.Repo.close repo in
     (* Reopen with the same lower and check reads *)
-    let* repo = Store.Repo.v (config ~lower_root ()) in
+    let* repo = Store.Repo.v (config ~lower_root root) in
     Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
     let* main = Store.main repo in
     let* b = Store.get main [ "a" ] in
@@ -281,6 +283,7 @@ module Store = struct
         quick_tc "add volume with no lower" test_add_volume_wo_lower;
         quick_tc "add volume during gc" test_add_volume_during_gc;
         quick_tc "control file updated after add" test_add_volume_reopen;
+        quick_tc "add volume and reopen" test_add_volume_reopen;
         quick_tc "create without lower then migrate" test_migrate;
       ]
 end
