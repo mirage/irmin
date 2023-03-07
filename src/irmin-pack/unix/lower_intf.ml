@@ -143,9 +143,10 @@ module type S = sig
     ?volume:volume_identifier ->
     t ->
     bytes ->
-    volume_identifier
+    int * volume_identifier
   (** Same as [read_exn] but will read at least [min_len] bytes and at most
-      [max_len]. *)
+      [max_len]. Returns the read length and the volume identifier from which
+      the data was fetched. *)
 
   type create_error :=
     [ open_error | close_error | add_error | `Sys_error of string ]

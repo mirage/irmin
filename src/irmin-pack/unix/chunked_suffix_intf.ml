@@ -115,7 +115,7 @@ module type S = sig
   val read_exn : t -> off:int63 -> len:int -> bytes -> unit
 
   val read_range_exn :
-    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> unit
+    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> int
 
   val append_exn : t -> string -> unit
   val readonly : t -> bool

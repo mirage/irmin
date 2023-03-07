@@ -241,7 +241,7 @@ end = struct
       min_bytes_needed_to_discover_length + Varint.max_encoded_size
     in
     let buffer = Bytes.create max_bytes_needed_to_discover_length in
-    let (_volume : Lower.volume_identifier option) =
+    let _len, _volume =
       Dispatcher.read_range_exn dispatcher ~off
         ~min_len:min_bytes_needed_to_discover_length
         ~max_len:max_bytes_needed_to_discover_length buffer
