@@ -271,6 +271,29 @@ module Store_tc = struct
     let* a_opt = Store.Tree.find previous_tree [ "a" ] in
     Alcotest.(check (option string)) "upper to lower" (Some "a") a_opt;
     Store.Repo.close repo
+
+  let test_migrate_then_gc () =
+    let root, lower_root = fresh_roots () in
+    (* Create without a lower *)
+    let* repo = Store.Repo.v (config ~fresh:true root) in
+    Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
+    let* main = Store.main repo in
+    let info () = Store.Info.v ~author:"test" Int64.zero in
+    let* () = Store.set_exn ~info main [ "a" ] "a" in
+    let* () = Store.Repo.close repo in
+    (* Reopen with a lower to trigger the migration *)
+    let* repo = Store.Repo.v (config ~lower_root root) in
+    Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
+    (* Add two commits *)
+    let* main = Store.main repo in
+    let* () = Store.set_exn ~info main [ "b" ] "b" in
+    let* main = Store.main repo in
+    let* b_commit = Store.Head.get main in
+    let* () = Store.set_exn ~info main [ "c" ] "c" in
+    (* GC at [b] requires reading [a] data from the lower volume *)
+    let* _ = Store.Gc.start_exn repo (Store.Commit.key b_commit) in
+    let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    Store.Repo.close repo
 end
 
 module Store = struct
@@ -285,6 +308,7 @@ module Store = struct
         quick_tc "control file updated after add" test_add_volume_reopen;
         quick_tc "add volume and reopen" test_add_volume_reopen;
         quick_tc "create without lower then migrate" test_migrate;
+        quick_tc "migrate then gc" test_migrate_then_gc;
       ]
 end
 

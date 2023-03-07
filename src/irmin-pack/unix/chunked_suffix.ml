@@ -309,7 +309,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       else if bytes_after_off > max_len then max_len
       else bytes_after_off
     in
-    read_exn t ~off ~len buf
+    read_exn t ~off ~len buf;
+    len
 
   let append_exn t s = Ao.append_exn (appendable_ao t) s
 

@@ -173,7 +173,8 @@ module Make (Io : Io.S) = struct
     if max_entry_len < min_len then
       raise (Errors.Pack_error `Read_out_of_bounds);
     let len = min max_len max_entry_len in
-    Io.read_exn t.data ~off:poff ~len buf
+    Io.read_exn t.data ~off:poff ~len buf;
+    len
 
   let next_valid_offset { mapping; _ } ~off =
     match Mapping_file.find_nearest_geq mapping off with

@@ -156,7 +156,7 @@ struct
 
   let read_and_decode_entry_prefix ~off ?volume_identifier dispatcher =
     let buf = Bytes.create Entry_prefix.max_length in
-    let (_volume : Lower.volume_identifier option) =
+    let _len, _volume =
       try
         (* We may read fewer then [Entry_prefix.max_length] bytes when reading the
            final entry in the pack file (if the data section of the entry is

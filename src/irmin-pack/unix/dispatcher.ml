@@ -90,79 +90,54 @@ module Make (Fm : File_manager.S with module Io = Io.Unix) :
     [%log.debug
       "read_range_exn ~off:%a ~min_len:%i ~max_len:%i" Int63.pp off min_len
         max_len];
-    let read_lower_exn ?volume () =
-      let lower = Fm.lower t.fm in
-      match lower with
-      | None -> None
-      | Some l ->
-          Some (Lower.read_range_exn l ~off ~min_len ~max_len ?volume buf)
+    let read_lower ?volume lower =
+      let len, volume =
+        Lower.read_range_exn lower ?volume ~off ~min_len ~max_len buf
+      in
+      (len, Some volume)
     in
-    let read_sparse_then_lower_exn () =
-      match Sparse.read_range_exn (get_prefix t) ~off ~min_len ~max_len buf with
-      | exception (Errors.Pack_error (`Invalid_sparse_read _) as exn) -> (
-          match read_lower_exn () with
-          | None -> raise exn
-          | Some _ as identifier -> identifier)
-      | () -> None
+    let read_sparse () =
+      try (Sparse.read_range_exn (get_prefix t) ~off ~min_len ~max_len buf, None)
+      with Errors.Pack_error (`Invalid_sparse_read _) as exn -> (
+        match Fm.lower t.fm with
+        | None -> raise exn
+        | Some lower -> read_lower lower)
     in
     match dispatch_suffix t ~off with
     | Some off ->
-        Suffix.read_range_exn (get_suffix t) ~off ~min_len ~max_len buf;
-        None
+        (Suffix.read_range_exn (get_suffix t) ~off ~min_len ~max_len buf, None)
     | None -> (
-        match volume_identifier with
-        | None -> read_sparse_then_lower_exn ()
-        | Some volume -> read_lower_exn ~volume ())
+        match (volume_identifier, Fm.lower t.fm) with
+        | None, _ -> read_sparse ()
+        | volume, Some lower -> read_lower ?volume lower
+        | Some _, None -> assert false)
 
   let read_exn t ~off ~len ?volume_identifier buf =
-    read_range_exn t ~off ~min_len:len ~max_len:len ?volume_identifier buf
+    let _, volume =
+      read_range_exn t ~off ~min_len:len ~max_len:len ?volume_identifier buf
+    in
+    volume
 
   let read_seq_exn t ~off ~len =
-    (* TODO: read from lower volumes *)
-    let bytes_in_prefix =
-      let open Int63.Syntax in
-      let prefix_bytes_after_off = suffix_start_offset t - off in
-      if prefix_bytes_after_off <= Int63.zero then Int63.zero
-      else min len prefix_bytes_after_off
-    in
-    let bytes_in_suffix =
-      let open Int63.Syntax in
-      if bytes_in_prefix < len then len - bytes_in_prefix else Int63.zero
-    in
-    assert (Int63.Syntax.(bytes_in_prefix + bytes_in_suffix = len));
     let len = Int63.to_int len in
-    let max_read_size = min 8192 len in
-    let buffer = Bytes.create max_read_size in
-    let rec aux read_exn ~off ~len () =
-      if len <= 0 then Seq.Nil
-      else
-        let read_len = min len max_read_size in
-        read_exn ~off ~len:read_len buffer;
-        Seq.Cons
-          ( Bytes.sub_string buffer 0 read_len,
-            aux read_exn
-              ~off:Int63.Syntax.(off + Int63.of_int read_len)
-              ~len:(len - read_len) )
-    in
-    let prefix =
-      if bytes_in_prefix <= Int63.zero then Seq.empty
-      else
-        aux
-          (Sparse.read_exn (get_prefix t))
-          ~off
-          ~len:(Int63.to_int bytes_in_prefix)
-    in
-    let suffix =
-      if bytes_in_suffix <= Int63.zero then Seq.empty
-      else
-        let off = Int63.Syntax.(off + bytes_in_prefix) in
-        let off = soff_of_offset t off in
-        aux
-          (Suffix.read_exn (get_suffix t))
-          ~off
-          ~len:(Int63.to_int bytes_in_suffix)
-    in
-    Seq.append prefix suffix
+    if len <= 0 then Seq.empty
+    else
+      let max_read_size = min 8192 len in
+      let buffer = Bytes.create max_read_size in
+      let rec aux ~off ~len () =
+        if len <= 0 then Seq.Nil
+        else
+          let read_len = min len max_read_size in
+          let read_len, _ =
+            read_range_exn t ~off ~min_len:1 ~max_len:read_len buffer
+          in
+          Seq.Cons
+            ( Bytes.sub_string buffer 0 read_len,
+              aux
+                ~off:Int63.Syntax.(off + Int63.of_int read_len)
+                ~len:(len - read_len) )
+      in
+      aux ~off ~len
 
   let read_bytes_exn t ~f ~off ~len = Seq.iter f (read_seq_exn t ~off ~len)
 

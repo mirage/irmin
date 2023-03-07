@@ -328,8 +328,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       | Some id -> find_volume_by_identifier_exn t ~id
     in
     set_open_volume t volume |> Errs.raise_if_error;
-    Volume.read_range_exn ~off ~min_len ~max_len b volume;
-    Volume.identifier volume
+    let len = Volume.read_range_exn ~off ~min_len ~max_len b volume in
+    (len, Volume.identifier volume)
 
   let archive_seq_exn ~upper_root ~generation ~to_archive ~off t =
     Errs.raise_if_error
@@ -349,7 +349,8 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       Volume.archive_seq ~upper_root ~generation ~to_archive ~off ~is_first v)
 
   let read_exn ~off ~len ?volume t b =
-    read_range_exn ~off ~min_len:len ~max_len:len ?volume t b
+    let _, volume = read_range_exn ~off ~min_len:len ~max_len:len ?volume t b in
+    volume
 
   let create_from = Volume.create_from
 end

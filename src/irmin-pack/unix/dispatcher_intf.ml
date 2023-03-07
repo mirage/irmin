@@ -47,9 +47,11 @@ module type S = sig
     max_len:int ->
     ?volume_identifier:Lower.volume_identifier ->
     bytes ->
-    Lower.volume_identifier option
+    int * Lower.volume_identifier option
   (** Same as [read_exn], the amount read is [max_len] if possible or at least
-      [min_len] if reading more would step over a hole in the sparse file. *)
+      [min_len] if reading more would step over a hole in the sparse file.
+      Returns the actually read length and optionnaly the volume where the data
+      was found. *)
 
   val end_offset : t -> int63
   (** [end_offset] is the end offsets of the pack entries, counting that the

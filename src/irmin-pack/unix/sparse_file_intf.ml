@@ -35,9 +35,11 @@ module type S = sig
       [off+len]. *)
 
   val read_range_exn :
-    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> unit
+    t -> off:int63 -> min_len:int -> max_len:int -> bytes -> int
   (** Same as [read_exn], the amount read is [max_len] if possible or at least
-      [min_len] if reading more would step over a hole in the sparse file. *)
+      [min_len] if reading more would step over a hole in the sparse file.
+
+      Returns the actually read length. *)
 
   val next_valid_offset : t -> off:int63 -> int63 option
   (** [next_valid_offset t ~off] returns [Some off'] such that [off'] is the
