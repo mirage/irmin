@@ -32,8 +32,15 @@
   - Unhandled exceptions in GC worker process are now reported as a failure
     (#2163, @metanivek)
   - Fix the silent mode for the integrity checks. (#2179, @icristescu)
+
+## 3.5.2 (2023-03-02)
+
+### Fixed
+
+- **irmin-pack**
+  - Clear LRU when calling `reload` after a GC (#2200, @metanivek)
   
-## 3.6.0
+## 3.6.0 (2023-02-16)
 
 ### Changed
 
@@ -41,7 +48,7 @@
   - Improve GC reachability traversal to optimize memory, speed and remove
     the need for temporary files. (#2085, @art-w)
 
-## 3.5.1
+## 3.5.1 (2023-01-10)
 
 ### Fixed
 
@@ -49,7 +56,7 @@
   - Integrity check of a commit works on stores using the minimal indexing
     strategy. (#2160, @icristescu)
 
-## 3.5.0
+## 3.5.0 (2022-12-15)
 
 ### Added
 
