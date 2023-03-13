@@ -102,6 +102,9 @@ module type Sigs = sig
     'h t ->
     unit
 
+  val set_volume_identifier_exn :
+    volume_identifier:Lower.volume_identifier option -> 'h t -> unit
+
   val to_offset : 'h t -> int63 option
   val to_hash : 'h t -> 'h
   val to_length : 'h t -> int option

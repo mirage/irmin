@@ -314,6 +314,7 @@ struct
     in
     if gced t buf then None
     else
+      let () = Pack_key.set_volume_identifier_exn ~volume_identifier key in
       let key_of_offset = key_of_offset ?volume_identifier t in
       let key_of_hash = Pack_key.v_indexed in
       let dict = Dict.find t.dict in
