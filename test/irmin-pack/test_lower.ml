@@ -294,6 +294,71 @@ module Store_tc = struct
     let* _ = Store.Gc.start_exn repo (Store.Commit.key b_commit) in
     let* _ = Store.Gc.finalise_exn ~wait:true repo in
     Store.Repo.close repo
+
+  let test_volume_data_locality () =
+    let root, lower_root = fresh_roots () in
+    let* repo = Store.Repo.v (config ~fresh:true ~lower_root root) in
+    let* main = Store.main repo in
+    let info () = Store.Info.v ~author:"test" Int64.zero in
+    [%log.debug "add c1"];
+    let* () = Store.set_exn ~info main [ "c1" ] "a" in
+    let* c1 = Store.Head.get main in
+    [%log.debug "GC c1"];
+    let* _ = Store.Gc.start_exn repo (Store.Commit.key c1) in
+    let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    let () = Store.add_volume repo in
+    [%log.debug "add c2, c3, c4"];
+    let* () = Store.set_exn ~info main [ "c2" ] "b" in
+    (* let* _c2 = Store.Head.get main in *)
+    let* () = Store.set_exn ~info main [ "c3" ] "c" in
+    let* c3 = Store.Head.get main in
+    let* () = Store.set_exn ~info main [ "c4" ] "d" in
+    (* let* c4 = Store.Head.get main in *)
+    let* () = Store.set_exn ~info main [ "c5" ] "e" in
+    let* c5 = Store.Head.get main in
+    [%log.debug "GC c5"];
+    let* _ = Store.Gc.start_exn repo (Store.Commit.key c5) in
+    let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    let get_direct_key key =
+      match Irmin_pack_unix.Pack_key.inspect key with
+      | Direct { offset; hash; length; volume_identifier } ->
+          (offset, hash, length, volume_identifier)
+      | _ -> assert false
+    in
+    (* NOTE: we need to lookup c3 again so that its volume
+       identifier is on its key *)
+    let _, hash, _, _ = get_direct_key (Store.Commit.key c3) in
+    let* c3 = Store.Commit.of_hash repo hash in
+    let c3 = Option.get c3 in
+    let _, _, _, identifier = get_direct_key (Store.Commit.key c3) in
+    let identifier = Option.get identifier in
+    [%log.debug "Check c3 tree items are in volume %s" identifier];
+    let* c3 = Store.Commit.of_key repo (Store.Commit.key c3) in
+    let tree = Store.Commit.tree (Option.get c3) in
+    let* () =
+      let get_volume_identifier key =
+        let _, _, _, identifier = get_direct_key key in
+        match identifier with
+        | None -> Alcotest.fail "expected volume identifier"
+        | Some v -> v
+      in
+      (* Check every item of c3's tree to ensure it is in the first volume. *)
+      Store.Tree.fold
+        ~tree:(fun _p t a ->
+          let kinded_key = Store.Tree.key t in
+          let key_identifier =
+            match kinded_key with
+            | None -> assert false
+            | Some (`Contents (k, _)) -> get_volume_identifier k
+            | Some (`Node k) -> get_volume_identifier k
+          in
+          [%log.debug "identifier: %s" key_identifier];
+          Alcotest.(check string)
+            "key is in expected volume" identifier key_identifier;
+          Lwt.return a)
+        tree ()
+    in
+    Store.Repo.close repo
 end
 
 module Store = struct
@@ -309,6 +374,7 @@ module Store = struct
         quick_tc "add volume and reopen" test_add_volume_reopen;
         quick_tc "create without lower then migrate" test_migrate;
         quick_tc "migrate then gc" test_migrate_then_gc;
+        quick_tc "test data locality" test_volume_data_locality;
       ]
 end
 
