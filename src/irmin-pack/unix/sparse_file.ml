@@ -169,6 +169,9 @@ module Make (Io : Io.S) = struct
     Io.read_exn t.data ~off:poff ~len buf
 
   let read_range_exn t ~off ~min_len ~max_len buf =
+    [%log.debug
+      "read_range_exn ~off:%a ~min_len:%i ~max_len:%i" Int63.pp off min_len
+        max_len];
     let poff, max_entry_len = get_poff t ~off in
     if max_entry_len < min_len then
       raise (Errors.Pack_error `Read_out_of_bounds);
