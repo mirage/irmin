@@ -78,7 +78,7 @@ type base_error =
   | `Volume_missing of string
   | `Add_volume_forbidden_during_gc
   | `Add_volume_requires_lower
-  | `Volume_history_discontinuous
+  | `Volume_history_newer_than_archived_data of int63 * int63
   | `Lower_has_no_volume
   | `Volume_not_found of string
   | `No_tmp_path_provided ]

@@ -262,6 +262,7 @@ module type Gc_backend = sig
     t Lwt.t
 
   val check_gced : t -> S.commit -> string -> unit Lwt.t
+  val check_removed : t -> S.commit -> string -> unit Lwt.t
 end
 
 module Gc_common (B : Gc_backend) = struct
@@ -280,7 +281,7 @@ module Gc_common (B : Gc_backend) = struct
     let* () = start_gc t c3 in
     let* () = finalise_gc t in
     let* () = B.check_gced t c1 "gced c1" in
-    let* () = B.check_gced t c2 "gced c2" in
+    let* () = B.check_removed t c2 "gced c2" in
     let* () = check_3 t c3 in
     S.Repo.close t.repo
 
@@ -309,7 +310,7 @@ module Gc_common (B : Gc_backend) = struct
     let* () = check_5 t c5 in
     let* () = B.check_gced t c1 "gced c1" in
     let* () = B.check_gced t c2 "gced c2" in
-    let* () = B.check_gced t c3 "gced c3" in
+    let* () = B.check_removed t c3 "gced c3" in
     let* () = B.check_gced t c4 "gced c4" in
     S.Repo.close t.repo
 
@@ -453,7 +454,7 @@ module Gc_common (B : Gc_backend) = struct
     [%log.debug "commits gced for RO after reload"];
     let* () = check_3 ro_t c3 in
     let* () = B.check_gced ro_t c1 "c1" in
-    let* () = B.check_gced ro_t c2 "c2" in
+    let* () = B.check_removed ro_t c2 "c2" in
     let* t = checkout_exn t c3 in
     let* t, c4 = commit_4 t in
     let* t = checkout_exn t c4 in
@@ -722,6 +723,7 @@ module Gc = struct
   include Gc_common (struct
     let init = init ~lower_root:None
     let check_gced = check_not_found
+    let check_removed = check_not_found
   end)
 end
 
@@ -803,6 +805,8 @@ module Gc_archival = struct
       let* c = S.Commit.of_key t.repo (S.Commit.key c) in
       Alcotest.(check bool s true (Option.is_some c));
       Lwt.return_unit
+
+    let check_removed = check_not_found
   end
 
   let gc_archival_multiple_volumes () =
@@ -828,7 +832,7 @@ module Gc_archival = struct
     let* () = check_5 t c5 in
     let* () = B.check_gced t c1 "gced c1" in
     let* () = B.check_gced t c2 "gced c2" in
-    let* () = B.check_gced t c3 "gced c3" in
+    let* () = B.check_removed t c3 "gced c3" in
     let* () = B.check_gced t c4 "gced c4" in
     S.Repo.close t.repo
 

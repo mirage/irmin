@@ -28,16 +28,29 @@ module Make (Args : Gc_args.S) = struct
 
   let string_of_key = Irmin.Type.to_string key_t
 
-  module Live = struct
-    type t = (int63 * int) list
+  module Live : sig
+    type t
 
-    let empty = []
+    val make : unit -> t
+    val add : off:int63 -> len:int -> t -> unit
+    val to_list : t -> (int63 * int) list
+    val count : t -> int
+  end = struct
+    type t = { mutable ranges : (int63 * int) list; mutable count : int }
 
-    let add ~off ~len (t : t) : t =
+    let make () = { ranges = []; count = 0 }
+    let to_list t = t.ranges
+    let count t = t.count
+
+    let add_range ~off ~len lst =
       let off_end = Int63.(Syntax.(off + of_int len)) in
-      match t with
+      match lst with
       | (off', len') :: rest when off_end = off' -> (off, len + len') :: rest
-      | _ -> (off, len) :: t
+      | _ -> (off, len) :: lst
+
+    let add ~off ~len t =
+      t.count <- t.count + 1;
+      t.ranges <- add_range ~off ~len t.ranges
   end
 
   module Priority_queue = struct
@@ -71,45 +84,95 @@ module Make (Args : Gc_args.S) = struct
         Pq.add pq elt)
   end
 
-  (** [iter_reachable commit node_store ~f] calls [f ~off ~len] once for each
-      [offset] and [length] of the reachable tree objects and immediate parent
-      commits from [commit] in [node_store]. *)
-  let iter_reachable commit node_store ~f =
+  type kind = Contents | Node | Commit
+
+  (** [iter_reachable ~parents ~min_offset commit_key commit_store node_store]
+      returns the list of compacted [(offset, length)] of the reachable tree
+      objects and parent commits from [commit_key] in [commit_store] and
+      [node_store].
+
+      - If [parents] is true, then parents commits and their tree objects are
+        traversed recursively. Otherwise, only the immediate parent are included
+        (but not their tree objects).
+      - [min_offset] restricts the traversal to objects/commits with a larger or
+        equal offset. *)
+  let iter_reachable ~parents ~min_offset commit_key commit_store node_store =
+    let live = Live.make () in
     let todos = Priority_queue.create 1024 in
     let rec loop () =
       if not (Priority_queue.is_empty todos) then (
-        let offset, has_children = Priority_queue.pop todos in
-        let node_key = Node_store.key_of_offset node_store offset in
-        let length = Node_store.get_length node_store node_key in
-        f ~off:offset ~len:length;
-        if has_children then iter_node node_key;
+        let offset, kind = Priority_queue.pop todos in
+        iter_node offset kind;
         loop ())
-    and iter_node node_key =
-      match Node_store.unsafe_find_no_prefetch node_store node_key with
-      | None -> raise (Pack_error (`Dangling_key (string_of_key node_key)))
-      | Some node ->
-          List.iter
-            (fun (_step, kinded_key) -> schedule_kinded kinded_key)
-            (Node_value.pred node)
+    and iter_node off = function
+      | (Contents | Node) as kind -> (
+          let node_key = Node_store.key_of_offset node_store off in
+          let len = Node_store.get_length node_store node_key in
+          Live.add live ~off ~len;
+          if kind = Node then
+            match Node_store.unsafe_find_no_prefetch node_store node_key with
+            | None ->
+                raise (Pack_error (`Dangling_key (string_of_key node_key)))
+            | Some node ->
+                List.iter
+                  (fun (_step, kinded_key) -> schedule_kinded kinded_key)
+                  (Node_value.pred node))
+      | Commit -> (
+          let commit_key = Commit_store.key_of_offset commit_store off in
+          let len = Commit_store.get_length commit_store commit_key in
+          Live.add live ~off ~len;
+          match
+            Commit_store.unsafe_find ~check_integrity:false commit_store
+              commit_key
+          with
+          | None ->
+              raise (Pack_error (`Dangling_key (string_of_key commit_key)))
+          | Some commit ->
+              List.iter schedule_commit (Commit_value.parents commit);
+              schedule_kinded (`Node (Commit_value.node commit)))
     and schedule_kinded kinded_key =
-      let key, has_children =
+      let key, kind =
         match kinded_key with
-        | `Contents key -> (key, false)
-        | `Inode key | `Node key -> (key, true)
+        | `Contents key -> (key, Contents)
+        | `Inode key | `Node key -> (key, Node)
       in
-      schedule key has_children
-    and schedule key has_children =
       match Node_store.get_offset node_store key with
-      | offset -> Priority_queue.add todos offset has_children
+      | offset -> schedule ~offset kind
       | exception Pack_store.Dangling_hash -> ()
+    and schedule_commit key =
+      match Commit_store.get_offset commit_store key with
+      | offset ->
+          let kind =
+            if parents then Commit
+            else
+              (* Include the commit parents in the reachable file, but not their children.
+                 The parent(s) of [commit] must be included in the iteration
+                 because, when decoding the [Commit_value.t] at [commit], the
+                 parents will have to be read in order to produce a key for them. *)
+              Contents
+          in
+          schedule ~offset kind
+      | exception Pack_store.Dangling_hash -> ()
+    and schedule ~offset kind =
+      if offset >= min_offset then Priority_queue.add todos offset kind
     in
-    (* Include the commit parents in the reachable file.
-       The parent(s) of [commit] must be included in the iteration
-       because, when decoding the [Commit_value.t] at [commit], the
-       parents will have to be read in order to produce a key for them. *)
-    List.iter (fun key -> schedule key false) (Commit_value.parents commit);
-    schedule (Commit_value.node commit) true;
-    loop ()
+    let offset = Commit_store.get_offset commit_store commit_key in
+    schedule ~offset Commit;
+    loop ();
+    live
+
+  (** [snaphshot_commit commit_key commit_store node_store] returns the list of
+      compacted [(offset, length)] of the reachable tree objects and its direct
+      parent commits. *)
+  let snapshot_commit commit_key commit_store node_store =
+    iter_reachable ~parents:false ~min_offset:Int63.zero commit_key commit_store
+      node_store
+
+  (** [traverse_range ~min_offset commit_key commit_store node_store] returns
+      the list of compacted [(offset, length)] of the recursively reachable tree
+      objects and parent commits, such that [offset >= min_offset]. *)
+  let traverse_range ~min_offset commit_key commit_store node_store =
+    iter_reachable ~parents:true ~min_offset commit_key commit_store node_store
 
   (* Dangling_parent_commit are the parents of the gced commit. They are kept on
      disk in order to correctly deserialised the gced commit. *)
@@ -210,38 +273,12 @@ module Make (Args : Gc_args.S) = struct
        reachable from the GC commit. *)
     let live_entries =
       stats := Gc_stats.Worker.finish_current_step !stats "mapping: start";
-      (* Step 3.1 The compact list of reachable [offset, length] *)
-      let live_entries = ref Live.empty in
-      let register_entry ~off ~len =
-        stats := Gc_stats.Worker.incr_objects_traversed !stats;
-        live_entries := Live.add ~off ~len !live_entries
-      in
-      (* Step 3.2 If the commit parents are referenced by offset, then include
-         the commit parents in the reachable list. The parent(s) of [commit_key]
-         must be included in the iteration because, when decoding the
-         [Commit_value.t] at [commit_key], the parents will have to be read in
-         order to produce a key for them. If the parent is referenced by hash,
-         there is no need to read it from disk, as their key is of type Indexed
-         hash. *)
-      stats :=
-        Gc_stats.Worker.finish_current_step !stats
-          "mapping: commits to reachable";
-
-      (* Step 3.3 Put the commit in the reachable file. *)
-      let off = Node_store.get_offset node_store commit_key in
-      let len = Node_store.get_length node_store commit_key in
-      register_entry ~off ~len;
-
-      (* Step 3.4 Put the nodes and contents in the reachable list. *)
-      stats :=
-        Gc_stats.Worker.finish_current_step !stats
-          "mapping: objects to reachable";
-      iter_reachable commit node_store ~f:register_entry;
-
-      (* Step 3.5 Return *)
+      let live_entries = snapshot_commit commit_key commit_store node_store in
       stats :=
         Gc_stats.Worker.finish_current_step !stats "mapping: of reachable";
-      !live_entries
+      stats :=
+        Gc_stats.Worker.set_objects_traversed !stats (Live.count live_entries);
+      Live.to_list live_entries
     in
 
     let () =
@@ -359,17 +396,24 @@ module Make (Args : Gc_args.S) = struct
       | `Delete -> None
       | `Archive lower ->
           [%log.debug "GC: archiving into lower"];
-          (* off should not include old dead bytes *)
-          let off = Dispatcher.suffix_start_offset dispatcher in
-          let discarded_data =
-            (* len should include new dead bytes *)
-            let len = Int63.Syntax.(new_suffix_start_offset - off) in
-            Dispatcher.read_seq_exn dispatcher ~off ~len
+          stats :=
+            Gc_stats.Worker.finish_current_step !stats "archive: iter reachable";
+          let min_offset = Dispatcher.suffix_start_offset dispatcher in
+          let to_archive =
+            traverse_range ~min_offset commit_key commit_store node_store
           in
+          let to_archive =
+            List.map
+              (fun (off, len) ->
+                let len = Int63.of_int len in
+                (off, Dispatcher.read_seq_exn dispatcher ~off ~len))
+              (Live.to_list to_archive)
+          in
+          stats :=
+            Gc_stats.Worker.finish_current_step !stats "archive: copy to lower";
           Lower.set_readonly lower false;
           let vol =
-            Lower.archive_seq_exn ~upper_root:root ~generation
-              ~to_archive:discarded_data lower ~off
+            Lower.archive_seq_exn ~upper_root:root ~generation ~to_archive lower
           in
           Lower.set_readonly lower true;
           Some vol

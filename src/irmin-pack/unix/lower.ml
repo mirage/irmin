@@ -149,15 +149,18 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         | None -> Errs.raise_error (`Invalid_volume_read (`Closed, off))
         | Some s -> Sparse.read_range_exn s ~off ~min_len ~max_len b)
 
-  let archive_seq ~upper_root ~generation ~is_first ~to_archive ~off t =
+  let archive_seq ~upper_root ~generation ~is_first ~to_archive ~first_off t =
     let open Result_syntax in
     let root = path t in
     let* () =
       match t with
       | Empty _ -> Ok ()
       | Nonempty { control; _ } ->
-          if control.end_offset = off then Ok ()
-          else Error `Volume_history_discontinuous
+          if control.end_offset <= first_off then Ok ()
+          else
+            Error
+              (`Volume_history_newer_than_archived_data
+                (control.end_offset, first_off))
     in
     let mapping = Irmin_pack.Layout.V5.Volume.mapping ~root in
     let data = Irmin_pack.Layout.V5.Volume.data ~root in
@@ -183,7 +186,9 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     (* Append archived data *)
     let* ao = Sparse.Ao.open_ao ~mapping_size ~mapping ~data in
-    Sparse.Ao.append_seq_exn ao ~off to_archive;
+    List.iter
+      (fun (off, seq) -> Sparse.Ao.append_seq_exn ao ~off seq)
+      to_archive;
     let end_offset = Sparse.Ao.end_off ao in
     let mapping_end_poff = Sparse.Ao.mapping_size ao in
     let* () = Sparse.Ao.flush ao in
@@ -191,7 +196,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     (* Prepare new control file *)
     let start_offset =
       match t with
-      | Empty _ -> off
+      | Empty _ -> first_off
       | Nonempty { control; _ } -> control.start_offset
     in
     let new_control =
@@ -208,6 +213,17 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     let* () = Control.close c in
     Ok (identifier t)
+
+  let archive_seq ~upper_root ~generation ~is_first ~to_archive t =
+    match to_archive with
+    | [] ->
+        [%log.warn
+          "Lower.archive_seq: Nothing to archive! volume=%S generation=%i \
+           is_first=%b"
+          (identifier t) generation is_first];
+        Ok (identifier t)
+    | (first_off, _) :: _ ->
+        archive_seq ~upper_root ~generation ~is_first ~to_archive ~first_off t
 
   let swap ~generation t =
     let root = path t in
@@ -360,7 +376,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let len = Volume.read_range_exn ~off ~min_len ~max_len b volume in
     (len, Volume.identifier volume)
 
-  let archive_seq_exn ~upper_root ~generation ~to_archive ~off t =
+  let archive_seq_exn ~upper_root ~generation ~to_archive t =
     Errs.raise_if_error
       (let open Result_syntax in
       let* () = if t.readonly then Error `Ro_not_allowed else Ok () in
@@ -375,7 +391,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         | Some v0 -> if Volume.eq v0 v then close_open_volume t else Ok ()
       in
       let is_first = volume_num t = 1 in
-      Volume.archive_seq ~upper_root ~generation ~to_archive ~off ~is_first v)
+      Volume.archive_seq ~upper_root ~generation ~to_archive ~is_first v)
 
   let read_exn ~off ~len ?volume t b =
     let _, volume = read_range_exn ~off ~min_len:len ~max_len:len ?volume t b in
