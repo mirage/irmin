@@ -1,0 +1,8 @@
+(executable
+ (public_name irmin-ppidx)
+ (package irmin-pack-tools)
+ (name ppidx)
+ (modules ppidx)
+ (libraries irmin-pack irmin-pack.unix cmdliner)
+ (preprocess
+  (pps ppx_irmin.internal)))
