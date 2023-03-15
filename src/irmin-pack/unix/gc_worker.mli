@@ -41,7 +41,7 @@ module Make (Args : Gc_args.S) : sig
   type gc_results = {
     suffix_params : suffix_params;
     removable_chunk_idxs : int list;
-    modified_volume : string option;
+    modified_volume : Lower.volume_identifier option;
     stats : Stats.Latest_gc.worker;
   }
   [@@deriving irmin]

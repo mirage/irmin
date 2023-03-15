@@ -207,7 +207,15 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         new_control
     in
     let* () = Control.close c in
-    Ok root
+    Ok (identifier t)
+
+  let swap ~generation t =
+    let root = path t in
+    let control_tmp =
+      Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
+    in
+    let control = Irmin_pack.Layout.V5.Volume.control ~root in
+    Io.move_file ~src:control_tmp ~dst:control
 end
 
 module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -224,6 +232,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   type open_error = [ Volume.open_error | `Volume_missing of string ]
   type close_error = [ | Io.close_error ]
+  type nonrec volume_identifier = volume_identifier [@@deriving irmin]
 
   type add_error =
     [ open_error
@@ -305,12 +314,15 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         Errs.raise_error (`Volume_not_found err)
     | Some v -> v
 
-  let find_volume_by_identifier_exn ~id t =
+  let find_volume_by_identifier ~id t =
     match Array.find_opt (Volume.identifier_eq ~id) t.volumes with
     | None ->
         let err = Fmt.str "Looking for identifier %s" id in
-        Errs.raise_error (`Volume_not_found err)
-    | Some v -> v
+        Error (`Volume_not_found err)
+    | Some v -> Ok v
+
+  let find_volume_by_identifier_exn ~id t =
+    find_volume_by_identifier ~id t |> Errs.raise_if_error
 
   let read_range_exn ~off ~min_len ~max_len ?volume t b =
     [%log.debug
@@ -358,4 +370,10 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     volume
 
   let create_from = Volume.create_from
+
+  let swap ~volume ~generation ~volume_num t =
+    let open Result_syntax in
+    let* vol = find_volume_by_identifier ~id:volume t in
+    let* () = Volume.swap ~generation vol in
+    reload ~volume_num t
 end

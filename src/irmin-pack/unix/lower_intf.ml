@@ -16,7 +16,7 @@
 
 open! Import
 
-type volume_identifier = string
+type volume_identifier = string [@@deriving irmin]
 
 module type Volume = sig
   module Io : Io.S
@@ -56,6 +56,7 @@ module type S = sig
   type t
   type open_error = [ Volume.open_error | `Volume_missing of string ]
   type close_error = [ | Io.close_error ]
+  type nonrec volume_identifier = volume_identifier [@@deriving irmin]
 
   type add_error =
     [ open_error
@@ -125,11 +126,11 @@ module type S = sig
     to_archive:string Seq.t ->
     off:int63 ->
     t ->
-    string
+    volume_identifier
   (** [archive_seq ~upper_root ~generation ~to_archive ~off t] is called by the
       GC worker during the creation of the new [generation] to archive
-      [to_archive] at offset [off] in the lower layer and returns the root of
-      the volume where data was appended.
+      [to_archive] at offset [off] in the lower layer and returns the identifier
+      of the volume where data was appended.
 
       It is the only write operation allowed on the lower layer, and it makes no
       observable change as the control file is left untouched : instead new
@@ -160,12 +161,24 @@ module type S = sig
   (** [create_from ~src ~dead_header_size ~size lower_root] initializes the
       first lower volume in the directory [lower_root] by moving the suffix file
       [src] with end offset [size]. *)
+
+  val swap :
+    volume:volume_identifier ->
+    generation:int ->
+    volume_num:int ->
+    t ->
+    ( unit,
+      [> `Volume_not_found of string | `Sys_error of string | open_error ] )
+    result
+  (** [swap ~volume ~generation ~volume_num t] will rename a new volume control
+      file in [volume] for [generation] of GC and then reload the lower with
+      [volume_num] volumes. *)
 end
 
 module type Sigs = sig
   module type S = S
 
-  type nonrec volume_identifier = volume_identifier
+  type nonrec volume_identifier = volume_identifier [@@deriving irmin]
 
   module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) :
     Volume with module Io = Io and module Errs = Errs

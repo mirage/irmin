@@ -269,13 +269,13 @@ module type S = sig
     chunk_num:int ->
     suffix_dead_bytes:int63 ->
     latest_gc_target_offset:int63 ->
-    volume_root:string option ->
+    volume:Lower.volume_identifier option ->
     (unit, [> Errs.t ]) result
   (** Swaps to using files from the GC [generation]. The values
       [suffix_start_offset], [chunk_start_idx], [chunk_num], and
       [suffix_dead_bytes] are used to properly load and read the suffix after a
-      GC. The value [volume_root] is used to reload the lower if it was modified
-      by the GC. The control file is also updated on disk. *)
+      GC. The value [volume] is used to reload the lower if it was modified by
+      the GC. The control file is also updated on disk. *)
 
   val readonly : t -> bool
   val generation : t -> int

@@ -128,7 +128,7 @@ module Make (Args : Gc_args.S) = struct
     assert (chunk_num >= 1);
 
     Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root:modified_volume
+      ~suffix_dead_bytes ~latest_gc_target_offset ~volume:modified_volume
 
   let unlink_all { root; generation; _ } removable_chunk_idxs =
     let result =

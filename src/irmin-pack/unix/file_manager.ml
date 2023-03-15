@@ -814,7 +814,7 @@ struct
             e)
 
   let swap t ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root =
+      ~suffix_dead_bytes ~latest_gc_target_offset ~volume =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap gen %d; suffix start %a; chunk start idx %d; chunk num \
@@ -861,15 +861,15 @@ struct
 
     (* Step 3. Swap volume and reload lower if needed *)
     let* () =
-      match volume_root with
+      match volume with
       | None -> Ok ()
-      | Some root ->
-          let control_gc_tmp =
-            Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
-          in
-          let control = Irmin_pack.Layout.V5.Volume.control ~root in
-          let* () = Io.move_file ~src:control_gc_tmp ~dst:control in
-          reload_lower t ~volume_num:pl.volume_num
+      | Some volume -> (
+          match t.lower with
+          | None ->
+              assert false
+              (* Programmer error if lower does not exist but volume is given *)
+          | Some lower ->
+              Lower.swap ~volume ~generation ~volume_num:pl.volume_num lower)
     in
 
     let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
