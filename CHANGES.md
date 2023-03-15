@@ -1,4 +1,4 @@
-## Unreleased
+## 3.6.1
 
 ### Fixed
 
