@@ -32,6 +32,13 @@
   - Unhandled exceptions in GC worker process are now reported as a failure
     (#2163, @metanivek)
   - Fix the silent mode for the integrity checks. (#2179, @icristescu)
+  
+## 3.6.1 (2023-03-15)
+
+### Fixed
+
+- **irmin-pack**
+  - Clear LRU when calling `reload` after a GC (#2200, @metanivek)
 
 ## 3.5.2 (2023-03-02)
 
