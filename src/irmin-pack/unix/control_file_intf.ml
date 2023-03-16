@@ -302,6 +302,7 @@ module type S = sig
 
   val create_rw :
     path:string ->
+    tmp_path:string option ->
     overwrite:bool ->
     payload ->
     (t, [> Io.create_error | Io.write_error ]) result
@@ -315,8 +316,14 @@ module type S = sig
     | `Closed
     | `Unknown_major_pack_version of string ]
 
-  val open_ : path:string -> readonly:bool -> (t, [> open_error ]) result
-  (** Create a rw instance of [t] by reading an existing file at [path]. *)
+  val open_ :
+    path:string ->
+    tmp_path:string option ->
+    readonly:bool ->
+    (t, [> open_error ]) result
+  (** Create a rw instance of [t] by reading an existing file at [path].
+      [tmp_path] will be used by RW instances when updating it's content, it is
+      not required for RO instances or RW instances which will never be updated. *)
 
   val close : t -> (unit, [> Io.close_error ]) result
 
@@ -348,7 +355,9 @@ module type S = sig
     | `Io_misc of Io.misc_error
     | `Closed
     | `Rw_not_allowed
-    | `Unknown_major_pack_version of string ]
+    | `Unknown_major_pack_version of string
+    | open_error
+    | Io.close_error ]
 
   val reload : t -> (unit, [> reload_error ]) result
   (** {3 RW mode}
@@ -362,7 +371,16 @@ module type S = sig
       If the file changed since the last read, the payload in [t] is updated to
       match the content of the file. *)
 
-  val set_payload : t -> payload -> (unit, [> Io.write_error ]) result
+  type move_error := [ `Sys_error of string ]
+
+  type set_error :=
+    [ `No_tmp_path_provided
+    | Io.create_error
+    | Io.write_error
+    | move_error
+    | Io.close_error ]
+
+  val set_payload : t -> payload -> (unit, [> set_error ]) result
   (** {3 RW mode}
 
       Write a new payload on disk.

@@ -90,7 +90,9 @@ module type S = sig
     | `Volume_missing of string
     | `Not_a_directory of string
     | `Multiple_empty_volumes
-    | `Index_failure of string ]
+    | `Index_failure of string
+    | `Sys_error of string
+    | `No_tmp_path_provided ]
 
   val create_rw :
     overwrite:bool -> Irmin.Backend.Conf.t -> (t, [> create_error ]) result
@@ -120,6 +122,7 @@ module type S = sig
     | `No_such_file_or_directory of string
     | `Not_a_directory of string
     | `Not_a_file
+    | `No_tmp_path_provided
     | `Read_out_of_bounds
     | `Ro_not_allowed
     | `Sys_error of string
@@ -204,7 +207,11 @@ module type S = sig
     [ `Index_failure of string
     | `Io_misc of Io.misc_error
     | `Ro_not_allowed
-    | `Closed ]
+    | `Closed
+    | `Double_close
+    | `File_exists of string
+    | `Sys_error of string
+    | `No_tmp_path_provided ]
 
   type flush_stages := [ `After_dict | `After_suffix ]
   type 'a hook := 'a -> unit

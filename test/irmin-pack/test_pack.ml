@@ -505,6 +505,7 @@ module Layout = struct
     c `V1_or_v2_pack (V1_and_v2.pack ~root:"" |> classif);
     c `Branch (V4.branch ~root:"" |> classif);
     c `Control (V4.control ~root:"" |> classif);
+    c `Control_tmp (V4.control_tmp ~root:"" |> classif);
     c `Dict (V4.dict ~root:"" |> classif);
     c (`Gc_result 0) (V4.gc_result ~generation:0 ~root:"" |> classif);
     c (`Reachable 1) (V4.reachable ~generation:1 ~root:"" |> classif);

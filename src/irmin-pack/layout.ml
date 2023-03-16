@@ -54,6 +54,7 @@ module V4 = struct
   let branch = toplevel "store.branches"
   let dict = toplevel "store.dict"
   let control = toplevel "store.control"
+  let control_tmp = toplevel "store.control.tmp"
 
   let suffix_chunk ~chunk_idx =
     toplevel ("store." ^ string_of_int chunk_idx ^ ".suffix")
@@ -81,7 +82,7 @@ module V5 = struct
     let directory ~idx = toplevel ("volume." ^ string_of_int idx)
     let control = toplevel "volume.control"
 
-    let control_tmp ~generation =
+    let control_gc_tmp ~generation =
       toplevel ("volume." ^ string_of_int generation ^ ".control")
 
     let mapping = toplevel "volume.mapping"
@@ -107,6 +108,7 @@ module Classification = struct
     type t =
       [ `Branch
       | `Control
+      | `Control_tmp
       | `Dict
       | `Gc_result of int
       | `Mapping of int
@@ -123,6 +125,7 @@ module Classification = struct
       | [ "store"; "pack" ] -> `V1_or_v2_pack
       | [ "store"; "branches" ] -> `Branch
       | [ "store"; "control" ] -> `Control
+      | [ "store"; "control"; "tmp" ] -> `Control_tmp
       | [ "store"; "dict" ] -> `Dict
       | [ "store"; g; "out" ] when is_number g -> `Gc_result (int_of_string g)
       | [ "store"; g; "reachable" ] when is_number g ->

@@ -270,7 +270,7 @@ struct
           | `Prefix g | `Mapping g -> g <> generation
           | `Suffix idx ->
               idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
-          | `Reachable _ | `Sorted _ | `Gc_result _ -> true)
+          | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp -> true)
         files
     in
     List.iter
@@ -387,7 +387,8 @@ struct
   let create_control_file ~overwrite config pl =
     let root = Irmin_pack.Conf.root config in
     let path = Layout.control ~root in
-    Control.create_rw ~path ~overwrite pl
+    let tmp_path = Layout.control_tmp ~root in
+    Control.create_rw ~path ~tmp_path:(Some tmp_path) ~overwrite pl
 
   (* Reload ***************************************************************** *)
 
@@ -576,7 +577,8 @@ struct
     let lower_root = Irmin_pack.Conf.lower_root config in
     let* control =
       let path = Layout.control ~root in
-      Control.open_ ~readonly:false ~path
+      let tmp_path = Layout.control_tmp ~root in
+      Control.open_ ~readonly:false ~path ~tmp_path:(Some tmp_path)
     in
     let* Payload.
            {
@@ -713,7 +715,7 @@ struct
     (* 1. Open the control file *)
     let* control =
       let path = Layout.control ~root in
-      Control.open_ ~readonly:true ~path
+      Control.open_ ~readonly:true ~path ~tmp_path:None
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
            | `No_such_file_or_directory _ -> (
@@ -797,7 +799,7 @@ struct
     | `File | `Other -> Error (`Not_a_directory root)
     | `Directory -> (
         let path = Layout.control ~root in
-        match Control.open_ ~path ~readonly:true with
+        match Control.open_ ~path ~tmp_path:None ~readonly:true with
         | Ok _ -> Ok `V3
         | Error (`No_such_file_or_directory _) -> v2_or_v1 ()
         | Error `Not_a_file -> Error `Invalid_layout
@@ -858,11 +860,11 @@ struct
       match volume_root with
       | None -> Ok ()
       | Some root ->
-          let control_tmp =
-            Irmin_pack.Layout.V5.Volume.control_tmp ~generation ~root
+          let control_gc_tmp =
+            Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
           in
           let control = Irmin_pack.Layout.V5.Volume.control ~root in
-          let* () = Io.move_file ~src:control_tmp ~dst:control in
+          let* () = Io.move_file ~src:control_gc_tmp ~dst:control in
           reload_lower t ~volume_num:pl.volume_num
     in
 
@@ -988,7 +990,7 @@ struct
       }
     in
     let path = Layout.control ~root:dst_root in
-    let* control = Control.create_rw ~path ~overwrite:false pl in
+    let* control = Control.create_rw ~path ~tmp_path:None ~overwrite:false pl in
     let* () = Control.close control in
     (* Step 4. Create the index. *)
     let* index =

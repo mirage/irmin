@@ -32,7 +32,7 @@ module Direct_tc = struct
 
   let create_control volume_path payload =
     let path = Irmin_pack.Layout.V5.Volume.control ~root:volume_path in
-    Control.create_rw ~path ~overwrite:true payload
+    Control.create_rw ~path ~tmp_path:None ~overwrite:true payload
 
   let test_empty () =
     let lower_root = create_lower_root () in

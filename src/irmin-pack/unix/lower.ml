@@ -99,7 +99,8 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       }
     in
     let control = Layout.control ~root in
-    Control.create_rw ~path:control ~overwrite:false payload >>= Control.close
+    Control.create_rw ~path:control ~tmp_path:None ~overwrite:false payload
+    >>= Control.close
 
   let path = function Empty { path } -> path | Nonempty { path; _ } -> path
 
@@ -198,11 +199,12 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         { start_offset; end_offset; mapping_end_poff; checksum = Int63.zero }
     in
     (* Write into temporary file on disk *)
-    let tmp_control_path =
-      Irmin_pack.Layout.V5.Volume.control_tmp ~generation ~root
+    let control_gc_tmp =
+      Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
     in
     let* c =
-      Control.create_rw ~path:tmp_control_path ~overwrite:true new_control
+      Control.create_rw ~path:control_gc_tmp ~tmp_path:None ~overwrite:true
+        new_control
     in
     let* () = Control.close c in
     Ok root

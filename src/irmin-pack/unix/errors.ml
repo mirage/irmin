@@ -80,7 +80,8 @@ type base_error =
   | `Add_volume_requires_lower
   | `Volume_history_discontinuous
   | `Lower_has_no_volume
-  | `Volume_not_found of string ]
+  | `Volume_not_found of string
+  | `No_tmp_path_provided ]
 [@@deriving irmin ~pp]
 (** [base_error] is the type of most errors that can occur in a [result], except
     for errors that have associated exceptions (see below) and backend-specific
