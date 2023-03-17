@@ -4,6 +4,7 @@ This folder contains several tools meant to provide usefull ways to debug and du
 Currently, there are the following tools:
 - [`ppcf`](#ppcf), a json printer for control files
 - [`ppidx`](#ppidx), a json printer for index folders
+- [`last_accessible`](#last_accessible), gives the informations of the last accessible commit registered in index
 - [`tezos-explorer`](#tezos-explorer), a gui for a fast exploration of tezos stores
 
 ## ppcf
@@ -53,7 +54,7 @@ It is fairly straightforward:
 ```shell
 $ dune exec -- irmin-ppidx <path-to-store>
 ```
-The second one is the path to the root of the store, not the index folder (e.g. `output/root/` where `output/root/index/` exists)
+The first argument is the path to the root of the store, not the index folder (e.g. `output/root/` where `output/root/index/` exists)
 
 It will typically give the following json output, with one line per entry registered:
 ```
@@ -94,6 +95,38 @@ However, it might be useful to sort the json output using the offset. You can do
 ```shell
 $ jq -s 'sort_by(.off)' -- index
 ```
+
+## last-valid
+This tool searches the index for the commit with the biggest offset still within the size of the suffix files.
+It should be usefull whenever someone wants to know to where they can safely revert to instead of reinstalling the whole store, in case of inconsistencies.
+It is fairly straightforward:
+```shell
+$ dune exec -- irmin-last_accessible <path-to-store>
+```
+The first argument is the path to the root of the store, not the index folder (e.g. `output/root/` where `output/root/index/` exists)
+Useful debugging informations can also be printed by setting the right verbosity using the `verbose` or`verbosity=...` flags.
+
+It will typically give the following json output:
+```
+{"hash":"oJgRv9/bIHkNAcbG8TaElD7P/UwXMWL0lrTXbabCqdo=","off":97297154,"len":103,"kind":"Commit_v2"}
+```
+Which can be further improved using the tool `jq`:
+```shell
+$ dune exec -- irmin-last_accessible <path-to-store> | jq
+```
+Will give:
+```json
+{
+  "hash": "oJgRv9/bIHkNAcbG8TaElD7P/UwXMWL0lrTXbabCqdo=",
+  "off": 97297154,
+  "len": 103,
+  "kind": "Commit_v2"
+}
+```
+
+Note that this tool makes several assumptions about the state of the store:
+- The store is an upper store.
+- The control file holds the right informations in the case of a gced store
 
 ## tezos-explorer
 TODO
