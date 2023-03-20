@@ -313,6 +313,9 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     | Some v -> v
 
   let read_range_exn ~off ~min_len ~max_len ?volume t b =
+    [%log.debug
+      "read_range_exn ~off:%a ~min_len:%i ~max_len:%i" Int63.pp off min_len
+        max_len];
     let set_open_volume t v =
       (* Maintain one open volume at a time. *)
       let open Result_syntax in

@@ -65,6 +65,15 @@ let promote_exn ~offset ~length ?volume_identifier (State t) =
   | Indexed hash ->
       t.state <- Direct { hash; offset; length; volume_identifier }
 
+let set_volume_identifier_exn ~volume_identifier (State t) =
+  match t.state with
+  | Indexed _ ->
+      failwith "Attempted to set volume identifier to a key that is Indexed"
+  | Offset _ ->
+      failwith "Attempted to set volume identifier to an offset without hash"
+  | Direct { hash; offset; length; _ } ->
+      t.state <- Direct { hash; offset; length; volume_identifier }
+
 let t : type h. h Irmin.Type.t -> h t Irmin.Type.t =
  fun hash_t ->
   let open Irmin.Type in
