@@ -772,8 +772,22 @@ module Gc_archival = struct
       init ?lru_size ?readonly ?fresh ~root ~lower_root:(Some lower_root) ()
 
     let check_gced t c s =
-      let* c = S.Commit.of_key t.repo (S.Commit.key c) in
+      (* Re-fetch to ensure a volume identifier will be there *)
+      let key = S.Commit.key c in
+      let* c = S.Commit.of_key t.repo key in
       Alcotest.(check bool s true (Option.is_some c));
+      let hash = match Irmin_pack_unix.Pack_key.inspect key with
+      | Direct {hash; _} -> hash
+      | _ -> assert false
+      in
+      let* c = S.Commit.of_hash t.repo hash in
+      let c = Option.get c in
+      let () = match Irmin_pack_unix.Pack_key.inspect (S.Commit.key c) with
+      | Direct {volume_identifier = Some _; _} -> ()
+      | Direct {volume_identifier = None; _} ->
+          Alcotest.failf "gced commit should have a volume identifier"
+      | _ -> assert false
+      in
       Lwt.return_unit
   end
 
