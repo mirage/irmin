@@ -299,35 +299,48 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
   module Io = Io
 
   type payload = Serde.payload
-  type t = { io : Io.t; mutable payload : payload }
+
+  type t = {
+    mutable io : Io.t;
+    mutable payload : payload;
+    path : string;
+    tmp_path : string option;
+  }
 
   let write io payload =
     let s = Serde.to_bin_string payload in
-    (* The data must fit inside a single page for atomic updates of the file.
-       This is only true for some file systems. This system will have to be
-       reworked for [V4]. *)
-    assert (String.length s <= Io.page_size);
-
     Io.write_string io ~off:Int63.zero s
+
+  let set_payload t payload =
+    let open Result_syntax in
+    if Io.readonly t.io then Error `Ro_not_allowed
+    else
+      match t.tmp_path with
+      | None -> Error `No_tmp_path_provided
+      | Some tmp_path ->
+          let* () = Io.close t.io in
+          let* io_tmp = Io.create ~path:tmp_path ~overwrite:true in
+          t.io <- io_tmp;
+          let* () = write io_tmp payload in
+          let+ () = Io.move_file ~src:tmp_path ~dst:t.path in
+          t.payload <- payload
 
   let read io =
     let open Result_syntax in
     let* string = Io.read_all_to_string io in
-    (* Since the control file is expected to fit in a page,
-       [read_all_to_string] should be atomic for most filesystems. *)
     Serde.of_bin_string string
 
-  let create_rw ~path ~overwrite (payload : payload) =
+  let create_rw ~path ~tmp_path ~overwrite (payload : payload) =
     let open Result_syntax in
     let* io = Io.create ~path ~overwrite in
     let+ () = write io payload in
-    { io; payload }
+    { io; payload; path; tmp_path }
 
-  let open_ ~path ~readonly =
+  let open_ ~path ~tmp_path ~readonly =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly in
     let+ payload = read io in
-    { io; payload }
+    { io; payload; path; tmp_path }
 
   let close t = Io.close t.io
   let readonly t = Io.readonly t.io
@@ -337,14 +350,17 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     let open Result_syntax in
     if not @@ Io.readonly t.io then Error `Rw_not_allowed
     else
-      let+ payload = read t.io in
+      let* () = Io.close t.io in
+      let* io = Io.open_ ~path:t.path ~readonly:true in
+      t.io <- io;
+      let+ payload = read io in
       t.payload <- payload
 
   let read_payload ~path =
     let open Result_syntax in
-    let* t = open_ ~path ~readonly:true in
-    let payload = payload t in
-    let+ () = close t in
+    let* io = Io.open_ ~path ~readonly:true in
+    let* payload = read io in
+    let+ () = Io.close io in
     payload
 
   let read_raw_payload ~path =
@@ -354,11 +370,6 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     let* payload = Serde.raw_of_bin_string string in
     let+ () = Io.close io in
     payload
-
-  let set_payload t payload =
-    let open Result_syntax in
-    let+ () = write t.io payload in
-    t.payload <- payload
 
   let fsync t = Io.fsync t.io
 end
