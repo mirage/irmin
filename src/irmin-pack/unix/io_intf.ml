@@ -147,6 +147,11 @@ module type S = sig
 
   val catch_misc_error :
     (unit -> 'a) -> ('a, [> `Io_misc of misc_error ]) result
+
+  val fsync_dir : string -> (unit, [> `Io_misc of misc_error ]) result
+  (** [fsync path] persists to the file system the directory in [path]. Note
+      that separate fsyncs are needed for persisting the files in the directory
+      [path]. *)
 end
 
 module type Sigs = sig

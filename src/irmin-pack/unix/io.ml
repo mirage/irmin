@@ -292,4 +292,17 @@ module Unix = struct
       Sys.remove path;
       Ok ()
     with Sys_error msg -> Error (`Sys_error msg)
+
+  let fsync_dir path =
+    try
+      let dirfd = Unix.openfile path Unix.[ O_RDONLY ] default_open_perm in
+      let fsync_result =
+        try
+          Unix.fsync dirfd;
+          Ok ()
+        with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+      in
+      Unix.close dirfd;
+      fsync_result
+    with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 end
