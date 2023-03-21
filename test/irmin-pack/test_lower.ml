@@ -192,6 +192,27 @@ module Store_tc = struct
     |> Option.map File_manager.Lower.volume_num
     |> Option.value ~default:0
 
+  let volume_path repo offset =
+    let open Store.Internal in
+    let lower = file_manager repo |> File_manager.lower in
+    let volume =
+      match lower with
+      | None -> Alcotest.fail "expected lower"
+      | Some l -> File_manager.Lower.find_volume ~off:offset l
+    in
+    match volume with
+    | None -> Alcotest.fail "expected volume"
+    | Some v -> File_manager.Lower.Volume.path v
+
+  let generation repo =
+    let open Store.Internal in
+    let ({ status; _ } : Irmin_pack_unix.Control_file.Payload.Upper.Latest.t) =
+      file_manager repo |> File_manager.control |> File_manager.Control.payload
+    in
+    match status with
+    | Gced { generation; _ } -> generation
+    | _ -> Alcotest.fail "expected gced status"
+
   let test_create () =
     let* repo = init () in
     (* A newly created store with a lower should have an empty volume. *)
@@ -357,6 +378,40 @@ module Store_tc = struct
         tree ()
     in
     Store.Repo.close repo
+
+  let test_cleanup () =
+    let root, lower_root = fresh_roots () in
+    [%log.debug "create store with data and run GC"];
+    let* repo = Store.Repo.v (config ~fresh:true ~lower_root root) in
+    let* main = Store.main repo in
+    let info () = Store.Info.v ~author:"test" Int64.zero in
+    let* () = Store.set_exn ~info main [ "a" ] "a" in
+    let* c1 = Store.Head.get main in
+    let* _ = Store.Gc.start_exn repo (Store.Commit.key c1) in
+    let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    let volume_root = volume_path repo Int63.zero in
+    let generation = generation repo in
+    let* () = Store.Repo.close repo in
+    [%log.debug "test volume.1.control is moved to volume.control"];
+    let volume_cf_gen_path =
+      Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root:volume_root
+    in
+    let volume_cf_path =
+      Irmin_pack.Layout.V5.Volume.control ~root:volume_root
+    in
+    let$ () = Io.move_file ~src:volume_cf_path ~dst:volume_cf_gen_path in
+    let* repo = Store.Repo.v (config ~fresh:false ~lower_root root) in
+    let () =
+      match Io.classify_path volume_cf_path with
+      | `File -> [%log.debug "control file exists"]
+      | _ -> Alcotest.fail "expected conrol file"
+    in
+    let () =
+      match Io.classify_path volume_cf_gen_path with
+      | `No_such_file_or_directory -> [%log.debug "gc control file unlinked"]
+      | _ -> Alcotest.fail "expected conrol gen file to not exist"
+    in
+    Store.Repo.close repo
 end
 
 module Store = struct
@@ -373,6 +428,7 @@ module Store = struct
         quick_tc "create without lower then migrate" test_migrate;
         quick_tc "migrate then gc" test_migrate_then_gc;
         quick_tc "test data locality" test_volume_data_locality;
+        quick_tc "test cleanup" test_cleanup;
       ]
 end
 
