@@ -173,6 +173,10 @@ module type S = sig
   (** [swap ~volume ~generation ~volume_num t] will rename a new volume control
       file in [volume] for [generation] of GC and then reload the lower with
       [volume_num] volumes. *)
+
+  val cleanup : generation:int -> t -> (unit, [> `Sys_error of string ]) result
+  (** [cleanup ~generation t] will attempt to cleanup the appendable volume if a
+      GC crash has occurred. *)
 end
 
 module type Sigs = sig

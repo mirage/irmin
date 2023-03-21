@@ -216,6 +216,18 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     in
     let control = Irmin_pack.Layout.V5.Volume.control ~root in
     Io.move_file ~src:control_tmp ~dst:control
+
+  let cleanup ~generation t =
+    let clean filename =
+      match Irmin_pack.Layout.Classification.Volume.v filename with
+      | `Control_tmp g when g = generation -> swap ~generation t
+      | `Control_tmp g when g <> generation ->
+          Io.unlink filename
+          |> Errs.log_if_error (Printf.sprintf "unlink %s" filename)
+          |> Result.ok
+      | _ -> Ok ()
+    in
+    path t |> Sys.readdir |> Array.to_list |> List.iter_result clean
 end
 
 module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -376,4 +388,9 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let* vol = find_volume_by_identifier ~id:volume t in
     let* () = Volume.swap ~generation vol in
     reload ~volume_num t
+
+  let cleanup ~generation t =
+    match appendable_volume t with
+    | None -> Ok [%log.warn "Attempted to cleanup but lower has no volumes"]
+    | Some v -> Volume.cleanup ~generation v
 end

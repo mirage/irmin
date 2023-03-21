@@ -257,9 +257,8 @@ module type S = sig
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 
-  val cleanup : t -> unit
-  (** [cleanup t] removes any residual files in directory [root] not needed by
-      the control file. *)
+  val cleanup : t -> (unit, [> `Sys_error of string ]) result
+  (** [cleanup t] performs cleanup operations for files related to GC. *)
 
   val swap :
     t ->
