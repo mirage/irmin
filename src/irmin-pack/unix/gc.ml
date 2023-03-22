@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2023 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -66,14 +66,13 @@ module Make (Args : Gc_args.S) = struct
     in
     let unlink_result_file () =
       let result_file = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-      match Io.unlink result_file with
-      | Ok () -> ()
-      | Error (`Sys_error msg as err) ->
-          if msg <> Fmt.str "%s: No such file or directory" result_file then
-            [%log.warn
-              "Unlinking temporary files from previous failed gc. Failed with \
-               error %a"
-              (Irmin.Type.pp Errs.t) err]
+      Io.unlink_dont_wait
+        ~on_exn:(fun exn ->
+          [%log.warn
+            "Unlinking temporary files from previous failed gc. Failed with \
+             error %s"
+            (Printexc.to_string exn)])
+        result_file
     in
     (* Unlink next gc's result file, in case it is on disk, for instance
        after a failed gc. *)
@@ -131,40 +130,49 @@ module Make (Args : Gc_args.S) = struct
       ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root:modified_volume
 
   let unlink_all { root; generation; _ } removable_chunk_idxs =
-    let result =
-      let open Result_syntax in
-      (* Unlink suffix chunks *)
-      let* () =
-        removable_chunk_idxs
-        |> List.iter_result @@ fun chunk_idx ->
-           let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
-           Io.unlink path
-      in
-      let* () =
-        if generation >= 2 then
-          (* Unlink previous prefix. *)
-          let prefix =
-            Irmin_pack.Layout.V4.prefix ~root ~generation:(generation - 1)
-          in
-          let* () = Io.unlink prefix in
-          (* Unlink previous mapping. *)
-          let mapping =
-            Irmin_pack.Layout.V4.mapping ~root ~generation:(generation - 1)
-          in
-          let* () = Io.unlink mapping in
-          Ok ()
-        else Ok ()
-      in
-      (* Unlink current gc's result.*)
-      let result = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-      Io.unlink result
+    (* Unlink suffix chunks *)
+    let () =
+      removable_chunk_idxs
+      |> List.iter (fun chunk_idx ->
+             let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
+             Io.unlink_dont_wait
+               ~on_exn:(fun exn ->
+                 [%log.warn
+                   "Unlinking chunk_idxs files after gc, failed with error %s"
+                     (Printexc.to_string exn)])
+               path)
     in
-    match result with
-    | Error e ->
+    if generation >= 2 then (
+      (* Unlink previous prefix. *)
+      let prefix =
+        Irmin_pack.Layout.V4.prefix ~root ~generation:(generation - 1)
+      in
+      Io.unlink_dont_wait
+        ~on_exn:(fun exn ->
+          [%log.warn
+            "Unlinking previous prefix after gc, failed with error %s"
+              (Printexc.to_string exn)])
+        prefix;
+
+      (* Unlink previous mapping. *)
+      let mapping =
+        Irmin_pack.Layout.V4.mapping ~root ~generation:(generation - 1)
+      in
+      Io.unlink_dont_wait
+        ~on_exn:(fun exn ->
+          [%log.warn
+            "Unlinking previous mapping after gc, failed with error %s"
+              (Printexc.to_string exn)])
+        mapping);
+
+    (* Unlink current gc's result.*)
+    let result = Irmin_pack.Layout.V4.gc_result ~root ~generation in
+    Io.unlink_dont_wait
+      ~on_exn:(fun exn ->
         [%log.warn
-          "Unlinking temporary files after gc, failed with error %a"
-            (Irmin.Type.pp Errs.t) e]
-    | Ok () -> ()
+          "Unlinking current gc's result after gc, failed with error %s"
+            (Printexc.to_string exn)])
+      result
 
   let gc_errors status gc_output =
     let extend_error s = function

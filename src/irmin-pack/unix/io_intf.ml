@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2023 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -85,6 +85,12 @@ module type S = sig
 
   val mkdir : string -> (unit, [> mkdir_error ]) result
   val unlink : string -> (unit, [> `Sys_error of string ]) result
+
+  val unlink_dont_wait : on_exn:(exn -> unit) -> string -> unit
+  (** [unlink_dont_wait file] attempts to unlink the named file but doesn't wait
+      for the completion of the unlink operation.
+
+      If unlink raises an exception it is passed to [on_exn]. *)
 
   (** {2 Read Functions} *)
 

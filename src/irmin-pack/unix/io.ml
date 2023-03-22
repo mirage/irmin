@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2022-2023 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -292,4 +292,7 @@ module Unix = struct
       Sys.remove path;
       Ok ()
     with Sys_error msg -> Error (`Sys_error msg)
+
+  let unlink_dont_wait ~on_exn path =
+    Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn
 end
