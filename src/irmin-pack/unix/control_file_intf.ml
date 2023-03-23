@@ -309,7 +309,7 @@ module type S = sig
   (** Create a rw instance of [t] by creating a control file. *)
 
   type open_error :=
-    [ `Corrupted_control_file
+    [ `Corrupted_control_file of string
     | `Io_misc of Io.misc_error
     | `No_such_file_or_directory of string
     | `Not_a_file
@@ -350,14 +350,7 @@ module type S = sig
       [payload t] is the [payload], as it was seen during [open_] or during the
       most recent [reload]. *)
 
-  type reload_error :=
-    [ `Corrupted_control_file
-    | `Io_misc of Io.misc_error
-    | `Closed
-    | `Rw_not_allowed
-    | `Unknown_major_pack_version of string
-    | open_error
-    | Io.close_error ]
+  type reload_error := [ `Rw_not_allowed | open_error | Io.close_error ]
 
   val reload : t -> (unit, [> reload_error ]) result
   (** {3 RW mode}

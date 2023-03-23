@@ -37,7 +37,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     [ Io.open_error
     | `Closed
     | `Double_close
-    | `Corrupted_control_file
+    | `Corrupted_control_file of string
     | `Unknown_major_pack_version of string ]
 
   let v volume_path =

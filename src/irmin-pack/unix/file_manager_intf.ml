@@ -84,7 +84,7 @@ module type S = sig
     | Io.open_error
     | Io.mkdir_error
     | `Corrupted_mapping_file of string
-    | `Corrupted_control_file
+    | `Corrupted_control_file of string
     | `Double_close
     | `Unknown_major_pack_version of string
     | `Volume_missing of string
@@ -108,7 +108,7 @@ module type S = sig
       undefined state and some file descriptors might not be closed. *)
 
   type open_rw_error :=
-    [ `Corrupted_control_file
+    [ `Corrupted_control_file of string
     | `Corrupted_mapping_file of string
     | `Double_close
     | `Closed
@@ -158,7 +158,7 @@ module type S = sig
       is unaffected. Anyhow, some file descriptors might not be closed. *)
 
   type open_ro_error :=
-    [ `Corrupted_control_file
+    [ `Corrupted_control_file of string
     | `Corrupted_mapping_file of string
     | `Io_misc of Io.misc_error
     | `Migration_needed
@@ -246,7 +246,7 @@ module type S = sig
   val register_suffix_consumer : t -> after_flush:(unit -> unit) -> unit
 
   type version_error :=
-    [ `Corrupted_control_file
+    [ `Corrupted_control_file of string
     | `Corrupted_legacy_file
     | `Invalid_layout
     | `Io_misc of Io.misc_error

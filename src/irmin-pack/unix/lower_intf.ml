@@ -29,7 +29,7 @@ module type Volume = sig
     [ Io.open_error
     | `Closed
     | `Double_close
-    | `Corrupted_control_file
+    | `Corrupted_control_file of string
     | `Unknown_major_pack_version of string ]
 
   val v : string -> (t, [> open_error ]) result
