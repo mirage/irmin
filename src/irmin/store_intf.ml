@@ -342,12 +342,21 @@ module type S_generic_key = sig
     val pp_hash : t Fmt.t
     (** [pp] is the pretty-printer for commit. Display only the hash. *)
 
-    val v : repo -> info:info -> parents:commit_key list -> tree -> commit Lwt.t
+    val v :
+      ?clear:bool ->
+      repo ->
+      info:info ->
+      parents:commit_key list ->
+      tree ->
+      commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
 
         - [info c = i]
         - [parents c = p]
-        - [tree c = t] *)
+        - [tree c = t]
+
+        When [clear] is set (the default), the tree cache is emptied upon the
+        function's completion, mirroring the effect of invoking {!Tree.clear}. *)
 
     val tree : commit -> tree
     (** [tree c] is [c]'s root tree. *)
@@ -602,6 +611,7 @@ module type S_generic_key = sig
         instead of the one we were waiting for. *)
 
   val set :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -616,11 +626,15 @@ module type S_generic_key = sig
       This function always uses {!Metadata.default} as metadata. Use {!set_tree}
       with `[Contents (c, m)] for different ones.
 
+      When [clear] is set (the default), the tree cache is emptied upon the
+      function's completion, mirroring the effect of invoking {!Tree.clear}.
+
       The result is [Error `Too_many_retries] if the concurrent operations do
       not allow the operation to commit to the underlying storage layer
       (livelock). *)
 
   val set_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -633,6 +647,7 @@ module type S_generic_key = sig
       type. *)
 
   val set_tree :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -644,6 +659,7 @@ module type S_generic_key = sig
   (** [set_tree] is like {!set} but for trees. *)
 
   val set_tree_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -655,6 +671,7 @@ module type S_generic_key = sig
   (** [set_tree] is like {!set_exn} but for trees. *)
 
   val remove :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -669,6 +686,7 @@ module type S_generic_key = sig
       (livelock). *)
 
   val remove_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -680,6 +698,7 @@ module type S_generic_key = sig
       result type. *)
 
   val test_and_set :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -703,6 +722,7 @@ module type S_generic_key = sig
       (livelock). *)
 
   val test_and_set_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -716,6 +736,7 @@ module type S_generic_key = sig
       of using a result type. *)
 
   val test_and_set_tree :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -728,6 +749,7 @@ module type S_generic_key = sig
   (** [test_and_set_tree] is like {!test_and_set} but for trees. *)
 
   val test_and_set_tree_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -740,6 +762,7 @@ module type S_generic_key = sig
   (** [test_and_set_tree_exn] is like {!test_and_set_exn} but for trees. *)
 
   val test_set_and_get :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -755,6 +778,7 @@ module type S_generic_key = sig
       to the store. *)
 
   val test_set_and_get_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -768,6 +792,7 @@ module type S_generic_key = sig
       instead. *)
 
   val test_set_and_get_tree :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -780,6 +805,7 @@ module type S_generic_key = sig
   (** [test_set_and_get_tree] is like {!test_set_and_get} but for a {!tree} *)
 
   val test_set_and_get_tree_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -793,6 +819,7 @@ module type S_generic_key = sig
       [Failure _] instead. *)
 
   val merge :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -816,6 +843,7 @@ module type S_generic_key = sig
       (livelock). *)
 
   val merge_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -829,6 +857,7 @@ module type S_generic_key = sig
       result type. *)
 
   val merge_tree :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -841,6 +870,7 @@ module type S_generic_key = sig
   (** [merge_tree] is like {!merge_tree} but for trees. *)
 
   val merge_tree_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -853,6 +883,7 @@ module type S_generic_key = sig
   (** [merge_tree] is like {!merge_tree} but for trees. *)
 
   val with_tree :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -887,6 +918,7 @@ module type S_generic_key = sig
       write conflicts are visible on commit. *)
 
   val with_tree_exn :
+    ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
@@ -1090,8 +1122,10 @@ module type S_generic_key = sig
     [> read_write ] Backend.Node.t ->
     tree ->
     kinded_key Lwt.t
-  (** Save a tree into the database. Does not do any reads. If [clear] is set
-      (it is by default), the tree cache will be cleared after the save. *)
+  (** Save a tree into the database. Does not do any reads.
+
+      When [clear] is set (the default), the tree cache is emptied upon the
+      function's completion, mirroring the effect of invoking {!Tree.clear}. *)
 
   (** {Deprecated} *)
 

@@ -462,10 +462,10 @@ let test_update _ () =
 let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
 
 (* Take a tree and persist it to some underlying store, making it lazy. *)
-let persist_tree : Store.tree -> Store.tree Lwt.t =
+let persist_tree ?clear : Store.tree -> Store.tree Lwt.t =
  fun tree ->
   let* store = Store.Repo.v (Irmin_mem.config ()) >>= Store.empty in
-  let* () = Store.set_tree_exn ~info:Store.Info.none store [] tree in
+  let* () = Store.set_tree_exn ?clear ~info:Store.Info.none store [] tree in
   Store.tree store
 
 type path = Store.Path.t [@@deriving irmin ~pp ~equal]
@@ -517,6 +517,29 @@ let test_clear _ () =
     >|= Alcotest.(gcheck Tree.stats_t)
           "After persist+clear, root node is no longer cached" lazy_stats
   in
+  Lwt.return_unit
+
+let test_minimal_reads _ () =
+  (* 1. Build a tree *)
+  let size = 10 in
+  let* t =
+    List.init size string_of_int
+    |> Lwt_list.fold_left_s (fun acc i -> Tree.add acc [ i ] i) (Tree.empty ())
+  in
+
+  (* Persist with no clear *)
+  Tree.reset_counters ();
+  let* _ = persist_tree ~clear:false t in
+  let* _ = Tree.find t [ "0" ] in
+  let cnt = Tree.counters () in
+  Alcotest.(check int) "no reads" 0 cnt.node_find;
+
+  (* Persist with clear *)
+  Tree.reset_counters ();
+  let* _ = persist_tree ~clear:true t in
+  let* _ = Tree.find_tree t [ "0" ] in
+  let cnt = Tree.counters () in
+  Alcotest.(check int) "reads" 1 cnt.node_find;
   Lwt.return_unit
 
 let with_binding k v t = Tree.add_tree t k v
@@ -846,6 +869,7 @@ let suite =
     Alcotest_lwt.test_case "remove" `Quick test_remove;
     Alcotest_lwt.test_case "update" `Quick test_update;
     Alcotest_lwt.test_case "clear" `Quick test_clear;
+    Alcotest_lwt.test_case "minimal_reads" `Quick test_minimal_reads;
     Alcotest_lwt.test_case "fold" `Quick test_fold_force;
     Alcotest_lwt.test_case "Broken.hashes" `Quick Broken.test_hashes;
     Alcotest_lwt.test_case "Broken.trees" `Quick Broken.test_trees;

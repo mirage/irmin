@@ -1965,11 +1965,15 @@ module Make (P : Backend.S) = struct
     let env = Env.empty () in
     import_with_env ~env repo f
 
+  let same_repo r1 r2 =
+    r1 == r2 || Conf.equal (P.Repo.config r1) (P.Repo.config r2)
+
   (* Given an arbitrary tree value, persist its contents to the given contents
      and node stores via a depth-first {i post-order} traversal. We must export
      a node's children before the node itself in order to get the {i keys} of
      any un-persisted child values. *)
   let export ?clear repo contents_t node_t n =
+    [%log.debug "Tree.export clear=%a" Fmt.(option bool) clear];
     let cache =
       match clear with
       | Some true | None ->
@@ -2070,7 +2074,7 @@ module Make (P : Backend.S) = struct
       let has_repo =
         match n.Node.v with
         | Node.Key (repo', _) ->
-            if repo == repo' then true
+            if same_repo repo repo' then true
             else
               (* Case 1. [n] is a key from another repo. Let's crash.
 
@@ -2078,7 +2082,7 @@ module Make (P : Backend.S) = struct
                  [repo], or completely ignore the issue. *)
               failwith "Can't export the node key from another repo"
         | Value (repo', _, _) ->
-            if repo == repo' then true
+            if same_repo repo repo' then true
             else
               (* Case 2. [n] is a value from another repo. Let's crash.
 

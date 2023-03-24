@@ -166,11 +166,11 @@ module Make (B : Backend.S) = struct
       |+ field "value" B.Commit.Val.t (fun t -> t.v)
       |> sealr
 
-    let v r ~info ~parents tree =
+    let v ?(clear = true) r ~info ~parents tree =
       B.Repo.batch r @@ fun contents_t node_t commit_t ->
       let* node =
         match Tree.destruct tree with
-        | `Node t -> Tree.export r contents_t node_t t
+        | `Node t -> Tree.export ~clear r contents_t node_t t
         | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root"
       in
       let v = B.Commit.Val.v ~info ~node ~parents in
@@ -787,7 +787,8 @@ module Make (B : Backend.S) = struct
 
   (* Update the store with a new commit. Ensure the no commit becomes orphan
      in the process. *)
-  let update ?(allow_empty = false) ~info ?parents t key merge_tree f =
+  let update ?(clear = true) ?(allow_empty = false) ~info ?parents t key
+      merge_tree f =
     let* s = snapshot t key in
     (* this might take a very long time *)
     let* new_tree = f s.tree in
@@ -801,7 +802,7 @@ module Make (B : Backend.S) = struct
           let info = info () in
           let parents = match parents with None -> s.parents | Some p -> p in
           let parents = List.map Commit.key parents in
-          let* c = Commit.v (repo t) ~info ~parents root in
+          let* c = Commit.v ~clear (repo t) ~info ~parents root in
           let* r = add_commit t s.head (c, root_tree (Tree.destruct root)) in
           Lwt.return (Ok (Some c, r))
 
@@ -820,34 +821,35 @@ module Make (B : Backend.S) = struct
       (c : (commit option, [> `Too_many_retries of int ]) result Lwt.t) =
     Lwt_result.map (fun _ -> ()) c
 
-  let set_tree ?(retries = 13) ?allow_empty ?parents ~info t k v =
+  let set_tree ?clear ?(retries = 13) ?allow_empty ?parents ~info t k v =
     [%log.debug "set %a" pp_path k];
     ignore_commit
     @@ retry ~retries
     @@ fun () ->
-    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
+    update t k ?clear ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_some v
 
-  let set_tree_exn ?retries ?allow_empty ?parents ~info t k v =
-    set_tree ?retries ?allow_empty ?parents ~info t k v >>= fail "set_exn"
+  let set_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k v =
+    set_tree ?clear ?retries ?allow_empty ?parents ~info t k v
+    >>= fail "set_exn"
 
-  let remove ?(retries = 13) ?allow_empty ?parents ~info t k =
+  let remove ?clear ?(retries = 13) ?allow_empty ?parents ~info t k =
     [%log.debug "debug %a" pp_path k];
     ignore_commit
     @@ retry ~retries
     @@ fun () ->
-    update t k ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
+    update t k ?clear ?allow_empty ?parents ~info set_tree_once @@ fun _tree ->
     Lwt.return_none
 
-  let remove_exn ?retries ?allow_empty ?parents ~info t k =
-    remove ?retries ?allow_empty ?parents ~info t k >>= fail "remove_exn"
+  let remove_exn ?clear ?retries ?allow_empty ?parents ~info t k =
+    remove ?clear ?retries ?allow_empty ?parents ~info t k >>= fail "remove_exn"
 
-  let set ?retries ?allow_empty ?parents ~info t k v =
+  let set ?clear ?retries ?allow_empty ?parents ~info t k v =
     let v = Tree.of_contents v in
-    set_tree t k ?retries ?allow_empty ?parents ~info v
+    set_tree t k ?clear ?retries ?allow_empty ?parents ~info v
 
-  let set_exn ?retries ?allow_empty ?parents ~info t k v =
-    set t k ?retries ?allow_empty ?parents ~info v >>= fail "set_exn"
+  let set_exn ?clear ?retries ?allow_empty ?parents ~info t k v =
+    set t k ?clear ?retries ?allow_empty ?parents ~info v >>= fail "set_exn"
 
   let test_and_set_tree_once ~test root key ~current_tree ~new_tree =
     match (test, current_tree) with
@@ -857,44 +859,51 @@ module Make (B : Backend.S) = struct
         if Tree.equal test v then set_tree_once root key ~new_tree ~current_tree
         else err_test current_tree
 
-  let test_set_and_get_tree ?(retries = 13) ?allow_empty ?parents ~info t k
-      ~test ~set =
+  let test_set_and_get_tree ?clear ?(retries = 13) ?allow_empty ?parents ~info t
+      k ~test ~set =
     [%log.debug "test-and-set %a" pp_path k];
     retry ~retries @@ fun () ->
-    update t k ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
+    update t k ?clear ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
     @@ fun _tree -> Lwt.return set
 
-  let test_set_and_get_tree_exn ?retries ?allow_empty ?parents ~info t k ~test
-      ~set =
-    test_set_and_get_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+  let test_set_and_get_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k
+      ~test ~set =
+    test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set
     >>= fail "test_set_and_get_tree_exn"
 
-  let test_set_and_get ?retries ?allow_empty ?parents ~info t k ~test ~set =
+  let test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set =
     let test = Option.map Tree.of_contents test in
     let set = Option.map Tree.of_contents set in
-    test_set_and_get_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+    test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set
 
-  let test_set_and_get_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
-    test_set_and_get ?retries ?allow_empty ?parents ~info t k ~test ~set
+  let test_set_and_get_exn ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set =
+    test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
     >>= fail "test_set_and_get_exn"
 
-  let test_and_set_tree ?(retries = 13) ?allow_empty ?parents ~info t k ~test
-      ~set =
+  let test_and_set_tree ?clear ?(retries = 13) ?allow_empty ?parents ~info t k
+      ~test ~set =
     [%log.debug "test-and-set %a" pp_path k];
     ignore_commit
-    @@ test_set_and_get_tree ~retries ?allow_empty ?parents ~info t k ~test ~set
+    @@ test_set_and_get_tree ~retries ?clear ?allow_empty ?parents ~info t k
+         ~test ~set
 
-  let test_and_set_tree_exn ?retries ?allow_empty ?parents ~info t k ~test ~set
-      =
-    test_and_set_tree ?retries ?allow_empty ?parents ~info t k ~test ~set
+  let test_and_set_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k
+      ~test ~set =
+    test_and_set_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
     >>= fail "test_and_set_tree_exn"
 
-  let test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set =
+  let test_and_set ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set =
     ignore_commit
-    @@ test_set_and_get ?retries ?allow_empty ?parents ~info t k ~test ~set
+    @@ test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t k ~test
+         ~set
 
-  let test_and_set_exn ?retries ?allow_empty ?parents ~info t k ~test ~set =
-    test_and_set ?retries ?allow_empty ?parents ~info t k ~test ~set
+  let test_and_set_exn ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set =
+    test_and_set ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
     >>= fail "test_and_set_exn"
 
   let merge_once ~old root key ~current_tree ~new_tree =
@@ -903,25 +912,27 @@ module Make (B : Backend.S) = struct
     | Ok tr -> set_tree_once root key ~new_tree:tr ~current_tree
     | Error e -> write_error (e :> write_error)
 
-  let merge_tree ?(retries = 13) ?allow_empty ?parents ~info ~old t k tree =
+  let merge_tree ?clear ?(retries = 13) ?allow_empty ?parents ~info ~old t k
+      tree =
     [%log.debug "merge %a" pp_path k];
     ignore_commit
     @@ retry ~retries
     @@ fun () ->
-    update t k ?allow_empty ?parents ~info (merge_once ~old) @@ fun _tree ->
-    Lwt.return tree
+    update t k ?clear ?allow_empty ?parents ~info (merge_once ~old)
+    @@ fun _tree -> Lwt.return tree
 
-  let merge_tree_exn ?retries ?allow_empty ?parents ~info ~old t k tree =
-    merge_tree ?retries ?allow_empty ?parents ~info ~old t k tree
+  let merge_tree_exn ?clear ?retries ?allow_empty ?parents ~info ~old t k tree =
+    merge_tree ?clear ?retries ?allow_empty ?parents ~info ~old t k tree
     >>= fail "merge_tree_exn"
 
-  let merge ?retries ?allow_empty ?parents ~info ~old t k v =
+  let merge ?clear ?retries ?allow_empty ?parents ~info ~old t k v =
     let old = Option.map Tree.of_contents old in
     let v = Option.map Tree.of_contents v in
-    merge_tree ?retries ?allow_empty ?parents ~info ~old t k v
+    merge_tree ?clear ?retries ?allow_empty ?parents ~info ~old t k v
 
-  let merge_exn ?retries ?allow_empty ?parents ~info ~old t k v =
-    merge ?retries ?allow_empty ?parents ~info ~old t k v >>= fail "merge_exn"
+  let merge_exn ?clear ?retries ?allow_empty ?parents ~info ~old t k v =
+    merge ?clear ?retries ?allow_empty ?parents ~info ~old t k v
+    >>= fail "merge_exn"
 
   let mem t k = tree t >>= fun tree -> Tree.mem tree k
   let mem_tree t k = tree t >>= fun tree -> Tree.mem_tree tree k
@@ -949,7 +960,7 @@ module Make (B : Backend.S) = struct
   let list t k = tree t >>= fun tree -> Tree.list tree k
   let kind t k = tree t >>= fun tree -> Tree.kind tree k
 
-  let with_tree ?(retries = 13) ?allow_empty ?parents
+  let with_tree ?clear ?(retries = 13) ?allow_empty ?parents
       ?(strategy = `Test_and_set) ~info t key f =
     let done_once = ref false in
     let rec aux n old_tree =
@@ -959,10 +970,10 @@ module Make (B : Backend.S) = struct
         let* new_tree = f old_tree in
         match (strategy, new_tree) with
         | `Set, Some tree ->
-            set_tree t key ~retries ?allow_empty ?parents tree ~info
-        | `Set, None -> remove t key ~retries ?allow_empty ~info ?parents
+            set_tree ?clear t key ~retries ?allow_empty ?parents tree ~info
+        | `Set, None -> remove ?clear t key ~retries ?allow_empty ~info ?parents
         | `Test_and_set, _ -> (
-            test_and_set_tree t key ~retries ?allow_empty ?parents ~info
+            test_and_set_tree ?clear t key ~retries ?allow_empty ?parents ~info
               ~test:old_tree ~set:new_tree
             >>= function
             | Error (`Test_was tr) when retries > 0 && n <= retries ->
@@ -970,8 +981,8 @@ module Make (B : Backend.S) = struct
                 aux (n + 1) tr
             | e -> Lwt.return e)
         | `Merge, _ -> (
-            merge_tree ~old:old_tree ~retries ?allow_empty ?parents ~info t key
-              new_tree
+            merge_tree ?clear ~old:old_tree ~retries ?allow_empty ?parents ~info
+              t key new_tree
             >>= function
             | Ok _ as x -> Lwt.return x
             | Error (`Conflict _) when retries > 0 && n <= retries ->
@@ -989,8 +1000,9 @@ module Make (B : Backend.S) = struct
     let* old_tree = find_tree t key in
     aux 0 old_tree
 
-  let with_tree_exn ?retries ?allow_empty ?parents ?strategy ~info f t key =
-    with_tree ?retries ?allow_empty ?strategy ?parents ~info f t key
+  let with_tree_exn ?clear ?retries ?allow_empty ?parents ?strategy ~info f t
+      key =
+    with_tree ?clear ?retries ?allow_empty ?strategy ?parents ~info f t key
     >>= fail "with_tree_exn"
 
   let clone ~src ~dst =
