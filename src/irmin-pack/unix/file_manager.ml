@@ -271,28 +271,27 @@ struct
     | Some lower -> Lower.reload ~volume_num lower
     | None -> Ok ()
 
-  let cleanup ~root ~generation ~chunk_start_idx ~chunk_num =
-    let files = Array.to_list (Sys.readdir root) in
-    let to_remove =
-      List.filter
-        (fun filename ->
-          match Irmin_pack.Layout.Classification.Upper.v filename with
-          | `Unknown | `Branch | `Control | `Dict | `V1_or_v2_pack -> false
-          | `Prefix g | `Mapping g -> g <> generation
-          | `Suffix idx ->
-              idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
-          | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp -> true)
-        files
+  let cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower =
+    let () =
+      Sys.readdir root
+      |> Array.to_list
+      |> List.filter (fun filename ->
+             match Irmin_pack.Layout.Classification.Upper.v filename with
+             | `Unknown | `Branch | `Control | `Dict | `V1_or_v2_pack -> false
+             | `Prefix g | `Mapping g -> g <> generation
+             | `Suffix idx ->
+                 idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
+             | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp -> true)
+      |> List.iter (fun residual ->
+             let filename = Filename.concat root residual in
+             [%log.debug "Remove residual file %s" filename];
+             match Io.unlink filename with
+             | Ok () -> ()
+             | Error (`Sys_error error) ->
+                 [%log.warn
+                   "Could not remove residual file %s: %s" filename error])
     in
-    List.iter
-      (fun residual ->
-        let filename = Filename.concat root residual in
-        [%log.debug "Remove residual file %s" filename];
-        match Io.unlink filename with
-        | Ok () -> ()
-        | Error (`Sys_error error) ->
-            [%log.warn "Could not remove residual file %s: %s" filename error])
-      to_remove
+    Option.might (Lower.cleanup ~generation) lower
 
   let add_volume_and_update_control lower control =
     let open Result_syntax in
@@ -323,7 +322,6 @@ struct
     in
     let chunk_start_idx = pl.chunk_start_idx in
     let chunk_num = pl.chunk_num in
-    cleanup ~root ~generation ~chunk_start_idx ~chunk_num;
     (* 1. Create a ref for dependency injections for auto flushes *)
     let instance = ref None in
     let get_instance () =
@@ -377,6 +375,8 @@ struct
     in
     (* 3. Open lower layer *)
     let* lower = make_lower () in
+    (* 4. Perform any GC-related cleanups *)
+    let* () = cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower in
     let t =
       {
         dict;
@@ -814,7 +814,7 @@ struct
             e)
 
   let swap t ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root =
+      ~suffix_dead_bytes ~latest_gc_target_offset ~volume =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap gen %d; suffix start %a; chunk start idx %d; chunk num \
@@ -861,15 +861,15 @@ struct
 
     (* Step 3. Swap volume and reload lower if needed *)
     let* () =
-      match volume_root with
+      match volume with
       | None -> Ok ()
-      | Some root ->
-          let control_gc_tmp =
-            Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
-          in
-          let control = Irmin_pack.Layout.V5.Volume.control ~root in
-          let* () = Io.move_file ~src:control_gc_tmp ~dst:control in
-          reload_lower t ~volume_num:pl.volume_num
+      | Some volume -> (
+          match t.lower with
+          | None ->
+              assert false
+              (* Programmer error if lower does not exist but volume is given *)
+          | Some lower ->
+              Lower.swap ~volume ~generation ~volume_num:pl.volume_num lower)
     in
 
     let span2 = Mtime_clock.count c0 |> Mtime.Span.to_us in
@@ -952,7 +952,8 @@ struct
     let generation = generation t in
     let chunk_start_idx = pl.chunk_start_idx in
     let chunk_num = pl.chunk_num in
-    cleanup ~root ~generation ~chunk_start_idx ~chunk_num
+    let lower = t.lower in
+    cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower
 
   let create_one_commit_store t config ~generation ~latest_gc_target_offset
       ~suffix_start_offset commit_key =

@@ -138,11 +138,14 @@ module Classification = struct
   end
 
   module Volume = struct
-    type t = [ `Mapping | `Data | `Control | `Unknown ] [@@deriving irmin]
+    type t = [ `Mapping | `Data | `Control | `Control_tmp of int | `Unknown ]
+    [@@deriving irmin]
 
     let v s : t =
       match String.split_on_char '.' s with
       | [ "volume"; "control" ] -> `Control
+      | [ "volume"; g; "control" ] when is_number g ->
+          `Control_tmp (int_of_string g)
       | [ "volume"; "mapping" ] -> `Mapping
       | [ "volume"; "data" ] -> `Data
       | _ -> `Unknown

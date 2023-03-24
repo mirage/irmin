@@ -257,9 +257,8 @@ module type S = sig
   val version : root:string -> (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 
-  val cleanup : t -> unit
-  (** [cleanup t] removes any residual files in directory [root] not needed by
-      the control file. *)
+  val cleanup : t -> (unit, [> `Sys_error of string ]) result
+  (** [cleanup t] performs cleanup operations for files related to GC. *)
 
   val swap :
     t ->
@@ -269,13 +268,13 @@ module type S = sig
     chunk_num:int ->
     suffix_dead_bytes:int63 ->
     latest_gc_target_offset:int63 ->
-    volume_root:string option ->
+    volume:Lower.volume_identifier option ->
     (unit, [> Errs.t ]) result
   (** Swaps to using files from the GC [generation]. The values
       [suffix_start_offset], [chunk_start_idx], [chunk_num], and
       [suffix_dead_bytes] are used to properly load and read the suffix after a
-      GC. The value [volume_root] is used to reload the lower if it was modified
-      by the GC. The control file is also updated on disk. *)
+      GC. The value [volume] is used to reload the lower if it was modified by
+      the GC. The control file is also updated on disk. *)
 
   val readonly : t -> bool
   val generation : t -> int

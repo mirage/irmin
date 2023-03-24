@@ -127,7 +127,7 @@ module Make (Args : Gc_args.S) = struct
     assert (chunk_num >= 1);
 
     Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset ~volume_root:modified_volume
+      ~suffix_dead_bytes ~latest_gc_target_offset ~volume:modified_volume
 
   let unlink_all { root; generation; _ } removable_chunk_idxs =
     (* Unlink suffix chunks *)
@@ -208,7 +208,8 @@ module Make (Args : Gc_args.S) = struct
     | Error (`Msg error) -> Error (`Corrupted_gc_result_file error)
     | Ok ok -> ok |> Result.map_error gc_error
 
-  let clean_after_abort t = Fm.cleanup t.fm
+  let clean_after_abort t =
+    Fm.cleanup t.fm |> Errs.log_if_error "clean_after_abort"
 
   let finalise ~wait t =
     match t.resulting_stats with
