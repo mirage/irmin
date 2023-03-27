@@ -43,7 +43,7 @@ module Worker : sig
   type t
 
   val create : string -> t
-  val incr_objects_traversed : t -> t
+  val set_objects_traversed : t -> int -> t
   val add_suffix_transfer : t -> int63 -> t
   val add_file_size : t -> string -> int63 -> t
   val finish_current_step : t -> string -> t

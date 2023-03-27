@@ -26,6 +26,7 @@
   - GC now supports stores imported V1/V2 stores, in presence of a lower layer
     only. (#2190, @art-w, @Firobe)
   - Upgrade on-disk format to version 5. (#2184, @metanivek)
+  - Archive to lower volume does not copy orphaned commits. (#2215, @art-w)
 
 ### Fixed
 - **irmin-pack**

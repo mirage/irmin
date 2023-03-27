@@ -189,10 +189,8 @@ module Worker = struct
       prev_ocaml_gc = ocaml_gc;
     }
 
-  let incr_objects_traversed t =
-    let stats =
-      { t.stats with objects_traversed = Int63.succ t.stats.objects_traversed }
-    in
+  let set_objects_traversed t v =
+    let stats = { t.stats with objects_traversed = Int63.of_int v } in
     { t with stats }
 
   let add_suffix_transfer t count =

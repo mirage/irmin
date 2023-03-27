@@ -123,14 +123,13 @@ module type S = sig
   val archive_seq_exn :
     upper_root:string ->
     generation:int ->
-    to_archive:string Seq.t ->
-    off:int63 ->
+    to_archive:(int63 * string Seq.t) list ->
     t ->
     volume_identifier
-  (** [archive_seq ~upper_root ~generation ~to_archive ~off t] is called by the
-      GC worker during the creation of the new [generation] to archive
-      [to_archive] at offset [off] in the lower layer and returns the identifier
-      of the volume where data was appended.
+  (** [archive_seq ~upper_root ~generation ~to_archive t] is called by the GC
+      worker during the creation of the new [generation] to archive [to_archive]
+      in the lower layer and returns the identifier of the volume where data was
+      appended.
 
       It is the only write operation allowed on the lower layer, and it makes no
       observable change as the control file is left untouched : instead new
