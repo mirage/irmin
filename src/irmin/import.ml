@@ -132,6 +132,15 @@ module Seq = struct
     match seq1 () with
     | Nil -> seq2 ()
     | Cons (x, next) -> Cons (x, append next seq2)
+
+  (* Since 4.14 *)
+  let rec for_all2 f xs ys =
+    match xs () with
+    | Nil -> true
+    | Cons (x, xs) -> (
+        match ys () with
+        | Nil -> true
+        | Cons (y, ys) -> f x y && for_all2 f xs ys)
 end
 
 let shuffle state arr =

@@ -108,6 +108,13 @@ val root : Spec.t -> string key
 type t
 (** The type for configurations. *)
 
+val pp : t Fmt.t
+(** [pp] is the pretty printer for configuration values. *)
+
+val equal : t -> t -> bool
+(** [equal] is the equality for configuration values. Two values are equal if
+    they have the same [pp] representation. *)
+
 val spec : t -> Spec.t
 (** [spec c] is the specification associated with [c] *)
 
