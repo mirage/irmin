@@ -2,6 +2,10 @@
 
 ### Added
 
+- **irmin**
+  - Add `Conf.pp` and `Conf.equal` to print and compare configuration values
+    (#2227, @samoht)
+
 - **irmin-pack**
   - Add configuration option, `lower_root`, to specify a path for archiving data
     during a GC. (#2177, @metanivek)
