@@ -52,7 +52,7 @@ type base_error =
   | `Rw_not_allowed
   | `Migration_needed
   | `Migration_to_lower_not_allowed
-  | `Corrupted_control_file
+  | `Corrupted_control_file of string
   | `Sys_error of string
   | `V3_store_from_the_future
   | `Gc_forbidden_during_batch

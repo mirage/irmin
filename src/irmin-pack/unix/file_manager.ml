@@ -809,7 +809,7 @@ struct
         | Error `Not_a_file -> Error `Invalid_layout
         | Error `Closed -> assert false
         | Error
-            ( `Io_misc _ | `Corrupted_control_file
+            ( `Io_misc _ | `Corrupted_control_file _
             | `Unknown_major_pack_version _ ) as e ->
             e)
 

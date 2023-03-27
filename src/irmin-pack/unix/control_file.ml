@@ -42,34 +42,36 @@ module Serde = struct
 
     val of_bin_string :
       string ->
+      string ->
       ( payload,
-        [> `Corrupted_control_file | `Unknown_major_pack_version of string ] )
+        [> `Corrupted_control_file of string
+        | `Unknown_major_pack_version of string ] )
       result
 
     val raw_of_bin_string :
       string ->
+      string ->
       ( raw_payload,
-        [> `Corrupted_control_file | `Unknown_major_pack_version of string ] )
+        [> `Corrupted_control_file of string
+        | `Unknown_major_pack_version of string ] )
       result
 
     val to_bin_string : payload -> string
   end
 
-  let extract_version_and_payload s =
+  let extract_version_and_payload ctx s =
     let open Result_syntax in
     let len = String.length s in
     let* left, right =
       try Ok (String.sub s 0 8, String.sub s 8 (len - 8))
-      with Invalid_argument _ -> Error `Corrupted_control_file
+      with Invalid_argument _ -> Error (`Corrupted_control_file ctx)
     in
     let+ version =
       match Version.of_bin left with
       | None -> Error (`Unknown_major_pack_version left)
       | Some (`V1 | `V2) -> assert false (* TODO: create specific error *)
       | Some ((`V3 | `V4 | `V5) as x) ->
-          if len > Io.Unix.page_size then
-            (* TODO: make this a more specific error *)
-            Error `Corrupted_control_file
+          if len > Io.Unix.page_size then Error (`Corrupted_control_file ctx)
           else Ok x
     in
     (version, right)
@@ -131,9 +133,9 @@ module Serde = struct
             let payload = Plv5.set_checksum payload in
             Version.to_bin `V5 ^ Plv5.to_bin_string payload
 
-      let of_bin_string s =
+      let of_bin_string ctx s =
         let open Result_syntax in
-        let* version, payload = extract_version_and_payload s in
+        let* version, payload = extract_version_and_payload ctx s in
         let route_version () =
           match version with
           | `V3 ->
@@ -154,7 +156,7 @@ module Serde = struct
         in
         match route_version () with
         | Ok _ as x -> x
-        | Error _ -> Error `Corrupted_control_file
+        | Error _ -> Error (`Corrupted_control_file ctx)
     end
 
     module Latest = Data.Plv5
@@ -210,11 +212,11 @@ module Serde = struct
         volume_num = 0;
       }
 
-    let of_bin_string string =
+    let of_bin_string ctx string =
       let open Result_syntax in
-      let* payload = Data.of_bin_string string in
+      let* payload = Data.of_bin_string ctx string in
       match payload with
-      | Invalid _ -> Error `Corrupted_control_file
+      | Invalid _ -> Error (`Corrupted_control_file ctx)
       | Valid (V3 payload) -> Ok (upgrade_from_v3 payload)
       | Valid (V4 payload) -> Ok (upgrade_from_v4 payload)
       | Valid (V5 payload) -> Ok payload
@@ -260,9 +262,9 @@ module Serde = struct
             let payload = Plv5.set_checksum payload in
             Version.to_bin `V5 ^ Plv5.to_bin_string payload
 
-      let of_bin_string s =
+      let of_bin_string ctx s =
         let open Result_syntax in
-        let* version, payload = extract_version_and_payload s in
+        let* version, payload = extract_version_and_payload ctx s in
         let route_version () =
           match version with
           | `V3 | `V4 -> assert false
@@ -275,7 +277,7 @@ module Serde = struct
         in
         match route_version () with
         | Ok _ as x -> x
-        | Error _ -> Error `Corrupted_control_file
+        | Error _ -> Error (`Corrupted_control_file ctx)
     end
 
     module Payload = Data.Plv5
@@ -283,11 +285,11 @@ module Serde = struct
     type payload = Payload.t
     type raw_payload = Data.t
 
-    let of_bin_string string =
+    let of_bin_string ctx string =
       let open Result_syntax in
-      let* payload = Data.of_bin_string string in
+      let* payload = Data.of_bin_string ctx string in
       match payload with
-      | Invalid _ -> Error `Corrupted_control_file
+      | Invalid _ -> Error (`Corrupted_control_file ctx)
       | Valid (V5 payload) -> Ok payload
 
     let raw_of_bin_string = Data.of_bin_string
@@ -328,7 +330,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
   let read io =
     let open Result_syntax in
     let* string = Io.read_all_to_string io in
-    Serde.of_bin_string string
+    Serde.of_bin_string (Io.path io) string
 
   let create_rw ~path ~tmp_path ~overwrite (payload : payload) =
     let open Result_syntax in
@@ -367,7 +369,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:true in
     let* string = Io.read_all_to_string io in
-    let* payload = Serde.raw_of_bin_string string in
+    let* payload = Serde.raw_of_bin_string path string in
     let+ () = Io.close io in
     payload
 
