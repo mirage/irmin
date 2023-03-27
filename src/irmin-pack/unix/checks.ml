@@ -50,6 +50,17 @@ let path =
 
 let deprecated_info = (Cmdliner.Term.info [@alert "-deprecated"])
 
+let ppf_or_null ppf =
+  let null =
+    match Sys.os_type with
+    | "Unix" | "Cygwin" -> "/dev/null"
+    | "Win32" -> "NUL"
+    | _ -> invalid_arg "invalid os type"
+  in
+  match ppf with
+  | Some p -> p
+  | None -> open_out null |> Format.formatter_of_out_channel
+
 module Make (Store : Store) = struct
   module Hash = Store.Hash
   module Index = Pack_index.Make (Hash)
@@ -177,11 +188,12 @@ module Make (Store : Store) = struct
       Conf.init ~readonly:false ~fresh:false ~no_migrate:true ~indexing_strategy
         root
 
-    let handle_result ?name res =
+    let handle_result ?ppf ?name res =
+      let ppf = ppf_or_null ppf in
       let name = match name with Some x -> x ^ ": " | None -> "" in
       match res with
-      | Ok (`Fixed n) -> Printf.printf "%sOk -- fixed %d\n%!" name n
-      | Ok `No_error -> Printf.printf "%sOk\n%!" name
+      | Ok (`Fixed n) -> Fmt.pf ppf "%sOk -- fixed %d\n%!" name n
+      | Ok `No_error -> Fmt.pf ppf "%sOk\n%!" name
       | Error (`Cannot_fix x) ->
           Printf.eprintf "%sError -- cannot fix: %s\n%!" name x
       | Error (`Corrupted x) ->
@@ -203,7 +215,7 @@ module Make (Store : Store) = struct
       in
       let* result = Store.integrity_check ?ppf ~auto_repair ~heads repo in
       let+ () = Store.Repo.close repo in
-      handle_result ?name:None result
+      handle_result ?ppf ?name:None result
 
     let heads =
       let open Cmdliner.Arg in
@@ -377,18 +389,8 @@ module Integrity_checks
             and type Schema.Hash.t = XKey.hash)
     (Index : Pack_index.S) =
 struct
-  let null =
-    match Sys.os_type with
-    | "Unix" | "Cygwin" -> "/dev/null"
-    | "Win32" -> "NUL"
-    | _ -> invalid_arg "invalid os type"
-
-  let set_ppf = function
-    | Some p -> p
-    | None -> open_out null |> Format.formatter_of_out_channel
-
   let check_always ?ppf ~auto_repair ~check index =
-    let ppf = set_ppf ppf in
+    let ppf = ppf_or_null ppf in
     Fmt.pf ppf "Running the integrity_check.\n%!";
     let nb_absent = ref 0 in
     let nb_corrupted = ref 0 in
@@ -437,7 +439,7 @@ struct
     result
 
   let check_minimal ?ppf ~pred ~iter ~check ~recompute_hash t =
-    let ppf = set_ppf ppf in
+    let ppf = ppf_or_null ppf in
     Fmt.pf ppf "Running the integrity_check.\n%!";
     let errors = ref [] in
     let counter, (progress_contents, progress_nodes, progress_commits) =
@@ -535,7 +537,7 @@ struct
         !errors
 
   let check_inodes ?ppf ~iter ~pred ~check t =
-    let ppf = set_ppf ppf in
+    let ppf = ppf_or_null ppf in
     Fmt.pf ppf "Check integrity for inodes.\n%!";
     let counter, (_, progress_nodes, progress_commits) =
       Utils.Object_counter.start ppf

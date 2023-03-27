@@ -70,6 +70,7 @@ module type S = sig
           unit Lwt.t
 
     val handle_result :
+      ?ppf:Format.formatter ->
       ?name:string ->
       ( [< `Fixed of int | `No_error ],
         [< `Cannot_fix of string | `Corrupted of int ] )
