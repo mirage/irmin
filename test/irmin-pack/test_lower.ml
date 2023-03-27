@@ -277,6 +277,9 @@ module Store_tc = struct
     let* main = Store.main repo in
     let* a = Store.get main [ "a" ] in
     Alcotest.(check string) "migrated commit" "a" a;
+    Alcotest.(check bool)
+      "no latest GC commit" true
+      (Option.is_none (Store.Gc.latest_gc_target repo));
     let* () = Store.set_exn ~info main [ "a" ] "b" in
     let* () = Store.Repo.close repo in
     (* Reopen with the same lower and check reads *)
