@@ -221,7 +221,9 @@ struct
     else
       let mapping = Layout.mapping ~generation ~root in
       let data = Layout.prefix ~root ~generation in
-      let+ prefix = Sparse.open_ro ~mapping ~data in
+      let* mapping_size = Io.size_of_path mapping in
+      let mapping_size = Int63.to_int mapping_size in
+      let+ prefix = Sparse.open_ro ~mapping_size ~mapping ~data in
       Some prefix
 
   let reopen_prefix t ~generation =

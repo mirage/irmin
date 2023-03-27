@@ -225,6 +225,7 @@ module Make (Args : Gc_args.S) = struct
 
   type gc_results = {
     suffix_params : suffix_params;
+    mapping_size : int63;
     removable_chunk_idxs : int list;
     modified_volume : Lower.volume_identifier option;
     stats : Stats.Latest_gc.worker;
@@ -288,14 +289,14 @@ module Make (Args : Gc_args.S) = struct
         Irmin_pack.Layout.V4.mapping ~root:new_files_path ~generation
       in
       let data = Irmin_pack.Layout.V4.prefix ~root:new_files_path ~generation in
-      let () =
+      let mapping_size =
         let prefix = Sparse.Ao.create ~mapping ~data |> Errs.raise_if_error in
         (* Step 5. Transfer to the new prefix, flush and close. *)
         [%log.debug "GC: transfering to the new prefix"];
         stats := Gc_stats.Worker.finish_current_step !stats "prefix: transfer";
-        Errors.finalise_exn (fun _outcome ->
+        Errors.finalise_exn (fun outcome ->
             Sparse.Ao.flush prefix
-            >>= (fun _ -> Sparse.Ao.close prefix)
+            >>= (fun _ -> Sparse.Ao.close prefix >>= fun _ -> Ok outcome)
             |> Errs.log_if_error "GC: Close prefix after data copy")
         @@ fun () ->
         (* Step 5.1. Transfer all. *)
@@ -304,7 +305,8 @@ module Make (Args : Gc_args.S) = struct
             let len = Int63.of_int len in
             let str = Dispatcher.read_seq_exn dispatcher ~off ~len in
             Sparse.Ao.append_seq_exn prefix ~off str)
-          live_entries
+          live_entries;
+        Int63.to_int (Sparse.Ao.mapping_size prefix)
       in
       (* Step 5.2. Update the parent commits to be dangling: reopen the new
          prefix, this time in write-only as we have to
@@ -312,7 +314,9 @@ module Make (Args : Gc_args.S) = struct
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "prefix: rewrite commit parents";
-      let prefix = Sparse.Wo.open_wo ~mapping ~data |> Errs.raise_if_error in
+      let prefix =
+        Sparse.Wo.open_wo ~mapping_size ~mapping ~data |> Errs.raise_if_error
+      in
       Errors.finalise_exn (fun _outcome ->
           Sparse.Wo.fsync prefix
           >>= (fun _ -> Sparse.Wo.close prefix)
@@ -326,7 +330,7 @@ module Make (Args : Gc_args.S) = struct
     let () = report_new_file_sizes ~root ~generation stats |> ignore in
 
     (* Step 6. Calculate post-GC suffix parameters. *)
-    let suffix_params, removable_chunk_idxs =
+    let suffix_params, mapping_size, removable_chunk_idxs =
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "suffix: calculate new values";
@@ -387,6 +391,7 @@ module Make (Args : Gc_args.S) = struct
           dead_bytes = suffix_dead_bytes;
           chunk_start_idx;
         },
+        mapping_size,
         removable_chunk_idxs )
     in
 
@@ -421,7 +426,13 @@ module Make (Args : Gc_args.S) = struct
 
     (* Step 8. Finalise stats and return. *)
     let stats = Gc_stats.Worker.finalise !stats in
-    { suffix_params; removable_chunk_idxs; modified_volume; stats }
+    {
+      suffix_params;
+      mapping_size;
+      removable_chunk_idxs;
+      modified_volume;
+      stats;
+    }
 
   let write_gc_output ~root ~generation output =
     let open Result_syntax in

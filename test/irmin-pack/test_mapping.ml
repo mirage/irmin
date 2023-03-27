@@ -42,9 +42,12 @@ let process_on_disk pairs =
       let off = Int63.of_int off in
       Sparse_file.Ao.append_seq_exn sparse ~off str)
     (List.rev pairs);
+  let mapping_size = Int63.to_int (Sparse_file.Ao.mapping_size sparse) in
   Sparse_file.Ao.flush sparse |> Errs.raise_if_error;
   Sparse_file.Ao.close sparse |> Errs.raise_if_error;
-  let sparse = Sparse_file.open_ro ~mapping ~data |> Errs.raise_if_error in
+  let sparse =
+    Sparse_file.open_ro ~mapping_size ~mapping ~data |> Errs.raise_if_error
+  in
   let l = ref [] in
   let f ~off ~len = l := (Int63.to_int off, len) :: !l in
   Sparse_file.iter sparse f |> Errs.raise_if_error;

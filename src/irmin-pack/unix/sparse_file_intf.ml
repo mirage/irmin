@@ -23,9 +23,15 @@ module type S = sig
   type t
   type open_error := [ Io.open_error | `Corrupted_mapping_file of string ]
 
-  val open_ro : mapping:string -> data:string -> (t, [> open_error ]) result
-  (** [open_ro ~mapping ~data] returns a new read-only view of the sparse file,
-      represented on disk by two files named [mapping] and [data]. *)
+  val open_ro :
+    mapping_size:int ->
+    mapping:string ->
+    data:string ->
+    (t, [> open_error ]) result
+  (** [open_ro ~mapping_size ~mapping ~data] returns a new read-only view of the
+      sparse file, represented on disk by two files named [mapping] and [data].
+      The mapping file is expected to have size at least [mapping_size] (and the
+      rest is ignored if the file is larger). *)
 
   val close : t -> (unit, [> Io.close_error ]) result
   (** Close the underlying files. *)
@@ -60,9 +66,13 @@ module type S = sig
   module Wo : sig
     type t
 
-    val open_wo : mapping:string -> data:string -> (t, [> open_error ]) result
-    (** [open_wo ~mapping ~data] returns a write-only instance of the sparse
-        file.
+    val open_wo :
+      mapping_size:int ->
+      mapping:string ->
+      data:string ->
+      (t, [> open_error ]) result
+    (** [open_wo ~mapping_size ~mapping ~data] returns a write-only instance of
+        the sparse file.
 
         Note: This is unsafe and is only used by the GC to mark the parent
         commits as dangling. One must ensure that no read-only instance is
