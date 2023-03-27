@@ -573,7 +573,7 @@ struct
             {
               suffix_start_offset = end_offset;
               generation;
-              latest_gc_target_offset = end_offset;
+              latest_gc_target_offset = Int63.zero;
               suffix_dead_bytes = Int63.zero;
             };
       }

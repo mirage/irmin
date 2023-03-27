@@ -320,6 +320,9 @@ module Maker (Config : Conf.S) = struct
             | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
             | T14 | T15 ->
                 assert false
+            | Gced { latest_gc_target_offset = offset; _ }
+              when offset = Int63.zero ->
+                None
             | Gced { latest_gc_target_offset = offset; _ } -> (
                 let entry =
                   Commit.CA.read_and_decode_entry_prefix ~off:offset
