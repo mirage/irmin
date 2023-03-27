@@ -159,18 +159,15 @@ module Store_tc = struct
 
   let test_dir = "_build"
 
-  let mkdir path =
-    Common.rm_dir path;
-    Io.mkdir path
-
   let fresh_roots =
     let c = ref 0 in
-    fun () ->
+    fun ?(make_root = true) () ->
       incr c;
       let name =
         Filename.concat test_dir ("test_lower_store_" ^ string_of_int !c)
       in
-      let$ _ = mkdir name in
+      Common.rm_dir name;
+      let$ _ = if make_root then Io.mkdir name else Ok () in
       let lower = Filename.concat name "lower" in
       Common.rm_dir lower;
       (name, lower)
@@ -216,6 +213,22 @@ module Store_tc = struct
   let test_create () =
     let* repo = init () in
     (* A newly created store with a lower should have an empty volume. *)
+    let volume_num = count_volumes repo in
+    Alcotest.(check int) "volume_num is 1" 1 volume_num;
+    Store.Repo.close repo
+
+  let test_create_nested () =
+    let root, lower_root = fresh_roots ~make_root:false () in
+    let* repo = config ~fresh:true ~lower_root root |> Store.Repo.v in
+    let volume_num = count_volumes repo in
+    Alcotest.(check int) "volume_num is 1" 1 volume_num;
+    Store.Repo.close repo
+
+  let test_open_rw_lower () =
+    let root, lower_root = fresh_roots ~make_root:false () in
+    let* repo = config ~fresh:true root |> Store.Repo.v in
+    let* () = Store.Repo.close repo in
+    let* repo = config ~fresh:false ~lower_root root |> Store.Repo.v in
     let volume_num = count_volumes repo in
     Alcotest.(check int) "volume_num is 1" 1 volume_num;
     Store.Repo.close repo
@@ -421,6 +434,8 @@ module Store = struct
     Alcotest_lwt.
       [
         quick_tc "create store" test_create;
+        quick_tc "create nested" test_create_nested;
+        quick_tc "open rw with lower" test_open_rw_lower;
         quick_tc "add volume with no lower" test_add_volume_wo_lower;
         quick_tc "add volume during gc" test_add_volume_during_gc;
         quick_tc "control file updated after add" test_add_volume_reopen;

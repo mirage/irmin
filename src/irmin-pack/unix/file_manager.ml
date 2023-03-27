@@ -453,6 +453,22 @@ struct
 
   (* File creation ********************************************************** *)
 
+  let create_lower_if_needed ~lower_root ~overwrite =
+    match lower_root with
+    | None -> Ok ()
+    | Some path -> (
+        match (Io.classify_path path, overwrite) with
+        | `Directory, false -> Ok ()
+        | `Directory, true ->
+            (* TODO: implement recursive delete for lower root *)
+            failwith
+              (Fmt.str
+                 "Lower root already exists but fresh = true in configuration. \
+                  Please manually remove %s."
+                 path)
+        | `No_such_file_or_directory, _ -> Io.mkdir path
+        | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory path))
+
   let create_rw ~overwrite config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
@@ -464,6 +480,7 @@ struct
       | true, `Directory -> Ok ()
       | _, `No_such_file_or_directory -> Io.mkdir root
     in
+    let* () = create_lower_if_needed ~lower_root ~overwrite in
     let* control =
       let open Payload in
       let status = No_gc_yet in
@@ -578,6 +595,7 @@ struct
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let lower_root = Irmin_pack.Conf.lower_root config in
+    let* () = create_lower_if_needed ~lower_root ~overwrite:false in
     let* control =
       let path = Layout.control ~root in
       let tmp_path = Layout.control_tmp ~root in
