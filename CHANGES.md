@@ -2,6 +2,10 @@
 
 ### Added
 
+- **irmin**
+  - Add `Conf.pp` and `Conf.equal` to print and compare configuration values
+    (#2227, @samoht)
+
 - **irmin-pack**
   - Add configuration option, `lower_root`, to specify a path for archiving data
     during a GC. (#2177, @metanivek)
@@ -33,7 +37,7 @@
   - Unhandled exceptions in GC worker process are now reported as a failure
     (#2163, @metanivek)
   - Fix the silent mode for the integrity checks. (#2179, @icristescu)
-  
+
 ## 3.6.1 (2023-03-15)
 
 ### Fixed
@@ -47,7 +51,7 @@
 
 - **irmin-pack**
   - Clear LRU when calling `reload` after a GC (#2200, @metanivek)
-  
+
 ## 3.6.0 (2023-02-16)
 
 ### Changed

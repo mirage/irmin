@@ -14,6 +14,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open! Import
 
 module Univ = struct
   type t = exn
@@ -140,6 +141,24 @@ let get (_, d) k =
 
 let keys (_, conf) = M.to_seq conf |> Seq.map (fun (k, _) -> k)
 let with_spec (_, conf) spec = (spec, conf)
+
+let to_strings (_, conf) =
+  conf
+  |> M.to_seq
+  |> Seq.map (fun (K k, v) ->
+         ( k.name,
+           match k.of_univ v with
+           | Some v -> Type.to_string k.ty v
+           | None -> assert false ))
+
+let pp ppf t =
+  t |> to_strings |> List.of_seq |> Fmt.Dump.(list (pair string string)) ppf
+
+let equal t1 t2 =
+  t1 == t2
+  || Seq.for_all2
+       (fun (k1, v1) (k2, v2) -> String.equal k1 k2 && String.equal v1 v2)
+       (to_strings t1) (to_strings t2)
 
 (* ~root *)
 let root spec =
