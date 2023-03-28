@@ -5,6 +5,12 @@
 - **irmin**
   - Add `Conf.pp` and `Conf.equal` to print and compare configuration values
     (#2227, @samoht)
+  - Add a `clear` optional arguments to all function that adds a new commit:
+    `Commit.v`, `set`, `set_tree`, `remove`, `test_and_set`,
+    `test_and_set_tree`, `test_set_and_get`, `test_set_and_get_tree`, `merge`,
+    `merge_tree` and `with_tree`. This new argument allows to control whether
+    the tree caches are cleared up after objects are exported to disk during
+    the commit. (#2225, @samoht)
 
 - **irmin-pack**
   - Add configuration option, `lower_root`, to specify a path for archiving data
