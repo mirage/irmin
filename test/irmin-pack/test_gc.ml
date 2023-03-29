@@ -265,6 +265,13 @@ module type Gc_backend = sig
   val check_removed : t -> S.commit -> string -> unit Lwt.t
 end
 
+let rec check_async_unlinked ?(timeout = 3.141) file =
+  if timeout < 0.0 then false
+  else if Sys.file_exists file then (
+    Unix.sleepf 0.2;
+    check_async_unlinked ~timeout:(timeout -. 0.2) file)
+  else true
+
 module Gc_common (B : Gc_backend) = struct
   (** Check that gc preserves and deletes commits accordingly. *)
   let one_gc () =
@@ -392,8 +399,8 @@ module Gc_common (B : Gc_backend) = struct
     let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = S.Repo.close t.repo in
     Alcotest.(check bool)
-      "RW cleaned up" false
-      (Sys.file_exists (Filename.concat store_name "store.0.prefix"));
+      "RW cleaned up" true
+      (check_async_unlinked (Filename.concat store_name "store.0.prefix"));
     let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
@@ -404,8 +411,8 @@ module Gc_common (B : Gc_backend) = struct
     let* () = finalise_gc t in
     let* () = S.Repo.close t.repo in
     Alcotest.(check bool)
-      "unlink:true" false
-      (Sys.file_exists (Filename.concat store_name "store.1.suffix"));
+      "unlink:true" true
+      (check_async_unlinked (Filename.concat store_name "store.1.suffix"));
     let* t = B.init ~readonly:false ~fresh:false ~root:store_name () in
     let* () = B.check_gced t c1 "gced c1" in
     let* () = check_2 t c2 in
@@ -1222,8 +1229,8 @@ module Split = struct
     let* () = check_1 t c1 in
     let* () = check_2 t c2 in
     Alcotest.(check bool)
-      "Chunk0 removed" false
-      (Sys.file_exists (Filename.concat t.root "store.0.suffix"));
+      "Chunk0 removed" true
+      (check_async_unlinked (Filename.concat t.root "store.0.suffix"));
     [%log.debug "GC at c2"];
     let* () = start_gc ~unlink:true t c2 in
     let* () = finalise_gc t in
