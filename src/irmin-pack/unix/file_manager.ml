@@ -77,15 +77,13 @@ struct
   let register_suffix_consumer t ~after_flush =
     t.suffix_consumers <- { after_flush } :: t.suffix_consumers
 
-  let generation = function
-    | Payload.From_v1_v2_post_upgrade _ | Used_non_minimal_indexing_strategy
-    | No_gc_yet ->
-        0
-    | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
-    | T15 ->
-        (* Unreachable *)
-        assert false
-    | Gced x -> x.generation
+  let get_gced = function Payload.Gced x -> Some x | _ -> None
+
+  let generation payload =
+    match get_gced payload with Some x -> x.generation | None -> 0
+
+  let mapping_size payload =
+    match get_gced payload with Some x -> x.mapping_end_poff | None -> None
 
   let notify_reload_consumers consumers =
     List.fold_left
@@ -215,20 +213,24 @@ struct
 
   module Layout = Irmin_pack.Layout.V5
 
-  let open_prefix ~root ~generation =
+  let open_prefix ~root ~generation ~mapping_size =
     let open Result_syntax in
     if generation = 0 then Ok None
     else
       let mapping = Layout.mapping ~generation ~root in
       let data = Layout.prefix ~root ~generation in
-      let* mapping_size = Io.size_of_path mapping in
+      let* mapping_size =
+        match mapping_size with
+        | Some size -> Ok size
+        | None -> Io.size_of_path mapping
+      in
       let mapping_size = Int63.to_int mapping_size in
       let+ prefix = Sparse.open_ro ~mapping_size ~mapping ~data in
       Some prefix
 
-  let reopen_prefix t ~generation =
+  let reopen_prefix t ~generation ~mapping_size =
     let open Result_syntax in
-    let* some_prefix = open_prefix ~root:t.root ~generation in
+    let* some_prefix = open_prefix ~root:t.root ~generation ~mapping_size in
     match some_prefix with
     | None -> Ok ()
     | Some _ ->
@@ -312,12 +314,12 @@ struct
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     let indexing_strategy = Conf.indexing_strategy config in
     let pl : Payload.t = Control.payload control in
-    let generation =
+    let generation, mapping_size =
       match pl.status with
       | From_v1_v2_post_upgrade _ | No_gc_yet
       | Used_non_minimal_indexing_strategy ->
-          0
-      | Gced x -> x.generation
+          (0, None)
+      | Gced x -> (x.generation, x.mapping_end_poff)
       | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
       | T15 ->
           assert false
@@ -350,7 +352,7 @@ struct
       let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
       make_suffix ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
     in
-    let* prefix = open_prefix ~root ~generation in
+    let* prefix = open_prefix ~root ~generation ~mapping_size in
     let* dict =
       let path = Layout.dict ~root in
       let auto_flush_threshold =
@@ -437,7 +439,10 @@ struct
         in
         (* Step 3.2. Potentially reload prefix *)
         let* () =
-          if gen0 = gen1 then Ok () else reopen_prefix t ~generation:gen1
+          if gen0 = gen1 then Ok ()
+          else
+            reopen_prefix t ~generation:gen1
+              ~mapping_size:(mapping_size pl1.status)
         in
         (* Step 3.3. Potentially reload lower *)
         if gen0 = gen1 && pl0.volume_num = pl1.volume_num then Ok ()
@@ -577,6 +582,7 @@ struct
               generation;
               latest_gc_target_offset = Int63.zero;
               suffix_dead_bytes = Int63.zero;
+              mapping_end_poff = Some Int63.zero;
             };
       }
     in
@@ -768,7 +774,9 @@ struct
       Suffix.open_ro ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
-    let* prefix = open_prefix ~root ~generation in
+    let* prefix =
+      open_prefix ~root ~generation ~mapping_size:(mapping_size status)
+    in
     let* dict =
       let path = Layout.dict ~root in
       Dict.open_ro ~path ~end_poff:dict_end_poff ~dead_header_size
@@ -833,8 +841,8 @@ struct
             | `Unknown_major_pack_version _ ) as e ->
             e)
 
-  let swap t ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset ~volume =
+  let swap t ~generation ~mapping_size ~suffix_start_offset ~chunk_start_idx
+      ~chunk_num ~suffix_dead_bytes ~latest_gc_target_offset ~volume =
     let open Result_syntax in
     [%log.debug
       "Gc in main: swap gen %d; suffix start %a; chunk start idx %d; chunk num \
@@ -845,7 +853,8 @@ struct
     let pl = Control.payload t.control in
 
     (* Step 1. Reopen files *)
-    let* () = reopen_prefix t ~generation in
+    let mapping_size = Some mapping_size in
+    let* () = reopen_prefix t ~generation ~mapping_size in
     let* () =
       reopen_suffix t ~chunk_start_idx ~chunk_num
         ~appendable_chunk_poff:pl.appendable_chunk_poff
@@ -870,6 +879,7 @@ struct
                   generation;
                   latest_gc_target_offset;
                   suffix_dead_bytes;
+                  mapping_end_poff = mapping_size;
                 }
         in
 
@@ -975,8 +985,7 @@ struct
     let lower = t.lower in
     cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower
 
-  let create_one_commit_store t config ~generation ~latest_gc_target_offset
-      ~suffix_start_offset commit_key =
+  let create_one_commit_store t config gced commit_key =
     let open Result_syntax in
     let src_root = t.root in
     let dst_root = Irmin_pack.Conf.root config in
@@ -992,15 +1001,7 @@ struct
     in
     let* () = Suffix.close suffix in
     (* Step 3. Create the control file and close it. *)
-    let status =
-      Payload.Gced
-        {
-          suffix_start_offset;
-          generation;
-          latest_gc_target_offset;
-          suffix_dead_bytes = Int63.zero;
-        }
-    in
+    let status = Payload.Gced gced in
     let dict_end_poff = Io.size_of_path dst_dict |> Errs.raise_if_error in
     let pl =
       {

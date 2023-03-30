@@ -282,7 +282,7 @@ module Make (Args : Gc_args.S) = struct
       Live.to_list live_entries
     in
 
-    let () =
+    let mapping_size =
       (* Step 4. Create the new prefix. *)
       stats := Gc_stats.Worker.finish_current_step !stats "prefix: start";
       let mapping =
@@ -294,9 +294,9 @@ module Make (Args : Gc_args.S) = struct
         (* Step 5. Transfer to the new prefix, flush and close. *)
         [%log.debug "GC: transfering to the new prefix"];
         stats := Gc_stats.Worker.finish_current_step !stats "prefix: transfer";
-        Errors.finalise_exn (fun outcome ->
+        Errors.finalise_exn (fun _ ->
             Sparse.Ao.flush prefix
-            >>= (fun _ -> Sparse.Ao.close prefix >>= fun _ -> Ok outcome)
+            >>= (fun _ -> Sparse.Ao.close prefix)
             |> Errs.log_if_error "GC: Close prefix after data copy")
         @@ fun () ->
         (* Step 5.1. Transfer all. *)
@@ -308,24 +308,27 @@ module Make (Args : Gc_args.S) = struct
           live_entries;
         Int63.to_int (Sparse.Ao.mapping_size prefix)
       in
-      (* Step 5.2. Update the parent commits to be dangling: reopen the new
-         prefix, this time in write-only as we have to
-         modify data inside the file. *)
-      stats :=
-        Gc_stats.Worker.finish_current_step !stats
-          "prefix: rewrite commit parents";
-      let prefix =
-        Sparse.Wo.open_wo ~mapping_size ~mapping ~data |> Errs.raise_if_error
+      let () =
+        (* Step 5.2. Update the parent commits to be dangling: reopen the new
+           prefix, this time in write-only as we have to
+           modify data inside the file. *)
+        stats :=
+          Gc_stats.Worker.finish_current_step !stats
+            "prefix: rewrite commit parents";
+        let prefix =
+          Sparse.Wo.open_wo ~mapping_size ~mapping ~data |> Errs.raise_if_error
+        in
+        Errors.finalise_exn (fun _outcome ->
+            Sparse.Wo.fsync prefix
+            >>= (fun _ -> Sparse.Wo.close prefix)
+            |> Errs.log_if_error "GC: Close prefix after parent rewrite")
+        @@ fun () ->
+        let write_exn = Sparse.Wo.write_exn prefix in
+        List.iter
+          (fun key -> transfer_parent_commit_exn ~write_exn key)
+          (Commit_value.parents commit)
       in
-      Errors.finalise_exn (fun _outcome ->
-          Sparse.Wo.fsync prefix
-          >>= (fun _ -> Sparse.Wo.close prefix)
-          |> Errs.log_if_error "GC: Close prefix after parent rewrite")
-      @@ fun () ->
-      let write_exn = Sparse.Wo.write_exn prefix in
-      List.iter
-        (fun key -> transfer_parent_commit_exn ~write_exn key)
-        (Commit_value.parents commit)
+      Int63.of_int mapping_size
     in
     let () = report_new_file_sizes ~root ~generation stats |> ignore in
 
