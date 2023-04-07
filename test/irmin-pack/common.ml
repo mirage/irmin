@@ -85,12 +85,11 @@ module Key = Irmin_pack_unix.Pack_key.Make (Schema.Hash)
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
 module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Index) (Errs)
-module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+module Dict = File_manager.Dict
 module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
 module Pack =
-  Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Dispatcher)
-    (Schema.Hash)
+  Irmin_pack_unix.Pack_store.Make (File_manager) (Dispatcher) (Schema.Hash)
     (Contents)
     (Errs)
 
@@ -136,7 +135,7 @@ struct
   let get_dict ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in
     let fm = config ~readonly ~fresh name |> get_fm in
-    let dict = Dict.v fm |> Errs.raise_if_error in
+    let dict = File_manager.dict fm in
     { name; dict; fm }
 
   let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
@@ -156,7 +155,7 @@ struct
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
-    let dict = Dict.v fm |> Errs.raise_if_error in
+    let dict = File_manager.dict fm in
     let lru = Irmin_pack_unix.Lru.create config in
     let pack = Pack.v ~config ~fm ~dict ~dispatcher ~lru in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);

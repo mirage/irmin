@@ -60,7 +60,7 @@ module type S = sig
 
   module Io : Io.S
   module Control : Control_file.Upper with module Io = Io
-  module Dict : Append_only_file.S with module Io = Io
+  module Dict : Dict.S with module Io = Io
   module Suffix : Chunked_suffix.S with module Io = Io
   module Index : Pack_index.S
   module Errs : Io_errors.S with module Io = Io

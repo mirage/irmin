@@ -33,7 +33,6 @@ end)
 
 module Make_without_close_checks
     (Fm : File_manager.S)
-    (Dict : Dict.S)
     (Dispatcher : Dispatcher.S with module Fm = Fm)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
@@ -43,6 +42,7 @@ module Make_without_close_checks
 struct
   module Tbl = Table (Hash)
   module Control = Fm.Control
+  module Dict = Fm.Dict
   module Suffix = Fm.Suffix
   module Index = Fm.Index
   module Key = Pack_key.Make (Hash)
@@ -510,7 +510,6 @@ end
 
 module Make
     (Fm : File_manager.S)
-    (Dict : Dict.S)
     (Dispatcher : Dispatcher.S with module Fm = Fm)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
@@ -518,9 +517,7 @@ module Make
               and type key := Hash.t Pack_key.t)
     (Errs : Io_errors.S with module Io = Fm.Io) =
 struct
-  module Inner =
-    Make_without_close_checks (Fm) (Dict) (Dispatcher) (Hash) (Val) (Errs)
-
+  module Inner = Make_without_close_checks (Fm) (Dispatcher) (Hash) (Val) (Errs)
   include Inner
   include Indexable.Closeable (Inner)
 
