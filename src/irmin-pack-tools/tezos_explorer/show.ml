@@ -26,7 +26,7 @@ type context = {
   idxs : idxs list;
   fm : Files.File_manager.t;
   dispatcher : Files.Dispatcher.t;
-  dict : string list;
+  dict : Files.File_manager.Dict.t;
   max_entry : int;
   max_offset : Int63.t;
   history : history Ring.t;
@@ -546,7 +546,7 @@ let show_inode c (inode : Files.Inode.compress) =
   let name (n : Files.Inode.Compress.name) =
     match n with
     | Indirect dict_key ->
-        let key = List.nth_opt c.dict dict_key in
+        let key = Files.File_manager.Dict.find c.dict dict_key in
         strf
           ~attr:A.(fg lightwhite ++ st bold)
           "Indirect key: \'%a\' (%#d)" (Fmt.option Fmt.string) key dict_key
@@ -860,7 +860,6 @@ let main store_path info_last_path info_next_path index_path =
   let dispatcher = Files.Dispatcher.v fm |> Files.Errs.raise_if_error in
   let max_offset = Files.Dispatcher.end_offset dispatcher in
   let dict = Files.File_manager.dict fm in
-  let dict = Files.load_dict dict buffer in
   let info_last_fd =
     Unix.openfile info_last_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644
   in
