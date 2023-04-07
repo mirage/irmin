@@ -237,9 +237,6 @@ module type S = sig
 
       Is a no-op if the control file did not change. *)
 
-  val register_dict_consumer :
-    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
-
   val register_prefix_consumer :
     t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 

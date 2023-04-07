@@ -45,7 +45,6 @@ struct
     mutable prefix : Sparse.t option;
     lower : Lower.t option;
     index : Index.t;
-    mutable dict_consumers : after_reload_consumer list;
     mutable prefix_consumers : after_reload_consumer list;
     mutable suffix_consumers : after_flush_consumer list;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
@@ -68,9 +67,6 @@ struct
     let* () = Option.might Sparse.close t.prefix in
     let+ () = Index.close t.index in
     ()
-
-  let register_dict_consumer t ~after_reload =
-    t.dict_consumers <- { after_reload } :: t.dict_consumers
 
   let register_prefix_consumer t ~after_reload =
     t.prefix_consumers <- { after_reload } :: t.prefix_consumers
@@ -363,7 +359,6 @@ struct
         lower;
         use_fsync;
         index;
-        dict_consumers = [];
         prefix_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
@@ -371,7 +366,6 @@ struct
       }
     in
     instance := Some t;
-    register_dict_consumer t ~after_reload:(fun () -> Dict.refill dict);
     Ok t
 
   let create_control_file ~overwrite config pl =
@@ -428,8 +422,6 @@ struct
       in
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in
-      (* Step 5. Notify the dict consumers that they must reload *)
-      let* () = notify_reload_consumers t.dict_consumers in
       Ok ()
 
   (* File creation ********************************************************** *)
@@ -806,7 +798,6 @@ struct
         use_fsync;
         indexing_strategy;
         index;
-        dict_consumers = [];
         prefix_consumers = [];
         suffix_consumers = [];
         root;
