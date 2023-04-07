@@ -470,8 +470,6 @@ struct
       let dict = Dict.index t.dict in
       let off = Dispatcher.end_offset t.dispatcher in
 
-      (* [encode_bin] will most likely call [append] several time. One of these
-         call may trigger an auto flush. *)
       let append = Suffix.append_exn (Fm.suffix t.fm) in
       Val.encode_bin ~offset_of_key ~dict hash v append;
 

@@ -78,8 +78,6 @@ module type Sigs = sig
     ?merge_throttle:Conf.merge_throttle ->
     ?indexing_strategy:Indexing_strategy.t ->
     ?use_fsync:bool ->
-    ?dict_auto_flush_threshold:int ->
-    ?suffix_auto_flush_threshold:int ->
     ?no_migrate:bool ->
     ?lower_root:string option ->
     string ->

@@ -175,18 +175,6 @@ struct
 
   (* Auto flushes *********************************************************** *)
 
-  (** Is expected to be called by the dict when its append buffer is full so
-      that the file manager flushes. *)
-  let dict_requires_a_flush_exn t =
-    Stats.incr_fm_field Auto_dict;
-    flush_dict t |> Errs.raise_if_error
-
-  (** Is expected to be called by the suffix when its append buffer is full so
-      that the file manager flushes. *)
-  let suffix_requires_a_flush_exn t =
-    Stats.incr_fm_field Auto_suffix;
-    flush_suffix_and_its_deps t |> Errs.raise_if_error
-
   (** Is expected to be called by the index when its append buffer is full so
       that the dependendies of index are flushes. When the function returns,
       index will flush itself. *)
@@ -257,14 +245,8 @@ struct
         Suffix.open_ro ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
           ~chunk_num
       else
-        let auto_flush_threshold =
-          match Suffix.auto_flush_threshold t.suffix with
-          | None -> assert false
-          | Some x -> x
-        in
-        let cb _ = suffix_requires_a_flush_exn t in
         Suffix.open_rw ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
-          ~chunk_num ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
+          ~chunk_num
     in
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
@@ -345,21 +327,11 @@ struct
       | Some x -> x
     in
     (* 2. Open the other files *)
-    let* suffix =
-      let auto_flush_threshold =
-        Irmin_pack.Conf.suffix_auto_flush_threshold config
-      in
-      let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
-      make_suffix ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
-    in
+    let* suffix = make_suffix () in
     let* prefix = open_prefix ~root ~generation ~mapping_size in
     let* dict =
       let path = Layout.dict ~root in
-      let auto_flush_threshold =
-        Irmin_pack.Conf.dict_auto_flush_threshold config
-      in
-      let cb _ = dict_requires_a_flush_exn (get_instance ()) in
-      make_dict ~path ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
+      make_dict ~path
     in
     let* index =
       let log_size = Conf.index_log_size config in
@@ -507,7 +479,7 @@ struct
       create_control_file ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~overwrite in
-    let make_suffix = Suffix.create_rw ~root ~overwrite ~start_idx:0 in
+    let make_suffix () = Suffix.create_rw ~root ~overwrite ~start_idx:0 in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
@@ -557,8 +529,7 @@ struct
     (* Step 2. Create a new empty suffix for the upper. *)
     let chunk_start_idx = payload.chunk_start_idx + 1 in
     let* () =
-      Suffix.create_rw ~root ~overwrite:false ~auto_flush_threshold:1_000_000
-        ~auto_flush_procedure:`Internal ~start_idx:chunk_start_idx
+      Suffix.create_rw ~root ~overwrite:false ~start_idx:chunk_start_idx
       >>= Suffix.close
     in
     (* Step 3. Create a new empty prefix for the upper. *)
@@ -660,7 +631,7 @@ struct
           Error `V3_store_from_the_future
     in
     let make_dict = Dict.open_rw ~end_poff:dict_end_poff ~dead_header_size in
-    let make_suffix =
+    let make_suffix () =
       Suffix.open_rw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
@@ -971,16 +942,7 @@ struct
   let split t =
     let open Result_syntax in
     (* Step 1. Create a new chunk file *)
-    let auto_flush_threshold =
-      match Suffix.auto_flush_threshold t.suffix with
-      | None -> assert false
-      | Some x -> x
-    in
-    let cb _ = suffix_requires_a_flush_exn t in
-    let* () =
-      Suffix.add_chunk ~auto_flush_threshold
-        ~auto_flush_procedure:(`External cb) t.suffix
-    in
+    let* () = Suffix.add_chunk t.suffix in
 
     (* Step 2. Update the control file *)
     let pl = Control.payload t.control in
@@ -1021,9 +983,7 @@ struct
     let* () = Io.copy_file ~src:src_dict ~dst:dst_dict in
     (* Step 2. Create an empty suffix and close it. *)
     let* suffix =
-      Suffix.create_rw ~root:dst_root ~overwrite:false
-        ~auto_flush_threshold:1_000_000 ~auto_flush_procedure:`Internal
-        ~start_idx:1
+      Suffix.create_rw ~root:dst_root ~overwrite:false ~start_idx:1
     in
     let* () = Suffix.close suffix in
     (* Step 3. Create the control file and close it. *)

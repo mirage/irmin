@@ -21,6 +21,11 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
   module Errs = Errs
 
+  let auto_flush_threshold = 16_384
+
+  type rw_perm = { buf : Buffer.t }
+  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
+
   type t = {
     io : Io.t;
     mutable persisted_end_poff : int63;
@@ -28,16 +33,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     rw_perm : rw_perm option;
   }
 
-  and auto_flush_procedure = [ `Internal | `External of t -> unit ]
-
-  and rw_perm = {
-    buf : Buffer.t;
-    auto_flush_threshold : int;
-    auto_flush_procedure : auto_flush_procedure;
-  }
-  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
-
-  let create_rw ~path ~overwrite ~auto_flush_threshold ~auto_flush_procedure =
+  let create_rw ~path ~overwrite =
     let open Result_syntax in
     let+ io = Io.create ~path ~overwrite in
     let persisted_end_poff = Int63.zero in
@@ -46,7 +42,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       io;
       persisted_end_poff;
       dead_header_size = Int63.zero;
-      rw_perm = Some { buf; auto_flush_threshold; auto_flush_procedure };
+      rw_perm = Some { buf };
     }
 
   (** A store is consistent if the real offset of the suffix/dict files is the
@@ -75,20 +71,14 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
           Int63.pp end_poff Int63.pp real_offset_without_header (Io.path io)];
       Ok ())
 
-  let open_rw ~path ~end_poff ~dead_header_size ~auto_flush_threshold
-      ~auto_flush_procedure =
+  let open_rw ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:false in
     let+ () = check_consistent_store ~end_poff ~dead_header_size io in
     let persisted_end_poff = end_poff in
     let dead_header_size = Int63.of_int dead_header_size in
     let buf = Buffer.create 0 in
-    {
-      io;
-      persisted_end_poff;
-      dead_header_size;
-      rw_perm = Some { buf; auto_flush_threshold; auto_flush_procedure };
-    }
+    { io; persisted_end_poff; dead_header_size; rw_perm = Some { buf } }
 
   let open_ro ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
@@ -107,10 +97,6 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let readonly t = Io.readonly t.io
   let path t = Io.path t.io
-
-  let auto_flush_threshold = function
-    | { rw_perm = None; _ } -> None
-    | { rw_perm = Some rw_perm; _ } -> Some rw_perm.auto_flush_threshold
 
   let end_poff t =
     match t.rw_perm with
@@ -163,13 +149,9 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let append_exn t s =
     match t.rw_perm with
     | None -> raise Errors.RO_not_allowed
-    | Some rw_perm -> (
-        assert (Buffer.length rw_perm.buf < rw_perm.auto_flush_threshold);
+    | Some rw_perm ->
+        assert (Buffer.length rw_perm.buf < auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;
-        if Buffer.length rw_perm.buf >= rw_perm.auto_flush_threshold then
-          match rw_perm.auto_flush_procedure with
-          | `Internal -> flush t |> Errs.raise_if_error
-          | `External cb ->
-              cb t;
-              assert (empty_buffer t))
+        if Buffer.length rw_perm.buf >= auto_flush_threshold then
+          flush t |> Errs.raise_if_error
 end

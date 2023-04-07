@@ -36,8 +36,6 @@ module Default = struct
   let merge_throttle = `Block_writes
   let indexing_strategy = Indexing_strategy.default
   let use_fsync = false
-  let dict_auto_flush_threshold = 1_000_000
-  let suffix_auto_flush_threshold = 1_000_000
   let no_migrate = false
   let lower_root = None
 end
@@ -99,16 +97,6 @@ module Key = struct
       ~doc:"Whether fsync should be used to ensure persistence order of files"
       "use-fsync" Irmin.Type.bool Default.use_fsync
 
-  let dict_auto_flush_threshold =
-    key ~spec ~doc:"Buffer size of the dict at which automatic flushes occur"
-      "dict-auto-flush-threshold" Irmin.Type.int
-      Default.dict_auto_flush_threshold
-
-  let suffix_auto_flush_threshold =
-    key ~spec ~doc:"Buffer size of the suffix at which automatic flushes occur"
-      "suffix-auto-flush-threshold" Irmin.Type.int
-      Default.suffix_auto_flush_threshold
-
   let no_migrate =
     key ~spec ~doc:"Prevent migration of V1 and V2 stores" "no-migrate"
       Irmin.Type.bool Default.no_migrate
@@ -132,11 +120,6 @@ let root config =
 let lower_root config = get config Key.lower_root
 let indexing_strategy config = get config Key.indexing_strategy
 let use_fsync config = get config Key.use_fsync
-let dict_auto_flush_threshold config = get config Key.dict_auto_flush_threshold
-
-let suffix_auto_flush_threshold config =
-  get config Key.suffix_auto_flush_threshold
-
 let no_migrate config = get config Key.no_migrate
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
@@ -144,10 +127,8 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(indexing_strategy = Default.indexing_strategy)
-    ?(use_fsync = Default.use_fsync)
-    ?(dict_auto_flush_threshold = Default.dict_auto_flush_threshold)
-    ?(suffix_auto_flush_threshold = Default.suffix_auto_flush_threshold)
-    ?(no_migrate = Default.no_migrate) ?(lower_root = Default.lower_root) root =
+    ?(use_fsync = Default.use_fsync) ?(no_migrate = Default.no_migrate)
+    ?(lower_root = Default.lower_root) root =
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.lower_root lower_root in
@@ -159,11 +140,5 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config = add config Key.merge_throttle merge_throttle in
   let config = add config Key.indexing_strategy indexing_strategy in
   let config = add config Key.use_fsync use_fsync in
-  let config =
-    add config Key.dict_auto_flush_threshold dict_auto_flush_threshold
-  in
-  let config =
-    add config Key.suffix_auto_flush_threshold suffix_auto_flush_threshold
-  in
   let config = add config Key.no_migrate no_migrate in
   verify config
