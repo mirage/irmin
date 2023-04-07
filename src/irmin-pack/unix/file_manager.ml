@@ -100,64 +100,66 @@ struct
   (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
-    if Dict.empty_buffer t.dict then Ok ()
-    else
-      let* () =
+    let* () =
+      if Dict.empty_buffer t.dict then Ok ()
+      else (
         Stats.incr_fm_field Dict_flushes;
-        Dict.flush t.dict
-      in
-      let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
-      let* () =
-        let pl : Payload.t = Control.payload t.control in
-        let pl = { pl with dict_end_poff = Dict.end_poff t.dict } in
-        Control.set_payload t.control pl
-      in
-      let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-      ()
+        Dict.flush t.dict)
+    in
+    if t.use_fsync then Dict.fsync t.dict else Ok ()
+
+  let flush_suffix t =
+    let open Result_syntax in
+    let* () =
+      if Suffix.empty_buffer t.suffix then Ok ()
+      else (
+        Stats.incr_fm_field Suffix_flushes;
+        Suffix.flush t.suffix)
+    in
+    if t.use_fsync then Suffix.fsync t.suffix else Ok ()
+
+  let flush_control t =
+    let pl : Payload.t = Control.payload t.control in
+    let status =
+      match pl.status with
+      | From_v1_v2_post_upgrade _ -> pl.status
+      | Gced _ -> pl.status
+      | No_gc_yet ->
+          if Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy then
+            pl.status
+          else (
+            [%log.warn
+              "Updating the control file to \
+               [Used_non_minimal_indexing_strategy]. It won't be possible to \
+               GC this irmin-pack store anymore."];
+            Payload.Used_non_minimal_indexing_strategy)
+      | Used_non_minimal_indexing_strategy -> pl.status
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
+          assert false
+    in
+    let new_pl =
+      {
+        pl with
+        appendable_chunk_poff = Suffix.appendable_chunk_poff t.suffix;
+        dict_end_poff = Dict.end_poff t.dict;
+        status;
+      }
+    in
+    if new_pl = pl then Ok ()
+    else
+      let open Result_syntax in
+      let* () = Control.set_payload t.control new_pl in
+      if t.use_fsync then Control.fsync t.control else Ok ()
 
   (** Flush stage 2 *)
   let flush_suffix_and_its_deps ?hook t =
     let open Result_syntax in
     let* () = flush_dict t in
     (match hook with Some h -> h `After_dict | None -> ());
-    if Suffix.empty_buffer t.suffix then Ok ()
-    else
-      let* () =
-        Stats.incr_fm_field Suffix_flushes;
-        Suffix.flush t.suffix
-      in
-      let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
-      let* () =
-        let pl : Payload.t = Control.payload t.control in
-        let status =
-          match pl.status with
-          | From_v1_v2_post_upgrade _ -> pl.status
-          | Gced _ -> pl.status
-          | No_gc_yet ->
-              if Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy
-              then pl.status
-              else (
-                [%log.warn
-                  "Updating the control file to \
-                   [Used_non_minimal_indexing_strategy]. It won't be possible \
-                   to GC this irmin-pack store anymore."];
-                Payload.Used_non_minimal_indexing_strategy)
-          | Used_non_minimal_indexing_strategy -> pl.status
-          | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-          | T14 | T15 ->
-              assert false
-        in
-        let pl =
-          {
-            pl with
-            appendable_chunk_poff = Suffix.appendable_chunk_poff t.suffix;
-            status;
-          }
-        in
-        Control.set_payload t.control pl
-      in
-      let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-      List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
+    let* () = flush_suffix t in
+    let+ () = flush_control t in
+    List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
 
   (** Flush stage 3 *)
   let flush_index_and_its_deps ?hook t =
