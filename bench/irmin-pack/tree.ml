@@ -39,6 +39,7 @@ type config = {
   gc_every : int;
   gc_distance_in_the_past : int;
   gc_wait_after : int;
+  add_volume_every : int;
 }
 
 module type Store = sig
@@ -61,6 +62,7 @@ module type Store = sig
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
   val split : repo -> unit
+  val add_volume : repo -> unit
 
   val gc_run :
     ?finished:((stats, string) result -> unit Lwt.t) ->
@@ -181,6 +183,7 @@ module Bench_suite (Store : Store) = struct
         gc_every = config.gc_every;
         gc_distance_in_the_past = config.gc_distance_in_the_past;
         gc_wait_after = config.gc_wait_after;
+        add_volume_every = config.add_volume_every;
       }
     in
     if config.no_summary then
@@ -224,6 +227,7 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
     Lwt.return (repo, on_commit, on_end)
 
   let split _repo = ()
+  let add_volume _repo = ()
   let gc_wait _repo = Lwt.return_unit
   let gc_run ?finished:_ _repo _key = Lwt.return_unit
 end
@@ -242,9 +246,14 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
 
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-  let create_repo ~root _config =
+  let create_repo ~root (config : store_config) =
+    let lower_root =
+      if config.add_volume_every > 0 then Some (Filename.concat root "lower")
+      else None
+    in
     let conf =
-      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
+      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy
+        ~lower_root root
     in
     prepare_artefacts_dir root;
     let* repo = Store.Repo.v conf in
@@ -253,6 +262,7 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
     Lwt.return (repo, on_commit, on_end)
 
   let split = Store.split
+  let add_volume = Store.add_volume
 
   let gc_wait repo =
     let* r = Store.Gc.wait repo in
@@ -395,7 +405,8 @@ let get_suite suite_filter =
 let main () ncommits number_of_commits_to_replay suite_filter inode_config
     store_type freeze_commit path_conversion depth width nchain_trees
     nlarge_trees replay_trace_path artefacts_path keep_store keep_stat_trace
-    no_summary empty_blobs gc_every gc_distance_in_the_past gc_wait_after =
+    no_summary empty_blobs gc_every gc_distance_in_the_past gc_wait_after
+    add_volume_every =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let number_of_commits_to_replay =
     Option.value ~default number_of_commits_to_replay
@@ -422,6 +433,7 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
       gc_every;
       gc_distance_in_the_past;
       gc_wait_after;
+      add_volume_every;
     }
   in
   Printexc.record_backtrace true;
@@ -602,6 +614,10 @@ let gc_wait_after =
   in
   Arg.(value @@ opt int 0 doc)
 
+let add_volume_every =
+  let doc = Arg.info ~doc:"Add volume ever N GCs" [ "add-volume-every" ] in
+  Arg.(value @@ opt int 0 doc)
+
 let main_term =
   Term.(
     const main
@@ -625,7 +641,8 @@ let main_term =
     $ empty_blobs
     $ gc_every
     $ gc_distance_in_the_past
-    $ gc_wait_after)
+    $ gc_wait_after
+    $ add_volume_every)
 
 let deprecated_info = (Term.info [@alert "-deprecated"])
 let deprecated_exit = (Term.exit [@alert "-deprecated"])

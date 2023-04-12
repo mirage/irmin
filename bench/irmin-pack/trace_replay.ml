@@ -159,6 +159,7 @@ module Make (Store : Store) = struct
     mutable commits_since_start_or_gc : int;
     mutable latest_commit_idx : int;
         (** the most recent commit idx to be replayed. initial value is -1 *)
+    mutable gc_count : int;
     key_per_commit_idx : (int, Store.commit_key) Hashtbl.t;
   }
 
@@ -322,7 +323,7 @@ module Make (Store : Store) = struct
     in
     aux operations 0
 
-  let gc_actions config i commits_since_start_or_gc =
+  let gc_actions config i commits_since_start_or_gc gc_count =
     let gc_enabled =
       (* Is GC enabled at all? *)
       config.gc_every > 0
@@ -357,10 +358,18 @@ module Make (Store : Store) = struct
       else false
     in
 
+    let time_to_add_volume =
+      config.add_volume_every > 0
+      && time_to_split
+      && gc_count > 0
+      && gc_count mod config.add_volume_every = 0
+    in
+
     let really_split = gc_enabled && time_to_split in
     let really_start_gc = gc_enabled && time_to_start in
     let really_wait_gc = gc_wait_enabled && time_to_wait in
-    (really_wait_gc, really_start_gc, really_split)
+    let really_add_volume = time_to_add_volume in
+    (really_wait_gc, really_start_gc, really_split, really_add_volume)
 
   let add_commits config repo commit_seq on_commit on_end stats check_hash
       empty_blobs =
@@ -372,6 +381,7 @@ module Make (Store : Store) = struct
         contexts = Hashtbl.create 3;
         hash_corresps = Hashtbl.create 3;
         commits_since_start_or_gc = 0;
+        gc_count = 0;
         latest_commit_idx = -1;
         key_per_commit_idx = Hashtbl.create 3;
       }
@@ -384,11 +394,12 @@ module Make (Store : Store) = struct
       match commit_seq () with
       | Seq.Nil -> on_end () >|= fun () -> i
       | Cons (ops, commit_seq) ->
-          let really_wait_gc, really_start_gc, really_split =
-            gc_actions config i t.commits_since_start_or_gc
+          let really_wait_gc, really_start_gc, really_split, really_add_volume =
+            gc_actions config i t.commits_since_start_or_gc t.gc_count
           in
           (* Split before GC to simulate how it is inteded to be used. *)
           let () = if really_split then Store.split repo in
+          let () = if really_add_volume then Store.add_volume repo in
           let* () =
             if really_wait_gc then (
               [%logs.app
@@ -418,6 +429,7 @@ module Make (Store : Store) = struct
                   (Hashtbl.find t.key_per_commit_idx t.latest_commit_idx)];
               let finished = function
                 | Ok stats ->
+                    t.gc_count <- t.gc_count + 1;
                     let commit_idx = t.latest_commit_idx in
                     let commit_duration = commit_idx - gc_start_commit_idx in
                     let duration =

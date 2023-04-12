@@ -95,6 +95,7 @@ let replay_1_commit () =
       gc_every = 0;
       gc_distance_in_the_past = 0;
       gc_wait_after = 0;
+      add_volume_every = 0;
     }
   in
   let+ summary = Replay.run () replay_config in
@@ -141,6 +142,7 @@ module Store_mem = struct
     Lwt.return (repo, on_commit, on_end)
 
   let split _repo = ()
+  let add_volume _repo = ()
   let gc_wait _repo = Lwt.return_unit
   let gc_run ?finished:_ _repo _key = Lwt.return_unit
 end
@@ -164,6 +166,7 @@ let replay_1_commit_mem () =
       gc_every = 0;
       gc_distance_in_the_past = 0;
       gc_wait_after = 0;
+      add_volume_every = 0;
     }
   in
   let+ summary = Replay_mem.run () replay_config in

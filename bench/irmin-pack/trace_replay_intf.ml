@@ -33,6 +33,7 @@ module Config = struct
     gc_every : int;
     gc_distance_in_the_past : int;
     gc_wait_after : int;
+    add_volume_every : int;
   }
   (** Replay configuration
 
@@ -102,6 +103,7 @@ module type Store = sig
     root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
 
   val split : repo -> unit
+  val add_volume : repo -> unit
   val gc_wait : repo -> unit Lwt.t
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
