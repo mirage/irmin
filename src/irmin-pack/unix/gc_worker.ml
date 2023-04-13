@@ -33,24 +33,69 @@ module Make (Args : Gc_args.S) = struct
 
     val make : unit -> t
     val add : off:int63 -> len:int -> t -> unit
-    val to_list : t -> (int63 * int) list
     val count : t -> int
+    val iter : (off:int63 -> len:int63 -> unit) -> t -> unit
   end = struct
-    type t = { mutable ranges : (int63 * int) list; mutable count : int }
+    module Stack = struct
+      type t =
+        | Empty
+        | Stack of { mutable len : int; arr : int63 array; prev : t }
 
-    let make () = { ranges = []; count = 0 }
-    let to_list t = t.ranges
+      let capacity =
+        131_072 (* = 128*1024, a large but not too large chunk size *)
+
+      let make prev =
+        Stack { len = 0; arr = Array.make capacity Int63.zero; prev }
+
+      let is_full = function Empty -> true | Stack s -> s.len >= capacity
+
+      let rec push_pair ~off ~len t =
+        match t with
+        | Stack s when not (is_full t) ->
+            let i = s.len in
+            s.len <- i + 2;
+            s.arr.(i) <- off;
+            s.arr.(i + 1) <- Int63.of_int len;
+            t
+        | _ -> push_pair ~off ~len (make t)
+
+      let rec iter_pair fn = function
+        | Empty -> ()
+        | Stack { len; arr; prev } ->
+            assert (len mod 2 = 0);
+            for i = (len / 2) - 1 downto 0 do
+              let off = arr.(2 * i) in
+              let len = arr.((2 * i) + 1) in
+              fn ~off ~len
+            done;
+            iter_pair fn prev
+    end
+
+    type t = {
+      mutable last : (int63 * int) option;
+      mutable ranges : Stack.t;
+      mutable count : int;
+    }
+
+    let make () = { last = None; ranges = Stack.Empty; count = 0 }
     let count t = t.count
-
-    let add_range ~off ~len lst =
-      let off_end = Int63.(Syntax.(off + of_int len)) in
-      match lst with
-      | (off', len') :: rest when off_end = off' -> (off, len + len') :: rest
-      | _ -> (off, len) :: lst
 
     let add ~off ~len t =
       t.count <- t.count + 1;
-      t.ranges <- add_range ~off ~len t.ranges
+      let off_end = Int63.(Syntax.(off + of_int len)) in
+      match t.last with
+      | None -> t.last <- Some (off, len)
+      | Some (off', len') when off_end = off' -> t.last <- Some (off, len + len')
+      | Some (off', len') ->
+          t.last <- Some (off, len);
+          t.ranges <- Stack.push_pair ~off:off' ~len:len' t.ranges
+
+    let iter fn t =
+      match t.last with
+      | None -> assert (t.count = 0)
+      | Some (off, len) ->
+          fn ~off ~len:(Int63.of_int len);
+          Stack.iter_pair fn t.ranges
   end
 
   module Priority_queue = struct
@@ -278,7 +323,7 @@ module Make (Args : Gc_args.S) = struct
         Gc_stats.Worker.finish_current_step !stats "mapping: of reachable";
       stats :=
         Gc_stats.Worker.set_objects_traversed !stats (Live.count live_entries);
-      Live.to_list live_entries
+      live_entries
     in
 
     let () =
@@ -299,9 +344,8 @@ module Make (Args : Gc_args.S) = struct
             |> Errs.log_if_error "GC: Close prefix after data copy")
         @@ fun () ->
         (* Step 5.1. Transfer all. *)
-        List.iter
-          (fun (off, len) ->
-            let len = Int63.of_int len in
+        Live.iter
+          (fun ~off ~len ->
             let str = Dispatcher.read_seq_exn dispatcher ~off ~len in
             Sparse.Ao.append_seq_exn prefix ~off str)
           live_entries
@@ -399,16 +443,14 @@ module Make (Args : Gc_args.S) = struct
           stats :=
             Gc_stats.Worker.finish_current_step !stats "archive: iter reachable";
           let min_offset = Dispatcher.suffix_start_offset dispatcher in
-          let to_archive =
-            traverse_range ~min_offset commit_key commit_store node_store
-          in
-          let to_archive =
-            List.map
-              (fun (off, len) ->
-                let len = Int63.of_int len in
-                (off, Dispatcher.read_seq_exn dispatcher ~off ~len))
-              (Live.to_list to_archive)
-          in
+          let to_archive = ref [] in
+          Live.iter
+            (fun ~off ~len ->
+              to_archive :=
+                (off, Dispatcher.read_seq_exn dispatcher ~off ~len)
+                :: !to_archive)
+            (traverse_range ~min_offset commit_key commit_store node_store);
+          let to_archive = List.rev !to_archive in
           stats :=
             Gc_stats.Worker.finish_current_step !stats "archive: copy to lower";
           Lower.set_readonly lower false;
