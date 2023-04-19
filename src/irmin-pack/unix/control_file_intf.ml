@@ -193,15 +193,16 @@ module Payload = struct
     end
 
     module V5 = struct
-      type gced = V4.gced = {
+      type gced = {
         suffix_start_offset : int63;
         generation : int;
         latest_gc_target_offset : int63;
         suffix_dead_bytes : int63;
+        mapping_end_poff : int63 option;
       }
       [@@deriving irmin]
 
-      type status = V4.status =
+      type status =
         | From_v1_v2_post_upgrade of V3.from_v1_v2_post_upgrade
         | No_gc_yet
         | Used_non_minimal_indexing_strategy
@@ -239,6 +240,8 @@ module Payload = struct
           New fields
 
           - [volume_num] stores the number of volumes in the lower layer.
+          - [mapping_end_poff] stores the mapping file size (optional if missing
+            or unknown after a migration from V4).
 
           Changed fields
 

@@ -180,6 +180,7 @@ module Serde = struct
                 generation = x.generation;
                 latest_gc_target_offset = x.suffix_start_offset;
                 suffix_dead_bytes = Int63.zero;
+                mapping_end_poff = None;
               }
         | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
         | T14 | T15 ->
@@ -200,6 +201,25 @@ module Serde = struct
         volume_num = 0;
       }
 
+    let upgrade_status_from_v4 = function
+      | Payload.Upper.V4.From_v1_v2_post_upgrade x ->
+          Latest.From_v1_v2_post_upgrade x
+      | No_gc_yet -> No_gc_yet
+      | Used_non_minimal_indexing_strategy -> Used_non_minimal_indexing_strategy
+      | Gced x ->
+          Gced
+            {
+              suffix_start_offset = x.suffix_start_offset;
+              generation = x.generation;
+              latest_gc_target_offset = x.latest_gc_target_offset;
+              suffix_dead_bytes = x.suffix_dead_bytes;
+              mapping_end_poff = None;
+            }
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
+          (* Unreachable *)
+          assert false
+
     let upgrade_from_v4 (pl : Payload.Upper.V4.t) : payload =
       {
         dict_end_poff = pl.dict_end_poff;
@@ -207,7 +227,7 @@ module Serde = struct
         checksum = Int63.zero;
         chunk_start_idx = pl.chunk_start_idx;
         chunk_num = pl.chunk_num;
-        status = pl.status;
+        status = upgrade_status_from_v4 pl.status;
         upgraded_from = Some (Version.to_int `V4);
         volume_num = 0;
       }

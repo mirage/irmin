@@ -263,6 +263,7 @@ module type S = sig
   val swap :
     t ->
     generation:int ->
+    mapping_size:int63 ->
     suffix_start_offset:int63 ->
     chunk_start_idx:int ->
     chunk_num:int ->
@@ -292,9 +293,7 @@ module type S = sig
   val create_one_commit_store :
     t ->
     Irmin.Backend.Conf.t ->
-    generation:int ->
-    latest_gc_target_offset:int63 ->
-    suffix_start_offset:int63 ->
+    Control_file.Payload.Upper.Latest.gced ->
     Index.key Pack_key.t ->
     (unit, [> open_rw_error | close_error ]) result
   (** [create_one_commit_store t conf generation new_store_root key] is called

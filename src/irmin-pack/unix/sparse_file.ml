@@ -20,39 +20,54 @@ module BigArr1 = Bigarray.Array1
 
 type int64_bigarray = (int64, Bigarray.int64_elt, Bigarray.c_layout) BigArr1.t
 
-module Int64_mmap : sig
-  type t = private {
+module Int64_mmap (Io : Io.S) : sig
+  type t
+
+  val open_ro : fn:string -> sz:int -> (t, [> Io.open_error ]) result
+  val length : t -> int
+  val get : t -> int -> Int64.t
+  val close : t -> (unit, [> Io.close_error ]) result
+end = struct
+  type t = {
     fn : string;
-    fd : Unix.file_descr;
+    fd : Io.t;
+    loaded : bool array;
     mutable arr : int64_bigarray;
   }
 
-  val open_ro : fn:string -> sz:int -> t
-  (** NOTE [open_ ~fn ~sz] can use [sz=-1] to open with size based on the size
-      of the underlying file *)
+  let sector_size = 512
+  let length t = BigArr1.dim t.arr
 
-  val close : t -> unit
-end = struct
-  type t = { fn : string; fd : Unix.file_descr; mutable arr : int64_bigarray }
-
-  (* NOTE sz=-1 is recognized by [map_file] as "derive from size of file"; if we want a
-     different size (eg because we want the file to grow) we can provide it explicitly *)
   let open_ro ~fn ~sz =
-    let shared = false in
+    let open Result_syntax in
     assert (Sys.file_exists fn);
-    let fd = Unix.(openfile fn [ O_RDONLY ] 0o660) in
-    let arr =
-      let open Bigarray in
-      Unix.map_file fd Int64 c_layout shared [| sz |] |> array1_of_genarray
-    in
-    { fn; fd; arr }
+    let+ fd = Io.open_ ~path:fn ~readonly:true in
+    let size = sz / 8 in
+    let arr = BigArr1.create Bigarray.Int64 Bigarray.c_layout size in
+    let loaded = Array.make (1 + (sz / sector_size)) false in
+    { fn; fd; arr; loaded }
 
-  let close t =
-    Unix.close t.fd;
-    (* following tries to make the array unreachable, so GC'able; however, no guarantee
-       that arr actually is unreachable *)
-    t.arr <- Bigarray.(Array1.create Int64 c_layout 0);
-    ()
+  let close t = Io.close t.fd
+
+  let load t sector_id =
+    if not t.loaded.(sector_id) then (
+      let sector_start = sector_id * sector_size in
+      let nb = min sector_size (length t - sector_start) in
+      let len = 8 * nb in
+      let bytes = Bytes.create len in
+      Io.read_exn t.fd ~off:(Int63.of_int (8 * sector_start)) ~len bytes;
+      for i = 0 to nb - 1 do
+        t.arr.{sector_start + i} <- Bytes.get_int64_le bytes (8 * i)
+      done;
+      t.loaded.(sector_id) <- true)
+
+  let ensure_loaded t i =
+    let sector_id = i / sector_size in
+    if not t.loaded.(sector_id) then load t sector_id
+
+  let get t i =
+    ensure_loaded t i;
+    t.arr.{i}
 end
 
 module Make (Io : Io.S) = struct
@@ -60,63 +75,43 @@ module Make (Io : Io.S) = struct
   module Errs = Io_errors.Make (Io)
 
   module Mapping_file = struct
-    type t = { arr : int64_bigarray; path : string }
+    module Int64_mmap = Int64_mmap (Io)
 
-    let open_map ~path =
+    let ( .%{} ) = Int64_mmap.get
+
+    type t = Int64_mmap.t
+
+    let open_map ~path ~size =
       match Io.classify_path path with
-      | `File -> (
-          let mmap = Int64_mmap.open_ro ~fn:path ~sz:(-1) in
-          let arr = mmap.arr in
-          let len = BigArr1.dim arr in
-          match len mod 3 = 0 with
-          | true ->
-              Int64_mmap.close mmap;
-              Ok { path; arr }
-          | false ->
-              Error
-                (`Corrupted_mapping_file
-                  (__FILE__
-                  ^ ": mapping mmap size did not meet size requirements")))
+      | `File ->
+          let open Result_syntax in
+          let* mmap = Int64_mmap.open_ro ~fn:path ~sz:size in
+          if Int64_mmap.length mmap mod 3 = 0 then Ok mmap
+          else
+            Error
+              (`Corrupted_mapping_file
+                (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
       | _ -> Error (`No_such_file_or_directory path)
 
-    let conv_int64 : int64 -> int =
-     fun i ->
-      (if Sys.big_endian then (
-       (* We are currently on a BE platform but the ints are encoded as LE in the
-          file. We've just read a LE int using a BE decoding scheme. Let's fix
-          this.
-
-          The first step is to set [buf] to contain exactly what is stored on
-          disk. Since the current platform is BE, we've interpreted what was
-          written on disk using a BE decoding scheme. To do the opposite operation
-          we must use a BE encoding scheme, hence [set_int64_be].
-
-          Now that [buf] mimics what was on disk, the second step consist of
-          decoding it using a LE function, hence [get_int64_le]. *)
-       let buf = Bytes.create 8 in
-       Bytes.set_int64_be buf 0 i;
-       Bytes.get_int64_le buf 0)
-      else i)
-      |> Int64.to_int
-
-    let entry_count arr = BigArr1.dim arr / 3
+    let close = Int64_mmap.close
+    let entry_count t = Int64_mmap.length t / 3
     let entry_idx i = i * 3
-    let entry_off arr i = arr.{entry_idx i} |> conv_int64 |> Int63.of_int
-    let entry_poff arr i = arr.{entry_idx i + 1} |> conv_int64 |> Int63.of_int
-    let entry_len arr i = arr.{entry_idx i + 2} |> conv_int64
+    let entry_off t i = t.%{entry_idx i} |> Int63.of_int64
+    let entry_poff t i = t.%{entry_idx i + 1} |> Int63.of_int64
+    let entry_len t i = t.%{entry_idx i + 2} |> Int64.to_int
 
-    let iter_exn { arr; _ } f =
-      for i = 0 to entry_count arr - 1 do
-        f ~off:(entry_off arr i) ~len:(entry_len arr i)
+    let iter_exn t f =
+      for i = 0 to entry_count t - 1 do
+        f ~off:(entry_off t i) ~len:(entry_len t i)
       done
 
     let iter t f = Errs.catch (fun () -> iter_exn t f)
 
     type entry = { off : int63; poff : int63; len : int }
 
-    let find_nearest_geq { arr; _ } off =
+    let find_nearest_geq arr off =
       let get arr i =
-        let start = arr.{entry_idx i} |> conv_int64 in
+        let start = arr.%{entry_idx i} |> Int64.to_int in
         let len = entry_len arr i in
         start + len - 1
       in
@@ -139,14 +134,20 @@ module Make (Io : Io.S) = struct
 
   type t = { mapping : Mapping_file.t; data : Io.t }
 
-  let open_ ~readonly ~mapping ~data =
+  let open_ ~readonly ~mapping_size ~mapping ~data =
     let open Result_syntax in
-    let* mapping = Mapping_file.open_map ~path:mapping in
+    let* mapping = Mapping_file.open_map ~path:mapping ~size:mapping_size in
     let+ data = Io.open_ ~path:data ~readonly in
     { mapping; data }
 
-  let open_ro ~mapping ~data = open_ ~readonly:true ~mapping ~data
-  let close t = Io.close t.data
+  let open_ro ~mapping_size ~mapping ~data =
+    open_ ~readonly:true ~mapping_size ~mapping ~data
+
+  let close t =
+    let open Result_syntax in
+    let* () = Mapping_file.close t.mapping in
+    Io.close t.data
+
   let iter t fn = Mapping_file.iter t.mapping fn
 
   let get_poff { mapping; _ } ~off =
@@ -199,7 +200,8 @@ module Make (Io : Io.S) = struct
   module Wo = struct
     type nonrec t = t
 
-    let open_wo ~mapping ~data = open_ ~readonly:false ~mapping ~data
+    let open_wo ~mapping_size ~mapping ~data =
+      open_ ~readonly:false ~mapping_size ~mapping ~data
 
     let write_exn t ~off ~len str =
       let poff, max_entry_len = get_poff t ~off in

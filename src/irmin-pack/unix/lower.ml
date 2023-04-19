@@ -118,14 +118,15 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let open_ = function
     | Empty _ -> Ok () (* Opening an empty volume is a no-op *)
-    | Nonempty ({ path = root; sparse; _ } as t) -> (
+    | Nonempty ({ path = root; sparse; control; _ } as t) -> (
         match sparse with
         | Some _ -> Ok () (* Sparse file is already open *)
         | None ->
             let open Result_syntax in
             let mapping = Layout.mapping ~root in
             let data = Layout.data ~root in
-            let+ sparse = Sparse.open_ro ~mapping ~data in
+            let mapping_size = Int63.to_int control.Payload.mapping_end_poff in
+            let+ sparse = Sparse.open_ro ~mapping_size ~mapping ~data in
             t.sparse <- Some sparse)
 
   let close = function

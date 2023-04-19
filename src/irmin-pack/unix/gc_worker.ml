@@ -270,6 +270,7 @@ module Make (Args : Gc_args.S) = struct
 
   type gc_results = {
     suffix_params : suffix_params;
+    mapping_size : int63;
     removable_chunk_idxs : int list;
     modified_volume : Lower.volume_identifier option;
     stats : Stats.Latest_gc.worker;
@@ -326,19 +327,19 @@ module Make (Args : Gc_args.S) = struct
       live_entries
     in
 
-    let () =
+    let mapping_size =
       (* Step 4. Create the new prefix. *)
       stats := Gc_stats.Worker.finish_current_step !stats "prefix: start";
       let mapping =
         Irmin_pack.Layout.V4.mapping ~root:new_files_path ~generation
       in
       let data = Irmin_pack.Layout.V4.prefix ~root:new_files_path ~generation in
-      let () =
+      let mapping_size =
         let prefix = Sparse.Ao.create ~mapping ~data |> Errs.raise_if_error in
         (* Step 5. Transfer to the new prefix, flush and close. *)
         [%log.debug "GC: transfering to the new prefix"];
         stats := Gc_stats.Worker.finish_current_step !stats "prefix: transfer";
-        Errors.finalise_exn (fun _outcome ->
+        Errors.finalise_exn (fun _ ->
             Sparse.Ao.flush prefix
             >>= (fun _ -> Sparse.Ao.close prefix)
             |> Errs.log_if_error "GC: Close prefix after data copy")
@@ -348,29 +349,35 @@ module Make (Args : Gc_args.S) = struct
           (fun ~off ~len ->
             let str = Dispatcher.read_seq_exn dispatcher ~off ~len in
             Sparse.Ao.append_seq_exn prefix ~off str)
-          live_entries
+          live_entries;
+        Int63.to_int (Sparse.Ao.mapping_size prefix)
       in
-      (* Step 5.2. Update the parent commits to be dangling: reopen the new
-         prefix, this time in write-only as we have to
-         modify data inside the file. *)
-      stats :=
-        Gc_stats.Worker.finish_current_step !stats
-          "prefix: rewrite commit parents";
-      let prefix = Sparse.Wo.open_wo ~mapping ~data |> Errs.raise_if_error in
-      Errors.finalise_exn (fun _outcome ->
-          Sparse.Wo.fsync prefix
-          >>= (fun _ -> Sparse.Wo.close prefix)
-          |> Errs.log_if_error "GC: Close prefix after parent rewrite")
-      @@ fun () ->
-      let write_exn = Sparse.Wo.write_exn prefix in
-      List.iter
-        (fun key -> transfer_parent_commit_exn ~write_exn key)
-        (Commit_value.parents commit)
+      let () =
+        (* Step 5.2. Update the parent commits to be dangling: reopen the new
+           prefix, this time in write-only as we have to
+           modify data inside the file. *)
+        stats :=
+          Gc_stats.Worker.finish_current_step !stats
+            "prefix: rewrite commit parents";
+        let prefix =
+          Sparse.Wo.open_wo ~mapping_size ~mapping ~data |> Errs.raise_if_error
+        in
+        Errors.finalise_exn (fun _outcome ->
+            Sparse.Wo.fsync prefix
+            >>= (fun _ -> Sparse.Wo.close prefix)
+            |> Errs.log_if_error "GC: Close prefix after parent rewrite")
+        @@ fun () ->
+        let write_exn = Sparse.Wo.write_exn prefix in
+        List.iter
+          (fun key -> transfer_parent_commit_exn ~write_exn key)
+          (Commit_value.parents commit)
+      in
+      Int63.of_int mapping_size
     in
     let () = report_new_file_sizes ~root ~generation stats |> ignore in
 
     (* Step 6. Calculate post-GC suffix parameters. *)
-    let suffix_params, removable_chunk_idxs =
+    let suffix_params, mapping_size, removable_chunk_idxs =
       stats :=
         Gc_stats.Worker.finish_current_step !stats
           "suffix: calculate new values";
@@ -431,6 +438,7 @@ module Make (Args : Gc_args.S) = struct
           dead_bytes = suffix_dead_bytes;
           chunk_start_idx;
         },
+        mapping_size,
         removable_chunk_idxs )
     in
 
@@ -463,7 +471,13 @@ module Make (Args : Gc_args.S) = struct
 
     (* Step 8. Finalise stats and return. *)
     let stats = Gc_stats.Worker.finalise !stats in
-    { suffix_params; removable_chunk_idxs; modified_volume; stats }
+    {
+      suffix_params;
+      mapping_size;
+      removable_chunk_idxs;
+      modified_volume;
+      stats;
+    }
 
   let write_gc_output ~root ~generation output =
     let open Result_syntax in

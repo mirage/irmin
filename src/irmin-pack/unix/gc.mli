@@ -54,11 +54,10 @@ module Make (Args : Gc_args.S) : sig
 
   val cancel : t -> bool
 
-  val finalise_without_swap : t -> (int63 * int63) Lwt.t
+  val finalise_without_swap :
+    t -> Control_file_intf.Payload.Upper.Latest.gced Lwt.t
   (** Waits for the current gc to finish and returns immediately without
       swapping the files and doing the other finalisation steps from [finalise].
-
-      It returns the [latest_gc_target_offset] and the
-      [new_suffix_start_offset]. *)
+      Returns the [gced] status to create a fresh control file for the snapshot. *)
 end
 with module Args = Args

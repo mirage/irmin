@@ -357,16 +357,14 @@ module Maker (Config : Conf.S) = struct
             let () =
               if not launched then Errs.raise_error `Forbidden_during_gc
             in
-            let* latest_gc_target_offset, suffix_start_offset =
+            let* gced =
               match t.running_gc with
               | None -> assert false
               | Some { gc; _ } -> Gc.finalise_without_swap gc
             in
-            let generation = File_manager.generation t.fm + 1 in
             let config = Irmin.Backend.Conf.add t.config Conf.Key.root path in
             let () =
-              File_manager.create_one_commit_store t.fm config ~generation
-                ~latest_gc_target_offset ~suffix_start_offset commit_key
+              File_manager.create_one_commit_store t.fm config gced commit_key
               |> Errs.raise_if_error
             in
             let branch_path = Irmin_pack.Layout.V4.branch ~root:path in

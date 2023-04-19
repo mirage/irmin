@@ -107,7 +107,8 @@ module Make (Args : Gc_args.S) = struct
       latest_gc_target_offset;
     }
 
-  let swap_and_purge t removable_chunk_num modified_volume suffix_params =
+  let swap_and_purge t (gc_results : Worker.gc_results) =
+    let removable_chunk_num = List.length gc_results.removable_chunk_idxs in
     let { generation; latest_gc_target_offset; _ } = t in
     let Worker.
           {
@@ -115,7 +116,7 @@ module Make (Args : Gc_args.S) = struct
             chunk_start_idx;
             dead_bytes = suffix_dead_bytes;
           } =
-      suffix_params
+      gc_results.suffix_params
     in
     (* Calculate chunk num in main process since more chunks could have been
        added while GC was running. GC process only tells us how many chunks are
@@ -126,8 +127,9 @@ module Make (Args : Gc_args.S) = struct
        is guaranteed by the GC process. *)
     assert (chunk_num >= 1);
 
-    Fm.swap t.fm ~generation ~suffix_start_offset ~chunk_start_idx ~chunk_num
-      ~suffix_dead_bytes ~latest_gc_target_offset ~volume:modified_volume
+    Fm.swap t.fm ~generation ~mapping_size:gc_results.mapping_size
+      ~suffix_start_offset ~chunk_start_idx ~chunk_num ~suffix_dead_bytes
+      ~latest_gc_target_offset ~volume:gc_results.modified_volume
 
   let unlink_all { root; generation; _ } removable_chunk_idxs =
     (* Unlink suffix chunks *)
@@ -231,33 +233,22 @@ module Make (Args : Gc_args.S) = struct
           let result =
             let open Result_syntax in
             match (status, gc_output) with
-            | ( `Success,
-                Ok
-                  {
-                    suffix_params;
-                    removable_chunk_idxs;
-                    stats = worker_stats;
-                    modified_volume;
-                  } ) ->
+            | `Success, Ok gc_results ->
                 let partial_stats =
                   Gc_stats.Main.finish_current_step partial_stats
                     "swap and purge"
                 in
-                let* () =
-                  swap_and_purge t
-                    (List.length removable_chunk_idxs)
-                    modified_volume suffix_params
-                in
+                let* () = swap_and_purge t gc_results in
                 let partial_stats =
                   Gc_stats.Main.finish_current_step partial_stats "unlink"
                 in
-                if t.unlink then unlink_all t removable_chunk_idxs;
+                if t.unlink then unlink_all t gc_results.removable_chunk_idxs;
 
                 let stats =
                   let after_suffix_end_offset =
                     Dispatcher.end_offset t.dispatcher
                   in
-                  Gc_stats.Main.finalise partial_stats worker_stats
+                  Gc_stats.Main.finalise partial_stats gc_results.stats
                     ~after_suffix_end_offset
                 in
                 Stats.report_latest_gc stats;
@@ -289,8 +280,16 @@ module Make (Args : Gc_args.S) = struct
     let* status = Async.await t.task in
     let gc_output = read_gc_output ~root:t.root ~generation:t.generation in
     match (status, gc_output) with
-    | `Success, Ok _ ->
-        Lwt.return (t.latest_gc_target_offset, t.new_suffix_start_offset)
+    | `Success, Ok gc_results ->
+        Lwt.return
+          {
+            Control_file_intf.Payload.Upper.Latest.generation =
+              Fm.generation t.fm + 1;
+            latest_gc_target_offset = t.latest_gc_target_offset;
+            suffix_start_offset = t.new_suffix_start_offset;
+            suffix_dead_bytes = Int63.zero;
+            mapping_end_poff = Some gc_results.mapping_size;
+          }
     | _ ->
         let r = gc_errors status gc_output |> Errs.raise_if_error in
         Lwt.return r
