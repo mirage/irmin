@@ -1,4 +1,4 @@
-## Unreleased
+## 3.7.0
 
 ### Added
 
