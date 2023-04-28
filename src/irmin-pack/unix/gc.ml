@@ -66,13 +66,16 @@ module Make (Args : Gc_args.S) = struct
     in
     let unlink_result_file () =
       let result_file = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-      Io.unlink_dont_wait
-        ~on_exn:(fun exn ->
-          [%log.warn
-            "Unlinking temporary files from previous failed gc. Failed with \
-             error %s"
-            (Printexc.to_string exn)])
-        result_file
+      match Io.classify_path result_file with
+      | `File ->
+          Io.unlink_dont_wait
+            ~on_exn:(fun exn ->
+              [%log.warn
+                "Unlinking temporary files from previous failed gc. Failed \
+                 with error %s"
+                (Printexc.to_string exn)])
+            result_file
+      | `Directory | `No_such_file_or_directory | `Other -> ()
     in
     (* Unlink next gc's result file, in case it is on disk, for instance
        after a failed gc. *)
