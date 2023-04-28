@@ -568,10 +568,35 @@ struct
       let data = Layout.prefix ~root ~generation in
       Sparse.Ao.create ~mapping ~data >>= Sparse.Ao.close
     in
-    (* Step 4. Update the upper control file. *)
+    (* Step 4. Remove dead header from dict (if needed) *)
+    let* dict_end_poff, after_payload_write =
+      if dead_header_size > 0 then (
+        let dict_path = Layout.dict ~root in
+        let tmp_dict_path = Filename.temp_file ~temp_dir:root "store" "dict" in
+        let* dict_file = Io.open_ ~path:dict_path ~readonly:false in
+        let* len = Io.read_size dict_file in
+        let* tmp_dict_file = Io.open_ ~path:tmp_dict_path ~readonly:false in
+        let contents_len = Int63.to_int len - dead_header_size in
+        let* contents =
+          Io.read_to_string dict_file
+            ~off:(Int63.of_int dead_header_size)
+            ~len:contents_len
+        in
+        Io.write_exn tmp_dict_file ~off:Int63.zero ~len:contents_len contents;
+        let* _ = Io.close dict_file in
+        let* _ = Io.close tmp_dict_file in
+        (* Delay moving the temp file until after the payload is written so
+           that we do not try to remove the dead header twice after a failure. *)
+        Ok
+          ( Int63.of_int contents_len,
+            fun () -> Io.move_file ~src:tmp_dict_path ~dst:dict_path ))
+      else Ok (payload.dict_end_poff, Fun.const (Ok ()))
+    in
+    (* Step 5. Update the upper control file. *)
     let payload =
       {
         payload with
+        dict_end_poff;
         chunk_start_idx;
         appendable_chunk_poff = Int63.zero;
         volume_num = 1;
@@ -587,6 +612,7 @@ struct
       }
     in
     let* () = Control.set_payload control payload in
+    let* () = after_payload_write () in
     Ok payload
 
   let load_payload ~config ~root ~lower_root ~control =
