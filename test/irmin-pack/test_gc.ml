@@ -842,6 +842,11 @@ module Gc_archival = struct
     let* () = B.check_gced t c2 "gced c2" in
     let* () = B.check_removed t c3 "gced c3" in
     let* () = B.check_gced t c4 "gced c4" in
+    let* () =
+      Alcotest.check_raises_pack_error "Cannot GC on commit older than c5"
+        (function `Gc_disallowed _ -> true | _ -> false)
+        (fun () -> start_gc t c4)
+    in
     S.Repo.close t.repo
 
   module Gc_common_tests = Gc_common (B)

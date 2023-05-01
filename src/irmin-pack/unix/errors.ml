@@ -60,7 +60,7 @@ type base_error =
   | `Only_minimal_indexing_strategy_allowed
   | `Commit_key_is_dangling of string
   | `Dangling_key of string
-  | `Gc_disallowed
+  | `Gc_disallowed of string
   | `Node_or_contents_key_is_indexed of string
   | `Gc_process_error of string
   | `Corrupted_gc_result_file of string

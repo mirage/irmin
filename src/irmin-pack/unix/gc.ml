@@ -44,6 +44,7 @@ module Make (Args : Gc_args.S) = struct
 
   let v ~root ~lower_root ~new_files_path ~generation ~unlink ~dispatcher ~fm
       ~contents ~node ~commit commit_key =
+    let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
       match state with
@@ -55,6 +56,19 @@ module Make (Args : Gc_args.S) = struct
           assert false
     in
     let status = Fm.control fm |> Fm.Control.payload |> fun p -> p.status in
+    (* Ensure we are calling GC on a commit strictly newer than last GC commit *)
+    let* () =
+      match status with
+      | Gced previous
+        when Int63.Syntax.(
+               previous.latest_gc_target_offset >= latest_gc_target_offset) ->
+          Error
+            (`Gc_disallowed
+              (Fmt.str "%a is less than or equal to previous GC offset of %a"
+                 Int63.pp latest_gc_target_offset Int63.pp
+                 previous.latest_gc_target_offset))
+      | _ -> Ok ()
+    in
     (* Since we can call GC on commits in the lower, ensure we do not provide a
        [new_suffix_start_offset] that is older than our current starting offset. *)
     let new_suffix_start_offset =
@@ -101,24 +115,24 @@ module Make (Args : Gc_args.S) = struct
     let partial_stats =
       Gc_stats.Main.finish_current_step partial_stats "before finalise"
     in
-
-    {
-      root;
-      generation;
-      unlink;
-      new_suffix_start_offset;
-      task;
-      promise;
-      resolver;
-      dispatcher;
-      fm;
-      contents;
-      node;
-      commit;
-      partial_stats;
-      resulting_stats = None;
-      latest_gc_target_offset;
-    }
+    Ok
+      {
+        root;
+        generation;
+        unlink;
+        new_suffix_start_offset;
+        task;
+        promise;
+        resolver;
+        dispatcher;
+        fm;
+        contents;
+        node;
+        commit;
+        partial_stats;
+        resulting_stats = None;
+        latest_gc_target_offset;
+      }
 
   let swap_and_purge t (gc_results : Worker.gc_results) =
     let removable_chunk_num = List.length gc_results.removable_chunk_idxs in
