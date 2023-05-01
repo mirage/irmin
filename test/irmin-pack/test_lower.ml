@@ -393,6 +393,29 @@ module Store_tc = struct
     let* _ = read_everything repo in
     Store.Repo.close repo
 
+  let test_migrate_then_gc_in_lower () =
+    let root, lower_root = fresh_roots () in
+    (* Create without a lower *)
+    let* repo = Store.Repo.v (config ~fresh:true root) in
+    Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
+    let* main = Store.main repo in
+    let info () = Store.Info.v ~author:"test" Int64.zero in
+    let* () = Store.set_exn ~info main [ "a" ] "a" in
+    let* a_commit = Store.Head.get main in
+    let* () = Store.set_exn ~info main [ "b" ] "b" in
+    let* () = Store.Repo.close repo in
+    (* Reopen with a lower to trigger the migration *)
+    let* repo = Store.Repo.v (config ~lower_root root) in
+    Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
+    (* [a] is now in the lower but GC should still succeed
+
+       Important: we call GC on a commit that is not the latest in
+       the lower (ie [b]) to ensure its offset is not equal to the start
+       offset of the upper. *)
+    let* _ = Store.Gc.start_exn repo (Store.Commit.key a_commit) in
+    let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    Store.Repo.close repo
+
   let test_volume_data_locality () =
     let root, lower_root = fresh_roots () in
     let* repo = Store.Repo.v (config ~fresh:true ~lower_root root) in
@@ -508,6 +531,7 @@ module Store = struct
         quick_tc "migrate v2" test_migrate_v2;
         quick_tc "migrate v3" test_migrate_v3;
         quick_tc "migrate then gc" test_migrate_then_gc;
+        quick_tc "migrate then gc in lower" test_migrate_then_gc_in_lower;
         quick_tc "test data locality" test_volume_data_locality;
         quick_tc "test cleanup" test_cleanup;
       ]

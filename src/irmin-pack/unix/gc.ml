@@ -54,6 +54,16 @@ module Make (Args : Gc_args.S) = struct
           (* The caller of this function lifted the key to a direct one. *)
           assert false
     in
+    let status = Fm.control fm |> Fm.Control.payload |> fun p -> p.status in
+    (* Since we can call GC on commits in the lower, ensure we do not provide a
+       [new_suffix_start_offset] that is older than our current starting offset. *)
+    let new_suffix_start_offset =
+      match status with
+      | Gced { suffix_start_offset; _ }
+        when Int63.Syntax.(suffix_start_offset >= latest_gc_target_offset) ->
+          suffix_start_offset
+      | _ -> new_suffix_start_offset
+    in
     let partial_stats =
       let commit_offset = latest_gc_target_offset in
       let before_suffix_start_offset =
