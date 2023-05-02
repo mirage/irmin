@@ -28,76 +28,6 @@ module Make (Args : Gc_args.S) = struct
 
   let string_of_key = Irmin.Type.to_string key_t
 
-  module Live : sig
-    type t
-
-    val make : unit -> t
-    val add : off:int63 -> len:int -> t -> unit
-    val count : t -> int
-    val iter : (off:int63 -> len:int63 -> unit) -> t -> unit
-  end = struct
-    module Stack = struct
-      type t =
-        | Empty
-        | Stack of { mutable len : int; arr : int63 array; prev : t }
-
-      let capacity =
-        131_072 (* = 128*1024, a large but not too large chunk size *)
-
-      let make prev =
-        Stack { len = 0; arr = Array.make capacity Int63.zero; prev }
-
-      let is_full = function Empty -> true | Stack s -> s.len >= capacity
-
-      let rec push_pair ~off ~len t =
-        match t with
-        | Stack s when not (is_full t) ->
-            let i = s.len in
-            s.len <- i + 2;
-            s.arr.(i) <- off;
-            s.arr.(i + 1) <- Int63.of_int len;
-            t
-        | _ -> push_pair ~off ~len (make t)
-
-      let rec iter_pair fn = function
-        | Empty -> ()
-        | Stack { len; arr; prev } ->
-            assert (len mod 2 = 0);
-            for i = (len / 2) - 1 downto 0 do
-              let off = arr.(2 * i) in
-              let len = arr.((2 * i) + 1) in
-              fn ~off ~len
-            done;
-            iter_pair fn prev
-    end
-
-    type t = {
-      mutable last : (int63 * int) option;
-      mutable ranges : Stack.t;
-      mutable count : int;
-    }
-
-    let make () = { last = None; ranges = Stack.Empty; count = 0 }
-    let count t = t.count
-
-    let add ~off ~len t =
-      t.count <- t.count + 1;
-      let off_end = Int63.(Syntax.(off + of_int len)) in
-      match t.last with
-      | None -> t.last <- Some (off, len)
-      | Some (off', len') when off_end = off' -> t.last <- Some (off, len + len')
-      | Some (off', len') ->
-          t.last <- Some (off, len);
-          t.ranges <- Stack.push_pair ~off:off' ~len:len' t.ranges
-
-    let iter fn t =
-      match t.last with
-      | None -> assert (t.count = 0)
-      | Some (off, len) ->
-          fn ~off ~len:(Int63.of_int len);
-          Stack.iter_pair fn t.ranges
-  end
-
   module Priority_queue = struct
     module Offset_rev = struct
       type t = int63
@@ -142,7 +72,7 @@ module Make (Args : Gc_args.S) = struct
       - [min_offset] restricts the traversal to objects/commits with a larger or
         equal offset. *)
   let iter_reachable ~parents ~min_offset commit_key commit_store node_store =
-    let live = Live.make () in
+    let live = Ranges.make () in
     let todos = Priority_queue.create 1024 in
     let rec loop () =
       if not (Priority_queue.is_empty todos) then (
@@ -153,7 +83,7 @@ module Make (Args : Gc_args.S) = struct
       | (Contents | Node) as kind -> (
           let node_key = Node_store.key_of_offset node_store off in
           let len = Node_store.get_length node_store node_key in
-          Live.add live ~off ~len;
+          Ranges.add live ~off ~len;
           if kind = Node then
             match Node_store.unsafe_find_no_prefetch node_store node_key with
             | None ->
@@ -165,7 +95,7 @@ module Make (Args : Gc_args.S) = struct
       | Commit -> (
           let commit_key = Commit_store.key_of_offset commit_store off in
           let len = Commit_store.get_length commit_store commit_key in
-          Live.add live ~off ~len;
+          Ranges.add live ~off ~len;
           match
             Commit_store.unsafe_find ~check_integrity:false commit_store
               commit_key
@@ -323,7 +253,7 @@ module Make (Args : Gc_args.S) = struct
       stats :=
         Gc_stats.Worker.finish_current_step !stats "mapping: of reachable";
       stats :=
-        Gc_stats.Worker.set_objects_traversed !stats (Live.count live_entries);
+        Gc_stats.Worker.set_objects_traversed !stats (Ranges.count live_entries);
       live_entries
     in
 
@@ -345,7 +275,7 @@ module Make (Args : Gc_args.S) = struct
             |> Errs.log_if_error "GC: Close prefix after data copy")
         @@ fun () ->
         (* Step 5.1. Transfer all. *)
-        Live.iter
+        Ranges.iter
           (fun ~off ~len ->
             let str = Dispatcher.read_seq_exn dispatcher ~off ~len in
             Sparse.Ao.append_seq_exn prefix ~off str)
@@ -452,7 +382,7 @@ module Make (Args : Gc_args.S) = struct
             Gc_stats.Worker.finish_current_step !stats "archive: iter reachable";
           let min_offset = Dispatcher.suffix_start_offset dispatcher in
           let to_archive = ref [] in
-          Live.iter
+          Ranges.iter
             (fun ~off ~len ->
               to_archive :=
                 (off, Dispatcher.read_seq_exn dispatcher ~off ~len)
