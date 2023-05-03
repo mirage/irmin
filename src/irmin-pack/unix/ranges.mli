@@ -17,8 +17,22 @@
 open! Import
 
 type t
+(** An ordered set of disjoint [(offset, length)] ranges. *)
 
 val make : unit -> t
+(** [make ()] returns a new empty set of ranges. *)
+
 val add : off:int63 -> len:int -> t -> unit
-val count : t -> int
+(** [add ~off ~len t] inserts the range [(off, len)] into [t]. When [add] is
+    called multiple times sequentially, it is optimized for strictly decreasing
+    offsets arguments. *)
+
 val iter : (off:int63 -> len:int63 -> unit) -> t -> unit
+(** [iter fn t] calls [fn ~off ~len] on every disjoint range [(off, len)] in the
+    set [t]. The function [fn ~off ~len] is called with strictly increasing
+    offsets. If two or more consecutive ranges [(off,len)] and [(off+len,len')]
+    were added to the set [t], a single call to [fn] will be performed on the
+    englobing interval [(off,len+len')]. *)
+
+val count : t -> int
+(** [count t] returns the number of [add]s performed on [t]. *)
