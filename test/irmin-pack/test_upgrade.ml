@@ -533,8 +533,9 @@ let gc_rw t =
         | From_v2, _ | _, `always ->
             let* () =
               Alcotest.check_raises_lwt "GC on V2/always"
-                (Irmin_pack_unix.Errors.Pack_error `Gc_disallowed) (fun () ->
-                  Store.gc repo)
+                (Irmin_pack_unix.Errors.Pack_error
+                   (`Gc_disallowed "Store does not support GC"))
+                (fun () -> Store.gc repo)
             in
             raise Skip_the_rest_of_that_test
         | (From_v3 | From_scratch | From_v3_c0_gced), `minimal -> Store.gc repo

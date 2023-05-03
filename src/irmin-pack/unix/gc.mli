@@ -35,7 +35,7 @@ module Make (Args : Gc_args.S) : sig
     node:read Args.Node_store.t ->
     commit:read Args.Commit_store.t ->
     Args.key ->
-    t
+    (t, [> `Gc_disallowed of string ]) result
   (** Creates and starts a new GC process. *)
 
   val finalise :

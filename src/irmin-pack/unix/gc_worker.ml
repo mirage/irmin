@@ -313,6 +313,7 @@ module Make (Args : Gc_args.S) = struct
           "suffix: calculate new values";
       let suffix = Fm.suffix fm in
       let soff = Dispatcher.soff_of_offset dispatcher new_suffix_start_offset in
+      assert (Int63.Syntax.(soff >= Int63.zero));
       (* Step 6.1. Calculate chunks that we have GCed. *)
       let open struct
         type chunk = { idx : int; end_suffix_off : int63 }

@@ -250,12 +250,14 @@ module Maker (Config : Conf.S) = struct
             let* commit_key = direct_commit_key t commit_key in
             let root = Conf.root t.config in
             let* () =
-              if not (is_allowed t) then Error `Gc_disallowed else Ok ()
+              if not (is_allowed t) then
+                Error (`Gc_disallowed "Store does not support GC")
+              else Ok ()
             in
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
             let lower_root = Conf.lower_root t.config in
-            let gc =
+            let* gc =
               Gc.v ~root ~lower_root ~generation:next_generation ~unlink
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
                 ~node:t.node ~commit:t.commit ~new_files_path commit_key

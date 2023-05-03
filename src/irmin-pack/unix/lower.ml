@@ -232,7 +232,12 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
       Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
     in
     let control = Irmin_pack.Layout.V5.Volume.control ~root in
-    Io.move_file ~src:control_tmp ~dst:control
+    match Io.classify_path control_tmp with
+    | `File -> Io.move_file ~src:control_tmp ~dst:control
+    | `No_such_file_or_directory ->
+        [%log.info "No tmp volume control file to swap. %s" control];
+        Ok ()
+    | `Directory | `Other -> assert false
 
   let cleanup ~generation t =
     let clean filename =

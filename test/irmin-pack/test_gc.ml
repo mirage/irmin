@@ -782,24 +782,25 @@ module Gc_archival = struct
       (S.Gc.is_allowed t.repo) false;
     S.Repo.close t.repo
 
-  (* TODO re-enable when lower migration is implemented *)
-  let _gc_reachability_old () =
+  let gc_reachability_old () =
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
+    [%log.debug "Open v1 store to trigger migration"];
     let* t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
     let* main = S.main t.repo in
+    [%log.debug "Run GC on commit that is now in lower"];
     let* head = S.Head.get main in
+    let () =
+      match Irmin_pack_unix.Pack_key.inspect (S.Commit.key head) with
+      | Direct { volume_identifier; _ } ->
+          Alcotest.(check bool)
+            "after migration, head is in lower"
+            (Option.is_some volume_identifier)
+            true
+      | _ -> assert false
+    in
     let* () = start_gc t head in
-    let check_ex = function
-      | `Gc_process_error msg ->
-          msg = "Archival finalization not yet implemented"
-      | _ -> false
-    in
-    let* () =
-      Alcotest.check_raises_pack_error
-        "archiving gc should run until finalization on old stores" check_ex
-        (fun () -> finalise_gc t)
-    in
+    let* () = finalise_gc t in
     S.Repo.close t.repo
 
   module B = struct
@@ -841,6 +842,11 @@ module Gc_archival = struct
     let* () = B.check_gced t c2 "gced c2" in
     let* () = B.check_removed t c3 "gced c3" in
     let* () = B.check_gced t c4 "gced c4" in
+    let* () =
+      Alcotest.check_raises_pack_error "Cannot GC on commit older than c5"
+        (function `Gc_disallowed _ -> true | _ -> false)
+        (fun () -> start_gc t c4)
+    in
     S.Repo.close t.repo
 
   module Gc_common_tests = Gc_common (B)
@@ -853,7 +859,7 @@ module Gc_archival = struct
         gc_availability_old;
       tc "Test archiving twice on different volumes"
         gc_archival_multiple_volumes;
-      (* tc "Test reachability on old stores" gc_reachability_old; *)
+      tc "Test reachability on old stores" gc_reachability_old;
     ]
     @ Gc_common_tests.tests
 end
