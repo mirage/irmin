@@ -566,6 +566,7 @@ let misc =
     ("gc archival", Test_gc.Gc_archival.tests);
     ("split", Test_gc.Split.tests);
     ("flush", Test_flush_reload.tests);
+    ("ranges", Test_ranges.tests);
     ("mapping", Test_mapping.tests);
     ("test_nearest_geq", Test_nearest_geq.tests);
     ("layout", Layout.tests);

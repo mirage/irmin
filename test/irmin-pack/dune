@@ -13,6 +13,7 @@
   test_upgrade
   test_gc
   test_flush_reload
+  test_ranges
   test_mapping
   test_nearest_geq
   test_dispatcher
