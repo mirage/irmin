@@ -210,6 +210,28 @@ module Store_tc = struct
     | Gced { generation; _ } -> generation
     | _ -> Alcotest.fail "expected gced status"
 
+  (* Reads all objects from the repo by iterating its index and folding its commit trees. *)
+  let read_everything repo =
+    let fm = Store.Internal.file_manager repo in
+    let index = Store.Internal.File_manager.index fm in
+    let commits = ref [] in
+    let () =
+      Store.Internal.Index.iter
+        (fun hash (_offset, _len, kind) ->
+          match kind with
+          | Irmin_pack.Pack_value.Kind.Commit_v2 -> commits := hash :: !commits
+          | _ -> ())
+        index
+    in
+    Lwt_list.map_s
+      (fun hash ->
+        [%log.debug "read %a" Irmin.Type.(pp Store.Hash.t) hash];
+        let* commit = Store.Commit.of_hash repo hash in
+        match commit with
+        | None -> Alcotest.fail "failed to read commit"
+        | Some commit -> Store.Tree.fold (Store.Commit.tree commit) ())
+      !commits
+
   let test_create () =
     let* repo = init () in
     (* A newly created store with a lower should have an empty volume. *)
@@ -307,6 +329,44 @@ module Store_tc = struct
     let previous_tree = Store.Commit.tree @@ Option.get parent in
     let* a_opt = Store.Tree.find previous_tree [ "a" ] in
     Alcotest.(check (option string)) "upper to lower" (Some "a") a_opt;
+    let* _ = read_everything repo in
+    Store.Repo.close repo
+
+  (* Tests that dead header is handled appropriately *)
+  let test_migrate_v2 () =
+    let ( / ) = Filename.concat in
+    let root_archive =
+      "test" / "irmin-pack" / "data" / "version_2_to_3_always"
+    in
+    let root = "_build" / "test_lower_migrate_v2" in
+    setup_test_env ~root_archive ~root_local_build:root;
+    let lower_root = root / "lower" in
+    (* Open store and trigger migration. This should succeed. *)
+    let* repo = Store.Repo.v (config ~fresh:false ~lower_root root) in
+    let* _ = read_everything repo in
+    Store.Repo.close repo
+
+  let test_migrate_v3 () =
+    (* minimal indexing *)
+    let ( / ) = Filename.concat in
+    let root_archive = "test" / "irmin-pack" / "data" / "version_3_minimal" in
+    let root = "_build" / "test_lower_migrate_v3_minimal" in
+    setup_test_env ~root_archive ~root_local_build:root;
+    let lower_root = root / "lower" in
+    (* Open store and trigger migration. This should succeed. *)
+    let* repo = Store.Repo.v (config ~fresh:false ~lower_root root) in
+    let* _ = read_everything repo in
+    let* _ = Store.Repo.close repo in
+
+    (* always indexing *)
+    let ( / ) = Filename.concat in
+    let root_archive = "test" / "irmin-pack" / "data" / "version_3_always" in
+    let root = "_build" / "test_lower_migrate_v3_always" in
+    setup_test_env ~root_archive ~root_local_build:root;
+    let lower_root = root / "lower" in
+    (* Open store and trigger migration. This should succeed. *)
+    let* repo = Store.Repo.v (config ~fresh:false ~lower_root root) in
+    let* _ = read_everything repo in
     Store.Repo.close repo
 
   let test_migrate_then_gc () =
@@ -330,6 +390,7 @@ module Store_tc = struct
     (* GC at [b] requires reading [a] data from the lower volume *)
     let* _ = Store.Gc.start_exn repo (Store.Commit.key b_commit) in
     let* _ = Store.Gc.finalise_exn ~wait:true repo in
+    let* _ = read_everything repo in
     Store.Repo.close repo
 
   let test_volume_data_locality () =
@@ -444,6 +505,8 @@ module Store = struct
         quick_tc "control file updated after add" test_add_volume_reopen;
         quick_tc "add volume and reopen" test_add_volume_reopen;
         quick_tc "create without lower then migrate" test_migrate;
+        quick_tc "migrate v2" test_migrate_v2;
+        quick_tc "migrate v3" test_migrate_v3;
         quick_tc "migrate then gc" test_migrate_then_gc;
         quick_tc "test data locality" test_volume_data_locality;
         quick_tc "test cleanup" test_cleanup;

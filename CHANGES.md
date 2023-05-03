@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Fix issue when migrating v2 stores to use lower layer (@metanivek, #2241)
+
 ## 3.7.0 (2023-04-26)
 
 ### Added
