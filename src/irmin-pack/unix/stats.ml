@@ -211,6 +211,12 @@ module Io = struct
     let zero =
       { bytes_read = 0; nb_reads = 0; bytes_written = 0; nb_writes = 0 }
 
+    let read ?(nb = 1) b =
+      { bytes_read = b; nb_reads = nb; bytes_written = 0; nb_writes = 0 }
+
+    let write ?(nb = 1) b =
+      { bytes_read = 0; nb_reads = 0; bytes_written = b; nb_writes = nb }
+
     let sum2 a b =
       {
         bytes_read = a.bytes_read + b.bytes_read;

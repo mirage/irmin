@@ -158,6 +158,7 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let write_exn t ~off ~len s =
+    Stats.(incr_io t.path @@ Io.Activity.write len);
     if String.length s < len then raise (Errors.Pack_error `Invalid_argument);
     match (t.closed, t.readonly) with
     | true, _ -> raise Errors.Closed
@@ -189,6 +190,7 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let read_exn t ~off ~len buf =
+    Stats.(incr_io t.path @@ Io.Activity.read len);
     if len > Bytes.length buf then raise (Errors.Pack_error `Invalid_argument);
     match t.closed with
     | true -> raise Errors.Closed
@@ -224,7 +226,7 @@ module Unix = struct
     let buf = Buffer.create 0 in
     let len = page_size in
     let bytes = Bytes.create len in
-    let rec aux ~off =
+    let rec aux ~off count =
       let nread =
         Syscalls.pread ~fd:t.fd ~fd_offset:off ~buffer:bytes ~buffer_offset:0
           ~length:len
@@ -232,10 +234,13 @@ module Unix = struct
       if nread > 0 then (
         Index.Stats.add_read nread;
         Buffer.add_subbytes buf bytes 0 nread;
-        if nread = len then aux ~off:Int63.(add off (of_int nread)))
+        if nread = len then aux ~off:Int63.(add off (of_int nread)) count
+        else count)
+      else count
     in
     try
-      aux ~off:Int63.zero;
+      let count = aux ~off:Int63.zero 0 in
+      Stats.(incr_io t.path @@ Io.Activity.read ~nb:count len);
       Ok (Buffer.contents buf)
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
