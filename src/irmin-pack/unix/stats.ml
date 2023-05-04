@@ -198,6 +198,71 @@ module File_manager = struct
     Metrics.update t (Metrics.Mutate f)
 end
 
+module Io = struct
+  module Activity = struct
+    type t = {
+      bytes_read : int;
+      nb_reads : int;
+      bytes_written : int;
+      nb_writes : int;
+    }
+    [@@deriving irmin]
+
+    let zero =
+      { bytes_read = 0; nb_reads = 0; bytes_written = 0; nb_writes = 0 }
+
+    let sum2 a b =
+      {
+        bytes_read = a.bytes_read + b.bytes_read;
+        nb_reads = a.nb_reads + b.nb_reads;
+        bytes_written = a.bytes_written + b.bytes_written;
+        nb_writes = a.nb_writes + b.nb_writes;
+      }
+
+    let sum ts = Seq.fold_left sum2 zero ts
+
+    let diff a b =
+      {
+        bytes_read = a.bytes_read - b.bytes_read;
+        nb_reads = a.nb_reads - b.nb_reads;
+        bytes_written = a.bytes_written - b.bytes_written;
+        nb_writes = a.nb_writes - b.nb_writes;
+      }
+  end
+
+  type path = string
+
+  module PathMap = Map.Make (String)
+
+  (* Some Repr ceremony *)
+  module Repr_pathmap = Repr.Of_map (struct
+    include PathMap
+
+    let key_t = Repr.string
+  end)
+
+  type t = Activity.t PathMap.t
+  type Metrics.origin += Io
+  type stat = t Metrics.t
+
+  let init () =
+    Metrics.v ~origin:Io ~name:"io_stats" ~initial_state:PathMap.empty
+      (Repr_pathmap.t Activity.t)
+
+  let clear stat =
+    Metrics.update stat (Metrics.Replace (Fun.const PathMap.empty))
+
+  let update stat path activity =
+    Metrics.update stat
+      (Metrics.Replace
+         (PathMap.update path (function
+           | None -> Some activity
+           | Some previous_activity ->
+               Some (Activity.sum2 previous_activity activity))))
+
+  let export stat = Metrics.state stat
+end
+
 module Latest_gc = struct
   include Stats_intf.Latest_gc
 
@@ -253,6 +318,7 @@ type t = {
   index : Index.stat;
   file_manager : File_manager.stat;
   latest_gc : Latest_gc.stat;
+  io : Io.stat;
 }
 
 let s =
@@ -261,6 +327,7 @@ let s =
     index = Index.init ();
     file_manager = File_manager.init ();
     latest_gc = Latest_gc.init ();
+    io = Io.init ();
   }
 
 let reset_stats () =
@@ -268,6 +335,7 @@ let reset_stats () =
   Index.clear s.index;
   File_manager.clear s.file_manager;
   Latest_gc.clear s.latest_gc;
+  Io.clear s.io;
   ()
 
 let get () = s
@@ -301,4 +369,5 @@ let get_offset_stats () =
   }
 
 let incr_fm_field field = File_manager.update ~field s.file_manager
+let incr_io path activity = Io.update s.io path activity
 let report_latest_gc x = Latest_gc.update x s.latest_gc
