@@ -30,7 +30,9 @@
     write to the control file.
 
     [`V5] introduced the lower layer. Upgrade happened on first write to the
-    control file. *)
+    control file.
+
+    See `doc/irmin-pack/version-history.md` for other documentation. *)
 
 type t = [ `V1 | `V2 | `V3 | `V4 | `V5 ] [@@deriving irmin]
 (** The type for version numbers. *)
