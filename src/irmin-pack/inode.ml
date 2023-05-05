@@ -405,10 +405,10 @@ struct
     (** [tagged_v] sits between [v] and [t]. It is a variant with the header
         binary encoded as the magic. *)
     type tagged_v =
-      | V0_stable of v
-      | V0_unstable of v
-      | V1_root of v1
-      | V1_nonroot of v1
+      | V1_stable of v
+      | V1_unstable of v
+      | V2_root of v1
+      | V2_nonroot of v1
     [@@deriving irmin]
 
     let encode_bin_tv_staggered ({ v; _ } as tv) kind f =
@@ -429,18 +429,18 @@ struct
 
     let encode_bin_tv tv f =
       match tv with
-      | V0_stable _ -> assert false
-      | V0_unstable _ -> assert false
-      | V1_root { length; v } when is_real_length length ->
+      | V1_stable _ -> assert false
+      | V1_unstable _ -> assert false
+      | V2_root { length; v } when is_real_length length ->
           encode_bin_kind Pack_value.Kind.Inode_v2_root f;
           encode_bin_int length f;
           encode_bin_v v f
-      | V1_nonroot { length; v } when is_real_length length ->
+      | V2_nonroot { length; v } when is_real_length length ->
           encode_bin_kind Pack_value.Kind.Inode_v2_nonroot f;
           encode_bin_int length f;
           encode_bin_v v f
-      | V1_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_root f
-      | V1_nonroot tv ->
+      | V2_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_root f
+      | V2_nonroot tv ->
           encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_nonroot f
 
     let decode_bin_tv s off =
@@ -448,20 +448,20 @@ struct
       match kind with
       | Pack_value.Kind.Inode_v1_unstable ->
           let v = decode_bin_v s off in
-          V0_unstable v
+          V1_unstable v
       | Inode_v1_stable ->
           let v = decode_bin_v s off in
-          V0_stable v
+          V1_stable v
       | Inode_v2_root ->
           let length = decode_bin_int s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
-          V1_root { length; v }
+          V2_root { length; v }
       | Inode_v2_nonroot ->
           let length = decode_bin_int s off in
           assert (is_real_length length);
           let v = decode_bin_v s off in
-          V1_nonroot { length; v }
+          V2_nonroot { length; v }
       | Commit_v1 | Commit_v2 -> assert false
       | Contents -> assert false
       | Dangling_parent_commit -> assert false
@@ -494,11 +494,11 @@ struct
     let v ~root ~hash v =
       let length = no_length in
       let tv =
-        if root then V1_root { v; length } else V1_nonroot { v; length }
+        if root then V2_root { v; length } else V2_nonroot { v; length }
       in
       { hash; tv }
 
-    (** The rule to determine the [is_root] property of a v0 [Value] is a bit
+    (** The rule to determine the [is_root] property of a v1 [Value] is a bit
         convoluted, it relies on the fact that back then the following property
         was enforced: [Conf.stable_hash > Conf.entries].
 
@@ -518,13 +518,13 @@ struct
         - A [Value] has at most [Conf.stable_hash] leaves because
           [Conf.entries <= Conf.stable_hash] is enforced. *)
     let is_root = function
-      | { tv = V0_stable (Values _); _ } -> true
-      | { tv = V0_unstable (Values _); _ } -> false
-      | { tv = V0_stable (Tree { depth; _ }); _ }
-      | { tv = V0_unstable (Tree { depth; _ }); _ } ->
+      | { tv = V1_stable (Values _); _ } -> true
+      | { tv = V1_unstable (Values _); _ } -> false
+      | { tv = V1_stable (Tree { depth; _ }); _ }
+      | { tv = V1_unstable (Tree { depth; _ }); _ } ->
           depth = 0
-      | { tv = V1_root _; _ } -> true
-      | { tv = V1_nonroot _; _ } -> false
+      | { tv = V2_root _; _ } -> true
+      | { tv = V2_nonroot _; _ } -> false
   end
 
   (** [Val_impl] defines the recursive structure of inodes.
@@ -1895,10 +1895,10 @@ struct
        fun tv ->
         let v =
           match tv with
-          | V0_stable v -> v
-          | V0_unstable v -> v
-          | V1_root { v; _ } -> v
-          | V1_nonroot { v; _ } -> v
+          | V1_stable v -> v
+          | V1_unstable v -> v
+          | V2_root { v; _ } -> v
+          | V2_nonroot { v; _ } -> v
         in
         match v with
         | Values vs -> Values (List.rev_map value (List.rev vs))
@@ -1917,8 +1917,8 @@ struct
       let { Compress.tv; _ } = i in
       let v =
         match tv with
-        | V0_stable v | V0_unstable v -> v
-        | V1_root { v; _ } | V1_nonroot { v; _ } -> v
+        | V1_stable v | V1_unstable v -> v
+        | V2_root { v; _ } | V2_nonroot { v; _ } -> v
       in
       let entry_of_address = function
         | Compress.Offset offset -> entry_of_offset offset

@@ -615,10 +615,10 @@ let show_inode c (inode : Files.Inode.compress) =
     (img <-> tv, List.map (fun b -> Button.pad b 0 (I.height img)) tv_buttons)
   in
   match inode.tv with
-  | V0_stable tv -> v tv "Stable"
-  | V0_unstable tv -> v tv "Unstable"
-  | V1_root tv -> v tv.v "Root"
-  | V1_nonroot tv -> v tv.v "Non root"
+  | V1_stable tv -> v tv "Stable"
+  | V1_unstable tv -> v tv "Unstable"
+  | V2_root tv -> v tv.v "Root"
+  | V2_nonroot tv -> v tv.v "Non root"
 
 let kind_color (kind : Kind.t) =
   match kind with
