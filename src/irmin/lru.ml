@@ -80,24 +80,23 @@ module Make (H : Hashtbl.HashedType) = struct
     q : (key * 'a) Q.t;
     mutable cap : int;
     mutable w : int;
-    weight : 'a -> int;
   }
 
-  let create ?(weight = function _ -> 1) cap =
-    { cap; w = 0; ht = HT.create cap; q = Q.create (); weight }
+  let weight t = t.w
+  let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
 
   let drop_lru t =
     match t.q.first with
     | None -> ()
-    | Some ({ Q.value = k, v; _ } as n) ->
-        t.w <- t.w - t.weight v;
+    | Some ({ Q.value = k, _; _ } as n) ->
+        t.w <- t.w - 1;
         HT.remove t.ht k;
         Q.detach t.q n
 
   let remove t k =
     try
       let n = HT.find t.ht k in
-      t.w <- t.w - t.weight (snd n.value);
+      t.w <- t.w - 1;
       HT.remove t.ht k;
       Q.detach t.q n
     with Not_found -> ()
@@ -107,16 +106,10 @@ module Make (H : Hashtbl.HashedType) = struct
     else (
       remove t k;
       let n = Q.node (k, v) in
-      let w = t.weight v in
-      if w > t.cap then
-        (* if [v] is bigger than the LRU capacity, just skip it *) ()
-      else (
-        t.w <- t.w + w;
-        while t.w > t.cap do
-          drop_lru t
-        done;
-        HT.add t.ht k n;
-        Q.append t.q n))
+      t.w <- t.w + 1;
+      if weight t > t.cap then drop_lru t;
+      HT.add t.ht k n;
+      Q.append t.q n)
 
   let promote t k =
     try

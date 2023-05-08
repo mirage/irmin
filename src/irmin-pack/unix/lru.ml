@@ -28,7 +28,7 @@ type t = value Internal.t
 
 let create config =
   let lru_size = Irmin_pack.Conf.lru_size config in
-  Internal.create ?weight:None lru_size
+  Internal.create lru_size
 
 let add = Internal.add
 let find = Internal.find
