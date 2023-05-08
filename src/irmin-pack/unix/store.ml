@@ -148,6 +148,7 @@ module Maker (Config : Conf.S) = struct
         type running_gc = { gc : Gc.t; use_auto_finalisation : bool }
 
         type t = {
+          lru : Lru.t;
           config : Irmin.Backend.Conf.t;
           contents : read Contents.CA.t;
           node : read Node.CA.t;
@@ -187,9 +188,10 @@ module Maker (Config : Conf.S) = struct
           in
           let dict = Dict.v fm |> Errs.raise_if_error in
           let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
-          let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher in
-          let node = Node.CA.v ~config ~fm ~dict ~dispatcher in
-          let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher in
+          let lru = Lru.create config in
+          let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher ~lru in
+          let node = Node.CA.v ~config ~fm ~dict ~dispatcher ~lru in
+          let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher ~lru in
           let+ branch =
             let root = Conf.root config in
             let fresh = Conf.fresh config in
@@ -210,6 +212,7 @@ module Maker (Config : Conf.S) = struct
             during_batch;
             running_gc;
             dispatcher;
+            lru;
           }
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error

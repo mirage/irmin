@@ -119,7 +119,10 @@ struct
   type t = Data.t [@@deriving irmin ~size_of]
   type key = Key.t
   type hash = Hash.t
+  type kinded += Contents of t
 
+  let to_kinded t = Contents t
+  let of_kinded = function Contents c -> c | _ -> assert false
   let hash = Hash.hash
   let kind = Kind.Contents
   let length_header = Fun.const Conf.contents_length_header
@@ -162,7 +165,10 @@ struct
   type t = Commit.t [@@deriving irmin]
   type key = Key.t
   type hash = Hash.t [@@deriving irmin ~encode_bin ~decode_bin]
+  type kinded += Commit of t
 
+  let to_kinded t = Commit t
+  let of_kinded = function Commit c -> c | _ -> assert false
   let hash = Hash.hash
   let kind _ = Kind.Commit_v2
   let weight _ = 1

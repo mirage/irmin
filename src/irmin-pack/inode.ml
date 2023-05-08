@@ -1776,7 +1776,10 @@ struct
     type key = Key.t
     type t = T.key Bin.t [@@deriving irmin]
     type metadata = T.metadata [@@deriving irmin]
+    type Pack_value.kinded += Node of t
 
+    let to_kinded t = Node t
+    let of_kinded = function Node n -> n | _ -> assert false
     let depth = Bin.depth
 
     exception Invalid_depth of { expected : int; got : int; v : t }

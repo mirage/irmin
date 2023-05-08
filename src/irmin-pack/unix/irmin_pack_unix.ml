@@ -60,3 +60,4 @@ module Sparse_file = Sparse_file
 module File_manager = File_manager
 module Lower = Lower
 module Utils = Utils
+module Lru = Lru

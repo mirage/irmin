@@ -230,8 +230,9 @@ module Make (Args : Gc_args.S) = struct
     @@ fun () ->
     let dict = Dict.v fm |> Errs.raise_if_error in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
-    let node_store = Node_store.v ~config ~fm ~dict ~dispatcher in
-    let commit_store = Commit_store.v ~config ~fm ~dict ~dispatcher in
+    let lru = Lru.create config in
+    let node_store = Node_store.v ~config ~fm ~dict ~dispatcher ~lru in
+    let commit_store = Commit_store.v ~config ~fm ~dict ~dispatcher ~lru in
 
     (* Step 2. Load commit which will make [commit_key] [Direct] if it's not
        already the case. *)

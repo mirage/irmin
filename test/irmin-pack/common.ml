@@ -54,6 +54,11 @@ module Contents = struct
 
   let kind _ = Irmin_pack.Pack_value.Kind.Contents
 
+  type Irmin_pack.Pack_value.kinded += Contents of t
+
+  let to_kinded t = Contents t
+  let of_kinded = function Contents c -> c | _ -> assert false
+
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
   let hash = H.hash
@@ -152,7 +157,8 @@ struct
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
     let dict = Dict.v fm |> Errs.raise_if_error in
-    let pack = Pack.v ~config ~fm ~dict ~dispatcher in
+    let lru = Irmin_pack_unix.Lru.create config in
+    let pack = Pack.v ~config ~fm ~dict ~dispatcher ~lru in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm } |> Lwt.return
 

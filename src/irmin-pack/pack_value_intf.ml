@@ -17,6 +17,7 @@
 open! Import
 
 type length_header = [ `Varint ] option
+type kinded = ..
 
 module type S = sig
   include Irmin.Type.S
@@ -48,6 +49,15 @@ module type S = sig
     t Irmin.Type.decode_bin
 
   val decode_bin_length : string -> int -> int
+
+  val to_kinded : t -> kinded
+  (** [to_kinded t] returns a {!kinded} version of [t]. *)
+
+  val of_kinded : kinded -> t
+  (** [of_kinded k] is the inverse of [to_kinded t].
+
+      It is expected that an implementation only works for [k] that is returned
+      from [to_kinded t] and will raise an exception otherwise. *)
 end
 
 module type T = sig
@@ -83,6 +93,13 @@ module type Sigs = sig
     (** Raises an exception on [Contents], as the availability of a length
         header is user defined. *)
   end
+
+  type nonrec kinded = kinded = ..
+  (** [kinded] is an extenisble variant that each {!S} extends so that it can
+      define {!S.to_kinded} and {!S.of_kinded}. Its purpose is to allow
+      containers, such as {!Irmin_pack_unix.Lru}, to store and return all types
+      of {!S} and thus be usable by modules defined over {!S}, such as
+      {!Irmin_pack_unix.Pack_store}. *)
 
   module type S = S with type kind := Kind.t
   module type Config = Config
