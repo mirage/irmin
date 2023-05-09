@@ -30,6 +30,7 @@ end
 module Default = struct
   let fresh = false
   let lru_size = 100_000
+  let lru_max_memory = None
   let index_log_size = 2_500_000
   let readonly = false
   let merge_throttle = `Block_writes
@@ -53,8 +54,14 @@ module Key = struct
       Default.fresh
 
   let lru_size =
-    key ~spec ~doc:"Size of the LRU cache for pack entries." "lru-size"
+    key ~spec ~doc:"Maximum size of the LRU cache for pack entries." "lru-size"
       Irmin.Type.int Default.lru_size
+
+  let lru_max_memory =
+    key ~spec ~doc:"Maximum memory in bytes of the LRU cache for pack entries."
+      "lru-max-memory"
+      Irmin.Type.(option int)
+      Default.lru_max_memory
 
   let index_log_size =
     key ~spec ~doc:"Size of index logs." "index-log-size" Irmin.Type.int
@@ -109,6 +116,7 @@ end
 
 let fresh config = get config Key.fresh
 let lru_size config = get config Key.lru_size
+let lru_max_memory config = get config Key.lru_max_memory
 let readonly config = get config Key.readonly
 let index_log_size config = get config Key.index_log_size
 let merge_throttle config = get config Key.merge_throttle
@@ -132,7 +140,8 @@ let suffix_auto_flush_threshold config =
 let no_migrate config = get config Key.no_migrate
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
-    ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
+    ?(lru_size = Default.lru_size) ?(lru_max_memory = Default.lru_max_memory)
+    ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(indexing_strategy = Default.indexing_strategy)
     ?(use_fsync = Default.use_fsync)
@@ -144,6 +153,7 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
   let config = add config Key.lower_root lower_root in
   let config = add config Key.fresh fresh in
   let config = add config Key.lru_size lru_size in
+  let config = add config Key.lru_max_memory lru_max_memory in
   let config = add config Key.index_log_size index_log_size in
   let config = add config Key.readonly readonly in
   let config = add config Key.merge_throttle merge_throttle in
