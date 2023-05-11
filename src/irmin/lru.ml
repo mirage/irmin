@@ -78,20 +78,28 @@ module Make (H : Hashtbl.HashedType) = struct
   type 'a t = {
     ht : (key * 'a) Q.node HT.t;
     q : (key * 'a) Q.t;
-    mutable cap : int;
+    mutable cap : cap;
     mutable w : int;
   }
 
-  let weight t = t.w
-  let create cap = { cap; w = 0; ht = HT.create cap; q = Q.create () }
+  and cap = Uncapped | Capped of int
 
-  let drop_lru t =
+  let weight t = t.w
+
+  let create cap =
+    let cap, ht_cap =
+      if cap < 0 then (Uncapped, 65536) else (Capped cap, cap)
+    in
+    { cap; w = 0; ht = HT.create ht_cap; q = Q.create () }
+
+  let drop t =
     match t.q.first with
-    | None -> ()
-    | Some ({ Q.value = k, _; _ } as n) ->
+    | None -> None
+    | Some ({ Q.value = k, v; _ } as n) ->
         t.w <- t.w - 1;
         HT.remove t.ht k;
-        Q.detach t.q n
+        Q.detach t.q n;
+        Some v
 
   let remove t k =
     try
@@ -102,14 +110,21 @@ module Make (H : Hashtbl.HashedType) = struct
     with Not_found -> ()
 
   let add t k v =
-    if t.cap = 0 then ()
-    else (
+    let add t k v =
       remove t k;
       let n = Q.node (k, v) in
       t.w <- t.w + 1;
-      if weight t > t.cap then drop_lru t;
       HT.add t.ht k n;
-      Q.append t.q n)
+      Q.append t.q n
+    in
+    match t.cap with
+    | Capped c when c = 0 -> ()
+    | Uncapped -> add t k v
+    | Capped c ->
+        add t k v;
+        if weight t > c then
+          let _ = drop t in
+          ()
 
   let promote t k =
     try

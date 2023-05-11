@@ -24,14 +24,50 @@ end)
 
 type key = int63
 type value = Irmin_pack.Pack_value.kinded
-type t = value Internal.t
+type weighted_value = { v : value; weight : int }
+
+type t = {
+  lru : weighted_value Internal.t;
+  weight_limit : int option;
+  mutable total_weight : int;
+}
 
 let create config =
-  let lru_size = Irmin_pack.Conf.lru_size config in
-  Internal.create lru_size
+  let lru_max_memory = Irmin_pack.Conf.lru_max_memory config in
+  let lru_size, weight_limit =
+    match lru_max_memory with
+    | None -> (Irmin_pack.Conf.lru_size config, None)
+    | Some b -> (-42, Some b)
+  in
+  let lru = Internal.create lru_size in
+  { lru; weight_limit; total_weight = 0 }
 
-let add = Internal.add
-let find = Internal.find
-let mem = Internal.mem
-let clear = Internal.clear
-let iter = Internal.iter
+let lru_enabled t = match t.weight_limit with None -> true | Some x -> x > 0
+
+let add t k w v =
+  if lru_enabled t = false then ()
+  else
+    let add t k v w =
+      let n = { v; weight = w } in
+      t.total_weight <- t.total_weight + w;
+      Internal.add t.lru k n
+    in
+    match t.weight_limit with
+    | None -> add t k v 0
+    | Some limit ->
+        add t k v (w ());
+        while t.total_weight > limit do
+          match Internal.drop t.lru with
+          | None -> t.total_weight <- 0
+          | Some n -> t.total_weight <- t.total_weight - n.weight
+        done
+
+let v v = v.v
+let find { lru; _ } k = Internal.find lru k |> v
+let mem { lru; _ } k = Internal.mem lru k
+
+let clear t =
+  Internal.clear t.lru;
+  t.total_weight <- 0
+
+let iter { lru; _ } f = Internal.iter lru (fun k wv -> f k (v wv))

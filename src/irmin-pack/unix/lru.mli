@@ -17,11 +17,18 @@
 open Import
 
 type t
+(** An LRU that support memory-bound capacity via configuration key
+    [lru_max_memory]. Falls back to entry-based capacity via [lru_size]
+    configuration key, if max memory is not configured. *)
+
 type key = int63
 type value = Irmin_pack.Pack_value.kinded
 
 val create : Irmin.Backend.Conf.t -> t
-val add : t -> int63 -> value -> unit
+
+val add : t -> int63 -> (unit -> int) -> value -> unit
+(** [add t key weight value] maps [value] with [weight] to [key] in [t]. *)
+
 val find : t -> key -> value
 val mem : t -> key -> bool
 val clear : t -> unit
