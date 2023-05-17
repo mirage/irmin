@@ -59,6 +59,7 @@ val key :
   ?docs:string ->
   ?docv:string ->
   ?doc:string ->
+  ?allow_duplicate:bool ->
   spec:Spec.t ->
   string ->
   'a Type.t ->
@@ -78,9 +79,9 @@ val key :
     @raise Invalid_argument
       if the key name is not made of a sequence of ASCII lowercase letter,
       digit, dash or underscore.
-
-      {b Warning.} No two keys should share the same [name] as this may lead to
-      difficulties in the UI. *)
+    @raise Invalid_argument
+      if [allow_duplicate] is [false] (the default) and [name] has already been
+      used to create a key *)
 
 val name : 'a key -> string
 (** The key name. *)

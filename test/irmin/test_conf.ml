@@ -43,4 +43,16 @@ let test_conf () =
   let () = Alcotest.(check (list string)) "Key list" [ "x"; "y" ] keys in
   ()
 
-let suite = [ Alcotest_lwt.test_case_sync "conf" `Quick test_conf ]
+let test_duplicate_key_names () =
+  let spec = Spec.v "test" in
+  let name = "name" in
+  let _ = key ~spec name Irmin.Type.char 'Z' in
+  Alcotest.check_raises "Duplicate key" (Invalid_argument "duplicate key: name")
+    (fun () -> ignore (key ~spec name Irmin.Type.bool false))
+
+let suite =
+  [
+    Alcotest_lwt.test_case_sync "conf" `Quick test_conf;
+    Alcotest_lwt.test_case_sync "duplicate key names" `Quick
+      test_duplicate_key_names;
+  ]
