@@ -419,6 +419,7 @@ module Make (P : Backend.S) = struct
       mutable map : map option;
       mutable ptr : ptr_option;
       mutable findv_cache : map option;
+      mutable length : int Lazy.t option;
       env : Env.t;
     }
 
@@ -481,7 +482,7 @@ module Make (P : Backend.S) = struct
              Portable_dirty (v, m))
       |> sealv
 
-    let of_v ~env v =
+    let of_v ?length ~env v =
       let ptr, map, value =
         match v with
         | Map m -> (Ptr_none, Some m, None)
@@ -490,12 +491,15 @@ module Make (P : Backend.S) = struct
         | Value _ | Portable_dirty _ | Pruned _ -> (Ptr_none, None, None)
       in
       let findv_cache = None in
-      let info = { ptr; map; value; findv_cache; env } in
+      let info = { ptr; map; value; findv_cache; env; length } in
       { v; info }
 
     let of_map m = of_v (Map m)
     let of_key repo k = of_v (Key (repo, k))
-    let of_value ?updates repo v = of_v (Value (repo, v, updates))
+
+    let of_value ?length ?updates repo v =
+      of_v ?length (Value (repo, v, updates))
+
     let of_portable_dirty p updates = of_v (Portable_dirty (p, updates))
     let pruned h = of_v (Pruned h)
 
@@ -1120,7 +1124,7 @@ module Make (P : Backend.S) = struct
     let empty_hash = hash ~cache:false (empty ())
     let singleton k v = of_map (StepMap.singleton k v)
 
-    let length ~cache t =
+    let slow_length ~cache t =
       match
         (Scan.cascade t
            [
@@ -1149,6 +1153,14 @@ module Make (P : Backend.S) = struct
             | Node _ -> assert false
             | Pnode x -> P.Node_portable.length x |> Lwt.return)
       | Pruned h -> pruned_hash_exn "length" h
+
+    let length ~cache t =
+      match t.info.length with
+      | Some (lazy len) -> Lwt.return len
+      | None ->
+          let+ len = slow_length ~cache t in
+          t.info.length <- Some (Lazy.from_val len);
+          len
 
     let is_empty ~cache t =
       match
@@ -1470,6 +1482,27 @@ module Make (P : Backend.S) = struct
       in
       aux_uniq ~path acc 0 t Lwt.return
 
+    let incremental_length t step up n updates =
+      match t.info.length with
+      | None -> None
+      | Some len ->
+          Some
+            (lazy
+              (let len = Lazy.force len in
+               let exists =
+                 match StepMap.find_opt step updates with
+                 | Some (Add _) -> true
+                 | Some Remove -> false
+                 | None -> (
+                     match P.Node.Val.find n step with
+                     | None -> false
+                     | Some _ -> true)
+               in
+               match up with
+               | Add _ when not exists -> len + 1
+               | Remove when exists -> len - 1
+               | _ -> len))
+
     let update t step up =
       let env = t.info.env in
       let of_map m =
@@ -1483,7 +1516,9 @@ module Make (P : Backend.S) = struct
       let of_value repo n updates =
         let updates' = StepMap.add step up updates in
         if updates == updates' then t
-        else of_value ~env repo n ~updates:updates'
+        else
+          let length = incremental_length t step up n updates in
+          of_value ?length ~env repo n ~updates:updates'
       in
       let of_portable n updates =
         let updates' = StepMap.add step up updates in
@@ -1623,7 +1658,8 @@ module Make (P : Backend.S) = struct
 
   let of_backend_node repo n =
     let env = Env.empty () in
-    Node.of_value ~env repo n
+    let length = lazy (P.Node.Val.length n) in
+    Node.of_value ~length ~env repo n
 
   let dump ppf = function
     | `Node n -> Fmt.pf ppf "node: %a" Node.dump n
