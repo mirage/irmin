@@ -28,6 +28,7 @@ type ('key, 'value) op =
   | Del of 'key
   | Find of 'key
   | Find_tree of 'key
+  | Length of 'key * int
 
 module Make (Conf : Irmin_pack.Conf.S) = struct
   module Store = struct
@@ -85,13 +86,23 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
     | Del k -> Tree.remove tree k
     | Find k -> find tree k
     | Find_tree k -> find_tree tree k
+    | Length (k, len_expected) ->
+        let+ len_tree = Tree.length tree k in
+        Alcotest.(check int)
+          (Fmt.str "expected tree length at %a" Fmt.(Dump.list string) k)
+          len_expected len_tree;
+        tree
 
-  let run ops tree =
+  let run_disjoint ops tree =
     let run_one op =
       let* _ = run_one tree op in
       Lwt.return_unit
     in
     let+ () = Lwt_list.iter_s run_one ops in
+    (tree, ())
+
+  let run ops tree =
+    let+ tree = Lwt_list.fold_left_s run_one tree ops in
     (tree, ())
 
   let proof_of_ops repo hash ops : _ Lwt.t =
@@ -265,6 +276,16 @@ let check_equivalence tree proof op =
         (Fmt.str "same tree at %a" Fmt.(Dump.list string) k)
         v_tree v_proof;
       (tree, proof)
+  | Length (k, len_expected) ->
+      let* len_tree = Tree.length tree k in
+      Alcotest.(check int)
+        (Fmt.str "expected tree length at %a" Fmt.(Dump.list string) k)
+        len_expected len_tree;
+      let+ len_proof = Tree.length proof k in
+      Alcotest.(check int)
+        (Fmt.str "same tree length at %a" Fmt.(Dump.list string) k)
+        len_tree len_proof;
+      (tree, proof)
 
 let test_proofs ctxt ops =
   let tree = ctxt.tree in
@@ -291,17 +312,18 @@ let test_proofs ctxt ops =
     Lwt_list.fold_left_s
       (fun (tree, proof) op -> check_equivalence tree proof op)
       (tree, tree_proof)
-      [
-        Add ([ "00" ], "0");
-        Add ([ "00" ], "1");
-        Del [ "00" ];
-        Find [ "00" ];
-        Add ([ "00" ], "0");
-        Add ([ "00" ], "1");
-        Find [ "00" ];
-        Find_tree [ "01" ];
-        Find_tree [ "z"; "o"; "o" ];
-      ]
+      (ops
+      @ [
+          Add ([ "00" ], "0");
+          Add ([ "00" ], "1");
+          Del [ "00" ];
+          Find [ "00" ];
+          Add ([ "00" ], "0");
+          Add ([ "00" ], "1");
+          Find [ "00" ];
+          Find_tree [ "01" ];
+          Find_tree [ "z"; "o"; "o" ];
+        ])
   in
   Lwt.return_unit
 
@@ -321,6 +343,40 @@ let test_small_inode () =
   let bindings = bindings fewer_steps in
   let* ctxt = init_tree bindings in
   let ops = [ Add ([ "00" ], ""); Del [ "01" ] ] in
+  test_proofs ctxt ops
+
+let test_length_proof () =
+  let bindings = bindings fewer_steps in
+  let size = List.length fewer_steps in
+  let* ctxt = init_tree bindings in
+  let ops =
+    [
+      Length ([], size) (* initial size *);
+      Add ([ "01" ], "0");
+      Length ([], size) (* "01" was already accounted for *);
+      Add ([ "01" ], "1");
+      Length ([], size) (* adding it again doesn't change the length *);
+      Add ([ "new" ], "0");
+      Length ([], size + 1) (* "new" is a new file, so the length changes *);
+      Add ([ "new" ], "1");
+      Length ([], size + 1) (* adding it again doesn't change the length *);
+      Del [ "inexistant" ];
+      Length ([], size + 1)
+      (* removing an inexistant object doesn't change the length *);
+      Del [ "00" ];
+      Length ([], size) (* but removing the existing "00" does *);
+      Del [ "00" ];
+      Length ([], size) (* removing "00" twice doesn't change the length *);
+      Del [ "new" ];
+      Length ([], size - 1) (* removing the fresh "new" does *);
+      Del [ "new" ];
+      Length ([], size - 1) (* but only once *);
+      Add ([ "new" ], "2");
+      Length ([], size) (* adding "new" again does *);
+      Add ([ "00" ], "2");
+      Length ([], size + 1) (* adding "00" again does too *);
+    ]
+  in
   test_proofs ctxt ops
 
 let test_deeper_proof () =
@@ -704,6 +760,8 @@ let tests =
       (fun _switch -> test_large_inode);
     Alcotest_lwt.test_case "test Merkle proof for small inodes" `Quick
       (fun _switch -> test_small_inode);
+    Alcotest_lwt.test_case "test Merkle proof for Tree.length" `Quick
+      (fun _switch -> test_length_proof);
     Alcotest_lwt.test_case "test deeper Merkle proof" `Quick (fun _switch ->
         test_deeper_proof);
     Alcotest_lwt.test_case "test large Merkle proof" `Slow (fun _switch ->
