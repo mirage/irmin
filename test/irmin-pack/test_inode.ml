@@ -24,6 +24,9 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let check_iter = Test_hashes.check_iter
 
+(* bad value that causes Invalid_depth to be raised *)
+let wrong_depth = 100
+
 module Inode_modules
     (Conf : Irmin_pack.Conf.S)
     (Schema : Irmin.Schema.S) (Contents : sig
@@ -43,6 +46,16 @@ struct
   module Inter =
     Irmin_pack.Inode.Make_internal (Conf) (Schema.Hash) (Key) (Node)
 
+  module Inter_mock = struct
+    include Inter
+
+    module Raw = struct
+      include Inter.Raw
+
+      let depth _v = Some wrong_depth
+    end
+  end
+
   module Io = Irmin_pack_unix.Io.Unix
   module Errs = Irmin_pack_unix.Io_errors.Make (Io)
   module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Index) (Errs)
@@ -55,8 +68,18 @@ struct
       (Inter.Raw)
       (Errs)
 
+  module Pack_mock =
+    Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Dispatcher)
+      (Schema.Hash)
+      (Inter_mock.Raw)
+      (Errs)
+
   module Inode =
     Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter) (Pack)
+
+  module Inode_mock =
+    Irmin_pack_unix.Inode.Make_persistent (Schema.Hash) (Node) (Inter_mock)
+      (Pack_mock)
 
   module Contents_value =
     Irmin_pack.Pack_value.Of_contents (Conf) (Schema.Hash) (Key)
@@ -68,7 +91,12 @@ struct
       (Contents_value)
       (Errs)
 
-  module Context = struct
+  module Context_make
+      (Inode : Irmin_pack_unix.Inode.Persistent
+                 with type file_manager = File_manager.t
+                  and type dict = Dict.t
+                  and type dispatcher = Dispatcher.t) =
+  struct
     type t = {
       store : read Inode.t;
       store_contents : read Contents_store.t;
@@ -132,6 +160,9 @@ struct
       (* closes dict, inodes and contents store. *)
       Lwt.return_unit
   end
+
+  module Context = Context_make (Inode)
+  module Context_mock = Context_make (Inode_mock)
 end
 
 module Conf = struct
@@ -198,13 +229,19 @@ module Inode_permutations_generator = struct
     tree_per_steps : inode StepSetMap.t;
   }
 
-  (** [gen_step index_list] uses brute force to generate a step such that
+  (** [gen_step Inter index_list] uses brute force to generate a step such that
       [Inter.Val.index ~depth:i] maps to the ith index in the [index_list]. *)
-  let gen_step : int list -> Path.step =
+  let gen_step :
+      (module Irmin_pack.Inode.Internal with type Val.step = Path.step) ->
+      int list ->
+      Path.step =
     let tbl = Hashtbl.create 10 in
     let max_brute_force_iterations = 100 in
     let letters_per_step = (max_brute_force_iterations + 25) / 26 in
-    fun indices ->
+    fun inter indices ->
+      let module Inter = (val inter : Irmin_pack.Inode.Internal
+                            with type Val.step = Path.step)
+      in
       let rec aux i =
         if i > max_brute_force_iterations then
           failwith "Could not quickly generate a step"
@@ -233,7 +270,7 @@ module Inode_permutations_generator = struct
             (* In the binary case (Conf.entries = 2), [j] is now the mask of the
                bit to look at *)
             i / j mod entries))
-    |> List.map gen_step
+    |> List.map (gen_step (module Inter))
 
   let powerset xs =
     List.fold_left
@@ -493,12 +530,9 @@ let test_truncated_inodes ~indexing_strategy =
       (Failure
          "Impossible to load the subtree on an inode deserialized using Repr") f
   in
+  let gen_step = Inode_permutations_generator.gen_step (module Inter) in
   let s00, s01, s11, s10 =
-    Inode_permutations_generator.
-      ( gen_step [ 0; 0 ],
-        gen_step [ 0; 1 ],
-        gen_step [ 1; 1 ],
-        gen_step [ 1; 0 ] )
+    (gen_step [ 0; 0 ], gen_step [ 0; 1 ], gen_step [ 1; 1 ], gen_step [ 1; 0 ])
   in
   let iter_steps f =
     List.iter (fun step -> f step |> ignore) [ s00; s01; s11; s10 ]
@@ -543,9 +577,9 @@ let test_truncated_inodes () =
 let test_intermediate_inode_as_root ~indexing_strategy =
   let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
+  let gen_step = Inode_permutations_generator.gen_step (module Inter) in
   let s000, s001, s010 =
-    Inode_permutations_generator.
-      (gen_step [ 0; 0; 0 ], gen_step [ 0; 0; 1 ], gen_step [ 0; 1; 0 ])
+    (gen_step [ 0; 0; 0 ], gen_step [ 0; 0; 1 ], gen_step [ 0; 1; 0 ])
   in
   let v0 =
     Inode.Val.of_list
@@ -598,7 +632,47 @@ let test_intermediate_inode_as_root ~indexing_strategy =
   in
   Lwt.return_unit
 
+let test_invalid_depth_intermediate_inode ~indexing_strategy =
+  let* t = Context_mock.get_store ~indexing_strategy () in
+  let { Context_mock.foo; bar; _ } = t in
+  let gen_step = Inode_permutations_generator.gen_step (module Inter_mock) in
+  let s000, s001, s010 =
+    (gen_step [ 0; 0; 0 ], gen_step [ 0; 0; 1 ], gen_step [ 0; 1; 0 ])
+  in
+
+  let v0 =
+    Inode_mock.Val.of_list
+      [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
+  in
+  let* h_depth0 =
+    Inode_mock.batch t.store @@ fun store -> Inode_mock.add store v0
+  in
+
+  (* On inode with depth=0 *)
+  let* v =
+    Inode_mock.find t.store h_depth0 >|= function
+    | None -> Alcotest.fail "Could not fetch inode from backend"
+    | Some v -> v
+  in
+
+  (* list to make the inodes realised *)
+  let _ =
+    try
+      let _ = Inode_mock.Val.list v in
+      Alcotest.fail "Should have raised Invalid_depth"
+    with
+    | Inter_mock.Raw.Invalid_depth { expected; got; _ } ->
+        let _ = Alcotest.(check int) "expected depth" expected 1 in
+        let _ = Alcotest.(check int) "actual depth" got wrong_depth in
+        ()
+    | _ -> Alcotest.fail "Wrong exception - should have raised Invalid_depth"
+  in
+  let* () = Context_mock.close t in
+  Lwt.return_unit
+
 let test_intermediate_inode_as_root () =
+  let* () = test_invalid_depth_intermediate_inode ~indexing_strategy:`always in
+  let* () = test_invalid_depth_intermediate_inode ~indexing_strategy:`minimal in
   let* () = test_intermediate_inode_as_root ~indexing_strategy:`always in
   test_intermediate_inode_as_root ~indexing_strategy:`minimal
 
@@ -637,7 +711,47 @@ let test_concrete_inodes ~indexing_strategy =
   check v;
   Context.close t
 
+let test_invalid_depth_concrete_inodes ~indexing_strategy =
+  let module C = Inter.Val.Concrete in
+  let* t = Context.get_store ~indexing_strategy () in
+
+  (* idea is to try and directly construct a Concrete that has a bad depth structure ie *)
+  (* "Tree": { *)
+  (*   "depth": 0, *)
+  (*   "length": 4, *)
+  (*   "pointers": [ *)
+  (*     { *)
+  (*       "index": 1, *)
+  (*       "pointer": "a551ad62ed063843207366e425c462c7b3eb1769", *)
+  (*       "tree": { *)
+  (*         "Tree": { *)
+  (*           "depth": 2, <--- HERE wrong depth*)
+  (*           "length": 4, *)
+  (*           etc ...     *)
+
+  (* subtrees need to be non-empty *)
+  let v = C.Blinded in
+  let ptr = { C.index = 0; pointer = H_contents.hash ""; tree = v } in
+  let tree_bad_depth = C.Tree { depth = 2; length = 1; pointers = [ ptr ] } in
+  let ptr =
+    { C.index = 1; pointer = H_contents.hash ""; tree = tree_bad_depth }
+  in
+  let tree_top = C.Tree { depth = 0; length = 1; pointers = [ ptr ] } in
+  let _ =
+    match Inter.Val.of_concrete tree_top with
+    | Error (`Invalid_depth _) -> ()
+    | Ok _ -> Alcotest.fail "of_concrete - shouldnt be ok"
+    | Error e ->
+        let _ = [%log.warn "unexpected err: %a" C.pp_error e] in
+        Alcotest.fail "of_concrete - should be Invalid_depth error"
+  in
+
+  let* () = Context.close t in
+  Lwt.return_unit
+
 let test_concrete_inodes () =
+  let* () = test_invalid_depth_concrete_inodes ~indexing_strategy:`always in
+  let* () = test_invalid_depth_concrete_inodes ~indexing_strategy:`minimal in
   let* () = test_concrete_inodes ~indexing_strategy:`always in
   test_concrete_inodes ~indexing_strategy:`minimal
 
