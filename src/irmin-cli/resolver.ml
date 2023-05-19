@@ -297,7 +297,7 @@ module Store = struct
     v spec (module S)
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
-  let irf = create Irmin_fs.Conf.spec (module Irmin_fs_unix)
+  let fs = create Irmin_fs.Conf.spec (module Irmin_fs_unix)
 
   let http = function
     | T { impl = Generic_keyed _; _ } ->
@@ -341,7 +341,7 @@ module Store = struct
       [
         ("git", Fixed_hash git);
         ("git-mem", Fixed_hash git_mem);
-        ("irf", Variable_hash irf);
+        ("fs", Variable_hash fs);
         ("mem", Variable_hash mem);
         ("mem-http", Variable_hash (fun h c -> http (mem h c)));
         ("git-http", Fixed_hash (fun c -> http (git c)));
@@ -678,7 +678,7 @@ let infer_remote hash contents branch headers str =
     let r =
       if Sys.file_exists (str / ".git") then Store.git contents
       else if Sys.file_exists (str / "store.dict") then Store.pack hash contents
-      else Store.irf hash contents
+      else Store.fs hash contents
     in
     match r with
     | Store.T { impl; spec; _ } ->

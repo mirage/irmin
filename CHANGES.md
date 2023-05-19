@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **irmin-cli**
+  - Changed `--store irf` to `--store fs` to align the CLI with what is
+    published on the Irmin website (@wyn, #2243)
+
 ### Fixed
 
 - **irmin-pack**
