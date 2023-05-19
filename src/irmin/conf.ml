@@ -115,17 +115,17 @@ let singleton spec k v = (spec, M.singleton (K k) (k.to_univ v))
 let is_empty (_, t) = M.is_empty t
 let mem (_, d) k = M.mem (K k) d
 
+let validate_key spec k =
+  match Spec.find_key spec k.name with
+  | None -> Fmt.invalid_arg "invalid config key: %s" k.name
+  | Some _ -> ()
+
 let add (spec, d) k v =
-  if Spec.find_key spec k.name |> Option.is_none then
-    Fmt.invalid_arg "invalid config key: %s" k.name
-  else (spec, M.add (K k) (k.to_univ v) d)
+  validate_key spec k;
+  (spec, M.add (K k) (k.to_univ v) d)
 
 let verify (spec, d) =
-  M.iter
-    (fun (K k) _ ->
-      if Spec.find_key spec k.name |> Option.is_none then
-        Fmt.invalid_arg "invalid config key: %s" k.name)
-    d;
+  M.iter (fun (K k) _ -> validate_key spec k) d;
   (spec, d)
 
 let union (rs, r) (ss, s) =
