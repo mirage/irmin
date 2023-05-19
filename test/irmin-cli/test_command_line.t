@@ -26,7 +26,7 @@ Check for foo in ./test1
   bar
 
 Try getting foo from ./test1 using the wrong store type
-  $ irmin get --root ./test1 -s irf foo
+  $ irmin get --root ./test1 -s fs foo
   <none>
   [1]
 
@@ -85,8 +85,8 @@ Check that g/h/i has been deleted after merge
   [1]
 
 Check mismatched hash function
-  $ irmin set --root ./test-hash -s irf -h sha1 abc 123
-  $ irmin snapshot --root ./test-hash -s irf -h blake2b 2> /dev/null
+  $ irmin set --root ./test-hash -s fs -h sha1 abc 123
+  $ irmin snapshot --root ./test-hash -s fs -h blake2b 2> /dev/null
   [1]
 
 Clone a local repo
