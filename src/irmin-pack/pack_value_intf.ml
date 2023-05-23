@@ -17,6 +17,7 @@
 open! Import
 
 type length_header = [ `Varint ] option
+type weight = Immediate of int | Deferred of (unit -> int)
 type kinded = ..
 
 module type S = sig
@@ -33,7 +34,7 @@ module type S = sig
   (** Describes the length header formats for the {i data} sections of pack
       entries. *)
 
-  val weight : t -> int
+  val weight : t -> weight
   (** [weight t] is the [t]'s LRU weight. *)
 
   val encode_bin :
@@ -93,6 +94,8 @@ module type Sigs = sig
     (** Raises an exception on [Contents], as the availability of a length
         header is user defined. *)
   end
+
+  type nonrec weight = weight = Immediate of int | Deferred of (unit -> int)
 
   type nonrec kinded = kinded = ..
   (** [kinded] is an extenisble variant that each {!S} extends so that it can

@@ -50,7 +50,7 @@ struct
   module Lru = struct
     include Lru
 
-    let add t k v = Val.to_kinded v |> add t k (fun () -> Val.weight v)
+    let add t k v = Val.to_kinded v |> add t k (Val.weight v)
     let find t k = find t k |> Val.of_kinded
   end
 

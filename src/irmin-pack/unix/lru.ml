@@ -44,8 +44,26 @@ let create config =
 
 let lru_enabled t = match t.weight_limit with None -> true | Some x -> x > 0
 
+(** [exceeds_entry_weight_limit] attempts to filter out entries that are "too
+    large".
+
+    Since we do not necessarily want to incur a cost for calculating the weight
+    for every entry when [lru_max_memory] is not configured, the control for
+    this is in the caller of [add]. Only [Irmin_pack.Pack_value.Immediate]
+    weight's are checked.
+
+    The current entry weight limit is hard-coded to 20kB. *)
+let exceeds_entry_weight_limit = function
+  | Irmin_pack.Pack_value.Immediate w -> w > 20_000
+  | Deferred _ -> false
+
+let resolve_weight = function
+  | Irmin_pack.Pack_value.Immediate w -> w
+  | Deferred w -> w ()
+
 let add t k w v =
   if lru_enabled t = false then ()
+  else if exceeds_entry_weight_limit w then ()
   else
     let add t k v w =
       let n = { v; weight = w } in
@@ -55,7 +73,7 @@ let add t k w v =
     match t.weight_limit with
     | None -> add t k v 0
     | Some limit ->
-        add t k v (w ());
+        add t k v (resolve_weight w);
         while t.total_weight > limit do
           match Internal.drop t.lru with
           | None -> t.total_weight <- 0

@@ -139,7 +139,10 @@ struct
 
   let decode_bin_length = get_dynamic_sizer_exn value
   let kind _ = kind
-  let weight = Mem.repr_size t
+
+  let weight =
+    let size = Mem.repr_size t in
+    fun v -> Immediate (size v)
 end
 
 module Of_commit
@@ -160,7 +163,10 @@ struct
   let of_kinded = function Commit c -> c | _ -> assert false
   let hash = Hash.hash
   let kind _ = Kind.Commit_v2
-  let weight = Mem.repr_size t
+
+  let weight =
+    let size = Mem.repr_size t in
+    fun v -> Deferred (fun () -> size v)
 
   (* A commit implementation that uses integer offsets for addresses where possible. *)
   module Commit_direct = struct

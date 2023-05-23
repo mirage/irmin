@@ -1800,7 +1800,9 @@ struct
         the LRU. *)
     let repr_size_adjustment = 5
 
-    let weight t = repr_size_adjustment * repr_size t
+    let weight t =
+      Pack_value.Deferred (fun () -> repr_size_adjustment * repr_size t)
+
     let hash t = Bin.hash t
     let step_to_bin = T.step_to_bin_string
     let step_of_bin = T.step_of_bin_string

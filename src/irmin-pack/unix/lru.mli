@@ -26,8 +26,12 @@ type value = Irmin_pack.Pack_value.kinded
 
 val create : Irmin.Backend.Conf.t -> t
 
-val add : t -> int63 -> (unit -> int) -> value -> unit
-(** [add t key weight value] maps [value] with [weight] to [key] in [t]. *)
+val add : t -> int63 -> Irmin_pack.Pack_value.weight -> value -> unit
+(** [add t key weight value] maps [value] with [weight] to [key] in [t].
+
+    Note: {!Irmin_pack.Pack_value.Immediate} weights will be checked to see if
+    they exceed an entry weight limit. The current hard-coded entry weight limit
+    is 20kB. *)
 
 val find : t -> key -> value
 val mem : t -> key -> bool
