@@ -1,10 +1,17 @@
 ## Unreleased
 
+### Added
+
+- **irmin**
+  - Change behavior of `Irmin.Conf.key` to disallow duplicate key names by
+    default. Add `allow_duplicate` optional argument to override. (@metanivek,
+    #2252)
+
+### Fixed
+
 - **irmin-cli**
   - Changed `--store irf` to `--store fs` to align the CLI with what is
     published on the Irmin website (@wyn, #2243)
-
-### Fixed
 
 - **irmin-pack**
   - Fix issue when migrating v2 stores to use lower layer (@metanivek, #2241)

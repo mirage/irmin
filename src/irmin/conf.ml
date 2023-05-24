@@ -87,7 +87,7 @@ type t = Spec.t * Univ.t M.t
 
 let spec = fst
 
-let key ?docs ?docv ?doc ~spec name ty default =
+let key ?docs ?docv ?doc ?(allow_duplicate = false) ~spec name ty default =
   let () =
     String.iter
       (function
@@ -95,10 +95,14 @@ let key ?docs ?docv ?doc ~spec name ty default =
         | _ -> raise @@ Invalid_argument name)
       name
   in
-  let to_univ, of_univ = Univ.create () in
-  let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
-  Spec.update spec name (K k);
-  k
+  match Spec.find_key spec name with
+  | Some _ when allow_duplicate = false ->
+      Fmt.invalid_arg "duplicate key: %s" name
+  | _ ->
+      let to_univ, of_univ = Univ.create () in
+      let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
+      Spec.update spec name (K k);
+      k
 
 let name t = t.name
 let doc t = t.doc
@@ -111,17 +115,17 @@ let singleton spec k v = (spec, M.singleton (K k) (k.to_univ v))
 let is_empty (_, t) = M.is_empty t
 let mem (_, d) k = M.mem (K k) d
 
+let validate_key spec k =
+  match Spec.find_key spec k.name with
+  | None -> Fmt.invalid_arg "invalid config key: %s" k.name
+  | Some _ -> ()
+
 let add (spec, d) k v =
-  if Spec.find_key spec k.name |> Option.is_none then
-    Fmt.invalid_arg "invalid config key: %s" k.name
-  else (spec, M.add (K k) (k.to_univ v) d)
+  validate_key spec k;
+  (spec, M.add (K k) (k.to_univ v) d)
 
 let verify (spec, d) =
-  M.iter
-    (fun (K k) _ ->
-      if Spec.find_key spec k.name |> Option.is_none then
-        Fmt.invalid_arg "invalid config key: %s" k.name)
-    d;
+  M.iter (fun (K k) _ -> validate_key spec k) d;
   (spec, d)
 
 let union (rs, r) (ss, s) =
@@ -162,8 +166,9 @@ let equal t1 t2 =
 
 (* ~root *)
 let root spec =
-  key ~spec ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
-    ~docs:"COMMON OPTIONS" "root"
+  key ~allow_duplicate:true ~spec ~docv:"ROOT"
+    ~doc:"The location of the Irmin store on disk." ~docs:"COMMON OPTIONS"
+    "root"
     Type.(string)
     "."
 
