@@ -1,4 +1,4 @@
-## 3.7.1 
+## Unreleased
 
 ### Added
 
@@ -12,6 +12,11 @@
 - **irmin-cli**
   - Changed `--store irf` to `--store fs` to align the CLI with what is
     published on the Irmin website (@wyn, #2243)
+
+## 3.7.1 (2023-05-24)
+
+
+### Fixed
 
 - **irmin-pack**
   - Fix issue when migrating v2 stores to use lower layer (@metanivek, #2241)
