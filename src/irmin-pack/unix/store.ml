@@ -752,6 +752,10 @@ module Maker (Config : Conf.S) = struct
 
       let dict (repo : X.Repo.t) = repo.dict
 
+      module Dispatcher = Dispatcher
+
+      let dispatcher (repo : X.Repo.t) = repo.dispatcher
+
       module XKey = XKey
 
       let suffix_commit_mem repo key =

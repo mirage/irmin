@@ -311,6 +311,10 @@ module type S = sig
 
     val dict : repo -> Dict.t
 
+    module Dispatcher : Dispatcher.S
+
+    val dispatcher : repo -> Dispatcher.t
+
     module XKey : Pack_key.S with type hash = Schema.Hash.t
 
     val suffix_commit_mem : repo -> XKey.t -> bool
