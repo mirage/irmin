@@ -535,6 +535,7 @@ module Make (B : Backend.S) = struct
       | `Head key -> Some key
       | `Empty -> None
       | `Branch name -> (
+          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           match Branch_store.find (branch_store t) name with
           | None -> None
           | Some k -> Commit.of_key t.repo k)
