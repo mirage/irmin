@@ -128,12 +128,12 @@ end
 (** Demonstrate running GC on a previous commit aligned to the end of a chunk
     for ideal GC space reclamation. *)
 let run_gc config repo tracker =
-  let* () =
+  let () =
     match Tracker.(tracker.next_gc_commit) with
-    | None -> Lwt.return_unit
+    | None -> ()
     | Some commit -> (
         let finished = function
-          | Ok stats ->
+          | Ok stats -> (
               let duration =
                 Irmin_pack_unix.Stats.Latest_gc.total_duration stats
               in
@@ -145,17 +145,16 @@ let run_gc config repo tracker =
                  %.2fMB."
                 duration finalise_duration
                 (megabytes_of_path @@ Irmin_pack.Conf.root config);
-              (match Irmin_pack.Conf.lower_root config with
+              match Irmin_pack.Conf.lower_root config with
               | None -> Printf.printf "\n%!"
               | Some lower ->
                   Printf.printf " Size of lower layer: %.2fMB.\n"
-                    (megabytes_of_path lower));
-              Lwt.return_unit
-          | Error (`Msg err) -> print_endline err |> Lwt.return
+                    (megabytes_of_path lower))
+          | Error (`Msg err) -> print_endline err
         in
         (* Launch GC *)
         let commit_key = Store.Commit.key commit in
-        let+ launched = Store.Gc.run ~finished repo commit_key in
+        let launched = Store.Gc.run ~finished repo commit_key in
         match launched with
         | Ok false -> ()
         | Ok true ->
@@ -165,38 +164,36 @@ let run_gc config repo tracker =
   in
   (* Create new split and mark the latest commit to be the next GC commit. *)
   let () = Store.split repo in
-  Tracker.mark_next_gc_commit tracker |> Lwt.return
+  Tracker.mark_next_gc_commit tracker
 
 let run_experiment config =
   let num_of_commits = 200_000 in
   let gc_every = 1_000 in
-  let* repo = Store.Repo.v config in
+  let repo = Store.Repo.v config in
   let tracker = Tracker.v () in
   (* Create commits *)
-  let* _ =
+  let _ =
     let rec loop i n =
       let key = "hello" in
       let value = Printf.sprintf "packfile%d" i in
-      let* tree = Store.Tree.add (Tracker.latest_tree tracker) [ key ] value in
+      let tree = Store.Tree.add (Tracker.latest_tree tracker) [ key ] value in
       let parents = Tracker.latest_parents tracker in
-      let* commit =
+      let commit =
         Store.Commit.v repo ~info:(info "add %s = %s" key value) ~parents tree
       in
       Tracker.update_latest_commit tracker commit;
-      let* _ =
-        if i mod gc_every = 0 then run_gc config repo tracker
-        else Lwt.return_unit
-      in
-      if i >= n then Lwt.return_unit else loop (i + 1) n
+      let _ = if i mod gc_every = 0 then run_gc config repo tracker in
+      if i >= n then () else loop (i + 1) n
     in
     loop 1 num_of_commits
   in
   (* A GC may still be running. Wait for GC to finish before ending the process *)
-  let* _ = Store.Gc.wait repo in
-  Lwt.return_unit
+  let _ = Store.Gc.wait repo in
+  ()
 
 let () =
+  Eio_main.run @@ fun _env ->
   Printf.printf "== RUN 1: deleting discarded data ==\n";
-  Lwt_main.run (run_experiment Repo_config.config);
+  run_experiment Repo_config.config;
   Printf.printf "== RUN 2: archiving discarded data ==\n";
-  Lwt_main.run (run_experiment Repo_config.config_with_lower)
+  run_experiment Repo_config.config_with_lower
