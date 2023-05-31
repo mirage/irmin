@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Mtime : module type of Import.Mtime
+
 val default_artefacts_dir : string
 val prepare_artefacts_dir : string -> unit
 val reporter : ?prefix:string -> unit -> Logs.reporter

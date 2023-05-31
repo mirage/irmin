@@ -53,11 +53,10 @@ module type Store = sig
        and type node_key = key
        and type contents_key = key
 
-  type on_commit := int -> Hash.t -> unit Lwt.t
-  type on_end := unit -> unit Lwt.t
+  type on_commit := int -> Hash.t -> unit
+  type on_end := unit -> unit
 
-  val create_repo :
-    root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+  val create_repo : root:string -> store_config -> Repo.t * on_commit * on_end
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
@@ -65,12 +64,9 @@ module type Store = sig
   val add_volume : repo -> unit
 
   val gc_run :
-    ?finished:((stats, string) result -> unit Lwt.t) ->
-    repo ->
-    commit_key ->
-    unit Lwt.t
+    ?finished:((stats, string) result -> unit) -> repo -> commit_key -> unit
 
-  val gc_wait : repo -> unit Lwt.t
+  val gc_wait : repo -> unit
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -84,7 +80,7 @@ module Benchmark = struct
   type result = { time : float; size : int }
 
   let run config f =
-    let+ time, res = with_timer f in
+    let time, res = with_timer f in
     let size = FSHelper.get_size config.store_dir in
     ({ time; size }, res)
 
@@ -103,15 +99,15 @@ module Bench_suite (Store : Store) = struct
     match prev_commit with
     | None ->
         let tree = Store.Tree.empty () in
-        let* tree = f tree in
+        let tree = f tree in
         Store.Commit.v repo ~info:(Info.f ()) ~parents:[] tree
     | Some prev_commit -> (
         let prev_commit = Store.Commit.key prev_commit in
-        Store.Commit.of_key repo prev_commit >>= function
-        | None -> Lwt.fail_with "commit not found"
+        match Store.Commit.of_key repo prev_commit with
+        | None -> failwith "commit not found"
         | Some commit ->
             let tree = Store.Commit.tree commit in
-            let* tree = f tree in
+            let tree = f tree in
             Store.Commit.v repo ~info:(Info.f ()) ~parents:[ prev_commit ] tree)
 
   let add_commits ~message repo ncommits on_commit on_end f () =
@@ -119,8 +115,8 @@ module Bench_suite (Store : Store) = struct
     let rec aux c i =
       if i >= ncommits then on_end ()
       else
-        let* c' = checkout_and_commit repo c f in
-        let* () = on_commit i (Store.Commit.hash c') in
+        let c' = checkout_and_commit repo c f in
+        let () = on_commit i (Store.Commit.hash c') in
         prog 1;
         aux (Some c') (i + 1)
     in
@@ -129,14 +125,14 @@ module Bench_suite (Store : Store) = struct
   let run_large config =
     reset_stats ();
     let root = config.store_dir in
-    let* repo, on_commit, on_end = Store.create_repo ~root config in
-    let* result, () =
+    let repo, on_commit, on_end = Store.create_repo ~root config in
+    let result, () =
       Trees.add_large_trees config.width config.nlarge_trees
       |> add_commits ~message:"Playing large mode" repo config.ncommits
            on_commit on_end
       |> Benchmark.run config
     in
-    let+ () = Store.Repo.close repo in
+    let () = Store.Repo.close repo in
     fun ppf ->
       Format.fprintf ppf
         "Large trees mode on inode config %a, %a: %d commits, each consisting \
@@ -149,14 +145,14 @@ module Bench_suite (Store : Store) = struct
   let run_chains config =
     reset_stats ();
     let root = config.store_dir in
-    let* repo, on_commit, on_end = Store.create_repo ~root config in
-    let* result, () =
+    let repo, on_commit, on_end = Store.create_repo ~root config in
+    let result, () =
       Trees.add_chain_trees config.depth config.nchain_trees
       |> add_commits ~message:"Playing chain mode" repo config.ncommits
            on_commit on_end
       |> Benchmark.run config
     in
-    let+ () = Store.Repo.close repo in
+    let () = Store.Repo.close repo in
     fun ppf ->
       Format.fprintf ppf
         "Chain trees mode on inode config %a, %a: %d commits, each consisting \
@@ -187,12 +183,12 @@ module Bench_suite (Store : Store) = struct
       }
     in
     if config.no_summary then
-      let+ () =
+      let () =
         Trace_replay.run config { replay_config with return_type = Unit }
       in
       fun _ppf -> ()
     else
-      let+ summary = Trace_replay.run config replay_config in
+      let summary = Trace_replay.run config replay_config in
       fun ppf ->
         if not config.no_summary then (
           let p = Filename.concat config.artefacts_path "stat_summary.json" in
@@ -221,15 +217,15 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
       Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
     in
     prepare_artefacts_dir root;
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    Lwt.return (repo, on_commit, on_end)
+    let repo = Store.Repo.v conf in
+    let on_commit _ _ = () in
+    let on_end () = () in
+    (repo, on_commit, on_end)
 
   let split _repo = ()
   let add_volume _repo = ()
-  let gc_wait _repo = Lwt.return_unit
-  let gc_run ?finished:_ _repo _key = Lwt.return_unit
+  let gc_wait _repo = ()
+  let gc_run ?finished:_ _repo _key = ()
 end
 
 module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
@@ -256,35 +252,35 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
         ~lower_root root
     in
     prepare_artefacts_dir root;
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    Lwt.return (repo, on_commit, on_end)
+    let repo = Store.Repo.v conf in
+    let on_commit _ _ = () in
+    let on_end () = () in
+    (repo, on_commit, on_end)
 
   let split = Store.split
   let add_volume = Store.add_volume
 
   let gc_wait repo =
-    let* r = Store.Gc.wait repo in
-    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
+    let r = Store.Gc.wait repo in
+    match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
+  let gc_run ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let* launched = Store.Gc.run ~finished:f repo key in
+    let launched = Store.Gc.run ~finished:f repo key in
     match launched with
-    | Ok true -> Lwt.return_unit
-    | Ok false -> [%logs.app "GC skipped"] |> Lwt.return
+    | Ok true -> ()
+    | Ok false -> [%logs.app "GC skipped"]
     | Error (`Msg err) -> failwith err
 end
 
 module type B = sig
-  val run_large : config -> (Format.formatter -> unit) Lwt.t
-  val run_chains : config -> (Format.formatter -> unit) Lwt.t
-  val run_read_trace : config -> (Format.formatter -> unit) Lwt.t
+  val run_large : config -> Format.formatter -> unit
+  val run_chains : config -> Format.formatter -> unit
+  val run_read_trace : config -> Format.formatter -> unit
 end
 
 let store_of_config config =
@@ -302,7 +298,7 @@ let store_of_config config =
 type suite_elt = {
   mode : [ `Read_trace | `Chains | `Large ];
   speed : [ `Quick | `Slow | `Custom ];
-  run : config -> (Format.formatter -> unit) Lwt.t;
+  run : config -> Format.formatter -> unit;
 }
 
 let suite : suite_elt list =
@@ -443,22 +439,21 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
   Gc.set { (Gc.get ()) with Gc.allocation_policy = 0 };
   FSHelper.rm_dir config.store_dir;
   let suite = get_suite suite_filter in
-  let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
+  let run_benchmarks () = List.map (fun b -> b.run config) suite in
   let results =
-    Lwt_main.run
-      (Lwt.finalize run_benchmarks (fun () ->
-           if keep_store then (
-             [%logs.app "Store kept at %s" config.store_dir];
-             let ( / ) = Filename.concat in
-             let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
-             ro (config.store_dir / "store.branches");
-             ro (config.store_dir / "store.dict");
-             ro (config.store_dir / "store.pack");
-             ro (config.store_dir / "index" / "data");
-             ro (config.store_dir / "index" / "log");
-             ro (config.store_dir / "index" / "log_async"))
-           else FSHelper.rm_dir config.store_dir;
-           Lwt.return_unit))
+    Eio_main.run @@ fun _env ->
+    Fun.protect run_benchmarks ~finally:(fun () ->
+        if keep_store then (
+          [%logs.app "Store kept at %s" config.store_dir];
+          let ( / ) = Filename.concat in
+          let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
+          ro (config.store_dir / "store.branches");
+          ro (config.store_dir / "store.dict");
+          ro (config.store_dir / "store.pack");
+          ro (config.store_dir / "index" / "data");
+          ro (config.store_dir / "index" / "log");
+          ro (config.store_dir / "index" / "log_async"))
+        else FSHelper.rm_dir config.store_dir)
   in
   [%logs.app "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results]
 

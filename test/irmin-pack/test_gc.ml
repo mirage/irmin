@@ -1466,21 +1466,21 @@ module Snapshot = struct
      the last gc target commit (ie it is in the lower) *)
   let snapshot_gced_commit () =
     let lower_root = create_lower_root ~mkdir:false () in
-    let* t = init ~lower_root:(Some lower_root) () in
-    let* t, c1 = commit_1 t in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* () = start_gc t c2 in
-    let* () = finalise_gc t in
+    let t = init ~lower_root:(Some lower_root) () in
+    let t, c1 = commit_1 t in
+    let t = checkout_exn t c1 in
+    let t, c2 = commit_2 t in
+    let () = start_gc t c2 in
+    let () = finalise_gc t in
     let root_snap = Filename.concat t.root "snap" in
-    let* () = export t c1 root_snap in
-    let* () = S.Repo.close t.repo in
+    let () = export t c1 root_snap in
+    let () = S.Repo.close t.repo in
     [%log.debug "open store from snapshot"];
-    let* t = init ~readonly:false ~fresh:false ~root:root_snap () in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* () = check_1 t c1 in
-    let* () = check_2 t c2 in
+    let t = init ~readonly:false ~fresh:false ~root:root_snap () in
+    let t = checkout_exn t c1 in
+    let t, c2 = commit_2 t in
+    let () = check_1 t c1 in
+    let () = check_2 t c2 in
     S.Repo.close t.repo
 
   let tests =
