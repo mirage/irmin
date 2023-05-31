@@ -17,8 +17,6 @@
 open! Import
 include Store_intf
 
-let ( let* ) = Result.bind
-
 module Maker (Config : Conf.S) = struct
   type endpoint = unit
 

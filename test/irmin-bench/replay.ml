@@ -24,25 +24,25 @@ module Store = struct
       | true -> ()
     in
     let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    Lwt.return (repo, on_commit, on_end)
+    let repo = Store.Repo.v conf in
+    let on_commit _ _ = () in
+    let on_end () = () in
+    (repo, on_commit, on_end)
 
   let gc_wait repo =
-    let* r = Store.Gc.wait repo in
-    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
+    let r = Store.Gc.wait repo in
+    match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
+  let gc_run ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let* launched = Store.Gc.run ~finished:f repo key in
+    let launched = Store.Gc.run ~finished:f repo key in
     match launched with
-    | Ok true -> Lwt.return_unit
-    | Ok false -> [%logs.app "GC skipped"] |> Lwt.return
+    | Ok true -> ()
+    | Ok false -> [%logs.app "GC skipped"]
     | Error (`Msg err) -> failwith err
 end
 
@@ -98,7 +98,7 @@ let replay_1_commit () =
       add_volume_every = 0;
     }
   in
-  let+ summary = Replay.run () replay_config in
+  let summary = Replay.run () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   let check name = Alcotest.(check int) ("Stats_counters" ^ name) in
@@ -136,15 +136,15 @@ module Store_mem = struct
 
   let create_repo ~root () =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    Lwt.return (repo, on_commit, on_end)
+    let repo = Store.Repo.v conf in
+    let on_commit _ _ = () in
+    let on_end () = () in
+    (repo, on_commit, on_end)
 
   let split _repo = ()
   let add_volume _repo = ()
-  let gc_wait _repo = Lwt.return_unit
-  let gc_run ?finished:_ _repo _key = Lwt.return_unit
+  let gc_wait _repo = ()
+  let gc_run ?finished:_ _repo _key = ()
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)
@@ -169,15 +169,13 @@ let replay_1_commit_mem () =
       add_volume_every = 0;
     }
   in
-  let+ summary = Replay_mem.run () replay_config in
+  let summary = Replay_mem.run () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   ()
 
 let test_cases =
-  let tc msg f =
-    Alcotest.test_case msg `Quick (fun () -> Lwt_main.run (f ()))
-  in
+  let tc msg f = Alcotest.test_case msg `Quick f in
   [
     ( "replay",
       [

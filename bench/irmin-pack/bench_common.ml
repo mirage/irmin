@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Irmin.Export_for_backends
+module Mtime = Import.Mtime
 
 let c0 = Mtime_clock.counter ()
 let now_us () = Mtime.span_to_us (Mtime_clock.count c0)
@@ -77,7 +77,7 @@ let prepare_artefacts_dir path =
 
 let with_timer f =
   let t0 = Sys.time () in
-  let+ a = f () in
+  let a = f () in
   let t1 = Sys.time () -. t0 in
   (t1, a)
 
@@ -163,19 +163,19 @@ struct
   let add_chain_trees depth nb tree =
     let path = key 2 in
     let rec aux i tree =
-      if i >= nb then Lwt.return tree
+      if i >= nb then tree
       else
-        let* tree = chain_tree tree depth path in
+        let tree = chain_tree tree depth path in
         aux (i + 1) tree
     in
     aux 0 tree
 
   let large_tree path tree width =
     let rec aux i tree =
-      if i >= width then Lwt.return tree
+      if i >= width then tree
       else
         let k = path @ [ random_key () ] in
-        let* tree = Store.Tree.add tree k (random_blob ()) in
+        let tree = Store.Tree.add tree k (random_blob ()) in
         aux (i + 1) tree
     in
     aux 0 tree
@@ -183,10 +183,10 @@ struct
   let add_large_trees width nb tree =
     let path = key 1 in
     let rec aux i tree =
-      if i >= nb then Lwt.return tree
+      if i >= nb then tree
       else
         let path = path @ [ random_key () ] in
-        let* tree = large_tree path tree width in
+        let tree = large_tree path tree width in
         aux (i + 1) tree
     in
     aux 0 tree

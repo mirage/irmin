@@ -15,5 +15,6 @@
  *)
 
 let () =
+  Eio_main.run @@ fun _env ->
   Alcotest.run "irmin-bench"
     (Ema.test_cases @ Misc.test_cases @ Replay.test_cases)

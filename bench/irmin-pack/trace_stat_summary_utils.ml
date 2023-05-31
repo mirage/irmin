@@ -90,7 +90,7 @@ let create_pp_seconds examples =
   let finite_pp =
     if absmax >= 60. then fun ppf v -> Fmt.uint64_ns_span ppf (Int64.of_float v)
     else if absmax < 100. *. 1e-12 then fun ppf v ->
-      Format.fprintf ppf "%.3e s" v
+      Format.fprintf ppf "%.3f s" v
     else if absmax < 100. *. 1e-9 then fun ppf v ->
       Format.fprintf ppf "%.3f ns" (v *. 1e9)
     else if absmax < 100. *. 1e-6 then fun ppf v ->
