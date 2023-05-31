@@ -232,8 +232,7 @@ module Make (Store : Store) = struct
     let term_internal =
       Cmdliner.Term.(
         const (fun root auto_repair always heads () ->
-              run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads
-                 ())
+            run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads ())
         $ path
         $ auto_repair
         $ always
@@ -455,17 +454,13 @@ struct
           (* TODO: The goal here is to check a "one commit" store, generated
              by a gc, in which indexed keys cannot occur. We might want to
              extends this to stores that have both indexed and direct keys. *)
-          Lwt.fail_with
+          failwith
             "Not supported for stores which have entries obtained with irmin < \
              3.0. If all entries were added with irmin < 3.0, please use \
              [integrity_check] instead."
       | Direct { offset; length; hash; _ } -> (
           let result = check ~offset ~length hash in
-          match result with
-          | Ok () -> Lwt.return_unit
-          | Error err ->
-              add_error err hash;
-              Lwt.return_unit)
+          match result with Ok () -> () | Error err -> add_error err hash)
     in
     (* Commits are read from disk and checked by the [find] function in [pred].
        We need to explicitly check the contents and the nodes. *)
@@ -474,27 +469,25 @@ struct
       check_contents key
     in
     let pred_node repo key =
-      try
-        X.Node.find (X.Repo.node_t repo) key >|= function
-        | None ->
-            Fmt.failwith "node with hash %a not found" pp_hash
-              (XKey.to_hash key)
-        | Some v ->
-            let preds = pred v in
-            List.rev_map
-              (function
-                | s, `Inode x ->
-                    assert (s = None);
-                    `Node x
-                | _, `Node x -> `Node x
-                | _, `Contents x -> `Contents x)
-              preds
-      with _exn ->
-        add_error `Wrong_hash (XKey.to_hash key);
-        Lwt.return []
+      match X.Node.find (X.Repo.node_t repo) key with
+      | None ->
+          Fmt.failwith "node with hash %a not found" pp_hash (XKey.to_hash key)
+      | Some v ->
+          let preds = pred v in
+          List.rev_map
+            (function
+              | s, `Inode x ->
+                  assert (s = None);
+                  `Node x
+              | _, `Node x -> `Node x
+              | _, `Contents x -> `Contents x)
+            preds
+      | exception _exn ->
+          add_error `Wrong_hash (XKey.to_hash key);
+          []
     in
     let check_nodes key =
-      X.Node.find (X.Repo.node_t t) key >|= function
+      match X.Node.find (X.Repo.node_t t) key with
       | None ->
           Fmt.failwith "node with hash %a not found" pp_hash (XKey.to_hash key)
       | Some v ->
@@ -510,17 +503,17 @@ struct
     let pred_commit repo k =
       try
         progress_commits ();
-        X.Commit.find (X.Repo.commit_t repo) k >|= function
+        match X.Commit.find (X.Repo.commit_t repo) k with
         | None -> []
         | Some c ->
             let node = X.Commit.Val.node c in
             [ `Node node ]
       with _exn ->
         add_error `Wrong_hash (XKey.to_hash k);
-        Lwt.return []
+        []
     in
 
-    let+ () = iter ~contents ~node ~pred_node ~pred_commit t in
+    let () = iter ~contents ~node ~pred_node ~pred_commit t in
     Utils.Object_counter.finalise counter;
     if !errors = [] then Ok `No_error
     else
@@ -538,21 +531,17 @@ struct
     in
     let errors = ref [] in
     let pred_node repo key =
-      Lwt.catch
-        (fun () -> pred repo key)
-        (fun _ ->
-          errors := "Error in repo iter" :: !errors;
-          Lwt.return [])
+      try pred repo key
+      with _ ->
+        errors := "Error in repo iter" :: !errors;
+        []
     in
     let node k =
       progress_nodes ();
-      check k >|= function Ok () -> () | Error msg -> errors := msg :: !errors
+      match check k with Ok () -> () | Error msg -> errors := msg :: !errors
     in
-    let commit _ =
-      progress_commits ();
-      Lwt.return_unit
-    in
-    let+ () = iter ~pred_node ~node ~commit t in
+    let commit _ = progress_commits () in
+    let () = iter ~pred_node ~node ~commit t in
     Utils.Object_counter.finalise counter;
     if !errors = [] then Ok `No_error
     else

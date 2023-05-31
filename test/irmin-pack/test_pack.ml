@@ -514,7 +514,7 @@ module Layout = struct
     c `Unknown (classif "store.00.prefix");
     c `Unknown (classif "store.01.prefix");
     c `Unknown (classif "./store.0.prefix");
-    Lwt.return_unit
+    ()
 
   let test_classify_volume_filename () =
     let module V1_and_v2 = Irmin_pack.Layout.V1_and_v2 in
@@ -531,14 +531,14 @@ module Layout = struct
     c `Unknown (classif "store.00.prefix");
     c `Unknown (classif "store.01.prefix");
     c `Unknown (classif "./store.0.prefix");
-    Lwt.return_unit
+    ()
 
   let tests =
     [
-      Alcotest.test_case "classify upper files" `Quick (fun _switch ->
-          test_classify_upper_filename);
-      Alcotest.test_case "classify volume files" `Quick (fun _switch ->
-          test_classify_volume_filename);
+      Alcotest.test_case "classify upper files" `Quick
+        test_classify_upper_filename;
+      Alcotest.test_case "classify volume files" `Quick
+        test_classify_volume_filename;
     ]
 end
 

@@ -248,45 +248,45 @@ let test_export_import_reexport () =
   rm_dir root_export;
   rm_dir root_import;
   (* export a snapshot. *)
-  let* repo_export =
+  let repo_export =
     S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let tree = S.Tree.singleton [ "a" ] "y" in
-  let* parent_commit = S.Commit.v repo_export ~parents:[] ~info tree in
+  let parent_commit = S.Commit.v repo_export ~parents:[] ~info tree in
   let parent_key =
     Irmin_pack_unix.Pack_key.v_indexed (S.Commit.hash parent_commit)
   in
   let tree = S.Tree.singleton [ "a" ] "x" in
-  let* _ = S.Commit.v repo_export ~parents:[ parent_key ] ~info tree in
+  let _ = S.Commit.v repo_export ~parents:[ parent_key ] ~info tree in
   let root_key = S.Tree.key tree |> Option.get in
   let buf = Buffer.create 0 in
-  let* _ = S.Snapshot.export repo_export (encode_with_size buf) ~root_key in
-  let* () = S.Repo.close repo_export in
+  let _ = S.Snapshot.export repo_export (encode_with_size buf) ~root_key in
+  let () = S.Repo.close repo_export in
   (* buf contains the snapshot, we can rm root_export and import the snapshot in
      a new store, with the key parent of type Indexed. *)
   rm_dir root_export;
-  let* repo_import =
+  let repo_import =
     S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let* _, key = Buffer.contents buf |> restore repo_import in
+  let _, key = Buffer.contents buf |> restore repo_import in
   let key = Option.get key in
-  let* tree = S.Tree.of_key repo_import (`Node key) in
+  let tree = S.Tree.of_key repo_import (`Node key) in
   let tree = Option.get tree in
-  let* commit = S.Commit.v repo_import ~info ~parents:[ parent_key ] tree in
+  let commit = S.Commit.v repo_import ~info ~parents:[ parent_key ] tree in
   let commit_key = S.Commit.key commit in
   let commit_hash = S.Commit.hash commit in
   (* export the gc-based snapshot in a clean root_export. *)
-  let* () = S.create_one_commit_store repo_import commit_key root_export in
-  let* () = S.Repo.close repo_import in
+  let () = S.create_one_commit_store repo_import commit_key root_export in
+  let () = S.Repo.close repo_import in
   (* open the new store and check that everything is readable. *)
-  let* repo_export =
+  let repo_export =
     S.Repo.v
       (config ~readonly:false ~fresh:false ~indexing_strategy root_export)
   in
-  let* commit = S.Commit.of_hash repo_export commit_hash in
+  let commit = S.Commit.of_hash repo_export commit_hash in
   let commit = Option.get commit in
   let tree = S.Commit.tree commit in
-  let* got = S.Tree.find tree [ "a" ] in
+  let got = S.Tree.find tree [ "a" ] in
   Alcotest.(check (option string)) "find blob" (Some "x") got;
   S.Repo.close repo_export
 

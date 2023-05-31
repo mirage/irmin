@@ -294,5 +294,6 @@ module Unix = struct
     with Sys_error msg -> Error (`Sys_error msg)
 
   let unlink_dont_wait ~on_exn path =
-    Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn
+    (* TODO: Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn *)
+    try Sys.remove path with err -> on_exn err
 end

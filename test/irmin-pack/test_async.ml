@@ -23,21 +23,17 @@ let check_outcome = Alcotest.check_repr Async.outcome_t
 let test_success () =
   let f () = assert true in
   let task = Async.async f in
-  let* result = Async.await task in
-  check_outcome "should succeed" result `Success;
-  Lwt.return_unit
+  let result = Async.await task in
+  check_outcome "should succeed" result `Success
 
 let test_exception_in_task () =
   let f () = assert false in
   let task = Async.async f in
-  let* result = Async.await task in
-  check_outcome "should fail" result (`Failure "Unhandled exception");
-  Lwt.return_unit
+  let result = Async.await task in
+  check_outcome "should fail" result (`Failure "Unhandled exception")
 
 let tests =
   [
-    Alcotest_lwt.test_case "Successful task" `Quick (fun _switch ->
-        test_success);
-    Alcotest_lwt.test_case "Exception occurs in task" `Quick (fun _switch ->
-        test_exception_in_task);
+    Alcotest.test_case "Successful task" `Quick test_success;
+    Alcotest.test_case "Exception occurs in task" `Quick test_exception_in_task;
   ]

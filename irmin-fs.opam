@@ -22,7 +22,11 @@ depends: [
   "lwt"        {>= "5.3.0"}
   "alcotest"   {with-test}
   "irmin-test" {with-test & = version}
-  "irmin-watcher" {with-test & >= "0.2.0"}
+  "irmin-watcher" {with-test & = "dev"}
+]
+
+pin-depends: [
+  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]
 ]
 
 synopsis: "Generic file-system backend for Irmin"

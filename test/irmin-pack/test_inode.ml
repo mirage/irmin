@@ -624,7 +624,7 @@ let test_intermediate_inode_as_root ~indexing_strategy =
   Inode.batch t.store (fun store -> with_exn (fun () -> Inode.add store v))
 
 let test_invalid_depth_intermediate_inode ~indexing_strategy =
-  let* t = Context_mock.get_store ~indexing_strategy () in
+  let t = Context_mock.get_store ~indexing_strategy () in
   let { Context_mock.foo; bar; _ } = t in
   let gen_step = Inode_permutations_generator.gen_step (module Inter_mock) in
   let s000, s001, s010 =
@@ -635,13 +635,13 @@ let test_invalid_depth_intermediate_inode ~indexing_strategy =
     Inode_mock.Val.of_list
       [ (s000, normal foo); (s001, normal bar); (s010, normal foo) ]
   in
-  let* h_depth0 =
+  let h_depth0 =
     Inode_mock.batch t.store @@ fun store -> Inode_mock.add store v0
   in
 
   (* On inode with depth=0 *)
-  let* v =
-    Inode_mock.find t.store h_depth0 >|= function
+  let v =
+    match Inode_mock.find t.store h_depth0 with
     | None -> Alcotest.fail "Could not fetch inode from backend"
     | Some v -> v
   in
@@ -658,8 +658,7 @@ let test_invalid_depth_intermediate_inode ~indexing_strategy =
         ()
     | _ -> Alcotest.fail "Wrong exception - should have raised Invalid_depth"
   in
-  let* () = Context_mock.close t in
-  Lwt.return_unit
+  Context_mock.close t
 
 let test_intermediate_inode_as_root () =
   let () = test_invalid_depth_intermediate_inode ~indexing_strategy:`always in
@@ -704,7 +703,7 @@ let test_concrete_inodes ~indexing_strategy =
 
 let test_invalid_depth_concrete_inodes ~indexing_strategy =
   let module C = Inter.Val.Concrete in
-  let* t = Context.get_store ~indexing_strategy () in
+  let t = Context.get_store ~indexing_strategy () in
 
   (* idea is to try and directly construct a Concrete that has a bad depth structure ie *)
   (* "Tree": { *)
@@ -737,8 +736,7 @@ let test_invalid_depth_concrete_inodes ~indexing_strategy =
         Alcotest.fail "of_concrete - should be Invalid_depth error"
   in
 
-  let* () = Context.close t in
-  Lwt.return_unit
+  Context.close t
 
 let test_concrete_inodes () =
   let () = test_invalid_depth_concrete_inodes ~indexing_strategy:`always in

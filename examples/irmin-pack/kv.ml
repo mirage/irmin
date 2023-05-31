@@ -16,9 +16,6 @@
 
 (* A minimal example of instantiating a `irmin-pack.unix` key-value store. *)
 
-open Lwt
-open Lwt.Syntax
-
 let src =
   Logs.Src.create "irmin-pack.unix/examples/kv"
     ~doc:"irmin-pack.unix/examples/kv"

@@ -115,19 +115,18 @@ let test_one t ~(ro_reload_at : phase_flush) =
     check_ro t
   in
   let rw, _ = start t in
-    Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
-        let* () = write1_no_flush bstore nstore cstore in
-        let () = aux S1_before_flush in
-        let hook = function
-          | `After_dict -> aux S2_after_flush_dict
-          | `After_suffix -> aux S3_after_flush_suffix
-        in
-        let () =
-          Store.S.Internal.(
-            File_manager.flush ~hook (file_manager rw) |> Errs.raise_if_error)
-        in
-        aux S4_after_flush
-        )
+  Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
+      let () = write1_no_flush bstore nstore cstore in
+      let () = aux S1_before_flush in
+      let hook = function
+        | `After_dict -> aux S2_after_flush_dict
+        | `After_suffix -> aux S3_after_flush_suffix
+      in
+      let () =
+        Store.S.Internal.(
+          File_manager.flush ~hook (file_manager rw) |> Errs.raise_if_error)
+      in
+      aux S4_after_flush)
 
 let test_one_guarded setup ~ro_reload_at =
   let t = create_test_env setup in
@@ -206,8 +205,7 @@ let test_one t ~(rw_flush_at : phase_reload) =
           Store.S.Internal.(
             File_manager.reload ~hook (file_manager ro) |> Errs.raise_if_error)
         in
-        aux S5_after_reload
-        )
+        aux S5_after_reload)
   in
   let () = check_ro t in
   let () = reload_ro () in

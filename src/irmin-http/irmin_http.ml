@@ -80,6 +80,8 @@ let () =
 
 let json_stream (stream : string Lwt_stream.t) : Jsonm.lexeme list Lwt_stream.t
     =
+  let open Lwt.Infix in
+  let open Lwt.Syntax in
   let d = Jsonm.decoder `Manual in
   let rec lexeme () =
     match Jsonm.decode d with

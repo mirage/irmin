@@ -70,6 +70,8 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
   (K : Irmin.Type.S with type t = S.key)
   (V : Irmin.Type.S with type t = S.value) =
   struct
+    open Lwt.Syntax
+
     let with_key rd f =
       match Irmin.Type.of_string K.t (Wm.Rd.lookup_path_info_exn "id" rd) with
       | Ok key -> f key

@@ -42,7 +42,7 @@ module Content_addressable (S : Content_addressable.S) = struct
     S.unsafe_add t.t k v
 
   let v ?ctx uri item items =
-    let+ t = S.v ?ctx uri item items in
+    let t = S.v ?ctx uri item items in
     { closed = ref false; t }
 
   let close t =

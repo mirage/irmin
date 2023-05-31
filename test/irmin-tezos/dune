@@ -6,7 +6,7 @@
 (executable
  (name generate)
  (modules generate)
- (libraries irmin-tezos irmin-pack irmin-pack.unix))
+ (libraries eio_main irmin-tezos irmin-pack irmin-pack.unix))
 
 (rule
  (alias generate-cli-test-data)

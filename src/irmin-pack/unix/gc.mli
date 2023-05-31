@@ -53,8 +53,7 @@ module Make (Args : Gc_args.S) : sig
 
   val cancel : t -> bool
 
-  val finalise_without_swap :
-    t -> Control_file_intf.Payload.Upper.Latest.gced
+  val finalise_without_swap : t -> Control_file_intf.Payload.Upper.Latest.gced
   (** Waits for the current gc to finish and returns immediately without
       swapping the files and doing the other finalisation steps from [finalise].
       Returns the [gced] status to create a fresh control file for the snapshot. *)

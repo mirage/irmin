@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Syntax
-
 let rm_dir data_dir =
   if Sys.file_exists data_dir then (
     let cmd = Printf.sprintf "rm -rf %s" data_dir in
@@ -48,21 +46,21 @@ module Simple = struct
     (* make sure the parent directory data/ exists; by default Store.Repo.v will not
        create the containing directory *)
     if not (Sys.file_exists "data") then Unix.mkdir "data" 0o755;
-    let* rw = Store.Repo.v (config data_dir) in
+    let rw = Store.Repo.v (config data_dir) in
     let tree = Store.Tree.singleton [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1" in
-    let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
-    let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
-    let* tree = Store.Tree.add tree [ "a"; "b2"; "c2"; "e3" ] "x2" in
-    let* c1 = Store.Commit.v rw ~parents:[] ~info tree in
+    let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
+    let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
+    let tree = Store.Tree.add tree [ "a"; "b2"; "c2"; "e3" ] "x2" in
+    let c1 = Store.Commit.v rw ~parents:[] ~info tree in
 
-    let* tree = Store.Tree.add tree [ "a"; "b3" ] "x3" in
-    let* c2 = Store.Commit.v rw ~parents:[ Store.Commit.key c1 ] ~info tree in
+    let tree = Store.Tree.add tree [ "a"; "b3" ] "x3" in
+    let c2 = Store.Commit.v rw ~parents:[ Store.Commit.key c1 ] ~info tree in
 
-    let* tree = Store.Tree.remove tree [ "a"; "b1"; "c1" ] in
-    let* _ = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
+    let tree = Store.Tree.remove tree [ "a"; "b1"; "c1" ] in
+    let _ = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
 
     Store.Repo.close rw
 end
 
 let generate () = Simple.create_store ()
-let () = Lwt_main.run (generate ())
+let () = Eio_main.run @@ fun _env -> generate ()

@@ -175,19 +175,20 @@ module Alcotest = struct
   let int63 = testable Int63.pp Int63.equal
 
   let check_raises_pack_error msg pass f =
-    Lwt.try_bind f
-      (fun _ ->
+    match f () with
+    | _ ->
         Alcotest.failf
-          "Fail %s: expected function to raise, but it returned instead." msg)
-      (function
-        | Irmin_pack_unix.Errors.Pack_error e as exn -> (
+          "Fail %s: expected function to raise, but it returned instead." msg
+    | exception exn -> (
+        match exn with
+        | Irmin_pack_unix.Errors.Pack_error e -> (
             match pass e with
-            | true -> Lwt.return_unit
+            | true -> ()
             | false ->
                 Alcotest.failf
                   "Fail %s: function raised unexpected exception %s" msg
                   (Printexc.to_string exn))
-        | exn ->
+        | _ ->
             Alcotest.failf
               "Fail %s: expected function to raise Pack_error, but it raised \
                %s instead"
@@ -213,12 +214,7 @@ module Alcotest = struct
   let check_repr ?pos t = Alcotest.check ?pos (testable_repr t)
   let kind = testable_repr Irmin_pack.Pack_value.Kind.t
   let hash = testable_repr Schema.Hash.t
-end
-
-module Alcotest_lwt = struct
-  include Alcotest_lwt
-
-  let quick_tc name f = test_case name `Quick (fun _switch () -> f ())
+  let quick_tc name f = test_case name `Quick f
 end
 
 module Filename = struct
