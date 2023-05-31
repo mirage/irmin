@@ -55,10 +55,7 @@ module Alcotest : sig
   val hash : Schema.Hash.t testable
 
   val check_raises_pack_error :
-    string ->
-    (Irmin_pack_unix.Errors.base_error -> bool) ->
-    (unit -> _) ->
-    unit
+    string -> (Irmin_pack_unix.Errors.base_error -> bool) -> (unit -> _) -> unit
 
   val check_raises : string -> exn -> (unit -> _) -> unit
 
@@ -71,14 +68,9 @@ module Alcotest : sig
     unit
 
   val testable_repr : 'a Irmin.Type.t -> 'a Alcotest.testable
-end
 
-module Alcotest_lwt : sig
-  include module type of Alcotest_lwt
-
-  val quick_tc : string -> (unit -> unit Lwt.t) -> unit test_case
-  (** Convenience to create a `Quick test_case that doesn't need to use a
-      switch. *)
+  val quick_tc : string -> (unit -> unit) -> unit test_case
+  (** Convenience to create a `Quick test_case *)
 end
 
 module Index : module type of Irmin_pack_unix.Index.Make (Schema.Hash)

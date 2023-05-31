@@ -1155,9 +1155,9 @@ module Make (P : Backend.S) = struct
 
     let length ~cache t =
       match t.info.length with
-      | Some (lazy len) -> Lwt.return len
+      | Some (lazy len) -> len
       | None ->
-          let+ len = slow_length ~cache t in
+          let len = slow_length ~cache t in
           t.info.length <- Some (Lazy.from_val len);
           len
 

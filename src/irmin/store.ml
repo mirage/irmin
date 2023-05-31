@@ -834,9 +834,10 @@ module Make (B : Backend.S) = struct
     update t k ?clear ?allow_empty ?parents ~info (test_and_set_tree_once ~test)
     @@ fun _tree -> set
 
-  let test_set_and_get_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k ~test
-      ~set =
-    test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
+  let test_set_and_get_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k
+      ~test ~set =
+    test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set
     |> fail "test_set_and_get_tree_exn"
 
   let test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t k ~test
@@ -846,7 +847,8 @@ module Make (B : Backend.S) = struct
     test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test
       ~set
 
-  let test_set_and_get_exn ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set =
+  let test_set_and_get_exn ?clear ?retries ?allow_empty ?parents ~info t k ~test
+      ~set =
     test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
     |> fail "test_set_and_get_exn"
 
@@ -857,8 +859,8 @@ module Make (B : Backend.S) = struct
     @@ test_set_and_get_tree ~retries ?clear ?allow_empty ?parents ~info t k
          ~test ~set
 
-  let test_and_set_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
-      =
+  let test_and_set_tree_exn ?clear ?retries ?allow_empty ?parents ~info t k
+      ~test ~set =
     test_and_set_tree ?clear ?retries ?allow_empty ?parents ~info t k ~test ~set
     |> fail "test_and_set_tree_exn"
 
@@ -885,7 +887,7 @@ module Make (B : Backend.S) = struct
     @@ retry ~retries
     @@ fun () ->
     update t k ?clear ?allow_empty ?parents ~info (merge_once ~old)
-    @@ fun _tree -> Lwt.return tree
+    @@ fun _tree -> tree
 
   let merge_tree_exn ?clear ?retries ?allow_empty ?parents ~info ~old t k tree =
     merge_tree ?clear ?retries ?allow_empty ?parents ~info ~old t k tree
@@ -938,8 +940,8 @@ module Make (B : Backend.S) = struct
         | `Set, None -> remove ?clear t key ~retries ?allow_empty ~info ?parents
         | `Test_and_set, _ -> (
             match
-              test_and_set_tree ?clear t key ~retries ?allow_empty ?parents ~info
-                ~test:old_tree ~set:new_tree
+              test_and_set_tree ?clear t key ~retries ?allow_empty ?parents
+                ~info ~test:old_tree ~set:new_tree
             with
             | Error (`Test_was tr) when retries > 0 && n <= retries ->
                 done_once := true;
@@ -947,8 +949,8 @@ module Make (B : Backend.S) = struct
             | e -> e)
         | `Merge, _ -> (
             match
-              merge_tree ?clear ~old:old_tree ~retries ?allow_empty ?parents ~info t
-                key new_tree
+              merge_tree ?clear ~old:old_tree ~retries ?allow_empty ?parents
+                ~info t key new_tree
             with
             | Ok _ as x -> x
             | Error (`Conflict _) when retries > 0 && n <= retries ->

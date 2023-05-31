@@ -71,11 +71,11 @@ let test_corrupted_control_file () =
   let error =
     try Ok (Store.Repo.v (config ~fresh:false root)) with exn -> Error exn
   in
-  (match error with
+  match error with
   | Error (Irmin_pack_unix.Errors.Pack_error (`Corrupted_control_file s)) ->
       Alcotest.(check string)
         "path is corrupted" s "_build/test-corrupted/store.control"
-  | _ -> Alcotest.fail "unexpected error")
+  | _ -> Alcotest.fail "unexpected error"
 
 let tests =
   [

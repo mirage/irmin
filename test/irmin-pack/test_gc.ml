@@ -155,6 +155,21 @@ module Store = struct
     let h = commit t in
     (t, h)
 
+  let commit_4 t =
+    let t = set t [ "a"; "e" ] "Mars" in
+    let h = commit t in
+    (t, h)
+
+  let commit_5 t =
+    let t = set t [ "e"; "a" ] "Avril" in
+    let h = commit t in
+    (t, h)
+
+  let commit_del t =
+    let t = del t [ "a"; "c" ] in
+    let h = commit t in
+    (t, h)
+
   let commit_1_different_author t =
     let info = S.Info.v ~author:"someone" Int64.zero in
     let t = set t [ "a"; "b" ] "Novembre" in
@@ -237,15 +252,10 @@ let check_not_found t key msg =
 
 module type Gc_backend = sig
   val init :
-    ?lru_size:int ->
-    ?readonly:bool ->
-    ?fresh:bool ->
-    ?root:string ->
-    unit ->
-    t Lwt.t
+    ?lru_size:int -> ?readonly:bool -> ?fresh:bool -> ?root:string -> unit -> t
 
-  val check_gced : t -> S.commit -> string -> unit Lwt.t
-  val check_removed : t -> S.commit -> string -> unit Lwt.t
+  val check_gced : t -> S.commit -> string -> unit
+  val check_removed : t -> S.commit -> string -> unit
 end
 
 let rec check_async_unlinked ?(timeout = 3.141) file =
@@ -555,7 +565,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = B.init () in
     let t, c1 = commit_1 t in
     let _ =
-      Alcotest.check_raises_lwt "Should not call gc in batch"
+      Alcotest.check_raises "Should not call gc in batch"
         (Irmin_pack_unix.Errors.Pack_error `Gc_forbidden_during_batch)
         (fun () ->
           S.Backend.Repo.batch t.repo (fun _ _ _ ->
@@ -668,22 +678,22 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check that a GC clears the LRU *)
   let gc_clears_lru () =
-    let* t = init ~lru_size:100 () in
+    let t = init ~lru_size:100 () in
     (* Rreate some commits *)
-    let* t, c1 = commit_1 t in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* t = checkout_exn t c2 in
-    let* t, c3 = commit_3 t in
+    let t, c1 = commit_1 t in
+    let t = checkout_exn t c1 in
+    let t, c2 = commit_2 t in
+    let t = checkout_exn t c2 in
+    let t, c3 = commit_3 t in
     (* Read some data *)
-    let* () = check_2 t c2 in
-    let* () = check_3 t c3 in
+    let () = check_2 t c2 in
+    let () = check_3 t c3 in
     (* GC *)
     let count_before_gc = lru_hits () in
-    let* () = start_gc t c2 in
-    let* () = finalise_gc t in
+    let () = start_gc t c2 in
+    let () = finalise_gc t in
     (* Read data again *)
-    let* () = check_3 t c3 in
+    let () = check_3 t c3 in
     Alcotest.(check int) "GC does clear LRU" count_before_gc (lru_hits ());
     S.Repo.close t.repo
 
@@ -727,15 +737,15 @@ module Gc_archival = struct
 
   let gc_availability_recent () =
     let lower_root = create_lower_root ~mkdir:false () in
-    let* t = init ~lower_root:(Some lower_root) () in
+    let t = init ~lower_root:(Some lower_root) () in
     Alcotest.(check gc_behaviour)
       "recent stores with a lower use archiving gc" (S.Gc.behaviour t.repo)
       `Archive;
     Alcotest.(check bool)
       "archiving gc allowed on recent stores with a lower"
       (S.Gc.is_allowed t.repo) true;
-    let* () = S.Repo.close t.repo in
-    let* t = init () in
+    let () = S.Repo.close t.repo in
+    let t = init () in
     Alcotest.(check gc_behaviour)
       "recent stores without a lower use deleting gc" (S.Gc.behaviour t.repo)
       `Delete;
@@ -747,16 +757,16 @@ module Gc_archival = struct
   let gc_availability_old () =
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
-    let* t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
+    let t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
     Alcotest.(check gc_behaviour)
       "old stores with a lower use archiving gc" (S.Gc.behaviour t.repo)
       `Archive;
     Alcotest.(check bool)
       "archiving gc allowed on old stores with a lower" (S.Gc.is_allowed t.repo)
       true;
-    let* () = S.Repo.close t.repo in
+    let () = S.Repo.close t.repo in
     let root = create_v1_test_env () in
-    let* t = init ~root ~fresh:false () in
+    let t = init ~root ~fresh:false () in
     Alcotest.(check gc_behaviour)
       "old stores without a lower use deleting gc" (S.Gc.behaviour t.repo)
       `Delete;
@@ -769,10 +779,10 @@ module Gc_archival = struct
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
     [%log.debug "Open v1 store to trigger migration"];
-    let* t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
-    let* main = S.main t.repo in
+    let t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
+    let main = S.main t.repo in
     [%log.debug "Run GC on commit that is now in lower"];
-    let* head = S.Head.get main in
+    let head = S.Head.get main in
     let () =
       match Irmin_pack_unix.Pack_key.inspect (S.Commit.key head) with
       | Direct { volume_identifier; _ } ->
@@ -782,8 +792,8 @@ module Gc_archival = struct
             true
       | _ -> assert false
     in
-    let* () = start_gc t head in
-    let* () = finalise_gc t in
+    let () = start_gc t head in
+    let () = finalise_gc t in
     S.Repo.close t.repo
 
   module B = struct
@@ -793,39 +803,38 @@ module Gc_archival = struct
       init ?lru_size ?readonly ?fresh ~root ~lower_root:(Some lower_root) ()
 
     let check_gced t c s =
-      let* c = S.Commit.of_key t.repo (S.Commit.key c) in
-      Alcotest.(check bool s true (Option.is_some c));
-      Lwt.return_unit
+      let c = S.Commit.of_key t.repo (S.Commit.key c) in
+      Alcotest.(check bool s true (Option.is_some c))
 
     let check_removed = check_not_found
   end
 
   let gc_archival_multiple_volumes () =
-    let* t = B.init () in
-    let* t, c1 = commit_1 t in
-    let* t = checkout_exn t c1 in
-    let* t, c2 = commit_2 t in
-    let* t = checkout_exn t c1 in
-    let* t, c3 = commit_3 t in
-    let* t = checkout_exn t c2 in
-    let* t, c4 = commit_4 t in
+    let t = B.init () in
+    let t, c1 = commit_1 t in
+    let t = checkout_exn t c1 in
+    let t, c2 = commit_2 t in
+    let t = checkout_exn t c1 in
+    let t, c3 = commit_3 t in
+    let t = checkout_exn t c2 in
+    let t, c4 = commit_4 t in
     [%log.debug "Gc c1, c2, c3, keep c4"];
-    let* () = start_gc t c4 in
-    let* () = finalise_gc t in
+    let () = start_gc t c4 in
+    let () = finalise_gc t in
     [%log.debug "Add a new volume"];
     S.add_volume t.repo;
-    let* t = checkout_exn t c4 in
-    let* t, c5 = commit_5 t in
-    let* () = check_5 t c5 in
+    let t = checkout_exn t c4 in
+    let t, c5 = commit_5 t in
+    let () = check_5 t c5 in
     [%log.debug "Gc c4, keep c5"];
-    let* () = start_gc t c5 in
-    let* () = finalise_gc t in
-    let* () = check_5 t c5 in
-    let* () = B.check_gced t c1 "gced c1" in
-    let* () = B.check_gced t c2 "gced c2" in
-    let* () = B.check_removed t c3 "gced c3" in
-    let* () = B.check_gced t c4 "gced c4" in
-    let* () =
+    let () = start_gc t c5 in
+    let () = finalise_gc t in
+    let () = check_5 t c5 in
+    let () = B.check_gced t c1 "gced c1" in
+    let () = B.check_gced t c2 "gced c2" in
+    let () = B.check_removed t c3 "gced c3" in
+    let () = B.check_gced t c4 "gced c4" in
+    let () =
       Alcotest.check_raises_pack_error "Cannot GC on commit older than c5"
         (function `Gc_disallowed _ -> true | _ -> false)
         (fun () -> start_gc t c4)
@@ -988,35 +997,35 @@ module Concurrent_gc = struct
 
   (** Check that calling reload in RO will clear the LRU only after GC. *)
   let ro_reload_clears_lru () =
-    let* rw_t = init () in
-    let* ro_t =
+    let rw_t = init () in
+    let ro_t =
       init ~lru_size:100 ~readonly:true ~fresh:false ~root:rw_t.root ()
     in
     (* Create some commits in RW *)
-    let* rw_t, c1 = commit_1 rw_t in
-    let* rw_t = checkout_exn rw_t c1 in
-    let* rw_t, c2 = commit_2 rw_t in
-    let* rw_t = checkout_exn rw_t c2 in
-    let* rw_t, c3 = commit_3 rw_t in
+    let rw_t, c1 = commit_1 rw_t in
+    let rw_t = checkout_exn rw_t c1 in
+    let rw_t, c2 = commit_2 rw_t in
+    let rw_t = checkout_exn rw_t c2 in
+    let rw_t, c3 = commit_3 rw_t in
     (* Reload RO to get all changes, and read some data *)
     S.reload ro_t.repo;
-    let* () = check_3 ro_t c3 in
+    let () = check_3 ro_t c3 in
     let count_before_reload = lru_hits () in
     (* Reload should not clear LRU *)
     S.reload ro_t.repo;
-    let* () = check_3 ro_t c3 in
+    let () = check_3 ro_t c3 in
     Alcotest.(check bool)
       "reload does not clear LRU" true
       (count_before_reload < lru_hits ());
     (* GC *)
     let count_before_gc = lru_hits () in
-    let* () = start_gc rw_t c2 in
-    let* () = finalise_gc rw_t in
+    let () = start_gc rw_t c2 in
+    let () = finalise_gc rw_t in
     (* Reload RO to get changes and clear LRU, and read some data *)
     S.reload ro_t.repo;
-    let* () = check_3 ro_t c3 in
+    let () = check_3 ro_t c3 in
     Alcotest.(check int) "reload does clear LRU" count_before_gc (lru_hits ());
-    let* () = S.Repo.close rw_t.repo in
+    let () = S.Repo.close rw_t.repo in
     S.Repo.close ro_t.repo
 
   (** Check that calling close during a gc kills the gc without finalising it.
@@ -1368,9 +1377,9 @@ module Split = struct
 
   let split_always_indexed_from_v2_store () =
     let root = create_from_v2_always_test_env () in
-    let* t = init ~readonly:false ~fresh:false ~root () in
-    let* _c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
-    let* t, _c1 = commit_1 t in
+    let t = init ~readonly:false ~fresh:false ~root () in
+    let _c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
+    let t, _c1 = commit_1 t in
     let f () = S.split t.repo in
     Alcotest.check_raises "split should raise disallowed exception"
       (Irmin_pack_unix.Errors.Pack_error `Split_disallowed) f;

@@ -17,7 +17,7 @@ depends: [
   "dune"         {>= "2.9.0"}
   "irmin"        {= version}
   "ppx_irmin"    {= version}
-  "index"        {>= "1.6.0"}
+  "index"        {= "dev"}
   "fmt"
   "logs"
   "lwt"          {>= "5.4.0"}
@@ -30,6 +30,14 @@ depends: [
   "alcotest-lwt" {with-test}
   "astring"      {with-test}
   "alcotest"     {with-test}
+]
+
+pin-depends: [
+  # Needed by Index
+  [ "terminal.dev" "git+https://github.com/craigfe/progress#76e7c791bd17c28b3e605d9c383102a30345e029" ]
+  [ "progress.dev" "git+https://github.com/craigfe/progress#76e7c791bd17c28b3e605d9c383102a30345e029" ]
+  # Needed by Irmin-pack
+  [ "index.dev" "git+https://github.com/patricoferris/index#cfa32e984b633d08b2f0c1fc1f792925c6d74f8e" ]
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"

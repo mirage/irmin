@@ -312,16 +312,15 @@ module Make (Args : Gc_args.S) = struct
     let gc_output = read_gc_output ~root:t.root ~generation:t.generation in
     match (status, gc_output) with
     | `Success, Ok gc_results ->
-          {
-            Control_file_intf.Payload.Upper.Latest.generation =
-              Fm.generation t.fm + 1;
-            latest_gc_target_offset = t.latest_gc_target_offset;
-            suffix_start_offset = t.new_suffix_start_offset;
-            suffix_dead_bytes = Int63.zero;
-            mapping_end_poff = Some gc_results.mapping_size;
-          }
-    | _ ->
-       gc_errors status gc_output |> Errs.raise_if_error
+        {
+          Control_file_intf.Payload.Upper.Latest.generation =
+            Fm.generation t.fm + 1;
+          latest_gc_target_offset = t.latest_gc_target_offset;
+          suffix_start_offset = t.new_suffix_start_offset;
+          suffix_dead_bytes = Int63.zero;
+          mapping_end_poff = Some gc_results.mapping_size;
+        }
+    | _ -> gc_errors status gc_output |> Errs.raise_if_error
 
   let on_finalise t f =
     (* Ignore returned promise since the purpose of this

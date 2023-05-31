@@ -183,16 +183,16 @@ module Test_corrupted_stores = struct
     let rw = S.Repo.v (config ~fresh:false root) in
     [%log.app
       "integrity check on a store where 3 entries are missing from pack"];
-    let* result = S.integrity_check ~auto_repair:false rw in
+    let result = S.integrity_check ~auto_repair:false rw in
     (match result with
     | Ok `No_error -> Alcotest.fail "Store is corrupted, the check should fail"
     | Error (`Corrupted 3) -> ()
     | _ -> Alcotest.fail "With auto_repair:false should not match");
-    let* result = S.integrity_check ~auto_repair:true rw in
+    let result = S.integrity_check ~auto_repair:true rw in
     (match result with
     | Ok (`Fixed 3) -> ()
     | _ -> Alcotest.fail "Integrity check should repair the store");
-    let* result = S.integrity_check ~auto_repair:false rw in
+    let result = S.integrity_check ~auto_repair:false rw in
     (match result with
     | Ok `No_error -> ()
     | _ -> Alcotest.fail "Store is repaired, should return Ok");
@@ -228,23 +228,23 @@ module Test_corrupted_stores = struct
       config ~fresh:false
         ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
     in
-    let* rw = S.Repo.v config in
+    let rw = S.Repo.v config in
 
-    let* commit =
+    let commit =
       commit_of_string rw "22e159de13b427226e5901defd17f0c14e744205"
     in
-    let* result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
+    let result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
     let () =
       match result with
       | Ok `No_error -> ()
       | Error (`Cannot_fix err) -> Alcotest.failf "Store is corrupted %s" err
       | _ -> Alcotest.fail "Unexpected result of integrity_check"
     in
-    let* () = S.Repo.close rw in
+    let () = S.Repo.close rw in
     [%log.app "integrity check on a corrupted minimal store"];
     write_corrupted_data_to_suffix ();
-    let* rw = S.Repo.v config in
-    let* result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
+    let rw = S.Repo.v config in
+    let result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
     let () =
       match result with
       | Ok `No_error -> Alcotest.fail "Store is corrupted, check should fail"
@@ -255,8 +255,7 @@ module Test_corrupted_stores = struct
       | _ -> Alcotest.fail "Unexpected result of integrity_check"
     in
 
-    let* () = S.Repo.close rw in
-    Lwt.return_unit
+    S.Repo.close rw
 end
 
 module Test_corrupted_inode = struct
@@ -336,16 +335,15 @@ end
 
 let tests =
   [
-    Alcotest.test_case "Test index reconstruction" `Quick (fun _switch ->
-        Test_reconstruct.test_reconstruct);
-    Alcotest.test_case "Test gc not allowed" `Quick (fun _switch ->
-        Test_reconstruct.test_gc_allowed);
-    Alcotest.test_case "Test integrity check" `Quick (fun _switch ->
-        Test_corrupted_stores.test);
+    Alcotest.test_case "Test index reconstruction" `Quick
+      Test_reconstruct.test_reconstruct;
+    Alcotest.test_case "Test gc not allowed" `Quick
+      Test_reconstruct.test_gc_allowed;
+    Alcotest.test_case "Test integrity check" `Quick Test_corrupted_stores.test;
     Alcotest.test_case "Test integrity check minimal stores" `Quick
-      (fun _switch -> Test_corrupted_stores.test_minimal);
+      Test_corrupted_stores.test_minimal;
     Alcotest.test_case "Test integrity check for inodes" `Quick
-      (fun _switch -> Test_corrupted_inode.test);
+      Test_corrupted_inode.test;
     Alcotest.test_case "Test traverse pack on gced store" `Quick
-      (fun _switch -> Test_traverse_gced.test_traverse_pack);
+      Test_traverse_gced.test_traverse_pack;
   ]
