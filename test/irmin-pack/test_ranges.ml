@@ -31,8 +31,6 @@ let test () =
     (fun ~off ~len -> output := (Int63.to_int off, Int63.to_int len) :: !output)
     ranges;
   let expected = [ (90, 10); (87, 1); (70, 15); (50, 17) ] in
-  Alcotest.(check (list (pair int int))) "out of order" expected !output;
-  Lwt.return_unit
+  Alcotest.(check (list (pair int int))) "out of order" expected !output
 
-let tests =
-  [ Alcotest_lwt.test_case "test ranges" `Quick (fun _switch () -> test ()) ]
+let tests = [ Alcotest.test_case "test ranges" `Quick test ]

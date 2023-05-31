@@ -285,8 +285,7 @@ module type S = sig
 
   (** {1 Statistics} *)
 
-  val stats :
-    dump_blob_paths_to:string option -> commit:commit -> repo -> unit
+  val stats : dump_blob_paths_to:string option -> commit:commit -> repo -> unit
 
   (** {1 Internals} *)
 

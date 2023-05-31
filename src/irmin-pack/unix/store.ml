@@ -460,9 +460,7 @@ module Maker (Config : Conf.S) = struct
     module Integrity_checks = Checks.Integrity_checks (XKey) (X) (Index)
 
     let integrity_check_inodes ?heads t =
-      let* heads =
-        match heads with None -> Repo.heads t | Some m -> Lwt.return m
-      in
+      let heads = match heads with None -> Repo.heads t | Some m -> m in
       let hashes = List.map (fun x -> `Commit (Commit.key x)) heads in
       let iter ~pred_node ~node ~commit t =
         Repo.iter ~cache_size:1_000_000 ~min:[] ~max:hashes ~pred_node ~node
@@ -507,11 +505,8 @@ module Maker (Config : Conf.S) = struct
         |> Conf.indexing_strategy
         |> Irmin_pack.Indexing_strategy.is_minimal
       in
-      let result =
-        if is_minimal then integrity_check_minimal ?ppf ?heads t
-        else integrity_check_always ?ppf ~auto_repair t |> Lwt.return
-      in
-      result
+      if is_minimal then integrity_check_minimal ?ppf ?heads t
+      else integrity_check_always ?ppf ~auto_repair t
 
     module Stats_computation = struct
       let pp_key = Irmin.Type.pp XKey.t

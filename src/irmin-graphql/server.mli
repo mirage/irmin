@@ -31,8 +31,8 @@ module type S = sig
 
   val execute_request :
     unit Schema.schema ->
-    Cohttp_lwt.Request.t ->
-    Cohttp_lwt.Body.t ->
+    Cohttp.Request.t ->
+    Cohttp.Body.t ->
     response_action Lwt.t
 
   val v : repo -> server

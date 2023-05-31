@@ -52,7 +52,6 @@ let test_duplicate_key_names () =
 
 let suite =
   [
-    Alcotest.test_case_sync "conf" `Quick test_conf;
-    Alcotest.test_case_sync "duplicate key names" `Quick
-      test_duplicate_key_names;
+    Alcotest.test_case "conf" `Quick test_conf;
+    Alcotest.test_case "duplicate key names" `Quick test_duplicate_key_names;
   ]

@@ -65,7 +65,7 @@ module Check_closed (S : Irmin.Atomic_write.S) = struct
   let v t = { closed = ref false; t }
 
   let close t =
-    if !(t.closed) then Lwt.return_unit
+    if !(t.closed) then ()
     else (
       t.closed := true;
       S.close t.t)

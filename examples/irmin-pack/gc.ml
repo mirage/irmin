@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Syntax
-
 module Schema = Irmin.Schema.KV (Irmin.Contents.String)
 (** Make schema *)
 

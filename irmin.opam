@@ -40,6 +40,12 @@ depends: [
   "bisect_ppx" {dev & >= "2.5.0"}
 ]
 
+pin-depends: [
+  # Metrics may have been unnecessarily constrained in opam-repository
+  [ "metrics.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
+  [ "metrics-unix.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
+]
+
 conflicts: [
   "result" {< "1.5"} # Requires `Result = Stdlib.Result`
 ]
