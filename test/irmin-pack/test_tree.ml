@@ -87,7 +87,7 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
     | Find k -> find tree k
     | Find_tree k -> find_tree tree k
     | Length (k, len_expected) ->
-        let+ len_tree = Tree.length tree k in
+        let len_tree = Tree.length tree k in
         Alcotest.(check int)
           (Fmt.str "expected tree length at %a" Fmt.(Dump.list string) k)
           len_expected len_tree;
