@@ -35,23 +35,7 @@ module Make (AO : Append_only.Maker) (K : Hash.S) (V : Type.S) = struct
           Fmt.kstr invalid_arg "corrupted value: got %a, expecting %a" pp_key k'
             pp_key k
 
-  let add t v =
-    check_not_closed t;
-    S.add t.t v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    S.unsafe_add t.t k v
-
-  let v ?ctx uri item items =
-    let t = S.v ?ctx uri item items in
-    { closed = ref false; t }
-
-  let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
-      t.closed := true;
-      S.close t.t)
+  let unsafe_add t k v = add t k v
 
   let add t v =
     let k = hash v in
@@ -93,8 +77,7 @@ module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
     { closed = ref false; t }
 
   let close t =
-    if !(t.closed) then ()
-    else (
+    if not !(t.closed) then (
       t.closed := true;
       S.close t.t)
 end
