@@ -47,6 +47,8 @@ let http_store id (module S : Irmin_test.S) =
 let remove file = try Unix.unlink file with _ -> ()
 
 let check_connection id =
+  Lwt_eio.run_lwt @@ fun () ->
+  let open Lwt.Infix in
   let module Client = Client (Sock (struct
     let id = id
   end)) in
@@ -80,10 +82,12 @@ let wait_for_the_server_to_start id =
       let pid = int_of_string line in
       [%logs.debug "read PID %d from %s" pid pid_file];
       Unix.unlink pid_file;
-      check_connection id >|= fun () -> pid)
+      check_connection id;
+      pid)
     else (
       [%logs.debug "waiting for the server to start..."];
-      Lwt_unix.sleep (float n *. 0.1) >>= fun () -> aux (n + 1))
+      Eio_unix.sleep (float n *. 0.1);
+      aux (n + 1))
   in
   aux 1
 
@@ -106,6 +110,8 @@ let mkdir d =
       | Unix.Unix_error (Unix.EEXIST, _, _) -> Lwt.return_unit | e -> Lwt.fail e)
 
 let rec lock id =
+  let open Lwt.Infix in
+  let open Lwt.Syntax in
   let pid = string_of_int (Unix.getpid ()) in
   let pid_len = String.length pid in
   let pid_file = pid_file id in
@@ -129,6 +135,7 @@ let rec lock id =
           Lwt_unix.close fd >>= fun () -> lock id
       | e -> Lwt_unix.close fd >>= fun () -> Lwt.fail e)
 
+let lock id = Lwt_eio.run_lwt @@ fun () -> lock id
 let unlock fd = Lwt_unix.close fd
 
 let get_store suite =
@@ -153,18 +160,20 @@ let serve servers n id =
   let socket = socket test in
   let server () =
     let config = Irmin_test.Suite.config server in
-    Irmin_test.Suite.init server ~config >>= fun () ->
-    let* repo = Server.Repo.v config in
-    let* lock = lock test in
+    let () = Irmin_test.Suite.init server ~config in
+    let repo = Server.Repo.v config in
+    let lock = lock test in
     let spec = HTTP.v repo ~strict:false in
-    let* () =
+    let () =
+      Lwt_eio.run_lwt @@ fun () ->
       Lwt.catch
         (fun () -> Lwt_unix.unlink socket)
         (function Unix.Unix_error _ -> Lwt.return_unit | e -> Lwt.fail e)
     in
     let mode = `Unix_domain_socket (`File socket) in
     Conduit_lwt_unix.set_max_active 100;
-    let* () =
+    let () =
+      Lwt_eio.run_lwt @@ fun () ->
       Cohttp_lwt_unix.Server.create
         ~on_exn:(Fmt.pr "Async exception caught: %a" Fmt.exn)
         ~mode spec
@@ -197,21 +206,25 @@ let suite i server =
     ~init:(fun ~config:_ ->
       remove socket;
       remove (pid_file id);
-      mkdir test_http_dir >>= fun () ->
-      Lwt_io.flush_all () >>= fun () ->
+      let () =
+        Lwt_eio.run_lwt @@ fun () ->
+        let open Lwt.Infix in
+        mkdir test_http_dir >>= fun () -> Lwt_io.flush_all ()
+      in
       let pwd = Sys.getcwd () in
       let root =
         if Filename.basename pwd = "default" then ".." / ".." / "" else ""
       in
       let cmd =
         root
-        ^ "_build"
-          / "default"
-          / Fmt.str "%s serve %d %d &" Sys.argv.(0) i id.id
+        ^ (* "_build"
+             / "default"
+             / *)
+        Fmt.str "%s serve %d %d &" Sys.argv.(0) i id.id
       in
       Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
       let _ = Sys.command cmd in
-      let+ pid = wait_for_the_server_to_start id in
+      let pid = wait_for_the_server_to_start id in
       server_pid := pid)
     ~clean:(fun ~config ->
       kill_server socket !server_pid;
@@ -233,6 +246,6 @@ let with_server servers f =
     let id = int_of_string Sys.argv.(3) in
     Logs.set_reporter (Irmin_test.reporter ~prefix:"S" ());
     serve servers n id)
-  else Lwt_main.run (f ())
+  else f ()
 
 type test = Alcotest.speed_level * Irmin_test.Suite.t

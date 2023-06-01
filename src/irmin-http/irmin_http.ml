@@ -17,6 +17,8 @@
 open Common
 open Astring
 open! Import
+open Lwt.Infix
+open Lwt.Syntax
 
 let src = Logs.Src.create "irmin.http" ~doc:"Irmin HTTP REST interface"
 
@@ -223,7 +225,7 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
   let uri t = t.uri
   let item t = t.item
   let items t = t.items
-  let close _ = Lwt.return ()
+  let close _ = ()
 
   type key = K.t
   type value = V.t
@@ -232,6 +234,7 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
   let val_of_str = Irmin.Type.of_string V.t
 
   let find t key =
+    Lwt_eio.run_lwt @@ fun () ->
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
       [ t.item; key_str key ]
       (fun ((r, _) as x) ->
@@ -239,13 +242,14 @@ module RO (Client : Cohttp_lwt.S.Client) (K : Irmin.Type.S) (V : Irmin.Type.S) :
         else HTTP.map_string_response val_of_str x >|= Option.some)
 
   let mem t key =
+    Lwt_eio.run_lwt @@ fun () ->
     HTTP.map_call `GET t.uri t.ctx ~keep_alive:false
       [ t.item; key_str key ]
       (fun (r, _) ->
         if Cohttp.Response.status r = `Not_found then Lwt.return_false
         else Lwt.return_true)
 
-  let v ?ctx uri item items = Lwt.return { uri; item; items; ctx }
+  let v ?ctx uri item items = { uri; item; items; ctx }
 end
 
 module CA (Client : Cohttp_lwt.S.Client) (H : Irmin.Hash.S) (V : Irmin.Type.S) =
@@ -254,10 +258,12 @@ struct
 
   let add t value =
     let body = Irmin.Type.to_string V.t value in
+    Lwt_eio.run_lwt @@ fun () ->
     HTTP.call `POST t.uri t.ctx [ t.items ] ~body (Irmin.Type.of_string H.t)
 
   let unsafe_add t key value =
     let body = Irmin.Type.to_string V.t value in
+    Lwt_eio.run_lwt @@ fun () ->
     HTTP.call `POST t.uri t.ctx
       [ "unsafe"; t.items; key_str key ]
       ~body
@@ -269,7 +275,7 @@ struct
     (* TODO:cache the writes locally and send everything in one batch *)
     f (cast t)
 
-  let close _ = Lwt.return_unit
+  let close _ = ()
 end
 
 module RW : S.Atomic_write.Maker =
@@ -302,20 +308,23 @@ functor
     let post_stream t = HTTP.call_stream `POST (RO.uri t.t) t.t.ctx
 
     let v ?ctx uri item items =
-      let* t = RO.v ?ctx uri item items in
+      let t = RO.v ?ctx uri item items in
       let w = W.v () in
       let keys = empty_cache () in
       let glob = empty_cache () in
-      Lwt.return { t; w; keys; glob }
+      { t; w; keys; glob }
 
     let find t = RO.find t.t
     let mem t = RO.mem t.t
     let key_str = Irmin.Type.to_string K.t
-    let list t = get t [ RO.items t.t ] (of_json T.(list K.t))
+
+    let list t =
+      Lwt_eio.run_lwt @@ fun () -> get t [ RO.items t.t ] (of_json T.(list K.t))
 
     let set t key value =
       let value = { v = Some value; set = None; test = None } in
       let body = to_json (set_t V.t) value in
+      Lwt_eio.run_lwt @@ fun () ->
       put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
       | { status = "ok" } -> Lwt.return_unit
       | e -> Lwt.fail_with e.status
@@ -323,6 +332,7 @@ functor
     let test_and_set t key ~test ~set =
       let value = { v = None; set; test } in
       let body = to_json (set_t V.t) value in
+      Lwt_eio.run_lwt @@ fun () ->
       put t [ RO.item t.t; key_str key ] ~body (of_json status_t) >>= function
       | { status = "true" } -> Lwt.return_true
       | { status = "false" } -> Lwt.return_false
@@ -331,6 +341,7 @@ functor
     let pp_key = Irmin.Type.pp K.t
 
     let remove t key =
+      Lwt_eio.run_lwt @@ fun () ->
       HTTP.map_call `DELETE (RO.uri t.t) t.t.ctx ~keep_alive:false
         [ RO.item t.t; key_str key ]
         (fun (r, b) ->
@@ -350,6 +361,7 @@ functor
       function () -> Lwt.wakeup u ()
 
     let watch_key t key ?init f =
+      Lwt_eio.run_lwt @@ fun () ->
       let key_str = Irmin.Type.to_string K.t key in
       let init_stream () =
         if nb_keys t <> 0 then Lwt.return_unit
@@ -369,16 +381,18 @@ functor
                   | `Removed _ -> None
                   | `Added v | `Updated (_, v) -> Some v
                 in
-                W.notify t.w key diff)
+                W.notify t.w key diff;
+                Lwt.return_unit)
               s
           in
           t.keys.stop <- stoppable stop;
           Lwt.return_unit
       in
-      let* () = init_stream () in
+      let+ () = init_stream () in
       W.watch_key t.w key ?init f
 
     let watch t ?init f =
+      Lwt_eio.run_lwt @@ fun () ->
       let init_stream () =
         if nb_glob t <> 0 then Lwt.return_unit
         else
@@ -407,28 +421,29 @@ functor
                   in
                   l "notify %a: %a" pp_key k pp_opt diff]
                 ;
-                W.notify t.w k diff)
+                Lwt_eio.run_eio @@ fun () -> W.notify t.w k diff)
               s
           in
           t.glob.stop <- stoppable stop;
           Lwt.return_unit
       in
       let* () = init_stream () in
-      W.watch t.w ?init f
+      Lwt_eio.run_eio @@ fun () -> W.watch t.w ?init f
 
     let stop x =
       let () = try x.stop () with _e -> () in
       x.stop <- (fun () -> ())
 
     let unwatch t id =
-      W.unwatch t.w id >>= fun () ->
+      W.unwatch t.w id;
       if nb_keys t = 0 then stop t.keys;
       if nb_glob t = 0 then stop t.glob;
-      Lwt.return_unit
+      ()
 
-    let close _ = Lwt.return_unit
+    let close _ = ()
 
     let clear t =
+      Lwt_eio.run_lwt @@ fun () ->
       HTTP.call `POST t.t.uri t.t.ctx [ "clear"; t.t.items ]
         Irmin.Type.(of_string unit)
   end
@@ -469,8 +484,8 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
 
       let merge (t : _ t) =
         let f ~(old : Key.t option Irmin.Merge.promise) left right =
-          let* old =
-            old () >|= function
+          let old =
+            match old () with
             | Ok (Some old) -> old
             | Ok None -> None
             | Error _ -> None
@@ -479,6 +494,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
             Irmin.Type.(to_string (merge_t (option Key.t))) { old; left; right }
           in
           let result = merge_result_t Key.t in
+          Lwt_eio.run_lwt @@ fun () ->
           CA.HTTP.call `POST t.uri t.ctx [ t.items; "merge" ] ~body
             (Irmin.Type.of_string result)
         in
@@ -546,16 +562,16 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let v config =
         let uri = get_uri config in
         let ctx = Client.ctx () in
-        let* contents = Contents.v ?ctx uri in
-        let* node = Node.v ?ctx uri in
-        let* commit = Commit.v ?ctx uri in
-        let+ branch = Branch.v ?ctx uri in
+        let contents = Contents.v ?ctx uri in
+        let node = Node.v ?ctx uri in
+        let commit = Commit.v ?ctx uri in
+        let branch = Branch.v ?ctx uri in
         let commit = (node, commit) in
         { contents; node; commit; branch; config }
 
       let close t =
-        let* () = Contents.X.close t.contents in
-        let* () = Branch.close t.branch in
+        Contents.X.close t.contents;
+        Branch.close t.branch;
         Commit.X.close (snd t.commit)
     end
   end

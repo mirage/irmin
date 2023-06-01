@@ -82,7 +82,7 @@ module Read_only = struct
     val items : 'a t -> string
     val key_str : key -> string
     val val_of_str : value T.of_string
-    val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+    val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t
   end
 end
 
@@ -92,7 +92,7 @@ module Content_addressable = struct
 
     type ctx
 
-    val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t Lwt.t
+    val v : ?ctx:ctx -> Uri.t -> string -> string -> 'a t
   end
 
   module type Maker = functor
@@ -108,7 +108,7 @@ module Atomic_write = struct
 
     type ctx
 
-    val v : ?ctx:ctx -> Uri.t -> string -> string -> t Lwt.t
+    val v : ?ctx:ctx -> Uri.t -> string -> string -> t
   end
 
   module type Maker = functor

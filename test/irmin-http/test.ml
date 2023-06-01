@@ -15,6 +15,9 @@
  *)
 
 let () =
-  Test_http.(with_server servers) (fun () ->
-      Irmin_test.Store.run "irmin-http" ~misc:[] ~sleep:Lwt_unix.sleep
-        Test_http.(suites servers))
+  Eio_main.run @@ fun env ->
+  Irmin_fs.run env#fs @@ fun () ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Test_http.(with_server servers) @@ fun () ->
+  Irmin_test.Store.run "irmin-http" ~misc:[] ~sleep:Eio_unix.sleep
+    Test_http.(suites servers)

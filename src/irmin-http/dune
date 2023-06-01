@@ -3,6 +3,7 @@
  (public_name irmin-http)
  (libraries
   astring
+  lwt_eio
   cohttp
   cohttp-lwt
   fmt

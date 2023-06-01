@@ -46,8 +46,7 @@ module Content_addressable (S : Content_addressable.S) = struct
     { closed = ref false; t }
 
   let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
+    if not !(t.closed) then (
       t.closed := true;
       S.close t.t)
 
@@ -103,12 +102,11 @@ module Atomic_write (S : Atomic_write.S) = struct
     S.unwatch t.t w
 
   let v ?ctx uri item items =
-    let+ t = S.v ?ctx uri item items in
+    let t = S.v ?ctx uri item items in
     { closed = ref false; t }
 
   let close t =
-    if !(t.closed) then Lwt.return_unit
-    else (
+    if not !(t.closed) then (
       t.closed := true;
       S.close t.t)
 

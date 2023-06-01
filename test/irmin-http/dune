@@ -3,6 +3,7 @@
  (modules test_http)
  (libraries
   alcotest
+  eio_main
   cohttp-lwt
   cohttp-lwt-unix
   conduit
@@ -32,6 +33,4 @@
  (package irmin-http)
  (locks ../http)
  (action
-  (chdir
-   %{workspace_root}
-   (run %{exe:test.exe} -q --color=always))))
+  (run %{exe:test.exe} -q --color=always)))
