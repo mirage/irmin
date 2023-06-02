@@ -20,8 +20,10 @@
   irmin-graphql.unix
   irmin-pack.unix
   irmin-watcher
+  eio_main
   lwt
-  lwt.unix)
+  lwt.unix
+  lwt_eio)
  (preprocess
   (pps ppx_irmin)))
 

@@ -16,8 +16,6 @@
 
 (* Simple UI example: connect to http://localhost:8080/dump *)
 
-open Lwt.Syntax
-
 let fin () =
   let _ = Fmt.kstr Sys.command "cd %s && git reset HEAD --hard" Config.root in
   Lwt.return_unit
@@ -114,13 +112,13 @@ let main = branch images.(0)
 
 let init () =
   Config.init ();
-  let* repo = Store.Repo.v config in
-  let* t = Store.of_branch repo main in
-  let* () = Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0" in
-  Lwt_list.iter_s
+  let repo = Store.Repo.v config in
+  let t = Store.of_branch repo main in
+  Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0";
+  List.iter
     (fun i ->
-      let* _ = Store.clone ~src:t ~dst:(branch i) in
-      Lwt.return_unit)
+      let _ = Store.clone ~src:t ~dst:(branch i) in
+      ())
     (Array.to_list images)
 
 let random_array a = a.(Random.int (Array.length a))
@@ -135,45 +133,41 @@ let rec process image =
     with _ ->
       ([ "log"; id; "0" ], fun () -> id ^ string_of_int (Random.int 10))
   in
-  let* repo = Store.Repo.v config in
-  let* t = Store.of_branch repo id in
-  let* () = Store.set_exn t ~info:(info image actions.message) key (value ()) in
-  let* () =
+  let repo = Store.Repo.v config in
+  let t = Store.of_branch repo id in
+  Store.set_exn t ~info:(info image actions.message) key (value ());
+  let () =
     if Random.int 3 = 0 then
       let branch = branch (random_array images) in
       if branch <> id then (
         Printf.printf "Merging ...%!";
-        let* r =
+        let r =
           Store.merge_with_branch t
             ~info:(info image @@ Fmt.str "Merging with %s" branch)
             branch
         in
         match r with
-        | Ok () ->
-            Printf.printf "ok!\n%!";
-            Lwt.return_unit
-        | Error _ -> Lwt.fail_with "conflict!")
-      else Lwt.return_unit
-    else Lwt.return_unit
+        | Ok () -> Printf.printf "ok!\n%!"
+        | Error _ -> failwith "conflict!")
   in
-  let* () = Lwt_unix.sleep (max 0.1 (Random.float 0.3)) in
+  Eio_unix.sleep (max 0.1 (Random.float 0.3));
   process image
 
-let rec protect fn x =
-  Lwt.catch
-    (fun () -> fn x)
-    (fun e ->
-      Printf.eprintf "error: %s" (Printexc.to_string e);
-      protect fn x)
+let rec protect fn x () =
+  try fn x
+  with e ->
+    Printf.eprintf "error: %s" (Printexc.to_string e);
+    protect fn x ()
 
 let rec watchdog () =
   Printf.printf "I'm alive!\n%!";
-  let* () = Lwt_unix.sleep 1. in
+  Eio_unix.sleep 1.;
   watchdog ()
 
+let main () =
+  init ();
+  Eio.Fiber.any (watchdog :: List.map (protect process) (Array.to_list images))
+
 let () =
-  let aux () =
-    let* () = init () in
-    Lwt.choose (watchdog () :: List.map (protect process) (Array.to_list images))
-  in
-  Lwt_main.run (aux ())
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

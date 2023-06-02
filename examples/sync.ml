@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Syntax
-
 let info = Irmin_git_unix.info
 
 let path =
@@ -28,15 +26,17 @@ module Sync = Irmin.Sync.Make (Store)
 let test () =
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let* repo = Store.Repo.v config in
-  let* t = Store.of_branch repo "master" in
-  let* upstream = Store.remote path in
-  let* _ = Sync.pull_exn t upstream `Set in
-  let* readme = Store.get t [ "README.md" ] in
-  let* tree = Store.get_tree t [] in
-  let* tree = Store.Tree.add tree [ "BAR.md" ] "Hoho!" in
-  let* tree = Store.Tree.add tree [ "FOO.md" ] "Hihi!" in
-  let+ () = Store.set_tree_exn t ~info:(info "merge") [] tree in
+  let repo = Store.Repo.v config in
+  let t = Store.of_branch repo "master" in
+  let upstream = Store.remote path () in
+  let _ = Sync.pull_exn t upstream `Set in
+  let readme = Store.get t [ "README.md" ] in
+  let tree = Store.get_tree t [] in
+  let tree = Store.Tree.add tree [ "BAR.md" ] "Hoho!" in
+  let tree = Store.Tree.add tree [ "FOO.md" ] "Hihi!" in
+  Store.set_tree_exn t ~info:(info "merge") [] tree;
   Printf.printf "%s\n%!" readme
 
-let () = Lwt_main.run (test ())
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> test ()

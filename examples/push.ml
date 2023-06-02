@@ -16,8 +16,6 @@
 
 (* Simple example of Git push *)
 
-open Lwt.Syntax
-
 let info = Irmin_git_unix.info
 
 let url, user, token =
@@ -34,21 +32,23 @@ let headers =
 let test () =
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let* repo = Store.Repo.v config in
-  let* t = Store.main repo in
-  let* remote = Store.remote ~headers url in
-  let* _ = Sync.pull_exn t remote `Set in
-  let* readme = Store.get t [ "README.md" ] in
-  let* tree = Store.get_tree t [] in
-  let* tree = Store.Tree.add tree [ "BAR.md" ] "Hoho!" in
-  let* tree = Store.Tree.add tree [ "FOO.md" ] "Hihi!" in
-  let* () = Store.set_tree_exn t ~info:(info "merge") [] tree in
+  let repo = Store.Repo.v config in
+  let t = Store.main repo in
+  let remote = Store.remote ~headers url () in
+  let _ = Sync.pull_exn t remote `Set in
+  let readme = Store.get t [ "README.md" ] in
+  let tree = Store.get_tree t [] in
+  let tree = Store.Tree.add tree [ "BAR.md" ] "Hoho!" in
+  let tree = Store.Tree.add tree [ "FOO.md" ] "Hihi!" in
+  Store.set_tree_exn t ~info:(info "merge") [] tree;
   Printf.printf "%s\n%!" readme;
-  let* bar = Store.get t [ "BAR.md" ] in
+  let bar = Store.get t [ "BAR.md" ] in
   Printf.printf "%s\n%!" bar;
-  let* foo = Store.get t [ "FOO.md" ] in
+  let foo = Store.get t [ "FOO.md" ] in
   Printf.printf "%s\n%!" foo;
-  let+ _ = Sync.push_exn t remote in
+  let _ = Sync.push_exn t remote in
   ()
 
-let () = Lwt_main.run (test ())
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> test ()
