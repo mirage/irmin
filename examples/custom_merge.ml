@@ -13,7 +13,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Lwt.Syntax
 open Astring
 
 let what =
@@ -121,7 +120,7 @@ let info = Irmin_git_unix.info
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
-  let+ logs = Store.find t log_file in
+  let logs = Store.find t log_file in
   match logs with None -> Log.empty | Some l -> l
 
 (** Persist a new entry in the log. Pretty inefficient as it reads/writes the
@@ -129,37 +128,37 @@ let all_logs t =
 let log t fmt =
   Printf.ksprintf
     (fun message ->
-      let* logs = all_logs t in
+      let logs = all_logs t in
       let logs = Log.add logs (Entry.v message) in
       Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
     fmt
 
 let print_logs name t =
-  let+ logs = all_logs t in
+  let logs = all_logs t in
   Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t) logs
 
 let main () =
   Config.init ();
-  let* repo = Store.Repo.v config in
-  let* t = Store.main repo in
+  let repo = Store.Repo.v config in
+  let t = Store.main repo in
 
   (* populate the log with some random messages *)
-  let* () =
-    Lwt_list.iter_s
-      (fun msg -> log t "This is my %s " msg)
-      [ "first"; "second"; "third" ]
-  in
+  List.iter
+    (fun msg -> log t "This is my %s " msg)
+    [ "first"; "second"; "third" ];
   Printf.printf "%s\n\n" what;
-  let* () = print_logs "lca" t in
-  let* x = Store.clone ~src:t ~dst:"test" in
-  let* () = log x "Adding new stuff to x" in
-  let* () = log x "Adding more stuff to x" in
-  let* () = log x "More. Stuff. To x." in
-  let* () = print_logs "branch 1" x in
-  let* () = log t "I can add stuff on t also" in
-  let* () = log t "Yes. On t!" in
-  let* () = print_logs "branch 2" t in
-  let* r = Store.merge_into ~info:(info "Merging x into t") x ~into:t in
+  print_logs "lca" t;
+  let x = Store.clone ~src:t ~dst:"test" in
+  log x "Adding new stuff to x";
+  log x "Adding more stuff to x";
+  log x "More. Stuff. To x.";
+  print_logs "branch 1" x;
+  log t "I can add stuff on t also";
+  log t "Yes. On t!";
+  print_logs "branch 2" t;
+  let r = Store.merge_into ~info:(info "Merging x into t") x ~into:t in
   match r with Ok () -> print_logs "merge" t | Error _ -> failwith "conflict!"
 
-let () = Lwt_main.run (main ())
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

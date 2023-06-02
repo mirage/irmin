@@ -22,8 +22,10 @@
   irmin-watcher
   websocket-lwt-unix
   conduit-lwt-unix
+  eio_main
   lwt
-  lwt.unix)
+  lwt.unix
+  lwt_eio)
  (preprocess
   (pps ppx_irmin)))
 
