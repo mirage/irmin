@@ -60,7 +60,7 @@ module Store : sig
   end
 
   type remote_fn =
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
   type t
   (** The type for store configurations. A configuration value contains: the
@@ -124,12 +124,13 @@ val load_config :
     The values provided for [store], [hash] and [contents] will be used by
     default if no other value is found in the config file *)
 
-type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
+type store =
+  | S : 'a Store.Impl.t * (unit -> 'a) * Store.remote_fn option -> store
 
 val store : unit -> store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)
 
 type Irmin.remote += R of Cohttp.Header.t option * string
 
-val remote : unit -> (store * Irmin.remote Lwt.t) Cmdliner.Term.t
+val remote : unit -> (store * (unit -> Irmin.remote)) Cmdliner.Term.t
 (** Parse a remote store location. *)

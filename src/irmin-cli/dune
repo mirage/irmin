@@ -16,7 +16,9 @@
   git-unix
   cohttp-lwt-unix
   unix
-  yaml)
+  yaml
+  lwt_eio
+  eio_main)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

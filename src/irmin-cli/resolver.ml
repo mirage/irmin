@@ -258,7 +258,7 @@ module Store = struct
   end
 
   type remote_fn =
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
   type t =
     | T : {
@@ -426,7 +426,8 @@ let config_term =
     $ config_path_term
     $ Arg.(value @@ opt_all (list (pair ~sep:'=' string string)) [] opts))
 
-type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
+type store =
+  | S : 'a Store.Impl.t * (unit -> 'a) * Store.remote_fn option -> store
 
 let rec read_config_file path =
   let home = config_root () / global_config_path in
@@ -608,16 +609,18 @@ let build_irmin_config config root opts (store, hash, contents) branch commit
         config)
       config (List.flatten opts)
   in
-  let spec =
+  let spec () =
     match (branch, commit) with
     | _, Some hash -> (
-        S.Repo.v config >>= fun repo ->
-        let* commit = S.Commit.of_hash repo hash in
+        let repo = S.Repo.v config in
+        let commit = S.Commit.of_hash repo hash in
         match commit with
         | None -> invalid_arg "unknown commit"
         | Some c -> S.of_commit c)
-    | None, None -> S.Repo.v config >>= S.main
-    | Some b, None -> S.Repo.v config >>= fun repo -> S.of_branch repo b
+    | None, None -> S.Repo.v config |> S.main
+    | Some b, None ->
+        let repo = S.Repo.v config in
+        S.of_branch repo b
   in
   S (impl, spec, remote)
 
@@ -691,19 +694,19 @@ let infer_remote hash contents branch headers str =
               Conf.add config r v
           | _ -> config
         in
-        let* repo = R.Repo.v config in
+        let repo = R.Repo.v config in
         let branch =
           match branch with
           | Some b -> Irmin.Type.of_string R.branch_t b |> Result.get_ok
           | None -> R.Branch.main
         in
-        let+ r = R.of_branch repo branch in
+        let r = R.of_branch repo branch in
         Irmin.remote_store (module R) r
   else
     let headers =
       match headers with [] -> None | h -> Some (Cohttp.Header.of_list h)
     in
-    Lwt.return (R (headers, str))
+    R (headers, str)
 
 let remote () =
   let repo =
@@ -719,7 +722,7 @@ let remote () =
     let store =
       build_irmin_config y root opts (store, hash, contents) branch commit None
     in
-    let remote = infer_remote hash contents branch headers str in
+    let remote () = infer_remote hash contents branch headers str in
     (store, remote)
   in
   Term.(
