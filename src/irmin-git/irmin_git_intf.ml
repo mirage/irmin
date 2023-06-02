@@ -42,11 +42,7 @@ module type S = sig
   (** [of_repo r] is the Git store associated to [r]. *)
 
   val repo_of_git :
-    ?head:Git.Reference.t ->
-    ?bare:bool ->
-    ?lock:Lwt_mutex.t ->
-    Git.t ->
-    Repo.t Lwt.t
+    ?head:Git.Reference.t -> ?bare:bool -> ?lock:Eio.Mutex.t -> Git.t -> Repo.t
   (** [to_repo t] is the Irmin repository associated to [t]. *)
 end
 

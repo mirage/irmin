@@ -33,10 +33,11 @@ struct
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Make
-      (Schema : Schema.S
-                  with type Hash.t = G.hash
-                   and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) =
+      (Schema :
+        Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) =
   struct
     module B = Backend.Make (G) (S) (Schema)
     include Irmin.Of_backend (B)
@@ -46,6 +47,7 @@ struct
 
     let git_commit (repo : Repo.t) (h : commit) : G.Value.Commit.t option Lwt.t
         =
+      let open Lwt.Infix in
       let h = Commit.hash h in
       G.read (git_of_repo repo) h >|= function
       | Ok (Git.Value.Commit c) -> Some c
@@ -68,6 +70,7 @@ module Mem = struct
   let v' ?dotgit root = v ?dotgit root
 
   let v ?dotgit root =
+    let open Lwt.Infix in
     let conf = (dotgit, root) in
     match find_conf conf with
     | Some x -> Lwt.return x
@@ -83,10 +86,11 @@ struct
   type endpoint = Maker.endpoint
 
   module Make
-      (Sc : Schema.S
-              with type Hash.t = G.hash
-               and type Node.t = G.Value.Tree.t
-               and type Commit.t = G.Value.Commit.t) =
+      (Sc :
+        Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) =
     Maker.Make (Sc)
 end
 
@@ -129,18 +133,18 @@ module Content_addressable (G : Git.S) = struct
     type 'a t = G.t
 
     let state t =
-      let+ r = M.repo_of_git t in
+      let r = M.repo_of_git t in
       M.Backend.Repo.contents_t r
 
     type key = X.key
     type value = X.value
 
     let with_state0 f t =
-      let* t = state t in
+      let t = state t in
       f t
 
     let with_state1 f t x =
-      let* t = state t in
+      let t = state t in
       f t x
 
     let add = with_state1 X.add
@@ -148,7 +152,7 @@ module Content_addressable (G : Git.S) = struct
     let equal_key = Irmin.Type.(unstage (equal X.Key.t))
 
     let unsafe_add t k v =
-      let+ k' = with_state1 X.add t v in
+      let k' = with_state1 X.add t v in
       if equal_key k k' then ()
       else
         Fmt.failwith
@@ -323,18 +327,19 @@ struct
           f contents_t node_t commit_t
 
         let v config =
-          let* contents = Contents.CA.v config in
-          let* nodes = Node.CA.v config in
-          let* commits = Commit.CA.v config in
+          let contents = Contents.CA.v config in
+          let nodes = Node.CA.v config in
+          let commits = Commit.CA.v config in
           let nodes = (contents, nodes) in
           let commits = (nodes, commits) in
-          let+ branch = Branch.v config in
+          let branch = Branch.v config in
           { contents; nodes; commits; branch; config }
 
         let close t =
-          Contents.CA.close t.contents >>= fun () ->
-          Node.CA.close (snd t.nodes) >>= fun () ->
-          Commit.CA.close (snd t.commits) >>= fun () -> Branch.close t.branch
+          Contents.CA.close t.contents;
+          Node.CA.close (snd t.nodes);
+          Commit.CA.close (snd t.commits);
+          Branch.close t.branch
       end
     end
 
