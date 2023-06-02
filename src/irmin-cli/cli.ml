@@ -105,7 +105,14 @@ let print_exc exc =
   | e -> Fmt.epr "ERROR: %a\n%!" Fmt.exn e);
   exit 1
 
-let run fn = Lwt_main.run (Lwt.catch fn print_exc)
+open Lwt.Syntax
+
+let run t =
+  Eio_main.run @@ fun env ->
+  Irmin_fs.run env#fs @@ fun () ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  try t () with err -> print_exc err
+
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
@@ -115,7 +122,7 @@ let init =
     doc = "Initialize a store.";
     man = [];
     term =
-      (let init (S (_, _store, _)) = run @@ fun () -> Lwt.return_unit in
+      (let init (S (_, _store, _)) = () in
        Term.(mk init $ store ()));
   }
 
@@ -141,14 +148,12 @@ let get =
       (let get (S (impl, store, _)) path =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
-         let* t = store in
-         S.find t (key S.Path.t path) >>= function
+         let t = store () in
+         match S.find t (key S.Path.t path) with
          | None ->
              print "<none>";
              exit 1
-         | Some v ->
-             print "%a" (Irmin.Type.pp S.Contents.t) v;
-             Lwt.return_unit
+         | Some v -> print "%a" (Irmin.Type.pp S.Contents.t) v
        in
        Term.(mk get $ store () $ path));
   }
@@ -168,16 +173,15 @@ let list =
            | Path str -> key S.Path.t str
          in
          run @@ fun () ->
-         let* t = store in
-         let* paths = S.list t path in
+         let t = store () in
+         let paths = S.list t path in
          let pp_step = Irmin.Type.pp S.Path.step_t in
          let pp ppf (s, k) =
            match S.Tree.destruct k with
            | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
            | `Node _ -> Fmt.pf ppf "DIR %a" pp_step s
          in
-         List.iter (print "%a" pp) paths;
-         Lwt.return_unit
+         List.iter (print "%a" pp) paths
        in
        Term.(mk list $ store () $ path_or_empty));
   }
@@ -192,29 +196,27 @@ let tree =
       (let tree (S (impl, store, _)) =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
-         let* t = store in
+         let t = store () in
          let all = ref [] in
          let todo = ref [ S.Path.empty ] in
          let rec walk () =
            match !todo with
-           | [] -> Lwt.return_unit
+           | [] -> ()
            | k :: rest ->
                todo := rest;
-               let* childs = S.list t k in
-               Lwt_list.iter_p
+               let childs = S.list t k in
+               List.iter
                  (fun (s, c) ->
                    let k = S.Path.rcons k s in
                    match S.Tree.destruct c with
-                   | `Node _ ->
-                       todo := k :: !todo;
-                       Lwt.return_unit
+                   | `Node _ -> todo := k :: !todo
                    | `Contents _ ->
-                       let+ v = S.get t k in
+                       let v = S.get t k in
                        all := (k, v) :: !all)
-                 childs
-               >>= walk
+                 childs;
+               walk ()
          in
-         walk () >>= fun () ->
+         walk ();
          let all = !all in
          let all =
            List.map
@@ -235,8 +237,7 @@ let tree =
                String.make (pad - String.length k - String.length v) '.'
              in
              print "%s%s%s" k dots v)
-           all;
-         Lwt.return_unit
+           all
        in
        Term.(mk tree $ store ()));
   }
@@ -264,7 +265,7 @@ let set =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let message = match message with Some s -> s | None -> "set" in
-         let* t = store in
+         let t = store () in
          let path = key S.Path.t path in
          let value = value S.Contents.t v in
          S.set_exn t ~info:(info (module S) ?author "%s" message) path value
@@ -285,7 +286,7 @@ let remove =
          let message =
            match message with Some s -> s | None -> "remove " ^ path
          in
-         let* t = store in
+         let t = store () in
          S.remove_exn t
            ~info:(info (module S) ?author "%s" message)
            (key S.Path.t path)
@@ -295,9 +296,9 @@ let remove =
 
 let apply e f =
   match (e, f) with
-  | R (h, e), Some f -> f ?ctx:None ?headers:h e
+  | R (h, e), Some f -> f ?ctx:None ?headers:h e ()
   | R _, None -> Fmt.failwith "invalid remote for that kind of store"
-  | r, _ -> Lwt.return r
+  | r, _ -> r
 
 (* CLONE *)
 let clone =
@@ -310,15 +311,15 @@ let clone =
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
-         let* t = store in
-         let* r = remote in
-         let* x = apply r f in
-         Sync.fetch t ?depth x >>= function
+         let t = store () in
+         let r = remote () in
+         let x = apply r f in
+         match Sync.fetch t ?depth x with
          | Ok (`Head d) -> S.Head.set t d
-         | Ok `Empty -> Lwt.return_unit
+         | Ok `Empty -> ()
          | Error (`Msg e) -> failwith e
        in
-       Term.(mk clone $ remote () $ depth));
+       Term.(mk clone $ Resolver.remote () $ depth));
   }
 
 (* FETCH *)
@@ -332,15 +333,15 @@ let fetch =
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
-         let* t = store in
-         let* r = remote in
+         let t = store () in
+         let r = remote () in
          let branch = branch S.Branch.t "import" in
-         let* t = S.of_branch (S.repo t) branch in
-         let* x = apply r f in
-         let* _ = Sync.pull_exn t x `Set in
-         Lwt.return_unit
+         let t = S.of_branch (S.repo t) branch in
+         let x = apply r f in
+         let _ = Sync.pull_exn t x `Set in
+         ()
        in
-       Term.(mk fetch $ remote ()));
+       Term.(mk fetch $ Resolver.remote ()));
   }
 
 (* MERGE *)
@@ -359,10 +360,11 @@ let merge =
            | Ok b -> b
            | Error (`Msg msg) -> failwith msg
          in
-         let* t = store in
-         S.merge_with_branch t branch
-           ~info:(info (module S) ?author "%s" message)
-         >|= function
+         let t = store () in
+         match
+           S.merge_with_branch t branch
+             ~info:(info (module S) ?author "%s" message)
+         with
          | Ok () -> ()
          | Error conflict ->
              let fmt = Irmin.Type.pp_json Irmin.Merge.conflict_t in
@@ -387,13 +389,13 @@ let pull =
          let message = match message with Some s -> s | None -> "pull" in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
-         let* t = store in
-         let* r = remote in
-         let* x = apply r f in
-         let* _ =
+         let t = store () in
+         let r = remote () in
+         let x = apply r f in
+         let _ =
            Sync.pull_exn t x (`Merge (info (module S) ?author "%s" message))
          in
-         Lwt.return_unit
+         ()
        in
        Term.(mk pull $ remote () $ author $ message));
   }
@@ -409,11 +411,11 @@ let push =
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
-         let* t = store in
-         let* r = remote in
-         let* x = apply r f in
-         let* _ = Sync.push_exn t x in
-         Lwt.return_unit
+         let t = store () in
+         let r = remote () in
+         let x = apply r f in
+         let _ = Sync.push_exn t x in
+         ()
        in
        Term.(mk push $ remote ()));
   }
@@ -428,10 +430,10 @@ let snapshot =
       (let snapshot (S (impl, store, _)) =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
-         let* t = store in
-         let* k = S.Head.get t in
+         let t = store () in
+         let k = S.Head.get t in
          print "%a" S.Commit.pp_hash k;
-         Lwt.return_unit
+         ()
        in
        Term.(mk snapshot $ store ()));
   }
@@ -452,10 +454,9 @@ let revert =
        let revert (S (impl, store, _)) snapshot =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
-         let* t = store in
+         let t = store () in
          let hash = commit S.Hash.t snapshot in
-         let* s = S.Commit.of_hash (S.repo t) hash in
-         match s with
+         match S.Commit.of_hash (S.repo t) hash with
          | Some s -> S.Head.set t s
          | None -> failwith "invalid commit"
        in
@@ -516,9 +517,11 @@ let handle_diff (type a b)
     (module S : Irmin.Generic_key.S
       with type Schema.Path.t = a
        and type commit = b) (path : a) command proc d =
+  Lwt_eio.run_lwt @@ fun () ->
   let view (c, _) =
-    let* t = S.of_commit c in
-    S.find_tree t path >|= function None -> S.Tree.empty () | Some v -> v
+    Lwt_eio.run_eio @@ fun () ->
+    let t = S.of_commit c in
+    match S.find_tree t path with None -> S.Tree.empty () | Some v -> v
   in
   let* x, y =
     match d with
@@ -534,7 +537,7 @@ let handle_diff (type a b)
         (x, S.Tree.empty ())
   in
   let* (diff : (S.path * (S.contents * S.metadata) Irmin.Diff.t) list) =
-    S.Tree.diff x y
+    Lwt_eio.run_eio @@ fun () -> S.Tree.diff x y
   in
   run_command
     (module S : Irmin.Generic_key.S
@@ -558,8 +561,8 @@ let watch =
                match !proc with None -> () | Some p -> p#terminate)
          in
          run @@ fun () ->
-         let* t = store in
-         let* _ =
+         let t = store () in
+         let _ =
            S.watch_key t path
              (handle_diff
                 (module S : Irmin.Generic_key.S
@@ -567,8 +570,7 @@ let watch =
                    and type commit = S.commit)
                 path command proc)
          in
-         let t, _ = Lwt.task () in
-         t
+         ()
        in
        let command =
          let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
@@ -618,19 +620,15 @@ let dot =
              tm.Unix.tm_sec
          in
          run @@ fun () ->
-         let* t = store in
+         let t = store () in
          let call_dot = not no_dot_call in
          let buf = Buffer.create 1024 in
-         Dot.output_buffer ~html:false t ?depth ~full ~date buf >>= fun () ->
+         let () = Dot.output_buffer ~html:false t ?depth ~full ~date buf in
          let oc = open_out_bin (basename ^ ".dot") in
-         let* () =
-           Lwt.finalize
-             (fun () ->
-               output_string oc (Buffer.contents buf);
-               Lwt.return_unit)
-             (fun () ->
-               close_out oc;
-               Lwt.return_unit)
+         let () =
+           Fun.protect
+             (fun () -> output_string oc (Buffer.contents buf))
+             ~finally:(fun () -> close_out oc)
          in
          if call_dot then (
            let i = Sys.command "/bin/sh -c 'command -v dot'" in
@@ -642,8 +640,7 @@ let dot =
              Sys.command
                (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename)
            in
-           if i <> 0 then [%logs.err "The %s.dot is corrupted" basename]);
-         Lwt.return_unit
+           if i <> 0 then [%logs.err "The %s.dot is corrupted" basename])
        in
        Term.(mk dot $ store () $ basename $ depth $ no_dot_call $ full));
   }
@@ -742,11 +739,14 @@ let graphql =
                let remote = remote_fn
              end)
          in
-         let* t = store in
+         let t = store () in
          let server = Server.v (S.repo t) in
-         let* ctx = Conduit_lwt_unix.init ~src:addr () in
+         let ctx =
+           Lwt_eio.run_lwt @@ fun () -> Conduit_lwt_unix.init ~src:addr ()
+         in
          let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
          let on_exn exn = [%logs.debug "on_exn: %s" (Printexc.to_string exn)] in
+         Lwt_eio.run_lwt @@ fun () ->
          Cohttp_lwt_unix.Server.create ~on_exn ~ctx
            ~mode:(`TCP (`Port port))
            server
@@ -799,8 +799,8 @@ let branches =
       (let branches (S (impl, store, _)) =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
-         let* t = store in
-         let+ branches = S.Branch.list (S.repo t) in
+         let t = store () in
+         let branches = S.Branch.list (S.repo t) in
          List.iter (Fmt.pr "%a\n" (Irmin.Type.pp S.branch_t)) branches
        in
        Term.(mk branches $ store ()));
@@ -865,7 +865,7 @@ let log =
        let commits (S (impl, store, _)) plain pager num skip reverse =
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
-         let* t = store in
+         let t = store () in
          let fmt f date =
            Fmt.pf f "%s %s %02d %02d:%02d:%02d %04d" (weekday date) (month date)
              date.tm_mday date.tm_hour date.tm_min date.tm_sec
@@ -877,11 +877,9 @@ let log =
          let num_count = ref 0 in
          let commit formatter key =
            if num > 0 && !num_count >= num then raise Return
-           else if !skip > 0 then
-             let () = decr skip in
-             Lwt.return_unit
+           else if !skip > 0 then decr skip
            else
-             let+ commit = S.Commit.of_key repo key >|= Option.get in
+             let commit = S.Commit.of_key repo key |> Option.get in
              let hash = S.Backend.Commit.Key.to_hash key in
              let info = S.Commit.info commit in
              let date = S.Info.date info in
@@ -894,29 +892,27 @@ let log =
              in
              incr num_count
          in
-         let* max = S.Head.get t >|= fun x -> [ `Commit (S.Commit.key x) ] in
+         let max =
+           let x = S.Head.get t in
+           [ `Commit (S.Commit.key x) ]
+         in
          let iter ~commit ~max repo =
-           Lwt.catch
-             (fun () ->
-               if reverse then S.Repo.iter ~commit ~min:[] ~max repo
-               else S.Repo.breadth_first_traversal ~commit ~max repo)
-             (function Return -> Lwt.return_unit | exn -> raise exn)
+           try
+             if reverse then S.Repo.iter ~commit ~min:[] ~max repo
+             else S.Repo.breadth_first_traversal ~commit ~max repo
+           with Return -> ()
          in
          if plain then
            let commit = commit Format.std_formatter in
            iter ~commit ~max repo
          else
-           Lwt.catch
-             (fun () ->
-               let out = Unix.open_process_out pager in
-               let commit = commit (Format.formatter_of_out_channel out) in
-               let+ () = iter ~commit ~max repo in
-               let _ = Unix.close_process_out out in
-               ())
-             (function
-               | Sys_error s when String.equal s "Broken pipe" ->
-                   Lwt.return_unit
-               | exn -> raise exn)
+           try
+             let out = Unix.open_process_out pager in
+             let commit = commit (Format.formatter_of_out_channel out) in
+             let () = iter ~commit ~max repo in
+             let _ = Unix.close_process_out out in
+             ()
+           with Sys_error s when String.equal s "Broken pipe" -> ()
        in
        Term.(mk commits $ store () $ plain $ pager $ num $ skip $ reverse));
   }
