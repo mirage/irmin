@@ -29,7 +29,7 @@ type server = {
   store : Store.t;  (** The store used by the server *)
 }
 
-val spawn_graphql_server : unit -> server Lwt.t
+val spawn_graphql_server : unit -> server
 (** Initialise a GraphQL server. At most one server may be running concurrently. *)
 
 type param
@@ -133,9 +133,6 @@ val parse_result : string list -> (Yojson.Safe.t -> 'a) -> Yojson.Safe.t -> 'a
 (** Get key from JSON object and apply conversion function *)
 
 val exec :
-  ?vars:(string * Yojson.Safe.t) list ->
-  query ->
-  (Yojson.Safe.t -> 'a) ->
-  'a Lwt.t
+  ?vars:(string * Yojson.Safe.t) list -> query -> (Yojson.Safe.t -> 'a) -> 'a
 (** Send a [query] to the running GraphQL instance and parse the JSON results
     using the provided conversion function *)
