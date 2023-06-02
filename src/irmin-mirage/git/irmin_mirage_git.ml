@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Infix
 include Irmin_mirage_git_intf
 
 let remote ?(ctx = Mimic.empty) ?headers uri =
@@ -109,14 +108,14 @@ module KV_RO (G : Git.S) = struct
     type t = { repo : S.repo; tree : S.tree }
 
     let digest t key =
-      S.Tree.find_tree t.tree (path key) >|= function
+      match S.Tree.find_tree t.tree (path key) with
       | None -> err_not_found key
       | Some tree ->
           let h = S.Tree.hash tree in
           Ok (Irmin.Type.to_string S.Hash.t h)
 
     let list t key =
-      S.Tree.list t.tree (path key) >|= fun l ->
+      let l = S.Tree.list t.tree (path key) in
       let l =
         List.map
           (fun (s, k) ->
@@ -129,13 +128,13 @@ module KV_RO (G : Git.S) = struct
       Ok l
 
     let exists t key =
-      S.Tree.kind t.tree (path key) >|= function
+      match S.Tree.kind t.tree (path key) with
       | Some `Contents -> Ok (Some `Value)
       | Some `Node -> Ok (Some `Dictionary)
       | None -> Ok None
 
     let get t key =
-      S.Tree.find t.tree (path key) >|= function
+      match S.Tree.find t.tree (path key) with
       | None -> err_not_found key
       | Some v -> Ok v
 
@@ -159,7 +158,7 @@ module KV_RO (G : Git.S) = struct
   type t = { root : S.path; t : S.t }
 
   let head_message t =
-    S.Head.find t.t >|= function
+    match S.Head.find t.t with
     | None -> "empty HEAD"
     | Some h ->
         let info = S.Commit.info h in
@@ -168,36 +167,39 @@ module KV_RO (G : Git.S) = struct
 
   let last_modified t key =
     let key' = path key in
-    S.last_modified t.t key' >|= function
+    match S.last_modified t.t key' with
     | [] -> Error (`Not_found key)
     | h :: _ -> Ok (Ptime.v (0, S.Info.date (S.Commit.info h)))
 
   let connect ?depth ?(branch = "main") ?(root = Mirage_kv.Key.empty) ?ctx
       ?headers t uri =
+    Lwt_eio.run_eio @@ fun () ->
     let remote = S.remote ?ctx ?headers uri in
     let head = Git.Reference.v ("refs/heads/" ^ branch) in
-    S.repo_of_git ~bare:true ~head t >>= fun repo ->
-    S.of_branch repo branch >>= fun t ->
-    Sync.pull_exn t ?depth remote `Set >|= fun _ ->
+    let repo = S.repo_of_git ~bare:true ~head t in
+    let t = S.of_branch repo branch in
+    let _ = Sync.pull_exn t ?depth remote `Set in
     let root = path root in
     { t; root }
 
   let tree t =
     let repo = S.repo t.t in
-    (S.find_tree t.t t.root >|= function
-     | None -> S.Tree.empty ()
-     | Some tree -> tree)
-    >|= fun tree -> { Tree.repo; tree }
+    let tree =
+      match S.find_tree t.t t.root with
+      | None -> S.Tree.empty ()
+      | Some tree -> tree
+    in
+    { Tree.repo; tree }
 
-  let exists t k = tree t >>= fun t -> Tree.exists t k
-  let get t k = tree t >>= fun t -> Tree.get t k
+  let exists t k = Tree.exists (tree t) k
+  let get t k = Tree.get (tree t) k
 
   let get_partial t k ~offset ~length =
     Lwt_eio.run_eio @@ fun () -> Tree.get_partial (tree t) k ~offset ~length
 
-  let list t k = tree t >>= fun t -> Tree.list t k
-  let digest t k = tree t >>= fun t -> Tree.digest t k
-  let size t k = tree t >>= fun t -> Tree.size t k
+  let list t k = Tree.list (tree t) k
+  let digest t k = Tree.digest (tree t) k
+  let size t k = Tree.size (tree t) k
 
   let get t k =
     match Key.segments k with [ "HEAD" ] -> Ok (head_message t) | _ -> get t k
@@ -245,7 +247,8 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
 
   let connect ?depth ?branch ?root ?ctx ?headers ?(author = default_author)
       ?(msg = default_msg) git uri =
-    RO.connect ?depth ?branch ?root ?ctx ?headers git uri >|= fun t ->
+    let open Lwt.Syntax in
+    let+ t = RO.connect ?depth ?branch ?root ?ctx ?headers git uri in
     let remote = S.remote ?ctx ?headers uri in
     { store = Store t; author; msg; remote }
 
@@ -258,7 +261,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     match t.store with
     | Store t -> RO.last_modified t key
     | Batch b ->
-        RO.S.of_commit b.origin >>= fun t ->
+        let t = RO.S.of_commit b.origin in
         RO.last_modified { root = S.Path.empty; t } key
 
   let repo t = match t.store with Store t -> S.repo t.t | Batch b -> b.repo
@@ -266,17 +269,17 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let tree t =
     match t.store with
     | Store t -> RO.tree t
-    | Batch b -> Lwt.return { Tree.tree = b.tree; repo = repo t }
+    | Batch b -> { Tree.tree = b.tree; repo = repo t }
 
-  let digest t k = tree t >>= fun t -> Tree.digest t k
-  let size t k = tree t >>= fun t -> Tree.size t k
-  let exists t k = tree t >>= fun t -> Tree.exists t k
-  let get t k = tree t >>= fun t -> Tree.get t k
+  let digest t k = Lwt_eio.run_eio @@ fun () -> Tree.digest (tree t) k
+  let size t k = Lwt_eio.run_eio @@ fun () -> Tree.size (tree t) k
+  let exists t k = Lwt_eio.run_eio @@ fun () -> Tree.exists (tree t) k
+  let get t k = Lwt_eio.run_eio @@ fun () -> Tree.get (tree t) k
 
   let get_partial t k ~offset ~length =
-    tree t >>= fun t -> Tree.get_partial t k ~offset ~length
+    Lwt_eio.run_eio @@ fun () -> Tree.get_partial (tree t) k ~offset ~length
 
-  let list t k = tree t >>= fun t -> Tree.list t k
+  let list t k = Lwt_eio.run_eio @@ fun () -> Tree.list (tree t) k
 
   type write_error = [ RO.error | Mirage_kv.write_error | RO.Sync.push_error ]
 
@@ -301,11 +304,12 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     Lwt_eio.run_eio @@ fun () ->
     let info = info t (`Set k) in
     match t.store with
-    | Store s ->
-        S.set ~info s.t (path k) v >?= fun () ->
-        RO.Sync.push s.t t.remote >?= fun _ -> Lwt.return_ok ()
+    | Store s -> (
+        match S.set ~info s.t (path k) v with
+        | Ok _ -> RO.Sync.push s.t t.remote |> write_error
+        | Error e -> Error (e :> write_error))
     | Batch b ->
-        S.Tree.add b.tree (path k) v >|= fun tree ->
+        let tree = S.Tree.add b.tree (path k) v in
         b.tree <- tree;
         Ok ()
 
@@ -325,11 +329,12 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     Lwt_eio.run_eio @@ fun () ->
     let info = info t (`Remove k) in
     match t.store with
-    | Store s ->
-        S.remove ~info s.t (path k) >?= fun () ->
-        RO.Sync.push s.t t.remote >?= fun _ -> Lwt.return_ok ()
+    | Store s -> (
+        match S.remove ~info s.t (path k) with
+        | Ok _ -> RO.Sync.push s.t t.remote |> write_error
+        | Error e -> Error (e :> write_error))
     | Batch b ->
-        S.Tree.remove b.tree (path k) >|= fun tree ->
+        let tree = S.Tree.remove b.tree (path k) in
         b.tree <- tree;
         Ok ()
 
@@ -346,11 +351,11 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
       | None -> set t k (String.make size '\000')
 
   let get_store_tree (t : RO.t) =
-    S.Head.find t.t >>= function
-    | None -> Lwt.return_none
+    match S.Head.find t.t with
+    | None -> None
     | Some origin -> (
         let tree = S.Commit.tree origin in
-        S.Tree.find_tree tree t.root >|= function
+        match S.Tree.find_tree tree t.root with
         | Some t -> Some (origin, t)
         | None -> Some (origin, S.Tree.empty ()))
 
@@ -362,41 +367,39 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
       | Store s -> (
           let repo = S.repo s.t in
           (* get the tree origin *)
-          get_store_tree s >>= function
-          | None -> f t >|= fun x -> Ok x (* no transaction is needed *)
+          match get_store_tree s with
+          | None -> Ok (f t) (* no transaction is needed *)
           | Some (origin, old_tree) -> (
               let batch = { repo; tree = old_tree; origin } in
               let b = Batch batch in
-              f { t with store = b } >>= fun result ->
-              get_store_tree s >>= function
+              let result = f { t with store = b } in
+              match get_store_tree s with
               | None ->
                   (* Someting weird happened, retring *)
-                  Lwt.return (Error `Retry)
+                  Error `Retry
               | Some (_, main_tree) -> (
-                  Irmin.Merge.f S.Tree.merge
-                    ~old:(Irmin.Merge.promise old_tree)
-                    main_tree batch.tree
-                  >>= function
-                  | Error (`Conflict _) -> Lwt.return (Error `Retry)
+                  match
+                    Irmin.Merge.f S.Tree.merge
+                      ~old:(Irmin.Merge.promise old_tree)
+                      main_tree batch.tree
+                  with
+                  | Error (`Conflict _) -> Error `Retry
                   | Ok new_tree -> (
-                      S.set_tree s.t ~info s.root new_tree >|= function
+                      match S.set_tree s.t ~info s.root new_tree with
                       | Ok () -> Ok result
                       | Error _ -> Error `Retry))))
     in
     let rec loop = function
-      | 0 -> Lwt.fail_with "Too many retries"
-      | n -> (
-          one t >>= function
-          | Error `Retry -> loop (n - 1)
-          | Ok r -> Lwt.return r)
+      | 0 -> failwith "Too many retries"
+      | n -> ( match one t with Error `Retry -> loop (n - 1) | Ok r -> r)
     in
-    loop retries >>= fun r ->
+    let r = loop retries in
     match t.store with
     | Batch _ -> Fmt.failwith "No recursive batches"
     | Store s -> (
-        RO.Sync.push s.t t.remote >>= function
-        | Ok _ -> Lwt.return r
-        | Error e -> Lwt.fail_with (Fmt.to_to_string RO.Sync.pp_push_error e))
+        match RO.Sync.push s.t t.remote with
+        | Ok _ -> r
+        | Error e -> failwith (Fmt.to_to_string RO.Sync.pp_push_error e))
 end
 
 module Mem = struct
