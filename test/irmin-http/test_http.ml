@@ -215,13 +215,7 @@ let suite i server =
       let root =
         if Filename.basename pwd = "default" then ".." / ".." / "" else ""
       in
-      let cmd =
-        root
-        ^ (* "_build"
-             / "default"
-             / *)
-        Fmt.str "%s serve %d %d &" Sys.argv.(0) i id.id
-      in
+      let cmd = root ^ Fmt.str "%s serve %d %d &" Sys.argv.(0) i id.id in
       Fmt.epr "pwd=%s\nExecuting: %S\n%!" pwd cmd;
       let _ = Sys.command cmd in
       let pid = wait_for_the_server_to_start id in
