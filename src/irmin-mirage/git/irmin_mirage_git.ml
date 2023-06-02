@@ -140,18 +140,20 @@ module KV_RO (G : Git.S) = struct
       | Some v -> Ok v
 
     let get_partial t key ~offset ~length =
-      let open Lwt_result.Infix in
-      get t key >|= fun data ->
-      let len = String.length data in
-      let off = Optint.Int63.to_int offset in
-      if off >= len || off < 0 || length < 0 then ""
-      else
-        let l = min length (len - off) in
-        String.sub data off l
+      match get t key with
+      | Error e -> Error e
+      | Ok data ->
+          Ok
+            (let len = String.length data in
+             let off = Optint.Int63.to_int offset in
+             if off >= len || off < 0 || length < 0 then ""
+             else
+               let l = min length (len - off) in
+               String.sub data off l)
 
     let size t key =
-      let open Lwt_result.Infix in
-      get t key >|= fun data -> Optint.Int63.of_int (String.length data)
+      get t key
+      |> Result.map (fun data -> Optint.Int63.of_int (String.length data))
   end
 
   type t = { root : S.path; t : S.t }
@@ -191,16 +193,21 @@ module KV_RO (G : Git.S) = struct
   let get t k = tree t >>= fun t -> Tree.get t k
 
   let get_partial t k ~offset ~length =
-    tree t >>= fun t -> Tree.get_partial t k ~offset ~length
+    Lwt_eio.run_eio @@ fun () -> Tree.get_partial (tree t) k ~offset ~length
 
   let list t k = tree t >>= fun t -> Tree.list t k
   let digest t k = tree t >>= fun t -> Tree.digest t k
   let size t k = tree t >>= fun t -> Tree.size t k
 
   let get t k =
-    match Key.segments k with
-    | [ "HEAD" ] -> head_message t >|= fun v -> Ok v
-    | _ -> get t k
+    match Key.segments k with [ "HEAD" ] -> Ok (head_message t) | _ -> get t k
+
+  let exists t k = Lwt_eio.run_eio @@ fun () -> exists t k
+  let get t k = Lwt_eio.run_eio @@ fun () -> get t k
+  let list t k = Lwt_eio.run_eio @@ fun () -> list t k
+  let digest t k = Lwt_eio.run_eio @@ fun () -> digest t k
+  let size t k = Lwt_eio.run_eio @@ fun () -> size t k
+  let last_modified t k = Lwt_eio.run_eio @@ fun () -> last_modified t k
 end
 
 module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
@@ -281,12 +288,17 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let info t op = Info.f ~author:(t.author ()) "%s" (t.msg op)
   let path = RO.path
 
+  let write_error = function
+    | Ok _ -> Ok ()
+    | Error e -> Error (e :> write_error)
+
   let ( >?= ) r f =
-    r >>= function
-    | Error e -> Lwt.return_error (e :> write_error)
-    | Ok r -> f r
+    Lwt.bind r (function
+      | Error e -> Lwt.return_error (e :> write_error)
+      | Ok r -> f r)
 
   let set t k v =
+    Lwt_eio.run_eio @@ fun () ->
     let info = info t (`Set k) in
     match t.store with
     | Store s ->
@@ -310,6 +322,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
       set t k (Bytes.unsafe_to_string buf)
 
   let remove t k =
+    Lwt_eio.run_eio @@ fun () ->
     let info = info t (`Remove k) in
     match t.store with
     | Store s ->

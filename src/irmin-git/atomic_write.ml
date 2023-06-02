@@ -15,6 +15,8 @@
  *)
 
 open Import
+open Lwt.Infix
+open Lwt.Syntax
 include Atomic_write_intf
 
 module Check_closed (S : Irmin.Atomic_write.S) = struct
@@ -81,8 +83,8 @@ module Make (K : Key) (G : Git.S) = struct
   module W = Irmin.Backend.Watch.Make (Key) (Val)
 
   let handle_git_err = function
-    | Ok x -> Lwt.return x
-    | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
+    | Ok x -> x
+    | Error e -> Fmt.kstr failwith "%a" G.pp_error e
 
   type t = {
     bare : bool;
@@ -90,14 +92,14 @@ module Make (K : Key) (G : Git.S) = struct
     git_head : G.Hash.t Git.Reference.contents;
     t : G.t;
     w : W.t;
-    m : Lwt_mutex.t;
+    m : Eio.Mutex.t;
   }
 
   let watches = Hashtbl.create 10
 
   type key = Key.t
   type value = Val.t
-  type watch = W.watch * (unit -> unit Lwt.t)
+  type watch = W.watch * (unit -> unit)
 
   let branch_of_git r =
     let str = String.trim @@ Git.Reference.to_string r in
@@ -107,6 +109,7 @@ module Make (K : Key) (G : Git.S) = struct
   let pp_key = Irmin.Type.pp Key.t
 
   let ref_read_opt t head =
+    Lwt_eio.run_lwt @@ fun () ->
     (* Make a best-effort attempt to check that the reference actually
        exists before [read]-ing it, since the [Error `Reference_not_found]
        case causes a spurious warning to be logged inside [ocaml-git]. *)
@@ -122,10 +125,12 @@ module Make (K : Key) (G : Git.S) = struct
         | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e)
 
   let mem { t; _ } r =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "mem %a" pp_key r];
     G.Ref.mem t (git_of_branch r)
 
   let find { t; _ } r =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "find %a" pp_key r];
     let b = git_of_branch r in
     let* exists = G.Ref.mem t b in
@@ -149,35 +154,36 @@ module Make (K : Key) (G : Git.S) = struct
             None
       in
       W.listen_dir t.w dir ~key ~value:(find t)
-    else Lwt.return (fun () -> Lwt.return_unit)
+    else fun () -> ()
 
   let watch_key t key ?init f =
     [%log.debug "watch_key %a" pp_key key];
-    let* stop = listen_dir t in
-    let+ w = W.watch_key t.w key ?init f in
+    let stop = listen_dir t in
+    let w = W.watch_key t.w key ?init f in
     (w, stop)
 
   let watch t ?init f =
     [%log.debug "watch"];
-    let* stop = listen_dir t in
-    let+ w = W.watch t.w ?init f in
+    let stop = listen_dir t in
+    let w = W.watch t.w ?init f in
     (w, stop)
 
   let unwatch t (w, stop) =
-    let* () = stop () in
+    stop ();
     W.unwatch t.w w
 
   let v ?lock ~head ~bare t =
-    let m = match lock with None -> Lwt_mutex.create () | Some l -> l in
+    let m = match lock with None -> Eio.Mutex.create () | Some l -> l in
     let dot_git = G.dotgit t in
     let write_head head =
       let head = Git.Reference.Ref head in
-      let+ () =
-        let+ r =
+      let () =
+        let r =
           if G.has_global_checkout then
-            Lwt_mutex.with_lock m (fun () ->
+            Eio.Mutex.use_rw ~protect:true m (fun () ->
+                Lwt_eio.run_lwt @@ fun () ->
                 G.Ref.write t Git.Reference.head head)
-          else Lwt.return (Ok ())
+          else Ok ()
         in
         match r with
         | Error e -> [%log.err "Cannot create HEAD: %a" G.pp_error e]
@@ -185,13 +191,13 @@ module Make (K : Key) (G : Git.S) = struct
       in
       head
     in
-    let+ git_head =
+    let git_head =
       match head with
       | Some h -> write_head h
       | None -> (
-          ref_read_opt t Git.Reference.head >>= function
+          match ref_read_opt t Git.Reference.head with
           | None -> write_head (git_of_branch K.main)
-          | Some head -> Lwt.return head)
+          | Some head -> head)
     in
     let w =
       try Hashtbl.find watches (G.dotgit t)
@@ -203,6 +209,7 @@ module Make (K : Key) (G : Git.S) = struct
     { git_head; bare; t; w; dot_git; m }
 
   let list { t; _ } =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "list"];
     let+ refs = G.Ref.list t in
     List.fold_left
@@ -220,25 +227,26 @@ module Make (K : Key) (G : Git.S) = struct
 
       (* FIXME G.write_index t.t gk *)
       let _ = gk in
-      Lwt.return_unit)
-    else Lwt.return_unit
+      ())
 
   let pp_branch = Irmin.Type.pp K.t
 
   let set t r k =
     [%log.debug "set %a" pp_branch r];
     let gr = git_of_branch r in
-    Lwt_mutex.with_lock t.m @@ fun () ->
-    let* e = G.Ref.write t.t gr (Git.Reference.Uid k) in
-    let* () = handle_git_err e in
-    let* () = W.notify t.w r (Some k) in
+    Eio.Mutex.use_rw ~protect:true t.m @@ fun () ->
+    let e =
+      Lwt_eio.run_lwt @@ fun () -> G.Ref.write t.t gr (Git.Reference.Uid k)
+    in
+    handle_git_err e;
+    W.notify t.w r (Some k);
     write_index t gr k
 
   let remove t r =
     [%log.debug "remove %a" pp_branch r];
-    Lwt_mutex.with_lock t.m @@ fun () ->
-    let* e = G.Ref.remove t.t (git_of_branch r) in
-    let* () = handle_git_err e in
+    Eio.Mutex.use_rw ~protect:true t.m @@ fun () ->
+    let e = Lwt_eio.run_lwt @@ fun () -> G.Ref.remove t.t (git_of_branch r) in
+    let () = handle_git_err e in
     W.notify t.w r None
 
   let eq_head_contents_opt x y =
@@ -255,23 +263,23 @@ module Make (K : Key) (G : Git.S) = struct
     let gr = git_of_branch r in
     let c = function None -> None | Some h -> Some (Git.Reference.Uid h) in
     let ok r =
-      let+ () = handle_git_err r in
+      handle_git_err r;
       true
     in
-    Lwt_mutex.with_lock t.m (fun () ->
-        let* x = ref_read_opt t.t gr in
-        let* b =
-          if not (eq_head_contents_opt x (c test)) then Lwt.return_false
+    Eio.Mutex.use_rw ~protect:true t.m (fun () ->
+        let x = ref_read_opt t.t gr in
+        let b =
+          if not (eq_head_contents_opt x (c test)) then false
           else
             match c set with
             | None ->
-                let* r = G.Ref.remove t.t gr in
+                let r = Lwt_eio.run_lwt @@ fun () -> G.Ref.remove t.t gr in
                 ok r
             | Some h ->
-                let* r = G.Ref.write t.t gr h in
+                let r = Lwt_eio.run_lwt @@ fun () -> G.Ref.write t.t gr h in
                 ok r
         in
-        let* () =
+        let () =
           if
             (* We do not protect [write_index] because it can take a long
                time and we don't want to hold the lock for too long. Would
@@ -280,29 +288,22 @@ module Make (K : Key) (G : Git.S) = struct
                convenience for the user). *)
             b
           then W.notify t.w r set
-          else Lwt.return_unit
         in
-        let+ () =
-          if b then
-            match set with
-            | None -> Lwt.return_unit
-            | Some v -> write_index t gr v
-          else Lwt.return_unit
+        let () =
+          if b then match set with None -> () | Some v -> write_index t gr v
         in
         b)
 
-  let close _ = Lwt.return_unit
+  let close _ = ()
 
   let clear t =
     [%log.debug "clear"];
-    Lwt_mutex.with_lock t.m (fun () ->
-        let* refs = G.Ref.list t.t in
-        Lwt_list.iter_p
-          (fun (r, _) ->
-            let* e = G.Ref.remove t.t r in
-            let* () = handle_git_err e in
-            match branch_of_git r with
-            | Some k -> W.notify t.w k None
-            | None -> Lwt.return_unit)
-          refs)
+    Eio.Mutex.use_rw ~protect:true t.m @@ fun () ->
+    let refs = Lwt_eio.run_lwt @@ fun () -> G.Ref.list t.t in
+    List.iter
+      (fun (r, _) ->
+        let e = Lwt_eio.run_lwt @@ fun () -> G.Ref.remove t.t r in
+        handle_git_err e;
+        match branch_of_git r with Some k -> W.notify t.w k None | None -> ())
+      refs
 end
