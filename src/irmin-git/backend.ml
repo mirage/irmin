@@ -63,15 +63,15 @@ struct
     module S = Atomic_write.Make (Schema.Branch) (G)
     include Atomic_write.Check_closed (S)
 
-    let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
+    let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t |> v
   end
 
   module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
 
   module Repo = struct
     let handle_git_err = function
-      | Ok x -> Lwt.return x
-      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
+      | Ok x -> x
+      | Error e -> Fmt.kstr failwith "%a" G.pp_error e
 
     type t = { config : Irmin.config; closed : bool ref; g : G.t; b : Branch.t }
 
@@ -106,24 +106,28 @@ struct
       let { root; dot_git; head; bare; _ } = config conf in
       let dotgit = fopt Fpath.v dot_git in
       let root = Fpath.v root in
-      let* g = G.v ?dotgit root >>= handle_git_err in
-      let+ b = Branch.v ~head ~bare g in
+      let g = Lwt_eio.run_lwt @@ fun () -> G.v ?dotgit root in
+      let g = handle_git_err g in
+      let b = Branch.v ~head ~bare g in
       { g; b; closed = ref false; config = (conf :> Irmin.config) }
 
     let config t = t.config
-    let close t = Branch.close t.b >|= fun () -> t.closed := true
+
+    let close t =
+      Branch.close t.b;
+      t.closed := true
   end
 
   module Remote = struct
     include Remote.Make (G) (S) (Schema.Branch)
 
-    let v repo = Lwt.return repo.Repo.g
+    let v repo = repo.Repo.g
   end
 
   let git_of_repo r = r.Repo.g
 
   let repo_of_git ?head ?(bare = true) ?lock g =
-    let+ b = Branch.v ?lock ~head ~bare g in
+    let b = Branch.v ?lock ~head ~bare g in
     {
       Repo.config = Irmin.Backend.Conf.empty Conf.spec;
       closed = ref false;
