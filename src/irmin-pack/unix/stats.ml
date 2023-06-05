@@ -40,39 +40,45 @@ module Pack_store = struct
       t
 
   let clear m =
-    let v = Metrics.state m in
-    v.appended_hashes <- 0;
-    v.appended_offsets <- 0;
-    v.total <- 0;
-    v.from_staging <- 0;
-    v.from_lru <- 0;
-    v.from_pack_direct <- 0;
-    v.from_pack_indexed <- 0
+    let v =
+      {
+        appended_hashes = 0;
+        appended_offsets = 0;
+        total = 0;
+        from_staging = 0;
+        from_lru = 0;
+        from_pack_direct = 0;
+        from_pack_indexed = 0;
+      }
+    in
+    Metrics.set_state m v
 
   let export m = Metrics.state m
 
   let update ~field finds =
     let f v =
       match field with
-      | Appended_hashes -> v.appended_hashes <- succ v.appended_hashes
-      | Appended_offsets -> v.appended_offsets <- succ v.appended_offsets
+      | Appended_hashes -> { v with appended_hashes = succ v.appended_hashes }
+      | Appended_offsets ->
+          { v with appended_offsets = succ v.appended_offsets }
       | Staging ->
-          v.total <- succ v.total;
-          v.from_staging <- succ v.from_staging
-      | Lru ->
-          v.total <- succ v.total;
-          v.from_lru <- succ v.from_lru
+          { v with total = succ v.total; from_staging = succ v.from_staging }
+      | Lru -> { v with total = succ v.total; from_lru = succ v.from_lru }
       | Pack_direct ->
-          v.total <- succ v.total;
-          v.from_pack_direct <- succ v.from_pack_direct
+          {
+            v with
+            total = succ v.total;
+            from_pack_direct = succ v.from_pack_direct;
+          }
       | Pack_indexed ->
-          v.total <- succ v.total;
-          v.from_pack_indexed <- succ v.from_pack_indexed
-      | Not_found ->
-          v.total <- succ v.total;
-          ()
+          {
+            v with
+            total = succ v.total;
+            from_pack_indexed = succ v.from_pack_indexed;
+          }
+      | Not_found -> { v with total = succ v.total }
     in
-    let mut = Metrics.Mutate f in
+    let mut = Metrics.Replace f in
     Metrics.update finds mut
 
   let cache_misses
@@ -187,15 +193,15 @@ module File_manager = struct
   let update ~field t =
     let f t =
       match field with
-      | Dict_flushes -> t.dict_flushes <- t.dict_flushes + 1
-      | Suffix_flushes -> t.suffix_flushes <- t.suffix_flushes + 1
-      | Index_flushes -> t.index_flushes <- t.index_flushes + 1
-      | Auto_dict -> t.auto_dict <- t.auto_dict + 1
-      | Auto_suffix -> t.auto_suffix <- t.auto_suffix + 1
-      | Auto_index -> t.auto_index <- t.auto_index + 1
-      | Flush -> t.flush <- t.flush + 1
+      | Dict_flushes -> { t with dict_flushes = succ t.dict_flushes }
+      | Suffix_flushes -> { t with suffix_flushes = succ t.suffix_flushes }
+      | Index_flushes -> { t with index_flushes = succ t.index_flushes }
+      | Auto_dict -> { t with auto_dict = succ t.auto_dict }
+      | Auto_suffix -> { t with auto_suffix = succ t.auto_suffix }
+      | Auto_index -> { t with auto_index = succ t.auto_index }
+      | Flush -> { t with flush = succ t.flush }
     in
-    Metrics.update t (Metrics.Mutate f)
+    Metrics.update t (Metrics.Replace f)
 end
 
 module Latest_gc = struct
