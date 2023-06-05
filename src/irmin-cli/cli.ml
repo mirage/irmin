@@ -107,12 +107,7 @@ let print_exc exc =
 
 open Lwt.Syntax
 
-let run t =
-  Eio_main.run @@ fun env ->
-  Irmin_fs.run env#fs @@ fun () ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  try t () with err -> print_exc err
-
+let run t = try t () with err -> print_exc err
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
@@ -995,6 +990,10 @@ let commands =
     ]
 
 let run y =
+  Eio_main.run @@ fun env ->
+  Irmin_fs.run env#fs @@ fun () ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
   match Cmd.eval (Cmd.group ~default:default_term default_help y) with
   | 0 -> ()
   | _ -> exit 1

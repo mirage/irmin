@@ -1,5 +1,5 @@
 (library
  (name libirmin_bindings)
- (libraries irmin-cli irmin.unix ctypes.foreign)
+ (libraries irmin-cli irmin.unix ctypes.foreign eio_main lwt_eio)
  (instrumentation
   (backend bisect_ppx)))

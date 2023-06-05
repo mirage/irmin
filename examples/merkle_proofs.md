@@ -15,8 +15,7 @@ More specifically, for Irmin, a Merkle proof is the subset of a tree stored in a
 # #require "irmin";;
 # #require "irmin-git.unix";;
 # #require "ppx_irmin";;
-# open Lwt.Infix
-  open Lwt.Syntax;;
+# #require "eio_main";;
 ```
 
 First, create an irmin-unix store module which uses `int` as contents.
@@ -29,13 +28,17 @@ module Contents = struct
 end
 
 module Store = Irmin_git_unix.FS.KV (Contents)
+
+let eio_run fn =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock fn
 ```
 
 Open a repo.
 
 ```ocaml
 # let config = Irmin_git.config ~bare:true "./tmp-irmin/test"
-  let repo = Lwt_main.run (Store.Repo.v config);;
+  let repo = eio_run @@ fun _ -> Store.Repo.v config;;
 val config : Irmin.config = <abstr>
 val repo : Store.repo = <abstr>
 ```
@@ -45,13 +48,13 @@ Create a tree which contains the accounts and their balance for 3 customers: Ben
 Instead of using `[ "eve" ]` as a path (which whould have been valid too), this example splits the names char by char. This is better in order to highlight how proofs work.
 
 ```ocaml
-# let tree = Lwt_main.run (
+# let tree = eio_run @@ fun _ ->
     let tree = Store.Tree.empty () in
-    let* tree = Store.Tree.add tree [ "b"; "e"; "n" ] 10 in
-    let* tree = Store.Tree.add tree [ "b"; "o"; "b" ] 20 in
-    let+ tree = Store.Tree.add tree [ "e"; "v"; "e" ] 30 in
+    let tree = Store.Tree.add tree [ "b"; "e"; "n" ] 10 in
+    let tree = Store.Tree.add tree [ "b"; "o"; "b" ] 20 in
+    let tree = Store.Tree.add tree [ "e"; "v"; "e" ] 30 in
     tree
-  );;
+  ;;
 val tree : Store.tree = <abstr>
 ```
 
@@ -60,9 +63,9 @@ In order to produce a Merkle proof, Irmin requires that the tree on which the pr
 `tree_key` is a value that encodes where `tree` has been persisted inside the store's backend.
 
 ```ocaml
-# let tree_key = Lwt_main.run (
+# let tree_key = eio_run @@ fun _ ->
     (* [batch] exposes [repo] stores in read-write mode *)
-    let+ kinded_key = Store.Backend.Repo.batch repo
+    let kinded_key = Store.Backend.Repo.batch repo
       (fun rw_contents_store rw_node_store _rw_commit_store ->
         Store.save_tree repo rw_contents_store rw_node_store tree)
     in
@@ -70,7 +73,7 @@ In order to produce a Merkle proof, Irmin requires that the tree on which the pr
     match kinded_key with
     | `Node key -> key
     | `Contents _ -> assert false
-  );;
+  ;;
 val tree_key : Store.node_key = <abstr>
 ```
 
@@ -87,11 +90,11 @@ Let's produce an account statement for Eve.
 ```ocaml
 let visit_tree tree =
   (* [tree] is shallow. Let's only load the parts we are interested in *)
-  let+ (_ : int option) = Store.Tree.find tree [ "e"; "v"; "e" ] in
+  let (_ : int option) = Store.Tree.find tree [ "e"; "v"; "e" ] in
   (Store.Tree.empty (), `Success)
 
-let proof, `Success = Lwt_main.run (
-  Store.Tree.produce_proof repo (`Node tree_key) visit_tree)
+let proof, `Success = eio_run @@ fun _ ->
+  Store.Tree.produce_proof repo (`Node tree_key) visit_tree
 
 let pp_merkle_proof = Irmin.Type.pp Store.Tree.Proof.tree_t
 ```
@@ -137,8 +140,7 @@ Here is the signature of `produce_proof`:
 val produce_proof :
   Store.repo ->
   Store.Tree.kinded_key ->
-  (Store.tree -> (Store.tree * 'a) Lwt.t) -> (Store.Tree.Proof.t * 'a) Lwt.t =
-  <fun>
+  (Store.tree -> Store.tree * 'a) -> Store.Tree.Proof.t * 'a = <fun>
 ```
 
 `produce_proof repo key_before f` is `(proof = { state; hash_before; hash_after }, f_res)`. `f` is invoked once per call to `produce_proof` and `f tree_before` is `(tree_after, f_res)`.
