@@ -27,11 +27,11 @@ type 'a t = {
   name : string;
   origin : origin option;
   repr : 'a Repr.ty;
-  mutable state : 'a;
+  state : 'a Atomic.t;
 }
 
-let state m = m.state
-let set_state m v = m.state <- v
+let state m = Atomic.get m.state
+let set_state m v = Atomic.set m.state v
 
 type 'a update_mode = Mutate of ('a -> unit) | Replace of ('a -> 'a)
 
@@ -39,8 +39,11 @@ let v :
     type a. ?origin:origin -> name:string -> initial_state:a -> a Repr.ty -> a t
     =
  fun ?origin ~name ~initial_state repr ->
-  { uid = uid (); origin; name; repr; state = initial_state }
+  { uid = uid (); origin; name; repr; state = Atomic.make initial_state }
 
-let update : type a. a t -> a update_mode -> unit =
- fun m kind ->
-  match kind with Mutate f -> f m.state | Replace f -> m.state <- f m.state
+let rec update m kind =
+  let old = Atomic.get m.state in
+  match kind with
+  | Mutate f -> f old
+  | Replace f ->
+      if not @@ Atomic.compare_and_set m.state old (f old) then update m kind

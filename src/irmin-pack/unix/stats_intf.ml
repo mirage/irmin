@@ -31,13 +31,13 @@ module Pack_store = struct
   [@@deriving irmin]
 
   type t = {
-    mutable appended_hashes : int;
-    mutable appended_offsets : int;
-    mutable total : int;
-    mutable from_staging : int;
-    mutable from_lru : int;
-    mutable from_pack_direct : int;
-    mutable from_pack_indexed : int;
+    appended_hashes : int;
+    appended_offsets : int;
+    total : int;
+    from_staging : int;
+    from_lru : int;
+    from_pack_direct : int;
+    from_pack_indexed : int;
   }
   [@@deriving irmin]
 end
