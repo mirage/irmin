@@ -16,7 +16,9 @@
  (modules libirmin irmin_bindings)
  (foreign_stubs
   (language c)
-  (names irmin)))
+  (names irmin))
+ (flags
+  (-w -unused-var-strict -ccopt "-Wl,-znow")))
 
 (install
  (package libirmin)
@@ -24,8 +26,3 @@
  (files
   (irmin.h as include/irmin.h)
   (libirmin.so as lib/libirmin.so)))
-
-(env
- (dev
-  (flags
-   (:standard -w -unused-var-strict))))

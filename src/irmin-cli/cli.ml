@@ -22,7 +22,6 @@ module Graphql = Irmin_graphql_unix
 let deprecated_info = (Term.info [@alert "-deprecated"])
 let deprecated_man_format = (Term.man_format [@alert "-deprecated"])
 let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
-let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
 
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
     ?(author = "irmin") fmt =
@@ -110,12 +109,7 @@ let print_exc exc =
 
 open Lwt.Syntax
 
-let run t =
-  Eio_main.run @@ fun env ->
-  Irmin_fs.run env#fs @@ fun () ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  try t () with err -> print_exc err
-
+let run t = try t () with err -> print_exc err
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
@@ -997,4 +991,8 @@ let commands =
     ]
 
 let run ~default:x y =
+  Eio_main.run @@ fun env ->
+  Irmin_fs.run env#fs @@ fun () ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
   match deprecated_eval_choice x y with `Error _ -> exit 1 | _ -> ()
