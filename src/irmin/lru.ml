@@ -16,7 +16,7 @@
 
 (* Extracted from https://github.com/pqwy/lru *)
 
-module Make (H : Hashtbl.HashedType) = struct
+module MakeUnsafe (H : Hashtbl.HashedType) = struct
   module HT = Hashtbl.Make (H)
 
   module Q = struct
@@ -126,10 +126,12 @@ module Make (H : Hashtbl.HashedType) = struct
         append t.q n)
     with Not_found -> ()
 
-  let find t k =
-    let v = HT.find t.ht k in
-    promote t k;
-    snd v.value
+  let find_opt t k =
+    match HT.find_opt t.ht k with
+    | Some v ->
+        promote t k;
+        Some (snd v.value)
+    | None -> None
 
   let mem t k =
     match HT.mem t.ht k with
@@ -144,4 +146,33 @@ module Make (H : Hashtbl.HashedType) = struct
     t.w <- 0;
     HT.clear t.ht;
     Q.clear t.q
+end
+
+(** Safe but might be incredibly slow. *)
+module Make (H : Hashtbl.HashedType) = struct
+  module Unsafe = MakeUnsafe (H)
+
+  type 'a t = { lock : Eio.Mutex.t; data : 'a Unsafe.t }
+
+  let create ?weight cap =
+    let lock = Eio.Mutex.create () in
+    let data = Unsafe.create ?weight cap in
+    { lock; data }
+
+  let add { lock; data } k v =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.add data k v
+
+  let find_opt { lock; data } k =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.find_opt data k
+
+  let find t k = match find_opt t k with Some v -> v | None -> raise Not_found
+
+  let mem { lock; data } k =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.mem data k
+
+  let iter { lock; data } f =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.iter data f
+
+  let clear { lock; data } =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.clear data
 end
