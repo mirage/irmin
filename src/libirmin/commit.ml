@@ -52,7 +52,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
             let hash = Root.get_hash (module Store) hash in
-            let c = run (Store.Commit.of_hash repo hash) in
+            let c = run (fun () -> Store.Commit.of_hash repo hash) in
             match c with
             | Some c -> Root.create_commit (module Store) c
             | None -> null commit))
@@ -65,7 +65,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
             let hash = Root.get_commit_key (module Store) hash in
-            let c = run (Store.Commit.of_key repo hash) in
+            let c = run (fun () -> Store.Commit.of_key repo hash) in
             match c with
             | Some c -> Root.create_commit (module Store) c
             | None -> null commit))
@@ -88,11 +88,12 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             in
             let tree = Root.get_tree (module Store) tree in
             let info = Root.get_info (module Store) info in
-            let commit = run (Store.Commit.v repo ~parents ~info tree) in
+            let commit =
+              run (fun () -> Store.Commit.v repo ~parents ~info tree)
+            in
             Root.create_commit (module Store) commit))
 
   let () =
-    let open Lwt.Infix in
     fn "commit_parents"
       (repo @-> commit @-> returning commit_array)
       (fun (type repo) repo commit ->
@@ -102,13 +103,13 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let commit = Root.get_commit (module Store) commit in
             let parents = Store.Commit.parents commit in
             let parents =
-              run
-                (Lwt_list.filter_map_s
-                   (fun x ->
-                     Store.Commit.of_key repo x >|= function
-                     | None -> None
-                     | Some x -> Some x)
-                   parents)
+              run (fun () ->
+                  List.filter_map
+                    (fun x ->
+                      match Store.Commit.of_key repo x with
+                      | None -> None
+                      | Some x -> Some x)
+                    parents)
             in
             Root.create_commit_array (module Store) parents))
 

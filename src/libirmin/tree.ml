@@ -67,7 +67,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
             let k = Root.get_hash (module Store) k in
-            let t = run (Store.Tree.of_hash repo (`Node k)) in
+            let t = run (fun () -> Store.Tree.of_hash repo (`Node k)) in
             match t with
             | Some t -> Root.create_tree (module Store) t
             | None -> null tree))
@@ -92,7 +92,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
             let k = Root.get_kinded_key (module Store) k in
-            let t = run (Store.Tree.of_key repo k) in
+            let t = run (fun () -> Store.Tree.of_key repo k) in
             match t with
             | Some t -> Root.create_tree (module Store) t
             | None -> null tree))
@@ -105,7 +105,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
-            run (Store.Tree.mem tree path)))
+            run (fun () -> Store.Tree.mem tree path)))
 
   let () =
     fn "tree_mem_tree"
@@ -115,7 +115,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
-            run (Store.Tree.mem_tree tree path)))
+            run (fun () -> Store.Tree.mem_tree tree path)))
 
   let () =
     fn "tree_find"
@@ -125,7 +125,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
-            match run (Store.Tree.find tree path) with
+            match run (fun () -> Store.Tree.find tree path) with
             | None -> null contents
             | Some x -> Root.create_contents (module Store) x))
 
@@ -137,7 +137,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
-            match run (Store.Tree.find_all tree path) with
+            match run (fun () -> Store.Tree.find_all tree path) with
             | None -> null metadata
             | Some (_, m) -> Root.create_metadata (module Store) m))
 
@@ -149,7 +149,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let t : Store.tree = Root.get_tree (module Store) t in
             let path : Store.path = Root.get_path (module Store) path in
-            match run (Store.Tree.find_tree t path) with
+            match run (fun () -> Store.Tree.find_tree t path) with
             | None -> null tree
             | Some x -> Root.create_tree (module Store) x))
 
@@ -168,7 +168,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               if is_null metadata then None
               else Some (Root.get_metadata (module Store) metadata)
             in
-            let t = run (Store.Tree.add tree' path value ?metadata) in
+            let t = run (fun () -> Store.Tree.add tree' path value ?metadata) in
             Root.set_tree (module Store) tree t;
             true))
 
@@ -181,7 +181,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
             let value : Store.tree = Root.get_tree (module Store) tr in
-            let t = run (Store.Tree.add_tree tree' path value) in
+            let t = run (fun () -> Store.Tree.add_tree tree' path value) in
             Root.set_tree (module Store) tree t;
             true))
 
@@ -193,7 +193,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
-            let t = run (Store.Tree.remove tree' path) in
+            let t = run (fun () -> Store.Tree.remove tree' path) in
             Root.set_tree (module Store) tree t;
             true))
 
@@ -215,7 +215,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) _ ->
             let tree = Root.get_tree (module Store) tree in
             let path : Store.path = Root.get_path (module Store) path in
-            let items = run (Store.Tree.list tree path) in
+            let items = run (fun () -> Store.Tree.list tree path) in
             let items = List.map (fun (k, _v) -> Store.Path.v [ k ]) items in
             Root.create_path_array (module Store) items))
 

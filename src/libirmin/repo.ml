@@ -24,7 +24,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         let (s, config) : config = Root.get_config config in
         let (module Store) = Irmin_cli.Resolver.Store.generic_keyed s in
         let remote = Irmin_cli.Resolver.Store.remote s in
-        let repo : Store.repo = run (Store.Repo.v config) in
+        let repo : Store.repo = run (fun () -> Store.Repo.v config) in
         Root.create_repo
           (module Store)
           {
@@ -42,7 +42,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_repo' repo branch_array
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
-            let b = run (Store.Repo.branches repo) in
+            let b = run (fun () -> Store.Repo.branches repo) in
             Root.create_branch_array (module Store) b))
 
   let () =
@@ -94,7 +94,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
           ->
             let a = Root.get_hash (module Store) a in
-            let c = run @@ Store.Contents.of_hash repo a in
+            let c = run @@ fun () -> Store.Contents.of_hash repo a in
             match c with
             | Some c -> Root.create_contents (module Store) c
             | None -> null contents))
@@ -109,7 +109,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let a = Root.get_kinded_key (module Store) a in
             match a with
             | `Contents (a, _) -> (
-                let c = run @@ Store.Contents.of_key repo a in
+                let c = run @@ fun () -> Store.Contents.of_key repo a in
                 match c with
                 | Some c -> Root.create_contents (module Store) c
                 | None -> null contents)
