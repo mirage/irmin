@@ -80,9 +80,7 @@ module Make (P : Backend.S) = struct
   }
   [@@deriving irmin]
 
-  let dump_counters ppf t = Type.pp_json ~minify:false counters_t ppf t
-
-  let fresh_counters () =
+  let fresh_counters _ =
     {
       contents_hash = 0;
       contents_add = 0;
@@ -98,21 +96,18 @@ module Make (P : Backend.S) = struct
       node_val_list = 0;
     }
 
-  let reset_counters t =
-    t.contents_hash <- 0;
-    t.contents_add <- 0;
-    t.contents_find <- 0;
-    t.contents_mem <- 0;
-    t.node_hash <- 0;
-    t.node_mem <- 0;
-    t.node_index <- 0;
-    t.node_add <- 0;
-    t.node_find <- 0;
-    t.node_val_v <- 0;
-    t.node_val_find <- 0;
-    t.node_val_list <- 0
+  let cnt = Atomic.make (fresh_counters ())
+  let counters () = Atomic.get cnt
 
-  let cnt = fresh_counters ()
+  let rec update_cnt f =
+    let old = Atomic.get cnt in
+    let cnt' = f old in
+    if not @@ Atomic.compare_and_set cnt old cnt' then update_cnt f
+
+  let reset_counters () = update_cnt fresh_counters
+
+  let dump_counters ppf _ =
+    Type.pp_json ~minify:false counters_t ppf (Atomic.get cnt)
 
   module Path = struct
     include P.Node.Path
@@ -314,7 +309,8 @@ module Make (P : Backend.S) = struct
           match cached_value c with
           | None -> assert false
           | Some v ->
-              cnt.contents_hash <- cnt.contents_hash + 1;
+              update_cnt (fun cnt ->
+                  { cnt with contents_hash = succ cnt.contents_hash });
               let h = P.Contents.Hash.hash v in
               assert (c.info.ptr = Ptr_none);
               if cache then c.info.ptr <- Hash h;
@@ -324,7 +320,8 @@ module Make (P : Backend.S) = struct
       match t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
 
     let value_of_key ~cache t repo k =
-      cnt.contents_find <- cnt.contents_find + 1;
+      update_cnt (fun cnt ->
+          { cnt with contents_find = succ cnt.contents_find });
       let h = P.Contents.Key.to_hash k in
       let v_opt = P.Contents.find (P.Repo.contents_t repo) k in
       Option.iter (Env.add_contents_from_store t.info.env h) v_opt;
@@ -572,7 +569,8 @@ module Make (P : Backend.S) = struct
         end) =
     struct
       let to_map ~cache ~env repo t =
-        cnt.node_val_list <- cnt.node_val_list + 1;
+        update_cnt (fun cnt ->
+            { cnt with node_val_list = succ cnt.node_val_list });
         let entries = N.seq ~cache t in
         Seq.fold_left
           (fun acc (k, v) -> StepMap.add k (To_elt.t ~env repo v) acc)
@@ -597,7 +595,8 @@ module Make (P : Backend.S) = struct
             else (
               (* Starting from this point the function is expensive, but there is
                  no alternative. *)
-              cnt.node_val_list <- cnt.node_val_list + 1;
+              update_cnt (fun cnt ->
+                  { cnt with node_val_list = succ cnt.node_val_list });
               let entries = N.seq ~cache t in
               Seq.for_all (fun (step, _) -> StepMap.mem step um) entries)
 
@@ -610,7 +609,8 @@ module Make (P : Backend.S) = struct
             Some tree
 
       let seq ~env ?offset ?length ~cache repo v =
-        cnt.node_val_list <- cnt.node_val_list + 1;
+        update_cnt (fun cnt ->
+            { cnt with node_val_list = succ cnt.node_val_list });
         let seq = N.seq ?offset ?length ~cache v in
         Seq.map (fun (k, v) -> (k, To_elt.t ~env repo v)) seq
     end
@@ -830,7 +830,7 @@ module Make (P : Backend.S) = struct
     let rec hash : type a. cache:bool -> t -> (hash -> a) -> a =
      fun ~cache t k ->
       let a_of_hashable hash v =
-        cnt.node_hash <- cnt.node_hash + 1;
+        update_cnt (fun cnt -> { cnt with node_hash = succ cnt.node_hash });
         let hash = hash v in
         assert (t.info.ptr = Ptr_none);
         if cache then t.info.ptr <- Hash hash;
@@ -858,7 +858,7 @@ module Make (P : Backend.S) = struct
     and hash_preimage_of_map :
         type r. cache:bool -> t -> map -> (hash_preimage, r) cont =
      fun ~cache t map k ->
-      cnt.node_val_v <- cnt.node_val_v + 1;
+      update_cnt (fun cnt -> { cnt with node_val_v = succ cnt.node_val_v });
       let bindings = StepMap.to_seq map in
       let must_build_portable_node =
         bindings
@@ -951,7 +951,7 @@ module Make (P : Backend.S) = struct
       match cached_value t with
       | Some v -> ok v
       | None -> (
-          cnt.node_find <- cnt.node_find + 1;
+          update_cnt (fun cnt -> { cnt with node_find = succ cnt.node_find });
           let v_opt = P.Node.find (P.Repo.node_t repo) k in
           let h = P.Node.Key.to_hash k in
           let v_opt = Option.map (Env.add_node_from_store t.info.env h) v_opt in
@@ -1971,14 +1971,15 @@ module Make (P : Backend.S) = struct
 
   let import repo = function
     | `Contents (k, m) -> (
-        cnt.contents_mem <- cnt.contents_mem + 1;
+        update_cnt (fun cnt ->
+            { cnt with contents_mem = succ cnt.contents_mem });
         P.Contents.mem (P.Repo.contents_t repo) k |> function
         | true ->
             let env = Env.empty () in
             Some (`Contents (Contents.of_key ~env repo k, m))
         | false -> None)
     | `Node k -> (
-        cnt.node_mem <- cnt.node_mem + 1;
+        update_cnt (fun cnt -> { cnt with node_mem = succ cnt.node_mem });
         P.Node.mem (P.Repo.node_t repo) k |> function
         | true ->
             let env = Env.empty () in
@@ -2013,7 +2014,7 @@ module Make (P : Backend.S) = struct
     in
 
     let add_node n v k =
-      cnt.node_add <- cnt.node_add + 1;
+      update_cnt (fun cnt -> { cnt with node_add = succ cnt.node_add });
       let key = P.Node.add node_t v in
       let () =
         (* Sanity check: Did we just store the same hash as the one represented
@@ -2039,7 +2040,7 @@ module Make (P : Backend.S) = struct
       let node =
         (* Since we traverse in post-order, all children of [x] have already
            been added. Thus, their keys are cached and we can retrieve them. *)
-        cnt.node_val_v <- cnt.node_val_v + 1;
+        update_cnt (fun cnt -> { cnt with node_val_v = succ cnt.node_val_v });
         StepMap.to_seq x
         |> Seq.map (fun (step, v) ->
                match v with
@@ -2137,7 +2138,8 @@ module Make (P : Backend.S) = struct
                    reason (not benched). *)
                 k key
               else (
-                cnt.node_mem <- cnt.node_mem + 1;
+                update_cnt (fun cnt ->
+                    { cnt with node_mem = succ cnt.node_mem });
                 let mem = P.Node.mem node_t key in
                 if not mem then
                   (* Case 6. [n] contains a key that is not known by [repo].
@@ -2153,7 +2155,8 @@ module Make (P : Backend.S) = struct
                     (* No pre-computed hash. *)
                     None
                 | Some h -> (
-                    cnt.node_index <- cnt.node_index + 1;
+                    update_cnt (fun cnt ->
+                        { cnt with node_index = succ cnt.node_index });
                     P.Node.index node_t h |> function
                     | None ->
                         (* Pre-computed hash is unknown by repo.
@@ -2164,7 +2167,8 @@ module Make (P : Backend.S) = struct
                            correctness, but does waste space. *)
                         None
                     | Some key ->
-                        cnt.node_mem <- cnt.node_mem + 1;
+                        update_cnt (fun cnt ->
+                            { cnt with node_mem = succ cnt.node_mem });
                         let mem = P.Node.mem node_t key in
                         if mem then
                           (* Case 8. The pre-computed hash is converted into
@@ -2219,7 +2223,8 @@ module Make (P : Backend.S) = struct
       | Contents.Value _ ->
           let v = Contents.to_value ~cache c in
           let v = get_ok "export" v in
-          cnt.contents_add <- cnt.contents_add + 1;
+          update_cnt (fun cnt ->
+              { cnt with contents_add = succ cnt.contents_add });
           let key = P.Contents.add contents_t v in
           let () =
             let h = P.Contents.Key.to_hash key in
@@ -2489,10 +2494,6 @@ module Make (P : Backend.S) = struct
     in
     let post _ _ acc = acc in
     fold ~force ~cache ~pre ~post ~contents t empty_stats
-
-  let counters () = cnt
-  let dump_counters ppf () = dump_counters ppf cnt
-  let reset_counters () = reset_counters cnt
 
   let inspect = function
     | `Contents _ -> `Contents
