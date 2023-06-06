@@ -273,10 +273,6 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
 
   type write_error = [ RO.error | Mirage_kv.write_error | RO.Sync.push_error ]
 
-  let write_error = function
-    | Ok _ -> Ok ()
-    | Error e -> Error (e :> write_error)
-
   let pp_write_error ppf = function
     | #RO.error as e -> RO.pp_error ppf e
     | #RO.Sync.push_error as e -> RO.Sync.pp_push_error ppf e
@@ -285,22 +281,21 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let info t op = Info.f ~author:(t.author ()) "%s" (t.msg op)
   let path = RO.path
 
-  let set t k v =
-    let info = info t (`Set k) in
-    match t.store with
-    | Store s -> (
-        S.set ~info s.t (path k) v >>= function
-        | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)))
-    | Batch b ->
-        S.Tree.add b.tree (path k) v >|= fun tree ->
-        b.tree <- tree;
-        Ok ()
-
   let ( >?= ) r f =
     r >>= function
     | Error e -> Lwt.return_error (e :> write_error)
     | Ok r -> f r
+
+  let set t k v =
+    let info = info t (`Set k) in
+    match t.store with
+    | Store s ->
+        S.set ~info s.t (path k) v >?= fun () ->
+        RO.Sync.push s.t t.remote >?= fun _ -> Lwt.return_ok ()
+    | Batch b ->
+        S.Tree.add b.tree (path k) v >|= fun tree ->
+        b.tree <- tree;
+        Ok ()
 
   let set_partial t k ~offset v =
     let off = Optint.Int63.to_int offset in
@@ -317,10 +312,9 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let remove t k =
     let info = info t (`Remove k) in
     match t.store with
-    | Store s -> (
-        S.remove ~info s.t (path k) >>= function
-        | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)))
+    | Store s ->
+        S.remove ~info s.t (path k) >?= fun () ->
+        RO.Sync.push s.t t.remote >?= fun _ -> Lwt.return_ok ()
     | Batch b ->
         S.Tree.remove b.tree (path k) >|= fun tree ->
         b.tree <- tree;
