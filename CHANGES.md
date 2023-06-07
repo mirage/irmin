@@ -6,6 +6,11 @@
   - Change behavior of `Irmin.Conf.key` to disallow duplicate key names by
     default. Add `allow_duplicate` optional argument to override. (@metanivek,
     #2252)
+    
+### Changed
+
+- **irmin**
+  - Lower bounds for `mtime` is now `2.0.0` (@patricoferris, #2166)
 
 ### Fixed
 
