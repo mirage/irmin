@@ -28,12 +28,14 @@ module Unix : S = struct
     readonly : bool;
     mutable version : Version.t;
     buf : Buffer.t;
+    lock : Eio.Mutex.t;
   }
 
   let name t = t.file
   let header_size = (* offset + version *) Int63.of_int 16
 
-  let unsafe_flush t =
+  (** Only call this function inside a call to Eio.Mutex.use_rw *)
+  let unsafe_flush t () =
     [%log.debug "IO flush %s" t.file];
     let buf = Buffer.contents t.buf in
     if buf = "" then ()
@@ -54,22 +56,24 @@ module Unix : S = struct
 
   let flush t =
     if t.readonly then raise Irmin_pack.RO_not_allowed;
-    unsafe_flush t
+    Eio.Mutex.use_rw ~protect:true t.lock (unsafe_flush t)
 
   let auto_flush_limit = Int63.of_int 1_000_000
 
-  let append t buf =
+  let unsafe_append t buf () =
     Buffer.add_string t.buf buf;
     let len = Int63.of_int (String.length buf) in
     let open Int63.Syntax in
     t.offset <- t.offset + len;
-    if t.offset - t.flushed > auto_flush_limit then flush t
+    if t.offset - t.flushed > auto_flush_limit then unsafe_flush t ()
+
+  let append t buf = Eio.Mutex.use_rw ~protect:true t.lock (unsafe_append t buf)
 
   let set t ~off buf =
-    if t.readonly then raise Irmin_pack.RO_not_allowed;
-    unsafe_flush t;
+    flush t;
     let buf_len = String.length buf in
     let open Int63.Syntax in
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     Raw.unsafe_write t.raw ~off:(header_size + off) buf 0 buf_len;
     assert (
       let len = Int63.of_int buf_len in
@@ -82,6 +86,7 @@ module Unix : S = struct
 
   let read_buffer t ~off ~buf ~len =
     let open Int63.Syntax in
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     let off = header_size + off in
     if (not t.readonly) && off > t.flushed then
       raise_invalid_read
@@ -90,21 +95,23 @@ module Unix : S = struct
     Raw.unsafe_read t.raw ~off ~len buf
 
   let read t ~off buf = read_buffer t ~off ~buf ~len:(Bytes.length buf)
-  let offset t = t.offset
+  let offset t = Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> t.offset
 
   let force_offset t =
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     t.offset <- Raw.Offset.get t.raw;
     t.offset
 
   let version t =
     [%log.debug
       "[%s] version: %a" (Filename.basename t.file) Version.pp t.version];
-    t.version
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> t.version
 
   let set_version t v =
     [%log.debug
       "[%s] set_version: %a -> %a" (Filename.basename t.file) Version.pp
         t.version Version.pp v];
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     Raw.Version.set t.raw (Version.to_bin v);
     t.version <- v
 
@@ -160,6 +167,7 @@ module Unix : S = struct
         readonly;
         buf = Buffer.create (4 * 1024);
         flushed = Int63.Syntax.(header_size + offset);
+        lock = Eio.Mutex.create ();
       }
     in
     let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
