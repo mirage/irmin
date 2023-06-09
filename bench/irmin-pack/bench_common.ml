@@ -17,7 +17,7 @@
 open Irmin.Export_for_backends
 
 let c0 = Mtime_clock.counter ()
-let now_us () = Mtime_clock.count c0 |> Mtime.Span.to_us
+let now_us () = Mtime.span_to_us (Mtime_clock.count c0)
 let last = ref (now_us ())
 
 let dt_us () =

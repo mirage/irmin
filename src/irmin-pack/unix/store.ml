@@ -419,7 +419,7 @@ module Maker (Config : Conf.S) = struct
             let node : 'a Node.t = (contents, node) in
             let commit : 'a Commit.t = (node, commit) in
             let on_success res =
-              let s = Mtime_clock.count c0 |> Mtime.Span.to_s in
+              let s = Mtime_clock.count c0 |> Mtime.span_to_s in
               [%log.info "[pack] batch completed in %.6fs" s];
               t.during_batch <- false;
               File_manager.flush t.fm |> Errs.raise_if_error;

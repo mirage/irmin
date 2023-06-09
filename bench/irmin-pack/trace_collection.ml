@@ -22,6 +22,7 @@
     A module [Make_replayable] has yet to be implemented. *)
 
 open Lwt.Syntax
+module Mtime = Import.Mtime
 
 (** Make state trace collector. *)
 module Make_stat (Store : Irmin.Generic_key.KV) = struct
@@ -200,7 +201,8 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
 
   let short_op_end { t0; writer; _ } short_op =
     let duration =
-      Mtime_clock.count t0 |> Mtime.Span.to_s |> Int32.bits_of_float
+      Mtime_clock.count t0 |> fun span ->
+      Mtime.span_to_s span |> Int32.bits_of_float
     in
     let op =
       match short_op with
@@ -238,7 +240,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
     t.commit_before <- (stats_before, store_before)
 
   let commit_end t tree =
-    let duration = Mtime_clock.count t.t0 |> Mtime.Span.to_s in
+    let duration = Mtime_clock.count t.t0 |> Mtime.span_to_s in
     let duration = duration |> Int32.bits_of_float in
     let stats_after = Bag_of_stats.create t.store_path t.prev_merge_durations in
     t.prev_merge_durations <- Index.Stats.((get ()).merge_durations);

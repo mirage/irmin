@@ -21,7 +21,7 @@ depends: [
   "fmt"
   "logs"
   "lwt"          {>= "5.4.0"}
-  "mtime"        {< "2.0.0"}
+  "mtime"        {>= "2.0.0"}
   "cmdliner"
   "optint"       {>= "0.1.0"}
   "checkseum"
