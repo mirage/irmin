@@ -12,37 +12,64 @@ let config ?(readonly = false) ?(fresh = true) root =
 
 let info () = S.Info.empty
 
-let do_the_do ro i =
-  let t = S.main ro in
-  let c = S.Head.get t in
-  match S.Commit.of_hash ro (S.Commit.hash c) with
-  | None -> failwith "no hash"
-  | Some commit ->
-      let tree = S.Commit.tree commit in
-      let x = S.Tree.find tree [ "a" ] in
-      if x <> Some "x" then failwith "RO find";
-      Format.printf "Done: i:%d d:%d@." i (Domain.self () :> int)
+let test_find repo i =
+  let tree =
+    repo
+    |> S.main
+    |> S.Head.get
+    |> S.Commit.hash
+    |> S.Commit.of_hash repo
+    |> Option.get
+    |> S.Commit.tree
+  in
+  let start_value = S.Tree.find tree [ "start" ] in
+  assert (start_value = Some "content-start");
+  let str_i = string_of_int i in
+  let value = S.Tree.find tree [ str_i ] in
+  if not (value = Some ("content-" ^ str_i)) then
+    Format.printf "Couldn't read correct value from thread %d@." i
+
+let test_add repo i =
+  let main = S.main repo in
+  let tree =
+    main
+    |> S.Head.get
+    |> S.Commit.hash
+    |> S.Commit.of_hash repo
+    |> Option.get
+    |> S.Commit.tree
+  in
+  let str_i = string_of_int i in
+  let tree' = S.Tree.add tree [ str_i ] ("content-" ^ str_i) in
+  S.set_tree_exn ~info main [] tree';
+  ()
 
 let repeatedly_do fn arg () =
   for _ = 0 to 100 do
     Sys.opaque_identity (fn arg)
   done
 
-let open_ro_after_rw_closed env =
+let dispatch repo i () =
+  repeatedly_do
+    (if i mod 2 = 0 then (* Readers *)
+     test_find repo
+    else (* Writers *) test_add repo)
+    (i / 2) ()
+
+let setup d_mgr =
   rm_dir root;
-  let rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let t = S.main rw in
-  let tree = S.Tree.singleton [ "a" ] "x" in
-  S.set_tree_exn ~parents:[] ~info t [] tree;
-  S.Repo.close rw;
-  let ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
-  let l =
-    List.init 7 (fun i () ->
-        Eio.Domain_manager.run env (repeatedly_do (do_the_do ro) i))
+  let repo = S.Repo.v (config ~readonly:false ~fresh:true root) in
+  let main = S.main repo in
+  let init = S.Tree.singleton [ "start" ] "content-start" in
+  S.set_tree_exn ~parents:[] ~info main [] init;
+  S.Repo.close repo;
+  let repo = S.Repo.v (config ~readonly:false ~fresh:false root) in
+  let fibers =
+    List.init 7 (fun i () -> Eio.Domain_manager.run d_mgr (dispatch repo i))
   in
-  Eio.Fiber.all l;
-  S.Repo.close ro
+  Eio.Fiber.all fibers;
+  S.Repo.close repo
 
 let () =
   Logs.set_level None;
-  Eio_main.run @@ fun env -> open_ro_after_rw_closed env#domain_mgr
+  Eio_main.run @@ fun env -> setup env#domain_mgr
