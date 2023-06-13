@@ -7,6 +7,10 @@
     default. Add `allow_duplicate` optional argument to override. (@metanivek,
     #2252)
     
+- **irmin-pack**
+  - Add maximum memory as an alternative configuration option, `lru_max_memory`,
+    for setting LRU capacity. (@metanivek, #2254)
+
 ### Changed
 
 - **irmin**
@@ -19,7 +23,6 @@
     published on the Irmin website (@wyn, #2243)
 
 ## 3.7.1 (2023-05-24)
-
 
 ### Fixed
 
