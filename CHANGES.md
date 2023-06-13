@@ -12,6 +12,9 @@
 - **irmin**
   - Lower bounds for `mtime` is now `2.0.0` (@patricoferris, #2166)
 
+- **irmin-mirage-git**
+  - Lower bound for `mirage-kv` is now `6.0.0` (#2256, @metanivek)
+
 ### Fixed
 
 - **irmin-cli**
