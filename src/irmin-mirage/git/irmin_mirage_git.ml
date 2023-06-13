@@ -120,7 +120,7 @@ module KV_RO (G : Git.S) = struct
       let l =
         List.map
           (fun (s, k) ->
-            ( s,
+            ( Mirage_kv.Key.v s,
               match S.Tree.destruct k with
               | `Contents _ -> `Value
               | `Node _ -> `Dictionary ))
@@ -138,6 +138,20 @@ module KV_RO (G : Git.S) = struct
       S.Tree.find t.tree (path key) >|= function
       | None -> err_not_found key
       | Some v -> Ok v
+
+    let get_partial t key ~offset ~length =
+      let open Lwt_result.Infix in
+      get t key >|= fun data ->
+      let len = String.length data in
+      let off = Optint.Int63.to_int offset in
+      if off >= len || off < 0 || length < 0 then ""
+      else
+        let l = min length (len - off) in
+        String.sub data off l
+
+    let size t key =
+      let open Lwt_result.Infix in
+      get t key >|= fun data -> Optint.Int63.of_int (String.length data)
   end
 
   type t = { root : S.path; t : S.t }
@@ -154,7 +168,7 @@ module KV_RO (G : Git.S) = struct
     let key' = path key in
     S.last_modified t.t key' >|= function
     | [] -> Error (`Not_found key)
-    | h :: _ -> Ok (0, S.Info.date (S.Commit.info h))
+    | h :: _ -> Ok (Ptime.v (0, S.Info.date (S.Commit.info h)))
 
   let connect ?depth ?(branch = "main") ?(root = Mirage_kv.Key.empty) ?ctx
       ?headers t uri =
@@ -175,8 +189,13 @@ module KV_RO (G : Git.S) = struct
 
   let exists t k = tree t >>= fun t -> Tree.exists t k
   let get t k = tree t >>= fun t -> Tree.get t k
+
+  let get_partial t k ~offset ~length =
+    tree t >>= fun t -> Tree.get_partial t k ~offset ~length
+
   let list t k = tree t >>= fun t -> Tree.list t k
   let digest t k = tree t >>= fun t -> Tree.digest t k
+  let size t k = tree t >>= fun t -> Tree.size t k
 
   let get t k =
     match Key.segments k with
@@ -243,15 +262,16 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
     | Batch b -> Lwt.return { Tree.tree = b.tree; repo = repo t }
 
   let digest t k = tree t >>= fun t -> Tree.digest t k
+  let size t k = tree t >>= fun t -> Tree.size t k
   let exists t k = tree t >>= fun t -> Tree.exists t k
   let get t k = tree t >>= fun t -> Tree.get t k
+
+  let get_partial t k ~offset ~length =
+    tree t >>= fun t -> Tree.get_partial t k ~offset ~length
+
   let list t k = tree t >>= fun t -> Tree.list t k
 
   type write_error = [ RO.error | Mirage_kv.write_error | RO.Sync.push_error ]
-
-  let write_error = function
-    | Ok _ -> Ok ()
-    | Error e -> Error (e :> write_error)
 
   let pp_write_error ppf = function
     | #RO.error as e -> RO.pp_error ppf e
@@ -261,29 +281,56 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   let info t op = Info.f ~author:(t.author ()) "%s" (t.msg op)
   let path = RO.path
 
+  let ( >?= ) r f =
+    r >>= function
+    | Error e -> Lwt.return_error (e :> write_error)
+    | Ok r -> f r
+
   let set t k v =
     let info = info t (`Set k) in
     match t.store with
-    | Store s -> (
-        S.set ~info s.t (path k) v >>= function
-        | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)))
+    | Store s ->
+        S.set ~info s.t (path k) v >?= fun () ->
+        RO.Sync.push s.t t.remote >?= fun _ -> Lwt.return_ok ()
     | Batch b ->
         S.Tree.add b.tree (path k) v >|= fun tree ->
         b.tree <- tree;
         Ok ()
 
+  let set_partial t k ~offset v =
+    let off = Optint.Int63.to_int offset in
+    if off < 0 then Lwt.return_ok ()
+    else
+      get t k >?= fun data ->
+      let data_len = String.length data in
+      let v_len = String.length v in
+      let buf = Bytes.make (max data_len (off + v_len)) '\000' in
+      Bytes.blit_string data 0 buf 0 data_len;
+      Bytes.blit_string v 0 buf off v_len;
+      set t k (Bytes.unsafe_to_string buf)
+
   let remove t k =
     let info = info t (`Remove k) in
     match t.store with
-    | Store s -> (
-        S.remove ~info s.t (path k) >>= function
-        | Ok _ -> RO.Sync.push s.t t.remote >|= write_error
-        | Error e -> Lwt.return (Error (e :> write_error)))
+    | Store s ->
+        S.remove ~info s.t (path k) >?= fun () ->
+        RO.Sync.push s.t t.remote >?= fun _ -> Lwt.return_ok ()
     | Batch b ->
         S.Tree.remove b.tree (path k) >|= fun tree ->
         b.tree <- tree;
         Ok ()
+
+  let rename t ~source ~dest =
+    get t source >?= fun data ->
+    remove t source >?= fun () -> set t dest data
+
+  let allocate t k ?last_modified:_ size =
+    let size = Optint.Int63.to_int size in
+    if size < 0 then Lwt.return_ok ()
+    else
+      exists t k >?= function
+      | Some _ -> Lwt.return_error (`Already_present k)
+      | None -> set t k (String.make size '\000')
 
   let get_store_tree (t : RO.t) =
     S.Head.find t.t >>= function

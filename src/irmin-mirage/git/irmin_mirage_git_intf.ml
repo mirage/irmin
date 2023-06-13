@@ -83,6 +83,18 @@ module type KV_RW = sig
 
   include Mirage_kv.RW
 
+  val batch : t -> ?retries:int -> (t -> 'a Lwt.t) -> 'a Lwt.t
+  (** [batch t f] run [f] in batch. Ensure the durability of operations.
+
+      Since a batch is applied at once, the readings inside a batch will return
+      the state before the entire batch. Concurrent operations will not affect
+      other ones executed during the batch.
+
+      Batch applications can fail to apply if other operations are happening
+      concurrently. In case of failure, [f] will run again with the most recent
+      version of [t]. The result is [Error `Too_many_retries] if [f] is run for
+      more then [retries] attemps (default is [42]). *)
+
   val connect :
     ?depth:int ->
     ?branch:string ->
