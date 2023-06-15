@@ -2,6 +2,9 @@
 
 ### Fixed
 
+- **irmin**
+  - Fix performance issue in `Tree.length` (#2258, @art-w)
+
 - **irmin-pack**
   - Fix snapshot export when using lower layer (#2257, @metanivek)
 
