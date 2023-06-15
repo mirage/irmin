@@ -240,8 +240,7 @@ module Maker (Config : Conf.S) = struct
                         (Irmin.Type.to_string XKey.t key))
                 | Some (k, _kind) -> Ok k)
 
-          let start ~unlink ~use_auto_finalisation ~new_files_path t commit_key
-              =
+          let start ~unlink ~use_auto_finalisation ~output t commit_key =
             let open Result_syntax in
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
@@ -260,21 +259,20 @@ module Maker (Config : Conf.S) = struct
             let* gc =
               Gc.v ~root ~lower_root ~generation:next_generation ~unlink
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
-                ~node:t.node ~commit:t.commit ~new_files_path commit_key
+                ~node:t.node ~commit:t.commit ~output commit_key
             in
             t.running_gc <- Some { gc; use_auto_finalisation };
             Ok ()
 
-          let start_exn ?(unlink = true) ~use_auto_finalisation ~new_files_path
-              t commit_key =
+          let start_exn ?(unlink = true) ?(output = `Root)
+              ~use_auto_finalisation t commit_key =
             match t.running_gc with
             | Some _ ->
                 [%log.info "Repo is alreadying running GC. Skipping."];
                 Lwt.return false
             | None -> (
                 let result =
-                  start ~unlink ~use_auto_finalisation ~new_files_path t
-                    commit_key
+                  start ~unlink ~use_auto_finalisation ~output t commit_key
                 in
                 match result with
                 | Ok _ -> Lwt.return true
@@ -353,7 +351,7 @@ module Maker (Config : Conf.S) = struct
             (* The GC action here does not matter, since we'll not fully
                finalise it *)
             let* launched =
-              start_exn ~use_auto_finalisation:false ~new_files_path:path t
+              start_exn ~use_auto_finalisation:false ~output:(`External path) t
                 commit_key
             in
             let () =
@@ -622,16 +620,13 @@ module Maker (Config : Conf.S) = struct
       let finalise_exn = X.Repo.Gc.finalise_exn
 
       let start_exn ?unlink t =
-        let root = Irmin_pack.Conf.root t.X.Repo.config in
-        X.Repo.Gc.start_exn ?unlink ~use_auto_finalisation:false
-          ~new_files_path:root t
+        X.Repo.Gc.start_exn ?unlink ~use_auto_finalisation:false t
 
       let start repo commit_key =
-        let root = Irmin_pack.Conf.root repo.X.Repo.config in
         try
           let* started =
-            X.Repo.Gc.start_exn ~unlink:true ~use_auto_finalisation:true
-              ~new_files_path:root repo commit_key
+            X.Repo.Gc.start_exn ~unlink:true ~use_auto_finalisation:true repo
+              commit_key
           in
           Lwt.return_ok started
         with exn -> catch_errors "Start GC" exn

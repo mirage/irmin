@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Fix snapshot export when using lower layer (#2257, @metanivek)
+
 ## 3.7.1 
 
 ### Fixed

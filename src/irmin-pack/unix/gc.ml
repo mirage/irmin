@@ -42,8 +42,8 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~root ~lower_root ~new_files_path ~generation ~unlink ~dispatcher ~fm
-      ~contents ~node ~commit commit_key =
+  let v ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm ~contents
+      ~node ~commit commit_key =
     let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
@@ -56,10 +56,11 @@ module Make (Args : Gc_args.S) = struct
           assert false
     in
     let status = Fm.control fm |> Fm.Control.payload |> fun p -> p.status in
-    (* Ensure we are calling GC on a commit strictly newer than last GC commit *)
+    (* Ensure we are calling GC on a commit strictly newer than last GC commit
+       Only checking when the output is the root (it is not a snapshot export) *)
     let* () =
-      match status with
-      | Gced previous
+      match (output, status) with
+      | `Root, Gced previous
         when Int63.Syntax.(
                previous.latest_gc_target_offset >= latest_gc_target_offset) ->
           Error
@@ -68,6 +69,9 @@ module Make (Args : Gc_args.S) = struct
                  Int63.pp latest_gc_target_offset Int63.pp
                  previous.latest_gc_target_offset))
       | _ -> Ok ()
+    in
+    let new_files_path =
+      match output with `Root -> root | `External path -> path
     in
     (* Since we can call GC on commits in the lower, ensure we do not provide a
        [new_suffix_start_offset] that is older than our current starting offset. *)
