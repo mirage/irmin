@@ -4,19 +4,22 @@
 
 - **irmin**
   - Change behavior of `Irmin.Conf.key` to disallow duplicate key names by
-    default. Add `allow_duplicate` optional argument to override. (@metanivek,
-    #2252)
+    default. Add `allow_duplicate` optional argument to override. (#2252,
+    @metanivek)
     
 ### Changed
 
 - **irmin**
-  - Lower bounds for `mtime` is now `2.0.0` (@patricoferris, #2166)
+  - Lower bound for `mtime` is now `2.0.0` (#2166, @patricoferris)
+
+- **irmin-mirage-git**
+  - Lower bound for `mirage-kv` is now `6.0.0` (#2256, @metanivek)
 
 ### Fixed
 
 - **irmin-cli**
   - Changed `--store irf` to `--store fs` to align the CLI with what is
-    published on the Irmin website (@wyn, #2243)
+    published on the Irmin website (#2243, @wyn)
 
 ## 3.7.1 (2023-05-24)
 
@@ -24,9 +27,9 @@
 ### Fixed
 
 - **irmin-pack**
-  - Fix issue when migrating v2 stores to use lower layer (@metanivek, #2241)
+  - Fix issue when migrating v2 stores to use lower layer (#2241, @metanivek)
   - Fix issue when calling GC for a commit in the lower after migration
-    (@metanivek, #2242)
+    (#2242, @metanivek)
 
 ## 3.7.0 (2023-04-26)
 
