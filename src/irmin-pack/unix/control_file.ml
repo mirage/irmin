@@ -327,6 +327,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     mutable payload : payload;
     path : string;
     tmp_path : string option;
+    lock : Eio.Mutex.t;
   }
 
   let write io payload =
@@ -335,6 +336,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
 
   let set_payload t payload =
     let open Result_syntax in
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     if Io.readonly t.io then Error `Ro_not_allowed
     else
       match t.tmp_path with
@@ -354,22 +356,28 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
 
   let create_rw ~path ~tmp_path ~overwrite (payload : payload) =
     let open Result_syntax in
+    let lock = Eio.Mutex.create () in
     let* io = Io.create ~path ~overwrite in
     let+ () = write io payload in
-    { io; payload; path; tmp_path }
+    { io; payload; path; tmp_path; lock }
 
   let open_ ~path ~tmp_path ~readonly =
     let open Result_syntax in
+    let lock = Eio.Mutex.create () in
     let* io = Io.open_ ~path ~readonly in
     let+ payload = read io in
-    { io; payload; path; tmp_path }
+    { io; payload; path; tmp_path; lock }
 
-  let close t = Io.close t.io
-  let readonly t = Io.readonly t.io
-  let payload t = t.payload
+  let close t = Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> Io.close t.io
+
+  let readonly t =
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> Io.readonly t.io
+
+  let payload t = Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> t.payload
 
   let reload t =
     let open Result_syntax in
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     if not @@ Io.readonly t.io then Error `Rw_not_allowed
     else
       let* () = Io.close t.io in
@@ -393,7 +401,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     let+ () = Io.close io in
     payload
 
-  let fsync t = Io.fsync t.io
+  let fsync t = Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> Io.fsync t.io
 end
 
 module Upper = Make (Serde.Upper)
