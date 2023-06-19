@@ -24,12 +24,38 @@ exception Dangling_hash
 let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 
-module Table (K : Irmin.Hash.S) = Hashtbl.Make (struct
+module UnsafeTbl (K : Irmin.Hash.S) = Hashtbl.Make (struct
   type t = K.t
 
   let hash = K.short_hash
   let equal = Irmin.Type.(unstage (equal K.t))
 end)
+
+(** Safe but might be incredibly slow. *)
+module Table (K : Irmin.Hash.S) = struct
+  module Unsafe = UnsafeTbl (K)
+
+  type 'a t = { lock : Eio.Mutex.t; data : 'a Unsafe.t }
+
+  let create n =
+    let lock = Eio.Mutex.create () in
+    let data = Unsafe.create n in
+    { lock; data }
+
+  let add { lock; data } k v =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.add data k v
+
+  let mem { lock; data } k =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.mem data k
+
+  let find_opt { lock; data } k =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.find_opt data k
+
+  let find t k = match find_opt t k with Some v -> v | None -> raise Not_found
+
+  let clear { lock; data } =
+    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.clear data
+end
 
 module Make_without_close_checks
     (Fm : File_manager.S)
