@@ -158,6 +158,7 @@ module Maker (Config : Conf.S) = struct
           dispatcher : Dispatcher.t;
           mutable during_batch : bool;
           mutable running_gc : running_gc option;
+          lock : Eio.Mutex.t;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -199,6 +200,7 @@ module Maker (Config : Conf.S) = struct
           in
           let during_batch = false in
           let running_gc = None in
+          let lock = Eio.Mutex.create () in
           {
             config;
             contents;
@@ -210,6 +212,7 @@ module Maker (Config : Conf.S) = struct
             during_batch;
             running_gc;
             dispatcher;
+            lock;
           }
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
@@ -221,6 +224,7 @@ module Maker (Config : Conf.S) = struct
           let behaviour { fm; _ } = File_manager.gc_behaviour fm
 
           let cancel t =
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             match t.running_gc with
             | Some { gc; _ } ->
                 let cancelled = Gc.cancel gc in
@@ -242,6 +246,7 @@ module Maker (Config : Conf.S) = struct
 
           let start ~unlink ~use_auto_finalisation ~output t commit_key =
             let open Result_syntax in
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
               if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
@@ -266,6 +271,7 @@ module Maker (Config : Conf.S) = struct
 
           let start_exn ?(unlink = true) ?(output = `Root)
               ~use_auto_finalisation t commit_key =
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             match t.running_gc with
             | Some _ ->
                 [%log.info "Repo is alreadying running GC. Skipping."];
@@ -277,6 +283,7 @@ module Maker (Config : Conf.S) = struct
                 match result with Ok _ -> true | Error e -> Errs.raise_error e)
 
           let finalise_exn ?(wait = false) t =
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             let result =
               match t.running_gc with
               | None -> Ok `Idle
@@ -293,9 +300,12 @@ module Maker (Config : Conf.S) = struct
                 t.running_gc <- None;
                 Errs.raise_error e
 
-          let is_finished t = Option.is_none t.running_gc
+          let is_finished t =
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
+            Option.is_none t.running_gc
 
           let on_finalise t f =
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             match t.running_gc with
             | None -> ()
             | Some { gc; _ } -> Gc.on_finalise gc f
@@ -354,6 +364,7 @@ module Maker (Config : Conf.S) = struct
               if not launched then Errs.raise_error `Forbidden_during_gc
             in
             let gced =
+              Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
               match t.running_gc with
               | None -> assert false
               | Some { gc; _ } -> Gc.finalise_without_swap gc
@@ -374,6 +385,7 @@ module Maker (Config : Conf.S) = struct
 
         let split t =
           let open Result_syntax in
+          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           let readonly = Irmin_pack.Conf.readonly t.config in
           let* () =
             if not (is_split_allowed t) then Error `Split_disallowed else Ok ()
@@ -398,6 +410,7 @@ module Maker (Config : Conf.S) = struct
 
         let batch t f =
           [%log.debug "[pack] batch start"];
+          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed
           else
