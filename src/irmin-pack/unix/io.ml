@@ -168,7 +168,8 @@ module Unix = struct
            usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
         let () = Util.really_write t.fd off buf 0 len in
-        Index.Stats.add_write len;
+        (* Bad index usage! Not multicore-safe!
+           Index.Stats.add_write len; *)
         ()
 
   let write_string t ~off s =
