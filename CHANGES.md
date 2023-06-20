@@ -20,6 +20,16 @@
 - **irmin-cli**
   - Changed `--store irf` to `--store fs` to align the CLI with what is
     published on the Irmin website (#2243, @wyn)
+    
+## 3.7.2 (2023-06-16)
+
+### Fixed
+
+- **irmin**
+  - Fix performance issue in `Tree.length` (#2258, @art-w)
+
+- **irmin-pack**
+  - Fix snapshot export when using lower layer (#2257, @metanivek)
 
 ## 3.7.1 (2023-05-24)
 

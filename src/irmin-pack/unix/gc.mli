@@ -26,7 +26,7 @@ module Make (Args : Gc_args.S) : sig
   val v :
     root:string ->
     lower_root:string option ->
-    new_files_path:string ->
+    output:[ `External of string | `Root ] ->
     generation:int ->
     unlink:bool ->
     dispatcher:Args.Dispatcher.t ->
