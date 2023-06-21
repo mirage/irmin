@@ -32,47 +32,54 @@ type (_, _) unsafe_state =
   | Offset : int63 -> ('hash, unsafe) unsafe_state
 
 type 'hash state = ('hash, safe) unsafe_state
-type 'hash t = State : { mutable state : ('hash, _) unsafe_state } -> 'hash t
+type 'hash t = State : { state : ('hash, _) unsafe_state Atomic.t } -> 'hash t
 
 let inspect (State t) =
-  match t.state with
+  match Atomic.get t.state with
   | Offset _ -> failwith "inspect unsafe Offset"
   | Direct d -> Direct d
   | Indexed d -> Indexed d
 
 let to_hash (State t) =
-  match t.state with
+  match Atomic.get t.state with
   | Direct t -> t.hash
   | Indexed h -> h
   | Offset _ -> failwith "Hash unavailable"
 
 let to_offset (State t) =
-  match t.state with
+  match Atomic.get t.state with
   | Direct t -> Some t.offset
   | Offset offset -> Some offset
   | Indexed _ -> None
 
 let to_length (State t) =
-  match t.state with
+  match Atomic.get t.state with
   | Direct t -> Some t.length
   | Offset _ -> None
   | Indexed _ -> None
 
-let promote_exn ~offset ~length ?volume_identifier (State t) =
-  match t.state with
-  | Direct _ -> failwith "Attempted to promote a key that is already Direct"
+let rec promote_exn ~offset ~length ?volume_identifier (State t) =
+  match Atomic.get t.state with
+  | Direct d ->
+      assert (d.offset = offset);
+      assert (d.length = length);
+      assert (d.volume_identifier = volume_identifier)
   | Offset _ -> failwith "Attempted to promote an offset without hash"
-  | Indexed hash ->
-      t.state <- Direct { hash; offset; length; volume_identifier }
+  | Indexed hash as old ->
+      let direct = Direct { hash; offset; length; volume_identifier } in
+      if not (Atomic.compare_and_set t.state old direct) then
+        promote_exn ~offset ~length ?volume_identifier (State t)
 
-let set_volume_identifier_exn ~volume_identifier (State t) =
-  match t.state with
+let rec set_volume_identifier_exn ~volume_identifier (State t) =
+  match Atomic.get t.state with
   | Indexed _ ->
       failwith "Attempted to set volume identifier to a key that is Indexed"
   | Offset _ ->
       failwith "Attempted to set volume identifier to an offset without hash"
-  | Direct { hash; offset; length; _ } ->
-      t.state <- Direct { hash; offset; length; volume_identifier }
+  | Direct { hash; offset; length; _ } as old ->
+      let direct = Direct { hash; offset; length; volume_identifier } in
+      if not (Atomic.compare_and_set t.state old direct) then
+        set_volume_identifier_exn ~volume_identifier (State t)
 
 let t : type h. h Irmin.Type.t -> h t Irmin.Type.t =
  fun hash_t ->
@@ -83,8 +90,13 @@ let t : type h. h Irmin.Type.t -> h t Irmin.Type.t =
       | Indexed x1 -> indexed x1)
   |~ case1 "Direct" [%typ: hash * int63 * int] (fun (hash, offset, length) ->
          State
-           { state = Direct { hash; offset; length; volume_identifier = None } })
-  |~ case1 "Indexed" [%typ: hash] (fun x1 -> State { state = Indexed x1 })
+           {
+             state =
+               Atomic.make
+                 (Direct { hash; offset; length; volume_identifier = None });
+           })
+  |~ case1 "Indexed" [%typ: hash] (fun x1 ->
+         State { state = Atomic.make (Indexed x1) })
   |> sealv
 
 let t (type hash) (hash_t : hash Irmin.Type.t) =
@@ -118,10 +130,11 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
   let encode_bin t f = Hash.encode_bin (to_hash t) f in
   let unboxed_encode_bin t f = Hash.unboxed_encode_bin (to_hash t) f in
   let decode_bin buf pos_ref =
-    State { state = Indexed (Hash.decode_bin buf pos_ref) }
+    State { state = Atomic.make (Indexed (Hash.decode_bin buf pos_ref)) }
   in
   let unboxed_decode_bin buf pos_ref =
-    State { state = Indexed (Hash.unboxed_decode_bin buf pos_ref) }
+    State
+      { state = Atomic.make (Indexed (Hash.unboxed_decode_bin buf pos_ref)) }
   in
   let size_of = Irmin.Type.Size.custom_static Hash.encoded_size in
   Irmin.Type.like (t hash_t) ~pre_hash ~equal ~compare
@@ -129,10 +142,11 @@ let t (type hash) (hash_t : hash Irmin.Type.t) =
     ~unboxed_bin:(unboxed_encode_bin, unboxed_decode_bin, size_of)
 
 let v_direct ~offset ~length ?volume_identifier hash =
-  State { state = Direct { hash; offset; length; volume_identifier } }
+  State
+    { state = Atomic.make (Direct { hash; offset; length; volume_identifier }) }
 
-let v_indexed hash = State { state = Indexed hash }
-let v_offset offset = State { state = Offset offset }
+let v_indexed hash = State { state = Atomic.make (Indexed hash) }
+let v_offset offset = State { state = Atomic.make (Offset offset) }
 
 module type S = sig
   type hash
