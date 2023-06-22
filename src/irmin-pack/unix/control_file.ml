@@ -324,7 +324,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
 
   type t = {
     mutable io : Io.t;
-    mutable payload : payload;
+    payload : payload Atomic.t;
     path : string;
     tmp_path : string option;
     lock : Eio.Mutex.t;
@@ -347,7 +347,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
           t.io <- io_tmp;
           let* () = write io_tmp payload in
           let+ () = Io.move_file ~src:tmp_path ~dst:t.path in
-          t.payload <- payload
+          Atomic.set t.payload payload
 
   let read io =
     let open Result_syntax in
@@ -359,21 +359,21 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
     let lock = Eio.Mutex.create () in
     let* io = Io.create ~path ~overwrite in
     let+ () = write io payload in
-    { io; payload; path; tmp_path; lock }
+    { io; payload = Atomic.make payload; path; tmp_path; lock }
 
   let open_ ~path ~tmp_path ~readonly =
     let open Result_syntax in
     let lock = Eio.Mutex.create () in
     let* io = Io.open_ ~path ~readonly in
     let+ payload = read io in
-    { io; payload; path; tmp_path; lock }
+    { io; payload = Atomic.make payload; path; tmp_path; lock }
 
   let close t = Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> Io.close t.io
 
   let readonly t =
     Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> Io.readonly t.io
 
-  let payload t = Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> t.payload
+  let payload t = Atomic.get t.payload
 
   let reload t =
     let open Result_syntax in
@@ -384,7 +384,7 @@ module Make (Serde : Serde.S) (Io : Io.S) = struct
       let* io = Io.open_ ~path:t.path ~readonly:true in
       t.io <- io;
       let+ payload = read io in
-      t.payload <- payload
+      Atomic.set t.payload payload
 
   let read_payload ~path =
     let open Result_syntax in
