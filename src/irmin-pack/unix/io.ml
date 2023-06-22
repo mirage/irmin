@@ -168,7 +168,7 @@ module Unix = struct
            usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
         let () = Util.really_write t.fd off buf 0 len in
-        (* Bad index usage! Not multicore-safe!
+        (* TODO: Index.Stats is not domain-safe
            Index.Stats.add_write len; *)
         ()
 
@@ -195,7 +195,8 @@ module Unix = struct
     | true -> raise Errors.Closed
     | false ->
         let nread = Util.really_read t.fd off len buf in
-        Index.Stats.add_read nread;
+        (* TODO: Index.Stats is not domain-safe
+           Index.Stats.add_read nread; *)
         if nread <> len then
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
@@ -231,7 +232,8 @@ module Unix = struct
           ~length:len
       in
       if nread > 0 then (
-        Index.Stats.add_read nread;
+        (* TODO: Index.Stats is not domain-safe
+           Index.Stats.add_read nread; *)
         Buffer.add_subbytes buf bytes 0 nread;
         if nread = len then aux ~off:Int63.(add off (of_int nread)))
     in
