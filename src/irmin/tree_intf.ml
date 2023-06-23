@@ -375,18 +375,18 @@ module type S = sig
   (** {1 Performance counters} *)
 
   type counters = {
-    mutable contents_hash : int;
-    mutable contents_find : int;
-    mutable contents_add : int;
-    mutable contents_mem : int;
-    mutable node_hash : int;
-    mutable node_mem : int;
-    mutable node_index : int;
-    mutable node_add : int;
-    mutable node_find : int;
-    mutable node_val_v : int;
-    mutable node_val_find : int;
-    mutable node_val_list : int;
+    contents_hash : int;
+    contents_find : int;
+    contents_add : int;
+    contents_mem : int;
+    node_hash : int;
+    node_mem : int;
+    node_index : int;
+    node_add : int;
+    node_find : int;
+    node_val_v : int;
+    node_val_find : int;
+    node_val_list : int;
   }
 
   val counters : unit -> counters
