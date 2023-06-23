@@ -619,7 +619,7 @@ struct
               e.g. through the [add] or [to_concrete] functions. It shouldn't be
               collected on [clear] because it will be needed for [save]. *)
 
-    and partial_ptr = { mutable target : partial_ptr_target }
+    and partial_ptr = { target : partial_ptr_target Atomic.t } [@@unboxed]
     and total_ptr = Total_ptr of total_ptr t [@@unboxed]
 
     and truncated_ptr =
@@ -645,7 +645,7 @@ struct
         | Total -> fun (Total_ptr ptr) -> ptr.v_ref
         | Partial _ -> (
             fun { target } ->
-              match target with
+              match Atomic.get target with
               | Lazy key -> Val_ref.of_key key
               | Lazy_loaded { v_ref; _ } | Dirty { v_ref; _ } -> v_ref)
         | Truncated -> ( function Broken v -> v | Intact ptr -> ptr.v_ref)
@@ -654,7 +654,7 @@ struct
         | Total -> fun (Total_ptr ptr) -> Val_ref.to_key_exn ptr.v_ref
         | Partial _ -> (
             fun { target } ->
-              match target with
+              match Atomic.get target with
               | Lazy key -> key
               | Lazy_loaded { v_ref; _ } | Dirty { v_ref; _ } ->
                   Val_ref.to_key_exn v_ref)
@@ -679,20 +679,23 @@ struct
         match layout with
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
-            function
-            | { target = Dirty entry } | { target = Lazy_loaded entry } ->
-                (* [target] is already cached. [cache] is only concerned with
-                   new cache entries, not the older ones for which the irmin
-                   users can discard using [clear]. *)
-                entry
-            | { target = Lazy key } as t -> (
-                if not force then raise_dangling_hash context (Key.to_hash key);
-                match find ~expected_depth key with
-                | None ->
-                    Fmt.failwith "%a: unknown inode key (%s)" pp_key key context
-                | Some x ->
-                    if cache then t.target <- Lazy_loaded x;
-                    x))
+            fun { target } ->
+              match Atomic.get target with
+              | Dirty entry | Lazy_loaded entry ->
+                  (* [target] is already cached. [cache] is only concerned with
+                     new cache entries, not the older ones for which the irmin
+                     users can discard using [clear]. *)
+                  entry
+              | Lazy key -> (
+                  if not force then
+                    raise_dangling_hash context (Key.to_hash key);
+                  match find ~expected_depth key with
+                  | None ->
+                      Fmt.failwith "%a: unknown inode key (%s)" pp_key key
+                        context
+                  | Some x ->
+                      if cache then Atomic.set target (Lazy_loaded x);
+                      x))
         | Truncated -> (
             function
             | Intact entry -> entry
@@ -702,12 +705,12 @@ struct
 
       let of_target : type ptr. ptr layout -> ptr t -> ptr = function
         | Total -> fun target -> Total_ptr target
-        | Partial _ -> fun target -> { target = Dirty target }
+        | Partial _ -> fun target -> { target = Atomic.make (Dirty target) }
         | Truncated -> fun target -> Intact target
 
       let of_key : type ptr. ptr layout -> key -> ptr = function
         | Total -> assert false
-        | Partial _ -> fun key -> { target = Lazy key }
+        | Partial _ -> fun key -> { target = Atomic.make (Lazy key) }
         | Truncated -> fun key -> Broken (Val_ref.of_key key)
 
       type ('input, 'output) cps = { f : 'r. 'input -> ('output -> 'r) -> 'r }
@@ -731,23 +734,24 @@ struct
               save_dirty.f entry (fun key ->
                   Val_ref.promote_exn entry.v_ref key)
         | Partial _ -> (
-            function
-            | { target = Dirty entry } as box ->
-                save_dirty.f entry (fun key ->
-                    if clear then box.target <- Lazy key
-                    else (
-                      box.target <- Lazy_loaded entry;
-                      Val_ref.promote_exn entry.v_ref key))
-            | { target = Lazy_loaded entry } as box ->
-                (* In this case, [entry.v_ref] is a [Hash h] such that [mem t
-                   (index t h) = true]. We "save" the entry in order to trigger
-                   the [index] lookup and recover the key, in order to meet the
-                   return invariant above.
+            fun { target } ->
+              match Atomic.get target with
+              | Dirty entry ->
+                  save_dirty.f entry (fun key ->
+                      if clear then Atomic.set target (Lazy key)
+                      else (
+                        Atomic.set target (Lazy_loaded entry);
+                        Val_ref.promote_exn entry.v_ref key))
+              | Lazy_loaded entry ->
+                  (* In this case, [entry.v_ref] is a [Hash h] such that [mem t
+                     (index t h) = true]. We "save" the entry in order to trigger
+                     the [index] lookup and recover the key, in order to meet the
+                     return invariant above.
 
-                   TODO: refactor this case to be more precise. *)
-                save_dirty.f entry (fun key ->
-                    if clear then box.target <- Lazy key)
-            | { target = Lazy _ } -> ())
+                     TODO: refactor this case to be more precise. *)
+                  save_dirty.f entry (fun key ->
+                      if clear then Atomic.set target (Lazy key))
+              | Lazy _ -> ())
         | Truncated -> (
             function
             (* TODO: this branch is currently untested: we never attempt to
@@ -764,17 +768,18 @@ struct
           type ptr.
           iter_dirty:(ptr layout -> ptr t -> unit) -> ptr layout -> ptr -> unit
           =
-       fun ~iter_dirty layout ptr ->
+       fun ~iter_dirty layout target ->
         match layout with
         | Partial _ -> (
-            match ptr with
-            | { target = Lazy _ } -> ()
-            | { target = Dirty ptr } -> iter_dirty layout ptr
-            | { target = Lazy_loaded ptr } as box ->
+            let target = target.target in
+            match Atomic.get target with
+            | Lazy _ -> ()
+            | Dirty ptr -> iter_dirty layout ptr
+            | Lazy_loaded ptr ->
                 (* Since a [Lazy_loaded] used to be a [Lazy], the key is always
                    available. *)
                 let key = Val_ref.to_key_exn ptr.v_ref in
-                box.target <- Lazy key)
+                Atomic.set target (Lazy key))
         | Total | Truncated -> ()
     end
 
