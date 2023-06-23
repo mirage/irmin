@@ -412,7 +412,7 @@ module Make (P : Backend.S) = struct
     and map = elt StepMap.t
 
     and info = {
-      mutable value : value option;
+      value : value option Atomic.t;
       mutable map : map option;
       mutable ptr : ptr_option;
       findv_cache : map option Atomic.t;
@@ -487,6 +487,7 @@ module Make (P : Backend.S) = struct
         | Value (_, v, None) -> (Ptr_none, None, Some v)
         | Value _ | Portable_dirty _ | Pruned _ -> (Ptr_none, None, None)
       in
+      let value = Atomic.make value in
       let findv_cache = Atomic.make None in
       let info = { ptr; map; value; findv_cache; env; length } in
       { v; info }
@@ -502,7 +503,7 @@ module Make (P : Backend.S) = struct
 
     let info_is_empty i =
       i.map = None
-      && i.value = None
+      && Atomic.get i.value = None
       && Atomic.get i.findv_cache = None
       && i.ptr = Ptr_none
 
@@ -518,7 +519,7 @@ module Make (P : Backend.S) = struct
 
     let clear_info_fields i =
       if not (info_is_empty i) then (
-        i.value <- None;
+        Atomic.set i.value None;
         i.map <- None;
         i.ptr <- Ptr_none;
         Atomic.set i.findv_cache None)
@@ -675,7 +676,7 @@ module Make (P : Backend.S) = struct
             miss t miss_arg
 
       let iter_value t hit miss miss_arg =
-        match (t.v, t.info.value) with
+        match (t.v, Atomic.get t.info.value) with
         | Value (_, v, None), None -> hit v
         | (Map _ | Key _ | Value _ | Portable_dirty _ | Pruned _), Some v ->
             hit v
@@ -707,7 +708,7 @@ module Make (P : Backend.S) = struct
         | (Map _ | Portable_dirty _ | Pruned _ | Value _), _ -> miss t miss_arg
 
       let iter_repo_value t hit miss miss_arg =
-        match (t.v, t.info.value) with
+        match (t.v, Atomic.get t.info.value) with
         | Value (repo, v, None), _ -> hit repo v
         | (Value (repo, _, _) | Key (repo, _)), Some v -> hit repo v
         | (Value (repo, _, _) | Key (repo, _)), None ->
@@ -906,7 +907,7 @@ module Make (P : Backend.S) = struct
                          assert false))
           |> P.Node.Val.of_seq
         in
-        if cache then t.info.value <- Some node;
+        if cache then Atomic.set t.info.value (Some node);
         k (Node node)
 
     and hash_preimage_value_of_elt :
@@ -931,7 +932,9 @@ module Make (P : Backend.S) = struct
       let rec aux acc = function
         | [] ->
             (if cache then
-             match acc with Node n -> t.info.value <- Some n | Pnode _ -> ());
+             match acc with
+             | Node n -> Atomic.set t.info.value (Some n)
+             | Pnode _ -> ());
             k acc
         | (k, Add e) :: rest ->
             hash_preimage_value_of_elt ~cache e (fun e ->
@@ -968,7 +971,7 @@ module Make (P : Backend.S) = struct
           match v_opt with
           | None -> err_dangling_hash h
           | Some v ->
-              if cache then t.info.value <- v_opt;
+              if cache then Atomic.set t.info.value v_opt;
               Ok v)
 
     let to_value ~cache t =
