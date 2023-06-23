@@ -415,7 +415,7 @@ module Make (P : Backend.S) = struct
       mutable value : value option;
       mutable map : map option;
       mutable ptr : ptr_option;
-      mutable findv_cache : map option;
+      findv_cache : map option Atomic.t;
       mutable length : int Lazy.t option;
       env : Env.t;
     }
@@ -487,7 +487,7 @@ module Make (P : Backend.S) = struct
         | Value (_, v, None) -> (Ptr_none, None, Some v)
         | Value _ | Portable_dirty _ | Pruned _ -> (Ptr_none, None, None)
       in
-      let findv_cache = None in
+      let findv_cache = Atomic.make None in
       let info = { ptr; map; value; findv_cache; env; length } in
       { v; info }
 
@@ -501,19 +501,27 @@ module Make (P : Backend.S) = struct
     let pruned h = of_v (Pruned h)
 
     let info_is_empty i =
-      i.map = None && i.value = None && i.findv_cache = None && i.ptr = Ptr_none
+      i.map = None
+      && i.value = None
+      && Atomic.get i.findv_cache = None
+      && i.ptr = Ptr_none
 
-    let add_to_findv_cache t step v =
-      match t.info.findv_cache with
-      | None -> t.info.findv_cache <- Some (StepMap.singleton step v)
-      | Some m -> t.info.findv_cache <- Some (StepMap.add step v m)
+    let rec add_to_findv_cache t step v =
+      let old_value = Atomic.get t.info.findv_cache in
+      let new_value =
+        match old_value with
+        | None -> Some (StepMap.singleton step v)
+        | Some m -> Some (StepMap.add step v m)
+      in
+      if not (Atomic.compare_and_set t.info.findv_cache old_value new_value)
+      then add_to_findv_cache t step v
 
     let clear_info_fields i =
       if not (info_is_empty i) then (
         i.value <- None;
         i.map <- None;
         i.ptr <- Ptr_none;
-        i.findv_cache <- None)
+        Atomic.set i.findv_cache None)
 
     let rec clear_elt ~max_depth depth v =
       match v with
@@ -537,7 +545,9 @@ module Make (P : Backend.S) = struct
         | (Key _ | Value _ | Portable_dirty _ | Pruned _), None -> ()
       in
       let () =
-        match i.findv_cache with Some m -> StepMap.iter clear m | None -> ()
+        match Atomic.get i.findv_cache with
+        | Some m -> StepMap.iter clear m
+        | None -> ()
       in
       if depth >= max_depth then clear_info_fields i
 
@@ -1226,7 +1236,7 @@ module Make (P : Backend.S) = struct
             | None -> of_portable p)
         | Pruned h -> pruned_hash_exn ctx h
       in
-      match t.info.findv_cache with
+      match Atomic.get t.info.findv_cache with
       | None -> of_t ()
       | Some m -> ( match of_map m with None -> of_t () | Some _ as r -> r)
 
