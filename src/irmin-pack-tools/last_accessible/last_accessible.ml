@@ -21,14 +21,16 @@ let get_payload root =
 let get_suffixes_sizes root
     (payload : Irmin_pack_unix.Control_file.Payload.Upper.V5.t) =
   let r = ref 0 in
+  let last = ref 0 in
   for i = payload.chunk_start_idx to payload.chunk_num do
     let suffix = Irmin_pack.Layout.V5.suffix_chunk ~chunk_idx:i ~root in
     let stats = Unix.stat suffix in
     [%log.debug "found chunk at '%s' with size %d" suffix stats.st_size];
-    r := !r + stats.st_size
+    r := !r + stats.st_size;
+    last := stats.st_size
   done;
   [%log.debug "sum of found suffixes sizes: %d" !r];
-  !r
+  !r, !last
 
 let get_status_infos (payload : Irmin_pack_unix.Control_file.Payload.Upper.V5.t)
     =
@@ -67,14 +69,27 @@ let get_last_accessible root off_max =
   Index.iter f v;
   !r
 
+let forge_new_payload (payload: Irmin_pack_unix.Control_file.Payload.Upper.V5.t) last_size off_max last_accessible =
+  let open Int63.Infix in
+  let appendable_chunk_poff =
+    Int63.(of_int last_size - last_accessible.off - of_int last_accessible.len + of_int off_max)
+  in
+  (* Check if negativ ? *)
+  Fmt.epr "new: %a@." Int63.pp appendable_chunk_poff;
+  { payload with appendable_chunk_poff}
+
 let main root_folder () =
   let payload = get_payload root_folder in
-  let sizes = get_suffixes_sizes root_folder payload in
+  let sizes, last_size = get_suffixes_sizes root_folder payload in
   let start_offset, dead_bytes = get_status_infos payload in
   let off_max = sizes + start_offset - dead_bytes in
   [%log.debug "last accessible offset: %d" off_max];
   let last_accessible = get_last_accessible root_folder off_max in
-  Fmt.pr "%a@." (Irmin.Type.pp_json t) last_accessible
+  Fmt.pr "%a@." (Irmin.Type.pp_json t) last_accessible;
+  let pl = forge_new_payload payload last_size off_max last_accessible in
+  Fmt.pr "%a@." (Irmin.Type.pp_json Irmin_pack_unix.Control_file.Payload.Upper.V5.t) pl;
+  let _ = Result.get_ok (Upper_control.create_rw ~path:"foo.bar" ~overwrite:true pl) in
+  ()
 
 (** Cmdliner **)
 
