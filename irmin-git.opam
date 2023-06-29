@@ -29,6 +29,7 @@ depends: [
   "fpath"
   "logs"
   "lwt"        {>= "5.3.0"}
+  "lwt_eio"    {>= "0.3.0"}
   "uri"
   "mimic"
   "irmin-test" {with-test & = version}
