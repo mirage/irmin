@@ -542,7 +542,7 @@ module Layout = struct
     ]
 end
 
-let misc =
+let misc d_mgr =
   [
     ("hashes", Test_hashes.tests);
     ("dict-files", Dict.tests);
@@ -571,4 +571,5 @@ let misc =
     ("indexing strategy", Test_indexing_strategy.tests);
     ("lower: direct", Test_lower.Direct.tests);
     ("lower: store", Test_lower.Store.tests);
+    ("multicore", Test_multicore.tests d_mgr);
   ]
