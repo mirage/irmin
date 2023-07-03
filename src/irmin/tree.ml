@@ -269,7 +269,8 @@ module Make (P : Backend.S) = struct
 
     type t = { v : v Atomic.t; info : info }
 
-    let info_is_empty i = Atomic.get i.ptr = Ptr_none && Atomic.get i.value = None
+    let info_is_empty i =
+      Atomic.get i.ptr = Ptr_none && Atomic.get i.value = None
 
     let v =
       let open Type in
@@ -308,7 +309,8 @@ module Make (P : Backend.S) = struct
       match (Atomic.get t.v, ptr) with
       | Key (repo', _), (Ptr_none | Hash _) ->
           if repo != repo' then Atomic.set t.v (Key (repo, k))
-      | Key (repo', _), Key k -> if repo != repo' then Atomic.set t.v (Key (repo, k))
+      | Key (repo', _), Key k ->
+          if repo != repo' then Atomic.set t.v (Key (repo, k))
       | Value _, (Ptr_none | Hash _) -> Atomic.set t.v (Key (repo, k))
       | Value _, Key k -> Atomic.set t.v (Key (repo, k))
       | Pruned _, _ ->
@@ -359,7 +361,9 @@ module Make (P : Backend.S) = struct
               h)
 
     let key t =
-      match Atomic.get t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
+      match Atomic.get t.v with
+      | Key (_, k) -> Some k
+      | Value _ | Pruned _ -> None
 
     let value_of_key ~cache t repo k =
       Atomic.incr cnt.contents_find;
@@ -437,6 +441,7 @@ module Make (P : Backend.S) = struct
 
   module Lazy_cache : sig
     type 'a t
+
     val unknown : unit -> 'a t
     val make : (unit -> 'a) -> 'a t
     val force : 'a t -> 'a option
@@ -449,25 +454,23 @@ module Make (P : Backend.S) = struct
 
     let unknown () = Atomic.make Unknown
     let make fn = Atomic.make (Lazy fn)
-    let force t = match Atomic.get t with
+
+    let force t =
+      match Atomic.get t with
       | Known v -> Some v
       | Unknown -> None
-      | (Lazy fn) as old ->
+      | Lazy fn as old -> (
           let v = fn () in
-          if Atomic.compare_and_set t old (Known v)
-          then Some v
-          else match Atomic.get t with
-          | Known v -> Some v
-          | _ -> assert false
-    let force_exn t = match force t with
-      | Some v -> v
-      | None -> assert false
+          if Atomic.compare_and_set t old (Known v) then Some v
+          else match Atomic.get t with Known v -> Some v | _ -> assert false)
+
+    let force_exn t = match force t with Some v -> v | None -> assert false
+
     let set t v =
-      let _ : bool = Atomic.compare_and_set t Unknown (Known v) in
+      let (_ : bool) = Atomic.compare_and_set t Unknown (Known v) in
       ()
-    let inspect t = match Atomic.get t with
-      | Unknown -> None
-      | _ -> Some t
+
+    let inspect t = match Atomic.get t with Unknown -> None | _ -> Some t
   end
 
   module Node = struct
@@ -489,8 +492,8 @@ module Make (P : Backend.S) = struct
 
     and info = {
       value : value option Atomic.t;
-      mutable map : map option;
-      mutable ptr : ptr_option;
+      map : map option Atomic.t;
+      ptr : ptr_option Atomic.t;
       findv_cache : map option Atomic.t;
       length : int Lazy_cache.t;
       env : Env.t;
@@ -503,7 +506,7 @@ module Make (P : Backend.S) = struct
       | Portable_dirty of portable * updatemap
       | Pruned of hash
 
-    and t = { mutable v : v; info : info }
+    and t = { v : v Atomic.t; info : info }
     (** For discussion of [t.v]'s states, see {!Tree_intf.S.inspect}.
 
         [t.info.map] is only populated during a call to [Node.to_map]. *)
@@ -563,13 +566,15 @@ module Make (P : Backend.S) = struct
         | Value (_, v, None) -> (Ptr_none, None, Some v)
         | Value _ | Portable_dirty _ | Pruned _ -> (Ptr_none, None, None)
       in
+      let ptr = Atomic.make ptr in
+      let map = Atomic.make map in
       let value = Atomic.make value in
       let findv_cache = Atomic.make None in
-      let length = match length with
-        | None -> Lazy_cache.unknown ()
-        | Some len -> len
+      let length =
+        match length with None -> Lazy_cache.unknown () | Some len -> len
       in
       let info = { ptr; map; value; findv_cache; env; length } in
+      let v = Atomic.make v in
       { v; info }
 
     let of_map m = of_v (Map m)
@@ -582,10 +587,10 @@ module Make (P : Backend.S) = struct
     let pruned h = of_v (Pruned h)
 
     let info_is_empty i =
-      i.map = None
+      Atomic.get i.map = None
       && Atomic.get i.value = None
       && Atomic.get i.findv_cache = None
-      && i.ptr = Ptr_none
+      && Atomic.get i.ptr = Ptr_none
 
     let rec add_to_findv_cache t step v =
       let old_value = Atomic.get t.info.findv_cache in
@@ -600,8 +605,8 @@ module Make (P : Backend.S) = struct
     let clear_info_fields i =
       if not (info_is_empty i) then (
         Atomic.set i.value None;
-        i.map <- None;
-        i.ptr <- Ptr_none;
+        Atomic.set i.map None;
+        Atomic.set i.ptr Ptr_none;
         Atomic.set i.findv_cache None)
 
     let rec clear_elt ~max_depth depth v =
@@ -620,7 +625,7 @@ module Make (P : Backend.S) = struct
         | Value (_, _, None) | Map _ | Key _ | Portable_dirty _ | Pruned _ -> ()
       in
       let () =
-        match (v, i.map) with
+        match (v, Atomic.get i.map) with
         | Map m, _ | (Key _ | Value _ | Portable_dirty _ | Pruned _), Some m ->
             StepMap.iter clear m
         | (Key _ | Value _ | Portable_dirty _ | Pruned _), None -> ()
@@ -632,18 +637,19 @@ module Make (P : Backend.S) = struct
       in
       if depth >= max_depth then clear_info_fields i
 
-    and clear ~max_depth depth t = clear_info ~v:t.v ~max_depth depth t.info
+    and clear ~max_depth depth t =
+      clear_info ~v:(Atomic.get t.v) ~max_depth depth t.info
 
     (* export t to the given repo and clear the cache *)
     let export ?clear:(c = true) repo t k =
       let ptr = t.info.ptr in
       if c then clear_info_fields t.info;
-      match t.v with
-      | Key (repo', k) -> if repo != repo' then t.v <- Key (repo, k)
+      match Atomic.get t.v with
+      | Key (repo', k) -> if repo != repo' then Atomic.set t.v (Key (repo, k))
       | Value _ | Map _ -> (
-          match ptr with
-          | Ptr_none | Hash _ -> t.v <- Key (repo, k)
-          | Key k -> t.v <- Key (repo, k))
+          match Atomic.get ptr with
+          | Ptr_none | Hash _ -> Atomic.set t.v (Key (repo, k))
+          | Key k -> Atomic.set t.v (Key (repo, k)))
       | Portable_dirty _ | Pruned _ ->
           (* The main export function never exports a pruned position. *)
           assert false
@@ -729,7 +735,7 @@ module Make (P : Backend.S) = struct
         [t.info], looking for specific patterns. *)
     module Scan = struct
       let iter_hash t hit miss miss_arg =
-        match (t.v, t.info.ptr) with
+        match (Atomic.get t.v, Atomic.get t.info.ptr) with
         | Key (_, k), _ -> hit (P.Node.Key.to_hash k)
         | (Map _ | Value _ | Portable_dirty _), Key k ->
             hit (P.Node.Key.to_hash k)
@@ -738,7 +744,7 @@ module Make (P : Backend.S) = struct
         | (Map _ | Value _ | Portable_dirty _), Ptr_none -> miss t miss_arg
 
       let iter_key t hit miss miss_arg =
-        match (t.v, t.info.ptr) with
+        match (Atomic.get t.v, Atomic.get t.info.ptr) with
         | Key (_, k), _ -> hit k
         | (Map _ | Value _ | Portable_dirty _ | Pruned _), Key k -> hit k
         | (Map _ | Value _ | Portable_dirty _ | Pruned _), (Hash _ | Ptr_none)
@@ -746,14 +752,14 @@ module Make (P : Backend.S) = struct
             miss t miss_arg
 
       let iter_map t hit miss miss_arg =
-        match (t.v, t.info.map) with
+        match (Atomic.get t.v, Atomic.get t.info.map) with
         | (Key _ | Value _ | Portable_dirty _ | Pruned _), Some m -> hit m
         | Map m, _ -> hit m
         | (Key _ | Value _ | Portable_dirty _ | Pruned _), None ->
             miss t miss_arg
 
       let iter_value t hit miss miss_arg =
-        match (t.v, Atomic.get t.info.value) with
+        match (Atomic.get t.v, Atomic.get t.info.value) with
         | Value (_, v, None), None -> hit v
         | (Map _ | Key _ | Value _ | Portable_dirty _ | Pruned _), Some v ->
             hit v
@@ -768,7 +774,7 @@ module Make (P : Backend.S) = struct
               miss miss_arg
 
       let iter_portable t hit miss miss_arg =
-        match t.v with
+        match Atomic.get t.v with
         | Pruned h -> (
             match Env.find_pnode t.info.env h with
             | None -> miss t miss_arg
@@ -779,13 +785,13 @@ module Make (P : Backend.S) = struct
             miss t miss_arg
 
       let iter_repo_key t hit miss miss_arg =
-        match (t.v, t.info.ptr) with
+        match (Atomic.get t.v, Atomic.get t.info.ptr) with
         | Key (repo, k), _ -> hit repo k
         | Value (repo, _, _), Key k -> hit repo k
         | (Map _ | Portable_dirty _ | Pruned _ | Value _), _ -> miss t miss_arg
 
       let iter_repo_value t hit miss miss_arg =
-        match (t.v, Atomic.get t.info.value) with
+        match (Atomic.get t.v, Atomic.get t.info.value) with
         | Value (repo, v, None), _ -> hit repo v
         | (Value (repo, _, _) | Key (repo, _)), Some v -> hit repo v
         | (Value (repo, _, _) | Key (repo, _)), None ->
@@ -845,18 +851,18 @@ module Make (P : Backend.S) = struct
       let to_portable t miss = iter_portable t (fun v -> Portable v) miss
 
       let to_value_dirty t miss miss_arg =
-        match t.v with
+        match Atomic.get t.v with
         | Value (repo, v, Some um) -> Value_dirty (repo, v, um)
         | Map _ | Key _ | Value (_, _, None) | Portable_dirty _ | Pruned _ ->
             miss t miss_arg
 
       let to_portable_dirty t miss miss_arg =
-        match t.v with
+        match Atomic.get t.v with
         | Portable_dirty (v, um) -> Portable_dirty (v, um)
         | Map _ | Key _ | Value _ | Pruned _ -> miss t miss_arg
 
       let to_pruned t miss miss_arg =
-        match t.v with
+        match Atomic.get t.v with
         | Pruned h -> Pruned h
         | Map _ | Key _ | Value _ | Portable_dirty _ -> miss t miss_arg
 
@@ -893,7 +899,7 @@ module Make (P : Backend.S) = struct
     let cached_portable t = Scan.iter_portable t Option.some get_none ()
 
     let key t =
-      match t.v with
+      match Atomic.get t.v with
       | Key (_, k) -> Some k
       | Map _ | Value _ | Portable_dirty _ | Pruned _ -> None
 
@@ -920,8 +926,8 @@ module Make (P : Backend.S) = struct
       let a_of_hashable hash v =
         Atomic.incr cnt.node_hash;
         let hash = hash v in
-        assert (t.info.ptr = Ptr_none);
-        if cache then t.info.ptr <- Hash hash;
+        assert (Atomic.get t.info.ptr = Ptr_none);
+        if cache then Atomic.set t.info.ptr (Hash hash);
         k hash
       in
       match
@@ -1059,7 +1065,7 @@ module Make (P : Backend.S) = struct
       | Value v -> ok v
       | Repo_key (repo, k) -> value_of_key ~cache t repo k
       | Any -> (
-          match t.v with
+          match Atomic.get t.v with
           | Key _ | Value (_, _, None) -> assert false
           | Pruned h -> err_pruned_hash h
           | Portable_dirty _ -> err_portable_value
@@ -1121,7 +1127,7 @@ module Make (P : Backend.S) = struct
                   | _, Some Remove -> None)
                 m updates
         in
-        if cache then t.info.map <- Some m;
+        if cache then Atomic.set t.info.map (Some m);
         m
       in
       let of_value repo v um =
@@ -1575,20 +1581,20 @@ module Make (P : Backend.S) = struct
       | Some len ->
           Some
             (Lazy_cache.make (fun () ->
-              (let len = Lazy_cache.force_exn len in
-               let exists =
-                 match StepMap.find_opt step updates with
-                 | Some (Add _) -> true
-                 | Some Remove -> false
-                 | None -> (
-                     match P.Node.Val.find n step with
-                     | None -> false
-                     | Some _ -> true)
-               in
-               match up with
-               | Add _ when not exists -> len + 1
-               | Remove when exists -> len - 1
-               | _ -> len)))
+                 let len = Lazy_cache.force_exn len in
+                 let exists =
+                   match StepMap.find_opt step updates with
+                   | Some (Add _) -> true
+                   | Some Remove -> false
+                   | None -> (
+                       match P.Node.Val.find n step with
+                       | None -> false
+                       | Some _ -> true)
+                 in
+                 match up with
+                 | Add _ when not exists -> len + 1
+                 | Remove when exists -> len - 1
+                 | _ -> len))
 
     let update t step up =
       let env = t.info.env in
@@ -1650,7 +1656,7 @@ module Make (P : Backend.S) = struct
 
     let t node =
       let of_v v = of_v ~env:(Env.empty ()) v in
-      Type.map ~equal ~compare node of_v (fun t -> t.v)
+      Type.map ~equal ~compare node of_v (fun t -> Atomic.get t.v)
 
     let _, t =
       Type.mu2 (fun _ y ->
@@ -2190,7 +2196,7 @@ module Make (P : Backend.S) = struct
         k key
       in
       let has_repo =
-        match n.Node.v with
+        match Atomic.get n.Node.v with
         | Node.Key (repo', _) ->
             if same_repo repo repo' then true
             else
@@ -2208,7 +2214,7 @@ module Make (P : Backend.S) = struct
               failwith "Can't export a node value from another repo"
         | Pruned _ | Portable_dirty _ | Map _ -> false
       in
-      match n.Node.v with
+      match Atomic.get n.Node.v with
       | Pruned h ->
           (* Case 3. [n] is a pruned hash. [P.Node.index node_t h] could be
              different than [None], but let's always crash. *)
@@ -2273,7 +2279,7 @@ module Make (P : Backend.S) = struct
                      Case 9. Let's export it to the backend. *)
                   let new_children_seq =
                     let seq =
-                      match n.Node.v with
+                      match Atomic.get n.Node.v with
                       | Value (_, _, Some m) ->
                           StepMap.to_seq m
                           |> Seq.filter_map (function
@@ -2289,7 +2295,7 @@ module Make (P : Backend.S) = struct
                     Seq.map (fun (_, x) -> x) seq
                   in
                   on_node_seq new_children_seq @@ fun `Node_children_exported ->
-                  match (n.Node.v, Node.cached_value n) with
+                  match (Atomic.get n.Node.v, Node.cached_value n) with
                   | Map x, _ -> add_node_map n x k
                   | Value (_, v, None), None | _, Some v -> add_node n v k
                   | Value (_, v, Some um), _ -> add_updated_node n v um k
@@ -2584,7 +2590,7 @@ module Make (P : Backend.S) = struct
     | `Contents _ -> `Contents
     | `Node n ->
         `Node
-          (match n.Node.v with
+          (match Atomic.get n.Node.v with
           | Map _ -> `Map
           | Value _ -> `Value
           | Key _ -> `Key
