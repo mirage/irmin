@@ -87,15 +87,36 @@ struct
   module H = B.Hash
 
   module Hashes = struct
-    include Hashtbl.Make (struct
+    module Unsafe = Hashtbl.Make (struct
       type t = H.t
 
       let hash = H.short_hash
       let equal = Type.(unstage (equal H.t))
     end)
 
+    type 'a t = { lock : Eio.Mutex.t; data : 'a Unsafe.t }
+
+    let of_unsafe data = { lock = Eio.Mutex.create (); data }
+    let create size = of_unsafe (Unsafe.create size)
+
+    let mem { lock; data } k =
+      Eio.Mutex.use_ro lock @@ fun () -> Unsafe.mem data k
+
+    let find_opt { lock; data } k =
+      Eio.Mutex.use_ro lock @@ fun () -> Unsafe.find_opt data k
+
+    let add { lock; data } k v =
+      Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.add data k v
+
+    let replace { lock; data } k v =
+      Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.replace data k v
+
+    let of_seq s = of_unsafe (Unsafe.of_seq s)
     let of_list l = of_seq (List.to_seq l)
-    let to_list t = List.of_seq (to_seq t)
+
+    let to_list t =
+      Eio.Mutex.use_ro t.lock @@ fun () -> List.of_seq (Unsafe.to_seq t.data)
+
     let t elt_t = Type.map [%typ: (H.t * elt) list] of_list to_list
   end
 
@@ -129,43 +150,45 @@ struct
   end
 
   type v = Empty | Set of Set.t [@@deriving irmin]
-  type t = v ref
+  type t = v Atomic.t
 
-  let t = Type.map v_t ref ( ! )
-  let empty () : t = ref Empty
-  let is_empty t = !t = Empty
-  let copy ~into t = into := !t
+  let t = Type.map v_t Atomic.make Atomic.get
+  let empty () : t = Atomic.make Empty
+  let is_empty t = Atomic.get t = Empty
+  let copy ~into t = Atomic.set into (Atomic.get t)
 
   type hash = H.t [@@deriving irmin ~equal ~pp]
 
   let set_mode t mode =
-    match (!t, mode) with
-    | Empty, Produce -> t := Set Set.(producer ())
-    | Empty, Deserialise -> t := Set Set.(deserialiser ())
-    | Set (Produce set), Serialise -> t := Set Set.(Serialise set)
-    | Set (Deserialise set), Consume -> t := Set Set.(Consume set)
+    Atomic.set t
+    @@
+    match (Atomic.get t, mode) with
+    | Empty, Produce -> Set Set.(producer ())
+    | Empty, Deserialise -> Set Set.(deserialiser ())
+    | Set (Produce set), Serialise -> Set Set.(Serialise set)
+    | Set (Deserialise set), Consume -> Set Set.(Consume set)
     | _ -> assert false
 
   let with_consume f =
-    let t = ref Empty in
+    let t = Atomic.make Empty in
     set_mode t Deserialise;
     let stop_deserialise () = set_mode t Consume in
     let res = f t ~stop_deserialise in
-    t := Empty;
+    Atomic.set t Empty;
     res
 
   let with_produce f =
-    let t = ref Empty in
+    let t = Atomic.make Empty in
     set_mode t Produce;
     let start_serialise () = set_mode t Serialise in
     let res = f t ~start_serialise in
-    t := Empty;
+    Atomic.set t Empty;
     res
 
   module Contents_hash = Hash.Typed (H) (B.Contents.Val)
 
   let find_contents t h =
-    match !t with
+    match Atomic.get t with
     | Empty -> None
     | Set (Produce set) ->
         (* Sharing of contents is not strictly needed during this phase. It
@@ -183,7 +206,7 @@ struct
         Hashes.find_opt set.contents h
 
   let add_contents_from_store t h v =
-    match !t with
+    match Atomic.get t with
     | Empty -> ()
     | Set (Produce set) ->
         (* Registering in [set] for traversal during [Serialise]. *)
@@ -200,7 +223,7 @@ struct
         assert false
 
   let add_contents_from_proof t h v =
-    match !t with
+    match Atomic.get t with
     | Set (Deserialise set) ->
         (* Using [replace] because there could be several instances of this
            contents in the proof, we will not share as this is not strictly
@@ -212,7 +235,7 @@ struct
     | _ -> assert false
 
   let find_node t h =
-    match !t with
+    match Atomic.get t with
     | Empty -> None
     | Set (Produce set) ->
         (* This is needed in order to achieve sharing on inode's pointers. In
@@ -232,7 +255,7 @@ struct
         None
 
   let find_pnode t h =
-    match !t with
+    match Atomic.get t with
     | Set (Consume set) ->
         (* [set] has been filled during deserialise. Using it to provide values
             during consume. *)
@@ -240,7 +263,7 @@ struct
     | _ -> None
 
   let add_node_from_store t h v =
-    match !t with
+    match Atomic.get t with
     | Empty -> v
     | Set (Produce set) ->
         (* Registering in [set] for sharing during [Produce] and traversal
@@ -260,7 +283,7 @@ struct
         assert false
 
   let add_pnode_from_proof t h v =
-    match !t with
+    match Atomic.get t with
     | Set (Deserialise set) ->
         (* Using [replace] because there could be several instances of this
            node in the proof, we will not share as this is not strictly

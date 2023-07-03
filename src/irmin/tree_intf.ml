@@ -461,17 +461,12 @@ module type Sigs = sig
     val of_backend_node : B.Repo.t -> B.Node.value -> node
 
     type 'result producer :=
-      B.Repo.t ->
-      kinded_key ->
-      (t -> (t * 'result)) ->
-      (Proof.t * 'result)
+      B.Repo.t -> kinded_key -> (t -> t * 'result) -> Proof.t * 'result
 
     type verifier_error = [ `Proof_mismatch of string ] [@@deriving irmin]
 
     type 'result verifier :=
-      Proof.t ->
-      (t -> (t * 'result)) ->
-      (t * 'result, verifier_error) result
+      Proof.t -> (t -> t * 'result) -> (t * 'result, verifier_error) result
 
     val produce_proof : 'a producer
     val verify_proof : 'a verifier

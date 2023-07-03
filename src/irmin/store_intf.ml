@@ -480,10 +480,7 @@ module type S_generic_key = sig
     (** {1 Proofs} *)
 
     type 'result producer :=
-      repo ->
-      kinded_key ->
-      (tree -> (tree * 'result)) ->
-      (Proof.t * 'result)
+      repo -> kinded_key -> (tree -> tree * 'result) -> Proof.t * 'result
     (** [produce r h f] runs [f] on top of a real store [r], producing a proof
         and a result using the initial root hash [h].
 
@@ -498,7 +495,7 @@ module type S_generic_key = sig
 
     type 'result verifier :=
       Proof.t ->
-      (tree -> (tree * 'result)) ->
+      (tree -> tree * 'result) ->
       (tree * 'result, verifier_error) result
     (** [verify p f] runs [f] in checking mode. [f] is a function that takes a
         tree as input and returns a new version of the tree and a result. [p] is
