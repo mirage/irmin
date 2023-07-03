@@ -223,14 +223,16 @@ module Maker (Config : Conf.S) = struct
           let is_allowed { fm; _ } = File_manager.gc_allowed fm
           let behaviour { fm; _ } = File_manager.gc_behaviour fm
 
-          let cancel t =
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
+          let unsafe_cancel t =
             match t.running_gc with
             | Some { gc; _ } ->
                 let cancelled = Gc.cancel gc in
                 t.running_gc <- None;
                 cancelled
             | None -> false
+
+          let cancel t =
+            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> unsafe_cancel t
 
           let direct_commit_key t key =
             let state : _ Pack_key.state = Pack_key.inspect key in
@@ -455,7 +457,7 @@ module Maker (Config : Conf.S) = struct
 
         let close t =
           (* Step 1 - Kill the gc process if it is running *)
-          let _ = Gc.cancel t in
+          let _ = Gc.unsafe_cancel t in
           (* Step 2 - Close the files *)
           let () = File_manager.close t.fm |> Errs.raise_if_error in
           Branch.close t.branch;
