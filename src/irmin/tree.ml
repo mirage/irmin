@@ -262,14 +262,14 @@ module Make (P : Backend.S) = struct
     type nonrec ptr_option = key ptr_option
 
     type info = {
-      mutable ptr : ptr_option;
-      mutable value : contents option;
+      ptr : ptr_option Atomic.t;
+      value : contents option Atomic.t;
       env : Env.t;
     }
 
-    type t = { mutable v : v; info : info }
+    type t = { v : v Atomic.t; info : info }
 
-    let info_is_empty i = i.ptr = Ptr_none && i.value = None
+    let info_is_empty i = Atomic.get i.ptr = Ptr_none && Atomic.get i.value = None
 
     let v =
       let open Type in
@@ -285,8 +285,8 @@ module Make (P : Backend.S) = struct
 
     let clear_info i =
       if not (info_is_empty i) then (
-        i.value <- None;
-        i.ptr <- Ptr_none)
+        Atomic.set i.value None;
+        Atomic.set i.ptr Ptr_none)
 
     let clear t = clear_info t.info
 
@@ -297,18 +297,20 @@ module Make (P : Backend.S) = struct
         | Value v -> (Ptr_none, Some v)
         | Pruned _ -> (Ptr_none, None)
       in
+      let ptr = Atomic.make ptr in
+      let value = Atomic.make value in
       let info = { ptr; value; env } in
-      { v; info }
+      { v = Atomic.make v; info }
 
     let export ?clear:(c = true) repo t k =
-      let ptr = t.info.ptr in
+      let ptr = Atomic.get t.info.ptr in
       if c then clear t;
-      match (t.v, ptr) with
+      match (Atomic.get t.v, ptr) with
       | Key (repo', _), (Ptr_none | Hash _) ->
-          if repo != repo' then t.v <- Key (repo, k)
-      | Key (repo', _), Key k -> if repo != repo' then t.v <- Key (repo, k)
-      | Value _, (Ptr_none | Hash _) -> t.v <- Key (repo, k)
-      | Value _, Key k -> t.v <- Key (repo, k)
+          if repo != repo' then Atomic.set t.v (Key (repo, k))
+      | Key (repo', _), Key k -> if repo != repo' then Atomic.set t.v (Key (repo, k))
+      | Value _, (Ptr_none | Hash _) -> Atomic.set t.v (Key (repo, k))
+      | Value _, Key k -> Atomic.set t.v (Key (repo, k))
       | Pruned _, _ ->
           (* The main export function never exports a pruned position. *)
           assert false
@@ -318,7 +320,7 @@ module Make (P : Backend.S) = struct
     let pruned h = of_v (Pruned h)
 
     let cached_hash t =
-      match (t.v, t.info.ptr) with
+      match (Atomic.get t.v, Atomic.get t.info.ptr) with
       | Key (_, k), _ -> Some (P.Contents.Key.to_hash k)
       | Value _, Key k -> Some (P.Contents.Key.to_hash k)
       | Pruned h, _ -> Some h
@@ -326,13 +328,13 @@ module Make (P : Backend.S) = struct
       | Value _, Ptr_none -> None
 
     let cached_key t =
-      match (t.v, t.info.ptr) with
+      match (Atomic.get t.v, Atomic.get t.info.ptr) with
       | Key (_, k), _ -> Some k
       | (Value _ | Pruned _), Key k -> Some k
       | (Value _ | Pruned _), (Hash _ | Ptr_none) -> None
 
     let cached_value t =
-      match (t.v, t.info.value) with
+      match (Atomic.get t.v, Atomic.get t.info.value) with
       | Value v, None -> Some v
       | (Key _ | Value _ | Pruned _), (Some _ as v) -> v
       | (Key _ | Pruned _), None -> (
@@ -352,12 +354,12 @@ module Make (P : Backend.S) = struct
           | Some v ->
               Atomic.incr cnt.contents_hash;
               let h = P.Contents.Hash.hash v in
-              assert (c.info.ptr = Ptr_none);
-              if cache then c.info.ptr <- Hash h;
+              assert (Atomic.get c.info.ptr = Ptr_none);
+              if cache then Atomic.set c.info.ptr (Hash h);
               h)
 
     let key t =
-      match t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
+      match Atomic.get t.v with Key (_, k) -> Some k | Value _ | Pruned _ -> None
 
     let value_of_key ~cache t repo k =
       Atomic.incr cnt.contents_find;
@@ -367,14 +369,14 @@ module Make (P : Backend.S) = struct
       match v_opt with
       | None -> err_dangling_hash h
       | Some v ->
-          if cache then t.info.value <- v_opt;
+          if cache then Atomic.set t.info.value v_opt;
           Ok v
 
     let to_value ~cache t =
       match cached_value t with
       | Some v -> ok v
       | None -> (
-          match t.v with
+          match Atomic.get t.v with
           | Value _ -> assert false (* [cached_value == None] *)
           | Key (repo, k) -> value_of_key ~cache t repo k
           | Pruned h -> err_pruned_hash h)
@@ -401,7 +403,7 @@ module Make (P : Backend.S) = struct
 
     let t =
       let of_v v = of_v ~env:(Env.empty ()) v in
-      Type.map ~equal ~compare v of_v (fun t -> t.v)
+      Type.map ~equal ~compare v of_v (fun t -> Atomic.get t.v)
 
     let merge : t Merge.t =
       let f ~old x y =
@@ -2300,7 +2302,7 @@ module Make (P : Backend.S) = struct
         [ `Contents of Contents.t * metadata ] ->
         ([ `Content_exported ], r) cont_lwt =
      fun (`Contents (c, _)) k ->
-      match c.Contents.v with
+      match Atomic.get c.Contents.v with
       | Contents.Key (_, key) ->
           Contents.export ?clear repo c key;
           k `Content_exported
