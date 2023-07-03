@@ -1188,7 +1188,6 @@ module Make (B : Backend.S) = struct
       Fmt.kstr invalid_arg "Branch.get: %a not found" pp_branch k
 
     let get t k = match find t k with None -> err_not_found k | Some v -> v
-
     let pp = pp_branch
   end
 
