@@ -28,7 +28,7 @@ depends: [
   "jsonm"
   "logs"
   "lwt"             {>= "5.3.0"}
-  "lwt_eio"         {>= "0.3.0"}
+  "lwt_eio"         {>= "0.3"}
   "uri"
   "irmin-git"       {with-test & = version}
   "irmin-fs"        {with-test & = version}

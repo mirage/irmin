@@ -27,8 +27,7 @@ depends: [
   "git-unix"        {>= "3.7.0"}
   "fmt"
   "lwt"             {>= "5.3.0"}
-  "lwt_eio"         {>= "0.3.0"}
-  "alcotest-lwt"    {with-test & >= "1.1.0"}
+  "lwt_eio"         {>= "0.3"}
   "yojson"          {with-test}
   "alcotest"        {with-test & >= "1.2.3"}
   "logs"            {with-test}
