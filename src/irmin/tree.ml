@@ -433,6 +433,41 @@ module Make (P : Backend.S) = struct
           | Some c -> f_value path c acc |> f_tree path)
   end
 
+  module Lazy_cache : sig
+    type 'a t
+    val unknown : unit -> 'a t
+    val make : (unit -> 'a) -> 'a t
+    val force : 'a t -> 'a option
+    val force_exn : 'a t -> 'a
+    val set : 'a t -> 'a -> unit
+    val inspect : 'a t -> 'a t option
+  end = struct
+    type 'a s = Unknown | Known of 'a | Lazy of (unit -> 'a)
+    type 'a t = 'a s Atomic.t
+
+    let unknown () = Atomic.make Unknown
+    let make fn = Atomic.make (Lazy fn)
+    let force t = match Atomic.get t with
+      | Known v -> Some v
+      | Unknown -> None
+      | (Lazy fn) as old ->
+          let v = fn () in
+          if Atomic.compare_and_set t old (Known v)
+          then Some v
+          else match Atomic.get t with
+          | Known v -> Some v
+          | _ -> assert false
+    let force_exn t = match force t with
+      | Some v -> v
+      | None -> assert false
+    let set t v =
+      let _ : bool = Atomic.compare_and_set t Unknown (Known v) in
+      ()
+    let inspect t = match Atomic.get t with
+      | Unknown -> None
+      | _ -> Some t
+  end
+
   module Node = struct
     type value = P.Node.Val.t [@@deriving irmin ~equal ~pp]
     type key = P.Node.Key.t [@@deriving irmin]
@@ -455,7 +490,7 @@ module Make (P : Backend.S) = struct
       mutable map : map option;
       mutable ptr : ptr_option;
       findv_cache : map option Atomic.t;
-      mutable length : int Lazy.t option;
+      length : int Lazy_cache.t;
       env : Env.t;
     }
 
@@ -528,6 +563,10 @@ module Make (P : Backend.S) = struct
       in
       let value = Atomic.make value in
       let findv_cache = Atomic.make None in
+      let length = match length with
+        | None -> Lazy_cache.unknown ()
+        | Some len -> len
+      in
       let info = { ptr; map; value; findv_cache; env; length } in
       { v; info }
 
@@ -1203,11 +1242,11 @@ module Make (P : Backend.S) = struct
       | Pruned h -> pruned_hash_exn "length" h
 
     let length ~cache t =
-      match t.info.length with
-      | Some (lazy len) -> len
+      match Lazy_cache.force t.info.length with
+      | Some len -> len
       | None ->
           let len = slow_length ~cache t in
-          t.info.length <- Some (Lazy.from_val len);
+          Lazy_cache.set t.info.length len;
           len
 
     let is_empty ~cache t =
@@ -1529,12 +1568,12 @@ module Make (P : Backend.S) = struct
       aux_uniq ~path acc 0 t Fun.id
 
     let incremental_length t step up n updates =
-      match t.info.length with
+      match Lazy_cache.inspect t.info.length with
       | None -> None
       | Some len ->
           Some
-            (lazy
-              (let len = Lazy.force len in
+            (Lazy_cache.make (fun () ->
+              (let len = Lazy_cache.force_exn len in
                let exists =
                  match StepMap.find_opt step updates with
                  | Some (Add _) -> true
@@ -1547,7 +1586,7 @@ module Make (P : Backend.S) = struct
                match up with
                | Add _ when not exists -> len + 1
                | Remove when exists -> len - 1
-               | _ -> len))
+               | _ -> len)))
 
     let update t step up =
       let env = t.info.env in
@@ -1704,7 +1743,7 @@ module Make (P : Backend.S) = struct
 
   let of_backend_node repo n =
     let env = Env.empty () in
-    let length = lazy (P.Node.Val.length n) in
+    let length = Lazy_cache.make (fun () -> P.Node.Val.length n) in
     Node.of_value ~length ~env repo n
 
   let dump ppf = function
