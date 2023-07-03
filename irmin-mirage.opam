@@ -18,7 +18,7 @@ depends: [
   "fmt"
   "ptime"
   "mirage-clock" {>= "3.0.0"}
-  "lwt_eio"    {>= "0.3.0"}
+  "lwt_eio"    {>= "0.3"}
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"

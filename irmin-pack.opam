@@ -27,7 +27,6 @@ depends: [
   "checkseum"
   "rusage"
   "irmin-test"   {with-test & = version}
-  "alcotest-lwt" {with-test}
   "astring"      {with-test}
   "alcotest"     {with-test}
 ]

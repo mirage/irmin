@@ -31,9 +31,8 @@ depends: [
   "bigstringaf" { >= "0.2.0" }
   "ppx_irmin" {= version}
   "hex"      {with-test}
-  "alcotest" {>= "1.1.0" & with-test}
+  "alcotest" {= "dev" & with-test}
   "eio_main" {>= "0.2" & with-test}
-  "alcotest-lwt" {with-test}
   "qcheck-alcotest" {with-test}
   "vector" {with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
@@ -44,6 +43,9 @@ pin-depends: [
   # Metrics may have been unnecessarily constrained in opam-repository
   [ "metrics.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
   [ "metrics-unix.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
+  # Fix race in formatters
+  [ "alcotest.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
+  [ "alcotest-lwt.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
 ]
 
 conflicts: [

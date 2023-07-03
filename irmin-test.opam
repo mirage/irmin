@@ -17,7 +17,6 @@ depends: [
   "ppx_irmin"    {= version}
   "ocaml"        {>= "4.02.3"}
   "dune"         {>= "2.9.0"}
-  "alcotest-lwt" {>= "1.5.0"}
   "mtime"        {>= "2.0.0"}
   "astring"
   "fmt"
