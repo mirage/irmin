@@ -28,19 +28,20 @@ module Unix = struct
   (** [Exit] is a stack of PIDs that will be killed [at_exit]. *)
   module Exit = struct
     let proc_list = ref []
-    let m = Mutex.create ()
+    let m = Eio.Mutex.create ()
 
     let add pid =
-      Mutex.lock m;
-      proc_list := pid :: !proc_list;
-      Mutex.unlock m
+      Eio.Mutex.use_rw ~protect:true m @@ fun () ->
+      proc_list := pid :: !proc_list
 
     let remove pid =
-      Mutex.lock m;
-      proc_list := List.filter (fun pid' -> pid <> pid') !proc_list;
-      Mutex.unlock m
+      Eio.Mutex.use_rw ~protect:true m @@ fun () ->
+      proc_list := List.filter (fun pid' -> pid <> pid') !proc_list
 
-    let () = at_exit @@ fun () -> List.iter kill_no_err !proc_list
+    let () =
+      at_exit @@ fun () ->
+      Eio.Mutex.use_rw ~protect:true m @@ fun () ->
+      List.iter kill_no_err !proc_list
   end
 
   type outcome = [ `Success | `Cancelled | `Failure of string ]
@@ -49,7 +50,7 @@ module Unix = struct
   type status = [ `Running | `Success | `Cancelled | `Failure of string ]
   [@@deriving irmin]
 
-  type t = { pid : int; mutable status : status }
+  type t = { pid : int; mutable status : status; lock : Eio.Mutex.t }
 
   module Exit_code = struct
     let success = 0
@@ -74,7 +75,7 @@ module Unix = struct
         Unix._exit exit_code
     | pid ->
         Exit.add pid;
-        { pid; status = `Running }
+        { pid; status = `Running; lock = Eio.Mutex.create () }
 
   let status_of_process_outcome = function
     | Unix.WEXITED n when n = Exit_code.success -> `Success
@@ -85,6 +86,7 @@ module Unix = struct
     | Unix.WSTOPPED n -> `Failure (Fmt.str "Stopped %d" n)
 
   let cancel t =
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     match t.status with
     | `Running ->
         let pid, _ = Unix.waitpid [ Unix.WNOHANG ] t.pid in
@@ -98,6 +100,7 @@ module Unix = struct
     | _ -> false
 
   let status t =
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     match t.status with
     | `Running ->
         let pid, status = Unix.waitpid [ Unix.WNOHANG ] t.pid in
@@ -110,6 +113,7 @@ module Unix = struct
     | #outcome as s -> s
 
   let await t =
+    Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     match t.status with
     | `Running ->
         let pid, status = Unix.waitpid [] t.pid in
