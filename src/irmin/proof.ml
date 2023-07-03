@@ -106,15 +106,36 @@ struct
   module H = B.Hash
 
   module Hashes = struct
-    include Hashtbl.Make (struct
+    module Unsafe = Hashtbl.Make (struct
       type t = H.t
 
       let hash = H.short_hash
       let equal = Type.(unstage (equal H.t))
     end)
 
+    type 'a t = { lock : Eio.Mutex.t; data : 'a Unsafe.t }
+
+    let of_unsafe data = { lock = Eio.Mutex.create (); data }
+    let create size = of_unsafe (Unsafe.create size)
+
+    let mem { lock; data } k =
+      Eio.Mutex.use_ro lock @@ fun () -> Unsafe.mem data k
+
+    let find_opt { lock; data } k =
+      Eio.Mutex.use_ro lock @@ fun () -> Unsafe.find_opt data k
+
+    let add { lock; data } k v =
+      Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.add data k v
+
+    let replace { lock; data } k v =
+      Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.replace data k v
+
+    let of_seq s = of_unsafe (Unsafe.of_seq s)
     let of_list l = of_seq (List.to_seq l)
-    let to_list t = List.of_seq (to_seq t)
+
+    let to_list t =
+      Eio.Mutex.use_ro t.lock @@ fun () -> List.of_seq (Unsafe.to_seq t.data)
+
     let t elt_t = Type.map [%typ: (H.t * elt) list] of_list to_list
   end
 
@@ -149,20 +170,23 @@ struct
   end
 
   module Stream = struct
-    let ref_t v = Type.map v ref ( ! )
+    module Atomic = struct
+      include Atomic
+
+      let t v = Type.map v Atomic.make Atomic.get
+    end
 
     type produce = {
       set : unit Hashes.t;
       singleton_inodes : (int * H.t) Hashes.t;
-      rev_elts : (H.t * P.elt) list ref;
-      rev_elts_size : int ref;
+      rev_elts : (int * (H.t * P.elt) list) Atomic.t;
     }
     [@@deriving irmin]
 
     type consume = {
       nodes : B.Node_portable.t Hashes.t;
       contents : B.Contents.Val.t Hashes.t;
-      stream : P.elt Seq.t ref;
+      stream : P.elt Seq.t Atomic.t;
     }
     [@@deriving irmin]
 
@@ -171,28 +195,30 @@ struct
     let producer () =
       let set = Hashes.create 13 in
       let singleton_inodes = Hashes.create 13 in
-      let rev_elts = ref [] in
-      let rev_elts_size = ref 0 in
-      Produce { set; singleton_inodes; rev_elts; rev_elts_size }
+      let rev_elts = Atomic.make (0, []) in
+      Produce { set; singleton_inodes; rev_elts }
 
     let consumer stream =
       let nodes = Hashes.create 13 in
       let contents = Hashes.create 13 in
-      let stream = ref stream in
+      let stream = Atomic.make stream in
       Consume { nodes; contents; stream }
 
-    let push { rev_elts; rev_elts_size; _ } h_elt index =
-      incr rev_elts_size;
-      rev_elts := List.insert_exn !rev_elts index h_elt
+    let rec push t h_elt index =
+      let ((rev_elts_size, rev_elts_list) as old) = Atomic.get t.rev_elts in
+      let new_elts = List.insert_exn rev_elts_list index h_elt in
+      if Atomic.compare_and_set t.rev_elts old (rev_elts_size + 1, new_elts)
+      then ()
+      else push t h_elt index
   end
 
   type v = Empty | Set of Set.t | Stream of Stream.t [@@deriving irmin]
-  type t = v ref
+  type t = v Atomic.t
 
-  let t = Type.map v_t ref ( ! )
-  let empty () : t = ref Empty
-  let is_empty t = !t = Empty
-  let copy ~into t = into := !t
+  let t = Type.map v_t Atomic.make Atomic.get
+  let empty () : t = Atomic.make Empty
+  let is_empty t = Atomic.get t = Empty
+  let copy ~into t = Atomic.set into (Atomic.get t)
 
   type hash = H.t [@@deriving irmin ~equal ~pp]
 
@@ -250,61 +276,64 @@ struct
     aux [] stream
 
   let to_stream t =
-    match !t with
+    match Atomic.get t with
     | Stream (Produce { rev_elts; singleton_inodes; _ }) ->
-        List.rev !rev_elts |> post_processing singleton_inodes |> List.to_seq
+        let _, lst = Atomic.get rev_elts in
+        List.rev lst |> post_processing singleton_inodes |> List.to_seq
     | _ -> assert false
 
   let is_empty_stream t =
-    match !t with
+    match Atomic.get t with
     | Stream (Consume { stream; _ }) -> (
         (* Peek the sequence but do not advance the ref *)
-        match !stream () with Seq.Nil -> true | _ -> false)
+        match Atomic.get stream () with Seq.Nil -> true | _ -> false)
     | _ -> false
 
   let set_mode t (kind : kind) mode =
+    Atomic.set t
+    @@
     match kind with
     | Set -> (
-        match (!t, mode) with
-        | Empty, Produce -> t := Set Set.(producer ())
-        | Empty, Deserialise -> t := Set Set.(deserialiser ())
-        | Set (Produce set), Serialise -> t := Set Set.(Serialise set)
-        | Set (Deserialise set), Consume -> t := Set Set.(Consume set)
+        match (Atomic.get t, mode) with
+        | Empty, Produce -> Set Set.(producer ())
+        | Empty, Deserialise -> Set Set.(deserialiser ())
+        | Set (Produce set), Serialise -> Set Set.(Serialise set)
+        | Set (Deserialise set), Consume -> Set Set.(Consume set)
         | _ -> assert false)
     | Stream -> (
-        match (!t, mode) with
-        | Empty, Produce -> t := Stream (Stream.producer ())
+        match (Atomic.get t, mode) with
+        | Empty, Produce -> Stream (Stream.producer ())
         | _ -> assert false)
 
   let with_set_consume f =
-    let t = ref Empty in
+    let t = Atomic.make Empty in
     set_mode t Set Deserialise;
     let stop_deserialise () = set_mode t Set Consume in
     let res = f t ~stop_deserialise in
-    t := Empty;
+    Atomic.set t Empty;
     res
 
   let with_set_produce f =
-    let t = ref Empty in
+    let t = Atomic.make Empty in
     set_mode t Set Produce;
     let start_serialise () = set_mode t Set Serialise in
     let res = f t ~start_serialise in
-    t := Empty;
+    Atomic.set t Empty;
     res
 
   let with_stream_produce f =
-    let t = ref Empty in
+    let t = Atomic.make Empty in
     set_mode t Stream Produce;
     let to_stream () = to_stream t in
     let res = f t ~to_stream in
-    t := Empty;
+    Atomic.set t Empty;
     res
 
   let with_stream_consume stream f =
-    let t = Stream (Stream.consumer stream) |> ref in
+    let t = Stream (Stream.consumer stream) |> Atomic.make in
     let is_empty () = is_empty_stream t in
     let res = f t ~is_empty in
-    t := Empty;
+    Atomic.set t Empty;
     res
 
   module Contents_hash = Hash.Typed (H) (B.Contents.Val)
@@ -405,7 +434,7 @@ struct
     | Contents v -> v
 
   let find_contents t h =
-    match !t with
+    match Atomic.get t with
     | Empty -> None
     | Set (Produce set) ->
         (* Sharing of contents is not strictly needed during this phase. It
@@ -429,19 +458,19 @@ struct
         match Hashes.find_opt contents h with
         | Some v -> Some v
         | None -> (
-            match !stream () with
+            match Atomic.get stream () with
             | Seq.Nil ->
                 bad_stream_too_short_fmt "find_contents"
                   "empty stream when looking for hash %a" pp_hash h
             | Cons (elt, rest) ->
                 let v = rehydrate_stream_contents elt h in
                 check_contents_integrity v h;
-                stream := rest;
+                Atomic.set stream rest;
                 Hashes.add contents h v;
                 Some v))
 
   let add_contents_from_store t h v =
-    match !t with
+    match Atomic.get t with
     | Empty -> ()
     | Set (Produce set) ->
         (* Registering in [set] for traversal during [Serialise]. *)
@@ -467,7 +496,7 @@ struct
         assert false
 
   let add_contents_from_proof t h v =
-    match !t with
+    match Atomic.get t with
     | Set (Deserialise set) ->
         (* Using [replace] because there could be several instances of this
            contents in the proof, we will not share as this is not strictly
@@ -479,7 +508,7 @@ struct
     | _ -> assert false
 
   let find_node t h =
-    match !t with
+    match Atomic.get t with
     | Empty -> None
     | Set (Produce set) ->
         (* This is needed in order to achieve sharing on inode's pointers. In
@@ -506,13 +535,13 @@ struct
 
   let find_recpnode t _find ~expected_depth h =
     assert (expected_depth > 0);
-    match !t with
+    match Atomic.get t with
     | Stream (Consume { nodes; stream; _ }) -> (
         (* Use the Env to feed the values during consume *)
         match Hashes.find_opt nodes h with
         | Some v -> Some v
         | None -> (
-            match !stream () with
+            match Atomic.get stream () with
             | Seq.Nil ->
                 bad_stream_too_short_fmt "find_recnode"
                   "empty stream when looking for hash %a" pp_hash h
@@ -521,13 +550,13 @@ struct
                 (* There is no need to apply [with_handler] here because there
                    is no repo pointer in this inode. *)
                 check_node_integrity v h;
-                stream := rest;
+                Atomic.set stream rest;
                 Hashes.add nodes h v;
                 Some v))
     | _ -> assert false
 
   let find_pnode t h =
-    match !t with
+    match Atomic.get t with
     | Set (Consume set) ->
         (* [set] has been filled during deserialise. Using it to provide values
             during consume. *)
@@ -538,14 +567,14 @@ struct
         match Hashes.find_opt nodes h with
         | Some v -> Some v
         | None -> (
-            match !stream () with
+            match Atomic.get stream () with
             | Seq.Nil ->
                 bad_stream_too_short_fmt "find_node"
                   "empty stream when looking for hash %a" pp_hash h
             | Cons (v, rest) ->
                 (* Shorten [stream] before calling [head] as it might itself
                    perform reads. *)
-                stream := rest;
+                Atomic.set stream rest;
                 let v =
                   (* [depth] is 0 because this context deals with root nodes *)
                   rehydrate_stream_node ~depth:0 v h
@@ -570,7 +599,7 @@ struct
 
   let add_recnode_from_store t find ~expected_depth k =
     assert (expected_depth > 0);
-    match !t with
+    match Atomic.get t with
     | Stream (Produce ({ set; singleton_inodes; _ } as cache)) -> (
         (* Registering when seen for the first time, there is no need
            for sharing. *)
@@ -592,7 +621,7 @@ struct
     | _ -> assert false
 
   let add_node_from_store t h v =
-    match !t with
+    match Atomic.get t with
     | Empty -> v
     | Set (Produce set) ->
         (* Registering in [set] for sharing during [Produce] and traversal
@@ -610,7 +639,7 @@ struct
     | Set (Consume _) ->
         (* This phase has no repo pointer *)
         assert false
-    | Stream (Produce ({ set; rev_elts_size; singleton_inodes; _ } as cache)) ->
+    | Stream (Produce ({ set; rev_elts; singleton_inodes; _ } as cache)) ->
         (* Registering when seen for the first time and wrap its [find]
            function. Since there is no sharing during the production of
            streamed proofs, the hash may already have been seened. *)
@@ -625,9 +654,9 @@ struct
         in
         if new_hash then (
           Hashes.add set h ();
-          let len0 = !rev_elts_size in
+          let len0, _ = Atomic.get rev_elts in
           let elt = dehydrate_stream_node v in
-          let len1 = !rev_elts_size in
+          let len1, _ = Atomic.get rev_elts in
           let delta =
             (* [delta] is the number of reads that were performed by
                [dehydrate_stream_node]. *)
@@ -649,7 +678,7 @@ struct
         assert false
 
   let add_pnode_from_proof t h v =
-    match !t with
+    match Atomic.get t with
     | Set (Deserialise set) ->
         (* Using [replace] because there could be several instances of this
            node in the proof, we will not share as this is not strictly
