@@ -15,6 +15,7 @@
   test_flush_reload
   test_ranges
   test_mapping
+  test_multicore
   test_nearest_geq
   test_dispatcher
   test_corrupted
