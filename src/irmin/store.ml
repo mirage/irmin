@@ -431,9 +431,7 @@ module Make (B : Backend.S) = struct
   type t = {
     repo : Repo.t;
     head_ref : head_ref;
-    mutable tree : (commit * tree) option;
-    (* cache for the store tree *)
-    lock : Eio.Mutex.t;
+    mutable tree : (commit * tree) option; (* cache for the store tree *)
   }
 
   let repo t = t.repo
@@ -466,9 +464,7 @@ module Make (B : Backend.S) = struct
     in
     aux 1
 
-  let of_ref repo head_ref =
-    let lock = Eio.Mutex.create () in
-    { lock; head_ref; repo; tree = None }
+  let of_ref repo head_ref = { head_ref; repo; tree = None }
 
   let err_invalid_branch t =
     let err = Fmt.str "%a is not a valid branch name." pp_branch t in
@@ -535,7 +531,6 @@ module Make (B : Backend.S) = struct
       | `Head key -> Some key
       | `Empty -> None
       | `Branch name -> (
-          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           match Branch_store.find (branch_store t) name with
           | None -> None
           | Some k -> Commit.of_key t.repo k)
@@ -620,9 +615,7 @@ module Make (B : Backend.S) = struct
           Branch_store.test_and_set (branch_store t) name ~test:(h test)
             ~set:(h set)
 
-    let test_and_set t ~test ~set =
-      Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
-          test_and_set_unsafe t ~test ~set)
+    let test_and_set = test_and_set_unsafe
 
     let fast_forward t ?max_depth ?n new_head =
       let return x = if x then Ok () else Error (`Rejected :> ff_error) in
@@ -667,8 +660,7 @@ module Make (B : Backend.S) = struct
             let c3 = Commit.of_key t.repo c3 in
             test_and_set_unsafe t ~test:head ~set:c3 |> Merge.ok
       in
-      Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
-          retry_merge "merge_head" aux)
+      retry_merge "merge_head" aux
   end
 
   (* Retry an operation until the optimistic lock is happy. Ensure
@@ -694,13 +686,12 @@ module Make (B : Backend.S) = struct
   let add_commit t old_head ((c, _) as tree) =
     match t.head_ref with
     | `Head head ->
-        Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
-            if not (Commit.equal_opt old_head !head) then false
-            else (
-              (* [head] is protected by [t.lock] *)
-              head := Some c;
-              t.tree <- Some tree;
-              true))
+        if not (Commit.equal_opt old_head !head) then false
+        else (
+          (* [head] is protected by [t.lock] *)
+          head := Some c;
+          t.tree <- Some tree;
+          true)
     | `Branch name ->
         (* concurrent handlers and/or process can modify the
            branch. Need to check that we are still working on the same

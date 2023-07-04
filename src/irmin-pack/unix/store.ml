@@ -232,8 +232,7 @@ module Maker (Config : Conf.S) = struct
             | None -> false
 
           let cancel t =
-            Eio.Mutex.use_rw_exn t.lock @@ fun () ->
-            unsafe_cancel t
+            Eio.Mutex.use_rw_exn t.lock @@ fun () -> unsafe_cancel t
 
           let direct_commit_key t key =
             let state : _ Pack_key.state = Pack_key.inspect key in
@@ -416,7 +415,6 @@ module Maker (Config : Conf.S) = struct
 
         let batch t f =
           [%log.debug "[pack] batch start"];
-          Eio.Mutex.use_rw_exn t.lock @@ fun () ->
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed
           else
