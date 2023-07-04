@@ -53,6 +53,7 @@ module type S = sig
       fm:Fm.t ->
       dict:Dict.t ->
       dispatcher:Dispatcher.t ->
+      lru:Lru.t ->
       read t
 
     val unsafe_find :

@@ -7,6 +7,10 @@
     default. Add `allow_duplicate` optional argument to override. (#2252,
     @metanivek)
     
+- **irmin-pack**
+  - Add maximum memory as an alternative configuration option, `lru_max_memory`,
+    for setting LRU capacity. (@metanivek, #2254)
+
 ### Changed
 
 - **irmin**
@@ -32,7 +36,6 @@
   - Fix snapshot export when using lower layer (#2257, @metanivek)
 
 ## 3.7.1 (2023-05-24)
-
 
 ### Fixed
 

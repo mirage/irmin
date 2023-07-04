@@ -73,6 +73,7 @@ module type Sigs = sig
     ?fresh:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
+    ?lru_max_memory:int option ->
     ?index_log_size:int ->
     ?merge_throttle:Conf.merge_throttle ->
     ?indexing_strategy:Indexing_strategy.t ->

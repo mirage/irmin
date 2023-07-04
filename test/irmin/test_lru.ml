@@ -75,14 +75,4 @@ let test_map =
     QCheck.(list arbitrary_action)
     (fun t -> eq (run t) (run' t))
 
-let test_weight =
-  QCheck.Test.make ~name:"Weights" ~count:10_000
-    QCheck.(list arbitrary_action)
-    (fun t ->
-      let cap = 5 in
-      let tbl = run_aux (fun () -> M.create ~weight:(fun k -> k) cap) apply t in
-      let elts = M.bindings tbl in
-      let w = List.fold_left (fun acc (_, v) -> acc + v) 0 elts in
-      w <= cap)
-
-let suite = List.map QCheck_alcotest.to_alcotest [ test_map; test_weight ]
+let suite = List.map QCheck_alcotest.to_alcotest [ test_map ]

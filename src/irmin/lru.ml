@@ -78,45 +78,53 @@ module Make (H : Hashtbl.HashedType) = struct
   type 'a t = {
     ht : (key * 'a) Q.node HT.t;
     q : (key * 'a) Q.t;
-    mutable cap : int;
+    mutable cap : cap;
     mutable w : int;
-    weight : 'a -> int;
   }
 
-  let create ?(weight = function _ -> 1) cap =
-    { cap; w = 0; ht = HT.create cap; q = Q.create (); weight }
+  and cap = Uncapped | Capped of int
 
-  let drop_lru t =
+  let weight t = t.w
+
+  let create cap =
+    let cap, ht_cap =
+      if cap < 0 then (Uncapped, 65536) else (Capped cap, cap)
+    in
+    { cap; w = 0; ht = HT.create ht_cap; q = Q.create () }
+
+  let drop t =
     match t.q.first with
-    | None -> ()
+    | None -> None
     | Some ({ Q.value = k, v; _ } as n) ->
-        t.w <- t.w - t.weight v;
+        t.w <- t.w - 1;
         HT.remove t.ht k;
-        Q.detach t.q n
+        Q.detach t.q n;
+        Some v
 
   let remove t k =
     try
       let n = HT.find t.ht k in
-      t.w <- t.w - t.weight (snd n.value);
+      t.w <- t.w - 1;
       HT.remove t.ht k;
       Q.detach t.q n
     with Not_found -> ()
 
   let add t k v =
-    if t.cap = 0 then ()
-    else (
+    let add t k v =
       remove t k;
       let n = Q.node (k, v) in
-      let w = t.weight v in
-      if w > t.cap then
-        (* if [v] is bigger than the LRU capacity, just skip it *) ()
-      else (
-        t.w <- t.w + w;
-        while t.w > t.cap do
-          drop_lru t
-        done;
-        HT.add t.ht k n;
-        Q.append t.q n))
+      t.w <- t.w + 1;
+      HT.add t.ht k n;
+      Q.append t.q n
+    in
+    match t.cap with
+    | Capped c when c = 0 -> ()
+    | Uncapped -> add t k v
+    | Capped c ->
+        add t k v;
+        if weight t > c then
+          let _ = drop t in
+          ()
 
   let promote t k =
     try

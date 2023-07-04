@@ -1776,7 +1776,10 @@ struct
     type key = Key.t
     type t = T.key Bin.t [@@deriving irmin]
     type metadata = T.metadata [@@deriving irmin]
+    type Pack_value.kinded += Node of t
 
+    let to_kinded t = Node t
+    let of_kinded = function Node n -> n | _ -> assert false
     let depth = Bin.depth
 
     exception Invalid_depth of { expected : int; got : int; v : t }
@@ -1786,7 +1789,20 @@ struct
       if t.root then Pack_value.Kind.Inode_v2_root
       else Pack_value.Kind.Inode_v2_nonroot
 
-    let weight _ = 1
+    let repr_size = Mem.repr_size t
+
+    (** [repr_size] undercounts the size of an inode by around this factor.
+
+        A value of 4.5 was empirically observed by averaging the ratio between
+        [Mem.reachable_bytes] and [repr_size] during a few runs of a trace
+        replay. This value is rounded to 5 to prevent float-int conversion
+        during weight calculation, at the expense of letting fewer objects into
+        the LRU. *)
+    let repr_size_adjustment = 5
+
+    let weight t =
+      Pack_value.Deferred (fun () -> repr_size_adjustment * repr_size t)
+
     let hash t = Bin.hash t
     let step_to_bin = T.step_to_bin_string
     let step_of_bin = T.step_of_bin_string

@@ -119,7 +119,10 @@ struct
   type t = Data.t [@@deriving irmin ~size_of]
   type key = Key.t
   type hash = Hash.t
+  type kinded += Contents of t
 
+  let to_kinded t = Contents t
+  let of_kinded = function Contents c -> c | _ -> assert false
   let hash = Hash.hash
   let kind = Kind.Contents
   let length_header = Fun.const Conf.contents_length_header
@@ -138,16 +141,8 @@ struct
   let kind _ = kind
 
   let weight =
-    (* Normalise the weight of the blob, assuming that the 'average'
-       size for a blob is 1k bytes. *)
-    let normalise n = max 1 (n / 1_000) in
-    match Irmin.Type.Size.of_value t with
-    | Unknown ->
-        (* this should not happen unless the user has specified a very
-           weird content type. *)
-        Fun.const max_int
-    | Dynamic f -> fun v -> normalise (f v)
-    | Static n -> Fun.const (normalise n)
+    let size = Mem.repr_size t in
+    fun v -> Immediate (size v)
 end
 
 module Of_commit
@@ -162,10 +157,16 @@ struct
   type t = Commit.t [@@deriving irmin]
   type key = Key.t
   type hash = Hash.t [@@deriving irmin ~encode_bin ~decode_bin]
+  type kinded += Commit of t
 
+  let to_kinded t = Commit t
+  let of_kinded = function Commit c -> c | _ -> assert false
   let hash = Hash.hash
   let kind _ = Kind.Commit_v2
-  let weight _ = 1
+
+  let weight =
+    let size = Mem.repr_size t in
+    fun v -> Deferred (fun () -> size v)
 
   (* A commit implementation that uses integer offsets for addresses where possible. *)
   module Commit_direct = struct

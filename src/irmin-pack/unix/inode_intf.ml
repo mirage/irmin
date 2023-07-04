@@ -29,6 +29,7 @@ module type Persistent = sig
     fm:file_manager ->
     dict:dict ->
     dispatcher:dispatcher ->
+    lru:Lru.t ->
     read t
 
   include Irmin_pack.Checkable with type 'a t := 'a t and type hash := hash
