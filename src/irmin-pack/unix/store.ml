@@ -156,8 +156,8 @@ module Maker (Config : Conf.S) = struct
           fm : File_manager.t;
           dict : Dict.t;
           dispatcher : Dispatcher.t;
-          mutable during_batch : bool;
-          mutable running_gc : running_gc option;
+          during_batch : bool Atomic.t;
+          running_gc : running_gc option Atomic.t;
           lock : Eio.Mutex.t;
         }
 
@@ -198,8 +198,8 @@ module Maker (Config : Conf.S) = struct
             let path = Irmin_pack.Layout.V4.branch ~root in
             Branch.v ~fresh ~readonly path
           in
-          let during_batch = false in
-          let running_gc = None in
+          let during_batch = Atomic.make false in
+          let running_gc = Atomic.make None in
           let lock = Eio.Mutex.create () in
           {
             config;
@@ -224,15 +224,16 @@ module Maker (Config : Conf.S) = struct
           let behaviour { fm; _ } = File_manager.gc_behaviour fm
 
           let unsafe_cancel t =
-            match t.running_gc with
+            match Atomic.get t.running_gc with
             | Some { gc; _ } ->
                 let cancelled = Gc.cancel gc in
-                t.running_gc <- None;
+                Atomic.set t.running_gc None;
                 cancelled
             | None -> false
 
           let cancel t =
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> unsafe_cancel t
+            Eio.Mutex.use_rw_exn t.lock @@ fun () ->
+            unsafe_cancel t
 
           let direct_commit_key t key =
             let state : _ Pack_key.state = Pack_key.inspect key in
@@ -248,10 +249,10 @@ module Maker (Config : Conf.S) = struct
 
           let start ~unlink ~use_auto_finalisation ~output t commit_key =
             let open Result_syntax in
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
-              if t.during_batch then Error `Gc_forbidden_during_batch else Ok ()
+              if Atomic.get t.during_batch then Error `Gc_forbidden_during_batch
+              else Ok ()
             in
             let* commit_key = direct_commit_key t commit_key in
             let root = Conf.root t.config in
@@ -260,6 +261,7 @@ module Maker (Config : Conf.S) = struct
                 Error (`Gc_disallowed "Store does not support GC")
               else Ok ()
             in
+            Eio.Mutex.use_rw_exn t.lock @@ fun () ->
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
             let lower_root = Conf.lower_root t.config in
@@ -268,13 +270,12 @@ module Maker (Config : Conf.S) = struct
                 ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
                 ~node:t.node ~commit:t.commit ~output commit_key
             in
-            t.running_gc <- Some { gc; use_auto_finalisation };
+            Atomic.set t.running_gc (Some { gc; use_auto_finalisation });
             Ok ()
 
           let start_exn ?(unlink = true) ?(output = `Root)
               ~use_auto_finalisation t commit_key =
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
-            match t.running_gc with
+            match Atomic.get t.running_gc with
             | Some _ ->
                 [%log.info "Repo is alreadying running GC. Skipping."];
                 false
@@ -285,37 +286,38 @@ module Maker (Config : Conf.S) = struct
                 match result with Ok _ -> true | Error e -> Errs.raise_error e)
 
           let finalise_exn ?(wait = false) t =
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
             let result =
-              match t.running_gc with
+              match Atomic.get t.running_gc with
               | None -> Ok `Idle
               | Some { gc; _ } ->
-                  if t.during_batch then Error `Gc_forbidden_during_batch
+                  if Atomic.get t.during_batch then
+                    Error `Gc_forbidden_during_batch
                   else Gc.finalise ~wait gc
             in
+            Eio.Mutex.use_rw_exn t.lock @@ fun () ->
             match result with
             | Ok (`Finalised _ as x) ->
-                t.running_gc <- None;
+                Atomic.set t.running_gc None;
                 x
             | Ok waited -> waited
             | Error e ->
-                t.running_gc <- None;
+                Atomic.set t.running_gc None;
                 Errs.raise_error e
 
-          let is_finished t =
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
-            Option.is_none t.running_gc
+          let is_finished t = Option.is_none (Atomic.get t.running_gc)
 
           let on_finalise t f =
-            Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
-            match t.running_gc with
+            match Atomic.get t.running_gc with
             | None -> ()
-            | Some { gc; _ } -> Gc.on_finalise gc f
+            | Some { gc; _ } ->
+                Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
+                Gc.on_finalise gc f
 
           let try_auto_finalise_exn t =
-            match t.running_gc with
+            match Atomic.get t.running_gc with
             | None | Some { use_auto_finalisation = false; _ } -> ()
             | Some { use_auto_finalisation = true; _ } ->
+                Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
                 let _ = finalise_exn ~wait:false t in
                 ()
 
@@ -366,10 +368,11 @@ module Maker (Config : Conf.S) = struct
               if not launched then Errs.raise_error `Forbidden_during_gc
             in
             let gced =
-              Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
-              match t.running_gc with
+              match Atomic.get t.running_gc with
               | None -> assert false
-              | Some { gc; _ } -> Gc.finalise_without_swap gc
+              | Some { gc; _ } ->
+                  Eio.Mutex.use_rw_exn t.lock @@ fun () ->
+                  Gc.finalise_without_swap gc
             in
             let config = Irmin.Backend.Conf.add t.config Conf.Key.root path in
             let () =
@@ -387,16 +390,17 @@ module Maker (Config : Conf.S) = struct
 
         let split t =
           let open Result_syntax in
-          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           let readonly = Irmin_pack.Conf.readonly t.config in
           let* () =
             if not (is_split_allowed t) then Error `Split_disallowed else Ok ()
           in
           let* () = if readonly then Error `Ro_not_allowed else Ok () in
           let* () =
-            if t.during_batch then Error `Split_forbidden_during_batch
+            if Atomic.get t.during_batch then
+              Error `Split_forbidden_during_batch
             else Ok ()
           in
+          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           File_manager.split t.fm
 
         let split_exn repo = split repo |> Errs.raise_if_error
@@ -412,14 +416,14 @@ module Maker (Config : Conf.S) = struct
 
         let batch t f =
           [%log.debug "[pack] batch start"];
-          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
+          Eio.Mutex.use_rw_exn t.lock @@ fun () ->
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed
           else
             let c0 = Mtime_clock.counter () in
             let try_finalise () = Gc.try_auto_finalise_exn t in
             let _ = try_finalise () in
-            t.during_batch <- true;
+            Atomic.set t.during_batch true;
             let contents = Contents.CA.cast t.contents in
             let node = Node.CA.Pack.cast t.node in
             let commit = Commit.CA.cast t.commit in
@@ -429,13 +433,13 @@ module Maker (Config : Conf.S) = struct
             let on_success res =
               let s = Mtime_clock.count c0 |> Mtime.span_to_s in
               [%log.info "[pack] batch completed in %.6fs" s];
-              t.during_batch <- false;
+              Atomic.set t.during_batch false;
               File_manager.flush t.fm |> Errs.raise_if_error;
               let _ = try_finalise () in
               res
             in
             let on_fail exn =
-              t.during_batch <- false;
+              Atomic.set t.during_batch false;
               [%log.info
                 "[pack] batch failed. calling flush. (%s)"
                   (Printexc.to_string exn)];
@@ -775,7 +779,7 @@ module Maker (Config : Conf.S) = struct
         |> Option.is_some
 
       let kill_gc (repo : X.Repo.t) =
-        match (repo.running_gc : X.Repo.running_gc option) with
+        match (Atomic.get repo.running_gc : X.Repo.running_gc option) with
         | None -> false
         | Some { gc; _ } -> (
             try X.Gc.cancel gc

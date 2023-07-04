@@ -33,6 +33,42 @@ module Fiber = struct
     List.map Eio.Promise.await_exn ps
 end
 
+module Eio = struct
+  include Eio
+
+  module Mutex = struct
+    include Eio.Mutex
+
+    let use_rw_exn t fn =
+      match
+        Eio.Mutex.use_rw ~protect:true t @@ fun () ->
+        try Ok (fn ())
+        with err ->
+          Format.printf "Mutex.use_rw_exn raised %s@." (Printexc.to_string err);
+          Printexc.print_backtrace stderr;
+          Error err
+      with
+      | Ok v -> v
+      | Error err -> raise err
+
+    let use_rw ~protect t fn =
+      Eio.Mutex.use_rw ~protect t @@ fun () ->
+      try fn ()
+      with err ->
+        Format.printf "Mutex.use_rw raised %s@." (Printexc.to_string err);
+        Printexc.print_backtrace stderr;
+        raise err
+
+    let use_ro t fn =
+      Eio.Mutex.use_ro t @@ fun () ->
+      try fn ()
+      with err ->
+        Format.printf "Mutex.use_ro raised %s@." (Printexc.to_string err);
+        Printexc.print_backtrace stderr;
+        raise err
+  end
+end
+
 module Option = struct
   include Option
   (** @closed *)
