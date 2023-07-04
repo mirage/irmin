@@ -65,6 +65,20 @@ let shape1 : shape =
         `Node [ ("a", `Contents "new_new_a"); ("b", `Contents "new_new_b") ] );
     ]
 
+let shape2 : shape =
+  `Node
+    [
+      ("a", `Contents "a");
+      ("c", `Node [ ("e", `Contents "ce") ]);
+      ( "f",
+        `Node
+          [
+            ("g", `Node [ ("h", `Contents "updated") ]);
+            ("fresh", `Contents "added");
+          ] );
+      ("i", `Contents "i");
+    ]
+
 let rec flatten_shape acc path : shape -> _ = function
   | `Contents c -> (List.rev path, c) :: acc
   | `Node children ->
@@ -81,24 +95,28 @@ let make_tree shape =
 
 let make_store shape =
   let repo = Store.Repo.v (Store.config ~fresh:true root) in
-  (* let store = Store.empty repo in *)
   let main = Store.main repo in
   let tree = make_tree shape in
   let () = Store.set_tree_exn ~info main [] tree in
   Store.Repo.close repo
 
-let domains_spawn d_mgr ?(nb = 2) fn =
-  let count = Atomic.make 0 in
+let domains_run d_mgr fns =
+  let count = Atomic.make (List.length fns) in
   let fibers =
-    List.init nb (fun _ () ->
+    List.map
+      (fun fn () ->
         Eio.Domain_manager.run d_mgr (fun () ->
-            Atomic.incr count;
-            while Atomic.get count < nb do
+            Atomic.decr count;
+            while Atomic.get count > 0 do
               Domain.cpu_relax ()
             done;
             fn ()))
+      fns
   in
   Eio.Fiber.all fibers
+
+let domains_spawn d_mgr ?(nb = 2) fn =
+  domains_run d_mgr @@ List.init nb (fun _ -> fn)
 
 let find_all tree paths =
   List.iter
@@ -190,11 +208,7 @@ let test_add_remove d_mgr =
     let tree =
       List.fold_left
         (fun tree -> function
-          | `Add (path, contents) ->
-              Format.printf "[%i] add %s@."
-                (Domain.self () :> int)
-                (String.concat ";" path);
-              Tree.add tree path contents
+          | `Add (path, contents) -> Tree.add tree path contents
           | `Remove path -> Tree.remove tree path)
         tree patch
     in
@@ -208,10 +222,40 @@ let test_add_remove d_mgr =
   domains_spawn ~nb:2 d_mgr add_all;
   Store.Repo.close repo
 
+let test_commit d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let patch01 = diff_shape shape0 shape1 in
+  let patch02 = diff_shape shape0 shape2 in
+  let do_commit patch () =
+    List.iter
+      (fun op ->
+        let store = Store.main repo in
+        let tree = Store.Head.get store |> Store.Commit.tree in
+        let tree =
+          match op with
+          | `Add (name, contents) -> Tree.add tree name contents
+          | `Remove name -> Tree.remove tree name
+        in
+        Store.set_tree_exn ~info store [] tree)
+      patch;
+    let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+    List.iter
+      (function
+        | `Add (name, contents) ->
+            assert (Store.Tree.find tree name = Some contents)
+        | `Remove name -> assert (not (Store.Tree.mem tree name)))
+      patch
+  in
+  domains_run d_mgr [ do_commit patch01; do_commit patch02 ];
+  Store.Repo.close repo
+
 let tests d_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn d_mgr) in
   [
     tc "find" test_find;
     tc "length" test_length;
     tc "add / remove" test_add_remove;
+    tc "commit" test_commit;
   ]
