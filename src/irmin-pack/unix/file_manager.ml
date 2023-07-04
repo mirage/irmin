@@ -177,9 +177,10 @@ struct
   (** Is expected to be called by the index when its append buffer is full so
       that the dependendies of index are flushes. When the function returns,
       index will flush itself. *)
-  let index_is_about_to_auto_flush_exn t =
+  let index_is_about_to_auto_flush_exn _t =
     Stats.incr_fm_field Auto_index;
-    flush_suffix_and_its_deps t |> Errs.raise_if_error
+    (* TODO: remove? flush_suffix_and_its_deps t |> Errs.raise_if_error *)
+    ()
 
   (* Explicit flush ********************************************************* *)
 
