@@ -441,7 +441,9 @@ module Make (B : Backend.S) = struct
   type t = {
     repo : Repo.t;
     head_ref : head_ref;
-    mutable tree : (commit * tree) option; (* cache for the store tree *)
+    tree : (commit * tree) option Atomic.t;
+    (* cache for the store tree *)
+    lock : Eio.Mutex.t;
   }
 
   let repo t = t.repo
@@ -474,7 +476,9 @@ module Make (B : Backend.S) = struct
     in
     aux 1
 
-  let of_ref repo head_ref = { head_ref; repo; tree = None }
+  let of_ref repo head_ref =
+    let lock = Eio.Mutex.create () in
+    { lock; head_ref; repo; tree = Atomic.make None }
 
   let err_invalid_branch t =
     let err = Fmt.str "%a is not a valid branch name." pp_branch t in
@@ -548,19 +552,22 @@ module Make (B : Backend.S) = struct
     [%log.debug "Head.find -> %a" Fmt.(option Commit.pp_key) h];
     h
 
-  let tree_and_head t =
+  let rec tree_and_head t =
     match head t with
     | None -> None
     | Some h -> (
-        match t.tree with
+        match Atomic.get t.tree with
         | Some (o, t) when Commit.equal o h -> Some (o, t)
-        | _ ->
-            t.tree <- None;
-
-            (* the tree cache needs to be invalidated *)
-            let tree = Tree.import_no_check (repo t) (`Node (Commit.node h)) in
-            t.tree <- Some (h, tree);
-            Some (h, tree))
+        | old ->
+            if Atomic.compare_and_set t.tree old None then
+              (* the tree cache needs to be invalidated *)
+              let tree =
+                Tree.import_no_check (repo t) (`Node (Commit.node h))
+              in
+              if Atomic.compare_and_set t.tree None (Some (h, tree)) then
+                Some (h, tree)
+              else tree_and_head t
+            else tree_and_head t)
 
   let tree t =
     match tree_and_head t with
@@ -700,7 +707,7 @@ module Make (B : Backend.S) = struct
         else (
           (* [head] is protected by [t.lock] *)
           head := Some c;
-          t.tree <- Some tree;
+          Atomic.set t.tree (Some tree);
           true)
     | `Branch name ->
         (* concurrent handlers and/or process can modify the
@@ -709,7 +716,7 @@ module Make (B : Backend.S) = struct
         let test = match old_head with None -> None | Some c -> Some c.key in
         let set = Some c.key in
         let r = Branch_store.test_and_set (branch_store t) name ~test ~set in
-        if r then t.tree <- Some tree;
+        if r then Atomic.set t.tree (Some tree);
         r
 
   let pp_write_error ppf = function
