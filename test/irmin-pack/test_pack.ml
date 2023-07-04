@@ -340,6 +340,7 @@ module Pack = struct
       let y1 = Pack.find t'.pack k1 in
       Alcotest.(check (option string)) "reload before filter" None y1;
       Index.filter t.index (fun _ -> true);
+      flush t.fm;
       reload t'.fm;
       let y1 = Pack.find t'.pack k1 in
       Alcotest.(check (option string)) "reload after filter" (Some x1) y1;
