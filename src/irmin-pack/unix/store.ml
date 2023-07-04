@@ -416,7 +416,6 @@ module Maker (Config : Conf.S) = struct
 
         let batch t f =
           [%log.debug "[pack] batch start"];
-          Eio.Mutex.use_rw_exn t.lock @@ fun () ->
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed
           else

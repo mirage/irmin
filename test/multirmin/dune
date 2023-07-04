@@ -1,4 +1,3 @@
 (executable
  (name test)
- (modules test)
  (libraries irmin irmin-test eio_main test_pack))
