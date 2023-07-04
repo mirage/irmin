@@ -187,12 +187,14 @@ struct
     Stats.incr_fm_field Auto_suffix;
     flush_suffix_and_its_deps t |> Errs.raise_if_error
 
-  (** Is expected to be called by the index when its append buffer is full so
-      that the dependendies of index are flushes. When the function returns,
-      index will flush itself. *)
-  let index_is_about_to_auto_flush_exn t =
+  (** Is expected to be called by the index when its append buffer is full. This
+      is called by index-unix from another thread without an installed Eio
+      effect handler, leading to poisoned mutexes. Flushing the other files at
+      the same time as the index doesn't seem necessary. *)
+  let index_is_about_to_auto_flush_exn _t =
     Stats.incr_fm_field Auto_index;
-    flush_suffix_and_its_deps t |> Errs.raise_if_error
+    (* TODO: remove? flush_suffix_and_its_deps t |> Errs.raise_if_error *)
+    ()
 
   (* Explicit flush ********************************************************* *)
 

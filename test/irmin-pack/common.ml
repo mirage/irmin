@@ -164,9 +164,8 @@ struct
   let reopen_rw name = create ~readonly:false ~fresh:false name
 
   let close_pack t =
-    Index.close_exn t.index;
+    let _ = File_manager.flush t.fm in
     File_manager.close t.fm |> Errs.raise_if_error
-  (* closes pack and dict *)
 end
 
 module Alcotest = struct
