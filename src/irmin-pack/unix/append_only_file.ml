@@ -104,7 +104,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     { io; persisted_end_poff; dead_header_size; rw_perm = None }
 
   let empty_buffer = function
-    | { rw_perm = Some { buf; _ }; _ } when Buffer.length buf > 0 -> false
+    | { rw_perm = Some { buf_length; _ }; _ } -> Atomic.get buf_length = 0
     | _ -> true
 
   let close t =
@@ -172,11 +172,12 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     match t.rw_perm with
     | None -> raise Errors.RO_not_allowed
     | Some rw_perm -> (
-        assert (Buffer.length rw_perm.buf < rw_perm.auto_flush_threshold);
+        assert (Atomic.get rw_perm.buf_length < rw_perm.auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;
-        let buf_length =
+        let (_ : int) =
           Atomic.fetch_and_add rw_perm.buf_length (String.length s)
         in
+        let buf_length = Atomic.get rw_perm.buf_length in
         if buf_length >= rw_perm.auto_flush_threshold then
           match rw_perm.auto_flush_procedure with
           | `Internal -> flush t |> Errs.raise_if_error
