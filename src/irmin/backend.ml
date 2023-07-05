@@ -98,7 +98,7 @@ module type S = sig
     val config : t -> Conf.t
 
     val batch :
-      t ->
+      ?lock:bool -> t ->
       (read_write Contents.t -> read_write Node.t -> read_write Commit.t -> 'a) ->
       'a
     (** A getter from repo to backend stores in rw mode. *)

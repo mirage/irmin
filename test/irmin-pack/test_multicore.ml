@@ -414,19 +414,35 @@ let test_commit_parents d_mgr =
   domains_spawn d_mgr do_commit_parents;
   Store.Repo.close repo
 
+let test_commit_v d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let store = Store.main repo in
+  let patch01 = diff_shape shape0 shape1 in
+  let commit = Store.Head.get store in
+  let tree = List.fold_left apply_op (Store.Commit.tree commit) patch01 in
+  let do_commit_v () =
+    let _ = Store.Commit.v repo ~info:(info ()) ~parents:[Store.Commit.key commit] tree in
+    ()
+  in
+  domains_spawn d_mgr do_commit_v;
+  Store.Repo.close repo
+
   let tests d_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn d_mgr) in
   [
-    tc "find" test_find;
-    tc "length" test_length;
-    tc "add / remove" test_add_remove;
-    tc "commit" test_commit;
-    tc "merkle" test_merkle;
-    tc "hash" test_hash;
-    tc "list-disk-no-cache" (test_list_disk ~cache:false);
-    tc "list-disk-with-cache" (test_list_disk ~cache:true);
-    tc "list-mem-no-cache" (test_list_mem ~cache:false);
-    tc "list-mem-with-cache" (test_list_mem ~cache:true);
-    tc "commit-of-hash" test_commit_of_hash;
-    tc "commit-parents" test_commit_parents;
+    tc "find." test_find;
+    tc "length." test_length;
+    tc "add / remove." test_add_remove;
+    tc "commit." test_commit;
+    tc "merkle." test_merkle;
+    tc "hash." test_hash;
+    tc "list-disk-no-cache." (test_list_disk ~cache:false);
+    tc "list-disk-with-cache." (test_list_disk ~cache:true);
+    tc "list-mem-no-cache." (test_list_mem ~cache:false);
+    tc "list-mem-with-cache." (test_list_mem ~cache:true);
+    tc "commit-of-hash." test_commit_of_hash;
+    tc "commit-parents." test_commit_parents;
+    tc "commit-v." test_commit_v;
   ]

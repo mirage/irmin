@@ -414,7 +414,7 @@ module Maker (Config : Conf.S) = struct
           in
           File_manager.add_volume t.fm |> Errs.raise_if_error
 
-        let batch t f =
+        let unsafe_batch t f =
           [%log.debug "[pack] batch start"];
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed

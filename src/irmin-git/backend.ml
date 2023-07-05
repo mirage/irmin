@@ -79,7 +79,7 @@ struct
     let contents_t t : 'a Contents.t = (t.closed, t.g)
     let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
     let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
-    let batch t f = f (contents_t t) (node_t t) (commit_t t)
+    let batch ?lock:_ t f = f (contents_t t) (node_t t) (commit_t t)
 
     type config = {
       root : string;
