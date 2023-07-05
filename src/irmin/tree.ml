@@ -347,6 +347,12 @@ module Make (P : Backend.S) = struct
               | None -> None
               | Some c -> Some c))
 
+    let set_hash_cache ~cache t hash =
+      let (_ : bool) =
+        cache && Atomic.compare_and_set t.info.ptr Ptr_none (Hash hash)
+      in
+      ()
+
     let hash ?(cache = true) c =
       match cached_hash c with
       | Some k -> k
@@ -356,8 +362,7 @@ module Make (P : Backend.S) = struct
           | Some v ->
               Atomic.incr cnt.contents_hash;
               let h = P.Contents.Hash.hash v in
-              assert (Atomic.get c.info.ptr = Ptr_none);
-              if cache then Atomic.set c.info.ptr (Hash h);
+              set_hash_cache ~cache c h;
               h)
 
     let key t =
@@ -921,13 +926,18 @@ module Make (P : Backend.S) = struct
       | `Contents (key, m) -> `Contents (P.Contents.Key.to_hash key, m)
       | `Node key -> `Node (P.Node.Key.to_hash key)
 
+    let set_hash_cache ~cache t hash =
+      let (_ : bool) =
+        cache && Atomic.compare_and_set t.info.ptr Ptr_none (Hash hash)
+      in
+      ()
+
     let rec hash : type a. cache:bool -> t -> (hash -> a) -> a =
      fun ~cache t k ->
       let a_of_hashable hash v =
         Atomic.incr cnt.node_hash;
         let hash = hash v in
-        assert (Atomic.get t.info.ptr = Ptr_none);
-        if cache then Atomic.set t.info.ptr (Hash hash);
+        set_hash_cache ~cache t hash;
         k hash
       in
       match

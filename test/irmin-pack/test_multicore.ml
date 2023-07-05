@@ -227,12 +227,12 @@ let apply_op tree = function
   | `Remove name -> Tree.remove tree name
 
 let check_patch_was_applied patch tree =
-    List.iter
-      (function
-        | `Add (name, contents) ->
-            assert (Store.Tree.find tree name = Some contents)
-        | `Remove name -> assert (not (Store.Tree.mem tree name)))
-      patch
+  List.iter
+    (function
+      | `Add (name, contents) ->
+          assert (Store.Tree.find tree name = Some contents)
+      | `Remove name -> assert (not (Store.Tree.mem tree name)))
+    patch
 
 let test_commit d_mgr =
   Logs.set_level None;
@@ -265,15 +265,41 @@ let test_merkle d_mgr =
   let do_proof patch () =
     let fn tree =
       let new_tree = List.fold_left apply_op tree patch in
-      new_tree, ()
+      (new_tree, ())
     in
     let proof, () = Store.Tree.produce_proof repo hash fn in
     match Store.Tree.verify_proof proof fn with
-    | Ok (new_tree, ()) ->
-        check_patch_was_applied patch new_tree
+    | Ok (new_tree, ()) -> check_patch_was_applied patch new_tree
     | Error _ -> assert false
   in
   domains_run d_mgr [ do_proof patch01; do_proof patch02 ];
+  Store.Repo.close repo
+
+let test_hash d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+  let patch01 = diff_shape shape0 shape1 in
+  let patch12 = diff_shape shape1 shape2 in
+  let patch = patch01 @ patch12 in
+  let _, trees =
+    List.fold_left
+      (fun (tree, trees) op ->
+        let new_tree = apply_op tree op in
+        (new_tree, new_tree :: trees))
+      (tree, [ tree ]) patch
+  in
+  let do_hash result () =
+    let hashes = List.map Store.Tree.hash trees in
+    Atomic.set result hashes
+  in
+  let result1 = Atomic.make [] in
+  let result2 = Atomic.make [] in
+  domains_run d_mgr [ do_hash result1; do_hash result2 ];
+  List.iter2
+    (fun h1 h2 -> assert (h1 = h2))
+    (Atomic.get result1) (Atomic.get result2);
   Store.Repo.close repo
 
 let tests d_mgr =
@@ -284,4 +310,5 @@ let tests d_mgr =
     tc "add / remove" test_add_remove;
     tc "commit" test_commit;
     tc "merkle" test_merkle;
+    tc "hash" test_hash;
   ]
