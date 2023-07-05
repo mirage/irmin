@@ -345,7 +345,76 @@ let test_list_mem ~cache d_mgr =
   domains_spawn d_mgr (fun _ -> list_all cache tree paths);
   Store.Repo.close repo
 
-let tests d_mgr =
+let test_commit_of_hash d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let store = Store.main repo in
+  let patch01 = diff_shape shape0 shape1 in
+  let patch02 = diff_shape shape0 shape2 in
+  let commit1 = Store.Head.get store in
+  let hash1 = Store.Commit.hash commit1 in
+  let tree1 = Store.Commit.tree commit1 in
+  List.iter
+  (fun op ->
+    let tree = Store.Commit.tree commit1 in
+    let tree = apply_op tree op in
+    Store.set_tree_exn ~info store [] tree)
+  patch01;
+  let commit2 = Store.Head.get store in
+  let hash2 = Store.Commit.hash commit2 in
+  let tree2 = Store.Commit.tree commit2 in
+  List.iter
+  (fun op ->
+    let tree = Store.Commit.tree commit2 in
+    let tree = apply_op tree op in
+    Store.set_tree_exn ~info store [] tree)
+  patch02;
+  let commit3 = Store.Head.get store in
+  let hash3 = Store.Commit.hash commit3 in
+  let tree3 = Store.Commit.tree commit3 in
+  let do_commit_of_hash () =
+    let t1 = Store.Commit.of_hash repo hash1 |> Option.get |> Store.Commit.tree in
+    let diffs = Store.Tree.diff tree1 t1 in
+    assert (diffs = []);
+    let t2 = Store.Commit.of_hash repo hash2 |> Option.get |> Store.Commit.tree in
+    let diffs = Store.Tree.diff tree2 t2 in
+    assert (diffs = []);
+    let t3 = Store.Commit.of_hash repo hash3 |> Option.get |> Store.Commit.tree in
+    let diffs = Store.Tree.diff tree3 t3 in
+    assert (diffs = [])
+  in
+  domains_spawn d_mgr do_commit_of_hash;
+  Store.Repo.close repo
+
+let test_commit_parents d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let store = Store.main repo in
+  let patch01 = diff_shape shape0 shape1 in
+  let commit = Store.Head.get store in
+  let tree = Store.Commit.tree commit in
+  let commits =
+    snd @@ List.fold_left_map
+    (fun tree op ->
+      let tree = apply_op tree op in
+      Store.set_tree_exn ~info store [] tree;
+      tree, Store.Head.get store) tree patch01
+  in
+  let do_commit_parents () =
+    ignore
+      (List.fold_left
+        (fun parent commit ->
+        let parents = Store.Commit.parents commit in
+        assert (parents = [Store.Commit.key parent]);
+        commit)
+        commit commits)
+  in
+  domains_spawn d_mgr do_commit_parents;
+  Store.Repo.close repo
+
+  let tests d_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn d_mgr) in
   [
     tc "find" test_find;
@@ -358,4 +427,6 @@ let tests d_mgr =
     tc "list-disk-with-cache" (test_list_disk ~cache:true);
     tc "list-mem-no-cache" (test_list_mem ~cache:false);
     tc "list-mem-with-cache" (test_list_mem ~cache:true);
+    tc "commit-of-hash" test_commit_of_hash;
+    tc "commit-parents" test_commit_parents;
   ]
