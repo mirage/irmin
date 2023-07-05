@@ -93,6 +93,17 @@ let make_tree shape =
     (fun tree (k, v) -> Tree.add tree k v)
     (Tree.empty ()) (flatten_shape shape)
 
+let rec list_shape acc path : shape -> _ = function
+  | `Contents _c -> (List.rev path, []) :: acc
+  | `Node children ->
+      let l = List.map (fun (name, child) -> (name, make_tree child)) children in
+      let acc = (List.rev path, l) :: acc in
+      List.fold_left
+        (fun acc (name, child) -> list_shape acc (name :: path) child)
+        acc children
+
+let list_shape shape = list_shape [] [] shape
+
 let make_store shape =
   let repo = Store.Repo.v (Store.config ~fresh:true root) in
   let main = Store.main repo in
@@ -302,6 +313,38 @@ let test_hash d_mgr =
     (Atomic.get result1) (Atomic.get result2);
   Store.Repo.close repo
 
+let list_all cache tree paths =
+  List.iter
+  (fun (path, expected) ->
+    let value = Store.Tree.list ~cache tree path in
+    assert (List.length expected = List.length value);
+    List.iter (fun (s, t) ->
+      let t' = List.assoc s value in
+      let diffs = Store.Tree.diff t t' in
+      assert (diffs = [])
+    ) expected)
+  paths
+
+let test_list_disk ~cache d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:true ~fresh:false root) in
+  let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+  let paths = list_shape shape0 in
+  domains_spawn d_mgr (fun () -> list_all cache tree paths);
+  Store.Repo.close repo
+
+let test_list_mem ~cache d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:true ~fresh:false root) in
+  let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+  let patch = diff_shape shape0 shape1 in
+  let paths = list_shape shape1 in
+  let tree = List.fold_left apply_op tree patch in
+  domains_spawn d_mgr (fun _ -> list_all cache tree paths);
+  Store.Repo.close repo
+
 let tests d_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn d_mgr) in
   [
@@ -311,4 +354,8 @@ let tests d_mgr =
     tc "commit" test_commit;
     tc "merkle" test_merkle;
     tc "hash" test_hash;
+    tc "list-disk-no-cache" (test_list_disk ~cache:false);
+    tc "list-disk-with-cache" (test_list_disk ~cache:true);
+    tc "list-mem-no-cache" (test_list_mem ~cache:false);
+    tc "list-mem-with-cache" (test_list_mem ~cache:true);
   ]
