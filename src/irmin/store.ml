@@ -762,6 +762,7 @@ module Make (B : Backend.S) = struct
           let info = info () in
           let parents = match parents with None -> s.parents | Some p -> p in
           let parents = List.map Commit.key parents in
+          Eio.Mutex.use_rw_exn t.lock @@ fun () ->
           let c = Commit.v ~clear (repo t) ~info ~parents root in
           let r = add_commit t s.head (c, root_tree (Tree.destruct root)) in
           Ok (Some c, r)
