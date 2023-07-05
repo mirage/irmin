@@ -115,7 +115,7 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
         let branch_t t = t.branch
         let config t = t.config
 
-        let batch t f =
+        let batch ?lock:_ t f =
           Contents.Backend.batch t.contents @@ fun c ->
           Node.Backend.batch (snd t.nodes) @@ fun n ->
           Commit.Backend.batch (snd t.commits) @@ fun ct ->
