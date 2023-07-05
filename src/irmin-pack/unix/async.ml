@@ -27,21 +27,23 @@ module Unix = struct
 
   (** [Exit] is a stack of PIDs that will be killed [at_exit]. *)
   module Exit = struct
-    let proc_list = ref []
-    let m = Eio.Mutex.create ()
+    let proc_list = Atomic.make []
 
-    let add pid =
-      Eio.Mutex.use_rw ~protect:true m @@ fun () ->
-      proc_list := pid :: !proc_list
+    let rec add pid =
+      let pids = Atomic.get proc_list in
+      if not (Atomic.compare_and_set proc_list pids (pid :: pids))
+      then add pid
 
-    let remove pid =
-      Eio.Mutex.use_rw ~protect:true m @@ fun () ->
-      proc_list := List.filter (fun pid' -> pid <> pid') !proc_list
+    let rec remove pid =
+      let pids = Atomic.get proc_list in
+      let new_pids =  List.filter (fun pid' -> pid <> pid') pids in
+      if not (Atomic.compare_and_set proc_list pids new_pids)
+      then remove pid
 
     let () =
       at_exit @@ fun () ->
-      Eio.Mutex.use_rw ~protect:true m @@ fun () ->
-      List.iter kill_no_err !proc_list
+        let pids = Atomic.exchange proc_list [] in
+        List.iter kill_no_err pids
   end
 
   type outcome = [ `Success | `Cancelled | `Failure of string ]
