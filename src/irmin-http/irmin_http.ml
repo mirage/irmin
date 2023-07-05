@@ -552,7 +552,7 @@ module Client (Client : HTTP_CLIENT) (S : Irmin.S) = struct
       let contents_t t = t.contents
       let config t = t.config
 
-      let batch t f =
+      let batch ?lock:_ t f =
         Contents.X.batch t.contents @@ fun contents_t ->
         Node.batch t.node @@ fun node_t ->
         Commit.X.batch (snd t.commit) @@ fun commit_t ->

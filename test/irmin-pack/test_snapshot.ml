@@ -299,6 +299,6 @@ let tests =
     tc "on disk always" test_on_disk_always;
     tc "gced store, in memory" test_gced_store_in_memory;
     tc "gced store, on disk" test_gced_store_on_disk;
-    tc "import old snapshot, export gc based snapshot "
+    tc "import old snapshot, export gc based snapshot"
       test_export_import_reexport;
   ]

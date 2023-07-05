@@ -413,7 +413,7 @@ module Maker (Config : Conf.S) = struct
           in
           File_manager.add_volume t.fm |> Errs.raise_if_error
 
-        let batch t f =
+        let unsafe_batch t f =
           [%log.debug "[pack] batch start"];
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed
@@ -456,6 +456,13 @@ module Maker (Config : Conf.S) = struct
             match f contents node commit with
             | v -> on_success v
             | exception exn -> on_fail exn
+
+        let batch ?(lock=false) t f =
+          if lock
+          then
+            Eio.Mutex.use_rw_exn t.lock @@ fun () -> unsafe_batch t f
+          else
+            unsafe_batch t f
 
         let close t =
           (* Step 1 - Kill the gc process if it is running *)

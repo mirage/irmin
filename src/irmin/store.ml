@@ -167,7 +167,7 @@ module Make (B : Backend.S) = struct
       |> sealr
 
     let v ?(clear = true) r ~info ~parents tree =
-      B.Repo.batch r @@ fun contents_t node_t commit_t ->
+      B.Repo.batch ~lock:true r @@ fun contents_t node_t commit_t ->
       let node =
         match Tree.destruct tree with
         | `Node t -> Tree.export ~clear r contents_t node_t t

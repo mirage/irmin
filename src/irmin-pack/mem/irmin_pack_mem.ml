@@ -140,7 +140,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         let branch_t t = t.branch
         let config t = t.config
 
-        let batch t f =
+        let batch ?lock:_ t f =
           Commit.Indexable.batch t.commit (fun commit ->
               Node.Indexable.batch t.node (fun node ->
                   Contents.Indexable.batch t.contents (fun contents ->

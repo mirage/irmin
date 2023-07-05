@@ -313,7 +313,7 @@ struct
         let branch_t t = t.branch
         let config t = t.config
 
-        let batch t f =
+        let batch ?lock:_ t f =
           Contents.CA.batch t.contents @@ fun c ->
           Node.CA.batch (snd t.nodes) @@ fun n ->
           Commit.CA.batch (snd t.commits) @@ fun ct ->
