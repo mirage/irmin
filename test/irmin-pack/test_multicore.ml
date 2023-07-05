@@ -222,33 +222,58 @@ let test_add_remove d_mgr =
   domains_spawn ~nb:2 d_mgr add_all;
   Store.Repo.close repo
 
-let test_commit d_mgr =
-  Logs.set_level None;
-  make_store shape0;
-  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
-  let patch01 = diff_shape shape0 shape1 in
-  let patch02 = diff_shape shape0 shape2 in
-  let do_commit patch () =
-    List.iter
-      (fun op ->
-        let store = Store.main repo in
-        let tree = Store.Head.get store |> Store.Commit.tree in
-        let tree =
-          match op with
-          | `Add (name, contents) -> Tree.add tree name contents
-          | `Remove name -> Tree.remove tree name
-        in
-        Store.set_tree_exn ~info store [] tree)
-      patch;
-    let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+let apply_op tree = function
+  | `Add (name, contents) -> Tree.add tree name contents
+  | `Remove name -> Tree.remove tree name
+
+let check_patch_was_applied patch tree =
     List.iter
       (function
         | `Add (name, contents) ->
             assert (Store.Tree.find tree name = Some contents)
         | `Remove name -> assert (not (Store.Tree.mem tree name)))
       patch
+
+let test_commit d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let store = Store.main repo in
+  let patch01 = diff_shape shape0 shape1 in
+  let patch02 = diff_shape shape0 shape2 in
+  let do_commit patch () =
+    List.iter
+      (fun op ->
+        let tree = Store.Head.get store |> Store.Commit.tree in
+        let tree = apply_op tree op in
+        Store.set_tree_exn ~info store [] tree)
+      patch;
+    let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+    check_patch_was_applied patch tree
   in
   domains_run d_mgr [ do_commit patch01; do_commit patch02 ];
+  Store.Repo.close repo
+
+let test_merkle d_mgr =
+  Logs.set_level None;
+  make_store shape0;
+  let repo = Store.Repo.v (Store.config ~readonly:false ~fresh:false root) in
+  let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
+  let hash = Store.Tree.key tree |> Option.get in
+  let patch01 = diff_shape shape0 shape1 in
+  let patch02 = diff_shape shape0 shape2 in
+  let do_proof patch () =
+    let fn tree =
+      let new_tree = List.fold_left apply_op tree patch in
+      new_tree, ()
+    in
+    let proof, () = Store.Tree.produce_proof repo hash fn in
+    match Store.Tree.verify_proof proof fn with
+    | Ok (new_tree, ()) ->
+        check_patch_was_applied patch new_tree
+    | Error _ -> assert false
+  in
+  domains_run d_mgr [ do_proof patch01; do_proof patch02 ];
   Store.Repo.close repo
 
 let tests d_mgr =
@@ -258,4 +283,5 @@ let tests d_mgr =
     tc "length" test_length;
     tc "add / remove" test_add_remove;
     tc "commit" test_commit;
+    tc "merkle" test_merkle;
   ]
