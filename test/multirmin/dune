@@ -1,3 +1,0 @@
-(executable
- (name test)
- (libraries irmin irmin-test eio_main test_pack))

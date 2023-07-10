@@ -96,7 +96,9 @@ let make_tree shape =
 let rec list_shape acc path : shape -> _ = function
   | `Contents _c -> (List.rev path, []) :: acc
   | `Node children ->
-      let l = List.map (fun (name, child) -> (name, make_tree child)) children in
+      let l =
+        List.map (fun (name, child) -> (name, make_tree child)) children
+      in
       let acc = (List.rev path, l) :: acc in
       List.fold_left
         (fun acc (name, child) -> list_shape acc (name :: path) child)
@@ -315,15 +317,16 @@ let test_hash d_mgr =
 
 let list_all cache tree paths =
   List.iter
-  (fun (path, expected) ->
-    let value = Store.Tree.list ~cache tree path in
-    assert (List.length expected = List.length value);
-    List.iter (fun (s, t) ->
-      let t' = List.assoc s value in
-      let diffs = Store.Tree.diff t t' in
-      assert (diffs = [])
-    ) expected)
-  paths
+    (fun (path, expected) ->
+      let value = Store.Tree.list ~cache tree path in
+      assert (List.length expected = List.length value);
+      List.iter
+        (fun (s, t) ->
+          let t' = List.assoc s value in
+          let diffs = Store.Tree.diff t t' in
+          assert (diffs = []))
+        expected)
+    paths
 
 let test_list_disk ~cache d_mgr =
   Logs.set_level None;
@@ -356,31 +359,37 @@ let test_commit_of_hash d_mgr =
   let hash1 = Store.Commit.hash commit1 in
   let tree1 = Store.Commit.tree commit1 in
   List.iter
-  (fun op ->
-    let tree = Store.Commit.tree commit1 in
-    let tree = apply_op tree op in
-    Store.set_tree_exn ~info store [] tree)
-  patch01;
+    (fun op ->
+      let tree = Store.Commit.tree commit1 in
+      let tree = apply_op tree op in
+      Store.set_tree_exn ~info store [] tree)
+    patch01;
   let commit2 = Store.Head.get store in
   let hash2 = Store.Commit.hash commit2 in
   let tree2 = Store.Commit.tree commit2 in
   List.iter
-  (fun op ->
-    let tree = Store.Commit.tree commit2 in
-    let tree = apply_op tree op in
-    Store.set_tree_exn ~info store [] tree)
-  patch02;
+    (fun op ->
+      let tree = Store.Commit.tree commit2 in
+      let tree = apply_op tree op in
+      Store.set_tree_exn ~info store [] tree)
+    patch02;
   let commit3 = Store.Head.get store in
   let hash3 = Store.Commit.hash commit3 in
   let tree3 = Store.Commit.tree commit3 in
   let do_commit_of_hash () =
-    let t1 = Store.Commit.of_hash repo hash1 |> Option.get |> Store.Commit.tree in
+    let t1 =
+      Store.Commit.of_hash repo hash1 |> Option.get |> Store.Commit.tree
+    in
     let diffs = Store.Tree.diff tree1 t1 in
     assert (diffs = []);
-    let t2 = Store.Commit.of_hash repo hash2 |> Option.get |> Store.Commit.tree in
+    let t2 =
+      Store.Commit.of_hash repo hash2 |> Option.get |> Store.Commit.tree
+    in
     let diffs = Store.Tree.diff tree2 t2 in
     assert (diffs = []);
-    let t3 = Store.Commit.of_hash repo hash3 |> Option.get |> Store.Commit.tree in
+    let t3 =
+      Store.Commit.of_hash repo hash3 |> Option.get |> Store.Commit.tree
+    in
     let diffs = Store.Tree.diff tree3 t3 in
     assert (diffs = [])
   in
@@ -396,20 +405,22 @@ let test_commit_parents d_mgr =
   let commit = Store.Head.get store in
   let tree = Store.Commit.tree commit in
   let commits =
-    snd @@ List.fold_left_map
-    (fun tree op ->
-      let tree = apply_op tree op in
-      Store.set_tree_exn ~info store [] tree;
-      tree, Store.Head.get store) tree patch01
+    snd
+    @@ List.fold_left_map
+         (fun tree op ->
+           let tree = apply_op tree op in
+           Store.set_tree_exn ~info store [] tree;
+           (tree, Store.Head.get store))
+         tree patch01
   in
   let do_commit_parents () =
     ignore
       (List.fold_left
-        (fun parent commit ->
-        let parents = Store.Commit.parents commit in
-        assert (parents = [Store.Commit.key parent]);
-        commit)
-        commit commits)
+         (fun parent commit ->
+           let parents = Store.Commit.parents commit in
+           assert (parents = [ Store.Commit.key parent ]);
+           commit)
+         commit commits)
   in
   domains_spawn d_mgr do_commit_parents;
   Store.Repo.close repo
@@ -423,13 +434,17 @@ let test_commit_v d_mgr =
   let commit = Store.Head.get store in
   let tree = List.fold_left apply_op (Store.Commit.tree commit) patch01 in
   let do_commit_v () =
-    let _ = Store.Commit.v repo ~info:(info ()) ~parents:[Store.Commit.key commit] tree in
+    let _ =
+      Store.Commit.v repo ~info:(info ())
+        ~parents:[ Store.Commit.key commit ]
+        tree
+    in
     ()
   in
   domains_spawn d_mgr do_commit_v;
   Store.Repo.close repo
 
-  let tests d_mgr =
+let tests d_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn d_mgr) in
   [
     tc "find." test_find;
