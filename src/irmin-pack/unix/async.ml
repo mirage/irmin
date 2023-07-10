@@ -31,19 +31,17 @@ module Unix = struct
 
     let rec add pid =
       let pids = Atomic.get proc_list in
-      if not (Atomic.compare_and_set proc_list pids (pid :: pids))
-      then add pid
+      if not (Atomic.compare_and_set proc_list pids (pid :: pids)) then add pid
 
     let rec remove pid =
       let pids = Atomic.get proc_list in
-      let new_pids =  List.filter (fun pid' -> pid <> pid') pids in
-      if not (Atomic.compare_and_set proc_list pids new_pids)
-      then remove pid
+      let new_pids = List.filter (fun pid' -> pid <> pid') pids in
+      if not (Atomic.compare_and_set proc_list pids new_pids) then remove pid
 
     let () =
       at_exit @@ fun () ->
-        let pids = Atomic.exchange proc_list [] in
-        List.iter kill_no_err pids
+      let pids = Atomic.exchange proc_list [] in
+      List.iter kill_no_err pids
   end
 
   type outcome = [ `Success | `Cancelled | `Failure of string ]
