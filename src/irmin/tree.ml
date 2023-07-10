@@ -563,7 +563,7 @@ module Make (P : Backend.S) = struct
              Portable_dirty (v, m))
       |> sealv
 
-    let of_v ?length ~env v =
+    let of_v ?length ?findv_cache ~env v =
       let ptr, map, value =
         match v with
         | Map m -> (Ptr_none, Some m, None)
@@ -574,7 +574,7 @@ module Make (P : Backend.S) = struct
       let ptr = Atomic.make ptr in
       let map = Atomic.make map in
       let value = Atomic.make value in
-      let findv_cache = Atomic.make None in
+      let findv_cache = Atomic.make findv_cache in
       let length =
         match length with None -> Lazy_cache.unknown () | Some len -> len
       in
@@ -585,10 +585,12 @@ module Make (P : Backend.S) = struct
     let of_map m = of_v (Map m)
     let of_key repo k = of_v (Key (repo, k))
 
-    let of_value ?length ?updates repo v =
-      of_v ?length (Value (repo, v, updates))
+    let of_value ?length ?findv_cache ?updates repo v =
+      of_v ?length ?findv_cache (Value (repo, v, updates))
 
-    let of_portable_dirty p updates = of_v (Portable_dirty (p, updates))
+    let of_portable_dirty ?findv_cache ~env p updates =
+      of_v ?findv_cache ~env (Portable_dirty (p, updates))
+
     let pruned h = of_v (Pruned h)
 
     let info_is_empty i =
@@ -1606,6 +1608,11 @@ module Make (P : Backend.S) = struct
                  | Remove when exists -> len - 1
                  | _ -> len))
 
+    let clear_findv_cache t step =
+      match Atomic.get t.info.findv_cache with
+      | None -> None
+      | Some m -> Some (StepMap.remove step m)
+
     let update t step up =
       let env = t.info.env in
       let of_map m =
@@ -1621,11 +1628,15 @@ module Make (P : Backend.S) = struct
         if updates == updates' then t
         else
           let length = incremental_length t step up n updates in
-          of_value ?length ~env repo n ~updates:updates'
+          let findv_cache = clear_findv_cache t step in
+          of_value ?length ?findv_cache ~env repo n ~updates:updates'
       in
       let of_portable n updates =
         let updates' = StepMap.add step up updates in
-        if updates == updates' then t else of_portable_dirty ~env n updates'
+        if updates == updates' then t
+        else
+          let findv_cache = clear_findv_cache t step in
+          of_portable_dirty ?findv_cache ~env n updates'
       in
       match
         (Scan.cascade t
