@@ -457,12 +457,9 @@ module Maker (Config : Conf.S) = struct
             | v -> on_success v
             | exception exn -> on_fail exn
 
-        let batch ?(lock=false) t f =
-          if lock
-          then
-            Eio.Mutex.use_rw_exn t.lock @@ fun () -> unsafe_batch t f
-          else
-            unsafe_batch t f
+        let batch ?(lock = false) t f =
+          if lock then Eio.Mutex.use_rw_exn t.lock @@ fun () -> unsafe_batch t f
+          else unsafe_batch t f
 
         let close t =
           (* Step 1 - Kill the gc process if it is running *)
