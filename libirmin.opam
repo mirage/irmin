@@ -12,6 +12,8 @@ depends: [
   "ctypes-foreign" {>= "0.18"}
   "irmin" {= version}
   "irmin-cli" {= version}
+  "eio_main" {>= "0.10"}
+  "lwt_eio" {>= "0.3"}
 ]
 build: [
   ["dune" "subst"] {dev}
