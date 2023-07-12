@@ -22,6 +22,7 @@ depends: [
   "uutf"
   "jsonm"   {>= "1.0.0"}
   "eio"     {>= "0.6"}
+  "lwt"     {>= "5.6.1"}
   "digestif" {>= "0.9.0"}
   "ocamlgraph"
   "logs"    {>= "0.5.0"}

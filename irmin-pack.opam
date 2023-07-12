@@ -20,7 +20,7 @@ depends: [
   "index"        {= "dev"}
   "fmt"
   "logs"
-  "lwt"          {>= "5.4.0"}
+  "eio"          {>= "0.10"}
   "mtime"        {>= "2.0.0"}
   "cmdliner"     {>= "1.3.0"}
   "optint"       {>= "0.1.0"}
