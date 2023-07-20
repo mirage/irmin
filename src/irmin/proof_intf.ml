@@ -71,10 +71,10 @@ module type S = sig
       concrete proof or a hash of that proof.
 
       If an inode proof contains singleton children [i_0, ..., i_n] such as:
-      [{length=l; proofs = \[ (i_0, {proofs = ... { proofs = \[ (i_n, p) \] }})\]}],
+      [{length=l; proofs = [ (i_0, {proofs = ... { proofs = [ (i_n, p) ] }})]}],
       then it is compressed into the inode extender
-      [{length=l; segment = \[i_0;..;i_n\]; proof=p}] sharing the same length
-      [l] and final proof [p]. *)
+      [{length=l; segment = [i_0;..;i_n]; proof=p}] sharing the same length [l]
+      and final proof [p]. *)
 
   (** The type for compressed and partial Merkle tree proofs.
 
@@ -329,7 +329,8 @@ module type Proof = sig
 
   module Make
       (C : Type.S)
-      (H : Hash.S) (P : sig
+      (H : Hash.S)
+      (P : sig
         type step [@@deriving irmin]
       end)
       (M : Type.S) : sig

@@ -37,8 +37,8 @@ let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
     let v = String.make size 'x' in
     let* k = AO.batch t (fun t -> AO.add t v) in
     (if stable then
-     let str = value_to_bin v in
-     Alcotest.(check key_t) (name ^ " is stable") k (hash_contents str));
+       let str = value_to_bin v in
+       Alcotest.(check key_t) (name ^ " is stable") k (hash_contents str));
     let+ v' = AO.find t k in
     Alcotest.(check @@ option value_t) name (Some v) v'
   in

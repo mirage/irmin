@@ -54,9 +54,9 @@ end
 module Type = Repr
 (** Dynamic types for Irmin values, supplied by
     {{:https://github.com/mirage/repr} [Repr]}. These values can be derived from
-    type definitions via [\[@@deriving irmin\]] (see the
+    type definitions via [[@@deriving irmin]] (see the
     {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
-    for [ppx_irmin]})*)
+      for [ppx_irmin]})*)
 
 module Hash = Hash
 (** Hashing functions.

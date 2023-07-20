@@ -91,8 +91,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> returning ty)
       (fun (type repo) repo ->
         with_repo' repo ty
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          -> Root.create_ty (Store.commit_t repo)))
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
+            Root.create_ty (Store.commit_t repo)))
 
   let () =
     fn "type_metadata"

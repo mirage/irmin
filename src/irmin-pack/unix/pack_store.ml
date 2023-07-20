@@ -232,9 +232,9 @@ struct
            become valid on [reload]; otherwise we know that this key wasn't
            constructed for this store. *)
         (if not (Control.readonly (Fm.control t.fm)) then
-         let io_offset = Dispatcher.end_offset t.dispatcher in
-         invalid_read "invalid key %a checked for membership (IO offset = %a)"
-           pp_key k Int63.pp io_offset);
+           let io_offset = Dispatcher.end_offset t.dispatcher in
+           invalid_read "invalid key %a checked for membership (IO offset = %a)"
+             pp_key k Int63.pp io_offset);
         false
     | Errors.Pack_error (`Invalid_sparse_read _) -> false
     | Errors.Pack_error (`Invalid_prefix_read _) -> false
