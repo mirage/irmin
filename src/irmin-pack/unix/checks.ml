@@ -155,10 +155,16 @@ module Make (Store : Store) = struct
   end
 
   module Integrity_check_index = struct
-    let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
+    let conf root always =
+      let indexing_strategy =
+        if always then Irmin_pack.Indexing_strategy.always
+        else Irmin_pack.Indexing_strategy.minimal
+      in
+      Conf.init ~readonly:true ~fresh:false ~no_migrate:true ~indexing_strategy
+        root
 
-    let run ~root ~auto_repair () =
-      let conf = conf root in
+    let run ~root ~auto_repair ~always () =
+      let conf = conf root always in
       if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
       else Store.traverse_pack_file `Check_index conf
 
@@ -167,11 +173,17 @@ module Make (Store : Store) = struct
       value
       & (flag @@ info ~doc:"Add missing entries in index" [ "auto-repair" ])
 
+    let always =
+      let open Cmdliner.Arg in
+      value & (flag @@ info ~doc:"Use always indexing strategy" [ "always" ])
+
     let term_internal =
       Cmdliner.Term.(
-        const (fun root auto_repair () -> run ~root ~auto_repair ())
+        const (fun root auto_repair always () ->
+            run ~root ~auto_repair ~always ())
         $ path
-        $ auto_repair)
+        $ auto_repair
+        $ always)
 
     let term =
       let doc = "Check index integrity." in

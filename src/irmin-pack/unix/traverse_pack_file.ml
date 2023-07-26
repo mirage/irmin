@@ -108,9 +108,9 @@ end = struct
       Pack_value.Kind.pp kind pp_key x.key Int63.pp off len
 
   let to_index = function
-    | Pack_value.Kind.Commit_v2 | Commit_v1 | Dangling_parent_commit -> true
+    | Pack_value.Kind.Commit_v2 | Commit_v1 -> true
     | Contents | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-    | Inode_v2_nonroot ->
+    | Inode_v2_nonroot | Dangling_parent_commit ->
         false
 
   module Index_reconstructor = struct
@@ -273,13 +273,14 @@ end = struct
   let ingest_data_file_after_v3 ~initial_buffer_size ~progress dispatcher
       iter_pack_entry =
     let stats = Stats.empty () in
-    let buffer = Bytes.create initial_buffer_size in
+    let buffer = ref (Bytes.create initial_buffer_size) in
     let on_entry missing_hash off =
       let len = guess_entry_len dispatcher ~off in
-      let _ = Dispatcher.read_exn dispatcher ~off ~len buffer in
+      if len > Bytes.length !buffer then buffer := Bytes.create (2 * len);
+      let _ = Dispatcher.read_exn dispatcher ~off ~len !buffer in
       let { key; data } =
         decode_entry_exn ~off
-          ~buffer:(Bytes.unsafe_to_string buffer)
+          ~buffer:(Bytes.unsafe_to_string !buffer)
           ~buffer_off:0
       in
       let off', entry_len, kind = data in
