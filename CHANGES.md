@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Fix index integrity check for v3 stores (#2267, @metanivek)
+
 ## 3.8.0 (2023-07-06)
 
 ### Added
