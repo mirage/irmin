@@ -24,6 +24,7 @@ depends: [
   "cmdliner"    {>= "1.1.0"}
   "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
+  "base58"      {= "0.1.0"}
   "ptime"
   "hex"
   "irmin-test"  {with-test & = version}

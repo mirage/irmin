@@ -51,15 +51,21 @@ Will give:
 This tool prints the informations stored in the index of a store in a human readable manner (json), allowing to fetch important informations easily.
 It is fairly straightforward:
 ```shell
-$ dune exec -- irmin-ppidx <path-to-store>
+$ dune exec -- irmin-ppidx [ -p bitcoin|ripple|flickr | -c <custom_alphabet> ] <path-to-store>
 ```
-The second one is the path to the root of the store, not the index folder (e.g. `output/root/` where `output/root/index/` exists)
+The first argument is the alphabet used for the base58 encoding: It can be specified using a predefined alphabet or a custom one:
+- For a predefined alphabet, use the flag `-p` followed by `bitcoin`, `ripple` or `flickr` depending on which one you want.
+- For a custom alphabet, use the flag `-c` followed by your custom alphabet.
+- If both the `-c` and `-p` flags are used, `-p` is ignored.
+- if none are used, default is `-p bitcoin`.
+
+The last argument is the path to the root of the store, not the index folder (e.g. `output/root/` where `output/root/index/` exists)
 
 It will typically give the following json output, with one line per entry registered:
 ```
-{"hash":"cGrDVlQkzEjlw2DA4bL5fAnDSOh4TRKtLZrAiavclsI=","off":13431448,"len":101,"kind":"Commit_v2"}
-{"hash":"i2LiUbc7fPMu5ON1MLN97thf7cU0OUTcDBwNlvzAUVo=","off":95461096,"len":103,"kind":"Commit_v2"}
-{"hash":"cXMN2n8Re6RAvVbHbzaptzfIdFp+X/ey36S5RiWTsUw=","off":28541134,"len":104,"kind":"Commit_v2"}
+{"hash":{"base64":"cGrDVlQkzEjlw2DA4bL5fAnDSOh4TRKtLZrAiavclsI=","base58":"8Zq5sJi8d4e63eXaDR3VEdwJUTaj6KBo3o1UemLCxnHf"},"off":13431448,"len":101,"kind":"Commit_v2"}
+{"hash":{"base64":"i2LiUbc7fPMu5ON1MLN97thf7cU0OUTcDBwNlvzAUVo=","base58":"AP78AdX8F18idUPuepac1WbhmY2xfE8U6nf46w5j9zXj"},"off":95461096,"len":103,"kind":"Commit_v2"}
+{"hash":{"base64":"cXMN2n8Re6RAvVbHbzaptzfIdFp+X/ey36S5RiWTsUw=","base58":"8drpouq8uvZj7961HkxidYPHYER37aCna5TemGsCQpe7"},"off":28541134,"len":104,"kind":"Commit_v2"}
 ...
 ```
 Which can be further improved using the tool `jq`:
@@ -70,19 +76,28 @@ $ jq -s '.' -- index
 Will give:
 ```json
 {
-  "hash": "cGrDVlQkzEjlw2DA4bL5fAnDSOh4TRKtLZrAiavclsI=",
+  "hash": {
+    "base64": "cGrDVlQkzEjlw2DA4bL5fAnDSOh4TRKtLZrAiavclsI=",
+    "base58": "8Zq5sJi8d4e63eXaDR3VEdwJUTaj6KBo3o1UemLCxnHf"
+  },
   "off": 13431448,
   "len": 101,
   "kind": "Commit_v2"
 }
 {
-  "hash": "i2LiUbc7fPMu5ON1MLN97thf7cU0OUTcDBwNlvzAUVo=",
+  "hash": {
+    "base64": "i2LiUbc7fPMu5ON1MLN97thf7cU0OUTcDBwNlvzAUVo=",
+    "base58": "AP78AdX8F18idUPuepac1WbhmY2xfE8U6nf46w5j9zXj"
+  },
   "off": 95461096,
   "len": 103,
   "kind": "Commit_v2"
 }
 {
-  "hash": "cXMN2n8Re6RAvVbHbzaptzfIdFp+X/ey36S5RiWTsUw=",
+  "hash": {
+    "base64": "cXMN2n8Re6RAvVbHbzaptzfIdFp+X/ey36S5RiWTsUw=",
+    "base58": "8drpouq8uvZj7961HkxidYPHYER37aCna5TemGsCQpe7"
+  },
   "off": 28541134,
   "len": 104,
   "kind": "Commit_v2"
