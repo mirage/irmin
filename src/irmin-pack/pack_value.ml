@@ -186,11 +186,11 @@ struct
   end
 
   module Entry = struct
-    module V0 = struct
+    module V1 = struct
       type t = (hash, Commit.t) value [@@deriving irmin ~decode_bin]
     end
 
-    module V1 = struct
+    module V2 = struct
       type data = { length : int; v : Commit_direct.t } [@@deriving irmin]
       type t = (hash, data) value [@@deriving irmin ~encode_bin ~decode_bin]
     end
@@ -213,7 +213,7 @@ struct
       { Commit_direct.node_offset; parent_offsets; info }
     in
     let length = Commit_direct.size_of v in
-    Entry.V1.encode_bin { hash; kind = Commit_v2; v = { length; v } } f
+    Entry.V2.encode_bin { hash; kind = Commit_v2; v = { length; v } } f
 
   let decode_bin ~dict:_ ~key_of_offset ~key_of_hash s off =
     let key_of_address : Commit_direct.address -> Key.t = function
@@ -221,9 +221,9 @@ struct
       | Hash x -> key_of_hash x
     in
     match Kind.of_magic_exn s.[!off + Hash.hash_size] with
-    | Commit_v1 -> (Entry.V0.decode_bin s off).v
+    | Commit_v1 -> (Entry.V1.decode_bin s off).v
     | Commit_v2 | Dangling_parent_commit ->
-        let { v = { Entry.V1.v = commit; _ }; _ } = Entry.V1.decode_bin s off in
+        let { v = { Entry.V2.v = commit; _ }; _ } = Entry.V2.decode_bin s off in
         let info = commit.info in
         let node = key_of_address commit.node_offset in
         let parents = List.map key_of_address commit.parent_offsets in
@@ -231,8 +231,8 @@ struct
     | _ -> assert false
 
   let decode_bin_length =
-    let of_v0_entry = get_dynamic_sizer_exn Entry.V0.t
-    and of_v1_entry = get_dynamic_sizer_exn Entry.V1.t in
+    let of_v0_entry = get_dynamic_sizer_exn Entry.V1.t
+    and of_v1_entry = get_dynamic_sizer_exn Entry.V2.t in
     fun s off ->
       match Kind.of_magic_exn s.[off + Hash.hash_size] with
       | Commit_v1 -> of_v0_entry s off
