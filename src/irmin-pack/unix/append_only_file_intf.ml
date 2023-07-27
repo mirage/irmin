@@ -139,7 +139,7 @@ module type S = sig
 
       Attempting to read from the append buffer results in an
       [`Read_out_of_bounds] error. This feature could easily be implemented in
-      the future if ever needed. It was not needed with io_legacy. *)
+      the future if ever needed. *)
 
   val append_exn : t -> string -> unit
   (** [append_exn t ~off b] writes [b] to the end of [t]. Might trigger an auto

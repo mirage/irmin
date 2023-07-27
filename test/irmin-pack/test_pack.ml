@@ -418,6 +418,7 @@ end
 module Branch = struct
   module Branch =
     Irmin_pack_unix.Atomic_write.Make_persistent
+      (Irmin_pack_unix.Io.Unix)
       (Irmin.Branch.String)
       (Irmin_pack.Atomic_write.Value.Of_hash (Irmin.Hash.SHA1))
 
