@@ -3,6 +3,6 @@
  (package irmin-pack-tools)
  (name ppidx)
  (modules ppidx)
- (libraries irmin-pack irmin-pack.unix base58 cmdliner)
+ (libraries irmin-pack irmin-pack.unix tezos-base58 irmin-tezos cmdliner)
  (preprocess
   (pps ppx_irmin.internal)))

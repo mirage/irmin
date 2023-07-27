@@ -1,64 +1,49 @@
-module Hash = Irmin.Hash.SHA256
-module Index = Irmin_pack_unix.Index.Make (Hash)
+module Sha256 = Irmin.Hash.SHA256
+module Blake2B = Irmin_tezos.Schema.Hash
 
-type hash = { base64 : string; base58 : string }
+module type Type = Irmin_pack_unix.Index.S
+
+type store = Tezos | Irmin
+
+type t = { hash : string; off : Optint.Int63.t; len : int; kind : string }
 [@@deriving irmin]
 
-type t = { hash : hash; off : Optint.Int63.t; len : int; kind : string }
-[@@deriving irmin]
-
-type alphabet = Bitcoin | Ripple | Flickr
-
-let make_alphabet p c =
-  match p, c with
-  | _, Some s -> B58.make_alphabet s
-  | Bitcoin, _ -> B58.make_alphabet "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-  | Ripple, _ -> B58.make_alphabet "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz"
-  | Flickr, _ -> B58.make_alphabet "123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"
-
-let dump_json alphabet k v =
-  let key = Index.Key.encode k in
-  let base64 = Base64.encode_exn key in
-  let base58 = Bytes.to_string @@ B58.encode alphabet (Bytes.of_string key) in
-  let hash = { base64; base58 } in
-  let off, len, kind = v in
-  let kind = Fmt.str "%a" Irmin_pack.Pack_value.Kind.pp kind in
-  let a = { hash; off; len; kind } in
-  Fmt.pr "%a@." (Irmin.Type.pp_json t) a
-
-let main root_folder alphabet =
+let main store_type root_folder =
+  let module Index =
+    (val match store_type with
+    | Irmin -> (module Irmin_pack_unix.Index.Make (Sha256) : Type)
+    | Tezos -> (module Irmin_pack_unix.Index.Make (Blake2B) : Type))
+  in
   let v = Index.v_exn ~readonly:true ~log_size:500_000 root_folder in
-  Index.iter (dump_json alphabet) v
+  let dump_json k v =
+    let hash = Irmin.Type.to_string Index.Key.t k in
+    let off, len, kind = v in
+    let kind = Fmt.str "%a" Irmin_pack.Pack_value.Kind.pp kind in
+    let a = { hash; off; len; kind } in
+    Fmt.pr "%a@." (Irmin.Type.pp_json t) a
+  in
+  Index.iter dump_json v
 
 (** Cmdliner **)
 
 open Cmdliner
 
+let store_type =
+  Arg.(
+    required
+    & pos 0 (some (enum [ ("Tezos", Tezos); ("Irmin", Irmin) ])) None
+    & info [] ~docv:"store type"
+        ~doc:"the type of store, either Irmin or Tezos")
+
 let root_folder =
   Arg.(
     required
-    & pos 0 (some string) None
+    & pos 1 (some string) None
     & info [] ~docv:"root_folder" ~doc:"the path to the store")
-
-let predefined_alphabet =
-  Arg.(
-    value
-    & opt (enum [ ("bitcoin", Bitcoin); ("ripple", Ripple); ("flickr", Flickr) ]) Bitcoin
-    & info [ "p" ] ~docv:"pre-defined_base58_alphabet"
-        ~doc:"the pre-defined alphabet used for the base58 encoding, default to Bitcoin, ignored if '-c' is set")
-
-let custom_alphabet =
-  Arg.(
-    value
-    & opt (some string) None
-    & info [ "c" ]
-        ~doc:
-          "the path to the info file generated for next entries data, default \
-           to `store.info.next`")
 
 let main_cmd =
   let doc = "a json printer for the informations stored in the index folder" in
   let info = Cmd.info "irmin-ppidx" ~doc in
-  Cmd.v info Term.(const main $ root_folder $ (const make_alphabet $ predefined_alphabet $ custom_alphabet))
+  Cmd.v info Term.(const main $ store_type $ root_folder)
 
 let () = exit (Cmd.eval ~catch:false main_cmd)
