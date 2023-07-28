@@ -11,8 +11,8 @@ type t = { hash : string; off : Optint.Int63.t; len : int; kind : string }
 let main store_type root_folder =
   let module Index =
     (val match store_type with
-    | Irmin -> (module Irmin_pack_unix.Index.Make (Sha256) : Type)
-    | Tezos -> (module Irmin_pack_unix.Index.Make (Blake2B) : Type))
+         | Irmin -> (module Irmin_pack_unix.Index.Make (Sha256) : Type)
+         | Tezos -> (module Irmin_pack_unix.Index.Make (Blake2B) : Type))
   in
   let v = Index.v_exn ~readonly:true ~log_size:500_000 root_folder in
   let dump_json k v =
@@ -32,8 +32,7 @@ let store_type =
   Arg.(
     required
     & pos 0 (some (enum [ ("Tezos", Tezos); ("Irmin", Irmin) ])) None
-    & info [] ~docv:"store type"
-        ~doc:"the type of store, either Irmin or Tezos")
+    & info [] ~docv:"store type" ~doc:"the type of store, either Irmin or Tezos")
 
 let root_folder =
   Arg.(
