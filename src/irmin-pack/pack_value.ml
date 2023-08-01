@@ -236,6 +236,6 @@ struct
     fun s off ->
       match Kind.of_magic_exn s.[off + Hash.hash_size] with
       | Commit_v1 -> of_v0_entry s off
-      | Commit_v2 -> of_v1_entry s off
+      | Commit_v2 | Dangling_parent_commit -> of_v1_entry s off
       | _ -> assert false
 end
