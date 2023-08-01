@@ -26,6 +26,9 @@
 - **irmin-mirage-git**
   - Lower bound for `mirage-kv` is now `6.0.0` (#2256, @metanivek)
 
+- **irmin-pack**
+  - Removed `dict_auto_flush_threshold` and `suffix_auto_flush_threshold` configuration. (#2235, @art-w)
+
 ### Fixed
 
 - **irmin-cli**

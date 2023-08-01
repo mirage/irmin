@@ -50,8 +50,6 @@ module type S = sig
     root:string ->
     start_idx:int ->
     overwrite:bool ->
-    auto_flush_threshold:int ->
-    auto_flush_procedure:Ao.auto_flush_procedure ->
     (t, [> create_error ]) result
 
   val open_rw :
@@ -60,8 +58,6 @@ module type S = sig
     start_idx:int ->
     chunk_num:int ->
     dead_header_size:int ->
-    auto_flush_threshold:int ->
-    auto_flush_procedure:Ao.auto_flush_procedure ->
     (t, [> open_error ]) result
 
   val open_ro :
@@ -72,12 +68,7 @@ module type S = sig
     chunk_num:int ->
     (t, [> open_error ]) result
 
-  val add_chunk :
-    auto_flush_threshold:int ->
-    auto_flush_procedure:Ao.auto_flush_procedure ->
-    t ->
-    (unit, [> add_new_error ]) result
-
+  val add_chunk : t -> (unit, [> add_new_error ]) result
   val start_idx : t -> int
   val chunk_num : t -> int
   val close : t -> (unit, [> Io.close_error | `Pending_flush ]) result
@@ -119,7 +110,6 @@ module type S = sig
 
   val append_exn : t -> string -> unit
   val readonly : t -> bool
-  val auto_flush_threshold : t -> int option
 
   val fold_chunks :
     (acc:'a ->

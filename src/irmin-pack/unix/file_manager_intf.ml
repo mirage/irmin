@@ -60,7 +60,7 @@ module type S = sig
 
   module Io : Io.S
   module Control : Control_file.Upper with module Io = Io
-  module Dict : Append_only_file.S with module Io = Io
+  module Dict : Dict.S with module Io = Io
   module Suffix : Chunked_suffix.S with module Io = Io
   module Index : Pack_index.S
   module Errs : Io_errors.S with module Io = Io
@@ -236,9 +236,6 @@ module type S = sig
   (** Execute the reload routine.
 
       Is a no-op if the control file did not change. *)
-
-  val register_dict_consumer :
-    t -> after_reload:(unit -> (unit, Errs.t) result) -> unit
 
   val register_prefix_consumer :
     t -> after_reload:(unit -> (unit, Errs.t) result) -> unit

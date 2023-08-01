@@ -130,22 +130,4 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
           traverse next_off
     in
     traverse Int63.zero
-
-  let rec traverse_dict dict size buffer off acc =
-    if off < size then (
-      File_manager.Dict.read_exn dict buffer ~off ~len:4;
-      let len = Int32.to_int @@ Bytes.get_int32_be buffer 0 in
-      let off = Int63.(add off (of_int 4)) in
-      File_manager.Dict.read_exn dict buffer ~off ~len;
-      let str = Bytes.sub_string buffer 0 len in
-      let acc = str :: acc in
-      let off = Int63.(add off (of_int len)) in
-      traverse_dict dict size buffer off acc)
-    else acc
-
-  let load_dict (dict : File_manager.Dict.t) buffer =
-    let max_offset = File_manager.Dict.end_poff dict in
-    let off = Int63.zero in
-    let dict = traverse_dict dict max_offset buffer off [] in
-    List.rev dict
 end

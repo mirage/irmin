@@ -19,7 +19,6 @@ open! Import
 module type S = sig
   module Fm : File_manager.S with module Io = Io.Unix
   module Async : Async.S
-  module Dict : Dict.S with module Fm = Fm
   module Errs : Io_errors.S with module Io = Fm.Io
   module Dispatcher : Dispatcher.S with module Fm = Fm
 
@@ -51,7 +50,7 @@ module type S = sig
     val v :
       config:Irmin.Backend.Conf.t ->
       fm:Fm.t ->
-      dict:Dict.t ->
+      dict:Fm.Dict.t ->
       dispatcher:Dispatcher.t ->
       lru:Lru.t ->
       read t
@@ -78,7 +77,7 @@ module type S = sig
       with type value = Commit_value.t
        and type key = key
        and type file_manager = Fm.t
-       and type dict = Dict.t
+       and type dict = Fm.Dict.t
        and type dispatcher = Dispatcher.t
        and type hash = hash
 end

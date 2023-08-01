@@ -84,8 +84,10 @@ let reload_ro t current_phase =
       let () =
         match current_phase with
         | S1_before_flush -> ()
-        | S2_after_flush_dict -> write1_dict model
-        | S3_after_flush_suffix -> write1_suffix model
+        | S2_after_flush_dict -> ()
+        | S3_after_flush_suffix ->
+            write1_dict model;
+            write1_suffix model
         | S4_after_flush -> write1_index model
       in
       Store.reload repo

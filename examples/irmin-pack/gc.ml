@@ -60,12 +60,6 @@ module Repo_config = struct
   (** Must use minimal indexing strategy to use GC *)
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-  (** Buffer size that triggers auto flushing to disk *)
-  let dict_auto_flush_threshold = 1_000_000
-
-  (** Buffer size that triggers auto flushing to disk *)
-  let suffix_auto_flush_threshold = 1_000_000
-
   (** Location on disk to save the repository
 
       Note: irmin-pack will not create the entire path, only the final directory *)
@@ -81,7 +75,7 @@ module Repo_config = struct
   (** Create config for our repository *)
   let config =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
-      ~dict_auto_flush_threshold ~suffix_auto_flush_threshold root
+      root
 
   (** We can add an optional lower layer to our repository. Data discarded by
       the GC will be stored there and still be accessible instead of being
@@ -91,7 +85,7 @@ module Repo_config = struct
   (** Create a copy of the previous configuration, now with a lower layer *)
   let config_with_lower =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
-      ~dict_auto_flush_threshold ~suffix_auto_flush_threshold ~lower_root root
+      ~lower_root root
 end
 
 (** Utility for creating commit info *)

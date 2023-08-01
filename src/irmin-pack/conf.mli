@@ -79,8 +79,6 @@ module Key : sig
   val merge_throttle : merge_throttle Irmin.Backend.Conf.key
   val indexing_strategy : Indexing_strategy.t Irmin.Backend.Conf.key
   val use_fsync : bool Irmin.Backend.Conf.key
-  val dict_auto_flush_threshold : int Irmin.Backend.Conf.key
-  val suffix_auto_flush_threshold : int Irmin.Backend.Conf.key
   val no_migrate : bool Irmin.Backend.Conf.key
 end
 
@@ -127,14 +125,6 @@ val use_fsync : Irmin.Backend.Conf.t -> bool
 (** Flag to indicate that fsync should be used to enforce durability when
     flushing data to disk. Default [false]. *)
 
-val dict_auto_flush_threshold : Irmin.Backend.Conf.t -> int
-(** Size, in bytes, when automatic flushing of dict file to disk. Default
-    [1_000_000]. *)
-
-val suffix_auto_flush_threshold : Irmin.Backend.Conf.t -> int
-(** Size, in bytes, when automatic flushing of suffix file to disk. Default
-    [1_000_000]. *)
-
 val no_migrate : Irmin.Backend.Conf.t -> bool
 (** Flag to prevent migration of data. Default [false]. *)
 
@@ -147,8 +137,6 @@ val init :
   ?merge_throttle:merge_throttle ->
   ?indexing_strategy:Indexing_strategy.t ->
   ?use_fsync:bool ->
-  ?dict_auto_flush_threshold:int ->
-  ?suffix_auto_flush_threshold:int ->
   ?no_migrate:bool ->
   ?lower_root:string option ->
   string ->

@@ -30,29 +30,14 @@ module type S = sig
 
   type t
 
-  type auto_flush_procedure = [ `Internal | `External of t -> unit ]
-  (** [auto_flush_procedure] defines behavior when the flush threshold is
-      reached.
-
-      - Use [`Internal] to have the buffer automatically flushed.
-      - Use [`External f] to have [f] called when the flush threshold is
-        reached. It is the responsibility of [f] to call flush, in addition to
-        any other processing it does. *)
-
   val create_rw :
-    path:string ->
-    overwrite:bool ->
-    auto_flush_threshold:int ->
-    auto_flush_procedure:auto_flush_procedure ->
-    (t, [> Io.create_error ]) result
+    path:string -> overwrite:bool -> (t, [> Io.create_error ]) result
   (** Create a rw instance of [t] by creating the file at [path]. *)
 
   val open_rw :
     path:string ->
     end_poff:int63 ->
     dead_header_size:int ->
-    auto_flush_threshold:int ->
-    auto_flush_procedure:auto_flush_procedure ->
     ( t,
       [> Io.open_error
       | `Closed
@@ -79,16 +64,7 @@ module type S = sig
       The actual persisted size of a file is [end_poff + dead_header_size].
 
       This concept exists in order to keep supporting [`V1] and [`V2] pack
-      stores with [`V3].
-
-      {3 Auto Flushes}
-
-      One of the goals of the [Append_only_file] abstraction is to provide
-      buffered appends. [auto_flush_threshold] is the soft cap after which the
-      buffer should be flushed. When a call to [append_exn] fills the buffer,
-      either the buffer will be flushed automatically, if
-      [auto_flush_procedure = `Internal], or the supplied external function [f]
-      will be called, if [auto_flush_procedure = `External f]. *)
+      stores with [`V3]. *)
 
   val open_ro :
     path:string ->
@@ -179,7 +155,6 @@ module type S = sig
       Always returns [Error `Rw_not_allowed]. *)
 
   val readonly : t -> bool
-  val auto_flush_threshold : t -> int option
   val empty_buffer : t -> bool
   val path : t -> string
 end

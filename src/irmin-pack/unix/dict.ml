@@ -17,37 +17,35 @@
 open! Import
 include Dict_intf
 
-module Make (Fm : File_manager.S) = struct
-  module Fm = Fm
+module Make (Io : Io.S) = struct
+  module Io = Io
+  module Errs = Io_errors.Make (Io)
+  module Ao = Append_only_file.Make (Io) (Errs)
 
   type t = {
     capacity : int;
     cache : (string, int) Hashtbl.t;
     index : (int, string) Hashtbl.t;
-    fm : Fm.t;
+    ao : Ao.t;
     mutable last_refill_offset : int63;
   }
 
-  module File = struct
-    let append_exn t = Fm.Dict.append_exn (Fm.dict t.fm)
-    let offset t = Fm.Dict.end_poff (Fm.dict t.fm)
-    let read_to_string t = Fm.Dict.read_to_string (Fm.dict t.fm)
-  end
+  let empty_buffer t = Ao.empty_buffer t.ao
 
   type nonrec int32 = int32 [@@deriving irmin ~to_bin_string ~decode_bin]
 
   let append_string t v =
     let len = Int32.of_int (String.length v) in
     let buf = int32_to_bin_string len ^ v in
-    File.append_exn t buf
+    Ao.append_exn t.ao buf
 
-  (* Refill is only called once for a RW instance *)
   let refill t =
     let open Result_syntax in
     let from = t.last_refill_offset in
-    let len = Int63.to_int Int63.Syntax.(File.offset t - from) in
-    t.last_refill_offset <- File.offset t;
-    let+ raw = File.read_to_string t ~off:from ~len in
+    let new_size = Ao.end_poff t.ao in
+    let len = Int63.to_int Int63.Syntax.(new_size - from) in
+    t.last_refill_offset <- new_size;
+    let+ raw = Ao.read_to_string t.ao ~off:from ~len in
     let pos_ref = ref 0 in
     let rec aux n =
       if !pos_ref >= len then ()
@@ -61,6 +59,11 @@ module Make (Fm : File_manager.S) = struct
         (aux [@tailcall]) (n + 1)
     in
     (aux [@tailcall]) (Hashtbl.length t.cache)
+
+  let refresh_end_poff t new_end_poff =
+    let open Result_syntax in
+    let* () = Ao.refresh_end_poff t.ao new_end_poff in
+    refill t
 
   let index t v =
     [%log.debug "[dict] index %S" v];
@@ -81,17 +84,35 @@ module Make (Fm : File_manager.S) = struct
 
   let default_capacity = 100_000
 
-  let v fm =
-    let open Result_syntax in
+  let v_empty ao =
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let last_refill_offset = Int63.zero in
-    let t =
-      { capacity = default_capacity; index; cache; fm; last_refill_offset }
-    in
+    { capacity = default_capacity; index; cache; ao; last_refill_offset }
+
+  let create_rw ~overwrite ~path:filename =
+    let open Result_syntax in
+    let* ao = Ao.create_rw ~overwrite ~path:filename in
+    Ok (v_empty ao)
+
+  let v_filled ao =
+    let open Result_syntax in
+    let t = v_empty ao in
     let* () = refill t in
-    Fm.register_dict_consumer fm ~after_reload:(fun () -> refill t);
     Ok t
 
-  let close _ = ()
+  let open_rw ~size ~dead_header_size filename =
+    let open Result_syntax in
+    let* ao = Ao.open_rw ~path:filename ~end_poff:size ~dead_header_size in
+    v_filled ao
+
+  let open_ro ~size ~dead_header_size filename =
+    let open Result_syntax in
+    let* ao = Ao.open_ro ~path:filename ~end_poff:size ~dead_header_size in
+    v_filled ao
+
+  let end_poff t = Ao.end_poff t.ao
+  let flush t = Ao.flush t.ao
+  let fsync t = Ao.fsync t.ao
+  let close t = Ao.close t.ao
 end
