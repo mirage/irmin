@@ -1,0 +1,8 @@
+(executable
+ (public_name irmin-last_accessible)
+ (package irmin-pack-tools)
+ (name last_accessible)
+ (modules last_accessible)
+ (libraries irmin-pack irmin-pack.unix cmdliner logs)
+ (preprocess
+  (pps ppx_irmin.internal)))
