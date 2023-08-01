@@ -51,15 +51,19 @@ Will give:
 This tool prints the informations stored in the index of a store in a human readable manner (json), allowing to fetch important informations easily.
 It is fairly straightforward:
 ```shell
-$ dune exec -- irmin-ppidx <path-to-store>
+$ dune exec -- irmin-ppidx Irmin|Tezos <path-to-store>
 ```
+The first argument is the type of store, either:
+- Irmin, which implies that we will use the SHA256 hash, and will print it has an hexadecimal representation of the hash.
+- Tezos, which implies that we will use the default tezos hash (Blake2B) and we will print it with their encoding (base58 + a tezos specific prefix).
+
 The second one is the path to the root of the store, not the index folder (e.g. `output/root/` where `output/root/index/` exists)
 
-It will typically give the following json output, with one line per entry registered:
+It will typically give the following json output for Irmin, with one line per entry registered:
 ```
-{"hash":"cGrDVlQkzEjlw2DA4bL5fAnDSOh4TRKtLZrAiavclsI=","off":13431448,"len":101,"kind":"Commit_v2"}
-{"hash":"i2LiUbc7fPMu5ON1MLN97thf7cU0OUTcDBwNlvzAUVo=","off":95461096,"len":103,"kind":"Commit_v2"}
-{"hash":"cXMN2n8Re6RAvVbHbzaptzfIdFp+X/ey36S5RiWTsUw=","off":28541134,"len":104,"kind":"Commit_v2"}
+{"hash":"706ac3565424cc48e5c360c0e1b2f97c09c348e8784d12ad2d9ac089abdc96c2","off":13431448,"len":101,"kind":"Commit_v2"}
+{"hash":"8b62e251b73b7cf32ee4e37530b37deed85fedc5343944dc0c1c0d96fcc0515a","off":95461096,"len":103,"kind":"Commit_v2"}
+{"hash":"71730dda7f117ba440bd56c76f36a9b737c8745a7e5ff7b2dfa4b9462593b14c","off":28541134,"len":104,"kind":"Commit_v2"}
 ...
 ```
 Which can be further improved using the tool `jq`:
@@ -70,19 +74,19 @@ $ jq -s '.' -- index
 Will give:
 ```json
 {
-  "hash": "cGrDVlQkzEjlw2DA4bL5fAnDSOh4TRKtLZrAiavclsI=",
+  "hash": "706ac3565424cc48e5c360c0e1b2f97c09c348e8784d12ad2d9ac089abdc96c2",
   "off": 13431448,
   "len": 101,
   "kind": "Commit_v2"
 }
 {
-  "hash": "i2LiUbc7fPMu5ON1MLN97thf7cU0OUTcDBwNlvzAUVo=",
+  "hash": "8b62e251b73b7cf32ee4e37530b37deed85fedc5343944dc0c1c0d96fcc0515a",
   "off": 95461096,
   "len": 103,
   "kind": "Commit_v2"
 }
 {
-  "hash": "cXMN2n8Re6RAvVbHbzaptzfIdFp+X/ey36S5RiWTsUw=",
+  "hash": "71730dda7f117ba440bd56c76f36a9b737c8745a7e5ff7b2dfa4b9462593b14c",
   "off": 28541134,
   "len": 104,
   "kind": "Commit_v2"
