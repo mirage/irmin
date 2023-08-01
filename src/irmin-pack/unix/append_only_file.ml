@@ -23,7 +23,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let auto_flush_threshold = 16_384
 
-  type rw_perm = { buf : Buffer.t }
+  type rw_perm = { buf : Buffer.t; mutable fsync_required : bool }
   (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
 
   type t = {
@@ -33,16 +33,17 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     rw_perm : rw_perm option;
   }
 
+  let create_rw_perm () = Some { buf = Buffer.create 0; fsync_required = false }
+
   let create_rw ~path ~overwrite =
     let open Result_syntax in
     let+ io = Io.create ~path ~overwrite in
     let persisted_end_poff = Int63.zero in
-    let buf = Buffer.create 0 in
     {
       io;
       persisted_end_poff;
       dead_header_size = Int63.zero;
-      rw_perm = Some { buf };
+      rw_perm = create_rw_perm ();
     }
 
   (** A store is consistent if the real offset of the suffix/dict files is the
@@ -77,8 +78,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let+ () = check_consistent_store ~end_poff ~dead_header_size io in
     let persisted_end_poff = end_poff in
     let dead_header_size = Int63.of_int dead_header_size in
-    let buf = Buffer.create 0 in
-    { io; persisted_end_poff; dead_header_size; rw_perm = Some { buf } }
+    { io; persisted_end_poff; dead_header_size; rw_perm = create_rw_perm () }
 
   let open_ro ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
@@ -126,9 +126,19 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         (* [truncate] is semantically identical to [clear], except that
            [truncate] doesn't deallocate the internal buffer. We use
            [clear] in legacy_io. *)
-        Buffer.truncate rw_perm.buf 0
+        Buffer.truncate rw_perm.buf 0;
+        rw_perm.fsync_required <- true
 
-  let fsync t = Io.fsync t.io
+  let fsync t =
+    match t.rw_perm with
+    | None -> Error `Ro_not_allowed
+    | Some rw ->
+        assert (Buffer.length rw.buf = 0);
+        if rw.fsync_required then
+          let open Result_syntax in
+          let+ () = Io.fsync t.io in
+          rw.fsync_required <- false
+        else Ok ()
 
   let read_exn t ~off ~len b =
     let open Int63.Syntax in
