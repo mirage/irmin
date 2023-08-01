@@ -94,8 +94,7 @@ module Pack =
     (Errs)
 
 module Branch =
-  Irmin_pack_unix.Atomic_write.Make_persistent
-    (Irmin.Branch.String)
+  Irmin_pack_unix.Atomic_write.Make_persistent (Io) (Irmin.Branch.String)
     (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 
 module Make_context (Config : sig
@@ -111,7 +110,15 @@ struct
       [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
-  let mkdir_dash_p dirname = Irmin_pack_unix.Io_legacy.Unix.mkdir dirname
+  let mkdir_dash_p dirname =
+    let rec aux dir =
+      if Sys.file_exists dir && Sys.is_directory dir then ()
+      else (
+        if Sys.file_exists dir then Unix.unlink dir;
+        aux (Filename.dirname dir);
+        Unix.mkdir dir 0o755)
+    in
+    aux dirname
 
   type d = { name : string; fm : File_manager.t; dict : Dict.t }
 

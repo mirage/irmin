@@ -1,18 +1,16 @@
 open Import
 include Irmin_pack.Atomic_write
 
-let current_version = `V1
-
 module Table (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t [@@deriving irmin ~short_hash ~equal]
 
   let hash = short_hash ?seed:None
 end)
 
-module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
+module Make_persistent (Io : Io.S) (K : Irmin.Type.S) (V : Value.S) = struct
   module Tbl = Table (K)
   module W = Irmin.Backend.Watch.Make (K) (V)
-  module Io_legacy = Io_legacy.Unix
+  module Io_errors = Io_errors.Make (Io)
 
   type key = K.t [@@deriving irmin ~pp ~to_bin_string ~of_bin_string]
   type value = V.t [@@deriving irmin ~equal ~decode_bin ~of_bin_string]
@@ -21,39 +19,34 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
   type t = {
     index : int63 Tbl.t;
     cache : V.t Tbl.t;
-    block : Io_legacy.t;
+    block : Io.t;
+    mutable block_size : int63;
     w : W.t;
   }
 
+  let dead_header_size = 16
   let decode_bin = Irmin.Type.(unstage (decode_bin int32))
 
   let read_length32 ~file_pos block =
-    let buf = Bytes.create 4 in
-    let n = Io_legacy.read block ~off:!file_pos buf in
-    assert (n = 4);
-    (file_pos := Int63.Syntax.(!file_pos + Int63.of_int 4));
+    let len = 4 in
+    let buf = Bytes.create len in
+    Io.read_exn block ~off:!file_pos ~len buf;
+    (file_pos := Int63.Syntax.(!file_pos + Int63.of_int len));
     let pos_ref = ref 0 in
-    (* Bytes.unsafe_to_string usage: We assume Io_legacy.read_block returns unique
-       ownership of buf back to this function (this assumption holds currently; subsequent
-       modifications of that code need to ensure this remains the case); then in call to
-       Bytes.unsafe_to_string we give up ownership of buf (we do not modify the buffer
-       afterwards) and get ownership of resulting string; so this use is safe. *)
     let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
-    assert (!pos_ref = 4);
+    assert (!pos_ref = len);
     Int32.to_int v
 
   let entry = Irmin.Type.(pair (string_of `Int32) V.t)
   let entry_to_bin_string = Irmin.Type.(unstage (to_bin_string entry))
+  let block_size block = Io_errors.raise_if_error (Io.read_size block)
 
   let set_entry t ?off k v =
     let k = key_to_bin_string k in
     let buf = entry_to_bin_string (k, v) in
-    let () =
-      match off with
-      | None -> Io_legacy.append t.block buf
-      | Some off -> Io_legacy.set t.block buf ~off
-    in
-    Io_legacy.flush t.block
+    let len = String.length buf in
+    let off = match off with None -> block_size t.block | Some off -> off in
+    Io.write_exn t.block ~off ~len buf
 
   let value_encoded_size =
     match Irmin.Type.Size.of_value V.t with
@@ -73,8 +66,7 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
         let buf_size = key_encoded_size + value_encoded_size in
         let buf =
           let buf = Bytes.create buf_size in
-          let n = Io_legacy.read t.block ~off:!file_pos buf in
-          assert (n = buf_size);
+          Io.read_exn t.block ~off:!file_pos ~len:buf_size buf;
           let open Int63.Syntax in
           file_pos := !file_pos + Int63.of_int buf_size;
           Bytes.unsafe_to_string buf
@@ -97,13 +89,14 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
     aux ()
 
   let sync_offset t =
-    let former_offset = Io_legacy.offset t.block in
-    let offset = Io_legacy.force_offset t.block in
-    if offset > former_offset then refill t ~to_:offset ~from:former_offset
+    let former_offset = t.block_size in
+    t.block_size <- block_size t.block;
+    if t.block_size > former_offset then
+      refill t ~to_:t.block_size ~from:former_offset
 
   let unsafe_find t k =
     [%log.debug "[branches] find %a" pp_key k];
-    if Io_legacy.readonly t.block then sync_offset t;
+    if Io.readonly t.block then sync_offset t;
     try Some (Tbl.find t.cache k) with Not_found -> None
 
   let find t k = Lwt.return (unsafe_find t k)
@@ -130,13 +123,23 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
 
   let v ?(fresh = false) ?(readonly = false) file =
     let block =
-      Io_legacy.v ~fresh ~version:(Some current_version) ~readonly file
+      if
+        (not readonly)
+        && (fresh || Io.classify_path file = `No_such_file_or_directory)
+      then (
+        let io =
+          Io_errors.raise_if_error (Io.create ~path:file ~overwrite:true)
+        in
+        Io.write_exn io ~off:Int63.zero ~len:dead_header_size
+          (String.make dead_header_size '\000');
+        io)
+      else Io_errors.raise_if_error (Io.open_ ~path:file ~readonly)
     in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
-    let t = { cache; index; block; w = watches } in
-    let offset = Io_legacy.force_offset block in
-    refill t ~to_:offset ~from:Int63.zero;
+    let block_size = block_size block in
+    let t = { cache; index; block; block_size; w = watches } in
+    refill t ~to_:block_size ~from:(Int63.of_int dead_header_size);
     Lwt.return t
 
   let clear _ = Fmt.failwith "Unsupported operation"
@@ -147,13 +150,13 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
       Tbl.replace t.cache k v;
       set_entry t ~off k v
     with Not_found ->
-      let offset = Io_legacy.offset t.block in
+      let offset = block_size t.block in
       set_entry t k v;
       Tbl.add t.cache k v;
       Tbl.add t.index k offset
 
   let set t k v =
-    [%log.debug "[branches %s] set %a" (Io_legacy.name t.block) pp_key k];
+    [%log.debug "[branches %s] set %a" (Io.path t.block) pp_key k];
     unsafe_set t k v;
     W.notify t.w k (Some v)
 
@@ -186,10 +189,9 @@ module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
   let unsafe_close t =
     Tbl.reset t.index;
     Tbl.reset t.cache;
-    if not (Io_legacy.readonly t.block) then Io_legacy.flush t.block;
-    Io_legacy.close t.block;
+    Io_errors.raise_if_error (Io.close t.block);
     W.clear t.w
 
   let close t = unsafe_close t
-  let flush t = Io_legacy.flush t.block
+  let flush _t = ()
 end
