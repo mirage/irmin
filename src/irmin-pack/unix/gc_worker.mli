@@ -19,7 +19,8 @@
 open! Import
 module Payload = Control_file.Payload.Upper.Latest
 
-module Make (Args : Gc_args.S) : sig
+module Make
+    (Args : Gc_args.S) : sig
   module Args : Gc_args.S
 
   val run_and_output_result :

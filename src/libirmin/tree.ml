@@ -64,8 +64,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> hash @-> returning tree)
       (fun (type repo) repo k ->
         with_repo' repo tree
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let k = Root.get_hash (module Store) k in
             let t = run (Store.Tree.of_hash repo (`Node k)) in
             match t with
@@ -89,8 +89,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> kinded_key @-> returning tree)
       (fun (type repo) repo k ->
         with_repo' repo tree
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let k = Root.get_kinded_key (module Store) k in
             let t = run (Store.Tree.of_key repo k) in
             match t with

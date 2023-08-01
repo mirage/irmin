@@ -29,7 +29,8 @@ let wrong_depth = 100
 
 module Inode_modules
     (Conf : Irmin_pack.Conf.S)
-    (Schema : Irmin.Schema.S) (Contents : sig
+    (Schema : Irmin.Schema.S)
+    (Contents : sig
       val foo : Schema.Contents.t
       val bar : Schema.Contents.t
     end) =
@@ -239,8 +240,8 @@ module Inode_permutations_generator = struct
     let max_brute_force_iterations = 100 in
     let letters_per_step = (max_brute_force_iterations + 25) / 26 in
     fun inter indices ->
-      let module Inter = (val inter : Irmin_pack.Inode.Internal
-                            with type Val.step = Path.step)
+      let module Inter =
+        (val inter : Irmin_pack.Inode.Internal with type Val.step = Path.step)
       in
       let rec aux i =
         if i > max_brute_force_iterations then

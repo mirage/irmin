@@ -1130,7 +1130,7 @@ module type S_generic_key = sig
   (** {Deprecated} *)
 
   val master : repo -> t Lwt.t
-    [@@ocaml.deprecated "Use `main` instead."]
+  [@@ocaml.deprecated "Use `main` instead."]
   (** @deprecated Use {!main} instead *)
 end
 

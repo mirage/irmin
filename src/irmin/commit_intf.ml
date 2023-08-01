@@ -259,7 +259,9 @@ module type Sigs = sig
     module Info : Info.S with type t = Info.Default.t
     (** Serialisation format for V1 info. *)
 
-    module Make (Hash : Hash.S) (C : Generic_key.S with module Info := Info) : sig
+    module Make
+        (Hash : Hash.S)
+        (C : Generic_key.S with module Info := Info) : sig
       include
         Generic_key.S
           with module Info = Info

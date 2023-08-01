@@ -25,7 +25,8 @@ module Server = struct
   end
 
   module Make_ext
-      (S : Irmin.Generic_key.S) (Remote : sig
+      (S : Irmin.Generic_key.S)
+      (Remote : sig
         val remote : remote_fn option
       end)
       (T : Irmin_graphql.Server.CUSTOM_TYPES
@@ -55,7 +56,8 @@ module Server = struct
       (T)
 
   module Make
-      (S : Irmin.Generic_key.S) (Remote : sig
+      (S : Irmin.Generic_key.S)
+      (Remote : sig
         val remote : remote_fn option
       end) =
     Irmin_graphql.Server.Make

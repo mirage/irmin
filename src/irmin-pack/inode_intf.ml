@@ -256,7 +256,8 @@ module type Sigs = sig
 
   module Make_internal
       (Conf : Conf.S)
-      (H : Irmin.Hash.S) (Key : sig
+      (H : Irmin.Hash.S)
+      (Key : sig
         include Irmin.Key.S with type hash = H.t
 
         val unfindable_of_hash : hash -> t

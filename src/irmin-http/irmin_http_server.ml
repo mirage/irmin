@@ -62,13 +62,14 @@ module Make (HTTP : Cohttp_lwt.S.Server) (S : Irmin.S) = struct
     let err = Fmt.str "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
 
-  module Content_addressable (S : sig
-    include Irmin.Content_addressable.S
+  module Content_addressable
+      (S : sig
+        include Irmin.Content_addressable.S
 
-    val batch : B.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
-  end)
-  (K : Irmin.Type.S with type t = S.key)
-  (V : Irmin.Type.S with type t = S.value) =
+        val batch : B.Repo.t -> (read_write t -> 'a Lwt.t) -> 'a Lwt.t
+      end)
+      (K : Irmin.Type.S with type t = S.key)
+      (V : Irmin.Type.S with type t = S.value) =
   struct
     let with_key rd f =
       match Irmin.Type.of_string K.t (Wm.Rd.lookup_path_info_exn "id" rd) with

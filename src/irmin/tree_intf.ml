@@ -307,8 +307,9 @@ module type S = sig
         [post path steps].
       - If [n] is any kind, call [tree path t'] where [t'] is the tree of [n].
 
-      See {{:https://github.com/mirage/irmin/blob/main/examples/fold.ml}
-      examples/fold.ml} for a demo of the different {!folder}s.
+      See
+      {{:https://github.com/mirage/irmin/blob/main/examples/fold.ml}
+        examples/fold.ml} for a demo of the different {!folder}s.
 
       See {!force} for details about the [force] parameters. By default it is
       [`True].

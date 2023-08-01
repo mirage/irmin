@@ -192,8 +192,8 @@ struct
     in
     let chunking = Conf.get config Conf.Key.chunking in
     (if max_children <= 1 then
-     let min = Chunk.size_of_index_header + (H.hash_size * 2) in
-     err_too_small ~min chunk_size);
+       let min = Chunk.size_of_index_header + (H.hash_size * 2) in
+       err_too_small ~min chunk_size);
     [%log.debug
       "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
         chunk_size H.hash_size max_data max_children];

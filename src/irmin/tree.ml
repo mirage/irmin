@@ -921,7 +921,7 @@ module Make (P : Backend.S) = struct
       let rec aux acc = function
         | [] ->
             (if cache then
-             match acc with Node n -> t.info.value <- Some n | Pnode _ -> ());
+               match acc with Node n -> t.info.value <- Some n | Pnode _ -> ());
             k acc
         | (k, Add e) :: rest ->
             hash_preimage_value_of_elt ~cache e (fun e ->
@@ -2420,7 +2420,7 @@ module Make (P : Backend.S) = struct
       | [] ->
           k
             (if StepMap.is_empty map then Empty
-            else Non_empty (Node.of_map ~env:(Env.empty ()) map))
+             else Non_empty (Node.of_map ~env:(Env.empty ()) map))
       | (s, n) :: t ->
           (concrete [@tailcall]) n (fun v ->
               (tree [@tailcall])

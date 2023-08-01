@@ -1,4 +1,4 @@
-version = 0.24.1
+version = 0.26.0
 profile = conventional
 
 ocaml-version = 4.08.0

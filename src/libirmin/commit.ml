@@ -49,8 +49,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> hash @-> returning commit)
       (fun (type repo) repo hash ->
         with_repo' repo commit
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let hash = Root.get_hash (module Store) hash in
             let c = run (Store.Commit.of_hash repo hash) in
             match c with
@@ -62,8 +62,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> commit_key @-> returning commit)
       (fun (type repo) repo hash ->
         with_repo' repo commit
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let hash = Root.get_commit_key (module Store) hash in
             let c = run (Store.Commit.of_key repo hash) in
             match c with
@@ -75,8 +75,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> ptr commit @-> uint64_t @-> tree @-> info @-> returning commit)
       (fun (type repo) repo parents n tree info ->
         with_repo' repo commit
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let n = UInt64.to_int n in
             let parents =
               if is_null parents || n = 0 then []
@@ -97,8 +97,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> commit @-> returning commit_array)
       (fun (type repo) repo commit ->
         with_repo' repo commit_array
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let commit = Root.get_commit (module Store) commit in
             let parents = Store.Commit.parents commit in
             let parents =
@@ -117,8 +117,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> commit @-> commit @-> returning bool)
       (fun (type repo) repo a b ->
         with_repo repo false
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let a = Root.get_commit (module Store) a in
             let b = Root.get_commit (module Store) b in
             Irmin.Type.(unstage (equal (Store.commit_t repo))) a b))
