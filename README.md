@@ -143,7 +143,6 @@ The following packages have are available on `opam`:
 - `irmin-fs` - filesystem-based storage using `bin_prot`
 - `irmin-git` - Git compatible storage
 - `irmin-graphql` - GraphQL server
-- `irmin-http` - a simple REST interface
 - `irmin-mirage` - mirage compatibility
 - `irmin-mirage-git` - Git compatible storage for mirage
 - `irmin-mirage-graphql` - mirage compatible GraphQL server

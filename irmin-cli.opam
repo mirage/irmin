@@ -20,7 +20,6 @@ depends: [
   "dune"          {>= "2.9.0"}
   "irmin"         {= version}
   "irmin-git"     {= version}
-  "irmin-http"    {= version}
   "irmin-fs"      {= version}
   "irmin-pack"    {= version}
   "irmin-graphql" {= version}

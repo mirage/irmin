@@ -5,6 +5,12 @@
 - **irmin-pack**
   - Fix index integrity check for v3 stores (#2267, @metanivek)
 
+### Removed
+
+- **irmin-http*
+  - Removed `irmin-http` since it is not compatible with generic keys.
+    `irmin-grapqhl` or `irmin-server` should be used instead. (#1902, @zshipko)
+
 ## 3.8.0 (2023-07-06)
 
 ### Added
