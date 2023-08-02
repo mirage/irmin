@@ -702,16 +702,18 @@ struct
     let repo = repo store in
     request repo (module Commands.Store.Find) path >|= Error.unwrap "find"
 
-  let remove_exn ?retries ?allow_empty ?parents ~info store path =
+  let remove_exn ?clear ?retries ?allow_empty ?parents ~info store path =
     let parents = Option.map (List.map (fun c -> Commit.hash c)) parents in
     let repo = repo store in
     request repo
       (module Commands.Store.Remove)
-      ((retries, allow_empty, parents), path, info ())
+      (((clear, retries), (allow_empty, parents)), path, info ())
     >|= Error.unwrap "remove"
 
-  let remove ?retries ?allow_empty ?parents ~info store path =
-    let* x = remove_exn ?retries ?allow_empty ?parents ~info store path in
+  let remove ?clear ?retries ?allow_empty ?parents ~info store path =
+    let* x =
+      remove_exn ?clear ?retries ?allow_empty ?parents ~info store path
+    in
     Lwt.return_ok x
 
   let find_tree store path =

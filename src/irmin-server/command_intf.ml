@@ -290,7 +290,8 @@ module type S = sig
 
     (* Store *)
     module Store : sig
-      type write_options = int option * bool option * Store.hash list option
+      type write_options =
+        (bool option * int option) * (bool option * Store.hash list option)
       [@@deriving irmin]
 
       (** Find a value in the store *)
@@ -301,7 +302,8 @@ module type S = sig
       module Remove :
         CMD
           with type req =
-            (int option * bool option * Store.hash list option)
+            ((bool option * int option)
+            * (bool option * Store.hash list option))
             * Store.path
             * Store.Info.t
            and type res = unit

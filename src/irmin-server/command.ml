@@ -593,7 +593,8 @@ struct
               Return.v conn res_t (Some x)
       end
 
-      type write_options = int option * bool option * Store.hash list option
+      type write_options =
+        (bool option * int option) * (bool option * Store.hash list option)
       [@@deriving irmin]
 
       let mk_parents ctx parents =
@@ -613,11 +614,12 @@ struct
 
         let name = "store.remove"
 
-        let run conn ctx _ ((retries, allow_empty, parents), path, info) =
+        let run conn ctx _
+            (((clear, retries), (allow_empty, parents)), path, info) =
           let* parents = mk_parents ctx parents in
           let* () =
-            Store.remove_exn ?retries ?allow_empty ?parents ctx.store path
-              ~info:(fun () -> info)
+            Store.remove_exn ?clear ?retries ?allow_empty ?parents ctx.store
+              path ~info:(fun () -> info)
           in
           Return.v conn res_t ()
       end
