@@ -147,8 +147,7 @@ module Make (I : IO) (T : Codec.S) = struct
     let write_header t { command } : unit Lwt.t =
       Logs.debug (fun l -> l "Writing request header: command=%s" command);
       let* () = IO.write_char t.oc (char_of_int (String.length command)) in
-      let* () = IO.write t.oc (String.lowercase_ascii command) in
-      IO.flush t.oc
+      IO.write t.oc (String.lowercase_ascii command)
 
     let read_header t : header Lwt.t =
       let* length = IO.read_char t.ic >|= int_of_char in
