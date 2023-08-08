@@ -33,7 +33,6 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
     repo : Store.Repo.t;
-    clients : (Command.context, unit) Hashtbl.t;
     info : Command.Server_info.t;
   }
 
@@ -80,16 +79,15 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       | x -> invalid_arg ("Unknown server scheme: " ^ x)
     in
     let+ repo = Store.Repo.v config in
-    let clients = Hashtbl.create 8 in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; dashboard; config; repo; clients; info }
+    { ctx; uri; server; dashboard; config; repo; info }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
   let invalid_arguments a = Error.unwrap "Invalid arguments" a [@@inline]
 
-  let[@tailrec] rec loop repo clients conn client info : unit Lwt.t =
+  let[@tailrec] rec loop repo conn client info : unit Lwt.t =
     if Conn.is_closed conn then
       let* () =
         match client.Command.watch with
@@ -103,7 +101,6 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             Store.Backend.Branch.unwatch b w
         | None -> Lwt.return_unit
       in
-      let () = Hashtbl.remove clients client in
       Lwt.return_unit
     else
       Lwt.catch
@@ -142,9 +139,9 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
                     l "Exception: %s\n%s" s (Printexc.get_backtrace ()));
                 let* () = Conn.err conn s in
                 Lwt_unix.sleep 0.01)
-      >>= fun () -> loop repo clients conn client info
+      >>= fun () -> loop repo conn client info
 
-  let callback { repo; clients; info; config; _ } ic oc =
+  let callback { repo; info; config; _ } ic oc =
     (* Handshake check *)
     let conn = Conn.v ic oc in
     let* check =
@@ -176,8 +173,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             config;
           }
       in
-      Hashtbl.replace clients client ();
-      loop repo clients conn client info
+      loop repo conn client info
 
   (* The websocket protocol reads fully formed protocol packets off of
      one end of a pipe given to irmin-server-internal and converts the
