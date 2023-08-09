@@ -14,10 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include module type of Cli
-(** @inline *)
-
-module Resolver : sig
-  include module type of Resolver
-  (** @inline *)
-end
+include Error_intf.Error
+(** inline *)

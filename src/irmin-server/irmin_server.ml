@@ -14,10 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include module type of Cli
-(** @inline *)
-
-module Resolver : sig
-  include module type of Resolver
-  (** @inline *)
-end
+module Error = Error
+module Command = Command
+module Cli = Cli
+module Conn = Conn
+module Tree = Tree

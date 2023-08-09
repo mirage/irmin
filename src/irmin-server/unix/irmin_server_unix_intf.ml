@@ -14,10 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include module type of Cli
-(** @inline *)
+open Irmin_server
+module Error = Error
 
-module Resolver : sig
-  include module type of Resolver
-  (** @inline *)
+module type Irmin_server = sig
+  module type S = Server.S
+
+  module Error = Error
+
+  module Make_ext (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) :
+    S with module Store = Store
+
+  module Make (Store : Irmin.Generic_key.S) : S with module Store = Store
+  module Make_json (Store : Irmin.Generic_key.S) : S with module Store = Store
 end

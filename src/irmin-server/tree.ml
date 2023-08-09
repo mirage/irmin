@@ -14,10 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include module type of Cli
-(** @inline *)
+include Tree_intf
 
-module Resolver : sig
-  include module type of Resolver
-  (** @inline *)
+module Make (Store : Irmin.Generic_key.S) = struct
+  type concrete = Store.Tree.concrete [@@deriving irmin]
+  type kinded_key = Store.Tree.kinded_key [@@deriving irmin]
+
+  type t = Key of kinded_key | ID of int | Concrete of concrete
+  [@@deriving irmin]
 end

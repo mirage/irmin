@@ -14,10 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include module type of Cli
-(** @inline *)
-
-module Resolver : sig
-  include module type of Resolver
-  (** @inline *)
-end
+type client = S : ((module Irmin_client.S with type t = 'a) * 'a) -> client
