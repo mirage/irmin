@@ -86,6 +86,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
   let invalid_arguments a = Error.unwrap "Invalid arguments" a [@@inline]
+  let command_lock = Lwt_mutex.create ()
 
   let[@tailrec] rec loop repo conn client info : unit Lwt.t =
     if Conn.is_closed conn then
@@ -118,7 +119,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
           | Some (module Cmd : Command.CMD) ->
               let* req = Conn.read conn Cmd.req_t >|= invalid_arguments in
               Logs.debug (fun l -> l "Command: %s" Cmd.name);
-              let* res = Cmd.run conn client info req in
+              let* res =
+                Lwt_mutex.with_lock command_lock @@ fun () ->
+                Cmd.run conn client info req
+              in
               Conn.Return.finish res)
         (function
           | Error.Error s ->
