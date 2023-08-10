@@ -36,15 +36,6 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     info : Command.Server_info.t;
   }
 
-  module Client_set = Set.Make (struct
-    type t = Command.context
-
-    let compare a b =
-      let conn = a.Command.conn.ic in
-      let conn' = b.Command.conn.ic in
-      compare conn conn'
-  end)
-
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
