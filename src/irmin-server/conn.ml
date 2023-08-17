@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 open Lwt.Syntax
 open Lwt.Infix
 include Conn_intf
@@ -45,7 +46,7 @@ module Make (I : IO) (T : Codec.S) = struct
 
   let write_raw t s : unit Lwt.t =
     let len = String.length s in
-    Logs.debug (fun l -> l "Writing raw message: length=%d" len);
+    Log.debug (fun l -> l "Writing raw message: length=%d" len);
     let* x =
       IO.write_int64_be t.oc (Int64.of_int len) >>= fun () ->
       if len <= 0 then Lwt.return_unit else IO.write t.oc s
@@ -61,7 +62,7 @@ module Make (I : IO) (T : Codec.S) = struct
     let* n =
       Lwt.catch (fun () -> IO.read_int64_be t.ic) (fun _ -> Lwt.return 0L)
     in
-    Logs.debug (fun l -> l "Raw message length=%Ld" n);
+    Log.debug (fun l -> l "Raw message length=%Ld" n);
     if n <= 0L then Lwt.return Bytes.empty
     else
       let n = Int64.to_int n in
@@ -116,15 +117,15 @@ module Make (I : IO) (T : Codec.S) = struct
     let v_header ~status = { status } [@@inline]
 
     let write_header t { status; _ } =
-      Logs.debug (fun l -> l "Writing response header: status=%d" status);
+      Log.debug (fun l -> l "Writing response header: status=%d" status);
       let+ x = IO.write_char t.oc (char_of_int status) in
       x
 
     let read_header t =
-      Logs.debug (fun l -> l "Starting response header read");
+      Log.debug (fun l -> l "Starting response header read");
       let+ status = IO.read_char t.ic in
       let status = int_of_char status in
-      Logs.debug (fun l -> l "Read response header: status=%d" status);
+      Log.debug (fun l -> l "Read response header: status=%d" status);
       { status }
     [@@inline]
 
@@ -134,7 +135,7 @@ module Make (I : IO) (T : Codec.S) = struct
       if is_error header then (
         let* x = read_raw t in
         let x = Bytes.to_string x in
-        Logs.debug (fun l -> l "Error response message: %s" x);
+        Log.debug (fun l -> l "Error response message: %s" x);
         Lwt.return_some x)
       else Lwt.return_none
   end
@@ -145,7 +146,7 @@ module Make (I : IO) (T : Codec.S) = struct
     let v_header ~command = { command } [@@inline]
 
     let write_header t { command } : unit Lwt.t =
-      Logs.debug (fun l -> l "Writing request header: command=%s" command);
+      Log.debug (fun l -> l "Writing request header: command=%s" command);
       let* () = IO.write_char t.oc (char_of_int (String.length command)) in
       IO.write t.oc (String.lowercase_ascii command)
 
@@ -156,7 +157,7 @@ module Make (I : IO) (T : Codec.S) = struct
         IO.read_into_exactly t.ic (Bytes.unsafe_of_string command) 0 length
       in
       let command = String.lowercase_ascii command in
-      Logs.debug (fun l -> l "Request header read: command=%s" command);
+      Log.debug (fun l -> l "Request header read: command=%s" command);
       { command }
   end
 

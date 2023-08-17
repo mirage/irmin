@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 open Lwt.Syntax
 open Lwt.Infix
 open Irmin_server
@@ -97,7 +98,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     else
       Lwt.catch
         (fun () ->
-          Logs.debug (fun l -> l "Receiving next command");
+          Log.debug (fun l -> l "Receiving next command");
           (* Get request header (command and number of arguments) *)
           let* Conn.Request.{ command } = Conn.Request.read_header conn in
           (* Get command *)
@@ -105,11 +106,11 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
           | None ->
               if String.length command = 0 then Lwt.return_unit
               else
-                let () = Logs.err (fun l -> l "Unknown command: %s" command) in
+                let () = Log.err (fun l -> l "Unknown command: %s" command) in
                 Conn.err conn ("unknown command: " ^ command)
           | Some (module Cmd : Command.CMD) ->
               let* req = Conn.read conn Cmd.req_t >|= invalid_arguments in
-              Logs.debug (fun l -> l "Command: %s" Cmd.name);
+              Log.debug (fun l -> l "Command: %s" Cmd.name);
               let* res =
                 Lwt_mutex.with_lock command_lock @@ fun () ->
                 Cmd.run conn client info req
@@ -118,7 +119,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         (function
           | Error.Error s ->
               (* Recover *)
-              Logs.debug (fun l -> l "Error response: %s" s);
+              Log.err (fun l -> l "Error response: %s" s);
               let* () = Conn.err conn s in
               Lwt_unix.sleep 0.01
           | End_of_file ->
@@ -130,7 +131,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
               else
                 (* Unhandled exception *)
                 let s = Printexc.to_string exn in
-                Logs.err (fun l ->
+                Log.err (fun l ->
                     l "Exception: %s\n%s" s (Printexc.get_backtrace ()));
                 let* () = Conn.err conn s in
                 Lwt_unix.sleep 0.01)
@@ -147,7 +148,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     if not check then
       (* Hanshake failed *)
       let () =
-        Logs.info (fun l -> l "Client closed because of invalid handshake")
+        Log.info (fun l -> l "Client closed because of invalid handshake")
       in
       Lwt_io.close ic
     else
@@ -214,7 +215,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             let* frame = Websocket_lwt_unix.Connected_client.recv client in
             if frame.opcode <> Binary then fill_ic channel other_channel client
             else
-              let () = Logs.debug (fun f -> f "<<< Server received frame") in
+              let () = Log.debug (fun f -> f "<<< Server received frame") in
               Lwt_io.write channel frame.content >>= fun () ->
               fill_ic channel other_channel client)
           (function
@@ -229,7 +230,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         (if handshake then Websocket_protocol.read_handshake channel
          else Websocket_protocol.read_response channel)
         >>= fun content ->
-        Logs.debug (fun f -> f ">>> Server sent frame");
+        Log.debug (fun f -> f ">>> Server sent frame");
         Lwt.catch
           (fun () ->
             Websocket_lwt_unix.Connected_client.send client
@@ -246,7 +247,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     Lwt.async (fun () -> send_oc true output_ic output_oc client);
     callback server input_ic output_oc
 
-  let on_exn x = Logs.err (fun l -> l "EXCEPTION: %s" (Printexc.to_string x))
+  let on_exn x = Log.err (fun l -> l "EXCEPTION: %s" (Printexc.to_string x))
 
   let dashboard t mode =
     let list store prefix =

@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 open Irmin_server
 open Lwt.Syntax
 open Lwt.Infix
@@ -101,11 +102,11 @@ struct
     let* res = Conn.Response.read_header t.conn in
     Conn.Response.get_error t.conn res >>= function
     | Some err ->
-        Logs.err (fun l -> l "Request error: command=%s, error=%s" name err);
+        Log.err (fun l -> l "Request error: command=%s, error=%s" name err);
         Lwt.return_error (`Msg err)
     | None ->
         let+ x = Conn.read t.conn ty in
-        Logs.debug (fun l -> l "Completed request: command=%s" name);
+        Log.debug (fun l -> l "Completed request: command=%s" name);
         x
 
   let request (t : t) (type x y)
@@ -113,7 +114,7 @@ struct
     if t.closed then raise Irmin.Closed
     else
       let name = Cmd.name in
-      Logs.debug (fun l -> l "Starting request: command=%s" name);
+      Log.debug (fun l -> l "Starting request: command=%s" name);
       lock t (fun () ->
           let* () = send_command_header t (module Cmd) in
           let* () = Conn.write t.conn Cmd.req_t a in
