@@ -71,5 +71,8 @@ end
 module type Sigs = sig
   module type S = S
 
+  module Make_io (Io : Io.S) (Io_index : Index.Platform.S) (K : Irmin.Hash.S) :
+    S with type key = K.t and module Io = Io
+
   module Make (K : Irmin.Hash.S) : S with type key = K.t and module Io = Io.Unix
 end
