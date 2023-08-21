@@ -426,12 +426,18 @@ module Make (Args : Gc_args.S) = struct
   let run_and_output_result ~lower_root ~generation ~new_files_path root
       commit_key new_suffix_start_offset =
     let result =
-      Errs.catch (fun () ->
-          run ~lower_root ~generation ~new_files_path root commit_key
-            new_suffix_start_offset)
+      try
+        Errs.catch (fun () ->
+            run ~lower_root ~generation ~new_files_path root commit_key
+              new_suffix_start_offset)
+      with e ->
+        Format.printf "GC ERROR: %s@." (Printexc.to_string e);
+        Printexc.print_backtrace stdout;
+        raise e
     in
     Errs.log_if_error "gc run" result;
     let write_result = write_gc_output ~root ~generation result in
+    Format.printf "GC WORKER is done!@.";
     write_result |> Errs.log_if_error "writing gc output"
   (* No need to raise or log if [result] is [Error _], we've written it in
      the file. *)

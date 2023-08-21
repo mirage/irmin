@@ -23,6 +23,12 @@
 (** {1 Store} *)
 
 module type S = Store.S
+module type Io_s = Io.S
+
+module Maker_io
+    (Io : Io.S)
+    (Io_index : Index.Platform.S)
+    (Config : Irmin_pack.Conf.S) : Store.Maker
 
 module Maker (Config : Irmin_pack.Conf.S) : Store.Maker
 module KV (Config : Irmin_pack.Conf.S) : Store.KV
@@ -57,6 +63,7 @@ module Async = Async
 module Errors = Errors
 module Io_errors = Io_errors
 module Control_file = Control_file
+module Control_file_intf = Control_file_intf
 module Append_only_file = Append_only_file
 module Chunked_suffix = Chunked_suffix
 module Ranges = Ranges
@@ -65,3 +72,6 @@ module File_manager = File_manager
 module Lower = Lower
 module Utils = Utils
 module Lru = Lru
+module Gc_raw = Gc
+module Traverse_pack_file = Traverse_pack_file
+module Snapshot = Snapshot

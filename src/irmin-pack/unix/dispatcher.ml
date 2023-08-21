@@ -18,9 +18,7 @@ open Import
 include Dispatcher_intf
 module Payload = Control_file.Payload.Upper.Latest
 
-(* The following [with module Io = Io.Unix] forces unix *)
-module Make (Fm : File_manager.S with module Io = Io.Unix) :
-  S with module Fm = Fm = struct
+module Make (Fm : File_manager.S) : S with module Fm = Fm = struct
   module Fm = Fm
   module Io = Fm.Io
   module Suffix = Fm.Suffix

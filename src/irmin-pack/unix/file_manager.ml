@@ -258,6 +258,9 @@ struct
     | None -> Ok ()
 
   let cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower =
+    ignore (root, generation, chunk_start_idx, chunk_num, lower);
+    Ok ()
+  (*
     let () =
       Sys.readdir root
       |> Array.to_list
@@ -278,6 +281,7 @@ struct
                    "Could not remove residual file %s: %s" filename error])
     in
     Option.might (Lower.cleanup ~generation) lower
+    *)
 
   let add_volume_and_update_control lower control =
     let open Result_syntax in

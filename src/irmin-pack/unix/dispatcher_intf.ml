@@ -100,6 +100,5 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Make (Fm : File_manager.S with module Io = Io.Unix) :
-    S with module Fm = Fm
+  module Make (Fm : File_manager.S) : S with module Fm = Fm
 end
