@@ -61,7 +61,9 @@ let ppf_or_null ppf =
 
 module Make (Store : Store) = struct
   module Hash = Store.Hash
-  module Index = Pack_index.Make (Hash)
+
+  module Index =
+    Pack_index.Make_io (Io.Unix) (Index_unix.Private.Platform) (Hash)
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct

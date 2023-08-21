@@ -58,6 +58,17 @@ module Unix = struct
   end
 
   let async f =
+    let exit_code =
+      match f () with
+      | () -> Exit_code.success
+      | exception e ->
+          [%log.err
+            "Unhandled exception in child process %s" (Printexc.to_string e)];
+          Exit_code.unhandled_exn
+    in
+    { pid = -1; status = `Success; lock = Eio.Mutex.create () }
+
+  (*
     Stdlib.flush_all ();
     match Unix.fork () with
     | 0 ->
@@ -76,6 +87,7 @@ module Unix = struct
     | pid ->
         Exit.add pid;
         { pid; status = `Running; lock = Eio.Mutex.create () }
+    *)
 
   let status_of_process_outcome = function
     | Unix.WEXITED n when n = Exit_code.success -> `Success

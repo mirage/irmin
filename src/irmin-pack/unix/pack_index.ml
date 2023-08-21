@@ -18,7 +18,8 @@
 open! Import
 include Pack_index_intf
 
-module Make (K : Irmin.Hash.S) = struct
+module Make_io (Io : Io.S) (Io_index : Index.Platform.S) (K : Irmin.Hash.S) =
+struct
   module Key = struct
     type t = K.t
     [@@deriving irmin ~short_hash ~equal ~to_bin_string ~decode_bin]
@@ -60,9 +61,9 @@ module Make (K : Irmin.Hash.S) = struct
 
   module Stats = Index.Stats
   module I = Index
-  module Index = Index_unix.Make (Key) (Val) (Index.Cache.Unbounded)
+  module Index = Index.Make (Key) (Val) (Io_index) (Index.Cache.Unbounded)
   include Index
-  module Io = Io.Unix
+  module Io = Io
 
   let v_exn =
     let cache = None in
@@ -83,7 +84,7 @@ module Make (K : Irmin.Hash.S) = struct
            error is expected to be raised when a RO instance attemps an opening
            on a non-existing file. *)
         assert false
-    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    (* | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z)) *)
     | Failure msg -> Error (`Index_failure msg)
 
   let add ?overcommit t k v = replace ?overcommit t k v
@@ -97,7 +98,7 @@ module Make (K : Irmin.Hash.S) = struct
     with
     | I.RO_not_allowed -> Error `Ro_not_allowed
     | Index_unix.Private.Raw.Not_written -> assert false
-    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    (* | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z)) *)
     | Failure msg -> Error (`Index_failure msg)
 
   let reload t =
@@ -107,7 +108,7 @@ module Make (K : Irmin.Hash.S) = struct
     with
     | I.RO_not_allowed -> Error `Ro_not_allowed
     | Index_unix.Private.Raw.Not_written -> assert false
-    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    (* | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z)) *)
     | Failure msg -> Error (`Index_failure msg)
 
   let flush t ~with_fsync =
@@ -117,6 +118,8 @@ module Make (K : Irmin.Hash.S) = struct
     with
     | I.RO_not_allowed -> Error `Ro_not_allowed
     | Index_unix.Private.Raw.Not_written -> assert false
-    | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z))
+    (* | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z)) *)
     | Failure msg -> Error (`Index_failure msg)
 end
+
+module Make = Make_io (Io.Unix) (Index_unix.Private.Platform)

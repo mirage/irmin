@@ -17,7 +17,8 @@
 open! Import
 include Store_intf
 
-module Maker (Config : Conf.S) = struct
+module Maker (Io : Io.S) (Io_index : Index.Platform.S) (Config : Conf.S) =
+struct
   type endpoint = unit
 
   include Pack_key.Store_spec
@@ -31,8 +32,7 @@ module Maker (Config : Conf.S) = struct
     end
 
     module H = Schema.Hash
-    module Io = Io.Unix
-    module Index = Pack_index.Make (H)
+    module Index = Pack_index.Make_io (Io) (Io_index) (H)
     module Errs = Io_errors.Make (Io)
     module File_manager = File_manager.Make (Io) (Index) (Errs)
     module Dict = File_manager.Dict
@@ -614,9 +614,9 @@ module Maker (Config : Conf.S) = struct
               Fmt.str "Pack_error: %a" Errors.pp_base_error error
           | Irmin.Closed -> "Irmin.Closed"
           | Irmin_pack.RO_not_allowed -> "Irmin_pack.RO_not_allowed"
-          | Unix.Unix_error (err, s1, s2) ->
-              let pp = Irmin.Type.pp Io.misc_error_t in
-              Fmt.str "Unix_error: %a" pp (err, s1, s2)
+          (* | Unix.Unix_error (err, s1, s2) -> *)
+          (*     let pp = Irmin.Type.pp Io.misc_error_t in *)
+          (*     Fmt.str "Unix_error: %a" pp (err, s1, s2) *)
           | exn -> raise exn
         in
         let error_msg = Fmt.str "[%s] resulted in error: %s" context err in

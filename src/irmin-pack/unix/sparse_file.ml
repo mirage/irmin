@@ -40,7 +40,7 @@ end = struct
 
   let open_ro ~fn ~sz =
     let open Result_syntax in
-    assert (Sys.file_exists fn);
+    assert (Io.classify_path fn = `File);
     let+ fd = Io.open_ ~path:fn ~readonly:true in
     let size = sz / 8 in
     let arr = BigArr1.create Bigarray.Int64 Bigarray.c_layout size in
