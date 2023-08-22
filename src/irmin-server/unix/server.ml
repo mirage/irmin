@@ -155,7 +155,6 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       (* Handshake ok *)
       let branch = Store.Branch.main in
       let* store = Store.of_branch repo branch in
-      let trees = Hashtbl.create 8 in
       let client =
         Command.
           {
@@ -163,7 +162,6 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             repo;
             branch;
             store;
-            trees;
             watch = None;
             branch_watch = None;
             config;

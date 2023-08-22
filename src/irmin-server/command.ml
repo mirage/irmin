@@ -23,14 +23,35 @@ struct
   module Store = Store
   module Tree = Tree.Make (Store)
   module Commit = Commit.Make (Store) (Tree)
-  include Context.Make (IO) (Codec) (Store) (Tree)
+  include Context.Make (IO) (Codec) (Store)
   module Return = Conn.Return
 
   type t = (module CMD)
 
+  let resolve_tree (ctx : context) tree =
+    let* id, tree =
+      match tree with
+      | Tree.Key x -> Store.Tree.of_key ctx.repo x >|= fun x -> (None, x)
+      | Concrete x -> Lwt.return (None, Some (Store.Tree.of_concrete x))
+    in
+    match tree with
+    | Some t -> Lwt.return (id, t)
+    | None -> Error.raise_error "unknown tree"
+
+  type store = [ `Empty | `Branch of Store.branch | `Commit of Store.commit_key ]
+  [@@deriving irmin]
+
+  let resolve_store ctx = function
+    | `Empty -> Store.empty ctx.repo
+    | `Branch b -> Store.of_branch ctx.repo b
+    | `Commit key -> (
+        let* commit = Store.Commit.of_key ctx.repo key in
+        match commit with
+        | None -> Error.raise_error "Cannot find commit"
+        | Some commit -> Store.of_commit commit)
+
   module Commands = struct
-    module Tree' = Tree
-    module Tree = Command_tree.Make (IO) (Codec) (Store) (Tree) (Commit)
+    type nonrec store = store [@@deriving irmin]
 
     module Ping = struct
       let name = "ping"
@@ -544,7 +565,55 @@ struct
       end
     end
 
+    module Batch = struct
+      type batch =
+        (Store.path
+        * [ `Contents of
+            [ `Hash of Store.hash | `Value of Store.contents ]
+            * Store.metadata option
+          | `Tree of Tree.t
+          | `Remove ])
+        list
+      [@@deriving irmin]
+
+      module Apply = struct
+        type req = (store * Store.path) * Store.info * batch [@@deriving irmin]
+        type res = Store.commit_key [@@deriving irmin]
+
+        let name = "tree.batch.apply"
+
+        let run conn ctx _ ((store, path), info, l) =
+          let* store = resolve_store ctx store in
+          let* () =
+            Store.with_tree_exn store path
+              ~info:(fun () -> info)
+              (fun tree ->
+                let tree = Option.value ~default:(Store.Tree.empty ()) tree in
+                let* tree =
+                  Lwt_list.fold_left_s
+                    (fun tree (path, value) ->
+                      match value with
+                      | `Contents (`Hash value, metadata) ->
+                          let* value = Store.Contents.of_hash ctx.repo value in
+                          Store.Tree.add tree path ?metadata (Option.get value)
+                      | `Contents (`Value value, metadata) ->
+                          Store.Tree.add tree path ?metadata value
+                      | `Tree t ->
+                          let* _, tree' = resolve_tree ctx t in
+                          Store.Tree.add_tree tree path tree'
+                      | `Remove -> Store.Tree.remove tree path)
+                    tree l
+                in
+                Lwt.return (Some tree))
+          in
+          let* c = Store.Head.get store in
+          Return.v conn res_t (Store.Commit.key c)
+      end
+    end
+
     module Store = struct
+      type t = store [@@deriving irmin]
+
       module Mem = struct
         type req = Store.path [@@deriving irmin]
         type res = bool [@@deriving irmin]
@@ -629,6 +698,7 @@ struct
   let commands : (string * (module CMD)) list =
     let open Commands in
     [
+      cmd (module Batch.Apply);
       cmd (module Ping);
       cmd (module Set_current_branch);
       cmd (module Get_current_branch);
@@ -668,7 +738,6 @@ struct
       cmd (module Store.Find_tree);
       cmd (module Store.Remove);
     ]
-    @ Tree.commands
 
   let () = List.iter (fun (k, _) -> assert (String.length k < 255)) commands
   let of_name name = List.assoc name commands
