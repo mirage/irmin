@@ -78,7 +78,7 @@ let websocket_to_flow client =
     Lwt.catch
       (fun () ->
         Websocket_lwt_unix.read client >>= fun frame ->
-        Log.debug (fun f -> f "<<< Client received frame");
+        [%log.debug "<<< Client received frame"];
         Lwt_io.write channel frame.content >>= fun () -> fill_ic channel client)
       (function End_of_file -> Lwt_io.close channel | exn -> Lwt.fail exn)
   in
@@ -86,7 +86,7 @@ let websocket_to_flow client =
     (if handshake then Websocket_protocol.read_handshake channel
      else Websocket_protocol.read_request channel)
     >>= fun content ->
-    Log.debug (fun f -> f ">>> Client sent frame");
+    [%log.debug ">>> Client sent frame"];
     Lwt.catch
       (fun () ->
         Websocket_lwt_unix.write client

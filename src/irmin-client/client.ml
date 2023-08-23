@@ -102,11 +102,11 @@ struct
     let* res = Conn.Response.read_header t.conn in
     Conn.Response.get_error t.conn res >>= function
     | Some err ->
-        Log.err (fun l -> l "Request error: command=%s, error=%s" name err);
+        [%log.err "Request error: command=%s, error=%s" name err];
         Lwt.return_error (`Msg err)
     | None ->
         let+ x = Conn.read t.conn ty in
-        Log.debug (fun l -> l "Completed request: command=%s" name);
+        [%log.debug "Completed request: command=%s" name];
         x
 
   let request (t : t) (type x y)
@@ -114,7 +114,7 @@ struct
     if t.closed then raise Irmin.Closed
     else
       let name = Cmd.name in
-      Log.debug (fun l -> l "Starting request: command=%s" name);
+      [%log.debug "Starting request: command=%s" name];
       lock t (fun () ->
           let* () = send_command_header t (module Cmd) in
           let* () = Conn.write t.conn Cmd.req_t a in
@@ -425,13 +425,13 @@ struct
 
     type store = t
 
-    type batch_contents =
-      [ `Hash of Store.Hash.t | `Value of Store.contents ]
-      * Store.metadata option
-
     type t =
       (Store.path
-      * [ `Contents of batch_contents | `Tree of Request_tree.t | `Remove ])
+      * [ `Contents of
+          [ `Hash of Store.Hash.t | `Value of Store.contents ]
+          * Store.metadata option
+        | `Tree of Request_tree.t
+        | `Remove ])
       list
     [@@deriving irmin]
 

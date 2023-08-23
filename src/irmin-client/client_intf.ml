@@ -61,12 +61,11 @@ module type S = sig
 
     type store = t
 
-    type batch_contents =
-      [ `Hash of hash | `Value of contents ] * metadata option
-
     type t =
       (path
-      * [ `Contents of batch_contents | `Tree of Request_tree.t | `Remove ])
+      * [ `Contents of [ `Hash of hash | `Value of contents ] * metadata option
+        | `Tree of Request_tree.t
+        | `Remove ])
       list
     (** A batch is list of updates and their associated paths *)
 

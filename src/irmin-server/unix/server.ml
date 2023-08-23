@@ -98,19 +98,17 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     else
       Lwt.catch
         (fun () ->
-          Log.debug (fun l -> l "Receiving next command");
+          [%log.debug "Receiving next command"];
           (* Get request header (command and number of arguments) *)
           let* Conn.Request.{ command } = Conn.Request.read_header conn in
           (* Get command *)
           match Hashtbl.find_opt commands command with
           | None ->
               if String.length command = 0 then Lwt.return_unit
-              else
-                let () = Log.err (fun l -> l "Unknown command: %s" command) in
-                Conn.err conn ("unknown command: " ^ command)
+              else Conn.err conn ("unknown command: " ^ command)
           | Some (module Cmd : Command.CMD) ->
               let* req = Conn.read conn Cmd.req_t >|= invalid_arguments in
-              Log.debug (fun l -> l "Command: %s" Cmd.name);
+              [%log.debug "Command: %s" Cmd.name];
               let* res =
                 Lwt_mutex.with_lock command_lock @@ fun () ->
                 Cmd.run conn client info req
@@ -119,7 +117,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         (function
           | Error.Error s ->
               (* Recover *)
-              Log.err (fun l -> l "Error response: %s" s);
+              [%log.err "Error response: %s" s];
               let* () = Conn.err conn s in
               Lwt_unix.sleep 0.01
           | End_of_file ->
@@ -131,8 +129,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
               else
                 (* Unhandled exception *)
                 let s = Printexc.to_string exn in
-                Log.err (fun l ->
-                    l "Exception: %s\n%s" s (Printexc.get_backtrace ()));
+                [%log.err "Exception: %s\n%s" s (Printexc.get_backtrace ())];
                 let* () = Conn.err conn s in
                 Lwt_unix.sleep 0.01)
       >>= fun () -> loop repo conn client info
@@ -145,12 +142,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         (fun () -> Conn.Handshake.V1.check (module Store) conn)
         (fun _ -> Lwt.return_false)
     in
-    if not check then
+    if not check then (
       (* Hanshake failed *)
-      let () =
-        Log.info (fun l -> l "Client closed because of invalid handshake")
-      in
-      Lwt_io.close ic
+      [%log.info "Client closed because of invalid handshake"];
+      Lwt_io.close ic)
     else
       (* Handshake ok *)
       let client =
@@ -201,10 +196,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
           (fun () ->
             let* frame = Websocket_lwt_unix.Connected_client.recv client in
             if frame.opcode <> Binary then fill_ic channel other_channel client
-            else
-              let () = Log.debug (fun f -> f "<<< Server received frame") in
+            else (
+              [%log.debug "<<< Server received frame"];
               Lwt_io.write channel frame.content >>= fun () ->
-              fill_ic channel other_channel client)
+              fill_ic channel other_channel client))
           (function
             | End_of_file ->
                 (* The websocket has been closed is the assumption here *)
@@ -217,7 +212,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         (if handshake then Websocket_protocol.read_handshake channel
          else Websocket_protocol.read_response channel)
         >>= fun content ->
-        Log.debug (fun f -> f ">>> Server sent frame");
+        [%log.debug ">>> Server sent frame"];
         Lwt.catch
           (fun () ->
             Websocket_lwt_unix.Connected_client.send client
@@ -234,7 +229,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     Lwt.async (fun () -> send_oc true output_ic output_oc client);
     callback server input_ic output_oc
 
-  let on_exn x = Log.err (fun l -> l "EXCEPTION: %s" (Printexc.to_string x))
+  let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
 
   let dashboard t mode =
     let list store prefix =
