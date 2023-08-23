@@ -1,0 +1,12 @@
+(executables
+ (names client server)
+ (libraries
+  irmin
+  irmin-client.unix
+  irmin-server.unix
+  irmin-git.unix
+  irmin-pack.unix
+  logs
+  unix
+  fmt.tty
+  hex))
