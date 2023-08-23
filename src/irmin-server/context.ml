@@ -28,8 +28,6 @@ struct
     conn : Conn.t;
     config : Irmin.Backend.Conf.t;
     repo : Store.Repo.t;
-    mutable branch : Store.branch;
-    mutable store : Store.t;
     mutable watch : Store.watch option;
     mutable branch_watch : Store.Backend.Branch.watch option;
   }

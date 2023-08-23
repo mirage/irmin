@@ -161,19 +161,10 @@ struct
     t.conn <- conn.conn;
     t.closed <- false
 
-  let current_branch repo =
-    request repo (module Commands.Get_current_branch) ()
-    >|= Error.unwrap "current_branch"
-
   let dup client =
     let* c = connect ~ctx:client.Client.ctx client.Client.config in
-    if client.closed then
-      let () = c.closed <- true in
-      Lwt.return c
-    else
-      let* branch = current_branch client in
-      let* _ = request c (module Commands.Set_current_branch) branch in
-      Lwt.return c
+    let () = if client.closed then c.closed <- true in
+    Lwt.return c
 
   let uri t = Conf.get t.Client.config Conf.uri
 
@@ -423,12 +414,6 @@ struct
     let conf = config ?tls ?hostname uri in
     Repo.v conf
 
-  let current_branch t = current_branch (repo t)
-
-  let set_current_branch (repo : repo) b =
-    request repo (module Commands.Set_current_branch) b
-    >|= Error.unwrap "set_current_branch"
-
   let request_store store =
     match status store with
     | `Empty -> `Empty
@@ -540,14 +525,6 @@ struct
         x
   end
 
-  let main repo =
-    let* () = set_current_branch repo Store.Branch.main in
-    main repo
-
-  let of_branch repo branch =
-    let* () = set_current_branch repo branch in
-    of_branch repo branch
-
   let clone ~src ~dst =
     let repo = repo src in
     let* repo = dup repo in
@@ -558,25 +535,35 @@ struct
     in
     of_branch repo dst
 
+  let request_store store =
+    match status store with
+    | `Empty -> `Empty
+    | `Branch b -> `Branch b
+    | `Commit c -> `Commit (Commit.key c)
+
   let mem store path =
     let repo = repo store in
-    request repo (module Commands.Store.Mem) path >|= Error.unwrap "mem"
+    request repo (module Commands.Store.Mem) (request_store store, path)
+    >|= Error.unwrap "mem"
 
   let mem_tree store path =
     let repo = repo store in
-    request repo (module Commands.Store.Mem_tree) path
+    request repo (module Commands.Store.Mem_tree) (request_store store, path)
     >|= Error.unwrap "mem_tree"
 
   let find store path =
     let repo = repo store in
-    request repo (module Commands.Store.Find) path >|= Error.unwrap "find"
+    request repo (module Commands.Store.Find) (request_store store, path)
+    >|= Error.unwrap "find"
 
   let remove_exn ?clear ?retries ?allow_empty ?parents ~info store path =
     let parents = Option.map (List.map (fun c -> Commit.hash c)) parents in
     let repo = repo store in
     request repo
       (module Commands.Store.Remove)
-      (((clear, retries), (allow_empty, parents)), path, info ())
+      ( ((clear, retries), (allow_empty, parents)),
+        (request_store store, path),
+        info () )
     >|= Error.unwrap "remove"
 
   let remove ?clear ?retries ?allow_empty ?parents ~info store path =
@@ -588,7 +575,7 @@ struct
   let find_tree store path =
     let repo = repo store in
     let+ concrete =
-      request repo (module Commands.Store.Find_tree) path
+      request repo (module Commands.Store.Find_tree) (request_store store, path)
       >|= Error.unwrap "find_tree"
     in
     Option.map Tree.of_concrete concrete

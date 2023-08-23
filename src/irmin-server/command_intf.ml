@@ -44,8 +44,6 @@ module type S = sig
     conn : Conn.t;
     config : Irmin.Backend.Conf.t;
     repo : Store.Repo.t;
-    mutable branch : Store.branch;
-    mutable store : Store.t;
     mutable watch : Store.watch option;
     mutable branch_watch : Store.Backend.Branch.watch option;
   }
@@ -157,16 +155,6 @@ module type S = sig
     (** Check connectivity *)
     module Ping : CMD with type req = unit and type res = unit
 
-    (* Branch *)
-
-    (** Set the current branch for a client *)
-    module Set_current_branch :
-      CMD with type req = Store.branch and type res = unit
-
-    (** Get the current branch for a client *)
-    module Get_current_branch :
-      CMD with type req = unit and type res = Store.branch
-
     (** Export repo *)
     module Export : CMD with type req = int option and type res = Store.slice
 
@@ -204,27 +192,25 @@ module type S = sig
 
       (** Find a value in the store *)
       module Find :
-        CMD with type req = Store.path and type res = Store.contents option
+        CMD with type req = t * Store.path and type res = Store.contents option
 
       (** Remove a value from the store *)
       module Remove :
         CMD
-          with type req =
-            ((bool option * int option)
-            * (bool option * Store.hash list option))
-            * Store.path
-            * Store.Info.t
+          with type req = write_options * (t * Store.path) * Store.Info.t
            and type res = unit
 
       (** Get a tree from the store *)
       module Find_tree :
-        CMD with type req = Store.path and type res = Store.Tree.concrete option
+        CMD
+          with type req = t * Store.path
+           and type res = Store.Tree.concrete option
 
       (** Check for the existence of a value in the store *)
-      module Mem : CMD with type req = Store.path and type res = bool
+      module Mem : CMD with type req = t * Store.path and type res = bool
 
       (** Check for the existence of a tree in the store *)
-      module Mem_tree : CMD with type req = Store.path and type res = bool
+      module Mem_tree : CMD with type req = t * Store.path and type res = bool
     end
   end
 end

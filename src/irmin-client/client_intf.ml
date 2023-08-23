@@ -53,7 +53,6 @@ module type S = sig
 
   val export : ?depth:int -> repo -> slice Lwt.t
   val import : repo -> slice -> unit Lwt.t
-  val current_branch : t -> branch Lwt.t
 
   (** The batch API is used to have better control of when data is sent between
       the client and server when manipulating trees. *)

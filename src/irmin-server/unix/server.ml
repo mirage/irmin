@@ -153,19 +153,8 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       Lwt_io.close ic
     else
       (* Handshake ok *)
-      let branch = Store.Branch.main in
-      let* store = Store.of_branch repo branch in
       let client =
-        Command.
-          {
-            conn;
-            repo;
-            branch;
-            store;
-            watch = None;
-            branch_watch = None;
-            config;
-          }
+        Command.{ conn; repo; watch = None; branch_watch = None; config }
       in
       loop repo conn client info
 
