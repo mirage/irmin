@@ -82,7 +82,8 @@ module type S = sig
   module Integrity_check_index : sig
     include
       Subcommand
-        with type run := root:string -> auto_repair:bool -> unit -> unit
+        with type run :=
+          root:string -> auto_repair:bool -> always:bool -> unit -> unit
   end
 
   (** Checks the integrity of inodes in a store *)

@@ -197,14 +197,11 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let chunk_path = Layout.V4.suffix_chunk
 
-  let create_rw ~root ~start_idx ~overwrite ~auto_flush_threshold
-      ~auto_flush_procedure =
+  let create_rw ~root ~start_idx ~overwrite =
     let open Result_syntax in
     let chunk_idx = start_idx in
     let path = chunk_path ~root ~chunk_idx in
-    let+ ao =
-      Ao.create_rw ~path ~overwrite ~auto_flush_threshold ~auto_flush_procedure
-    in
+    let+ ao = Ao.create_rw ~path ~overwrite in
     let chunk = { idx = chunk_idx; suffix_off = Int63.zero; ao } in
     let inventory = Inventory.v 1 (Fun.const chunk) in
     { inventory; root; dead_header_size = 0 }
@@ -234,7 +231,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   end
 
   let open_rw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
-      ~dead_header_size ~auto_flush_threshold ~auto_flush_procedure =
+      ~dead_header_size =
     let open Result_syntax in
     let open_chunk ~chunk_idx ~is_legacy ~is_appendable =
       let path = chunk_path ~root ~chunk_idx in
@@ -243,9 +240,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
           ~is_appendable
       in
       match is_appendable with
-      | true ->
-          Ao.open_rw ~path ~end_poff ~dead_header_size ~auto_flush_threshold
-            ~auto_flush_procedure
+      | true -> Ao.open_rw ~path ~end_poff ~dead_header_size
       | false -> Ao.open_ro ~path ~end_poff ~dead_header_size
     in
     let+ inventory = Inventory.open_ ~start_idx ~chunk_num ~open_chunk in
@@ -314,7 +309,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let append_exn t s = Ao.append_exn (appendable_ao t) s
 
-  let add_chunk ~auto_flush_threshold ~auto_flush_procedure t =
+  let add_chunk t =
     let open Result_syntax in
     let* () =
       let end_poff = appendable_chunk_poff t in
@@ -330,9 +325,7 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
           ~is_legacy ~is_appendable
       in
       match is_appendable with
-      | true ->
-          Ao.create_rw ~path ~overwrite:true ~auto_flush_threshold
-            ~auto_flush_procedure
+      | true -> Ao.create_rw ~path ~overwrite:true
       | false -> Ao.open_ro ~path ~end_poff ~dead_header_size
     in
     Inventory.add_new_appendable ~open_chunk t.inventory
@@ -346,7 +339,6 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     Ao.refresh_end_poff (appendable_ao t) new_poff
 
   let readonly t = appendable_ao t |> Ao.readonly
-  let auto_flush_threshold t = appendable_ao t |> Ao.auto_flush_threshold
 
   let fold_chunks f acc t =
     Inventory.fold

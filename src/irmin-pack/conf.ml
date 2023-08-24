@@ -30,13 +30,12 @@ end
 module Default = struct
   let fresh = false
   let lru_size = 100_000
+  let lru_max_memory = None
   let index_log_size = 2_500_000
   let readonly = false
   let merge_throttle = `Block_writes
   let indexing_strategy = Indexing_strategy.default
   let use_fsync = false
-  let dict_auto_flush_threshold = 1_000_000
-  let suffix_auto_flush_threshold = 1_000_000
   let no_migrate = false
   let lower_root = None
 end
@@ -53,8 +52,14 @@ module Key = struct
       Default.fresh
 
   let lru_size =
-    key ~spec ~doc:"Size of the LRU cache for pack entries." "lru-size"
+    key ~spec ~doc:"Maximum size of the LRU cache for pack entries." "lru-size"
       Irmin.Type.int Default.lru_size
+
+  let lru_max_memory =
+    key ~spec ~doc:"Maximum memory in bytes of the LRU cache for pack entries."
+      "lru-max-memory"
+      Irmin.Type.(option int)
+      Default.lru_max_memory
 
   let index_log_size =
     key ~spec ~doc:"Size of index logs." "index-log-size" Irmin.Type.int
@@ -92,16 +97,6 @@ module Key = struct
       ~doc:"Whether fsync should be used to ensure persistence order of files"
       "use-fsync" Irmin.Type.bool Default.use_fsync
 
-  let dict_auto_flush_threshold =
-    key ~spec ~doc:"Buffer size of the dict at which automatic flushes occur"
-      "dict-auto-flush-threshold" Irmin.Type.int
-      Default.dict_auto_flush_threshold
-
-  let suffix_auto_flush_threshold =
-    key ~spec ~doc:"Buffer size of the suffix at which automatic flushes occur"
-      "suffix-auto-flush-threshold" Irmin.Type.int
-      Default.suffix_auto_flush_threshold
-
   let no_migrate =
     key ~spec ~doc:"Prevent migration of V1 and V2 stores" "no-migrate"
       Irmin.Type.bool Default.no_migrate
@@ -109,6 +104,7 @@ end
 
 let fresh config = get config Key.fresh
 let lru_size config = get config Key.lru_size
+let lru_max_memory config = get config Key.lru_max_memory
 let readonly config = get config Key.readonly
 let index_log_size config = get config Key.index_log_size
 let merge_throttle config = get config Key.merge_throttle
@@ -124,36 +120,25 @@ let root config =
 let lower_root config = get config Key.lower_root
 let indexing_strategy config = get config Key.indexing_strategy
 let use_fsync config = get config Key.use_fsync
-let dict_auto_flush_threshold config = get config Key.dict_auto_flush_threshold
-
-let suffix_auto_flush_threshold config =
-  get config Key.suffix_auto_flush_threshold
-
 let no_migrate config = get config Key.no_migrate
 
 let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
-    ?(lru_size = Default.lru_size) ?(index_log_size = Default.index_log_size)
+    ?(lru_size = Default.lru_size) ?(lru_max_memory = Default.lru_max_memory)
+    ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(indexing_strategy = Default.indexing_strategy)
-    ?(use_fsync = Default.use_fsync)
-    ?(dict_auto_flush_threshold = Default.dict_auto_flush_threshold)
-    ?(suffix_auto_flush_threshold = Default.suffix_auto_flush_threshold)
-    ?(no_migrate = Default.no_migrate) ?(lower_root = Default.lower_root) root =
+    ?(use_fsync = Default.use_fsync) ?(no_migrate = Default.no_migrate)
+    ?(lower_root = Default.lower_root) root =
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.lower_root lower_root in
   let config = add config Key.fresh fresh in
   let config = add config Key.lru_size lru_size in
+  let config = add config Key.lru_max_memory lru_max_memory in
   let config = add config Key.index_log_size index_log_size in
   let config = add config Key.readonly readonly in
   let config = add config Key.merge_throttle merge_throttle in
   let config = add config Key.indexing_strategy indexing_strategy in
   let config = add config Key.use_fsync use_fsync in
-  let config =
-    add config Key.dict_auto_flush_threshold dict_auto_flush_threshold
-  in
-  let config =
-    add config Key.suffix_auto_flush_threshold suffix_auto_flush_threshold
-  in
   let config = add config Key.no_migrate no_migrate in
   verify config

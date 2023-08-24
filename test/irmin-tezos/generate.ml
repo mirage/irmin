@@ -15,15 +15,12 @@
  *)
 
 let rm_dir data_dir =
-  if Sys.file_exists data_dir then (
+  if Sys.file_exists data_dir then
     let cmd = Printf.sprintf "rm -rf %s" data_dir in
-    Fmt.epr "exec: %s\n%!" cmd;
     let _ = Sys.command cmd in
-    ())
+    ()
 
-module Simple = struct
-  let data_dir = "data/pack"
-
+module Generator = struct
   module Conf = struct
     include Irmin_tezos.Conf
 
@@ -38,29 +35,66 @@ module Simple = struct
     include Make (Schema)
   end
 
-  let config root = Irmin_pack.config ~readonly:false ~fresh:true root
+  let config ~indexing_strategy root =
+    Irmin_pack.config ~indexing_strategy ~readonly:false ~fresh:true root
+
   let info = Store.Info.empty
 
-  let create_store () =
-    rm_dir data_dir;
-    (* make sure the parent directory data/ exists; by default Store.Repo.v will not
-       create the containing directory *)
-    if not (Sys.file_exists "data") then Unix.mkdir "data" 0o755;
-    let rw = Store.Repo.v (config data_dir) in
+  let create_store ?(before_closing = fun _repo _head -> ()) indexing_strategy
+      path =
+    rm_dir path;
+    let large_contents = String.make 4096 'Z' in
+    let rw = Store.Repo.v (config ~indexing_strategy path) in
     let tree = Store.Tree.singleton [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1" in
     let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
     let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
     let tree = Store.Tree.add tree [ "a"; "b2"; "c2"; "e3" ] "x2" in
     let c1 = Store.Commit.v rw ~parents:[] ~info tree in
 
-    let tree = Store.Tree.add tree [ "a"; "b3" ] "x3" in
+    let tree = Store.Tree.add tree [ "a"; "b3" ] large_contents in
     let c2 = Store.Commit.v rw ~parents:[ Store.Commit.key c1 ] ~info tree in
 
     let tree = Store.Tree.remove tree [ "a"; "b1"; "c1" ] in
-    let _ = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
+    let c3 = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
 
-    Store.Repo.close rw
+    let () = before_closing rw (Store.Commit.key c3) in
+
+    let _ = Store.Repo.close rw in
+
+    c3
+
+  let create_gced_store path =
+    let before_closing repo head =
+      let _ = Store.Gc.start_exn repo head in
+      let _ = Store.Gc.wait repo in
+      ()
+    in
+    create_store ~before_closing Irmin_pack.Indexing_strategy.minimal path
+
+  let create_snapshot_store ~src ~dest =
+    let before_closing repo head =
+      rm_dir dest;
+      Store.create_one_commit_store repo head dest
+    in
+    create_store ~before_closing Irmin_pack.Indexing_strategy.minimal src
 end
 
-let generate () = Simple.create_store ()
+let ensure_data_dir () =
+  if not (Sys.file_exists "data") then Unix.mkdir "data" 0o755
+
+let generate () =
+  ensure_data_dir ();
+  let _ =
+    Generator.create_store Irmin_pack.Indexing_strategy.minimal "data/minimal"
+  in
+  let _ =
+    Generator.create_store Irmin_pack.Indexing_strategy.always "data/always"
+  in
+  let _ = Generator.create_gced_store "data/gced" in
+  let _ =
+    Generator.create_snapshot_store ~src:"data/snapshot_src"
+      ~dest:"data/snapshot"
+  in
+  ()
+
 let () = Eio_main.run @@ fun _env -> generate ()

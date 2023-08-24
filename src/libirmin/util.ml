@@ -56,21 +56,21 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
     let get_repo (type a) (x : Struct.repo ptr) : a repo =
       Root.get (to_voidp repo x)
-      [@@inline]
+    [@@inline]
 
     let create_repo (type a) (module S : Irmin.Generic_key.S with type repo = a)
         (r : a repo) : Struct.repo ptr =
       Root.create r |> of_voidp repo
-      [@@inline]
+    [@@inline]
 
     let get_store (type a) (x : Struct.store ptr) : a store =
       Root.get (to_voidp store x)
-      [@@inline]
+    [@@inline]
 
     let create_store (type a) (module S : Irmin.Generic_key.S with type t = a)
         (r : a store) : Struct.store ptr =
       Root.create r |> of_voidp store
-      [@@inline]
+    [@@inline]
 
     let get_config (x : Struct.config ptr) : config =
       Root.get (to_voidp config x)
@@ -254,7 +254,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     | exn ->
         repo.error <- Some (Printexc.to_string exn);
         return
-    [@@inline]
+  [@@inline]
 
   let null t = Ctypes.coerce (ptr void) t null
 
@@ -274,7 +274,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     | exn ->
         ctx.error <- Some (Printexc.to_string exn);
         return
-    [@@inline]
+  [@@inline]
 
   (* Similar to [with_store] but returns a null pointer *)
   let with_store' (store : Struct.store ptr) t f = with_store store (null t) f

@@ -78,7 +78,8 @@ module Irmin_hash = Hash
 (* A [Make] implementation providing the subset of [S] that can be implemented
    over abstract [key] types. *)
 module Make_core
-    (Hash : Hash.S) (Path : sig
+    (Hash : Hash.S)
+    (Path : sig
       type step [@@deriving irmin]
     end)
     (Metadata : Metadata.S)
@@ -335,7 +336,8 @@ module Portable = struct
 end
 
 module Make_generic_key
-    (Hash : Hash.S) (Path : sig
+    (Hash : Hash.S)
+    (Path : sig
       type step [@@deriving irmin]
     end)
     (Metadata : Metadata.S)
@@ -403,7 +405,8 @@ struct
 end
 
 module Make_generic_key_v2
-    (Hash : Hash.S) (Path : sig
+    (Hash : Hash.S)
+    (Path : sig
       type step [@@deriving irmin]
     end)
     (Metadata : Metadata.S)
@@ -422,7 +425,8 @@ struct
 end
 
 module Make
-    (Hash : Hash.S) (Path : sig
+    (Hash : Hash.S)
+    (Path : sig
       type step [@@deriving irmin]
     end)
     (Metadata : Metadata.S) =

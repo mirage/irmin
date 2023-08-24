@@ -385,19 +385,19 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let archive_seq_exn ~upper_root ~generation ~to_archive t =
     Errs.raise_if_error
       (let open Result_syntax in
-      let* () = if t.readonly then Error `Ro_not_allowed else Ok () in
-      let* v =
-        match appendable_volume t with
-        | None -> Error `Lower_has_no_volume
-        | Some v -> Ok v
-      in
-      let* () =
-        match t.open_volume with
-        | None -> Ok ()
-        | Some v0 -> if Volume.eq v0 v then close_open_volume t else Ok ()
-      in
-      let is_first = volume_num t = 1 in
-      Volume.archive_seq ~upper_root ~generation ~to_archive ~is_first v)
+       let* () = if t.readonly then Error `Ro_not_allowed else Ok () in
+       let* v =
+         match appendable_volume t with
+         | None -> Error `Lower_has_no_volume
+         | Some v -> Ok v
+       in
+       let* () =
+         match t.open_volume with
+         | None -> Ok ()
+         | Some v0 -> if Volume.eq v0 v then close_open_volume t else Ok ()
+       in
+       let is_first = volume_num t = 1 in
+       Volume.archive_seq ~upper_root ~generation ~to_archive ~is_first v)
 
   let read_exn ~off ~len ?volume t b =
     let _, volume = read_range_exn ~off ~min_len:len ~max_len:len ?volume t b in

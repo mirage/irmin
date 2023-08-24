@@ -27,3 +27,17 @@ module Int63 = struct
 end
 
 type int63 = Int63.t [@@deriving irmin]
+
+module Mem = struct
+  let bytes_per_word = Sys.word_size / 8
+
+  let reachable_bytes o =
+    Obj.repr o |> Obj.reachable_words |> Int.mul bytes_per_word
+
+  let repr_size : type a. a Repr.t -> a -> int =
+   fun ty ->
+    match Irmin.Type.Size.of_value ty with
+    | Unknown -> Fun.const max_int
+    | Dynamic f -> fun v -> f v
+    | Static n -> Fun.const n
+end

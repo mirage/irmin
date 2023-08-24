@@ -21,6 +21,15 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
   module Errs = Errs
 
+  let auto_flush_threshold = 16_384
+
+  type rw_perm = {
+    buf : Buffer.t;
+    buf_length : int Atomic.t;
+    mutable fsync_required : bool;
+  }
+  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
+
   type t = {
     io : Io.t;
     persisted_end_poff : int63 Atomic.t;
@@ -28,28 +37,23 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     rw_perm : rw_perm option;
   }
 
-  and auto_flush_procedure = [ `Internal | `External of t -> unit ]
+  let create_rw_perm () =
+    Some
+      {
+        buf = Buffer.create 0;
+        buf_length = Atomic.make 0;
+        fsync_required = false;
+      }
 
-  and rw_perm = {
-    buf : Buffer.t;
-    buf_length : int Atomic.t;
-    auto_flush_threshold : int;
-    auto_flush_procedure : auto_flush_procedure;
-  }
-  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
-
-  let create_rw ~path ~overwrite ~auto_flush_threshold ~auto_flush_procedure =
+  let create_rw ~path ~overwrite =
     let open Result_syntax in
     let+ io = Io.create ~path ~overwrite in
     let persisted_end_poff = Atomic.make Int63.zero in
-    let buf = Buffer.create 0 in
-    let buf_length = Atomic.make 0 in
     {
       io;
       persisted_end_poff;
       dead_header_size = Int63.zero;
-      rw_perm =
-        Some { buf; buf_length; auto_flush_threshold; auto_flush_procedure };
+      rw_perm = create_rw_perm ();
     }
 
   (** A store is consistent if the real offset of the suffix/dict files is the
@@ -78,22 +82,13 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
           Int63.pp end_poff Int63.pp real_offset_without_header (Io.path io)];
       Ok ())
 
-  let open_rw ~path ~end_poff ~dead_header_size ~auto_flush_threshold
-      ~auto_flush_procedure =
+  let open_rw ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
     let* io = Io.open_ ~path ~readonly:false in
     let+ () = check_consistent_store ~end_poff ~dead_header_size io in
     let persisted_end_poff = Atomic.make end_poff in
     let dead_header_size = Int63.of_int dead_header_size in
-    let buf = Buffer.create 0 in
-    let buf_length = Atomic.make 0 in
-    {
-      io;
-      persisted_end_poff;
-      dead_header_size;
-      rw_perm =
-        Some { buf; buf_length; auto_flush_threshold; auto_flush_procedure };
-    }
+    { io; persisted_end_poff; dead_header_size; rw_perm = create_rw_perm () }
 
   let open_ro ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
@@ -112,10 +107,6 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   let readonly t = Io.readonly t.io
   let path t = Io.path t.io
-
-  let auto_flush_threshold = function
-    | { rw_perm = None; _ } -> None
-    | { rw_perm = Some rw_perm; _ } -> Some rw_perm.auto_flush_threshold
 
   let end_poff t =
     let persisted_end_poff = Atomic.get t.persisted_end_poff in
@@ -148,9 +139,19 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
         (* [truncate] is semantically identical to [clear], except that
            [truncate] doesn't deallocate the internal buffer. We use
            [clear] in legacy_io. *)
-        Buffer.truncate rw_perm.buf 0
+        Buffer.truncate rw_perm.buf 0;
+        rw_perm.fsync_required <- true
 
-  let fsync t = Io.fsync t.io
+  let fsync t =
+    match t.rw_perm with
+    | None -> Error `Ro_not_allowed
+    | Some rw ->
+        assert (Buffer.length rw.buf = 0);
+        if rw.fsync_required then
+          let open Result_syntax in
+          let+ () = Io.fsync t.io in
+          rw.fsync_required <- false
+        else Ok ()
 
   let read_exn t ~off ~len b =
     let open Int63.Syntax in
@@ -171,17 +172,13 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
   let append_exn t s =
     match t.rw_perm with
     | None -> raise Errors.RO_not_allowed
-    | Some rw_perm -> (
-        assert (Atomic.get rw_perm.buf_length < rw_perm.auto_flush_threshold);
+    | Some rw_perm ->
+        assert (Atomic.get rw_perm.buf_length < auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;
         let (_ : int) =
           Atomic.fetch_and_add rw_perm.buf_length (String.length s)
         in
         let buf_length = Atomic.get rw_perm.buf_length in
-        if buf_length >= rw_perm.auto_flush_threshold then
-          match rw_perm.auto_flush_procedure with
-          | `Internal -> flush t |> Errs.raise_if_error
-          | `External cb ->
-              cb t;
-              assert (empty_buffer t))
+        if buf_length >= auto_flush_threshold then
+          flush t |> Errs.raise_if_error
 end

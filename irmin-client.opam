@@ -1,0 +1,25 @@
+opam-version: "2.0"
+synopsis: "A client for irmin-server"
+maintainer: "Zach Shipko <zachshipko@gmail.com>"
+authors: "Zach Shipko <zachshipko@gmail.com>"
+license: "ISC"
+homepage: "https://github.com/mirage/irmin"
+doc: "https://irmin.org"
+bug-reports: "https://github.com/mirage/irmin/issues"
+depends: [
+  "ocaml" {>= "4.08.0"}
+  "dune" {>= "2.0.0"}
+  "irmin-server" {= version}
+  "ipaddr"
+  "websocket-lwt-unix"
+  "conduit-lwt-unix"
+  "lwt-dllist"
+  "js_of_ocaml-lwt"
+  "brr" {>= "0.0.4"}
+]
+build: [
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name] {with-test}
+]
+dev-repo: "git+ssh://github.com/mirage/irmin"

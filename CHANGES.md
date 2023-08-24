@@ -2,11 +2,36 @@
 
 ### Added
 
+- **irmin-server**
+  - Added `irmin-server` package (#2031, @zshipko)
+- **irmin-client**
+  - Added `irmin-client` package to connect to `irmin-server` instances (#2031,
+    @zshipko)
+
+### Fixed
+
+- **irmin-pack**
+  - Fix index integrity check for v3 stores (#2267, @metanivek)
+
+### Removed
+
+- **irmin-http*
+  - Removed `irmin-http` since it is not compatible with generic keys.
+    `irmin-grapqhl` or `irmin-server` should be used instead. (#1902, @zshipko)
+
+## 3.8.0 (2023-07-06)
+
+### Added
+
 - **irmin**
   - Change behavior of `Irmin.Conf.key` to disallow duplicate key names by
     default. Add `allow_duplicate` optional argument to override. (#2252,
     @metanivek)
     
+- **irmin-pack**
+  - Add maximum memory as an alternative configuration option, `lru_max_memory`,
+    for setting LRU capacity. (@metanivek, #2254)
+
 ### Changed
 
 - **irmin**
@@ -14,6 +39,9 @@
 
 - **irmin-mirage-git**
   - Lower bound for `mirage-kv` is now `6.0.0` (#2256, @metanivek)
+
+- **irmin-pack**
+  - Removed `dict_auto_flush_threshold` and `suffix_auto_flush_threshold` configuration. (#2235, @art-w)
 
 ### Fixed
 
@@ -32,7 +60,6 @@
   - Fix snapshot export when using lower layer (#2257, @metanivek)
 
 ## 3.7.1 (2023-05-24)
-
 
 ### Fixed
 

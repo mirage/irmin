@@ -1,0 +1,4 @@
+(library
+ (name irmin_client_jsoo)
+ (public_name irmin-client.jsoo)
+ (libraries irmin-client js_of_ocaml-lwt lwt-dllist brr))

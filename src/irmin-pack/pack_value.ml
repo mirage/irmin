@@ -119,7 +119,10 @@ struct
   type t = Data.t [@@deriving irmin ~size_of]
   type key = Key.t
   type hash = Hash.t
+  type kinded += Contents of t
 
+  let to_kinded t = Contents t
+  let of_kinded = function Contents c -> c | _ -> assert false
   let hash = Hash.hash
   let kind = Kind.Contents
   let length_header = Fun.const Conf.contents_length_header
@@ -138,16 +141,8 @@ struct
   let kind _ = kind
 
   let weight =
-    (* Normalise the weight of the blob, assuming that the 'average'
-       size for a blob is 1k bytes. *)
-    let normalise n = max 1 (n / 1_000) in
-    match Irmin.Type.Size.of_value t with
-    | Unknown ->
-        (* this should not happen unless the user has specified a very
-           weird content type. *)
-        Fun.const max_int
-    | Dynamic f -> fun v -> normalise (f v)
-    | Static n -> Fun.const (normalise n)
+    let size = Mem.repr_size t in
+    fun v -> Immediate (size v)
 end
 
 module Of_commit
@@ -162,10 +157,16 @@ struct
   type t = Commit.t [@@deriving irmin]
   type key = Key.t
   type hash = Hash.t [@@deriving irmin ~encode_bin ~decode_bin]
+  type kinded += Commit of t
 
+  let to_kinded t = Commit t
+  let of_kinded = function Commit c -> c | _ -> assert false
   let hash = Hash.hash
   let kind _ = Kind.Commit_v2
-  let weight _ = 1
+
+  let weight =
+    let size = Mem.repr_size t in
+    fun v -> Deferred (fun () -> size v)
 
   (* A commit implementation that uses integer offsets for addresses where possible. *)
   module Commit_direct = struct
@@ -185,11 +186,11 @@ struct
   end
 
   module Entry = struct
-    module V0 = struct
+    module V1 = struct
       type t = (hash, Commit.t) value [@@deriving irmin ~decode_bin]
     end
 
-    module V1 = struct
+    module V2 = struct
       type data = { length : int; v : Commit_direct.t } [@@deriving irmin]
       type t = (hash, data) value [@@deriving irmin ~encode_bin ~decode_bin]
     end
@@ -212,7 +213,7 @@ struct
       { Commit_direct.node_offset; parent_offsets; info }
     in
     let length = Commit_direct.size_of v in
-    Entry.V1.encode_bin { hash; kind = Commit_v2; v = { length; v } } f
+    Entry.V2.encode_bin { hash; kind = Commit_v2; v = { length; v } } f
 
   let decode_bin ~dict:_ ~key_of_offset ~key_of_hash s off =
     let key_of_address : Commit_direct.address -> Key.t = function
@@ -220,9 +221,9 @@ struct
       | Hash x -> key_of_hash x
     in
     match Kind.of_magic_exn s.[!off + Hash.hash_size] with
-    | Commit_v1 -> (Entry.V0.decode_bin s off).v
+    | Commit_v1 -> (Entry.V1.decode_bin s off).v
     | Commit_v2 | Dangling_parent_commit ->
-        let { v = { Entry.V1.v = commit; _ }; _ } = Entry.V1.decode_bin s off in
+        let { v = { Entry.V2.v = commit; _ }; _ } = Entry.V2.decode_bin s off in
         let info = commit.info in
         let node = key_of_address commit.node_offset in
         let parents = List.map key_of_address commit.parent_offsets in
@@ -230,11 +231,11 @@ struct
     | _ -> assert false
 
   let decode_bin_length =
-    let of_v0_entry = get_dynamic_sizer_exn Entry.V0.t
-    and of_v1_entry = get_dynamic_sizer_exn Entry.V1.t in
+    let of_v0_entry = get_dynamic_sizer_exn Entry.V1.t
+    and of_v1_entry = get_dynamic_sizer_exn Entry.V2.t in
     fun s off ->
       match Kind.of_magic_exn s.[off + Hash.hash_size] with
       | Commit_v1 -> of_v0_entry s off
-      | Commit_v2 -> of_v1_entry s off
+      | Commit_v2 | Dangling_parent_commit -> of_v1_entry s off
       | _ -> assert false
 end

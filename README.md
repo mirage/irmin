@@ -36,7 +36,7 @@ rebase). It is highly customizable: users can define their types to
 store application-specific values and define custom storage layers (in
 memory, on disk, in a remote Redis database, in the browser,
 etc.). The Git workflow was initially designed for humans to manage
-changes within source code. Irmin scales this to hanlde automatic
+changes within source code. Irmin scales this to handle automatic
 programs performing a very high number of operations per second, with
 a fully automated handling of update conflicts. Finally, Irmin exposes
 an event-driven API to define programmable dynamic behaviours and to
@@ -143,7 +143,6 @@ The following packages have are available on `opam`:
 - `irmin-fs` - filesystem-based storage using `bin_prot`
 - `irmin-git` - Git compatible storage
 - `irmin-graphql` - GraphQL server
-- `irmin-http` - a simple REST interface
 - `irmin-mirage` - mirage compatibility
 - `irmin-mirage-git` - Git compatible storage for mirage
 - `irmin-mirage-graphql` - mirage compatible GraphQL server

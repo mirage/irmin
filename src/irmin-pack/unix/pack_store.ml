@@ -59,7 +59,6 @@ end
 
 module Make_without_close_checks
     (Fm : File_manager.S)
-    (Dict : Dict.S)
     (Dispatcher : Dispatcher.S with module Fm = Fm)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
@@ -69,22 +68,24 @@ module Make_without_close_checks
 struct
   module Tbl = Table (Hash)
   module Control = Fm.Control
+  module Dict = Fm.Dict
   module Suffix = Fm.Suffix
   module Index = Fm.Index
   module Key = Pack_key.Make (Hash)
 
-  module Lru = Irmin.Backend.Lru.Make (struct
-    include Int63
+  module Lru = struct
+    include Lru
 
-    let hash = Hashtbl.hash
-  end)
+    let add t k v = Val.to_kinded v |> add t k (Val.weight v)
+    let find t k = find t k |> Val.of_kinded
+  end
 
   type file_manager = Fm.t
   type dict = Dict.t
   type dispatcher = Dispatcher.t
 
   type 'a t = {
-    lru : Val.t Lru.t;
+    lru : Lru.t;
     staging : Val.t Tbl.t;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     fm : Fm.t;
@@ -144,17 +145,9 @@ struct
 
   let index t hash = index_direct t hash
 
-  let v ~config ~fm ~dict ~dispatcher =
+  let v ~config ~fm ~dict ~dispatcher ~lru =
     let indexing_strategy = Conf.indexing_strategy config in
-    let lru_size = Conf.lru_size config in
     let staging = Tbl.create 127 in
-    let weight v =
-      (* if a value is bigger than 10% of the total capacity,
-         we skip it by giving it a large weight. *)
-      let w = Val.weight v in
-      if w > lru_size / 10 then max_int else w
-    in
-    let lru = Lru.create ~weight lru_size in
     Fm.register_suffix_consumer fm ~after_flush:(fun () -> Tbl.clear staging);
     Fm.register_prefix_consumer fm ~after_reload:(fun () -> Ok (Lru.clear lru));
     { lru; staging; indexing_strategy; fm; dict; dispatcher }
@@ -265,9 +258,9 @@ struct
            become valid on [reload]; otherwise we know that this key wasn't
            constructed for this store. *)
         (if not (Control.readonly (Fm.control t.fm)) then
-         let io_offset = Dispatcher.end_offset t.dispatcher in
-         invalid_read "invalid key %a checked for membership (IO offset = %a)"
-           pp_key k Int63.pp io_offset);
+           let io_offset = Dispatcher.end_offset t.dispatcher in
+           invalid_read "invalid key %a checked for membership (IO offset = %a)"
+             pp_key k Int63.pp io_offset);
         false
     | Errors.Pack_error (`Invalid_sparse_read _) -> false
     | Errors.Pack_error (`Invalid_prefix_read _) -> false
@@ -499,8 +492,6 @@ struct
       let dict = Dict.index t.dict in
       let off = Dispatcher.end_offset t.dispatcher in
 
-      (* [encode_bin] will most likely call [append] several time. One of these
-         call may trigger an auto flush. *)
       let append = Suffix.append_exn (Fm.suffix t.fm) in
       Val.encode_bin ~offset_of_key ~dict hash v append;
 
@@ -541,7 +532,6 @@ end
 
 module Make
     (Fm : File_manager.S)
-    (Dict : Dict.S)
     (Dispatcher : Dispatcher.S with module Fm = Fm)
     (Hash : Irmin.Hash.S with type t = Fm.Index.key)
     (Val : Pack_value.Persistent
@@ -549,14 +539,12 @@ module Make
               and type key := Hash.t Pack_key.t)
     (Errs : Io_errors.S with module Io = Fm.Io) =
 struct
-  module Inner =
-    Make_without_close_checks (Fm) (Dict) (Dispatcher) (Hash) (Val) (Errs)
-
+  module Inner = Make_without_close_checks (Fm) (Dispatcher) (Hash) (Val) (Errs)
   include Inner
   include Indexable.Closeable (Inner)
 
-  let v ~config ~fm ~dict ~dispatcher =
-    Inner.v ~config ~fm ~dict ~dispatcher |> make_closeable
+  let v ~config ~fm ~dict ~dispatcher ~lru =
+    Inner.v ~config ~fm ~dict ~dispatcher ~lru |> make_closeable
 
   let cast t = Inner.cast (get_if_open_exn t) |> make_closeable
 

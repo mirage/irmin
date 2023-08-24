@@ -54,11 +54,16 @@ module Contents = struct
 
   let kind _ = Irmin_pack.Pack_value.Kind.Contents
 
+  type Irmin_pack.Pack_value.kinded += Contents of t
+
+  let to_kinded t = Contents t
+  let of_kinded = function Contents c -> c | _ -> assert false
+
   module H = Irmin.Hash.Typed (Irmin.Hash.SHA1) (Irmin.Contents.String)
 
   let hash = H.hash
   let magic = 'B'
-  let weight _ = 1
+  let weight _ = Irmin_pack.Pack_value.Immediate 1
   let encode_triple = Irmin.Type.(unstage (encode_bin (triple H.t char t)))
   let decode_triple = Irmin.Type.(unstage (decode_bin (triple H.t char t)))
   let length_header = Fun.const (Some `Varint)
@@ -80,18 +85,16 @@ module Key = Irmin_pack_unix.Pack_key.Make (Schema.Hash)
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
 module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Index) (Errs)
-module Dict = Irmin_pack_unix.Dict.Make (File_manager)
+module Dict = File_manager.Dict
 module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
 module Pack =
-  Irmin_pack_unix.Pack_store.Make (File_manager) (Dict) (Dispatcher)
-    (Schema.Hash)
+  Irmin_pack_unix.Pack_store.Make (File_manager) (Dispatcher) (Schema.Hash)
     (Contents)
     (Errs)
 
 module Branch =
-  Irmin_pack_unix.Atomic_write.Make_persistent
-    (Irmin.Branch.String)
+  Irmin_pack_unix.Atomic_write.Make_persistent (Io) (Irmin.Branch.String)
     (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 
 module Make_context (Config : sig
@@ -107,7 +110,15 @@ struct
       [%logs.info "Constructing %s context object: %s" object_type name];
       name
 
-  let mkdir_dash_p dirname = Irmin_pack_unix.Io_legacy.Unix.mkdir dirname
+  let mkdir_dash_p dirname =
+    let rec aux dir =
+      if Sys.file_exists dir && Sys.is_directory dir then ()
+      else (
+        if Sys.file_exists dir then Unix.unlink dir;
+        aux (Filename.dirname dir);
+        Unix.mkdir dir 0o755)
+    in
+    aux dirname
 
   type d = { name : string; fm : File_manager.t; dict : Dict.t }
 
@@ -131,7 +142,7 @@ struct
   let get_dict ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in
     let fm = config ~readonly ~fresh name |> get_fm in
-    let dict = Dict.v fm |> Errs.raise_if_error in
+    let dict = File_manager.dict fm in
     { name; dict; fm }
 
   let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
@@ -151,8 +162,9 @@ struct
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
-    let dict = Dict.v fm |> Errs.raise_if_error in
-    let pack = Pack.v ~config ~fm ~dict ~dispatcher in
+    let dict = File_manager.dict fm in
+    let lru = Irmin_pack_unix.Lru.create config in
+    let pack = Pack.v ~config ~fm ~dict ~dispatcher ~lru in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm }
 

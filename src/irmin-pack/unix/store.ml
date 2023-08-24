@@ -35,7 +35,7 @@ module Maker (Config : Conf.S) = struct
     module Index = Pack_index.Make (H)
     module Errs = Io_errors.Make (Io)
     module File_manager = File_manager.Make (Io) (Index) (Errs)
-    module Dict = Dict.Make (File_manager)
+    module Dict = File_manager.Dict
     module Dispatcher = Dispatcher.Make (File_manager)
     module XKey = Pack_key.Make (H)
 
@@ -49,8 +49,7 @@ module Maker (Config : Conf.S) = struct
         module Pack_value = Pack_value.Of_contents (Config) (H) (XKey) (C)
 
         module CA =
-          Pack_store.Make (File_manager) (Dict) (Dispatcher) (H) (Pack_value)
-            (Errs)
+          Pack_store.Make (File_manager) (Dispatcher) (H) (Pack_value) (Errs)
 
         include Irmin.Contents.Store_indexable (CA) (H) (C)
       end
@@ -63,8 +62,7 @@ module Maker (Config : Conf.S) = struct
             Irmin_pack.Inode.Make_internal (Config) (H) (XKey) (Value)
 
           module Pack' =
-            Pack_store.Make (File_manager) (Dict) (Dispatcher) (H) (Inter.Raw)
-              (Errs)
+            Pack_store.Make (File_manager) (Dispatcher) (H) (Inter.Raw) (Errs)
 
           include Inode.Make_persistent (H) (Value) (Inter) (Pack')
         end
@@ -91,8 +89,7 @@ module Maker (Config : Conf.S) = struct
         module Pack_value = Pack_value.Of_commit (H) (XKey) (Value)
 
         module CA =
-          Pack_store.Make (File_manager) (Dict) (Dispatcher) (H) (Pack_value)
-            (Errs)
+          Pack_store.Make (File_manager) (Dispatcher) (H) (Pack_value) (Errs)
 
         include
           Irmin.Commit.Generic_key.Store (Schema.Info) (Node) (CA) (H) (Value)
@@ -117,7 +114,7 @@ module Maker (Config : Conf.S) = struct
       module Branch = struct
         module Key = B
         module Val = XKey
-        module AW = Atomic_write.Make_persistent (Key) (Val)
+        module AW = Atomic_write.Make_persistent (Io) (Key) (Val)
         include Atomic_write.Closeable (AW)
 
         let v ?fresh ?readonly path =
@@ -148,6 +145,7 @@ module Maker (Config : Conf.S) = struct
         type running_gc = { gc : Gc.t; use_auto_finalisation : bool }
 
         type t = {
+          lru : Lru.t;
           config : Irmin.Backend.Conf.t;
           contents : read Contents.CA.t;
           node : read Node.CA.t;
@@ -186,11 +184,12 @@ module Maker (Config : Conf.S) = struct
                   File_manager.open_rw config |> Errs.raise_if_error
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
-          let dict = Dict.v fm |> Errs.raise_if_error in
+          let dict = File_manager.dict fm in
           let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
-          let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher in
-          let node = Node.CA.v ~config ~fm ~dict ~dispatcher in
-          let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher in
+          let lru = Lru.create config in
+          let contents = Contents.CA.v ~config ~fm ~dict ~dispatcher ~lru in
+          let node = Node.CA.v ~config ~fm ~dict ~dispatcher ~lru in
+          let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher ~lru in
           let branch =
             let root = Conf.root config in
             let fresh = Conf.fresh config in
@@ -213,6 +212,7 @@ module Maker (Config : Conf.S) = struct
             running_gc;
             dispatcher;
             lock;
+            lru;
           }
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
@@ -468,7 +468,6 @@ module Maker (Config : Conf.S) = struct
           let () = File_manager.close t.fm |> Errs.raise_if_error in
           Branch.close t.branch;
           (* Step 3 - Close the in-memory abstractions *)
-          Dict.close t.dict;
           Contents.CA.close (contents_t t);
           Node.CA.close (snd (node_t t));
           Commit.CA.close (snd (commit_t t))

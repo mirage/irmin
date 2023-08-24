@@ -18,7 +18,6 @@ open! Import
 open Cmdliner
 open Astring
 module Xgit = Irmin_git_unix
-module Http = Irmin_http_unix
 
 let global_option_section = "COMMON OPTIONS"
 
@@ -298,20 +297,6 @@ module Store = struct
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
   let fs = create Irmin_fs.Conf.spec (module Irmin_fs_unix)
-
-  let http = function
-    | T { impl = Generic_keyed _; _ } ->
-        Fmt.failwith
-          "Unsupported backend: can't build an HTTP server over a store that \
-           is not keyed by hashes"
-    | T { impl = Hash_keyed (module S); spec; remote } ->
-        T
-          {
-            impl = Hash_keyed (module Http.Client (S));
-            spec = Irmin.Backend.Conf.Spec.join spec [ Irmin_http.Conf.spec ];
-            remote;
-          }
-
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
@@ -343,8 +328,6 @@ module Store = struct
         ("git-mem", Fixed_hash git_mem);
         ("fs", Variable_hash fs);
         ("mem", Variable_hash mem);
-        ("mem-http", Variable_hash (fun h c -> http (mem h c)));
-        ("git-http", Fixed_hash (fun c -> http (git c)));
         ("pack", Variable_hash pack);
         ("tezos", Fixed tezos);
       ]

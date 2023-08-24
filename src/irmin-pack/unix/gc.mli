@@ -17,7 +17,8 @@
 open! Import
 
 (** [Make] returns a module that can manage GC processes. *)
-module Make (Args : Gc_args.S) : sig
+module Make
+    (Args : Gc_args.S) : sig
   module Args : Gc_args.S
 
   type t

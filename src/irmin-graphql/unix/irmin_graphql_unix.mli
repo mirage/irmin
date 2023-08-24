@@ -25,7 +25,8 @@ module Server : sig
   end
 
   module Make
-      (S : Irmin.Generic_key.S) (Remote : sig
+      (S : Irmin.Generic_key.S)
+      (Remote : sig
         val remote : remote_fn option
       end) :
     Irmin_graphql.Server.S
@@ -33,7 +34,8 @@ module Server : sig
        and type server = Cohttp_lwt_unix.Server.t
 
   module Make_ext
-      (S : Irmin.Generic_key.S) (Remote : sig
+      (S : Irmin.Generic_key.S)
+      (Remote : sig
         val remote : remote_fn option
       end)
       (T : Irmin_graphql.Server.CUSTOM_TYPES

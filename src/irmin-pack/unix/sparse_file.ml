@@ -234,10 +234,7 @@ module Make (Io : Io.S) = struct
 
     let create ~mapping ~data =
       let open Result_syntax in
-      let ao_create path =
-        Ao.create_rw ~path ~overwrite:false ~auto_flush_threshold:1_000_000
-          ~auto_flush_procedure:`Internal
-      in
+      let ao_create path = Ao.create_rw ~path ~overwrite:false in
       let* mapping = ao_create mapping in
       let+ data = ao_create data in
       { mapping; data; end_off = Int63.zero }
@@ -246,7 +243,6 @@ module Make (Io : Io.S) = struct
       let open Result_syntax in
       let ao_open ~end_poff path =
         Ao.open_rw ~path ~end_poff ~dead_header_size:0
-          ~auto_flush_threshold:1_000_000 ~auto_flush_procedure:`Internal
       in
       let* ao_mapping = ao_open ~end_poff:mapping_size mapping in
       let* end_off, end_poff =

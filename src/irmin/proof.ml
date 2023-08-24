@@ -19,7 +19,8 @@ include Proof_intf
 
 module Make
     (C : Type.S)
-    (H : Type.S) (S : sig
+    (H : Type.S)
+    (S : sig
       type step [@@deriving irmin]
     end)
     (M : Type.S) =

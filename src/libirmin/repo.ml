@@ -40,8 +40,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> returning branch_array)
       (fun (type repo) repo ->
         with_repo' repo branch_array
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let b = run (fun () -> Store.Repo.branches repo) in
             Root.create_branch_array (module Store) b))
 
@@ -91,8 +91,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> hash @-> returning contents)
       (fun (type repo) repo a ->
         with_repo' repo contents
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let a = Root.get_hash (module Store) a in
             let c = run @@ fun () -> Store.Contents.of_hash repo a in
             match c with
@@ -104,8 +104,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (repo @-> kinded_key @-> returning contents)
       (fun (type repo) repo a ->
         with_repo' repo contents
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let a = Root.get_kinded_key (module Store) a in
             match a with
             | `Contents (a, _) -> (

@@ -23,8 +23,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun (type repo) repo' ->
         let r = Root.to_voidp repo repo' in
         with_repo' repo' store
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             Root.create_store
               (module Store)
               {
@@ -40,8 +40,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun (type repo) repo' name ->
         let r = Root.to_voidp repo repo' in
         with_repo' repo' store
-          (fun (module Store : Irmin.Generic_key.S with type repo = repo) repo
-          ->
+          (fun
+            (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             match Irmin.Type.of_string Store.Branch.t name with
             | Error (`Msg err) -> failwith err
             | Ok branch ->

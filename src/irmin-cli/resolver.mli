@@ -87,7 +87,6 @@ module Store : sig
 
   val mem : hash -> contents -> t
   val fs : hash -> contents -> t
-  val http : t -> t
   val git : contents -> t
   val pack : hash -> contents -> t
   val find : string -> store_functor

@@ -117,10 +117,10 @@ module type Compress = sig
   type v1 = { mutable length : int; v : v }
 
   type tagged_v =
-    | V0_stable of v
-    | V0_unstable of v
-    | V1_root of v1
-    | V1_nonroot of v1
+    | V1_stable of v
+    | V1_unstable of v
+    | V2_root of v1
+    | V2_nonroot of v1
 
   type t = { hash : hash; tv : tagged_v } [@@deriving irmin]
 end
@@ -256,7 +256,8 @@ module type Sigs = sig
 
   module Make_internal
       (Conf : Conf.S)
-      (H : Irmin.Hash.S) (Key : sig
+      (H : Irmin.Hash.S)
+      (Key : sig
         include Irmin.Key.S with type hash = H.t
 
         val unfindable_of_hash : hash -> t

@@ -28,8 +28,9 @@ struct
   module Io = Errs.Io
   module Index = Index
   module Errs = Io_errors.Make (Io)
+  module Ao = Append_only_file.Make (Io) (Errs)
   module Control = Control_file.Upper (Io)
-  module Dict = Append_only_file.Make (Io) (Errs)
+  module Dict = Dict.Make (Io)
   module Suffix = Chunked_suffix.Make (Io) (Errs)
   module Sparse = Sparse_file.Make (Io)
   module Lower = Lower.Make (Io) (Errs)
@@ -44,7 +45,6 @@ struct
     mutable prefix : Sparse.t option;
     lower : Lower.t option;
     index : Index.t;
-    mutable dict_consumers : after_reload_consumer list;
     mutable prefix_consumers : after_reload_consumer list;
     mutable suffix_consumers : after_flush_consumer list;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
@@ -67,9 +67,6 @@ struct
     let* () = Option.might Sparse.close t.prefix in
     let+ () = Index.close t.index in
     ()
-
-  let register_dict_consumer t ~after_reload =
-    t.dict_consumers <- { after_reload } :: t.dict_consumers
 
   let register_prefix_consumer t ~after_reload =
     t.prefix_consumers <- { after_reload } :: t.prefix_consumers
@@ -103,64 +100,66 @@ struct
   (** Flush stage 1 *)
   let flush_dict t =
     let open Result_syntax in
-    if Dict.empty_buffer t.dict then Ok ()
-    else
-      let* () =
+    let* () =
+      if Dict.empty_buffer t.dict then Ok ()
+      else (
         Stats.incr_fm_field Dict_flushes;
-        Dict.flush t.dict
-      in
-      let* () = if t.use_fsync then Dict.fsync t.dict else Ok () in
-      let* () =
-        let pl : Payload.t = Control.payload t.control in
-        let pl = { pl with dict_end_poff = Dict.end_poff t.dict } in
-        Control.set_payload t.control pl
-      in
-      let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-      ()
+        Dict.flush t.dict)
+    in
+    if t.use_fsync then Dict.fsync t.dict else Ok ()
+
+  let flush_suffix t =
+    let open Result_syntax in
+    let* () =
+      if Suffix.empty_buffer t.suffix then Ok ()
+      else (
+        Stats.incr_fm_field Suffix_flushes;
+        Suffix.flush t.suffix)
+    in
+    if t.use_fsync then Suffix.fsync t.suffix else Ok ()
+
+  let flush_control t =
+    let pl : Payload.t = Control.payload t.control in
+    let status =
+      match pl.status with
+      | From_v1_v2_post_upgrade _ -> pl.status
+      | Gced _ -> pl.status
+      | No_gc_yet ->
+          if Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy then
+            pl.status
+          else (
+            [%log.warn
+              "Updating the control file to \
+               [Used_non_minimal_indexing_strategy]. It won't be possible to \
+               GC this irmin-pack store anymore."];
+            Payload.Used_non_minimal_indexing_strategy)
+      | Used_non_minimal_indexing_strategy -> pl.status
+      | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 | T14
+      | T15 ->
+          assert false
+    in
+    let new_pl =
+      {
+        pl with
+        appendable_chunk_poff = Suffix.appendable_chunk_poff t.suffix;
+        dict_end_poff = Dict.end_poff t.dict;
+        status;
+      }
+    in
+    if new_pl = pl then Ok ()
+    else
+      let open Result_syntax in
+      let* () = Control.set_payload t.control new_pl in
+      if t.use_fsync then Control.fsync t.control else Ok ()
 
   (** Flush stage 2 *)
   let flush_suffix_and_its_deps ?hook t =
     let open Result_syntax in
     let* () = flush_dict t in
     (match hook with Some h -> h `After_dict | None -> ());
-    if Suffix.empty_buffer t.suffix then Ok ()
-    else
-      let* () =
-        Stats.incr_fm_field Suffix_flushes;
-        Suffix.flush t.suffix
-      in
-      let* () = if t.use_fsync then Suffix.fsync t.suffix else Ok () in
-      let* () =
-        let pl : Payload.t = Control.payload t.control in
-        let status =
-          match pl.status with
-          | From_v1_v2_post_upgrade _ -> pl.status
-          | Gced _ -> pl.status
-          | No_gc_yet ->
-              if Irmin_pack.Indexing_strategy.is_minimal t.indexing_strategy
-              then pl.status
-              else (
-                [%log.warn
-                  "Updating the control file to \
-                   [Used_non_minimal_indexing_strategy]. It won't be possible \
-                   to GC this irmin-pack store anymore."];
-                Payload.Used_non_minimal_indexing_strategy)
-          | Used_non_minimal_indexing_strategy -> pl.status
-          | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13
-          | T14 | T15 ->
-              assert false
-        in
-        let pl =
-          {
-            pl with
-            appendable_chunk_poff = Suffix.appendable_chunk_poff t.suffix;
-            status;
-          }
-        in
-        Control.set_payload t.control pl
-      in
-      let+ () = if t.use_fsync then Control.fsync t.control else Ok () in
-      List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
+    let* () = flush_suffix t in
+    let+ () = flush_control t in
+    List.iter (fun { after_flush } -> after_flush ()) t.suffix_consumers
 
   (** Flush stage 3 *)
   let flush_index_and_its_deps ?hook t =
@@ -175,22 +174,9 @@ struct
 
   (* Auto flushes *********************************************************** *)
 
-  (** Is expected to be called by the dict when its append buffer is full so
-      that the file manager flushes. *)
-  let dict_requires_a_flush_exn t =
-    Stats.incr_fm_field Auto_dict;
-    flush_dict t |> Errs.raise_if_error
-
-  (** Is expected to be called by the suffix when its append buffer is full so
-      that the file manager flushes. *)
-  let suffix_requires_a_flush_exn t =
-    Stats.incr_fm_field Auto_suffix;
-    flush_suffix_and_its_deps t |> Errs.raise_if_error
-
-  (** Is expected to be called by the index when its append buffer is full. This
-      is called by index-unix from another thread without an installed Eio
-      effect handler, leading to poisoned mutexes. Flushing the other files at
-      the same time as the index doesn't seem necessary. *)
+  (** Is expected to be called by the index when its append buffer is full so
+      that the dependendies of index are flushes. When the function returns,
+      index will flush itself. *)
   let index_is_about_to_auto_flush_exn _t =
     Stats.incr_fm_field Auto_index;
     (* TODO: remove? flush_suffix_and_its_deps t |> Errs.raise_if_error *)
@@ -259,14 +245,8 @@ struct
         Suffix.open_ro ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
           ~chunk_num
       else
-        let auto_flush_threshold =
-          match Suffix.auto_flush_threshold t.suffix with
-          | None -> assert false
-          | Some x -> x
-        in
-        let cb _ = suffix_requires_a_flush_exn t in
         Suffix.open_rw ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
-          ~chunk_num ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
+          ~chunk_num
     in
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
@@ -347,21 +327,11 @@ struct
       | Some x -> x
     in
     (* 2. Open the other files *)
-    let* suffix =
-      let auto_flush_threshold =
-        Irmin_pack.Conf.suffix_auto_flush_threshold config
-      in
-      let cb _ = suffix_requires_a_flush_exn (get_instance ()) in
-      make_suffix ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
-    in
+    let* suffix = make_suffix () in
     let* prefix = open_prefix ~root ~generation ~mapping_size in
     let* dict =
       let path = Layout.dict ~root in
-      let auto_flush_threshold =
-        Irmin_pack.Conf.dict_auto_flush_threshold config
-      in
-      let cb _ = dict_requires_a_flush_exn (get_instance ()) in
-      make_dict ~path ~auto_flush_threshold ~auto_flush_procedure:(`External cb)
+      make_dict ~path
     in
     let* index =
       let log_size = Conf.index_log_size config in
@@ -392,7 +362,6 @@ struct
         lower;
         use_fsync;
         index;
-        dict_consumers = [];
         prefix_consumers = [];
         suffix_consumers = [];
         indexing_strategy;
@@ -456,8 +425,6 @@ struct
       in
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in
-      (* Step 5. Notify the dict consumers that they must reload *)
-      let* () = notify_reload_consumers t.dict_consumers in
       Ok ()
 
   (* File creation ********************************************************** *)
@@ -509,7 +476,7 @@ struct
       create_control_file ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~overwrite in
-    let make_suffix = Suffix.create_rw ~root ~overwrite ~start_idx:0 in
+    let make_suffix () = Suffix.create_rw ~root ~overwrite ~start_idx:0 in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
@@ -559,8 +526,7 @@ struct
     (* Step 2. Create a new empty suffix for the upper. *)
     let chunk_start_idx = payload.chunk_start_idx + 1 in
     let* () =
-      Suffix.create_rw ~root ~overwrite:false ~auto_flush_threshold:1_000_000
-        ~auto_flush_procedure:`Internal ~start_idx:chunk_start_idx
+      Suffix.create_rw ~root ~overwrite:false ~start_idx:chunk_start_idx
       >>= Suffix.close
     in
     (* Step 3. Create a new empty prefix for the upper. *)
@@ -661,8 +627,10 @@ struct
       | T15 ->
           Error `V3_store_from_the_future
     in
-    let make_dict = Dict.open_rw ~end_poff:dict_end_poff ~dead_header_size in
-    let make_suffix =
+    let make_dict ~path =
+      Dict.open_rw ~size:dict_end_poff ~dead_header_size path
+    in
+    let make_suffix () =
       Suffix.open_rw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
@@ -806,8 +774,8 @@ struct
       open_prefix ~root ~generation ~mapping_size:(mapping_size status)
     in
     let* dict =
-      let path = Layout.dict ~root in
-      Dict.open_ro ~path ~end_poff:dict_end_poff ~dead_header_size
+      let filename = Layout.dict ~root in
+      Dict.open_ro ~size:dict_end_poff ~dead_header_size filename
     in
     let* index =
       let log_size = Conf.index_log_size config in
@@ -833,7 +801,6 @@ struct
         use_fsync;
         indexing_strategy;
         index;
-        dict_consumers = [];
         prefix_consumers = [];
         suffix_consumers = [];
         root;
@@ -973,16 +940,7 @@ struct
   let split t =
     let open Result_syntax in
     (* Step 1. Create a new chunk file *)
-    let auto_flush_threshold =
-      match Suffix.auto_flush_threshold t.suffix with
-      | None -> assert false
-      | Some x -> x
-    in
-    let cb _ = suffix_requires_a_flush_exn t in
-    let* () =
-      Suffix.add_chunk ~auto_flush_threshold
-        ~auto_flush_procedure:(`External cb) t.suffix
-    in
+    let* () = Suffix.add_chunk t.suffix in
 
     (* Step 2. Update the control file *)
     let pl = Control.payload t.control in
@@ -1023,9 +981,7 @@ struct
     let* () = Io.copy_file ~src:src_dict ~dst:dst_dict in
     (* Step 2. Create an empty suffix and close it. *)
     let* suffix =
-      Suffix.create_rw ~root:dst_root ~overwrite:false
-        ~auto_flush_threshold:1_000_000 ~auto_flush_procedure:`Internal
-        ~start_idx:1
+      Suffix.create_rw ~root:dst_root ~overwrite:false ~start_idx:1
     in
     let* () = Suffix.close suffix in
     (* Step 3. Create the control file and close it. *)

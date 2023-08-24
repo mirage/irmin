@@ -71,6 +71,7 @@ type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
 module Key : sig
   val fresh : bool Irmin.Backend.Conf.key
   val lru_size : int Irmin.Backend.Conf.key
+  val lru_max_memory : int option Irmin.Backend.Conf.key
   val index_log_size : int Irmin.Backend.Conf.key
   val readonly : bool Irmin.Backend.Conf.key
   val root : string Irmin.Backend.Conf.key
@@ -78,8 +79,6 @@ module Key : sig
   val merge_throttle : merge_throttle Irmin.Backend.Conf.key
   val indexing_strategy : Indexing_strategy.t Irmin.Backend.Conf.key
   val use_fsync : bool Irmin.Backend.Conf.key
-  val dict_auto_flush_threshold : int Irmin.Backend.Conf.key
-  val suffix_auto_flush_threshold : int Irmin.Backend.Conf.key
   val no_migrate : bool Irmin.Backend.Conf.key
 end
 
@@ -88,7 +87,12 @@ val fresh : Irmin.Backend.Conf.t -> bool
     setting this to [true] will delete existing data. Default is [false]. *)
 
 val lru_size : Irmin.Backend.Conf.t -> int
-(** Size, in number of entries, of LRU cache. Default [100_000]. *)
+(** Maximum size, in number of entries, of LRU cache. Default [100_000]. Unused
+    if {!lru_max_memory} is set. *)
+
+val lru_max_memory : Irmin.Backend.Conf.t -> int option
+(** Maximum memory, in bytes, for the LRU cache to use. Default [None], which
+    falls back to {!lru_size} for LRU limit. *)
 
 val index_log_size : Irmin.Backend.Conf.t -> int
 (** Size, in number of entries, of index log. Default [2_500_000]. *)
@@ -121,14 +125,6 @@ val use_fsync : Irmin.Backend.Conf.t -> bool
 (** Flag to indicate that fsync should be used to enforce durability when
     flushing data to disk. Default [false]. *)
 
-val dict_auto_flush_threshold : Irmin.Backend.Conf.t -> int
-(** Size, in bytes, when automatic flushing of dict file to disk. Default
-    [1_000_000]. *)
-
-val suffix_auto_flush_threshold : Irmin.Backend.Conf.t -> int
-(** Size, in bytes, when automatic flushing of suffix file to disk. Default
-    [1_000_000]. *)
-
 val no_migrate : Irmin.Backend.Conf.t -> bool
 (** Flag to prevent migration of data. Default [false]. *)
 
@@ -136,12 +132,11 @@ val init :
   ?fresh:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
+  ?lru_max_memory:int option ->
   ?index_log_size:int ->
   ?merge_throttle:merge_throttle ->
   ?indexing_strategy:Indexing_strategy.t ->
   ?use_fsync:bool ->
-  ?dict_auto_flush_threshold:int ->
-  ?suffix_auto_flush_threshold:int ->
   ?no_migrate:bool ->
   ?lower_root:string option ->
   string ->

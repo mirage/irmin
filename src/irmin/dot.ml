@@ -90,8 +90,8 @@ module Make (S : Store.Generic_key.S) = struct
     let label_of_node k _ =
       let s =
         (if html then
-         sprintf "<div class='node'><div class='sha1'>%s</div></div>"
-        else fun x -> x)
+           sprintf "<div class='node'><div class='sha1'>%s</div></div>"
+         else fun x -> x)
           (string_of_hash Node.Hash.t k)
       in
       `Label s
