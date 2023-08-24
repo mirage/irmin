@@ -70,7 +70,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
                     `Port port ) ))
       | x -> invalid_arg ("Unknown server scheme: " ^ x)
     in
-    let+ repo = Store.Repo.v config in
+    let+ repo = Lwt_eio.run_eio @@ fun () -> Store.Repo.v config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
     { ctx; uri; server; dashboard; config; repo; info }
@@ -83,16 +83,16 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let[@tailrec] rec loop repo conn client info : unit Lwt.t =
     if Conn.is_closed conn then
       let* () =
-        match client.Command.watch with
-        | Some w -> Store.unwatch w
-        | None -> Lwt.return_unit
+        Lwt_eio.run_eio @@ fun () ->
+        match client.Command.watch with Some w -> Store.unwatch w | None -> ()
       in
       let* () =
+        Lwt_eio.run_eio @@ fun () ->
         match client.Command.branch_watch with
         | Some w ->
             let b = Store.Backend.Repo.branch_t client.repo in
             Store.Backend.Branch.unwatch b w
-        | None -> Lwt.return_unit
+        | None -> ()
       in
       Lwt.return_unit
     else
@@ -233,39 +233,35 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
 
   let dashboard t mode =
     let list store prefix =
-      let* keys = Store.list store prefix in
-      let+ keys =
-        Lwt_list.map_s
-          (fun (path, tree) ->
-            let path = Store.Path.rcons prefix path in
-            let* kind = Store.Tree.kind tree Store.Path.empty in
-            match kind with
-            | Some `Contents ->
-                Lwt.return_some (path, "contents", Store.Tree.hash tree)
-            | Some `Node -> Lwt.return_some (path, "node", Store.Tree.hash tree)
-            | None -> Lwt.return_none)
-          keys
-      in
-      List.filter_map Fun.id keys
+      let keys = Store.list store prefix in
+      List.filter_map
+        (fun (path, tree) ->
+          let path = Store.Path.rcons prefix path in
+          let kind = Store.Tree.kind tree Store.Path.empty in
+          match kind with
+          | Some `Contents -> Some (path, "contents", Store.Tree.hash tree)
+          | Some `Node -> Some (path, "node", Store.Tree.hash tree)
+          | None -> None)
+        keys
     in
     let data_callback prefix branch =
       let* store =
+        Lwt_eio.run_eio @@ fun () ->
         match branch with
         | `Hash commit -> (
-            let* commit = Store.Commit.of_hash t.repo commit in
+            let commit = Store.Commit.of_hash t.repo commit in
             match commit with
             | Some commit -> Store.of_commit commit
             | None -> failwith "Invalid commit")
         | `Branch branch -> Store.of_branch t.repo branch
       in
       let* is_contents =
-        Store.kind store prefix >|= function
-        | Some `Contents -> true
-        | _ -> false
+        Lwt_eio.run_eio @@ fun () ->
+        match Store.kind store prefix with Some `Contents -> true | _ -> false
       in
       let res = Cohttp_lwt_unix.Response.make ~status:`OK () in
       if is_contents then
-        let* contents = Store.get store prefix in
+        let* contents = Lwt_eio.run_eio @@ fun () -> Store.get store prefix in
         let contents' = Irmin.Type.to_json_string Store.contents_t contents in
         let body =
           Printf.sprintf {|{"contents": %s, "hash": %s }|} contents'
@@ -275,19 +271,17 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         let body = Cohttp_lwt.Body.of_string body in
         Lwt.return (res, body)
       else
-        let* keys = list store prefix in
-        let* keys =
-          Lwt_list.map_s
+        let* keys = Lwt_eio.run_eio @@ fun () -> list store prefix in
+        let keys =
+          List.map
             (fun (path, kind, hash) ->
               Format.sprintf {|{"path": "%s", "kind": "%s", "hash": "%s"}|}
                 (Irmin.Type.to_string Store.path_t path)
                 kind
-                (Irmin.Type.to_string Store.hash_t hash)
-              |> Lwt.return)
+                (Irmin.Type.to_string Store.hash_t hash))
             keys
         in
         let keys = String.concat "," keys in
-
         let body = Cohttp_lwt.Body.of_string (Printf.sprintf "[%s]" keys) in
         Lwt.return (res, body)
     in

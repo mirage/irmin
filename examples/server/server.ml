@@ -23,13 +23,11 @@ let main () =
   let config = Irmin_mem.config () in
   let dashboard = `TCP (`Port 1234) in
   let uri = Config.uri in
+  Lwt_eio.run_lwt @@ fun () ->
   let* server = Server.v ~uri ~dashboard config in
-  Logs.debug (fun l -> l "Listening on %a@." Uri.pp uri);
+  Format.printf "Listening on %a@." Uri.pp uri;
   Server.serve server
 
 let () =
-  Fmt_tty.setup_std_outputs ();
-  Logs.(set_level @@ Some Debug);
-  Irmin.Export_for_backends.Logging.reporter (module Mtime_clock)
-  |> Logs.set_reporter;
-  Lwt_main.run @@ main ()
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
