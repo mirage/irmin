@@ -62,7 +62,7 @@ struct
     let name = "tree.of_path"
 
     let run conn ctx _ path =
-      let* tree = Store.find_tree ctx.store path in
+      let* tree = Lwt_eio.run_eio @@ fun () -> Store.find_tree ctx.store path in
       match tree with
       | None -> Return.v conn res_t None
       | Some tree ->
@@ -78,7 +78,9 @@ struct
     let name = "tree.of_hash"
 
     let run conn ctx _ hash =
-      let* tree = Store.Tree.of_hash ctx.repo (`Node hash) in
+      let* tree =
+        Lwt_eio.run_eio @@ fun () -> Store.Tree.of_hash ctx.repo (`Node hash)
+      in
       match tree with
       | None -> Return.v conn res_t None
       | Some tree ->
@@ -94,7 +96,9 @@ struct
     let name = "tree.of_commit"
 
     let run conn ctx _ hash =
-      let* commit = Store.Commit.of_hash ctx.repo hash in
+      let* commit =
+        Lwt_eio.run_eio @@ fun () -> Store.Commit.of_hash ctx.repo hash
+      in
       match commit with
       | None -> Return.v conn res_t None
       | Some commit ->
@@ -115,6 +119,7 @@ struct
     let run conn ctx _ tree =
       let* _, tree = resolve_tree ctx tree in
       let* hash =
+        Lwt_eio.run_eio @@ fun () ->
         Store.Backend.Repo.batch ctx.repo (fun x y _ ->
             Store.save_tree ctx.repo x y tree)
       in
@@ -129,7 +134,7 @@ struct
 
     let run conn ctx _ (tree, path, value) =
       let* _, tree = resolve_tree ctx tree in
-      let* tree = Store.Tree.add tree path value in
+      let* tree = Lwt_eio.run_eio @@ fun () -> Store.Tree.add tree path value in
       let id = incr_id () in
       Hashtbl.replace ctx.trees id tree;
       Return.v conn res_t (ID id)
@@ -143,7 +148,9 @@ struct
 
     let run conn ctx _ ((parents, info), tree) =
       let* _, tree = resolve_tree ctx tree in
-      let* commit = Store.Commit.v ctx.repo ~info ~parents tree in
+      let* commit =
+        Lwt_eio.run_eio @@ fun () -> Store.Commit.v ctx.repo ~info ~parents tree
+      in
       let key = Store.Commit.key commit in
       Return.v conn res_t key
   end
@@ -170,7 +177,8 @@ struct
       | None -> Lwt.return None
       | Some parents ->
           let* parents =
-            Lwt_list.filter_map_s
+            Lwt_eio.run_eio @@ fun () ->
+            List.filter_map
               (fun hash -> Store.Commit.of_hash ctx.repo hash)
               parents
           in
@@ -179,26 +187,29 @@ struct
     let run conn ctx _ (path, (parents, info), l) =
       let* parents = mk_parents ctx parents in
       let* () =
+        Lwt_eio.run_eio @@ fun () ->
         Store.with_tree_exn ctx.store path ?parents
           ~info:(fun () -> info)
           (fun tree ->
             let tree = Option.value ~default:(Store.Tree.empty ()) tree in
-            let* tree =
-              Lwt_list.fold_left_s
+            let tree =
+              List.fold_left
                 (fun tree (path, value) ->
                   match value with
                   | Some (`Contents (`Hash value, metadata)) ->
-                      let* value = Store.Contents.of_hash ctx.repo value in
+                      let value = Store.Contents.of_hash ctx.repo value in
                       Store.Tree.add tree path ?metadata (Option.get value)
                   | Some (`Contents (`Value value, metadata)) ->
                       Store.Tree.add tree path ?metadata value
                   | Some (`Tree t) ->
-                      let* _, tree' = resolve_tree ctx t in
+                      let _, tree' =
+                        Lwt_eio.run_lwt @@ fun () -> resolve_tree ctx t
+                      in
                       Store.Tree.add_tree tree path tree'
                   | None -> Store.Tree.remove tree path)
                 tree l
             in
-            Lwt.return (Some tree))
+            Some tree)
       in
       Return.v conn res_t ()
   end
@@ -222,16 +233,19 @@ struct
     let run conn ctx _ (tree, l) =
       let* _, tree = resolve_tree ctx tree in
       let* tree =
-        Lwt_list.fold_left_s
+        Lwt_eio.run_eio @@ fun () ->
+        List.fold_left
           (fun tree (path, value) ->
             match value with
             | Some (`Contents (`Hash value, metadata)) ->
-                let* value = Store.Contents.of_hash ctx.repo value in
+                let value = Store.Contents.of_hash ctx.repo value in
                 Store.Tree.add tree path ?metadata (Option.get value)
             | Some (`Contents (`Value value, metadata)) ->
                 Store.Tree.add tree path ?metadata value
             | Some (`Tree t) ->
-                let* _, tree' = resolve_tree ctx t in
+                let _, tree' =
+                  Lwt_eio.run_lwt @@ fun () -> resolve_tree ctx t
+                in
                 Store.Tree.add_tree tree path tree'
             | None -> Store.Tree.remove tree path)
           tree l
@@ -250,7 +264,9 @@ struct
     let run conn ctx _ (tree, path, tr) =
       let* _, tree = resolve_tree ctx tree in
       let* _, tree' = resolve_tree ctx tr in
-      let* tree = Store.Tree.add_tree tree path tree' in
+      let* tree =
+        Lwt_eio.run_eio @@ fun () -> Store.Tree.add_tree tree path tree'
+      in
       let id = incr_id () in
       Hashtbl.replace ctx.trees id tree;
       Return.v conn res_t (ID id)
@@ -267,6 +283,7 @@ struct
       let* _, tree = resolve_tree ctx tree in
       let* _, tree' = resolve_tree ctx tr in
       let* tree =
+        Lwt_eio.run_eio @@ fun () ->
         Irmin.Merge.f Store.Tree.merge ~old:(Irmin.Merge.promise old) tree tree'
       in
       match tree with
@@ -286,7 +303,7 @@ struct
 
     let run conn ctx _ (tree, path) =
       let* _, tree = resolve_tree ctx tree in
-      let* contents = Store.Tree.find tree path in
+      let* contents = Lwt_eio.run_eio @@ fun () -> Store.Tree.find tree path in
       Return.v conn res_t contents
   end
 
@@ -298,7 +315,7 @@ struct
 
     let run conn ctx _ (tree, path) =
       let* _, tree = resolve_tree ctx tree in
-      let* tree = Store.Tree.find_tree tree path in
+      let* tree = Lwt_eio.run_eio @@ fun () -> Store.Tree.find_tree tree path in
       let tree =
         Option.map
           (fun tree ->
@@ -318,7 +335,7 @@ struct
 
     let run conn ctx _ (tree, path) =
       let* _, tree = resolve_tree ctx tree in
-      let* tree = Store.Tree.remove tree path in
+      let* tree = Lwt_eio.run_eio @@ fun () -> Store.Tree.remove tree path in
       let id = incr_id () in
       Hashtbl.replace ctx.trees id tree;
       Return.v conn res_t (ID id)
@@ -345,7 +362,7 @@ struct
 
     let run conn ctx _ tree =
       let* _, tree = resolve_tree ctx tree in
-      let* tree = Store.Tree.to_concrete tree in
+      let* tree = Lwt_eio.run_eio @@ fun () -> Store.Tree.to_concrete tree in
       Return.v conn res_t tree
   end
 
@@ -357,7 +374,7 @@ struct
 
     let run conn ctx _ (tree, path) =
       let* _, tree = resolve_tree ctx tree in
-      let* res = Store.Tree.mem tree path in
+      let* res = Lwt_eio.run_eio @@ fun () -> Store.Tree.mem tree path in
       Return.v conn res_t res
   end
 
@@ -369,7 +386,7 @@ struct
 
     let run conn ctx _ (tree, path) =
       let* _, tree = resolve_tree ctx tree in
-      let* res = Store.Tree.mem_tree tree path in
+      let* res = Lwt_eio.run_eio @@ fun () -> Store.Tree.mem_tree tree path in
       Return.v conn res_t res
   end
 
@@ -382,11 +399,12 @@ struct
 
     let run conn ctx _ (tree, path) =
       let* _, tree = resolve_tree ctx tree in
-      let* l = Store.Tree.list tree path in
+      let* l = Lwt_eio.run_eio @@ fun () -> Store.Tree.list tree path in
       let* x =
-        Lwt_list.map_s
+        Lwt_eio.run_eio @@ fun () ->
+        List.map
           (fun (k, _) ->
-            let+ exists = Store.Tree.mem_tree tree (Store.Path.rcons path k) in
+            let exists = Store.Tree.mem_tree tree (Store.Path.rcons path k) in
             if exists then (k, `Tree) else (k, `Contents))
           l
       in

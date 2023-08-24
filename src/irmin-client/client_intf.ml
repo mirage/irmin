@@ -51,81 +51,78 @@ module type Batch = sig
 
       TODO: devise a better scheme. *)
 
-  val empty : repo -> t Lwt.t
-  val of_hash : repo -> hash -> t option Lwt.t
-  val of_path : store -> path -> t option Lwt.t
-  val of_commit : repo -> hash -> t option Lwt.t
-
-  val save :
-    repo -> t -> [ `Contents of contents_key | `Node of node_key ] Lwt.t
-
-  val to_local : repo -> t -> tree Lwt.t
-  val of_local : tree -> t Lwt.t
+  val empty : repo -> t
+  val of_hash : repo -> hash -> t option
+  val of_path : store -> path -> t option
+  val of_commit : repo -> hash -> t option
+  val save : repo -> t -> [ `Contents of contents_key | `Node of node_key ]
+  val to_local : repo -> t -> tree
+  val of_local : tree -> t
 
   val of_key : kinded_key -> t
   (** Create a tree from a key that specifies a tree that already exists in the
       store *)
 
-  val key : repo -> t -> kinded_key Lwt.t
+  val key : repo -> t -> kinded_key
   (** Get key of tree *)
 
-  val add : repo -> t -> path -> contents -> t Lwt.t
+  val add : repo -> t -> path -> contents -> t
   (** Add contents to a tree *)
 
-  val add_tree : repo -> t -> path -> t -> t Lwt.t
+  val add_tree : repo -> t -> path -> t -> t
 
-  val find : repo -> t -> path -> contents option Lwt.t
+  val find : repo -> t -> path -> contents option
   (** Find the value associated with the given path *)
 
-  val find_tree : repo -> t -> path -> t option Lwt.t
+  val find_tree : repo -> t -> path -> t option
   (** Find the tree associated with the given path *)
 
-  val remove : repo -> t -> path -> t Lwt.t
+  val remove : repo -> t -> path -> t
   (** Remove value from a tree, returning a new tree *)
 
-  val cleanup : repo -> t -> unit Lwt.t
+  val cleanup : repo -> t -> unit
   (** Invalidate a tree, this frees the tree on the server side *)
 
-  val cleanup_all : repo -> unit Lwt.t
+  val cleanup_all : repo -> unit
   (** Cleanup all trees *)
 
-  val mem : repo -> t -> path -> bool Lwt.t
+  val mem : repo -> t -> path -> bool
   (** Check if a path is associated with a value *)
 
-  val mem_tree : repo -> t -> path -> bool Lwt.t
+  val mem_tree : repo -> t -> path -> bool
   (** Check if a path is associated with a tree *)
 
-  val list : repo -> t -> path -> (step * [ `Contents | `Tree ]) list Lwt.t
+  val list : repo -> t -> path -> (step * [ `Contents | `Tree ]) list
   (** List entries at the specified root *)
 
-  val merge : repo -> old:t -> t -> t -> t Lwt.t
+  val merge : repo -> old:t -> t -> t -> t
   (** Three way merge *)
 
-  val hash : repo -> t -> hash Lwt.t
-  val clear : repo -> t -> unit Lwt.t
+  val hash : repo -> t -> hash
+  val clear : repo -> t -> unit
 end
 
 module type S = sig
   include Irmin.Generic_key.S
 
-  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo Lwt.t
+  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo
   val reconnect : repo -> unit Lwt.t
 
   val uri : repo -> Uri.t
   (** Get the URI the client is connected to *)
 
-  val close : repo -> unit Lwt.t
+  val close : repo -> unit
   (** Close connection to the server *)
 
   val dup : repo -> repo Lwt.t
   (** Duplicate a client. This will create a new connection with the same
       configuration *)
 
-  val ping : repo -> unit Error.result Lwt.t
+  val ping : repo -> unit Error.result
   (** Ping the server *)
 
-  val export : ?depth:int -> repo -> slice Lwt.t
-  val import : repo -> slice -> unit Lwt.t
+  val export : ?depth:int -> repo -> slice
+  val import : repo -> slice -> unit
   val current_branch : t -> branch Lwt.t
 
   (** The batch API is used to have better control of when data is sent between
@@ -160,16 +157,16 @@ module type S = sig
     val of_contents : ?path:path -> ?metadata:metadata -> contents -> t
 
     val commit :
-      parents:Commit.t list -> info:Info.f -> repo -> Tree.t -> Commit.t Lwt.t
+      parents:Commit.t list -> info:Info.f -> repo -> Tree.t -> Commit.t
     (** Commit a batch tree, returning the resulting commit. This will make a
         request to the server with the entire bulk tree. *)
 
     val apply :
-      ?parents:Commit.t list -> info:Info.f -> store -> path -> t -> unit Lwt.t
+      ?parents:Commit.t list -> info:Info.f -> store -> path -> t -> unit
     (** Submit a batch update to the server. This will make a request to the
         server with the entire bulk update. *)
 
-    val tree : repo -> t -> Tree.t -> Tree.t Lwt.t
+    val tree : repo -> t -> Tree.t -> Tree.t
     val find : t -> path -> batch_contents option
     val find_tree : t -> path -> Tree.t option
     val mem : t -> path -> bool

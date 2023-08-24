@@ -48,7 +48,9 @@ struct
       let name = "set_current_branch"
 
       let run conn ctx _ branch =
-        let* store = Store.of_branch ctx.repo branch in
+        let* store =
+          Lwt_eio.run_eio @@ fun () -> Store.of_branch ctx.repo branch
+        in
         ctx.branch <- branch;
         ctx.store <- store;
         Return.ok conn
@@ -69,7 +71,10 @@ struct
       let name = "export"
 
       let run conn ctx _ depth =
-        let* slice = Store.Repo.export ?depth ~full:true ~max:`Head ctx.repo in
+        let* slice =
+          Lwt_eio.run_eio @@ fun () ->
+          Store.Repo.export ?depth ~full:true ~max:`Head ctx.repo
+        in
         Return.v conn Store.slice_t slice
     end
 
@@ -80,7 +85,10 @@ struct
       let name = "import"
 
       let run conn ctx _ slice =
-        let* () = Store.Repo.import ctx.repo slice >|= Error.unwrap "import" in
+        let* () =
+          (Lwt_eio.run_eio @@ fun () -> Store.Repo.import ctx.repo slice)
+          >|= Error.unwrap "import"
+        in
         Return.ok conn
     end
 
@@ -107,6 +115,7 @@ struct
 
         let run conn ctx _ key =
           let* x =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ -> Contents.mem contents key)
           in
           Return.v conn res_t x
@@ -120,6 +129,7 @@ struct
 
         let run conn ctx _ key =
           let* v =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ -> Contents.find contents key)
           in
           Return.v conn res_t v
@@ -133,6 +143,7 @@ struct
 
         let run conn ctx _ value =
           let* k =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ ->
                 Contents.add contents value)
           in
@@ -147,6 +158,7 @@ struct
 
         let run conn ctx _ (hash, value) =
           let* k =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ ->
                 Contents.unsafe_add contents hash value)
           in
@@ -161,6 +173,7 @@ struct
 
         let run conn ctx _ hash =
           let* v =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ ->
                 Contents.index contents hash)
           in
@@ -178,10 +191,11 @@ struct
 
         let run conn ctx _ (old, a, b) =
           let* res =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ ->
                 let merge = Contents.merge contents in
                 let f = Irmin.Merge.f merge in
-                let old () = Lwt.return_ok old in
+                let old () = Ok old in
                 f ~old a b)
           in
           Return.v conn res_t res
@@ -206,7 +220,10 @@ struct
         type res = bool [@@deriving irmin]
 
         let run conn ctx _ key =
-          let* x = Repo.batch ctx.repo (fun _ node _ -> Node.mem node key) in
+          let* x =
+            Lwt_eio.run_eio @@ fun () ->
+            Repo.batch ctx.repo (fun _ node _ -> Node.mem node key)
+          in
           Return.v conn res_t x
       end
 
@@ -217,7 +234,10 @@ struct
         type res = value option [@@deriving irmin]
 
         let run conn ctx _ key =
-          let* v = Repo.batch ctx.repo (fun _ node _ -> Node.find node key) in
+          let* v =
+            Lwt_eio.run_eio @@ fun () ->
+            Repo.batch ctx.repo (fun _ node _ -> Node.find node key)
+          in
           Return.v conn res_t v
       end
 
@@ -228,7 +248,10 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ value =
-          let* k = Repo.batch ctx.repo (fun _ node _ -> Node.add node value) in
+          let* k =
+            Lwt_eio.run_eio @@ fun () ->
+            Repo.batch ctx.repo (fun _ node _ -> Node.add node value)
+          in
           Return.v conn res_t k
       end
 
@@ -240,6 +263,7 @@ struct
 
         let run conn ctx _ (hash, value) =
           let* k =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ node _ ->
                 Node.unsafe_add node hash value)
           in
@@ -253,7 +277,10 @@ struct
         type res = key option [@@deriving irmin]
 
         let run conn ctx _ hash =
-          let* v = Repo.batch ctx.repo (fun _ node _ -> Node.index node hash) in
+          let* v =
+            Lwt_eio.run_eio @@ fun () ->
+            Repo.batch ctx.repo (fun _ node _ -> Node.index node hash)
+          in
           Return.v conn res_t v
       end
 
@@ -268,10 +295,11 @@ struct
 
         let run conn ctx _ (old, a, b) =
           let* res =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ node _ ->
                 let merge = Node.merge node in
                 let f = Irmin.Merge.f merge in
-                let old () = Lwt.return_ok old in
+                let old () = Ok old in
                 f ~old a b)
           in
           Return.v conn res_t res
@@ -297,7 +325,7 @@ struct
 
         let run conn ctx _ key =
           let x = Repo.commit_t ctx.repo in
-          let* v = Commit.mem x key in
+          let* v = Lwt_eio.run_eio @@ fun () -> Commit.mem x key in
           Return.v conn res_t v
       end
 
@@ -309,7 +337,7 @@ struct
 
         let run conn ctx _ key =
           let x = Repo.commit_t ctx.repo in
-          let* v = Commit.find x key in
+          let* v = Lwt_eio.run_eio @@ fun () -> Commit.find x key in
           Return.v conn res_t v
       end
 
@@ -321,6 +349,7 @@ struct
 
         let run conn ctx _ value =
           let* k =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ _ commit -> Commit.add commit value)
           in
           Return.v conn res_t k
@@ -334,6 +363,7 @@ struct
 
         let run conn ctx _ (hash, value) =
           let* k =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ _ commit ->
                 Commit.unsafe_add commit hash value)
           in
@@ -348,6 +378,7 @@ struct
 
         let run conn ctx _ hash =
           let* v =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ _ commit -> Commit.index commit hash)
           in
           Return.v conn res_t v
@@ -365,10 +396,11 @@ struct
         let run conn ctx _ (info, (old, a, b)) =
           let info () = info in
           let* res =
+            Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ _ commit ->
                 let merge = Commit.merge commit ~info in
                 let f = Irmin.Merge.f merge in
-                let old () = Lwt.return_ok old in
+                let old () = Ok old in
                 f ~old a b)
           in
           Return.v conn res_t res
@@ -387,7 +419,7 @@ struct
 
         let run conn ctx _ branch =
           let b = Repo.branch_t ctx.repo in
-          let* x = Branch.mem b branch in
+          let* x = Lwt_eio.run_eio @@ fun () -> Branch.mem b branch in
           Return.v conn res_t x
       end
 
@@ -399,7 +431,7 @@ struct
 
         let run conn ctx _ branch =
           let b = Repo.branch_t ctx.repo in
-          let* commit = Branch.find b branch in
+          let* commit = Lwt_eio.run_eio @@ fun () -> Branch.find b branch in
           Return.v conn res_t commit
       end
 
@@ -411,7 +443,7 @@ struct
 
         let run conn ctx _ (branch, commit) =
           let b = Repo.branch_t ctx.repo in
-          let* () = Branch.set b branch commit in
+          let* () = Lwt_eio.run_eio @@ fun () -> Branch.set b branch commit in
           Return.v conn res_t ()
       end
 
@@ -423,7 +455,9 @@ struct
 
         let run conn ctx _ (branch, test, set) =
           let b = Repo.branch_t ctx.repo in
-          let* res = Branch.test_and_set b branch ~test ~set in
+          let* res =
+            Lwt_eio.run_eio @@ fun () -> Branch.test_and_set b branch ~test ~set
+          in
           Return.v conn res_t res
       end
 
@@ -435,7 +469,7 @@ struct
 
         let run conn ctx _ branch =
           let b = Repo.branch_t ctx.repo in
-          let* () = Branch.remove b branch in
+          let* () = Lwt_eio.run_eio @@ fun () -> Branch.remove b branch in
           Return.v conn res_t ()
       end
 
@@ -447,7 +481,7 @@ struct
 
         let run conn ctx _ () =
           let b = Repo.branch_t ctx.repo in
-          let* b = Branch.list b in
+          let* b = Lwt_eio.run_eio @@ fun () -> Branch.list b in
           Return.v conn res_t b
       end
 
@@ -459,7 +493,7 @@ struct
 
         let run conn ctx _ () =
           let b = Repo.branch_t ctx.repo in
-          let* () = Branch.clear b in
+          let* () = Lwt_eio.run_eio @@ fun () -> Branch.clear b in
           Return.v conn res_t ()
       end
 
@@ -475,11 +509,14 @@ struct
             match ctx.branch_watch with
             | Some watch ->
                 ctx.branch_watch <- None;
-                Branch.unwatch b watch
+
+                Lwt_eio.run_eio @@ fun () -> Branch.unwatch b watch
             | None -> Lwt.return_unit
           in
           let* watch =
+            Lwt_eio.run_eio @@ fun () ->
             Branch.watch b ?init (fun key diff ->
+                Lwt_eio.run_lwt @@ fun () ->
                 let diff_t = Irmin.Diff.t Store.commit_key_t in
                 Lwt.catch
                   (fun () ->
@@ -508,11 +545,13 @@ struct
             match ctx.branch_watch with
             | Some watch ->
                 ctx.branch_watch <- None;
-                Branch.unwatch b watch
+                Lwt_eio.run_eio @@ fun () -> Branch.unwatch b watch
             | None -> Lwt.return_unit
           in
           let* watch =
+            Lwt_eio.run_eio @@ fun () ->
             Branch.watch_key b key ?init (fun diff ->
+                Lwt_eio.run_lwt @@ fun () ->
                 let diff_t = Irmin.Diff.t Store.commit_key_t in
                 Lwt.catch
                   (fun () ->
@@ -537,7 +576,7 @@ struct
             match ctx.branch_watch with
             | Some watch ->
                 ctx.branch_watch <- None;
-                Branch.unwatch b watch
+                Lwt_eio.run_eio @@ fun () -> Branch.unwatch b watch
             | None -> Lwt.return_unit
           in
           Return.v conn res_t ()
@@ -552,7 +591,7 @@ struct
         let name = "store.mem"
 
         let run conn ctx _ path =
-          let* res = Store.mem ctx.store path in
+          let* res = Lwt_eio.run_eio @@ fun () -> Store.mem ctx.store path in
           Return.v conn res_t res
       end
 
@@ -563,7 +602,9 @@ struct
         let name = "store.mem_tree"
 
         let run conn ctx _ path =
-          let* res = Store.mem_tree ctx.store path in
+          let* res =
+            Lwt_eio.run_eio @@ fun () -> Store.mem_tree ctx.store path
+          in
           Return.v conn res_t res
       end
 
@@ -574,7 +615,7 @@ struct
         let name = "store.find"
 
         let run conn ctx _ path =
-          let* x = Store.find ctx.store path in
+          let* x = Lwt_eio.run_eio @@ fun () -> Store.find ctx.store path in
           Return.v conn res_t x
       end
 
@@ -585,11 +626,13 @@ struct
         let name = "store.find_tree"
 
         let run conn ctx _ path =
-          let* x = Store.find_tree ctx.store path in
+          let* x =
+            Lwt_eio.run_eio @@ fun () -> Store.find_tree ctx.store path
+          in
           match x with
           | None -> Return.v conn res_t None
           | Some x ->
-              let* x = Store.Tree.to_concrete x in
+              let* x = Lwt_eio.run_eio @@ fun () -> Store.Tree.to_concrete x in
               Return.v conn res_t (Some x)
       end
 
@@ -602,7 +645,8 @@ struct
         | None -> Lwt.return None
         | Some parents ->
             let* parents =
-              Lwt_list.filter_map_s
+              Lwt_eio.run_eio @@ fun () ->
+              List.filter_map
                 (fun hash -> Store.Commit.of_hash ctx.repo hash)
                 parents
             in
@@ -618,6 +662,7 @@ struct
             (((clear, retries), (allow_empty, parents)), path, info) =
           let* parents = mk_parents ctx parents in
           let* () =
+            Lwt_eio.run_eio @@ fun () ->
             Store.remove_exn ?clear ?retries ?allow_empty ?parents ctx.store
               path ~info:(fun () -> info)
           in

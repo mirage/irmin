@@ -72,7 +72,9 @@ struct
     let* id, tree =
       match tree with
       | Tree.ID x -> Lwt.return @@ (Some x, Hashtbl.find_opt ctx.trees x)
-      | Key x -> St.Tree.of_key ctx.repo x >|= fun x -> (None, x)
+      | Key x ->
+          Lwt_eio.run_eio (fun () -> St.Tree.of_key ctx.repo x) >|= fun x ->
+          (None, x)
       | Concrete x -> Lwt.return (None, Some (St.Tree.of_concrete x))
     in
     match tree with
