@@ -15,7 +15,7 @@
 
 ### Removed
 
-- **irmin-http*
+- **irmin-http**
   - Removed `irmin-http` since it is not compatible with generic keys.
     `irmin-grapqhl` or `irmin-server` should be used instead. (#1902, @zshipko)
 
