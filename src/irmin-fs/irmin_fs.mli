@@ -33,7 +33,7 @@ val config : string -> Irmin.config
 module type IO = sig
   (** {1 File-system abstractions} *)
 
-  type path = Eio.Fs.dir Eio.Path.t
+  type path = Eio.Fs.dir_ty Eio.Path.t
   (** The type for paths. *)
 
   (** {2 Read operations} *)
@@ -86,7 +86,7 @@ module type Config = sig
   open Eio
   (** Same as [Config] but gives more control on the file hierarchy. *)
 
-  val dir : Fs.dir Path.t -> Fs.dir Path.t
+  val dir : Fs.dir_ty Path.t -> Fs.dir_ty Path.t
   (** [dir root] is the sub-directory to look for the keys. *)
 
   val file_of_key : string -> string
@@ -109,4 +109,4 @@ module IO_mem : sig
   val set_listen_hook : unit -> unit
 end
 
-val run : Eio.Fs.dir Eio.Path.t -> (unit -> 'a) -> 'a
+val run : Eio.Fs.dir_ty Eio.Path.t -> (unit -> 'a) -> 'a
