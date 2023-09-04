@@ -25,13 +25,13 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let ( / ) = Path.( / )
 
 module type Config = sig
-  val dir : Fs.dir Path.t -> Fs.dir Path.t
+  val dir : Fs.dir_ty Path.t -> Fs.dir_ty Path.t
   val file_of_key : string -> string
   val key_of_file : string -> string
 end
 
 module type IO = sig
-  type path = Fs.dir Path.t
+  type path = Fs.dir_ty Path.t
 
   val rec_files : path -> path list
   val file_exists : path -> bool
@@ -76,7 +76,7 @@ module Read_only_ext
 struct
   type key = K.t
   type value = V.t
-  type 'a t = { path : Fs.dir Path.t }
+  type 'a t = { path : Fs.dir_ty Path.t }
 
   let get_path config = Option.value Conf.(find_root config) ~default:"."
 
@@ -332,12 +332,12 @@ end
 module IO_mem = struct
   type t = {
     watches : (string, string -> unit) Hashtbl.t;
-    files : (Fs.dir Path.t, string) Hashtbl.t;
+    files : (Fs.dir_ty Path.t, string) Hashtbl.t;
   }
 
   let t = { watches = Hashtbl.create 3; files = Hashtbl.create 13 }
 
-  type path = Fs.dir Path.t
+  type path = Fs.dir_ty Path.t
   type lock = Eio.Mutex.t
 
   let locks = Hashtbl.create 10
@@ -424,7 +424,7 @@ module Maker_is_a_maker : Irmin.Maker = Maker (IO_mem)
 (* Enforce that {!KV} is a sub-type of {!Irmin.KV_maker}. *)
 module KV_is_a_KV : Irmin.KV_maker = KV (IO_mem)
 
-let run (fs : Fs.dir Path.t) fn =
+let run (fs : Fs.dir_ty Path.t) fn =
   Switch.run @@ fun sw ->
   Irmin.Backend.Watch.set_watch_switch sw;
   let open Effect.Deep in

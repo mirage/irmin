@@ -181,8 +181,8 @@ let find_root (spec, d) : string option =
 
 module Env = struct
   type _ Effect.t +=
-    | Fs : Eio.Fs.dir Eio.Path.t Effect.t
-    | Net : Eio.Net.t Effect.t
+    | Fs : Eio.Fs.dir_ty Eio.Path.t Effect.t
+    | Net : _ Eio.Net.t Effect.t
 
   let fs () = Effect.perform Fs
   let net () = Effect.perform Net
