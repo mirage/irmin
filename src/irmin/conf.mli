@@ -169,9 +169,9 @@ val find_root : t -> string option
 
 module Env : sig
   type _ Effect.t +=
-    | Fs : Eio.Fs.dir Eio.Path.t Effect.t
-    | Net : Eio.Net.t Effect.t
+    | Fs : Eio.Fs.dir_ty Eio.Path.t Effect.t
+    | Net : _ Eio.Net.t Effect.t
 
-  val fs : unit -> Eio.Fs.dir Eio.Path.t
-  val net : unit -> Eio.Net.t
+  val fs : unit -> Eio.Fs.dir_ty Eio.Path.t
+  val net : unit -> _ Eio.Net.t
 end

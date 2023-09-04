@@ -121,7 +121,7 @@ module IO = struct
           Fun.protect fn ~finally:(fun () -> unlock f)
   end
 
-  type path = Eio.Fs.dir Eio.Path.t
+  type path = Eio.Fs.dir_ty Eio.Path.t
 
   (* we use file locking *)
   type lock = path
@@ -271,7 +271,7 @@ module IO = struct
           in
           true)
 
-  let rec_files dir : Fs.dir Path.t list =
+  let rec_files dir : Fs.dir_ty Path.t list =
     let rec aux accu dir =
       let ds = directories dir in
       let fs = files dir in
