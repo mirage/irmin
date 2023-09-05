@@ -4,7 +4,8 @@ This folder contains several tools meant to provide usefull ways to debug and du
 Currently, there are the following tools:
 - [`ppcf`](#ppcf), a json printer for control files
 - [`ppidx`](#ppidx), a json printer for index folders
-- [`tezos-explorer`](#tezos-explorer), a gui for a fast exploration of tezos stores
+- [`tezos-explorer`](#tezos-explorer), a notty ui for a fast exploration of tezos stores
+- [`tezos-explorer-gyu`](#tezos-explorer-gui), a graphical ui for a fast exploration of tezos stores
 
 ## ppcf
 This tool prints a control file in a human readable manner (json), allowing to fetch important informations easily.
@@ -101,3 +102,23 @@ $ jq -s 'sort_by(.off)' -- index
 
 ## tezos-explorer
 TODO
+
+## tezos-explorer-gui
+This tool is a graphical UI, meant to allow the user to figure out rapidly the shape of a commit, giving him informations on it's content.
+It can be launched using the following command:
+```shell
+$ dune exec -- irmin-tezos-explorer-gui <path-to-store> <path-to-ttf-font> <commit>
+```
+
+The first argument is the path to the root of the store (e.g. `output/root/`).
+
+The second argument is the path to a `.ttf` file, necessary to know which font to use when printing strings.
+
+The third argument is an int, the `nth` commit stored in the index of the store that will be showned first.
+
+Once the program is launched, you can:
+- Navigate through the indexed commits using the left and right arrows.
+- Zoom in and out using the mouse wheel.
+- Drag the tree around when pressing the left mouse click and moving it around.
+
+Be aware that some commit are too big to be shown, and will take ages to compute for very little informations: You can shut the program down using the `alt-f4`` command.

@@ -24,10 +24,17 @@ depends: [
   "cmdliner"    {>= "1.1.0"}
   "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
+  "tsdl"        {>= "1.0.0"}
+  "tsdl-ttf"    {>= "0.6"}
+  "prettree"
   "ptime"
   "hex"
   "irmin-test"  {with-test & = version}
   "alcotest"    {with-test}
+]
+
+pin-depends: [
+  ["prettree.dev"  "git+https://github.com/art-w/prettree.git#568de08442f02dd87acc84ca6a91cc661b7e77bf"]
 ]
 
 synopsis: "Utils for Irmin-pack"
