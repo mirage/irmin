@@ -88,6 +88,10 @@ module type S_generic_key = sig
   module Info : sig
     include Info.S with type t = info
     (** @inline *)
+
+    val pp : t Fmt.t
+    [@@ocaml.toplevel_printer]
+    (** [pp] is a pretty-printer for info. *)
   end
 
   type contents_key [@@deriving irmin]
@@ -264,6 +268,7 @@ module type S_generic_key = sig
     (** [t] is the value type for {!type-t}. *)
 
     val pp : t Fmt.t
+    [@@ocaml.toplevel_printer]
     (** [pp] is the pretty-printer for store status. *)
   end
 
@@ -340,7 +345,11 @@ module type S_generic_key = sig
     (** [t] is the value type for {!type-t}. *)
 
     val pp_hash : t Fmt.t
-    (** [pp] is the pretty-printer for commit. Display only the hash. *)
+    (** [pp_hash] is a pretty-printer for a commit. Displays only the hash. *)
+
+    val pp : t Fmt.t
+    [@@ocaml.toplevel_printer]
+    (** [pp] is a full pretty-printer for a commit. Displays all information. *)
 
     val v :
       ?clear:bool ->
@@ -420,6 +429,10 @@ module type S_generic_key = sig
          and type contents_key := contents_key
          and type node := node
          and type hash := hash
+
+    val pp : tree Type.pp
+    [@@ocaml.toplevel_printer]
+    (** [pp] is a pretty-printer for a tree. *)
 
     (** {1 Import/Export} *)
 
@@ -1069,6 +1082,10 @@ module type S_generic_key = sig
       watch Lwt.t
     (** [watch_all t f] calls [f] on every branch-related change in [t],
         including creation/deletion events. *)
+
+    val pp : branch Fmt.t
+    [@@ocaml.toplevel_printer]
+    (** [pp] is a pretty-printer for a branch. *)
 
     include Branch.S with type t = branch
     (** Base functions for branches. *)

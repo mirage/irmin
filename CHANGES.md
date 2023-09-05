@@ -7,6 +7,9 @@
 - **irmin-client**
   - Added `irmin-client` package to connect to `irmin-server` instances (#2031,
     @zshipko)
+- **irmin**
+  - Add pretty printers for `Commit`, `Tree`, `Info`, `Status`, `Branch` when
+    using `utop` (@metanivek, #1839)
 
 ### Fixed
 
