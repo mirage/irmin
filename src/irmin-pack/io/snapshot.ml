@@ -17,18 +17,22 @@
 open! Import
 open Snapshot_intf
 
-let rm_index path =
-  let path_index = Filename.concat path "index" in
-  Sys.readdir path_index
-  |> Array.iter (fun name -> Unix.unlink (Filename.concat path_index name));
-  Unix.rmdir path_index;
-  Unix.rmdir path
-
 module Make (Args : Args) = struct
   module Hashes = Irmin.Hash.Set.Make (Args.Hash)
   open Args
   module Inode_pack = Inode.Pack
   module Pack_index = Fm.Index
+  module Io = Fm.Io
+
+  let rm_index path =
+    let path_index = Filename.concat path "index" in
+    Io.readdir path_index
+    |> List.iter (fun name ->
+           match Io.unlink (Filename.concat path_index name) with
+           | Ok () -> ()
+           | Error (`Sys_error msg) -> failwith msg);
+    Io.rmdir path_index;
+    Io.rmdir path
 
   let pp_hash = Irmin.Type.pp Hash.t
   let pp_key = Irmin.Type.pp Inode_pack.Key.t
