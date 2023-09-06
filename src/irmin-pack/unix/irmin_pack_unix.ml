@@ -19,10 +19,11 @@
 module type S = Irmin_pack_io.Store_intf.S
 
 module Maker (Config : Irmin_pack.Conf.S) =
-  Irmin_pack_io.Maker_io (Io.Unix) (Index_unix.Private.Platform) (Config)
+  Irmin_pack_io.Maker_io (Io.Unix) (Index_unix.Private.Platform) (Async.Unix)
+    (Config)
 
 module KV (Config : Irmin_pack.Conf.S) =
-  Irmin_pack_io.KV (Io.Unix) (Index_unix.Private.Platform) (Config)
+  Irmin_pack_io.KV (Io.Unix) (Index_unix.Private.Platform) (Async.Unix) (Config)
 
 open Irmin_pack_io
 

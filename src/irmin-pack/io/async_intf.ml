@@ -43,9 +43,3 @@ module type S = sig
 
       If not running, do nothing and return [false]. *)
 end
-
-module type Sigs = sig
-  module type S = S
-
-  module Unix : S
-end

@@ -17,7 +17,11 @@
 open! Import
 include Store_intf
 
-module Maker (Io : Io_intf.S) (Io_index : Index.Platform.S) (Config : Conf.S) =
+module Maker
+    (Io : Io_intf.S)
+    (Io_index : Index.Platform.S)
+    (Async : Async_intf.S)
+    (Config : Conf.S) =
 struct
   type endpoint = unit
 
@@ -125,7 +129,7 @@ struct
       module Remote = Irmin.Backend.Remote.None (Commit.Key) (B)
 
       module Gc = Gc.Make (struct
-        module Async = Async.Unix
+        module Async = Async
         module Fm = File_manager
         module Errs = Errs
         module Dict = Dict
