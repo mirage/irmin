@@ -100,6 +100,7 @@ module Unix = struct
         | _ -> `Other
       with _ -> `No_such_file_or_directory)
 
+  let readdir p = Sys.readdir p |> Array.to_list
   let default_create_perm = 0o644
   let default_open_perm = 0o644
   let default_mkdir_perm = 0o755
@@ -288,6 +289,8 @@ module Unix = struct
         Error (`No_such_file_or_directory path)
     | _ -> Error `Invalid_parent_directory
 
+  let rmdir path = Sys.rmdir path
+
   let unlink path =
     try
       Sys.remove path;
@@ -297,4 +300,31 @@ module Unix = struct
   let unlink_dont_wait ~on_exn path =
     (* TODO: Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn *)
     try Sys.remove path with err -> on_exn err
+
+  module Stats = struct
+    let is_darwin =
+      lazy
+        (try
+           match Unix.open_process_in "uname" |> input_line with
+           | "Darwin" -> true
+           | _ -> false
+         with Unix.Unix_error _ -> false)
+
+    let get_wtime () =
+      (Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float) /. 1e9
+
+    let get_stime () = Rusage.((get Self).stime)
+    let get_utime () = Rusage.((get Self).utime)
+
+    let get_rusage () =
+      let Rusage.{ maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw; _ }
+          =
+        Rusage.(get Self)
+      in
+      let maxrss =
+        if Lazy.force is_darwin then Int64.div maxrss 1000L else maxrss
+      in
+      Irmin_pack_io.Stats_intf.Latest_gc.
+        { maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw }
+  end
 end

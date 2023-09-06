@@ -57,7 +57,7 @@ let ppf_or_null ppf =
   in
   match ppf with
   | Some p -> p
-  | None -> open_out null |> Format.formatter_of_out_channel
+  | None -> Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
 
 module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (Store : Store) =
 struct
@@ -389,10 +389,11 @@ end
 
 module Integrity_checks
     (XKey : Pack_key.S)
-    (X : Irmin.Backend.S
-           with type Commit.key = XKey.t
-            and type Node.key = XKey.t
-            and type Schema.Hash.t = XKey.hash)
+    (X :
+      Irmin.Backend.S
+        with type Commit.key = XKey.t
+         and type Node.key = XKey.t
+         and type Schema.Hash.t = XKey.hash)
     (Index : Pack_index.S) =
 struct
   let check_always ?ppf ~auto_repair ~check index =

@@ -84,6 +84,7 @@ module type S = sig
     src:string -> dst:string -> (unit, [> `Sys_error of string ]) result
 
   val mkdir : string -> (unit, [> mkdir_error ]) result
+  val rmdir : string -> unit
   val unlink : string -> (unit, [> `Sys_error of string ]) result
 
   val unlink_dont_wait : on_exn:(exn -> unit) -> string -> unit
@@ -121,6 +122,8 @@ module type S = sig
   val classify_path :
     string -> [> `File | `Directory | `No_such_file_or_directory | `Other ]
 
+  val readdir : string -> string list
+
   (** {1 MISC.} *)
 
   val readonly : t -> bool
@@ -153,10 +156,11 @@ module type S = sig
 
   val catch_misc_error :
     (unit -> 'a) -> ('a, [> `Io_misc of misc_error ]) result
-end
 
-module type Sigs = sig
-  module type S = S
-
-  module Unix : S with type misc_error = Unix.error * string * string
+  module Stats : sig
+    val get_rusage : unit -> Stats.Latest_gc.rusage
+    val get_wtime : unit -> float
+    val get_stime : unit -> float
+    val get_utime : unit -> float
+  end
 end

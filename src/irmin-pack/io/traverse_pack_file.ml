@@ -84,7 +84,8 @@ module Make (Args : Args) : sig
     unit
 end = struct
   open Args
-  module Errs = Io_errors.Make (File_manager.Io)
+  module Io = File_manager.Io
+  module Errs = Io_errors.Make (Io)
 
   let pp_key = Irmin.Type.pp Hash.t
   let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
@@ -117,7 +118,7 @@ end = struct
       let dest =
         match dest with
         | `Output path ->
-            if Sys.file_exists path then
+            if Io.classify_path path <> `No_such_file_or_directory then
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
