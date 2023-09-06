@@ -17,7 +17,7 @@
 open! Import
 include Dict_intf
 
-module Make (Io : Io.S) = struct
+module Make (Io : Io_intf.S) = struct
   module Io = Io
   module Errs = Io_errors.Make (Io)
   module Ao = Append_only_file.Make (Io) (Errs)

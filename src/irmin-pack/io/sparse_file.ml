@@ -20,7 +20,7 @@ module BigArr1 = Bigarray.Array1
 
 type int64_bigarray = (int64, Bigarray.int64_elt, Bigarray.c_layout) BigArr1.t
 
-module Int64_mmap (Io : Io.S) : sig
+module Int64_mmap (Io : Io_intf.S) : sig
   type t
 
   val open_ro : fn:string -> sz:int -> (t, [> Io.open_error ]) result
@@ -70,7 +70,7 @@ end = struct
     t.arr.{i}
 end
 
-module Make (Io : Io.S) = struct
+module Make (Io : Io_intf.S) = struct
   module Io = Io
   module Errs = Io_errors.Make (Io)
 

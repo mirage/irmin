@@ -17,7 +17,7 @@
 open! Import
 include Store_intf
 
-module Maker (Io : Io.S) (Io_index : Index.Platform.S) (Config : Conf.S) =
+module Maker (Io : Io_intf.S) (Io_index : Index.Platform.S) (Config : Conf.S) =
 struct
   type endpoint = unit
 
@@ -701,6 +701,7 @@ struct
         module Contents_pack = X.Contents.CA
         module Fm = File_manager
         module Dispatcher = Dispatcher
+        module Io_index = Io_index
       end)
 
       include S

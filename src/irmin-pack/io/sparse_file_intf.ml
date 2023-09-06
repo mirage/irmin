@@ -17,7 +17,7 @@
 open! Import
 
 module type S = sig
-  module Io : Io.S
+  module Io : Io_intf.S
   module Errs : Io_errors.S with module Io = Io
 
   type t
@@ -153,5 +153,5 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Make (Io : Io.S) : S with module Io = Io
+  module Make (Io : Io_intf.S) : S with module Io = Io
 end

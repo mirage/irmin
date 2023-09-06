@@ -1,12 +1,11 @@
 (library
- (public_name irmin-pack.unix)
- (name irmin_pack_unix)
+ (public_name irmin-pack.io)
+ (name irmin_pack_io)
  (libraries
   fmt
   index
-  index.unix
   irmin
-  irmin-pack.io
+  irmin-pack
   logs
   eio
   mtime

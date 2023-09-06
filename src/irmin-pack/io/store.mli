@@ -18,6 +18,6 @@ include Store_intf.Sigs
 (** @inline *)
 
 module Maker
-    (Io : Io.S)
+    (Io : Io_intf.S)
     (Io_index : Index.Platform.S)
     (Config : Irmin_pack.Conf.S) : Maker

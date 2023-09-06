@@ -59,11 +59,10 @@ let ppf_or_null ppf =
   | Some p -> p
   | None -> open_out null |> Format.formatter_of_out_channel
 
-module Make (Store : Store) = struct
+module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (Store : Store) =
+struct
   module Hash = Store.Hash
-
-  module Index =
-    Pack_index.Make_io (Io.Unix) (Index_unix.Private.Platform) (Hash)
+  module Index = Pack_index.Make_io (Io) (Io_index) (Hash)
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct

@@ -70,9 +70,7 @@ module Serde = struct
       match Version.of_bin left with
       | None -> Error (`Unknown_major_pack_version left)
       | Some (`V1 | `V2) -> assert false (* TODO: create specific error *)
-      | Some ((`V3 | `V4 | `V5) as x) ->
-          if len > Io.Unix.page_size then Error (`Corrupted_control_file ctx)
-          else Ok x
+      | Some ((`V3 | `V4 | `V5) as x) -> Ok x
     in
     (version, right)
 
@@ -317,7 +315,7 @@ module Serde = struct
   end
 end
 
-module Make (Serde : Serde.S) (Io : Io.S) = struct
+module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
   module Io = Io
 
   type payload = Serde.payload
