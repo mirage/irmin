@@ -31,8 +31,7 @@ module Make (Args : Gc_args.S) = struct
     task : Async.t;
     unlink : bool;
     new_suffix_start_offset : int63;
-    resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u;
-    promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t;
+    mutable on_finalise : (Stats.Latest_gc.stats, Args.Errs.t) result -> unit;
     dispatcher : Dispatcher.t;
     fm : Fm.t;
     contents : read Contents_store.t;
@@ -109,8 +108,6 @@ module Make (Args : Gc_args.S) = struct
     (* Unlink next gc's result file, in case it is on disk, for instance
        after a failed gc. *)
     unlink_result_file ();
-    (* internal promise for gc *)
-    let promise, resolver = Eio.Promise.create () in
     (* start worker task *)
     let task =
       Async.async (fun () ->
@@ -127,8 +124,7 @@ module Make (Args : Gc_args.S) = struct
         unlink;
         new_suffix_start_offset;
         task;
-        promise;
-        resolver;
+        on_finalise = (fun _ -> ());
         dispatcher;
         fm;
         contents;
@@ -290,12 +286,12 @@ module Make (Args : Gc_args.S) = struct
                   "Gc ended successfully. %a"
                     (Irmin.Type.pp Stats.Latest_gc.stats_t)
                     stats];
-                let () = Eio.Promise.resolve_ok t.resolver stats in
+                let () = t.on_finalise (Ok stats) in
                 Ok (`Finalised stats)
             | _ ->
                 clean_after_abort t;
                 let err = gc_errors status gc_output in
-                let () = Eio.Promise.resolve t.resolver err in
+                let () = t.on_finalise err in
                 err
           in
           result
@@ -324,14 +320,8 @@ module Make (Args : Gc_args.S) = struct
     | _ -> gc_errors status gc_output |> Errs.raise_if_error
 
   let on_finalise t f =
-    (* Ignore returned promise since the purpose of this
-       function is to add asynchronous callbacks to the GC
-       process -- this promise binding is an internal
-       implementation detail. This is safe since the callback
-       [f] is attached to [t.running_gc.promise], which is
-       referenced for the lifetime of a GC process. *)
-    let _ = f (Eio.Promise.await t.promise) in
-    ()
+    (* TODO: finaliser should be defined on GC creation, not set later *)
+    t.on_finalise <- f
 
   let cancel t =
     let cancelled = Async.cancel t.task in

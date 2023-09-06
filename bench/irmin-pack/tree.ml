@@ -302,82 +302,83 @@ type suite_elt = {
 }
 
 let suite : suite_elt list =
-  [
-    {
-      mode = `Read_trace;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-    {
-      mode = `Read_trace;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-    {
-      mode = `Chains;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_chains config);
-    };
-    {
-      mode = `Chains;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (2, 5); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_chains config);
-    };
-    {
-      mode = `Large;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_large config);
-    };
-    {
-      mode = `Large;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (2, 5); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_large config);
-    };
-    {
-      mode = `Read_trace;
-      speed = `Custom;
-      run =
-        (fun config ->
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-  ]
+  List.rev
+    [
+      {
+        mode = `Read_trace;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_read_trace config);
+      };
+      {
+        mode = `Read_trace;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_read_trace config);
+      };
+      {
+        mode = `Chains;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_chains config);
+      };
+      {
+        mode = `Chains;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (2, 5); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_chains config);
+      };
+      {
+        mode = `Large;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_large config);
+      };
+      {
+        mode = `Large;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (2, 5); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_large config);
+      };
+      {
+        mode = `Read_trace;
+        speed = `Custom;
+        run =
+          (fun config ->
+            let (module Store) = store_of_config config in
+            Store.run_read_trace config);
+      };
+    ]
 
 let get_suite suite_filter =
   List.filter
