@@ -31,8 +31,9 @@ module Make (Args : Gc_args.S) = struct
     task : Async.t;
     unlink : bool;
     new_suffix_start_offset : int63;
-    resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u;
-    promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t;
+    mutable on_finalise: ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit);
+    (* resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u; *)
+    (* promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t; *)
     dispatcher : Dispatcher.t;
     fm : Fm.t;
     contents : read Contents_store.t;
@@ -110,7 +111,7 @@ module Make (Args : Gc_args.S) = struct
        after a failed gc. *)
     unlink_result_file ();
     (* internal promise for gc *)
-    let promise, resolver = Eio.Promise.create () in
+    (* let promise, resolver = Eio.Promise.create () in *)
     (* start worker task *)
     let task =
       Async.async (fun () ->
@@ -127,8 +128,9 @@ module Make (Args : Gc_args.S) = struct
         unlink;
         new_suffix_start_offset;
         task;
-        promise;
-        resolver;
+        on_finalise = (fun _ -> ());
+        (* promise; *)
+        (* resolver; *)
         dispatcher;
         fm;
         contents;
@@ -290,12 +292,14 @@ module Make (Args : Gc_args.S) = struct
                   "Gc ended successfully. %a"
                     (Irmin.Type.pp Stats.Latest_gc.stats_t)
                     stats];
-                let () = Eio.Promise.resolve_ok t.resolver stats in
+                let () = t.on_finalise (Ok stats) in
+                (* let () = Eio.Promise.resolve_ok t.resolver stats in *)
                 Ok (`Finalised stats)
             | _ ->
                 clean_after_abort t;
                 let err = gc_errors status gc_output in
-                let () = Eio.Promise.resolve t.resolver err in
+                let () = t.on_finalise err in
+                (* let () = Eio.Promise.resolve t.resolver err in *)
                 err
           in
           result
@@ -330,7 +334,9 @@ module Make (Args : Gc_args.S) = struct
        implementation detail. This is safe since the callback
        [f] is attached to [t.running_gc.promise], which is
        referenced for the lifetime of a GC process. *)
-    let _ = f (Eio.Promise.await t.promise) in
+    t.on_finalise <- f ;
+    (* ignore (t, f); *)
+    (* let _ = f (Eio.Promise.await t.promise) in *)
     ()
 
   let cancel t =

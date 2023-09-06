@@ -302,6 +302,7 @@ type suite_elt = {
 }
 
 let suite : suite_elt list =
+  List.rev
   [
     {
       mode = `Read_trace;
