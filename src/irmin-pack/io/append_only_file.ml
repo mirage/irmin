@@ -17,7 +17,7 @@
 open Import
 include Append_only_file_intf
 
-module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
+module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
   module Errs = Errs
 
@@ -49,8 +49,6 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     let open Result_syntax in
     let+ io = Io.create ~path ~overwrite in
     let persisted_end_poff = Atomic.make Int63.zero in
-    let buf = Buffer.create 0 in
-    let buf_length = Atomic.make 0 in
     {
       io;
       persisted_end_poff;
@@ -181,6 +179,6 @@ module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
           Atomic.fetch_and_add rw_perm.buf_length (String.length s)
         in
         let buf_length = Atomic.get rw_perm.buf_length in
-        if buf_length >= rw_perm.auto_flush_threshold then
+        if buf_length >= auto_flush_threshold then
           flush t |> Errs.raise_if_error
 end

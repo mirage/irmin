@@ -58,7 +58,7 @@ module type S = sig
 
       3. and 5. are highly critical. *)
 
-  module Io : Io.S
+  module Io : Io_intf.S
   module Control : Control_file.Upper with module Io = Io
   module Dict : Dict.S with module Io = Io
   module Suffix : Chunked_suffix.S with module Io = Io
@@ -303,7 +303,7 @@ module type Sigs = sig
   module type S = S
 
   module Make
-      (Io : Io.S)
+      (Io : Io_intf.S)
       (Index : Pack_index.S with module Io = Io)
       (Errs : Io_errors.S with module Io = Io) :
     S with module Io = Io and module Index = Index and module Errs = Errs

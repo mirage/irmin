@@ -25,7 +25,7 @@ module type S = sig
       It comprises a persistent file, an append buffer and take care of
       automatically shifting offsets to deal with legacy file headers. *)
 
-  module Io : Io.S
+  module Io : Io_intf.S
   module Errs : Io_errors.S
 
   type t
@@ -162,6 +162,6 @@ end
 module type Sigs = sig
   module type S = S
 
-  module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) :
+  module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) :
     S with module Io = Io and module Errs = Errs
 end

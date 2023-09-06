@@ -19,7 +19,8 @@ include Lower_intf
 module Layout = Irmin_pack.Layout.V5.Volume
 module Payload = Control_file.Payload.Volume.Latest
 
-module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
+module Make_volume (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) =
+struct
   module Io = Io
   module Errs = Errs
   module Control = Control_file.Volume (Io)
@@ -252,7 +253,7 @@ module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
     path t |> Sys.readdir |> Array.to_list |> List.iter_result clean
 end
 
-module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
+module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
   module Errs = Errs
   module Volume = Make_volume (Io) (Errs)

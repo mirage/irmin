@@ -293,7 +293,7 @@ module type S = sig
     (** Unstable internal API agnostic about the underlying storage. Use it only
         to implement or test inodes. *)
 
-    module Io : Io.S
+    module Io : Io_intf.S
     module Errs : Io_errors.S with module Io = Io
     module Index : Pack_index.S with type key = hash
 

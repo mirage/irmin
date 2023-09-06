@@ -28,7 +28,7 @@ module Make (Args : Args) = struct
   module Hashes = Irmin.Hash.Set.Make (Args.Hash)
   open Args
   module Inode_pack = Inode.Pack
-  module Pack_index = Pack_index.Make (Hash)
+  module Pack_index = Fm.Index
 
   let pp_hash = Irmin.Type.pp Hash.t
   let pp_key = Irmin.Type.pp Inode_pack.Key.t
@@ -45,7 +45,8 @@ module Make (Args : Args) = struct
     end
 
     module Index =
-      Index_unix.Make (Pack_index.Key) (Value_unit) (Index.Cache.Unbounded)
+      Index.Make (Pack_index.Key) (Value_unit) (Io_index)
+        (Index.Cache.Unbounded)
 
     type t = {
       fm : Fm.t;
@@ -243,7 +244,7 @@ module Make (Args : Args) = struct
     end
 
     module Index =
-      Index_unix.Make (Pack_index.Key) (Value) (Index.Cache.Unbounded)
+      Index.Make (Pack_index.Key) (Value) (Io_index) (Index.Cache.Unbounded)
 
     type path = string
 

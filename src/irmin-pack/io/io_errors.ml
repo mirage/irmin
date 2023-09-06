@@ -18,9 +18,9 @@ open Import
 open Errors
 
 (** Error manager for errors and exceptions defined in {!Errors} and
-    {!Io.S.misc_error} *)
+    {!Io_intf.S.misc_error} *)
 module type S = sig
-  module Io : Io.S
+  module Io : Io_intf.S
 
   type t = [ Base.t | `Io_misc of Io.misc_error ] [@@deriving irmin]
 
@@ -31,7 +31,7 @@ module type S = sig
   val log_if_error : string -> ('a, [< t ]) result -> unit
 end
 
-module Make (Io : Io.S) : S with module Io = Io = struct
+module Make (Io : Io_intf.S) : S with module Io = Io = struct
   module Io = Io
 
   (* Inline the definition of the polymorphic variant for the ppx. *)

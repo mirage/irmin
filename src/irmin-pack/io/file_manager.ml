@@ -21,7 +21,7 @@ include File_manager_intf
 let legacy_io_header_size = 16
 
 module Make
-    (Io : Io.S)
+    (Io : Io_intf.S)
     (Index : Pack_index.S with module Io = Io)
     (Errs : Io_errors.S with module Io = Io) =
 struct

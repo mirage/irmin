@@ -1,8 +1,6 @@
 open Import
 include Irmin_pack.Atomic_write
 
-let current_version = `V1
-
 module UnsafeTbl (K : Irmin.Type.S) = Hashtbl.Make (struct
   type t = K.t [@@deriving irmin ~short_hash ~equal]
 
@@ -44,7 +42,8 @@ module Table (K : Irmin.Type.S) = struct
     Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.fold f data init
 end
 
-module Make_persistent (K : Irmin.Type.S) (V : Value.S) = struct
+module Make_persistent (Io : Io_intf.S) (K : Irmin.Type.S) (V : Value.S) =
+struct
   module Tbl = Table (K)
   module W = Irmin.Backend.Watch.Make (K) (V)
   module Io_errors = Io_errors.Make (Io)

@@ -131,7 +131,7 @@ module type Sigs = sig
   module type Subcommand = Subcommand
   module type S = S
 
-  module Make (_ : Store) : S
+  module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (_ : Store) : S
 
   module Integrity_checks
       (XKey : Pack_key.S)

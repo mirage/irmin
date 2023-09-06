@@ -24,8 +24,10 @@ module type S = sig
   type key
   type value = int63 * int * Pack_value.Kind.t
 
-  include Index.S with type value := value and type t := t and type key := key
-  module Io : Io.S
+  module Index_raw :
+    Index.S with type value := value and type t := t and type key := key
+
+  module Io : Io_intf.S
 
   val v_exn :
     ?flush_callback:(unit -> unit) ->
@@ -64,15 +66,14 @@ module type S = sig
   val filter : t -> (key * value -> bool) -> unit
   val try_merge : t -> unit
 
-  module Stats = Index.Stats
   module Key : Index.Key.S with type t = key
 end
 
 module type Sigs = sig
   module type S = S
 
-  module Make_io (Io : Io.S) (Io_index : Index.Platform.S) (K : Irmin.Hash.S) :
-    S with type key = K.t and module Io = Io
-
-  module Make (K : Irmin.Hash.S) : S with type key = K.t and module Io = Io.Unix
+  module Make_io
+      (Io : Io_intf.S)
+      (Io_index : Index.Platform.S)
+      (K : Irmin.Hash.S) : S with type key = K.t and module Io = Io
 end

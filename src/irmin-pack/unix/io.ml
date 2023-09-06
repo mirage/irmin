@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
-open Io_intf
+open! Irmin_pack_io.Import
+module Errors = Irmin_pack_io.Errors
 module Syscalls = Index_unix.Syscalls
 
 (* File utils, taken from index.unix package.
@@ -47,8 +47,6 @@ module Util = struct
     in
     aux fd_offset 0 length
 end
-
-module type S = S
 
 module Unix = struct
   type misc_error = Unix.error * string * string

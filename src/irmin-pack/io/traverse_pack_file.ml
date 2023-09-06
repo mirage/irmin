@@ -15,7 +15,6 @@
  *)
 
 open! Import
-module Io = Io.Unix
 
 module Stats : sig
   type t
