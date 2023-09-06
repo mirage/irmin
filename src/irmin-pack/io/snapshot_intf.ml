@@ -18,7 +18,7 @@ open! Import
 
 module type Args = sig
   module Hash : Irmin.Hash.S
-  module Fm : File_manager.S
+  module Fm : File_manager.S with type Index.key = Hash.t
   module Dispatcher : Dispatcher.S with module Fm = Fm
 
   module Inode :
@@ -33,6 +33,8 @@ module type Args = sig
       with type hash := Hash.t
        and type key = Hash.t Pack_key.t
        and type dispatcher = Dispatcher.t
+
+  module Io_index : Index.Platform.S
 end
 
 module type Sigs = sig

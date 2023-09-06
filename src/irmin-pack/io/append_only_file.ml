@@ -17,7 +17,7 @@
 open Import
 include Append_only_file_intf
 
-module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) = struct
+module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Io = Io
   module Errs = Errs
 

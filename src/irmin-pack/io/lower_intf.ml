@@ -19,7 +19,7 @@ open! Import
 type volume_identifier = string [@@deriving irmin]
 
 module type Volume = sig
-  module Io : Io.S
+  module Io : Io_intf.S
   module Errs : Io_errors.S
   module Sparse : Sparse_file.S
 
@@ -49,7 +49,7 @@ module type Volume = sig
 end
 
 module type S = sig
-  module Io : Io.S
+  module Io : Io_intf.S
   module Errs : Io_errors.S
   module Volume : Volume with module Io = Io
 
@@ -183,9 +183,9 @@ module type Sigs = sig
 
   type nonrec volume_identifier = volume_identifier [@@deriving irmin]
 
-  module Make_volume (Io : Io.S) (Errs : Io_errors.S with module Io = Io) :
+  module Make_volume (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) :
     Volume with module Io = Io and module Errs = Errs
 
-  module Make (Io : Io.S) (Errs : Io_errors.S with module Io = Io) :
+  module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) :
     S with module Io = Io and module Errs = Errs
 end
