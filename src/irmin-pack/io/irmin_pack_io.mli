@@ -30,11 +30,13 @@ module Store_intf = Store_intf
 module Maker_io
     (Io : Io_intf.S)
     (Io_index : Index.Platform.S)
+    (Async : Async_intf.S)
     (Config : Irmin_pack.Conf.S) : Store.Maker
 
 module KV
     (Io : Io_intf.S)
     (Io_index : Index.Platform.S)
+    (Async : Async_intf.S)
     (Config : Irmin_pack.Conf.S) : Store.KV
 
 (** {1 Key and Values} *)
@@ -62,7 +64,7 @@ module Pack_store = Pack_store
 module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher
-module Async = Async
+module Async_intf = Async_intf
 module Errors = Errors
 module Io_errors = Io_errors
 module Control_file = Control_file
