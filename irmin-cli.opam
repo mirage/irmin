@@ -38,7 +38,7 @@ depends: [
   "conduit-lwt"
   "conduit-lwt-unix"
   "websocket-lwt-unix"
-  "ppx_blob"
+  "ppx_blob"      {>= "0.7.2"}
   "logs"
   "uri"
   "cmdliner"
