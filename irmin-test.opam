@@ -30,6 +30,8 @@ depends: [
   "metrics" {>= "0.2.0"}
   "hex" {with-test & >= "1.4.0"}
   "vector" {with-test & >= "1.0.0"}
+  "alcotest" {>= "1.7.0" & with-test}
+  "qcheck-alcotest" {>= "0.21.1" & with-test}
 ]
 
 synopsis: "Irmin test suite"

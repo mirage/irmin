@@ -21,6 +21,9 @@ depends: [
   "websocket-lwt-unix"
   "cohttp-lwt-unix"
   "ppx_blob"
+  "digestif" {>= "1.1.4"}
+  "alcotest-lwt" {>= "1.7.0" & with-test}
+  "irmin-watcher" {>= "0.5.0" & with-test}
 ]
 
 build: [
