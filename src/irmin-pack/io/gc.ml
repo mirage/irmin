@@ -23,6 +23,7 @@ module Make (Args : Gc_args.S) = struct
   module Io = Fm.Io
   module Ao = Append_only_file.Make (Io) (Errs)
   module Worker = Gc_worker.Make (Args)
+  module Gc_stats_main = Gc_stats.Main (Io)
 
   type t = {
     root : string;
@@ -37,7 +38,7 @@ module Make (Args : Gc_args.S) = struct
     contents : read Contents_store.t;
     node : read Node_store.t;
     commit : read Commit_store.t;
-    mutable partial_stats : Gc_stats.Main.t;
+    mutable partial_stats : Gc_stats_main.t;
     mutable resulting_stats : Stats.Latest_gc.stats option;
     latest_gc_target_offset : int63;
   }
@@ -88,7 +89,7 @@ module Make (Args : Gc_args.S) = struct
         Dispatcher.suffix_start_offset dispatcher
       in
       let before_suffix_end_offset = Dispatcher.end_offset dispatcher in
-      Gc_stats.Main.create "worker startup" ~commit_offset ~generation
+      Gc_stats_main.create "worker startup" ~commit_offset ~generation
         ~before_suffix_start_offset ~before_suffix_end_offset
         ~after_suffix_start_offset:new_suffix_start_offset
     in
@@ -117,7 +118,7 @@ module Make (Args : Gc_args.S) = struct
             ~lower_root ~generation ~new_files_path)
     in
     let partial_stats =
-      Gc_stats.Main.finish_current_step partial_stats "before finalise"
+      Gc_stats_main.finish_current_step partial_stats "before finalise"
     in
     Ok
       {
@@ -250,11 +251,11 @@ module Make (Args : Gc_args.S) = struct
     | None -> (
         let partial_stats = t.partial_stats in
         let partial_stats =
-          Gc_stats.Main.finish_current_step partial_stats "worker wait"
+          Gc_stats_main.finish_current_step partial_stats "worker wait"
         in
         let go status =
           let partial_stats =
-            Gc_stats.Main.finish_current_step partial_stats "read output"
+            Gc_stats_main.finish_current_step partial_stats "read output"
           in
 
           let gc_output =
@@ -266,12 +267,12 @@ module Make (Args : Gc_args.S) = struct
             match (status, gc_output) with
             | `Success, Ok gc_results ->
                 let partial_stats =
-                  Gc_stats.Main.finish_current_step partial_stats
+                  Gc_stats_main.finish_current_step partial_stats
                     "swap and purge"
                 in
                 let* () = swap_and_purge t gc_results in
                 let partial_stats =
-                  Gc_stats.Main.finish_current_step partial_stats "unlink"
+                  Gc_stats_main.finish_current_step partial_stats "unlink"
                 in
                 if t.unlink then unlink_all t gc_results.removable_chunk_idxs;
 
@@ -279,7 +280,7 @@ module Make (Args : Gc_args.S) = struct
                   let after_suffix_end_offset =
                     Dispatcher.end_offset t.dispatcher
                   in
-                  Gc_stats.Main.finalise partial_stats gc_results.stats
+                  Gc_stats_main.finalise partial_stats gc_results.stats
                     ~after_suffix_end_offset
                 in
                 Stats.report_latest_gc stats;

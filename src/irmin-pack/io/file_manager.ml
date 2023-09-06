@@ -258,12 +258,8 @@ struct
     | None -> Ok ()
 
   let cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower =
-    ignore (root, generation, chunk_start_idx, chunk_num, lower);
-    Ok ()
-  (*
     let () =
-      Sys.readdir root
-      |> Array.to_list
+      Io.readdir root
       |> List.filter (fun filename ->
              match Irmin_pack.Layout.Classification.Upper.v filename with
              | `Unknown | `Branch | `Control | `Dict | `V1_or_v2_pack -> false
@@ -281,7 +277,6 @@ struct
                    "Could not remove residual file %s: %s" filename error])
     in
     Option.might (Lower.cleanup ~generation) lower
-    *)
 
   let add_volume_and_update_control lower control =
     let open Result_syntax in

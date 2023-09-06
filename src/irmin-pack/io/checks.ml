@@ -50,16 +50,9 @@ let path =
 
 let deprecated_info = (Cmdliner.Term.info [@alert "-deprecated"])
 
-let ppf_or_null ppf =
-  let null =
-    match Sys.os_type with
-    | "Unix" | "Cygwin" -> "/dev/null"
-    | "Win32" -> "NUL"
-    | _ -> invalid_arg "invalid os type"
-  in
-  match ppf with
+let ppf_or_null = function
   | Some p -> p
-  | None -> open_out null |> Format.formatter_of_out_channel
+  | None -> Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
 
 module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (Store : Store) =
 struct

@@ -16,7 +16,7 @@
 
 open! Import
 
-module Steps_timer = struct
+module Steps_timer (Io : Io_intf.S) = struct
   type duration = Stats.Latest_gc.duration = {
     wall : float;
     sys : float;
@@ -25,23 +25,17 @@ module Steps_timer = struct
 
   type t = { timer : duration; prev_stepname : string }
 
-  let get_wtime () =
-    (Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float) /. 1e9
-
-  let get_stime () = Rusage.((get Self).stime)
-  let get_utime () = Rusage.((get Self).utime)
-
   let create first_stepname =
-    let wall = get_wtime () in
-    let sys = get_stime () in
-    let user = get_utime () in
+    let wall = Io.Stats.get_wtime () in
+    let sys = Io.Stats.get_stime () in
+    let user = Io.Stats.get_utime () in
     let timer = { wall; sys; user } in
     { timer; prev_stepname = first_stepname }
 
   let progress prev next_stepname =
-    let wall = get_wtime () in
-    let sys = get_stime () in
-    let user = get_utime () in
+    let wall = Io.Stats.get_wtime () in
+    let sys = Io.Stats.get_stime () in
+    let user = Io.Stats.get_utime () in
     let next = { wall; sys; user } in
 
     let wall = next.wall -. prev.timer.wall in
@@ -53,8 +47,9 @@ module Steps_timer = struct
     (next, delta)
 end
 
-module Main = struct
+module Main (Io : Io_intf.S) = struct
   module S = Stats.Latest_gc
+  module Steps_timer = Steps_timer (Io)
 
   type t = { stats : S.stats; timer : Steps_timer.t }
   (** [t] is the running state while computing the stats *)
@@ -96,7 +91,7 @@ module Main = struct
     }
 end
 
-module Worker = struct
+module Worker (Io : Io_intf.S) = struct
   module S = Stats.Latest_gc
 
   type t = {
@@ -109,30 +104,6 @@ module Worker = struct
     prev_ocaml_gc : S.ocaml_gc;
   }
   (** [t] is the running state while computing the stats *)
-
-  let is_darwin =
-    lazy
-      (try
-         match Unix.open_process_in "uname" |> input_line with
-         | "Darwin" -> true
-         | _ -> false
-       with Unix.Unix_error _ -> false)
-
-  let get_wtime () =
-    (Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float) /. 1e9
-
-  let get_stime () = Rusage.((get Self).stime)
-  let get_utime () = Rusage.((get Self).utime)
-
-  let get_rusage : unit -> S.rusage =
-   fun () ->
-    let Rusage.{ maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw; _ } =
-      Rusage.(get Self)
-    in
-    let maxrss =
-      if Lazy.force is_darwin then Int64.div maxrss 1000L else maxrss
-    in
-    S.{ maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw }
 
   let get_ocaml_gc : unit -> S.ocaml_gc =
    fun () ->
@@ -160,10 +131,10 @@ module Worker = struct
     Stats.reset_stats ();
     Irmin_pack.Stats.reset_stats ();
 
-    let wtime = get_wtime () in
-    let stime = get_stime () in
-    let utime = get_utime () in
-    let rusage = get_rusage () in
+    let wtime = Io.Stats.get_wtime () in
+    let stime = Io.Stats.get_stime () in
+    let utime = Io.Stats.get_utime () in
+    let rusage = Io.Stats.get_rusage () in
     let ocaml_gc = get_ocaml_gc () in
 
     let stats =
@@ -200,9 +171,9 @@ module Worker = struct
     { t with stats }
 
   let finish_current_step t next_stepname =
-    let wtime = get_wtime () in
-    let stime = get_stime () in
-    let utime = get_utime () in
+    let wtime = Io.Stats.get_wtime () in
+    let stime = Io.Stats.get_stime () in
+    let utime = Io.Stats.get_utime () in
     let duration =
       let wall = wtime -. t.prev_wtime in
       let sys = stime -. t.prev_stime in
@@ -212,7 +183,7 @@ module Worker = struct
 
     let prev_rusage, rusage =
       let x = t.prev_rusage in
-      let y = get_rusage () in
+      let y = Io.Stats.get_rusage () in
       let ( - ) = Int64.sub in
       ( y,
         S.

@@ -250,7 +250,7 @@ struct
           |> Result.ok
       | _ -> Ok ()
     in
-    path t |> Sys.readdir |> Array.to_list |> List.iter_result clean
+    path t |> Io.readdir |> List.iter_result clean
 end
 
 module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct

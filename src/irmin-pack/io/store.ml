@@ -787,9 +787,7 @@ struct
       let kill_gc (repo : X.Repo.t) =
         match (Atomic.get repo.running_gc : X.Repo.running_gc option) with
         | None -> false
-        | Some { gc; _ } -> (
-            try X.Gc.cancel gc
-            with Unix.Unix_error (Unix.ESRCH, "kill", _) -> false)
+        | Some { gc; _ } -> X.Gc.cancel gc
     end
   end
 end

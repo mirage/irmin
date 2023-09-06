@@ -47,6 +47,7 @@ module Pack_value = Pack_value
 (** {1 Internal} *)
 
 module Stats = Stats
+module Stats_intf = Stats_intf
 module Index = Pack_index
 module Inode = Inode
 module Pack_store = Pack_store

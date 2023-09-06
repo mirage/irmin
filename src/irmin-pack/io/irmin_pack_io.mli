@@ -51,6 +51,7 @@ module Checks = Checks
 (** {1 Statistics} *)
 
 module Stats = Stats
+module Stats_intf = Stats_intf
 
 (** {1 Internal Functors and Utilities} *)
 
