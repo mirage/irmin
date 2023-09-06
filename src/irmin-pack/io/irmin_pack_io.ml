@@ -25,13 +25,14 @@ module Maker_io = Store.Maker
 module KV
     (Io : Io_intf.S)
     (Index_io : Index.Platform.S)
+    (Async : Async_intf.S)
     (Config : Irmin_pack.Conf.S) =
 struct
   type endpoint = unit
   type hash = Irmin.Schema.default_hash
 
   include Pack_key.Store_spec
-  module Maker = Store.Maker (Io) (Index_io) (Config)
+  module Maker = Store.Maker (Io) (Index_io) (Async) (Config)
 
   type metadata = Irmin.Metadata.None.t
 
@@ -53,7 +54,7 @@ module Checks = Checks
 module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher
-module Async = Async
+module Async_intf = Async_intf
 module Errors = Errors
 module Io_errors = Io_errors
 module Control_file = Control_file
