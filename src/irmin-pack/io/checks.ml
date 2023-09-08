@@ -36,7 +36,6 @@ let setup_log =
       in
       { Logs.report }
     in
-    Fmt_tty.setup_std_outputs ?style_renderer ();
     Logs.set_level level;
     Logs.set_reporter format_reporter
   in
