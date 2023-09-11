@@ -163,4 +163,11 @@ module type S = sig
     val get_stime : unit -> float
     val get_utime : unit -> float
   end
+
+  module Clock : sig
+    type counter
+
+    val counter : unit -> counter
+    val count : counter -> Mtime.span
+  end
 end

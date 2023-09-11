@@ -843,7 +843,7 @@ struct
        %d; suffix dead bytes %a"
       generation Int63.pp suffix_start_offset chunk_start_idx chunk_num Int63.pp
         suffix_dead_bytes];
-    let c0 = Mtime_clock.counter () in
+    let c0 = Io.Clock.counter () in
     let pl = Control.payload t.control in
 
     (* Step 1. Reopen files *)
@@ -853,7 +853,7 @@ struct
       reopen_suffix t ~chunk_start_idx ~chunk_num
         ~appendable_chunk_poff:pl.appendable_chunk_poff
     in
-    let span1 = Mtime_clock.count c0 |> Mtime.span_to_us in
+    let span1 = Io.Clock.count c0 |> Mtime.span_to_us in
 
     (* Step 2. Update the control file *)
     let* () =
@@ -896,7 +896,7 @@ struct
               Lower.swap ~volume ~generation ~volume_num:pl.volume_num lower)
     in
 
-    let span2 = Mtime_clock.count c0 |> Mtime.span_to_us in
+    let span2 = Io.Clock.count c0 |> Mtime.span_to_us in
     [%log.debug
       "Gc reopen files, update control: %.0fus, %.0fus" span1 (span2 -. span1)];
     Ok ()
