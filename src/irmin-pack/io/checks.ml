@@ -18,7 +18,7 @@ open! Import
 include Checks_intf
 
 let setup_log =
-  let init style_renderer level =
+  let init _style_renderer level =
     let format_reporter =
       let report _src level ~over k msgf =
         let k _ =
@@ -57,6 +57,7 @@ module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (Store : Store) =
 struct
   module Hash = Store.Hash
   module Index = Pack_index.Make_io (Io) (Io_index) (Hash)
+  module Object_counter = Utils.Object_counter (Io.Progress_platform)
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct
@@ -75,7 +76,7 @@ struct
       let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
       let ppf = Format.err_formatter in
       let bar, (progress_contents, progress_nodes, progress_commits) =
-        Utils.Object_counter.start ppf
+        Object_counter.start ppf
       in
       let f _ (_, _, (kind : Pack_value.Kind.t)) =
         match kind with
@@ -88,7 +89,7 @@ struct
       in
       Index.iter f index;
       let nb_contents, nb_nodes, nb_commits =
-        Utils.Object_counter.finalise_with_stats bar
+        Object_counter.finalise_with_stats bar
       in
       { nb_contents; nb_nodes; nb_commits }
 
@@ -380,6 +381,7 @@ struct
 end
 
 module Integrity_checks
+    (Io : Io_intf.S)
     (XKey : Pack_key.S)
     (X : Irmin.Backend.S
            with type Commit.key = XKey.t
@@ -387,6 +389,8 @@ module Integrity_checks
             and type Schema.Hash.t = XKey.hash)
     (Index : Pack_index.S) =
 struct
+  module Object_counter = Utils.Object_counter (Io.Progress_platform)
+
   let check_always ?ppf ~auto_repair ~check index =
     let ppf = ppf_or_null ppf in
     Fmt.pf ppf "Running the integrity_check.\n%!";
@@ -394,7 +398,7 @@ struct
     let nb_corrupted = ref 0 in
     let exception Cannot_fix in
     let counter, (progress_contents, progress_nodes, progress_commits) =
-      Utils.Object_counter.start ppf
+      Object_counter.start ppf
     in
     let f (k, (offset, length, (kind : Pack_value.Kind.t))) =
       match kind with
@@ -433,7 +437,7 @@ struct
         if !nb_absent = 0 && !nb_corrupted = 0 then Ok `No_error
         else Error (`Corrupted (!nb_corrupted + !nb_absent)))
     in
-    Utils.Object_counter.finalise counter;
+    Object_counter.finalise counter;
     result
 
   let check_minimal ?ppf ~pred ~iter ~check ~recompute_hash t =
@@ -441,7 +445,7 @@ struct
     Fmt.pf ppf "Running the integrity_check.\n%!";
     let errors = ref [] in
     let counter, (progress_contents, progress_nodes, progress_commits) =
-      Utils.Object_counter.start ppf
+      Object_counter.start ppf
     in
     let pp_hash = Irmin.Type.pp X.Hash.t in
     let equal_hash = Irmin.Type.(unstage (equal X.Hash.t)) in
@@ -519,7 +523,7 @@ struct
     in
 
     let () = iter ~contents ~node ~pred_node ~pred_commit t in
-    Utils.Object_counter.finalise counter;
+    Object_counter.finalise counter;
     if !errors = [] then Ok `No_error
     else
       Fmt.kstr
@@ -532,7 +536,7 @@ struct
     let ppf = ppf_or_null ppf in
     Fmt.pf ppf "Check integrity for inodes.\n%!";
     let counter, (_, progress_nodes, progress_commits) =
-      Utils.Object_counter.start ppf
+      Object_counter.start ppf
     in
     let errors = ref [] in
     let pred_node repo key =
@@ -547,7 +551,7 @@ struct
     in
     let commit _ = progress_commits () in
     let () = iter ~pred_node ~node ~commit t in
-    Utils.Object_counter.finalise counter;
+    Object_counter.finalise counter;
     if !errors = [] then Ok `No_error
     else
       Fmt.kstr
