@@ -384,7 +384,7 @@ end = struct
           let v = create config in
           (iter_pack_entry ~always v, finalise v, "Checking and fixing index")
     in
-    let run_duration = Mtime_clock.counter () in
+    let run_duration = Io.Clock.counter () in
     let fm = File_manager.open_ro config |> Errs.raise_if_error in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     let total = Dispatcher.end_offset dispatcher in
@@ -406,7 +406,7 @@ end = struct
     in
     finalise ();
     File_manager.close fm |> Errs.raise_if_error;
-    let run_duration = Mtime_clock.count run_duration in
+    let run_duration = Io.Clock.count run_duration in
     let store_stats fmt =
       Fmt.pf fmt "Store statistics:@,  @[<v 0>%a@]" Stats.pp stats
     in
