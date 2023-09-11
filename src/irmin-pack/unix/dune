@@ -12,6 +12,7 @@
   eio
   mtime
   mtime.clock.os
+  progress
   cmdliner
   optint
   checkseum
