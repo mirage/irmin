@@ -9,6 +9,7 @@
   logs
   eio
   mtime
+  progress.engine
   cmdliner
   optint
   checkseum

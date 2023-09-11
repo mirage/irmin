@@ -482,7 +482,7 @@ struct
     end
 
     include Irmin.Of_backend (X)
-    module Integrity_checks = Checks.Integrity_checks (XKey) (X) (Index)
+    module Integrity_checks = Checks.Integrity_checks (Io) (XKey) (X) (Index)
 
     let integrity_check_inodes ?heads t =
       let heads = match heads with None -> Repo.heads t | Some m -> m in

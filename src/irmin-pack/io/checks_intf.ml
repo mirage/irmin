@@ -130,6 +130,7 @@ module type Sigs = sig
   module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (_ : Store) : S
 
   module Integrity_checks
+      (Io : Io_intf.S)
       (XKey : Pack_key.S)
       (X : Irmin.Backend.S
              with type Commit.key = XKey.t

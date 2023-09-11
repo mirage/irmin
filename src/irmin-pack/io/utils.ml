@@ -16,7 +16,7 @@
 
 open! Import
 
-module Object_counter : sig
+module Object_counter (Progress_platform : Progress_engine.Platform) : sig
   type t
 
   val start :
@@ -25,6 +25,8 @@ module Object_counter : sig
   val finalise : t -> unit
   val finalise_with_stats : t -> int * int * int
 end = struct
+  module Progress = Progress_engine.Make (Progress_platform)
+
   type t =
     | Object_counter : {
         display : (_, _) Progress.Display.t;
