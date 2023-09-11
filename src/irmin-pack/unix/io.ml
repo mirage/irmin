@@ -327,4 +327,6 @@ module Unix = struct
       Irmin_pack_io.Stats_intf.Latest_gc.
         { maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw }
   end
+
+  module Clock = Mtime_clock
 end

@@ -422,7 +422,7 @@ struct
           let readonly = Irmin_pack.Conf.readonly t.config in
           if readonly then Errs.raise_error `Ro_not_allowed
           else
-            let c0 = Mtime_clock.counter () in
+            let c0 = Io.Clock.counter () in
             let try_finalise () = Gc.try_auto_finalise_exn t in
             let _ = try_finalise () in
             Atomic.set t.during_batch true;
@@ -433,7 +433,7 @@ struct
             let node : 'a Node.t = (contents, node) in
             let commit : 'a Commit.t = (node, commit) in
             let on_success res =
-              let s = Mtime_clock.count c0 |> Mtime.span_to_s in
+              let s = Io.Clock.count c0 |> Mtime.span_to_s in
               [%log.info "[pack] batch completed in %.6fs" s];
               Atomic.set t.during_batch false;
               File_manager.flush t.fm |> Errs.raise_if_error;
