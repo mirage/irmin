@@ -1454,6 +1454,37 @@ module Make (S : Generic_key) = struct
     in
     run x test
 
+  let test_lazy_tree x () =
+    let is_val_aux v t k =
+      let str = Fmt.str "empty is_val %a" Irmin.Type.(pp S.path_t) k in
+      let b = S.Tree.is_val t k in
+      Alcotest.(check bool) str v b
+    in
+    let is_val = is_val_aux true in
+    let is_not_val = is_val_aux false in
+    let test repo =
+      let v0 = S.Tree.empty () in
+      is_val v0 [];
+      is_val v0 [ "foo" ];
+      is_val v0 [ "foo"; "bar" ];
+
+      let* r1 = r1 ~repo in
+      let v1 = S.Commit.tree r1 in
+      is_not_val v1 [];
+      is_not_val v1 [ "a" ];
+
+      let* _ = S.Tree.find_tree v1 [ "a" ] in
+      is_val v1 [];
+      is_val v1 [ "a" ];
+
+      S.Tree.clear v1;
+      is_not_val v1 [];
+      is_not_val v1 [ "a" ];
+
+      Lwt.return ()
+    in
+    run x test
+
   let pp_proof = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.tree_t)
   let pp_stream = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.stream_t)
 
@@ -2490,6 +2521,7 @@ let suite sleep (speed, x) =
   suite'
     ([
        ("High-level operations on trees", speed, T.test_trees x);
+       ("Test lazy trees", speed, T.test_lazy_tree x);
        ("Basic operations on contents", speed, T.test_contents x);
        ("Basic operations on nodes", speed, T.test_nodes x);
        ("Basic operations on commits", speed, T.test_commits x);
