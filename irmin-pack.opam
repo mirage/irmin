@@ -32,11 +32,9 @@ depends: [
 ]
 
 pin-depends: [
-  # Needed by Index
-  [ "terminal.dev" "git+https://github.com/craigfe/progress#76e7c791bd17c28b3e605d9c383102a30345e029" ]
-  [ "progress.dev" "git+https://github.com/craigfe/progress#76e7c791bd17c28b3e605d9c383102a30345e029" ]
-  # Needed by Irmin-pack
-  # [ "index.dev" "git+https://github.com/patricoferris/index#cfa32e984b633d08b2f0c1fc1f792925c6d74f8e" ]
+  [ "terminal.dev" "git+https://github.com/art-w/progress#029cbc07a5c8def11cba53a3a20dd5954d9928f4" ]
+  [ "progress.dev" "git+https://github.com/art-w/progress#029cbc07a5c8def11cba53a3a20dd5954d9928f4" ]
+  [ "index.dev" "git+https://github.com/art-w/index#893613afe09b1af36bb7532e00de1b157ce1fe59" ]
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"
