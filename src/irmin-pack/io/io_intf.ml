@@ -171,5 +171,5 @@ module type S = sig
     val count : counter -> Mtime.span
   end
 
-  module Progress_platform : Progress_engine.Platform
+  module Progress : Progress_engine.S
 end
