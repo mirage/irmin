@@ -23,8 +23,8 @@ depends: [
   "jsonm"
   "logs"
   "lwt"          {>= "5.3.0"}
-  "eio"          {>= "0.10"}
-  "eio_main"     {>= "0.10"}
+  "eio"          {>= "0.12"}
+  "eio_main"     {>= "0.12"}
   "alcotest"     {>= "dev"}
   "qcheck-alcotest" {with-test & >= "0.21.1"}
   "metrics-unix"
