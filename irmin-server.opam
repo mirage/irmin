@@ -24,9 +24,12 @@ depends: [
   "cohttp-lwt-unix"
   "ppx_blob" {>= "0.7.2"}
   "digestif" {>= "1.1.4"}
-  "alcotest-lwt" {>= "1.7.0" & with-test}
-  "irmin-watcher" {>= "0.5.0" & with-test}
+  "irmin-watcher" {= "dev" & with-test}
   "irmin-test" {= version & with-test}
+]
+
+pin-depends: [
+  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]
 ]
 
 build: [

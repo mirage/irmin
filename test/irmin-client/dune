@@ -7,6 +7,5 @@
   irmin-client.unix
   websocket-lwt-unix
   conduit-lwt-unix
-  alcotest-lwt
   irmin-test
   irmin-watcher))

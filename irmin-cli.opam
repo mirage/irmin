@@ -25,9 +25,9 @@ depends: [
   "irmin-graphql" {= version}
   "irmin-tezos"   {= version}
   "irmin-server"  {= version}
+  "irmin-watcher" {= "dev"}
   "git-unix"      {>= "3.7.0"}
   "digestif"      {>= "0.9.0"}
-  "irmin-watcher" {>= "0.2.0"}
   "yaml"          {>= "3.0.0"}
   "astring"
   "astring"
@@ -46,12 +46,16 @@ depends: [
   "fmt"
   "git"           {>= "3.7.0"}
   "happy-eyeballs-lwt"
-  "eio_main"      {>= "0.10"}
-  "lwt_eio"       {>= "0.3"}
+  "eio_main"      {>= "0.12"}
+  "lwt_eio"       {>= "0.5"}
   "lwt"           {>= "5.3.0"}
   "irmin-test"    {with-test & = version}
   "alcotest"      {with-test}
   "mdx" {>= "2.0.0" & with-test}
+]
+
+pin-depends: [
+  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]
 ]
 
 synopsis: "CLI for Irmin"
