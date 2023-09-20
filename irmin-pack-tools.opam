@@ -33,14 +33,6 @@ depends: [
   "alcotest"    {with-test}
 ]
 
-pin-depends: [
-  # Needed by Index
-  [ "terminal.dev" "git+https://github.com/craigfe/progress#76e7c791bd17c28b3e605d9c383102a30345e029" ]
-  [ "progress.dev" "git+https://github.com/craigfe/progress#76e7c791bd17c28b3e605d9c383102a30345e029" ]
-  # Needed by Irmin-pack
-  # [ "index.dev" "git+https://github.com/patricoferris/index#cfa32e984b633d08b2f0c1fc1f792925c6d74f8e" ]
-]
-
 synopsis: "Utils for Irmin-pack"
 description: """
 `Irmin-pack-tools` defines useful binaries and libraries for

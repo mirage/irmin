@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Syntax
-
 let () = Mirage_crypto_rng_unix.use_default ()
 let info = Irmin_git_unix.info
 
