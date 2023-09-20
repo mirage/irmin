@@ -62,7 +62,7 @@ module Make (Io : Io_intf.S) (Io_index : Index.Platform.S) (Store : Store) =
 struct
   module Hash = Store.Hash
   module Index = Pack_index.Make_io (Io) (Io_index) (Hash)
-  module Object_counter = Utils.Object_counter (Io.Progress_platform)
+  module Object_counter = Utils.Object_counter (Io.Progress)
 
   (** Read basic metrics from an existing store. *)
   module Stat = struct
@@ -397,7 +397,7 @@ module Integrity_checks
          and type Schema.Hash.t = XKey.hash)
     (Index : Pack_index.S) =
 struct
-  module Object_counter = Utils.Object_counter (Io.Progress_platform)
+  module Object_counter = Utils.Object_counter (Io.Progress)
 
   let check_always ?ppf ~auto_repair ~check index =
     let ppf = ppf_or_null ppf in
