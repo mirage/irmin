@@ -86,7 +86,7 @@ end = struct
   open Args
   module Io = File_manager.Io
   module Errs = Io_errors.Make (Io)
-  module Progress = Progress_engine.Make (Io.Progress_platform)
+  module Progress = Io.Progress
 
   let pp_key = Irmin.Type.pp Hash.t
   let decode_key = Irmin.Type.(unstage (decode_bin Hash.t))
