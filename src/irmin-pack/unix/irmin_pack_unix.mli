@@ -37,7 +37,9 @@ module Pack_value = Pack_value
 
 (** {1 Integrity Checks} *)
 
-module Checks = Checks
+module Checks : sig
+  module Make (_ : Checks_intf.Store) : Checks_intf.S
+end
 
 (** {1 Statistics} *)
 
@@ -49,6 +51,8 @@ module Stats = Stats
     internally when creating a store with {!Maker} or {!KV}.*)
 
 module Index : sig
+  module type S = Index.S
+
   module Make (K : Irmin.Hash.S) :
       module type of Index.Make_io (Io.Unix) (Index_unix.Private.Platform) (K)
 end

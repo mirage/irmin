@@ -37,13 +37,18 @@ module Pack_value = Pack_value
 module Stats = Stats
 
 module Index = struct
+  module type S = Index.S
+
   module Make (K : Irmin.Hash.S) =
     Index.Make_io (Io.Unix) (Index_unix.Private.Platform) (K)
 end
 
+module Checks = struct
+  module Make = Checks.Make (Io.Unix) (Index_unix.Private.Platform)
+end
+
 module Inode = Inode
 module Pack_store = Pack_store
-module Checks = Checks
 module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher

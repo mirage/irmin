@@ -47,6 +47,7 @@ module Pack_value = Pack_value
 (** {1 Integrity Checks} *)
 
 module Checks = Checks
+module Checks_intf = Checks_intf
 
 (** {1 Statistics} *)
 
