@@ -61,6 +61,10 @@ pin-depends: [
   [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]
 ]
 
+pin-depends: [
+  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]
+]
+
 synopsis: "CLI for Irmin"
 description: """
 A simple CLI tool (called `irmin`) to manipulate and inspect Irmin stores.
