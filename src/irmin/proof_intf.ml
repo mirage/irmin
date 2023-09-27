@@ -120,69 +120,26 @@ module type S = sig
     | Inode_extender of inode_tree inode_extender
   [@@deriving irmin]
 
-  (** Stream proofs represent an explicit traversal of a Merle tree proof. Every
-      element (a node, a value, or a shallow pointer) met is first "compressed"
-      by shallowing its children and then recorded in the proof.
-
-      As stream proofs directly encode the recursive construction of the Merkle
-      root hash is slightly simpler to implement: the verifier simply needs to
-      hash the compressed elements lazily, without any memory or choice.
-
-      Moreover, the minimality of stream proofs is trivial to check. Once the
-      computation has consumed the compressed elements required, it is
-      sufficient to check that no more compressed elements remain in the proof.
-
-      However, as the compressed elements contain all the hashes of their
-      shallow children, the size of stream proofs is larger (at least double in
-      size in practice) than tree proofs, which only contains the hash for
-      intermediate shallow pointers. *)
-
-  (** The type for elements of stream proofs.
-
-      [Value v] is a proof that the next element read in the store is the value
-      [v].
-
-      [Node n] is a proof that the next element read in the store is the node
-      [n].
-
-      [Inode i] is a proof that the next element read in the store is the inode
-      [i].
-
-      [Inode_extender e] is a proof that the next element read in the store is
-      the node extender [e]. *)
-  type elt =
-    | Contents of contents
-    | Node of (step * kinded_hash) list
-    | Inode of hash inode
-    | Inode_extender of hash inode_extender
-  [@@deriving irmin]
-
-  type stream = elt Seq.t [@@deriving irmin]
-  (** The type for stream proofs.
-
-      The sequance [e_1 ... e_n] proves that the [e_1], ..., [e_n] are read in
-      the store in sequence. *)
-
-  type 'a t [@@deriving irmin]
-  (** The type for proofs of kind ['a] (i.e. [stream] or [proof]).
+  type t [@@deriving irmin]
+  (** The type for Merkle proofs.
 
       A proof [p] proves that the state advanced from [before p] to [after p].
       [state p]'s hash is [before p], and [state p] contains the minimal
       information for the computation to reach [after p]. *)
 
-  val v : before:kinded_hash -> after:kinded_hash -> 'a -> 'a t
+  val v : before:kinded_hash -> after:kinded_hash -> tree -> t
   (** [v ~before ~after p] proves that the state advanced from [before] to
       [after]. [p]'s hash is [before], and [p] contains the minimal information
       for the computation to reach [after]. *)
 
-  val before : 'a t -> kinded_hash
+  val before : t -> kinded_hash
   (** [before t] it the state's hash at the beginning of the computation. *)
 
-  val after : 'a t -> kinded_hash
+  val after : t -> kinded_hash
   (** [after t] is the state's hash at the end of the computation. *)
 
-  val state : 'a t -> 'a
-  (** [proof t] is a subset of the initial state needed to prove that the proven
+  val state : t -> tree
+  (** [state t] is a subset of the initial state needed to prove that the proven
       computation could run without performing any I/O. *)
 end
 
@@ -246,33 +203,14 @@ end
     enriched with backend keys)
 
     [Consume] is restricted to manipulating nodes of type
-    [Backend.Node_portable.t].
-
-    {1 Hashing of Backend Nodes with Streamed Proofs}
-
-    Hashing a backend node or calling [head] on it may trigger IOs in order to
-    load inner inodes (this is the case in irmin-pack).
-
-    In various places, [Env] requires calling [head] or [hash_exn] on nodes.
-
-    [Env] must be very careful that these two facts do not lead to chaos during
-    the recording of IOs' order.
-
-    Two tricks are in place to prevent problems:
-
-    - The [Node.of_proof] functions return nodes that don't require IOs to
-      produce their hash (i.e. they use caching if necessary).
-    - The [Node.head] function that is called on a node during
-      [dehydrate_stream_node] is also called just after [rehydrate_stream_node]. *)
+    [Backend.Node_portable.t]. *)
 module type Env = sig
-  type kind = Set | Stream
   type mode = Produce | Serialise | Deserialise | Consume
   type t [@@deriving irmin]
   type hash
   type node
   type pnode
   type contents
-  type stream
 
   val is_empty : t -> bool
   val empty : unit -> t
@@ -280,19 +218,13 @@ module type Env = sig
 
   (** {2 Modes} *)
 
-  val set_mode : t -> kind -> mode -> unit
+  val set_mode : t -> mode -> unit
 
-  val with_set_produce :
+  val with_produce :
     (t -> start_serialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
 
-  val with_set_consume :
+  val with_consume :
     (t -> stop_deserialise:(unit -> unit) -> 'a Lwt.t) -> 'a Lwt.t
-
-  val with_stream_produce :
-    (t -> to_stream:(unit -> stream) -> 'a Lwt.t) -> 'a Lwt.t
-
-  val with_stream_consume :
-    stream -> (t -> is_empty:(unit -> bool) -> 'a Lwt.t) -> 'a Lwt.t
 
   (** {2 Interactions With [Tree]} *)
 
@@ -315,17 +247,7 @@ module type Proof = sig
 
   exception Bad_proof of { context : string }
 
-  type bad_stream_exn =
-    | Stream_too_long of { context : string; reason : string }
-    | Stream_too_short of { context : string; reason : string }
-    | Proof_mismatch of { context : string; reason : string }
-
-  exception Bad_stream of bad_stream_exn
-
   val bad_proof_exn : string -> 'a
-  val bad_stream_exn : string -> string -> 'a
-  val bad_stream_too_long : string -> string -> 'a
-  val bad_stream_too_short : string -> string -> 'a
 
   module Make
       (C : Type.S)
@@ -354,5 +276,4 @@ module type Proof = sig
        and type contents := B.Contents.Val.t
        and type node := B.Node.Val.t
        and type pnode := B.Node_portable.t
-       and type stream := P.stream
 end

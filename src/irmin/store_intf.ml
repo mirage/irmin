@@ -480,11 +480,11 @@ module type S_generic_key = sig
 
     (** {1 Proofs} *)
 
-    type ('proof, 'result) producer :=
+    type 'result producer :=
       repo ->
       kinded_key ->
       (tree -> (tree * 'result) Lwt.t) ->
-      ('proof * 'result) Lwt.t
+      (Proof.t * 'result) Lwt.t
     (** [produce r h f] runs [f] on top of a real store [r], producing a proof
         and a result using the initial root hash [h].
 
@@ -494,15 +494,11 @@ module type S_generic_key = sig
 
         Calling [produce_proof] recursively has an undefined behaviour. *)
 
-    type verifier_error =
-      [ `Proof_mismatch of string
-      | `Stream_too_long of string
-      | `Stream_too_short of string ]
-    [@@deriving irmin]
+    type verifier_error = [ `Proof_mismatch of string ] [@@deriving irmin]
     (** The type for errors associated with functions that verify proofs. *)
 
-    type ('proof, 'result) verifier :=
-      'proof ->
+    type 'result verifier :=
+      Proof.t ->
       (tree -> (tree * 'result) Lwt.t) ->
       (tree * 'result, verifier_error) result Lwt.t
     (** [verify p f] runs [f] in checking mode. [f] is a function that takes a
@@ -532,42 +528,17 @@ module type S_generic_key = sig
 
         The result is [Error _] if the proof is rejected:
 
-        - For tree proofs: when [p.before] is different from the hash of
-          [p.state];
-        - For tree and stream proofs: when [p.after] is different from the hash
-          of [f p.state];
-        - For tree and stream proofs: when [f p.state] tries to access paths
-          invalid paths in [p.state];
-        - For stream proofs: when the proof is not empty once [f] is done. *)
+        - when [p.before] is different from the hash of [p.state];
+        - when [p.after] is different from the hash of [f p.state];
+        - when [f p.state] tries to access paths invalid paths in [p.state]; *)
 
-    type tree_proof := Proof.tree Proof.t
-    (** The type for tree proofs.
-
-        Guarantee that the given computation performs exactly the same state
-        operations as the generating computation, *in some order*. *)
-
-    val produce_proof : (tree_proof, 'a) producer
+    val produce_proof : 'a producer
     (** [produce_proof] is the producer of tree proofs. *)
 
-    val verify_proof : (tree_proof, 'a) verifier
+    val verify_proof : 'a verifier
     (** [verify_proof] is the verifier of tree proofs. *)
 
     val hash_of_proof_state : Proof.tree -> kinded_hash
-
-    type stream_proof := Proof.stream Proof.t
-    (** The type for stream proofs.
-
-        Guarantee that the given computation performs exactly the same state
-        operations as the generating computation, in the exact same order.
-
-        Calling [fold] with [order = `Undefined] during the
-        production/verification of streamed proofs is undefined. *)
-
-    val produce_stream : (stream_proof, 'a) producer
-    (** [produce_stream] is the producer of stream proofs. *)
-
-    val verify_stream : (stream_proof, 'a) verifier
-    (** [verify_stream] is the verifier of stream proofs. *)
   end
 
   (** {1 Reads} *)

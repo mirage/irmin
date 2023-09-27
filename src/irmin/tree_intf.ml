@@ -371,7 +371,7 @@ module type S = sig
 
     type irmin_tree
 
-    val to_tree : tree t -> irmin_tree
+    val to_tree : t -> irmin_tree
     (** [to_tree p] is the tree [t] representing the tree proof [p]. Blinded
         parts of the proof will raise [Dangling_hash] when traversed. *)
   end
@@ -474,32 +474,21 @@ module type Sigs = sig
     val to_backend_portable_node : node -> B.Node_portable.t Lwt.t
     val of_backend_node : B.Repo.t -> B.Node.value -> node
 
-    type ('proof, 'result) producer :=
+    type 'result producer :=
       B.Repo.t ->
       kinded_key ->
       (t -> (t * 'result) Lwt.t) ->
-      ('proof * 'result) Lwt.t
+      (Proof.t * 'result) Lwt.t
 
-    type verifier_error =
-      [ `Proof_mismatch of string
-      | `Stream_too_long of string
-      | `Stream_too_short of string ]
-    [@@deriving irmin]
+    type verifier_error = [ `Proof_mismatch of string ] [@@deriving irmin]
 
-    type ('proof, 'result) verifier :=
-      'proof ->
+    type 'result verifier :=
+      Proof.t ->
       (t -> (t * 'result) Lwt.t) ->
       (t * 'result, verifier_error) result Lwt.t
 
-    type tree_proof := Proof.tree Proof.t
-
-    val produce_proof : (tree_proof, 'a) producer
-    val verify_proof : (tree_proof, 'a) verifier
+    val produce_proof : 'a producer
+    val verify_proof : 'a verifier
     val hash_of_proof_state : Proof.tree -> kinded_hash
-
-    type stream_proof := Proof.stream Proof.t
-
-    val produce_stream : (stream_proof, 'a) producer
-    val verify_stream : (stream_proof, 'a) verifier
   end
 end

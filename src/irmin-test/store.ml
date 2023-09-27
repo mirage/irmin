@@ -1454,8 +1454,7 @@ module Make (S : Generic_key) = struct
     in
     run x test
 
-  let pp_proof = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.tree_t)
-  let pp_stream = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.stream_t)
+  let pp_proof = Irmin.Type.pp S.Tree.Proof.t
 
   let test_proofs x () =
     let test repo =
@@ -1656,19 +1655,6 @@ module Make (S : Generic_key) = struct
       in
       let* () = Lwt_list.iter_s check_proof [ f0; f1 ] in
 
-      let check_stream f =
-        let* p, () = S.Tree.produce_stream repo key f in
-        [%log.debug "Verifying stream %a" pp_stream p];
-        let+ r = S.Tree.verify_stream p f in
-        match r with
-        | Ok (_, ()) -> ()
-        | Error e ->
-            Alcotest.failf "check_stream: %a"
-              (Irmin.Type.pp S.Tree.verifier_error_t)
-              e
-      in
-      let* () = Lwt_list.iter_s check_stream [ f0; f1 ] in
-
       (* check env sharing *)
       let tree () =
         S.Tree.of_concrete
@@ -1764,47 +1750,6 @@ module Make (S : Generic_key) = struct
           (fun c -> check_bad_proof (proof ~state:c ()))
           some_contents
       in
-
-      (* test negative streams *)
-      let check_bad_stream p =
-        let+ r = S.Tree.verify_stream p f0 in
-        match r with
-        | Ok _ ->
-            Alcotest.failf "verify_stream should have failed %a" pp_stream p
-        | Error _ -> ()
-      in
-
-      let* p0, () = S.Tree.produce_stream repo key f0 in
-      let proof ?(before = S.Tree.Proof.before p0)
-          ?(after = S.Tree.Proof.after p0) ?(contents = S.Tree.Proof.state p0)
-          () =
-        S.Tree.Proof.v ~before ~after contents
-      in
-      let wrong_hash = B.Contents.Hash.hash "not the right hash!" in
-      let wrong_kinded_hash = `Node wrong_hash in
-      let* () = check_bad_stream (proof ~before:wrong_kinded_hash ()) in
-      let* () = check_bad_stream (proof ~after:wrong_kinded_hash ()) in
-      let* _ = S.Tree.verify_stream (proof ()) f0 in
-      let some_contents : S.Tree.Proof.stream list =
-        let s : S.Tree.Proof.elt list -> S.Tree.Proof.stream = List.to_seq in
-        let ok = List.of_seq (S.Tree.Proof.state p0) in
-        [
-          s [];
-          s [ Node [] ];
-          s [ Inode { length = 1024; proofs = [] } ];
-          s [ Contents "yo" ];
-          s (ok @ [ Node [] ]);
-        ]
-      in
-      let* () =
-        let x = ref 1 in
-        Lwt_list.iter_s
-          (fun c ->
-            incr x;
-            check_bad_stream (proof ~contents:c ()))
-          some_contents
-      in
-
       B.Repo.close repo
     in
     run x test
