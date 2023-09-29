@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 open Irmin_server
 open Lwt.Syntax
 open Lwt.Infix
@@ -101,11 +102,11 @@ struct
     let* res = Conn.Response.read_header t.conn in
     Conn.Response.get_error t.conn res >>= function
     | Some err ->
-        Logs.err (fun l -> l "Request error: command=%s, error=%s" name err);
+        [%log.err "Request error: command=%s, error=%s" name err];
         Lwt.return_error (`Msg err)
     | None ->
         let+ x = Conn.read t.conn ty in
-        Logs.debug (fun l -> l "Completed request: command=%s" name);
+        [%log.debug "Completed request: command=%s" name];
         x
 
   let request (t : t) (type x y)
@@ -113,7 +114,7 @@ struct
     if t.closed then raise Irmin.Closed
     else
       let name = Cmd.name in
-      Logs.debug (fun l -> l "Starting request: command=%s" name);
+      [%log.debug "Starting request: command=%s" name];
       lock t (fun () ->
           let* () = send_command_header t (module Cmd) in
           let* () = Conn.write t.conn Cmd.req_t a in
@@ -134,7 +135,6 @@ end
 
 module Make (IO : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
 struct
-  module St = Store
   module Client = Client (IO) (Codec) (Store)
   module Command = Command.Make (IO) (Codec) (Store)
   module Conn = Command.Conn
@@ -161,34 +161,25 @@ struct
     t.conn <- conn.conn;
     t.closed <- false
 
-  let current_branch repo =
-    request repo (module Commands.Get_current_branch) ()
-    >|= Error.unwrap "current_branch"
-
   let dup client =
     let* c = connect ~ctx:client.Client.ctx client.Client.config in
-    if client.closed then
-      let () = c.closed <- true in
-      Lwt.return c
-    else
-      let* branch = current_branch client in
-      let* _ = request c (module Commands.Set_current_branch) branch in
-      Lwt.return c
+    let () = if client.closed then c.closed <- true in
+    Lwt.return c
 
   let uri t = Conf.get t.Client.config Conf.uri
 
   module X = struct
     open Lwt.Infix
-    module Schema = St.Schema
-    module Hash = St.Hash
+    module Schema = Store.Schema
+    module Hash = Store.Hash
 
     module Contents = struct
       type nonrec 'a t = Client.t
 
       open Commands.Contents
-      module Key = St.Backend.Contents.Key
-      module Val = St.Backend.Contents.Val
-      module Hash = St.Backend.Contents.Hash
+      module Key = Store.Backend.Contents.Key
+      module Val = Store.Backend.Contents.Val
+      module Hash = Store.Backend.Contents.Hash
 
       type key = Key.t
       type value = Val.t
@@ -228,12 +219,12 @@ struct
       type nonrec 'a t = Client.t
 
       open Commands.Node
-      module Key = St.Backend.Node.Key
-      module Val = St.Backend.Node.Val
-      module Hash = St.Backend.Node.Hash
-      module Path = St.Backend.Node.Path
-      module Metadata = St.Backend.Node.Metadata
-      module Contents = St.Backend.Node.Contents
+      module Key = Store.Backend.Node.Key
+      module Val = Store.Backend.Node.Val
+      module Hash = Store.Backend.Node.Hash
+      module Path = Store.Backend.Node.Path
+      module Metadata = Store.Backend.Node.Metadata
+      module Contents = Store.Backend.Node.Contents
 
       type key = Key.t
       type value = Val.t
@@ -264,16 +255,16 @@ struct
         Irmin.Merge.v Irmin.Type.(option Key.t) f
     end
 
-    module Node_portable = St.Backend.Node_portable
+    module Node_portable = Store.Backend.Node_portable
 
     module Commit = struct
       type nonrec 'a t = Client.t
 
       open Commands.Commit
-      module Key = St.Backend.Commit.Key
-      module Val = St.Backend.Commit.Val
-      module Hash = St.Backend.Commit.Hash
-      module Info = St.Backend.Commit.Info
+      module Key = Store.Backend.Commit.Key
+      module Val = Store.Backend.Commit.Val
+      module Hash = Store.Backend.Commit.Hash
+      module Info = Store.Backend.Commit.Info
       module Node = Node
 
       type key = Key.t
@@ -310,14 +301,14 @@ struct
         Irmin.Merge.v Irmin.Type.(option Key.t) f
     end
 
-    module Commit_portable = St.Backend.Commit_portable
+    module Commit_portable = Store.Backend.Commit_portable
 
     module Branch = struct
       type nonrec t = Client.t
 
       open Commands.Branch
-      module Key = St.Backend.Branch.Key
-      module Val = St.Backend.Branch.Val
+      module Key = Store.Backend.Branch.Key
+      module Val = Store.Backend.Branch.Val
 
       type key = Key.t
       type value = Val.t
@@ -423,188 +414,51 @@ struct
     let conf = config ?tls ?hostname uri in
     Repo.v conf
 
-  let current_branch t = current_branch (repo t)
-
-  let set_current_branch (repo : repo) b =
-    request repo (module Commands.Set_current_branch) b
-    >|= Error.unwrap "set_current_branch"
+  let request_store store =
+    match status store with
+    | `Empty -> `Empty
+    | `Branch b -> `Branch b
+    | `Commit c -> `Commit (Commit.key c)
 
   module Batch = struct
-    module Tree' = Tree
+    module Request_tree = Command.Tree
 
     type store = t
 
-    module Tree = struct
-      include Command.Tree
-
-      let empty (t : repo) =
-        request t (module Commands.Tree.Empty) () >|= Error.unwrap "Tree.empty"
-
-      let of_path t path =
-        let t = repo t in
-        request t (module Commands.Tree.Of_path) path
-        >|= Error.unwrap "Tree.of_path"
-
-      let of_hash (t : repo) hash =
-        request t (module Commands.Tree.Of_hash) hash
-        >|= Error.unwrap "Tree.of_hash"
-
-      let of_commit (t : repo) hash =
-        request t (module Commands.Tree.Of_commit) hash
-        >|= Error.unwrap "Tree.of_commit"
-
-      let of_key key = Key key
-
-      let to_local t tree =
-        let+ x =
-          request t (module Commands.Tree.To_local) tree
-          >|= Error.unwrap "Tree.to_local"
-        in
-        Tree.of_concrete x
-
-      let of_local x =
-        let+ x = Tree.to_concrete x in
-        Concrete x
-
-      let save t tree =
-        request t (module Commands.Tree.Save) tree >|= Error.unwrap "Tree.save"
-
-      let key t tree =
-        request t (module Commands.Tree.Key) tree >|= Error.unwrap "Tree.key"
-
-      let hash t tree =
-        request t (module Commands.Tree.Hash) tree >|= Error.unwrap "Tree.hash"
-
-      let add t tree path value =
-        request t (module Commands.Tree.Add) (tree, path, value)
-        >|= Error.unwrap "Tree.add"
-
-      let add_tree t tree path tree' =
-        request t (module Commands.Tree.Add_tree) (tree, path, tree')
-        >|= Error.unwrap "Tree.add_tree"
-
-      let find t tree path : contents option Lwt.t =
-        request t (module Commands.Tree.Find) (tree, path)
-        >|= Error.unwrap "Tree.find"
-
-      let find_tree t tree path : t option Lwt.t =
-        request t (module Commands.Tree.Find_tree) (tree, path)
-        >|= Error.unwrap "Tree.find_tree"
-
-      let remove t tree path =
-        request t (module Commands.Tree.Remove) (tree, path)
-        >|= Error.unwrap "Tree.remove"
-
-      let cleanup t tree =
-        request t (module Commands.Tree.Cleanup) tree
-        >|= Error.unwrap "Tree.cleanup"
-
-      let cleanup_all t =
-        request t (module Commands.Tree.Cleanup_all) ()
-        >|= Error.unwrap "Tree.cleanup_all"
-
-      let mem t tree path =
-        request t (module Commands.Tree.Mem) (tree, path)
-        >|= Error.unwrap "Tree.mem"
-
-      let mem_tree t tree path =
-        request t (module Commands.Tree.Mem_tree) (tree, path)
-        >|= Error.unwrap "Tree.mem_tree"
-
-      let list t tree path =
-        request t (module Commands.Tree.List) (tree, path)
-        >|= Error.unwrap "Tree.list"
-
-      let merge t ~old a b =
-        request t (module Commands.Tree.Merge) (old, a, b)
-        >|= Error.unwrap "Tree.merge"
-
-      let clear t tree =
-        request t (module Commands.Tree.Clear) tree
-        >|= Error.unwrap "Tree.clear"
-    end
-
-    type batch_contents =
-      [ `Hash of Store.Hash.t | `Value of Store.contents ]
-      * Store.metadata option
-
     type t =
-      (Store.path * [ `Contents of batch_contents | `Tree of Tree.t ] option)
+      (Store.path
+      * [ `Contents of
+          [ `Hash of Store.Hash.t | `Value of Store.contents ]
+          * Store.metadata option
+        | `Tree of Request_tree.t
+        | `Remove ])
       list
     [@@deriving irmin]
 
     let v () = []
-    let of_tree ?(path = Path.empty) t = [ (path, Some (`Tree t)) ]
+    let remove k t = (k, `Remove) :: t
 
-    let of_contents ?(path = Path.empty) ?metadata c =
-      [ (path, Some (`Contents (`Value c, metadata))) ]
+    let add_value path ?metadata value t =
+      (path, `Contents (`Value value, metadata)) :: t
 
-    let tree (t : repo) (batch : t) tree =
-      request t (module Commands.Tree.Batch_tree) (tree, batch)
-      >|= Error.unwrap "Batch.tree"
+    let add_hash path ?metadata hash t =
+      (path, `Contents (`Hash hash, metadata)) :: t
 
-    let apply ?parents ~info t path (batch : t) =
-      let t = repo t in
-      let parents = Option.map (List.map (fun c -> Commit.hash c)) parents in
-      request t
-        (module Commands.Tree.Batch_apply)
-        (path, (parents, info ()), batch)
-      >|= Error.unwrap "Tree.apply"
-
-    let commit ~parents ~info t (tree : Tree.t) =
-      let parents = List.map (fun c -> Commit.key c) parents in
-      let* key =
-        request t (module Commands.Tree.Batch_commit) ((parents, info ()), tree)
-        >|= Error.unwrap "Tree.commit"
+    let add_tree path tree t =
+      let+ tree =
+        match Tree.key tree with
+        | None ->
+            let+ concrete_tree = Tree.to_concrete tree in
+            Request_tree.Concrete concrete_tree
+        | Some key -> Request_tree.Key key |> Lwt.return
       in
-      Commit.of_key t key >|= Option.get
+      (path, `Tree tree) :: t
 
-    let path_equal = Irmin.Type.(unstage (equal Path.t))
-
-    let find (b : t) k =
-      let l =
-        List.filter_map
-          (fun (a, b) ->
-            match b with
-            | Some (`Contents x) when path_equal k a -> Some x
-            | _ -> None)
-          b
-      in
-      match l with [] -> None | h :: _ -> Some h
-
-    let find_tree (b : t) k =
-      let l =
-        List.filter_map
-          (fun (a, b) ->
-            match b with
-            | Some (`Tree x) when path_equal k a -> Some x
-            | _ -> None)
-          b
-      in
-      match l with [] -> None | h :: _ -> Some h
-
-    let mem b k =
-      List.exists
-        (fun (a, b) ->
-          match b with Some (`Contents _) -> path_equal k a | _ -> false)
-        b
-
-    let mem_tree b k =
-      List.exists
-        (fun (a, b) ->
-          match b with Some (`Tree _) -> path_equal k a | _ -> false)
-        b
-
-    let remove b k = (k, None) :: b
-
-    let add batch path ?metadata value =
-      (path, Some (`Contents (`Value value, metadata))) :: batch
-
-    let add_hash batch path ?metadata hash =
-      (path, Some (`Contents (`Hash hash, metadata))) :: batch
-
-    let add_tree (batch : t) (path : path) (tree : Tree.t) : t =
-      (path, Some (`Tree tree)) :: batch
+    let apply ~info ?(path = Store.Path.empty) store t =
+      let repo = repo store in
+      let store = request_store store in
+      request repo (module Commands.Batch.Apply) ((store, path), info (), t)
+      >|= Error.unwrap "Batch.apply"
   end
 
   (* Overrides *)
@@ -671,14 +525,6 @@ struct
         x
   end
 
-  let main repo =
-    let* () = set_current_branch repo Store.Branch.main in
-    main repo
-
-  let of_branch repo branch =
-    let* () = set_current_branch repo branch in
-    of_branch repo branch
-
   let clone ~src ~dst =
     let repo = repo src in
     let* repo = dup repo in
@@ -689,25 +535,35 @@ struct
     in
     of_branch repo dst
 
+  let request_store store =
+    match status store with
+    | `Empty -> `Empty
+    | `Branch b -> `Branch b
+    | `Commit c -> `Commit (Commit.key c)
+
   let mem store path =
     let repo = repo store in
-    request repo (module Commands.Store.Mem) path >|= Error.unwrap "mem"
+    request repo (module Commands.Store.Mem) (request_store store, path)
+    >|= Error.unwrap "mem"
 
   let mem_tree store path =
     let repo = repo store in
-    request repo (module Commands.Store.Mem_tree) path
+    request repo (module Commands.Store.Mem_tree) (request_store store, path)
     >|= Error.unwrap "mem_tree"
 
   let find store path =
     let repo = repo store in
-    request repo (module Commands.Store.Find) path >|= Error.unwrap "find"
+    request repo (module Commands.Store.Find) (request_store store, path)
+    >|= Error.unwrap "find"
 
   let remove_exn ?clear ?retries ?allow_empty ?parents ~info store path =
     let parents = Option.map (List.map (fun c -> Commit.hash c)) parents in
     let repo = repo store in
     request repo
       (module Commands.Store.Remove)
-      (((clear, retries), (allow_empty, parents)), path, info ())
+      ( ((clear, retries), (allow_empty, parents)),
+        (request_store store, path),
+        info () )
     >|= Error.unwrap "remove"
 
   let remove ?clear ?retries ?allow_empty ?parents ~info store path =
@@ -719,7 +575,7 @@ struct
   let find_tree store path =
     let repo = repo store in
     let+ concrete =
-      request repo (module Commands.Store.Find_tree) path
+      request repo (module Commands.Store.Find_tree) (request_store store, path)
       >|= Error.unwrap "find_tree"
     in
     Option.map Tree.of_concrete concrete

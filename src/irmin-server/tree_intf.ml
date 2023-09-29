@@ -23,8 +23,7 @@ module type S = sig
 
   val concrete_t : concrete Irmin.Type.t
 
-  type t = Key of kinded_key | ID of int | Concrete of concrete
-  [@@deriving irmin]
+  type t = Key of kinded_key | Concrete of concrete [@@deriving irmin]
 end
 
 module type Tree = sig

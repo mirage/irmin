@@ -1,4 +1,6 @@
 (library
  (name irmin_client)
  (public_name irmin-client)
- (libraries irmin-server ipaddr))
+ (libraries irmin-server ipaddr)
+ (preprocess
+  (pps ppx_irmin.internal)))

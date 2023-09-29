@@ -44,9 +44,6 @@ module type S = sig
     conn : Conn.t;
     config : Irmin.Backend.Conf.t;
     repo : Store.Repo.t;
-    mutable branch : Store.branch;
-    mutable store : Store.t;
-    trees : (int, Store.tree) Hashtbl.t;
     mutable watch : Store.watch option;
     mutable branch_watch : Store.Backend.Branch.watch option;
   }
@@ -158,165 +155,62 @@ module type S = sig
     (** Check connectivity *)
     module Ping : CMD with type req = unit and type res = unit
 
-    (* Branch *)
-
-    (** Set the current branch for a client *)
-    module Set_current_branch :
-      CMD with type req = Store.branch and type res = unit
-
-    (** Get the current branch for a client *)
-    module Get_current_branch :
-      CMD with type req = unit and type res = Store.branch
-
     (** Export repo *)
     module Export : CMD with type req = int option and type res = Store.slice
 
     (** Import repo *)
     module Import : CMD with type req = Store.slice and type res = unit
 
-    (* Tree *)
-    module Tree : sig
-      type t = Tree.t
+    type store =
+      [ `Empty | `Branch of Store.branch | `Commit of Store.commit_key ]
+    [@@deriving irmin]
 
-      (** Create an empty tree *)
-      module Empty : CMD with type req = unit and type res = Tree.t
+    (* Batch operations for tree manipulation *)
+    module Batch : sig
+      type batch =
+        (Store.path
+        * [ `Contents of
+            [ `Hash of Store.hash | `Value of Store.contents ]
+            * Store.metadata option
+          | `Tree of Tree.t
+          | `Remove ])
+        list
 
-      (** Add a value to a tree *)
-      module Add :
+      module Apply :
         CMD
-          with type req = Tree.t * Store.path * Store.contents
-           and type res = Tree.t
-
-      module Save :
-        CMD
-          with type req = Tree.t
-           and type res =
-            [ `Contents of Store.contents_key | `Node of Store.node_key ]
-
-      module Of_path :
-        CMD with type req = Store.path and type res = Tree.t option
-
-      module Of_hash :
-        CMD with type req = Store.hash and type res = Tree.t option
-
-      module Of_commit :
-        CMD with type req = Store.hash and type res = Tree.t option
-
-      module Batch_tree :
-        CMD
-          with type req =
-            t
-            * (Store.path
-              * [ `Contents of
-                  [ `Hash of Store.hash | `Value of Store.contents ]
-                  * Store.metadata option
-                | `Tree of Tree.t ]
-                option)
-              list
-           and type res = Tree.t
-
-      module Batch_commit :
-        CMD
-          with type req = (Store.commit_key list * Store.info) * Tree.t
+          with type req = (store * Store.path) * Store.info * batch
            and type res = Store.commit_key
-
-      module Batch_apply :
-        CMD
-          with type req =
-            Store.path
-            * (Store.hash list option * Store.info)
-            * (Store.path
-              * [ `Contents of
-                  [ `Hash of Store.hash | `Value of Store.contents ]
-                  * Store.metadata option
-                | `Tree of Tree.t ]
-                option)
-              list
-           and type res = unit
-
-      module Clear : CMD with type req = Tree.t and type res = unit
-
-      (** Add a tree to a tree *)
-      module Add_tree :
-        CMD with type req = Tree.t * Store.path * Tree.t and type res = Tree.t
-
-      (** Remove path from a tree *)
-      module Remove :
-        CMD with type req = Tree.t * Store.path and type res = Tree.t
-
-      (** Find a value from a tree *)
-      module Find :
-        CMD
-          with type req = Tree.t * Store.path
-           and type res = Store.contents option
-
-      (** Find a tree from a tree *)
-      module Find_tree :
-        CMD with type req = Tree.t * Store.path and type res = Tree.t option
-
-      (** Deallocate a single tree *)
-      module Cleanup : CMD with type req = Tree.t and type res = unit
-
-      (** Convert tree to concrete representation *)
-      module To_local : CMD with type req = Tree.t and type res = Tree.concrete
-
-      (** Check if a path is set to a value in a tree *)
-      module Mem : CMD with type req = Tree.t * Store.path and type res = bool
-
-      (** Check if a path is set to a tree *)
-      module Mem_tree :
-        CMD with type req = Tree.t * Store.path and type res = bool
-
-      (** List items in one level of a tree *)
-      module List :
-        CMD
-          with type req = Tree.t * Store.path
-           and type res = (Store.Path.step * [ `Contents | `Tree ]) list
-
-      (** Get tree hash *)
-      module Hash : CMD with type req = Tree.t and type res = Store.Hash.t
-
-      (** Get tree key *)
-      module Key :
-        CMD with type req = Tree.t and type res = Store.Tree.kinded_key
-
-      (** Deallocate all trees *)
-      module Cleanup_all : CMD with type req = unit and type res = unit
-
-      (** Merge with another tree *)
-      module Merge :
-        CMD with type req = Tree.t * Tree.t * Tree.t and type res = Tree.t
     end
 
     (* Store *)
     module Store : sig
+      type t = store [@@deriving irmin]
+
       type write_options =
         (bool option * int option) * (bool option * Store.hash list option)
       [@@deriving irmin]
 
       (** Find a value in the store *)
       module Find :
-        CMD with type req = Store.path and type res = Store.contents option
+        CMD with type req = t * Store.path and type res = Store.contents option
 
       (** Remove a value from the store *)
       module Remove :
         CMD
-          with type req =
-            ((bool option * int option)
-            * (bool option * Store.hash list option))
-            * Store.path
-            * Store.Info.t
+          with type req = write_options * (t * Store.path) * Store.Info.t
            and type res = unit
 
       (** Get a tree from the store *)
       module Find_tree :
-        CMD with type req = Store.path and type res = Store.Tree.concrete option
+        CMD
+          with type req = t * Store.path
+           and type res = Store.Tree.concrete option
 
       (** Check for the existence of a value in the store *)
-      module Mem : CMD with type req = Store.path and type res = bool
+      module Mem : CMD with type req = t * Store.path and type res = bool
 
       (** Check for the existence of a tree in the store *)
-      module Mem_tree : CMD with type req = Store.path and type res = bool
+      module Mem_tree : CMD with type req = t * Store.path and type res = bool
     end
   end
 end

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2023 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,26 +15,21 @@
  *)
 
 open Lwt.Syntax
-module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
-module Server = Irmin_server_unix.Make (Store)
 
-let info () = Irmin.Info.Default.empty
-
-let init () =
-  let* repo = Store.Repo.v (Irmin_mem.config ()) in
-  let* main = Store.main repo in
-  let+ () = Store.set_exn ~info main [ "foo" ] "bar" in
-  ()
+module Server =
+  Irmin_server_unix.Make_ext (Irmin_server.Conn.Codec.Bin) (Config.Store)
 
 let main () =
-  let uri = Uri.of_string Sys.argv.(1) in
   let config = Irmin_mem.config () in
   let dashboard = `TCP (`Port 1234) in
+  let uri = Config.uri in
   let* server = Server.v ~uri ~dashboard config in
-  let () = Format.printf "Listening on %a@." Uri.pp uri in
+  Logs.debug (fun l -> l "Listening on %a@." Uri.pp uri);
   Server.serve server
 
 let () =
-  Lwt_main.run
-  @@ let* () = init () in
-     main ()
+  Fmt_tty.setup_std_outputs ();
+  Logs.(set_level @@ Some Debug);
+  Irmin.Export_for_backends.Logging.reporter (module Mtime_clock)
+  |> Logs.set_reporter;
+  Lwt_main.run @@ main ()

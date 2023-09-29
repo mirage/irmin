@@ -23,14 +23,34 @@ struct
   module Store = Store
   module Tree = Tree.Make (Store)
   module Commit = Commit.Make (Store) (Tree)
-  include Context.Make (IO) (Codec) (Store) (Tree)
+  include Context.Make (IO) (Codec) (Store)
   module Return = Conn.Return
 
   type t = (module CMD)
 
   module Commands = struct
-    module Tree' = Tree
-    module Tree = Command_tree.Make (IO) (Codec) (Store) (Tree) (Commit)
+    let resolve_tree (ctx : context) tree =
+      let* id, tree =
+        match tree with
+        | Tree.Key x -> Store.Tree.of_key ctx.repo x >|= fun x -> (None, x)
+        | Concrete x -> Lwt.return (None, Some (Store.Tree.of_concrete x))
+      in
+      match tree with
+      | Some t -> Lwt.return (id, t)
+      | None -> Error.raise_error "unknown tree"
+
+    type store =
+      [ `Empty | `Branch of Store.branch | `Commit of Store.commit_key ]
+    [@@deriving irmin]
+
+    let resolve_store ctx = function
+      | `Empty -> Store.empty ctx.repo
+      | `Branch b -> Store.of_branch ctx.repo b
+      | `Commit key -> (
+          let* commit = Store.Commit.of_key ctx.repo key in
+          match commit with
+          | None -> Error.raise_error "Cannot find commit"
+          | Some commit -> Store.of_commit commit)
 
     module Ping = struct
       let name = "ping"
@@ -39,27 +59,6 @@ struct
       type res = unit [@@deriving irmin]
 
       let run conn _ctx _ () = Return.ok conn
-    end
-
-    module Set_current_branch = struct
-      type req = Store.Branch.t [@@deriving irmin]
-      type res = unit [@@deriving irmin]
-
-      let name = "set_current_branch"
-
-      let run conn ctx _ branch =
-        let* store = Store.of_branch ctx.repo branch in
-        ctx.branch <- branch;
-        ctx.store <- store;
-        Return.ok conn
-    end
-
-    module Get_current_branch = struct
-      type req = unit [@@deriving irmin]
-      type res = Store.Branch.t [@@deriving irmin]
-
-      let name = "get_current_branch"
-      let run conn ctx _ () = Return.v conn Store.Branch.t ctx.branch
     end
 
     module Export = struct
@@ -544,48 +543,100 @@ struct
       end
     end
 
+    module Batch = struct
+      type batch =
+        (Store.path
+        * [ `Contents of
+            [ `Hash of Store.hash | `Value of Store.contents ]
+            * Store.metadata option
+          | `Tree of Tree.t
+          | `Remove ])
+        list
+      [@@deriving irmin]
+
+      module Apply = struct
+        type req = (store * Store.path) * Store.info * batch [@@deriving irmin]
+        type res = Store.commit_key [@@deriving irmin]
+
+        let name = "tree.batch.apply"
+
+        let run conn ctx _ ((store, path), info, l) =
+          let* store = resolve_store ctx store in
+          let* () =
+            Store.with_tree_exn store path
+              ~info:(fun () -> info)
+              (fun tree ->
+                let tree = Option.value ~default:(Store.Tree.empty ()) tree in
+                let* tree =
+                  Lwt_list.fold_left_s
+                    (fun tree (path, value) ->
+                      match value with
+                      | `Contents (`Hash value, metadata) ->
+                          let* value = Store.Contents.of_hash ctx.repo value in
+                          Store.Tree.add tree path ?metadata (Option.get value)
+                      | `Contents (`Value value, metadata) ->
+                          Store.Tree.add tree path ?metadata value
+                      | `Tree t ->
+                          let* _, tree' = resolve_tree ctx t in
+                          Store.Tree.add_tree tree path tree'
+                      | `Remove -> Store.Tree.remove tree path)
+                    tree l
+                in
+                Lwt.return (Some tree))
+          in
+          let* c = Store.Head.get store in
+          Return.v conn res_t (Store.Commit.key c)
+      end
+    end
+
     module Store = struct
+      type t = store [@@deriving irmin]
+
       module Mem = struct
-        type req = Store.path [@@deriving irmin]
+        type req = t * Store.path [@@deriving irmin]
         type res = bool [@@deriving irmin]
 
         let name = "store.mem"
 
-        let run conn ctx _ path =
-          let* res = Store.mem ctx.store path in
+        let run conn ctx _ (store, path) =
+          let* store = resolve_store ctx store in
+          let* res = Store.mem store path in
           Return.v conn res_t res
       end
 
       module Mem_tree = struct
-        type req = Store.path [@@deriving irmin]
+        type req = t * Store.path [@@deriving irmin]
         type res = bool [@@deriving irmin]
 
         let name = "store.mem_tree"
 
-        let run conn ctx _ path =
-          let* res = Store.mem_tree ctx.store path in
+        let run conn ctx _ (store, path) =
+          let* store = resolve_store ctx store in
+          let* res = Store.mem_tree store path in
           Return.v conn res_t res
       end
 
       module Find = struct
-        type req = Store.path [@@deriving irmin]
+        type req = t * Store.path [@@deriving irmin]
         type res = Store.contents option [@@deriving irmin]
 
         let name = "store.find"
 
-        let run conn ctx _ path =
-          let* x = Store.find ctx.store path in
+        let run conn ctx _ (store, path) =
+          let* store = resolve_store ctx store in
+          let* x = Store.find store path in
           Return.v conn res_t x
       end
 
       module Find_tree = struct
-        type req = Store.path [@@deriving irmin]
+        type req = t * Store.path [@@deriving irmin]
         type res = Store.Tree.concrete option [@@deriving irmin]
 
         let name = "store.find_tree"
 
-        let run conn ctx _ path =
-          let* x = Store.find_tree ctx.store path in
+        let run conn ctx _ (store, path) =
+          let* store = resolve_store ctx store in
+          let* x = Store.find_tree store path in
           match x with
           | None -> Return.v conn res_t None
           | Some x ->
@@ -609,17 +660,20 @@ struct
             Lwt.return_some parents
 
       module Remove = struct
-        type req = write_options * Store.path * Store.Info.t [@@deriving irmin]
+        type req = write_options * (t * Store.path) * Store.Info.t
+        [@@deriving irmin]
+
         type res = unit [@@deriving irmin]
 
         let name = "store.remove"
 
         let run conn ctx _
-            (((clear, retries), (allow_empty, parents)), path, info) =
+            (((clear, retries), (allow_empty, parents)), (store, path), info) =
           let* parents = mk_parents ctx parents in
+          let* store = resolve_store ctx store in
           let* () =
-            Store.remove_exn ?clear ?retries ?allow_empty ?parents ctx.store
-              path ~info:(fun () -> info)
+            Store.remove_exn ?clear ?retries ?allow_empty ?parents store path
+              ~info:(fun () -> info)
           in
           Return.v conn res_t ()
       end
@@ -629,9 +683,8 @@ struct
   let commands : (string * (module CMD)) list =
     let open Commands in
     [
+      cmd (module Batch.Apply);
       cmd (module Ping);
-      cmd (module Set_current_branch);
-      cmd (module Get_current_branch);
       cmd (module Import);
       cmd (module Export);
       cmd (module Contents.Mem);
@@ -668,7 +721,6 @@ struct
       cmd (module Store.Find_tree);
       cmd (module Store.Remove);
     ]
-    @ Tree.commands
 
   let () = List.iter (fun (k, _) -> assert (String.length k < 255)) commands
   let of_name name = List.assoc name commands

@@ -6,4 +6,6 @@
   lwt.unix
   websocket-lwt-unix
   conduit-lwt-unix
-  irmin-server))
+  irmin-server)
+ (preprocess
+  (pps ppx_irmin.internal)))

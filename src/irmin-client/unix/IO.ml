@@ -13,6 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+open Import
 
 type flow = Conduit_lwt_unix.flow
 type ic = Conduit_lwt_unix.ic
@@ -77,7 +78,7 @@ let websocket_to_flow client =
     Lwt.catch
       (fun () ->
         Websocket_lwt_unix.read client >>= fun frame ->
-        Logs.debug (fun f -> f "<<< Client received frame");
+        [%log.debug "<<< Client received frame"];
         Lwt_io.write channel frame.content >>= fun () -> fill_ic channel client)
       (function End_of_file -> Lwt_io.close channel | exn -> Lwt.fail exn)
   in
@@ -85,7 +86,7 @@ let websocket_to_flow client =
     (if handshake then Websocket_protocol.read_handshake channel
      else Websocket_protocol.read_request channel)
     >>= fun content ->
-    Logs.debug (fun f -> f ">>> Client sent frame");
+    [%log.debug ">>> Client sent frame"];
     Lwt.catch
       (fun () ->
         Websocket_lwt_unix.write client
