@@ -52,9 +52,10 @@ module Make (G : Git.S) (C : Irmin.Contents.S) = struct
       match Raw.of_raw_with_header ~off buf with
       | Ok g -> (
           match V.of_git g with
-          | Some g ->
-              pos_ref := String.length buf;
-              g
+          | Some v ->
+              let len = Raw.length_with_header g |> Int64.to_int in
+              pos_ref := off + len;
+              v
           | None -> failwith "wrong object kind")
       | Error (`Msg _) -> failwith "wrong object"
 
