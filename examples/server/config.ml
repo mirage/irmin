@@ -14,6 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
+module Store = struct
+  module Git_impl = Irmin_git.Mem
+  module Sync = Git.Mem.Sync (Git_impl)
+  module Maker = Irmin_git.KV (Git_impl) (Sync)
+  include Maker.Make (Irmin.Contents.String)
+end
 
 let uri = Uri.of_string "tcp://localhost:4242"
