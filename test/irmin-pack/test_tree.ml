@@ -109,15 +109,8 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
     let+ t, () = Store.Tree.produce_proof repo hash (run ops) in
     t
 
-  let stream_of_ops repo hash ops : _ Lwt.t =
-    let+ t, () = Store.Tree.produce_stream repo hash (run ops) in
-    t
-
-  let tree_proof_t = Tree.Proof.t Tree.Proof.tree_t
-  let stream_proof_t = Tree.Proof.t Tree.Proof.stream_t
-  let bin_of_proof = Irmin.Type.(unstage (to_bin_string tree_proof_t))
-  let proof_of_bin = Irmin.Type.(unstage (of_bin_string tree_proof_t))
-  let bin_of_stream = Irmin.Type.(unstage (to_bin_string stream_proof_t))
+  let bin_of_proof = Irmin.Type.(unstage (to_bin_string Tree.Proof.t))
+  let proof_of_bin = Irmin.Type.(unstage (of_bin_string Tree.Proof.t))
 end
 
 module Default = Make (Conf)
@@ -300,7 +293,7 @@ let test_proofs ctxt ops =
   (* test encoding *)
   let enc = bin_of_proof proof in
   let dec = proof_of_bin enc in
-  Alcotest.(check_repr tree_proof_t) "same proof" proof dec;
+  Alcotest.(check_repr Tree.Proof.t) "same proof" proof dec;
 
   (* test equivalence *)
   let tree_proof = Tree.Proof.to_tree proof in
@@ -438,15 +431,6 @@ let test_large_proofs () =
     let enc_32 = bin_of_proof proof in
     let* () = close ctxt in
 
-    (* Build a stream proof *)
-    let* ctxt = init_tree bindings in
-    let key =
-      match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
-    in
-    let* proof = stream_of_ops ctxt.repo (`Node key) ops in
-    let s_enc_32 = bin_of_stream proof in
-    let* () = close ctxt in
-
     (* Build a proof on a large store (branching factor = 2) *)
     let* ctxt = Binary.init_tree bindings in
     let key =
@@ -458,35 +442,17 @@ let test_large_proofs () =
     let enc_2 = Binary.bin_of_proof proof in
     let* () = Binary.close ctxt in
 
-    (* Build a stream proof *)
-    let* ctxt = Binary.init_tree bindings in
-    let key =
-      match Binary.Store.Tree.key ctxt.tree with
-      | Some (`Node k) -> k
-      | _ -> assert false
-    in
-    let* proof = Binary.stream_of_ops ctxt.repo (`Node key) ops in
-    let s_enc_2 = Binary.bin_of_stream proof in
-    let* () = Binary.close ctxt in
-
-    Lwt.return
-      ( n,
-        String.length enc_32 / 1024,
-        String.length s_enc_32 / 1024,
-        String.length enc_2 / 1024,
-        String.length s_enc_2 / 1024 )
+    Lwt.return (n, String.length enc_32 / 1024, String.length enc_2 / 1024)
   in
   let* a = compare_proofs 1 in
   let* b = compare_proofs 100 in
   let* c = compare_proofs 1_000 in
   let+ d = compare_proofs 10_000 in
   List.iter
-    (fun (n, k32, sk32, k2, sk2) ->
+    (fun (n, k32, k2) ->
       Fmt.pr "Size of Merkle proof for %d operations:\n" n;
       Fmt.pr "- Merkle B-trees (32 children)       : %dkB\n%!" k32;
-      Fmt.pr "- stream Merkle B-trees (32 children): %dkB\n%!" sk32;
-      Fmt.pr "- binary Merkle trees                : %dkB\n%!" k2;
-      Fmt.pr "- stream binary Merkle trees         : %dkB\n%!" sk2)
+      Fmt.pr "- binary Merkle trees                : %dkB\n%!" k2)
     [ a; b; c; d ]
 
 module Custom = Make (struct
@@ -504,8 +470,7 @@ end)
 
 module P = Custom.Tree.Proof
 
-let pp_proof = Irmin.Type.pp (P.t P.tree_t)
-let pp_stream = Irmin.Type.pp (P.t P.stream_t)
+let pp_proof = Irmin.Type.pp P.t
 
 let check_hash h s =
   let s' = Irmin.Type.(to_string Hash.t) h in
@@ -544,68 +509,7 @@ let test_extenders () =
           (Irmin.Type.pp Custom.Tree.verifier_error_t)
           e
   in
-  let* () = Lwt_list.iter_s check_proof [ bindings; bindings2; bindings3 ] in
-
-  let check_stream bindings =
-    let* ctxt = Custom.init_tree bindings in
-    let key = Custom.Tree.key ctxt.tree |> Option.get in
-    let* p, () = Custom.Tree.produce_stream ctxt.repo key f in
-    [%log.debug "Verifying stream %a" pp_stream p];
-    let+ r = Custom.Tree.verify_stream p f in
-    match r with
-    | Ok (_, ()) -> ()
-    | Error e ->
-        Alcotest.failf "check_stream: %a"
-          (Irmin.Type.pp Custom.Tree.verifier_error_t)
-          e
-  in
-  Lwt_list.iter_s check_stream [ bindings; bindings2; bindings3 ]
-
-let test_hardcoded_stream () =
-  let bindings =
-    [ ([ "00100" ], "x"); ([ "00101" ], "y"); ([ "00110" ], "z") ]
-  in
-  let fail elt =
-    Alcotest.failf "Unexpected elt in stream %a" (Irmin.Type.pp P.elt_t) elt
-  in
-  let* ctxt = Custom.init_tree bindings in
-  let key = Custom.Tree.key ctxt.tree |> Option.get in
-  let f t =
-    let path = [ "00100" ] in
-    let+ v = Custom.Tree.get t path in
-    Alcotest.(check ~pos:__POS__ string) "" (List.assoc path bindings) v;
-    (t, ())
-  in
-  let* p, () = Custom.Tree.produce_stream ctxt.repo key f in
-  let state = P.state p in
-  let counter = ref 0 in
-  Seq.iter
-    (fun elt ->
-      (match !counter with
-      | 0 -> (
-          match elt with
-          | P.Inode_extender { length; segments = [ 0; 0; 1 ]; proof = h }
-            when length = 3 ->
-              check_hash h "25c1a3d3bb7e5124cf61954851d0c9ccf5113d4e"
-          | _ -> fail elt)
-      | 1 -> (
-          match elt with
-          | P.Inode { length; proofs = [ (0, h1); (1, h0) ] } when length = 3 ->
-              check_hash h0 "8410f4d1be1d571f0d63638927d42c7c1c6f3df1";
-              check_hash h1 "580c8955c438ca5b1f94d2f4eb712a85e2634b70"
-          | _ -> fail elt)
-      | 2 -> (
-          match elt with
-          | P.Node [ ("00100", h0); ("00101", h1) ] ->
-              check_contents_hash h0 "11f6ad8ec52a2984abaafd7c3b516503785c2072";
-              check_contents_hash h1 "95cb0bfd2977c761298d9624e4b4d4c72a39974a"
-          | _ -> fail elt)
-      | 3 -> ( match elt with P.Contents "x" -> () | _ -> fail elt)
-      | _ -> fail elt);
-      incr counter)
-    state;
-  if !counter <> 4 then Alcotest.fail "Not enough elements in the stream";
-  Lwt.return_unit
+  Lwt_list.iter_s check_proof [ bindings; bindings2; bindings3 ]
 
 let test_hardcoded_proof () =
   let bindings =
@@ -654,66 +558,6 @@ let test_hardcoded_proof () =
 let tree_of_list ls =
   let tree = Tree.empty () in
   Lwt_list.fold_left_s (fun tree (k, v) -> Tree.add tree k v) tree ls
-
-let test_proof_exn _ =
-  let x = "x" in
-  let y = "y" in
-  let hx = Store.Contents.hash x in
-  let hy = Store.Contents.hash y in
-  let stream_elt1 : P.elt = Contents y in
-  let stream_elt2 : P.elt = Contents x in
-  let stream_elt3 : P.elt =
-    Node [ ("bx", `Contents (hx, ())); ("by", `Contents (hy, ())) ]
-  in
-  let* tree = tree_of_list [ ([ "bx" ], "x"); ([ "by" ], "y") ] in
-  let hash = Tree.hash tree in
-
-  let stream_all =
-    P.v ~before:(`Node hash) ~after:(`Node hash)
-      (List.to_seq [ stream_elt3; stream_elt2; stream_elt1 ])
-  in
-  let stream_short =
-    P.v ~before:(`Node hash) ~after:(`Node hash)
-      (List.to_seq [ stream_elt3; stream_elt2 ])
-  in
-  let f_all t =
-    let* _ = Custom.Tree.find t [ "bx" ] in
-    let+ _ = Custom.Tree.find t [ "by" ] in
-    (t, ())
-  in
-  let f_short t =
-    let+ _ = Custom.Tree.find t [ "bx" ] in
-    (t, ())
-  in
-  (* Test the Stream_too_long error. *)
-  let* r = Custom.Tree.verify_stream stream_all f_short in
-  let* () =
-    match r with
-    | Error (`Stream_too_long _) -> Lwt.return_unit
-    | _ -> Alcotest.fail "expected Stream_too_long error"
-  in
-  (* Test the Stream_too_short error. *)
-  let* r = Custom.Tree.verify_stream stream_short f_all in
-  let* () =
-    match r with
-    | Error (`Stream_too_short _) -> Lwt.return_unit
-    | _ -> Alcotest.fail "expected Stream_too_short error"
-  in
-  (* Test the correct usecase. *)
-  let* r = Custom.Tree.verify_stream stream_all f_all in
-  let* () =
-    match r with
-    | Ok (_, ()) -> Lwt.return_unit
-    | Error e -> (
-        match e with
-        | `Proof_mismatch str ->
-            Alcotest.failf "unexpected Proof_mismatch error: %s" str
-        | `Stream_too_long str ->
-            Alcotest.failf "unexpected Stream_too_long error: %s" str
-        | `Stream_too_short str ->
-            Alcotest.failf "unexpected Stream_too_short error: %s" str)
-  in
-  Lwt.return_unit
 
 let test_reexport_node () =
   let* tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
@@ -768,12 +612,8 @@ let tests =
         test_large_proofs);
     Alcotest_lwt.test_case "test extenders in stream proof" `Quick
       (fun _switch -> test_extenders);
-    Alcotest_lwt.test_case "test hardcoded stream proof" `Quick (fun _switch ->
-        test_hardcoded_stream);
     Alcotest_lwt.test_case "test hardcoded proof" `Quick (fun _switch ->
         test_hardcoded_proof);
-    Alcotest_lwt.test_case "test stream proof exn" `Quick (fun _switch ->
-        test_proof_exn);
     Alcotest_lwt.test_case "test reexport node" `Quick (fun _switch ->
         test_reexport_node);
   ]

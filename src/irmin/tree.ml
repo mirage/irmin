@@ -2757,15 +2757,15 @@ module Make (P : Backend.S) = struct
 
     let to_tree p =
       let env = Env.empty () in
-      Env.set_mode env Env.Set Env.Deserialise;
+      Env.set_mode env Env.Deserialise;
       let h = load_proof ~env (state p) Fun.id in
       let tree = pruned_with_env ~env h in
-      Env.set_mode env Env.Set Env.Consume;
+      Env.set_mode env Env.Consume;
       tree
   end
 
   let produce_proof repo kinded_key f =
-    Env.with_set_produce @@ fun env ~start_serialise ->
+    Env.with_produce @@ fun env ~start_serialise ->
     let tree = import_with_env ~env repo kinded_key in
     let+ tree_after, result = f tree in
     let after = hash tree_after in
@@ -2780,18 +2780,8 @@ module Make (P : Backend.S) = struct
     let kinded_hash = Node.weaken_value kinded_key in
     (Proof.v ~before:kinded_hash ~after proof, result)
 
-  let produce_stream repo kinded_key f =
-    Env.with_stream_produce @@ fun env ~to_stream ->
-    let tree = import_with_env ~env repo kinded_key in
-    let+ tree_after, result = f tree in
-    let after = hash tree_after in
-    clear tree;
-    let proof = to_stream () in
-    let kinded_hash = Node.weaken_value kinded_key in
-    (Proof.v ~before:kinded_hash ~after proof, result)
-
   let verify_proof_exn p f =
-    Env.with_set_consume @@ fun env ~stop_deserialise ->
+    Env.with_consume @@ fun env ~stop_deserialise ->
     let before = Proof.before p in
     let after = Proof.after p in
     (* First convert to proof to [Env] *)
@@ -2819,11 +2809,7 @@ module Make (P : Backend.S) = struct
               h.context pp_hash h.hash
         | e -> raise e)
 
-  type verifier_error =
-    [ `Proof_mismatch of string
-    | `Stream_too_long of string
-    | `Stream_too_short of string ]
-  [@@deriving irmin]
+  type verifier_error = [ `Proof_mismatch of string ] [@@deriving irmin]
 
   let verify_proof p f =
     Lwt.catch
@@ -2833,49 +2819,6 @@ module Make (P : Backend.S) = struct
       (function
         | Irmin_proof.Bad_proof e ->
             Lwt.return (Error (`Proof_mismatch e.context))
-        | e -> Lwt.fail e)
-
-  let verify_stream_exn p f =
-    let before = Proof.before p in
-    let after = Proof.after p in
-    let stream = Proof.state p in
-    Env.with_stream_consume stream @@ fun env ~is_empty ->
-    let tree = pruned_with_env ~env before in
-    Lwt.catch
-      (fun () ->
-        let+ tree_after, result = f tree in
-        if not (is_empty ()) then
-          Irmin_proof.bad_stream_too_long "verify_stream"
-            "did not consume the full stream";
-        if not (equal_kinded_hash after (hash tree_after)) then
-          Irmin_proof.bad_stream_exn "verify_stream" "invalid after hash";
-        (tree_after, result))
-      (function
-        | Pruned_hash h ->
-            Fmt.kstr
-              (Irmin_proof.bad_stream_exn "verify_stream")
-              "%s is trying to read through a blinded node or object (%a)"
-              h.context pp_hash h.hash
-        | e -> raise e)
-
-  let verify_stream p f =
-    Lwt.catch
-      (fun () ->
-        let+ r = verify_stream_exn p f in
-        Ok r)
-      (function
-        | Irmin_proof.Bad_stream (Stream_too_long e) ->
-            Fmt.kstr
-              (fun e -> Lwt.return (Error (`Stream_too_long e)))
-              "Bad_stream %s: %s" e.context e.reason
-        | Irmin_proof.Bad_stream (Stream_too_short e) ->
-            Fmt.kstr
-              (fun e -> Lwt.return (Error (`Stream_too_short e)))
-              "Bad_stream %s: %s" e.context e.reason
-        | Irmin_proof.Bad_stream (Proof_mismatch e) ->
-            Fmt.kstr
-              (fun e -> Lwt.return (Error (`Proof_mismatch e)))
-              "Bad_stream %s: %s" e.context e.reason
         | e -> Lwt.fail e)
 
   let hash_of_proof_state state =

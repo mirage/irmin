@@ -134,8 +134,8 @@ Here is the signature of `produce_proof`:
 val produce_proof :
   Store.repo ->
   Store.Tree.kinded_key ->
-  (Store.tree -> (Store.tree * 'a) Lwt.t) ->
-  (Store.Tree.Proof.tree Store.Tree.Proof.t * 'a) Lwt.t = <fun>
+  (Store.tree -> (Store.tree * 'a) Lwt.t) -> (Store.Tree.Proof.t * 'a) Lwt.t =
+  <fun>
 ```
 
 `produce_proof repo key_before f` is `(proof = { state; hash_before; hash_after }, f_res)`. `f` is invoked once per call to `produce_proof` and `f tree_before` is `(tree_after, f_res)`.
