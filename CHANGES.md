@@ -26,6 +26,11 @@
     the maintenance of that part of the code, as ensuring the correct order of
     cached IO operations was tricky for stream proofs (#2275, @samoht)
 
+### Changed
+
+- **irmin-git**
+  - Moved lower bounds to `git.3.14.0` to use new function (#2277, @metanivek)
+
 ## 3.8.0 (2023-07-06)
 
 ### Added
