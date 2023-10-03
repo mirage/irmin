@@ -105,6 +105,7 @@ TODO
 
 ## tezos-explorer-gui
 This tool is a graphical UI, meant to allow the user to figure out rapidly the shape of a commit, giving him informations on it's content.
+In order to launch it, uncomment the `dune` file under the path `src/irmin-pack-tools/tezos_explorer_gui` and install the deps `tsdl` and `tsdl-ttf`.
 It can be launched using the following command:
 ```shell
 $ dune exec -- irmin-tezos-explorer-gui <path-to-store> <path-to-ttf-font> <commit>

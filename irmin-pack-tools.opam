@@ -24,8 +24,6 @@ depends: [
   "cmdliner"    {>= "1.1.0"}
   "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
-  "tsdl"        {>= "1.0.0"}
-  "tsdl-ttf"    {>= "0.6"}
   "prettree"
   "ptime"
   "hex"

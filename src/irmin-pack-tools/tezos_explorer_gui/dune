@@ -1,8 +1,8 @@
-(executable
- (public_name irmin-tezos-explorer-gui)
- (package irmin-pack-tools)
- (name main)
- (modules main context load_tree tree sdl_util layout loading)
- (libraries prettree tsdl tsdl-ttf fmt irmin_pack irmin_tezos cmdliner)
- (preprocess
-  (pps ppx_repr)))
+; (executable
+;  (public_name irmin-tezos-explorer-gui)
+;  (package irmin-pack-tools)
+;  (name main)
+;  (modules main context load_tree tree sdl_util layout loading)
+;  (libraries prettree tsdl tsdl-ttf fmt irmin_pack irmin_tezos cmdliner)
+;  (preprocess
+;   (pps ppx_repr)))
