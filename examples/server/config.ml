@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2023 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,10 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Tree_intf
+module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
 
-module Make (Store : Irmin.Generic_key.S) = struct
-  type concrete = Store.Tree.concrete [@@deriving irmin]
-  type kinded_key = Store.Tree.kinded_key [@@deriving irmin]
-  type t = Key of kinded_key | Concrete of concrete [@@deriving irmin]
-end
+let uri = Uri.of_string "tcp://localhost:4242"

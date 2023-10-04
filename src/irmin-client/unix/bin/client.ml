@@ -185,11 +185,10 @@ let replicate client author message prefix =
           List.fold_left
             (fun acc (k, diff) ->
               match diff with
-              | `Updated (_, (v, m)) ->
-                  (k, Some (`Contents (`Value v, Some m))) :: acc
-              | `Added (v, m) -> (k, Some (`Contents (`Value v, Some m))) :: acc
-              | `Removed _ -> (k, None) :: acc)
-            [] (diff input)
+              | `Updated (_, (value, metadata)) | `Added (value, metadata) ->
+                  Client.Batch.add_value ~metadata k value acc
+              | `Removed _ -> Client.Batch.remove k acc)
+            (Client.Batch.v ()) (diff input)
         in
         let info = Info.v ~author "%s" message in
         let prefix =
@@ -197,7 +196,7 @@ let replicate client author message prefix =
           | Some p -> Irmin.Type.of_string Client.Path.t p |> Result.get_ok
           | None -> Client.Path.empty
         in
-        let* () = Client.Batch.apply ~info client prefix batch in
+        let* _ = Client.Batch.apply ~info client ~path:prefix batch in
         loop ()
       in
       loop () )

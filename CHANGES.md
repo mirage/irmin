@@ -7,6 +7,9 @@
 - **irmin-client**
   - Added `irmin-client` package to connect to `irmin-server` instances (#2031,
     @zshipko)
+- **irmin**
+  - Add pretty printers for `Commit`, `Tree`, `Info`, `Status`, `Branch` when
+    using `utop` (@metanivek, #1839)
 
 ### Fixed
 
@@ -18,6 +21,10 @@
 - **irmin-http**
   - Removed `irmin-http` since it is not compatible with generic keys.
     `irmin-grapqhl` or `irmin-server` should be used instead. (#1902, @zshipko)
+- **irmin**
+  - Removed stream proofs. We now only have Merkle tree proofs. This simplifies
+    the maintenance of that part of the code, as ensuring the correct order of
+    cached IO operations was tricky for stream proofs (#2275, @samoht)
 
 ## 3.8.0 (2023-07-06)
 
@@ -27,7 +34,7 @@
   - Change behavior of `Irmin.Conf.key` to disallow duplicate key names by
     default. Add `allow_duplicate` optional argument to override. (#2252,
     @metanivek)
-    
+
 - **irmin-pack**
   - Add maximum memory as an alternative configuration option, `lru_max_memory`,
     for setting LRU capacity. (@metanivek, #2254)
@@ -48,7 +55,7 @@
 - **irmin-cli**
   - Changed `--store irf` to `--store fs` to align the CLI with what is
     published on the Irmin website (#2243, @wyn)
-    
+
 ## 3.7.2 (2023-06-16)
 
 ### Fixed

@@ -41,8 +41,13 @@ module Make (B : Backend.S) = struct
   module Path = B.Node.Path
   module Commits = Commit.History (B.Commit)
   module Backend = B
-  module Info = B.Commit.Info
   module T = Tree.Make (B)
+
+  module Info = struct
+    include B.Commit.Info
+
+    let pp = Type.pp t
+  end
 
   module Contents = struct
     include B.Contents.Val
@@ -94,6 +99,8 @@ module Make (B : Backend.S) = struct
     let hash : ?cache:bool -> t -> hash =
      fun ?cache tr ->
       match hash ?cache tr with `Node h -> h | `Contents (h, _) -> h
+
+    let pp = Type.pp t
   end
 
   type branch = Branch_store.Key.t [@@deriving irmin ~equal ~pp]
@@ -109,7 +116,7 @@ module Make (B : Backend.S) = struct
   type tree = Tree.t [@@deriving irmin ~pp]
   type path = Path.t [@@deriving irmin ~pp]
   type step = Path.step [@@deriving irmin]
-  type info = B.Commit.Info.t [@@deriving irmin]
+  type info = Info.t [@@deriving irmin]
   type Remote.t += E of B.Remote.endpoint
   type lca_error = [ `Max_depth_reached | `Too_many_lcas ] [@@deriving irmin]
   type ff_error = [ `Rejected | `No_change | lca_error ]
@@ -186,6 +193,7 @@ module Make (B : Backend.S) = struct
     let parents t = B.Commit.Val.parents t.v
     let pp_hash ppf t = Type.pp Hash.t ppf (hash t)
     let pp_key ppf t = Type.pp B.Commit.Key.t ppf t.key
+    let pp ppf commit = Type.pp (t commit.r) ppf commit
 
     let of_key r key =
       B.Commit.find (B.Repo.commit_t r) key >|= function
@@ -1214,6 +1222,8 @@ module Make (B : Backend.S) = struct
 
     let get t k =
       find t k >>= function None -> err_not_found k | Some v -> Lwt.return v
+
+    let pp = pp_branch
   end
 
   module Status = struct

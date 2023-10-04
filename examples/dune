@@ -10,9 +10,7 @@
   push
   custom_graphql
   custom_storage
-  fold
-  client_batch
-  server)
+  fold)
  (libraries
   astring
   cohttp
@@ -22,8 +20,6 @@
   irmin-graphql.unix
   irmin-pack.unix
   irmin-watcher
-  irmin-server.unix
-  irmin-client.unix
   websocket-lwt-unix
   conduit-lwt-unix
   lwt
@@ -44,10 +40,7 @@
   custom_merge.exe
   custom_graphql.exe
   fold.exe
-  gc.exe
-  custom_storage.exe
-  client_batch.exe
-  server.exe))
+  custom_storage.exe))
 
 (alias
  (name runtest)
