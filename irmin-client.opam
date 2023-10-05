@@ -10,9 +10,10 @@ depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "2.0.0"}
   "irmin-server" {= version}
+  "irmin-cli" {= version}
   "ipaddr"
   "websocket-lwt-unix"
-  "conduit-lwt-unix"
+  "conduit-lwt-unix" {>= "6.0.0"}
   "lwt-dllist"
   "js_of_ocaml-lwt"
   "brr" {>= "0.0.4"}

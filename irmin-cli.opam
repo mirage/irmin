@@ -36,7 +36,7 @@ depends: [
   "cohttp-lwt-unix"
   "conduit"
   "conduit-lwt"
-  "conduit-lwt-unix"
+  "conduit-lwt-unix" {>= "6.0.0"}
   "websocket-lwt-unix"
   "ppx_blob"      {>= "0.7.2"}
   "logs"

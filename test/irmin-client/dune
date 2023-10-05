@@ -1,6 +1,6 @@
 (test
  (name test)
- (package irmin-server)
+ (package irmin-client)
  (libraries
   irmin.mem
   irmin-server.unix
