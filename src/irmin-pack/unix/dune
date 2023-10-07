@@ -16,7 +16,7 @@
   cmdliner
   optint
   checkseum
-  checkseum.ocaml
+  checkseum.c
   rusage)
  (preprocess
   (pps ppx_irmin.internal))

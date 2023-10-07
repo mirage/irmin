@@ -13,7 +13,7 @@
   cmdliner
   optint
   checkseum
-  checkseum.ocaml)
+  checkseum.c)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation
