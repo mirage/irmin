@@ -5,25 +5,28 @@ authors: "Zach Shipko <zachshipko@gmail.com>"
 license: "ISC"
 homepage: "https://github.com/mirage/irmin"
 doc: "https://irmin.org"
+dev-repo: "git+ssh://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
-  "dune" {>= "2.0.0"}
+  "dune" {>= "2.9.0"}
   "optint" {>= "0.1.0"}
   "irmin" {= version}
   "ppx_irmin" {= version}
+  "irmin-pack" {= version}
   "uri"
   "fmt"
   "cmdliner" {>= "1.0.4"}
   "logs" {>= "0.7.0"}
   "lwt" {>= "5.4.0"}
-  "conduit-lwt-unix"
+  "conduit-lwt-unix" {>= "6.0.0"}
   "websocket-lwt-unix"
   "cohttp-lwt-unix"
   "ppx_blob" {>= "0.7.2"}
   "digestif" {>= "1.1.4"}
   "alcotest-lwt" {>= "1.7.0" & with-test}
   "irmin-watcher" {>= "0.5.0" & with-test}
+  "irmin-test" {= version & with-test}
 ]
 
 build: [
