@@ -70,7 +70,8 @@ let test_corrupted_control_file () =
   assert (not (String.equal control_file_blob1 control_file_mix));
   write_file control_file_path control_file_mix;
   let error =
-    try Ok (Store.Repo.v ~sw (config ~fresh:false root) : Store.Repo.t) with exn -> Error exn
+    try Ok (Store.Repo.v ~sw (config ~fresh:false root) : Store.Repo.t)
+    with exn -> Error exn
   in
   match error with
   | Error (Irmin_pack_unix.Errors.Pack_error (`Corrupted_control_file s)) ->

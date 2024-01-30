@@ -43,7 +43,7 @@ struct
 
     let store = ref None
 
-    (* TODO: Fix this hellhole *)
+    (* TODO: Fix me *)
     let get_store () =
       match !store with
       | None ->

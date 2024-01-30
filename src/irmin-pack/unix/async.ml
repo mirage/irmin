@@ -45,7 +45,7 @@ module Unix = struct
           Eio.Domain_manager.run (domain_mgr ()) (run f))
     in
     let gc_sw = Eio.Promise.await gc_sw_promise in
-    gc_sw, promise
+    (gc_sw, promise)
 
   let await (_, p) : [> outcome ] =
     match Eio.Promise.await p with

@@ -20,12 +20,17 @@ open Common
 module C = Irmin_containers.Counter.Mem
 
 let path = [ "tmp"; "counter" ]
-let config ~sw () = C.Store.Repo.v ~sw (Irmin_mem.config ())
+
+let config ~sw root =
+  let key = Irmin.Backend.Conf.root Irmin_mem.Conf.spec in
+  let conf = Irmin.Backend.Conf.singleton Irmin_mem.Conf.spec key root in
+  C.Store.Repo.v ~sw conf
+
 let merge_into_exn = merge_into_exn (module C.Store)
 
 let test_inc () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw () |> C.Store.main in
+  let t = config ~sw __FUNCTION__ |> C.Store.main in
   C.inc ~path t;
   let () =
     C.read ~path t
@@ -36,7 +41,7 @@ let test_inc () =
 
 let test_dec () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw () |> C.Store.main in
+  let t = config ~sw __FUNCTION__ |> C.Store.main in
   C.dec ~path t;
   let () =
     C.read ~path t
@@ -47,7 +52,7 @@ let test_dec () =
 
 let test_clone_merge () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw () |> C.Store.main in
+  let t = config ~sw __FUNCTION__ |> C.Store.main in
   C.inc ~by:5L ~path t;
   let b = C.Store.clone ~src:t ~dst:"cl" in
   C.inc ~by:2L ~path b;
@@ -64,7 +69,7 @@ let test_clone_merge () =
 
 let test_branch_merge () =
   Eio.Switch.run @@ fun sw ->
-  let r = config ~sw () in
+  let r = config ~sw __FUNCTION__ in
   let b1 = C.Store.of_branch r "b1" in
   let b2 = C.Store.of_branch r "b2" in
   let b3 = C.Store.of_branch r "b3" in

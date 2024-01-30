@@ -28,18 +28,22 @@ module L = Irmin_containers.Linked_log.Mem (CAS) (Irmin.Contents.String) ()
 
 let merge_into_exn = merge_into_exn (module L.Store)
 let path = [ "tmp"; "link" ]
-let config ~sw = L.Store.Repo.v ~sw (Irmin_mem.config ())
+
+let config ~sw root =
+  let key = Irmin.Backend.Conf.root Irmin_mem.Conf.spec in
+  let conf = Irmin.Backend.Conf.singleton Irmin_mem.Conf.spec key root in
+  L.Store.Repo.v ~sw conf
 
 let test_empty_read () =
   Eio.Switch.run @@ fun sw ->
-  config ~sw
+  config ~sw __FUNCTION__
   |> L.Store.main
   |> L.read_all ~path
   |> Alcotest.(check (list string)) "checked - reading empty log" []
 
 let test_append_read_all () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw |> L.Store.main in
+  let t = config ~sw __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   L.read_all ~path t
@@ -48,7 +52,7 @@ let test_append_read_all () =
 
 let test_read_incr () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw |> L.Store.main in
+  let t = config ~sw __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   let cur = L.get_cursor ~path t in
@@ -61,7 +65,7 @@ let test_read_incr () =
 
 let test_read_excess () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw |> L.Store.main in
+  let t = config ~sw __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   let cur = L.get_cursor ~path t in
@@ -71,7 +75,7 @@ let test_read_excess () =
 
 let test_clone_merge () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw |> L.Store.main in
+  let t = config ~sw __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   let b = L.Store.clone ~src:t ~dst:"cl" in
@@ -85,7 +89,7 @@ let test_clone_merge () =
 
 let test_branch_merge () =
   Eio.Switch.run @@ fun sw ->
-  let r = config ~sw in
+  let r = config ~sw __FUNCTION__ in
   let b1 = L.Store.of_branch r "b1" in
   let b2 = L.Store.of_branch r "b2" in
   let b3 = L.Store.of_branch r "b3" in

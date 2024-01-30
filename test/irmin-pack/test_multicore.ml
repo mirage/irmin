@@ -474,15 +474,15 @@ let tests d_mgr =
   [
     tc "find." test_find;
     (* tc "length." test_length;
-    tc "add / remove." test_add_remove;
-    tc "commit." test_commit;
-    tc "merkle." test_merkle;
-    tc "hash." test_hash;
-    tc "list-disk-no-cache." (test_list_disk ~cache:false);
-    tc "list-disk-with-cache." (test_list_disk ~cache:true);
-    tc "list-mem-no-cache." (test_list_mem ~cache:false);
-    tc "list-mem-with-cache." (test_list_mem ~cache:true);
-    tc "commit-of-hash." test_commit_of_hash;
-    tc "commit-parents." test_commit_parents;
-    tc "commit-v." test_commit_v; *)
+       tc "add / remove." test_add_remove;
+       tc "commit." test_commit;
+       tc "merkle." test_merkle;
+       tc "hash." test_hash;
+       tc "list-disk-no-cache." (test_list_disk ~cache:false);
+       tc "list-disk-with-cache." (test_list_disk ~cache:true);
+       tc "list-mem-no-cache." (test_list_mem ~cache:false);
+       tc "list-mem-with-cache." (test_list_mem ~cache:true);
+       tc "commit-of-hash." test_commit_of_hash;
+       tc "commit-parents." test_commit_parents;
+       tc "commit-v." test_commit_v; *)
   ]
