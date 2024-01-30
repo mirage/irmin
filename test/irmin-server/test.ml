@@ -40,7 +40,8 @@ module Make (R : R) = struct
   module Store = Irmin_client_unix.Make (X)
 
   let suite () =
-    let client = Client.Repo.v config in
+    Eio.Switch.run @@ fun sw ->
+    let client = Client.Repo.v ~sw config in
     let clean ~config:_ = Client.Branch.remove client "main" in
     Irmin_test.Suite.create_generic_key ~name:R.kind
       ~store:(module Store)
@@ -68,9 +69,10 @@ let misc client = [ ("ping", `Quick, ping client) ]
 let misc client = [ ("misc", misc client) ]
 
 let main () =
-  let kind, pid, uri = run_server `Unix_domain in
+  Eio.Switch.run @@ fun sw ->
+  let kind, pid, uri = run_server ~sw `Unix_domain in
   let config = Irmin_client_unix.config uri in
-  let client = Client.Repo.v config in
+  let client = Client.Repo.v ~sw config in
   let client () = Lwt_eio.run_lwt @@ fun () -> Client.dup client in
   let module Unix_socket = Make (struct
     let pid = pid
@@ -78,10 +80,10 @@ let main () =
     let kind = kind
   end) in
   let module Tcp_socket = Make (struct
-    let kind, pid, uri = run_server `Tcp
+    let kind, pid, uri = run_server ~sw `Tcp
   end) in
   let module Websocket = Make (struct
-    let kind, pid, uri = run_server `Websocket
+    let kind, pid, uri = run_server ~sw `Websocket
   end) in
   let slow = Sys.getenv_opt "SLOW" |> Option.is_some in
   let only = Sys.getenv_opt "ONLY" in

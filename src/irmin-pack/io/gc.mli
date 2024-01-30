@@ -25,6 +25,7 @@ module Make
   (** A running GC process. *)
 
   val v :
+    sw:Eio.Switch.t ->
     root:string ->
     lower_root:string option ->
     output:[ `External of string | `Root ] ->

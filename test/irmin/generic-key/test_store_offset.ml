@@ -57,7 +57,7 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
          store constructor is memoised (modulo [close] semantics, which must be
          non-memoised), so we must use a singleton here. *)
       let singleton = { data = Vector.create ~dummy:None; id = object end } in
-      fun _ -> { instance = ref (Some singleton) }
+      fun ~sw:_ _ -> { instance = ref (Some singleton) }
 
     type nonrec key = Hash.t key [@@deriving irmin]
     type value = Value.t

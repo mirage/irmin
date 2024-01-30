@@ -119,7 +119,11 @@ let init =
     doc = "Initialize a store.";
     man = [];
     term =
-      (let init (S (_, _store, _)) = () in
+      (let init store =
+         Eio.Switch.run @@ fun sw ->
+         let (S (_, _store, _)) = store ~sw in
+         ()
+       in
        Term.(mk init $ store ()));
   }
 
@@ -142,7 +146,9 @@ let get =
     doc = "Read the value associated with a key.";
     man = [];
     term =
-      (let get (S (impl, store, _)) path =
+      (let get store path =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let t = store () in
@@ -162,7 +168,9 @@ let list =
     doc = "List subdirectories.";
     man = [];
     term =
-      (let list (S (impl, store, _)) path_or_empty =
+      (let list store path_or_empty =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let path =
            match path_or_empty with
@@ -190,7 +198,9 @@ let tree =
     doc = "List the store contents.";
     man = [];
     term =
-      (let tree (S (impl, store, _)) =
+      (let tree store =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let t = store () in
@@ -258,7 +268,9 @@ let set =
          let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
          Arg.(required & pos 1 (some string) None & doc)
        in
-       let set (S (impl, store, _)) author message path v =
+       let set store author message path v =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let message = match message with Some s -> s | None -> "set" in
@@ -277,7 +289,9 @@ let remove =
     doc = "Delete a key.";
     man = [];
     term =
-      (let remove (S (impl, store, _)) author message path =
+      (let remove store author message path =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let message =
@@ -304,7 +318,9 @@ let clone =
     doc = "Copy a remote respository to a local store";
     man = [];
     term =
-      (let clone (S (impl, store, f), remote) depth =
+      (let clone sr depth =
+         Eio.Switch.run @@ fun sw ->
+         let S (impl, store, f), remote = sr ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
@@ -326,7 +342,9 @@ let fetch =
     doc = "Download objects and refs from another repository.";
     man = [];
     term =
-      (let fetch (S (impl, store, f), remote) =
+      (let fetch sr =
+         Eio.Switch.run @@ fun sw ->
+         let S (impl, store, f), remote = sr ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
@@ -348,7 +366,9 @@ let merge =
     doc = "Merge branches.";
     man = [];
     term =
-      (let merge (S (impl, store, _)) author message branch =
+      (let merge store author message branch =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let message = match message with Some s -> s | None -> "merge" in
@@ -381,7 +401,9 @@ let pull =
     doc = "Fetch and merge with another repository.";
     man = [];
     term =
-      (let pull (S (impl, store, f), remote) author message =
+      (let pull sr author message =
+         Eio.Switch.run @@ fun sw ->
+         let S (impl, store, f), remote = sr ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let message = match message with Some s -> s | None -> "pull" in
          let module Sync = Irmin.Sync.Make (S) in
@@ -404,7 +426,9 @@ let push =
     doc = "Update remote references along with associated objects.";
     man = [];
     term =
-      (let push (S (impl, store, f), remote) =
+      (let push sr =
+         Eio.Switch.run @@ fun sw ->
+         let S (impl, store, f), remote = sr ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let module Sync = Irmin.Sync.Make (S) in
          run @@ fun () ->
@@ -424,7 +448,9 @@ let snapshot =
     doc = "Return a snapshot for the current state of the database.";
     man = [];
     term =
-      (let snapshot (S (impl, store, _)) =
+      (let snapshot store =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let t = store () in
@@ -448,7 +474,9 @@ let revert =
          in
          Arg.(required & pos 0 (some string) None & doc)
        in
-       let revert (S (impl, store, _)) snapshot =
+       let revert store snapshot =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let t = store () in
@@ -549,7 +577,9 @@ let watch =
     doc = "Get notifications when values change.";
     man = [];
     term =
-      (let watch (S (impl, store, _)) path command =
+      (let watch store path command =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let path = key S.Path.t path in
          let proc = ref None in
@@ -608,7 +638,9 @@ let dot =
          in
          Arg.(value & flag & doc)
        in
-       let dot (S (impl, store, _)) basename depth no_dot_call full =
+       let dot store basename depth no_dot_call full =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          let module Dot = Irmin.Dot (S) in
          let date d =
@@ -726,7 +758,9 @@ let graphql =
          in
          Arg.(value & opt string "localhost" & doc)
        in
-       let graphql (S (impl, store, remote_fn)) port addr =
+       let graphql store port addr =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, remote_fn)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let module Server =
@@ -757,7 +791,9 @@ let server =
     name = "server";
     doc = "Run irmin-server.";
     man = [];
-    term = Server.main_term;
+    term =
+      (let server main = Eio.Switch.run @@ fun sw -> main ~sw in
+       Term.(mk server $ Server.main_term));
   }
 
 let options =
@@ -793,7 +829,9 @@ let branches =
     doc = "List branches";
     man = [];
     term =
-      (let branches (S (impl, store, _)) =
+      (let branches store =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let t = store () in
@@ -859,7 +897,9 @@ let log =
          Arg.(value & flag & doc)
        in
        let exception Return in
-       let commits (S (impl, store, _)) plain pager num skip reverse =
+       let commits store plain pager num skip reverse =
+         Eio.Switch.run @@ fun sw ->
+         let (S (impl, store, _)) = store ~sw in
          let (module S) = Store.Impl.generic_keyed impl in
          run @@ fun () ->
          let t = store () in
@@ -992,6 +1032,7 @@ let commands =
 
 let run ~default:x y =
   Eio_main.run @@ fun env ->
+  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
   Irmin_fs.run env#fs @@ fun () ->
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
   Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;

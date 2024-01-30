@@ -475,12 +475,13 @@ module Make (Store : Store) = struct
     [%logs.app
       "Will %scheck commit hashes against reference."
         (if check_hash then "" else "NOT ")];
+    Eio.Switch.run @@ fun sw ->
     let commit_seq =
       open_commit_sequence config.number_of_commits_to_replay
         config.path_conversion config.replay_trace_path
     in
     let root = Filename.concat config.artefacts_path "root" in
-    let repo, on_commit, on_end = Store.create_repo ~root ext_config in
+    let repo, on_commit, on_end = Store.create_repo ~sw ~root ext_config in
     prepare_artefacts_dir config.artefacts_path;
     let stat_path = Filename.concat config.artefacts_path "stat_trace.repr" in
     let c =

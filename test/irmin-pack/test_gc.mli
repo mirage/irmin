@@ -40,7 +40,7 @@ module Store : sig
   type t
 
   val config : string -> Irmin.config
-  val init_with_config : Irmin.config -> t
+  val init_with_config : sw:Eio.Switch.t -> Irmin.config -> t
   val close : t -> unit
   val start_gc : ?unlink:bool -> t -> S.commit -> unit
   val finalise_gc : t -> unit

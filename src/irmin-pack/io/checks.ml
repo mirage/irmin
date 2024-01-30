@@ -126,16 +126,17 @@ struct
       & opt (some int) None
         @@ info ~doc:"Size of the index log file" [ "index-log-size" ]
 
-    let run ~root ~output ?index_log_size () =
+    let run ~sw ~root ~output ?index_log_size () =
       let conf = conf ~index_log_size root in
       match output with
-      | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
-      | Some p -> Store.traverse_pack_file (`Reconstruct_index (`Output p)) conf
+      | None -> Store.traverse_pack_file ~sw (`Reconstruct_index `In_place) conf
+      | Some p ->
+          Store.traverse_pack_file ~sw (`Reconstruct_index (`Output p)) conf
 
     let term_internal =
       Cmdliner.Term.(
         const (fun root output index_log_size () ->
-            run ~root ~output ?index_log_size ())
+            Eio.Switch.run (fun sw -> run ~sw ~root ~output ?index_log_size ()))
         $ path
         $ dest
         $ index_log_size)
@@ -155,10 +156,10 @@ struct
       Conf.init ~readonly:true ~fresh:false ~no_migrate:true ~indexing_strategy
         root
 
-    let run ~root ~auto_repair ~always () =
+    let run ~sw ~root ~auto_repair ~always () =
       let conf = conf root always in
-      if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
-      else Store.traverse_pack_file `Check_index conf
+      if auto_repair then Store.traverse_pack_file ~sw `Check_and_fix_index conf
+      else Store.traverse_pack_file ~sw `Check_index conf
 
     let auto_repair =
       let open Cmdliner.Arg in
@@ -172,7 +173,7 @@ struct
     let term_internal =
       Cmdliner.Term.(
         const (fun root auto_repair always () ->
-            run ~root ~auto_repair ~always ())
+            Eio.Switch.run (fun sw -> run ~sw ~root ~auto_repair ~always ()))
         $ path
         $ auto_repair
         $ always)
@@ -203,9 +204,9 @@ struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run ?ppf ~root ~auto_repair ~always ~heads () =
+    let run ~sw ?ppf ~root ~auto_repair ~always ~heads () =
       let conf = conf root always in
-      let repo = Store.Repo.v conf in
+      let repo = Store.Repo.v ~sw conf in
       let heads =
         match heads with
         | None -> Store.Repo.heads repo
@@ -238,7 +239,9 @@ struct
     let term_internal =
       Cmdliner.Term.(
         const (fun root auto_repair always heads () ->
-            run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads ())
+            Eio.Switch.run (fun sw ->
+                run ~sw ~ppf:Format.err_formatter ~root ~auto_repair ~always
+                  ~heads ()))
         $ path
         $ auto_repair
         $ always
@@ -259,9 +262,9 @@ struct
       & opt (some (list ~sep:',' string)) None
       & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
 
-    let run ~root ~heads =
+    let run ~sw ~root ~heads =
       let conf = conf root in
-      let repo = Store.Repo.v conf in
+      let repo = Store.Repo.v ~sw conf in
       let heads =
         match heads with
         | None -> Store.Repo.heads repo
@@ -282,7 +285,10 @@ struct
 
     let term_internal =
       Cmdliner.Term.(
-        const (fun root heads () -> run ~root ~heads) $ path $ heads)
+        const (fun root heads () ->
+            Eio.Switch.run (fun sw -> run ~sw ~root ~heads))
+        $ path
+        $ heads)
 
     let term =
       let doc = "Check integrity of inodes in an existing store." in
@@ -308,9 +314,9 @@ struct
       & info [ "dump_blob_paths_to" ]
           ~doc:"Print all paths to a blob in the tree in a file."
 
-    let run ~root ~commit ~dump_blob_paths_to () =
+    let run ~sw ~root ~commit ~dump_blob_paths_to () =
       let conf = conf root in
-      let repo = Store.Repo.v conf in
+      let repo = Store.Repo.v ~sw conf in
       let commit =
         match commit with
         | None -> (
@@ -337,7 +343,8 @@ struct
     let term_internal =
       Cmdliner.Term.(
         const (fun root commit dump_blob_paths_to () ->
-            run ~root ~commit ~dump_blob_paths_to ())
+            Eio.Switch.run (fun sw ->
+                run ~sw ~root ~commit ~dump_blob_paths_to ()))
         $ path
         $ commit
         $ dump_blob_paths_to)

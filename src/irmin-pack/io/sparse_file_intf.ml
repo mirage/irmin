@@ -24,6 +24,7 @@ module type S = sig
   type open_error := [ Io.open_error | `Corrupted_mapping_file of string ]
 
   val open_ro :
+    sw:Eio.Switch.t ->
     mapping_size:int ->
     mapping:string ->
     data:string ->
@@ -67,6 +68,7 @@ module type S = sig
     type t
 
     val open_wo :
+      sw:Eio.Switch.t ->
       mapping_size:int ->
       mapping:string ->
       data:string ->
@@ -90,6 +92,7 @@ module type S = sig
     (** Close the underlying files. *)
 
     val create_from_data :
+      sw:Eio.Switch.t ->
       mapping:string ->
       dead_header_size:int ->
       size:Int63.t ->
@@ -119,11 +122,15 @@ module type S = sig
         the file again. *)
 
     val create :
-      mapping:string -> data:string -> (t, [> Io.create_error ]) result
+      sw:Eio.Switch.t ->
+      mapping:string ->
+      data:string ->
+      (t, [> Io.create_error ]) result
     (** [create ~mapping ~data] initializes a new empty sparse file, represented
         on disk by two files named [mapping] and [data]. *)
 
     val open_ao :
+      sw:Eio.Switch.t ->
       mapping_size:Int63.t ->
       mapping:string ->
       data:string ->

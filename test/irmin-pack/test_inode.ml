@@ -112,10 +112,10 @@ struct
       Irmin_pack.Conf.init ~fresh ~readonly ~indexing_strategy ~lru_size:0 name
 
     (* TODO : remove duplication with irmin_pack/ext.ml *)
-    let get_fm config =
+    let get_fm ~sw config =
       let readonly = Irmin_pack.Conf.readonly config in
 
-      if readonly then File_manager.open_ro config |> Errs.raise_if_error
+      if readonly then File_manager.open_ro ~sw config |> Errs.raise_if_error
       else
         let fresh = Irmin_pack.Conf.fresh config in
         let root = Irmin_pack.Conf.root config in
@@ -127,19 +127,20 @@ struct
         in
         match (Io.classify_path root, fresh) with
         | `No_such_file_or_directory, _ ->
-            File_manager.create_rw ~overwrite:false config
+            File_manager.create_rw ~sw ~overwrite:false config
             |> Errs.raise_if_error
         | `Directory, true ->
-            File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error
+            File_manager.create_rw ~sw ~overwrite:true config
+            |> Errs.raise_if_error
         | `Directory, false ->
-            File_manager.open_rw config |> Errs.raise_if_error
+            File_manager.open_rw ~sw config |> Errs.raise_if_error
         | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
 
-    let get_store ~indexing_strategy () =
+    let get_store ~sw ~indexing_strategy () =
       [%log.app "Constructing a fresh context for use by the test"];
       rm_dir root;
       let config = config ~indexing_strategy ~readonly:false ~fresh:true root in
-      let fm = get_fm config in
+      let fm = get_fm ~sw config in
       let dict = File_manager.dict fm in
       let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
       let lru = Irmin_pack_unix.Lru.create config in
@@ -345,7 +346,8 @@ let check_hardcoded_hash msg h v =
 (** Test add values from an empty node. *)
 let test_add_values ~indexing_strategy =
   rm_dir root;
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   check_node "hash empty node" (Inode.Val.empty ()) t;
   let v1 = Inode.Val.add (Inode.Val.empty ()) "x" (normal foo) in
@@ -370,7 +372,8 @@ let integrity_check ?(stable = true) v =
 (** Test add to inodes. *)
 let test_add_inodes ~indexing_strategy =
   rm_dir root;
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.add v1 "z" (normal foo) in
@@ -404,7 +407,8 @@ let test_add_inodes () =
 (** Test remove values on an empty node. *)
 let test_remove_values ~indexing_strategy =
   rm_dir root;
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 = Inode.Val.of_list [ ("x", normal foo); ("y", normal bar) ] in
   let v2 = Inode.Val.remove v1 "y" in
@@ -426,7 +430,8 @@ let test_remove_values () =
 (** Test remove and add values to go from stable to unstable inodes. *)
 let test_remove_inodes ~indexing_strategy =
   rm_dir root;
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let v1 =
     Inode.Val.of_list
@@ -505,7 +510,8 @@ let test_representation_uniqueness_maxdepth_3 () =
     (P.trees p)
 
 let test_truncated_inodes ~indexing_strategy =
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let to_truncated inode =
     let encode, decode =
@@ -572,7 +578,8 @@ let test_truncated_inodes () =
   test_truncated_inodes ~indexing_strategy:`minimal
 
 let test_intermediate_inode_as_root ~indexing_strategy =
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let gen_step = Inode_permutations_generator.gen_step (module Inter) in
   let s000, s001, s010 =
@@ -625,7 +632,8 @@ let test_intermediate_inode_as_root ~indexing_strategy =
   Inode.batch t.store (fun store -> with_exn (fun () -> Inode.add store v))
 
 let test_invalid_depth_intermediate_inode ~indexing_strategy =
-  let t = Context_mock.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context_mock.get_store ~sw ~indexing_strategy () in
   let { Context_mock.foo; bar; _ } = t in
   let gen_step = Inode_permutations_generator.gen_step (module Inter_mock) in
   let s000, s001, s010 =
@@ -668,7 +676,8 @@ let test_intermediate_inode_as_root () =
   test_intermediate_inode_as_root ~indexing_strategy:`minimal
 
 let test_concrete_inodes ~indexing_strategy =
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
   let pp_concrete = Irmin.Type.pp_json ~minify:false Inter.Val.Concrete.t in
   let result_t = Irmin.Type.result Inode.Val.t Inter.Val.Concrete.error_t in
@@ -704,7 +713,8 @@ let test_concrete_inodes ~indexing_strategy =
 
 let test_invalid_depth_concrete_inodes ~indexing_strategy =
   let module C = Inter.Val.Concrete in
-  let t = Context.get_store ~indexing_strategy () in
+  Eio.Switch.run @@ fun sw ->
+  let t = Context.get_store ~sw ~indexing_strategy () in
 
   (* idea is to try and directly construct a Concrete that has a bad depth structure ie *)
   (* "Tree": { *)
@@ -764,7 +774,8 @@ module Inode_tezos = struct
 
   let test_encode_bin_values ~indexing_strategy =
     rm_dir root;
-    let t = S.Context.get_store ~indexing_strategy () in
+    Eio.Switch.run @@ fun sw ->
+    let t = S.Context.get_store ~sw ~indexing_strategy () in
     let { S.Context.foo; _ } = t in
     let v = S.Inode.Val.of_list [ ("x", normal foo); ("z", normal foo) ] in
     let h = S.Inter.Val.hash_exn v in
@@ -802,7 +813,8 @@ module Inode_tezos = struct
 
   let test_encode_bin_tree ~indexing_strategy =
     rm_dir root;
-    let t = S.Context.get_store ~indexing_strategy () in
+    Eio.Switch.run @@ fun sw ->
+    let t = S.Context.get_store ~sw ~indexing_strategy () in
     let { S.Context.foo; bar; _ } = t in
     let v =
       S.Inode.Val.of_list

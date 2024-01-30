@@ -48,7 +48,7 @@ functor
 
     (** Initialisation / Closing *)
 
-    let v config =
+    let v ~sw:_ config =
       let init_size = Irmin.Backend.Conf.get config Hashtbl_config.init_size in
       { t = Tbl.create init_size; l = Eio.Mutex.create () }
 
@@ -87,7 +87,8 @@ let config ?(config = Hashtbl_config.empty) ?(init_size = 42) () =
   Irmin.Backend.Conf.add config Hashtbl_config.init_size init_size
 
 let main () =
-  let repo = Store.Repo.v (config ()) in
+  Eio.Switch.run @@ fun sw ->
+  let repo = Store.Repo.v ~sw (config ()) in
   let main = Store.main repo in
   let info () = Store.Info.v 0L in
   let key = "Hello" in

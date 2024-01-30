@@ -69,11 +69,13 @@ module Generic (C : Irmin.Contents.S) = struct
   include M.Make (C)
 
   let init ~config =
-    let repo = Repo.v config in
+    Eio.Switch.run @@ fun sw ->
+    let repo = Repo.v ~sw config in
     Repo.branches repo |> List.iter (Branch.remove repo)
 
   let clean ~config =
-    let repo = Repo.v config in
+    Eio.Switch.run @@ fun sw ->
+    let repo = Repo.v ~sw config in
     Repo.branches repo |> List.iter (Branch.remove repo);
     Repo.close repo
 end
@@ -96,8 +98,9 @@ let get = function Some x -> x | None -> Alcotest.fail "get"
 
 let test_sort_order (module S : S) =
   let config = Irmin_git.config test_db in
+  Eio.Switch.run @@ fun sw ->
   S.init ~config;
-  let repo = S.Repo.v config in
+  let repo = S.Repo.v ~sw config in
   let commit_t = S.Backend.Repo.commit_t repo in
   let node_t = S.Backend.Repo.node_t repo in
   let head_tree_id branch =
@@ -145,8 +148,9 @@ let reference = Alcotest.testable pp_reference ( = )
 let test_list_refs (module S : G) =
   let module R = Ref (S.Git) in
   let config = Irmin_git.config test_db in
+  Eio.Switch.run @@ fun sw ->
   S.init ~config;
-  let repo = R.Repo.v config in
+  let repo = R.Repo.v ~sw config in
   let main = R.main repo in
   R.set_exn main ~info:R.Info.none [ "test" ] "toto";
   let head = R.Head.get main in
@@ -163,7 +167,8 @@ let test_list_refs (module S : G) =
       `Remote "datakit/main";
     ]
     bs;
-  let repo = S.Repo.v (Irmin_git.config test_db) in
+  Eio.Switch.run @@ fun sw ->
+  let repo = S.Repo.v ~sw (Irmin_git.config test_db) in
   let bs = S.Repo.branches repo in
   Alcotest.(check (slist string String.compare))
     "filtered branches" [ "main"; "foo" ] bs;
@@ -199,7 +204,8 @@ let test_blobs (module S : S) =
   Alcotest.(check bin_string) "blob ''" "blob 11\000{\"X\":[1,2]}" str;
   let t = X.Tree.singleton [ "foo" ] (X (1, 2)) in
   let k1 = X.Tree.hash t in
-  let repo = X.Repo.v (Irmin_git.config test_db) in
+  Eio.Switch.run @@ fun sw ->
+  let repo = X.Repo.v ~sw (Irmin_git.config test_db) in
   let k2 =
     match
       X.Backend.Repo.batch repo (fun x y _ ->
@@ -216,13 +222,15 @@ let test_import_export (module S : S) =
   let module Generic = Generic (Irmin.Contents.String) in
   let module Sync = Irmin.Sync.Make (Generic) in
   let config = Irmin_git.config test_db in
+  Eio.Switch.run @@ fun sw ->
   S.init ~config;
   let _ = Generic.init ~config in
-  let repo = S.Repo.v config in
+  let repo = S.Repo.v ~sw config in
   let t = S.main repo in
   S.set_exn t ~info:S.Info.none [ "test" ] "toto";
   let remote = Irmin.remote_store (module S) t in
-  let repo = Generic.Repo.v (Irmin_mem.config ()) in
+  Eio.Switch.run @@ fun sw ->
+  let repo = Generic.Repo.v ~sw (Irmin_mem.config ()) in
   let t = Generic.main repo in
   let _ = Sync.pull_exn t remote `Set in
   let toto = Generic.get t [ "test" ] in

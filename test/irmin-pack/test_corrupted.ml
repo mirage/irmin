@@ -49,8 +49,9 @@ let write_file path contents =
 
 let test_corrupted_control_file () =
   rm_dir root;
+  Eio.Switch.run @@ fun sw ->
   let control_file_path = Filename.concat root "store.control" in
-  let repo = Store.Repo.v (config ~fresh:true root) in
+  let repo = Store.Repo.v ~sw (config ~fresh:true root) in
   let control_file_blob0 = read_file control_file_path in
   let store = Store.main repo in
   let () = Store.set_exn ~info store [ "a" ] "b" in
@@ -69,7 +70,7 @@ let test_corrupted_control_file () =
   assert (not (String.equal control_file_blob1 control_file_mix));
   write_file control_file_path control_file_mix;
   let error =
-    try Ok (Store.Repo.v (config ~fresh:false root)) with exn -> Error exn
+    try Ok (Store.Repo.v ~sw (config ~fresh:false root) : Store.Repo.t) with exn -> Error exn
   in
   match error with
   | Error (Irmin_pack_unix.Errors.Pack_error (`Corrupted_control_file s)) ->

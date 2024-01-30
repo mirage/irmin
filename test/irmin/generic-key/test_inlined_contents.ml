@@ -38,7 +38,7 @@ module Keyed_by_value = struct
     let check_not_closed t =
       match !(t.instance) with None -> raise Closed | Some t -> t
 
-    let v _ = { instance = ref (Some ()) }
+    let v ~sw:_ _ = { instance = ref (Some ()) }
 
     let mem t _ =
       let _ = check_not_closed t in

@@ -161,9 +161,10 @@ let run_gc config repo tracker =
   Tracker.mark_next_gc_commit tracker
 
 let run_experiment config =
+  Eio.Switch.run @@ fun sw ->
   let num_of_commits = 200_000 in
   let gc_every = 1_000 in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let tracker = Tracker.v () in
   (* Create commits *)
   let _ =
@@ -186,7 +187,8 @@ let run_experiment config =
   ()
 
 let () =
-  Eio_main.run @@ fun _env ->
+  Eio_main.run @@ fun env ->
+  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
   Printf.printf "== RUN 1: deleting discarded data ==\n";
   run_experiment Repo_config.config;
   Printf.printf "== RUN 2: archiving discarded data ==\n";

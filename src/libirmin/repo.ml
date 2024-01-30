@@ -14,6 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* TODO: Fix me because this is quite ugly and nothing but a temporary fix *)
+type _ Effect.t += Escape : Eio.Switch.t -> unit Effect.t
+
+let the_great_escape =
+  let open Effect.Shallow in
+  let run () =
+    Eio_main.run @@ fun _ ->
+    Eio.Switch.run @@ fun sw -> Effect.perform (Escape sw)
+  in
+  continue_with (fiber run) ()
+    {
+      retc = (fun _ -> assert false);
+      exnc = (fun _ -> assert false);
+      effc =
+        (fun (type a) (eff : a Effect.t) ->
+          match eff with Escape sw -> Some (fun _ -> sw) | _ -> None);
+    }
+
 module Make (I : Cstubs_inverted.INTERNAL) = struct
   open Util.Make (I)
 
@@ -24,7 +42,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         let (s, config) : config = Root.get_config config in
         let (module Store) = Irmin_cli.Resolver.Store.generic_keyed s in
         let remote = Irmin_cli.Resolver.Store.remote s in
-        let repo : Store.repo = run (fun () -> Store.Repo.v config) in
+        let repo : Store.repo =
+          run (fun () -> Store.Repo.v ~sw:the_great_escape config)
+        in
         Root.create_repo
           (module Store)
           {

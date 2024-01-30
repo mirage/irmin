@@ -138,8 +138,9 @@ let print_logs name t =
   Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t) logs
 
 let main () =
+  Eio.Switch.run @@ fun sw ->
   Config.init ();
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let t = Store.main repo in
 
   (* populate the log with some random messages *)

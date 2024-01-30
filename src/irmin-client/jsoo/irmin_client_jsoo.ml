@@ -260,7 +260,7 @@ module IO = struct
     Lwt.async (fun () -> send_oc true c2 ws);
     (c1, c2)
 
-  let connect ~ctx:_ (client : Irmin_client.addr) =
+  let connect ~sw:_ ~ctx:_ (client : Irmin_client.addr) =
     let open Lwt.Infix in
     match client with
     | `Ws (None, s) ->
@@ -304,9 +304,9 @@ let config ?tls ?hostname uri =
 module Make_codec (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   include Irmin_client.Make_codec (IO) (Codec) (Store)
 
-  let connect ?tls ?hostname uri =
+  let connect ~sw ?tls ?hostname uri =
     let uri, hostname = normalize_uri ?hostname uri in
-    connect ?tls ~hostname uri
+    connect ~sw ?tls ~hostname uri
 end
 
 module Make (Store : Irmin.Generic_key.S) = struct

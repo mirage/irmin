@@ -116,22 +116,24 @@ module Store = struct
     let o = checkout t key in
     match o with None -> raise Not_found | Some p -> p
 
-  let init ?(lru_size = 0) ?(readonly = false) ?(fresh = true) ?root
+  let init ~sw ?(lru_size = 0) ?(readonly = false) ?(fresh = true) ?root
       ?(lower_root = None) () =
     (* start with a clean dir if fresh *)
     let root = Option.value root ~default:(fresh_name ()) in
     if fresh then (
       rm_dir root;
       Option.iter rm_dir lower_root);
-    let repo = S.Repo.v (config ~readonly ~fresh ~lru_size ~lower_root root) in
+    let repo =
+      S.Repo.v ~sw (config ~readonly ~fresh ~lru_size ~lower_root root)
+    in
     let tree = S.Tree.empty () in
     { root; repo; tree; parents = [] }
 
   let config root =
     config ~lru_size:0 ~readonly:false ~fresh:true ~lower_root:None root
 
-  let init_with_config config =
-    let repo = S.Repo.v config in
+  let init_with_config ~sw config =
+    let repo = S.Repo.v ~sw config in
     let root = Irmin_pack.Conf.root config in
     let tree = S.Tree.empty () in
     { root; repo; tree; parents = [] }
@@ -252,7 +254,13 @@ let check_not_found t key msg =
 
 module type Gc_backend = sig
   val init :
-    ?lru_size:int -> ?readonly:bool -> ?fresh:bool -> ?root:string -> unit -> t
+    sw:Eio.Switch.t ->
+    ?lru_size:int ->
+    ?readonly:bool ->
+    ?fresh:bool ->
+    ?root:string ->
+    unit ->
+    t
 
   val check_gced : t -> S.commit -> string -> unit
   val check_removed : t -> S.commit -> string -> unit
@@ -271,7 +279,8 @@ module Gc_common (B : Gc_backend) = struct
     (* c1 - c2            *)
     (*   \---- c3         *)
     (*            gc(c3)  *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -290,7 +299,8 @@ module Gc_common (B : Gc_backend) = struct
     (*                gc(c4)      gc(c5) *)
     (* c1 - c2 --- c4 -------- c5        *)
     (*   \---- c3                        *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -318,7 +328,8 @@ module Gc_common (B : Gc_backend) = struct
   let gc_keeps_all () =
     (* c1 - c2 - c3        *)
     (*              gc(c1) *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -336,7 +347,8 @@ module Gc_common (B : Gc_backend) = struct
   let gc_add_back () =
     (* c1 - c_del - c3 ------ c1 - c2 ------- c3 *)
     (*                 gc(c3)         gc(c1)     *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c_del = commit_del t in
@@ -373,7 +385,8 @@ module Gc_common (B : Gc_backend) = struct
     (* c1 ------ c2                        *)
     (*    gc(c1)               gc(c2)      *)
     (*             close close       close *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let store_name = t.root in
     let t, c1 = commit_1 t in
     let () = start_gc ~unlink:false t c1 in
@@ -384,21 +397,25 @@ module Gc_common (B : Gc_backend) = struct
     Alcotest.(check bool)
       "unlink:false" true
       (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
-    let t = B.init ~readonly:true ~fresh:false ~root:store_name () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw ~readonly:true ~fresh:false ~root:store_name () in
     let () = S.Repo.close t.repo in
     Alcotest.(check bool)
       "RO no clean up" true
       (Sys.file_exists (Filename.concat store_name "store.0.suffix"));
-    let t = B.init ~readonly:false ~fresh:false ~root:store_name () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw ~readonly:false ~fresh:false ~root:store_name () in
     let () = S.Repo.close t.repo in
     Alcotest.(check bool)
       "RW cleaned up" true
       (check_async_unlinked (Filename.concat store_name "store.0.prefix"));
-    let t = B.init ~readonly:false ~fresh:false ~root:store_name () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw ~readonly:false ~fresh:false ~root:store_name () in
     let () = check_1 t c1 in
     let () = check_2 t c2 in
     let () = S.Repo.close t.repo in
-    let t = B.init ~readonly:false ~fresh:false ~root:store_name () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw ~readonly:false ~fresh:false ~root:store_name () in
     [%log.debug "Gc c1, keep c2"];
     let () = start_gc ~unlink:true t c2 in
     let () = finalise_gc t in
@@ -406,7 +423,8 @@ module Gc_common (B : Gc_backend) = struct
     Alcotest.(check bool)
       "unlink:true" true
       (check_async_unlinked (Filename.concat store_name "store.1.suffix"));
-    let t = B.init ~readonly:false ~fresh:false ~root:store_name () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw ~readonly:false ~fresh:false ~root:store_name () in
     let () = B.check_gced t c1 "gced c1" in
     let () = check_2 t c2 in
     S.Repo.close t.repo
@@ -416,7 +434,8 @@ module Gc_common (B : Gc_backend) = struct
     (*         gc(c3) *)
     (* c1 - c3        *)
     (* c2 -/          *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -435,8 +454,9 @@ module Gc_common (B : Gc_backend) = struct
     (*   \- c2                                                    *)
     (*                  gc(c3)                      gc(c4)        *)
     (*           reload       reload         reload        reload *)
-    let t = B.init () in
-    let ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
+    let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -480,8 +500,9 @@ module Gc_common (B : Gc_backend) = struct
     (* c1 ------- c2               *)
     (*    gc(c1)     gc(c2)        *)
     (*                      reload *)
-    let t = B.init () in
-    let ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
+    let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     S.reload ro_t.repo;
     let () = start_gc t c1 in
@@ -502,8 +523,9 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check that gc and close and ro work together. *)
   let ro_close () =
-    let t = B.init () in
-    let ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
+    let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -511,7 +533,7 @@ module Gc_common (B : Gc_backend) = struct
     let () = start_gc t c2 in
     let () = finalise_gc t in
     [%log.debug "RO reopens is similar to a reload"];
-    let ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
+    let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let () = check_2 ro_t c2 in
     let () = B.check_gced ro_t c1 "gced c1" in
     let t = checkout_exn t c2 in
@@ -525,9 +547,10 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check opening RO store and calling reload right after. *)
   let ro_reload_after_v () =
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
-    let ro_t = B.init ~readonly:true ~fresh:false ~root:t.root () in
+    let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     S.reload ro_t.repo;
     let () = check_1 ro_t c1 in
     let () = S.Repo.close t.repo in
@@ -543,7 +566,8 @@ module Gc_common (B : Gc_backend) = struct
           let tree = S.Commit.tree commit in
           check_blob tree [ "a"; "b"; "c" ] "b"
     in
-    let t = B.init ~lru_size:100 () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw ~lru_size:100 () in
     let t = set t [ "a"; "b"; "c" ] "b" in
     let c1 = commit t in
     let t = checkout_exn t c1 in
@@ -562,7 +586,8 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check that calling gc during a batch raises an error. *)
   let gc_during_batch () =
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let _ =
       Alcotest.check_raises "Should not call gc in batch"
@@ -579,7 +604,8 @@ module Gc_common (B : Gc_backend) = struct
     (* c1 - c2 - c3                *)
     (*              gc(c3)         *)
     (*                     c1 - c2 *)
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -605,7 +631,8 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   let gc_similar_commits () =
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let () = start_gc t c1 in
     let () = finalise_gc t in
@@ -618,7 +645,8 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check [Gc.latest_gc_target]. *)
   let latest_gc_target () =
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let check_latest_gc_target expected =
       let got = S.Gc.latest_gc_target t.repo in
       match (got, expected) with
@@ -663,7 +691,8 @@ module Gc_common (B : Gc_backend) = struct
         files
     in
 
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -678,7 +707,8 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check that a GC clears the LRU *)
   let gc_clears_lru () =
-    let t = init ~lru_size:100 () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~lru_size:100 () in
     (* Rreate some commits *)
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
@@ -689,12 +719,14 @@ module Gc_common (B : Gc_backend) = struct
     let () = check_2 t c2 in
     let () = check_3 t c3 in
     (* GC *)
-    let count_before_gc = lru_hits () in
+    (* TODO: Now that the GC is not in another process, it cleans every stats.
+       Make the stats domain dependant ? *)
+    (* let count_before_gc = lru_hits () in *)
     let () = start_gc t c2 in
     let () = finalise_gc t in
     (* Read data again *)
     let () = check_3 t c3 in
-    Alcotest.(check int) "GC does clear LRU" count_before_gc (lru_hits ());
+    Alcotest.(check int) "GC does clear LRU" 0 (lru_hits ());
     S.Repo.close t.repo
 
   let tests =
@@ -737,7 +769,8 @@ module Gc_archival = struct
 
   let gc_availability_recent () =
     let lower_root = create_lower_root ~mkdir:false () in
-    let t = init ~lower_root:(Some lower_root) () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~lower_root:(Some lower_root) () in
     Alcotest.(check gc_behaviour)
       "recent stores with a lower use archiving gc" (S.Gc.behaviour t.repo)
       `Archive;
@@ -745,7 +778,8 @@ module Gc_archival = struct
       "archiving gc allowed on recent stores with a lower"
       (S.Gc.is_allowed t.repo) true;
     let () = S.Repo.close t.repo in
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     Alcotest.(check gc_behaviour)
       "recent stores without a lower use deleting gc" (S.Gc.behaviour t.repo)
       `Delete;
@@ -757,7 +791,8 @@ module Gc_archival = struct
   let gc_availability_old () =
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
-    let t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~root ~fresh:false ~lower_root:(Some lower_root) () in
     Alcotest.(check gc_behaviour)
       "old stores with a lower use archiving gc" (S.Gc.behaviour t.repo)
       `Archive;
@@ -766,7 +801,8 @@ module Gc_archival = struct
       true;
     let () = S.Repo.close t.repo in
     let root = create_v1_test_env () in
-    let t = init ~root ~fresh:false () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~root ~fresh:false () in
     Alcotest.(check gc_behaviour)
       "old stores without a lower use deleting gc" (S.Gc.behaviour t.repo)
       `Delete;
@@ -779,7 +815,8 @@ module Gc_archival = struct
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
     [%log.debug "Open v1 store to trigger migration"];
-    let t = init ~root ~fresh:false ~lower_root:(Some lower_root) () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~root ~fresh:false ~lower_root:(Some lower_root) () in
     let main = S.main t.repo in
     [%log.debug "Run GC on commit that is now in lower"];
     let head = S.Head.get main in
@@ -797,10 +834,10 @@ module Gc_archival = struct
     S.Repo.close t.repo
 
   module B = struct
-    let init ?lru_size ?readonly ?fresh ?root () =
+    let init ~sw ?lru_size ?readonly ?fresh ?root () =
       let root = Option.value root ~default:(fresh_name ()) in
       let lower_root = root ^ ".lower" in
-      init ?lru_size ?readonly ?fresh ~root ~lower_root:(Some lower_root) ()
+      init ~sw ?lru_size ?readonly ?fresh ~root ~lower_root:(Some lower_root) ()
 
     let check_gced t c s =
       let c = S.Commit.of_key t.repo (S.Commit.key c) in
@@ -810,7 +847,8 @@ module Gc_archival = struct
   end
 
   let gc_archival_multiple_volumes () =
-    let t = B.init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = B.init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -859,7 +897,8 @@ end
 module Concurrent_gc = struct
   (** Check that finding old objects during a gc works. *)
   let find_running_gc ~lru_size () =
-    let t = init ~lru_size () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~lru_size () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -874,7 +913,8 @@ module Concurrent_gc = struct
 
   (** Check adding new objects during a gc and finding them after the gc. *)
   let add_running_gc ~lru_size () =
-    let t = init ~lru_size () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~lru_size () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -890,7 +930,8 @@ module Concurrent_gc = struct
 
   (** Check adding new objects during a gc and finding them after the gc. *)
   let several_gc ~lru_size () =
-    let t = init ~lru_size () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~lru_size () in
     let t, c1 = commit_1 t in
     let () = start_gc t c1 in
     let t = checkout_exn t c1 in
@@ -925,8 +966,9 @@ module Concurrent_gc = struct
   (** Check that RO can find old objects during gc. Also that RO can still find
       removed objects before a call to [reload]. *)
   let ro_find_running_gc () =
-    let t = init () in
-    let ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
+    let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -948,8 +990,9 @@ module Concurrent_gc = struct
   (** Check that RO can find objects added during gc, but only after a call to
       [reload]. *)
   let ro_add_running_gc () =
-    let t = init () in
-    let ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
+    let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -975,8 +1018,9 @@ module Concurrent_gc = struct
   (** Check that RO can call [reload] during a second gc, even after no reloads
       occured during the first gc. *)
   let ro_reload_after_second_gc () =
-    let t = init () in
-    let ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
+    let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -997,9 +1041,10 @@ module Concurrent_gc = struct
 
   (** Check that calling reload in RO will clear the LRU only after GC. *)
   let ro_reload_clears_lru () =
-    let rw_t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let rw_t = init ~sw () in
     let ro_t =
-      init ~lru_size:100 ~readonly:true ~fresh:false ~root:rw_t.root ()
+      init ~sw ~lru_size:100 ~readonly:true ~fresh:false ~root:rw_t.root ()
     in
     (* Create some commits in RW *)
     let rw_t, c1 = commit_1 rw_t in
@@ -1018,24 +1063,27 @@ module Concurrent_gc = struct
       "reload does not clear LRU" true
       (count_before_reload < lru_hits ());
     (* GC *)
-    let count_before_gc = lru_hits () in
+    (* let count_before_gc = lru_hits () in *)
     let () = start_gc rw_t c2 in
     let () = finalise_gc rw_t in
     (* Reload RO to get changes and clear LRU, and read some data *)
     S.reload ro_t.repo;
     let () = check_3 ro_t c3 in
-    Alcotest.(check int) "reload does clear LRU" count_before_gc (lru_hits ());
+    (* TODO: GC resets the stats now that it is not another process *)
+    Alcotest.(check int) "reload does clear LRU" 0 (lru_hits ());
     let () = S.Repo.close rw_t.repo in
     S.Repo.close ro_t.repo
 
   (** Check that calling close during a gc kills the gc without finalising it.
       On reopening the store, the following gc works fine. *)
   let close_running_gc () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = start_gc t c1 in
     let () = S.Repo.close t.repo in
-    let t = init ~readonly:false ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root:t.root () in
     let () = check_1 t c1 in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -1046,7 +1094,8 @@ module Concurrent_gc = struct
 
   (** Check that the cleanup routine in file manager deletes correct files. *)
   let test_cancel_cleanup () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     (* chunk 0, commit 1 *)
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
@@ -1067,7 +1116,8 @@ module Concurrent_gc = struct
     let () = S.Repo.close t.repo in
     (* Reopen store. If the cleanup on cancel deletes wrong files, the
        store will fail to open. *)
-    let t = init ~readonly:false ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root:t.root () in
     (* Check commits *)
     let () = check_not_found t c1 "removed c1" in
     (* commit 2 is still around because its GC was interrupted *)
@@ -1077,7 +1127,8 @@ module Concurrent_gc = struct
 
   (** Check starting a gc before a previous is finalised. *)
   let test_skip () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -1097,7 +1148,8 @@ module Concurrent_gc = struct
     else Alcotest.failf "running_gc missing after call to start"
 
   let test_kill_gc_and_finalise () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = start_gc t c1 in
     let killed = kill_gc t in
@@ -1112,7 +1164,8 @@ module Concurrent_gc = struct
     S.Repo.close t.repo
 
   let test_kill_gc_and_close () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = start_gc t c1 in
     let _killed = kill_gc t in
@@ -1140,7 +1193,8 @@ end
 
 module Split = struct
   let two_splits () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
@@ -1157,8 +1211,9 @@ module Split = struct
     S.Repo.close t.repo
 
   let ro_two_splits () =
-    let t = init () in
-    let ro_t = init ~readonly:true ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
+    let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
@@ -1199,7 +1254,8 @@ module Split = struct
 
   let v3_migrated_store_splits_and_gc () =
     let root = create_test_env () in
-    let t = init ~readonly:false ~fresh:false ~root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root () in
     let c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
@@ -1238,7 +1294,8 @@ module Split = struct
     S.Repo.close t.repo
 
   let close_and_split () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let root = t.root in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
@@ -1246,7 +1303,8 @@ module Split = struct
     let t, c2 = commit_2 t in
     [%log.debug "created chunk1, chunk2"];
     let () = S.Repo.close t.repo in
-    let t = init ~readonly:false ~fresh:false ~root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root () in
     let () = check_1 t c1 in
     let () = check_2 t c2 in
     let () = S.split t.repo in
@@ -1254,14 +1312,16 @@ module Split = struct
     let t, c3 = commit_3 t in
     [%log.debug "created chunk3"];
     let () = S.Repo.close t.repo in
-    let t = init ~readonly:true ~fresh:false ~root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:true ~fresh:false ~root () in
     let () = check_1 t c1 in
     let () = check_2 t c2 in
     let () = check_3 t c3 in
     S.Repo.close t.repo
 
   let two_gc_then_split () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -1285,7 +1345,8 @@ module Split = struct
        happens correctly by testing GCs on chunks past the first
        one. When the calculation is incorrect, exceptions are thrown
        when attempting to lookup keys in the store. *)
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
 
@@ -1313,7 +1374,8 @@ module Split = struct
     S.Repo.close t.repo
 
   let split_and_gc () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
@@ -1325,7 +1387,8 @@ module Split = struct
     S.Repo.close t.repo
 
   let another_split_and_gc () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
@@ -1337,7 +1400,8 @@ module Split = struct
     S.Repo.close t.repo
 
   let split_during_gc () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = start_gc t c1 in
     let () = S.split t.repo in
@@ -1351,7 +1415,8 @@ module Split = struct
   let commits_and_splits_during_gc () =
     (* This test primarily ensures that chunk num is calculated
        correctly by intentionally creating chunks during a GC. *)
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
 
     let () = S.split t.repo in
@@ -1377,7 +1442,8 @@ module Split = struct
 
   let split_always_indexed_from_v2_store () =
     let root = create_from_v2_always_test_env () in
-    let t = init ~readonly:false ~fresh:false ~root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root () in
     let _c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
     let t, _c1 = commit_1 t in
     let f () = S.split t.repo in
@@ -1411,7 +1477,8 @@ module Snapshot = struct
     S.create_one_commit_store t.repo commit_key
 
   let snapshot_rw () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let root_snap = Filename.concat t.root "snap" in
     let () = export t c1 root_snap in
@@ -1422,7 +1489,8 @@ module Snapshot = struct
     let () = check_2 t c2 in
     let () = S.Repo.close t.repo in
     [%log.debug "open store from import in rw"];
-    let t = init ~readonly:false ~fresh:false ~root:root_snap () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root:root_snap () in
     let t = checkout_exn t c1 in
     let () = check_1 t c1 in
     let () = check_not_found t c2 "c2 not commited yet" in
@@ -1431,23 +1499,27 @@ module Snapshot = struct
     S.Repo.close t.repo
 
   let snapshot_import_in_ro () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let root_snap = Filename.concat t.root "snap" in
     let () = export t c1 root_snap in
     let () = S.Repo.close t.repo in
     [%log.debug "open store from import in ro"];
-    let t = init ~readonly:true ~fresh:false ~root:root_snap () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:true ~fresh:false ~root:root_snap () in
     let t = checkout_exn t c1 in
     let () = check_1 t c1 in
     S.Repo.close t.repo
 
   let snapshot_export_in_ro () =
-    let t = init () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.Repo.close t.repo in
     [%log.debug "open store in readonly to export"];
-    let t = init ~readonly:false ~fresh:false ~root:t.root () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root:t.root () in
     let root_snap = Filename.concat t.root "snap" in
     let () = export t c1 root_snap in
     [%log.debug "store works after export in readonly"];
@@ -1455,7 +1527,8 @@ module Snapshot = struct
     let () = check_1 t c1 in
     let () = S.Repo.close t.repo in
     [%log.debug "open store from snapshot"];
-    let t = init ~readonly:false ~fresh:false ~root:root_snap () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root:root_snap () in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     let () = check_1 t c1 in
@@ -1466,7 +1539,8 @@ module Snapshot = struct
      the last gc target commit (ie it is in the lower) *)
   let snapshot_gced_commit () =
     let lower_root = create_lower_root ~mkdir:false () in
-    let t = init ~lower_root:(Some lower_root) () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~lower_root:(Some lower_root) () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -1476,7 +1550,8 @@ module Snapshot = struct
     let () = export t c1 root_snap in
     let () = S.Repo.close t.repo in
     [%log.debug "open store from snapshot"];
-    let t = init ~readonly:false ~fresh:false ~root:root_snap () in
+    Eio.Switch.run @@ fun sw ->
+    let t = init ~sw ~readonly:false ~fresh:false ~root:root_snap () in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     let () = check_1 t c1 in

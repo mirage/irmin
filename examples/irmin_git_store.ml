@@ -31,9 +31,10 @@ let read_exn t k =
   Store.get t k
 
 let main () =
+  Eio.Switch.run @@ fun sw ->
   Config.init ();
   let config = Irmin_git.config ~bare:true Config.root in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let t = Store.main repo in
   update t [ "root"; "misc"; "1.txt" ] "Hello world!";
   update t [ "root"; "misc"; "2.txt" ] "Hi!";

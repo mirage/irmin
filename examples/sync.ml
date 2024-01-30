@@ -24,9 +24,10 @@ module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 module Sync = Irmin.Sync.Make (Store)
 
 let test () =
+  Eio.Switch.run @@ fun sw ->
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let t = Store.of_branch repo "master" in
   let upstream = Store.remote path () in
   let _ = Sync.pull_exn t upstream `Set in

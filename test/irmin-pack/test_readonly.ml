@@ -36,11 +36,12 @@ let info () = S.Info.empty
 
 let open_ro_after_rw_closed () =
   rm_dir root;
-  let rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
+  Eio.Switch.run @@ fun sw ->
+  let rw = S.Repo.v ~sw (config ~readonly:false ~fresh:true root) in
   let t = S.main rw in
   let tree = S.Tree.singleton [ "a" ] "x" in
   S.set_tree_exn ~parents:[] ~info t [] tree;
-  let ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  let ro = S.Repo.v ~sw (config ~readonly:true ~fresh:false root) in
   S.Repo.close rw;
   let t = S.main ro in
   let c = S.Head.get t in
@@ -76,8 +77,9 @@ let ro_reload_after_add () =
         Alcotest.(check (option string)) "RO find" (Some v) x
   in
   rm_dir root;
-  let rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  Eio.Switch.run @@ fun sw ->
+  let rw = S.Repo.v ~sw (config ~readonly:false ~fresh:true root) in
+  let ro = S.Repo.v ~sw (config ~readonly:true ~fresh:false root) in
   let tree = S.Tree.singleton [ "a" ] "x" in
   let c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.reload ro;
@@ -98,8 +100,9 @@ let ro_reload_after_add () =
 let ro_reload_after_close () =
   let binding f = f [ "a" ] "x" in
   rm_dir root;
-  let rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  Eio.Switch.run @@ fun sw ->
+  let rw = S.Repo.v ~sw (config ~readonly:false ~fresh:true root) in
+  let ro = S.Repo.v ~sw (config ~readonly:true ~fresh:false root) in
   let tree = binding (S.Tree.singleton ?metadata:None) in
   let c1 = S.Commit.v rw ~parents:[] ~info:(info ()) tree in
   S.Repo.close rw;
@@ -108,8 +111,9 @@ let ro_reload_after_close () =
   S.Repo.close ro
 
 let ro_batch () =
-  let rw = S.Repo.v (config ~readonly:false ~fresh:true root) in
-  let ro = S.Repo.v (config ~readonly:true ~fresh:false root) in
+  Eio.Switch.run @@ fun sw ->
+  let rw = S.Repo.v ~sw (config ~readonly:false ~fresh:true root) in
+  let ro = S.Repo.v ~sw (config ~readonly:true ~fresh:false root) in
   Alcotest.check_raises "Read-only store throws RO_not_allowed exception"
     Irmin_pack_unix.Errors.RO_not_allowed (fun () ->
       S.Backend.Repo.batch ro (fun _ _ _ -> ()));

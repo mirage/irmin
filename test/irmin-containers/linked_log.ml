@@ -28,16 +28,18 @@ module L = Irmin_containers.Linked_log.Mem (CAS) (Irmin.Contents.String) ()
 
 let merge_into_exn = merge_into_exn (module L.Store)
 let path = [ "tmp"; "link" ]
-let config () = L.Store.Repo.v (Irmin_mem.config ())
+let config ~sw = L.Store.Repo.v ~sw (Irmin_mem.config ())
 
 let test_empty_read () =
-  config ()
+  Eio.Switch.run @@ fun sw ->
+  config ~sw
   |> L.Store.main
   |> L.read_all ~path
   |> Alcotest.(check (list string)) "checked - reading empty log" []
 
 let test_append_read_all () =
-  let t = config () |> L.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   L.read_all ~path t
@@ -45,7 +47,11 @@ let test_append_read_all () =
        "checked - log after appending" [ "main.2"; "main.1" ]
 
 let test_read_incr () =
-  let cur = config () |> L.Store.main |> L.get_cursor ~path in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> L.Store.main in
+  L.append ~path t "main.1";
+  L.append ~path t "main.2";
+  let cur = L.get_cursor ~path t in
   let l, cur = L.read ~num_items:1 cur in
   Alcotest.(check (list string)) "checked - read one item" [ "main.2" ] l;
   let l, cur = L.read ~num_items:1 cur in
@@ -54,13 +60,20 @@ let test_read_incr () =
   Alcotest.(check (list string)) "checked - read one more item" [] l
 
 let test_read_excess () =
-  let cur = config () |> L.Store.main |> L.get_cursor ~path in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> L.Store.main in
+  L.append ~path t "main.1";
+  L.append ~path t "main.2";
+  let cur = L.get_cursor ~path t in
   let l, _ = L.read ~num_items:10 cur in
   Alcotest.(check (list string))
     "checked - read 10 items" [ "main.2"; "main.1" ] l
 
 let test_clone_merge () =
-  let t = config () |> L.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> L.Store.main in
+  L.append ~path t "main.1";
+  L.append ~path t "main.2";
   let b = L.Store.clone ~src:t ~dst:"cl" in
   L.append ~path b "clone.1";
   L.append ~path t "main.3";
@@ -71,7 +84,8 @@ let test_clone_merge () =
        [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
 let test_branch_merge () =
-  let r = config () in
+  Eio.Switch.run @@ fun sw ->
+  let r = config ~sw in
   let b1 = L.Store.of_branch r "b1" in
   let b2 = L.Store.of_branch r "b2" in
   let b3 = L.Store.of_branch r "b3" in

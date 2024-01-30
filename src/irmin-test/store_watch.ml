@@ -244,8 +244,9 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
         aux s n
     end in
     let test repo1 =
+      Eio.Switch.run @@ fun sw ->
       let t1 = S.main repo1 in
-      let repo = S.Repo.v x.config in
+      let repo = S.Repo.v ~sw x.config in
       let t2 = S.main repo in
       [%log.debug "WATCH"];
       let state = State.empty () in

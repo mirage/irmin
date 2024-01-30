@@ -121,8 +121,8 @@ struct
         module AW = Atomic_write.Make_persistent (Io) (Key) (Val)
         include Atomic_write.Closeable (AW)
 
-        let v ?fresh ?readonly path =
-          AW.v ?fresh ?readonly path |> make_closeable
+        let v ~sw ?fresh ?readonly path =
+          AW.v ~sw ?fresh ?readonly path |> make_closeable
       end
 
       module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
@@ -161,6 +161,7 @@ struct
           during_batch : bool Atomic.t;
           running_gc : running_gc option Atomic.t;
           lock : Eio.Mutex.t;
+          sw : Eio.Switch.t;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -170,22 +171,23 @@ struct
         let branch_t t = t.branch
         let config t = t.config
 
-        let v config =
+        let v ~sw config =
           let root = Irmin_pack.Conf.root config in
           let fresh = Irmin_pack.Conf.fresh config in
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
-            if readonly then File_manager.open_ro config |> Errs.raise_if_error
+            if readonly then
+              File_manager.open_ro ~sw config |> Errs.raise_if_error
             else
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
-                  File_manager.create_rw ~overwrite:false config
+                  File_manager.create_rw ~sw ~overwrite:false config
                   |> Errs.raise_if_error
               | `Directory, true ->
-                  File_manager.create_rw ~overwrite:true config
+                  File_manager.create_rw ~sw ~overwrite:true config
                   |> Errs.raise_if_error
               | `Directory, false ->
-                  File_manager.open_rw config |> Errs.raise_if_error
+                  File_manager.open_rw ~sw config |> Errs.raise_if_error
               | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
           in
           let dict = File_manager.dict fm in
@@ -199,7 +201,7 @@ struct
             let fresh = Conf.fresh config in
             let readonly = Conf.readonly config in
             let path = Irmin_pack.Layout.V4.branch ~root in
-            Branch.v ~fresh ~readonly path
+            Branch.v ~sw ~fresh ~readonly path
           in
           let during_batch = Atomic.make false in
           let running_gc = Atomic.make None in
@@ -217,6 +219,7 @@ struct
             dispatcher;
             lock;
             lru;
+            sw;
           }
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
@@ -269,8 +272,8 @@ struct
             let next_generation = current_generation + 1 in
             let lower_root = Conf.lower_root t.config in
             let* gc =
-              Gc.v ~root ~lower_root ~generation:next_generation ~unlink
-                ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
+              Gc.v ~sw:t.sw ~root ~lower_root ~generation:next_generation
+                ~unlink ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
                 ~node:t.node ~commit:t.commit ~output commit_key
             in
             Atomic.set t.running_gc (Some { gc; use_auto_finalisation });
@@ -384,7 +387,7 @@ struct
             in
             let branch_path = Irmin_pack.Layout.V4.branch ~root:path in
             let branch_store =
-              Branch.v ~fresh:true ~readonly:false branch_path
+              Branch.v ~sw:t.sw ~fresh:true ~readonly:false branch_path
             in
             Branch.close branch_store
         end
@@ -710,9 +713,10 @@ struct
       module Export = struct
         let iter ?on_disk repo f ~root_key =
           [%log.debug "Iterate over a tree"];
+          Eio.Switch.run @@ fun sw ->
           let contents = X.Repo.contents_t repo in
           let nodes = X.Repo.node_t repo |> snd in
-          let export = S.Export.v repo.config contents nodes in
+          let export = S.Export.v ~sw repo.config contents nodes in
           let f_contents x = f (Blob x) in
           let f_nodes x = f (Inode x) in
           match root_key with

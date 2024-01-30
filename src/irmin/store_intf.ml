@@ -103,7 +103,7 @@ module type S_generic_key = sig
     type t = repo
     (** The type of repository handles. *)
 
-    val v : Conf.t -> t
+    val v : sw:Eio.Switch.t -> Conf.t -> t
     (** [v config] connects to a repository in a backend-specific manner. *)
 
     val config : t -> Conf.t

@@ -30,11 +30,14 @@ let rec make_string_seq len () =
 
 (** Call the [Mapping_file] routines to process [pairs] *)
 let process_on_disk pairs =
+  Eio.Switch.run @@ fun sw ->
   let mapping = Irmin_pack.Layout.V5.mapping ~root:test_dir ~generation:1 in
   Io.unlink mapping |> ignore;
   let data = Irmin_pack.Layout.V5.prefix ~root:test_dir ~generation:1 in
   Io.unlink data |> ignore;
-  let sparse = Sparse_file.Ao.create ~mapping ~data |> Errs.raise_if_error in
+  let sparse =
+    Sparse_file.Ao.create ~sw ~mapping ~data |> Errs.raise_if_error
+  in
   List.iter
     (fun (off, len) ->
       Format.printf "%i (+%i) => %i@." off len (off + len);
@@ -46,7 +49,7 @@ let process_on_disk pairs =
   Sparse_file.Ao.flush sparse |> Errs.raise_if_error;
   Sparse_file.Ao.close sparse |> Errs.raise_if_error;
   let sparse =
-    Sparse_file.open_ro ~mapping_size ~mapping ~data |> Errs.raise_if_error
+    Sparse_file.open_ro ~sw ~mapping_size ~mapping ~data |> Errs.raise_if_error
   in
   let l = ref [] in
   let f ~off ~len = l := (Int63.to_int off, len) :: !l in

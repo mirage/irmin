@@ -126,10 +126,11 @@ module Test_reconstruct = struct
     setup_test_env ();
     let conf = config ~readonly:false ~fresh:false root_v1 in
     (* Open store in RW to migrate it to V3. *)
-    let repo = S.Repo.v conf in
+    Eio.Switch.run @@ fun sw ->
+    let repo = S.Repo.v ~sw conf in
     let () = S.Repo.close repo in
     (* Test on a V3 store. *)
-    S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
+    S.test_traverse_pack_file ~sw (`Reconstruct_index `In_place) conf;
     let index_old =
       Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 tmp
     in
@@ -153,14 +154,15 @@ module Test_reconstruct = struct
     Index.close_exn index_new;
     [%log.app
       "Checking old bindings are still reachable post index reconstruction)"];
-    let r = S.Repo.v conf in
+    let r = S.Repo.v ~sw conf in
     check_repo r archive;
     S.Repo.close r
 
   let test_gc_allowed () =
     setup_test_env ();
+    Eio.Switch.run @@ fun sw ->
     let conf = config ~readonly:false ~fresh:false root_v1 in
-    let repo = S.Repo.v conf in
+    let repo = S.Repo.v ~sw conf in
     let allowed = S.Gc.is_allowed repo in
     Alcotest.(check bool)
       "deleting gc not allowed on stores with V1 objects" allowed false;
@@ -180,7 +182,8 @@ module Test_corrupted_stores = struct
 
   let test () =
     setup_env ();
-    let rw = S.Repo.v (config ~fresh:false root) in
+    Eio.Switch.run @@ fun sw ->
+    let rw = S.Repo.v ~sw (config ~fresh:false root) in
     [%log.app
       "integrity check on a store where 3 entries are missing from pack"];
     let result = S.integrity_check ~auto_repair:false rw in
@@ -208,8 +211,9 @@ module Test_corrupted_stores = struct
   module IO = Irmin_pack_unix.Io.Unix
 
   let write_corrupted_data_to_suffix () =
+    Eio.Switch.run @@ fun sw ->
     let path = Filename.concat root_local_build "store.0.suffix" in
-    let io = IO.open_ ~path ~readonly:false |> Result.get_ok in
+    let io = IO.open_ ~sw ~path ~readonly:false |> Result.get_ok in
     let corrupted_node_hash =
       (* the correct hash starts with '9', modified it to have an incorrect hash
          on disk. *)
@@ -228,7 +232,8 @@ module Test_corrupted_stores = struct
       config ~fresh:false
         ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
     in
-    let rw = S.Repo.v config in
+    Eio.Switch.run @@ fun sw ->
+    let rw = S.Repo.v ~sw config in
 
     let commit =
       commit_of_string rw "22e159de13b427226e5901defd17f0c14e744205"
@@ -243,7 +248,7 @@ module Test_corrupted_stores = struct
     let () = S.Repo.close rw in
     [%log.app "integrity check on a corrupted minimal store"];
     write_corrupted_data_to_suffix ();
-    let rw = S.Repo.v config in
+    let rw = S.Repo.v ~sw config in
     let result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
     let () =
       match result with
@@ -271,7 +276,8 @@ module Test_corrupted_inode = struct
 
   let test () =
     setup_test_env ();
-    let rw = S.Repo.v (config ~fresh:false root) in
+    Eio.Switch.run @@ fun sw ->
+    let rw = S.Repo.v ~sw (config ~fresh:false root) in
     [%log.app "integrity check of inodes on a store with one corrupted inode"];
     let c2 = "8d89b97726d9fb650d088cb7e21b78d84d132c6e" in
     let c2 = commit_of_string rw c2 in
@@ -304,7 +310,8 @@ module Test_traverse_gced = struct
   include Test (S)
 
   let commit_and_gc conf =
-    let repo = S.Repo.v conf in
+    Eio.Switch.run @@ fun sw ->
+    let repo = S.Repo.v ~sw conf in
     let commit =
       commit_of_string repo "22e159de13b427226e5901defd17f0c14e744205"
     in
@@ -323,6 +330,7 @@ module Test_traverse_gced = struct
     S.Repo.close repo
 
   let test_traverse_pack () =
+    Eio.Switch.run @@ fun sw ->
     let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
     let conf =
@@ -330,7 +338,7 @@ module Test_traverse_gced = struct
         ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
     in
     let () = commit_and_gc conf in
-    S.test_traverse_pack_file `Check_index conf
+    S.test_traverse_pack_file ~sw `Check_index conf
 end
 
 let tests =

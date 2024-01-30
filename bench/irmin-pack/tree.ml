@@ -56,7 +56,11 @@ module type Store = sig
   type on_commit := int -> Hash.t -> unit
   type on_end := unit -> unit
 
-  val create_repo : root:string -> store_config -> Repo.t * on_commit * on_end
+  val create_repo :
+    sw:Eio.Switch.t ->
+    root:string ->
+    store_config ->
+    Repo.t * on_commit * on_end
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
@@ -124,8 +128,9 @@ module Bench_suite (Store : Store) = struct
 
   let run_large config =
     reset_stats ();
+    Eio.Switch.run @@ fun sw ->
     let root = config.store_dir in
-    let repo, on_commit, on_end = Store.create_repo ~root config in
+    let repo, on_commit, on_end = Store.create_repo ~sw ~root config in
     let result, () =
       Trees.add_large_trees config.width config.nlarge_trees
       |> add_commits ~message:"Playing large mode" repo config.ncommits
@@ -144,8 +149,9 @@ module Bench_suite (Store : Store) = struct
 
   let run_chains config =
     reset_stats ();
+    Eio.Switch.run @@ fun sw ->
     let root = config.store_dir in
-    let repo, on_commit, on_end = Store.create_repo ~root config in
+    let repo, on_commit, on_end = Store.create_repo ~sw ~root config in
     let result, () =
       Trees.add_chain_trees config.depth config.nchain_trees
       |> add_commits ~message:"Playing chain mode" repo config.ncommits
@@ -212,12 +218,12 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
 
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-  let create_repo ~root _config =
+  let create_repo ~sw ~root _config =
     let conf =
       Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
     in
     prepare_artefacts_dir root;
-    let repo = Store.Repo.v conf in
+    let repo = Store.Repo.v ~sw conf in
     let on_commit _ _ = () in
     let on_end () = () in
     (repo, on_commit, on_end)
@@ -242,7 +248,7 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
 
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-  let create_repo ~root (config : store_config) =
+  let create_repo ~sw ~root (config : store_config) =
     let lower_root =
       if config.add_volume_every > 0 then Some (Filename.concat root "lower")
       else None
@@ -252,7 +258,7 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
         ~lower_root root
     in
     prepare_artefacts_dir root;
-    let repo = Store.Repo.v conf in
+    let repo = Store.Repo.v ~sw conf in
     let on_commit _ _ = () in
     let on_end () = () in
     (repo, on_commit, on_end)
@@ -303,82 +309,82 @@ type suite_elt = {
 
 let suite : suite_elt list =
   List.rev
-  [
-    {
-      mode = `Read_trace;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-    {
-      mode = `Read_trace;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-    {
-      mode = `Chains;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_chains config);
-    };
-    {
-      mode = `Chains;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (2, 5); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_chains config);
-    };
-    {
-      mode = `Large;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_large config);
-    };
-    {
-      mode = `Large;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (2, 5); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_large config);
-    };
-    {
-      mode = `Read_trace;
-      speed = `Custom;
-      run =
-        (fun config ->
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-  ]
+    [
+      {
+        mode = `Read_trace;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_read_trace config);
+      };
+      {
+        mode = `Read_trace;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_read_trace config);
+      };
+      {
+        mode = `Chains;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_chains config);
+      };
+      {
+        mode = `Chains;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (2, 5); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_chains config);
+      };
+      {
+        mode = `Large;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_large config);
+      };
+      {
+        mode = `Large;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (2, 5); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_large config);
+      };
+      {
+        mode = `Read_trace;
+        speed = `Custom;
+        run =
+          (fun config ->
+            let (module Store) = store_of_config config in
+            Store.run_read_trace config);
+      };
+    ]
 
 let get_suite suite_filter =
   List.filter

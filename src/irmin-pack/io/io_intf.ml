@@ -64,8 +64,18 @@ module type S = sig
 
       {2 Life Cycle} *)
 
-  val create : path:string -> overwrite:bool -> (t, [> create_error ]) result
-  val open_ : path:string -> readonly:bool -> (t, [> open_error ]) result
+  val create :
+    sw:Eio.Switch.t ->
+    path:string ->
+    overwrite:bool ->
+    (t, [> create_error ]) result
+
+  val open_ :
+    sw:Eio.Switch.t ->
+    path:string ->
+    readonly:bool ->
+    (t, [> open_error ]) result
+
   val close : t -> (unit, [> close_error ]) result
 
   (** {2 Write Functions} *)

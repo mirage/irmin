@@ -126,11 +126,14 @@ let tree2 () =
 let test_in_memory ~indexing_strategy () =
   rm_dir root_export;
   rm_dir root_import;
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
   let tree1 = S.Tree.singleton [ "a" ] "x" in
@@ -150,11 +153,14 @@ let test_on_disk ~indexing_strategy () =
   rm_dir root_export;
   rm_dir root_import;
   let index_on_disk = Filename.concat root_import "index_on_disk" in
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
   let tree2 = tree2 () in
@@ -220,11 +226,14 @@ let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 let test_gced_store_in_memory () =
   rm_dir root_export;
   rm_dir root_import;
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let () = test_gc ~repo_export ~repo_import 5 in
   let () = S.Repo.close repo_export in
@@ -234,11 +243,14 @@ let test_gced_store_on_disk () =
   rm_dir root_export;
   rm_dir root_import;
   let index_on_disk = Filename.concat root_import "index_on_disk" in
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let () = test_gc ~repo_export ~repo_import ~on_disk:(`Path index_on_disk) 5 in
   let () = S.Repo.close repo_export in
@@ -247,9 +259,11 @@ let test_gced_store_on_disk () =
 let test_export_import_reexport () =
   rm_dir root_export;
   rm_dir root_import;
+  Eio.Switch.run @@ fun sw ->
   (* export a snapshot. *)
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let tree = S.Tree.singleton [ "a" ] "y" in
   let parent_commit = S.Commit.v repo_export ~parents:[] ~info tree in
@@ -266,7 +280,8 @@ let test_export_import_reexport () =
      a new store, with the key parent of type Indexed. *)
   rm_dir root_export;
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v ~sw
+      (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let _, key = Buffer.contents buf |> restore repo_import in
   let key = Option.get key in
@@ -280,7 +295,7 @@ let test_export_import_reexport () =
   let () = S.Repo.close repo_import in
   (* open the new store and check that everything is readable. *)
   let repo_export =
-    S.Repo.v
+    S.Repo.v ~sw
       (config ~readonly:false ~fresh:false ~indexing_strategy root_export)
   in
   let commit = S.Commit.of_hash repo_export commit_hash in

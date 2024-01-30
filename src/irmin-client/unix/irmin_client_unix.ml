@@ -52,9 +52,9 @@ let config ?tls ?hostname uri =
 module Make_codec (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   include Irmin_client.Make_codec (IO) (Codec) (Store)
 
-  let connect ?tls ?hostname uri =
+  let connect ~sw ?tls ?hostname uri =
     let uri, hostname = normalize_uri ?hostname uri in
-    connect ?tls ~hostname uri
+    connect ~sw ?tls ~hostname uri
 end
 
 module Make (Store : Irmin.Generic_key.S) = Make_codec (Conn.Codec.Bin) (Store)

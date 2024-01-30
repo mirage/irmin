@@ -111,8 +111,9 @@ let info image message () =
 let main = branch images.(0)
 
 let init () =
+  Eio.Switch.run @@ fun sw ->
   Config.init ();
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let t = Store.of_branch repo main in
   Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0";
   List.iter
@@ -125,6 +126,7 @@ let random_array a = a.(Random.int (Array.length a))
 let random_list l = random_array (Array.of_list l)
 
 let rec process image =
+  Eio.Switch.run @@ fun sw ->
   let id = branch image in
   Printf.printf "Processing %s\n%!" id;
   let actions = random_list image.actions in
@@ -133,7 +135,7 @@ let rec process image =
     with _ ->
       ([ "log"; id; "0" ], fun () -> id ^ string_of_int (Random.int 10))
   in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let t = Store.of_branch repo id in
   Store.set_exn t ~info:(info image actions.message) key (value ());
   let () =

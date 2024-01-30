@@ -322,13 +322,13 @@ struct
           let commit_t = (node_t, ct) in
           f contents_t node_t commit_t
 
-        let v config =
-          let contents = Contents.CA.v config in
-          let nodes = Node.CA.v config in
-          let commits = Commit.CA.v config in
+        let v ~sw config =
+          let contents = Contents.CA.v ~sw config in
+          let nodes = Node.CA.v ~sw config in
+          let commits = Commit.CA.v ~sw config in
           let nodes = (contents, nodes) in
           let commits = (nodes, commits) in
-          let branch = Branch.v config in
+          let branch = Branch.v ~sw config in
           { contents; nodes; commits; branch; config }
 
         let close t =

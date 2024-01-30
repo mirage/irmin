@@ -26,8 +26,9 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 let setup_store () =
   rm_dir root;
+  Eio.Switch.run @@ fun sw ->
   let config = S.config root in
-  let t = S.init_with_config config in
+  let t = S.init_with_config ~sw config in
   let _ = S.commit_1 t in
   let t, c2 = S.commit_2 t in
   let t = S.checkout_exn t c2 in
@@ -76,8 +77,9 @@ let check_hex msg buf expected =
     (Bytes.to_string buf |> Hex.of_string |> Hex.show)
 
 let test_read () =
+  Eio.Switch.run @@ fun sw ->
   let config = setup_store () in
-  let fm = File_manager.open_ro config |> Errs.raise_if_error in
+  let fm = File_manager.open_ro ~sw config |> Errs.raise_if_error in
   let dsp = Dispatcher.v fm |> Errs.raise_if_error in
   let _ =
     Alcotest.check_raises "cannot read node_1"

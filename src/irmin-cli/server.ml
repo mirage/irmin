@@ -29,7 +29,7 @@ let setup_log =
   Cmdliner.Term.(
     const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
+let main ~sw ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
     ~config_path (module Codec : Conn.Codec.S) fingerprint =
   let store, config =
     Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
@@ -56,20 +56,20 @@ let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
       | Some port -> Some (`TCP (`Port port))
       | None -> None
     in
-    let* server = Server.v ?tls_config ?dashboard ~uri config in
+    let* server = Server.v ~sw ?tls_config ?dashboard ~uri config in
     let root = match root with Some root -> root | None -> "" in
     Logs.app (fun l -> l "Listening on %a, store: %s" Uri.pp_hum uri root);
     Server.serve server
 
 let main readonly root uri tls (store, hash, contents) codec config_path
-    dashboard fingerprint () =
+    dashboard fingerprint () ~sw =
   let codec =
     match codec with
     | `Bin -> (module Conn.Codec.Bin : Conn.Codec.S)
     | `Json -> (module Conn.Codec.Json)
   in
   Lwt_main.run
-  @@ main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
+  @@ main ~sw ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
        ~dashboard codec fingerprint
 
 open Cmdliner

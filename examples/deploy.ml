@@ -101,18 +101,19 @@ let main () =
        state when needed.\n"
       cmd cmd cmd cmd Config.root
   in
+  Eio.Switch.run @@ fun sw ->
   if Array.length Sys.argv <> 2 then help ()
   else
     match Sys.argv.(1) with
     | "provision" ->
-        (let repo = Store.Repo.v config in
+        (let repo = Store.Repo.v ~sw config in
          provision repo);
         Printf.printf
           "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
            configuration.\n"
           cmd
     | "configure" ->
-        (let repo = Store.Repo.v config in
+        (let repo = Store.Repo.v ~sw config in
          configure repo);
         Printf.printf
           "The VM is now configured. Run `%s attack` to simulate an attack by \
@@ -120,14 +121,14 @@ let main () =
            intruder.\n"
           cmd
     | "attack" ->
-        (let repo = Store.Repo.v config in
+        (let repo = Store.Repo.v ~sw config in
          attack repo);
         Printf.printf
           "The VM has been attacked. Run `%s revert` to revert the VM state to \
            a safe one.\n"
           cmd
     | "revert" ->
-        let repo = Store.Repo.v config in
+        let repo = Store.Repo.v ~sw config in
         revert repo
     | _ -> help ()
 

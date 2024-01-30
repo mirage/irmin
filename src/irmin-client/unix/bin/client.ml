@@ -35,8 +35,8 @@ let with_timer f =
   let t1 = Sys.time () -. t0 in
   (t1, a)
 
-let init ~uri ~branch ~tls (module Client : Irmin_client.S) () : client =
-  let x = Client.Repo.v (Irmin_client.config ~tls uri) in
+let init ~sw ~uri ~branch ~tls (module Client : Irmin_client.S) () : client =
+  let x = Client.Repo.v ~sw (Irmin_client.config ~tls uri) in
   let x =
     match branch with
     | Some b ->
@@ -264,7 +264,7 @@ let freq =
   let doc = Arg.info ~doc:"Update frequency" [ "f"; "freq" ] in
   Arg.(value @@ opt float 5. doc)
 
-let config =
+let config ~sw =
   let create uri (branch : string option) tls (store, hash, contents) codec
       config_path () =
     let codec =
@@ -282,7 +282,7 @@ let config =
     in
     let module Client = Irmin_client_unix.Make_codec (Codec) (Store) in
     let uri = Irmin.Backend.Conf.(get config Irmin_server.Cli.Conf.Key.uri) in
-    init ~uri ~branch ~tls (module Client)
+    init ~sw ~uri ~branch ~tls (module Client)
   in
   Term.(
     const create
@@ -302,21 +302,22 @@ let help =
     (Term.info "irmin-client" [@alert "-deprecated"]) )
 
 let[@alert "-deprecated"] () =
+  Eio.Switch.run @@ fun sw ->
   Term.exit
   @@ Term.eval_choice help
        [
          ( Term.(const list_server_commands $ pure ()),
            Term.info ~doc:"List all commands available on server"
              "list-commands" );
-         ( Term.(const ping $ config $ time $ iterations),
+         ( Term.(const ping $ config ~sw $ time $ iterations),
            Term.info ~doc:"Ping the server" "ping" );
-         ( Term.(const find $ config $ path 0 $ time $ iterations),
+         ( Term.(const find $ config ~sw $ path 0 $ time $ iterations),
            Term.info ~doc:"Get the path associated with a value" "get" );
-         ( Term.(const find $ config $ path 0 $ time $ iterations),
+         ( Term.(const find $ config ~sw $ path 0 $ time $ iterations),
            Term.info ~doc:"Alias for 'get' command" "find" );
          Term.
            ( const set
-             $ config
+             $ config ~sw
              $ path 0
              $ author
              $ message
@@ -326,7 +327,7 @@ let[@alert "-deprecated"] () =
              Term.info ~doc:"Set path/value" "set" );
          Term.
            ( const remove
-             $ config
+             $ config ~sw
              $ path 0
              $ author
              $ message
@@ -334,16 +335,16 @@ let[@alert "-deprecated"] () =
              $ iterations,
              Term.info ~doc:"Remove value associated with the given path"
                "remove" );
-         ( Term.(const import $ config $ filename 0 $ time $ iterations),
+         ( Term.(const import $ config ~sw $ filename 0 $ time $ iterations),
            Term.info ~doc:"Import from dump file" "import" );
-         ( Term.(const export $ config $ filename 0 $ time $ iterations),
+         ( Term.(const export $ config ~sw $ filename 0 $ time $ iterations),
            Term.info ~doc:"Export to dump file" "export" );
-         ( Term.(const mem $ config $ path 0 $ time $ iterations),
+         ( Term.(const mem $ config ~sw $ path 0 $ time $ iterations),
            Term.info ~doc:"Check if path is set" "mem" );
-         ( Term.(const mem_tree $ config $ path 0 $ time $ iterations),
+         ( Term.(const mem_tree $ config ~sw $ path 0 $ time $ iterations),
            Term.info ~doc:"Check if path is set to a tree value" "mem_tree" );
-         ( Term.(const watch $ config),
+         ( Term.(const watch $ config ~sw),
            Term.info ~doc:"Watch for updates" "watch" );
-         ( Term.(const replicate $ config $ author $ message $ prefix),
+         ( Term.(const replicate $ config ~sw $ author $ message $ prefix),
            Term.info ~doc:"Replicate changes from irmin CLI" "replicate" );
        ]

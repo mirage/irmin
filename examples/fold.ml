@@ -65,7 +65,8 @@ end
 let main () =
   let ps name = Fmt.(pf stdout "\n%s\n" name) in
   ps "Demo of how tree folders visit nodes.";
-  let repo = Store.Repo.v config in
+  Eio.Switch.run @@ fun sw ->
+  let repo = Store.Repo.v ~sw config in
   let main_b = Store.main repo in
   Store.set_exn ~info:(info "add c1") main_b [ "c1" ] "c1";
   Store.set_exn ~info:(info "add c2") main_b [ "c2" ] "c2";

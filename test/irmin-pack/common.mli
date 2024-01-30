@@ -91,7 +91,9 @@ end) : sig
 
   type d = { name : string; fm : File_manager.t; dict : Dict.t }
 
-  val get_dict : ?name:string -> readonly:bool -> fresh:bool -> unit -> d
+  val get_dict :
+    sw:Eio.Switch.t -> ?name:string -> readonly:bool -> fresh:bool -> unit -> d
+
   val close_dict : d -> unit
 
   type t = {
@@ -102,9 +104,9 @@ end) : sig
     dict : Dict.t;
   }
 
-  val get_rw_pack : unit -> t
-  val get_ro_pack : string -> t
-  val reopen_rw : string -> t
+  val get_rw_pack : sw:Eio.Switch.t -> t
+  val get_ro_pack : sw:Eio.Switch.t -> string -> t
+  val reopen_rw : sw:Eio.Switch.t -> string -> t
   val close_pack : t -> unit
 end
 

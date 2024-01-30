@@ -31,7 +31,8 @@ let hash_contents x = hash ("B" ^ x)
 let value_to_bin = Irmin.Type.(unstage (to_bin_string Test_chunk.Value.t))
 
 let test_add_read ?(stable = false) (module AO : Test_chunk.S) () =
-  let t = AO.v () in
+  Eio.Switch.run @@ fun sw ->
+  let t = AO.v ~sw in
   let test size =
     let name = Printf.sprintf "size %d" size in
     let v = String.make size 'x' in

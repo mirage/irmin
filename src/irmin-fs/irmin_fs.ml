@@ -80,7 +80,7 @@ struct
 
   let get_path config = Option.value Conf.(find_root config) ~default:"."
 
-  let v config =
+  let v ~sw:_ config =
     let fs = Irmin.Backend.Conf.Env.fs () in
     let path = Path.(fs / get_path config) in
     IO.mkdir path;
@@ -188,8 +188,8 @@ struct
 
   let watches = E.create 10
 
-  let v config =
-    let t = RO.v config in
+  let v ~sw config =
+    let t = RO.v ~sw config in
     let w =
       let path = RO.get_path config in
       try E.find watches path

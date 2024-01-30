@@ -95,7 +95,10 @@ module type S = sig
     | `No_tmp_path_provided ]
 
   val create_rw :
-    overwrite:bool -> Irmin.Backend.Conf.t -> (t, [> create_error ]) result
+    sw:Eio.Switch.t ->
+    overwrite:bool ->
+    Irmin.Backend.Conf.t ->
+    (t, [> create_error ]) result
   (** Create a rw instance of [t] by creating the files.
 
       Note on SWMR consistency: It is undefined for a reader to attempt an
@@ -137,7 +140,8 @@ module type S = sig
     | `Invalid_parent_directory
     | `Pending_flush ]
 
-  val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
+  val open_rw :
+    sw:Eio.Switch.t -> Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Create a rw instance of [t] by opening existing files.
 
       If the pack store has already been garbage collected, opening with a
@@ -175,7 +179,8 @@ module type S = sig
     | `Invalid_layout
     | `Volume_missing of string ]
 
-  val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
+  val open_ro :
+    sw:Eio.Switch.t -> Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Create a ro instance of [t] by opening existing files.
 
       Note on SWMR consistency: [open_ro] is supposed to work whichever the
@@ -251,7 +256,10 @@ module type S = sig
     | `Not_a_directory of string
     | `Unknown_major_pack_version of string ]
 
-  val version : root:string -> (Import.Version.t, [> version_error ]) result
+  val version :
+    sw:Eio.Switch.t ->
+    root:string ->
+    (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 
   val cleanup : t -> (unit, [> `Sys_error of string ]) result

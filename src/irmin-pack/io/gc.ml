@@ -31,9 +31,7 @@ module Make (Args : Gc_args.S) = struct
     task : Async.t;
     unlink : bool;
     new_suffix_start_offset : int63;
-    mutable on_finalise: ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit);
-    (* resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u; *)
-    (* promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t; *)
+    mutable on_finalise : (Stats.Latest_gc.stats, Args.Errs.t) result -> unit;
     dispatcher : Dispatcher.t;
     fm : Fm.t;
     contents : read Contents_store.t;
@@ -44,8 +42,8 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm ~contents
-      ~node ~commit commit_key =
+  let v ~sw ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm
+      ~contents ~node ~commit commit_key =
     let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
@@ -114,7 +112,7 @@ module Make (Args : Gc_args.S) = struct
     (* let promise, resolver = Eio.Promise.create () in *)
     (* start worker task *)
     let task =
-      Async.async (fun () ->
+      Async.async ~sw (fun () ->
           Worker.run_and_output_result root commit_key new_suffix_start_offset
             ~lower_root ~generation ~new_files_path)
     in
@@ -228,7 +226,8 @@ module Make (Args : Gc_args.S) = struct
     let open Result_syntax in
     let read_file () =
       let path = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-      let* io = Io.open_ ~path ~readonly:true in
+      Eio.Switch.run @@ fun sw ->
+      let* io = Io.open_ ~sw ~path ~readonly:true in
       let* len = Io.read_size io in
       let len = Int63.to_int len in
       let* string = Io.read_to_string io ~off:Int63.zero ~len in
@@ -334,7 +333,7 @@ module Make (Args : Gc_args.S) = struct
        implementation detail. This is safe since the callback
        [f] is attached to [t.running_gc.promise], which is
        referenced for the lifetime of a GC process. *)
-    t.on_finalise <- f ;
+    t.on_finalise <- f;
     (* ignore (t, f); *)
     (* let _ = f (Eio.Promise.await t.promise) in *)
     ()

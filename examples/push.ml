@@ -30,9 +30,10 @@ let headers =
   Cohttp.Header.add_authorization e (`Basic (user, token))
 
 let test () =
+  Eio.Switch.run @@ fun sw ->
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let t = Store.main repo in
   let remote = Store.remote ~headers url () in
   let _ = Sync.pull_exn t remote `Set in

@@ -347,7 +347,8 @@ let () =
   Eio_main.run @@ fun env ->
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
   Lwt_eio.run_lwt @@ fun () ->
-  let { event_loop; store } = spawn_graphql_server () in
+  Eio.Switch.run @@ fun sw ->
+  let { event_loop; store } = spawn_graphql_server ~sw in
   Lwt.pick
     [
       event_loop;

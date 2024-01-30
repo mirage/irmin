@@ -93,12 +93,13 @@ module Suite = struct
   type nonrec t = t
 
   let default_clean ~config ~store =
+    Eio.Switch.run @@ fun sw ->
     let (module Store : Generic_key) =
       match store with
       | Generic_key x -> x
       | S (module S) -> (module S : Generic_key)
     in
-    let repo = Store.Repo.v config in
+    let repo = Store.Repo.v ~sw config in
     let branches = Store.Repo.branches repo in
     let () =
       List.map (fun br () -> Store.Branch.remove repo br) branches
@@ -215,6 +216,7 @@ module Make_helpers (S : Generic_key) = struct
   let ignore_thunk_errors f = try f () with _ -> ()
 
   let run (x : Suite.t) test =
+    Eio.Switch.run @@ fun sw ->
     let repo_ptr = ref None in
     let config_ptr = ref None in
     try
@@ -222,8 +224,9 @@ module Make_helpers (S : Generic_key) = struct
       let generate_random_root config =
         let id = Random.int 100 |> string_of_int in
         let root_value =
+          let ( / ) = Filename.concat in
           match Conf.find_root config with
-          | None -> "test_" ^ id
+          | None -> ("_build" / "test_") ^ id
           | Some v -> v ^ "_" ^ id
         in
         let root_key = Conf.(root (spec config)) in
@@ -232,7 +235,7 @@ module Make_helpers (S : Generic_key) = struct
       let config = generate_random_root x.config in
       config_ptr := Some config;
       let () = x.init ~config in
-      let repo = S.Repo.v config in
+      let repo = S.Repo.v ~sw config in
       repo_ptr := Some repo;
       let () = test repo in
       let () =

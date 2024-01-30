@@ -46,6 +46,7 @@ module type S = sig
     ([> `No_error ], [> `Cannot_fix of string ]) result
 
   val traverse_pack_file :
+    sw:Eio.Switch.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -53,6 +54,7 @@ module type S = sig
     unit
 
   val test_traverse_pack_file :
+    sw:Eio.Switch.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->

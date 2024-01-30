@@ -47,12 +47,14 @@ module type S = sig
     | `Multiple_empty_chunks ]
 
   val create_rw :
+    sw:Eio.Switch.t ->
     root:string ->
     start_idx:int ->
     overwrite:bool ->
     (t, [> create_error ]) result
 
   val open_rw :
+    sw:Eio.Switch.t ->
     root:string ->
     appendable_chunk_poff:int63 ->
     start_idx:int ->
@@ -61,6 +63,7 @@ module type S = sig
     (t, [> open_error ]) result
 
   val open_ro :
+    sw:Eio.Switch.t ->
     root:string ->
     appendable_chunk_poff:int63 ->
     dead_header_size:int ->

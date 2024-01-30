@@ -48,7 +48,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ?dashboard ~uri config =
+  let v ~sw ?tls_config ?dashboard ~uri config =
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -78,7 +78,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
                     `Port port ) ))
       | x -> invalid_arg ("Unknown server scheme: " ^ x)
     in
-    let+ repo = Lwt_eio.run_eio @@ fun () -> Store.Repo.v config in
+    let+ repo = Lwt_eio.run_eio @@ fun () -> Store.Repo.v ~sw config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
     { ctx; uri; server; dashboard; config; repo; info }

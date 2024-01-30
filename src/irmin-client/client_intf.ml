@@ -28,7 +28,7 @@ module type IO = sig
   type ctx
 
   val default_ctx : ctx lazy_t
-  val connect : ctx:ctx -> addr -> (ic * oc) Lwt.t
+  val connect : sw:Eio.Switch.t -> ctx:ctx -> addr -> (ic * oc) Lwt.t
   val close : ic * oc -> unit Lwt.t
 end
 
@@ -105,7 +105,9 @@ end
 module type S = sig
   include Irmin.Generic_key.S
 
-  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo
+  val connect :
+    sw:Eio.Switch.t -> ?tls:bool -> ?hostname:string -> Uri.t -> repo
+
   val reconnect : repo -> unit Lwt.t
 
   val uri : repo -> Uri.t

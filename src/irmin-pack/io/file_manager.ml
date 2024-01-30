@@ -50,6 +50,7 @@ struct
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     use_fsync : bool;
     root : string;
+    sw : Eio.Switch.t;
   }
 
   let control t = t.control
@@ -149,7 +150,7 @@ struct
     if new_pl = pl then Ok ()
     else
       let open Result_syntax in
-      let* () = Control.set_payload t.control new_pl in
+      let* () = Control.set_payload ~sw:t.sw t.control new_pl in
       if t.use_fsync then Control.fsync t.control else Ok ()
 
   (** Flush stage 2 *)
@@ -201,7 +202,7 @@ struct
 
   module Layout = Irmin_pack.Layout.V5
 
-  let open_prefix ~root ~generation ~mapping_size =
+  let open_prefix ~sw ~root ~generation ~mapping_size =
     let open Result_syntax in
     if generation = 0 then Ok None
     else
@@ -213,12 +214,14 @@ struct
         | None -> Io.size_of_path mapping
       in
       let mapping_size = Int63.to_int mapping_size in
-      let+ prefix = Sparse.open_ro ~mapping_size ~mapping ~data in
+      let+ prefix = Sparse.open_ro ~sw ~mapping_size ~mapping ~data in
       Some prefix
 
   let reopen_prefix t ~generation ~mapping_size =
     let open Result_syntax in
-    let* some_prefix = open_prefix ~root:t.root ~generation ~mapping_size in
+    let* some_prefix =
+      open_prefix ~sw:t.sw ~root:t.root ~generation ~mapping_size
+    in
     match some_prefix with
     | None -> Ok ()
     | Some _ ->
@@ -240,13 +243,14 @@ struct
     let* suffix1 =
       let root = t.root in
       let start_idx = chunk_start_idx in
+      let sw = t.sw in
       [%log.debug "reload: generation changed, opening suffix"];
       if readonly then
-        Suffix.open_ro ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
-          ~chunk_num
+        Suffix.open_ro ~sw ~root ~appendable_chunk_poff ~dead_header_size
+          ~start_idx ~chunk_num
       else
-        Suffix.open_rw ~root ~appendable_chunk_poff ~dead_header_size ~start_idx
-          ~chunk_num
+        Suffix.open_rw ~sw ~root ~appendable_chunk_poff ~dead_header_size
+          ~start_idx ~chunk_num
     in
     let suffix0 = t.suffix in
     t.suffix <- suffix1;
@@ -278,7 +282,7 @@ struct
     in
     Option.might (Lower.cleanup ~generation) lower
 
-  let add_volume_and_update_control lower control =
+  let add_volume_and_update_control ~sw lower control =
     let open Result_syntax in
     (* Step 1. Add volume *)
     let* _ = Lower.add_volume lower in
@@ -286,10 +290,10 @@ struct
     let pl = Control.payload control in
     let pl = { pl with volume_num = Lower.volume_num lower } in
     [%log.debug "add_volume: update control_file volume_num:%d" pl.volume_num];
-    Control.set_payload control pl
+    Control.set_payload ~sw control pl
 
-  let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
-      ~make_lower =
+  let finish_constructing_rw config control ~sw ~make_dict ~make_suffix
+      ~make_index ~make_lower =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
@@ -327,7 +331,7 @@ struct
     in
     (* 2. Open the other files *)
     let* suffix = make_suffix () in
-    let* prefix = open_prefix ~root ~generation ~mapping_size in
+    let* prefix = open_prefix ~sw ~root ~generation ~mapping_size in
     let* dict =
       let path = Layout.dict ~root in
       make_dict ~path
@@ -365,6 +369,7 @@ struct
         suffix_consumers = [];
         indexing_strategy;
         root;
+        sw;
       }
     in
     instance := Some t;
@@ -385,7 +390,7 @@ struct
     (match hook with Some h -> h `After_index | None -> ());
     let pl0 = Control.payload t.control in
     (* Step 2. Reread control file *)
-    let* () = Control.reload t.control in
+    let* () = Control.reload ~sw:t.sw t.control in
     (match hook with Some h -> h `After_control | None -> ());
     let pl1 : Payload.t = Control.payload t.control in
     if pl0 = pl1 then Ok ()
@@ -444,7 +449,7 @@ struct
         | `No_such_file_or_directory, _ -> Io.mkdir path
         | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory path))
 
-  let create_rw ~overwrite config =
+  let create_rw ~sw ~overwrite config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let lower_root = Irmin_pack.Conf.lower_root config in
@@ -472,10 +477,10 @@ struct
           volume_num = 0;
         }
       in
-      create_control_file ~overwrite config pl
+      create_control_file ~sw ~overwrite config pl
     in
-    let make_dict = Dict.create_rw ~overwrite in
-    let make_suffix () = Suffix.create_rw ~root ~overwrite ~start_idx:0 in
+    let make_dict = Dict.create_rw ~sw ~overwrite in
+    let make_suffix () = Suffix.create_rw ~sw ~root ~overwrite ~start_idx:0 in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       (* [overwrite] is ignored for index *)
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
@@ -484,12 +489,12 @@ struct
       match lower_root with
       | None -> Ok None
       | Some path ->
-          let* l = Lower.v ~readonly:false ~volume_num:0 path in
-          let+ _ = add_volume_and_update_control l control in
+          let* l = Lower.v ~sw ~readonly:false ~volume_num:0 path in
+          let+ _ = add_volume_and_update_control ~sw l control in
           Some l
     in
-    finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
-      ~make_lower
+    finish_constructing_rw config control ~sw ~make_dict ~make_suffix
+      ~make_index ~make_lower
 
   (* Open rw **************************************************************** *)
 
@@ -510,7 +515,7 @@ struct
     | T15 ->
         failwith "invalid status: T1..T15"
 
-  let migrate_to_lower ~root ~lower_root ~control (payload : Payload.t) =
+  let migrate_to_lower ~sw ~root ~lower_root ~control (payload : Payload.t) =
     let open Result_syntax in
     (* Step 1. Create a lower by moving the suffix file. *)
     let suffix_file =
@@ -519,13 +524,13 @@ struct
     let dead_header_size = dead_header_size_of_status payload.status in
     let end_offset = payload.appendable_chunk_poff in
     let* () =
-      Lower.create_from ~src:suffix_file ~dead_header_size ~size:end_offset
+      Lower.create_from ~sw ~src:suffix_file ~dead_header_size ~size:end_offset
         lower_root
     in
     (* Step 2. Create a new empty suffix for the upper. *)
     let chunk_start_idx = payload.chunk_start_idx + 1 in
     let* () =
-      Suffix.create_rw ~root ~overwrite:false ~start_idx:chunk_start_idx
+      Suffix.create_rw ~sw ~root ~overwrite:false ~start_idx:chunk_start_idx
       >>= Suffix.close
     in
     (* Step 3. Create a new empty prefix for the upper. *)
@@ -533,16 +538,16 @@ struct
     let* () =
       let mapping = Layout.mapping ~generation ~root in
       let data = Layout.prefix ~root ~generation in
-      Sparse.Ao.create ~mapping ~data >>= Sparse.Ao.close
+      Sparse.Ao.create ~sw ~mapping ~data >>= Sparse.Ao.close
     in
     (* Step 4. Remove dead header from dict (if needed) *)
     let* dict_end_poff, after_payload_write =
       if dead_header_size > 0 then (
         let dict_path = Layout.dict ~root in
         let tmp_dict_path = Filename.temp_file ~temp_dir:root "store" "dict" in
-        let* dict_file = Io.open_ ~path:dict_path ~readonly:false in
+        let* dict_file = Io.open_ ~sw ~path:dict_path ~readonly:false in
         let* len = Io.read_size dict_file in
-        let* tmp_dict_file = Io.open_ ~path:tmp_dict_path ~readonly:false in
+        let* tmp_dict_file = Io.open_ ~sw ~path:tmp_dict_path ~readonly:false in
         let contents_len = Int63.to_int len - dead_header_size in
         let* contents =
           Io.read_to_string dict_file
@@ -578,21 +583,21 @@ struct
             };
       }
     in
-    let* () = Control.set_payload control payload in
+    let* () = Control.set_payload ~sw control payload in
     let* () = after_payload_write () in
     Ok payload
 
-  let load_payload ~config ~root ~lower_root ~control =
+  let load_payload ~sw ~config ~root ~lower_root ~control =
     let payload = Control.payload control in
     match lower_root with
     | Some lower_root when payload.volume_num = 0 ->
         if Irmin_pack.Conf.no_migrate config then Error `Migration_needed
         else if not (can_migrate_to_lower payload) then
           Error `Migration_to_lower_not_allowed
-        else migrate_to_lower ~root ~lower_root ~control payload
+        else migrate_to_lower ~sw ~root ~lower_root ~control payload
     | _ -> Ok payload
 
-  let open_rw_with_control_file config =
+  let open_rw_with_control_file ~sw config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let lower_root = Irmin_pack.Conf.lower_root config in
@@ -600,7 +605,7 @@ struct
     let* control =
       let path = Layout.control ~root in
       let tmp_path = Layout.control_tmp ~root in
-      Control.open_ ~readonly:false ~path ~tmp_path:(Some tmp_path)
+      Control.open_ ~sw ~readonly:false ~path ~tmp_path:(Some tmp_path)
     in
     let* Payload.
            {
@@ -612,7 +617,7 @@ struct
              volume_num;
              _;
            } =
-      load_payload ~config ~root ~lower_root ~control
+      load_payload ~sw ~config ~root ~lower_root ~control
     in
     let* dead_header_size =
       match status with
@@ -627,10 +632,10 @@ struct
           Error `V3_store_from_the_future
     in
     let make_dict ~path =
-      Dict.open_rw ~size:dict_end_poff ~dead_header_size path
+      Dict.open_rw ~sw ~size:dict_end_poff ~dead_header_size path
     in
     let make_suffix () =
-      Suffix.open_rw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
+      Suffix.open_rw ~sw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
@@ -641,16 +646,16 @@ struct
       | None -> Ok None
       | Some lower_root ->
           assert (volume_num > 0);
-          let+ l = Lower.v ~readonly:false ~volume_num lower_root in
+          let+ l = Lower.v ~sw ~readonly:false ~volume_num lower_root in
           Some l
     in
-    finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
-      ~make_lower
+    finish_constructing_rw config control ~sw ~make_dict ~make_suffix
+      ~make_index ~make_lower
 
-  let read_offset_from_legacy_file path =
+  let read_offset_from_legacy_file ~sw path =
     let open Result_syntax in
     (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
-    let* io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~sw ~path ~readonly:true in
     Errors.finalise (fun _ ->
         Io.close io |> Errs.log_if_error "FM: read_offset_from_legacy_file")
     @@ fun () ->
@@ -658,10 +663,10 @@ struct
     let x = Int63.decode ~off:0 s in
     Ok x
 
-  let read_version_from_legacy_file path =
+  let read_version_from_legacy_file ~sw path =
     let open Result_syntax in
     (* Bytes 0-7 contains the offset. Bytes 8-15 contain the version. *)
-    let* io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~sw ~path ~readonly:true in
     Errors.finalise (fun _ ->
         Io.close io |> Errs.log_if_error "FM: read_version_from_legacy_file")
     @@ fun () ->
@@ -671,16 +676,16 @@ struct
     | Some x -> Ok x
     | None -> Error `Corrupted_legacy_file
 
-  let open_rw_migrate_from_v1_v2 config =
+  let open_rw_migrate_from_v1_v2 ~sw config =
     let open Result_syntax in
     let root = Irmin_pack.Conf.root config in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let chunk_start_idx = 0 in
     let dst = Layout.suffix_chunk ~root ~chunk_idx:chunk_start_idx in
-    let* suffix_end_poff = read_offset_from_legacy_file src in
+    let* suffix_end_poff = read_offset_from_legacy_file ~sw src in
     let* dict_end_poff =
       let path = Layout.dict ~root in
-      read_offset_from_legacy_file path
+      read_offset_from_legacy_file ~sw path
     in
     let* () = Io.move_file ~src ~dst in
     let* control =
@@ -701,19 +706,19 @@ struct
           volume_num = 0;
         }
       in
-      create_control_file ~overwrite:false config pl
+      create_control_file ~sw ~overwrite:false config pl
     in
     let* () = Control.close control in
-    open_rw_with_control_file config
+    open_rw_with_control_file ~sw config
 
-  let open_rw_no_control_file config =
+  let open_rw_no_control_file ~sw config =
     let root = Irmin_pack.Conf.root config in
     let suffix_path = Irmin_pack.Layout.V1_and_v2.pack ~root in
     match Io.classify_path suffix_path with
     | `Directory | `No_such_file_or_directory | `Other -> Error `Invalid_layout
-    | `File -> open_rw_migrate_from_v1_v2 config
+    | `File -> open_rw_migrate_from_v1_v2 ~sw config
 
-  let open_rw config =
+  let open_rw ~sw config =
     let root = Irmin_pack.Conf.root config in
     let no_migrate = Irmin_pack.Conf.no_migrate config in
     match Io.classify_path root with
@@ -722,15 +727,15 @@ struct
     | `Directory -> (
         let path = Layout.control ~root in
         match Io.classify_path path with
-        | `File -> open_rw_with_control_file config
+        | `File -> open_rw_with_control_file ~sw config
         | `No_such_file_or_directory ->
             if no_migrate then Error `Migration_needed
-            else open_rw_no_control_file config
+            else open_rw_no_control_file ~sw config
         | `Directory | `Other -> Error `Invalid_layout)
 
   (* Open ro **************************************************************** *)
 
-  let open_ro config =
+  let open_ro ~sw config =
     let open Result_syntax in
     let indexing_strategy = Conf.indexing_strategy config in
     let root = Irmin_pack.Conf.root config in
@@ -739,7 +744,7 @@ struct
     (* 1. Open the control file *)
     let* control =
       let path = Layout.control ~root in
-      Control.open_ ~readonly:true ~path ~tmp_path:None
+      Control.open_ ~sw ~readonly:true ~path ~tmp_path:None
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
            | `No_such_file_or_directory _ -> (
@@ -766,15 +771,15 @@ struct
     let generation = generation status in
     (* 2. Open the other files *)
     let* suffix =
-      Suffix.open_ro ~root ~appendable_chunk_poff ~start_idx ~chunk_num
+      Suffix.open_ro ~sw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
     let* prefix =
-      open_prefix ~root ~generation ~mapping_size:(mapping_size status)
+      open_prefix ~sw ~root ~generation ~mapping_size:(mapping_size status)
     in
     let* dict =
       let filename = Layout.dict ~root in
-      Dict.open_ro ~size:dict_end_poff ~dead_header_size filename
+      Dict.open_ro ~sw ~size:dict_end_poff ~dead_header_size filename
     in
     let* index =
       let log_size = Conf.index_log_size config in
@@ -786,7 +791,7 @@ struct
       match lower_root with
       | None -> Ok None
       | Some path ->
-          let+ l = Lower.v ~readonly:true ~volume_num path in
+          let+ l = Lower.v ~sw ~readonly:true ~volume_num path in
           Some l
     in
     (* 4. return with success *)
@@ -803,14 +808,15 @@ struct
         prefix_consumers = [];
         suffix_consumers = [];
         root;
+        sw;
       }
 
   (* MISC. ****************************************************************** *)
 
-  let version ~root =
+  let version ~sw ~root =
     let v2_or_v1 () =
       let path = Irmin_pack.Layout.V1_and_v2.pack ~root in
-      match read_version_from_legacy_file path with
+      match read_version_from_legacy_file ~sw path with
       | Ok v -> Ok v
       | Error `Double_close | Error `Invalid_argument | Error `Closed ->
           assert false
@@ -825,7 +831,7 @@ struct
     | `File | `Other -> Error (`Not_a_directory root)
     | `Directory -> (
         let path = Layout.control ~root in
-        match Control.open_ ~path ~tmp_path:None ~readonly:true with
+        match Control.open_ ~sw ~path ~tmp_path:None ~readonly:true with
         | Ok _ -> Ok `V3
         | Error (`No_such_file_or_directory _) -> v2_or_v1 ()
         | Error `Not_a_file -> Error `Invalid_layout
@@ -880,7 +886,7 @@ struct
         { pl with status; chunk_start_idx; chunk_num }
       in
       [%log.debug "GC: writing new control_file"];
-      Control.set_payload t.control pl
+      Control.set_payload ~sw:t.sw t.control pl
     in
 
     (* Step 3. Swap volume and reload lower if needed *)
@@ -954,12 +960,12 @@ struct
     [%log.debug
       "split: update control_file chunk_start_idx:%d chunk_num:%d"
         pl.chunk_start_idx pl.chunk_num];
-    Control.set_payload t.control pl
+    Control.set_payload ~sw:t.sw t.control pl
 
   let add_volume t =
     match t.lower with
     | None -> Error `Add_volume_requires_lower
-    | Some lower -> add_volume_and_update_control lower t.control
+    | Some lower -> add_volume_and_update_control ~sw:t.sw lower t.control
 
   let cleanup t =
     let root = t.root in
@@ -980,7 +986,7 @@ struct
     let* () = Io.copy_file ~src:src_dict ~dst:dst_dict in
     (* Step 2. Create an empty suffix and close it. *)
     let* suffix =
-      Suffix.create_rw ~root:dst_root ~overwrite:false ~start_idx:1
+      Suffix.create_rw ~sw:t.sw ~root:dst_root ~overwrite:false ~start_idx:1
     in
     let* () = Suffix.close suffix in
     (* Step 3. Create the control file and close it. *)
@@ -999,7 +1005,9 @@ struct
       }
     in
     let path = Layout.control ~root:dst_root in
-    let* control = Control.create_rw ~path ~tmp_path:None ~overwrite:false pl in
+    let* control =
+      Control.create_rw ~sw:t.sw ~path ~tmp_path:None ~overwrite:false pl
+    in
     let* () = Control.close control in
     (* Step 4. Create the index. *)
     let* index =

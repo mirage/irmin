@@ -19,9 +19,10 @@ module Client = Irmin_client_unix.Make (Store)
 module Error = Irmin_client.Error
 
 let main () =
+  Eio.Switch.run @@ fun sw ->
   let info () = Client.Info.empty in
   let uri = Uri.of_string Sys.argv.(1) in
-  let client = Client.connect uri in
+  let client = Client.connect ~sw uri in
 
   let main = Client.main client in
   Client.set_exn ~info main [ "testing" ] "testing";

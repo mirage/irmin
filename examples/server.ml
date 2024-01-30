@@ -21,16 +21,18 @@ module Server = Irmin_server_unix.Make (Store)
 let info () = Irmin.Info.Default.empty
 
 let init () =
-  let repo = Store.Repo.v (Irmin_mem.config ()) in
+  Eio.Switch.run @@ fun sw ->
+  let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
   let main = Store.main repo in
   Store.set_exn ~info main [ "foo" ] "bar"
 
 let main () =
+  Eio.Switch.run @@ fun sw ->
   let uri = Uri.of_string Sys.argv.(1) in
   let config = Irmin_mem.config () in
   let dashboard = `TCP (`Port 1234) in
   Lwt_eio.run_lwt @@ fun () ->
-  let* server = Server.v ~uri ~dashboard config in
+  let* server = Server.v ~sw ~uri ~dashboard config in
   Format.printf "Listening on %a@." Uri.pp uri;
   Server.serve server
 

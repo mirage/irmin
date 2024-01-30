@@ -99,7 +99,7 @@ let websocket_to_flow client =
   Lwt.async (fun () -> send_oc true output_ic client);
   (input_ic, output_oc)
 
-let connect ~ctx (client : Irmin_client.addr) =
+let connect ~sw:_ ~ctx (client : Irmin_client.addr) =
   let open Lwt.Infix in
   match client with
   | (`TLS _ | `TCP _ | `Unix_domain_socket _) as client ->

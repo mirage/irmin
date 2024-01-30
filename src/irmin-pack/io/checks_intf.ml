@@ -49,6 +49,7 @@ module type S = sig
   module Reconstruct_index :
     Subcommand
       with type run :=
+        sw:Eio.Switch.t ->
         root:string ->
         output:string option ->
         ?index_log_size:int ->
@@ -61,6 +62,7 @@ module type S = sig
     include
       Subcommand
         with type run :=
+          sw:Eio.Switch.t ->
           ?ppf:Format.formatter ->
           root:string ->
           auto_repair:bool ->
@@ -83,14 +85,20 @@ module type S = sig
     include
       Subcommand
         with type run :=
-          root:string -> auto_repair:bool -> always:bool -> unit -> unit
+          sw:Eio.Switch.t ->
+          root:string ->
+          auto_repair:bool ->
+          always:bool ->
+          unit ->
+          unit
   end
 
   (** Checks the integrity of inodes in a store *)
   module Integrity_check_inodes : sig
     include
       Subcommand
-        with type run := root:string -> heads:string list option -> unit
+        with type run :=
+          sw:Eio.Switch.t -> root:string -> heads:string list option -> unit
   end
 
   (** Traverses a commit to get stats on its underlying tree. *)
@@ -98,6 +106,7 @@ module type S = sig
     include
       Subcommand
         with type run :=
+          sw:Eio.Switch.t ->
           root:string ->
           commit:string option ->
           dump_blob_paths_to:string option ->

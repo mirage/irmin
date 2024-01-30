@@ -41,9 +41,17 @@ struct
   module Store = struct
     module CAS = C.Make (H) (Store_item (T) (H) (V))
 
-    let get_store =
-      let st = CAS.v @@ C.config in
-      fun () -> st
+    let store = ref None
+
+    (* TODO: Fix this hellhole *)
+    let get_store () =
+      match !store with
+      | None ->
+          Eio.Switch.run @@ fun sw ->
+          let st = CAS.v ~sw @@ C.config in
+          store := Some st;
+          st
+      | Some st -> st
 
     let read st k = CAS.find st k
 

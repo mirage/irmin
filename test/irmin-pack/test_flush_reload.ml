@@ -100,9 +100,9 @@ let write1_no_flush bstore nstore cstore =
   ()
 
 (* These tests always open both RW and RO without any data in the model. *)
-let start t =
-  let () = start_rw t in
-  let () = open_ro t S2_before_write in
+let start ~sw t =
+  let () = start_rw ~sw t in
+  let () = open_ro ~sw t S2_before_write in
   let rw = Option.get t.rw |> snd in
   let ro = Option.get t.ro |> snd in
   (rw, ro)
@@ -111,12 +111,13 @@ let start t =
    rest of the test inside the [batch]. Then reload the RO at different phases
    during the flush. *)
 let test_one t ~(ro_reload_at : phase_flush) =
+  Eio.Switch.run @@ fun sw ->
   let aux phase =
     let () = check_ro t in
     if ro_reload_at = phase then reload_ro t phase;
     check_ro t
   in
-  let rw, _ = start t in
+  let rw, _ = start ~sw t in
   Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
       let () = write1_no_flush bstore nstore cstore in
       let () = aux S1_before_flush in
@@ -192,8 +193,9 @@ let flush_rw t (current_phase : phase_reload) =
   match t.rw with None -> assert false | Some (_, repo) -> Store.S.flush repo
 
 let test_one t ~(rw_flush_at : phase_reload) =
+  Eio.Switch.run @@ fun sw ->
   let aux phase = if rw_flush_at = phase then flush_rw t phase in
-  let rw, ro = start t in
+  let rw, ro = start ~sw t in
   let reload_ro () =
     Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
         let () = write1_no_flush bstore nstore cstore in

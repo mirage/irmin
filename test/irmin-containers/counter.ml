@@ -20,11 +20,12 @@ open Common
 module C = Irmin_containers.Counter.Mem
 
 let path = [ "tmp"; "counter" ]
-let config () = C.Store.Repo.v (Irmin_mem.config ())
+let config ~sw () = C.Store.Repo.v ~sw (Irmin_mem.config ())
 let merge_into_exn = merge_into_exn (module C.Store)
 
 let test_inc () =
-  let t = config () |> C.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw () |> C.Store.main in
   C.inc ~path t;
   let () =
     C.read ~path t
@@ -34,17 +35,19 @@ let test_inc () =
   C.read ~path t |> Alcotest.(check int64) "checked - increment using by" 3L
 
 let test_dec () =
-  let t = config () |> C.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw () |> C.Store.main in
   C.dec ~path t;
   let () =
     C.read ~path t
-    |> Alcotest.(check int64) "checked - decrement without using by" 2L
+    |> Alcotest.(check int64) "checked - decrement without using by" (-1L)
   in
   C.dec ~by:2L ~path t;
-  C.read ~path t |> Alcotest.(check int64) "checked - decrement using by" 0L
+  C.read ~path t |> Alcotest.(check int64) "checked - decrement using by" (-3L)
 
 let test_clone_merge () =
-  let t = config () |> C.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw () |> C.Store.main in
   C.inc ~by:5L ~path t;
   let b = C.Store.clone ~src:t ~dst:"cl" in
   C.inc ~by:2L ~path b;
@@ -60,7 +63,8 @@ let test_clone_merge () =
   |> Alcotest.(check int64) "checked - value of main after merging" 3L
 
 let test_branch_merge () =
-  let r = config () in
+  Eio.Switch.run @@ fun sw ->
+  let r = config ~sw () in
   let b1 = C.Store.of_branch r "b1" in
   let b2 = C.Store.of_branch r "b2" in
   let b3 = C.Store.of_branch r "b3" in

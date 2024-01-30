@@ -70,8 +70,8 @@ struct
     in
     tree
 
-  let persist_tree tree =
-    let repo = Repo.v conf in
+  let persist_tree ~sw tree =
+    let repo = Repo.v ~sw conf in
     let init_commit =
       Commit.v ~parents:[] ~info:Info.empty repo
         (Tree.singleton [ "singleton-step" ] (Bytes.of_string "singleton-val"))
@@ -145,8 +145,9 @@ module Test_tezos_conf = struct
     ("len of values", nb_steps) :: checks
 
   let inode_values_hash () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree some_steps in
-    let repo, tree, _ = Store.persist_tree tree in
+    let repo, tree, _ = Store.persist_tree ~sw tree in
     let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
@@ -165,8 +166,9 @@ module Test_tezos_conf = struct
     Store.Repo.close repo
 
   let commit_hash () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree some_steps in
-    let repo, _, commit = Store.persist_tree tree in
+    let repo, _, commit = Store.persist_tree ~sw tree in
     let commit_val = Store.to_backend_commit commit in
     let h = Commit.Hash.hash commit_val in
     let encode_bin_hash = Irmin.Type.(unstage (encode_bin Commit.Hash.t)) in
@@ -240,8 +242,9 @@ module Test_small_conf = struct
     ]
 
   let inode_tree_hash () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree many_steps in
-    let repo, tree, _ = Store.persist_tree tree in
+    let repo, tree, _ = Store.persist_tree ~sw tree in
     let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
@@ -281,8 +284,9 @@ module Test_V1 = struct
   let many_steps = [ "00"; "01"; "02"; "03"; "04"; "05" ]
 
   let commit_hash () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree many_steps in
-    let repo, _, commit = Store.persist_tree tree in
+    let repo, _, commit = Store.persist_tree ~sw tree in
     let commit_val = Store.to_backend_commit commit in
     let checks =
       [

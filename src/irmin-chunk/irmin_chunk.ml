@@ -184,7 +184,7 @@ struct
       aux l
   end
 
-  let v config =
+  let v ~sw config =
     let chunk_size = Conf.get config Conf.Key.chunk_size in
     let max_data = chunk_size - Chunk.size_of_data_header in
     let max_children =
@@ -197,7 +197,7 @@ struct
     [%log.debug
       "config: chunk-size=%d digest-size=%d max-data=%d max-children=%d"
         chunk_size H.hash_size max_data max_children];
-    let db = CA.v config in
+    let db = CA.v ~sw config in
     { chunking; db; chunk_size; max_children; max_data }
 
   let close _ = ()

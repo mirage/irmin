@@ -32,7 +32,7 @@ module type Volume = sig
     | `Corrupted_control_file of string
     | `Unknown_major_pack_version of string ]
 
-  val v : string -> (t, [> open_error ]) result
+  val v : sw:Eio.Switch.t -> string -> (t, [> open_error ]) result
   (** [v path] loads the volume at [path] in read-only. *)
 
   val path : t -> string
@@ -66,7 +66,11 @@ module type S = sig
     | `Invalid_parent_directory ]
 
   val v :
-    readonly:bool -> volume_num:int -> string -> (t, [> open_error ]) result
+    sw:Eio.Switch.t ->
+    readonly:bool ->
+    volume_num:int ->
+    string ->
+    (t, [> open_error ]) result
   (** [v ~readonly ~volume_num lower_root] loads all volumes located in the
       directory [lower_root].
 
@@ -152,6 +156,7 @@ module type S = sig
     [ open_error | close_error | add_error | `Sys_error of string ]
 
   val create_from :
+    sw:Eio.Switch.t ->
     src:string ->
     dead_header_size:int ->
     size:Int63.t ->

@@ -480,7 +480,7 @@ let create_test_env setup =
   { setup; rw = None; ro = None }
 
 (** One of the 4 rw mutations *)
-let start_rw t =
+let start_rw ~sw t =
   [%logs.app "*** start_rw %a" pp_setup t.setup];
   let rw =
     match t.rw with
@@ -496,7 +496,7 @@ let start_rw t =
           | From_scratch -> Model.v t.setup
         in
         let repo =
-          Store.v t.setup ~readonly:false ~fresh:false root_local_build
+          Store.v ~sw t.setup ~readonly:false ~fresh:false root_local_build
         in
         (model, repo)
   in
@@ -553,7 +553,7 @@ let write2_rw t =
       ()
 
 (** One of the 2 ro mutations *)
-let open_ro t current_phase =
+let open_ro ~sw t current_phase =
   [%logs.app "*** open_ro %a, %a" pp_setup t.setup pp_phase current_phase];
   let ro =
     match t.ro with
@@ -581,7 +581,8 @@ let open_ro t current_phase =
             Alcotest.check_raises "open empty/V2 store in RO"
               (Irmin_pack_unix.Errors.Pack_error error) (fun () ->
                 let repo =
-                  Store.v t.setup ~readonly:true ~fresh:false root_local_build
+                  Store.v ~sw t.setup ~readonly:true ~fresh:false
+                    root_local_build
                 in
                 Store.close repo)
           in
@@ -596,7 +597,7 @@ let open_ro t current_phase =
               fail_and_skip (`No_such_file_or_directory missing_path)
           | From_v2, S1_before_start -> fail_and_skip `Migration_needed
           | (From_v2 | From_v3 | From_v3_c0_gced | From_scratch), _ ->
-              Store.v t.setup ~readonly:true ~fresh:false root_local_build
+              Store.v ~sw t.setup ~readonly:true ~fresh:false root_local_build
         in
         (model, repo)
   in
@@ -624,16 +625,17 @@ let close_everything t =
     (Option.to_list t.ro @ Option.to_list t.rw)
 
 let test_one t ~ro_open_at ~ro_sync_at =
+  Eio.Switch.run @@ fun sw ->
   let aux phase =
     let () = check t in
-    let () = if ro_open_at = phase then open_ro t phase else () in
+    let () = if ro_open_at = phase then open_ro ~sw t phase else () in
     let () = check t in
     if ro_sync_at = phase then sync_ro t phase;
     check t
   in
 
   let () = aux S1_before_start in
-  let () = start_rw t in
+  let () = start_rw ~sw t in
   let () = aux S2_before_write in
   let () = write1_rw t in
   let () = aux S3_before_gc in

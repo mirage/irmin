@@ -16,7 +16,7 @@ module Store = struct
 
   type key = commit_key
 
-  let create_repo ~root () =
+  let create_repo ~sw ~root () =
     (* make sure the parent dir exists *)
     let () =
       match Sys.file_exists (Filename.dirname root) with
@@ -24,7 +24,7 @@ module Store = struct
       | true -> ()
     in
     let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-    let repo = Store.Repo.v conf in
+    let repo = Store.Repo.v ~sw conf in
     let on_commit _ _ = () in
     let on_end () = () in
     (repo, on_commit, on_end)
@@ -134,9 +134,9 @@ module Store_mem = struct
 
   type key = commit_key
 
-  let create_repo ~root () =
+  let create_repo ~sw ~root () =
     let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
-    let repo = Store.Repo.v conf in
+    let repo = Store.Repo.v ~sw conf in
     let on_commit _ _ = () in
     let on_end () = () in
     (repo, on_commit, on_end)

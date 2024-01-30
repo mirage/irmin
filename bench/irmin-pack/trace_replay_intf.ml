@@ -99,7 +99,12 @@ module type Store = sig
   type on_commit := int -> Hash.t -> unit
   type on_end := unit -> unit
 
-  val create_repo : root:string -> store_config -> Repo.t * on_commit * on_end
+  val create_repo :
+    sw:Eio.Switch.t ->
+    root:string ->
+    store_config ->
+    Repo.t * on_commit * on_end
+
   val split : repo -> unit
   val add_volume : repo -> unit
   val gc_wait : repo -> unit

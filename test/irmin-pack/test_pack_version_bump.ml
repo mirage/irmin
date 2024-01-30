@@ -92,7 +92,8 @@ module Util = struct
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)
   let io_get_version ~root : [ `V1 | `V2 | `V3 | `V4 | `V5 ] =
-    File_manager.version ~root |> Errs.raise_if_error
+    Eio.Switch.run @@ fun sw ->
+    File_manager.version ~sw ~root |> Errs.raise_if_error
 
   let alco_check_version ~pos ~expected ~actual =
     Alcotest.check_repr ~pos Irmin_pack.Version.t "" expected actual
@@ -126,13 +127,14 @@ end
 (** Cannot open a V1 store in RO mode. *)
 let test_RO_no_migration () : unit =
   [%log.info "Executing test_RO_no_migration"];
+  Eio.Switch.run @@ fun sw ->
   let open With_existing_store () in
   assert (io_get_version ~root:tmp_dir = `V1);
 
   let () =
     Alcotest.check_raises "open V1 store in RO"
       (Irmin_pack_unix.Errors.Pack_error `Migration_needed) (fun () ->
-        let repo = S.Repo.v (config ~readonly:true) in
+        let repo = S.Repo.v ~sw (config ~readonly:true) in
         S.Repo.close repo)
   in
   (* maybe the version bump is only visible after, check again *)
@@ -142,9 +144,10 @@ let test_RO_no_migration () : unit =
 (** Open a V1 store RW mode. Even if no writes, the store migrates to V3. *)
 let test_open_RW () =
   [%log.info "Executing test_open_RW"];
+  Eio.Switch.run @@ fun sw ->
   let open With_existing_store () in
   assert (io_get_version ~root:tmp_dir = `V1);
-  let repo = S.Repo.v (config ~readonly:false) in
+  let repo = S.Repo.v ~sw (config ~readonly:false) in
   let () = S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V3
     ~actual:(io_get_version ~root:tmp_dir)

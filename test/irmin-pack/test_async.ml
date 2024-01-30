@@ -21,16 +21,18 @@ module Async = Irmin_pack_unix.Async.Unix
 let check_outcome = Alcotest.check_repr Async.outcome_t
 
 let test_success () =
+  Eio.Switch.run @@ fun sw ->
   let f () = assert true in
-  let task = Async.async f in
+  let task = Async.async ~sw f in
   let result = Async.await task in
-  check_outcome "should succeed" result `Success
+  check_outcome "should succeed" `Success result
 
 let test_exception_in_task () =
+  Eio.Switch.run @@ fun sw ->
   let f () = assert false in
-  let task = Async.async f in
+  let task = Async.async ~sw f in
   let result = Async.await task in
-  check_outcome "should fail" result (`Failure "Unhandled exception")
+  check_outcome "should fail" (`Failure "Unhandled exception") result
 
 let tests =
   [

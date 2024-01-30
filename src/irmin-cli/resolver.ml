@@ -564,8 +564,8 @@ let get_commit (type a b)
   | None -> of_string (find_key config "commit")
   | Some t -> of_string (Some t)
 
-let build_irmin_config config root opts (store, hash, contents) branch commit
-    plugin : store =
+let build_irmin_config ~sw config root opts (store, hash, contents) branch
+    commit plugin : store =
   let (T { impl; spec; remote }) =
     get_store ?plugin config (store, hash, contents)
   in
@@ -595,14 +595,14 @@ let build_irmin_config config root opts (store, hash, contents) branch commit
   let spec () =
     match (branch, commit) with
     | _, Some hash -> (
-        let repo = S.Repo.v config in
+        let repo = S.Repo.v ~sw config in
         let commit = S.Commit.of_hash repo hash in
         match commit with
         | None -> invalid_arg "unknown commit"
         | Some c -> S.of_commit c)
-    | None, None -> S.Repo.v config |> S.main
+    | None, None -> S.Repo.v ~sw config |> S.main
     | Some b, None ->
-        let repo = S.Repo.v config in
+        let repo = S.Repo.v ~sw config in
         S.of_branch repo b
   in
   S (impl, spec, remote)
@@ -629,7 +629,7 @@ let plugin =
 let store () =
   let create plugin store (root, config_path, opts) branch commit =
     let y = read_config_file config_path in
-    build_irmin_config y root opts store branch commit plugin
+    fun ~sw -> build_irmin_config ~sw y root opts store branch commit plugin
   in
   Term.(const create $ plugin $ Store.term () $ config_term $ branch $ commit)
 
@@ -653,7 +653,7 @@ type Irmin.remote += R of Cohttp.Header.t option * string
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
    alias. *)
-let infer_remote hash contents branch headers str =
+let infer_remote ~sw hash contents branch headers str =
   let hash = match hash with None -> snd !Hash.default | Some c -> c in
   let contents =
     match contents with
@@ -677,7 +677,7 @@ let infer_remote hash contents branch headers str =
               Conf.add config r v
           | _ -> config
         in
-        let repo = R.Repo.v config in
+        let repo = R.Repo.v ~sw config in
         let branch =
           match branch with
           | Some b -> Irmin.Type.of_string R.branch_t b |> Result.get_ok
@@ -702,11 +702,12 @@ let remote () =
   let create (store, hash, contents) (root, config_path, opts) branch commit
       headers str =
     let y = read_config_file config_path in
-    let store =
-      build_irmin_config y root opts (store, hash, contents) branch commit None
+    let store ~sw =
+      build_irmin_config ~sw y root opts (store, hash, contents) branch commit
+        None
     in
-    let remote () = infer_remote hash contents branch headers str in
-    (store, remote)
+    let remote ~sw () = infer_remote ~sw hash contents branch headers str in
+    fun ~sw -> (store ~sw, remote ~sw)
   in
   Term.(
     const create

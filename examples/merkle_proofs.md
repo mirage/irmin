@@ -28,14 +28,15 @@ module Store = Irmin_git_unix.FS.KV (Contents)
 
 let eio_run fn =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock fn
+  Eio.Switch.run @@ fun sw ->
+  Lwt_eio.with_event_loop ~clock:env#clock (fn ~sw)
 ```
 
 Open a repo.
 
 ```ocaml
 # let config = Irmin_git.config ~bare:true "./tmp-irmin/test"
-  let repo = eio_run @@ fun _ -> Store.Repo.v config;;
+  let repo = eio_run @@ fun ~sw _ -> Store.Repo.v ~sw config;;
 val config : Irmin.config = <abstr>
 val repo : Store.repo = <abstr>
 ```
@@ -45,7 +46,7 @@ Create a tree which contains the accounts and their balance for 3 customers: Ben
 Instead of using `[ "eve" ]` as a path (which whould have been valid too), this example splits the names char by char. This is better in order to highlight how proofs work.
 
 ```ocaml
-# let tree = eio_run @@ fun _ ->
+# let tree = eio_run @@ fun ~sw _ ->
     let tree = Store.Tree.empty () in
     let tree = Store.Tree.add tree [ "b"; "e"; "n" ] 10 in
     let tree = Store.Tree.add tree [ "b"; "o"; "b" ] 20 in
@@ -60,7 +61,7 @@ In order to produce a Merkle proof, Irmin requires that the tree on which the pr
 `tree_key` is a value that encodes where `tree` has been persisted inside the store's backend.
 
 ```ocaml
-# let tree_key = eio_run @@ fun _ ->
+# let tree_key = eio_run @@ fun ~sw _ ->
     (* [batch] exposes [repo] stores in read-write mode *)
     let kinded_key = Store.Backend.Repo.batch repo
       (fun rw_contents_store rw_node_store _rw_commit_store ->
@@ -90,7 +91,7 @@ let visit_tree tree =
   let (_ : int option) = Store.Tree.find tree [ "e"; "v"; "e" ] in
   (Store.Tree.empty (), `Success)
 
-let proof, `Success = eio_run @@ fun _ ->
+let proof, `Success = eio_run @@ fun ~sw _ ->
   Store.Tree.produce_proof repo (`Node tree_key) visit_tree
 
 let pp_merkle_proof = Irmin.Type.pp Store.Tree.Proof.tree_t

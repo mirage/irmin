@@ -31,7 +31,10 @@ end
 module Store_tz = Irmin_pack_unix.Checks.Make (Maker_tz)
 
 let () =
-  Eio_main.run @@ fun _ ->
+  Eio_main.run @@ fun env ->
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
+  Irmin_pack_unix.Async.set_domain_mgr domain_mgr;
   try
     let store_type = Sys.getenv "STORE" in
     if store_type = "PACK" then match Store.cli () with _ -> .

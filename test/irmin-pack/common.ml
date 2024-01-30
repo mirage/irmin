@@ -128,20 +128,20 @@ struct
       ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
 
   (* TODO : remove duplication with irmin_pack/ext.ml *)
-  let get_fm config =
+  let get_fm ~sw config =
     let readonly = Irmin_pack.Conf.readonly config in
-    if readonly then File_manager.open_ro config |> Errs.raise_if_error
+    if readonly then File_manager.open_ro ~sw config |> Errs.raise_if_error
     else
       let fresh = Irmin_pack.Conf.fresh config in
       if fresh then (
         let root = Irmin_pack.Conf.root config in
         mkdir_dash_p root;
-        File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error)
-      else File_manager.open_rw config |> Errs.raise_if_error
+        File_manager.create_rw ~sw ~overwrite:true config |> Errs.raise_if_error)
+      else File_manager.open_rw ~sw config |> Errs.raise_if_error
 
-  let get_dict ?name ~readonly ~fresh () =
+  let get_dict ~sw ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in
-    let fm = config ~readonly ~fresh name |> get_fm in
+    let fm = config ~readonly ~fresh name |> get_fm ~sw in
     let dict = File_manager.dict fm in
     { name; dict; fm }
 
@@ -155,10 +155,10 @@ struct
     dict : Pack.dict;
   }
 
-  let create ~readonly ~fresh name =
+  let create ~sw ~readonly ~fresh name =
     let f = ref (fun () -> ()) in
     let config = config ~readonly ~fresh name in
-    let fm = get_fm config in
+    let fm = get_fm ~sw config in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
@@ -168,12 +168,12 @@ struct
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm }
 
-  let get_rw_pack () =
+  let get_rw_pack ~sw =
     let name = fresh_name "" in
-    create ~readonly:false ~fresh:true name
+    create ~sw ~readonly:false ~fresh:true name
 
-  let get_ro_pack name = create ~readonly:true ~fresh:false name
-  let reopen_rw name = create ~readonly:false ~fresh:false name
+  let get_ro_pack ~sw name = create ~sw ~readonly:true ~fresh:false name
+  let reopen_rw ~sw name = create ~sw ~readonly:false ~fresh:false name
 
   let close_pack t =
     let _ = File_manager.flush t.fm in

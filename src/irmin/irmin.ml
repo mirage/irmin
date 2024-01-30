@@ -124,13 +124,13 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
           let commit_t = (node_t, ct) in
           f contents_t node_t commit_t
 
-        let v config =
-          let contents = Contents.Backend.v config in
-          let nodes = Node.Backend.v config in
-          let commits = Commit.Backend.v config in
+        let v ~sw config =
+          let contents = Contents.Backend.v ~sw config in
+          let nodes = Node.Backend.v ~sw config in
+          let commits = Commit.Backend.v ~sw config in
           let nodes = (contents, nodes) in
           let commits = (nodes, commits) in
-          let branch = Branch.v config in
+          let branch = Branch.v ~sw config in
           { contents; nodes; commits; branch; config }
 
         let close t =

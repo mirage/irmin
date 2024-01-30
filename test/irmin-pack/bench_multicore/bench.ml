@@ -82,20 +82,21 @@ let get_tree ~config repo tasks =
     Array.iter (warmup_task tree) tasks;
     fun () -> tree
 
-let setup_tree ~readonly paths =
+let setup_tree ~sw ~readonly paths =
   let tree = make_tree_of_paths paths in
   reset_test_env ();
-  let repo = open_repo ~fresh:true ~readonly:false () in
+  let repo = open_repo ~sw ~fresh:true ~readonly:false () in
   let () = S.set_tree_exn ~info (S.main repo) [] tree in
   S.Repo.close repo;
-  let repo = open_repo ~fresh:false ~readonly () in
+  let repo = open_repo ~sw ~fresh:false ~readonly () in
   Format.printf
     "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
   repo
 
 let half ~d_mgr ~(config : Gen.config) =
+  Eio.Switch.run @@ fun sw ->
   let paths, tasks = Gen.make ~config in
-  let repo = setup_tree ~readonly:true paths in
+  let repo = setup_tree ~sw ~readonly:true paths in
   let get_tree = get_tree ~config repo tasks in
 
   let _, sequential, _ =
@@ -119,8 +120,9 @@ let half ~d_mgr ~(config : Gen.config) =
   S.Repo.close repo
 
 let full ~d_mgr ~(config : Gen.config) =
+  Eio.Switch.run @@ fun sw ->
   let paths, tasks = Gen.make_full ~config in
-  let repo = setup_tree ~readonly:false paths in
+  let repo = setup_tree ~sw ~readonly:false paths in
   let get_tree = get_tree ~config repo tasks in
   let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
 

@@ -42,7 +42,7 @@ module type S = sig
   include
     Irmin.Content_addressable.S with type key = Key.t and type value = Value.t
 
-  val v : unit -> read t
+  val v : sw:Eio.Switch.t -> read t
 end
 
 module Append_only = Irmin_mem.Append_only
@@ -53,7 +53,7 @@ module Content_addressable =
 module Mem = struct
   include Content_addressable
 
-  let v () = v @@ Irmin_mem.config ()
+  let v ~sw = v ~sw @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct
@@ -62,7 +62,7 @@ module MemChunk = struct
   let small_config =
     Irmin_chunk.config ~min_size:44 ~size:44 (Irmin_mem.config ())
 
-  let v () = v small_config
+  let v ~sw = v ~sw small_config
 end
 
 let store =

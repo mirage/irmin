@@ -96,7 +96,8 @@ let reload fm = File_manager.reload fm |> Errs.raise_if_error
 
 module Dict = struct
   let test_dict () =
-    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:true () in
+    Eio.Switch.run @@ fun sw ->
+    let (d : Context.d) = Context.get_dict ~sw ~readonly:false ~fresh:true () in
     let x1 = Dict.index d.dict "foo" in
     Alcotest.(check (option int)) "foo" (Some 0) x1;
     let x1 = Dict.index d.dict "foo" in
@@ -111,7 +112,7 @@ module Dict = struct
     Alcotest.(check (option int)) "foo" (Some 0) x1;
     flush d.fm;
     let (d2 : Context.d) =
-      Context.get_dict ~name:d.name ~readonly:false ~fresh:false ()
+      Context.get_dict ~sw ~name:d.name ~readonly:false ~fresh:false ()
     in
     let x4 = Dict.index d2.dict "titiabc" in
     Alcotest.(check (option int)) "titiabc" (Some 3) x4;
@@ -123,7 +124,7 @@ module Dict = struct
     Alcotest.(check (option string)) "find x3" (Some "toto") v3;
     Context.close_dict d;
     let (d3 : Context.d) =
-      Context.get_dict ~name:d.name ~readonly:false ~fresh:false ()
+      Context.get_dict ~sw ~name:d.name ~readonly:false ~fresh:false ()
     in
     let v1 = Dict.find d3.dict (get x1) in
     Alcotest.(check (option string)) "find x1" (Some "foo") v1;
@@ -133,9 +134,10 @@ module Dict = struct
   let ignore_int (_ : int option) = ()
 
   let test_readonly_dict () =
-    let (d : Context.d) = Context.get_dict ~readonly:false ~fresh:true () in
+    Eio.Switch.run @@ fun sw ->
+    let (d : Context.d) = Context.get_dict ~sw ~readonly:false ~fresh:true () in
     let (d2 : Context.d) =
-      Context.get_dict ~name:d.name ~readonly:true ~fresh:false ()
+      Context.get_dict ~sw ~name:d.name ~readonly:true ~fresh:false ()
     in
     let check_index k i =
       Alcotest.(check (option int)) k (Some i) (Dict.index d2.dict k)
@@ -183,7 +185,8 @@ end
 
 module Pack = struct
   let test_pack () =
-    let t = Context.get_rw_pack () in
+    Eio.Switch.run @@ fun sw ->
+    let t = Context.get_rw_pack ~sw in
     let x1 = "foo" in
     let x2 = "bar" in
     let x3 = "otoo" in
@@ -213,14 +216,15 @@ module Pack = struct
       Alcotest.(check string) "x4" x4 y4
     in
     test t.pack;
-    let t' = Context.get_ro_pack t.name in
+    let t' = Context.get_ro_pack ~sw t.name in
     test t'.pack;
     Context.close_pack t;
     Context.close_pack t'
 
   let test_readonly_pack () =
-    let t = Context.get_rw_pack () in
-    let t' = Context.get_ro_pack t.name in
+    Eio.Switch.run @@ fun sw ->
+    let t = Context.get_rw_pack ~sw in
+    let t' = Context.get_ro_pack ~sw t.name in
     let () =
       let adds l =
         List.map
@@ -255,8 +259,9 @@ module Pack = struct
     Context.close_pack t'
 
   let test_close_pack_more () =
+    Eio.Switch.run @@ fun sw ->
     (*open and close in rw*)
-    let t = Context.get_rw_pack () in
+    let t = Context.get_rw_pack ~sw in
     let x1 = "foo" in
     let h1 = sha1_contents x1 in
     let k1 =
@@ -265,23 +270,24 @@ module Pack = struct
     flush t.fm;
     Context.close_pack t;
     (*open and close in ro*)
-    let t1 = Context.get_ro_pack t.name in
+    let t1 = Context.get_ro_pack ~sw t.name in
     let y1 = Pack.find t1.pack k1 |> get in
     Alcotest.(check string) "x1.1" x1 y1;
     Context.close_pack t1;
     (* reopen in rw *)
-    let t2 = Context.reopen_rw t.name in
+    let t2 = Context.reopen_rw ~sw t.name in
     let y1 = Pack.find t2.pack k1 |> get in
     Alcotest.(check string) "x1.2" x1 y1;
     (*reopen in ro *)
-    let t3 = Context.get_ro_pack t.name in
+    let t3 = Context.get_ro_pack ~sw t.name in
     let y1 = Pack.find t3.pack k1 |> get in
     Alcotest.(check string) "x1.3" x1 y1;
     Context.close_pack t2;
     Context.close_pack t3
 
   let test_close_pack () =
-    let t = Context.get_rw_pack () in
+    Eio.Switch.run @@ fun sw ->
+    let t = Context.get_rw_pack ~sw in
     let w = t.pack in
     let x1 = "foo" in
     let x2 = "bar" in
@@ -296,7 +302,7 @@ module Pack = struct
     in
     Context.close_pack t;
     (*reopen in rw *)
-    let t' = Context.reopen_rw t.name in
+    let t' = Context.reopen_rw ~sw t.name in
     let y2 = Pack.find t'.pack k2 |> get in
     Alcotest.(check string) "x2.1" x2 y2;
     let y1 = Pack.find t'.pack k1 |> get in
@@ -308,7 +314,7 @@ module Pack = struct
     in
     Context.close_pack t';
     (*reopen in rw *)
-    let t2 = Context.reopen_rw t.name in
+    let t2 = Context.reopen_rw ~sw t.name in
     let y2 = Pack.find t2.pack k2 |> get in
     Alcotest.(check string) "x2.2" x2 y2;
     let y3 = Pack.find t2.pack k3 |> get in
@@ -317,7 +323,7 @@ module Pack = struct
     Alcotest.(check string) "x1.2" x1 y1;
     Context.close_pack t2;
     (*reopen in ro *)
-    let t' = Context.get_ro_pack t.name in
+    let t' = Context.get_ro_pack ~sw t.name in
     let y1 = Pack.find t'.pack k1 |> get in
     Alcotest.(check string) "x1.3" x1 y1;
     let y2 = Pack.find t'.pack k2 |> get in
@@ -328,8 +334,9 @@ module Pack = struct
       the tests using [Index.filter] and [Index.flush]. Regression test for PR
       1008 in which values were indexed before being reachable in pack. *)
   let readonly_reload_index_flush () =
-    let t = Context.get_rw_pack () in
-    let t' = Context.get_ro_pack t.name in
+    Eio.Switch.run @@ fun sw ->
+    let t = Context.get_rw_pack ~sw in
+    let t' = Context.get_ro_pack ~sw t.name in
     let test w =
       let x1 = "foo" in
       let h1 = sha1_contents x1 in
@@ -358,8 +365,9 @@ module Pack = struct
     Context.close_pack t'
 
   let readonly_find_index_flush () =
-    let t = Context.get_rw_pack () in
-    let t' = Context.get_ro_pack t.name in
+    Eio.Switch.run @@ fun sw ->
+    let t = Context.get_rw_pack ~sw in
+    let t' = Context.get_ro_pack ~sw t.name in
     let check h x msg =
       let y = Pack.find t'.pack h in
       Alcotest.(check (option string)) msg (Some x) y
@@ -431,20 +439,21 @@ module Branch = struct
       List.map check branches |> Eio.Fiber.all
     in
     let name = Context.fresh_name "branch" in
-    Branch.v ~fresh:true name |> test;
-    Branch.v ~fresh:true name |> test;
-    Branch.v ~fresh:true name |> test;
-    let t = Branch.v ~fresh:false name in
+    Eio.Switch.run @@ fun sw ->
+    Branch.v ~sw ~fresh:true name |> test;
+    Branch.v ~sw ~fresh:true name |> test;
+    Branch.v ~sw ~fresh:true name |> test;
+    let t = Branch.v ~sw ~fresh:false name in
     test t;
     let x = sha1 "XXX" in
     Branch.set t "foo" x;
-    let t = Branch.v ~fresh:false name in
+    let t = Branch.v ~sw ~fresh:false name in
     let v = Branch.find t "foo" in
     Alcotest.(check (option hash)) "foo" (Some x) v;
     let br = Branch.list t in
     Alcotest.(check (slist string compare)) "branches" branches br;
     Branch.remove t "foo";
-    let t = Branch.v ~fresh:false name in
+    let t = Branch.v ~sw ~fresh:false name in
     let v = Branch.find t "foo" in
     Alcotest.(check (option hash)) "foo none" None v;
     let br = Branch.list t in
@@ -454,6 +463,7 @@ module Branch = struct
       br
 
   let test_close_branch () =
+    Eio.Switch.run @@ fun sw ->
     let branches = [ "foo"; "bar/toto"; "titi" ] in
     let add t =
       List.iter
@@ -463,23 +473,26 @@ module Branch = struct
         branches
     in
     let test t =
-      let check h () =
+      let check i h () =
+        Fmt.pr "%d->@." i;
         let v = Branch.find t h in
-        Alcotest.(check (option hash)) h (Some (sha1 h)) v
+        Fmt.pr "-%d-@." i;
+        Alcotest.(check (option hash)) h (Some (sha1 h)) v;
+        Fmt.pr "<-%d@." i
       in
-      List.map check branches |> Eio.Fiber.all
+      List.mapi check branches |> Eio.Fiber.all
     in
     let name = Context.fresh_name "branch" in
-    let t = Branch.v ~fresh:true name in
+    let t = Branch.v ~sw ~fresh:true name in
     add t;
     test t;
     Branch.close t;
-    let t = Branch.v ~fresh:false ~readonly:true name in
+    let t = Branch.v ~sw ~fresh:false ~readonly:true name in
     test t;
     Branch.close t;
     let name = Context.fresh_name "branch" in
-    let t1 = Branch.v ~fresh:true ~readonly:false name in
-    let t2 = Branch.v ~fresh:false ~readonly:true name in
+    let t1 = Branch.v ~sw ~fresh:true ~readonly:false name in
+    let t2 = Branch.v ~sw ~fresh:false ~readonly:true name in
     add t1;
     Branch.close t1;
     test t2

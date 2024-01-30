@@ -304,6 +304,7 @@ module type S = sig
   type t
 
   val create_rw :
+    sw:Eio.Switch.t ->
     path:string ->
     tmp_path:string option ->
     overwrite:bool ->
@@ -320,6 +321,7 @@ module type S = sig
     | `Unknown_major_pack_version of string ]
 
   val open_ :
+    sw:Eio.Switch.t ->
     path:string ->
     tmp_path:string option ->
     readonly:bool ->
@@ -331,13 +333,17 @@ module type S = sig
   val close : t -> (unit, [> Io.close_error ]) result
 
   val read_payload :
-    path:string -> (payload, [> open_error | Io.close_error ]) result
+    sw:Eio.Switch.t ->
+    path:string ->
+    (payload, [> open_error | Io.close_error ]) result
   (** [read_payload ~path] reads the payload at [path]. It is a convenient way
       to read the payload without needing to call {!open_}, {!payload},
       {!close}. *)
 
   val read_raw_payload :
-    path:string -> (raw_payload, [> open_error | Io.close_error ]) result
+    sw:Eio.Switch.t ->
+    path:string ->
+    (raw_payload, [> open_error | Io.close_error ]) result
 
   val payload : t -> payload
   (** [payload t] is the payload in [t].
@@ -355,7 +361,7 @@ module type S = sig
 
   type reload_error := [ `Rw_not_allowed | open_error | Io.close_error ]
 
-  val reload : t -> (unit, [> reload_error ]) result
+  val reload : sw:Eio.Switch.t -> t -> (unit, [> reload_error ]) result
   (** {3 RW mode}
 
       Always returns an error.
@@ -376,7 +382,8 @@ module type S = sig
     | move_error
     | Io.close_error ]
 
-  val set_payload : t -> payload -> (unit, [> set_error ]) result
+  val set_payload :
+    sw:Eio.Switch.t -> t -> payload -> (unit, [> set_error ]) result
   (** {3 RW mode}
 
       Write a new payload on disk.

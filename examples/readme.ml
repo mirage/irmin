@@ -11,8 +11,10 @@ let author = "Example <example@example.com>"
 let info fmt = Irmin_git_unix.info ~author fmt
 
 let main () =
+  (* Create the switch *)
+  Eio.Switch.run @@ fun sw ->
   (* Open the repo *)
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
 
   (* Load the main branch *)
   let t = Store.main repo in

@@ -25,6 +25,7 @@ module type S = sig
   val readonly : Irmin.config -> Irmin.config
 
   val v :
+    sw:Eio.Switch.t ->
     ?tls_config:[ `Cert_file of string ] * [ `Key_file of string ] ->
     ?dashboard:Conduit_lwt_unix.server ->
     uri:Uri.t ->

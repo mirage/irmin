@@ -92,8 +92,8 @@ functor
     let watches = W.v ()
     let lock = L.v ()
 
-    let v config =
-      let t = S.v config in
+    let v ~sw config =
+      let t = S.v ~sw config in
       { t; w = watches; l = lock }
 
     let find { t; _ } = S.find t

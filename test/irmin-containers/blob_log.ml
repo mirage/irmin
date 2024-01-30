@@ -20,17 +20,19 @@ open Common
 module B = Irmin_containers.Blob_log.Mem (Irmin.Contents.String)
 
 let path = [ "tmp"; "blob" ]
-let config () = B.Store.Repo.v (Irmin_mem.config ())
+let config ~sw = B.Store.Repo.v ~sw (Irmin_mem.config ())
 let merge_into_exn = merge_into_exn (module B.Store)
 
 let test_empty_read () =
-  let config = config () in
+  Eio.Switch.run @@ fun sw ->
+  let config = config ~sw in
   let main = B.Store.main config in
   B.read_all ~path main
   |> Alcotest.(check (list string)) "checked - reading empty log" []
 
 let test_append () =
-  let t = config () |> B.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> B.Store.main in
   B.append ~path t "main.1";
   B.append ~path t "main.2";
   B.read_all ~path t
@@ -38,7 +40,10 @@ let test_append () =
        "checked - log after appending" [ "main.2"; "main.1" ]
 
 let test_clone_merge () =
-  let t = config () |> B.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> B.Store.main in
+  B.append ~path t "main.1";
+  B.append ~path t "main.2";
   let b = B.Store.clone ~src:t ~dst:"cl" in
   B.append ~path b "clone.1";
   B.append ~path t "main.3";
@@ -49,7 +54,8 @@ let test_clone_merge () =
        [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
 let test_branch_merge () =
-  let r = config () in
+  Eio.Switch.run @@ fun sw ->
+  let r = config ~sw in
   let b1 = B.Store.of_branch r "b1" in
   let b2 = B.Store.of_branch r "b2" in
   let b3 = B.Store.of_branch r "b3" in

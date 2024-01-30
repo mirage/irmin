@@ -19,7 +19,7 @@ module type S = sig
   type key
   type value
 
-  val v : Conf.t -> t
+  val v : sw:Eio.Switch.t -> Conf.t -> t
   (** [v config] initialises a storage layer, with the configuration [config]. *)
 
   val mem : t -> key -> bool

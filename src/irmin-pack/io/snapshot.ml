@@ -60,11 +60,11 @@ module Make (Args : Args) = struct
       contents_pack : read Contents_pack.t;
     }
 
-    let v config contents_pack inode_pack =
+    let v ~sw config contents_pack inode_pack =
       (* In order to read from the pack files, we need to open at least two
          files: suffix and control. We just open the file manager for
          simplicity. *)
-      let fm = Fm.open_ro config |> Fm.Errs.raise_if_error in
+      let fm = Fm.open_ro ~sw config |> Fm.Errs.raise_if_error in
       let dispatcher = Dispatcher.v fm |> Fm.Errs.raise_if_error in
       let log_size = Conf.index_log_size config in
       { fm; dispatcher; log_size; inode_pack; contents_pack }

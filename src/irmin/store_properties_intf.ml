@@ -35,7 +35,7 @@ end
 module type Of_config = sig
   type 'a t
 
-  val v : Conf.t -> read t
+  val v : sw:Eio.Switch.t -> Conf.t -> read t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 end

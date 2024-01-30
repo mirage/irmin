@@ -42,7 +42,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let v =
     let cache : (string, 'a t) Hashtbl.t = Hashtbl.create 0 in
-    fun config ->
+    fun ~sw:_ config ->
       let root = Conf.root config in
       let t =
         match Hashtbl.find_opt cache root with
@@ -96,8 +96,8 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let watches = W.v ()
   let lock = L.v ()
 
-  let v config =
-    let t = RO.v config in
+  let v ~sw config =
+    let t = RO.v ~sw config in
     { t; w = watches; lock }
 
   let close t =
