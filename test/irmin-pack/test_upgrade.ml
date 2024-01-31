@@ -702,5 +702,6 @@ let tests domain_mgr =
     Alcotest.test_case "upgrade From_v2" `Quick (test domain_mgr From_v2);
     Alcotest.test_case "upgrade From_scratch" `Quick
       (test domain_mgr From_scratch);
-    Alcotest.test_case "upgrade From_v3 after Gc" `Quick (test_gced_store domain_mgr);
+    Alcotest.test_case "upgrade From_v3 after Gc" `Quick
+      (test_gced_store domain_mgr);
   ]
