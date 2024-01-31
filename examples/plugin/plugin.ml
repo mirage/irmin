@@ -25,11 +25,6 @@ module Int = struct
   let merge = Irmin.Merge.(option (idempotent t))
 end
 
-let () =
-  Eio_main.run @@ fun env ->
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
-  Resolver.Contents.add ~default:true "int" (module Int)
-
 module Schema = struct
   module Contents = Int
   module Hash = Irmin.Hash.BLAKE2B
@@ -48,4 +43,5 @@ let store = Resolver.Store.v Irmin_mem.Conf.spec (module Store)
 let () =
   Eio_main.run @@ fun env ->
   Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
+  Resolver.Contents.add ~default:true "int" (module Int);
   Resolver.Store.add ~default:true "mem-int" (Fixed store)
