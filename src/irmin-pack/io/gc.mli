@@ -26,6 +26,7 @@ module Make
 
   val v :
     sw:Eio.Switch.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
     root:string ->
     lower_root:string option ->
     output:[ `External of string | `Root ] ->

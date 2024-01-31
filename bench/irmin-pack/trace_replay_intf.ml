@@ -112,7 +112,11 @@ module type Store = sig
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
   val gc_run :
-    ?finished:((stats, string) result -> unit) -> repo -> commit_key -> unit
+    domain_mgr:_ Eio.Domain_manager.t ->
+    ?finished:((stats, string) result -> unit) ->
+    repo ->
+    commit_key ->
+    unit
 end
 
 module type Sigs = sig
@@ -129,6 +133,7 @@ module type Sigs = sig
         with type 'a return_type = 'a return_type
          and type 'a config = 'a config
 
-    val run : Store.store_config -> 'a config -> 'a
+    val run :
+      domain_mgr:_ Eio.Domain_manager.t -> Store.store_config -> 'a config -> 'a
   end
 end

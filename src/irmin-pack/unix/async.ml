@@ -16,10 +16,6 @@
 
 open! Irmin_pack_io.Import
 
-let ref_domain_mgr = ref None
-let set_domain_mgr t = ref_domain_mgr := Some t
-let domain_mgr () = Option.get !ref_domain_mgr
-
 module Unix = struct
   type outcome = [ `Success | `Cancelled | `Failure of string ]
   [@@deriving irmin]
@@ -29,7 +25,7 @@ module Unix = struct
 
   type t = Eio.Switch.t * outcome Eio.Promise.or_exn
 
-  let async ~sw f =
+  let async ~sw ~domain_mgr f =
     let run f () =
       Logs.set_level None;
       match f () with
@@ -42,7 +38,7 @@ module Unix = struct
       Eio.Fiber.fork_promise ~sw (fun () ->
           Eio.Switch.run @@ fun sw' ->
           Eio.Promise.resolve gc_sw_resolver sw';
-          Eio.Domain_manager.run (domain_mgr ()) (run f))
+          Eio.Domain_manager.run domain_mgr (run f))
     in
     let gc_sw = Eio.Promise.await gc_sw_promise in
     (gc_sw, promise)

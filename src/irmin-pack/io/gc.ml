@@ -42,8 +42,8 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~sw ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm
-      ~contents ~node ~commit commit_key =
+  let v ~sw ~domain_mgr ~root ~lower_root ~output ~generation ~unlink
+      ~dispatcher ~fm ~contents ~node ~commit commit_key =
     let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
@@ -112,7 +112,7 @@ module Make (Args : Gc_args.S) = struct
     (* let promise, resolver = Eio.Promise.create () in *)
     (* start worker task *)
     let task =
-      Async.async ~sw (fun () ->
+      Async.async ~sw ~domain_mgr (fun () ->
           Worker.run_and_output_result root commit_key new_suffix_start_offset
             ~lower_root ~generation ~new_files_path)
     in

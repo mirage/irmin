@@ -253,7 +253,8 @@ struct
                         (Irmin.Type.to_string XKey.t key))
                 | Some (k, _kind) -> Ok k)
 
-          let start ~unlink ~use_auto_finalisation ~output t commit_key =
+          let start ~domain_mgr ~unlink ~use_auto_finalisation ~output t
+              commit_key =
             let open Result_syntax in
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
@@ -272,14 +273,15 @@ struct
             let next_generation = current_generation + 1 in
             let lower_root = Conf.lower_root t.config in
             let* gc =
-              Gc.v ~sw:t.sw ~root ~lower_root ~generation:next_generation
-                ~unlink ~dispatcher:t.dispatcher ~fm:t.fm ~contents:t.contents
-                ~node:t.node ~commit:t.commit ~output commit_key
+              Gc.v ~sw:t.sw ~domain_mgr ~root ~lower_root
+                ~generation:next_generation ~unlink ~dispatcher:t.dispatcher
+                ~fm:t.fm ~contents:t.contents ~node:t.node ~commit:t.commit
+                ~output commit_key
             in
             Atomic.set t.running_gc (Some { gc; use_auto_finalisation });
             Ok ()
 
-          let start_exn ?(unlink = true) ?(output = `Root)
+          let start_exn ~domain_mgr ?(unlink = true) ?(output = `Root)
               ~use_auto_finalisation t commit_key =
             match Atomic.get t.running_gc with
             | Some _ ->
@@ -287,7 +289,8 @@ struct
                 false
             | None -> (
                 let result =
-                  start ~unlink ~use_auto_finalisation ~output t commit_key
+                  start ~domain_mgr ~unlink ~use_auto_finalisation ~output t
+                    commit_key
                 in
                 match result with Ok _ -> true | Error e -> Errs.raise_error e)
 
@@ -353,7 +356,7 @@ struct
                     let key = Pack_key.v_direct ~offset ~length entry.hash in
                     Some key)
 
-          let create_one_commit_store t commit_key path =
+          let create_one_commit_store ~domain_mgr t commit_key path =
             let () =
               match Io.classify_path path with
               | `Directory -> ()
@@ -367,8 +370,8 @@ struct
             (* The GC action here does not matter, since we'll not fully
                finalise it *)
             let launched =
-              start_exn ~use_auto_finalisation:false ~output:(`External path) t
-                commit_key
+              start_exn ~domain_mgr ~use_auto_finalisation:false
+                ~output:(`External path) t commit_key
             in
             let () =
               if not launched then Errs.raise_error `Forbidden_during_gc
@@ -635,14 +638,14 @@ struct
 
       let finalise_exn = X.Repo.Gc.finalise_exn
 
-      let start_exn ?unlink t =
-        X.Repo.Gc.start_exn ?unlink ~use_auto_finalisation:false t
+      let start_exn ~domain_mgr ?unlink t =
+        X.Repo.Gc.start_exn ~domain_mgr ?unlink ~use_auto_finalisation:false t
 
-      let start repo commit_key =
+      let start ~domain_mgr repo commit_key =
         try
           let started =
-            X.Repo.Gc.start_exn ~unlink:true ~use_auto_finalisation:true repo
-              commit_key
+            X.Repo.Gc.start_exn ~domain_mgr ~unlink:true
+              ~use_auto_finalisation:true repo commit_key
           in
           Ok started
         with exn -> catch_errors "Start GC" exn
@@ -660,8 +663,8 @@ struct
           | `Finalised stats -> Ok (Some stats)
         with exn -> catch_errors "Wait for GC" exn
 
-      let run ?(finished = fun _ -> ()) repo commit_key =
-        let started = start repo commit_key in
+      let run ~domain_mgr ?(finished = fun _ -> ()) repo commit_key =
+        let started = start ~domain_mgr repo commit_key in
         match started with
         | Ok r ->
             if r then

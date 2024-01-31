@@ -68,7 +68,11 @@ module type Store = sig
   val add_volume : repo -> unit
 
   val gc_run :
-    ?finished:((stats, string) result -> unit) -> repo -> commit_key -> unit
+    domain_mgr:_ Eio.Domain_manager.t ->
+    ?finished:((stats, string) result -> unit) ->
+    repo ->
+    commit_key ->
+    unit
 
   val gc_wait : repo -> unit
 end
@@ -168,7 +172,7 @@ module Bench_suite (Store : Store) = struct
         config.ncommits config.nchain_trees config.depth Benchmark.pp_results
         result
 
-  let run_read_trace config =
+  let run_read_trace ~domain_mgr config =
     let replay_config : _ Irmin_traces.Trace_replay.config =
       {
         number_of_commits_to_replay = config.number_of_commits_to_replay;
@@ -190,11 +194,12 @@ module Bench_suite (Store : Store) = struct
     in
     if config.no_summary then
       let () =
-        Trace_replay.run config { replay_config with return_type = Unit }
+        Trace_replay.run ~domain_mgr config
+          { replay_config with return_type = Unit }
       in
       fun _ppf -> ()
     else
-      let summary = Trace_replay.run config replay_config in
+      let summary = Trace_replay.run ~domain_mgr config replay_config in
       fun ppf ->
         if not config.no_summary then (
           let p = Filename.concat config.artefacts_path "stat_summary.json" in
@@ -231,7 +236,7 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
   let split _repo = ()
   let add_volume _repo = ()
   let gc_wait _repo = ()
-  let gc_run ?finished:_ _repo _key = ()
+  let gc_run ~domain_mgr:_ ?finished:_ _repo _key = ()
 end
 
 module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
@@ -270,13 +275,13 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
     let r = Store.Gc.wait repo in
     match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ?(finished = fun _ -> ()) repo key =
+  let gc_run ~domain_mgr ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let launched = Store.Gc.run ~finished:f repo key in
+    let launched = Store.Gc.run ~domain_mgr ~finished:f repo key in
     match launched with
     | Ok true -> ()
     | Ok false -> [%logs.app "GC skipped"]
@@ -286,7 +291,9 @@ end
 module type B = sig
   val run_large : config -> Format.formatter -> unit
   val run_chains : config -> Format.formatter -> unit
-  val run_read_trace : config -> Format.formatter -> unit
+
+  val run_read_trace :
+    domain_mgr:_ Eio.Domain_manager.t -> config -> Format.formatter -> unit
 end
 
 let store_of_config config =
@@ -307,7 +314,7 @@ type suite_elt = {
   run : config -> Format.formatter -> unit;
 }
 
-let suite : suite_elt list =
+let suite ~domain_mgr : suite_elt list =
   List.rev
     [
       {
@@ -319,7 +326,7 @@ let suite : suite_elt list =
               { config with inode_config = (32, 256); store_type = `Pack }
             in
             let (module Store) = store_of_config config in
-            Store.run_read_trace config);
+            Store.run_read_trace ~domain_mgr config);
       };
       {
         mode = `Read_trace;
@@ -330,7 +337,7 @@ let suite : suite_elt list =
               { config with inode_config = (32, 256); store_type = `Pack }
             in
             let (module Store) = store_of_config config in
-            Store.run_read_trace config);
+            Store.run_read_trace ~domain_mgr config);
       };
       {
         mode = `Chains;
@@ -382,11 +389,11 @@ let suite : suite_elt list =
         run =
           (fun config ->
             let (module Store) = store_of_config config in
-            Store.run_read_trace config);
+            Store.run_read_trace ~domain_mgr config);
       };
     ]
 
-let get_suite suite_filter =
+let get_suite ~domain_mgr suite_filter =
   List.filter
     (fun { mode; speed; _ } ->
       match (suite_filter, speed, mode) with
@@ -403,7 +410,7 @@ let get_suite suite_filter =
       | (`Slow | `Quick | `Custom_trace | `Custom_chains | `Custom_large), _, _
         ->
           false)
-    suite
+    (suite ~domain_mgr)
 
 let main () ncommits number_of_commits_to_replay suite_filter inode_config
     store_type freeze_commit path_conversion depth width nchain_trees
@@ -445,10 +452,11 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
      results. *)
   Gc.set { (Gc.get ()) with Gc.allocation_policy = 0 };
   FSHelper.rm_dir config.store_dir;
-  let suite = get_suite suite_filter in
+  Eio_main.run @@ fun env ->
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  let suite = get_suite ~domain_mgr suite_filter in
   let run_benchmarks () = List.map (fun b -> b.run config) suite in
   let results =
-    Eio_main.run @@ fun _env ->
     Fun.protect run_benchmarks ~finally:(fun () ->
         if keep_store then (
           [%logs.app "Store kept at %s" config.store_dir];

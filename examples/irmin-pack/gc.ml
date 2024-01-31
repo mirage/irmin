@@ -121,7 +121,7 @@ end
 
 (** Demonstrate running GC on a previous commit aligned to the end of a chunk
     for ideal GC space reclamation. *)
-let run_gc config repo tracker =
+let run_gc domain_mgr config repo tracker =
   let () =
     match Tracker.(tracker.next_gc_commit) with
     | None -> ()
@@ -148,7 +148,7 @@ let run_gc config repo tracker =
         in
         (* Launch GC *)
         let commit_key = Store.Commit.key commit in
-        let launched = Store.Gc.run ~finished repo commit_key in
+        let launched = Store.Gc.run ~domain_mgr ~finished repo commit_key in
         match launched with
         | Ok false -> ()
         | Ok true ->
@@ -160,7 +160,7 @@ let run_gc config repo tracker =
   let () = Store.split repo in
   Tracker.mark_next_gc_commit tracker
 
-let run_experiment config =
+let run_experiment domain_mgr config =
   Eio.Switch.run @@ fun sw ->
   let num_of_commits = 200_000 in
   let gc_every = 1_000 in
@@ -177,7 +177,9 @@ let run_experiment config =
         Store.Commit.v repo ~info:(info "add %s = %s" key value) ~parents tree
       in
       Tracker.update_latest_commit tracker commit;
-      let _ = if i mod gc_every = 0 then run_gc config repo tracker in
+      let _ =
+        if i mod gc_every = 0 then run_gc domain_mgr config repo tracker
+      in
       if i >= n then () else loop (i + 1) n
     in
     loop 1 num_of_commits
@@ -188,8 +190,9 @@ let run_experiment config =
 
 let () =
   Eio_main.run @@ fun env ->
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
   Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
   Printf.printf "== RUN 1: deleting discarded data ==\n";
-  run_experiment Repo_config.config;
+  run_experiment domain_mgr Repo_config.config;
   Printf.printf "== RUN 2: archiving discarded data ==\n";
-  run_experiment Repo_config.config_with_lower
+  run_experiment domain_mgr Repo_config.config_with_lower

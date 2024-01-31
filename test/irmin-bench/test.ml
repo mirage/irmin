@@ -16,6 +16,7 @@
 
 let () =
   Eio_main.run @@ fun env ->
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
   Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
   Alcotest.run "irmin-bench"
-    (Ema.test_cases @ Misc.test_cases @ Replay.test_cases)
+    (Ema.test_cases @ Misc.test_cases @ Replay.test_cases domain_mgr)

@@ -245,9 +245,9 @@ module Store = struct
   let close = S.Repo.close
   let reload = S.reload
 
-  let gc repo =
+  let gc domain_mgr repo =
     let k = key_of_entry c1 in
-    let launched = S.Gc.start_exn ~unlink:true repo k in
+    let launched = S.Gc.start_exn ~domain_mgr ~unlink:true repo k in
     assert launched;
     let result = S.Gc.finalise_exn ~wait:true repo in
     match result with
@@ -522,7 +522,7 @@ let write1_rw t =
       ()
 
 (** One of the 4 rw mutations *)
-let gc_rw t =
+let gc_rw domain_mgr t =
   [%logs.app "*** gc_rw %a" pp_setup t.setup];
   match t.rw with
   | None -> assert false
@@ -535,10 +535,11 @@ let gc_rw t =
               Alcotest.check_raises "GC on V2/always"
                 (Irmin_pack_unix.Errors.Pack_error
                    (`Gc_disallowed "Store does not support GC"))
-                (fun () -> Store.gc repo)
+                (fun () -> Store.gc domain_mgr repo)
             in
             raise Skip_the_rest_of_that_test
-        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal -> Store.gc repo
+        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal ->
+            Store.gc domain_mgr repo
       in
       ()
 
@@ -624,7 +625,7 @@ let close_everything t =
     (fun (_, repo) -> Store.close repo)
     (Option.to_list t.ro @ Option.to_list t.rw)
 
-let test_one t ~ro_open_at ~ro_sync_at =
+let test_one domain_mgr t ~ro_open_at ~ro_sync_at =
   Eio.Switch.run @@ fun sw ->
   let aux phase =
     let () = check t in
@@ -639,15 +640,15 @@ let test_one t ~ro_open_at ~ro_sync_at =
   let () = aux S2_before_write in
   let () = write1_rw t in
   let () = aux S3_before_gc in
-  let () = gc_rw t in
+  let () = gc_rw domain_mgr t in
   let () = aux S4_before_write in
   let () = write2_rw t in
   aux S5_before_close
 
-let test_one_guarded setup ~ro_open_at ~ro_sync_at =
+let test_one_guarded domain_mgr setup ~ro_open_at ~ro_sync_at =
   let t = create_test_env setup in
   try
-    let () = test_one t ~ro_open_at ~ro_sync_at in
+    let () = test_one domain_mgr t ~ro_open_at ~ro_sync_at in
     close_everything t
   with
   | Skip_the_rest_of_that_test ->
@@ -657,9 +658,9 @@ let test_one_guarded setup ~ro_open_at ~ro_sync_at =
 
 (** All possible interleaving of the ro calls (open and sync) with the rw calls
     (open, write1, gc and write2). *)
-let test start_mode indexing_strategy lru_size =
+let test domain_mgr start_mode indexing_strategy lru_size =
   let setup = { start_mode; indexing_strategy; lru_size } in
-  let t = test_one_guarded setup in
+  let t = test_one_guarded domain_mgr setup in
 
   let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S1_before_start in
   let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S2_before_write in
@@ -683,22 +684,23 @@ let test start_mode indexing_strategy lru_size =
   ()
 
 (** Product on lru_size *)
-let test start_mode indexing_strategy =
-  test start_mode indexing_strategy 0;
-  test start_mode indexing_strategy 100
+let test domain_mgr start_mode indexing_strategy =
+  test domain_mgr start_mode indexing_strategy 0;
+  test domain_mgr start_mode indexing_strategy 100
 
-let test_gced_store () = test From_v3_c0_gced `minimal
+let test_gced_store domain_mgr () = test domain_mgr From_v3_c0_gced `minimal
 
 (** Product on indexing_strategy *)
-let test start_mode () =
-  test start_mode `minimal;
-  test start_mode `always
+let test domain_mgr start_mode () =
+  test domain_mgr start_mode `minimal;
+  test domain_mgr start_mode `always
 
 (** Product on start_mode *)
-let tests =
+let tests domain_mgr =
   [
-    Alcotest.test_case "upgrade From_v3" `Quick (test From_v3);
-    Alcotest.test_case "upgrade From_v2" `Quick (test From_v2);
-    Alcotest.test_case "upgrade From_scratch" `Quick (test From_scratch);
-    Alcotest.test_case "upgrade From_v3 after Gc" `Quick test_gced_store;
+    Alcotest.test_case "upgrade From_v3" `Quick (test domain_mgr From_v3);
+    Alcotest.test_case "upgrade From_v2" `Quick (test domain_mgr From_v2);
+    Alcotest.test_case "upgrade From_scratch" `Quick
+      (test domain_mgr From_scratch);
+    Alcotest.test_case "upgrade From_v3 after Gc" `Quick (test_gced_store domain_mgr);
   ]

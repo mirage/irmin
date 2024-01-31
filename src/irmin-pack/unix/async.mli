@@ -15,5 +15,3 @@
  *)
 
 module Unix : Irmin_pack_io.Async_intf.S
-
-val set_domain_mgr : Eio.Domain_manager.ty Eio.Resource.t -> unit

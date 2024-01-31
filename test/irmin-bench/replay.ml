@@ -33,13 +33,13 @@ module Store = struct
     let r = Store.Gc.wait repo in
     match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ?(finished = fun _ -> ()) repo key =
+  let gc_run ~domain_mgr ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let launched = Store.Gc.run ~finished:f repo key in
+    let launched = Store.Gc.run ~domain_mgr ~finished:f repo key in
     match launched with
     | Ok true -> ()
     | Ok false -> [%logs.app "GC skipped"]
@@ -78,7 +78,7 @@ let setup_env () =
     ());
   trace_path
 
-let replay_1_commit () =
+let replay_1_commit domain_mgr () =
   let trace_path = setup_env () in
   let replay_config : _ Replay.config =
     {
@@ -98,7 +98,7 @@ let replay_1_commit () =
       add_volume_every = 0;
     }
   in
-  let summary = Replay.run () replay_config in
+  let summary = Replay.run ~domain_mgr () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   let check name = Alcotest.(check int) ("Stats_counters" ^ name) in
@@ -144,12 +144,12 @@ module Store_mem = struct
   let split _repo = ()
   let add_volume _repo = ()
   let gc_wait _repo = ()
-  let gc_run ?finished:_ _repo _key = ()
+  let gc_run ~domain_mgr:_ ?finished:_ _repo _key = ()
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)
 
-let replay_1_commit_mem () =
+let replay_1_commit_mem domain_mgr () =
   let trace_path = setup_env () in
   let replay_config : _ Irmin_traces.Trace_replay.config =
     {
@@ -169,17 +169,17 @@ let replay_1_commit_mem () =
       add_volume_every = 0;
     }
   in
-  let summary = Replay_mem.run () replay_config in
+  let summary = Replay_mem.run ~domain_mgr () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   ()
 
-let test_cases =
+let test_cases domain_mgr =
   let tc msg f = Alcotest.test_case msg `Quick f in
   [
     ( "replay",
       [
-        tc "replay_1_commit" replay_1_commit;
-        tc "replay_1_commit_in_memory" replay_1_commit_mem;
+        tc "replay_1_commit" (replay_1_commit domain_mgr);
+        tc "replay_1_commit_in_memory" (replay_1_commit_mem domain_mgr);
       ] );
   ]

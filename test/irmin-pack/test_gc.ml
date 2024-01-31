@@ -73,9 +73,9 @@ module Store = struct
 
   let info = S.Info.empty
 
-  let start_gc ?(unlink = false) t commit =
+  let start_gc domain_mgr ?(unlink = false) t commit =
     let commit_key = S.Commit.key commit in
-    let _launched = S.Gc.start_exn ~unlink t.repo commit_key in
+    let _ = S.Gc.start_exn ~domain_mgr ~unlink t.repo commit_key in
     ()
 
   let finalise_gc_with_stats t =
@@ -275,7 +275,7 @@ let rec check_async_unlinked ?(timeout = 3.141) file =
 
 module Gc_common (B : Gc_backend) = struct
   (** Check that gc preserves and deletes commits accordingly. *)
-  let one_gc () =
+  let one_gc domain_mgr () =
     (* c1 - c2            *)
     (*   \---- c3         *)
     (*            gc(c3)  *)
@@ -287,7 +287,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c1 in
     let t, c3 = commit_3 t in
     [%log.debug "Gc c1, c2, keep c3"];
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = B.check_gced t c1 "gced c1" in
     let () = B.check_removed t c2 "gced c2" in
@@ -295,7 +295,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   (** Check that calling gc twice works. *)
-  let two_gc () =
+  let two_gc domain_mgr () =
     (*                gc(c4)      gc(c5) *)
     (* c1 - c2 --- c4 -------- c5        *)
     (*   \---- c3                        *)
@@ -309,13 +309,13 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c2 in
     let t, c4 = commit_4 t in
     [%log.debug "Gc c1, c2, c3, keep c4"];
-    let () = start_gc t c4 in
+    let () = start_gc domain_mgr t c4 in
     let () = finalise_gc t in
     let t = checkout_exn t c4 in
     let t, c5 = commit_5 t in
     let () = check_5 t c5 in
     [%log.debug "Gc c4, keep c5"];
-    let () = start_gc t c5 in
+    let () = start_gc domain_mgr t c5 in
     let () = finalise_gc t in
     let () = check_5 t c5 in
     let () = B.check_gced t c1 "gced c1" in
@@ -325,7 +325,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   (** Check that calling gc on first commit of chain keeps everything. *)
-  let gc_keeps_all () =
+  let gc_keeps_all domain_mgr () =
     (* c1 - c2 - c3        *)
     (*              gc(c1) *)
     Eio.Switch.run @@ fun sw ->
@@ -336,7 +336,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
     [%log.debug "Keep c1, c2, c3"];
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = finalise_gc t in
     let () = check_1 t c1 in
     let () = check_2 t c2 in
@@ -344,7 +344,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   (** Check that adding back gced commits works. *)
-  let gc_add_back () =
+  let gc_add_back domain_mgr () =
     (* c1 - c_del - c3 ------ c1 - c2 ------- c3 *)
     (*                 gc(c3)         gc(c1)     *)
     Eio.Switch.run @@ fun sw ->
@@ -355,7 +355,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c_del in
     let t, c3 = commit_3 t in
     [%log.debug "Gc c1, c_del, keep c3"];
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = B.check_gced t c1 "gced c1" in
     let () = B.check_gced t c_del "gced c_del" in
@@ -369,7 +369,7 @@ module Gc_common (B : Gc_backend) = struct
     let t, c2 = commit_2 t in
     let () = check_2 t c2 in
     [%log.debug "Gc c3, keep c1, c2"];
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = finalise_gc t in
     let () = B.check_gced t c3 "gced c3" in
     let () = check_2 t c2 in
@@ -381,7 +381,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   (** Check that gc and close work together. *)
-  let close () =
+  let close domain_mgr () =
     (* c1 ------ c2                        *)
     (*    gc(c1)               gc(c2)      *)
     (*             close close       close *)
@@ -389,7 +389,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = B.init ~sw () in
     let store_name = t.root in
     let t, c1 = commit_1 t in
-    let () = start_gc ~unlink:false t c1 in
+    let () = start_gc domain_mgr ~unlink:false t c1 in
     let () = finalise_gc t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -417,7 +417,7 @@ module Gc_common (B : Gc_backend) = struct
     Eio.Switch.run @@ fun sw ->
     let t = B.init ~sw ~readonly:false ~fresh:false ~root:store_name () in
     [%log.debug "Gc c1, keep c2"];
-    let () = start_gc ~unlink:true t c2 in
+    let () = start_gc domain_mgr ~unlink:true t c2 in
     let () = finalise_gc t in
     let () = S.Repo.close t.repo in
     Alcotest.(check bool)
@@ -430,7 +430,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   (** Check that gc works on a commit with two parents. *)
-  let gc_commit_with_two_parents () =
+  let gc_commit_with_two_parents domain_mgr () =
     (*         gc(c3) *)
     (* c1 - c3        *)
     (* c2 -/          *)
@@ -441,7 +441,7 @@ module Gc_common (B : Gc_backend) = struct
     let t, c2 = commit_2 t in
     let t = { t with parents = [ c1; c2 ] } in
     let t, c3 = commit_3 t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = B.check_gced t c1 "gced c1" in
     let () = B.check_gced t c2 "gced c2" in
@@ -449,7 +449,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close t.repo
 
   (** Check that gc preserves and deletes commits from RO. *)
-  let gc_ro () =
+  let gc_ro domain_mgr () =
     (* c1 ---- c3 ------------------- c4 - c5                     *)
     (*   \- c2                                                    *)
     (*                  gc(c3)                      gc(c4)        *)
@@ -464,7 +464,7 @@ module Gc_common (B : Gc_backend) = struct
     let t, c3 = commit_3 t in
     S.reload ro_t.repo;
     [%log.debug "Gc c1, c2, keeps c3"];
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     [%log.debug "RO finds everything before reload"];
     let () = check_1 ro_t c1 in
@@ -481,7 +481,7 @@ module Gc_common (B : Gc_backend) = struct
     let t, c5 = commit_5 t in
     S.reload ro_t.repo;
     [%log.debug "Gc c3, keep c4, c5"];
-    let () = start_gc t c4 in
+    let () = start_gc domain_mgr t c4 in
     let () = finalise_gc t in
     [%log.debug "RO finds c3, c4, c5 before reload"];
     let () = check_3 ro_t c3 in
@@ -496,7 +496,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close ro_t.repo
 
   (** Check that RO works if reload is called after two gcs. *)
-  let ro_after_two_gc () =
+  let ro_after_two_gc domain_mgr () =
     (* c1 ------- c2               *)
     (*    gc(c1)     gc(c2)        *)
     (*                      reload *)
@@ -505,11 +505,11 @@ module Gc_common (B : Gc_backend) = struct
     let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
     let t, c1 = commit_1 t in
     S.reload ro_t.repo;
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = finalise_gc t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     [%log.debug "RO finds c1, but c2 gced before reload"];
     let () = check_1 ro_t c1 in
@@ -522,7 +522,7 @@ module Gc_common (B : Gc_backend) = struct
     S.Repo.close ro_t.repo
 
   (** Check that gc and close and ro work together. *)
-  let ro_close () =
+  let ro_close domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = B.init ~sw () in
     let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
@@ -530,7 +530,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     let () = S.Repo.close ro_t.repo in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     [%log.debug "RO reopens is similar to a reload"];
     let ro_t = B.init ~sw ~readonly:true ~fresh:false ~root:t.root () in
@@ -558,7 +558,7 @@ module Gc_common (B : Gc_backend) = struct
 
   (** Check that gc works when the lru caches some objects that are delete by
       consequent commits. See https://github.com/mirage/irmin/issues/1920. *)
-  let gc_lru () =
+  let gc_lru domain_mgr () =
     let check t c =
       S.Commit.of_key t.repo (S.Commit.key c) |> function
       | None -> Alcotest.fail "no hash found in repo"
@@ -579,13 +579,13 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c3 in
     let t = set t [ "a"; "b"; "e" ] "a" in
     let c4 = commit t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = check t c4 in
     S.Repo.close t.repo
 
   (** Check that calling gc during a batch raises an error. *)
-  let gc_during_batch () =
+  let gc_during_batch domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = B.init ~sw () in
     let t, c1 = commit_1 t in
@@ -594,13 +594,13 @@ module Gc_common (B : Gc_backend) = struct
         (Irmin_pack_unix.Errors.Pack_error `Gc_forbidden_during_batch)
         (fun () ->
           S.Backend.Repo.batch t.repo (fun _ _ _ ->
-              let () = start_gc t c1 in
+              let () = start_gc domain_mgr t c1 in
               finalise_gc t))
     in
     S.Repo.close t.repo
 
   (** Add back commits after they were gced. *)
-  let add_back_gced_commit () =
+  let add_back_gced_commit domain_mgr () =
     (* c1 - c2 - c3                *)
     (*              gc(c3)         *)
     (*                     c1 - c2 *)
@@ -612,7 +612,7 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
     [%log.debug "Keep c3 gc c1 c2"];
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = B.check_gced t c1 "gced c1" in
     let () = B.check_gced t c2 "gced c2" in
@@ -630,21 +630,21 @@ module Gc_common (B : Gc_backend) = struct
     let () = check_3 t c3 in
     S.Repo.close t.repo
 
-  let gc_similar_commits () =
+  let gc_similar_commits domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = B.init ~sw () in
     let t, c1 = commit_1 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = finalise_gc t in
     let t = checkout_exn t c1 in
     let t, c1_again = commit_1_different_author t in
-    let () = start_gc t c1_again in
+    let () = start_gc domain_mgr t c1_again in
     let () = finalise_gc t in
     let () = check_1 t c1_again in
     S.Repo.close t.repo
 
   (** Check [Gc.latest_gc_target]. *)
-  let latest_gc_target () =
+  let latest_gc_target domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = B.init ~sw () in
     let check_latest_gc_target expected =
@@ -661,18 +661,18 @@ module Gc_common (B : Gc_backend) = struct
     let t = checkout_exn t c1 in
     check_latest_gc_target None;
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     check_latest_gc_target (Some c2);
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     check_latest_gc_target (Some c3);
     S.Repo.close t.repo
 
   (** Check Gc stats. *)
-  let gc_stats () =
+  let gc_stats domain_mgr () =
     let check_stats (stats : Irmin_pack_unix.Stats.Latest_gc.stats) =
       let objects_traversed = stats.worker.objects_traversed |> Int63.to_int in
       Alcotest.(check int) "objects_traversed" objects_traversed 8;
@@ -696,17 +696,17 @@ module Gc_common (B : Gc_backend) = struct
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let stats = finalise_gc_with_stats t in
     check_stats (Option.get stats);
     S.Repo.close t.repo
 
   (** Check that a GC clears the LRU *)
-  let gc_clears_lru () =
+  let gc_clears_lru domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~lru_size:100 () in
     (* Rreate some commits *)
@@ -722,32 +722,33 @@ module Gc_common (B : Gc_backend) = struct
     (* TODO: Now that the GC is not in another process, it cleans every stats.
        Make the stats domain dependant ? *)
     (* let count_before_gc = lru_hits () in *)
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     (* Read data again *)
     let () = check_3 t c3 in
     Alcotest.(check int) "GC does clear LRU" 0 (lru_hits ());
     S.Repo.close t.repo
 
-  let tests =
+  let tests domain_mgr =
     [
-      tc "Test one gc" one_gc;
-      tc "Test twice gc" two_gc;
-      tc "Test gc keeps commits" gc_keeps_all;
-      tc "Test adding back commits" gc_add_back;
-      tc "Test close" close;
-      tc "Test gc commit with two parents" gc_commit_with_two_parents;
-      tc "Test gc ro" gc_ro;
-      tc "Test reload after two gc" ro_after_two_gc;
-      tc "Test ro close" ro_close;
+      tc "Test one gc" (one_gc domain_mgr);
+      tc "Test twice gc" (two_gc domain_mgr);
+      tc "Test gc keeps commits" (gc_keeps_all domain_mgr);
+      tc "Test adding back commits" (gc_add_back domain_mgr);
+      tc "Test close" (close domain_mgr);
+      tc "Test gc commit with two parents"
+        (gc_commit_with_two_parents domain_mgr);
+      tc "Test gc ro" (gc_ro domain_mgr);
+      tc "Test reload after two gc" (ro_after_two_gc domain_mgr);
+      tc "Test ro close" (ro_close domain_mgr);
       tc "Test ro reload after open" ro_reload_after_v;
-      tc "Test lru" gc_lru;
-      tc "Test gc during batch" gc_during_batch;
-      tc "Test add back gced commit" add_back_gced_commit;
-      tc "Test gc on similar commits" gc_similar_commits;
-      tc "Test oldest live commit" latest_gc_target;
-      tc "Test worker gc stats" gc_stats;
-      tc "Test gc_clears_lru" gc_clears_lru;
+      tc "Test lru" (gc_lru domain_mgr);
+      tc "Test gc during batch" (gc_during_batch domain_mgr);
+      tc "Test add back gced commit" (add_back_gced_commit domain_mgr);
+      tc "Test gc on similar commits" (gc_similar_commits domain_mgr);
+      tc "Test oldest live commit" (latest_gc_target domain_mgr);
+      tc "Test worker gc stats" (gc_stats domain_mgr);
+      tc "Test gc_clears_lru" (gc_clears_lru domain_mgr);
     ]
 end
 
@@ -811,7 +812,7 @@ module Gc_archival = struct
       (S.Gc.is_allowed t.repo) false;
     S.Repo.close t.repo
 
-  let gc_reachability_old () =
+  let gc_reachability_old domain_mgr () =
     let root = create_v1_test_env () in
     let lower_root = create_lower_root () in
     [%log.debug "Open v1 store to trigger migration"];
@@ -829,7 +830,7 @@ module Gc_archival = struct
             true
       | _ -> assert false
     in
-    let () = start_gc t head in
+    let () = start_gc domain_mgr t head in
     let () = finalise_gc t in
     S.Repo.close t.repo
 
@@ -846,7 +847,7 @@ module Gc_archival = struct
     let check_removed = check_not_found
   end
 
-  let gc_archival_multiple_volumes () =
+  let gc_archival_multiple_volumes domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = B.init ~sw () in
     let t, c1 = commit_1 t in
@@ -857,7 +858,7 @@ module Gc_archival = struct
     let t = checkout_exn t c2 in
     let t, c4 = commit_4 t in
     [%log.debug "Gc c1, c2, c3, keep c4"];
-    let () = start_gc t c4 in
+    let () = start_gc domain_mgr t c4 in
     let () = finalise_gc t in
     [%log.debug "Add a new volume"];
     S.add_volume t.repo;
@@ -865,7 +866,7 @@ module Gc_archival = struct
     let t, c5 = commit_5 t in
     let () = check_5 t c5 in
     [%log.debug "Gc c4, keep c5"];
-    let () = start_gc t c5 in
+    let () = start_gc domain_mgr t c5 in
     let () = finalise_gc t in
     let () = check_5 t c5 in
     let () = B.check_gced t c1 "gced c1" in
@@ -875,35 +876,35 @@ module Gc_archival = struct
     let () =
       Alcotest.check_raises_pack_error "Cannot GC on commit older than c5"
         (function `Gc_disallowed _ -> true | _ -> false)
-        (fun () -> start_gc t c4)
+        (fun () -> start_gc domain_mgr t c4)
     in
     S.Repo.close t.repo
 
   module Gc_common_tests = Gc_common (B)
 
-  let tests =
+  let tests domain_mgr =
     [
       tc "Test availability of different gc modes on recent stores"
         gc_availability_recent;
       tc "Test availability of different gc modes on old stores"
         gc_availability_old;
       tc "Test archiving twice on different volumes"
-        gc_archival_multiple_volumes;
-      tc "Test reachability on old stores" gc_reachability_old;
+        (gc_archival_multiple_volumes domain_mgr);
+      tc "Test reachability on old stores" (gc_reachability_old domain_mgr);
     ]
-    @ Gc_common_tests.tests
+    @ Gc_common_tests.tests domain_mgr
 end
 
 module Concurrent_gc = struct
   (** Check that finding old objects during a gc works. *)
-  let find_running_gc ~lru_size () =
+  let find_running_gc domain_mgr ~lru_size () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~lru_size () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     [%log.debug "Gc c1 keep c2"];
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = check_1 t c1 in
     let () = check_2 t c2 in
     let () = finalise_gc t in
@@ -912,14 +913,14 @@ module Concurrent_gc = struct
     S.Repo.close t.repo
 
   (** Check adding new objects during a gc and finding them after the gc. *)
-  let add_running_gc ~lru_size () =
+  let add_running_gc domain_mgr ~lru_size () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~lru_size () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     [%log.debug "Gc c1 keep c2"];
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
     let () = finalise_gc t in
@@ -929,23 +930,23 @@ module Concurrent_gc = struct
     S.Repo.close t.repo
 
   (** Check adding new objects during a gc and finding them after the gc. *)
-  let several_gc ~lru_size () =
+  let several_gc domain_mgr ~lru_size () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~lru_size () in
     let t, c1 = commit_1 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     let () = finalise_gc t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
     let () = finalise_gc t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let t = checkout_exn t c3 in
     let t, c4 = commit_4 t in
     let () = finalise_gc t in
-    let () = start_gc t c4 in
+    let () = start_gc domain_mgr t c4 in
     let t = checkout_exn t c4 in
     let t, c5 = commit_5 t in
     let () = finalise_gc t in
@@ -965,7 +966,7 @@ module Concurrent_gc = struct
 
   (** Check that RO can find old objects during gc. Also that RO can still find
       removed objects before a call to [reload]. *)
-  let ro_find_running_gc () =
+  let ro_find_running_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
@@ -973,7 +974,7 @@ module Concurrent_gc = struct
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     [%log.debug "Gc c1 keep c2"];
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     S.reload ro_t.repo;
     let () = check_1 ro_t c1 in
     S.reload ro_t.repo;
@@ -989,7 +990,7 @@ module Concurrent_gc = struct
 
   (** Check that RO can find objects added during gc, but only after a call to
       [reload]. *)
-  let ro_add_running_gc () =
+  let ro_add_running_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
@@ -997,7 +998,7 @@ module Concurrent_gc = struct
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     [%log.debug "Gc c1 keep c2"];
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     S.reload ro_t.repo;
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
@@ -1017,7 +1018,7 @@ module Concurrent_gc = struct
 
   (** Check that RO can call [reload] during a second gc, even after no reloads
       occured during the first gc. *)
-  let ro_reload_after_second_gc () =
+  let ro_reload_after_second_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let ro_t = init ~sw ~readonly:true ~fresh:false ~root:t.root () in
@@ -1025,12 +1026,12 @@ module Concurrent_gc = struct
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
     [%log.debug "Gc c1 keep c2"];
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
     [%log.debug "Gc c2 keep c3"];
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     S.reload ro_t.repo;
     let () = check_not_found ro_t c1 "removed c1" in
@@ -1040,7 +1041,7 @@ module Concurrent_gc = struct
     S.Repo.close ro_t.repo
 
   (** Check that calling reload in RO will clear the LRU only after GC. *)
-  let ro_reload_clears_lru () =
+  let ro_reload_clears_lru domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let rw_t = init ~sw () in
     let ro_t =
@@ -1064,7 +1065,7 @@ module Concurrent_gc = struct
       (count_before_reload < lru_hits ());
     (* GC *)
     (* let count_before_gc = lru_hits () in *)
-    let () = start_gc rw_t c2 in
+    let () = start_gc domain_mgr rw_t c2 in
     let () = finalise_gc rw_t in
     (* Reload RO to get changes and clear LRU, and read some data *)
     S.reload ro_t.repo;
@@ -1076,24 +1077,24 @@ module Concurrent_gc = struct
 
   (** Check that calling close during a gc kills the gc without finalising it.
       On reopening the store, the following gc works fine. *)
-  let close_running_gc () =
+  let close_running_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = S.Repo.close t.repo in
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~readonly:false ~fresh:false ~root:t.root () in
     let () = check_1 t c1 in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     let t = checkout_exn t c2 in
     S.Repo.close t.repo
 
   (** Check that the cleanup routine in file manager deletes correct files. *)
-  let test_cancel_cleanup () =
+  let test_cancel_cleanup domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     (* chunk 0, commit 1 *)
@@ -1105,14 +1106,14 @@ module Concurrent_gc = struct
     let () = S.split t.repo in
     (* GC chunk 0 - important to have at least one GC to test
        the cleanup routine's usage of generation *)
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     (* chunk 2, commit 3 *)
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
     let () = S.split t.repo in
     (* Start GC and then close repo before finalise *)
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = S.Repo.close t.repo in
     (* Reopen store. If the cleanup on cancel deletes wrong files, the
        store will fail to open. *)
@@ -1126,16 +1127,16 @@ module Concurrent_gc = struct
     S.Repo.close t.repo
 
   (** Check starting a gc before a previous is finalised. *)
-  let test_skip () =
+  let test_skip domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = check_not_found t c1 "removed c1" in
     let () = check_2 t c2 in
@@ -1147,11 +1148,11 @@ module Concurrent_gc = struct
     if S.Internal.kill_gc repo then true
     else Alcotest.failf "running_gc missing after call to start"
 
-  let test_kill_gc_and_finalise () =
+  let test_kill_gc_and_finalise domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let killed = kill_gc t in
     let () =
       if killed then
@@ -1163,31 +1164,31 @@ module Concurrent_gc = struct
     in
     S.Repo.close t.repo
 
-  let test_kill_gc_and_close () =
+  let test_kill_gc_and_close domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let _killed = kill_gc t in
     S.Repo.close t.repo
 
-  let tests =
+  let tests domain_mgr =
     [
-      tc "Test find_running_gc" find_running_gc;
-      tc "Test add_running_gc" add_running_gc;
-      tc "Test several_gc" several_gc;
-      tc "Test find_running_gc_with_lru" find_running_gc_with_lru;
-      tc "Test add_running_gc_with_lru" add_running_gc_with_lru;
-      tc "Test several_gc_with_lru" several_gc_with_lru;
-      tc "Test ro_find_running_gc" ro_find_running_gc;
-      tc "Test ro_add_running_gc" ro_add_running_gc;
-      tc "Test ro_reload_after_second_gc" ro_reload_after_second_gc;
-      tc "Test ro_reload_clears_lru" ro_reload_clears_lru;
-      tc "Test close_running_gc" close_running_gc;
-      tc "Test skip gc" test_skip;
-      tc "Test kill gc and finalise" test_kill_gc_and_finalise;
-      tc "Test kill gc and close" test_kill_gc_and_close;
-      tc "Test gc cancel cleanup" test_cancel_cleanup;
+      tc "Test find_running_gc" (find_running_gc domain_mgr);
+      tc "Test add_running_gc" (add_running_gc domain_mgr);
+      tc "Test several_gc" (several_gc domain_mgr);
+      tc "Test find_running_gc_with_lru" (find_running_gc_with_lru domain_mgr);
+      tc "Test add_running_gc_with_lru" (add_running_gc_with_lru domain_mgr);
+      tc "Test several_gc_with_lru" (several_gc_with_lru domain_mgr);
+      tc "Test ro_find_running_gc" (ro_find_running_gc domain_mgr);
+      tc "Test ro_add_running_gc" (ro_add_running_gc domain_mgr);
+      tc "Test ro_reload_after_second_gc" (ro_reload_after_second_gc domain_mgr);
+      tc "Test ro_reload_clears_lru" (ro_reload_clears_lru domain_mgr);
+      tc "Test close_running_gc" (close_running_gc domain_mgr);
+      tc "Test skip gc" (test_skip domain_mgr);
+      tc "Test kill gc and finalise" (test_kill_gc_and_finalise domain_mgr);
+      tc "Test kill gc and close" (test_kill_gc_and_close domain_mgr);
+      tc "Test gc cancel cleanup" (test_cancel_cleanup domain_mgr);
     ]
 end
 
@@ -1252,7 +1253,7 @@ module Split = struct
     let got = S.Tree.find tree [ "step-n01"; "step-b01" ] in
     Alcotest.(check (option string)) "find blob" (Some "b01") got
 
-  let v3_migrated_store_splits_and_gc () =
+  let v3_migrated_store_splits_and_gc domain_mgr () =
     let root = create_test_env () in
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~readonly:false ~fresh:false ~root () in
@@ -1268,7 +1269,7 @@ module Split = struct
     let () = check_1 t c1 in
     let () = check_2 t c2 in
     [%log.debug "GC at c0"];
-    let () = start_gc ~unlink:true t c0 in
+    let () = start_gc domain_mgr ~unlink:true t c0 in
     let () = finalise_gc t in
     let () = check_preexisting_commit t in
     let () = check_1 t c1 in
@@ -1277,7 +1278,7 @@ module Split = struct
       "Chunk0 still exists" true
       (Sys.file_exists (Filename.concat t.root "store.0.suffix"));
     [%log.debug "GC at c1"];
-    let () = start_gc ~unlink:true t c1 in
+    let () = start_gc domain_mgr ~unlink:true t c1 in
     let () = finalise_gc t in
     let () = check_not_found t c0 "removed c0" in
     let () = check_1 t c1 in
@@ -1286,7 +1287,7 @@ module Split = struct
       "Chunk0 removed" true
       (check_async_unlinked (Filename.concat t.root "store.0.suffix"));
     [%log.debug "GC at c2"];
-    let () = start_gc ~unlink:true t c2 in
+    let () = start_gc domain_mgr ~unlink:true t c2 in
     let () = finalise_gc t in
     let () = check_not_found t c0 "removed c0" in
     let () = check_not_found t c1 "removed c1" in
@@ -1319,17 +1320,17 @@ module Split = struct
     let () = check_3 t c3 in
     S.Repo.close t.repo
 
-  let two_gc_then_split () =
+  let two_gc_then_split domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
-    let () = start_gc t c3 in
+    let () = start_gc domain_mgr t c3 in
     let () = finalise_gc t in
     let () = S.split t.repo in
     let t = checkout_exn t c3 in
@@ -1340,7 +1341,7 @@ module Split = struct
     let () = check_4 t c4 in
     S.Repo.close t.repo
 
-  let multi_split_and_gc () =
+  let multi_split_and_gc domain_mgr () =
     (* This test primarily checks that dead byte calculation
        happens correctly by testing GCs on chunks past the first
        one. When the calculation is incorrect, exceptions are thrown
@@ -1354,14 +1355,14 @@ module Split = struct
     let t, c2 = commit_2 t in
 
     let () = S.split t.repo in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = finalise_gc t in
 
     let t = checkout_exn t c2 in
     let t, c3 = commit_3 t in
 
     let () = S.split t.repo in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
 
     let t = checkout_exn t c3 in
@@ -1373,37 +1374,37 @@ module Split = struct
     let () = check_4 t c4 in
     S.Repo.close t.repo
 
-  let split_and_gc () =
+  let split_and_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     let () = check_2 t c2 in
     let () = check_not_found t c1 "removed c1" in
     S.Repo.close t.repo
 
-  let another_split_and_gc () =
+  let another_split_and_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = finalise_gc t in
     let () = check_1 t c1 in
     let () = check_2 t c2 in
     S.Repo.close t.repo
 
-  let split_during_gc () =
+  let split_during_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
-    let () = start_gc t c1 in
+    let () = start_gc domain_mgr t c1 in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -1412,7 +1413,7 @@ module Split = struct
     let () = check_2 t c2 in
     S.Repo.close t.repo
 
-  let commits_and_splits_during_gc () =
+  let commits_and_splits_during_gc domain_mgr () =
     (* This test primarily ensures that chunk num is calculated
        correctly by intentionally creating chunks during a GC. *)
     Eio.Switch.run @@ fun sw ->
@@ -1423,7 +1424,7 @@ module Split = struct
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
 
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = S.split t.repo in
 
     let t = checkout_exn t c2 in
@@ -1454,34 +1455,36 @@ module Split = struct
         (S.is_split_allowed t.repo));
     S.Repo.close t.repo
 
-  let tests =
+  let tests domain_mgr =
     [
       tc "Test two splits" two_splits;
       tc "Test two splits for ro" ro_two_splits;
-      tc "Test splits and GC on V3 store" v3_migrated_store_splits_and_gc;
+      tc "Test splits and GC on V3 store"
+        (v3_migrated_store_splits_and_gc domain_mgr);
       tc "Test split and close" close_and_split;
-      tc "Test two gc followed by split" two_gc_then_split;
-      tc "Test split and GC" split_and_gc;
-      tc "Test multi split and GC" multi_split_and_gc;
-      tc "Test another split and GC" another_split_and_gc;
-      tc "Test split during GC" split_during_gc;
-      tc "Test commits and splits during GC" commits_and_splits_during_gc;
+      tc "Test two gc followed by split" (two_gc_then_split domain_mgr);
+      tc "Test split and GC" (split_and_gc domain_mgr);
+      tc "Test multi split and GC" (multi_split_and_gc domain_mgr);
+      tc "Test another split and GC" (another_split_and_gc domain_mgr);
+      tc "Test split during GC" (split_during_gc domain_mgr);
+      tc "Test commits and splits during GC"
+        (commits_and_splits_during_gc domain_mgr);
       tc "Test split for always indexed from v2 store"
         split_always_indexed_from_v2_store;
     ]
 end
 
 module Snapshot = struct
-  let export t commit =
+  let export ~domain_mgr t commit =
     let commit_key = S.Commit.key commit in
-    S.create_one_commit_store t.repo commit_key
+    S.create_one_commit_store ~domain_mgr t.repo commit_key
 
-  let snapshot_rw () =
+  let snapshot_rw domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
     let root_snap = Filename.concat t.root "snap" in
-    let () = export t c1 root_snap in
+    let () = export ~domain_mgr t c1 root_snap in
     [%log.debug "store works after export"];
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
@@ -1498,12 +1501,12 @@ module Snapshot = struct
     let () = check_2 t c2 in
     S.Repo.close t.repo
 
-  let snapshot_import_in_ro () =
+  let snapshot_import_in_ro domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
     let root_snap = Filename.concat t.root "snap" in
-    let () = export t c1 root_snap in
+    let () = export ~domain_mgr t c1 root_snap in
     let () = S.Repo.close t.repo in
     [%log.debug "open store from import in ro"];
     Eio.Switch.run @@ fun sw ->
@@ -1512,7 +1515,7 @@ module Snapshot = struct
     let () = check_1 t c1 in
     S.Repo.close t.repo
 
-  let snapshot_export_in_ro () =
+  let snapshot_export_in_ro domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw () in
     let t, c1 = commit_1 t in
@@ -1521,7 +1524,7 @@ module Snapshot = struct
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~readonly:false ~fresh:false ~root:t.root () in
     let root_snap = Filename.concat t.root "snap" in
-    let () = export t c1 root_snap in
+    let () = export ~domain_mgr t c1 root_snap in
     [%log.debug "store works after export in readonly"];
     let t = checkout_exn t c1 in
     let () = check_1 t c1 in
@@ -1537,17 +1540,17 @@ module Snapshot = struct
 
   (* Test creating a snapshot in an archive store for a commit that is before
      the last gc target commit (ie it is in the lower) *)
-  let snapshot_gced_commit () =
+  let snapshot_gced_commit domain_mgr () =
     let lower_root = create_lower_root ~mkdir:false () in
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~lower_root:(Some lower_root) () in
     let t, c1 = commit_1 t in
     let t = checkout_exn t c1 in
     let t, c2 = commit_2 t in
-    let () = start_gc t c2 in
+    let () = start_gc domain_mgr t c2 in
     let () = finalise_gc t in
     let root_snap = Filename.concat t.root "snap" in
-    let () = export t c1 root_snap in
+    let () = export ~domain_mgr t c1 root_snap in
     let () = S.Repo.close t.repo in
     [%log.debug "open store from snapshot"];
     Eio.Switch.run @@ fun sw ->
@@ -1558,11 +1561,11 @@ module Snapshot = struct
     let () = check_2 t c2 in
     S.Repo.close t.repo
 
-  let tests =
+  let tests domain_mgr =
     [
-      tc "Import/export in rw" snapshot_rw;
-      tc "Import in ro" snapshot_import_in_ro;
-      tc "Export in ro" snapshot_export_in_ro;
-      tc "Snapshot gced commit" snapshot_gced_commit;
+      tc "Import/export in rw" (snapshot_rw domain_mgr);
+      tc "Import in ro" (snapshot_import_in_ro domain_mgr);
+      tc "Export in ro" (snapshot_export_in_ro domain_mgr);
+      tc "Snapshot gced commit" (snapshot_gced_commit domain_mgr);
     ]
 end

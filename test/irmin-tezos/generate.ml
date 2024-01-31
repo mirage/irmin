@@ -63,18 +63,18 @@ module Generator = struct
 
     c3
 
-  let create_gced_store ~sw path =
+  let create_gced_store ~sw domain_mgr path =
     let before_closing repo head =
-      let _ = Store.Gc.start_exn repo head in
+      let _ = Store.Gc.start_exn ~domain_mgr repo head in
       let _ = Store.Gc.wait repo in
       ()
     in
     create_store ~sw ~before_closing Irmin_pack.Indexing_strategy.minimal path
 
-  let create_snapshot_store ~sw ~src ~dest =
+  let create_snapshot_store ~sw domain_mgr ~src ~dest =
     let before_closing repo head =
       rm_dir dest;
-      Store.create_one_commit_store repo head dest
+      Store.create_one_commit_store ~domain_mgr repo head dest
     in
     create_store ~sw ~before_closing Irmin_pack.Indexing_strategy.minimal src
 end
@@ -82,7 +82,7 @@ end
 let ensure_data_dir () =
   if not (Sys.file_exists "data") then Unix.mkdir "data" 0o755
 
-let generate () =
+let generate domain_mgr () =
   ensure_data_dir ();
   Eio.Switch.run @@ fun sw ->
   let _ =
@@ -92,9 +92,9 @@ let generate () =
   let _ =
     Generator.create_store ~sw Irmin_pack.Indexing_strategy.always "data/always"
   in
-  let _ = Generator.create_gced_store ~sw "data/gced" in
+  let _ = Generator.create_gced_store ~sw domain_mgr "data/gced" in
   let _ =
-    Generator.create_snapshot_store ~sw ~src:"data/snapshot_src"
+    Generator.create_snapshot_store domain_mgr ~sw ~src:"data/snapshot_src"
       ~dest:"data/snapshot"
   in
   ()
@@ -103,5 +103,4 @@ let () =
   Eio_main.run @@ fun env ->
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
-  Irmin_pack_unix.Async.set_domain_mgr domain_mgr;
-  generate ()
+  generate domain_mgr ()

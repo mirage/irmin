@@ -261,7 +261,7 @@ module Store_tc = struct
     Alcotest.(check int) "volume_num is 1" 1 volume_num;
     Store.Repo.close repo
 
-  let test_add_volume_during_gc () =
+  let test_add_volume_during_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let repo = init ~sw () in
     let main = Store.main repo in
@@ -271,7 +271,7 @@ module Store_tc = struct
         main [ "a" ] "a"
     in
     let c = Store.Head.get main in
-    let _ = Store.Gc.start_exn repo (Store.Commit.key c) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c) in
     let () =
       Alcotest.check_raises "add volume during gc"
         (Irmin_pack_unix.Errors.Pack_error `Add_volume_forbidden_during_gc)
@@ -289,7 +289,7 @@ module Store_tc = struct
     in
     Store.Repo.close repo
 
-  let test_add_volume_reopen () =
+  let test_add_volume_reopen domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots () in
     let repo = Store.Repo.v ~sw (config ~fresh:true ~lower_root root) in
@@ -297,7 +297,7 @@ module Store_tc = struct
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
     let c1 = Store.Head.get main in
-    let _ = Store.Gc.start_exn repo (Store.Commit.key c1) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c1) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let () = Store.add_volume repo in
     Alcotest.(check int) "two volumes" 2 (count_volumes repo);
@@ -381,7 +381,7 @@ module Store_tc = struct
     let _ = read_everything repo in
     Store.Repo.close repo
 
-  let test_migrate_then_gc () =
+  let test_migrate_then_gc domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots () in
     (* Create without a lower *)
@@ -401,12 +401,12 @@ module Store_tc = struct
     let b_commit = Store.Head.get main in
     let () = Store.set_exn ~info main [ "c" ] "c" in
     (* GC at [b] requires reading [a] data from the lower volume *)
-    let _ = Store.Gc.start_exn repo (Store.Commit.key b_commit) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key b_commit) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let _ = read_everything repo in
     Store.Repo.close repo
 
-  let test_migrate_then_gc_in_lower () =
+  let test_migrate_then_gc_in_lower domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots () in
     (* Create without a lower *)
@@ -426,11 +426,11 @@ module Store_tc = struct
        Important: we call GC on a commit that is not the latest in
        the lower (ie [b]) to ensure its offset is not equal to the start
        offset of the upper. *)
-    let _ = Store.Gc.start_exn repo (Store.Commit.key a_commit) in
+    let _ = Store.Gc.start_exn repo ~domain_mgr (Store.Commit.key a_commit) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     Store.Repo.close repo
 
-  let test_volume_data_locality () =
+  let test_volume_data_locality domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots () in
     let repo = Store.Repo.v ~sw (config ~fresh:true ~lower_root root) in
@@ -440,7 +440,7 @@ module Store_tc = struct
     let () = Store.set_exn ~info main [ "c1" ] "a" in
     let c1 = Store.Head.get main in
     [%log.debug "GC c1"];
-    let _ = Store.Gc.start_exn repo (Store.Commit.key c1) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c1) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let () = Store.add_volume repo in
     [%log.debug "add c2, c3, c4"];
@@ -451,7 +451,7 @@ module Store_tc = struct
     let () = Store.set_exn ~info main [ "c5" ] "e" in
     let c5 = Store.Head.get main in
     [%log.debug "GC c5"];
-    let _ = Store.Gc.start_exn repo (Store.Commit.key c5) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c5) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let get_direct_key key =
       match Irmin_pack_unix.Pack_key.inspect key with
@@ -494,7 +494,7 @@ module Store_tc = struct
     in
     Store.Repo.close repo
 
-  let test_cleanup () =
+  let test_cleanup domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots () in
     [%log.debug "create store with data and run GC"];
@@ -503,7 +503,7 @@ module Store_tc = struct
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
     let c1 = Store.Head.get main in
-    let _ = Store.Gc.start_exn repo (Store.Commit.key c1) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c1) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let volume_root = volume_path repo Int63.zero in
     let generation = generation repo in
@@ -533,23 +533,25 @@ end
 module Store = struct
   include Store_tc
 
-  let tests =
+  let tests domain_mgr =
     Alcotest.
       [
         quick_tc "create store" test_create;
         quick_tc "create nested" test_create_nested;
         quick_tc "open rw with lower" test_open_rw_lower;
         quick_tc "add volume with no lower" test_add_volume_wo_lower;
-        quick_tc "add volume during gc" test_add_volume_during_gc;
-        quick_tc "control file updated after add" test_add_volume_reopen;
-        quick_tc "add volume and reopen" test_add_volume_reopen;
+        quick_tc "add volume during gc" (test_add_volume_during_gc domain_mgr);
+        quick_tc "control file updated after add"
+          (test_add_volume_reopen domain_mgr);
+        quick_tc "add volume and reopen" (test_add_volume_reopen domain_mgr);
         quick_tc "create without lower then migrate" test_migrate;
         quick_tc "migrate v2" test_migrate_v2;
         quick_tc "migrate v3" test_migrate_v3;
-        quick_tc "migrate then gc" test_migrate_then_gc;
-        quick_tc "migrate then gc in lower" test_migrate_then_gc_in_lower;
-        quick_tc "test data locality" test_volume_data_locality;
-        quick_tc "test cleanup" test_cleanup;
+        quick_tc "migrate then gc" (test_migrate_then_gc domain_mgr);
+        quick_tc "migrate then gc in lower"
+          (test_migrate_then_gc_in_lower domain_mgr);
+        quick_tc "test data locality" (test_volume_data_locality domain_mgr);
+        quick_tc "test cleanup" (test_cleanup domain_mgr);
       ]
 end
 

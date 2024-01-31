@@ -16,9 +16,7 @@
 
 let () =
   Eio_main.run @@ fun env ->
-  let domain_mgr = Eio.Stdenv.domain_mgr env in
   Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
-  Irmin_pack_unix.Async.set_domain_mgr domain_mgr;
   (* **/** *)
   let test_suite = Test_pack.suite in
   Irmin_test.Store.run "irmin-pack"

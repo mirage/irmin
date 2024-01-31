@@ -174,9 +174,9 @@ let test_on_disk_minimal =
 let test_on_disk_always =
   test_on_disk ~indexing_strategy:Irmin_pack.Indexing_strategy.always
 
-let start_gc repo commit =
+let start_gc domain_mgr repo commit =
   let commit_key = S.Commit.key commit in
-  let launched = S.Gc.start_exn ~unlink:false repo commit_key in
+  let launched = S.Gc.start_exn ~domain_mgr ~unlink:false repo commit_key in
   assert launched
 
 let finalise_gc repo =
@@ -185,7 +185,7 @@ let finalise_gc repo =
   | `Idle | `Running -> Alcotest.fail "expected finalised gc"
   | `Finalised _ -> ()
 
-let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
+let test_gc domain_mgr ~repo_export ~repo_import ?on_disk expected_visited =
   (* create the store *)
   let tree1 =
     let t = S.Tree.singleton [ "b"; "a" ] "x0" in
@@ -201,7 +201,7 @@ let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
   in
   let c3 = S.Commit.v repo_export ~parents:[ k1 ] ~info tree3 in
   (* call gc on last commit *)
-  let () = start_gc repo_export c3 in
+  let () = start_gc domain_mgr repo_export c3 in
   let () = finalise_gc repo_export in
   let tree = S.Commit.tree c3 in
   let root_key = S.Tree.key tree |> Option.get in
@@ -223,7 +223,7 @@ let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
 
 let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-let test_gced_store_in_memory () =
+let test_gced_store_in_memory domain_mgr () =
   rm_dir root_export;
   rm_dir root_import;
   Eio.Switch.run @@ fun sw ->
@@ -235,11 +235,11 @@ let test_gced_store_in_memory () =
     S.Repo.v ~sw
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let () = test_gc ~repo_export ~repo_import 5 in
+  let () = test_gc domain_mgr ~repo_export ~repo_import 5 in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
-let test_gced_store_on_disk () =
+let test_gced_store_on_disk domain_mgr () =
   rm_dir root_export;
   rm_dir root_import;
   let index_on_disk = Filename.concat root_import "index_on_disk" in
@@ -252,11 +252,14 @@ let test_gced_store_on_disk () =
     S.Repo.v ~sw
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let () = test_gc ~repo_export ~repo_import ~on_disk:(`Path index_on_disk) 5 in
+  let () =
+    test_gc domain_mgr ~repo_export ~repo_import ~on_disk:(`Path index_on_disk)
+      5
+  in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
-let test_export_import_reexport () =
+let test_export_import_reexport domain_mgr () =
   rm_dir root_export;
   rm_dir root_import;
   Eio.Switch.run @@ fun sw ->
@@ -291,7 +294,9 @@ let test_export_import_reexport () =
   let commit_key = S.Commit.key commit in
   let commit_hash = S.Commit.hash commit in
   (* export the gc-based snapshot in a clean root_export. *)
-  let () = S.create_one_commit_store repo_import commit_key root_export in
+  let () =
+    S.create_one_commit_store ~domain_mgr repo_import commit_key root_export
+  in
   let () = S.Repo.close repo_import in
   (* open the new store and check that everything is readable. *)
   let repo_export =
@@ -305,15 +310,15 @@ let test_export_import_reexport () =
   Alcotest.(check (option string)) "find blob" (Some "x") got;
   S.Repo.close repo_export
 
-let tests =
+let tests domain_mgr =
   let tc name f = Alcotest.test_case name `Quick f in
   [
     tc "in memory minimal" test_in_memory_minimal;
     tc "in memory always" test_in_memory_always;
     tc "on disk minimal" test_on_disk_minimal;
     tc "on disk always" test_on_disk_always;
-    tc "gced store, in memory" test_gced_store_in_memory;
-    tc "gced store, on disk" test_gced_store_on_disk;
+    tc "gced store, in memory" (test_gced_store_in_memory domain_mgr);
+    tc "gced store, on disk" (test_gced_store_on_disk domain_mgr);
     tc "import old snapshot, export gc based snapshot"
-      test_export_import_reexport;
+      (test_export_import_reexport domain_mgr);
   ]

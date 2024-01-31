@@ -309,7 +309,7 @@ module Test_traverse_gced = struct
   module S = V2 ()
   include Test (S)
 
-  let commit_and_gc conf =
+  let commit_and_gc domain_mgr conf =
     Eio.Switch.run @@ fun sw ->
     let repo = S.Repo.v ~sw conf in
     let commit =
@@ -319,7 +319,7 @@ module Test_traverse_gced = struct
     let tree = S.Tree.add tree [ "abba"; "baba" ] "x" in
     let commit = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
     let commit_key = S.Commit.key commit in
-    let _launched = S.Gc.start_exn ~unlink:false repo commit_key in
+    let _ = S.Gc.start_exn ~domain_mgr ~unlink:false repo commit_key in
     let result = S.Gc.finalise_exn ~wait:true repo in
     let () =
       match result with
@@ -329,7 +329,7 @@ module Test_traverse_gced = struct
     in
     S.Repo.close repo
 
-  let test_traverse_pack () =
+  let test_traverse_pack domain_mgr () =
     Eio.Switch.run @@ fun sw ->
     let module Kind = Irmin_pack.Pack_value.Kind in
     setup_test_env ();
@@ -337,11 +337,11 @@ module Test_traverse_gced = struct
       config ~readonly:false ~fresh:false
         ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
     in
-    let () = commit_and_gc conf in
+    let () = commit_and_gc domain_mgr conf in
     S.test_traverse_pack_file ~sw `Check_index conf
 end
 
-let tests =
+let tests domain_mgr =
   [
     Alcotest.test_case "Test index reconstruction" `Quick
       Test_reconstruct.test_reconstruct;
@@ -353,5 +353,5 @@ let tests =
     Alcotest.test_case "Test integrity check for inodes" `Quick
       Test_corrupted_inode.test;
     Alcotest.test_case "Test traverse pack on gced store" `Quick
-      Test_traverse_gced.test_traverse_pack;
+      (Test_traverse_gced.test_traverse_pack domain_mgr);
   ]

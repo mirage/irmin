@@ -103,7 +103,8 @@ module type S = sig
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)
 
-  val create_one_commit_store : repo -> commit_key -> string -> unit
+  val create_one_commit_store :
+    domain_mgr:_ Eio.Domain_manager.t -> repo -> commit_key -> string -> unit
   (** [create_one_commit_store t key path] creates a new store at [path] from
       the existing one, containing only one commit, specified by the [key]. Note
       that this operation is blocking.
@@ -121,7 +122,12 @@ module type S = sig
 
     (** {1 Low-level API} *)
 
-    val start_exn : ?unlink:bool -> repo -> commit_key -> bool
+    val start_exn :
+      domain_mgr:_ Eio.Domain_manager.t ->
+      ?unlink:bool ->
+      repo ->
+      commit_key ->
+      bool
     (** [start_exn] tries to start the GC process and returns true if the GC is
         launched. If a GC is already running, a new one is not started.
 
@@ -159,6 +165,7 @@ module type S = sig
         logging *)
 
     val run :
+      domain_mgr:_ Eio.Domain_manager.t ->
       ?finished:((Stats.Latest_gc.stats, msg) result -> unit) ->
       repo ->
       commit_key ->
