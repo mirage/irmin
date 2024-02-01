@@ -40,6 +40,13 @@ module Store = Irmin_mem.Make (Schema)
 
 let store = Resolver.Store.v Irmin_mem.Conf.spec (module Store)
 
+(* disable eio_linux warnings *)
+let () =
+  List.iter (fun src ->
+      if Logs.Src.name src = "eio_linux" then
+        Logs.Src.set_level src (Some Error))
+  @@ Logs.Src.list ()
+
 let () =
   Eio_main.run @@ fun env ->
   Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
