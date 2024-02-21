@@ -27,13 +27,11 @@ let () =
   Logs.set_reporter (Logs_fmt.reporter ())
 
 module type R = sig
-  val pid : int
   val uri : Uri.t
   val kind : string
 end
 
 module Make (R : R) = struct
-  let () = at_exit (fun () -> try Unix.kill R.pid Sys.sigint with _ -> ())
   let config = Irmin_client_unix.config R.uri
 
   module X = Irmin_mem.KV.Make (Irmin.Contents.String)
@@ -67,21 +65,22 @@ let ping client () =
 let misc client = [ ("ping", `Quick, ping client) ]
 let misc client = [ ("misc", misc client) ]
 
-let main () =
-  let kind, pid, uri = run_server `Unix_domain in
+let main ~env () =
+  let clock = Eio.Stdenv.clock env in
+  Eio.Switch.run @@ fun sw ->
+  let kind, uri = run_server ~sw ~clock `Unix_domain in
   let config = Irmin_client_unix.config uri in
   let client = Client.Repo.v config in
   let client () = Lwt_eio.run_lwt @@ fun () -> Client.dup client in
   let module Unix_socket = Make (struct
-    let pid = pid
     let uri = uri
     let kind = kind
   end) in
   let module Tcp_socket = Make (struct
-    let kind, pid, uri = run_server `Tcp
+    let kind, uri = run_server ~sw ~clock `Tcp
   end) in
   let module Websocket = Make (struct
-    let kind, pid, uri = run_server `Websocket
+    let kind, uri = run_server ~sw ~clock `Websocket
   end) in
   let slow = Sys.getenv_opt "SLOW" |> Option.is_some in
   let only = Sys.getenv_opt "ONLY" in
@@ -93,8 +92,8 @@ let main () =
     | Some s -> failwith ("Invalid selection: " ^ s)
     | None ->
         [
-          (`Quick, Unix_socket.suite ());
           (`Quick, Tcp_socket.suite ());
+          (`Quick, Unix_socket.suite ());
           (`Quick, Websocket.suite ());
         ]
   in
@@ -103,4 +102,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ~env ()

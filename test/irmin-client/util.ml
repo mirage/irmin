@@ -23,7 +23,7 @@ let test name f client _switch () =
   Logs.debug (fun l -> l "Running: %s" name);
   f client
 
-let run_server s =
+let run_server ~sw ~clock s =
   let kind, uri =
     match s with
     | `Websocket -> ("Websocket", Uri.of_string "ws://localhost:90991")
@@ -33,18 +33,11 @@ let run_server s =
         ("Unix_domain", Uri.of_string ("unix://" ^ sock))
     | `Tcp -> ("Tcp", Uri.of_string "tcp://localhost:90992")
   in
-  match Lwt_unix.fork () with
-  | 0 ->
+  Eio.Fiber.fork_daemon ~sw (fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-      let conf = Irmin_mem.config () in
+      let key = Irmin.Backend.Conf.root Irmin_mem.Conf.spec in
+      let conf = Irmin.Backend.Conf.singleton Irmin_mem.Conf.spec key kind in
       Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve);
-      (kind, 0, uri)
-  | n ->
-      Unix.sleep 3;
-      (kind, n, uri)
-
-let suite client all =
-  List.map
-    (fun (name, speed, f) ->
-      Alcotest_lwt.test_case name speed (test name f client))
-    all
+      `Stop_daemon);
+  Eio.Time.sleep clock 0.1;
+  (kind, uri)
