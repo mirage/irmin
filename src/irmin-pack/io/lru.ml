@@ -87,5 +87,3 @@ let mem { lru; _ } k = Internal.mem lru k
 let clear t =
   Internal.clear t.lru;
   t.total_weight <- 0
-
-let iter { lru; _ } f = Internal.iter lru (fun k wv -> f k (v wv))
