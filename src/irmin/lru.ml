@@ -160,4 +160,6 @@ module Make (H : Hashtbl.HashedType) = struct
     in
     Xt.commit { tx }
 
+  let iter t f =
+    HT.iter (fun k q -> f k (snd q.Q.value)) t.ht
 end
