@@ -1,45 +1,19 @@
 open Import
 include Irmin_pack.Atomic_write
 
-module UnsafeTbl (K : Irmin.Type.S) = Hashtbl.Make (struct
-  type t = K.t [@@deriving irmin ~short_hash ~equal]
-
-  let hash = short_hash ?seed:None
-end)
-
-(** Safe but might be incredibly slow. *)
 module Table (K : Irmin.Type.S) = struct
-  module Unsafe = UnsafeTbl (K)
+  module K = (struct
+    include K
 
-  type 'a t = { lock : Eio.Mutex.t; data : 'a Unsafe.t }
+    type t = K.t [@@deriving irmin ~short_hash ~equal]
 
-  let create n =
-    let lock = Eio.Mutex.create () in
-    let data = Unsafe.create n in
-    { lock; data }
+    let hash = short_hash ?seed:None
+    let equal = Irmin.Type.(unstage (equal K.t))
+  end)
 
-  let add { lock; data } k v =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.add data k v
+  include Kcas_data.Hashtbl
 
-  let mem { lock; data } k =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.mem data k
-
-  let find_opt { lock; data } k =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.find_opt data k
-
-  let find t k = match find_opt t k with Some v -> v | None -> raise Not_found
-
-  let replace { lock; data } k v =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.replace data k v
-
-  let remove { lock; data } k =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.remove data k
-
-  let reset { lock; data } =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.reset data
-
-  let fold f { lock; data } init =
-    Eio.Mutex.use_rw ~protect:true lock @@ fun () -> Unsafe.fold f data init
+  let create min_buckets = create ~hashed_type:(module K) ~min_buckets ()
 end
 
 module Make_persistent (Io : Io_intf.S) (K : Irmin.Type.S) (V : Value.S) =
@@ -53,8 +27,8 @@ struct
   type watch = W.watch
 
   type t = {
-    index : int63 Tbl.t;
-    cache : V.t Tbl.t;
+    index : (K.t, int63) Tbl.t;
+    cache : (K.t, V.t) Tbl.t;
     block : Io.t;
     mutable block_size : int63;
     w : W.t;
