@@ -36,3 +36,4 @@ val add : t -> int63 -> Irmin_pack.Pack_value.weight -> value -> unit
 val find : t -> key -> value
 val mem : t -> key -> bool
 val clear : t -> unit
+val iter : t -> (key -> value -> unit) -> unit
