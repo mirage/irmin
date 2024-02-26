@@ -22,6 +22,8 @@ depends: [
   "uutf"
   "jsonm"   {>= "1.0.0"}
   "eio"     {>= "0.12"}
+  "kcas"    {= "dev"}
+  "kcas_data" {= "dev"}
   "lwt"     {>= "5.6.1"}
   "digestif" {>= "0.9.0"}
   "ocamlgraph"
@@ -41,6 +43,9 @@ depends: [
 ]
 
 pin-depends: [
+  # Fix segv in kcas
+  [ "kcas.dev" "git+https://git@github.com/ocaml-multicore/kcas#debeae67a48743f9659471a4de3b9166afdb1647"]
+  [ "kcas_data.dev" "git+https://git@github.com/ocaml-multicore/kcas#debeae67a48743f9659471a4de3b9166afdb1647"]
   # Metrics may have been unnecessarily constrained in opam-repository
   [ "metrics.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
   [ "metrics-unix.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
