@@ -31,7 +31,7 @@ module Make (Args : Gc_args.S) = struct
     task : Async.t;
     unlink : bool;
     new_suffix_start_offset : int63;
-    mutable on_finalise: ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit);
+    mutable on_finalise : (Stats.Latest_gc.stats, Args.Errs.t) result -> unit;
     (* resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u; *)
     (* promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t; *)
     dispatcher : Dispatcher.t;
@@ -334,7 +334,7 @@ module Make (Args : Gc_args.S) = struct
        implementation detail. This is safe since the callback
        [f] is attached to [t.running_gc.promise], which is
        referenced for the lifetime of a GC process. *)
-    t.on_finalise <- f ;
+    t.on_finalise <- f;
     (* ignore (t, f); *)
     (* let _ = f (Eio.Promise.await t.promise) in *)
     ()

@@ -25,12 +25,12 @@ let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 
 module Table (K : Irmin.Hash.S) = struct
-  module K = (struct
+  module K = struct
     include K
 
     let hash = short_hash
     let equal = Irmin.Type.(unstage (equal K.t))
-  end)
+  end
 
   include Kcas_data.Hashtbl
 
