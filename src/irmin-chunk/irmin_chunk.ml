@@ -179,7 +179,8 @@ struct
             | [ i ] ->
                 AO.add t.db key (index t i);
                 key
-            | l -> Fiber.List.map (fun i -> CA.add t.db (index t i)) l |> aux)
+            | l ->
+                Eio.Fiber.List.map (fun i -> CA.add t.db (index t i)) l |> aux)
       in
       aux l
   end

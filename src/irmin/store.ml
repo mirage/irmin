@@ -986,9 +986,7 @@ module Make (B : Backend.S) = struct
   let return_lcas r = function
     | Error _ as e -> e
     | Ok commits ->
-        List.map (fun v () -> Commit.of_key r v) commits
-        |> Fiber.all_p
-        |> List.filter_map (fun v -> v)
+        Eio.Fiber.List.filter_map (fun v -> Commit.of_key r v) commits
         |> Result.ok
 
   let lcas ?max_depth ?n t1 t2 =
@@ -1079,12 +1077,10 @@ module Make (B : Backend.S) = struct
     [%log.debug "history"];
     let pred = function
       | `Commit k ->
-          List.map
-            (fun v () -> Commit.of_key t.repo v)
+          Eio.Fiber.List.filter_map
+            (fun v -> Commit.of_key t.repo v)
             (Commits.parents (commit_store t) k)
-          |> Fiber.all_p
-          |> List.filter_map (fun v -> v)
-          |> fun parents -> List.map (fun x -> `Commit x.key) parents
+          |> List.map (fun x -> `Commit x.key)
       | _ -> []
     in
     let max = Head.find t |> function Some h -> [ h ] | None -> max in
@@ -1130,8 +1126,8 @@ module Make (B : Backend.S) = struct
             | None -> false
           in
           let found =
-            List.map
-              (fun hash () ->
+            Eio.Fiber.List.map
+              (fun hash ->
                 match Commit.of_key repo hash with
                 | Some commit -> (
                     let () =
@@ -1147,7 +1143,6 @@ module Make (B : Backend.S) = struct
                     | _, _ -> false)
                 | None -> false)
               parents
-            |> Fiber.all_p
             |> List.for_all Fun.id
           in
           if found then search (current :: acc) else search acc
