@@ -15,7 +15,7 @@ build: [
 
 depends: [
   "ocaml"           {>= "4.02.3"}
-  "dune"            {>= "2.9.0"}
+  "dune"            {>= "3.5.0"}
   "crunch"          {>= "2.2.0"}
   "webmachine"      {>= "0.6.0"}
   "irmin"           {= version}

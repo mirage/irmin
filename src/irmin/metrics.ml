@@ -29,6 +29,7 @@ type 'a t = {
   repr : 'a Repr.ty;
   state : 'a Atomic.t;
 }
+[@@warning "-unused-field"]
 
 let state m = Atomic.get m.state
 let set_state m v = Atomic.set m.state v

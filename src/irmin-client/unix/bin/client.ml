@@ -217,7 +217,6 @@ let watch client =
   x
 
 let watch client = watch client false 0
-let pr_str = Format.pp_print_string
 
 let path index =
   let doc = Arg.info ~docv:"PATH" ~doc:"Path to lookup or modify" [] in
@@ -260,10 +259,6 @@ let iterations =
     Arg.info ~doc:"Iterations when timing is enabled" [ "i"; "iterations" ]
   in
   Arg.(value @@ opt int 1 doc)
-
-let freq =
-  let doc = Arg.info ~doc:"Update frequency" [ "f"; "freq" ] in
-  Arg.(value @@ opt float 5. doc)
 
 let config =
   let create uri (branch : string option) tls (store, hash, contents) codec

@@ -18,7 +18,6 @@
 open Irmin.Export_for_backends
 
 type t = {
-  root : string;
   ncommits : int;
   depth : int;
   tree_add : int;
@@ -93,7 +92,7 @@ let clear =
 let t =
   Term.(
     const (fun () ncommits depth tree_add display clear gc ->
-        { ncommits; depth; tree_add; display; root = "."; clear; gc })
+        { ncommits; depth; tree_add; display; clear; gc })
     $ log
     $ ncommits
     $ depth
@@ -173,7 +172,6 @@ struct
     let root = "_build/_bench" in
     let config = config ~root in
     let size () = size ~root in
-    let t = { t with root } in
     Eio_main.run @@ fun _ ->
     init t config;
     run t config size

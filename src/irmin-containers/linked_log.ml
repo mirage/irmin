@@ -112,12 +112,7 @@ struct
   module HashSet = Set.Make (Set_elt)
 
   type value = V.t
-
-  type cursor = {
-    seen : HashSet.t;
-    cache : Log_item(T)(H)(V).t list;
-    store : Store.t;
-  }
+  type cursor = { seen : HashSet.t; cache : Log_item(T)(H)(V).t list }
 
   let empty_info = Store.Info.none
 
@@ -127,7 +122,7 @@ struct
     Store.set_exn ~info:empty_info t path v
 
   let get_cursor ~path store =
-    let mk_cursor seen cache = { seen; cache; store } in
+    let mk_cursor seen cache = { seen; cache } in
     match Store.find store path with
     | None -> mk_cursor HashSet.empty []
     | Some k -> (
@@ -150,11 +145,11 @@ struct
             match L.read_key pk with
             | Value v ->
                 read_log
-                  { cursor with seen; cache = L.sort (v :: xs) }
+                  { seen; cache = L.sort (v :: xs) }
                   (num_items - 1) (msg :: acc)
             | Merge l ->
                 read_log
-                  { cursor with seen; cache = L.sort (l @ xs) }
+                  { seen; cache = L.sort (l @ xs) }
                   (num_items - 1) (msg :: acc))
 
   let read ~num_items cursor = read_log cursor num_items []

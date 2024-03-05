@@ -97,7 +97,6 @@ struct
   struct
     type t = {
       store : read Inode.t;
-      store_contents : read Contents_store.t;
       fm : File_manager.t;
       (* Two contents values that are guaranteed to be read by {!store}: *)
       foo : Key.t;
@@ -154,7 +153,7 @@ struct
             (foo, bar))
       in
       [%log.app "Test context constructed"];
-      { store; store_contents; fm; foo; bar }
+      { store; fm; foo; bar }
 
     let close t = File_manager.close t.fm |> Errs.raise_if_error
     (* closes dict, inodes and contents store. *)

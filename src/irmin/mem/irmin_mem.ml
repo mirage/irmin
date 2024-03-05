@@ -36,9 +36,9 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   type key = K.t
   type value = V.t
-  type 'a t = { mutable t : value KMap.t; root : string }
+  type 'a t = { mutable t : value KMap.t }
 
-  let new_instance root = { t = KMap.empty; root }
+  let new_instance _root = { t = KMap.empty }
 
   let v =
     let cache : (string, 'a t) Hashtbl.t = Hashtbl.create 0 in

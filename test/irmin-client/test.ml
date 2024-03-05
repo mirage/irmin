@@ -18,8 +18,6 @@ open Irmin_client_unix
 open Util
 module Info = Info (Client.Info)
 
-let info = Info.v
-
 let () =
   let style_renderer = `None in
   Fmt_tty.setup_std_outputs ~style_renderer ();
@@ -48,11 +46,6 @@ end
 let error =
   Alcotest.testable (Fmt.using Error.to_string Fmt.string) (fun a b ->
       Error.to_string a = Error.to_string b)
-
-let ty t =
-  Alcotest.testable
-    (Fmt.using (Irmin.Type.to_string t) Fmt.string)
-    (fun a b -> Irmin.Type.(unstage (equal t)) a b)
 
 let ping client () =
   let open Client in

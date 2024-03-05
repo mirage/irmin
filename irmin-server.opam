@@ -9,7 +9,7 @@ dev-repo: "git+ssh://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
   "ocaml" {>= "4.08.0"}
-  "dune" {>= "2.9.0"}
+  "dune" {>= "3.5.0"}
   "optint" {>= "0.1.0"}
   "irmin" {= version}
   "ppx_irmin" {= version}

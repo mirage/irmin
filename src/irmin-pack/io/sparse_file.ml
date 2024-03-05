@@ -28,12 +28,7 @@ module Int64_mmap (Io : Io_intf.S) : sig
   val get : t -> int -> Int64.t
   val close : t -> (unit, [> Io.close_error ]) result
 end = struct
-  type t = {
-    fn : string;
-    fd : Io.t;
-    loaded : bool array;
-    mutable arr : int64_bigarray;
-  }
+  type t = { fd : Io.t; loaded : bool array; arr : int64_bigarray }
 
   let sector_size = 512
   let length t = BigArr1.dim t.arr
@@ -45,7 +40,7 @@ end = struct
     let size = sz / 8 in
     let arr = BigArr1.create Bigarray.Int64 Bigarray.c_layout size in
     let loaded = Array.make (1 + (sz / sector_size)) false in
-    { fn; fd; arr; loaded }
+    { fd; arr; loaded }
 
   let close t = Io.close t.fd
 
