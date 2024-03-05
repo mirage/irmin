@@ -25,8 +25,6 @@ module Object_counter (Progress : Progress_engine.S) : sig
   val finalise : t -> unit
   val finalise_with_stats : t -> int * int * int
 end = struct
-  module Progress = Progress_engine.Make (Progress_platform)
-
   type t =
     | Object_counter : {
         display : (_, _) Progress.Display.t;
