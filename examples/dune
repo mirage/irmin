@@ -15,7 +15,9 @@
   astring
   cohttp
   fmt
+  irmin
   irmin.unix
+  irmin-client.unix
   irmin-git.unix
   irmin-graphql.unix
   irmin-pack.unix
