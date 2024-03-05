@@ -26,6 +26,7 @@ depends: [
   "optint"       {>= "0.1.0"}
   "checkseum"
   "rusage"
+  "progress"     {= "dev"}
   "irmin-test"   {with-test & = version}
   "astring"      {with-test}
   "alcotest"     {with-test}
