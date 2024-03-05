@@ -34,16 +34,13 @@ module Make (Args : Gc_args.S) = struct
     mutable on_finalise : (Stats.Latest_gc.stats, Args.Errs.t) result -> unit;
     dispatcher : Dispatcher.t;
     fm : Fm.t;
-    contents : read Contents_store.t;
-    node : read Node_store.t;
-    commit : read Commit_store.t;
-    mutable partial_stats : Gc_stats_main.t;
+    partial_stats : Gc_stats_main.t;
     mutable resulting_stats : Stats.Latest_gc.stats option;
     latest_gc_target_offset : int63;
   }
 
-  let v ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm ~contents
-      ~node ~commit commit_key =
+  let v ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm
+      ~contents:_ ~node:_ ~commit:_ commit_key =
     let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
@@ -127,9 +124,6 @@ module Make (Args : Gc_args.S) = struct
         on_finalise = (fun _ -> ());
         dispatcher;
         fm;
-        contents;
-        node;
-        commit;
         partial_stats;
         resulting_stats = None;
         latest_gc_target_offset;

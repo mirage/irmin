@@ -25,7 +25,7 @@ type t1 = int
 type t2 = { x : string; y : t1 }
 type t = t2 list
 
-let tree_of_t t =
+let tree_of_t (t : t) =
   let tree, _ =
     List.fold_left
       (fun (v, i) t2 ->

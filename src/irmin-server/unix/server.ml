@@ -20,7 +20,7 @@ open Lwt.Infix
 open Irmin_server
 include Server_intf
 
-let html = [%blob "index.html"]
+let html = [%blob "src/irmin-server/unix/index.html"]
 
 module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   module Command = Command.Make (IO) (Codec) (Store)

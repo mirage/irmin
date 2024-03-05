@@ -17,7 +17,7 @@ available: arch != "arm32" & arch != "x86_32"
 
 depends: [
   "ocaml"       {>= "4.01.0"}
-  "dune"        {>= "2.9.0"}
+  "dune"        {>= "3.5.0"}
   "irmin-tezos" {= version}
   "irmin-pack"  {= version}
   "irmin-pack"  {= version}

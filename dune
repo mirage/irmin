@@ -1,6 +1,18 @@
 (vendored_dirs vendors irmin-watcher.dev ocaml-inotify)
 
+(env
+ (dev
+  (flags :standard -w -unused-functor-parameter)))
+
 (mdx
  (files README.md)
- (package irmin-cli)
- (packages irmin-cli))
+ (deps %{bin:irmin})
+ (libraries
+  irmin
+  irmin-cli
+  irmin-git
+  irmin-git.unix
+  eio
+  eio_main
+  eio.unix
+  lwt_eio))

@@ -78,7 +78,7 @@ module MakeUnsafe (H : Hashtbl.HashedType) = struct
   type 'a t = {
     ht : (key * 'a) Q.node HT.t;
     q : (key * 'a) Q.t;
-    mutable cap : cap;
+    cap : cap;
     mutable w : int;
   }
 

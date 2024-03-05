@@ -149,7 +149,6 @@ struct
         type running_gc = { gc : Gc.t; use_auto_finalisation : bool }
 
         type t = {
-          lru : Lru.t;
           config : Irmin.Backend.Conf.t;
           contents : read Contents.CA.t;
           node : read Node.CA.t;
@@ -215,7 +214,6 @@ struct
             during_batch;
             running_gc;
             dispatcher;
-            lru;
             lock;
           }
 

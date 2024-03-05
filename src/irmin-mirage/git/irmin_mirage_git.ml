@@ -105,7 +105,7 @@ module KV_RO (G : Git.S) = struct
     Key.segments x
 
   module Tree = struct
-    type t = { repo : S.repo; tree : S.tree }
+    type t = { tree : S.tree }
 
     let digest t key =
       match S.Tree.find_tree t.tree (path key) with
@@ -183,13 +183,12 @@ module KV_RO (G : Git.S) = struct
     { t; root }
 
   let tree t =
-    let repo = S.repo t.t in
     let tree =
       match S.find_tree t.t t.root with
       | None -> S.Tree.empty ()
       | Some tree -> tree
     in
-    { Tree.repo; tree }
+    { Tree.tree }
 
   let exists t k = Tree.exists (tree t) k
   let get t k = Tree.get (tree t) k
@@ -223,7 +222,7 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
   module Tree = RO.Tree
   module Info = Irmin_mirage.Info (S.Info) (C)
 
-  type batch = { repo : S.repo; mutable tree : S.tree; origin : S.commit }
+  type batch = { mutable tree : S.tree; origin : S.commit }
 
   type store = Batch of batch | Store of RO.t
 
@@ -264,12 +263,10 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
         let t = RO.S.of_commit b.origin in
         RO.last_modified { root = S.Path.empty; t } key
 
-  let repo t = match t.store with Store t -> S.repo t.t | Batch b -> b.repo
-
   let tree t =
     match t.store with
     | Store t -> RO.tree t
-    | Batch b -> { Tree.tree = b.tree; repo = repo t }
+    | Batch b -> { Tree.tree = b.tree }
 
   let digest t k = Lwt_eio.run_eio @@ fun () -> Tree.digest (tree t) k
   let size t k = Lwt_eio.run_eio @@ fun () -> Tree.size (tree t) k
@@ -365,12 +362,11 @@ module KV_RW (G : Irmin_git.G) (C : Mirage_clock.PCLOCK) = struct
       match t.store with
       | Batch _ -> Fmt.failwith "No recursive batches"
       | Store s -> (
-          let repo = S.repo s.t in
           (* get the tree origin *)
           match get_store_tree s with
           | None -> Ok (f t) (* no transaction is needed *)
           | Some (origin, old_tree) -> (
-              let batch = { repo; tree = old_tree; origin } in
+              let batch = { tree = old_tree; origin } in
               let b = Batch batch in
               let result = f { t with store = b } in
               match get_store_tree s with

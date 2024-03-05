@@ -16,10 +16,6 @@
 
 (* Simple UI example: connect to http://localhost:8080/dump *)
 
-let fin () =
-  let _ = Fmt.kstr Sys.command "cd %s && git reset HEAD --hard" Config.root in
-  Lwt.return_unit
-
 type action = {
   message : string;
   files : (string list * (unit -> string)) list;
@@ -27,6 +23,7 @@ type action = {
 
 type image = { name : string; actions : action list }
 
+(*
 let ubuntu =
   {
     name = "official-images/ubuntu:14.04";
@@ -44,6 +41,7 @@ let ubuntu =
         { message = "cat /etc/issue"; files = [] };
       ];
   }
+*)
 
 let wordpress =
   {

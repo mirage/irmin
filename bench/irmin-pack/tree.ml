@@ -29,7 +29,6 @@ type config = {
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
   store_type : [ `Pack | `Pack_mem ];
-  freeze_commit : int;
   replay_trace_path : string;
   artefacts_path : string;
   keep_store : bool;
@@ -400,7 +399,7 @@ let get_suite suite_filter =
     suite
 
 let main () ncommits number_of_commits_to_replay suite_filter inode_config
-    store_type freeze_commit path_conversion depth width nchain_trees
+    store_type _freeze_commit path_conversion depth width nchain_trees
     nlarge_trees replay_trace_path artefacts_path keep_store keep_stat_trace
     no_summary empty_blobs gc_every gc_distance_in_the_past gc_wait_after
     add_volume_every =
@@ -421,7 +420,6 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
       replay_trace_path;
       inode_config;
       store_type;
-      freeze_commit;
       artefacts_path;
       keep_store;
       keep_stat_trace;

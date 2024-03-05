@@ -84,8 +84,6 @@ struct
     type config = {
       root : string;
       dot_git : string option;
-      level : int option;
-      buffers : int option;
       head : G.Reference.t option;
       bare : bool;
     }
@@ -94,11 +92,9 @@ struct
       let module C = Irmin.Backend.Conf in
       let root = C.find_root c |> Option.value ~default:"." in
       let dot_git = C.get c Conf.Key.dot_git in
-      let level = C.get c Conf.Key.level in
       let head = C.get c Conf.Key.head in
       let bare = C.get c Conf.Key.bare in
-      let buffers = C.get c Conf.Key.buffers in
-      { root; dot_git; level; head; buffers; bare }
+      { root; dot_git; head; bare }
 
     let fopt f = function None -> None | Some x -> Some (f x)
 
