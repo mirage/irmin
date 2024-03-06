@@ -16,6 +16,7 @@
 
 val run :
   string ->
+  ?and_exit:bool ->
   ?slow:bool ->
   ?random_seed:int ->
   sleep:(float -> unit) ->
