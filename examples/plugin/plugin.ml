@@ -48,7 +48,6 @@ let () =
   @@ Logs.Src.list ()
 
 let () =
-  Eio_main.run @@ fun env ->
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
+  Eio_main.run @@ fun _env ->
   Resolver.Contents.add ~default:true "int" (module Int);
   Resolver.Store.add ~default:true "mem-int" (Fixed store)

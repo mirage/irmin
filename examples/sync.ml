@@ -23,11 +23,12 @@ let path =
 module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 module Sync = Irmin.Sync.Make (Store)
 
-let test () =
+let test env =
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let repo = Store.Repo.v ~sw config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let t = Store.of_branch repo "master" in
   let upstream = Store.remote path () in
   let _ = Sync.pull_exn t upstream `Set in
@@ -40,4 +41,4 @@ let test () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> test ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> test env

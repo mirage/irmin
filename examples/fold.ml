@@ -62,11 +62,12 @@ end = struct
     | None -> failwith "no kind"
 end
 
-let main () =
+let main env =
   let ps name = Fmt.(pf stdout "\n%s\n" name) in
   ps "Demo of how tree folders visit nodes.";
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw config in
+  let fs = Eio.Stdenv.fs env in
+  let repo = Store.Repo.v ~sw ~fs config in
   let main_b = Store.main repo in
   Store.set_exn ~info:(info "add c1") main_b [ "c1" ] "c1";
   Store.set_exn ~info:(info "add c2") main_b [ "c2" ] "c2";
@@ -91,4 +92,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

@@ -160,11 +160,13 @@ let run_gc domain_mgr config repo tracker =
   let () = Store.split repo in
   Tracker.mark_next_gc_commit tracker
 
-let run_experiment domain_mgr config =
+let run_experiment env config =
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
   let num_of_commits = 200_000 in
   let gc_every = 1_000 in
-  let repo = Store.Repo.v ~sw config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let tracker = Tracker.v () in
   (* Create commits *)
   let _ =
@@ -190,9 +192,7 @@ let run_experiment domain_mgr config =
 
 let () =
   Eio_main.run @@ fun env ->
-  let domain_mgr = Eio.Stdenv.domain_mgr env in
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
   Printf.printf "== RUN 1: deleting discarded data ==\n";
-  run_experiment domain_mgr Repo_config.config;
+  run_experiment env Repo_config.config;
   Printf.printf "== RUN 2: archiving discarded data ==\n";
-  run_experiment domain_mgr Repo_config.config_with_lower
+  run_experiment env Repo_config.config_with_lower

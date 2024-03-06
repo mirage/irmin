@@ -10,11 +10,12 @@ let author = "Example <example@example.com>"
 (* Commit information *)
 let info fmt = Irmin_git_unix.info ~author fmt
 
-let main () =
+let main env =
   (* Create the switch *)
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   (* Open the repo *)
-  let repo = Store.Repo.v ~sw config in
+  let repo = Store.Repo.v ~sw ~fs config in
 
   (* Load the main branch *)
   let t = Store.main repo in
@@ -29,4 +30,4 @@ let main () =
 (* Run the program *)
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

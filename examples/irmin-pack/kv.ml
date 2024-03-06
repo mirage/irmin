@@ -68,11 +68,12 @@ end
 module StoreMaker = Irmin_pack_unix.KV (Conf)
 module Store = StoreMaker.Make (Irmin.Contents.String)
 
-let main () =
+let main env =
   (* Create a switch *)
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   (* Instantiate a repository *)
-  let repo = Store.Repo.v ~sw Repo_config.config in
+  let repo = Store.Repo.v ~sw ~fs Repo_config.config in
 
   (* Get the store from the main branch. *)
   let store = Store.main repo in
@@ -96,6 +97,5 @@ let setup_logs () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
   setup_logs ();
-  main ()
+  main env

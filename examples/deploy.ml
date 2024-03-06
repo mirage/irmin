@@ -80,7 +80,7 @@ let revert repo =
     Eio_unix.sleep 2.;
     Store.Head.set prod h2)
 
-let main () =
+let main env =
   let cmd = Sys.argv.(0) in
   let help () =
     Printf.eprintf
@@ -102,18 +102,19 @@ let main () =
       cmd cmd cmd cmd Config.root
   in
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   if Array.length Sys.argv <> 2 then help ()
   else
     match Sys.argv.(1) with
     | "provision" ->
-        (let repo = Store.Repo.v ~sw config in
+        (let repo = Store.Repo.v ~sw ~fs config in
          provision repo);
         Printf.printf
           "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
            configuration.\n"
           cmd
     | "configure" ->
-        (let repo = Store.Repo.v ~sw config in
+        (let repo = Store.Repo.v ~sw ~fs config in
          configure repo);
         Printf.printf
           "The VM is now configured. Run `%s attack` to simulate an attack by \
@@ -121,17 +122,17 @@ let main () =
            intruder.\n"
           cmd
     | "attack" ->
-        (let repo = Store.Repo.v ~sw config in
+        (let repo = Store.Repo.v ~sw ~fs config in
          attack repo);
         Printf.printf
           "The VM has been attacked. Run `%s revert` to revert the VM state to \
            a safe one.\n"
           cmd
     | "revert" ->
-        let repo = Store.Repo.v ~sw config in
+        let repo = Store.Repo.v ~sw ~fs config in
         revert repo
     | _ -> help ()
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

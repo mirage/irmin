@@ -50,15 +50,16 @@ let t_of_tree v =
   let t2s = List.rev (List.sort compare t2s) in
   List.fold_left aux [] t2s
 
-let main () =
+let main env =
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Config.init ();
   let config = Irmin_git.config ~bare:false Config.root in
   let t =
     [ { x = "foo"; y = 3 }; { x = "bar"; y = 5 }; { x = "too"; y = 10 } ]
   in
   let v = tree_of_t t in
-  let repo = Store.Repo.v ~sw config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let t = Store.main repo in
   Store.set_tree_exn t ~info:(info "update a/b") [ "a"; "b" ] v;
   let v = Store.get_tree t [ "a"; "b" ] in
@@ -70,4 +71,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

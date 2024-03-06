@@ -30,11 +30,12 @@ let read_exn t k =
   print_endline msg;
   Store.get t k
 
-let main () =
+let main env =
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Config.init ();
   let config = Irmin_git.config ~bare:true Config.root in
-  let repo = Store.Repo.v ~sw config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let t = Store.main repo in
   update t [ "root"; "misc"; "1.txt" ] "Hello world!";
   update t [ "root"; "misc"; "2.txt" ] "Hi!";
@@ -53,16 +54,16 @@ let main () =
       let _ = read_exn t [ "root"; "misc"; "3.txt" ] in
       ()
 
-let main () =
+let main env =
   Printf.printf
     "This example creates a Git repository in %s and use it to read \n\
      and write data:\n"
     Config.root;
   let _ = Sys.command (Printf.sprintf "rm -rf %s" Config.root) in
-  main ();
+  main env;
   Printf.printf "You can now run `cd %s && tig` to inspect the store.\n"
     Config.root
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

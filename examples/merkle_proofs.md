@@ -29,6 +29,7 @@ module Store = Irmin_git_unix.FS.KV (Contents)
 let eio_run fn =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Lwt_eio.with_event_loop ~clock:env#clock (fn ~sw)
 ```
 
@@ -36,7 +37,7 @@ Open a repo.
 
 ```ocaml
 # let config = Irmin_git.config ~bare:true "./tmp-irmin/test"
-  let repo = eio_run @@ fun ~sw _ -> Store.Repo.v ~sw config;;
+  let repo = eio_run @@ fun ~sw _ -> Store.Repo.v ~sw ~fs config;;
 val config : Irmin.config = <abstr>
 val repo : Store.repo = <abstr>
 ```

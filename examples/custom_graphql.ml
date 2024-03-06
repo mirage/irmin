@@ -106,11 +106,12 @@ end
 module Server =
   Irmin_graphql_unix.Server.Make_ext (Store) (Remote) (Custom_types)
 
-let main () =
+let main env =
   Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let repo = Store.Repo.v ~sw config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let server = Server.v repo in
   let src = "localhost" in
   let port = 9876 in
@@ -123,4 +124,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env
