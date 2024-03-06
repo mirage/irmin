@@ -2450,7 +2450,7 @@ let slow_suite (speed, x) =
     ]
     (speed, x)
 
-let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
+let run name ?and_exit ?(slow = false) ?random_seed ~sleep ~misc tl =
   let () =
     match random_seed with
     | Some x -> Random.init x
@@ -2460,4 +2460,4 @@ let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
   (* Ensure that failures occuring in async lwt threads are raised. *)
   let tl1 = List.map (suite sleep) tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
-  Alcotest.run ~bail:true name (misc @ tl1)
+  Alcotest.run ?and_exit ~bail:true name (misc @ tl1)

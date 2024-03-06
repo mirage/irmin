@@ -58,40 +58,54 @@ let ping client () =
 let misc client = [ ("ping", `Quick, ping client) ]
 let misc client = [ ("misc", misc client) ]
 
-let main ~env () =
-  let clock = Eio.Stdenv.clock env in
+let unix_suite ~env () =
   Eio.Switch.run @@ fun sw ->
+  let clock = Eio.Stdenv.clock env in
   let kind, uri = run_server ~sw ~clock `Unix_domain in
-  let config = Irmin_client_unix.config uri in
-  let client = Client.Repo.v config in
-  let client () = Lwt_eio.run_lwt @@ fun () -> Client.dup client in
   let module Unix_socket = Make (struct
     let uri = uri
     let kind = kind
   end) in
+  let tests = Unix_socket.suite () in
+  let config = Irmin_client_unix.config uri in
+  let client = Client.Repo.v config in
+  let client () = Lwt_eio.run_lwt @@ fun () -> Client.dup client in
+  Irmin_test.Store.run "irmin-server.unix" ~and_exit:false ~sleep:Eio_unix.sleep
+    ~misc:(misc client)
+    [ (`Quick, tests) ]
+
+let tcp_suite ~env () =
+  Eio.Switch.run @@ fun sw ->
+  let clock = Eio.Stdenv.clock env in
   let module Tcp_socket = Make (struct
     let kind, uri = run_server ~sw ~clock `Tcp
   end) in
+  let tests = Tcp_socket.suite () in
+  Irmin_test.Store.run "irmin-server.tcp" ~and_exit:false ~sleep:Eio_unix.sleep
+    ~misc:[]
+    [ (`Quick, tests) ]
+
+let websocket_suite ~env () =
+  Eio.Switch.run @@ fun sw ->
+  let clock = Eio.Stdenv.clock env in
   let module Websocket = Make (struct
     let kind, uri = run_server ~sw ~clock `Websocket
   end) in
-  let slow = Sys.getenv_opt "SLOW" |> Option.is_some in
-  let only = Sys.getenv_opt "ONLY" in
-  let tests =
-    match only with
-    | Some "ws" -> [ (`Quick, Websocket.suite ()) ]
-    | Some "tcp" -> [ (`Quick, Tcp_socket.suite ()) ]
-    | Some "unix" -> [ (`Quick, Unix_socket.suite ()) ]
-    | Some s -> failwith ("Invalid selection: " ^ s)
-    | None ->
-        [
-          (`Quick, Tcp_socket.suite ());
-          (`Quick, Unix_socket.suite ());
-          (`Quick, Websocket.suite ());
-        ]
+  let tests = Websocket.suite () in
+  Irmin_test.Store.run "irmin-server.ws" ~and_exit:false ~sleep:Eio_unix.sleep
+    ~misc:[]
+    [ (`Quick, tests) ]
+
+let main ~env () =
+  let suites =
+    [ ("tcp", tcp_suite); ("unix", unix_suite); ("ws", websocket_suite) ]
   in
-  Irmin_test.Store.run "irmin-server" ~sleep:Eio_unix.sleep ~slow
-    ~misc:(misc client) tests
+  match Sys.getenv_opt "ONLY" with
+  | None -> List.iter (fun (_, suite) -> suite ~env ()) suites
+  | Some suite_name -> (
+      match List.assoc_opt suite_name suites with
+      | Some suite -> suite ~env ()
+      | None -> failwith ("Invalid selection: " ^ suite_name))
 
 let () =
   Eio_main.run @@ fun env ->

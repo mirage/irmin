@@ -63,6 +63,7 @@ val checks : 'a Irmin.Type.t -> string -> 'a list -> 'a list -> unit
 module Store : sig
   val run :
     string ->
+    ?and_exit:bool ->
     ?slow:bool ->
     ?random_seed:int ->
     sleep:(float -> unit) ->
