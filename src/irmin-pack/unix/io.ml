@@ -25,13 +25,6 @@ module Errors = Irmin_pack_io.Errors
    implementation will not read/write more than a constant called
    [UNIX_BUFFER_SIZE]. *)
 
-(* let ref_sw = ref None
-   let set_sw t = ref_sw := Some t
-   let sw () = Option.get !ref_sw *)
-let ref_env = ref None
-let set_env t = ref_env := Some t
-let env () = Option.get !ref_env
-
 (** TODO *)
 module Util = struct
   let really_write fd file_offset buffer buffer_offset length =
@@ -100,19 +93,21 @@ module Unix = struct
     | RO file -> file
     | RW file -> (file :> Eio.File.ro_ty Eio.Resource.t)
 
-  type t = { file : file; mutable closed : bool; path : string }
+  type t = {
+    file : file;
+    mutable closed : bool;
+    path : Eio.Fs.dir_ty Eio.Path.t;
+  }
 
   let classify_path path =
-    let open Eio.Path in
-    let eio_path = env () / path in
-    match Eio.Path.kind ~follow:false eio_path with
+    match Eio.Path.kind ~follow:false path with
     | `Regular_file -> `File
     | `Directory -> `Directory
     | `Not_found -> `No_such_file_or_directory
     | _ -> `Other
 
   (** TODO *)
-  let readdir p = Sys.readdir p |> Array.to_list
+  let readdir p = Eio.Path.read_dir p
 
   let default_create_perm = 0o644
   (* let default_open_perm = 0o644 *)
@@ -122,15 +117,13 @@ module Unix = struct
 
   (** TODO *)
   let create ~sw ~path ~overwrite =
-    let open Eio.Path in
-    let eio_path = env () / path in
     try
-      match Eio.Path.kind ~follow:false eio_path with
+      match Eio.Path.kind ~follow:false path with
       | `Not_found ->
           let file =
             RW
               (Eio.Path.open_out ~sw ~create:(`Exclusive default_create_perm)
-                 eio_path)
+                 path)
           in
           Ok { file; closed = false; path }
       | `Regular_file -> (
@@ -141,31 +134,30 @@ module Unix = struct
               let file =
                 RW
                   (Eio.Path.open_out ~sw
-                     ~create:(`Or_truncate default_create_perm) eio_path)
+                     ~create:(`Or_truncate default_create_perm) path)
               in
               Ok { file; closed = false; path }
-          | false -> Error (`File_exists path))
+          | false -> Error (`File_exists (Eio.Path.native_exn path)))
       | _ -> assert false
     with
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)) (* TODO *)
     | Sys_error _ -> assert false
 
   let open_ ~sw ~path ~readonly =
-    let open Eio.Path in
-    let eio_path = env () / path in
-    match Eio.Path.kind ~follow:false eio_path with
-    | `Not_found -> Error (`No_such_file_or_directory path)
+    match Eio.Path.kind ~follow:false path with
+    | `Not_found ->
+        Error (`No_such_file_or_directory (Eio.Path.native_exn path))
     | `Regular_file -> (
         match readonly with
         | true -> (
             try
-              let file = RO (Eio.Path.open_in ~sw eio_path) in
+              let file = RO (Eio.Path.open_in ~sw path) in
               Ok { file; closed = false; path }
             with Unix.Unix_error (e, s1, s2) ->
               Error (`Io_misc (e, s1, s2)) (* TODO *))
         | false -> (
             try
-              let file = RW (Eio.Path.open_out ~sw ~create:`Never eio_path) in
+              let file = RW (Eio.Path.open_out ~sw ~create:`Never path) in
               Ok { file; closed = false; path }
             with Unix.Unix_error (e, s1, s2) ->
               Error (`Io_misc (e, s1, s2)) (* TODO *)))
@@ -310,51 +302,51 @@ module Unix = struct
   let readonly t = match t.file with RO _ -> true | RW _ -> false
   let path t = t.path
 
-  (** TODO *)
   let move_file ~src ~dst =
     try
-      Sys.rename src dst;
+      Eio.Path.rename src dst;
       Ok ()
-    with Sys_error msg -> Error (`Sys_error msg)
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
-  (** TODO *)
   let copy_file ~src ~dst =
-    let cmd = Filename.quote_command "cp" [ "-p"; src; dst ] in
-    match Sys.command cmd with
-    | 0 -> Ok ()
-    | n -> Error (`Sys_error (Int.to_string n))
+    let stats = Eio.Path.stat ~follow:false src in
+    try
+      Eio.Path.with_open_in src (fun in_flow ->
+          Eio.Path.with_open_out ~create:(`Or_truncate stats.perm) dst
+            (fun out_flow -> Eio.Flow.copy in_flow out_flow));
+      Ok ()
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
   (** TODO *)
   let mkdir path =
-    let open Eio.Path in
-    let eio_path = env () / path in
-    let dirname, _ = Option.get @@ Eio.Path.split eio_path in
+    let dirname, _ = Option.get @@ Eio.Path.split path in
     match
-      (Eio.Path.kind ~follow:false dirname, Eio.Path.kind ~follow:false eio_path)
+      (Eio.Path.kind ~follow:false dirname, Eio.Path.kind ~follow:false path)
     with
     | `Directory, `Not_found -> (
         try
-          Eio.Path.mkdir ~perm:default_mkdir_perm eio_path;
+          Eio.Path.mkdir ~perm:default_mkdir_perm path;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-    | `Directory, _ -> Error (`File_exists path)
-    | `Not_found, `Not_found -> Error (`No_such_file_or_directory path)
+    | `Directory, _ -> Error (`File_exists (Eio.Path.native_exn path))
+    | `Not_found, `Not_found ->
+        Error (`No_such_file_or_directory (Eio.Path.native_exn path))
     | _ -> Error `Invalid_parent_directory
 
-  (** TODO *)
-  let rmdir path = Sys.rmdir path
+  let rmdir path = Eio.Path.rmdir path
 
-  (** TODO *)
   let unlink path =
     try
-      Sys.remove path;
+      Eio.Path.unlink path;
       Ok ()
-    with Sys_error msg -> Error (`Sys_error msg)
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
-  (** TODO *)
-  let unlink_dont_wait ~on_exn path =
-    (* TODO: Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn *)
-    try Sys.remove path with err -> on_exn err
+  let unlink_dont_wait ~on_exn ~sw path =
+    Eio.Fiber.fork ~sw (fun () ->
+        try Eio.Path.unlink path with err -> on_exn err)
 
   (** TODO *)
   module Stats = struct

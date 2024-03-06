@@ -94,8 +94,8 @@ and ( and&* ) l m = List.concat_map (fun a -> List.map (fun b -> (a, b)) m) l
 let ( >> ) f g x = g (f x)
 let c ?(info = Metadata.default) blob = `Contents (blob, info)
 
-let invalid_tree ~sw =
-  let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
+let invalid_tree ~sw ~fs =
+  let repo = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) in
   let hash = Store.Hash.hash (fun f -> f "") in
   Tree.shallow repo (`Node hash)
 
@@ -177,7 +177,7 @@ let test_diff () =
        "Changed metadata"
        [ ([ "k" ], `Updated (("v", Left), ("v", Right))) ]
 
-let test_empty () =
+let test_empty ~fs () =
   Eio.Switch.run @@ fun sw ->
   let () =
     Alcotest.check_tree_lwt "The empty tree is empty" ~expected:(`Tree [])
@@ -190,7 +190,7 @@ let test_empty () =
      shared cache state and any keys obtained from [export] were discarded (to
      avoid sharing keys from different repositories). *)
   let () =
-    let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
+    let repo = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) in
     let empty_exported = Tree.empty () and empty_not_exported = Tree.empty () in
     let () =
       Store.Backend.Repo.batch repo (fun c n _ ->
@@ -304,7 +304,7 @@ let transform_once : type a b. a Type.t -> a -> b -> a -> b =
       if equal source x then target
       else Alcotest.failf "Expected %a but got %a" pp source pp x
 
-let test_update () =
+let test_update ~fs () =
   Eio.Switch.run @@ fun sw ->
   let unrelated_binding = ("a_unrelated", c "<>") in
   let abc ?info v =
@@ -340,7 +340,7 @@ let test_update () =
   let () =
     (* Replacing a root node with a dangling hash does not raise an
        exception. *)
-    let invalid_tree = invalid_tree ~sw in
+    let invalid_tree = invalid_tree ~sw ~fs in
     Tree.update_tree abc1 [] (function
       | Some _ -> Some invalid_tree
       | None -> assert false)
@@ -462,17 +462,17 @@ let test_update () =
 let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
 
 (* Take a tree and persist it to some underlying store, making it lazy. *)
-let persist_tree ?clear : Store.tree -> Store.tree =
+let persist_tree ~fs ?clear : Store.tree -> Store.tree =
  fun tree ->
   Fmt.pr "persist_tree@.";
   Eio.Switch.run @@ fun sw ->
-  let store = Store.Repo.v ~sw (Irmin_mem.config ()) |> Store.empty in
+  let store = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) |> Store.empty in
   let () = Store.set_tree_exn ?clear ~info:Store.Info.none store [] tree in
   Store.tree store
 
 type path = Store.Path.t [@@deriving irmin ~pp ~equal]
 
-let test_clear () =
+let test_clear ~fs () =
   (* 1. Build a tree *)
   let size = 830829 in
   let t =
@@ -511,7 +511,7 @@ let test_clear () =
     Tree.fold ~force:(`False dont_skip) entry42 ()
   in
   (* 3. Persist (and implicitly clear) *)
-  let _ = persist_tree t in
+  let _ = persist_tree ~fs t in
   (* Check the state of the root *)
   Alcotest.(check inspect) "After persist+clear" (`Node `Key) (Tree.inspect t);
   let () =
@@ -521,7 +521,7 @@ let test_clear () =
   in
   ()
 
-let test_minimal_reads () =
+let test_minimal_reads ~fs () =
   let persist_tree = persist_tree in
   (* 1. Build a tree *)
   let size = 10 in
@@ -532,14 +532,14 @@ let test_minimal_reads () =
 
   (* Persist with no clear *)
   Tree.reset_counters ();
-  let _ = persist_tree ~clear:false t in
+  let _ = persist_tree ~fs ~clear:false t in
   let _ = Tree.find t [ "0" ] in
   let cnt = Tree.counters () in
   Alcotest.(check int) "no reads" 0 cnt.node_find;
 
   (* Persist with clear *)
   Tree.reset_counters ();
-  let _ = persist_tree ~clear:true t in
+  let _ = persist_tree ~fs ~clear:true t in
   Fmt.pr "Hello@.";
   let _ = Tree.find_tree t [ "0" ] in
   Fmt.pr "Hello@.";
@@ -548,17 +548,17 @@ let test_minimal_reads () =
 
 let with_binding k v t = Tree.add_tree t k v
 
-let clear_and_assert_lazy tree =
-  let _ = persist_tree tree in
+let clear_and_assert_lazy ~fs tree =
+  let _ = persist_tree ~fs tree in
   Tree.clear tree;
   Tree.stats ~force:false tree
   |> Alcotest.(gcheck Tree.stats_t)
        "Initially the tree is entirely lazy" lazy_stats
 
-let test_fold_force () =
+let test_fold_force ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let invalid_tree ~sw =
-    let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
+  let invalid_tree ~sw ~fs =
+    let repo = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) in
     let hash = Store.Hash.hash (fun f -> f "") in
     Tree.shallow repo (`Node hash)
   in
@@ -568,8 +568,8 @@ let test_fold_force () =
   let () =
     let tree =
       Tree.singleton [ "existing"; "subtree" ] "value"
-      |> with_binding [ "dangling"; "subtree"; "hash" ] (invalid_tree ~sw)
-      |> with_binding [ "other"; "lazy"; "path" ] (invalid_tree ~sw)
+      |> with_binding [ "dangling"; "subtree"; "hash" ] (invalid_tree ~sw ~fs)
+      |> with_binding [ "other"; "lazy"; "path" ] (invalid_tree ~sw ~fs)
     in
     let force = `False List.cons in
     Tree.fold ~force tree []
@@ -593,7 +593,7 @@ let test_fold_force () =
   (* Ensure that [fold ~force:`True ~cache:true] forces all lazy trees. *)
   let () =
     let sample_tree = create_sample_tree () in
-    let () = clear_and_assert_lazy sample_tree in
+    let () = clear_and_assert_lazy ~fs sample_tree in
     Tree.fold ~force:`True ~cache:true sample_tree ();
     Tree.stats ~force:false sample_tree
     |> Alcotest.(gcheck Tree.stats_t)
@@ -604,7 +604,7 @@ let test_fold_force () =
      not leave them cached. *)
   let () =
     let sample_tree = create_sample_tree () in
-    clear_and_assert_lazy sample_tree;
+    clear_and_assert_lazy ~fs sample_tree;
     let contents =
       Tree.fold ~force:`True ~cache:false
         ~contents:(fun _ -> List.cons)
@@ -625,7 +625,7 @@ let test_fold_force () =
      updated values only once and does not visit removed values. *)
   let () =
     let sample_tree = create_sample_tree () in
-    let () = clear_and_assert_lazy sample_tree in
+    let () = clear_and_assert_lazy ~fs sample_tree in
     Tree.remove sample_tree [ "a"; "ab" ] |> fun updated_tree ->
     Tree.add updated_tree [ "a"; "ad" ] "v-ad" |> fun updated_tree ->
     Tree.add updated_tree [ "a"; "ac" ] "v-acc" |> fun updated_tree ->
@@ -660,9 +660,9 @@ let test_fold_force () =
    - pruned trees (hash-only tree nodes, with no underlying repository).
      Attempted dereferences should raise [Pruned_hash]. *)
 module Broken = struct
-  let shallow_of_ptr kinded_key =
+  let shallow_of_ptr ~fs kinded_key =
     Eio.Switch.run @@ fun sw ->
-    let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
+    let repo = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) in
     Tree.shallow repo kinded_key
 
   let pruned_of_ptr kinded_hash = Tree.pruned kinded_hash
@@ -678,11 +678,11 @@ module Broken = struct
     let value_ptr = `Node (Tree.hash value) in
     (value, value_ptr)
 
-  let test_hashes () =
+  let test_hashes ~fs () =
     let&* leaf_type, (leaf, leaf_ptr) =
       [ ("contents", random_contents ()); ("node", random_node ()) ]
     and&* operation_name, operation =
-      [ ("shallow", shallow_of_ptr); ("pruned", pruned_of_ptr) ]
+      [ ("shallow", shallow_of_ptr ~fs); ("pruned", pruned_of_ptr) ]
     and&* path = [ []; [ "k" ] ] in
     let leaf_broken = operation leaf_ptr in
     let hash_actual = Tree.(add_tree (empty ())) path leaf |> Tree.hash in
@@ -698,7 +698,7 @@ module Broken = struct
          path leaf_type)
       hash_expected hash_actual
 
-  let test_trees () =
+  let test_trees ~fs () =
     let run_tests ~exn_type ~broken_contents ~broken_node ~path =
       [%logs.app
         "Testing operations on a tree with a broken position at %a" pp_path path];
@@ -768,13 +768,13 @@ module Broken = struct
     in
     let&* path = [ []; [ "k" ] ]
     and&* exn_type, tree_of_ptr =
-      [ (`Dangling_hash, shallow_of_ptr); (`Pruned_hash, pruned_of_ptr) ]
+      [ (`Dangling_hash, shallow_of_ptr ~fs); (`Pruned_hash, pruned_of_ptr) ]
     in
     let broken_contents = tree_of_ptr (snd (random_contents ())) in
     let broken_node = tree_of_ptr (snd (random_node ())) in
     run_tests ~exn_type ~broken_contents ~broken_node ~path
 
-  let test_pruned_fold () =
+  let test_pruned_fold ~fs () =
     Eio.Switch.run @@ fun sw ->
     let&* _, ptr = [ random_contents (); random_node () ]
     and&* path = [ []; [ "k" ] ] in
@@ -790,7 +790,7 @@ module Broken = struct
     let () = Tree.fold ~force:(`False (fun _ -> Fun.id)) tree () in
 
     (* Similarly, attempting to export a pruned tree should fail: *)
-    let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
+    let repo = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) in
     check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
         Store.Backend.Repo.batch repo (fun c n _ ->
             Store.save_tree repo c n tree |> ignore))
@@ -806,16 +806,16 @@ let test_kind_empty_path () =
   Alcotest.(check (option (gtestable kind_t)))
     "Kind of empty path in tree" (Some `Node) k
 
-let test_generic_equality () =
+let test_generic_equality ~fs () =
   (* Regression test for a bug in which the equality derived from [tree_t] did
      not respect equivalences between in-memory trees and lazy trees. *)
-  let tree = persist_tree (tree [ ("k", c "v") ]) in
+  let tree = persist_tree ~fs (tree [ ("k", c "v") ]) in
   let should_be_empty = Tree.remove tree [ "k" ] in
   Alcotest.(gcheck Store.tree_t)
     "Modified empty tree is equal to [(Tree.empty ())]" (Tree.empty ())
     should_be_empty
 
-let test_is_empty () =
+let test_is_empty ~fs () =
   (* Test for equivalence against an [is_equal] derived from generic equality,
      for backwards compatibility. *)
   let is_empty =
@@ -835,7 +835,7 @@ let test_is_empty () =
     Alcotest.(check bool) "emptied tree" true (is_empty tree)
   in
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Irmin_mem.config ()) in
+  let repo = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) in
   let () =
     let shallow_empty = Tree.(shallow repo (`Node (hash (empty ())))) in
     Alcotest.(check bool) "shallow empty tree" true (is_empty shallow_empty)
@@ -866,23 +866,23 @@ let test_of_concrete () =
 
   ()
 
-let suite =
+let suite ~fs =
   [
     Alcotest.test_case "bindings" `Quick test_bindings;
     Alcotest.test_case "paginated bindings" `Quick test_paginated_bindings;
     Alcotest.test_case "diff" `Quick test_diff;
-    Alcotest.test_case "empty" `Quick test_empty;
+    Alcotest.test_case "empty" `Quick (test_empty ~fs);
     Alcotest.test_case "add" `Quick test_add;
     Alcotest.test_case "remove" `Quick test_remove;
-    Alcotest.test_case "update" `Quick test_update;
-    Alcotest.test_case "clear" `Quick test_clear;
-    Alcotest.test_case "minimal_reads" `Quick test_minimal_reads;
-    Alcotest.test_case "fold" `Quick test_fold_force;
-    Alcotest.test_case "Broken.hashes" `Quick Broken.test_hashes;
-    Alcotest.test_case "Broken.trees" `Quick Broken.test_trees;
-    Alcotest.test_case "Broken.pruned_fold" `Quick Broken.test_pruned_fold;
+    Alcotest.test_case "update" `Quick (test_update ~fs);
+    Alcotest.test_case "clear" `Quick (test_clear ~fs);
+    Alcotest.test_case "minimal_reads" `Quick (test_minimal_reads ~fs);
+    Alcotest.test_case "fold" `Quick (test_fold_force ~fs);
+    Alcotest.test_case "Broken.hashes" `Quick (Broken.test_hashes ~fs);
+    Alcotest.test_case "Broken.trees" `Quick (Broken.test_trees ~fs);
+    Alcotest.test_case "Broken.pruned_fold" `Quick (Broken.test_pruned_fold ~fs);
     Alcotest.test_case "kind of empty path" `Quick test_kind_empty_path;
-    Alcotest.test_case "generic equality" `Quick test_generic_equality;
-    Alcotest.test_case "is_empty" `Quick test_is_empty;
+    Alcotest.test_case "generic equality" `Quick (test_generic_equality ~fs);
+    Alcotest.test_case "is_empty" `Quick (test_is_empty ~fs);
     Alcotest.test_case "of_concrete" `Quick test_of_concrete;
   ]

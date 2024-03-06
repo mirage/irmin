@@ -96,6 +96,7 @@ module type S = sig
 
   val create_rw :
     sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     overwrite:bool ->
     Irmin.Backend.Conf.t ->
     (t, [> create_error ]) result
@@ -141,7 +142,10 @@ module type S = sig
     | `Pending_flush ]
 
   val open_rw :
-    sw:Eio.Switch.t -> Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    Irmin.Backend.Conf.t ->
+    (t, [> open_rw_error ]) result
   (** Create a rw instance of [t] by opening existing files.
 
       If the pack store has already been garbage collected, opening with a
@@ -180,7 +184,10 @@ module type S = sig
     | `Volume_missing of string ]
 
   val open_ro :
-    sw:Eio.Switch.t -> Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    Irmin.Backend.Conf.t ->
+    (t, [> open_ro_error ]) result
   (** Create a ro instance of [t] by opening existing files.
 
       Note on SWMR consistency: [open_ro] is supposed to work whichever the
@@ -258,7 +265,7 @@ module type S = sig
 
   val version :
     sw:Eio.Switch.t ->
-    root:string ->
+    root:Eio.Fs.dir_ty Eio.Path.t ->
     (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 

@@ -74,7 +74,7 @@ type store = S of (module S) | Generic_key of (module Generic_key)
 type t = {
   name : string;
   init : config:Irmin.config -> unit;
-  clean : config:Irmin.config -> unit;
+  clean : fs:Eio.Fs.dir_ty Eio.Path.t -> config:Irmin.config -> unit;
   config : Irmin.config;
   store : store;
   stats : (unit -> int * int) option;
@@ -92,14 +92,14 @@ type t = {
 module Suite = struct
   type nonrec t = t
 
-  let default_clean ~config ~store =
+  let default_clean ~fs ~config ~store =
     Eio.Switch.run @@ fun sw ->
     let (module Store : Generic_key) =
       match store with
       | Generic_key x -> x
       | S (module S) -> (module S : Generic_key)
     in
-    let repo = Store.Repo.v ~sw config in
+    let repo = Store.Repo.v ~sw ~fs config in
     let branches = Store.Repo.branches repo in
     let () =
       List.map (fun br () -> Store.Branch.remove repo br) branches
@@ -133,7 +133,8 @@ module Suite = struct
 end
 
 module type Store_tests = functor (S : Generic_key) -> sig
-  val tests : (string * (Suite.t -> unit -> unit)) list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t -> (string * (Suite.t -> unit -> unit)) list
 end
 
 module Make_helpers (S : Generic_key) = struct
@@ -215,7 +216,7 @@ module Make_helpers (S : Generic_key) = struct
 
   let ignore_thunk_errors f = try f () with _ -> ()
 
-  let run (x : Suite.t) test =
+  let run ~fs (x : Suite.t) test =
     Eio.Switch.run @@ fun sw ->
     let repo_ptr = ref None in
     let config_ptr = ref None in
@@ -235,7 +236,7 @@ module Make_helpers (S : Generic_key) = struct
       let config = generate_random_root x.config in
       config_ptr := Some config;
       let () = x.init ~config in
-      let repo = S.Repo.v ~sw config in
+      let repo = S.Repo.v ~sw ~fs config in
       repo_ptr := Some repo;
       let () = test repo in
       let () =
@@ -244,7 +245,7 @@ module Make_helpers (S : Generic_key) = struct
            support double closes. *)
         ignore_thunk_errors (fun () -> S.Repo.close repo)
       in
-      x.clean ~config
+      x.clean ~fs ~config
     with exn ->
       (* [test] failed, attempt an errorless cleanup and forward the right
          backtrace to the user. *)
@@ -256,7 +257,7 @@ module Make_helpers (S : Generic_key) = struct
       in
       let () =
         match !config_ptr with
-        | Some config -> ignore_thunk_errors (fun () -> x.clean ~config)
+        | Some config -> ignore_thunk_errors (fun () -> x.clean ~fs ~config)
         | None -> ()
       in
       Printexc.raise_with_backtrace exn bt

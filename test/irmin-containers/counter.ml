@@ -28,9 +28,9 @@ let config ~sw root =
 
 let merge_into_exn = merge_into_exn (module C.Store)
 
-let test_inc () =
+let test_inc ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> C.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> C.Store.main in
   C.inc ~path t;
   let () =
     C.read ~path t
@@ -39,9 +39,9 @@ let test_inc () =
   C.inc ~by:2L ~path t;
   C.read ~path t |> Alcotest.(check int64) "checked - increment using by" 3L
 
-let test_dec () =
+let test_dec ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> C.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> C.Store.main in
   C.dec ~path t;
   let () =
     C.read ~path t
@@ -50,9 +50,9 @@ let test_dec () =
   C.dec ~by:2L ~path t;
   C.read ~path t |> Alcotest.(check int64) "checked - decrement using by" (-3L)
 
-let test_clone_merge () =
+let test_clone_merge ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> C.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> C.Store.main in
   C.inc ~by:5L ~path t;
   let b = C.Store.clone ~src:t ~dst:"cl" in
   C.inc ~by:2L ~path b;
@@ -67,9 +67,9 @@ let test_clone_merge () =
   C.read t ~path
   |> Alcotest.(check int64) "checked - value of main after merging" 3L
 
-let test_branch_merge () =
+let test_branch_merge ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let r = config ~sw __FUNCTION__ in
+  let r = config ~sw ~fs __FUNCTION__ in
   let b1 = C.Store.of_branch r "b1" in
   let b2 = C.Store.of_branch r "b2" in
   let b3 = C.Store.of_branch r "b3" in
@@ -85,16 +85,16 @@ let test_branch_merge () =
   in
   C.read ~path b4 |> Alcotest.(check int64) "checked - value of b4" 3L
 
-let test_cases =
+let test_cases ~fs =
   [
     ( "counter",
       [
-        Alcotest.test_case "Increment" `Quick test_inc;
-        Alcotest.test_case "Decrement" `Quick test_dec;
+        Alcotest.test_case "Increment" `Quick (test_inc ~fs);
+        Alcotest.test_case "Decrement" `Quick (test_dec ~fs);
       ] );
     ( "counter store",
       [
-        Alcotest.test_case "Clone and merge" `Quick test_clone_merge;
-        Alcotest.test_case "Branch and merge" `Quick test_branch_merge;
+        Alcotest.test_case "Clone and merge" `Quick (test_clone_merge ~fs);
+        Alcotest.test_case "Branch and merge" `Quick (test_branch_merge ~fs);
       ] );
   ]

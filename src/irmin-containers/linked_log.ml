@@ -39,20 +39,18 @@ struct
   module S = Store_item (T) (H) (V)
 
   module Store = struct
-    module CAS = C.Make (H) (Store_item (T) (H) (V))
-
     let store = ref None
 
-    (* TODO: Fix me *)
-    let get_store () =
-      match !store with
-      | None ->
-          Eio.Switch.run @@ fun sw ->
-          let st = CAS.v ~sw @@ C.config in
-          store := Some st;
-          st
-      | Some st -> st
+    module CAS = struct
+      include C.Make (H) (Store_item (T) (H) (V))
 
+      let v ~sw ~fs config =
+        let st = v ~sw ~fs config in
+        store := Some st;
+        st
+    end
+
+    let get_store () = match !store with None -> assert false | Some st -> st
     let read st k = CAS.find st k
 
     let read_exn st k =
@@ -96,6 +94,7 @@ module type S = sig
 
   type cursor
 
+  val init : sw:Eio.Switch.t -> fs:Eio.Fs.dir_ty Eio.Path.t -> unit
   val get_cursor : path:Store.path -> Store.t -> cursor
   val read : num_items:int -> cursor -> value list * cursor
 end
@@ -127,6 +126,7 @@ struct
     store : Store.t;
   }
 
+  let init ~sw ~fs = ignore @@ L.Store.CAS.v ~sw ~fs C.config
   let empty_info = Store.Info.none
 
   let append ~path t e =

@@ -48,14 +48,14 @@ module type S = sig
 
   val create_rw :
     sw:Eio.Switch.t ->
-    root:string ->
+    root:Eio.Fs.dir_ty Eio.Path.t ->
     start_idx:int ->
     overwrite:bool ->
     (t, [> create_error ]) result
 
   val open_rw :
     sw:Eio.Switch.t ->
-    root:string ->
+    root:Eio.Fs.dir_ty Eio.Path.t ->
     appendable_chunk_poff:int63 ->
     start_idx:int ->
     chunk_num:int ->
@@ -64,7 +64,7 @@ module type S = sig
 
   val open_ro :
     sw:Eio.Switch.t ->
-    root:string ->
+    root:Eio.Fs.dir_ty Eio.Path.t ->
     appendable_chunk_poff:int63 ->
     dead_header_size:int ->
     start_idx:int ->

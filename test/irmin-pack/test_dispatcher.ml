@@ -24,7 +24,7 @@ let src = Logs.Src.create "tests.dispatcher" ~doc:"Test dispatcher"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let setup_store domain_mgr () =
+let setup_store ~fs domain_mgr () =
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let config = S.config root in
@@ -34,7 +34,7 @@ let setup_store domain_mgr () =
   let t = S.checkout_exn t c2 in
   let t, _c3 = S.commit_3 t in
   [%log.debug "Gc c1, keep c2, c3"];
-  let () = S.start_gc domain_mgr t c2 in
+  let () = S.start_gc ~fs ~domain_mgr t c2 in
   let () = S.finalise_gc t in
   let () = S.close t in
   config
@@ -76,10 +76,10 @@ let check_hex msg buf expected =
     msg expected
     (Bytes.to_string buf |> Hex.of_string |> Hex.show)
 
-let test_read domain_mgr () =
+let test_read ~fs ~domain_mgr () =
   Eio.Switch.run @@ fun sw ->
-  let config = setup_store domain_mgr () in
-  let fm = File_manager.open_ro ~sw config |> Errs.raise_if_error in
+  let config = setup_store ~fs domain_mgr () in
+  let fm = File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error in
   let dsp = Dispatcher.v fm |> Errs.raise_if_error in
   let _ =
     Alcotest.check_raises "cannot read node_1"
@@ -101,5 +101,5 @@ let test_read domain_mgr () =
 
   File_manager.close fm |> Errs.raise_if_error
 
-let tests domain_mgr =
-  [ Alcotest.test_case "read" `Quick (test_read domain_mgr) ]
+let tests ~fs ~domain_mgr =
+  [ Alcotest.test_case "read" `Quick (test_read ~fs ~domain_mgr) ]

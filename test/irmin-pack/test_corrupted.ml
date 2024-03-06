@@ -47,11 +47,11 @@ let write_file path contents =
       flush ch;
       close_out ch)
 
-let test_corrupted_control_file () =
+let test_corrupted_control_file ~fs () =
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let control_file_path = Filename.concat root "store.control" in
-  let repo = Store.Repo.v ~sw (config ~fresh:true root) in
+  let repo = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
   let control_file_blob0 = read_file control_file_path in
   let store = Store.main repo in
   let () = Store.set_exn ~info store [ "a" ] "b" in
@@ -70,7 +70,7 @@ let test_corrupted_control_file () =
   assert (not (String.equal control_file_blob1 control_file_mix));
   write_file control_file_path control_file_mix;
   let error =
-    try Ok (Store.Repo.v ~sw (config ~fresh:false root) : Store.Repo.t)
+    try Ok (Store.Repo.v ~sw ~fs (config ~fresh:false root) : Store.Repo.t)
     with exn -> Error exn
   in
   match error with
@@ -79,8 +79,8 @@ let test_corrupted_control_file () =
         "path is corrupted" s "_build/test-corrupted/store.control"
   | _ -> Alcotest.fail "unexpected error"
 
-let tests =
+let tests ~fs =
   [
     Alcotest.test_case "Corrupted control file" `Quick
-      test_corrupted_control_file;
+      (test_corrupted_control_file ~fs);
   ]

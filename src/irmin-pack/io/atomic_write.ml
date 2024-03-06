@@ -198,7 +198,7 @@ struct
       Tbl.add t.index k offset
 
   let set t k v =
-    [%log.debug "[branches %s] set %a" (Io.path t.block) pp_key k];
+    [%log.debug "[branches %a] set %a" Eio.Path.pp (Io.path t.block) pp_key k];
     unsafe_set t k v;
     W.notify t.w k (Some v)
 

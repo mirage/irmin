@@ -557,34 +557,34 @@ module Layout = struct
     ]
 end
 
-let misc d_mgr =
+let misc ~fs ~domain_mgr =
   [
     ("hashes", Test_hashes.tests);
     ("dict-files", Dict.tests);
     ("pack-files", Pack.tests);
     ("branch-files", Branch.tests);
     ("read-only", Test_readonly.tests);
-    ("existing stores", Test_existing_stores.tests d_mgr);
+    ("existing stores", Test_existing_stores.tests ~domain_mgr);
     ("inodes", Test_inode.tests);
     ("trees", Test_tree.tests);
     ("version-bump", Test_pack_version_bump.tests);
-    ("snapshot", Test_snapshot.tests d_mgr);
-    ("upgrade", Test_upgrade.tests d_mgr);
-    ("gc", Test_gc.Gc.tests d_mgr);
-    ("concurrent gc", Test_gc.Concurrent_gc.tests d_mgr);
-    ("gc archival", Test_gc.Gc_archival.tests d_mgr);
-    ("split", Test_gc.Split.tests d_mgr);
+    ("snapshot", Test_snapshot.tests ~domain_mgr);
+    ("upgrade", Test_upgrade.tests ~domain_mgr);
+    ("gc", Test_gc.Gc.tests ~domain_mgr);
+    ("concurrent gc", Test_gc.Concurrent_gc.tests ~domain_mgr);
+    ("gc archival", Test_gc.Gc_archival.tests ~domain_mgr);
+    ("split", Test_gc.Split.tests ~domain_mgr);
     ("flush", Test_flush_reload.tests);
     ("ranges", Test_ranges.tests);
     ("mapping", Test_mapping.tests);
     ("test_nearest_geq", Test_nearest_geq.tests);
     ("layout", Layout.tests);
-    ("dispatcher", Test_dispatcher.tests d_mgr);
+    ("dispatcher", Test_dispatcher.tests ~fs ~domain_mgr);
     ("corrupted", Test_corrupted.tests);
-    ("snapshot_gc", Test_gc.Snapshot.tests d_mgr);
-    ("async tasks", Test_async.tests d_mgr);
+    ("snapshot_gc", Test_gc.Snapshot.tests ~domain_mgr);
+    ("async tasks", Test_async.tests ~domain_mgr);
     ("indexing strategy", Test_indexing_strategy.tests);
     ("lower: direct", Test_lower.Direct.tests);
-    ("lower: store", Test_lower.Store.tests d_mgr);
-    ("multicore", Test_multicore.tests d_mgr);
+    ("lower: store", Test_lower.Store.tests ~domain_mgr);
+    ("multicore", Test_multicore.tests ~domain_mgr);
   ]

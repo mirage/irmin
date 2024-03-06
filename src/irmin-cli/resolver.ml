@@ -564,7 +564,7 @@ let get_commit (type a b)
   | None -> of_string (find_key config "commit")
   | Some t -> of_string (Some t)
 
-let build_irmin_config ~sw config root opts (store, hash, contents) branch
+let build_irmin_config ~sw ~fs config root opts (store, hash, contents) branch
     commit plugin : store =
   let (T { impl; spec; remote }) =
     get_store ?plugin config (store, hash, contents)
@@ -595,14 +595,14 @@ let build_irmin_config ~sw config root opts (store, hash, contents) branch
   let spec () =
     match (branch, commit) with
     | _, Some hash -> (
-        let repo = S.Repo.v ~sw config in
+        let repo = S.Repo.v ~sw ~fs config in
         let commit = S.Commit.of_hash repo hash in
         match commit with
         | None -> invalid_arg "unknown commit"
         | Some c -> S.of_commit c)
-    | None, None -> S.Repo.v ~sw config |> S.main
+    | None, None -> S.Repo.v ~sw ~fs config |> S.main
     | Some b, None ->
-        let repo = S.Repo.v ~sw config in
+        let repo = S.Repo.v ~sw ~fs config in
         S.of_branch repo b
   in
   S (impl, spec, remote)
@@ -626,10 +626,10 @@ let plugin =
   let doc = "Register new contents, store or hash types" in
   Arg.(value & opt (some string) None & info ~doc [ "plugin" ])
 
-let store () =
+let store ~fs () =
   let create plugin store (root, config_path, opts) branch commit =
     let y = read_config_file config_path in
-    fun ~sw -> build_irmin_config ~sw y root opts store branch commit plugin
+    fun ~sw -> build_irmin_config ~sw ~fs y root opts store branch commit plugin
   in
   Term.(const create $ plugin $ Store.term () $ config_term $ branch $ commit)
 
@@ -653,7 +653,7 @@ type Irmin.remote += R of Cohttp.Header.t option * string
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
    alias. *)
-let infer_remote ~sw hash contents branch headers str =
+let infer_remote ~sw ~fs hash contents branch headers str =
   let hash = match hash with None -> snd !Hash.default | Some c -> c in
   let contents =
     match contents with
@@ -677,7 +677,7 @@ let infer_remote ~sw hash contents branch headers str =
               Conf.add config r v
           | _ -> config
         in
-        let repo = R.Repo.v ~sw config in
+        let repo = R.Repo.v ~sw ~fs config in
         let branch =
           match branch with
           | Some b -> Irmin.Type.of_string R.branch_t b |> Result.get_ok
@@ -691,7 +691,7 @@ let infer_remote ~sw hash contents branch headers str =
     in
     R (headers, str)
 
-let remote () =
+let remote ~fs () =
   let repo =
     let doc =
       Arg.info ~docv:"REMOTE"
@@ -703,10 +703,10 @@ let remote () =
       headers str =
     let y = read_config_file config_path in
     let store ~sw =
-      build_irmin_config ~sw y root opts (store, hash, contents) branch commit
-        None
+      build_irmin_config ~sw ~fs y root opts (store, hash, contents) branch
+        commit None
     in
-    let remote ~sw () = infer_remote ~sw hash contents branch headers str in
+    let remote ~sw () = infer_remote ~sw ~fs hash contents branch headers str in
     fun ~sw -> (store ~sw, remote ~sw)
   in
   Term.(

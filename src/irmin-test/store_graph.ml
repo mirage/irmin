@@ -20,8 +20,8 @@ open Common
 module Make (S : Generic_key) = struct
   include Common.Make_helpers (S)
 
-  let test_iter x () =
-    let test repo =
+  let test_iter ~fs x () =
+    let test ~fs:_ repo =
       let pp_id = Irmin.Type.pp S.Tree.kinded_key_t in
       let eq_id = Irmin.Type.(unstage (equal S.Tree.kinded_key_t)) in
       let mem k ls = List.exists (fun k' -> eq_id k k') ls in
@@ -199,7 +199,7 @@ module Make (S : Generic_key) = struct
       test3 ();
       B.Repo.close repo
     in
-    run x test
+    run ~fs x (test ~fs)
 
-  let tests = [ ("Iter", test_iter) ]
+  let tests ~fs = [ ("Iter", test_iter ~fs) ]
 end

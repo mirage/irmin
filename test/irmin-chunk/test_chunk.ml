@@ -53,7 +53,7 @@ module Content_addressable =
 module Mem = struct
   include Content_addressable
 
-  let v ~sw = v ~sw @@ Irmin_mem.config ()
+  let v ~sw ~fs = v ~sw ~fs @@ Irmin_mem.config ()
 end
 
 module MemChunk = struct

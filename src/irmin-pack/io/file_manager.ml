@@ -49,7 +49,7 @@ struct
     mutable suffix_consumers : after_flush_consumer list;
     indexing_strategy : Irmin_pack.Indexing_strategy.t;
     use_fsync : bool;
-    root : string;
+    root : Eio.Fs.dir_ty Eio.Path.t;
     sw : Eio.Switch.t;
   }
 
@@ -270,15 +270,20 @@ struct
              | `Prefix g | `Mapping g -> g <> generation
              | `Suffix idx ->
                  idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
-             | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp -> true)
+             | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp
+             | `Dict_tmp ->
+                 true)
       |> List.iter (fun residual ->
-             let filename = Filename.concat root residual in
-             [%log.debug "Remove residual file %s" filename];
+             let filename = Eio.Path.(root / residual) in
+             [%log.debug
+               "Remove residual file %s" (Eio.Path.native_exn filename)];
              match Io.unlink filename with
              | Ok () -> ()
              | Error (`Sys_error error) ->
                  [%log.warn
-                   "Could not remove residual file %s: %s" filename error])
+                   "Could not remove residual file %s: %s"
+                     (Eio.Path.native_exn filename)
+                     error])
     in
     Option.might (Lower.cleanup ~generation) lower
 
@@ -292,10 +297,10 @@ struct
     [%log.debug "add_volume: update control_file volume_num:%d" pl.volume_num];
     Control.set_payload ~sw control pl
 
-  let finish_constructing_rw config control ~sw ~make_dict ~make_suffix
+  let finish_constructing_rw ~sw ~fs config control ~make_dict ~make_suffix
       ~make_index ~make_lower =
     let open Result_syntax in
-    let root = Irmin_pack.Conf.root config in
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     let indexing_strategy = Conf.indexing_strategy config in
     let pl : Payload.t = Control.payload control in
@@ -375,8 +380,8 @@ struct
     instance := Some t;
     Ok t
 
-  let create_control_file ~overwrite config pl =
-    let root = Irmin_pack.Conf.root config in
+  let create_control_file ~fs ~overwrite config pl =
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let path = Layout.control ~root in
     let tmp_path = Layout.control_tmp ~root in
     Control.create_rw ~path ~tmp_path:(Some tmp_path) ~overwrite pl
@@ -433,10 +438,11 @@ struct
 
   (* File creation ********************************************************** *)
 
-  let create_lower_if_needed ~lower_root ~overwrite =
+  let create_lower_if_needed ~fs ~lower_root ~overwrite =
     match lower_root with
     | None -> Ok ()
     | Some path -> (
+        let path = Eio.Path.(fs / path) in
         match (Io.classify_path path, overwrite) with
         | `Directory, false -> Ok ()
         | `Directory, true ->
@@ -444,23 +450,25 @@ struct
             failwith
               (Fmt.str
                  "Lower root already exists but fresh = true in configuration. \
-                  Please manually remove %s."
-                 path)
+                  Please manually remove %a."
+                 Eio.Path.pp path)
         | `No_such_file_or_directory, _ -> Io.mkdir path
-        | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory path))
+        | (`File | `Other), _ ->
+            Errs.raise_error (`Not_a_directory (Eio.Path.native_exn path)))
 
-  let create_rw ~sw ~overwrite config =
+  let create_rw ~sw ~fs ~overwrite config =
     let open Result_syntax in
-    let root = Irmin_pack.Conf.root config in
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let lower_root = Irmin_pack.Conf.lower_root config in
     let* () =
       match (overwrite, Io.classify_path root) with
-      | _, (`File | `Other) -> Error (`Not_a_directory root)
-      | false, `Directory -> Error (`File_exists root)
+      | _, (`File | `Other) ->
+          Error (`Not_a_directory (Eio.Path.native_exn root))
+      | false, `Directory -> Error (`File_exists (Eio.Path.native_exn root))
       | true, `Directory -> Ok ()
       | _, `No_such_file_or_directory -> Io.mkdir root
     in
-    let* () = create_lower_if_needed ~lower_root ~overwrite in
+    let* () = create_lower_if_needed ~fs ~lower_root ~overwrite in
     let* control =
       let open Payload in
       let status = No_gc_yet in
@@ -477,23 +485,26 @@ struct
           volume_num = 0;
         }
       in
-      create_control_file ~sw ~overwrite config pl
+      create_control_file ~sw ~fs ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~sw ~overwrite in
     let make_suffix () = Suffix.create_rw ~sw ~root ~overwrite ~start_idx:0 in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
       (* [overwrite] is ignored for index *)
-      Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size root
+      Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size
+        (Eio.Path.native_exn root)
     in
     let make_lower () =
       match lower_root with
       | None -> Ok None
       | Some path ->
-          let* l = Lower.v ~sw ~readonly:false ~volume_num:0 path in
+          let* l =
+            Lower.v ~sw ~readonly:false ~volume_num:0 Eio.Path.(fs / path)
+          in
           let+ _ = add_volume_and_update_control ~sw l control in
           Some l
     in
-    finish_constructing_rw config control ~sw ~make_dict ~make_suffix
+    finish_constructing_rw ~sw ~fs config control ~make_dict ~make_suffix
       ~make_index ~make_lower
 
   (* Open rw **************************************************************** *)
@@ -544,7 +555,7 @@ struct
     let* dict_end_poff, after_payload_write =
       if dead_header_size > 0 then (
         let dict_path = Layout.dict ~root in
-        let tmp_dict_path = Filename.temp_file ~temp_dir:root "store" "dict" in
+        let tmp_dict_path = Layout.dict_tmp ~root in
         let* dict_file = Io.open_ ~sw ~path:dict_path ~readonly:false in
         let* len = Io.read_size dict_file in
         let* tmp_dict_file = Io.open_ ~sw ~path:tmp_dict_path ~readonly:false in
@@ -587,21 +598,23 @@ struct
     let* () = after_payload_write () in
     Ok payload
 
-  let load_payload ~sw ~config ~root ~lower_root ~control =
+  let load_payload ~sw ~fs ~config ~root ~lower_root ~control =
     let payload = Control.payload control in
     match lower_root with
     | Some lower_root when payload.volume_num = 0 ->
         if Irmin_pack.Conf.no_migrate config then Error `Migration_needed
         else if not (can_migrate_to_lower payload) then
           Error `Migration_to_lower_not_allowed
-        else migrate_to_lower ~sw ~root ~lower_root ~control payload
+        else
+          let lower_root = Eio.Path.(fs / lower_root) in
+          migrate_to_lower ~sw ~root ~lower_root ~control payload
     | _ -> Ok payload
 
-  let open_rw_with_control_file ~sw config =
+  let open_rw_with_control_file ~sw ~fs config =
     let open Result_syntax in
-    let root = Irmin_pack.Conf.root config in
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let lower_root = Irmin_pack.Conf.lower_root config in
-    let* () = create_lower_if_needed ~lower_root ~overwrite:false in
+    let* () = create_lower_if_needed ~fs ~lower_root ~overwrite:false in
     let* control =
       let path = Layout.control ~root in
       let tmp_path = Layout.control_tmp ~root in
@@ -617,7 +630,7 @@ struct
              volume_num;
              _;
            } =
-      load_payload ~sw ~config ~root ~lower_root ~control
+      load_payload ~sw ~fs ~config ~root ~lower_root ~control
     in
     let* dead_header_size =
       match status with
@@ -639,17 +652,19 @@ struct
         ~dead_header_size
     in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
-      Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size root
+      Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size
+        (Eio.Path.native_exn root)
     in
     let make_lower () =
       match lower_root with
       | None -> Ok None
       | Some lower_root ->
           assert (volume_num > 0);
+          let lower_root = Eio.Path.(fs / lower_root) in
           let+ l = Lower.v ~sw ~readonly:false ~volume_num lower_root in
           Some l
     in
-    finish_constructing_rw config control ~sw ~make_dict ~make_suffix
+    finish_constructing_rw ~sw ~fs config control ~make_dict ~make_suffix
       ~make_index ~make_lower
 
   let read_offset_from_legacy_file ~sw path =
@@ -676,9 +691,9 @@ struct
     | Some x -> Ok x
     | None -> Error `Corrupted_legacy_file
 
-  let open_rw_migrate_from_v1_v2 ~sw config =
+  let open_rw_migrate_from_v1_v2 ~sw ~fs config =
     let open Result_syntax in
-    let root = Irmin_pack.Conf.root config in
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let chunk_start_idx = 0 in
     let dst = Layout.suffix_chunk ~root ~chunk_idx:chunk_start_idx in
@@ -706,39 +721,40 @@ struct
           volume_num = 0;
         }
       in
-      create_control_file ~sw ~overwrite:false config pl
+      create_control_file ~sw ~fs ~overwrite:false config pl
     in
     let* () = Control.close control in
-    open_rw_with_control_file ~sw config
+    open_rw_with_control_file ~sw ~fs config
 
-  let open_rw_no_control_file ~sw config =
-    let root = Irmin_pack.Conf.root config in
+  let open_rw_no_control_file ~sw ~fs config =
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let suffix_path = Irmin_pack.Layout.V1_and_v2.pack ~root in
     match Io.classify_path suffix_path with
     | `Directory | `No_such_file_or_directory | `Other -> Error `Invalid_layout
-    | `File -> open_rw_migrate_from_v1_v2 ~sw config
+    | `File -> open_rw_migrate_from_v1_v2 ~sw ~fs config
 
-  let open_rw ~sw config =
-    let root = Irmin_pack.Conf.root config in
+  let open_rw ~sw ~fs config =
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let no_migrate = Irmin_pack.Conf.no_migrate config in
     match Io.classify_path root with
-    | `File | `Other -> Error (`Not_a_directory root)
-    | `No_such_file_or_directory -> Error (`No_such_file_or_directory root)
+    | `File | `Other -> Error (`Not_a_directory (Eio.Path.native_exn root))
+    | `No_such_file_or_directory ->
+        Error (`No_such_file_or_directory (Eio.Path.native_exn root))
     | `Directory -> (
         let path = Layout.control ~root in
         match Io.classify_path path with
-        | `File -> open_rw_with_control_file ~sw config
+        | `File -> open_rw_with_control_file ~sw ~fs config
         | `No_such_file_or_directory ->
             if no_migrate then Error `Migration_needed
-            else open_rw_no_control_file ~sw config
+            else open_rw_no_control_file ~sw ~fs config
         | `Directory | `Other -> Error `Invalid_layout)
 
   (* Open ro **************************************************************** *)
 
-  let open_ro ~sw config =
+  let open_ro ~sw ~fs config =
     let open Result_syntax in
     let indexing_strategy = Conf.indexing_strategy config in
-    let root = Irmin_pack.Conf.root config in
+    let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let lower_root = Irmin_pack.Conf.lower_root config in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     (* 1. Open the control file *)
@@ -751,7 +767,8 @@ struct
                let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
                match Io.classify_path pack with
                | `File -> `Migration_needed
-               | `No_such_file_or_directory -> `No_such_file_or_directory pack
+               | `No_such_file_or_directory ->
+                   `No_such_file_or_directory (Eio.Path.native_exn pack)
                | `Directory | `Other -> `Invalid_layout)
            | error -> error)
     in
@@ -784,13 +801,15 @@ struct
     let* index =
       let log_size = Conf.index_log_size config in
       let throttle = Conf.merge_throttle config in
-      Index.v ~fresh:false ~readonly:true ~throttle ~log_size root
+      Index.v ~fresh:false ~readonly:true ~throttle ~log_size
+        (Eio.Path.native_exn root)
     in
     (* 3. Open lower layer *)
     let* lower =
       match lower_root with
       | None -> Ok None
       | Some path ->
+          let path = Eio.Path.(fs / path) in
           let+ l = Lower.v ~sw ~readonly:true ~volume_num path in
           Some l
     in
@@ -827,8 +846,9 @@ struct
       | Error (`Io_misc _) as e -> e
     in
     match Io.classify_path root with
-    | `No_such_file_or_directory -> Error (`No_such_file_or_directory root)
-    | `File | `Other -> Error (`Not_a_directory root)
+    | `No_such_file_or_directory ->
+        Error (`No_such_file_or_directory (Eio.Path.native_exn root))
+    | `File | `Other -> Error (`Not_a_directory (Eio.Path.native_exn root))
     | `Directory -> (
         let path = Layout.control ~root in
         match Control.open_ ~sw ~path ~tmp_path:None ~readonly:true with
@@ -979,7 +999,7 @@ struct
   let create_one_commit_store t config gced commit_key =
     let open Result_syntax in
     let src_root = t.root in
-    let dst_root = Irmin_pack.Conf.root config in
+    let dst_root = Eio.Path.(t.root / Irmin_pack.Conf.root config) in
     (* Step 1. Copy the dict *)
     let src_dict = Layout.dict ~root:src_root in
     let dst_dict = Layout.dict ~root:dst_root in
@@ -1014,7 +1034,8 @@ struct
       let log_size = Conf.index_log_size config in
       let throttle = Conf.merge_throttle config in
       Index.v ~fresh:true ~flush_callback:Fun.id ~readonly:false ~throttle
-        ~log_size dst_root
+        ~log_size
+        (Eio.Path.native_exn dst_root)
     in
     (* Step 5. Add the commit to the index, close the index. *)
     let () =

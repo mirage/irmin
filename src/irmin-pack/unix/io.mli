@@ -15,5 +15,3 @@
  *)
 
 module Unix : Irmin_pack_io.Io_s
-
-val set_env : Eio.Fs.dir_ty Eio.Path.t -> unit

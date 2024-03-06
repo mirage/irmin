@@ -161,6 +161,7 @@ struct
           during_batch : bool Atomic.t;
           running_gc : running_gc option Atomic.t;
           lock : Eio.Mutex.t;
+          fs : Eio.Fs.dir_ty Eio.Path.t;
           sw : Eio.Switch.t;
         }
 
@@ -171,24 +172,25 @@ struct
         let branch_t t = t.branch
         let config t = t.config
 
-        let v ~sw config =
-          let root = Irmin_pack.Conf.root config in
+        let v ~sw ~fs config =
+          let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
           let fresh = Irmin_pack.Conf.fresh config in
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
             if readonly then
-              File_manager.open_ro ~sw config |> Errs.raise_if_error
+              File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error
             else
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
-                  File_manager.create_rw ~sw ~overwrite:false config
+                  File_manager.create_rw ~sw ~fs ~overwrite:false config
                   |> Errs.raise_if_error
               | `Directory, true ->
-                  File_manager.create_rw ~sw ~overwrite:true config
+                  File_manager.create_rw ~sw ~fs ~overwrite:true config
                   |> Errs.raise_if_error
               | `Directory, false ->
-                  File_manager.open_rw ~sw config |> Errs.raise_if_error
-              | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
+                  File_manager.open_rw ~sw ~fs config |> Errs.raise_if_error
+              | (`File | `Other), _ ->
+                  Errs.raise_error (`Not_a_directory (Eio.Path.native_exn root))
           in
           let dict = File_manager.dict fm in
           let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
@@ -197,7 +199,7 @@ struct
           let node = Node.CA.v ~config ~fm ~dict ~dispatcher ~lru in
           let commit = Commit.CA.v ~config ~fm ~dict ~dispatcher ~lru in
           let branch =
-            let root = Conf.root config in
+            let root = Eio.Path.(fs / Conf.root config) in
             let fresh = Conf.fresh config in
             let readonly = Conf.readonly config in
             let path = Irmin_pack.Layout.V4.branch ~root in
@@ -219,6 +221,7 @@ struct
             dispatcher;
             lock;
             lru;
+            fs;
             sw;
           }
 
@@ -262,7 +265,7 @@ struct
               else Ok ()
             in
             let* commit_key = direct_commit_key t commit_key in
-            let root = Conf.root t.config in
+            let root = Eio.Path.(t.fs / Conf.root t.config) in
             let* () =
               if not (is_allowed t) then
                 Error (`Gc_disallowed "Store does not support GC")
@@ -301,7 +304,7 @@ struct
               | Some { gc; _ } ->
                   if Atomic.get t.during_batch then
                     Error `Gc_forbidden_during_batch
-                  else Gc.finalise ~wait gc
+                  else Gc.finalise ~sw:t.sw ~wait gc
             in
             Eio.Mutex.use_rw_exn t.lock @@ fun () ->
             match result with
@@ -383,7 +386,10 @@ struct
                   Eio.Mutex.use_rw_exn t.lock @@ fun () ->
                   Gc.finalise_without_swap gc
             in
-            let config = Irmin.Backend.Conf.add t.config Conf.Key.root path in
+            let config =
+              Irmin.Backend.Conf.add t.config Conf.Key.root
+                (Eio.Path.native_exn path)
+            in
             let () =
               File_manager.create_one_commit_store t.fm config gced commit_key
               |> Errs.raise_if_error
@@ -716,10 +722,11 @@ struct
       module Export = struct
         let iter ?on_disk repo f ~root_key =
           [%log.debug "Iterate over a tree"];
-          Eio.Switch.run @@ fun sw ->
           let contents = X.Repo.contents_t repo in
           let nodes = X.Repo.node_t repo |> snd in
-          let export = S.Export.v ~sw repo.config contents nodes in
+          let export =
+            S.Export.v ~sw:repo.sw ~fs:repo.fs repo.config contents nodes
+          in
           let f_contents x = f (Blob x) in
           let f_nodes x = f (Inode x) in
           match root_key with

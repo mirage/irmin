@@ -323,8 +323,8 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
   type t = {
     mutable io : Io.t;
     payload : payload Atomic.t;
-    path : string;
-    tmp_path : string option;
+    path : Eio.Fs.dir_ty Eio.Path.t;
+    tmp_path : Eio.Fs.dir_ty Eio.Path.t option;
     lock : Eio.Mutex.t;
   }
 
@@ -350,7 +350,7 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
   let read io =
     let open Result_syntax in
     let* string = Io.read_all_to_string io in
-    Serde.of_bin_string (Io.path io) string
+    Serde.of_bin_string (Eio.Path.native_exn @@ Io.path io) string
 
   let create_rw ~sw ~path ~tmp_path ~overwrite (payload : payload) =
     let open Result_syntax in
@@ -395,7 +395,7 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
     let open Result_syntax in
     let* io = Io.open_ ~sw ~path ~readonly:true in
     let* string = Io.read_all_to_string io in
-    let* payload = Serde.raw_of_bin_string path string in
+    let* payload = Serde.raw_of_bin_string (Eio.Path.native_exn path) string in
     let+ () = Io.close io in
     payload
 

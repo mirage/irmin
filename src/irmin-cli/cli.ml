@@ -53,18 +53,20 @@ let term_info title ~doc ~man =
   deprecated_info ~sdocs:global_option_section ~docs:global_option_section ~doc
     ~man title
 
-type command = (unit Term.t * Term.info[@alert "-deprecated"])
+type command =
+  (fs:Import.Eio.Fs.dir_ty Import.Eio.Path.t -> unit Term.t * Term.info
+  [@alert "-deprecated"])
 
 type sub = {
   name : string;
   doc : string;
   man : Manpage.block list;
-  term : unit Term.t;
+  term : fs:Eio.Fs.dir_ty Eio.Path.t -> unit Term.t;
 }
 
-let create_command c =
+let create_command c ~fs =
   let man = [ `S "DESCRIPTION"; `P c.doc ] @ c.man in
-  (c.term, term_info c.name ~doc:c.doc ~man)
+  (c.term ~fs, term_info c.name ~doc:c.doc ~man)
 
 (* Converters *)
 
@@ -119,12 +121,13 @@ let init =
     doc = "Initialize a store.";
     man = [];
     term =
-      (let init store =
-         Eio.Switch.run @@ fun sw ->
-         let (S (_, _store, _)) = store ~sw in
-         ()
-       in
-       Term.(mk init $ store ()));
+      (fun ~fs ->
+        let init store =
+          Eio.Switch.run @@ fun sw ->
+          let (S (_, _store, _)) = store ~sw in
+          ()
+        in
+        Term.(mk init $ store ~fs ()));
   }
 
 let print fmt = Fmt.kstr print_endline fmt
@@ -146,19 +149,20 @@ let get =
     doc = "Read the value associated with a key.";
     man = [];
     term =
-      (let get store path =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let t = store () in
-         match S.find t (key S.Path.t path) with
-         | None ->
-             print "<none>";
-             exit 1
-         | Some v -> print "%a" (Irmin.Type.pp S.Contents.t) v
-       in
-       Term.(mk get $ store () $ path));
+      (fun ~fs ->
+        let get store path =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let t = store () in
+          match S.find t (key S.Path.t path) with
+          | None ->
+              print "<none>";
+              exit 1
+          | Some v -> print "%a" (Irmin.Type.pp S.Contents.t) v
+        in
+        Term.(mk get $ store ~fs () $ path));
   }
 
 (* LIST *)
@@ -168,27 +172,28 @@ let list =
     doc = "List subdirectories.";
     man = [];
     term =
-      (let list store path_or_empty =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let path =
-           match path_or_empty with
-           | Empty -> S.Path.empty
-           | Path str -> key S.Path.t str
-         in
-         run @@ fun () ->
-         let t = store () in
-         let paths = S.list t path in
-         let pp_step = Irmin.Type.pp S.Path.step_t in
-         let pp ppf (s, k) =
-           match S.Tree.destruct k with
-           | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
-           | `Node _ -> Fmt.pf ppf "DIR %a" pp_step s
-         in
-         List.iter (print "%a" pp) paths
-       in
-       Term.(mk list $ store () $ path_or_empty));
+      (fun ~fs ->
+        let list store path_or_empty =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let path =
+            match path_or_empty with
+            | Empty -> S.Path.empty
+            | Path str -> key S.Path.t str
+          in
+          run @@ fun () ->
+          let t = store () in
+          let paths = S.list t path in
+          let pp_step = Irmin.Type.pp S.Path.step_t in
+          let pp ppf (s, k) =
+            match S.Tree.destruct k with
+            | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
+            | `Node _ -> Fmt.pf ppf "DIR %a" pp_step s
+          in
+          List.iter (print "%a" pp) paths
+        in
+        Term.(mk list $ store ~fs () $ path_or_empty));
   }
 
 (* TREE *)
@@ -198,55 +203,56 @@ let tree =
     doc = "List the store contents.";
     man = [];
     term =
-      (let tree store =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let t = store () in
-         let all = ref [] in
-         let todo = ref [ S.Path.empty ] in
-         let rec walk () =
-           match !todo with
-           | [] -> ()
-           | k :: rest ->
-               todo := rest;
-               let childs = S.list t k in
-               List.iter
-                 (fun (s, c) ->
-                   let k = S.Path.rcons k s in
-                   match S.Tree.destruct c with
-                   | `Node _ -> todo := k :: !todo
-                   | `Contents _ ->
-                       let v = S.get t k in
-                       all := (k, v) :: !all)
-                 childs;
-               walk ()
-         in
-         walk ();
-         let all = !all in
-         let all =
-           List.map
-             (fun (k, v) ->
-               ( Irmin.Type.to_string S.Path.t k,
-                 Irmin.Type.to_string S.Contents.t v ))
-             all
-         in
-         let max_length l =
-           List.fold_left (fun len s -> max len (String.length s)) 0 l
-         in
-         let k_max = max_length (List.map fst all) in
-         let v_max = max_length (List.map snd all) in
-         let pad = 79 + k_max + v_max in
-         List.iter
-           (fun (k, v) ->
-             let dots =
-               String.make (pad - String.length k - String.length v) '.'
-             in
-             print "%s%s%s" k dots v)
-           all
-       in
-       Term.(mk tree $ store ()));
+      (fun ~fs ->
+        let tree store =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let t = store () in
+          let all = ref [] in
+          let todo = ref [ S.Path.empty ] in
+          let rec walk () =
+            match !todo with
+            | [] -> ()
+            | k :: rest ->
+                todo := rest;
+                let childs = S.list t k in
+                List.iter
+                  (fun (s, c) ->
+                    let k = S.Path.rcons k s in
+                    match S.Tree.destruct c with
+                    | `Node _ -> todo := k :: !todo
+                    | `Contents _ ->
+                        let v = S.get t k in
+                        all := (k, v) :: !all)
+                  childs;
+                walk ()
+          in
+          walk ();
+          let all = !all in
+          let all =
+            List.map
+              (fun (k, v) ->
+                ( Irmin.Type.to_string S.Path.t k,
+                  Irmin.Type.to_string S.Contents.t v ))
+              all
+          in
+          let max_length l =
+            List.fold_left (fun len s -> max len (String.length s)) 0 l
+          in
+          let k_max = max_length (List.map fst all) in
+          let v_max = max_length (List.map snd all) in
+          let pad = 79 + k_max + v_max in
+          List.iter
+            (fun (k, v) ->
+              let dots =
+                String.make (pad - String.length k - String.length v) '.'
+              in
+              print "%s%s%s" k dots v)
+            all
+        in
+        Term.(mk tree $ store ~fs ()));
   }
 
 let author =
@@ -264,22 +270,23 @@ let set =
     doc = "Update the value associated with a key.";
     man = [];
     term =
-      (let v =
-         let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
-         Arg.(required & pos 1 (some string) None & doc)
-       in
-       let set store author message path v =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let message = match message with Some s -> s | None -> "set" in
-         let t = store () in
-         let path = key S.Path.t path in
-         let value = value S.Contents.t v in
-         S.set_exn t ~info:(info (module S) ?author "%s" message) path value
-       in
-       Term.(mk set $ store () $ author $ message $ path $ v));
+      (fun ~fs ->
+        let v =
+          let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
+          Arg.(required & pos 1 (some string) None & doc)
+        in
+        let set store author message path v =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let message = match message with Some s -> s | None -> "set" in
+          let t = store () in
+          let path = key S.Path.t path in
+          let value = value S.Contents.t v in
+          S.set_exn t ~info:(info (module S) ?author "%s" message) path value
+        in
+        Term.(mk set $ store ~fs () $ author $ message $ path $ v));
   }
 
 (* REMOVE *)
@@ -289,20 +296,21 @@ let remove =
     doc = "Delete a key.";
     man = [];
     term =
-      (let remove store author message path =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let message =
-           match message with Some s -> s | None -> "remove " ^ path
-         in
-         let t = store () in
-         S.remove_exn t
-           ~info:(info (module S) ?author "%s" message)
-           (key S.Path.t path)
-       in
-       Term.(mk remove $ store () $ author $ message $ path));
+      (fun ~fs ->
+        let remove store author message path =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let message =
+            match message with Some s -> s | None -> "remove " ^ path
+          in
+          let t = store () in
+          S.remove_exn t
+            ~info:(info (module S) ?author "%s" message)
+            (key S.Path.t path)
+        in
+        Term.(mk remove $ store ~fs () $ author $ message $ path));
   }
 
 let apply e f =
@@ -318,21 +326,22 @@ let clone =
     doc = "Copy a remote respository to a local store";
     man = [];
     term =
-      (let clone sr depth =
-         Eio.Switch.run @@ fun sw ->
-         let S (impl, store, f), remote = sr ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let module Sync = Irmin.Sync.Make (S) in
-         run @@ fun () ->
-         let t = store () in
-         let r = remote () in
-         let x = apply r f in
-         match Sync.fetch t ?depth x with
-         | Ok (`Head d) -> S.Head.set t d
-         | Ok `Empty -> ()
-         | Error (`Msg e) -> failwith e
-       in
-       Term.(mk clone $ Resolver.remote () $ depth));
+      (fun ~fs ->
+        let clone sr depth =
+          Eio.Switch.run @@ fun sw ->
+          let S (impl, store, f), remote = sr ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let module Sync = Irmin.Sync.Make (S) in
+          run @@ fun () ->
+          let t = store () in
+          let r = remote () in
+          let x = apply r f in
+          match Sync.fetch t ?depth x with
+          | Ok (`Head d) -> S.Head.set t d
+          | Ok `Empty -> ()
+          | Error (`Msg e) -> failwith e
+        in
+        Term.(mk clone $ Resolver.remote ~fs () $ depth));
   }
 
 (* FETCH *)
@@ -342,21 +351,22 @@ let fetch =
     doc = "Download objects and refs from another repository.";
     man = [];
     term =
-      (let fetch sr =
-         Eio.Switch.run @@ fun sw ->
-         let S (impl, store, f), remote = sr ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let module Sync = Irmin.Sync.Make (S) in
-         run @@ fun () ->
-         let t = store () in
-         let r = remote () in
-         let branch = branch S.Branch.t "import" in
-         let t = S.of_branch (S.repo t) branch in
-         let x = apply r f in
-         let _ = Sync.pull_exn t x `Set in
-         ()
-       in
-       Term.(mk fetch $ Resolver.remote ()));
+      (fun ~fs ->
+        let fetch sr =
+          Eio.Switch.run @@ fun sw ->
+          let S (impl, store, f), remote = sr ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let module Sync = Irmin.Sync.Make (S) in
+          run @@ fun () ->
+          let t = store () in
+          let r = remote () in
+          let branch = branch S.Branch.t "import" in
+          let t = S.of_branch (S.repo t) branch in
+          let x = apply r f in
+          let _ = Sync.pull_exn t x `Set in
+          ()
+        in
+        Term.(mk fetch $ Resolver.remote ~fs ()));
   }
 
 (* MERGE *)
@@ -366,32 +376,33 @@ let merge =
     doc = "Merge branches.";
     man = [];
     term =
-      (let merge store author message branch =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let message = match message with Some s -> s | None -> "merge" in
-         let branch =
-           match Irmin.Type.of_string S.Branch.t branch with
-           | Ok b -> b
-           | Error (`Msg msg) -> failwith msg
-         in
-         let t = store () in
-         match
-           S.merge_with_branch t branch
-             ~info:(info (module S) ?author "%s" message)
-         with
-         | Ok () -> ()
-         | Error conflict ->
-             let fmt = Irmin.Type.pp_json Irmin.Merge.conflict_t in
-             Fmt.epr "CONFLICT: %a\n%!" fmt conflict
-       in
-       let branch_name =
-         let doc = Arg.info ~docv:"BRANCH" ~doc:"Branch to merge from." [] in
-         Arg.(required & pos 0 (some string) None & doc)
-       in
-       Term.(mk merge $ store () $ author $ message $ branch_name));
+      (fun ~fs ->
+        let merge store author message branch =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let message = match message with Some s -> s | None -> "merge" in
+          let branch =
+            match Irmin.Type.of_string S.Branch.t branch with
+            | Ok b -> b
+            | Error (`Msg msg) -> failwith msg
+          in
+          let t = store () in
+          match
+            S.merge_with_branch t branch
+              ~info:(info (module S) ?author "%s" message)
+          with
+          | Ok () -> ()
+          | Error conflict ->
+              let fmt = Irmin.Type.pp_json Irmin.Merge.conflict_t in
+              Fmt.epr "CONFLICT: %a\n%!" fmt conflict
+        in
+        let branch_name =
+          let doc = Arg.info ~docv:"BRANCH" ~doc:"Branch to merge from." [] in
+          Arg.(required & pos 0 (some string) None & doc)
+        in
+        Term.(mk merge $ store ~fs () $ author $ message $ branch_name));
   }
 
 (* PULL *)
@@ -401,22 +412,23 @@ let pull =
     doc = "Fetch and merge with another repository.";
     man = [];
     term =
-      (let pull sr author message =
-         Eio.Switch.run @@ fun sw ->
-         let S (impl, store, f), remote = sr ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let message = match message with Some s -> s | None -> "pull" in
-         let module Sync = Irmin.Sync.Make (S) in
-         run @@ fun () ->
-         let t = store () in
-         let r = remote () in
-         let x = apply r f in
-         let _ =
-           Sync.pull_exn t x (`Merge (info (module S) ?author "%s" message))
-         in
-         ()
-       in
-       Term.(mk pull $ remote () $ author $ message));
+      (fun ~fs ->
+        let pull sr author message =
+          Eio.Switch.run @@ fun sw ->
+          let S (impl, store, f), remote = sr ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let message = match message with Some s -> s | None -> "pull" in
+          let module Sync = Irmin.Sync.Make (S) in
+          run @@ fun () ->
+          let t = store () in
+          let r = remote () in
+          let x = apply r f in
+          let _ =
+            Sync.pull_exn t x (`Merge (info (module S) ?author "%s" message))
+          in
+          ()
+        in
+        Term.(mk pull $ remote ~fs () $ author $ message));
   }
 
 (* PUSH *)
@@ -426,19 +438,20 @@ let push =
     doc = "Update remote references along with associated objects.";
     man = [];
     term =
-      (let push sr =
-         Eio.Switch.run @@ fun sw ->
-         let S (impl, store, f), remote = sr ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let module Sync = Irmin.Sync.Make (S) in
-         run @@ fun () ->
-         let t = store () in
-         let r = remote () in
-         let x = apply r f in
-         let _ = Sync.push_exn t x in
-         ()
-       in
-       Term.(mk push $ remote ()));
+      (fun ~fs ->
+        let push sr =
+          Eio.Switch.run @@ fun sw ->
+          let S (impl, store, f), remote = sr ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let module Sync = Irmin.Sync.Make (S) in
+          run @@ fun () ->
+          let t = store () in
+          let r = remote () in
+          let x = apply r f in
+          let _ = Sync.push_exn t x in
+          ()
+        in
+        Term.(mk push $ remote ~fs ()));
   }
 
 (* SNAPSHOT *)
@@ -448,17 +461,18 @@ let snapshot =
     doc = "Return a snapshot for the current state of the database.";
     man = [];
     term =
-      (let snapshot store =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let t = store () in
-         let k = S.Head.get t in
-         print "%a" S.Commit.pp_hash k;
-         ()
-       in
-       Term.(mk snapshot $ store ()));
+      (fun ~fs ->
+        let snapshot store =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let t = store () in
+          let k = S.Head.get t in
+          print "%a" S.Commit.pp_hash k;
+          ()
+        in
+        Term.(mk snapshot $ store ~fs ()));
   }
 
 (* REVERT *)
@@ -468,24 +482,25 @@ let revert =
     doc = "Revert the contents of the store to a previous state.";
     man = [];
     term =
-      (let snapshot =
-         let doc =
-           Arg.info ~docv:"SNAPSHOT" ~doc:"The snapshot to revert to." []
-         in
-         Arg.(required & pos 0 (some string) None & doc)
-       in
-       let revert store snapshot =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let t = store () in
-         let hash = commit S.Hash.t snapshot in
-         match S.Commit.of_hash (S.repo t) hash with
-         | Some s -> S.Head.set t s
-         | None -> failwith "invalid commit"
-       in
-       Term.(mk revert $ store () $ snapshot));
+      (fun ~fs ->
+        let snapshot =
+          let doc =
+            Arg.info ~docv:"SNAPSHOT" ~doc:"The snapshot to revert to." []
+          in
+          Arg.(required & pos 0 (some string) None & doc)
+        in
+        let revert store snapshot =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let t = store () in
+          let hash = commit S.Hash.t snapshot in
+          match S.Commit.of_hash (S.repo t) hash with
+          | Some s -> S.Head.set t s
+          | None -> failwith "invalid commit"
+        in
+        Term.(mk revert $ store ~fs () $ snapshot));
   }
 
 (* WATCH *)
@@ -577,33 +592,34 @@ let watch =
     doc = "Get notifications when values change.";
     man = [];
     term =
-      (let watch store path command =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let path = key S.Path.t path in
-         let proc = ref None in
-         let () =
-           at_exit (fun () ->
-               match !proc with None -> () | Some p -> p#terminate)
-         in
-         run @@ fun () ->
-         let t = store () in
-         let _ =
-           S.watch_key t path
-             (handle_diff
-                (module S : Irmin.Generic_key.S
-                  with type Schema.Path.t = S.path
-                   and type commit = S.commit)
-                path command proc)
-         in
-         ()
-       in
-       let command =
-         let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
-         Arg.(value & pos_right 0 string [] & doc)
-       in
-       Term.(mk watch $ store () $ path $ command));
+      (fun ~fs ->
+        let watch store path command =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let path = key S.Path.t path in
+          let proc = ref None in
+          let () =
+            at_exit (fun () ->
+                match !proc with None -> () | Some p -> p#terminate)
+          in
+          run @@ fun () ->
+          let t = store () in
+          let _ =
+            S.watch_key t path
+              (handle_diff
+                 (module S : Irmin.Generic_key.S
+                   with type Schema.Path.t = S.path
+                    and type commit = S.commit)
+                 path command proc)
+          in
+          ()
+        in
+        let command =
+          let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
+          Arg.(value & pos_right 0 string [] & doc)
+        in
+        Term.(mk watch $ store ~fs () $ path $ command));
   }
 
 (* DOT *)
@@ -613,65 +629,66 @@ let dot =
     doc = "Dump the contents of the store as a Graphviz file.";
     man = [];
     term =
-      (let basename =
-         let doc =
-           Arg.info ~docv:"BASENAME"
-             ~doc:"Basename for the .dot and .png files." []
-         in
-         Arg.(required & pos 0 (some string) None & doc)
-       in
-       let no_dot_call =
-         let doc =
-           Arg.info
-             ~doc:"Do not call the `dot' utility on the generated `.dot` file."
-             [ "no-dot-call" ]
-         in
-         Arg.(value & flag & doc)
-       in
-       let full =
-         let doc =
-           Arg.info
-             ~doc:
-               "Show the full graph of objects, including the filesystem nodes \
-                and the content blobs."
-             [ "full" ]
-         in
-         Arg.(value & flag & doc)
-       in
-       let dot store basename depth no_dot_call full =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         let module Dot = Irmin.Dot (S) in
-         let date d =
-           let tm = Unix.localtime (Int64.to_float d) in
-           Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min
-             tm.Unix.tm_sec
-         in
-         run @@ fun () ->
-         let t = store () in
-         let call_dot = not no_dot_call in
-         let buf = Buffer.create 1024 in
-         let () = Dot.output_buffer ~html:false t ?depth ~full ~date buf in
-         let oc = open_out_bin (basename ^ ".dot") in
-         let () =
-           Fun.protect
-             (fun () -> output_string oc (Buffer.contents buf))
-             ~finally:(fun () -> close_out oc)
-         in
-         if call_dot then (
-           let i = Sys.command "/bin/sh -c 'command -v dot'" in
-           if i <> 0 then
-             [%logs.err
-               "Cannot find the `dot' utility. Please install it on your \
-                system and be sure it is available in your $PATH."];
-           let i =
-             Sys.command
-               (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename)
-           in
-           if i <> 0 then [%logs.err "The %s.dot is corrupted" basename])
-       in
-       Term.(mk dot $ store () $ basename $ depth $ no_dot_call $ full));
+      (fun ~fs ->
+        let basename =
+          let doc =
+            Arg.info ~docv:"BASENAME"
+              ~doc:"Basename for the .dot and .png files." []
+          in
+          Arg.(required & pos 0 (some string) None & doc)
+        in
+        let no_dot_call =
+          let doc =
+            Arg.info
+              ~doc:"Do not call the `dot' utility on the generated `.dot` file."
+              [ "no-dot-call" ]
+          in
+          Arg.(value & flag & doc)
+        in
+        let full =
+          let doc =
+            Arg.info
+              ~doc:
+                "Show the full graph of objects, including the filesystem \
+                 nodes and the content blobs."
+              [ "full" ]
+          in
+          Arg.(value & flag & doc)
+        in
+        let dot store basename depth no_dot_call full =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          let module Dot = Irmin.Dot (S) in
+          let date d =
+            let tm = Unix.localtime (Int64.to_float d) in
+            Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min
+              tm.Unix.tm_sec
+          in
+          run @@ fun () ->
+          let t = store () in
+          let call_dot = not no_dot_call in
+          let buf = Buffer.create 1024 in
+          let () = Dot.output_buffer ~html:false t ?depth ~full ~date buf in
+          let oc = open_out_bin (basename ^ ".dot") in
+          let () =
+            Fun.protect
+              (fun () -> output_string oc (Buffer.contents buf))
+              ~finally:(fun () -> close_out oc)
+          in
+          if call_dot then (
+            let i = Sys.command "/bin/sh -c 'command -v dot'" in
+            if i <> 0 then
+              [%logs.err
+                "Cannot find the `dot' utility. Please install it on your \
+                 system and be sure it is available in your $PATH."];
+            let i =
+              Sys.command
+                (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename)
+            in
+            if i <> 0 then [%logs.err "The %s.dot is corrupted" basename])
+        in
+        Term.(mk dot $ store ~fs () $ basename $ depth $ no_dot_call $ full));
   }
 
 let config_man =
@@ -715,30 +732,33 @@ let help =
     man =
       [ `P "Use `$(mname) help topics' to get the full list of help topics." ];
     term =
-      (let topic =
-         let doc = Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on." in
-         Arg.(value & pos 0 (some string) None & doc)
-       in
-       let help man_format cmds topic =
-         match topic with
-         | None -> `Help (`Pager, None)
-         | Some topic -> (
-             let topics = "irmin.yml" :: cmds in
-             let conv, _ =
-               Arg.enum (List.rev_map (fun s -> (s, s)) ("topics" :: topics))
-             in
-             match conv topic with
-             | `Error e -> `Error (false, e)
-             | `Ok t when t = "topics" ->
-                 List.iter print_endline topics;
-                 `Ok ()
-             | `Ok t when t = "irmin.yml" ->
-                 `Ok
-                   (Cmdliner.Manpage.print man_format Format.std_formatter
-                      config_man)
-             | `Ok t -> `Help (man_format, Some t))
-       in
-       Term.(ret (mk help $ deprecated_man_format $ Term.choice_names $ topic)));
+      (fun ~fs:_ ->
+        let topic =
+          let doc =
+            Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on."
+          in
+          Arg.(value & pos 0 (some string) None & doc)
+        in
+        let help man_format cmds topic =
+          match topic with
+          | None -> `Help (`Pager, None)
+          | Some topic -> (
+              let topics = "irmin.yml" :: cmds in
+              let conv, _ =
+                Arg.enum (List.rev_map (fun s -> (s, s)) ("topics" :: topics))
+              in
+              match conv topic with
+              | `Error e -> `Error (false, e)
+              | `Ok t when t = "topics" ->
+                  List.iter print_endline topics;
+                  `Ok ()
+              | `Ok t when t = "irmin.yml" ->
+                  `Ok
+                    (Cmdliner.Manpage.print man_format Format.std_formatter
+                       config_man)
+              | `Ok t -> `Help (man_format, Some t))
+        in
+        Term.(ret (mk help $ deprecated_man_format $ Term.choice_names $ topic)));
   }
 
 (* GRAPHQL *)
@@ -748,41 +768,44 @@ let graphql =
     doc = "Run a graphql server.";
     man = [];
     term =
-      (let port =
-         let doc = Arg.info ~doc:"Port for graphql server." [ "p"; "port" ] in
-         Arg.(value & opt int 8080 & doc)
-       in
-       let addr =
-         let doc =
-           Arg.info ~doc:"Address for graphql server." [ "a"; "address" ]
-         in
-         Arg.(value & opt string "localhost" & doc)
-       in
-       let graphql store port addr =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, remote_fn)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let module Server =
-           Graphql.Server.Make
-             (S)
-             (struct
-               let remote = remote_fn
-             end)
-         in
-         let t = store () in
-         let server = Server.v (S.repo t) in
-         let ctx =
-           Lwt_eio.run_lwt @@ fun () -> Conduit_lwt_unix.init ~src:addr ()
-         in
-         let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
-         let on_exn exn = [%logs.debug "on_exn: %s" (Printexc.to_string exn)] in
-         Lwt_eio.run_lwt @@ fun () ->
-         Cohttp_lwt_unix.Server.create ~on_exn ~ctx
-           ~mode:(`TCP (`Port port))
-           server
-       in
-       Term.(mk graphql $ store () $ port $ addr));
+      (fun ~fs ->
+        let port =
+          let doc = Arg.info ~doc:"Port for graphql server." [ "p"; "port" ] in
+          Arg.(value & opt int 8080 & doc)
+        in
+        let addr =
+          let doc =
+            Arg.info ~doc:"Address for graphql server." [ "a"; "address" ]
+          in
+          Arg.(value & opt string "localhost" & doc)
+        in
+        let graphql store port addr =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, remote_fn)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let module Server =
+            Graphql.Server.Make
+              (S)
+              (struct
+                let remote = remote_fn
+              end)
+          in
+          let t = store () in
+          let server = Server.v (S.repo t) in
+          let ctx =
+            Lwt_eio.run_lwt @@ fun () -> Conduit_lwt_unix.init ~src:addr ()
+          in
+          let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
+          let on_exn exn =
+            [%logs.debug "on_exn: %s" (Printexc.to_string exn)]
+          in
+          Lwt_eio.run_lwt @@ fun () ->
+          Cohttp_lwt_unix.Server.create ~on_exn ~ctx
+            ~mode:(`TCP (`Port port))
+            server
+        in
+        Term.(mk graphql $ store ~fs () $ port $ addr));
   }
 
 (* SERVER *)
@@ -792,8 +815,9 @@ let server =
     doc = "Run irmin-server.";
     man = [];
     term =
-      (let server main = Eio.Switch.run @@ fun sw -> main ~sw in
-       Term.(mk server $ Server.main_term));
+      (fun ~fs ->
+        let server main = Eio.Switch.run @@ fun sw -> main ~sw ~fs in
+        Term.(mk server $ Server.main_term));
   }
 
 let options =
@@ -802,25 +826,26 @@ let options =
     doc = "Get information about backend specific configuration options.";
     man = [];
     term =
-      (let options (store, hash, contents) =
-         let module Conf = Irmin.Backend.Conf in
-         let store, _ = Resolver.load_config ?store ?hash ?contents () in
-         let spec = Store.spec store in
-         Seq.iter
-           (fun (Conf.K k) ->
-             let name = Conf.name k in
-             if name = "root" || name = "uri" then ()
-             else
-               let ty = Conf.ty k in
-               let doc = Conf.doc k |> Option.value ~default:"" in
-               let ty =
-                 Fmt.str "%a" Irmin.Type.pp_ty ty
-                 |> Astring.String.filter (fun c -> c <> '\n')
-               in
-               Fmt.pr "%s: %s\n\t%s\n" name ty doc)
-           (Conf.Spec.keys spec)
-       in
-       Term.(mk options $ Store.term ()));
+      (fun ~fs:_ ->
+        let options (store, hash, contents) =
+          let module Conf = Irmin.Backend.Conf in
+          let store, _ = Resolver.load_config ?store ?hash ?contents () in
+          let spec = Store.spec store in
+          Seq.iter
+            (fun (Conf.K k) ->
+              let name = Conf.name k in
+              if name = "root" || name = "uri" then ()
+              else
+                let ty = Conf.ty k in
+                let doc = Conf.doc k |> Option.value ~default:"" in
+                let ty =
+                  Fmt.str "%a" Irmin.Type.pp_ty ty
+                  |> Astring.String.filter (fun c -> c <> '\n')
+                in
+                Fmt.pr "%s: %s\n\t%s\n" name ty doc)
+            (Conf.Spec.keys spec)
+        in
+        Term.(mk options $ Store.term ()));
   }
 
 let branches =
@@ -829,16 +854,17 @@ let branches =
     doc = "List branches";
     man = [];
     term =
-      (let branches store =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let t = store () in
-         let branches = S.Branch.list (S.repo t) in
-         List.iter (Fmt.pr "%a\n" (Irmin.Type.pp S.branch_t)) branches
-       in
-       Term.(mk branches $ store ()));
+      (fun ~fs ->
+        let branches store =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let t = store () in
+          let branches = S.Branch.list (S.repo t) in
+          List.iter (Fmt.pr "%a\n" (Irmin.Type.pp S.branch_t)) branches
+        in
+        Term.(mk branches $ store ~fs ()));
   }
 
 let weekday Unix.{ tm_wday; _ } =
@@ -874,84 +900,85 @@ let log =
     doc = "List commits";
     man = [];
     term =
-      (let plain =
-         let doc = Arg.info ~doc:"Show plain text without pager" [ "plain" ] in
-         Arg.(value & flag & doc)
-       in
-       let pager =
-         let doc = Arg.info ~doc:"Specify pager program to use" [ "pager" ] in
-         Arg.(value & opt string "pager" & doc)
-       in
-       let num =
-         let doc =
-           Arg.info ~doc:"Number of entries to show" [ "n"; "max-count" ]
-         in
-         Arg.(value & opt (some int) None & doc)
-       in
-       let skip =
-         let doc = Arg.info ~doc:"Number of entries to skip" [ "skip" ] in
-         Arg.(value & opt (some int) None & doc)
-       in
-       let reverse =
-         let doc = Arg.info ~doc:"Print in reverse order" [ "reverse" ] in
-         Arg.(value & flag & doc)
-       in
-       let exception Return in
-       let commits store plain pager num skip reverse =
-         Eio.Switch.run @@ fun sw ->
-         let (S (impl, store, _)) = store ~sw in
-         let (module S) = Store.Impl.generic_keyed impl in
-         run @@ fun () ->
-         let t = store () in
-         let fmt f date =
-           Fmt.pf f "%s %s %02d %02d:%02d:%02d %04d" (weekday date) (month date)
-             date.tm_mday date.tm_hour date.tm_min date.tm_sec
-             (date.tm_year + 1900)
-         in
-         let repo = S.repo t in
-         let skip = ref (Option.value ~default:0 skip) in
-         let num = Option.value ~default:0 num in
-         let num_count = ref 0 in
-         let commit formatter key =
-           if num > 0 && !num_count >= num then raise Return
-           else if !skip > 0 then decr skip
-           else
-             let commit = S.Commit.of_key repo key |> Option.get in
-             let hash = S.Backend.Commit.Key.to_hash key in
-             let info = S.Commit.info commit in
-             let date = S.Info.date info in
-             let author = S.Info.author info in
-             let message = S.Info.message info in
-             let date = Unix.localtime (Int64.to_float date) in
-             let () =
-               Fmt.pf formatter "commit %a\nAuthor: %s\nDate: %a\n\n%s\n\n%!"
-                 (Irmin.Type.pp S.hash_t) hash author fmt date message
-             in
-             incr num_count
-         in
-         let max =
-           let x = S.Head.get t in
-           [ `Commit (S.Commit.key x) ]
-         in
-         let iter ~commit ~max repo =
-           try
-             if reverse then S.Repo.iter ~commit ~min:[] ~max repo
-             else S.Repo.breadth_first_traversal ~commit ~max repo
-           with Return -> ()
-         in
-         if plain then
-           let commit = commit Format.std_formatter in
-           iter ~commit ~max repo
-         else
-           try
-             let out = Unix.open_process_out pager in
-             let commit = commit (Format.formatter_of_out_channel out) in
-             let () = iter ~commit ~max repo in
-             let _ = Unix.close_process_out out in
-             ()
-           with Sys_error s when String.equal s "Broken pipe" -> ()
-       in
-       Term.(mk commits $ store () $ plain $ pager $ num $ skip $ reverse));
+      (fun ~fs ->
+        let plain =
+          let doc = Arg.info ~doc:"Show plain text without pager" [ "plain" ] in
+          Arg.(value & flag & doc)
+        in
+        let pager =
+          let doc = Arg.info ~doc:"Specify pager program to use" [ "pager" ] in
+          Arg.(value & opt string "pager" & doc)
+        in
+        let num =
+          let doc =
+            Arg.info ~doc:"Number of entries to show" [ "n"; "max-count" ]
+          in
+          Arg.(value & opt (some int) None & doc)
+        in
+        let skip =
+          let doc = Arg.info ~doc:"Number of entries to skip" [ "skip" ] in
+          Arg.(value & opt (some int) None & doc)
+        in
+        let reverse =
+          let doc = Arg.info ~doc:"Print in reverse order" [ "reverse" ] in
+          Arg.(value & flag & doc)
+        in
+        let exception Return in
+        let commits store plain pager num skip reverse =
+          Eio.Switch.run @@ fun sw ->
+          let (S (impl, store, _)) = store ~sw in
+          let (module S) = Store.Impl.generic_keyed impl in
+          run @@ fun () ->
+          let t = store () in
+          let fmt f date =
+            Fmt.pf f "%s %s %02d %02d:%02d:%02d %04d" (weekday date)
+              (month date) date.tm_mday date.tm_hour date.tm_min date.tm_sec
+              (date.tm_year + 1900)
+          in
+          let repo = S.repo t in
+          let skip = ref (Option.value ~default:0 skip) in
+          let num = Option.value ~default:0 num in
+          let num_count = ref 0 in
+          let commit formatter key =
+            if num > 0 && !num_count >= num then raise Return
+            else if !skip > 0 then decr skip
+            else
+              let commit = S.Commit.of_key repo key |> Option.get in
+              let hash = S.Backend.Commit.Key.to_hash key in
+              let info = S.Commit.info commit in
+              let date = S.Info.date info in
+              let author = S.Info.author info in
+              let message = S.Info.message info in
+              let date = Unix.localtime (Int64.to_float date) in
+              let () =
+                Fmt.pf formatter "commit %a\nAuthor: %s\nDate: %a\n\n%s\n\n%!"
+                  (Irmin.Type.pp S.hash_t) hash author fmt date message
+              in
+              incr num_count
+          in
+          let max =
+            let x = S.Head.get t in
+            [ `Commit (S.Commit.key x) ]
+          in
+          let iter ~commit ~max repo =
+            try
+              if reverse then S.Repo.iter ~commit ~min:[] ~max repo
+              else S.Repo.breadth_first_traversal ~commit ~max repo
+            with Return -> ()
+          in
+          if plain then
+            let commit = commit Format.std_formatter in
+            iter ~commit ~max repo
+          else
+            try
+              let out = Unix.open_process_out pager in
+              let commit = commit (Format.formatter_of_out_channel out) in
+              let () = iter ~commit ~max repo in
+              let _ = Unix.close_process_out out in
+              ()
+            with Sys_error s when String.equal s "Broken pipe" -> ()
+        in
+        Term.(mk commits $ store ~fs () $ plain $ pager $ num $ skip $ reverse));
   }
 
 let default =
@@ -1000,9 +1027,10 @@ let default =
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
       graphql.doc server.doc options.doc branches.doc log.doc
   in
-  ( Term.(mk usage $ const ()),
-    deprecated_info "irmin" ~version:Irmin.version ~sdocs:global_option_section
-      ~doc ~man )
+  fun ~fs:_ ->
+    ( Term.(mk usage $ const ()),
+      deprecated_info "irmin" ~version:Irmin.version
+        ~sdocs:global_option_section ~doc ~man )
 
 let commands =
   List.map create_command
@@ -1032,8 +1060,9 @@ let commands =
 
 let run ~default:x y =
   Eio_main.run @@ fun env ->
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
+  let fs = Eio.Stdenv.fs env in
   Irmin_fs.run env#fs @@ fun () ->
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
   Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
-  match deprecated_eval_choice x y with `Error _ -> exit 1 | _ -> ()
+  let y = List.map (fun y -> y ~fs) y in
+  match deprecated_eval_choice (x ~fs) y with `Error _ -> exit 1 | _ -> ()

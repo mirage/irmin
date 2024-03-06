@@ -47,6 +47,7 @@ module type S = sig
 
   val traverse_pack_file :
     sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -55,6 +56,7 @@ module type S = sig
 
   val test_traverse_pack_file :
     sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -104,7 +106,11 @@ module type S = sig
       by a readonly instance.*)
 
   val create_one_commit_store :
-    domain_mgr:_ Eio.Domain_manager.t -> repo -> commit_key -> string -> unit
+    domain_mgr:_ Eio.Domain_manager.t ->
+    repo ->
+    commit_key ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    unit
   (** [create_one_commit_store t key path] creates a new store at [path] from
       the existing one, containing only one commit, specified by the [key]. Note
       that this operation is blocking.
@@ -246,7 +252,7 @@ module type S = sig
     [@@deriving irmin]
 
     val export :
-      ?on_disk:[ `Path of string ] ->
+      ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t ] ->
       repo ->
       (t -> unit) ->
       root_key:Tree.kinded_key ->
@@ -276,7 +282,10 @@ module type S = sig
     module Import : sig
       type process
 
-      val v : ?on_disk:[ `Path of string | `Reuse ] -> repo -> process
+      val v :
+        ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t | `Reuse ] ->
+        repo ->
+        process
       (** [v ?on_disk repo] create a [snaphot] instance. The traversal requires
           an index to keep track of visited elements.
 

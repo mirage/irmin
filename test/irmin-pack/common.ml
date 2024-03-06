@@ -20,14 +20,7 @@ module Int63 = Optint.Int63
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 let sha1_contents x = sha1 ("B" ^ x)
-
-let rm_dir root =
-  if Sys.file_exists root then (
-    let cmd = Printf.sprintf "rm -rf %s" root in
-    [%logs.info "exec: %s\n%!" cmd];
-    let _ = Sys.command cmd in
-    ())
-
+let rm_dir root = Eio.Path.rmtree ~missing_ok:true root
 let index_log_size = Some 1_000
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
@@ -128,20 +121,22 @@ struct
       ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
 
   (* TODO : remove duplication with irmin_pack/ext.ml *)
-  let get_fm ~sw config =
+  let get_fm ~sw ~fs config =
     let readonly = Irmin_pack.Conf.readonly config in
-    if readonly then File_manager.open_ro ~sw config |> Errs.raise_if_error
+    if readonly then File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error
     else
       let fresh = Irmin_pack.Conf.fresh config in
       if fresh then (
         let root = Irmin_pack.Conf.root config in
         mkdir_dash_p root;
-        File_manager.create_rw ~sw ~overwrite:true config |> Errs.raise_if_error)
-      else File_manager.open_rw ~sw config |> Errs.raise_if_error
+        File_manager.create_rw ~sw ~fs ~overwrite:true config
+        |> Errs.raise_if_error)
+      else File_manager.open_rw ~sw ~fs config |> Errs.raise_if_error
 
-  let get_dict ~sw ?name ~readonly ~fresh () =
+  let get_dict ~sw ~fs ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name "dict") in
-    let fm = config ~readonly ~fresh name |> get_fm ~sw in
+    let config = config ~readonly ~fresh name in
+    let fm = get_fm ~sw ~fs config in
     let dict = File_manager.dict fm in
     { name; dict; fm }
 
@@ -155,10 +150,10 @@ struct
     dict : Pack.dict;
   }
 
-  let create ~sw ~readonly ~fresh name =
+  let create ~sw ~fs ~readonly ~fresh name =
     let f = ref (fun () -> ()) in
     let config = config ~readonly ~fresh name in
-    let fm = get_fm ~sw config in
+    let fm = get_fm ~sw ~fs config in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in
@@ -352,23 +347,15 @@ let goto_project_root () =
       Unix.chdir (Fpath.to_string root)
   | _ -> ()
 
-let rec unlink_path path =
-  match Irmin_pack_unix.Io.Unix.classify_path path with
-  | `No_such_file_or_directory -> ()
-  | `Directory ->
-      Sys.readdir path
-      |> Array.map (fun p -> Filename.concat path p)
-      |> Array.iter unlink_path;
-      Unix.rmdir path
-  | _ -> Unix.unlink path
+let unlink_path path = Eio.Path.rmtree ~missing_ok:true path
 
-let create_lower_root =
+let create_lower_root ~fs =
   let counter = ref 0 in
   let ( let$ ) res f = f @@ Result.get_ok res in
   fun ?(mkdir = true) () ->
     let lower_root = "test_lower_" ^ string_of_int !counter in
     incr counter;
-    let lower_path = Filename.concat "_build" lower_root in
+    let lower_path = Eio.Path.(fs / "_build" / lower_root) in
     unlink_path lower_path;
     let$ _ =
       if mkdir then Irmin_pack_unix.Io.Unix.mkdir lower_path else Result.ok ()

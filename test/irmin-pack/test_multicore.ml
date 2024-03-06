@@ -106,20 +106,20 @@ let rec list_shape acc path : shape -> _ = function
 
 let list_shape shape = list_shape [] [] shape
 
-let make_store shape =
+let make_store ~fs shape =
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Store.config ~fresh:true root) in
+  let repo = Store.Repo.v ~sw ~fs (Store.config ~fresh:true root) in
   let main = Store.main repo in
   let tree = make_tree shape in
   let () = Store.set_tree_exn ~info main [] tree in
   Store.Repo.close repo
 
-let domains_run d_mgr fns =
+let domains_run ~domain_mgr fns =
   let count = Atomic.make (List.length fns) in
   let fibers =
     List.map
       (fun fn () ->
-        Eio.Domain_manager.run d_mgr (fun () ->
+        Eio.Domain_manager.run domain_mgr (fun () ->
             Atomic.decr count;
             while Atomic.get count > 0 do
               Domain.cpu_relax ()
@@ -129,8 +129,8 @@ let domains_run d_mgr fns =
   in
   Eio.Fiber.all fibers
 
-let domains_spawn d_mgr ?(nb = 2) fn =
-  domains_run d_mgr @@ List.init nb (fun _ -> fn)
+let domains_spawn ~domain_mgr ?(nb = 2) fn =
+  domains_run ~domain_mgr @@ List.init nb (fun _ -> fn)
 
 let find_all tree paths =
   List.iter
@@ -140,14 +140,16 @@ let find_all tree paths =
       | Some value -> assert (expected = value))
     paths
 
-let test_find d_mgr =
+let test_find ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Store.config ~readonly:true ~fresh:false root) in
+  let repo =
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
+  in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let paths = flatten_shape shape0 in
-  domains_spawn d_mgr (fun () -> find_all tree paths);
+  domains_spawn ~domain_mgr (fun () -> find_all tree paths);
   Store.Repo.close repo
 
 let rec expected_lengths acc path : shape -> _ = function
@@ -160,11 +162,13 @@ let rec expected_lengths acc path : shape -> _ = function
 
 let expected_lengths shape = expected_lengths [] [] shape
 
-let test_length d_mgr =
+let test_length ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Store.config ~readonly:true ~fresh:false root) in
+  let repo =
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
+  in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let lengths = expected_lengths shape0 in
   let all_length () =
@@ -175,7 +179,7 @@ let test_length d_mgr =
         assert (expected = value))
       lengths
   in
-  domains_spawn ~nb:2 d_mgr all_length;
+  domains_spawn ~nb:2 ~domain_mgr all_length;
   Store.Repo.close repo
 
 let rec remove_all acc path : shape -> _ = function
@@ -213,11 +217,13 @@ let rec diff_shape acc path (old_shape : shape option) (new_shape : shape) =
 let diff_shape old_shape new_shape =
   List.rev @@ diff_shape [] [] (Some old_shape) new_shape
 
-let test_add_remove d_mgr =
+let test_add_remove ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Store.config ~readonly:true ~fresh:false root) in
+  let repo =
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
+  in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let patch = diff_shape shape0 shape1 in
   let after_paths = flatten_shape shape1 in
@@ -236,7 +242,7 @@ let test_add_remove d_mgr =
         | `Remove name -> assert (not (Tree.mem tree name)))
       patch
   in
-  domains_spawn ~nb:2 d_mgr add_all;
+  domains_spawn ~nb:2 ~domain_mgr add_all;
   Store.Repo.close repo
 
 let apply_op tree = function
@@ -251,12 +257,12 @@ let check_patch_was_applied patch tree =
       | `Remove name -> assert (not (Store.Tree.mem tree name)))
     patch
 
-let test_commit d_mgr =
+let test_commit ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw (Store.config ~readonly:false ~fresh:false root)
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
   let store = Store.main repo in
   let patch01 = diff_shape shape0 shape1 in
@@ -271,15 +277,15 @@ let test_commit d_mgr =
     let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
     check_patch_was_applied patch tree
   in
-  domains_run d_mgr [ do_commit patch01; do_commit patch02 ];
+  domains_run ~domain_mgr [ do_commit patch01; do_commit patch02 ];
   Store.Repo.close repo
 
-let test_merkle d_mgr =
+let test_merkle ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw (Store.config ~readonly:false ~fresh:false root)
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let hash = Store.Tree.key tree |> Option.get in
@@ -295,15 +301,15 @@ let test_merkle d_mgr =
     | Ok (new_tree, ()) -> check_patch_was_applied patch new_tree
     | Error _ -> assert false
   in
-  domains_run d_mgr [ do_proof patch01; do_proof patch02 ];
+  domains_run ~domain_mgr [ do_proof patch01; do_proof patch02 ];
   Store.Repo.close repo
 
-let test_hash d_mgr =
+let test_hash ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw (Store.config ~readonly:false ~fresh:false root)
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let patch01 = diff_shape shape0 shape1 in
@@ -322,7 +328,7 @@ let test_hash d_mgr =
   in
   let result1 = Atomic.make [] in
   let result2 = Atomic.make [] in
-  domains_run d_mgr [ do_hash result1; do_hash result2 ];
+  domains_run ~domain_mgr [ do_hash result1; do_hash result2 ];
   List.iter2
     (fun h1 h2 -> assert (h1 = h2))
     (Atomic.get result1) (Atomic.get result2);
@@ -341,34 +347,38 @@ let list_all cache tree paths =
         expected)
     paths
 
-let test_list_disk ~cache d_mgr =
+let test_list_disk ~fs ~cache ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Store.config ~readonly:true ~fresh:false root) in
+  let repo =
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
+  in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let paths = list_shape shape0 in
-  domains_spawn d_mgr (fun () -> list_all cache tree paths);
+  domains_spawn ~domain_mgr (fun () -> list_all cache tree paths);
   Store.Repo.close repo
 
-let test_list_mem ~cache d_mgr =
+let test_list_mem ~fs ~cache ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
-  let repo = Store.Repo.v ~sw (Store.config ~readonly:true ~fresh:false root) in
+  let repo =
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
+  in
   let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
   let patch = diff_shape shape0 shape1 in
   let paths = list_shape shape1 in
   let tree = List.fold_left apply_op tree patch in
-  domains_spawn d_mgr (fun _ -> list_all cache tree paths);
+  domains_spawn ~domain_mgr (fun _ -> list_all cache tree paths);
   Store.Repo.close repo
 
-let test_commit_of_hash d_mgr =
+let test_commit_of_hash ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw (Store.config ~readonly:false ~fresh:false root)
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
   let store = Store.main repo in
   let patch01 = diff_shape shape0 shape1 in
@@ -411,15 +421,15 @@ let test_commit_of_hash d_mgr =
     let diffs = Store.Tree.diff tree3 t3 in
     assert (diffs = [])
   in
-  domains_spawn d_mgr do_commit_of_hash;
+  domains_spawn ~domain_mgr do_commit_of_hash;
   Store.Repo.close repo
 
-let test_commit_parents d_mgr =
+let test_commit_parents ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw (Store.config ~readonly:false ~fresh:false root)
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
   let store = Store.main repo in
   let patch01 = diff_shape shape0 shape1 in
@@ -443,15 +453,15 @@ let test_commit_parents d_mgr =
            commit)
          commit commits)
   in
-  domains_spawn d_mgr do_commit_parents;
+  domains_spawn ~domain_mgr do_commit_parents;
   Store.Repo.close repo
 
-let test_commit_v d_mgr =
+let test_commit_v ~fs ~domain_mgr =
   Logs.set_level None;
-  make_store shape0;
+  make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw (Store.config ~readonly:false ~fresh:false root)
+    Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
   let store = Store.main repo in
   let patch01 = diff_shape shape0 shape1 in
@@ -465,24 +475,24 @@ let test_commit_v d_mgr =
     in
     ()
   in
-  domains_spawn d_mgr do_commit_v;
+  domains_spawn ~domain_mgr do_commit_v;
   Store.Repo.close repo
 
 (* TODO: Eio has to be fixed first to allow a switch to be used from different domains *)
-let tests d_mgr =
-  let tc name fn = Alcotest.test_case name `Quick (fun () -> fn d_mgr) in
+let tests ~fs ~domain_mgr =
+  let tc name fn = Alcotest.test_case name `Quick (fun () -> fn ~domain_mgr) in
   [
-    tc "find." test_find;
-    (* tc "length." test_length;
-       tc "add / remove." test_add_remove;
-       tc "commit." test_commit;
-       tc "merkle." test_merkle;
-       tc "hash." test_hash;
-       tc "list-disk-no-cache." (test_list_disk ~cache:false);
-       tc "list-disk-with-cache." (test_list_disk ~cache:true);
-       tc "list-mem-no-cache." (test_list_mem ~cache:false);
-       tc "list-mem-with-cache." (test_list_mem ~cache:true);
-       tc "commit-of-hash." test_commit_of_hash;
-       tc "commit-parents." test_commit_parents;
-       tc "commit-v." test_commit_v; *)
+    tc "find." (test_find ~fs);
+    tc "length." (test_length ~fs);
+    tc "add / remove." (test_add_remove ~fs);
+    tc "commit." (test_commit ~fs);
+    tc "merkle." (test_merkle ~fs);
+    tc "hash." (test_hash ~fs);
+    tc "list-disk-no-cache." (test_list_disk ~fs ~cache:false);
+    tc "list-disk-with-cache." (test_list_disk ~fs ~cache:true);
+    tc "list-mem-no-cache." (test_list_mem ~fs ~cache:false);
+    tc "list-mem-with-cache." (test_list_mem ~fs ~cache:true);
+    tc "commit-of-hash." (test_commit_of_hash ~fs);
+    tc "commit-parents." (test_commit_parents ~fs);
+    tc "commit-v." (test_commit_v ~fs);
   ]

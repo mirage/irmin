@@ -7,6 +7,8 @@
   irmin-pack
   irmin-pack.unix
   irmin-tezos
+  eio
+  eio_main
   notty
   notty.unix
   index.unix

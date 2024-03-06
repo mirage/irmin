@@ -23,17 +23,22 @@ module type Subcommand = sig
 
   val run : run
 
-  val term_internal : (unit -> unit) Cmdliner.Term.t
+  val term_internal :
+    fs:Eio.Fs.dir_ty Eio.Path.t -> (unit -> unit) Cmdliner.Term.t
   (** A pre-packaged [Cmdliner] term for executing {!run}. *)
 
-  val term : (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+  val term :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
   (** [term] is {!term_internal} plus documentation and logs initialisation *)
 end
 
 module type S = sig
   (** Reads basic metrics from an existing store and prints them to stdout. *)
   module Stat : sig
-    include Subcommand with type run := root:string -> unit
+    include
+      Subcommand
+        with type run := fs:Eio.Fs.dir_ty Eio.Path.t -> root:string -> unit
 
     (** Internal implementation utilities exposed for use in other integrity
         checks. *)
@@ -50,6 +55,7 @@ module type S = sig
     Subcommand
       with type run :=
         sw:Eio.Switch.t ->
+        fs:Eio.Fs.dir_ty Eio.Path.t ->
         root:string ->
         output:string option ->
         ?index_log_size:int ->
@@ -63,6 +69,7 @@ module type S = sig
       Subcommand
         with type run :=
           sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
           ?ppf:Format.formatter ->
           root:string ->
           auto_repair:bool ->
@@ -86,6 +93,7 @@ module type S = sig
       Subcommand
         with type run :=
           sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
           root:string ->
           auto_repair:bool ->
           always:bool ->
@@ -98,7 +106,11 @@ module type S = sig
     include
       Subcommand
         with type run :=
-          sw:Eio.Switch.t -> root:string -> heads:string list option -> unit
+          sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
+          root:string ->
+          heads:string list option ->
+          unit
   end
 
   (** Traverses a commit to get stats on its underlying tree. *)
@@ -107,6 +119,7 @@ module type S = sig
       Subcommand
         with type run :=
           sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
           root:string ->
           commit:string option ->
           dump_blob_paths_to:string option ->
@@ -115,8 +128,12 @@ module type S = sig
   end
 
   val cli :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     ?terms:
-      ((unit Cmdliner.Term.t * Cmdliner.Term.info)[@alert "-deprecated"]) list ->
+      ((fs:Eio.Fs.dir_ty Eio.Path.t ->
+       unit Cmdliner.Term.t * Cmdliner.Term.info)
+      [@alert "-deprecated"])
+      list ->
     unit ->
     empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.

@@ -34,25 +34,25 @@ module Direct_tc = struct
     let path = Irmin_pack.Layout.V5.Volume.control ~root:volume_path in
     Control.create_rw ~sw ~path ~tmp_path:None ~overwrite:true payload
 
-  let test_empty () =
+  let test_empty ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let$ lower = Lower.v ~sw ~readonly:false ~volume_num:0 lower_root in
     Alcotest.(check int) "0 volumes" 0 (Lower.volume_num lower);
     let _ = Lower.close lower in
     ()
 
-  let test_volume_num () =
+  let test_volume_num ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let result = Lower.v ~sw ~readonly:false ~volume_num:1 lower_root in
     match result with
     | Error (`Volume_missing _) -> ()
     | _ -> Alcotest.fail "volume_num too high should return an error"
 
-  let test_add_volume () =
+  let test_add_volume ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let$ lower = Lower.v ~sw ~readonly:false ~volume_num:0 lower_root in
     let$ _ = Lower.add_volume lower in
     Alcotest.(check int) "1 volume" 1 (Lower.volume_num lower);
@@ -61,9 +61,9 @@ module Direct_tc = struct
     let _ = Lower.close lower in
     ()
 
-  let test_add_volume_ro () =
+  let test_add_volume_ro ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let$ lower = Lower.v ~sw ~readonly:true ~volume_num:0 lower_root in
     let result = Lower.add_volume lower in
     let () =
@@ -74,9 +74,9 @@ module Direct_tc = struct
     let _ = Lower.close lower in
     ()
 
-  let test_add_multiple_empty () =
+  let test_add_multiple_empty ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let$ lower = Lower.v ~sw ~readonly:false ~volume_num:0 lower_root in
     let$ _ = Lower.add_volume lower in
     let result = Lower.add_volume lower |> Result.get_error in
@@ -88,9 +88,9 @@ module Direct_tc = struct
     let _ = Lower.close lower in
     ()
 
-  let test_find_volume () =
+  let test_find_volume ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let$ lower = Lower.v ~sw ~readonly:false ~volume_num:0 lower_root in
     let$ volume = Lower.add_volume lower in
     let payload =
@@ -112,9 +112,9 @@ module Direct_tc = struct
     let _ = Lower.close lower in
     ()
 
-  let test_read_exn () =
+  let test_read_exn ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let lower_root = create_lower_root () in
+    let lower_root = create_lower_root ~fs () in
     let$ lower = Lower.v ~sw ~readonly:false ~volume_num:0 lower_root in
     let$ volume = Lower.add_volume lower in
     (* Manually create mapping, data, and control file for volume.
@@ -163,12 +163,12 @@ module Store_tc = struct
 
   let test_dir = "_build"
 
-  let fresh_roots =
+  let fresh_roots ~fs =
     let c = ref 0 in
     fun ?(make_root = true) () ->
       incr c;
       let name =
-        Filename.concat test_dir ("test_lower_store_" ^ string_of_int !c)
+        Eio.Path.(fs / test_dir / ("test_lower_store_" ^ string_of_int !c))
       in
       Common.rm_dir name;
       let$ _ = if make_root then Io.mkdir name else Ok () in
@@ -181,10 +181,11 @@ module Store_tc = struct
       config ~readonly ~indexing_strategy:Indexing_strategy.minimal ~fresh
         ~lower_root root)
 
-  let init ~sw ?(readonly = false) ?(fresh = true) ?(include_lower = true) () =
-    let root, lower_root = fresh_roots () in
+  let init ~sw ~fs ?(readonly = false) ?(fresh = true) ?(include_lower = true)
+      () =
+    let root, lower_root = fresh_roots ~fs () in
     let lower_root = if include_lower then Some lower_root else None in
-    config ~readonly ~fresh ?lower_root root |> Store.Repo.v ~sw
+    config ~readonly ~fresh ?lower_root root |> Store.Repo.v ~sw ~fs
 
   let count_volumes repo =
     let open Store.Internal in
@@ -235,35 +236,35 @@ module Store_tc = struct
         | Some commit -> Store.Tree.fold (Store.Commit.tree commit) ())
       !commits
 
-  let test_create () =
+  let test_create ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let repo = init ~sw () in
+    let repo = init ~sw ~fs () in
     (* A newly created store with a lower should have an empty volume. *)
     let volume_num = count_volumes repo in
     Alcotest.(check int) "volume_num is 1" 1 volume_num;
     Store.Repo.close repo
 
-  let test_create_nested () =
+  let test_create_nested ~fs () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots ~make_root:false () in
-    let repo = config ~fresh:true ~lower_root root |> Store.Repo.v ~sw in
+    let repo = config ~fresh:true ~lower_root root |> Store.Repo.v ~sw ~fs in
     let volume_num = count_volumes repo in
     Alcotest.(check int) "volume_num is 1" 1 volume_num;
     Store.Repo.close repo
 
-  let test_open_rw_lower () =
+  let test_open_rw_lower ~fs () =
     Eio.Switch.run @@ fun sw ->
     let root, lower_root = fresh_roots ~make_root:false () in
-    let repo = config ~fresh:true root |> Store.Repo.v ~sw in
+    let repo = config ~fresh:true root |> Store.Repo.v ~sw ~fs in
     let () = Store.Repo.close repo in
-    let repo = config ~fresh:false ~lower_root root |> Store.Repo.v ~sw in
+    let repo = config ~fresh:false ~lower_root root |> Store.Repo.v ~sw ~fs in
     let volume_num = count_volumes repo in
     Alcotest.(check int) "volume_num is 1" 1 volume_num;
     Store.Repo.close repo
 
-  let test_add_volume_during_gc domain_mgr () =
+  let test_add_volume_during_gc ~fs ~domain_mgr () =
     Eio.Switch.run @@ fun sw ->
-    let repo = init ~sw () in
+    let repo = init ~sw ~fs () in
     let main = Store.main repo in
     let () =
       Store.set_exn
@@ -279,9 +280,9 @@ module Store_tc = struct
     in
     Store.Repo.close repo
 
-  let test_add_volume_wo_lower () =
+  let test_add_volume_wo_lower ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let repo = init ~sw ~include_lower:false () in
+    let repo = init ~sw ~fs ~include_lower:false () in
     let () =
       Alcotest.check_raises "add volume w/o lower"
         (Irmin_pack_unix.Errors.Pack_error `Add_volume_requires_lower)
@@ -289,10 +290,10 @@ module Store_tc = struct
     in
     Store.Repo.close repo
 
-  let test_add_volume_reopen domain_mgr () =
+  let test_add_volume_reopen ~fs ~domain_mgr () =
     Eio.Switch.run @@ fun sw ->
-    let root, lower_root = fresh_roots () in
-    let repo = Store.Repo.v ~sw (config ~fresh:true ~lower_root root) in
+    let root, lower_root = fresh_roots ~fs () in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true ~lower_root root) in
     let main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
@@ -302,22 +303,22 @@ module Store_tc = struct
     let () = Store.add_volume repo in
     Alcotest.(check int) "two volumes" 2 (count_volumes repo);
     let _ = Store.Repo.close repo in
-    let repo = Store.Repo.v ~sw (config ~fresh:false ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:false ~lower_root root) in
     Alcotest.(check int) "two volumes after re-open" 2 (count_volumes repo);
     Store.Repo.close repo
 
-  let test_migrate () =
+  let test_migrate ~fs () =
     Eio.Switch.run @@ fun sw ->
-    let root, lower_root = fresh_roots () in
+    let root, lower_root = fresh_roots ~fs () in
     (* Create without a lower *)
-    let repo = Store.Repo.v ~sw (config ~fresh:true root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
     Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
     let main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
     let () = Store.Repo.close repo in
     (* Reopen with a lower to trigger the migration *)
-    let repo = Store.Repo.v ~sw (config ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~lower_root root) in
     Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
     let main = Store.main repo in
     let a = Store.get main [ "a" ] in
@@ -328,7 +329,7 @@ module Store_tc = struct
     let () = Store.set_exn ~info main [ "a" ] "b" in
     let () = Store.Repo.close repo in
     (* Reopen with the same lower and check reads *)
-    let repo = Store.Repo.v ~sw (config ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~lower_root root) in
     Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
     let main = Store.main repo in
     let b = Store.get main [ "a" ] in
@@ -343,7 +344,7 @@ module Store_tc = struct
     Store.Repo.close repo
 
   (* Tests that dead header is handled appropriately *)
-  let test_migrate_v2 () =
+  let test_migrate_v2 ~fs () =
     Eio.Switch.run @@ fun sw ->
     let ( / ) = Filename.concat in
     let root_archive =
@@ -353,11 +354,11 @@ module Store_tc = struct
     setup_test_env ~root_archive ~root_local_build:root;
     let lower_root = root / "lower" in
     (* Open store and trigger migration. This should succeed. *)
-    let repo = Store.Repo.v ~sw (config ~fresh:false ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:false ~lower_root root) in
     let _ = read_everything repo in
     Store.Repo.close repo
 
-  let test_migrate_v3 () =
+  let test_migrate_v3 ~fs () =
     Eio.Switch.run @@ fun sw ->
     (* minimal indexing *)
     let ( / ) = Filename.concat in
@@ -366,7 +367,7 @@ module Store_tc = struct
     setup_test_env ~root_archive ~root_local_build:root;
     let lower_root = root / "lower" in
     (* Open store and trigger migration. This should succeed. *)
-    let repo = Store.Repo.v ~sw (config ~fresh:false ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:false ~lower_root root) in
     let _ = read_everything repo in
     let _ = Store.Repo.close repo in
 
@@ -377,22 +378,22 @@ module Store_tc = struct
     setup_test_env ~root_archive ~root_local_build:root;
     let lower_root = root / "lower" in
     (* Open store and trigger migration. This should succeed. *)
-    let repo = Store.Repo.v ~sw (config ~fresh:false ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:false ~lower_root root) in
     let _ = read_everything repo in
     Store.Repo.close repo
 
-  let test_migrate_then_gc domain_mgr () =
+  let test_migrate_then_gc ~fs ~domain_mgr () =
     Eio.Switch.run @@ fun sw ->
-    let root, lower_root = fresh_roots () in
+    let root, lower_root = fresh_roots ~fs () in
     (* Create without a lower *)
-    let repo = Store.Repo.v ~sw (config ~fresh:true root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
     Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
     let main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
     let () = Store.Repo.close repo in
     (* Reopen with a lower to trigger the migration *)
-    let repo = Store.Repo.v ~sw (config ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~lower_root root) in
     Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
     (* Add two commits *)
     let main = Store.main repo in
@@ -406,11 +407,11 @@ module Store_tc = struct
     let _ = read_everything repo in
     Store.Repo.close repo
 
-  let test_migrate_then_gc_in_lower domain_mgr () =
+  let test_migrate_then_gc_in_lower ~fs ~domain_mgr () =
     Eio.Switch.run @@ fun sw ->
-    let root, lower_root = fresh_roots () in
+    let root, lower_root = fresh_roots ~fs () in
     (* Create without a lower *)
-    let repo = Store.Repo.v ~sw (config ~fresh:true root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
     Alcotest.(check int) "volume_num is 0" 0 (count_volumes repo);
     let main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
@@ -419,7 +420,7 @@ module Store_tc = struct
     let () = Store.set_exn ~info main [ "b" ] "b" in
     let () = Store.Repo.close repo in
     (* Reopen with a lower to trigger the migration *)
-    let repo = Store.Repo.v ~sw (config ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~lower_root root) in
     Alcotest.(check int) "volume_num is 1" 1 (count_volumes repo);
     (* [a] is now in the lower but GC should still succeed
 
@@ -430,10 +431,10 @@ module Store_tc = struct
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     Store.Repo.close repo
 
-  let test_volume_data_locality domain_mgr () =
+  let test_volume_data_locality ~fs ~domain_mgr () =
     Eio.Switch.run @@ fun sw ->
-    let root, lower_root = fresh_roots () in
-    let repo = Store.Repo.v ~sw (config ~fresh:true ~lower_root root) in
+    let root, lower_root = fresh_roots ~fs () in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true ~lower_root root) in
     let main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
     [%log.debug "add c1"];
@@ -494,11 +495,11 @@ module Store_tc = struct
     in
     Store.Repo.close repo
 
-  let test_cleanup domain_mgr () =
+  let test_cleanup ~fs ~domain_mgr () =
     Eio.Switch.run @@ fun sw ->
-    let root, lower_root = fresh_roots () in
+    let root, lower_root = fresh_roots ~fs () in
     [%log.debug "create store with data and run GC"];
-    let repo = Store.Repo.v ~sw (config ~fresh:true ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true ~lower_root root) in
     let main = Store.main repo in
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
@@ -516,7 +517,7 @@ module Store_tc = struct
       Irmin_pack.Layout.V5.Volume.control ~root:volume_root
     in
     let$ () = Io.move_file ~src:volume_cf_path ~dst:volume_cf_gen_path in
-    let repo = Store.Repo.v ~sw (config ~fresh:false ~lower_root root) in
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:false ~lower_root root) in
     let () =
       match Io.classify_path volume_cf_path with
       | `File -> [%log.debug "control file exists"]
@@ -533,25 +534,25 @@ end
 module Store = struct
   include Store_tc
 
-  let tests domain_mgr =
+  let tests ~domain_mgr =
     Alcotest.
       [
         quick_tc "create store" test_create;
         quick_tc "create nested" test_create_nested;
         quick_tc "open rw with lower" test_open_rw_lower;
         quick_tc "add volume with no lower" test_add_volume_wo_lower;
-        quick_tc "add volume during gc" (test_add_volume_during_gc domain_mgr);
+        quick_tc "add volume during gc" (test_add_volume_during_gc ~domain_mgr);
         quick_tc "control file updated after add"
-          (test_add_volume_reopen domain_mgr);
-        quick_tc "add volume and reopen" (test_add_volume_reopen domain_mgr);
+          (test_add_volume_reopen ~domain_mgr);
+        quick_tc "add volume and reopen" (test_add_volume_reopen ~domain_mgr);
         quick_tc "create without lower then migrate" test_migrate;
         quick_tc "migrate v2" test_migrate_v2;
         quick_tc "migrate v3" test_migrate_v3;
-        quick_tc "migrate then gc" (test_migrate_then_gc domain_mgr);
+        quick_tc "migrate then gc" (test_migrate_then_gc ~domain_mgr);
         quick_tc "migrate then gc in lower"
-          (test_migrate_then_gc_in_lower domain_mgr);
-        quick_tc "test data locality" (test_volume_data_locality domain_mgr);
-        quick_tc "test cleanup" (test_cleanup domain_mgr);
+          (test_migrate_then_gc_in_lower ~domain_mgr);
+        quick_tc "test data locality" (test_volume_data_locality ~domain_mgr);
+        quick_tc "test cleanup" (test_cleanup ~domain_mgr);
       ]
 end
 

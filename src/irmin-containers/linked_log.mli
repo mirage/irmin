@@ -30,6 +30,9 @@ module type S = sig
   (** Type of cursor. Cursor is like a marker from which a certain number of
       entries can be read *)
 
+  val init : sw:Eio.Switch.t -> fs:Eio.Fs.dir_ty Eio.Path.t -> unit
+  (** Due to how eio is done, needs to call init before anything else *)
+
   val get_cursor : path:Store.path -> Store.t -> cursor
   (** Create a new cursor over the log entires at the given path *)
 

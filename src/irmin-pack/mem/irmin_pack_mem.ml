@@ -119,7 +119,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         module AW = Atomic_write (Key) (Val)
         include Irmin_pack.Atomic_write.Closeable (AW)
 
-        let v ~sw () = AW.v ~sw () |> make_closeable
+        let v ~sw ~fs () = AW.v ~sw ~fs () |> make_closeable
       end
 
       module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
@@ -149,12 +149,12 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
                       let commit : 'a Commit.t = (node, commit) in
                       f contents node commit)))
 
-        let v ~sw config =
+        let v ~sw ~fs config =
           let root = Irmin_pack.Conf.root config in
           let contents = Contents.Indexable.v root in
           let node = Node.Indexable.v root in
           let commit = Commit.Indexable.v root in
-          let branch = Branch.v ~sw () in
+          let branch = Branch.v ~sw ~fs () in
           { contents; node; commit; branch; config }
 
         let close t =

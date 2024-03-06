@@ -118,7 +118,9 @@ val index_log_size : int option
 val random_string : int -> string
 val random_letters : int -> string
 val unlink_path : string -> unit
-val create_lower_root : ?mkdir:bool -> unit -> string
+
+val create_lower_root :
+  fs:Eio.Fs.dir_ty Eio.Path.t -> ?mkdir:bool -> unit -> Eio.Fs.dir_ty Eio.Path.t
 
 val exec_cmd : string -> (unit, int) result
 (** Exec a command, and return [Ok ()] or [Error n] if return code is n <> 0 *)

@@ -78,8 +78,9 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
       if real_offset_without_header > end_poff then
         [%log.warn
           "The end offset in the control file %a is smaller than the offset on \
-           disk %a for %s; the store was closed in a inconsistent state."
-          Int63.pp end_poff Int63.pp real_offset_without_header (Io.path io)];
+           disk %a for %a; the store was closed in a inconsistent state."
+          Int63.pp end_poff Int63.pp real_offset_without_header Eio.Path.pp
+            (Io.path io)];
       Ok ())
 
   let open_rw ~sw ~path ~end_poff ~dead_header_size =

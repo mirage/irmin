@@ -45,8 +45,8 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
 
   type context = { repo : Store.repo; tree : Store.tree }
 
-  let export_tree_to_store ~sw tree =
-    let repo = Store.Repo.v ~sw (config ~fresh:true root) in
+  let export_tree_to_store ~sw ~fs tree =
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
     let store = Store.empty repo in
     let () = Store.set_tree_exn ~info store [] tree in
     let tree = Store.tree store in
@@ -66,12 +66,12 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
         let h = Irmin.Type.to_string Store.Hash.t h in
         ([ h ], zero))
 
-  let init_tree ~sw bindings =
+  let init_tree ~sw ~fs bindings =
     let tree = Tree.empty () in
     let tree =
       List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
-    export_tree_to_store ~sw tree
+    export_tree_to_store ~sw ~fs tree
 
   let find_tree tree k =
     let t = Tree.find_tree tree k in
@@ -195,7 +195,7 @@ let test_fold ?export_tree_to_store:(export_tree_to_store' = true) ~order
   let close =
     match export_tree_to_store' with
     | true ->
-        let ctxt = export_tree_to_store ~sw tree in
+        let ctxt = export_tree_to_store ~sw ~fs tree in
         fun () -> close ctxt
     | false -> fun () -> ()
   in
@@ -330,7 +330,7 @@ let test_proofs ctxt ops =
 let test_large_inode () =
   Eio.Switch.run @@ fun sw ->
   let bindings = bindings steps in
-  let ctxt = init_tree ~sw bindings in
+  let ctxt = init_tree ~sw ~fs bindings in
   let ops = [ Add ([ "00" ], "3"); Del [ "01" ] ] in
   test_proofs ctxt ops
 
@@ -343,7 +343,7 @@ let fewer_steps =
 let test_small_inode () =
   Eio.Switch.run @@ fun sw ->
   let bindings = bindings fewer_steps in
-  let ctxt = init_tree ~sw bindings in
+  let ctxt = init_tree ~sw ~fs bindings in
   let ops = [ Add ([ "00" ], ""); Del [ "01" ] ] in
   test_proofs ctxt ops
 
@@ -351,7 +351,7 @@ let test_length_proof () =
   Eio.Switch.run @@ fun sw ->
   let bindings = bindings fewer_steps in
   let size = List.length fewer_steps in
-  let ctxt = init_tree ~sw bindings in
+  let ctxt = init_tree ~sw ~fs bindings in
   let ops =
     [
       Length ([], size) (* initial size *);
@@ -400,7 +400,7 @@ let test_deeper_proof () =
       let bindings = bindings fewer_steps in
       List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
-    export_tree_to_store ~sw level_three
+    export_tree_to_store ~sw ~fs level_three
   in
   let ops =
     [
@@ -435,7 +435,7 @@ let test_large_proofs () =
   let compare_proofs n =
     Eio.Switch.run @@ fun sw ->
     let ops = ops n in
-    let ctxt = init_tree ~sw bindings in
+    let ctxt = init_tree ~sw ~fs bindings in
     let key =
       match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
     in
@@ -444,7 +444,7 @@ let test_large_proofs () =
     let () = close ctxt in
 
     (* Build a stream proof *)
-    let ctxt = init_tree ~sw bindings in
+    let ctxt = init_tree ~sw ~fs bindings in
     let key =
       match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
     in
@@ -453,7 +453,7 @@ let test_large_proofs () =
     let () = close ctxt in
 
     (* Build a proof on a large store (branching factor = 2) *)
-    let ctxt = Binary.init_tree ~sw bindings in
+    let ctxt = Binary.init_tree ~sw ~fs bindings in
     let key =
       match Binary.Store.Tree.key ctxt.tree with
       | Some (`Node k) -> k
@@ -464,7 +464,7 @@ let test_large_proofs () =
     let () = Binary.close ctxt in
 
     (* Build a stream proof *)
-    let ctxt = Binary.init_tree ~sw bindings in
+    let ctxt = Binary.init_tree ~sw ~fs bindings in
     let key =
       match Binary.Store.Tree.key ctxt.tree with
       | Some (`Node k) -> k
@@ -537,7 +537,7 @@ let test_extenders () =
 
   let check_proof bindings =
     Eio.Switch.run @@ fun sw ->
-    let ctxt = Custom.init_tree ~sw bindings in
+    let ctxt = Custom.init_tree ~sw ~fs bindings in
     let key = Custom.Tree.key ctxt.tree |> Option.get in
     let p, () = Custom.Tree.produce_proof ctxt.repo key f in
     [%log.debug "Verifying proof %a" pp_proof p];
@@ -553,7 +553,7 @@ let test_extenders () =
 
   let check_stream bindings =
     Eio.Switch.run @@ fun sw ->
-    let ctxt = Custom.init_tree ~sw bindings in
+    let ctxt = Custom.init_tree ~sw ~fs bindings in
     let key = Custom.Tree.key ctxt.tree |> Option.get in
     let p, () = Custom.Tree.produce_stream ctxt.repo key f in
     [%log.debug "Verifying stream %a" pp_stream p];
@@ -575,7 +575,7 @@ let test_hardcoded_stream () =
     Alcotest.failf "Unexpected elt in stream %a" (Irmin.Type.pp P.elt_t) elt
   in
   Eio.Switch.run @@ fun sw ->
-  let ctxt = Custom.init_tree ~sw bindings in
+  let ctxt = Custom.init_tree ~sw ~fs bindings in
   let key = Custom.Tree.key ctxt.tree |> Option.get in
   let f t =
     let path = [ "00100" ] in
@@ -626,7 +626,7 @@ let test_hardcoded_proof () =
       elt
   in
   Eio.Switch.run @@ fun sw ->
-  let ctxt = Custom.init_tree ~sw bindings in
+  let ctxt = Custom.init_tree ~sw ~fs bindings in
   let key = Custom.Tree.key ctxt.tree |> Option.get in
   let f t =
     let v = Custom.Tree.get t [ "00000" ] in
@@ -725,13 +725,13 @@ let test_proof_exn _ =
 let test_reexport_node () =
   Eio.Switch.run @@ fun sw ->
   let tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
-  let repo1 = Store.Repo.v ~sw (config ~fresh:true root) in
+  let repo1 = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
   let _ =
     Store.Backend.Repo.batch repo1 (fun c n _ -> Store.save_tree repo1 c n tree)
   in
   let () = Store.Repo.close repo1 in
   (* Re-export the same tree using a different repo. *)
-  let repo2 = Store.Repo.v ~sw (config ~fresh:false root) in
+  let repo2 = Store.Repo.v ~sw ~fs (config ~fresh:false root) in
   let _ =
     Alcotest.check_raises "re-export tree from another repo"
       (Failure "Can't export the node key from another repo") (fun () ->
@@ -740,7 +740,7 @@ let test_reexport_node () =
   in
   let () = Store.Repo.close repo2 in
   (* Re-export a fresh tree using a different repo. *)
-  let repo2 = Store.Repo.v ~sw (config ~fresh:false root) in
+  let repo2 = Store.Repo.v ~sw ~fs (config ~fresh:false root) in
   let tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
   let _ = Store.Tree.hash tree in
   let c1 = Store.Tree.get_tree tree [ "foo" ] in

@@ -27,9 +27,9 @@ struct
   module Sparse = Sparse_file.Make (Io)
 
   type t =
-    | Empty of { path : string; sw : Eio.Switch.t }
+    | Empty of { path : Eio.Fs.dir_ty Eio.Path.t; sw : Eio.Switch.t }
     | Nonempty of {
-        path : string;
+        path : Eio.Fs.dir_ty Eio.Path.t;
         control : Payload.t;
         mutable sparse : Sparse.t option;
         sw : Eio.Switch.t;
@@ -63,7 +63,8 @@ struct
     (* 0. Validate volume directory does not already exist *)
     let* () =
       match Io.classify_path volume_path with
-      | `Directory | `File | `Other -> Error (`File_exists volume_path)
+      | `Directory | `File | `Other ->
+          Error (`File_exists (Eio.Path.native_exn volume_path))
       | `No_such_file_or_directory -> Ok ()
     in
     (* 1. Make directory *)
@@ -141,7 +142,7 @@ struct
             let+ () = Sparse.close s in
             t.sparse <- None)
 
-  let identifier t = path t
+  let identifier t = Eio.Path.native_exn (path t)
   let identifier_eq ~id t = String.equal (identifier t) id
   let eq a b = identifier_eq ~id:(identifier b) a
 
@@ -240,21 +241,24 @@ struct
     match Io.classify_path control_tmp with
     | `File -> Io.move_file ~src:control_tmp ~dst:control
     | `No_such_file_or_directory ->
-        [%log.info "No tmp volume control file to swap. %s" control];
+        [%log.info
+          "No tmp volume control file to swap. %s"
+            (Fmt.str "%a" Eio.Path.pp control)];
         Ok ()
     | `Directory | `Other -> assert false
 
   let cleanup ~generation t =
+    let path = path t in
     let clean filename =
       match Irmin_pack.Layout.Classification.Volume.v filename with
       | `Control_tmp g when g = generation -> swap ~generation t
       | `Control_tmp g when g <> generation ->
-          Io.unlink filename
+          Io.unlink Eio.Path.(path / filename)
           |> Errs.log_if_error (Printf.sprintf "unlink %s" filename)
           |> Result.ok
       | _ -> Ok ()
     in
-    path t |> Io.readdir |> List.iter_result clean
+    Io.readdir path |> List.iter_result clean
 end
 
 module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -263,7 +267,7 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Volume = Make_volume (Io) (Errs)
 
   type t = {
-    root : string;
+    root : Eio.Fs.dir_ty Eio.Path.t;
     mutable readonly : bool;
     mutable volumes : Volume.t array;
     mutable open_volume : Volume.t option;
@@ -300,7 +304,7 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         let path = Layout.directory ~root ~idx:i in
         match Io.classify_path path with
         | `File | `Other | `No_such_file_or_directory ->
-            raise (LoadVolumeError (`Volume_missing path))
+            raise (LoadVolumeError (`Volume_missing (Eio.Path.native_exn path)))
         | `Directory -> (
             match Volume.v ~sw:t.sw path with
             | Error e -> raise (LoadVolumeError e)

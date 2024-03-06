@@ -24,14 +24,17 @@ module Int64_mmap (Io : Io_intf.S) : sig
   type t
 
   val open_ro :
-    sw:Eio.Switch.t -> fn:string -> sz:int -> (t, [> Io.open_error ]) result
+    sw:Eio.Switch.t ->
+    fn:Eio.Fs.dir_ty Eio.Path.t ->
+    sz:int ->
+    (t, [> Io.open_error ]) result
 
   val length : t -> int
   val get : t -> int -> Int64.t
   val close : t -> (unit, [> Io.close_error ]) result
 end = struct
   type t = {
-    fn : string;
+    fn : Eio.Fs.dir_ty Eio.Path.t;
     fd : Io.t;
     loaded : bool array;
     mutable arr : int64_bigarray;
@@ -93,7 +96,7 @@ module Make (Io : Io_intf.S) = struct
             Error
               (`Corrupted_mapping_file
                 (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
-      | _ -> Error (`No_such_file_or_directory path)
+      | _ -> Error (`No_such_file_or_directory (Eio.Path.native_exn path))
 
     let close = Int64_mmap.close
     let entry_count t = Int64_mmap.length t / 3

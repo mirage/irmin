@@ -72,8 +72,8 @@ module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
     check_not_closed t;
     S.batch t.t (fun w -> f { t = w; closed = t.closed })
 
-  let v ~sw conf =
-    let t = S.v ~sw conf in
+  let v ~sw ~fs conf =
+    let t = S.v ~sw ~fs conf in
     { closed = ref false; t }
 
   let close t =

@@ -195,7 +195,7 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
 
   type t = {
     inventory : Inventory.t;
-    root : string;
+    root : Eio.Fs.dir_ty Eio.Path.t;
     dead_header_size : int;
     sw : Eio.Switch.t;
   }

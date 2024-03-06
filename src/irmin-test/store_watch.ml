@@ -49,7 +49,7 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
     in
     aux 0
 
-  let test_watch_exn x () =
+  let test_watch_exn ~fs x () =
     let test repo =
       let t = S.main repo in
       let h = S.Head.find t in
@@ -124,9 +124,9 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
       Alcotest.(check unit) "ok!" () ();
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_watches x () =
+  let test_watches ~fs x () =
     let pp_w ppf (p, w) = Fmt.pf ppf "%d/%d" p w in
     let pp_s ppf = function
       | None -> Fmt.string ppf "*"
@@ -243,10 +243,10 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
         in
         aux s n
     end in
-    let test repo1 =
+    let test ~fs repo1 =
       Eio.Switch.run @@ fun sw ->
       let t1 = S.main repo1 in
-      let repo = S.Repo.v ~sw x.config in
+      let repo = S.Repo.v ~sw ~fs x.config in
       let t2 = S.main repo in
       [%log.debug "WATCH"];
       let state = State.empty () in
@@ -364,13 +364,13 @@ module Make (Log : Logs.LOG) (Zzz : Sleep) (S : Generic_key) = struct
       B.Repo.close repo;
       B.Repo.close repo1
     in
-    run x test
+    run ~fs x (test ~fs)
 
-  let tests =
+  let tests ~fs =
     (* [test_watches] has been disabled for being flaky.
         TODO: work out why, fix it, and re-enable it.
         See https://github.com/mirage/irmin/issues/1447. *)
-    let _ = ("Basic operations", test_watches) in
-    let _ = [ ("Callbacks and exceptions", test_watch_exn) ] in
+    let _ = ("Basic operations", test_watches ~fs) in
+    let _ = [ ("Callbacks and exceptions", test_watch_exn ~fs) ] in
     []
 end

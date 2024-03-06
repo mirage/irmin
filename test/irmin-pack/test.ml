@@ -16,10 +16,10 @@
 
 let () =
   Eio_main.run @@ fun env ->
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
+  let fs = Eio.Stdenv.fs env in
   (* **/** *)
   let test_suite = Test_pack.suite in
-  Irmin_test.Store.run "irmin-pack"
+  Irmin_test.Store.run ~fs "irmin-pack"
     ~misc:(Test_pack.misc @@ Eio.Stdenv.domain_mgr env)
     ~sleep:Eio_unix.sleep
     (List.map (fun s -> (`Quick, s)) test_suite)

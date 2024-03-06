@@ -34,25 +34,25 @@ let config ~sw root =
   let conf = Irmin.Backend.Conf.singleton Irmin_mem.Conf.spec key root in
   L.Store.Repo.v ~sw conf
 
-let test_empty_read () =
+let test_empty_read ~fs () =
   Eio.Switch.run @@ fun sw ->
-  config ~sw __FUNCTION__
+  config ~sw ~fs __FUNCTION__
   |> L.Store.main
   |> L.read_all ~path
   |> Alcotest.(check (list string)) "checked - reading empty log" []
 
-let test_append_read_all () =
+let test_append_read_all ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> L.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   L.read_all ~path t
   |> Alcotest.(check (list string))
        "checked - log after appending" [ "main.2"; "main.1" ]
 
-let test_read_incr () =
+let test_read_incr ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> L.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   let cur = L.get_cursor ~path t in
@@ -63,9 +63,9 @@ let test_read_incr () =
   let l, _ = L.read ~num_items:1 cur in
   Alcotest.(check (list string)) "checked - read one more item" [] l
 
-let test_read_excess () =
+let test_read_excess ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> L.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   let cur = L.get_cursor ~path t in
@@ -73,9 +73,9 @@ let test_read_excess () =
   Alcotest.(check (list string))
     "checked - read 10 items" [ "main.2"; "main.1" ] l
 
-let test_clone_merge () =
+let test_clone_merge ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let t = config ~sw __FUNCTION__ |> L.Store.main in
+  let t = config ~sw ~fs __FUNCTION__ |> L.Store.main in
   L.append ~path t "main.1";
   L.append ~path t "main.2";
   let b = L.Store.clone ~src:t ~dst:"cl" in
@@ -87,9 +87,9 @@ let test_clone_merge () =
        "checked - log after appending"
        [ "main.3"; "clone.1"; "main.2"; "main.1" ]
 
-let test_branch_merge () =
+let test_branch_merge ~fs () =
   Eio.Switch.run @@ fun sw ->
-  let r = config ~sw __FUNCTION__ in
+  let r = config ~sw ~fs __FUNCTION__ in
   let b1 = L.Store.of_branch r "b1" in
   let b2 = L.Store.of_branch r "b2" in
   let b3 = L.Store.of_branch r "b3" in
@@ -115,19 +115,21 @@ let test_branch_merge () =
        "checked - value of b4"
        [ "b1.4"; "b2.2"; "b1.3"; "b1.2"; "b2.1"; "b1.1" ]
 
-let test_cases =
+let test_cases ~fs =
   [
     ( "linked_log",
       [
-        Alcotest.test_case "Read empty log" `Quick test_empty_read;
-        Alcotest.test_case "Append and real all" `Quick test_append_read_all;
+        Alcotest.test_case "Read empty log" `Quick (test_empty_read ~fs);
+        Alcotest.test_case "Append and real all" `Quick
+          (test_append_read_all ~fs);
         Alcotest.test_case "Read incrementally with cursor" `Quick
-          test_read_incr;
-        Alcotest.test_case "Read excess with cursor" `Quick test_read_excess;
+          (test_read_incr ~fs);
+        Alcotest.test_case "Read excess with cursor" `Quick
+          (test_read_excess ~fs);
       ] );
     ( "linked_log store",
       [
-        Alcotest.test_case "Clone and merge" `Quick test_clone_merge;
-        Alcotest.test_case "Branch and merge" `Quick test_branch_merge;
+        Alcotest.test_case "Clone and merge" `Quick (test_clone_merge ~fs);
+        Alcotest.test_case "Branch and merge" `Quick (test_branch_merge ~fs);
       ] );
   ]

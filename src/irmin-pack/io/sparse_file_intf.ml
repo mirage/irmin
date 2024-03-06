@@ -26,8 +26,8 @@ module type S = sig
   val open_ro :
     sw:Eio.Switch.t ->
     mapping_size:int ->
-    mapping:string ->
-    data:string ->
+    mapping:Eio.Fs.dir_ty Eio.Path.t ->
+    data:Eio.Fs.dir_ty Eio.Path.t ->
     (t, [> open_error ]) result
   (** [open_ro ~mapping_size ~mapping ~data] returns a new read-only view of the
       sparse file, represented on disk by two files named [mapping] and [data].
@@ -70,8 +70,8 @@ module type S = sig
     val open_wo :
       sw:Eio.Switch.t ->
       mapping_size:int ->
-      mapping:string ->
-      data:string ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       (t, [> open_error ]) result
     (** [open_wo ~mapping_size ~mapping ~data] returns a write-only instance of
         the sparse file.
@@ -93,10 +93,10 @@ module type S = sig
 
     val create_from_data :
       sw:Eio.Switch.t ->
-      mapping:string ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
       dead_header_size:int ->
       size:Int63.t ->
-      data:string ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       (int63, [> Io.create_error | Io.write_error | Io.close_error ]) result
     (** [create_from_data ~mapping ~dead_header_size ~size ~data] initializes a
         new sparse file on disk from the existing file [data], by creating the
@@ -123,8 +123,8 @@ module type S = sig
 
     val create :
       sw:Eio.Switch.t ->
-      mapping:string ->
-      data:string ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       (t, [> Io.create_error ]) result
     (** [create ~mapping ~data] initializes a new empty sparse file, represented
         on disk by two files named [mapping] and [data]. *)
@@ -132,8 +132,8 @@ module type S = sig
     val open_ao :
       sw:Eio.Switch.t ->
       mapping_size:Int63.t ->
-      mapping:string ->
-      data:string ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       ( t,
         [> Io.open_error
         | `Closed

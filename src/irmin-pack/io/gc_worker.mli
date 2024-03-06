@@ -26,8 +26,8 @@ module Make
   val run_and_output_result :
     lower_root:string option ->
     generation:int ->
-    new_files_path:string ->
-    string ->
+    new_files_path:Eio.Fs.dir_ty Eio.Path.t ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     Args.key ->
     int63 ->
     unit

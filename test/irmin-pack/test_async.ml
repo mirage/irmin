@@ -20,23 +20,23 @@ module Async = Irmin_pack_unix.Async.Unix
 
 let check_outcome = Alcotest.check_repr Async.outcome_t
 
-let test_success domain_mgr () =
+let test_success ~domain_mgr () =
   Eio.Switch.run @@ fun sw ->
   let f () = assert true in
   let task = Async.async ~sw ~domain_mgr f in
   let result = Async.await task in
   check_outcome "should succeed" `Success result
 
-let test_exception_in_task domain_mgr () =
+let test_exception_in_task ~domain_mgr () =
   Eio.Switch.run @@ fun sw ->
   let f () = assert false in
   let task = Async.async ~sw ~domain_mgr f in
   let result = Async.await task in
   check_outcome "should fail" (`Failure "Unhandled exception") result
 
-let tests domain_mgr =
+let tests ~domain_mgr =
   [
-    Alcotest.test_case "Successful task" `Quick (test_success domain_mgr);
+    Alcotest.test_case "Successful task" `Quick (test_success ~domain_mgr);
     Alcotest.test_case "Exception occurs in task" `Quick
-      (test_exception_in_task domain_mgr);
+      (test_exception_in_task ~domain_mgr);
   ]

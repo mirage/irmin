@@ -26,7 +26,7 @@ module Make (Args : Gc_args.S) = struct
   module Gc_stats_main = Gc_stats.Main (Io)
 
   type t = {
-    root : string;
+    root : Eio.Fs.dir_ty Eio.Path.t;
     generation : int;
     task : Async.t;
     unlink : bool;
@@ -96,7 +96,7 @@ module Make (Args : Gc_args.S) = struct
       let result_file = Irmin_pack.Layout.V4.gc_result ~root ~generation in
       match Io.classify_path result_file with
       | `File ->
-          Io.unlink_dont_wait
+          Io.unlink_dont_wait ~sw
             ~on_exn:(fun exn ->
               [%log.warn
                 "Unlinking temporary files from previous failed gc. Failed \
@@ -163,13 +163,13 @@ module Make (Args : Gc_args.S) = struct
       ~suffix_start_offset ~chunk_start_idx ~chunk_num ~suffix_dead_bytes
       ~latest_gc_target_offset ~volume:gc_results.modified_volume
 
-  let unlink_all { root; generation; _ } removable_chunk_idxs =
+  let unlink_all ~sw { root; generation; _ } removable_chunk_idxs =
     (* Unlink suffix chunks *)
     let () =
       removable_chunk_idxs
       |> List.iter (fun chunk_idx ->
              let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
-             Io.unlink_dont_wait
+             Io.unlink_dont_wait ~sw
                ~on_exn:(fun exn ->
                  [%log.warn
                    "Unlinking chunk_idxs files after gc, failed with error %s"
@@ -181,7 +181,7 @@ module Make (Args : Gc_args.S) = struct
       let prefix =
         Irmin_pack.Layout.V4.prefix ~root ~generation:(generation - 1)
       in
-      Io.unlink_dont_wait
+      Io.unlink_dont_wait ~sw
         ~on_exn:(fun exn ->
           [%log.warn
             "Unlinking previous prefix after gc, failed with error %s"
@@ -192,7 +192,7 @@ module Make (Args : Gc_args.S) = struct
       let mapping =
         Irmin_pack.Layout.V4.mapping ~root ~generation:(generation - 1)
       in
-      Io.unlink_dont_wait
+      Io.unlink_dont_wait ~sw
         ~on_exn:(fun exn ->
           [%log.warn
             "Unlinking previous mapping after gc, failed with error %s"
@@ -201,7 +201,7 @@ module Make (Args : Gc_args.S) = struct
 
     (* Unlink current gc's result.*)
     let result = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-    Io.unlink_dont_wait
+    Io.unlink_dont_wait ~sw
       ~on_exn:(fun exn ->
         [%log.warn
           "Unlinking current gc's result after gc, failed with error %s"
@@ -246,7 +246,7 @@ module Make (Args : Gc_args.S) = struct
   let clean_after_abort t =
     Fm.cleanup t.fm |> Errs.log_if_error "clean_after_abort"
 
-  let finalise ~wait t =
+  let finalise ~sw ~wait t =
     match t.resulting_stats with
     | Some partial_stats -> Ok (`Finalised partial_stats)
     | None -> (
@@ -275,7 +275,8 @@ module Make (Args : Gc_args.S) = struct
                 let partial_stats =
                   Gc_stats_main.finish_current_step partial_stats "unlink"
                 in
-                if t.unlink then unlink_all t gc_results.removable_chunk_idxs;
+                if t.unlink then
+                  unlink_all ~sw t gc_results.removable_chunk_idxs;
 
                 let stats =
                   let after_suffix_end_offset =

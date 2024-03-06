@@ -305,8 +305,8 @@ module type S = sig
 
   val create_rw :
     sw:Eio.Switch.t ->
-    path:string ->
-    tmp_path:string option ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
+    tmp_path:Eio.Fs.dir_ty Eio.Path.t option ->
     overwrite:bool ->
     payload ->
     (t, [> Io.create_error | Io.write_error ]) result
@@ -322,8 +322,8 @@ module type S = sig
 
   val open_ :
     sw:Eio.Switch.t ->
-    path:string ->
-    tmp_path:string option ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
+    tmp_path:Eio.Fs.dir_ty Eio.Path.t option ->
     readonly:bool ->
     (t, [> open_error ]) result
   (** Create a rw instance of [t] by reading an existing file at [path].
@@ -334,7 +334,7 @@ module type S = sig
 
   val read_payload :
     sw:Eio.Switch.t ->
-    path:string ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
     (payload, [> open_error | Io.close_error ]) result
   (** [read_payload ~path] reads the payload at [path]. It is a convenient way
       to read the payload without needing to call {!open_}, {!payload},
@@ -342,7 +342,7 @@ module type S = sig
 
   val read_raw_payload :
     sw:Eio.Switch.t ->
-    path:string ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
     (raw_payload, [> open_error | Io.close_error ]) result
 
   val payload : t -> payload

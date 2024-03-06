@@ -135,10 +135,10 @@ struct
 
   (* init: create a tree with [t.depth] levels and each levels has
      [t.tree_add] files + one directory going to the next levele. *)
-  let init t config =
+  let init ~fs t config =
     Eio.Switch.run @@ fun sw ->
     let tree = Store.Tree.empty () in
-    let v = Store.Repo.v ~sw config |> Store.main in
+    let v = Store.Repo.v ~sw ~fs config |> Store.main in
     let tree =
       times ~n:t.depth ~init:tree (fun depth tree ->
           let paths = Array.init (t.tree_add + 1) (path ~depth) in
@@ -148,9 +148,9 @@ struct
     Store.set_tree_exn v ~info [] tree;
     Fmt.epr "[init done]\n%!"
 
-  let run t config size =
+  let run ~fs t config size =
     Eio.Switch.run @@ fun sw ->
-    let r = Store.Repo.v ~sw config in
+    let r = Store.Repo.v ~sw ~fs config in
     let v = Store.main r in
     Store.Tree.reset_counters ();
     let paths = Array.init (t.tree_add + 1) (path ~depth:t.depth) in
@@ -176,9 +176,10 @@ struct
     let config = config ~root in
     let size () = size ~root in
     let t = { t with root } in
-    Eio_main.run @@ fun _ ->
-    init t config;
-    run t config size
+    Eio_main.run @@ fun env ->
+    let fs = Eio.Stdenv.fs env in
+    init ~fs t config;
+    run ~fs t config size
 
   let main_term config size = Term.(const main $ t $ const config $ const size)
 

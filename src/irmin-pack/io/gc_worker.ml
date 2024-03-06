@@ -216,7 +216,7 @@ module Make (Args : Gc_args.S) = struct
     let open Result_syntax in
     let config =
       Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 ~lower_root
-        root
+        (Eio.Path.native_exn root)
     in
 
     (* Step 1. Open the files *)
@@ -226,7 +226,7 @@ module Make (Args : Gc_args.S) = struct
       report_old_file_sizes ~root ~generation:(generation - 1) stats |> ignore
     in
 
-    let fm = Fm.open_ro ~sw config |> Errs.raise_if_error in
+    let fm = Fm.open_ro ~sw ~fs:root config |> Errs.raise_if_error in
     Errors.finalise_exn (fun _outcome ->
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
     @@ fun () ->

@@ -32,7 +32,7 @@ end
 let config ~indexing_strategy ?(readonly = false) ?(fresh = false) root =
   Irmin_pack.config ~readonly ~indexing_strategy ~fresh root
 
-let test_unique_when_switched () =
+let test_unique_when_switched ~fs () =
   rm_dir root;
   let value = "Welt" in
   let get_contents_key store path =
@@ -59,7 +59,7 @@ let test_unique_when_switched () =
   (* 1. open store with always indexing, verify same offsets *)
   Eio.Switch.run @@ fun sw ->
   let repo =
-    Store.Repo.v ~sw
+    Store.Repo.v ~sw ~fs
     @@ config ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~fresh:true
          root
   in
@@ -87,7 +87,7 @@ let test_unique_when_switched () =
 
   (* 2. re-open store with minimal indexing, verify new offset *)
   let repo =
-    Store.Repo.v ~sw
+    Store.Repo.v ~sw ~fs
     @@ config ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
          ~fresh:false root
   in
@@ -110,8 +110,8 @@ let test_unique_when_switched () =
 
   Store.Repo.close repo
 
-let tests =
+let tests ~fs =
   [
     Alcotest.test_case "test unique when switching strategies" `Quick
-      test_unique_when_switched;
+      (test_unique_when_switched ~fs);
   ]

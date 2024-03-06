@@ -25,7 +25,7 @@ module Suite : sig
   val create :
     name:string ->
     ?init:(config:Irmin.config -> unit) ->
-    ?clean:(config:Irmin.config -> unit) ->
+    ?clean:(fs:Eio.Fs.dir_ty Eio.Path.t -> config:Irmin.config -> unit) ->
     config:Irmin.config ->
     store:(module S) ->
     ?stats:(unit -> int * int) ->
@@ -36,7 +36,7 @@ module Suite : sig
   val create_generic_key :
     name:string ->
     ?init:(config:Irmin.config -> unit) ->
-    ?clean:(config:Irmin.config -> unit) ->
+    ?clean:(fs:Eio.Fs.dir_ty Eio.Path.t -> config:Irmin.config -> unit) ->
     config:Irmin.config ->
     store:(module Generic_key) ->
     ?stats:(unit -> int * int) ->
@@ -48,7 +48,7 @@ module Suite : sig
   val config : t -> Irmin.config
   val store : t -> (module S) option
   val init : t -> config:Irmin.config -> unit
-  val clean : t -> config:Irmin.config -> unit
+  val clean : t -> fs:Eio.Fs.dir_ty Eio.Path.t -> config:Irmin.config -> unit
 end
 
 val line : string -> unit
@@ -62,6 +62,7 @@ val checks : 'a Irmin.Type.t -> string -> 'a list -> 'a list -> unit
 
 module Store : sig
   val run :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     string ->
     ?slow:bool ->
     ?random_seed:int ->

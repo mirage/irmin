@@ -76,7 +76,9 @@ let decode_with_size rbuf =
   decode_bin_snapshot b (ref 0)
 
 let restore repo ?on_disk buf =
-  let on_disk = (on_disk :> [ `Path of string | `Reuse ] option) in
+  let on_disk =
+    (on_disk :> [ `Path of Eio.Fs.dir_ty Eio.Path.t | `Reuse ] option)
+  in
   let snapshot = S.Snapshot.Import.v ?on_disk repo in
   let total = String.length buf in
   let total_visited = ref 0 in
@@ -128,11 +130,11 @@ let test_in_memory ~indexing_strategy () =
   rm_dir root_import;
   Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
@@ -152,14 +154,14 @@ let test_in_memory_always =
 let test_on_disk ~indexing_strategy () =
   rm_dir root_export;
   rm_dir root_import;
-  let index_on_disk = Filename.concat root_import "index_on_disk" in
+  let index_on_disk = Eio.Path.(root_import / "index_on_disk") in
   Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
@@ -228,11 +230,11 @@ let test_gced_store_in_memory domain_mgr () =
   rm_dir root_import;
   Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let () = test_gc domain_mgr ~repo_export ~repo_import 5 in
@@ -245,11 +247,11 @@ let test_gced_store_on_disk domain_mgr () =
   let index_on_disk = Filename.concat root_import "index_on_disk" in
   Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let () =
@@ -265,7 +267,7 @@ let test_export_import_reexport domain_mgr () =
   Eio.Switch.run @@ fun sw ->
   (* export a snapshot. *)
   let repo_export =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let tree = S.Tree.singleton [ "a" ] "y" in
@@ -283,7 +285,7 @@ let test_export_import_reexport domain_mgr () =
      a new store, with the key parent of type Indexed. *)
   rm_dir root_export;
   let repo_import =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let _, key = Buffer.contents buf |> restore repo_import in
@@ -300,7 +302,7 @@ let test_export_import_reexport domain_mgr () =
   let () = S.Repo.close repo_import in
   (* open the new store and check that everything is readable. *)
   let repo_export =
-    S.Repo.v ~sw
+    S.Repo.v ~sw ~fs
       (config ~readonly:false ~fresh:false ~indexing_strategy root_export)
   in
   let commit = S.Commit.of_hash repo_export commit_hash in

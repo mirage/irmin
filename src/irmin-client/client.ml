@@ -61,6 +61,7 @@ struct
     mutable closed : bool;
     lock : Lwt_mutex.t;
     sw : Eio.Switch.t;
+    fs : Eio.Fs.dir_ty Eio.Path.t;
   }
 
   let close t =
@@ -146,23 +147,31 @@ struct
   let request_lwt = Client.request_lwt
   let request = Client.request
 
-  let rec connect ~sw ?ctx config =
+  let rec connect ~sw ~fs ?ctx config =
     let ctx = Option.value ~default:(Lazy.force IO.default_ctx) ctx in
     let client = Client.mk_client config in
-    let* ic, oc = IO.connect ~sw ~ctx client in
+    let* ic, oc = IO.connect ~sw ~fs ~ctx client in
     let conn = Conn.v ic oc in
     let+ ok = Conn.Handshake.V1.send (module Store) conn in
     if not ok then Error.raise_error "invalid handshake"
     else
       let t =
         Client.
-          { config; ctx; conn; closed = false; lock = Lwt_mutex.create (); sw }
+          {
+            config;
+            ctx;
+            conn;
+            closed = false;
+            lock = Lwt_mutex.create ();
+            sw;
+            fs;
+          }
       in
       t
 
   and reconnect t =
     let* () = Lwt.catch (fun () -> Client.close t) (fun _ -> Lwt.return_unit) in
-    let+ conn = connect ~sw:t.sw ~ctx:t.ctx t.Client.config in
+    let+ conn = connect ~sw:t.sw ~fs:t.fs ~ctx:t.ctx t.Client.config in
     t.conn <- conn.conn;
     t.closed <- false
 
@@ -172,7 +181,8 @@ struct
 
   let dup client =
     let* c =
-      connect ~sw:client.Client.sw ~ctx:client.Client.ctx client.Client.config
+      connect ~sw:client.Client.sw ~fs:client.Client.fs ~ctx:client.Client.ctx
+        client.Client.config
     in
     if client.closed then
       let () = c.closed <- true in
@@ -402,7 +412,7 @@ struct
     module Repo = struct
       type nonrec t = Client.t
 
-      let v ~sw config = Lwt_eio.run_lwt @@ fun () -> connect ~sw config
+      let v ~sw ~fs config = Lwt_eio.run_lwt @@ fun () -> connect ~sw ~fs config
       let config (t : t) = t.Client.config
       let close (t : t) = Lwt_eio.run_lwt @@ fun () -> Client.close t
       let contents_t (t : t) = t
@@ -427,9 +437,9 @@ struct
 
   let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
 
-  let connect ~sw ?tls ?hostname uri =
+  let connect ~sw ~fs ?tls ?hostname uri =
     let conf = config ?tls ?hostname uri in
-    Repo.v ~sw conf
+    Repo.v ~sw ~fs conf
 
   let current_branch t = current_branch (repo t)
 

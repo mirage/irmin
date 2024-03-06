@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : unit Alcotest.test_case list
+val suite : fs:Eio.Fs.dir_ty Eio.Path.t -> unit Alcotest.test_case list
