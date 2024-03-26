@@ -18,7 +18,7 @@ depends: [
   "fmt"
   "cmdliner" {>= "1.0.4"}
   "logs" {>= "0.7.0"}
-  "eio_main" {>= "0.15"}
+  "eio_main" {>= "1.0"}
   "lwt_eio" {>= "0.5.1"}
   "lwt" {>= "5.4.0"}
   "conduit-lwt-unix" {>= "6.0.0"}

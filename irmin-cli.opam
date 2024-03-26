@@ -46,7 +46,7 @@ depends: [
   "fmt"
   "git"           {>= "3.7.0"}
   "happy-eyeballs-lwt"
-  "eio_main"      {>= "0.12"}
+  "eio_main"      {>= "1.0"}
   "lwt_eio"       {>= "0.5"}
   "lwt"           {>= "5.3.0"}
   "irmin-test"    {with-test & = version}
