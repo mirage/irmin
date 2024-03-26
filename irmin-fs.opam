@@ -19,7 +19,7 @@ depends: [
   "irmin"      {= version}
   "astring"
   "logs"
-  "eio"        {>= "0.15"}
+  "eio"        {>= "1.0"}
   "lwt"        {>= "5.3.0"}
   "alcotest"   {with-test}
   "irmin-test" {with-test & = version}
