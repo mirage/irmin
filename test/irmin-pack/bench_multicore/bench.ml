@@ -14,17 +14,17 @@ let goto_project_root () =
       Unix.chdir @@ String.concat Fpath.dir_sep @@ List.rev root
   | _ -> ()
 
-let root = Filename.concat "_build" "bench-multicore"
+let root fs = Eio.Path.(fs / "_build" / "bench-multicore")
 
-let reset_test_env () =
+let reset_test_env ~fs () =
   goto_project_root ();
-  Common.rm_dir root
+  Common.rm_dir (root fs)
 
 let info () = S.Info.empty
 
-let open_repo ~fresh ~readonly () =
-  let conf = Irmin_pack.Conf.init ~fresh ~readonly root in
-  S.Repo.v conf
+let open_repo ~sw ~fs ~fresh ~readonly () =
+  let conf = Irmin_pack.Conf.init ~fresh ~readonly (root fs) in
+  S.Repo.v ~sw ~fs conf
 
 let apply_op tree = function
   | Gen.Find path ->
@@ -82,21 +82,21 @@ let get_tree ~config repo tasks =
     Array.iter (warmup_task tree) tasks;
     fun () -> tree
 
-let setup_tree ~sw ~readonly paths =
+let setup_tree ~sw ~fs ~readonly paths =
   let tree = make_tree_of_paths paths in
-  reset_test_env ();
-  let repo = open_repo ~sw ~fresh:true ~readonly:false () in
+  reset_test_env ~fs ();
+  let repo = open_repo ~sw ~fs ~fresh:true ~readonly:false () in
   let () = S.set_tree_exn ~info (S.main repo) [] tree in
   S.Repo.close repo;
-  let repo = open_repo ~sw ~fresh:false ~readonly () in
+  let repo = open_repo ~sw ~fs ~fresh:false ~readonly () in
   Format.printf
     "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
   repo
 
-let half ~d_mgr ~(config : Gen.config) =
+let half ~fs ~d_mgr ~(config : Gen.config) =
   Eio.Switch.run @@ fun sw ->
   let paths, tasks = Gen.make ~config in
-  let repo = setup_tree ~sw ~readonly:true paths in
+  let repo = setup_tree ~sw ~fs ~readonly:true paths in
   let get_tree = get_tree ~config repo tasks in
 
   let _, sequential, _ =
@@ -119,10 +119,10 @@ let half ~d_mgr ~(config : Gen.config) =
   done;
   S.Repo.close repo
 
-let full ~d_mgr ~(config : Gen.config) =
+let full ~fs ~d_mgr ~(config : Gen.config) =
   Eio.Switch.run @@ fun sw ->
   let paths, tasks = Gen.make_full ~config in
-  let repo = setup_tree ~sw ~readonly:false paths in
+  let repo = setup_tree ~sw ~fs ~readonly:false paths in
   let get_tree = get_tree ~config repo tasks in
   let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
 

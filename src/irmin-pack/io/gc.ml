@@ -42,7 +42,7 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~sw ~domain_mgr ~root ~lower_root ~output ~generation ~unlink
+  let v ~sw ~fs ~domain_mgr ~root ~lower_root ~output ~generation ~unlink
       ~dispatcher ~fm ~contents ~node ~commit commit_key =
     let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
@@ -113,8 +113,8 @@ module Make (Args : Gc_args.S) = struct
     (* start worker task *)
     let task =
       Async.async ~sw ~domain_mgr (fun () ->
-          Worker.run_and_output_result root commit_key new_suffix_start_offset
-            ~lower_root ~generation ~new_files_path)
+          Worker.run_and_output_result ~fs root commit_key
+            new_suffix_start_offset ~lower_root ~generation ~new_files_path)
     in
     let partial_stats =
       Gc_stats_main.finish_current_step partial_stats "before finalise"

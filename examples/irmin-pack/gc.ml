@@ -61,7 +61,7 @@ module Repo_config = struct
   (** Location on disk to save the repository
 
       Note: irmin-pack will not create the entire path, only the final directory *)
-  let root = "./irmin-pack-example"
+  let root fs = Eio.Path.(fs / "./irmin-pack-example")
 
   (** See {!Irmin_pack.Conf} for more keys that can be used when initialising
       the repository config *)
@@ -71,19 +71,19 @@ module Repo_config = struct
   let fresh = true
 
   (** Create config for our repository *)
-  let config =
+  let config fs =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
-      root
+      (root fs)
 
   (** We can add an optional lower layer to our repository. Data discarded by
       the GC will be stored there and still be accessible instead of being
       deleted. *)
-  let lower_root = Some "./irmin-pack-example-lower"
+  let lower_root fs = Some Eio.Path.(fs / "./irmin-pack-example-lower")
 
   (** Create a copy of the previous configuration, now with a lower layer *)
-  let config_with_lower =
+  let config_with_lower fs =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
-      ~lower_root root
+      ~lower_root:(lower_root fs) (root fs)
 end
 
 (** Utility for creating commit info *)
@@ -121,7 +121,7 @@ end
 
 (** Demonstrate running GC on a previous commit aligned to the end of a chunk
     for ideal GC space reclamation. *)
-let run_gc domain_mgr config repo tracker =
+let run_gc fs domain_mgr config repo tracker =
   let () =
     match Tracker.(tracker.next_gc_commit) with
     | None -> ()
@@ -148,7 +148,7 @@ let run_gc domain_mgr config repo tracker =
         in
         (* Launch GC *)
         let commit_key = Store.Commit.key commit in
-        let launched = Store.Gc.run ~domain_mgr ~finished repo commit_key in
+        let launched = Store.Gc.run ~fs ~domain_mgr ~finished repo commit_key in
         match launched with
         | Ok false -> ()
         | Ok true ->
@@ -180,7 +180,7 @@ let run_experiment env config =
       in
       Tracker.update_latest_commit tracker commit;
       let _ =
-        if i mod gc_every = 0 then run_gc domain_mgr config repo tracker
+        if i mod gc_every = 0 then run_gc fs domain_mgr config repo tracker
       in
       if i >= n then () else loop (i + 1) n
     in
@@ -192,7 +192,8 @@ let run_experiment env config =
 
 let () =
   Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
   Printf.printf "== RUN 1: deleting discarded data ==\n";
-  run_experiment env Repo_config.config;
+  run_experiment env (Repo_config.config fs);
   Printf.printf "== RUN 2: archiving discarded data ==\n";
-  run_experiment env Repo_config.config_with_lower
+  run_experiment env (Repo_config.config_with_lower fs)

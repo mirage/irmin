@@ -558,7 +558,9 @@ struct
         let tmp_dict_path = Layout.dict_tmp ~root in
         let* dict_file = Io.open_ ~sw ~path:dict_path ~readonly:false in
         let* len = Io.read_size dict_file in
-        let* tmp_dict_file = Io.open_ ~sw ~path:tmp_dict_path ~readonly:false in
+        let* tmp_dict_file =
+          Io.create ~sw ~path:tmp_dict_path ~overwrite:true
+        in
         let contents_len = Int63.to_int len - dead_header_size in
         let* contents =
           Io.read_to_string dict_file
@@ -996,10 +998,10 @@ struct
     let lower = t.lower in
     cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower
 
-  let create_one_commit_store t config gced commit_key =
+  let create_one_commit_store ~fs t config gced commit_key =
     let open Result_syntax in
     let src_root = t.root in
-    let dst_root = Eio.Path.(t.root / Irmin_pack.Conf.root config) in
+    let dst_root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     (* Step 1. Copy the dict *)
     let src_dict = Layout.dict ~root:src_root in
     let dst_dict = Layout.dict ~root:dst_root in

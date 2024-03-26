@@ -26,9 +26,10 @@ module Make
 
   val v :
     sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     domain_mgr:_ Eio.Domain_manager.t ->
     root:Eio.Fs.dir_ty Eio.Path.t ->
-    lower_root:string option ->
+    lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
     output:[ `External of Eio.Fs.dir_ty Eio.Path.t | `Root ] ->
     generation:int ->
     unlink:bool ->

@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test_indexing_strategy"
+let root fs = Eio.Path.(fs / "_build" / "test_indexing_strategy")
 
 let src =
   Logs.Src.create "tests.indexing_strategy" ~doc:"Test indexing strategy"
@@ -33,6 +33,7 @@ let config ~indexing_strategy ?(readonly = false) ?(fresh = false) root =
   Irmin_pack.config ~readonly ~indexing_strategy ~fresh root
 
 let test_unique_when_switched ~fs () =
+  let root = root fs in
   rm_dir root;
   let value = "Welt" in
   let get_contents_key store path =

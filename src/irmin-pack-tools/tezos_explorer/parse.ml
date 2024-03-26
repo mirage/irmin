@@ -68,8 +68,7 @@ let dump_idxs fd n is is2 =
 
 let get_values r = List.filter_map (Ring.get r) [ 1; 10; 1000 ]
 
-let main store_path info_last_path info_next_path idx_path =
-  Eio_main.run @@ fun env ->
+let main env store_path info_last_path info_next_path idx_path =
   Eio.Switch.run @@ fun sw ->
   let fs = Eio.Stdenv.fs env in
   let conf = Irmin_pack.Conf.init store_path in

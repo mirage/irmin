@@ -91,16 +91,17 @@ module Branch =
     (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 
 module Make_context (Config : sig
-  val root : string
+  val root : fs:Eio.Fs.dir_ty Eio.Path.t -> Eio.Fs.dir_ty Eio.Path.t
 end) =
 struct
   let fresh_name =
     let c = ref 0 in
-    fun object_type ->
+    fun ~fs object_type ->
       incr c;
-
-      let name = Filename.concat Config.root ("pack_" ^ string_of_int !c) in
-      [%logs.info "Constructing %s context object: %s" object_type name];
+      let name = Eio.Path.(Config.root ~fs / ("pack_" ^ string_of_int !c)) in
+      [%logs.info
+        "Constructing %s context object: %s" object_type
+          (Eio.Path.native_exn name)];
       name
 
   let mkdir_dash_p dirname =
@@ -113,7 +114,11 @@ struct
     in
     aux dirname
 
-  type d = { name : string; fm : File_manager.t; dict : Dict.t }
+  type d = {
+    name : Eio.Fs.dir_ty Eio.Path.t;
+    fm : File_manager.t;
+    dict : Dict.t;
+  }
 
   (* TODO : test the indexing_strategy minimal. *)
   let config ~readonly ~fresh name =
@@ -134,7 +139,7 @@ struct
       else File_manager.open_rw ~sw ~fs config |> Errs.raise_if_error
 
   let get_dict ~sw ~fs ?name ~readonly ~fresh () =
-    let name = Option.value name ~default:(fresh_name "dict") in
+    let name = Option.value name ~default:(fresh_name ~fs "dict") in
     let config = config ~readonly ~fresh name in
     let fm = get_fm ~sw ~fs config in
     let dict = File_manager.dict fm in
@@ -143,7 +148,7 @@ struct
   let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
 
   type t = {
-    name : string;
+    name : Eio.Fs.dir_ty Eio.Path.t;
     fm : File_manager.t;
     index : Index.t;
     pack : read Pack.t;
@@ -163,12 +168,12 @@ struct
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
     { name; index; pack; dict; fm }
 
-  let get_rw_pack ~sw =
-    let name = fresh_name "" in
-    create ~sw ~readonly:false ~fresh:true name
+  let get_rw_pack ~sw ~fs =
+    let name = fresh_name ~fs "" in
+    create ~sw ~fs ~readonly:false ~fresh:true name
 
-  let get_ro_pack ~sw name = create ~sw ~readonly:true ~fresh:false name
-  let reopen_rw ~sw name = create ~sw ~readonly:false ~fresh:false name
+  let get_ro_pack ~sw ~fs name = create ~sw ~fs ~readonly:true ~fresh:false name
+  let reopen_rw ~sw ~fs name = create ~sw ~fs ~readonly:false ~fresh:false name
 
   let close_pack t =
     let _ = File_manager.flush t.fm in
@@ -365,6 +370,8 @@ let create_lower_root ~fs =
 let setup_test_env ~root_archive ~root_local_build =
   goto_project_root ();
   rm_dir root_local_build;
+  let root_archive = Eio.Path.native_exn root_archive in
+  let root_local_build = Eio.Path.native_exn root_local_build in
   let cmd =
     Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root_local_build ]
   in

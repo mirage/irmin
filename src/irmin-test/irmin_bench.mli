@@ -18,5 +18,8 @@
 module Make
     (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) : sig
   val run :
-    config:(root:string -> Irmin.config) -> size:(root:string -> int) -> unit
+    env:< fs : Eio.Fs.dir_ty Eio.Path.t ; .. > ->
+    config:(root:Eio.Fs.dir_ty Eio.Path.t -> Irmin.config) ->
+    size:(root:Eio.Fs.dir_ty Eio.Path.t -> int) ->
+    unit
 end

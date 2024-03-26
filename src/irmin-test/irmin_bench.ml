@@ -18,7 +18,7 @@
 open Irmin.Export_for_backends
 
 type t = {
-  root : string;
+  root : Eio.Fs.dir_ty Eio.Path.t;
   ncommits : int;
   depth : int;
   tree_add : int;
@@ -90,10 +90,11 @@ let clear =
   let doc = Arg.info ~doc:"Clear the tree after each commit." [ "clear" ] in
   Arg.(value @@ flag doc)
 
-let t =
+let t env =
+  let fs = Eio.Stdenv.fs env in
   Term.(
     const (fun () ncommits depth tree_add display clear gc ->
-        { ncommits; depth; tree_add; display; root = "."; clear; gc })
+        { ncommits; depth; tree_add; display; root = fs; clear; gc })
     $ log
     $ ncommits
     $ depth
@@ -171,8 +172,9 @@ struct
     Store.Repo.close r;
     Fmt.epr "\n[run done]\n%!"
 
-  let main t config size =
-    let root = "_build/_bench" in
+  let main env t config size =
+    let fs = Eio.Stdenv.fs env in
+    let root = Eio.Path.(fs / "_build" / "_bench") in
     let config = config ~root in
     let size () = size ~root in
     let t = { t with root } in
@@ -181,15 +183,16 @@ struct
     init ~fs t config;
     run ~fs t config size
 
-  let main_term config size = Term.(const main $ t $ const config $ const size)
+  let main_term env config size =
+    Term.(const (main env) $ t env $ const config $ const size)
 
   let () =
     at_exit (fun () ->
         Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
-  let run ~config ~size =
+  let run ~env ~config ~size =
     let info = deprecated_info "Simple benchmark for trees" in
-    deprecated_exit @@ deprecated_eval (main_term config size, info)
+    deprecated_exit @@ deprecated_eval (main_term env config size, info)
 end
 
 let () =

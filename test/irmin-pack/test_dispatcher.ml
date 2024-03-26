@@ -19,16 +19,17 @@ open Common
 module S = Test_gc.Store
 module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
-let root = Filename.concat "_build" "test-dispatcher"
+let root ~fs = Eio.Path.(fs / "_build" / "test-dispatcher")
 let src = Logs.Src.create "tests.dispatcher" ~doc:"Test dispatcher"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let setup_store ~fs domain_mgr () =
+  let root = root ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let config = S.config root in
-  let t = S.init_with_config ~sw config in
+  let t = S.init_with_config ~sw ~fs config in
   let _ = S.commit_1 t in
   let t, c2 = S.commit_2 t in
   let t = S.checkout_exn t c2 in

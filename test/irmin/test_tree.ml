@@ -464,7 +464,6 @@ let lazy_stats = Tree.{ nodes = 0; leafs = 0; skips = 1; depth = 0; width = 0 }
 (* Take a tree and persist it to some underlying store, making it lazy. *)
 let persist_tree ~fs ?clear : Store.tree -> Store.tree =
  fun tree ->
-  Fmt.pr "persist_tree@.";
   Eio.Switch.run @@ fun sw ->
   let store = Store.Repo.v ~sw ~fs (Irmin_mem.config ()) |> Store.empty in
   let () = Store.set_tree_exn ?clear ~info:Store.Info.none store [] tree in
@@ -540,9 +539,7 @@ let test_minimal_reads ~fs () =
   (* Persist with clear *)
   Tree.reset_counters ();
   let _ = persist_tree ~fs ~clear:true t in
-  Fmt.pr "Hello@.";
   let _ = Tree.find_tree t [ "0" ] in
-  Fmt.pr "Hello@.";
   let cnt = Tree.counters () in
   Alcotest.(check int) "reads" 1 cnt.node_find
 

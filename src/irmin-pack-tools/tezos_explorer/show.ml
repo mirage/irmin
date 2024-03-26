@@ -854,8 +854,7 @@ let rec loop t c =
       loop t c
   | _ -> loop t c
 
-let main store_path info_last_path info_next_path index_path =
-  Eio_main.run @@ fun env ->
+let main env store_path info_last_path info_next_path index_path =
   Eio.Switch.run @@ fun sw ->
   let fs = Eio.Stdenv.fs env in
   let conf = Irmin_pack.Conf.init store_path in

@@ -228,8 +228,10 @@ module Io (Ff : File_format) = struct
     in
     Seq.unfold produce_row ()
 
-  let open_reader : string -> Ff.Latest.header * Ff.Latest.row Seq.t =
+  let open_reader :
+      Eio.Fs.dir_ty Eio.Path.t -> Ff.Latest.header * Ff.Latest.row Seq.t =
    fun path ->
+    let path = Eio.Path.native_exn path in
     let chan = open_in_bin path in
     let len = LargeFile.in_channel_length chan in
     if len < 12L then
@@ -260,6 +262,7 @@ module Io (Ff : File_format) = struct
   type writer = { path : string; channel : out_channel; buffer : Buffer.t }
 
   let create_file path header =
+    let path = Eio.Path.native_exn path in
     let channel = open_out path in
     let buffer = Buffer.create 0 in
     output_string channel (Magic.to_string Ff.magic);

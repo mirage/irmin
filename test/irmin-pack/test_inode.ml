@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-inode"
+let root ~fs = Eio.Path.(fs / "_build" / "test-inode")
 let src = Logs.Src.create "tests.instances" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -139,6 +139,7 @@ struct
 
     let get_store ~sw ~fs ~indexing_strategy () =
       [%log.app "Constructing a fresh context for use by the test"];
+      let root = root ~fs in
       rm_dir root;
       let config = config ~indexing_strategy ~readonly:false ~fresh:true root in
       let fm = get_fm ~sw ~fs config in
@@ -346,6 +347,7 @@ let check_hardcoded_hash msg h v =
 
 (** Test add values from an empty node. *)
 let test_add_values ~fs ~indexing_strategy =
+  let root = root ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let t = Context.get_store ~sw ~fs ~indexing_strategy () in
@@ -372,6 +374,7 @@ let integrity_check ?(stable = true) v =
 
 (** Test add to inodes. *)
 let test_add_inodes ~fs ~indexing_strategy =
+  let root = root ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let t = Context.get_store ~sw ~fs ~indexing_strategy () in
@@ -407,6 +410,7 @@ let test_add_inodes ~fs () =
 
 (** Test remove values on an empty node. *)
 let test_remove_values ~fs ~indexing_strategy =
+  let root = root ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let t = Context.get_store ~sw ~fs ~indexing_strategy () in
@@ -430,6 +434,7 @@ let test_remove_values ~fs () =
 
 (** Test remove and add values to go from stable to unstable inodes. *)
 let test_remove_inodes ~fs ~indexing_strategy =
+  let root = root ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let t = Context.get_store ~sw ~fs ~indexing_strategy () in
@@ -778,6 +783,7 @@ module Inode_tezos = struct
   let hex_encode s = Hex.of_string s |> Hex.show
 
   let test_encode_bin_values ~fs ~indexing_strategy =
+    let root = root ~fs in
     rm_dir root;
     Eio.Switch.run @@ fun sw ->
     let t = S.Context.get_store ~sw ~fs ~indexing_strategy () in
@@ -817,6 +823,7 @@ module Inode_tezos = struct
     test_encode_bin_values ~fs ~indexing_strategy:`minimal
 
   let test_encode_bin_tree ~fs ~indexing_strategy =
+    let root = root ~fs in
     rm_dir root;
     Eio.Switch.run @@ fun sw ->
     let t = S.Context.get_store ~sw ~fs ~indexing_strategy () in

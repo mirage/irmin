@@ -106,6 +106,7 @@ module type S = sig
       by a readonly instance.*)
 
   val create_one_commit_store :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     domain_mgr:_ Eio.Domain_manager.t ->
     repo ->
     commit_key ->
@@ -129,6 +130,7 @@ module type S = sig
     (** {1 Low-level API} *)
 
     val start_exn :
+      fs:Eio.Fs.dir_ty Eio.Path.t ->
       domain_mgr:_ Eio.Domain_manager.t ->
       ?unlink:bool ->
       repo ->
@@ -171,6 +173,7 @@ module type S = sig
         logging *)
 
     val run :
+      fs:Eio.Fs.dir_ty Eio.Path.t ->
       domain_mgr:_ Eio.Domain_manager.t ->
       ?finished:((Stats.Latest_gc.stats, msg) result -> unit) ->
       repo ->

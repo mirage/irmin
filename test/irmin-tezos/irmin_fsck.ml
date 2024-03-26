@@ -32,9 +32,9 @@ module Store_tz = Irmin_pack_unix.Checks.Make (Maker_tz)
 
 let () =
   Eio_main.run @@ fun env ->
-  Irmin_pack_unix.Io.set_env (Eio.Stdenv.fs env);
+  let fs = Eio.Stdenv.fs env in
   try
     let store_type = Sys.getenv "STORE" in
-    if store_type = "PACK" then match Store.cli () with _ -> .
+    if store_type = "PACK" then match Store.cli ~fs () with _ -> .
     else raise Not_found
-  with Not_found -> ( match Store_tz.cli () with _ -> .)
+  with Not_found -> ( match Store_tz.cli ~fs () with _ -> .)

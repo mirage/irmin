@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-corrupted"
+let root fs = Eio.Path.(fs / "_build" / "test-corrupted")
 
 module Conf = Irmin_tezos.Conf
 
@@ -32,6 +32,7 @@ let config ?(readonly = false) ?(fresh = true) root =
 let info () = Store.Info.empty
 
 let read_file path =
+  let path = Eio.Path.native_exn path in
   let ch = open_in_bin path in
   Fun.protect
     (fun () ->
@@ -40,6 +41,7 @@ let read_file path =
     ~finally:(fun () -> close_in ch)
 
 let write_file path contents =
+  let path = Eio.Path.native_exn path in
   let ch = open_out_bin path in
   Fun.protect
     (fun () -> output_string ch contents)
@@ -48,9 +50,10 @@ let write_file path contents =
       close_out ch)
 
 let test_corrupted_control_file ~fs () =
+  let root = root fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
-  let control_file_path = Filename.concat root "store.control" in
+  let control_file_path = Eio.Path.(root / "store.control") in
   let repo = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
   let control_file_blob0 = read_file control_file_path in
   let store = Store.main repo in
@@ -76,7 +79,7 @@ let test_corrupted_control_file ~fs () =
   match error with
   | Error (Irmin_pack_unix.Errors.Pack_error (`Corrupted_control_file s)) ->
       Alcotest.(check string)
-        "path is corrupted" s "_build/test-corrupted/store.control"
+        "path is corrupted" s "./_build/test-corrupted/store.control"
   | _ -> Alcotest.fail "unexpected error"
 
 let tests ~fs =

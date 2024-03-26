@@ -303,6 +303,7 @@ module type S = sig
   (** Returns where data discarded by the GC will end up. (see {!gc_behaviour}). *)
 
   val create_one_commit_store :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     t ->
     Irmin.Backend.Conf.t ->
     Control_file.Payload.Upper.Latest.gced ->

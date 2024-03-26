@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-multicore"
+let root ~fs = Eio.Path.(fs / "_build" / "test-multicore")
 let src = Logs.Src.create "tests.multicore" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -108,6 +108,7 @@ let list_shape shape = list_shape [] [] shape
 
 let make_store ~fs shape =
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo = Store.Repo.v ~sw ~fs (Store.config ~fresh:true root) in
   let main = Store.main repo in
   let tree = make_tree shape in
@@ -144,6 +145,7 @@ let test_find ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
   in
@@ -166,6 +168,7 @@ let test_length ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
   in
@@ -221,6 +224,7 @@ let test_add_remove ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
   in
@@ -261,6 +265,7 @@ let test_commit ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
@@ -284,6 +289,7 @@ let test_merkle ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
@@ -308,6 +314,7 @@ let test_hash ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
@@ -351,6 +358,7 @@ let test_list_disk ~fs ~cache ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
   in
@@ -363,6 +371,7 @@ let test_list_mem ~fs ~cache ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:true ~fresh:false root)
   in
@@ -377,6 +386,7 @@ let test_commit_of_hash ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
@@ -428,6 +438,7 @@ let test_commit_parents ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in
@@ -460,6 +471,7 @@ let test_commit_v ~fs ~domain_mgr =
   Logs.set_level None;
   make_store ~fs shape0;
   Eio.Switch.run @@ fun sw ->
+  let root = root ~fs in
   let repo =
     Store.Repo.v ~sw ~fs (Store.config ~readonly:false ~fresh:false root)
   in

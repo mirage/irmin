@@ -54,8 +54,11 @@ module Store : sig
 
   type t
 
-  val config : string -> Irmin.config
-  val init_with_config : sw:Eio.Switch.t -> Irmin.config -> t
+  val config : Eio.Fs.dir_ty Eio.Path.t -> Irmin.config
+
+  val init_with_config :
+    sw:Eio.Switch.t -> fs:Eio.Fs.dir_ty Eio.Path.t -> Irmin.config -> t
+
   val close : t -> unit
 
   val start_gc :

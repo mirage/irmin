@@ -1,10 +1,15 @@
 open Cmdliner
 
 (* Common arguments *)
-let store_path =
+let eio_path root =
+  let parse s = Ok Eio.Path.(root / s) in
+  let print = Eio.Path.pp in
+  Arg.conv ~docv:"PATH" (parse, print)
+
+let store_path fs =
   Arg.(
     value
-    & opt string "."
+    & opt (eio_path fs) fs
     & info [ "store_path" ]
         ~doc:"the path to the irmin store files, default to `.`")
 
@@ -34,27 +39,27 @@ let index_path =
         ~doc:"the path to the index file generated, default to `store.index`")
 
 (* Command parse *)
-let parse_cmd =
+let parse_cmd env fs =
   let doc =
     "parses a pack file and generates the associated .info & .idx files"
   in
   let info = Cmd.info "parse" ~doc in
   Cmd.v info
     Term.(
-      const Parse.main
-      $ store_path
+      const (Parse.main env)
+      $ store_path fs
       $ info_last_path
       $ info_next_path
       $ index_path)
 
 (* Command show *)
-let show_cmd =
+let show_cmd env fs =
   let doc = "graphical user interface for pack files inspection" in
   let info = Cmd.info "show" ~doc in
   Cmd.v info
     Term.(
-      const Show.main
-      $ store_path
+      const (Show.main env)
+      $ store_path fs
       $ info_last_path
       $ info_next_path
       $ index_path)
@@ -64,6 +69,8 @@ let main_cmd =
   let doc = "a visual tool for irmin pack files inspection" in
   let info = Cmd.info "irmin-pack-inspect" ~version:"%%VERSION%%" ~doc in
   let default = Term.(ret (const (`Help (`Pager, None)))) in
-  Cmd.group info ~default [ parse_cmd; show_cmd ]
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  Cmd.group info ~default [ parse_cmd env fs; show_cmd env fs ]
 
 let () = exit (Cmd.eval ~catch:false main_cmd)

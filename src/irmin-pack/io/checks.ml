@@ -41,10 +41,15 @@ let setup_log =
   in
   Cmdliner.Term.(const init $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let path =
+let path fs =
   let open Cmdliner.Arg in
+  let eio_path fs =
+    let parse s = Ok Eio.Path.(fs / s) in
+    let print = Eio.Path.pp in
+    conv ~docv:"PATH" (parse, print)
+  in
   required
-  @@ pos 0 (some string) None
+  @@ pos 0 (some (eio_path fs)) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
 let deprecated_info = (Cmdliner.Term.info [@alert "-deprecated"])
@@ -73,6 +78,7 @@ struct
     [@@deriving irmin]
 
     let traverse_index ~root log_size =
+      let root = Eio.Path.native_exn root in
       let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
       let ppf = Format.err_formatter in
       let bar, (progress_contents, progress_nodes, progress_commits) =
@@ -96,14 +102,15 @@ struct
     let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
     let run ~fs:_ ~root =
-      [%logs.app "Getting statistics for store: `%s'@," root];
+      [%logs.app
+        "Getting statistics for store: `%s'@," (Eio.Path.native_exn root)];
       let log_size = conf root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
       { hash_size = Bytes Hash.hash_size; log_size; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout
 
     let term_internal ~fs =
-      Cmdliner.Term.(const (fun root () -> run ~fs ~root) $ path)
+      Cmdliner.Term.(const (fun root () -> run ~fs ~root) $ path fs)
 
     let term ~fs =
       let doc = "Print high-level statistics about the store." in
@@ -140,7 +147,7 @@ struct
         const (fun root output index_log_size () ->
             Eio.Switch.run (fun sw ->
                 run ~sw ~fs ~root ~output ?index_log_size ()))
-        $ path
+        $ path fs
         $ dest
         $ index_log_size)
 
@@ -178,7 +185,7 @@ struct
       Cmdliner.Term.(
         const (fun root auto_repair always () ->
             Eio.Switch.run (fun sw -> run ~sw ~fs ~root ~auto_repair ~always ()))
-        $ path
+        $ path fs
         $ auto_repair
         $ always)
 
@@ -247,7 +254,7 @@ struct
             Eio.Switch.run (fun sw ->
                 run ~sw ~fs ~ppf:Format.err_formatter ~root ~auto_repair ~always
                   ~heads ()))
-        $ path
+        $ path fs
         $ auto_repair
         $ always
         $ heads)
@@ -292,7 +299,7 @@ struct
       Cmdliner.Term.(
         const (fun root heads () ->
             Eio.Switch.run (fun sw -> run ~sw ~fs ~root ~heads))
-        $ path
+        $ path fs
         $ heads)
 
     let term ~fs =
@@ -350,7 +357,7 @@ struct
         const (fun root commit dump_blob_paths_to () ->
             Eio.Switch.run (fun sw ->
                 run ~sw ~fs ~root ~commit ~dump_blob_paths_to ()))
-        $ path
+        $ path fs
         $ commit
         $ dump_blob_paths_to)
 

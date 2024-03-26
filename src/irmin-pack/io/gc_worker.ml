@@ -211,12 +211,12 @@ module Make (Args : Gc_args.S) = struct
 
   type gc_output = (gc_results, Args.Errs.t) result [@@deriving irmin]
 
-  let run ~sw ~lower_root ~generation ~new_files_path root commit_key
+  let run ~sw ~fs ~lower_root ~generation ~new_files_path root commit_key
       new_suffix_start_offset =
     let open Result_syntax in
     let config =
       Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 ~lower_root
-        (Eio.Path.native_exn root)
+        root
     in
 
     (* Step 1. Open the files *)
@@ -226,7 +226,7 @@ module Make (Args : Gc_args.S) = struct
       report_old_file_sizes ~root ~generation:(generation - 1) stats |> ignore
     in
 
-    let fm = Fm.open_ro ~sw ~fs:root config |> Errs.raise_if_error in
+    let fm = Fm.open_ro ~sw ~fs config |> Errs.raise_if_error in
     Errors.finalise_exn (fun _outcome ->
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
     @@ fun () ->
@@ -427,13 +427,13 @@ module Make (Args : Gc_args.S) = struct
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
-  let run_and_output_result ~lower_root ~generation ~new_files_path root
+  let run_and_output_result ~fs ~lower_root ~generation ~new_files_path root
       commit_key new_suffix_start_offset =
     Eio.Switch.run @@ fun sw ->
     let result =
       try
         Errs.catch (fun () ->
-            run ~sw ~lower_root ~generation ~new_files_path root commit_key
+            run ~sw ~fs ~lower_root ~generation ~new_files_path root commit_key
               new_suffix_start_offset)
       with e ->
         Format.printf "GC ERROR: %s@." (Printexc.to_string e);
