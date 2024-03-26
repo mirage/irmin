@@ -54,7 +54,7 @@ struct
   module AW = Make_atomic_write (K) (V)
   include Check_closed_store (AW)
 
-  let v conf =
-    let t = AW.v conf in
+  let v ~sw ~fs conf =
+    let t = AW.v ~sw ~fs conf in
     { closed = ref false; t }
 end

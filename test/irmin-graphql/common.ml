@@ -62,9 +62,9 @@ let server_of_repo : type a. Store.repo -> a Lwt.t =
 
 type server = { event_loop : 'a. 'a Lwt.t; store : Store.t }
 
-let spawn_graphql_server () =
+let spawn_graphql_server ~sw =
   let config = Irmin_mem.config () in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw config in
   let main = Store.main repo in
   let event_loop = server_of_repo repo in
   { event_loop; store = main }

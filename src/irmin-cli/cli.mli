@@ -16,7 +16,9 @@
 
 (** CLI commands. *)
 
-type command = (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+type command =
+  (fs:Eio.Fs.dir_ty Eio.Path.t -> unit Cmdliner.Term.t * Cmdliner.Term.info
+  [@alert "-deprecated"])
 (** [Cmdliner] commands. *)
 
 val default : command
@@ -34,7 +36,7 @@ type sub = {
   name : string;
   doc : string;
   man : Cmdliner.Manpage.block list;
-  term : unit Cmdliner.Term.t;
+  term : fs:Eio.Fs.dir_ty Eio.Path.t -> unit Cmdliner.Term.t;
 }
 (** Subcommand. *)
 

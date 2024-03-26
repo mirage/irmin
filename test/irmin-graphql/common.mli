@@ -29,7 +29,7 @@ type server = {
   store : Store.t;  (** The store used by the server *)
 }
 
-val spawn_graphql_server : unit -> server
+val spawn_graphql_server : sw:Eio.Switch.t -> server
 (** Initialise a GraphQL server. At most one server may be running concurrently. *)
 
 type param

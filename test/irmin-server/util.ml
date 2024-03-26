@@ -23,7 +23,7 @@ let test name f client _switch () =
   Logs.debug (fun l -> l "Running: %s" name);
   f client
 
-let run_server s =
+let run_server ~sw s =
   let kind, uri =
     match s with
     | `Websocket -> ("Websocket", Uri.of_string "ws://localhost:90991")
@@ -37,7 +37,7 @@ let run_server s =
   | 0 ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = Irmin_mem.config () in
-      Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve);
+      Lwt_eio.run_lwt (fun () -> Server.v ~sw ~uri conf >>= Server.serve);
       (kind, 0, uri)
   | n ->
       Unix.sleep 3;

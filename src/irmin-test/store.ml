@@ -78,7 +78,7 @@ module Make (S : Generic_key) = struct
 
   let contents c = S.Tree.v (`Contents (c, S.Metadata.default))
 
-  let test_contents x () =
+  let test_contents ~fs x () =
     let test repo =
       let t = B.Repo.contents_t repo in
       let check_key = check B.Contents.Key.t in
@@ -107,11 +107,11 @@ module Make (S : Generic_key) = struct
       | Irmin.Closed -> ()
       | exn -> raise exn
     in
-    run x test
+    run ~fs x test
 
   let get = function None -> Alcotest.fail "get" | Some v -> v
 
-  let test_nodes x () =
+  let test_nodes ~fs x () =
     let test repo =
       let g = g repo and n = n repo in
       let k = with_contents repo (fun c -> B.Contents.add c "foo") |> normal in
@@ -257,9 +257,9 @@ module Make (S : Generic_key) = struct
       | Irmin.Closed -> ()
       | exn -> raise exn
     in
-    run x test
+    run ~fs x test
 
-  let test_commits x () =
+  let test_commits ~fs x () =
     let test repo =
       let info date =
         let message = Fmt.str "Test commit: %d" date in
@@ -307,9 +307,9 @@ module Make (S : Generic_key) = struct
       | Irmin.Closed -> ()
       | exn -> raise exn
     in
-    run x test
+    run ~fs x test
 
-  let test_closure x () =
+  let test_closure ~fs x () =
     let test repo =
       let info date =
         let message = Fmt.str "Test commit: %d" date in
@@ -426,9 +426,9 @@ module Make (S : Generic_key) = struct
       in
       S.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_branches ?hook x () =
+  let test_branches ?hook ~fs x () =
     let test repo =
       let check_keys = checks S.Branch.t in
       let check_val = check (T.option @@ S.commit_t repo) in
@@ -461,9 +461,9 @@ module Make (S : Generic_key) = struct
       | Irmin.Closed -> ()
       | exn -> raise exn
     in
-    run x test
+    run ~fs x test
 
-  let test_tree_hashes x () =
+  let test_tree_hashes ~fs x () =
     let test repo =
       let node bindings =
         with_node repo (fun g ->
@@ -491,9 +491,9 @@ module Make (S : Generic_key) = struct
       check_hash "2 levels" bindings2;
       S.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_simple_merges ?hook x () =
+  let test_simple_merges ?hook ~fs x () =
     (* simple merges *)
     let check_merge () =
       let ok = Irmin.Merge.ok in
@@ -607,9 +607,9 @@ module Make (S : Generic_key) = struct
       check_key "kr3" kr3 kr3';
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_history ?hook x () =
+  let test_history ?hook ~fs x () =
     let test repo =
       let info date =
         let i = Int64.of_int date in
@@ -826,9 +826,9 @@ module Make (S : Generic_key) = struct
       check (S.commit_t repo) "ff 2.3" c14 c14';
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_empty ?hook x () =
+  let test_empty ?hook ~fs x () =
     let test repo =
       let t = S.empty repo in
       let h = S.Head.find t in
@@ -840,9 +840,9 @@ module Make (S : Generic_key) = struct
       check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_slice ?hook x () =
+  let test_slice ?hook ~fs x () =
     let test repo =
       let t = S.main repo in
       let a = "" in
@@ -860,9 +860,9 @@ module Make (S : Generic_key) = struct
       check B.Slice.t "slices" slice slice';
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_backend_nodes ?hook x () =
+  let test_backend_nodes ?hook ~fs x () =
     let test repo =
       let check_val = check [%typ: S.contents option] in
       let vx = "VX" in
@@ -889,9 +889,9 @@ module Make (S : Generic_key) = struct
       check_val "vx after merge" (Some vx) vx';
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_stores x () =
+  let test_stores ~fs x () =
     let test repo =
       let check_val = check [%typ: S.contents option] in
       let check_list = checks [%typ: S.Path.step * S.tree] in
@@ -984,9 +984,9 @@ module Make (S : Generic_key) = struct
       | Irmin.Closed -> ()
       | exn -> raise exn
     in
-    run x test
+    run ~fs x test
 
-  let test_atomic x () =
+  let test_atomic ~fs x () =
     let test repo =
       let check_commit = check T.(option (S.commit_t repo)) in
       let t = S.main repo in
@@ -1021,7 +1021,7 @@ module Make (S : Generic_key) = struct
       Alcotest.(check string) "commit1 value" v3 v3';
       S.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   let stats_t = Alcotest.testable (Irmin.Type.pp_dump S.Tree.stats_t) ( = )
 
@@ -1039,7 +1039,7 @@ module Make (S : Generic_key) = struct
         | `Node `Pruned -> Fmt.string ppf "pruned")
       ( = )
 
-  let test_tree_caches x () =
+  let test_tree_caches ~fs x () =
     let test repo =
       let info = S.Info.none in
       let t1 = S.main repo in
@@ -1065,7 +1065,7 @@ module Make (S : Generic_key) = struct
       Alcotest.(check int) "val-list:3" 0 (S.Tree.counters ()).node_val_list;
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   let pp_depth = Irmin.Type.pp S.Tree.depth_t
   let pp_key = Irmin.Type.pp S.Path.t
@@ -1074,7 +1074,7 @@ module Make (S : Generic_key) = struct
   let check_diffs = checks diff_t
   let check_ls = checks T.(pair S.step_t S.tree_t)
 
-  let test_trees x () =
+  let test_trees ~fs x () =
     let test repo =
       let t = S.main repo in
       let nodes = random_nodes 100 in
@@ -1430,12 +1430,12 @@ module Make (S : Generic_key) = struct
       check_val "update file as tree" (normal vx) vx';
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   let pp_proof = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.tree_t)
   let pp_stream = Irmin.Type.pp (S.Tree.Proof.t S.Tree.Proof.stream_t)
 
-  let test_proofs x () =
+  let test_proofs ~fs x () =
     let test repo =
       (* Testing Merkle proof *)
       let large_dir =
@@ -1777,9 +1777,9 @@ module Make (S : Generic_key) = struct
 
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_wide_nodes x () =
+  let test_wide_nodes ~fs x () =
     let test repo =
       let size = 500_000 in
       let c0 = S.Tree.empty () in
@@ -1857,9 +1857,9 @@ module Make (S : Generic_key) = struct
           | Some _ -> Alcotest.fail "value 500000 should not be found"));
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_commit_wide_node x () =
+  let test_commit_wide_node ~fs x () =
     let test repo =
       let size = 500_000 in
       let c0 = S.Tree.empty () in
@@ -1876,11 +1876,11 @@ module Make (S : Generic_key) = struct
       Alcotest.(check int) "commit wide node list" size (List.length ls);
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   module Sync = Irmin.Sync.Make (S)
 
-  let test_sync x () =
+  let test_sync ~fs x () =
     let test repo =
       let t1 = S.main repo in
       S.set_exn t1 ~info:(infof "update a/b") [ "a"; "b" ] v1;
@@ -1925,7 +1925,7 @@ module Make (S : Generic_key) = struct
       Alcotest.(check bool) "mem-ad" false b4;
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   module Dot = Irmin.Dot (S)
 
@@ -1943,7 +1943,7 @@ module Make (S : Generic_key) = struct
     output_string oc (Buffer.contents buf);
     close_out oc
 
-  let test_merge ?hook x () =
+  let test_merge ?hook ~fs x () =
     let test repo =
       let v1 = "X1" in
       let v2 = "X2" in
@@ -1976,12 +1976,12 @@ module Make (S : Generic_key) = struct
       check S.contents_t "v3" v3 v3';
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   (* in this test an outdated reference to a tree is used by a commit: [tree] is
      the tree with root [x] created by [c1] and modified by [c2]. [c3] reuse [tree]
      which implicitly deletes the changes of [c2]. *)
-  let test_merge_outdated_tree x () =
+  let test_merge_outdated_tree ~fs x () =
     let check_val = check T.(option S.contents_t) in
     let none_fail f msg =
       f |> function None -> Alcotest.fail msg | Some c -> c
@@ -2017,10 +2017,10 @@ module Make (S : Generic_key) = struct
           check_val "vy after merge" None vy';
           B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_merge_unrelated ?hook x () =
-    run x @@ fun repo ->
+  let test_merge_unrelated ?hook ~fs x () =
+    run ~fs x @@ fun repo ->
     let v1 = "X1" in
     let foo = S.of_branch repo "foo" in
     let bar = S.of_branch repo "bar" in
@@ -2043,7 +2043,7 @@ module Make (S : Generic_key) = struct
     | 0 -> []
     | i -> (fun () -> fn i |> fun v -> check i v) :: read fn check (i - 1)
 
-  let test_concurrent_low x () =
+  let test_concurrent_low ~fs x () =
     let test_branches repo () =
       let k = b1 in
       let v = r1 ~repo in
@@ -2073,11 +2073,11 @@ module Make (S : Generic_key) = struct
       perform (write 1);
       perform (write 10 @ read 10 @ write 10 @ read 10)
     in
-    run x (fun repo ->
+    run ~fs x (fun repo ->
         Eio.Fiber.all [ test_branches repo; test_contents repo ];
         B.Repo.close repo)
 
-  let test_concurrent_updates x () =
+  let test_concurrent_updates ~fs x () =
     let test_one repo =
       let k = [ "a"; "b"; "d" ] in
       let v = "X1" in
@@ -2111,12 +2111,12 @@ module Make (S : Generic_key) = struct
       perform (write t1 10 @ write t2 10);
       perform (read t1 10)
     in
-    run x (fun repo ->
+    run ~fs x (fun repo ->
         test_one repo;
         test_multi repo;
         B.Repo.close repo)
 
-  let test_concurrent_merges x () =
+  let test_concurrent_merges ~fs x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
@@ -2141,12 +2141,12 @@ module Make (S : Generic_key) = struct
       perform (read t1 10);
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
   let pp_write_error = Irmin.Type.pp S.write_error_t
   let tree_t = testable S.tree_t
 
-  let test_with_tree x () =
+  let test_with_tree ~fs x () =
     let test repo =
       let t = S.main repo in
       let update ?retries key strategy r w () =
@@ -2259,9 +2259,9 @@ module Make (S : Generic_key) = struct
       set () |> test_and_set |> merge;
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_concurrent_head_updates x () =
+  let test_concurrent_head_updates ~fs x () =
     let test repo =
       let k i = [ "a"; "b"; "c"; string_of_int i ] in
       let v i = Fmt.str "X%d" i in
@@ -2298,9 +2298,9 @@ module Make (S : Generic_key) = struct
       perform (read t1 5);
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_shallow_objects x () =
+  let test_shallow_objects ~fs x () =
     let test repo =
       (* NOTE: A store of type `Irmin.Generic_key.S` does not currently expose
          functions for building nodes / commits with non-existent children, due to
@@ -2358,9 +2358,9 @@ module Make (S : Generic_key) = struct
       Alcotest.(check (option tree_t)) "shallow tree" (Some tree_1) t1;
       B.Repo.close repo
     in
-    run x test
+    run ~fs x test
 
-  let test_pre_hash_collisions x () =
+  let test_pre_hash_collisions ~fs x () =
     let pre_hash_of ty =
       let f = Irmin.Type.(pre_hash ty |> unstage) in
       fun x ->
@@ -2419,12 +2419,12 @@ module Make (S : Generic_key) = struct
       S.Backend.Repo.close repo
     in
     (* Test collisions with the empty node (and its commit), *)
-    run x (test @@ fun () -> S.Tree.empty ());
+    run ~fs x (test @@ fun () -> S.Tree.empty ());
     (* with a length one node, *)
-    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 1);
+    run ~fs x (test @@ fun () -> add_entries (S.Tree.empty ()) 1);
     (* and with a length >256 node (which is the threshold for unstable inodes
        in irmin pack). *)
-    run x (test @@ fun () -> add_entries (S.Tree.empty ()) 260)
+    run ~fs x (test @@ fun () -> add_entries (S.Tree.empty ()) 260)
 end
 
 let suite' l ?(prefix = "") (_, x) =
@@ -2434,7 +2434,7 @@ let suite' l ?(prefix = "") (_, x) =
 
 let when_ b x = if b then x else []
 
-let suite sleep (speed, x) =
+let suite ~fs sleep (speed, x) =
   let (module S) = Suite.store_generic_key x in
   let module Zzz = struct
     let sleep = sleep
@@ -2459,53 +2459,57 @@ let suite sleep (speed, x) =
   in
   suite'
     ([
-       ("High-level operations on trees", speed, T.test_trees x);
-       ("Basic operations on contents", speed, T.test_contents x);
-       ("Basic operations on nodes", speed, T.test_nodes x);
-       ("Basic operations on commits", speed, T.test_commits x);
-       ("Basic operations on branches", speed, T.test_branches x);
-       ("Hash operations on trees", speed, T.test_tree_hashes x);
-       ("Basic merge operations", speed, T.test_simple_merges x);
-       ("Test merges on tree updates", speed, T.test_merge_outdated_tree x);
-       ("Tree caches and hashconsing", speed, T.test_tree_caches x);
-       ("Tree proofs", speed, T.test_proofs x);
-       ("Complex histories", speed, T.test_history x);
-       ("Empty stores", speed, T.test_empty x);
-       ("Backend node manipulation", speed, T.test_backend_nodes x);
-       ("High-level store operations", speed, T.test_stores x);
-       ("High-level atomic store operations", speed, T.test_atomic x);
-       ("High-level store merges", speed, T.test_merge x);
-       ("Unrelated merges", speed, T.test_merge_unrelated x);
-       ("Low-level concurrency", speed, T.test_concurrent_low x);
-       ("Concurrent updates", speed, T.test_concurrent_updates x);
-       ("Concurrent head updates", speed, T.test_concurrent_head_updates x);
-       ("Concurrent merges", speed, T.test_concurrent_merges x);
-       ("Shallow objects", speed, T.test_shallow_objects x);
-       ("Closure with disconnected commits", speed, T.test_closure x);
-       ("Prehash collisions", speed, T.test_pre_hash_collisions x);
+       ("High-level operations on trees", speed, T.test_trees ~fs x);
+       ("Basic operations on contents", speed, T.test_contents ~fs x);
+       ("Basic operations on nodes", speed, T.test_nodes ~fs x);
+       ("Basic operations on commits", speed, T.test_commits ~fs x);
+       ("Basic operations on branches", speed, T.test_branches ~fs x);
+       ("Hash operations on trees", speed, T.test_tree_hashes ~fs x);
+       ("Basic merge operations", speed, T.test_simple_merges ~fs x);
+       ("Test merges on tree updates", speed, T.test_merge_outdated_tree ~fs x);
+       ("Tree caches and hashconsing", speed, T.test_tree_caches ~fs x);
+       ("Tree proofs", speed, T.test_proofs ~fs x);
+       ("Complex histories", speed, T.test_history ~fs x);
+       ("Empty stores", speed, T.test_empty ~fs x);
+       ("Backend node manipulation", speed, T.test_backend_nodes ~fs x);
+       ("High-level store operations", speed, T.test_stores ~fs x);
+       ("High-level atomic store operations", speed, T.test_atomic ~fs x);
+       ("High-level store merges", speed, T.test_merge ~fs x);
+       ("Unrelated merges", speed, T.test_merge_unrelated ~fs x);
+       ("Low-level concurrency", speed, T.test_concurrent_low ~fs x);
+       ("Concurrent updates", speed, T.test_concurrent_updates ~fs x);
+       ("Concurrent head updates", speed, T.test_concurrent_head_updates ~fs x);
+       ("Concurrent merges", speed, T.test_concurrent_merges ~fs x);
+       ("Shallow objects", speed, T.test_shallow_objects ~fs x);
+       ("Closure with disconnected commits", speed, T.test_closure ~fs x);
+       ("Prehash collisions", speed, T.test_pre_hash_collisions ~fs x);
      ]
     @ when_ x.import_supported
         [
-          ("Basic operations on slices", speed, T.test_slice x);
-          ("High-level store synchronisation", speed, T.test_sync x);
+          ("Basic operations on slices", speed, T.test_slice ~fs x);
+          ("High-level store synchronisation", speed, T.test_sync ~fs x);
         ]
     @ when_ with_tree_enabled
-        [ ("with_tree strategies", speed, T.test_with_tree x) ]
-    @ List.map (fun (n, test) -> ("Graph." ^ n, speed, test x)) T_graph.tests
-    @ List.map (fun (n, test) -> ("Watch." ^ n, speed, test x)) T_watch.tests)
+        [ ("with_tree strategies", speed, T.test_with_tree ~fs x) ]
+    @ List.map
+        (fun (n, test) -> ("Graph." ^ n, speed, test x))
+        (T_graph.tests ~fs)
+    @ List.map
+        (fun (n, test) -> ("Watch." ^ n, speed, test x))
+        (T_watch.tests ~fs))
     (speed, x)
 
-let slow_suite (speed, x) =
+let slow_suite ~fs (speed, x) =
   let (module S) = Suite.store_generic_key x in
   let module T = Make (S) in
   suite' ~prefix:"SLOW_"
     [
-      ("Commit wide node", speed, T.test_commit_wide_node x);
-      ("Wide nodes", `Slow, T.test_wide_nodes x);
+      ("Commit wide node", speed, T.test_commit_wide_node ~fs x);
+      ("Wide nodes", `Slow, T.test_wide_nodes ~fs x);
     ]
     (speed, x)
 
-let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
+let run ~fs name ?(slow = false) ?random_seed ~sleep ~misc tl =
   let () =
     match random_seed with
     | Some x -> Random.init x
@@ -2513,6 +2517,6 @@ let run name ?(slow = false) ?random_seed ~sleep ~misc tl =
   in
   Printexc.record_backtrace true;
   (* Ensure that failures occuring in async lwt threads are raised. *)
-  let tl1 = List.map (suite sleep) tl in
-  let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
+  let tl1 = List.map (suite ~fs sleep) tl in
+  let tl1 = if slow then tl1 @ List.map (slow_suite ~fs) tl else tl1 in
   Alcotest.run ~bail:true name (misc @ tl1)

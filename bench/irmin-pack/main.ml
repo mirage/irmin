@@ -33,15 +33,19 @@ module Bench = Irmin_bench.Make (KV)
 
 let file f =
   (* in MiB *)
-  try (Unix.stat f).st_size / 1024 / 1024
-  with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
+  try
+    Eio.Switch.run @@ fun sw ->
+    let open Optint.Int63 in
+    let f = Eio.Path.open_in ~sw f in
+    Infix.(to_int @@ (Eio.File.size f / of_int 1024 / of_int 1024))
+  with Eio.Exn.Io (Eio.Fs.E (Not_found _), _) -> 0
 
 let index root =
   let rec aux acc i =
     if i = 256 then acc
     else
       let filename = Format.sprintf "store.index.%d" i in
-      let s = file (Filename.concat root filename) in
+      let s = file Eio.Path.(root / filename) in
       aux (acc + s) (i + 1)
   in
   aux 0 0
@@ -52,4 +56,4 @@ let size ~root =
   |> List.map file
   |> List.fold_left ( + ) index_size
 
-let () = Bench.run ~config ~size
+let () = Eio_main.run @@ fun env -> Bench.run ~env ~config ~size

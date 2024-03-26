@@ -15,6 +15,7 @@
  *)
 
 let () =
-  Eio_main.run @@ fun _ ->
-  Irmin_test.Store.run "irmin-mem" ~slow:true ~misc:[] ~sleep:Eio_unix.sleep
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  Irmin_test.Store.run ~fs "irmin-mem" ~slow:true ~misc:[] ~sleep:Eio_unix.sleep
     [ (`Quick, Test_mem.suite) ]

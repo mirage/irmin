@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-tree"
+let root ~fs = Eio.Path.(fs / "_build" / "test-tree")
 let src = Logs.Src.create "tests.tree" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -45,8 +45,8 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
 
   type context = { repo : Store.repo; tree : Store.tree }
 
-  let export_tree_to_store tree =
-    let repo = Store.Repo.v (config ~fresh:true root) in
+  let export_tree_to_store ~sw ~fs tree =
+    let repo = Store.Repo.v ~sw ~fs (config ~fresh:true (root ~fs)) in
     let store = Store.empty repo in
     let () = Store.set_tree_exn ~info store [] tree in
     let tree = Store.tree store in
@@ -66,12 +66,12 @@ module Make (Conf : Irmin_pack.Conf.S) = struct
         let h = Irmin.Type.to_string Store.Hash.t h in
         ([ h ], zero))
 
-  let init_tree bindings =
+  let init_tree ~sw ~fs bindings =
     let tree = Tree.empty () in
     let tree =
       List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
-    export_tree_to_store tree
+    export_tree_to_store ~sw ~fs tree
 
   let find_tree tree k =
     let t = Tree.find_tree tree k in
@@ -185,8 +185,9 @@ let another_random_steps =
 let zero = String.make 10 '0'
 let bindings steps = List.map (fun x -> ([ x ], zero)) steps
 
-let test_fold ?export_tree_to_store:(export_tree_to_store' = true) ~order
+let test_fold ~fs ?export_tree_to_store:(export_tree_to_store' = true) ~order
     bindings expected =
+  Eio.Switch.run @@ fun sw ->
   let tree = Tree.empty () in
   let tree =
     List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
@@ -194,7 +195,7 @@ let test_fold ?export_tree_to_store:(export_tree_to_store' = true) ~order
   let close =
     match export_tree_to_store' with
     | true ->
-        let ctxt = export_tree_to_store tree in
+        let ctxt = export_tree_to_store ~sw ~fs tree in
         fun () -> close ctxt
     | false -> fun () -> ()
   in
@@ -215,32 +216,32 @@ let test_fold ?export_tree_to_store:(export_tree_to_store' = true) ~order
   equal_lists ~msg:(Fmt.str "Visit elements in %s order" msg) expected keys;
   close ()
 
-let test_fold_sorted () =
+let test_fold_sorted ~fs () =
   let bindings = bindings steps in
   let expected = List.map fst bindings in
-  test_fold ~order:`Sorted bindings expected
+  test_fold ~fs ~order:`Sorted bindings expected
 
-let test_fold_random () =
+let test_fold_random ~fs () =
   let bindings = bindings some_steps in
   let state = Random.State.make [| 0 |] in
-  let () = test_fold ~order:(`Random state) bindings some_random_steps in
+  let () = test_fold ~fs ~order:(`Random state) bindings some_random_steps in
   let state = Random.State.make [| 1 |] in
-  let () = test_fold ~order:(`Random state) bindings another_random_steps in
+  let () = test_fold ~fs ~order:(`Random state) bindings another_random_steps in
 
   (* Random fold order should still be respected if [~force:`False]. This is a
      regression test for a bug in which the fold order of in-memory nodes during
      a non-forcing traversal was always sorted. *)
   let state = Random.State.make [| 1 |] in
   let () =
-    test_fold ~order:(`Random state) ~export_tree_to_store:false bindings
+    test_fold ~fs ~order:(`Random state) ~export_tree_to_store:false bindings
       another_random_steps
   in
   ()
 
-let test_fold_undefined () =
+let test_fold_undefined ~fs () =
   let bindings = bindings steps in
   let expected = List.map fst bindings in
-  test_fold ~order:`Undefined bindings expected
+  test_fold ~fs ~order:`Undefined bindings expected
 
 let proof_of_bin s =
   match proof_of_bin s with Ok s -> s | Error (`Msg e) -> Alcotest.fail e
@@ -326,9 +327,10 @@ let test_proofs ctxt ops =
   in
   ()
 
-let test_large_inode () =
+let test_large_inode ~fs () =
+  Eio.Switch.run @@ fun sw ->
   let bindings = bindings steps in
-  let ctxt = init_tree bindings in
+  let ctxt = init_tree ~sw ~fs bindings in
   let ops = [ Add ([ "00" ], "3"); Del [ "01" ] ] in
   test_proofs ctxt ops
 
@@ -338,16 +340,18 @@ let fewer_steps =
 "1a"; "1b"; "1c"; "1d"; "1e"; "1f"; "20"; "22"; "23"; "25"; "26";
 "27"; "28"; "2a"; ][@@ocamlformat "disable"]
 
-let test_small_inode () =
+let test_small_inode ~fs () =
+  Eio.Switch.run @@ fun sw ->
   let bindings = bindings fewer_steps in
-  let ctxt = init_tree bindings in
+  let ctxt = init_tree ~sw ~fs bindings in
   let ops = [ Add ([ "00" ], ""); Del [ "01" ] ] in
   test_proofs ctxt ops
 
-let test_length_proof () =
+let test_length_proof ~fs () =
+  Eio.Switch.run @@ fun sw ->
   let bindings = bindings fewer_steps in
   let size = List.length fewer_steps in
-  let ctxt = init_tree bindings in
+  let ctxt = init_tree ~sw ~fs bindings in
   let ops =
     [
       Length ([], size) (* initial size *);
@@ -378,7 +382,8 @@ let test_length_proof () =
   in
   test_proofs ctxt ops
 
-let test_deeper_proof () =
+let test_deeper_proof ~fs () =
+  Eio.Switch.run @@ fun sw ->
   let ctxt =
     let tree = Tree.empty () in
     let level_one =
@@ -395,7 +400,7 @@ let test_deeper_proof () =
       let bindings = bindings fewer_steps in
       List.fold_left (fun tree (k, v) -> Tree.add tree k v) tree bindings
     in
-    export_tree_to_store level_three
+    export_tree_to_store ~sw ~fs level_three
   in
   let ops =
     [
@@ -416,7 +421,7 @@ module Binary = Make (struct
 end)
 
 (* test large compressed proofs *)
-let test_large_proofs () =
+let test_large_proofs ~fs () =
   (* Build a proof on a large store (branching factor = 32) *)
   let bindings = init_bindings 100_000 in
   let ops n =
@@ -428,8 +433,9 @@ let test_large_proofs () =
   in
 
   let compare_proofs n =
+    Eio.Switch.run @@ fun sw ->
     let ops = ops n in
-    let ctxt = init_tree bindings in
+    let ctxt = init_tree ~sw ~fs bindings in
     let key =
       match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
     in
@@ -438,7 +444,7 @@ let test_large_proofs () =
     let () = close ctxt in
 
     (* Build a stream proof *)
-    let ctxt = init_tree bindings in
+    let ctxt = init_tree ~sw ~fs bindings in
     let key =
       match Tree.key ctxt.tree with Some (`Node k) -> k | _ -> assert false
     in
@@ -447,7 +453,7 @@ let test_large_proofs () =
     let () = close ctxt in
 
     (* Build a proof on a large store (branching factor = 2) *)
-    let ctxt = Binary.init_tree bindings in
+    let ctxt = Binary.init_tree ~sw ~fs bindings in
     let key =
       match Binary.Store.Tree.key ctxt.tree with
       | Some (`Node k) -> k
@@ -458,7 +464,7 @@ let test_large_proofs () =
     let () = Binary.close ctxt in
 
     (* Build a stream proof *)
-    let ctxt = Binary.init_tree bindings in
+    let ctxt = Binary.init_tree ~sw ~fs bindings in
     let key =
       match Binary.Store.Tree.key ctxt.tree with
       | Some (`Node k) -> k
@@ -516,7 +522,7 @@ let check_contents_hash h s =
       let s' = Irmin.Type.(to_string Hash.t) h in
       Alcotest.(check string) "check hash" s s'
 
-let test_extenders () =
+let test_extenders ~fs () =
   let bindings =
     [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
   in
@@ -530,7 +536,8 @@ let test_extenders () =
   in
 
   let check_proof bindings =
-    let ctxt = Custom.init_tree bindings in
+    Eio.Switch.run @@ fun sw ->
+    let ctxt = Custom.init_tree ~sw ~fs bindings in
     let key = Custom.Tree.key ctxt.tree |> Option.get in
     let p, () = Custom.Tree.produce_proof ctxt.repo key f in
     [%log.debug "Verifying proof %a" pp_proof p];
@@ -545,7 +552,8 @@ let test_extenders () =
   let () = List.iter check_proof [ bindings; bindings2; bindings3 ] in
 
   let check_stream bindings =
-    let ctxt = Custom.init_tree bindings in
+    Eio.Switch.run @@ fun sw ->
+    let ctxt = Custom.init_tree ~sw ~fs bindings in
     let key = Custom.Tree.key ctxt.tree |> Option.get in
     let p, () = Custom.Tree.produce_stream ctxt.repo key f in
     [%log.debug "Verifying stream %a" pp_stream p];
@@ -559,14 +567,15 @@ let test_extenders () =
   in
   List.iter check_stream [ bindings; bindings2; bindings3 ]
 
-let test_hardcoded_stream () =
+let test_hardcoded_stream ~fs () =
   let bindings =
     [ ([ "00100" ], "x"); ([ "00101" ], "y"); ([ "00110" ], "z") ]
   in
   let fail elt =
     Alcotest.failf "Unexpected elt in stream %a" (Irmin.Type.pp P.elt_t) elt
   in
-  let ctxt = Custom.init_tree bindings in
+  Eio.Switch.run @@ fun sw ->
+  let ctxt = Custom.init_tree ~sw ~fs bindings in
   let key = Custom.Tree.key ctxt.tree |> Option.get in
   let f t =
     let path = [ "00100" ] in
@@ -604,7 +613,7 @@ let test_hardcoded_stream () =
     state;
   if !counter <> 4 then Alcotest.fail "Not enough elements in the stream"
 
-let test_hardcoded_proof () =
+let test_hardcoded_proof ~fs () =
   let bindings =
     [ ([ "00000" ], "x"); ([ "00001" ], "y"); ([ "00010" ], "z") ]
   in
@@ -616,7 +625,8 @@ let test_hardcoded_proof () =
       (Irmin.Type.pp P.inode_tree_t)
       elt
   in
-  let ctxt = Custom.init_tree bindings in
+  Eio.Switch.run @@ fun sw ->
+  let ctxt = Custom.init_tree ~sw ~fs bindings in
   let key = Custom.Tree.key ctxt.tree |> Option.get in
   let f t =
     let v = Custom.Tree.get t [ "00000" ] in
@@ -712,15 +722,17 @@ let test_proof_exn _ =
   in
   ()
 
-let test_reexport_node () =
+let test_reexport_node ~fs () =
+  Eio.Switch.run @@ fun sw ->
   let tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
-  let repo1 = Store.Repo.v (config ~fresh:true root) in
+  let root = root ~fs in
+  let repo1 = Store.Repo.v ~sw ~fs (config ~fresh:true root) in
   let _ =
     Store.Backend.Repo.batch repo1 (fun c n _ -> Store.save_tree repo1 c n tree)
   in
   let () = Store.Repo.close repo1 in
   (* Re-export the same tree using a different repo. *)
-  let repo2 = Store.Repo.v (config ~fresh:false root) in
+  let repo2 = Store.Repo.v ~sw ~fs (config ~fresh:false root) in
   let _ =
     Alcotest.check_raises "re-export tree from another repo"
       (Failure "Can't export the node key from another repo") (fun () ->
@@ -729,7 +741,7 @@ let test_reexport_node () =
   in
   let () = Store.Repo.close repo2 in
   (* Re-export a fresh tree using a different repo. *)
-  let repo2 = Store.Repo.v (config ~fresh:false root) in
+  let repo2 = Store.Repo.v ~sw ~fs (config ~fresh:false root) in
   let tree = Store.Tree.add (Store.Tree.empty ()) [ "foo"; "a" ] "a" in
   let _ = Store.Tree.hash tree in
   let c1 = Store.Tree.get_tree tree [ "foo" ] in
@@ -745,24 +757,27 @@ let test_reexport_node () =
   in
   Store.Repo.close repo2
 
-let tests =
+let tests ~fs =
   [
-    Alcotest.test_case "fold over keys in sorted order" `Quick test_fold_sorted;
-    Alcotest.test_case "fold over keys in random order" `Quick test_fold_random;
+    Alcotest.test_case "fold over keys in sorted order" `Quick
+      (test_fold_sorted ~fs);
+    Alcotest.test_case "fold over keys in random order" `Quick
+      (test_fold_random ~fs);
     Alcotest.test_case "fold over keys in undefined order" `Quick
-      test_fold_undefined;
+      (test_fold_undefined ~fs);
     Alcotest.test_case "test Merkle proof for large inodes" `Quick
-      test_large_inode;
+      (test_large_inode ~fs);
     Alcotest.test_case "test Merkle proof for small inodes" `Quick
-      test_small_inode;
+      (test_small_inode ~fs);
     Alcotest.test_case "test Merkle proof for Tree.length" `Quick
-      test_length_proof;
-    Alcotest.test_case "test deeper Merkle proof" `Quick test_deeper_proof;
-    Alcotest.test_case "test large Merkle proof" `Slow test_large_proofs;
-    Alcotest.test_case "test extenders in stream proof" `Quick test_extenders;
+      (test_length_proof ~fs);
+    Alcotest.test_case "test deeper Merkle proof" `Quick (test_deeper_proof ~fs);
+    Alcotest.test_case "test large Merkle proof" `Slow (test_large_proofs ~fs);
+    Alcotest.test_case "test extenders in stream proof" `Quick
+      (test_extenders ~fs);
     Alcotest.test_case "test hardcoded stream proof" `Quick
-      test_hardcoded_stream;
-    Alcotest.test_case "test hardcoded proof" `Quick test_hardcoded_proof;
+      (test_hardcoded_stream ~fs);
+    Alcotest.test_case "test hardcoded proof" `Quick (test_hardcoded_proof ~fs);
     Alcotest.test_case "test stream proof exn" `Quick test_proof_exn;
-    Alcotest.test_case "test reexport node" `Quick test_reexport_node;
+    Alcotest.test_case "test reexport node" `Quick (test_reexport_node ~fs);
   ]

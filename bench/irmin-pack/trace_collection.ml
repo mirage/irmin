@@ -167,7 +167,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
         }
   end
 
-  let create_file : string -> Def.config -> string -> t =
+  let create_file : Eio.Fs.dir_ty Eio.Path.t -> Def.config -> string -> t =
    fun path config store_path ->
     let header =
       Def.

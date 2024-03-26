@@ -26,14 +26,12 @@ module Make (Args : Gc_args.S) = struct
   module Gc_stats_main = Gc_stats.Main (Io)
 
   type t = {
-    root : string;
+    root : Eio.Fs.dir_ty Eio.Path.t;
     generation : int;
     task : Async.t;
     unlink : bool;
     new_suffix_start_offset : int63;
-    mutable on_finalise: ((Stats.Latest_gc.stats, Args.Errs.t) result -> unit);
-    (* resolver : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.u; *)
-    (* promise : (Stats.Latest_gc.stats, Errs.t) result Eio.Promise.t; *)
+    mutable on_finalise : (Stats.Latest_gc.stats, Args.Errs.t) result -> unit;
     dispatcher : Dispatcher.t;
     fm : Fm.t;
     contents : read Contents_store.t;
@@ -44,8 +42,8 @@ module Make (Args : Gc_args.S) = struct
     latest_gc_target_offset : int63;
   }
 
-  let v ~root ~lower_root ~output ~generation ~unlink ~dispatcher ~fm ~contents
-      ~node ~commit commit_key =
+  let v ~sw ~fs ~domain_mgr ~root ~lower_root ~output ~generation ~unlink
+      ~dispatcher ~fm ~contents ~node ~commit commit_key =
     let open Result_syntax in
     let new_suffix_start_offset, latest_gc_target_offset =
       let state : _ Pack_key.state = Pack_key.inspect commit_key in
@@ -98,7 +96,7 @@ module Make (Args : Gc_args.S) = struct
       let result_file = Irmin_pack.Layout.V4.gc_result ~root ~generation in
       match Io.classify_path result_file with
       | `File ->
-          Io.unlink_dont_wait
+          Io.unlink_dont_wait ~sw
             ~on_exn:(fun exn ->
               [%log.warn
                 "Unlinking temporary files from previous failed gc. Failed \
@@ -114,9 +112,9 @@ module Make (Args : Gc_args.S) = struct
     (* let promise, resolver = Eio.Promise.create () in *)
     (* start worker task *)
     let task =
-      Async.async (fun () ->
-          Worker.run_and_output_result root commit_key new_suffix_start_offset
-            ~lower_root ~generation ~new_files_path)
+      Async.async ~sw ~domain_mgr (fun () ->
+          Worker.run_and_output_result ~fs root commit_key
+            new_suffix_start_offset ~lower_root ~generation ~new_files_path)
     in
     let partial_stats =
       Gc_stats_main.finish_current_step partial_stats "before finalise"
@@ -165,13 +163,13 @@ module Make (Args : Gc_args.S) = struct
       ~suffix_start_offset ~chunk_start_idx ~chunk_num ~suffix_dead_bytes
       ~latest_gc_target_offset ~volume:gc_results.modified_volume
 
-  let unlink_all { root; generation; _ } removable_chunk_idxs =
+  let unlink_all ~sw { root; generation; _ } removable_chunk_idxs =
     (* Unlink suffix chunks *)
     let () =
       removable_chunk_idxs
       |> List.iter (fun chunk_idx ->
              let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
-             Io.unlink_dont_wait
+             Io.unlink_dont_wait ~sw
                ~on_exn:(fun exn ->
                  [%log.warn
                    "Unlinking chunk_idxs files after gc, failed with error %s"
@@ -183,7 +181,7 @@ module Make (Args : Gc_args.S) = struct
       let prefix =
         Irmin_pack.Layout.V4.prefix ~root ~generation:(generation - 1)
       in
-      Io.unlink_dont_wait
+      Io.unlink_dont_wait ~sw
         ~on_exn:(fun exn ->
           [%log.warn
             "Unlinking previous prefix after gc, failed with error %s"
@@ -194,7 +192,7 @@ module Make (Args : Gc_args.S) = struct
       let mapping =
         Irmin_pack.Layout.V4.mapping ~root ~generation:(generation - 1)
       in
-      Io.unlink_dont_wait
+      Io.unlink_dont_wait ~sw
         ~on_exn:(fun exn ->
           [%log.warn
             "Unlinking previous mapping after gc, failed with error %s"
@@ -203,7 +201,7 @@ module Make (Args : Gc_args.S) = struct
 
     (* Unlink current gc's result.*)
     let result = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-    Io.unlink_dont_wait
+    Io.unlink_dont_wait ~sw
       ~on_exn:(fun exn ->
         [%log.warn
           "Unlinking current gc's result after gc, failed with error %s"
@@ -228,7 +226,8 @@ module Make (Args : Gc_args.S) = struct
     let open Result_syntax in
     let read_file () =
       let path = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-      let* io = Io.open_ ~path ~readonly:true in
+      Eio.Switch.run @@ fun sw ->
+      let* io = Io.open_ ~sw ~path ~readonly:true in
       let* len = Io.read_size io in
       let len = Int63.to_int len in
       let* string = Io.read_to_string io ~off:Int63.zero ~len in
@@ -247,7 +246,7 @@ module Make (Args : Gc_args.S) = struct
   let clean_after_abort t =
     Fm.cleanup t.fm |> Errs.log_if_error "clean_after_abort"
 
-  let finalise ~wait t =
+  let finalise ~sw ~wait t =
     match t.resulting_stats with
     | Some partial_stats -> Ok (`Finalised partial_stats)
     | None -> (
@@ -276,7 +275,8 @@ module Make (Args : Gc_args.S) = struct
                 let partial_stats =
                   Gc_stats_main.finish_current_step partial_stats "unlink"
                 in
-                if t.unlink then unlink_all t gc_results.removable_chunk_idxs;
+                if t.unlink then
+                  unlink_all ~sw t gc_results.removable_chunk_idxs;
 
                 let stats =
                   let after_suffix_end_offset =
@@ -334,7 +334,7 @@ module Make (Args : Gc_args.S) = struct
        implementation detail. This is safe since the callback
        [f] is attached to [t.running_gc.promise], which is
        referenced for the lifetime of a GC process. *)
-    t.on_finalise <- f ;
+    t.on_finalise <- f;
     (* ignore (t, f); *)
     (* let _ = f (Eio.Promise.await t.promise) in *)
     ()

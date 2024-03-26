@@ -62,7 +62,6 @@
   irmin-pack.unix
   irmin-tezos
   logs
-  lwt
   hex
   fpath)
  (preprocess

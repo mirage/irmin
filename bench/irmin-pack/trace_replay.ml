@@ -370,8 +370,8 @@ module Make (Store : Store) = struct
     let really_add_volume = time_to_add_volume in
     (really_wait_gc, really_start_gc, really_split, really_add_volume)
 
-  let add_commits config repo commit_seq on_commit on_end stats check_hash
-      empty_blobs =
+  let add_commits ~fs ~domain_mgr config repo commit_seq on_commit on_end stats
+      check_hash empty_blobs =
     let max_ncommits = config.number_of_commits_to_replay in
     with_progress_bar ~message:"Replaying trace" ~n:max_ncommits ~unit:"commit"
     @@ fun prog ->
@@ -444,7 +444,7 @@ module Make (Store : Store) = struct
                       commit_duration duration finalise_duration]
                 | Error s -> failwith s
               in
-              Store.gc_run ~finished repo gc_commit_key)
+              Store.gc_run ~fs ~domain_mgr ~finished repo gc_commit_key)
           in
           let () = add_operations t repo ops i stats check_hash empty_blobs in
           t.latest_commit_idx <- i;
@@ -465,8 +465,14 @@ module Make (Store : Store) = struct
     in
     aux commit_seq 0
 
-  let run : type a. _ -> a config -> a =
-   fun ext_config config ->
+  let run :
+      type a.
+      fs:Eio.Fs.dir_ty Eio.Path.t ->
+      domain_mgr:_ Eio.Domain_manager.t ->
+      _ ->
+      a config ->
+      a =
+   fun ~fs ~domain_mgr ext_config config ->
     let check_hash =
       config.path_conversion = `None
       && config.inode_config = (32, 256)
@@ -475,14 +481,15 @@ module Make (Store : Store) = struct
     [%logs.app
       "Will %scheck commit hashes against reference."
         (if check_hash then "" else "NOT ")];
+    Eio.Switch.run @@ fun sw ->
     let commit_seq =
       open_commit_sequence config.number_of_commits_to_replay
         config.path_conversion config.replay_trace_path
     in
-    let root = Filename.concat config.artefacts_path "root" in
-    let repo, on_commit, on_end = Store.create_repo ~root ext_config in
+    let root = Eio.Path.(config.artefacts_path / "root") in
+    let repo, on_commit, on_end = Store.create_repo ~sw ~fs ~root ext_config in
     prepare_artefacts_dir config.artefacts_path;
-    let stat_path = Filename.concat config.artefacts_path "stat_trace.repr" in
+    let stat_path = Eio.Path.(config.artefacts_path / "stat_trace.repr") in
     let c =
       let entries, stable_hash = config.inode_config in
       Trace_definitions.Stat_trace.
@@ -491,19 +498,21 @@ module Make (Store : Store) = struct
             `Replay
               {
                 path_conversion = config.path_conversion;
-                artefacts_dir = config.artefacts_path;
+                artefacts_dir = Eio.Path.native_exn config.artefacts_path;
               };
           inode_config = (entries, entries, stable_hash);
           store_type = config.store_type;
         }
     in
-    let stats = Stat_collector.create_file stat_path c root in
+    let stats =
+      Stat_collector.create_file stat_path c (Eio.Path.native_exn root)
+    in
     Irmin_pack.Stats.reset_stats ();
     Fun.protect
       (fun () ->
         let block_count =
-          add_commits config repo commit_seq on_commit on_end stats check_hash
-            config.empty_blobs
+          add_commits ~fs ~domain_mgr config repo commit_seq on_commit on_end
+            stats check_hash config.empty_blobs
         in
         [%logs.app "Closing repo..."];
         let () = Store.Repo.close repo in
@@ -515,7 +524,7 @@ module Make (Store : Store) = struct
             Trace_stat_summary.summarise ~block_count stat_path)
       ~finally:(fun () ->
         if config.keep_stat_trace then (
-          [%logs.app "Stat trace kept at %s" stat_path];
-          Unix.chmod stat_path 0o444)
+          [%logs.app "Stat trace kept at %s" (Eio.Path.native_exn stat_path)];
+          Unix.chmod (Eio.Path.native_exn stat_path) 0o444)
         else Stat_collector.remove stats)
 end

@@ -15,6 +15,7 @@
  *)
 
 val run :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
   string ->
   ?slow:bool ->
   ?random_seed:int ->

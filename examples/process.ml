@@ -110,9 +110,11 @@ let info image message () =
 
 let main = branch images.(0)
 
-let init () =
+let init env =
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Config.init ();
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let t = Store.of_branch repo main in
   Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0";
   List.iter
@@ -124,7 +126,9 @@ let init () =
 let random_array a = a.(Random.int (Array.length a))
 let random_list l = random_array (Array.of_list l)
 
-let rec process image =
+let rec process env image =
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   let id = branch image in
   Printf.printf "Processing %s\n%!" id;
   let actions = random_list image.actions in
@@ -133,7 +137,7 @@ let rec process image =
     with _ ->
       ([ "log"; id; "0" ], fun () -> id ^ string_of_int (Random.int 10))
   in
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let t = Store.of_branch repo id in
   Store.set_exn t ~info:(info image actions.message) key (value ());
   let () =
@@ -151,7 +155,7 @@ let rec process image =
         | Error _ -> failwith "conflict!")
   in
   Eio_unix.sleep (max 0.1 (Random.float 0.3));
-  process image
+  process env image
 
 let rec protect fn x () =
   try fn x
@@ -164,10 +168,11 @@ let rec watchdog () =
   Eio_unix.sleep 1.;
   watchdog ()
 
-let main () =
-  init ();
-  Eio.Fiber.any (watchdog :: List.map (protect process) (Array.to_list images))
+let main env =
+  init env;
+  Eio.Fiber.any
+    (watchdog :: List.map (protect (process env)) (Array.to_list images))
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

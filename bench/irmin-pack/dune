@@ -80,7 +80,7 @@
 (executable
  (name trace_stats)
  (modules trace_stats)
- (libraries cmdliner irmin_traces))
+ (libraries cmdliner irmin_traces eio_main))
 
 ;; Require the executables to compile during tests
 

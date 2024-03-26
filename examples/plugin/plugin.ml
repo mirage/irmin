@@ -25,8 +25,6 @@ module Int = struct
   let merge = Irmin.Merge.(option (idempotent t))
 end
 
-let () = Resolver.Contents.add ~default:true "int" (module Int)
-
 module Schema = struct
   module Contents = Int
   module Hash = Irmin.Hash.BLAKE2B
@@ -41,4 +39,15 @@ end
 module Store = Irmin_mem.Make (Schema)
 
 let store = Resolver.Store.v Irmin_mem.Conf.spec (module Store)
-let () = Resolver.Store.add ~default:true "mem-int" (Fixed store)
+
+(* disable eio_linux warnings *)
+let () =
+  List.iter (fun src ->
+      if Logs.Src.name src = "eio_linux" then
+        Logs.Src.set_level src (Some Error))
+  @@ Logs.Src.list ()
+
+let () =
+  Eio_main.run @@ fun _env ->
+  Resolver.Contents.add ~default:true "int" (module Int);
+  Resolver.Store.add ~default:true "mem-int" (Fixed store)

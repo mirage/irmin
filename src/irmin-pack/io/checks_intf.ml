@@ -23,17 +23,23 @@ module type Subcommand = sig
 
   val run : run
 
-  val term_internal : (unit -> unit) Cmdliner.Term.t
+  val term_internal :
+    fs:Eio.Fs.dir_ty Eio.Path.t -> (unit -> unit) Cmdliner.Term.t
   (** A pre-packaged [Cmdliner] term for executing {!run}. *)
 
-  val term : (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+  val term :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
   (** [term] is {!term_internal} plus documentation and logs initialisation *)
 end
 
 module type S = sig
   (** Reads basic metrics from an existing store and prints them to stdout. *)
   module Stat : sig
-    include Subcommand with type run := root:string -> unit
+    include
+      Subcommand
+        with type run :=
+          fs:Eio.Fs.dir_ty Eio.Path.t -> root:Eio.Fs.dir_ty Eio.Path.t -> unit
 
     (** Internal implementation utilities exposed for use in other integrity
         checks. *)
@@ -43,13 +49,15 @@ module type S = sig
     type objects = { nb_commits : int; nb_nodes : int; nb_contents : int }
     [@@deriving irmin]
 
-    val traverse_index : root:string -> int -> objects
+    val traverse_index : root:Eio.Fs.dir_ty Eio.Path.t -> int -> objects
   end
 
   module Reconstruct_index :
     Subcommand
       with type run :=
-        root:string ->
+        sw:Eio.Switch.t ->
+        fs:Eio.Fs.dir_ty Eio.Path.t ->
+        root:Eio.Fs.dir_ty Eio.Path.t ->
         output:string option ->
         ?index_log_size:int ->
         unit ->
@@ -61,8 +69,10 @@ module type S = sig
     include
       Subcommand
         with type run :=
+          sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
           ?ppf:Format.formatter ->
-          root:string ->
+          root:Eio.Fs.dir_ty Eio.Path.t ->
           auto_repair:bool ->
           always:bool ->
           heads:string list option ->
@@ -83,14 +93,25 @@ module type S = sig
     include
       Subcommand
         with type run :=
-          root:string -> auto_repair:bool -> always:bool -> unit -> unit
+          sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
+          root:Eio.Fs.dir_ty Eio.Path.t ->
+          auto_repair:bool ->
+          always:bool ->
+          unit ->
+          unit
   end
 
   (** Checks the integrity of inodes in a store *)
   module Integrity_check_inodes : sig
     include
       Subcommand
-        with type run := root:string -> heads:string list option -> unit
+        with type run :=
+          sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
+          root:Eio.Fs.dir_ty Eio.Path.t ->
+          heads:string list option ->
+          unit
   end
 
   (** Traverses a commit to get stats on its underlying tree. *)
@@ -98,7 +119,9 @@ module type S = sig
     include
       Subcommand
         with type run :=
-          root:string ->
+          sw:Eio.Switch.t ->
+          fs:Eio.Fs.dir_ty Eio.Path.t ->
+          root:Eio.Fs.dir_ty Eio.Path.t ->
           commit:string option ->
           dump_blob_paths_to:string option ->
           unit ->
@@ -106,8 +129,12 @@ module type S = sig
   end
 
   val cli :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     ?terms:
-      ((unit Cmdliner.Term.t * Cmdliner.Term.info)[@alert "-deprecated"]) list ->
+      ((fs:Eio.Fs.dir_ty Eio.Path.t ->
+       unit Cmdliner.Term.t * Cmdliner.Term.info)
+      [@alert "-deprecated"])
+      list ->
     unit ->
     empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.
@@ -126,7 +153,9 @@ module type Sigs = sig
   type nonrec empty = empty
 
   val setup_log : unit Cmdliner.Term.t
-  val path : string Cmdliner.Term.t
+
+  val path :
+    Eio.Fs.dir_ty Eio.Path.t -> Eio.Fs.dir_ty Eio.Path.t Cmdliner.Term.t
 
   module type Subcommand = Subcommand
   module type S = S

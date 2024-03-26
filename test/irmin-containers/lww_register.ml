@@ -28,24 +28,27 @@ module L = Irmin_containers.Lww_register.Mem (In)
 
 let merge_into_exn = merge_into_exn (module L.Store)
 let path = [ "tmp"; "lww" ]
-let config () = L.Store.Repo.v (Irmin_mem.config ())
+let config ~sw = L.Store.Repo.v ~sw (Irmin_mem.config ())
 
 let test_empty_read () =
-  config ()
+  Eio.Switch.run @@ fun sw ->
+  config ~sw
   |> L.Store.main
   |> L.read ~path
   |> Alcotest.(check (option int))
        "checked - reading register without writing" None
 
 let test_write () =
-  let t = config () |> L.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> L.Store.main in
   L.write ~path t 1;
   L.write ~path t 3;
   L.read ~path t
   |> Alcotest.(check (option int)) "checked - writing to register" (Some 3)
 
 let test_clone_merge () =
-  let t = config () |> L.Store.main in
+  Eio.Switch.run @@ fun sw ->
+  let t = config ~sw |> L.Store.main in
   let b = L.Store.clone ~src:t ~dst:"cl" in
   L.write ~path t 5;
   L.write ~path b 10;
@@ -63,7 +66,8 @@ let test_clone_merge () =
        "checked - value of main after merging" (Some 10)
 
 let test_branch_merge () =
-  let r = config () in
+  Eio.Switch.run @@ fun sw ->
+  let r = config ~sw in
   let b1 = L.Store.of_branch r "b1" in
   let b2 = L.Store.of_branch r "b2" in
   let b3 = L.Store.of_branch r "b3" in

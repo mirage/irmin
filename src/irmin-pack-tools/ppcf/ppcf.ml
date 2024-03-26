@@ -11,13 +11,21 @@ let print_cf read print control_file =
   | Error err -> Io_errors.raise_error err
   | Ok payload -> Fmt.pr "%a\n" (Irmin.Type.pp_json print) payload
 
-let main = function
+let main store control_file =
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  Eio.Switch.run @@ fun sw ->
+  match store with
   | Upper ->
-      print_cf Upper_control.read_raw_payload
+      print_cf
+        (Upper_control.read_raw_payload ~sw)
         Irmin_pack_unix.Control_file.Payload.Upper.raw_payload_t
+        Eio.Path.(fs / control_file)
   | Volume ->
-      print_cf Volume_control.read_raw_payload
+      print_cf
+        (Volume_control.read_raw_payload ~sw)
         Irmin_pack_unix.Control_file.Payload.Volume.raw_payload_t
+        Eio.Path.(fs / control_file)
 
 (** Cmdliner **)
 

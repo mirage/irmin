@@ -138,8 +138,8 @@ val init :
   ?indexing_strategy:Indexing_strategy.t ->
   ?use_fsync:bool ->
   ?no_migrate:bool ->
-  ?lower_root:string option ->
-  string ->
+  ?lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+  Eio.Fs.dir_ty Eio.Path.t ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default
     configuration parameters and stored at [root]. Flags are documented above. *)

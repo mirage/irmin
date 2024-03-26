@@ -137,9 +137,11 @@ let print_logs name t =
   let logs = all_logs t in
   Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t) logs
 
-let main () =
+let main env =
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   Config.init ();
-  let repo = Store.Repo.v config in
+  let repo = Store.Repo.v ~sw ~fs config in
   let t = Store.main repo in
 
   (* populate the log with some random messages *)
@@ -161,4 +163,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

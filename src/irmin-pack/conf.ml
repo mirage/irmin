@@ -128,7 +128,13 @@ let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(merge_throttle = Default.merge_throttle)
     ?(indexing_strategy = Default.indexing_strategy)
     ?(use_fsync = Default.use_fsync) ?(no_migrate = Default.no_migrate)
-    ?(lower_root = Default.lower_root) root =
+    ?(lower_root = None) root =
+  let root = Eio.Path.native_exn root in
+  let lower_root =
+    match lower_root with
+    | None -> Default.lower_root
+    | Some lower_root -> Some (Eio.Path.native_exn lower_root)
+  in
   let config = empty spec in
   let config = add config Key.root root in
   let config = add config Key.lower_root lower_root in

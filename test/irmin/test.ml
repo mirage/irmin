@@ -16,10 +16,10 @@
 
 module Test_node = Irmin_test.Node.Make (Irmin.Node.Generic_key.Make)
 
-let suite =
+let suite ~fs =
   [
     ("lru", Test_lru.suite);
-    ("tree", Test_tree.suite);
+    ("tree", Test_tree.suite ~fs);
     ("node", Test_node.suite);
     ("hash", Test_hash.suite);
     ("conf", Test_conf.suite);
@@ -29,4 +29,6 @@ let () =
   Logs.set_level (Some Debug);
   Logs.set_reporter (Irmin_test.reporter ());
   Random.self_init ();
-  Eio_main.run @@ fun _ -> Alcotest.run "irmin" suite
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  Alcotest.run "irmin" (suite ~fs)

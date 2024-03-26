@@ -21,6 +21,7 @@ depends: [
   "websocket-lwt-unix"
   "cohttp-lwt-unix"
   "ppx_blob"
+  "alcotest-lwt"     {with-test}
 ]
 
 build: [

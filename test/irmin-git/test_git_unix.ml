@@ -41,9 +41,10 @@ let suite =
 
 let test_non_bare () =
   let config = Irmin_git.config ~bare:false test_db in
+  Eio.Switch.run @@ fun sw ->
   init ~config;
   let info = Irmin_git_unix.info in
-  let repo = S.Repo.v config in
+  let repo = S.Repo.v ~sw config in
   let t = S.main repo in
   S.set_exn t ~info:(info "fst one") [ "fst" ] "ok";
   S.set_exn t ~info:(info "snd one") [ "fst"; "snd" ] "maybe?";

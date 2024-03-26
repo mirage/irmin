@@ -18,10 +18,12 @@ module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
 module Client = Irmin_client_unix.Make (Store)
 module Error = Irmin_client.Error
 
-let main () =
+let main env =
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   let info () = Client.Info.empty in
   let uri = Uri.of_string Sys.argv.(1) in
-  let client = Client.connect uri in
+  let client = Client.connect ~sw ~fs uri in
 
   let main = Client.main client in
   Client.set_exn ~info main [ "testing" ] "testing";
@@ -44,4 +46,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env
