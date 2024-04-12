@@ -19,7 +19,11 @@
  (deps
   (file irmin_fsck.exe)
   (file data)
-  (alias generate-cli-test-data)))
+  (alias generate-cli-test-data))
+ (enabled_if
+  (and
+   (<> %{system} macosx)
+   (<> %{system} freebsd))))
 
 ;FIXME: we should not depend on the version of cmdliner
 ;(rule

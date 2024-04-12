@@ -293,9 +293,7 @@ struct
               | Some { gc; _ } ->
                   if Atomic.get t.during_batch then
                     Error `Gc_forbidden_during_batch
-                  else
-                    Eio.Mutex.use_rw ~protect:false t.lock @@ fun () ->
-                    Gc.finalise ~wait gc
+                  else Gc.finalise ~wait gc
             in
             match result with
             | Ok (`Finalised _ as x) ->
@@ -319,7 +317,6 @@ struct
             match Atomic.get t.running_gc with
             | None | Some { use_auto_finalisation = false; _ } -> ()
             | Some { use_auto_finalisation = true; _ } ->
-                Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
                 let _ = finalise_exn ~wait:false t in
                 ()
 
