@@ -7,12 +7,12 @@ More specifically, for Irmin, a Merkle proof is the subset of a tree stored in a
 ### Setting up a Bank
 
 ```ocaml
+# #require "eio_main";;
 # #require "digestif.ocaml";;
 # #require "checkseum.ocaml";;
 # #require "irmin";;
 # #require "irmin-git.unix";;
 # #require "ppx_irmin";;
-# #require "eio_main";;
 ```
 
 First, create an irmin-unix store module which uses `int` as contents.

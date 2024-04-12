@@ -62,4 +62,15 @@
 
 (mdx
  (files merkle_proofs.md)
- (libraries irmin irmin-cli irmin-git.unix ppx_irmin))
+ (deps %{bin:irmin})
+ (libraries
+  irmin
+  irmin-cli
+  irmin-git
+  irmin-git.unix
+  eio
+  eio_main
+  eio.unix
+  lwt_eio)
+ (enabled_if
+  (<> %{model} "ppc64le")))

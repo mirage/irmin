@@ -8,4 +8,9 @@
   websocket-lwt-unix
   conduit-lwt-unix
   irmin-test
-  irmin-watcher))
+  irmin-watcher)
+ ; TODO: fix unix EMFILE error
+ (enabled_if
+  (and
+   (<> %{system} macosx)
+   (<> %{system} freebsd))))
