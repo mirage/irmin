@@ -8,7 +8,7 @@ doc: "https://irmin.org"
 dev-repo: "git+ssh://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "5.1.0"}
   "dune" {>= "3.5.0"}
   "irmin-server" {= version}
   "irmin-cli" {= version}
