@@ -28,3 +28,10 @@ module Maker_ext (Obj : Irmin_fs.Config) (Ref : Irmin_fs.Config) : Irmin.Maker
 (** {1 Common Unix utilities} *)
 
 include module type of Irmin_unix
+
+(** {1 Backend-specific config} *)
+
+val spec :
+  path:_ Eio.Path.t -> clock:_ Eio.Time.clock -> Irmin.Backend.Conf.Spec.t
+
+val conf : path:_ Eio.Path.t -> clock:_ Eio.Time.clock -> Irmin.Backend.Conf.t

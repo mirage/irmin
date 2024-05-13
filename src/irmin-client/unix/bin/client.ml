@@ -260,7 +260,7 @@ let iterations =
   in
   Arg.(value @@ opt int 1 doc)
 
-let config =
+let config ~env =
   let create uri (branch : string option) tls (store, hash, contents) codec
       config_path () =
     let codec =
@@ -270,7 +270,7 @@ let config =
     in
     let (module Codec) = codec in
     let store, config =
-      Irmin_cli.Resolver.load_config ?config_path ?store ?hash ?contents ()
+      Irmin_cli.Resolver.load_config ~env ?config_path ?store ?hash ?contents ()
     in
     let config = Irmin_server.Cli.Conf.v config uri in
     let (module Store : Irmin.Generic_key.S) =
@@ -298,6 +298,8 @@ let help =
     (Term.info "irmin-client" [@alert "-deprecated"]) )
 
 let[@alert "-deprecated"] () =
+  Eio_main.run @@ fun env ->
+  let config = config ~env:(env :> Irmin_cli.eio) in
   Term.exit
   @@ Term.eval_choice help
        [
