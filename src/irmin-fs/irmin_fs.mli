@@ -33,37 +33,43 @@ val config : string -> Irmin.config
 module type IO = sig
   (** {1 File-system abstractions} *)
 
-  type path = Eio.Fs.dir_ty Eio.Path.t
+  type io
+
+  val io_of_config : Irmin.config -> io
+
+  type path = string
   (** The type for paths. *)
 
   (** {2 Read operations} *)
 
-  val rec_files : path -> path list
+  val rec_files : io:io -> path -> path list
   (** [rec_files dir] is the list of files recursively present in [dir] and all
       of its sub-directories. Return filenames prefixed by [dir]. *)
 
-  val file_exists : path -> bool
+  val file_exists : io:io -> path -> bool
   (** [file_exist f] is true if [f] exists. *)
 
-  val read_file : path -> string option
+  val read_file : io:io -> path -> string option
   (** Read the contents of a file using mmap. *)
 
   (** {2 Write Operations} *)
 
-  val mkdir : path -> unit
+  val mkdir : io:io -> path -> unit
   (** Create a directory. *)
 
   type lock
   (** The type for file locks. *)
 
-  val lock_file : path -> lock
+  val lock_file : io:io -> path -> lock
   (** [lock_file f] is the lock associated to the file [f]. *)
 
-  val write_file : ?temp_dir:path -> ?lock:lock -> path -> string -> unit
+  val write_file :
+    io:io -> temp_dir:path -> ?lock:lock -> path -> string -> unit
   (** Atomic writes. *)
 
   val test_and_set_file :
-    ?temp_dir:path ->
+    io:io ->
+    temp_dir:path ->
     lock:lock ->
     path ->
     test:string option ->
@@ -71,7 +77,7 @@ module type IO = sig
     bool
   (** Test and set. *)
 
-  val remove_file : ?lock:lock -> path -> unit
+  val remove_file : io:io -> ?lock:lock -> path -> unit
   (** Remove a file or directory (even if non-empty). *)
 end
 
@@ -83,10 +89,9 @@ module KV (IO : IO) : Irmin.KV_maker with type info = Irmin.Info.default
 (** {2 Advanced configuration} *)
 
 module type Config = sig
-  open Eio
   (** Same as [Config] but gives more control on the file hierarchy. *)
 
-  val dir : Fs.dir_ty Path.t -> Fs.dir_ty Path.t
+  val dir : string -> string
   (** [dir root] is the sub-directory to look for the keys. *)
 
   val file_of_key : string -> string
@@ -108,5 +113,3 @@ module IO_mem : sig
   val clear : unit -> unit
   val set_listen_hook : unit -> unit
 end
-
-val run : Eio.Fs.dir_ty Eio.Path.t -> (unit -> 'a) -> 'a

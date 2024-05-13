@@ -16,8 +16,10 @@
 
 (** CLI commands. *)
 
-type command = unit Cmdliner.Cmd.t
-(** [Cmdliner] commands. *)
+type eio = Import.eio
+
+type command = env:eio -> unit Cmdliner.Cmd.t
+(** [Cmdliner] commands that uses the given eio env. *)
 
 val commands : command list
 (** List of available sub-commands. *)
@@ -35,5 +37,5 @@ type sub = {
 }
 (** Subcommand. *)
 
-val create_command : sub -> command
+val create_command : (env:eio -> sub) -> command
 (** Build a subcommand. *)
