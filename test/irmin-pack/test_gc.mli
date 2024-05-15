@@ -15,23 +15,38 @@
  *)
 
 module Gc : sig
-  val tests : unit Alcotest.test_case list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    unit Alcotest.test_case list
 end
 
 module Gc_archival : sig
-  val tests : unit Alcotest.test_case list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    unit Alcotest.test_case list
 end
 
 module Concurrent_gc : sig
-  val tests : unit Alcotest.test_case list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    unit Alcotest.test_case list
 end
 
 module Split : sig
-  val tests : unit Alcotest.test_case list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    unit Alcotest.test_case list
 end
 
 module Snapshot : sig
-  val tests : unit Alcotest.test_case list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    unit Alcotest.test_case list
 end
 
 module Store : sig
@@ -39,10 +54,23 @@ module Store : sig
 
   type t
 
-  val config : string -> Irmin.config
-  val init_with_config : Irmin.config -> t
+  val config :
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    Irmin.config
+
+  val init_with_config : fs:Eio.Fs.dir_ty Eio.Path.t -> Irmin.config -> t
   val close : t -> unit
-  val start_gc : ?unlink:bool -> t -> S.commit -> unit
+
+  val start_gc :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    ?unlink:bool ->
+    t ->
+    S.commit ->
+    unit
+
   val finalise_gc : t -> unit
   val commit_1 : t -> t * S.commit
   val commit_2 : t -> t * S.commit

@@ -47,6 +47,9 @@ module Spec : sig
 
       The name of the resulting spec will be the name of [a] and the names of
       the specs in [b] joined by hyphens. *)
+
+  val copy : t -> t
+  (** [copy t] returns a fresh spec with the same keys as [t]. *)
 end
 
 module Typ : sig

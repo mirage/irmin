@@ -15,9 +15,12 @@
  *)
 
 module Store : sig
-  val tests : unit Alcotest.test_case list
+  val tests :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    unit Alcotest.test_case list
 end
 
 module Direct : sig
-  val tests : unit Alcotest.test_case list
+  val tests : fs:Eio.Fs.dir_ty Eio.Path.t -> unit Alcotest.test_case list
 end

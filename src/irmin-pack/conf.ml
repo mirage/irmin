@@ -42,6 +42,10 @@ end
 
 open Irmin.Backend.Conf
 
+type fs = Eio.Fs.dir_ty Eio.Path.t
+
+let sw_typ : Eio.Switch.t Typ.t = Typ.create ()
+let fs_typ : fs Typ.t = Typ.create ()
 let spec = Spec.v "pack"
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
@@ -121,15 +125,46 @@ let lower_root config = get config Key.lower_root
 let indexing_strategy config = get config Key.indexing_strategy
 let use_fsync config = get config Key.use_fsync
 let no_migrate config = get config Key.no_migrate
+let switch config = find_key config "sw" sw_typ
+let fs config = find_key config "fs" fs_typ
 
-let init ?(fresh = Default.fresh) ?(readonly = Default.readonly)
+let spec ~sw ~fs =
+  let spec = Spec.copy spec in
+  let _sw_key =
+    let to_string _ = "Eio.Switch.t" in
+    let of_string _ = Ok sw in
+    let of_json_string _ = Ok sw in
+    key' ~typ:sw_typ ~spec ~typename:"Eio.Switch.t" ~to_string ~of_string
+      ~of_json_string "sw" sw
+  in
+  let fs = (fs :> fs) in
+  let _fs_key =
+    let to_string fs = Eio.Path.native_exn fs in
+    let of_string str = Ok Eio.Path.(fs / str) in
+    let of_json_string str =
+      match Irmin.Type.(of_json_string string) str with
+      | Ok str -> Ok Eio.Path.(fs / str)
+      | Error e -> Error e
+    in
+    key' ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string ~of_string
+      ~of_json_string "fs" fs
+  in
+  spec
+
+let init ~sw ~fs ?(fresh = Default.fresh) ?(readonly = Default.readonly)
     ?(lru_size = Default.lru_size) ?(lru_max_memory = Default.lru_max_memory)
     ?(index_log_size = Default.index_log_size)
     ?(merge_throttle = Default.merge_throttle)
     ?(indexing_strategy = Default.indexing_strategy)
     ?(use_fsync = Default.use_fsync) ?(no_migrate = Default.no_migrate)
-    ?(lower_root = Default.lower_root) root =
-  let config = empty spec in
+    ?(lower_root = None) root =
+  let root = Eio.Path.native_exn root in
+  let lower_root =
+    match lower_root with
+    | None -> Default.lower_root
+    | Some lower_root -> Some (Eio.Path.native_exn lower_root)
+  in
+  let config = empty (spec ~sw ~fs) in
   let config = add config Key.root root in
   let config = add config Key.lower_root lower_root in
   let config = add config Key.fresh fresh in

@@ -70,6 +70,8 @@ end
 
 module Make (Args : Args) : sig
   val run :
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -77,6 +79,8 @@ module Make (Args : Args) : sig
     unit
 
   val test :
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -115,22 +119,26 @@ end = struct
         false
 
   module Index_reconstructor = struct
-    let create ~dest config =
+    let create ~fs ~dest config =
       let dest =
         match dest with
         | `Output path ->
+            let path = Eio.Path.(fs / path) in
             if Io.classify_path path <> `No_such_file_or_directory then
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
             if Conf.readonly config then raise Irmin_pack.RO_not_allowed;
-            Conf.root config
+            Eio.Path.(fs / Conf.root config)
       in
       let log_size = Conf.index_log_size config in
       [%log.app
         "Beginning index reconstruction with parameters: { log_size = %d }"
           log_size];
-      let index = Index.v_exn ~fresh:true ~readonly:false ~log_size dest in
+      let index =
+        Index.v_exn ~fresh:true ~readonly:false ~log_size
+          (Eio.Path.native_exn dest)
+      in
       index
 
     let iter_pack_entry ~always index key data =
@@ -364,7 +372,7 @@ end = struct
     refill_buffer ~from:Int63.zero;
     loop_entries ~buffer_off:0 Int63.zero None
 
-  let run_or_test ~initial_buffer_size mode config =
+  let run_or_test ~sw ~fs ~initial_buffer_size mode config =
     let always =
       Conf.indexing_strategy config
       |> Irmin_pack.Indexing_strategy.is_minimal
@@ -374,7 +382,7 @@ end = struct
       match mode with
       | `Reconstruct_index dest ->
           let open Index_reconstructor in
-          let v = create ~dest config in
+          let v = create ~fs ~dest config in
           (iter_pack_entry ~always v, finalise v, "Reconstructing index")
       | `Check_index ->
           let open Index_checker in
@@ -386,7 +394,7 @@ end = struct
           (iter_pack_entry ~always v, finalise v, "Checking and fixing index")
     in
     let run_duration = Io.Clock.counter () in
-    let fm = File_manager.open_ro config |> Errs.raise_if_error in
+    let fm = File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     let total = Dispatcher.end_offset dispatcher in
     let ingest_data progress =

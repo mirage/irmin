@@ -41,10 +41,15 @@ let setup_log =
   in
   Cmdliner.Term.(const init $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let path =
+let path fs =
   let open Cmdliner.Arg in
+  let eio_path fs =
+    let parse s = Ok Eio.Path.(fs / s) in
+    let print = Eio.Path.pp in
+    conv ~docv:"PATH" (parse, print)
+  in
   required
-  @@ pos 0 (some string) None
+  @@ pos 0 (some (eio_path fs)) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
 let deprecated_info = (Cmdliner.Term.info [@alert "-deprecated"])
@@ -73,6 +78,7 @@ struct
     [@@deriving irmin]
 
     let traverse_index ~root log_size =
+      let root = Eio.Path.native_exn root in
       let index = Index.v_exn ~readonly:true ~fresh:false ~log_size root in
       let ppf = Format.err_formatter in
       let bar, (progress_contents, progress_nodes, progress_commits) =
@@ -95,18 +101,21 @@ struct
 
     let conf root = Conf.init ~readonly:true ~fresh:false ~no_migrate:true root
 
-    let run ~root =
-      [%logs.app "Getting statistics for store: `%s'@," root];
-      let log_size = conf root |> Conf.index_log_size in
+    let run ~fs ~root =
+      [%logs.app
+        "Getting statistics for store: `%s'@," (Eio.Path.native_exn root)];
+      Eio.Switch.run @@ fun sw ->
+      let log_size = conf ~sw ~fs root |> Conf.index_log_size in
       let objects = traverse_index ~root log_size in
       { hash_size = Bytes Hash.hash_size; log_size; objects }
       |> Irmin.Type.pp_json ~minify:false t Fmt.stdout
 
-    let term_internal = Cmdliner.Term.(const (fun root () -> run ~root) $ path)
+    let term_internal ~fs =
+      Cmdliner.Term.(const (fun root () -> run ~fs ~root) $ path fs)
 
-    let term =
+    let term ~fs =
       let doc = "Print high-level statistics about the store." in
-      Cmdliner.Term.(term_internal $ setup_log, deprecated_info ~doc "stat")
+      Cmdliner.Term.(term_internal ~fs $ setup_log, deprecated_info ~doc "stat")
   end
 
   module Reconstruct_index = struct
@@ -126,24 +135,27 @@ struct
       & opt (some int) None
         @@ info ~doc:"Size of the index log file" [ "index-log-size" ]
 
-    let run ~root ~output ?index_log_size () =
-      let conf = conf ~index_log_size root in
+    let run ~sw ~fs ~root ~output ?index_log_size () =
+      let conf = conf ~sw ~fs ~index_log_size root in
       match output with
-      | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
-      | Some p -> Store.traverse_pack_file (`Reconstruct_index (`Output p)) conf
+      | None ->
+          Store.traverse_pack_file ~sw ~fs (`Reconstruct_index `In_place) conf
+      | Some p ->
+          Store.traverse_pack_file ~sw ~fs (`Reconstruct_index (`Output p)) conf
 
-    let term_internal =
+    let term_internal ~fs =
       Cmdliner.Term.(
         const (fun root output index_log_size () ->
-            run ~root ~output ?index_log_size ())
-        $ path
+            Eio.Switch.run (fun sw ->
+                run ~sw ~fs ~root ~output ?index_log_size ()))
+        $ path fs
         $ dest
         $ index_log_size)
 
-    let term =
+    let term ~fs =
       let doc = "Reconstruct index from an existing pack file." in
       Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "reconstruct-index")
+        (term_internal ~fs $ setup_log, deprecated_info ~doc "reconstruct-index")
   end
 
   module Integrity_check_index = struct
@@ -155,10 +167,11 @@ struct
       Conf.init ~readonly:true ~fresh:false ~no_migrate:true ~indexing_strategy
         root
 
-    let run ~root ~auto_repair ~always () =
-      let conf = conf root always in
-      if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
-      else Store.traverse_pack_file `Check_index conf
+    let run ~sw ~fs ~root ~auto_repair ~always () =
+      let conf = conf ~sw ~fs root always in
+      if auto_repair then
+        Store.traverse_pack_file ~sw ~fs `Check_and_fix_index conf
+      else Store.traverse_pack_file ~sw ~fs `Check_index conf
 
     let auto_repair =
       let open Cmdliner.Arg in
@@ -169,18 +182,19 @@ struct
       let open Cmdliner.Arg in
       value & (flag @@ info ~doc:"Use always indexing strategy" [ "always" ])
 
-    let term_internal =
+    let term_internal ~fs =
       Cmdliner.Term.(
         const (fun root auto_repair always () ->
-            run ~root ~auto_repair ~always ())
-        $ path
+            Eio.Switch.run (fun sw -> run ~sw ~fs ~root ~auto_repair ~always ()))
+        $ path fs
         $ auto_repair
         $ always)
 
-    let term =
+    let term ~fs =
       let doc = "Check index integrity." in
       Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "integrity-check-index")
+        ( term_internal ~fs $ setup_log,
+          deprecated_info ~doc "integrity-check-index" )
   end
 
   module Integrity_check = struct
@@ -203,8 +217,8 @@ struct
       | Error (`Corrupted x) ->
           Printf.eprintf "%sError -- corrupted: %d\n%!" name x
 
-    let run ?ppf ~root ~auto_repair ~always ~heads () =
-      let conf = conf root always in
+    let run ~sw ~fs ?ppf ~root ~auto_repair ~always ~heads () =
+      let conf = conf ~sw ~fs root always in
       let repo = Store.Repo.v conf in
       let heads =
         match heads with
@@ -235,19 +249,21 @@ struct
       let open Cmdliner.Arg in
       value & (flag @@ info ~doc:"Use always indexing strategy" [ "always" ])
 
-    let term_internal =
+    let term_internal ~fs =
       Cmdliner.Term.(
         const (fun root auto_repair always heads () ->
-            run ~ppf:Format.err_formatter ~root ~auto_repair ~always ~heads ())
-        $ path
+            Eio.Switch.run (fun sw ->
+                run ~sw ~fs ~ppf:Format.err_formatter ~root ~auto_repair ~always
+                  ~heads ()))
+        $ path fs
         $ auto_repair
         $ always
         $ heads)
 
-    let term =
+    let term ~fs =
       let doc = "Check integrity of an existing store." in
       Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "integrity-check")
+        (term_internal ~fs $ setup_log, deprecated_info ~doc "integrity-check")
   end
 
   module Integrity_check_inodes = struct
@@ -259,8 +275,8 @@ struct
       & opt (some (list ~sep:',' string)) None
       & info [ "heads" ] ~doc:"List of head commit hashes" ~docv:"HEADS"
 
-    let run ~root ~heads =
-      let conf = conf root in
+    let run ~sw ~fs ~root ~heads =
+      let conf = conf ~sw ~fs root in
       let repo = Store.Repo.v conf in
       let heads =
         match heads with
@@ -280,14 +296,17 @@ struct
       in
       Store.Repo.close repo
 
-    let term_internal =
+    let term_internal ~fs =
       Cmdliner.Term.(
-        const (fun root heads () -> run ~root ~heads) $ path $ heads)
+        const (fun root heads () ->
+            Eio.Switch.run (fun sw -> run ~sw ~fs ~root ~heads))
+        $ path fs
+        $ heads)
 
-    let term =
+    let term ~fs =
       let doc = "Check integrity of inodes in an existing store." in
       Cmdliner.Term.
-        ( term_internal $ setup_log,
+        ( term_internal ~fs $ setup_log,
           deprecated_info ~doc "integrity-check-inodes" )
   end
 
@@ -308,8 +327,8 @@ struct
       & info [ "dump_blob_paths_to" ]
           ~doc:"Print all paths to a blob in the tree in a file."
 
-    let run ~root ~commit ~dump_blob_paths_to () =
-      let conf = conf root in
+    let run ~sw ~fs ~root ~commit ~dump_blob_paths_to () =
+      let conf = conf ~sw ~fs root in
       let repo = Store.Repo.v conf in
       let commit =
         match commit with
@@ -334,27 +353,28 @@ struct
       let () = Store.stats ~dump_blob_paths_to ~commit repo in
       Store.Repo.close repo
 
-    let term_internal =
+    let term_internal ~fs =
       Cmdliner.Term.(
         const (fun root commit dump_blob_paths_to () ->
-            run ~root ~commit ~dump_blob_paths_to ())
-        $ path
+            Eio.Switch.run (fun sw ->
+                run ~sw ~fs ~root ~commit ~dump_blob_paths_to ()))
+        $ path fs
         $ commit
         $ dump_blob_paths_to)
 
-    let term =
+    let term ~fs =
       let doc =
         "Traverse one commit, specified with the --commit argument, in the \
          store for stats. If no commit is specified the current head is used."
       in
       Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "stat-store")
+        (term_internal ~fs $ setup_log, deprecated_info ~doc "stat-store")
   end
 
   module Cli = struct
     open Cmdliner
 
-    let main
+    let main ~fs
         ?(terms =
           [
             Stat.term;
@@ -364,10 +384,11 @@ struct
             Integrity_check_index.term;
             Stats_commit.term;
           ]) () : empty =
+      let terms = List.map (fun f -> f ~fs) terms in
       let default =
         let default_info =
           let doc = "Check Irmin data-stores." in
-          deprecated_info ~doc "irmin-fsck"
+          deprecated_info ~doc "irmin-~fsck"
         in
         Term.(ret (const (`Help (`Auto, None))), default_info)
       in

@@ -24,9 +24,10 @@ module type S = sig
   type open_error := [ Io.open_error | `Corrupted_mapping_file of string ]
 
   val open_ro :
+    sw:Eio.Switch.t ->
     mapping_size:int ->
-    mapping:string ->
-    data:string ->
+    mapping:Eio.Fs.dir_ty Eio.Path.t ->
+    data:Eio.Fs.dir_ty Eio.Path.t ->
     (t, [> open_error ]) result
   (** [open_ro ~mapping_size ~mapping ~data] returns a new read-only view of the
       sparse file, represented on disk by two files named [mapping] and [data].
@@ -67,9 +68,10 @@ module type S = sig
     type t
 
     val open_wo :
+      sw:Eio.Switch.t ->
       mapping_size:int ->
-      mapping:string ->
-      data:string ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       (t, [> open_error ]) result
     (** [open_wo ~mapping_size ~mapping ~data] returns a write-only instance of
         the sparse file.
@@ -90,10 +92,11 @@ module type S = sig
     (** Close the underlying files. *)
 
     val create_from_data :
-      mapping:string ->
+      sw:Eio.Switch.t ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
       dead_header_size:int ->
       size:Int63.t ->
-      data:string ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       (int63, [> Io.create_error | Io.write_error | Io.close_error ]) result
     (** [create_from_data ~mapping ~dead_header_size ~size ~data] initializes a
         new sparse file on disk from the existing file [data], by creating the
@@ -119,14 +122,18 @@ module type S = sig
         the file again. *)
 
     val create :
-      mapping:string -> data:string -> (t, [> Io.create_error ]) result
+      sw:Eio.Switch.t ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
+      (t, [> Io.create_error ]) result
     (** [create ~mapping ~data] initializes a new empty sparse file, represented
         on disk by two files named [mapping] and [data]. *)
 
     val open_ao :
+      sw:Eio.Switch.t ->
       mapping_size:Int63.t ->
-      mapping:string ->
-      data:string ->
+      mapping:Eio.Fs.dir_ty Eio.Path.t ->
+      data:Eio.Fs.dir_ty Eio.Path.t ->
       ( t,
         [> Io.open_error
         | `Closed

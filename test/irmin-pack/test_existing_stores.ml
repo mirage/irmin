@@ -32,11 +32,11 @@ let archive =
     ("foo", [ ([ "b" ], "y") ]);
   ]
 
-let root_v1_archive, root_v1, tmp =
-  let open Fpath in
-  ( v "test" / "irmin-pack" / "data" / "version_1" |> to_string,
-    v "_build" / "test_pack_version_1" |> to_string,
-    v "_build" / "test_index_reconstruct" |> to_string )
+let root_v1_archive ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_1")
+
+let root_v1 ~fs = Eio.Path.(fs / "_build" / "test_pack_version_1")
+let tmp ~fs = Eio.Path.(fs / "_build" / "test_index_reconstruct")
 
 module Test (S : Irmin.Generic_key.KV with type Schema.Contents.t = string) =
 struct
@@ -117,24 +117,29 @@ module Test_reconstruct = struct
   module S = V2 ()
   include Test (S)
 
-  let setup_test_env () =
-    setup_test_env ~root_archive:root_v1_archive ~root_local_build:root_v1;
-    setup_test_env ~root_archive:root_v1_archive ~root_local_build:tmp
+  let setup_test_env ~fs () =
+    setup_test_env ~root_archive:(root_v1_archive ~fs)
+      ~root_local_build:(root_v1 ~fs);
+    setup_test_env ~root_archive:(root_v1_archive ~fs)
+      ~root_local_build:(tmp ~fs)
 
-  let test_reconstruct () =
+  let test_reconstruct ~fs () =
     let module Kind = Irmin_pack.Pack_value.Kind in
-    setup_test_env ();
-    let conf = config ~readonly:false ~fresh:false root_v1 in
+    setup_test_env ~fs ();
     (* Open store in RW to migrate it to V3. *)
+    Eio.Switch.run @@ fun sw ->
+    let conf = config ~sw ~fs ~readonly:false ~fresh:false (root_v1 ~fs) in
     let repo = S.Repo.v conf in
     let () = S.Repo.close repo in
     (* Test on a V3 store. *)
-    S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
+    S.test_traverse_pack_file ~sw ~fs (`Reconstruct_index `In_place) conf;
     let index_old =
-      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 tmp
+      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000
+        (Eio.Path.native_exn @@ tmp ~fs)
     in
     let index_new =
-      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000 root_v1
+      Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000
+        (Eio.Path.native_exn @@ root_v1 ~fs)
     in
     Index.iter
       (fun k (offset, length, kind) ->
@@ -157,9 +162,10 @@ module Test_reconstruct = struct
     check_repo r archive;
     S.Repo.close r
 
-  let test_gc_allowed () =
-    setup_test_env ();
-    let conf = config ~readonly:false ~fresh:false root_v1 in
+  let test_gc_allowed ~fs () =
+    setup_test_env ~fs ();
+    Eio.Switch.run @@ fun sw ->
+    let conf = config ~sw ~fs ~readonly:false ~fresh:false (root_v1 ~fs) in
     let repo = S.Repo.v conf in
     let allowed = S.Gc.is_allowed repo in
     Alcotest.(check bool)
@@ -168,19 +174,21 @@ module Test_reconstruct = struct
 end
 
 module Test_corrupted_stores = struct
-  let root_archive, root =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "corrupted" |> to_string,
-      v "_build" / "test_integrity" |> to_string )
+  let root_archive ~fs =
+    Eio.Path.(fs / "test" / "irmin-pack" / "data" / "corrupted")
 
-  let setup_env () = setup_test_env ~root_archive ~root_local_build:root
+  let root ~fs = Eio.Path.(fs / "_build" / "test_integrity")
+
+  let setup_env ~fs () =
+    setup_test_env ~root_archive:(root_archive ~fs) ~root_local_build:(root ~fs)
 
   module S = V2 ()
   include Test (S)
 
-  let test () =
-    setup_env ();
-    let rw = S.Repo.v (config ~fresh:false root) in
+  let test ~fs () =
+    setup_env ~fs ();
+    Eio.Switch.run @@ fun sw ->
+    let rw = S.Repo.v (config ~sw ~fs ~fresh:false (root ~fs)) in
     [%log.app
       "integrity check on a store where 3 entries are missing from pack"];
     let result = S.integrity_check ~auto_repair:false rw in
@@ -198,18 +206,21 @@ module Test_corrupted_stores = struct
     | _ -> Alcotest.fail "Store is repaired, should return Ok");
     S.Repo.close rw
 
-  let root_archive, root_local_build =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "version_3_minimal" |> to_string,
-      v "_build" / "test_corrupt_minimal" |> to_string )
+  let root_archive ~fs =
+    Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_minimal")
 
-  let setup_env () = setup_test_env ~root_archive ~root_local_build
+  let root_local_build ~fs = Eio.Path.(fs / "_build" / "test_corrupt_minimal")
+
+  let setup_env ~fs () =
+    setup_test_env ~root_archive:(root_archive ~fs)
+      ~root_local_build:(root_local_build ~fs)
 
   module IO = Irmin_pack_unix.Io.Unix
 
-  let write_corrupted_data_to_suffix () =
-    let path = Filename.concat root_local_build "store.0.suffix" in
-    let io = IO.open_ ~path ~readonly:false |> Result.get_ok in
+  let write_corrupted_data_to_suffix ~fs () =
+    Eio.Switch.run @@ fun sw ->
+    let path = Eio.Path.(root_local_build ~fs / "store.0.suffix") in
+    let io = IO.open_ ~sw ~path ~readonly:false |> Result.get_ok in
     let corrupted_node_hash =
       (* the correct hash starts with '9', modified it to have an incorrect hash
          on disk. *)
@@ -221,12 +232,14 @@ module Test_corrupted_stores = struct
     IO.write_exn io ~off:(Int63.of_int 54) ~len s;
     IO.close io |> Result.get_ok
 
-  let test_minimal () =
-    setup_env ();
+  let test_minimal ~fs () =
+    setup_env ~fs ();
     [%log.app "integrity check on a good minimal store"];
+    Eio.Switch.run @@ fun sw ->
     let config =
-      config ~fresh:false
-        ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
+      config ~sw ~fs ~fresh:false
+        ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
+        (root_local_build ~fs)
     in
     let rw = S.Repo.v config in
 
@@ -242,7 +255,7 @@ module Test_corrupted_stores = struct
     in
     let () = S.Repo.close rw in
     [%log.app "integrity check on a corrupted minimal store"];
-    write_corrupted_data_to_suffix ();
+    write_corrupted_data_to_suffix ~fs ();
     let rw = S.Repo.v config in
     let result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
     let () =
@@ -259,19 +272,21 @@ module Test_corrupted_stores = struct
 end
 
 module Test_corrupted_inode = struct
-  let root_archive, root =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "corrupted_inode" |> to_string,
-      v "_build" / "test_integrity_inode" |> to_string )
+  let root_archive ~fs =
+    Eio.Path.(fs / "test" / "irmin-pack" / "data" / "corrupted_inode")
 
-  let setup_test_env () = setup_test_env ~root_archive ~root_local_build:root
+  let root ~fs = Eio.Path.(fs / "_build" / "test_integrity_inode")
+
+  let setup_test_env ~fs () =
+    setup_test_env ~root_archive:(root_archive ~fs) ~root_local_build:(root ~fs)
 
   module S = V1 ()
   include Test (S)
 
-  let test () =
-    setup_test_env ();
-    let rw = S.Repo.v (config ~fresh:false root) in
+  let test ~fs () =
+    setup_test_env ~fs ();
+    Eio.Switch.run @@ fun sw ->
+    let rw = S.Repo.v (config ~sw ~fs ~fresh:false (root ~fs)) in
     [%log.app "integrity check of inodes on a store with one corrupted inode"];
     let c2 = "8d89b97726d9fb650d088cb7e21b78d84d132c6e" in
     let c2 = commit_of_string rw c2 in
@@ -293,17 +308,21 @@ module Test_corrupted_inode = struct
 end
 
 module Test_traverse_gced = struct
-  let root_archive, root_local_build =
-    let open Fpath in
-    ( v "test" / "irmin-pack" / "data" / "version_3_minimal" |> to_string,
-      v "_build" / "test_reconstruct" |> to_string )
+  let root_archive ~fs =
+    Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_minimal")
 
-  let setup_test_env () = setup_test_env ~root_archive ~root_local_build
+  let root_local_build ~fs = Eio.Path.(fs / "_build" / "test_reconstruct")
+
+  let setup_test_env ~fs () =
+    setup_test_env ~root_archive:(root_archive ~fs)
+      ~root_local_build:(root_local_build ~fs)
 
   module S = V2 ()
   include Test (S)
 
-  let commit_and_gc conf =
+  let commit_and_gc ~fs ~domain_mgr conf =
+    Eio.Switch.run @@ fun sw ->
+    let conf = conf ~sw ~fs in
     let repo = S.Repo.v conf in
     let commit =
       commit_of_string repo "22e159de13b427226e5901defd17f0c14e744205"
@@ -312,7 +331,7 @@ module Test_traverse_gced = struct
     let tree = S.Tree.add tree [ "abba"; "baba" ] "x" in
     let commit = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
     let commit_key = S.Commit.key commit in
-    let _launched = S.Gc.start_exn ~unlink:false repo commit_key in
+    let _ = S.Gc.start_exn ~fs ~domain_mgr ~unlink:false repo commit_key in
     let result = S.Gc.finalise_exn ~wait:true repo in
     let () =
       match result with
@@ -322,28 +341,31 @@ module Test_traverse_gced = struct
     in
     S.Repo.close repo
 
-  let test_traverse_pack () =
+  let test_traverse_pack ~fs ~domain_mgr () =
+    Eio.Switch.run @@ fun sw ->
     let module Kind = Irmin_pack.Pack_value.Kind in
-    setup_test_env ();
+    setup_test_env ~fs ();
     let conf =
       config ~readonly:false ~fresh:false
-        ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root_local_build
+        ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
+        (root_local_build ~fs)
     in
-    let () = commit_and_gc conf in
-    S.test_traverse_pack_file `Check_index conf
+    let () = commit_and_gc ~fs ~domain_mgr conf in
+    S.test_traverse_pack_file ~sw ~fs `Check_index (conf ~sw ~fs)
 end
 
-let tests =
+let tests ~fs ~domain_mgr =
   [
     Alcotest.test_case "Test index reconstruction" `Quick
-      Test_reconstruct.test_reconstruct;
+      (Test_reconstruct.test_reconstruct ~fs);
     Alcotest.test_case "Test gc not allowed" `Quick
-      Test_reconstruct.test_gc_allowed;
-    Alcotest.test_case "Test integrity check" `Quick Test_corrupted_stores.test;
+      (Test_reconstruct.test_gc_allowed ~fs);
+    Alcotest.test_case "Test integrity check" `Quick
+      (Test_corrupted_stores.test ~fs);
     Alcotest.test_case "Test integrity check minimal stores" `Quick
-      Test_corrupted_stores.test_minimal;
+      (Test_corrupted_stores.test_minimal ~fs);
     Alcotest.test_case "Test integrity check for inodes" `Quick
-      Test_corrupted_inode.test;
+      (Test_corrupted_inode.test ~fs);
     Alcotest.test_case "Test traverse pack on gced store" `Quick
-      Test_traverse_gced.test_traverse_pack;
+      (Test_traverse_gced.test_traverse_pack ~fs ~domain_mgr);
   ]

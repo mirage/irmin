@@ -17,7 +17,7 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-corrupted"
+let root fs = Eio.Path.(fs / "_build" / "test-corrupted")
 
 module Conf = Irmin_tezos.Conf
 
@@ -26,12 +26,13 @@ module Store = struct
   include Maker.Make (Schema)
 end
 
-let config ?(readonly = false) ?(fresh = true) root =
-  Irmin_pack.config ~readonly ?index_log_size ~fresh root
+let config ~sw ~fs ?(readonly = false) ?(fresh = true) root =
+  Irmin_pack.config ~sw ~fs ~readonly ?index_log_size ~fresh root
 
 let info () = Store.Info.empty
 
 let read_file path =
+  let path = Eio.Path.native_exn path in
   let ch = open_in_bin path in
   Fun.protect
     (fun () ->
@@ -40,6 +41,7 @@ let read_file path =
     ~finally:(fun () -> close_in ch)
 
 let write_file path contents =
+  let path = Eio.Path.native_exn path in
   let ch = open_out_bin path in
   Fun.protect
     (fun () -> output_string ch contents)
@@ -47,10 +49,12 @@ let write_file path contents =
       flush ch;
       close_out ch)
 
-let test_corrupted_control_file () =
+let test_corrupted_control_file ~fs () =
+  Eio.Switch.run @@ fun sw ->
+  let root = root fs in
   rm_dir root;
-  let control_file_path = Filename.concat root "store.control" in
-  let repo = Store.Repo.v (config ~fresh:true root) in
+  let control_file_path = Eio.Path.(root / "store.control") in
+  let repo = Store.Repo.v (config ~sw ~fs ~fresh:true root) in
   let control_file_blob0 = read_file control_file_path in
   let store = Store.main repo in
   let () = Store.set_exn ~info store [ "a" ] "b" in
@@ -69,16 +73,17 @@ let test_corrupted_control_file () =
   assert (not (String.equal control_file_blob1 control_file_mix));
   write_file control_file_path control_file_mix;
   let error =
-    try Ok (Store.Repo.v (config ~fresh:false root)) with exn -> Error exn
+    try Ok (Store.Repo.v (config ~sw ~fs ~fresh:false root) : Store.Repo.t)
+    with exn -> Error exn
   in
   match error with
   | Error (Irmin_pack_unix.Errors.Pack_error (`Corrupted_control_file s)) ->
       Alcotest.(check string)
-        "path is corrupted" s "_build/test-corrupted/store.control"
+        "path is corrupted" s "./_build/test-corrupted/store.control"
   | _ -> Alcotest.fail "unexpected error"
 
-let tests =
+let tests ~fs =
   [
     Alcotest.test_case "Corrupted control file" `Quick
-      test_corrupted_control_file;
+      (test_corrupted_control_file ~fs);
   ]

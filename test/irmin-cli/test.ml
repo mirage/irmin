@@ -40,5 +40,12 @@ end
 
 let () =
   Eio_main.run @@ fun env ->
-  let env = (env :> Irmin_cli.eio) in
+  Eio.Switch.run @@ fun sw ->
+  let env :> Irmin_cli.eio =
+    object
+      method cwd = Eio.Stdenv.cwd env
+      method clock = Eio.Stdenv.clock env
+      method sw = sw
+    end
+  in
   Alcotest.run "irmin-cli" [ ("conf", Conf.misc ~env) ]

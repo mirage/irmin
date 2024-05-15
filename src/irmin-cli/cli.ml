@@ -978,7 +978,14 @@ let run ~default:x y =
   Eio_main.run @@ fun env ->
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
   Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
-  let env = (env :> eio) in
+  Eio.Switch.run @@ fun sw ->
+  let env =
+    object
+      method cwd = Eio.Stdenv.cwd env
+      method clock = Eio.Stdenv.clock env
+      method sw = sw
+    end
+  in
   let run cmd = cmd ~env in
   match deprecated_eval_choice (run x) (List.map run y) with
   | `Error _ -> exit 1

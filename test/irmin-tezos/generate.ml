@@ -40,11 +40,13 @@ module Generator = struct
 
   let info = Store.Info.empty
 
-  let create_store ?(before_closing = fun _repo _head -> ()) indexing_strategy
-      path =
+  let create_store ~sw ~fs ?(before_closing = fun _repo _head -> ())
+      indexing_strategy path =
     rm_dir path;
     let large_contents = String.make 4096 'Z' in
-    let rw = Store.Repo.v (config ~indexing_strategy path) in
+    let rw =
+      Store.Repo.v (config ~sw ~fs ~indexing_strategy Eio.Path.(fs / path))
+    in
     let tree = Store.Tree.singleton [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1" in
     let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
     let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
@@ -63,38 +65,48 @@ module Generator = struct
 
     c3
 
-  let create_gced_store path =
+  let create_gced_store ~sw ~fs ~domain_mgr path =
     let before_closing repo head =
-      let _ = Store.Gc.start_exn repo head in
+      let _ = Store.Gc.start_exn ~fs ~domain_mgr repo head in
       let _ = Store.Gc.wait repo in
       ()
     in
-    create_store ~before_closing Irmin_pack.Indexing_strategy.minimal path
+    create_store ~sw ~fs ~before_closing Irmin_pack.Indexing_strategy.minimal
+      path
 
-  let create_snapshot_store ~src ~dest =
+  let create_snapshot_store ~sw ~fs ~domain_mgr ~src ~dest =
     let before_closing repo head =
       rm_dir dest;
-      Store.create_one_commit_store repo head dest
+      Store.create_one_commit_store ~fs ~domain_mgr repo head
+        Eio.Path.(fs / dest)
     in
-    create_store ~before_closing Irmin_pack.Indexing_strategy.minimal src
+    create_store ~sw ~fs ~before_closing Irmin_pack.Indexing_strategy.minimal
+      src
 end
 
 let ensure_data_dir () =
   if not (Sys.file_exists "data") then Unix.mkdir "data" 0o755
 
-let generate () =
+let generate ~sw ~fs ~domain_mgr =
   ensure_data_dir ();
   let _ =
-    Generator.create_store Irmin_pack.Indexing_strategy.minimal "data/minimal"
+    Generator.create_store ~sw ~fs Irmin_pack.Indexing_strategy.minimal
+      "data/minimal"
   in
   let _ =
-    Generator.create_store Irmin_pack.Indexing_strategy.always "data/always"
+    Generator.create_store ~sw ~fs Irmin_pack.Indexing_strategy.always
+      "data/always"
   in
-  let _ = Generator.create_gced_store "data/gced" in
+  let _ = Generator.create_gced_store ~sw ~fs ~domain_mgr "data/gced" in
   let _ =
-    Generator.create_snapshot_store ~src:"data/snapshot_src"
+    Generator.create_snapshot_store ~sw ~fs ~domain_mgr ~src:"data/snapshot_src"
       ~dest:"data/snapshot"
   in
   ()
 
-let () = Eio_main.run @@ fun _env -> generate ()
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.cwd env in
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  generate ~sw ~fs ~domain_mgr
