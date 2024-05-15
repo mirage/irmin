@@ -46,6 +46,14 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
   let run_env fn =
     Eio_main.run @@ fun env ->
     Lwt_eio.with_event_loop ~clock:env#clock @@ fun () ->
+    Eio.Switch.run @@ fun sw ->
+    let env =
+      object
+        method cwd = Eio.Stdenv.cwd env
+        method clock = Eio.Stdenv.clock env
+        method sw = sw
+      end
+    in
     fn (env :> Irmin_cli.eio)
 
   let run fn = run_env (fun _ -> fn ())

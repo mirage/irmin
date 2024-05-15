@@ -46,6 +46,8 @@ module type S = sig
     ([> `No_error ], [> `Cannot_fix of string ]) result
 
   val traverse_pack_file :
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -53,6 +55,8 @@ module type S = sig
     unit
 
   val test_traverse_pack_file :
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -101,7 +105,13 @@ module type S = sig
   (** [flush t] flush read-write pack on disk. Raises [RO_Not_Allowed] if called
       by a readonly instance.*)
 
-  val create_one_commit_store : repo -> commit_key -> string -> unit
+  val create_one_commit_store :
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    repo ->
+    commit_key ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    unit
   (** [create_one_commit_store t key path] creates a new store at [path] from
       the existing one, containing only one commit, specified by the [key]. Note
       that this operation is blocking.
@@ -119,7 +129,13 @@ module type S = sig
 
     (** {1 Low-level API} *)
 
-    val start_exn : ?unlink:bool -> repo -> commit_key -> bool
+    val start_exn :
+      fs:Eio.Fs.dir_ty Eio.Path.t ->
+      domain_mgr:_ Eio.Domain_manager.t ->
+      ?unlink:bool ->
+      repo ->
+      commit_key ->
+      bool
     (** [start_exn] tries to start the GC process and returns true if the GC is
         launched. If a GC is already running, a new one is not started.
 
@@ -157,6 +173,8 @@ module type S = sig
         logging *)
 
     val run :
+      fs:Eio.Fs.dir_ty Eio.Path.t ->
+      domain_mgr:_ Eio.Domain_manager.t ->
       ?finished:((Stats.Latest_gc.stats, msg) result -> unit) ->
       repo ->
       commit_key ->
@@ -239,7 +257,7 @@ module type S = sig
     [@@deriving irmin]
 
     val export :
-      ?on_disk:[ `Path of string ] ->
+      ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t ] ->
       repo ->
       (t -> unit) ->
       root_key:Tree.kinded_key ->
@@ -269,7 +287,10 @@ module type S = sig
     module Import : sig
       type process
 
-      val v : ?on_disk:[ `Path of string | `Reuse ] -> repo -> process
+      val v :
+        ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t | `Reuse ] ->
+        repo ->
+        process
       (** [v ?on_disk repo] create a [snaphot] instance. The traversal requires
           an index to keep track of visited elements.
 

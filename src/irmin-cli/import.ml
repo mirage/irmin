@@ -18,4 +18,5 @@ include Irmin.Export_for_backends
 
 type eio =
   < cwd : Eio.Fs.dir_ty Eio.Path.t
-  ; clock : float Eio.Time.clock_ty Eio.Time.clock >
+  ; clock : float Eio.Time.clock_ty Eio.Time.clock
+  ; sw : Eio.Switch.t >

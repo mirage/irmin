@@ -27,11 +27,12 @@ struct
   module Sparse = Sparse_file.Make (Io)
 
   type t =
-    | Empty of { path : string }
+    | Empty of { path : Eio.Fs.dir_ty Eio.Path.t; sw : Eio.Switch.t }
     | Nonempty of {
-        path : string;
+        path : Eio.Fs.dir_ty Eio.Path.t;
         control : Payload.t;
         mutable sparse : Sparse.t option;
+        sw : Eio.Switch.t;
       }
 
   type open_error =
@@ -41,47 +42,48 @@ struct
     | `Corrupted_control_file of string
     | `Unknown_major_pack_version of string ]
 
-  let v volume_path =
+  let v ~sw volume_path =
     let open Result_syntax in
     let* control =
       let path = Layout.control ~root:volume_path in
       match Io.classify_path path with
       | `File ->
-          let+ payload = Control.read_payload ~path in
+          let+ payload = Control.read_payload ~sw ~path in
           Some payload
       | `Directory | `Other | `No_such_file_or_directory -> Ok None
     in
     Ok
       (let path = volume_path in
        match control with
-       | None -> Empty { path }
-       | Some control -> Nonempty { path; control; sparse = None })
+       | None -> Empty { path; sw }
+       | Some control -> Nonempty { path; control; sparse = None; sw })
 
-  let create_empty volume_path =
+  let create_empty ~sw volume_path =
     let open Result_syntax in
     (* 0. Validate volume directory does not already exist *)
     let* () =
       match Io.classify_path volume_path with
-      | `Directory | `File | `Other -> Error (`File_exists volume_path)
+      | `Directory | `File | `Other ->
+          Error (`File_exists (Eio.Path.native_exn volume_path))
       | `No_such_file_or_directory -> Ok ()
     in
     (* 1. Make directory *)
     let* () = Io.mkdir volume_path in
     (* 2. Make empty mapping *)
     let* () =
-      Io.create ~path:(Layout.mapping ~root:volume_path) ~overwrite:true
+      Io.create ~sw ~path:(Layout.mapping ~root:volume_path) ~overwrite:true
       >>= Io.close
     in
     (* 3. Make empty data *)
     let* () =
-      Io.create ~path:(Layout.data ~root:volume_path) ~overwrite:true
+      Io.create ~sw ~path:(Layout.data ~root:volume_path) ~overwrite:true
       >>= Io.close
     in
     (* TODO: handle failure to create all artifacts, either here or in a cleanup
        when the store starts. *)
-    v volume_path
+    v ~sw volume_path
 
-  let create_from ~src ~dead_header_size ~size lower_root =
+  let create_from ~sw ~src ~dead_header_size ~size lower_root =
     let open Result_syntax in
     let root = Layout.directory ~root:lower_root ~idx:0 in
     let data = Layout.data ~root in
@@ -89,7 +91,7 @@ struct
     let* () = Io.mkdir root in
     let* () = Io.move_file ~src ~dst:data in
     let* mapping_end_poff =
-      Sparse.Wo.create_from_data ~mapping ~dead_header_size ~size ~data
+      Sparse.Wo.create_from_data ~sw ~mapping ~dead_header_size ~size ~data
     in
     let payload =
       {
@@ -100,10 +102,10 @@ struct
       }
     in
     let control = Layout.control ~root in
-    Control.create_rw ~path:control ~tmp_path:None ~overwrite:false payload
+    Control.create_rw ~sw ~path:control ~tmp_path:None ~overwrite:false payload
     >>= Control.close
 
-  let path = function Empty { path } -> path | Nonempty { path; _ } -> path
+  let path = function Empty { path; _ } -> path | Nonempty { path; _ } -> path
 
   let control = function
     | Empty _ -> None
@@ -119,7 +121,7 @@ struct
 
   let open_ = function
     | Empty _ -> Ok () (* Opening an empty volume is a no-op *)
-    | Nonempty ({ path = root; sparse; control; _ } as t) -> (
+    | Nonempty ({ path = root; sparse; control; sw; _ } as t) -> (
         match sparse with
         | Some _ -> Ok () (* Sparse file is already open *)
         | None ->
@@ -127,7 +129,7 @@ struct
             let mapping = Layout.mapping ~root in
             let data = Layout.data ~root in
             let mapping_size = Int63.to_int control.Payload.mapping_end_poff in
-            let+ sparse = Sparse.open_ro ~mapping_size ~mapping ~data in
+            let+ sparse = Sparse.open_ro ~sw ~mapping_size ~mapping ~data in
             t.sparse <- Some sparse)
 
   let close = function
@@ -140,7 +142,7 @@ struct
             let+ () = Sparse.close s in
             t.sparse <- None)
 
-  let identifier t = path t
+  let identifier t = Eio.Path.native_exn (path t)
   let identifier_eq ~id t = String.equal (identifier t) id
   let eq a b = identifier_eq ~id:(identifier b) a
 
@@ -150,6 +152,8 @@ struct
         match sparse with
         | None -> Errs.raise_error (`Invalid_volume_read (`Closed, off))
         | Some s -> Sparse.read_range_exn s ~off ~min_len ~max_len b)
+
+  let get_switch = function Empty { sw; _ } | Nonempty { sw; _ } -> sw
 
   let archive_seq ~upper_root ~generation ~is_first ~to_archive ~first_off t =
     let open Result_syntax in
@@ -186,8 +190,9 @@ struct
           Io.size_of_path mapping
       | Nonempty { control; _ } -> Ok control.mapping_end_poff
     in
+    let sw = get_switch t in
     (* Append archived data *)
-    let* ao = Sparse.Ao.open_ao ~mapping_size ~mapping ~data in
+    let* ao = Sparse.Ao.open_ao ~sw ~mapping_size ~mapping ~data in
     List.iter
       (fun (off, seq) -> Sparse.Ao.append_seq_exn ao ~off seq)
       to_archive;
@@ -210,7 +215,7 @@ struct
       Irmin_pack.Layout.V5.Volume.control_gc_tmp ~generation ~root
     in
     let* c =
-      Control.create_rw ~path:control_gc_tmp ~tmp_path:None ~overwrite:true
+      Control.create_rw ~sw ~path:control_gc_tmp ~tmp_path:None ~overwrite:true
         new_control
     in
     let* () = Control.close c in
@@ -236,21 +241,24 @@ struct
     match Io.classify_path control_tmp with
     | `File -> Io.move_file ~src:control_tmp ~dst:control
     | `No_such_file_or_directory ->
-        [%log.info "No tmp volume control file to swap. %s" control];
+        [%log.info
+          "No tmp volume control file to swap. %s"
+            (Fmt.str "%a" Eio.Path.pp control)];
         Ok ()
     | `Directory | `Other -> assert false
 
   let cleanup ~generation t =
+    let path = path t in
     let clean filename =
       match Irmin_pack.Layout.Classification.Volume.v filename with
       | `Control_tmp g when g = generation -> swap ~generation t
       | `Control_tmp g when g <> generation ->
-          Io.unlink filename
+          Io.unlink Eio.Path.(path / filename)
           |> Errs.log_if_error (Printf.sprintf "unlink %s" filename)
           |> Result.ok
       | _ -> Ok ()
     in
-    path t |> Io.readdir |> List.iter_result clean
+    Io.readdir path |> List.iter_result clean
 end
 
 module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
@@ -259,10 +267,11 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   module Volume = Make_volume (Io) (Errs)
 
   type t = {
-    root : string;
+    root : Eio.Fs.dir_ty Eio.Path.t;
     mutable readonly : bool;
     mutable volumes : Volume.t array;
     mutable open_volume : Volume.t option;
+    sw : Eio.Switch.t;
   }
 
   type open_error = [ Volume.open_error | `Volume_missing of string ]
@@ -295,9 +304,9 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         let path = Layout.directory ~root ~idx:i in
         match Io.classify_path path with
         | `File | `Other | `No_such_file_or_directory ->
-            raise (LoadVolumeError (`Volume_missing path))
+            raise (LoadVolumeError (`Volume_missing (Eio.Path.native_exn path)))
         | `Directory -> (
-            match Volume.v path with
+            match Volume.v ~sw:t.sw path with
             | Error e -> raise (LoadVolumeError e)
             | Ok v -> v)
       in
@@ -307,9 +316,9 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     t.volumes <- volumes;
     Ok t
 
-  let v ~readonly ~volume_num root =
+  let v ~sw ~readonly ~volume_num root =
     load_volumes ~volume_num
-      { root; readonly; volumes = [||]; open_volume = None }
+      { root; readonly; volumes = [||]; open_volume = None; sw }
 
   let reload ~volume_num t =
     let open Result_syntax in
@@ -336,7 +345,7 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
       let next_idx = volume_num t in
       Layout.directory ~root:t.root ~idx:next_idx
     in
-    let* vol = Volume.create_empty volume_path in
+    let* vol = Volume.create_empty ~sw:t.sw volume_path in
     t.volumes <- Array.append t.volumes [| vol |];
     Ok vol
 

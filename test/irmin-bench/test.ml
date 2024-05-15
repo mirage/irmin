@@ -15,6 +15,8 @@
  *)
 
 let () =
-  Eio_main.run @@ fun _env ->
+  Eio_main.run @@ fun env ->
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  let fs = Eio.Stdenv.fs env in
   Alcotest.run "irmin-bench"
-    (Ema.test_cases @ Misc.test_cases @ Replay.test_cases)
+    (Ema.test_cases @ Misc.test_cases @ Replay.test_cases ~fs ~domain_mgr)

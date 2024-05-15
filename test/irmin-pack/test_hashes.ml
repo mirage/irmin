@@ -17,10 +17,11 @@
 open! Import
 open Common
 
-let root = Filename.concat "_build" "test-irmin-tezos"
+let root fs = Eio.Path.(fs / "_build" / "test-irmin-tezos")
 
-let conf =
-  Irmin_pack.config ~readonly:false ~fresh:true ~index_log_size:1000 root
+let conf ~sw ~fs =
+  Irmin_pack.config ~sw ~fs ~readonly:false ~fresh:true ~index_log_size:1000
+    (root fs)
 
 let zero = Bytes.make 10 '0'
 
@@ -71,8 +72,8 @@ struct
     in
     tree
 
-  let persist_tree tree =
-    let repo = Repo.v conf in
+  let persist_tree ~sw ~fs tree =
+    let repo = Repo.v (conf ~sw ~fs) in
     let init_commit =
       Commit.v ~parents:[] ~info:Info.empty repo
         (Tree.singleton [ "singleton-step" ] (Bytes.of_string "singleton-val"))
@@ -145,9 +146,10 @@ module Test_tezos_conf = struct
     in
     ("len of values", nb_steps) :: checks
 
-  let inode_values_hash () =
+  let inode_values_hash ~fs () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree some_steps in
-    let repo, tree, _ = Store.persist_tree tree in
+    let repo, tree, _ = Store.persist_tree ~sw ~fs tree in
     let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
@@ -165,9 +167,10 @@ module Test_tezos_conf = struct
       "CoVeCU4o3dqmfdwqt2vh8LDz9X6qGbTUyLhgVvFReyzAvTf92AKx" h;
     Store.Repo.close repo
 
-  let commit_hash () =
+  let commit_hash ~fs () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree some_steps in
-    let repo, _, commit = Store.persist_tree tree in
+    let repo, _, commit = Store.persist_tree ~sw ~fs tree in
     let commit_val = Store.to_backend_commit commit in
     let h = Commit.Hash.hash commit_val in
     let encode_bin_hash = Irmin.Type.(unstage (encode_bin Commit.Hash.t)) in
@@ -240,9 +243,10 @@ module Test_small_conf = struct
         "821707c86f7030b1102397feb88d454076ec64744dfd9811b8254bd61d396cfe" );
     ]
 
-  let inode_tree_hash () =
+  let inode_tree_hash ~fs () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree many_steps in
-    let repo, tree, _ = Store.persist_tree tree in
+    let repo, tree, _ = Store.persist_tree ~sw ~fs tree in
     let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
@@ -281,9 +285,10 @@ module Test_V1 = struct
 
   let many_steps = [ "00"; "01"; "02"; "03"; "04"; "05" ]
 
-  let commit_hash () =
+  let commit_hash ~fs () =
+    Eio.Switch.run @@ fun sw ->
     let tree = Store.build_tree many_steps in
-    let repo, _, commit = Store.persist_tree tree in
+    let repo, _, commit = Store.persist_tree ~sw ~fs tree in
     let commit_val = Store.to_backend_commit commit in
     let checks =
       [
@@ -306,12 +311,12 @@ module Test_V1 = struct
     Store.Repo.close repo
 end
 
-let tests =
+let tests ~fs =
   let tc name f = Alcotest.test_case name `Quick f in
   [
     tc "contents hash" Test_tezos_conf.contents_hash;
-    tc "inode_values hash" Test_tezos_conf.inode_values_hash;
-    tc "inode_tree hash" Test_small_conf.inode_tree_hash;
-    tc "commit hash" Test_tezos_conf.commit_hash;
-    tc "V1 commit hash" Test_V1.commit_hash;
+    tc "inode_values hash" (Test_tezos_conf.inode_values_hash ~fs);
+    tc "inode_tree hash" (Test_small_conf.inode_tree_hash ~fs);
+    tc "commit hash" (Test_tezos_conf.commit_hash ~fs);
+    tc "V1 commit hash" (Test_V1.commit_hash ~fs);
   ]

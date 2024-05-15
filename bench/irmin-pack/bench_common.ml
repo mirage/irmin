@@ -60,21 +60,11 @@ let random_string n = String.init n (fun _i -> random_char ())
 let random_blob () = random_string 10 |> Bytes.of_string
 let random_key () = random_string 5
 
-let default_artefacts_dir =
-  let ( / ) = Filename.concat in
-  let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
-  Unix.getcwd () / "_artefacts" / Uuidm.to_string uuid
+let default_artefacts_dir cwd =
+  Eio.Path.(cwd / "_artefacts" / Uuidm.to_string (Uuidm.v `V4))
 
 let prepare_artefacts_dir path =
-  let rec mkdir_p path =
-    if Sys.file_exists path then ()
-    else
-      let path' = Filename.dirname path in
-      if path' = path then failwith "Failed to prepare result dir";
-      mkdir_p path';
-      Unix.mkdir path 0o755
-  in
-  mkdir_p path
+  Eio.Path.mkdirs ~exists_ok:true ~perm:0o755 path
 
 let with_timer f =
   let t0 = Sys.time () in
@@ -122,27 +112,26 @@ end
 
 module FSHelper = struct
   let file f =
-    try (Unix.stat f).st_size with Unix.Unix_error (Unix.ENOENT, _, _) -> 0
+    (* in MiB *)
+    try
+      Eio.Switch.run @@ fun sw ->
+      let f = Eio.Path.open_in ~sw f in
+      Optint.Int63.to_int (Eio.File.size f)
+    with Eio.Exn.Io (Eio.Fs.E (Not_found _), _) -> 0
 
   let dict root = file (Irmin_pack.Layout.V1_and_v2.dict ~root) / 1024 / 1024
   let pack root = file (Irmin_pack.Layout.V1_and_v2.pack ~root) / 1024 / 1024
 
   let index root =
-    let index_dir = Filename.concat root "index" in
-    let a = file (Filename.concat index_dir "data") in
-    let b = file (Filename.concat index_dir "log") in
-    let c = file (Filename.concat index_dir "log_async") in
+    let index_dir = Eio.Path.(root / "index") in
+    let a = file Eio.Path.(index_dir / "data") in
+    let b = file Eio.Path.(index_dir / "log") in
+    let c = file Eio.Path.(index_dir / "log_async") in
     (a + b + c) / 1024 / 1024
 
   let size root = dict root + pack root + index root
   let get_size root = size root
-
-  let rm_dir root =
-    if Sys.file_exists root then (
-      let cmd = Printf.sprintf "rm -rf %s" root in
-      [%logs.info "exec: %s" cmd];
-      let _ = Sys.command cmd in
-      ())
+  let rm_dir root = Eio.Path.rmtree ~missing_ok:true root
 end
 
 module Generate_trees

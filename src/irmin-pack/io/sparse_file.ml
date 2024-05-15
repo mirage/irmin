@@ -23,7 +23,12 @@ type int64_bigarray = (int64, Bigarray.int64_elt, Bigarray.c_layout) BigArr1.t
 module Int64_mmap (Io : Io_intf.S) : sig
   type t
 
-  val open_ro : fn:string -> sz:int -> (t, [> Io.open_error ]) result
+  val open_ro :
+    sw:Eio.Switch.t ->
+    fn:Eio.Fs.dir_ty Eio.Path.t ->
+    sz:int ->
+    (t, [> Io.open_error ]) result
+
   val length : t -> int
   val get : t -> int -> Int64.t
   val close : t -> (unit, [> Io.close_error ]) result
@@ -33,10 +38,10 @@ end = struct
   let sector_size = 512
   let length t = BigArr1.dim t.arr
 
-  let open_ro ~fn ~sz =
+  let open_ro ~sw ~fn ~sz =
     let open Result_syntax in
     assert (Io.classify_path fn = `File);
-    let+ fd = Io.open_ ~path:fn ~readonly:true in
+    let+ fd = Io.open_ ~sw ~path:fn ~readonly:true in
     let size = sz / 8 in
     let arr = BigArr1.create Bigarray.Int64 Bigarray.c_layout size in
     let loaded = Array.make (1 + (sz / sector_size)) false in
@@ -76,18 +81,18 @@ module Make (Io : Io_intf.S) = struct
 
     type t = Int64_mmap.t
 
-    let open_map ~path ~size =
+    let open_map ~sw ~path ~size =
       match Io.classify_path path with
       | `File ->
           let open Result_syntax in
-          let* mmap = Int64_mmap.open_ro ~fn:path ~sz:size in
+          let* mmap = Int64_mmap.open_ro ~sw ~fn:path ~sz:size in
           if Int64_mmap.length mmap mod 3 = 0 then Ok mmap
           else
             Error
               (`Corrupted_mapping_file
                  (__FILE__
                  ^ ": mapping mmap size did not meet size requirements"))
-      | _ -> Error (`No_such_file_or_directory path)
+      | _ -> Error (`No_such_file_or_directory (Eio.Path.native_exn path))
 
     let close = Int64_mmap.close
     let entry_count t = Int64_mmap.length t / 3
@@ -130,14 +135,14 @@ module Make (Io : Io_intf.S) = struct
 
   type t = { mapping : Mapping_file.t; data : Io.t }
 
-  let open_ ~readonly ~mapping_size ~mapping ~data =
+  let open_ ~sw ~readonly ~mapping_size ~mapping ~data =
     let open Result_syntax in
-    let* mapping = Mapping_file.open_map ~path:mapping ~size:mapping_size in
-    let+ data = Io.open_ ~path:data ~readonly in
+    let* mapping = Mapping_file.open_map ~sw ~path:mapping ~size:mapping_size in
+    let+ data = Io.open_ ~sw ~path:data ~readonly in
     { mapping; data }
 
-  let open_ro ~mapping_size ~mapping ~data =
-    open_ ~readonly:true ~mapping_size ~mapping ~data
+  let open_ro ~sw ~mapping_size ~mapping ~data =
+    open_ ~sw ~readonly:true ~mapping_size ~mapping ~data
 
   let close t =
     let open Result_syntax in
@@ -196,8 +201,8 @@ module Make (Io : Io_intf.S) = struct
   module Wo = struct
     type nonrec t = t
 
-    let open_wo ~mapping_size ~mapping ~data =
-      open_ ~readonly:false ~mapping_size ~mapping ~data
+    let open_wo ~sw ~mapping_size ~mapping ~data =
+      open_ ~sw ~readonly:false ~mapping_size ~mapping ~data
 
     let write_exn t ~off ~len str =
       let poff, max_entry_len = get_poff t ~off in
@@ -207,14 +212,14 @@ module Make (Io : Io_intf.S) = struct
     let fsync t = Io.fsync t.data
     let close = close
 
-    let create_from_data ~mapping ~dead_header_size ~size ~data:_ =
+    let create_from_data ~sw ~mapping ~dead_header_size ~size ~data:_ =
       let open Result_syntax in
       let entry =
         make_entry ~off:Int64.zero
           ~poff:(Int64.of_int dead_header_size)
           ~len:(Int63.to_int64 size)
       in
-      let* mapping = Io.create ~path:mapping ~overwrite:false in
+      let* mapping = Io.create ~sw ~path:mapping ~overwrite:false in
       let* () = Io.write_string mapping ~off:Int63.zero entry in
       let+ () = Io.close mapping in
       Int63.of_int (String.length entry)
@@ -228,19 +233,19 @@ module Make (Io : Io_intf.S) = struct
     let end_off t = t.end_off
     let mapping_size t = Ao.end_poff t.mapping
 
-    let create ~mapping ~data =
+    let create ~sw ~mapping ~data =
       let open Result_syntax in
       let ao_create path = Ao.create_rw ~path ~overwrite:false in
-      let* mapping = ao_create mapping in
-      let+ data = ao_create data in
+      let* mapping = ao_create ~sw mapping in
+      let+ data = ao_create ~sw data in
       { mapping; data; end_off = Int63.zero }
 
-    let open_ao ~mapping_size ~mapping ~data =
+    let open_ao ~sw ~mapping_size ~mapping ~data =
       let open Result_syntax in
       let ao_open ~end_poff path =
         Ao.open_rw ~path ~end_poff ~dead_header_size:0
       in
-      let* ao_mapping = ao_open ~end_poff:mapping_size mapping in
+      let* ao_mapping = ao_open ~sw ~end_poff:mapping_size mapping in
       let* end_off, end_poff =
         if mapping_size <= Int63.zero then Ok (Int63.zero, Int63.zero)
         else
@@ -257,7 +262,7 @@ module Make (Io : Io_intf.S) = struct
           let open Int63.Syntax in
           (end_off + len, end_poff + len)
       in
-      let+ ao_data = ao_open ~end_poff data in
+      let+ ao_data = ao_open ~sw ~end_poff data in
       { mapping = ao_mapping; data = ao_data; end_off }
 
     let check_offset_exn { end_off; _ } ~off =

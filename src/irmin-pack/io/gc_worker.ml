@@ -211,12 +211,12 @@ module Make (Args : Gc_args.S) = struct
 
   type gc_output = (gc_results, Args.Errs.t) result [@@deriving irmin]
 
-  let run ~lower_root ~generation ~new_files_path root commit_key
+  let run ~sw ~fs ~lower_root ~generation ~new_files_path root commit_key
       new_suffix_start_offset =
     let open Result_syntax in
     let config =
-      Irmin_pack.Conf.init ~fresh:false ~readonly:true ~lru_size:0 ~lower_root
-        root
+      Irmin_pack.Conf.init ~sw ~fs ~fresh:false ~readonly:true ~lru_size:0
+        ~lower_root root
     in
 
     (* Step 1. Open the files *)
@@ -226,7 +226,7 @@ module Make (Args : Gc_args.S) = struct
       report_old_file_sizes ~root ~generation:(generation - 1) stats |> ignore
     in
 
-    let fm = Fm.open_ro config |> Errs.raise_if_error in
+    let fm = Fm.open_ro ~sw ~fs config |> Errs.raise_if_error in
     Errors.finalise_exn (fun _outcome ->
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
     @@ fun () ->
@@ -268,7 +268,9 @@ module Make (Args : Gc_args.S) = struct
       in
       let data = Irmin_pack.Layout.V4.prefix ~root:new_files_path ~generation in
       let mapping_size =
-        let prefix = Sparse.Ao.create ~mapping ~data |> Errs.raise_if_error in
+        let prefix =
+          Sparse.Ao.create ~sw ~mapping ~data |> Errs.raise_if_error
+        in
         (* Step 5. Transfer to the new prefix, flush and close. *)
         [%log.debug "GC: transfering to the new prefix"];
         stats := Gc_stats_worker.finish_current_step !stats "prefix: transfer";
@@ -293,7 +295,8 @@ module Make (Args : Gc_args.S) = struct
           Gc_stats_worker.finish_current_step !stats
             "prefix: rewrite commit parents";
         let prefix =
-          Sparse.Wo.open_wo ~mapping_size ~mapping ~data |> Errs.raise_if_error
+          Sparse.Wo.open_wo ~sw ~mapping_size ~mapping ~data
+          |> Errs.raise_if_error
         in
         Errors.finalise_exn (fun _outcome ->
             Sparse.Wo.fsync prefix
@@ -413,10 +416,10 @@ module Make (Args : Gc_args.S) = struct
       stats;
     }
 
-  let write_gc_output ~root ~generation output =
+  let write_gc_output ~sw ~root ~generation output =
     let open Result_syntax in
     let path = Irmin_pack.Layout.V4.gc_result ~root ~generation in
-    let* io = Io.create ~path ~overwrite:true in
+    let* io = Io.create ~sw ~path ~overwrite:true in
     let out = Irmin.Type.to_json_string gc_output_t output in
     let* () = Io.write_string io ~off:Int63.zero out in
     let* () = Io.fsync io in
@@ -424,15 +427,16 @@ module Make (Args : Gc_args.S) = struct
 
   (* No one catches errors when this function terminates. Write the result in a
      file and terminate. *)
-  let run_and_output_result ~lower_root ~generation ~new_files_path root
+  let run_and_output_result ~fs ~lower_root ~generation ~new_files_path root
       commit_key new_suffix_start_offset =
+    Eio.Switch.run @@ fun sw ->
     let result =
       Errs.catch (fun () ->
-          run ~lower_root ~generation ~new_files_path root commit_key
+          run ~sw ~fs ~lower_root ~generation ~new_files_path root commit_key
             new_suffix_start_offset)
     in
     Errs.log_if_error "gc run" result;
-    let write_result = write_gc_output ~root ~generation result in
+    let write_result = write_gc_output ~sw ~root ~generation result in
     write_result |> Errs.log_if_error "writing gc output"
   (* No need to raise or log if [result] is [Error _], we've written it in
      the file. *)

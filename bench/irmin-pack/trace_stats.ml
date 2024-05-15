@@ -29,9 +29,10 @@ let summarise path =
   Summary.(summarise path |> Fmt.pr "%a\n" (Irmin.Type.pp_json t))
 
 let class_of_path p =
-  let chan = open_in_bin p in
+  let path = Eio.Path.native_exn p in
+  let chan = open_in_bin path in
   if in_channel_length chan < 8 then
-    Fmt.invalid_arg "File \"%s\" should be a stat trace or a json." p;
+    Fmt.invalid_arg "File \"%s\" should be a stat trace or a json." path;
   let magic = really_input_string chan 8 in
   close_in chan;
   if is_trace_magic magic then
@@ -44,13 +45,13 @@ let class_of_path p =
     in
     `Trace block_count
   else
-    let chan = open_in_bin p in
+    let chan = open_in_bin path in
     let raw = really_input_string chan (in_channel_length chan) in
     close_in chan;
     match Irmin.Type.of_json_string Summary.t raw with
     | Error (`Msg msg) ->
         Fmt.invalid_arg
-          "File \"%s\" should be a stat trace or a json.\nError: %s" p msg
+          "File \"%s\" should be a stat trace or a json.\nError: %s" path msg
     | Ok s -> `Summary s
 
 let pp name_per_path paths cols_opt =
@@ -119,23 +120,41 @@ let summary_to_cb path =
 
 open Cmdliner
 
-let term_summarise =
+let eio_path fs =
+  let parse s = Ok Eio.Path.(fs / s) in
+  let print = Eio.Path.pp in
+  Arg.conv ~docv:"PATH" (parse, print)
+
+let term_summarise fs =
   let stat_trace_file =
     let doc = Arg.info ~docv:"PATH" ~doc:"A stat trace file" [] in
-    Arg.(required @@ pos 0 (some string) None doc)
+    Arg.(required @@ pos 0 (some (eio_path fs)) None doc)
   in
   Term.(const summarise $ stat_trace_file)
 
-let term_pp =
+let eio_file fs =
+  let parse s =
+    let path = Eio.Path.(fs / s) in
+    match Eio.Path.kind ~follow:true path with
+    | `Regular_file -> Ok path
+    | `Not_found -> Error (`Msg (Format.sprintf "no file %s" s))
+    | _ -> Error (`Msg (Format.sprintf "%s is a directory" s))
+  in
+  let print = Eio.Path.pp in
+  Arg.conv ~docv:"PATH" (parse, print)
+
+let term_pp fs =
   let arg_indexed_files =
     let open Arg in
-    let a = pos_all non_dir_file [] (info [] ~docv:"FILE") in
+    let a = pos_all (eio_file fs) [] (info [] ~docv:"FILE") in
     value a
   in
   let arg_named_files =
     let open Arg in
     let a =
-      opt_all (pair string non_dir_file) []
+      opt_all
+        (pair string (eio_file fs))
+        []
         (info [ "f"; "named-file" ]
            ~doc:
              "A comma-separated pair of short name / path to trace or summary. \

@@ -37,7 +37,23 @@ module Util = struct
 
   let exec_cmd = Common.exec_cmd
   let ( / ) = Filename.concat
-  let tmp_dir () = Filename.temp_file "test_pack_version_bump_" ""
+
+  let tmp_dir ~sr ~fs prefix =
+    let cs = Cstruct.create 4 in
+    let rec f () =
+      (* TODO: remove [sr] *)
+      Eio.Flow.read_exact sr cs;
+      let i = Cstruct.LE.get_uint16 cs 0 in
+      let tmp = Eio.Path.(fs / "tmp") in
+      Eio.Path.mkdirs ~exists_ok:true ~perm:0o700 tmp;
+      let path = Eio.Path.(tmp / (prefix ^ Int.to_string i)) in
+      match Eio.Path.kind ~follow:false path with
+      | `Not_found ->
+          Eio.Path.mkdir ~perm:0o700 path;
+          path
+      | _ -> f ()
+    in
+    f ()
 
   (** Copy src to dst; dst is assumed to not exist *)
   let copy_dir src dst =
@@ -92,7 +108,8 @@ module Util = struct
   (** Get the version of the underlying file; file is assumed to exist; file is
       assumed to be an Irmin_pack.IO.Unix file *)
   let io_get_version ~root : [ `V1 | `V2 | `V3 | `V4 | `V5 ] =
-    File_manager.version ~root |> Errs.raise_if_error
+    Eio.Switch.run @@ fun sw ->
+    File_manager.version ~sw ~root |> Errs.raise_if_error
 
   let alco_check_version ~pos ~expected ~actual =
     Alcotest.check_repr ~pos Irmin_pack.Version.t "" expected actual
@@ -101,15 +118,16 @@ end
 open Util
 
 (** This sets up infrastructure to open the existing "version_1" store *)
-module With_existing_store () = struct
-  let tmp_dir = tmp_dir ()
-  let () = [%log.info "Using temporary directory %s" tmp_dir]
-
+module With_existing_store = struct
   (* Make a copy of the v1_store_archive_dir in tmp_dir *)
-  let () =
+  let init ~sr ~fs () =
+    let tmp_dir = tmp_dir ~sr ~fs "test_pack_version_bump_" in
     rm_dir tmp_dir;
-    copy_dir (project_root () / v1_store_archive_dir) tmp_dir;
-    ()
+    [%log.info "Using temporary directory %s" (Eio.Path.native_exn tmp_dir)];
+    copy_dir
+      (project_root () / v1_store_archive_dir)
+      (Eio.Path.native_exn tmp_dir);
+    tmp_dir
 
   (* [S] is the functionality we use from Private, together with an
      appropriate config *)
@@ -117,42 +135,51 @@ module With_existing_store () = struct
 
   (* Code copied and modified from test_existing_stores.ml; this is
      the config for index and pack *)
-  let config ~readonly : Irmin.config =
-    Irmin_pack.config ~readonly ~index_log_size:1000 ~fresh:false tmp_dir
+  let config ~sw ~fs ~tmp_dir ~readonly : Irmin.config =
+    Irmin_pack.config ~sw ~fs ~readonly ~index_log_size:1000 ~fresh:false
+      tmp_dir
 end
 
 (** {2 The tests} *)
 
 (** Cannot open a V1 store in RO mode. *)
-let test_RO_no_migration () : unit =
+let test_RO_no_migration ~sr ~fs () : unit =
   [%log.info "Executing test_RO_no_migration"];
-  let open With_existing_store () in
+  Eio.Switch.run @@ fun sw ->
+  let tmp_dir = With_existing_store.init ~sr ~fs () in
   assert (io_get_version ~root:tmp_dir = `V1);
 
   let () =
     Alcotest.check_raises "open V1 store in RO"
       (Irmin_pack_unix.Errors.Pack_error `Migration_needed) (fun () ->
-        let repo = S.Repo.v (config ~readonly:true) in
-        S.Repo.close repo)
+        let repo =
+          With_existing_store.S.Repo.v
+            (With_existing_store.config ~sw ~fs ~tmp_dir ~readonly:true)
+        in
+        With_existing_store.S.Repo.close repo)
   in
   (* maybe the version bump is only visible after, check again *)
   alco_check_version ~pos:__POS__ ~expected:`V1
     ~actual:(io_get_version ~root:tmp_dir)
 
 (** Open a V1 store RW mode. Even if no writes, the store migrates to V3. *)
-let test_open_RW () =
+let test_open_RW ~sr ~fs () =
   [%log.info "Executing test_open_RW"];
-  let open With_existing_store () in
+  Eio.Switch.run @@ fun sw ->
+  let tmp_dir = With_existing_store.init ~sr ~fs () in
   assert (io_get_version ~root:tmp_dir = `V1);
-  let repo = S.Repo.v (config ~readonly:false) in
-  let () = S.Repo.close repo in
+  let repo =
+    With_existing_store.S.Repo.v
+      (With_existing_store.config ~sw ~fs ~tmp_dir ~readonly:false)
+  in
+  let () = With_existing_store.S.Repo.close repo in
   alco_check_version ~pos:__POS__ ~expected:`V3
     ~actual:(io_get_version ~root:tmp_dir)
 
-let tests =
+let tests ~sr ~fs =
   let f g () = g () in
   Alcotest.
     [
-      test_case "test_RO_no_migration" `Quick (f test_RO_no_migration);
-      test_case "test_open_RW" `Quick (f test_open_RW);
+      test_case "test_RO_no_migration" `Quick (f (test_RO_no_migration ~sr ~fs));
+      test_case "test_open_RW" `Quick (f (test_open_RW ~sr ~fs));
     ]

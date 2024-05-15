@@ -56,7 +56,8 @@ struct
     index : int63 Tbl.t;
     cache : V.t Tbl.t;
     block : Io.t;
-    mutable block_size : int63;
+    lock : Eio.Mutex.t;
+    block_size : int63 Atomic.t;
     w : W.t;
   }
 
@@ -125,10 +126,14 @@ struct
     aux ()
 
   let sync_offset t =
-    let former_offset = t.block_size in
-    t.block_size <- block_size t.block;
-    if t.block_size > former_offset then
-      refill t ~to_:t.block_size ~from:former_offset
+    let newer_offset = block_size t.block in
+    let former_offset = Atomic.get t.block_size in
+    if newer_offset > former_offset then
+      Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
+      let former_offset = Atomic.get t.block_size in
+      if newer_offset > former_offset then (
+        refill t ~to_:newer_offset ~from:former_offset;
+        Atomic.set t.block_size newer_offset)
 
   let unsafe_find t k =
     [%log.debug "[branches] find %a" pp_key k];
@@ -157,25 +162,26 @@ struct
 
   let watches = W.v ()
 
-  let v ?(fresh = false) ?(readonly = false) file =
+  let v ~sw ?(fresh = false) ?(readonly = false) file =
     let block =
       if
         (not readonly)
         && (fresh || Io.classify_path file = `No_such_file_or_directory)
       then (
         let io =
-          Io_errors.raise_if_error (Io.create ~path:file ~overwrite:true)
+          Io_errors.raise_if_error (Io.create ~sw ~path:file ~overwrite:true)
         in
         Io.write_exn io ~off:Int63.zero ~len:dead_header_size
           (String.make dead_header_size '\000');
         io)
-      else Io_errors.raise_if_error (Io.open_ ~path:file ~readonly)
+      else Io_errors.raise_if_error (Io.open_ ~sw ~path:file ~readonly)
     in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
-    let block_size = block_size block in
-    let t = { cache; index; block; block_size; w = watches } in
-    refill t ~to_:block_size ~from:(Int63.of_int dead_header_size);
+    let block_size = Atomic.make (block_size block) in
+    let lock = Eio.Mutex.create () in
+    let t = { cache; index; block; block_size; lock; w = watches } in
+    refill t ~to_:(Atomic.get block_size) ~from:(Int63.of_int dead_header_size);
     t
 
   let clear _ = Fmt.failwith "Unsupported operation"
@@ -192,7 +198,7 @@ struct
       Tbl.add t.index k offset
 
   let set t k v =
-    [%log.debug "[branches %s] set %a" (Io.path t.block) pp_key k];
+    [%log.debug "[branches %a] set %a" Eio.Path.pp (Io.path t.block) pp_key k];
     unsafe_set t k v;
     W.notify t.w k (Some v)
 
