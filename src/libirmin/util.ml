@@ -14,10 +14,66 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Scheduler : sig
+  val run_env : (Irmin_cli.eio -> 'a) -> 'a
+  val run : (unit -> 'a) -> 'a
+end = struct
+  type env = Irmin_cli.eio
+
+  let run_env fn =
+    Eio_main.run @@ fun env ->
+    Lwt_eio.with_event_loop ~clock:env#clock @@ fun () ->
+    Eio.Switch.run @@ fun sw ->
+    let env :> env =
+      object
+        method cwd = Eio.Stdenv.cwd env
+        method clock = Eio.Stdenv.clock env
+        method sw = sw
+      end
+    in
+    fn env
+
+  open Effect.Shallow
+
+  let eio = ref (fiber run_env)
+
+  let () =
+    at_exit @@ fun () ->
+    continue_with !eio
+      (fun _ -> ())
+      { retc = (fun () -> ()); exnc = raise; effc = (fun _ -> None) }
+
+  let run_env (type ret) (fn : env -> ret) : ret =
+    let open struct
+      type _ Effect.t += Return : (ret, exn) result -> (env -> unit) Effect.t
+    end in
+    continue_with !eio
+      (fun env ->
+        let x = try Ok (fn env) with e -> Error e in
+        let next = Effect.perform (Return x) in
+        next env)
+      {
+        retc = (fun _ -> assert false);
+        exnc = raise;
+        effc =
+          (fun (type a) (e : a Effect.t) ->
+            match e with
+            | Return x ->
+                Some
+                  (fun (k : (a, _) continuation) ->
+                    eio := k;
+                    match x with Ok x -> x | Error e -> raise e)
+            | _ -> None);
+      }
+
+  let run fn = run_env (fun _ -> fn ())
+end
+
 module Make (I : Cstubs_inverted.INTERNAL) = struct
   include Ctypes
   include Types
   include Unsigned
+  include Scheduler
 
   let find_config_key config name =
     Irmin.Backend.Conf.Spec.find_key (Irmin.Backend.Conf.spec config) name
@@ -42,21 +98,6 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     if length < 0 then strlen s else length
 
   let fn name t f = I.internal ~runtime_lock:false ("irmin_" ^ name) t f
-
-  let run_env fn =
-    Eio_main.run @@ fun env ->
-    Lwt_eio.with_event_loop ~clock:env#clock @@ fun () ->
-    Eio.Switch.run @@ fun sw ->
-    let env =
-      object
-        method cwd = Eio.Stdenv.cwd env
-        method clock = Eio.Stdenv.clock env
-        method sw = sw
-      end
-    in
-    fn (env :> Irmin_cli.eio)
-
-  let run fn = run_env (fun _ -> fn ())
 
   module Root = struct
     let to_voidp t x = Ctypes.coerce t (ptr void) x
