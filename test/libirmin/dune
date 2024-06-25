@@ -10,7 +10,7 @@
     ../../src/libirmin/lib
     (run ./test.exe))))
  (enabled_if
-  (<> %{ocaml_version} 5.2.0~alpha1)))
+  (<> %{model} "ppc64le")))
 
 (rule
  (targets test.exe)
