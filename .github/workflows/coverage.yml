@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - eio
   pull_request:
   schedule:
     # Prime the caches every Monday
@@ -30,6 +31,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
@@ -46,6 +49,7 @@ jobs:
         run: opam exec -- dune runtest --instrument-with bisect_ppx
 
       - name: Send coverage report to Codecov
-        run: opam exec -- bisect-ppx-report send-to Codecov
+        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
         env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
