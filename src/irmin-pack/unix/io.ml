@@ -14,135 +14,154 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Eio_temp = Eio
 open! Irmin_pack_io.Import
+module Eio = Eio_temp
 module Errors = Irmin_pack_io.Errors
-module Syscalls = Index_unix.Syscalls
 
 (* File utils, taken from index.unix package.
 
    These functions need to read from a loop because the underlying
    implementation will not read/write more than a constant called
    [UNIX_BUFFER_SIZE]. *)
-module Util = struct
-  let really_write fd fd_offset buffer buffer_offset length =
-    let rec aux fd_offset buffer_offset length =
-      let w = Syscalls.pwrite ~fd ~fd_offset ~buffer ~buffer_offset ~length in
-      if w = 0 || w = length then ()
-      else
-        (aux [@tailcall])
-          Int63.Syntax.(fd_offset + Int63.of_int w)
-          (buffer_offset + w) (length - w)
-    in
-    aux fd_offset buffer_offset length
 
-  let really_read fd fd_offset length buffer =
-    let rec aux fd_offset buffer_offset length =
-      let r = Syscalls.pread ~fd ~fd_offset ~buffer ~buffer_offset ~length in
-      if r = 0 then buffer_offset (* end of file *)
-      else if r = length then buffer_offset + r
-      else
-        (aux [@tailcall])
-          Int63.Syntax.(fd_offset + Int63.of_int r)
-          (buffer_offset + r) (length - r)
-    in
-    aux fd_offset 0 length
+(** TODO *)
+module Util = struct
+  let really_write fd file_offset buffer buffer_offset length =
+    let cs = Cstruct.of_bytes ~off:buffer_offset ~len:length buffer in
+    Eio.File.pwrite_all fd ~file_offset [ cs ]
+
+  let really_read fd file_offset length buffer =
+    let cs = Cstruct.create length in
+    Eio.File.pread_exact fd ~file_offset [ cs ];
+    Cstruct.blit_to_bytes cs 0 buffer 0 length
 end
 
 module Unix = struct
   type misc_error = Unix.error * string * string
+  (** TODO *)
 
+  (** TODO *)
   let unix_error_t =
     Irmin.Type.(map string (fun _str -> assert false) Unix.error_message)
 
+  (** TODO *)
   let misc_error_t = Irmin.Type.(triple unix_error_t string string)
 
   type create_error = [ `Io_misc of misc_error | `File_exists of string ]
+  (** TODO *)
 
   type open_error =
     [ `Io_misc of misc_error
     | `No_such_file_or_directory of string
     | `Not_a_file ]
+  (** TODO *)
 
   type read_error =
     [ `Io_misc of misc_error
     | `Read_out_of_bounds
     | `Closed
     | `Invalid_argument ]
+  (** TODO *)
 
   type write_error = [ `Io_misc of misc_error | `Ro_not_allowed | `Closed ]
+  (** TODO *)
+
   type close_error = [ `Io_misc of misc_error | `Double_close ]
+  (** TODO *)
 
   type mkdir_error =
     [ `Io_misc of misc_error
     | `File_exists of string
     | `No_such_file_or_directory of string
     | `Invalid_parent_directory ]
+  (** TODO *)
 
+  (** TODO *)
   let raise_misc_error (x, y, z) = raise (Unix.Unix_error (x, y, z))
 
+  (** TODO *)
   let catch_misc_error f =
     try Ok (f ())
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  type file =
+    | RO of Eio.File.ro_ty Eio.Resource.t
+    | RW of Eio.File.rw_ty Eio.Resource.t
+
+  let get_file_as_ro = function
+    | RO file -> file
+    | RW file -> (file :> Eio.File.ro_ty Eio.Resource.t)
+
   type t = {
-    fd : Unix.file_descr;
+    file : file;
     mutable closed : bool;
-    readonly : bool;
-    path : string;
+    path : Eio.Fs.dir_ty Eio.Path.t;
   }
 
-  let classify_path p =
-    Unix.(
-      try
-        match (stat p).st_kind with
-        | S_REG -> `File
-        | S_DIR -> `Directory
-        | _ -> `Other
-      with _ -> `No_such_file_or_directory)
+  let classify_path path =
+    match Eio.Path.kind ~follow:false path with
+    | `Regular_file -> `File
+    | `Directory -> `Directory
+    | `Not_found -> `No_such_file_or_directory
+    | _ -> `Other
 
-  let readdir p = Sys.readdir p |> Array.to_list
+  (** TODO *)
+  let readdir p = Eio.Path.read_dir p
+
   let default_create_perm = 0o644
-  let default_open_perm = 0o644
+  (* let default_open_perm = 0o644 *)
+  (* CHECK *)
+
   let default_mkdir_perm = 0o755
 
-  let create ~path ~overwrite =
+  (** TODO *)
+  let create ~sw ~path ~overwrite =
     try
-      match Sys.file_exists path with
-      | false ->
-          let fd =
-            Unix.(
-              openfile path
-                [ O_CREAT; O_RDWR; O_EXCL; O_CLOEXEC ]
-                default_create_perm)
+      match Eio.Path.kind ~follow:false path with
+      | `Not_found ->
+          let file =
+            RW
+              (Eio.Path.open_out ~sw ~create:(`Exclusive default_create_perm)
+                 path)
           in
-          Ok { fd; closed = false; readonly = false; path }
-      | true -> (
+          Ok { file; closed = false; path }
+      | `Regular_file -> (
           match overwrite with
           | true ->
               (* The file exists, truncate it and use it. An exception will be
                  triggered if we don't have the permissions *)
-              let fd =
-                Unix.(
-                  openfile path
-                    [ O_RDWR; O_CLOEXEC; O_TRUNC ]
-                    default_create_perm)
+              let file =
+                RW
+                  (Eio.Path.open_out ~sw
+                     ~create:(`Or_truncate default_create_perm) path)
               in
-              Ok { fd; closed = false; readonly = false; path }
-          | false -> Error (`File_exists path))
+              Ok { file; closed = false; path }
+          | false -> Error (`File_exists (Eio.Path.native_exn path)))
+      | _ -> assert false
     with
-    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
+    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)) (* TODO *)
     | Sys_error _ -> assert false
 
-  let open_ ~path ~readonly =
-    match classify_path path with
-    | `Directory | `Other -> Error `Not_a_file
-    | `No_such_file_or_directory -> Error (`No_such_file_or_directory path)
-    | `File -> (
-        let mode = Unix.(if readonly then O_RDONLY else O_RDWR) in
-        try
-          let fd = Unix.(openfile path [ mode; O_CLOEXEC ] default_open_perm) in
-          Ok { fd; closed = false; readonly; path }
-        with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
+  let open_ ~sw ~path ~readonly =
+    match Eio.Path.kind ~follow:false path with
+    | `Not_found ->
+        Error (`No_such_file_or_directory (Eio.Path.native_exn path))
+    | `Regular_file -> (
+        match readonly with
+        | true -> (
+            try
+              let file = RO (Eio.Path.open_in ~sw path) in
+              Ok { file; closed = false; path }
+            with Unix.Unix_error (e, s1, s2) ->
+              Error (`Io_misc (e, s1, s2)) (* TODO *))
+        | false -> (
+            try
+              let file = RW (Eio.Path.open_out ~sw ~create:`Never path) in
+              Ok { file; closed = false; path }
+            with Unix.Unix_error (e, s1, s2) ->
+              Error (`Io_misc (e, s1, s2)) (* TODO *)))
+    | _ -> Error `Not_a_file
 
   let close t =
     match t.closed with
@@ -152,25 +171,29 @@ module Unix = struct
         (* mark [t] as closed, even if [Unix.close] fails, since it is recommended
            to not retry after an error. see: https://man7.org/linux/man-pages/man2/close.2.html *)
         try
-          Unix.close t.fd;
+          let file = get_file_as_ro t.file in
+          Eio.Resource.close file;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
+  (* TODO *)
 
+  (** TODO *)
   let write_exn t ~off ~len s =
     if String.length s < len then raise (Errors.Pack_error `Invalid_argument);
-    match (t.closed, t.readonly) with
+    match (t.closed, t.file) with
     | true, _ -> raise Errors.Closed
-    | _, true -> raise Errors.RO_not_allowed
-    | _ ->
+    | _, RO _ -> raise Errors.RO_not_allowed
+    | _, RW file ->
         (* Bytes.unsafe_of_string usage: s has shared ownership; we assume that
            Util.really_write does not mutate buf (i.e., only needs shared ownership). This
            usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
-        let () = Util.really_write t.fd off buf 0 len in
+        let () = Util.really_write file off buf 0 len in
         (* TODO: Index.Stats is not domain-safe
            Index.Stats.add_write len; *)
         ()
 
+  (** TODO *)
   let write_string t ~off s =
     let len = String.length s in
     try Ok (write_exn t ~off ~len s) with
@@ -178,30 +201,39 @@ module Unix = struct
     | Errors.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  (** TODO *)
   let fsync t =
-    match (t.closed, t.readonly) with
+    match (t.closed, t.file) with
     | true, _ -> Error `Closed
-    | _, true -> Error `Ro_not_allowed
-    | _ -> (
+    | _, RO _ -> Error `Ro_not_allowed
+    | _, RW file -> (
         try
-          Unix.fsync t.fd;
+          Eio.File.sync file;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
+  (** TODO *)
   let read_exn t ~off ~len buf =
     if len > Bytes.length buf then raise (Errors.Pack_error `Invalid_argument);
     match t.closed with
     | true -> raise Errors.Closed
-    | false ->
-        let nread = Util.really_read t.fd off len buf in
-        (* TODO: Index.Stats is not domain-safe
-           Index.Stats.add_read nread; *)
-        if nread <> len then
-          (* didn't manage to read the desired amount; in this case the interface seems to
-             require we return `Read_out_of_bounds FIXME check this, because it is unusual
-             - the normal API allows return of a short string *)
-          raise (Errors.Pack_error `Read_out_of_bounds)
+    | false -> (
+        try
+          let file = get_file_as_ro t.file in
+          Util.really_read file off len buf
+        with exn ->
+          Printexc.print_backtrace stderr;
+          raise exn)
+  (* TODO: Index.Stats is not domain-safe
+     Index.Stats.add_read nread; *)
+  (* if nread <> len then  *)
+  (* TODO: vérifier que c'est bon *)
+  (* didn't manage to read the desired amount; in this case the interface seems to
+     require we return `Read_out_of_bounds FIXME check this, because it is unusual
+     - the normal API allows return of a short string *)
+  (* raise (Errors.Pack_error `Read_out_of_bounds) *)
 
+  (** TODO *)
   let read_to_string t ~off ~len =
     let buf = Bytes.create len in
     try
@@ -217,23 +249,23 @@ module Unix = struct
     | Errors.Closed -> Error `Closed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  (** TODO *)
   let page_size = 4096
 
+  (** TODO *)
   let read_all_to_string t =
     let open Result_syntax in
     let* () = if t.closed then Error `Closed else Ok () in
     let buf = Buffer.create 0 in
     let len = page_size in
-    let bytes = Bytes.create len in
+    let cs = Cstruct.create len in
     let rec aux ~off =
-      let nread =
-        Syscalls.pread ~fd:t.fd ~fd_offset:off ~buffer:bytes ~buffer_offset:0
-          ~length:len
-      in
+      let file = get_file_as_ro t.file in
+      let nread = Eio.File.pread file ~file_offset:off [ cs ] in
       if nread > 0 then (
         (* TODO: Index.Stats is not domain-safe
            Index.Stats.add_read nread; *)
-        Buffer.add_subbytes buf bytes 0 nread;
+        Buffer.add_subbytes buf (Cstruct.to_bytes ~off:0 ~len:nread cs) 0 nread;
         if nread = len then aux ~off:Int63.(add off (of_int nread)))
     in
     try
@@ -241,16 +273,21 @@ module Unix = struct
       Ok (Buffer.contents buf)
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  (** TODO *)
   let read_size t =
     match t.closed with
     | true -> Error `Closed
     | false -> (
-        try Ok Unix.LargeFile.((fstat t.fd).st_size |> Int63.of_int64)
+        try
+          let file = get_file_as_ro t.file in
+          Ok Eio.File.(stat file).size
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
+  (** TODO *)
   let size_of_path s =
     let open Result_syntax in
-    let* io = open_ ~path:s ~readonly:true in
+    Eio.Switch.run @@ fun sw ->
+    let* io = open_ ~path:s ~readonly:true ~sw in
     let res =
       match read_size io with
       | Error `Closed -> assert false
@@ -262,46 +299,58 @@ module Unix = struct
     | Error (`Io_misc _) as x -> x
     | Ok () -> res
 
-  let readonly t = t.readonly
+  let readonly t = match t.file with RO _ -> true | RW _ -> false
   let path t = t.path
 
   let move_file ~src ~dst =
     try
-      Sys.rename src dst;
+      Eio.Path.rename src dst;
       Ok ()
-    with Sys_error msg -> Error (`Sys_error msg)
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
   let copy_file ~src ~dst =
-    let cmd = Filename.quote_command "cp" [ "-p"; src; dst ] in
-    match Sys.command cmd with
-    | 0 -> Ok ()
-    | n -> Error (`Sys_error (Int.to_string n))
+    let stats = Eio.Path.stat ~follow:false src in
+    try
+      Eio.Path.with_open_in src (fun in_flow ->
+          Eio.Path.with_open_out ~create:(`Or_truncate stats.perm) dst
+            (fun out_flow -> Eio.Flow.copy in_flow out_flow));
+      Ok ()
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
+  (** TODO *)
   let mkdir path =
-    match (classify_path (Filename.dirname path), classify_path path) with
-    | `Directory, `No_such_file_or_directory -> (
+    let dirname, _ = Option.get @@ Eio.Path.split path in
+    match
+      (Eio.Path.kind ~follow:false dirname, Eio.Path.kind ~follow:false path)
+    with
+    | `Directory, `Not_found -> (
         try
-          Unix.mkdir path default_mkdir_perm;
+          Eio.Path.mkdir ~perm:default_mkdir_perm path;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-    | `Directory, (`File | `Directory | `Other) -> Error (`File_exists path)
-    | `No_such_file_or_directory, `No_such_file_or_directory ->
-        Error (`No_such_file_or_directory path)
+    | `Directory, _ -> Error (`File_exists (Eio.Path.native_exn path))
+    | `Not_found, `Not_found ->
+        Error (`No_such_file_or_directory (Eio.Path.native_exn path))
     | _ -> Error `Invalid_parent_directory
 
-  let rmdir path = Sys.rmdir path
+  let rmdir path = Eio.Path.rmdir path
 
   let unlink path =
     try
-      Sys.remove path;
+      Eio.Path.unlink path;
       Ok ()
-    with Sys_error msg -> Error (`Sys_error msg)
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
-  let unlink_dont_wait ~on_exn path =
-    (* TODO: Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn *)
-    try Sys.remove path with err -> on_exn err
+  let unlink_dont_wait ~on_exn ~sw path =
+    Eio.Fiber.fork ~sw (fun () ->
+        try Eio.Path.unlink path with err -> on_exn err)
 
+  (** TODO *)
   module Stats = struct
+    (** TODO *)
     let is_darwin =
       lazy
         (try
@@ -310,12 +359,17 @@ module Unix = struct
            | _ -> false
          with Unix.Unix_error _ -> false)
 
+    (** TODO *)
     let get_wtime () =
       (Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float) /. 1e9
 
+    (** TODO *)
     let get_stime () = Rusage.((get Self).stime)
+
+    (** TODO *)
     let get_utime () = Rusage.((get Self).utime)
 
+    (** TODO *)
     let get_rusage () =
       let Rusage.{ maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw; _ }
           =
@@ -329,5 +383,8 @@ module Unix = struct
   end
 
   module Clock = Mtime_clock
+  (** TODO *)
+
   module Progress = Progress
+  (** TODO *)
 end

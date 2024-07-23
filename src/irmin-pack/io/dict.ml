@@ -90,9 +90,9 @@ module Make (Io : Io_intf.S) = struct
     let last_refill_offset = Int63.zero in
     { capacity = default_capacity; index; cache; ao; last_refill_offset }
 
-  let create_rw ~overwrite ~path:filename =
+  let create_rw ~sw ~overwrite ~path:filename =
     let open Result_syntax in
-    let* ao = Ao.create_rw ~overwrite ~path:filename in
+    let* ao = Ao.create_rw ~sw ~overwrite ~path:filename in
     Ok (v_empty ao)
 
   let v_filled ao =
@@ -101,14 +101,14 @@ module Make (Io : Io_intf.S) = struct
     let* () = refill t in
     Ok t
 
-  let open_rw ~size ~dead_header_size filename =
+  let open_rw ~sw ~size ~dead_header_size filename =
     let open Result_syntax in
-    let* ao = Ao.open_rw ~path:filename ~end_poff:size ~dead_header_size in
+    let* ao = Ao.open_rw ~sw ~path:filename ~end_poff:size ~dead_header_size in
     v_filled ao
 
-  let open_ro ~size ~dead_header_size filename =
+  let open_ro ~sw ~size ~dead_header_size filename =
     let open Result_syntax in
-    let* ao = Ao.open_ro ~path:filename ~end_poff:size ~dead_header_size in
+    let* ao = Ao.open_ro ~sw ~path:filename ~end_poff:size ~dead_header_size in
     v_filled ao
 
   let end_poff t = Ao.end_poff t.ao

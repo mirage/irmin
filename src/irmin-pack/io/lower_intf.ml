@@ -32,10 +32,11 @@ module type Volume = sig
     | `Corrupted_control_file of string
     | `Unknown_major_pack_version of string ]
 
-  val v : string -> (t, [> open_error ]) result
+  val v :
+    sw:Eio.Switch.t -> Eio.Fs.dir_ty Eio.Path.t -> (t, [> open_error ]) result
   (** [v path] loads the volume at [path] in read-only. *)
 
-  val path : t -> string
+  val path : t -> Eio.Fs.dir_ty Eio.Path.t
   (** [path t] is the directory that contains the volume. *)
 
   val is_empty : t -> bool
@@ -66,7 +67,11 @@ module type S = sig
     | `Invalid_parent_directory ]
 
   val v :
-    readonly:bool -> volume_num:int -> string -> (t, [> open_error ]) result
+    sw:Eio.Switch.t ->
+    readonly:bool ->
+    volume_num:int ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    (t, [> open_error ]) result
   (** [v ~readonly ~volume_num lower_root] loads all volumes located in the
       directory [lower_root].
 
@@ -121,7 +126,7 @@ module type S = sig
       to temporarily allow RW before calling {!archive_seq_exn}. *)
 
   val archive_seq_exn :
-    upper_root:string ->
+    upper_root:Eio.Fs.dir_ty Eio.Path.t ->
     generation:int ->
     to_archive:(int63 * string Seq.t) list ->
     t ->
@@ -152,10 +157,11 @@ module type S = sig
     [ open_error | close_error | add_error | `Sys_error of string ]
 
   val create_from :
-    src:string ->
+    sw:Eio.Switch.t ->
+    src:Eio.Fs.dir_ty Eio.Path.t ->
     dead_header_size:int ->
     size:Int63.t ->
-    string ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     (unit, [> create_error ]) result
   (** [create_from ~src ~dead_header_size ~size lower_root] initializes the
       first lower volume in the directory [lower_root] by moving the suffix file

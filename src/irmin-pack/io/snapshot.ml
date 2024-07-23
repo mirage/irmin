@@ -25,10 +25,10 @@ module Make (Args : Args) = struct
   module Io = Fm.Io
 
   let rm_index path =
-    let path_index = Filename.concat path "index" in
+    let path_index = Eio.Path.(path / "index") in
     Io.readdir path_index
     |> List.iter (fun name ->
-           match Io.unlink (Filename.concat path_index name) with
+           match Io.unlink Eio.Path.(path_index / name) with
            | Ok () -> ()
            | Error (`Sys_error msg) -> failwith msg);
     Io.rmdir path_index;
@@ -60,11 +60,11 @@ module Make (Args : Args) = struct
       contents_pack : read Contents_pack.t;
     }
 
-    let v config contents_pack inode_pack =
+    let v ~sw ~fs config contents_pack inode_pack =
       (* In order to read from the pack files, we need to open at least two
          files: suffix and control. We just open the file manager for
          simplicity. *)
-      let fm = Fm.open_ro config |> Fm.Errs.raise_if_error in
+      let fm = Fm.open_ro ~sw ~fs config |> Fm.Errs.raise_if_error in
       let dispatcher = Dispatcher.v fm |> Fm.Errs.raise_if_error in
       let log_size = Conf.index_log_size config in
       { fm; dispatcher; log_size; inode_pack; contents_pack }
@@ -202,7 +202,8 @@ module Make (Args : Args) = struct
     let run_on_disk path t f_contents f_inodes root_key =
       [%log.info "iter on disk"];
       let index =
-        Index.v ~fresh:true ~readonly:false ~log_size:t.log_size path
+        Index.v ~fresh:true ~readonly:false ~log_size:t.log_size
+          (Eio.Path.native_exn path)
       in
       let visited h = Index.mem index h in
       let set_visit h =
@@ -250,7 +251,7 @@ module Make (Args : Args) = struct
     module Index =
       Index.Make (Pack_index.Key) (Value) (Io_index) (Index.Cache.Unbounded)
 
-    type path = string
+    type path = Eio.Fs.dir_ty Eio.Path.t
 
     type t = {
       inode_pack : read Inode_pack.t;
@@ -307,9 +308,12 @@ module Make (Args : Args) = struct
 
     let save_on_disk log_size path =
       (* Make sure we are not reusing the same index as irmin-pack. *)
-      let path = path ^ "_tmp" in
-      [%log.info "save on disk: %s" path];
-      let index = Index.v ~fresh:true ~readonly:false ~log_size path in
+      let path, basename = Option.get @@ Eio.Path.split path in
+      let path = Eio.Path.(path / (basename ^ "_tmp")) in
+      [%log.info "save on disk: %a" Eio.Path.pp path];
+      let index =
+        Index.v ~fresh:true ~readonly:false ~log_size (Eio.Path.native_exn path)
+      in
 
       let set_visit h k =
         let offset, length =

@@ -17,8 +17,8 @@
 open! Import
 open Common
 
-let root_export = Filename.concat "_build" "test-snapshot-export"
-let root_import = Filename.concat "_build" "test-snapshot-import"
+let root_export ~fs = Eio.Path.(fs / "_build" / "test-snapshot-export")
+let root_import ~fs = Eio.Path.(fs / "_build" / "test-snapshot-import")
 let src = Logs.Src.create "tests.snapshot" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -76,7 +76,9 @@ let decode_with_size rbuf =
   decode_bin_snapshot b (ref 0)
 
 let restore repo ?on_disk buf =
-  let on_disk = (on_disk :> [ `Path of string | `Reuse ] option) in
+  let on_disk =
+    (on_disk :> [ `Path of Eio.Fs.dir_ty Eio.Path.t | `Reuse ] option)
+  in
   let snapshot = S.Snapshot.Import.v ?on_disk repo in
   let total = String.length buf in
   let total_visited = ref 0 in
@@ -123,14 +125,19 @@ let tree2 () =
   let t = S.Tree.add t [ "c" ] "y" in
   S.Tree.add t [ "d" ] "y"
 
-let test_in_memory ~indexing_strategy () =
+let test_in_memory ~fs ~indexing_strategy () =
+  let root_export = root_export ~fs in
+  let root_import = root_import ~fs in
   rm_dir root_export;
   rm_dir root_import;
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
   let tree1 = S.Tree.singleton [ "a" ] "x" in
@@ -146,15 +153,20 @@ let test_in_memory_minimal =
 let test_in_memory_always =
   test_in_memory ~indexing_strategy:Irmin_pack.Indexing_strategy.always
 
-let test_on_disk ~indexing_strategy () =
+let test_on_disk ~fs ~indexing_strategy () =
+  let root_export = root_export ~fs in
+  let root_import = root_import ~fs in
   rm_dir root_export;
   rm_dir root_import;
-  let index_on_disk = Filename.concat root_import "index_on_disk" in
+  let index_on_disk = Eio.Path.(root_import / "index_on_disk") in
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let test = test ~repo_export ~repo_import in
   let tree2 = tree2 () in
@@ -168,9 +180,9 @@ let test_on_disk_minimal =
 let test_on_disk_always =
   test_on_disk ~indexing_strategy:Irmin_pack.Indexing_strategy.always
 
-let start_gc repo commit =
+let start_gc ~fs ~domain_mgr repo commit =
   let commit_key = S.Commit.key commit in
-  let launched = S.Gc.start_exn ~unlink:false repo commit_key in
+  let launched = S.Gc.start_exn ~fs ~domain_mgr ~unlink:false repo commit_key in
   assert launched
 
 let finalise_gc repo =
@@ -179,7 +191,8 @@ let finalise_gc repo =
   | `Idle | `Running -> Alcotest.fail "expected finalised gc"
   | `Finalised _ -> ()
 
-let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
+let test_gc ~fs ~domain_mgr ~repo_export ~repo_import ?on_disk expected_visited
+    =
   (* create the store *)
   let tree1 =
     let t = S.Tree.singleton [ "b"; "a" ] "x0" in
@@ -195,7 +208,7 @@ let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
   in
   let c3 = S.Commit.v repo_export ~parents:[ k1 ] ~info tree3 in
   (* call gc on last commit *)
-  let () = start_gc repo_export c3 in
+  let () = start_gc ~fs ~domain_mgr repo_export c3 in
   let () = finalise_gc repo_export in
   let tree = S.Commit.tree c3 in
   let root_key = S.Tree.key tree |> Option.get in
@@ -217,39 +230,56 @@ let test_gc ~repo_export ~repo_import ?on_disk expected_visited =
 
 let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-let test_gced_store_in_memory () =
+let test_gced_store_in_memory ~fs ~domain_mgr () =
+  let root_export = root_export ~fs in
+  let root_import = root_import ~fs in
   rm_dir root_export;
   rm_dir root_import;
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let () = test_gc ~repo_export ~repo_import 5 in
+  let () = test_gc ~fs ~domain_mgr ~repo_export ~repo_import 5 in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
-let test_gced_store_on_disk () =
+let test_gced_store_on_disk ~fs ~domain_mgr () =
+  let root_export = root_export ~fs in
+  let root_import = root_import ~fs in
   rm_dir root_export;
   rm_dir root_import;
-  let index_on_disk = Filename.concat root_import "index_on_disk" in
+  let index_on_disk = Eio.Path.(root_import / "index_on_disk") in
+  Eio.Switch.run @@ fun sw ->
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let () = test_gc ~repo_export ~repo_import ~on_disk:(`Path index_on_disk) 5 in
+  let () =
+    test_gc ~fs ~domain_mgr ~repo_export ~repo_import
+      ~on_disk:(`Path index_on_disk) 5
+  in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
-let test_export_import_reexport () =
+let test_export_import_reexport ~fs ~domain_mgr () =
+  let root_export = root_export ~fs in
+  let root_import = root_import ~fs in
   rm_dir root_export;
   rm_dir root_import;
+  Eio.Switch.run @@ fun sw ->
   (* export a snapshot. *)
   let repo_export =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_export)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_export)
   in
   let tree = S.Tree.singleton [ "a" ] "y" in
   let parent_commit = S.Commit.v repo_export ~parents:[] ~info tree in
@@ -266,7 +296,8 @@ let test_export_import_reexport () =
      a new store, with the key parent of type Indexed. *)
   rm_dir root_export;
   let repo_import =
-    S.Repo.v (config ~readonly:false ~fresh:true ~indexing_strategy root_import)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let _, key = Buffer.contents buf |> restore repo_import in
   let key = Option.get key in
@@ -276,12 +307,15 @@ let test_export_import_reexport () =
   let commit_key = S.Commit.key commit in
   let commit_hash = S.Commit.hash commit in
   (* export the gc-based snapshot in a clean root_export. *)
-  let () = S.create_one_commit_store repo_import commit_key root_export in
+  let () =
+    S.create_one_commit_store ~fs ~domain_mgr repo_import commit_key root_export
+  in
   let () = S.Repo.close repo_import in
   (* open the new store and check that everything is readable. *)
   let repo_export =
     S.Repo.v
-      (config ~readonly:false ~fresh:false ~indexing_strategy root_export)
+      (config ~sw ~fs ~readonly:false ~fresh:false ~indexing_strategy
+         root_export)
   in
   let commit = S.Commit.of_hash repo_export commit_hash in
   let commit = Option.get commit in
@@ -290,15 +324,15 @@ let test_export_import_reexport () =
   Alcotest.(check (option string)) "find blob" (Some "x") got;
   S.Repo.close repo_export
 
-let tests =
+let tests ~fs ~domain_mgr =
   let tc name f = Alcotest.test_case name `Quick f in
   [
-    tc "in memory minimal" test_in_memory_minimal;
-    tc "in memory always" test_in_memory_always;
-    tc "on disk minimal" test_on_disk_minimal;
-    tc "on disk always" test_on_disk_always;
-    tc "gced store, in memory" test_gced_store_in_memory;
-    tc "gced store, on disk" test_gced_store_on_disk;
+    tc "in memory minimal" (test_in_memory_minimal ~fs);
+    tc "in memory always" (test_in_memory_always ~fs);
+    tc "on disk minimal" (test_on_disk_minimal ~fs);
+    tc "on disk always" (test_on_disk_always ~fs);
+    tc "gced store, in memory" (test_gced_store_in_memory ~fs ~domain_mgr);
+    tc "gced store, on disk" (test_gced_store_on_disk ~fs ~domain_mgr);
     tc "import old snapshot, export gc based snapshot"
-      test_export_import_reexport;
+      (test_export_import_reexport ~fs ~domain_mgr);
   ]

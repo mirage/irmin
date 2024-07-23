@@ -19,7 +19,6 @@ let stats () =
   (stats.Irmin_watcher.watchdogs, Irmin.Backend.Watch.workers ())
 
 let test_db = Test_fs.test_db
-let config = Test_fs.config
 let store = Irmin_test.store (module Irmin_fs_unix) (module Irmin.Metadata.None)
 
 let clean_dirs config =
@@ -39,5 +38,6 @@ let clean ~config =
   clean_dirs config;
   Irmin.Backend.Watch.(set_listen_dir_hook none)
 
-let suite =
+let suite ~path ~clock =
+  let config = Irmin_fs_unix.conf ~path ~clock in
   Irmin_test.Suite.create ~name:"FS.UNIX" ~init ~store ~config ~clean ~stats ()
