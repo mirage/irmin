@@ -19,6 +19,7 @@
   cohttp-lwt-unix
   unix
   yaml
+  eio
   eio_main
   lwt_eio)
  (preprocess

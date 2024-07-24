@@ -43,9 +43,12 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
 
   let fn name t f = I.internal ~runtime_lock:false ("irmin_" ^ name) t f
 
-  let run fn =
+  let run_env fn =
     Eio_main.run @@ fun env ->
-    Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> fn ()
+    Lwt_eio.with_event_loop ~clock:env#clock @@ fun () ->
+    fn (env :> Irmin_cli.eio)
+
+  let run fn = run_env (fun _ -> fn ())
 
   module Root = struct
     let to_voidp t x = Ctypes.coerce t (ptr void) x
