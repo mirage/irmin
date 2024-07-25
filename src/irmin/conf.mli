@@ -166,3 +166,12 @@ val uri : Uri.t Type.t
 
 val find_root : t -> string option
 (** [find_root c] is [root]'s mapping in [c], if any. *)
+
+module Env : sig
+  type _ Effect.t +=
+    | Fs : Eio.Fs.dir_ty Eio.Path.t Effect.t
+    | Net : _ Eio.Net.t Effect.t
+
+  val fs : unit -> Eio.Fs.dir_ty Eio.Path.t
+  val net : unit -> _ Eio.Net.t
+end

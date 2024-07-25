@@ -13,11 +13,12 @@ build: [
 ]
 
 depends: [
-  "dune"       {>= "2.9.0"}
+  "dune"       {>= "3.5.0"}
   "irmin"      {= version}
   "fmt"
   "ptime"
   "mirage-clock" {>= "3.0.0"}
+  "lwt_eio"    {>= "0.5"}
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"

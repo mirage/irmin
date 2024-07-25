@@ -31,7 +31,7 @@ module type S = sig
 
   val execute_request :
     unit Schema.schema ->
-    Cohttp_lwt.Request.t ->
+    Cohttp.Request.t ->
     Cohttp_lwt.Body.t ->
     response_action Lwt.t
 
@@ -42,7 +42,8 @@ end
 module type CONFIG = sig
   type info
 
-  val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t) option
+  val remote :
+    (?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote) option
 
   val info :
     ?author:string -> ('a, Format.formatter, unit, unit -> info) format4 -> 'a

@@ -13,7 +13,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-open Lwt.Syntax
 module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
 
 let config =
@@ -29,12 +28,12 @@ let info ~user message () =
 let provision repo =
   Config.init ();
   let provision = info ~user:"Automatic VM provisioning" in
-  let* t = Store.of_branch repo "upstream" in
+  let t = Store.of_branch repo "upstream" in
   let v =
     Store.Tree.singleton [ "etc"; "manpath" ]
       "/usr/share/man\n/usr/local/share/man"
   in
-  let* v =
+  let v =
     Store.Tree.add v [ "bin"; "sh" ]
       "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   in
@@ -44,49 +43,44 @@ let provision repo =
 let sysadmin = info ~user:"Bob the sysadmin"
 
 let configure repo =
-  let* t = Store.of_branch repo "upstream" in
-  let* () = Lwt_unix.sleep 2. in
-  let* t = Store.clone ~src:t ~dst:"dev" in
-  let* () = Lwt_unix.sleep 2. in
-  let* () =
-    Store.set_exn t
-      ~info:(sysadmin "DNS configuration")
-      [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 128.221.130.23"
-  in
-  let* () = Lwt_unix.sleep 2. in
-  let+ _ = Store.clone ~src:t ~dst:"prod" in
+  let t = Store.of_branch repo "upstream" in
+  Eio_unix.sleep 2.;
+  let t = Store.clone ~src:t ~dst:"dev" in
+  Eio_unix.sleep 2.;
+  Store.set_exn t
+    ~info:(sysadmin "DNS configuration")
+    [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 128.221.130.23";
+  Eio_unix.sleep 2.;
+  let _ = Store.clone ~src:t ~dst:"prod" in
   ()
 
 let attack repo =
   let info = info ~user:"Remote connection from 132.443.12.444" in
   (* 3. Attacker. *)
-  let* t = Store.of_branch repo "prod" in
-  let* () = Lwt_unix.sleep 2. in
-  let* () =
-    Store.set_exn t
-      ~info:(info "$ vim /etc/resolv.conf")
-      [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 12.221.130.23"
-  in
-  let* () = Lwt_unix.sleep 2. in
+  let t = Store.of_branch repo "prod" in
+  Eio_unix.sleep 2.;
+  Store.set_exn t
+    ~info:(info "$ vim /etc/resolv.conf")
+    [ "etc"; "resolv.conf" ] "domain mydomain.com\nnameserver 12.221.130.23";
+  Eio_unix.sleep 2.;
   Store.set_exn t
     ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
     [ "bin"; "sh" ] "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 
 let revert repo =
-  let* prod = Store.of_branch repo "prod" in
-  let* dev = Store.of_branch repo "dev" in
-  let* h1 = Store.Head.get prod in
-  let* h2 = Store.Head.get dev in
+  let prod = Store.of_branch repo "prod" in
+  let dev = Store.of_branch repo "dev" in
+  let h1 = Store.Head.get prod in
+  let h2 = Store.Head.get dev in
   if h1 <> h2 then (
     Printf.printf
       "WARNING: the filesystem is different in dev and prod, intrusion detected!\n\
        Reverting the production system to the dev environment.\n\
        %!";
-    let* () = Lwt_unix.sleep 2. in
+    Eio_unix.sleep 2.;
     Store.Head.set prod h2)
-  else Lwt.return_unit
 
-let () =
+let main () =
   let cmd = Sys.argv.(0) in
   let help () =
     Printf.eprintf
@@ -111,32 +105,32 @@ let () =
   else
     match Sys.argv.(1) with
     | "provision" ->
-        Lwt_main.run
-          (let* repo = Store.Repo.v config in
-           provision repo);
+        (let repo = Store.Repo.v config in
+         provision repo);
         Printf.printf
           "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
            configuration.\n"
           cmd
     | "configure" ->
-        Lwt_main.run
-          (let* repo = Store.Repo.v config in
-           configure repo);
+        (let repo = Store.Repo.v config in
+         configure repo);
         Printf.printf
           "The VM is now configured. Run `%s attack` to simulate an attack by \
            an \n\
            intruder.\n"
           cmd
     | "attack" ->
-        Lwt_main.run
-          (let* repo = Store.Repo.v config in
-           attack repo);
+        (let repo = Store.Repo.v config in
+         attack repo);
         Printf.printf
           "The VM has been attacked. Run `%s revert` to revert the VM state to \
            a safe one.\n"
           cmd
     | "revert" ->
-        Lwt_main.run
-          (let* repo = Store.Repo.v config in
-           revert repo)
+        let repo = Store.Repo.v config in
+        revert repo
     | _ -> help ()
+
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

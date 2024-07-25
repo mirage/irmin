@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Syntax
-
 let rm_dir data_dir =
   if Sys.file_exists data_dir then
     let cmd = Printf.sprintf "rm -rf %s" data_dir in
@@ -42,34 +40,34 @@ module Generator = struct
 
   let info = Store.Info.empty
 
-  let create_store ?(before_closing = fun _repo _head -> Lwt.return_unit)
-      indexing_strategy path =
+  let create_store ?(before_closing = fun _repo _head -> ()) indexing_strategy
+      path =
     rm_dir path;
     let large_contents = String.make 4096 'Z' in
-    let* rw = Store.Repo.v (config ~indexing_strategy path) in
+    let rw = Store.Repo.v (config ~indexing_strategy path) in
     let tree = Store.Tree.singleton [ "a"; "b1"; "c1"; "d1"; "e1" ] "x1" in
-    let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
-    let* tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
-    let* tree = Store.Tree.add tree [ "a"; "b2"; "c2"; "e3" ] "x2" in
-    let* c1 = Store.Commit.v rw ~parents:[] ~info tree in
+    let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d2"; "e2" ] "x2" in
+    let tree = Store.Tree.add tree [ "a"; "b1"; "c1"; "d3"; "e3" ] "x2" in
+    let tree = Store.Tree.add tree [ "a"; "b2"; "c2"; "e3" ] "x2" in
+    let c1 = Store.Commit.v rw ~parents:[] ~info tree in
 
-    let* tree = Store.Tree.add tree [ "a"; "b3" ] large_contents in
-    let* c2 = Store.Commit.v rw ~parents:[ Store.Commit.key c1 ] ~info tree in
+    let tree = Store.Tree.add tree [ "a"; "b3" ] large_contents in
+    let c2 = Store.Commit.v rw ~parents:[ Store.Commit.key c1 ] ~info tree in
 
-    let* tree = Store.Tree.remove tree [ "a"; "b1"; "c1" ] in
-    let* c3 = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
+    let tree = Store.Tree.remove tree [ "a"; "b1"; "c1" ] in
+    let c3 = Store.Commit.v rw ~parents:[ Store.Commit.key c2 ] ~info tree in
 
-    let* () = before_closing rw (Store.Commit.key c3) in
+    let () = before_closing rw (Store.Commit.key c3) in
 
-    let* _ = Store.Repo.close rw in
+    let _ = Store.Repo.close rw in
 
-    Lwt.return c3
+    c3
 
   let create_gced_store path =
     let before_closing repo head =
-      let* _ = Store.Gc.start_exn repo head in
-      let* _ = Store.Gc.wait repo in
-      Lwt.return_unit
+      let _ = Store.Gc.start_exn repo head in
+      let _ = Store.Gc.wait repo in
+      ()
     in
     create_store ~before_closing Irmin_pack.Indexing_strategy.minimal path
 
@@ -86,17 +84,17 @@ let ensure_data_dir () =
 
 let generate () =
   ensure_data_dir ();
-  let* _ =
+  let _ =
     Generator.create_store Irmin_pack.Indexing_strategy.minimal "data/minimal"
   in
-  let* _ =
+  let _ =
     Generator.create_store Irmin_pack.Indexing_strategy.always "data/always"
   in
-  let* _ = Generator.create_gced_store "data/gced" in
-  let* _ =
+  let _ = Generator.create_gced_store "data/gced" in
+  let _ =
     Generator.create_snapshot_store ~src:"data/snapshot_src"
       ~dest:"data/snapshot"
   in
-  Lwt.return_unit
+  ()
 
-let () = Lwt_main.run (generate ())
+let () = Eio_main.run @@ fun _env -> generate ()

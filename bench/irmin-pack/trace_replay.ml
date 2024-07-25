@@ -185,7 +185,7 @@ module Make (Store : Store) = struct
     let h_store = Hashtbl.find t.hash_corresps (unscope h_trace) in
     maybe_forget_hash t h_trace;
     Stat_collector.short_op_begin stats;
-    Store.Commit.of_key repo h_store >|= function
+    match Store.Commit.of_key repo h_store with
     | None -> failwith "prev commit not found"
     | Some commit ->
         let tree = Store.Commit.tree commit in
@@ -198,7 +198,7 @@ module Make (Store : Store) = struct
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
-    let+ tree = Store.Tree.add tree key v in
+    let tree = Store.Tree.add tree key v in
     Stat_collector.short_op_end stats `Add;
     Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
     maybe_forget_ctx t out_ctx_id
@@ -207,7 +207,7 @@ module Make (Store : Store) = struct
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
-    let+ tree = Store.Tree.remove tree keys in
+    let tree = Store.Tree.remove tree keys in
     Stat_collector.short_op_end stats `Remove;
     Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
     maybe_forget_ctx t out_ctx_id
@@ -216,20 +216,19 @@ module Make (Store : Store) = struct
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
-    Store.Tree.find_tree tree from >>= function
+    match Store.Tree.find_tree tree from with
     | None -> failwith "Couldn't find tree in exec_copy"
     | Some sub_tree ->
-        let* tree = Store.Tree.add_tree tree to_ sub_tree in
+        let tree = Store.Tree.add_tree tree to_ sub_tree in
         Stat_collector.short_op_end stats `Copy;
         Hashtbl.add t.contexts (unscope out_ctx_id) { tree };
-        maybe_forget_ctx t out_ctx_id;
-        Lwt.return_unit
+        maybe_forget_ctx t out_ctx_id
 
   let exec_find t stats n i keys b in_ctx_id =
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
-    let+ query = Store.Tree.find tree keys in
+    let query = Store.Tree.find tree keys in
     Stat_collector.short_op_end stats `Find;
     if Option.is_some query <> b then
       error_find "find" keys b i n (unscope in_ctx_id)
@@ -238,7 +237,7 @@ module Make (Store : Store) = struct
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
-    let+ b' = Store.Tree.mem tree keys in
+    let b' = Store.Tree.mem tree keys in
     Stat_collector.short_op_end stats `Mem;
     if b <> b' then error_find "mem" keys b i n (unscope in_ctx_id)
 
@@ -246,7 +245,7 @@ module Make (Store : Store) = struct
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
     Stat_collector.short_op_begin stats;
-    let+ b' = Store.Tree.mem_tree tree keys in
+    let b' = Store.Tree.mem_tree tree keys in
     Stat_collector.short_op_end stats `Mem_tree;
     if b <> b' then error_find "mem_tree" keys b i n (unscope in_ctx_id)
 
@@ -265,14 +264,14 @@ module Make (Store : Store) = struct
     List.iter (maybe_forget_hash t) parents_trace;
     let { tree } = Hashtbl.find t.contexts (unscope in_ctx_id) in
     maybe_forget_ctx t in_ctx_id;
-    let* () = Stat_collector.commit_begin stats tree in
-    let* _ =
+    let () = Stat_collector.commit_begin stats tree in
+    let _ =
       (* in tezos commits call Tree.list first for the unshallow operation *)
       Store.Tree.list tree []
     in
     let info = Store.Info.v ~author:"Tezos" ~message date in
-    let* commit = Store.Commit.v repo ~info ~parents:parents_store tree in
-    let+ () = Stat_collector.commit_end stats tree in
+    let commit = Store.Commit.v repo ~info ~parents:parents_store tree in
+    let () = Stat_collector.commit_end stats tree in
     Store.Tree.clear tree;
     let k_store, h_store = Store.Commit.(key commit, hash commit) in
     if check_hash then check_hash_trace (unscope h_trace) h_store;
@@ -290,30 +289,30 @@ module Make (Store : Store) = struct
     let rec aux l i =
       match l with
       | Def.Checkout (h, out_ctx_id) :: tl ->
-          let* () = exec_checkout t stats repo h out_ctx_id in
+          let () = exec_checkout t stats repo h out_ctx_id in
           aux tl (i + 1)
       | Add op :: tl ->
-          let* () =
+          let () =
             exec_add t stats op.key op.value op.in_ctx_id op.out_ctx_id
               empty_blobs
           in
           aux tl (i + 1)
       | Remove (keys, in_ctx_id, out_ctx_id) :: tl ->
-          let* () = exec_remove t stats keys in_ctx_id out_ctx_id in
+          let () = exec_remove t stats keys in_ctx_id out_ctx_id in
           aux tl (i + 1)
       | Copy op :: tl ->
-          let* () =
+          let () =
             exec_copy t stats op.key_src op.key_dst op.in_ctx_id op.out_ctx_id
           in
           aux tl (i + 1)
       | Find (keys, b, in_ctx_id) :: tl ->
-          let* () = exec_find t stats n i keys b in_ctx_id in
+          let () = exec_find t stats n i keys b in_ctx_id in
           aux tl (i + 1)
       | Mem (keys, b, in_ctx_id) :: tl ->
-          let* () = exec_mem t stats n i keys b in_ctx_id in
+          let () = exec_mem t stats n i keys b in_ctx_id in
           aux tl (i + 1)
       | Mem_tree (keys, b, in_ctx_id) :: tl ->
-          let* () = exec_mem_tree t stats n i keys b in_ctx_id in
+          let () = exec_mem_tree t stats n i keys b in_ctx_id in
           aux tl (i + 1)
       | [ Commit op ] ->
           exec_commit t stats repo op.hash op.date op.message op.parents
@@ -392,7 +391,9 @@ module Make (Store : Store) = struct
 
     let rec aux commit_seq i =
       match commit_seq () with
-      | Seq.Nil -> on_end () >|= fun () -> i
+      | Seq.Nil ->
+          on_end ();
+          i
       | Cons (ops, commit_seq) ->
           let really_wait_gc, really_start_gc, really_split, really_add_volume =
             gc_actions config i t.commits_since_start_or_gc t.gc_count
@@ -400,14 +401,13 @@ module Make (Store : Store) = struct
           (* Split before GC to simulate how it is inteded to be used. *)
           let () = if really_split then Store.split repo in
           let () = if really_add_volume then Store.add_volume repo in
-          let* () =
+          let () =
             if really_wait_gc then (
               [%logs.app
                 "Waiting gc while latest commit has idx %d" t.latest_commit_idx];
               Store.gc_wait repo)
-            else Lwt.return_unit
           in
-          let* () =
+          let () =
             if really_start_gc then (
               (* Starting GC.
 
@@ -441,14 +441,12 @@ module Make (Store : Store) = struct
                     [%logs.app
                       "Gc ended after %d commits; duration: %fs; \
                        finalise_duration: %fs"
-                      commit_duration duration finalise_duration];
-                    Lwt.return_unit
+                      commit_duration duration finalise_duration]
                 | Error s -> failwith s
               in
               Store.gc_run ~finished repo gc_commit_key)
-            else Lwt.return_unit
           in
-          let* () = add_operations t repo ops i stats check_hash empty_blobs in
+          let () = add_operations t repo ops i stats check_hash empty_blobs in
           t.latest_commit_idx <- i;
           let len0 = Hashtbl.length t.contexts in
           let len1 = Hashtbl.length t.hash_corresps in
@@ -456,7 +454,7 @@ module Make (Store : Store) = struct
             [%logs.app
               "\nAfter commit %6d we have %d/%d history sizes"
                 t.latest_commit_idx len0 len1];
-          let* () =
+          let () =
             on_commit t.latest_commit_idx
               (Hashtbl.find t.key_per_commit_idx t.latest_commit_idx
               |> Store.Backend.Commit.Key.to_hash)
@@ -467,7 +465,7 @@ module Make (Store : Store) = struct
     in
     aux commit_seq 0
 
-  let run : type a. _ -> a config -> a Lwt.t =
+  let run : type a. _ -> a config -> a =
    fun ext_config config ->
     let check_hash =
       config.path_conversion = `None
@@ -482,7 +480,7 @@ module Make (Store : Store) = struct
         config.path_conversion config.replay_trace_path
     in
     let root = Filename.concat config.artefacts_path "root" in
-    let* repo, on_commit, on_end = Store.create_repo ~root ext_config in
+    let repo, on_commit, on_end = Store.create_repo ~root ext_config in
     prepare_artefacts_dir config.artefacts_path;
     let stat_path = Filename.concat config.artefacts_path "stat_trace.repr" in
     let c =
@@ -501,24 +499,23 @@ module Make (Store : Store) = struct
     in
     let stats = Stat_collector.create_file stat_path c root in
     Irmin_pack.Stats.reset_stats ();
-    Lwt.finalize
+    Fun.protect
       (fun () ->
-        let* block_count =
+        let block_count =
           add_commits config repo commit_seq on_commit on_end stats check_hash
             config.empty_blobs
         in
         [%logs.app "Closing repo..."];
-        let+ () = Store.Repo.close repo in
+        let () = Store.Repo.close repo in
         Stat_collector.close stats;
         match config.return_type with
         | Unit -> (() : a)
         | Summary ->
             [%logs.app "Computing summary..."];
             Trace_stat_summary.summarise ~block_count stat_path)
-      (fun () ->
+      ~finally:(fun () ->
         if config.keep_stat_trace then (
           [%logs.app "Stat trace kept at %s" stat_path];
-          Unix.chmod stat_path 0o444;
-          Lwt.return_unit)
-        else Lwt.return (Stat_collector.remove stats))
+          Unix.chmod stat_path 0o444)
+        else Stat_collector.remove stats)
 end

@@ -15,7 +15,7 @@
  *)
 
 type remote_fn =
-  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
 module Server : sig
   module Remote : sig
@@ -32,7 +32,6 @@ module Server : sig
     Irmin_graphql.Server.S
       with type repo = S.repo
        and type server = Cohttp_lwt_unix.Server.t
-       and module IO = Cohttp_lwt_unix.IO
 
   module Make_ext
       (S : Irmin.Generic_key.S)
@@ -51,5 +50,4 @@ module Server : sig
     Irmin_graphql.Server.S
       with type repo = S.repo
        and type server = Cohttp_lwt_unix.Server.t
-       and module IO = Cohttp_lwt_unix.IO
 end

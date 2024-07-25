@@ -43,9 +43,5 @@ module Make
   val git_of_repo : Repo.t -> G.t
 
   val repo_of_git :
-    ?head:Git.Reference.t ->
-    ?bare:bool ->
-    ?lock:Lwt_mutex.t ->
-    G.t ->
-    Repo.t Lwt.t
+    ?head:Git.Reference.t -> ?bare:bool -> ?lock:Eio.Mutex.t -> G.t -> Repo.t
 end

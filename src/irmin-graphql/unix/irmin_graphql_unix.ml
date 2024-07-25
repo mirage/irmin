@@ -15,7 +15,7 @@
  *)
 
 type remote_fn =
-  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
 module Server = struct
   module Remote = struct

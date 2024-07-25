@@ -7,25 +7,18 @@
 
 (executable
  (name libirmin)
- (package libirmin)
- (public_name libirmin)
  (libraries libirmin_bindings)
- (modes
-  (native shared_object)
-  native)
+ (modes shared_object)
  (modules libirmin irmin_bindings)
  (foreign_stubs
   (language c)
-  (names irmin)))
+  (names irmin))
+ (flags
+  (:standard -w -unused-var-strict -ccopt "-Wl,-znow")))
 
 (install
  (package libirmin)
  (section lib)
  (files
   (irmin.h as include/irmin.h)
-  (libirmin.so as lib/libirmin.so)))
-
-(env
- (dev
-  (flags
-   (:standard -w -unused-var-strict))))
+  (libirmin%{ext_dll} as lib/libirm%{ext_dll})))

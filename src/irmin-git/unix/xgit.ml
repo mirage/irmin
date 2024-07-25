@@ -21,7 +21,8 @@ let src = Logs.Src.create "git.unix" ~doc:"logs git's unix events"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let remote ?ctx ?headers uri =
+let remote ?ctx ?headers uri () =
+  Lwt_eio.run_lwt @@ fun () ->
   let+ ctx =
     match ctx with
     | Some x -> Lwt.return x
@@ -58,24 +59,24 @@ module Maker (G : Irmin_git.G) = struct
   struct
     include Maker.S.Make (S)
 
-    let remote ?ctx ?headers uri =
-      let+ e = remote ?ctx ?headers uri in
+    let remote ?ctx ?headers uri () =
+      let e = remote ?ctx ?headers uri () in
       E e
   end
 
   module KV (C : Irmin.Contents.S) = struct
     include Maker.KV.Make (C)
 
-    let remote ?ctx ?headers uri =
-      let+ e = remote ?ctx ?headers uri in
+    let remote ?ctx ?headers uri () =
+      let e = remote ?ctx ?headers uri () in
       E e
   end
 
   module Ref (C : Irmin.Contents.S) = struct
     include Maker.Ref.Make (C)
 
-    let remote ?ctx ?headers uri =
-      let+ e = remote ?ctx ?headers uri in
+    let remote ?ctx ?headers uri () =
+      let e = remote ?ctx ?headers uri () in
       E e
   end
 end
