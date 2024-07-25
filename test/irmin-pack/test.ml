@@ -16,7 +16,13 @@
 
 let () =
   Eio_main.run @@ fun env ->
+  let sr = Eio.Stdenv.secure_random env in
+  let fs = Eio.Stdenv.cwd env in
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  (* **/** *)
+  Eio.Switch.run @@ fun sw ->
+  let test_suite = Test_pack.suite ~sw ~fs in
   Irmin_test.Store.run "irmin-pack"
-    ~misc:(Test_pack.misc @@ Eio.Stdenv.domain_mgr env)
+    ~misc:(Test_pack.misc ~sr ~fs ~domain_mgr)
     ~sleep:Eio_unix.sleep
-    (List.map (fun s -> (`Quick, s)) Test_pack.suite)
+    (List.map (fun s -> (`Quick, s)) test_suite)

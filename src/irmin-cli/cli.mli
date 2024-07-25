@@ -16,7 +16,10 @@
 
 (** CLI commands. *)
 
-type command = (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+type eio = Import.eio
+
+type command =
+  env:eio -> (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
 (** [Cmdliner] commands. *)
 
 val default : command
@@ -38,5 +41,5 @@ type sub = {
 }
 (** Subcommand. *)
 
-val create_command : sub -> command
+val create_command : (env:eio -> sub) -> command
 (** Build a subcommand. *)

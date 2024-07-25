@@ -1,6 +1,6 @@
 open! Import
 
-let test_dir = Filename.concat "_build" "test-pack-trace-replay"
+let test_dir fs = Eio.Path.(fs / "_build" / "test-pack-trace-replay")
 
 let () =
   Logs.set_level (Some Logs.Debug);
@@ -16,14 +16,12 @@ module Store = struct
 
   type key = commit_key
 
-  let create_repo ~root () =
+  let create_repo ~sw ~fs ~root () =
     (* make sure the parent dir exists *)
-    let () =
-      match Sys.file_exists (Filename.dirname root) with
-      | false -> Unix.mkdir (Filename.dirname root) 0o755
-      | true -> ()
-    in
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
+    let dirname, _ = Option.get (Eio.Path.split root) in
+    if Eio.Path.kind ~follow:false dirname = `Not_found then
+      Eio.Path.mkdir ~perm:0o755 dirname;
+    let conf = Irmin_pack.config ~sw ~fs ~readonly:false ~fresh:true root in
     let repo = Store.Repo.v conf in
     let on_commit _ _ = () in
     let on_end () = () in
@@ -33,13 +31,13 @@ module Store = struct
     let r = Store.Gc.wait repo in
     match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ?(finished = fun _ -> ()) repo key =
+  let gc_run ~fs ~domain_mgr ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let launched = Store.Gc.run ~finished:f repo key in
+    let launched = Store.Gc.run ~fs ~domain_mgr ~finished:f repo key in
     match launched with
     | Ok true -> ()
     | Ok false -> [%logs.app "GC skipped"]
@@ -63,23 +61,19 @@ let goto_project_root () =
       Unix.chdir (Fpath.to_string root)
   | _ -> ()
 
-let setup_env () =
+let setup_env ~fs =
   goto_project_root ();
   let trace_path =
-    let open Fpath in
-    v "test" / "irmin-bench" / "data" / "tezos_actions_1commit.repr"
-    |> to_string
+    Eio.Path.(
+      fs / "test" / "irmin-bench" / "data" / "tezos_actions_1commit.repr")
   in
-  assert (Sys.file_exists trace_path);
-  if Sys.file_exists test_dir then (
-    let cmd = Printf.sprintf "rm -rf %s" test_dir in
-    [%logs.debug "exec: %s\n%!" cmd];
-    let _ = Sys.command cmd in
-    ());
+  let test_dir = test_dir fs in
+  if Eio.Path.kind ~follow:false test_dir <> `Not_found then
+    Eio.Path.rmtree test_dir;
   trace_path
 
-let replay_1_commit () =
-  let trace_path = setup_env () in
+let replay_1_commit ~fs ~domain_mgr () =
+  let trace_path = setup_env ~fs in
   let replay_config : _ Replay.config =
     {
       number_of_commits_to_replay = 1;
@@ -87,7 +81,7 @@ let replay_1_commit () =
       inode_config = (Conf.entries, Conf.stable_hash);
       store_type = `Pack;
       replay_trace_path = trace_path;
-      artefacts_path = test_dir;
+      artefacts_path = test_dir fs;
       keep_store = false;
       keep_stat_trace = false;
       empty_blobs = false;
@@ -98,7 +92,7 @@ let replay_1_commit () =
       add_volume_every = 0;
     }
   in
-  let summary = Replay.run () replay_config in
+  let summary = Replay.run ~fs ~domain_mgr () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   let check name = Alcotest.(check int) ("Stats_counters" ^ name) in
@@ -134,8 +128,8 @@ module Store_mem = struct
 
   type key = commit_key
 
-  let create_repo ~root () =
-    let conf = Irmin_pack.config ~readonly:false ~fresh:true root in
+  let create_repo ~sw ~fs ~root () =
+    let conf = Irmin_pack.config ~sw ~fs ~readonly:false ~fresh:true root in
     let repo = Store.Repo.v conf in
     let on_commit _ _ = () in
     let on_end () = () in
@@ -144,13 +138,13 @@ module Store_mem = struct
   let split _repo = ()
   let add_volume _repo = ()
   let gc_wait _repo = ()
-  let gc_run ?finished:_ _repo _key = ()
+  let gc_run ~fs:_ ~domain_mgr:_ ?finished:_ _repo _key = ()
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)
 
-let replay_1_commit_mem () =
-  let trace_path = setup_env () in
+let replay_1_commit_mem ~fs ~domain_mgr () =
+  let trace_path = setup_env ~fs in
   let replay_config : _ Irmin_traces.Trace_replay.config =
     {
       number_of_commits_to_replay = 1;
@@ -158,7 +152,7 @@ let replay_1_commit_mem () =
       inode_config = (Conf.entries, Conf.stable_hash);
       store_type = `Pack;
       replay_trace_path = trace_path;
-      artefacts_path = test_dir;
+      artefacts_path = test_dir fs;
       keep_store = false;
       keep_stat_trace = false;
       empty_blobs = false;
@@ -169,17 +163,17 @@ let replay_1_commit_mem () =
       add_volume_every = 0;
     }
   in
-  let summary = Replay_mem.run () replay_config in
+  let summary = Replay_mem.run ~fs ~domain_mgr () replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   ()
 
-let test_cases =
+let test_cases ~fs ~domain_mgr =
   let tc msg f = Alcotest.test_case msg `Quick f in
   [
     ( "replay",
       [
-        tc "replay_1_commit" replay_1_commit;
-        tc "replay_1_commit_in_memory" replay_1_commit_mem;
+        tc "replay_1_commit" (replay_1_commit ~fs ~domain_mgr);
+        tc "replay_1_commit_in_memory" (replay_1_commit_mem ~fs ~domain_mgr);
       ] );
   ]

@@ -17,16 +17,22 @@
 open! Import
 open Common
 
-let ( / ) = Filename.concat
-let archive_v2_minimal = "test" / "irmin-pack" / "data" / "version_2_minimal"
-let archive_v2_always = "test" / "irmin-pack" / "data" / "version_2_always"
-let archive_v3_minimal = "test" / "irmin-pack" / "data" / "version_3_minimal"
-let archive_v3_always = "test" / "irmin-pack" / "data" / "version_3_always"
+let archive_v2_minimal ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_2_minimal")
 
-let archive_v3_minimal_gced =
-  "test" / "irmin-pack" / "data" / "version_3_minimal_gced"
+let archive_v2_always ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_2_always")
 
-let root_local_build = "_build" / "test-upgrade"
+let archive_v3_minimal ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_minimal")
+
+let archive_v3_always ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_always")
+
+let archive_v3_minimal_gced ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_minimal_gced")
+
+let root_local_build ~fs = Eio.Path.(fs / "_build" / "test-upgrade")
 
 type pack_entry = {
   h : Schema.Hash.t;
@@ -239,15 +245,15 @@ module Store = struct
     let lru_size = setup.lru_size in
     Irmin_pack.config ~readonly ~indexing_strategy ~lru_size ~fresh root
 
-  let v setup ~readonly ~fresh root =
-    S.Repo.v (config setup ~readonly ~fresh root)
+  let v ~sw ~fs setup ~readonly ~fresh root =
+    S.Repo.v (config ~sw ~fs setup ~readonly ~fresh root)
 
   let close = S.Repo.close
   let reload = S.reload
 
-  let gc repo =
+  let gc ~fs ~domain_mgr repo =
     let k = key_of_entry c1 in
-    let launched = S.Gc.start_exn ~unlink:true repo k in
+    let launched = S.Gc.start_exn ~fs ~domain_mgr ~unlink:true repo k in
     assert launched;
     let result = S.Gc.finalise_exn ~wait:true repo in
     match result with
@@ -452,26 +458,27 @@ let check t =
       check_suffix repo model)
     (Option.to_list t.ro @ Option.to_list t.rw)
 
-let create_test_env setup =
+let create_test_env ~fs setup =
+  let root_local_build = root_local_build ~fs in
   rm_dir root_local_build;
   let () =
     match setup.start_mode with
     | From_scratch -> ()
     | From_v2 ->
         let root_archive =
-          if setup.indexing_strategy = `always then archive_v2_always
-          else archive_v2_minimal
+          if setup.indexing_strategy = `always then archive_v2_always ~fs
+          else archive_v2_minimal ~fs
         in
         setup_test_env ~root_archive ~root_local_build
     | From_v3 ->
         let root_archive =
-          if setup.indexing_strategy = `always then archive_v3_always
-          else archive_v3_minimal
+          if setup.indexing_strategy = `always then archive_v3_always ~fs
+          else archive_v3_minimal ~fs
         in
         setup_test_env ~root_archive ~root_local_build
     | From_v3_c0_gced ->
         let root_archive =
-          if setup.indexing_strategy = `minimal then archive_v3_minimal_gced
+          if setup.indexing_strategy = `minimal then archive_v3_minimal_gced ~fs
           else assert false
         in
         setup_test_env ~root_archive ~root_local_build
@@ -480,7 +487,7 @@ let create_test_env setup =
   { setup; rw = None; ro = None }
 
 (** One of the 4 rw mutations *)
-let start_rw t =
+let start_rw ~sw ~fs t =
   [%logs.app "*** start_rw %a" pp_setup t.setup];
   let rw =
     match t.rw with
@@ -496,7 +503,8 @@ let start_rw t =
           | From_scratch -> Model.v t.setup
         in
         let repo =
-          Store.v t.setup ~readonly:false ~fresh:false root_local_build
+          Store.v ~sw ~fs t.setup ~readonly:false ~fresh:false
+            (root_local_build ~fs)
         in
         (model, repo)
   in
@@ -522,7 +530,7 @@ let write1_rw t =
       ()
 
 (** One of the 4 rw mutations *)
-let gc_rw t =
+let gc_rw ~fs ~domain_mgr t =
   [%logs.app "*** gc_rw %a" pp_setup t.setup];
   match t.rw with
   | None -> assert false
@@ -535,10 +543,11 @@ let gc_rw t =
               Alcotest.check_raises "GC on V2/always"
                 (Irmin_pack_unix.Errors.Pack_error
                    (`Gc_disallowed "Store does not support GC"))
-                (fun () -> Store.gc repo)
+                (fun () -> Store.gc ~fs ~domain_mgr repo)
             in
             raise Skip_the_rest_of_that_test
-        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal -> Store.gc repo
+        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal ->
+            Store.gc ~fs ~domain_mgr repo
       in
       ()
 
@@ -553,7 +562,7 @@ let write2_rw t =
       ()
 
 (** One of the 2 ro mutations *)
-let open_ro t current_phase =
+let open_ro ~sw ~fs t current_phase =
   [%logs.app "*** open_ro %a, %a" pp_setup t.setup pp_phase current_phase];
   let ro =
     match t.ro with
@@ -581,7 +590,8 @@ let open_ro t current_phase =
             Alcotest.check_raises "open empty/V2 store in RO"
               (Irmin_pack_unix.Errors.Pack_error error) (fun () ->
                 let repo =
-                  Store.v t.setup ~readonly:true ~fresh:false root_local_build
+                  Store.v ~sw ~fs t.setup ~readonly:true ~fresh:false
+                    (root_local_build ~fs)
                 in
                 Store.close repo)
           in
@@ -591,12 +601,14 @@ let open_ro t current_phase =
           match (t.setup.start_mode, current_phase) with
           | From_scratch, S1_before_start ->
               let missing_path =
-                Irmin_pack.Layout.V1_and_v2.pack ~root:root_local_build
+                Irmin_pack.Layout.V1_and_v2.pack ~root:(root_local_build ~fs)
               in
-              fail_and_skip (`No_such_file_or_directory missing_path)
+              fail_and_skip
+                (`No_such_file_or_directory (Eio.Path.native_exn missing_path))
           | From_v2, S1_before_start -> fail_and_skip `Migration_needed
           | (From_v2 | From_v3 | From_v3_c0_gced | From_scratch), _ ->
-              Store.v t.setup ~readonly:true ~fresh:false root_local_build
+              Store.v ~sw ~fs t.setup ~readonly:true ~fresh:false
+                (root_local_build ~fs)
         in
         (model, repo)
   in
@@ -623,29 +635,30 @@ let close_everything t =
     (fun (_, repo) -> Store.close repo)
     (Option.to_list t.ro @ Option.to_list t.rw)
 
-let test_one t ~ro_open_at ~ro_sync_at =
+let test_one ~domain_mgr ~fs t ~ro_open_at ~ro_sync_at =
+  Eio.Switch.run @@ fun sw ->
   let aux phase =
     let () = check t in
-    let () = if ro_open_at = phase then open_ro t phase else () in
+    let () = if ro_open_at = phase then open_ro ~sw ~fs t phase else () in
     let () = check t in
     if ro_sync_at = phase then sync_ro t phase;
     check t
   in
 
   let () = aux S1_before_start in
-  let () = start_rw t in
+  let () = start_rw ~sw ~fs t in
   let () = aux S2_before_write in
   let () = write1_rw t in
   let () = aux S3_before_gc in
-  let () = gc_rw t in
+  let () = gc_rw ~domain_mgr ~fs t in
   let () = aux S4_before_write in
   let () = write2_rw t in
   aux S5_before_close
 
-let test_one_guarded setup ~ro_open_at ~ro_sync_at =
-  let t = create_test_env setup in
+let test_one_guarded ~domain_mgr ~fs setup ~ro_open_at ~ro_sync_at =
+  let t = create_test_env ~fs setup in
   try
-    let () = test_one t ~ro_open_at ~ro_sync_at in
+    let () = test_one ~domain_mgr ~fs t ~ro_open_at ~ro_sync_at in
     close_everything t
   with
   | Skip_the_rest_of_that_test ->
@@ -655,9 +668,9 @@ let test_one_guarded setup ~ro_open_at ~ro_sync_at =
 
 (** All possible interleaving of the ro calls (open and sync) with the rw calls
     (open, write1, gc and write2). *)
-let test start_mode indexing_strategy lru_size =
+let test ~domain_mgr ~fs start_mode indexing_strategy lru_size =
   let setup = { start_mode; indexing_strategy; lru_size } in
-  let t = test_one_guarded setup in
+  let t = test_one_guarded ~domain_mgr ~fs setup in
 
   let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S1_before_start in
   let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S2_before_write in
@@ -681,22 +694,24 @@ let test start_mode indexing_strategy lru_size =
   ()
 
 (** Product on lru_size *)
-let test start_mode indexing_strategy =
-  test start_mode indexing_strategy 0;
-  test start_mode indexing_strategy 100
+let test ~domain_mgr ~fs start_mode indexing_strategy =
+  test ~domain_mgr ~fs start_mode indexing_strategy 0;
+  test ~domain_mgr ~fs start_mode indexing_strategy 100
 
-let test_gced_store () = test From_v3_c0_gced `minimal
+let test_gced_store ~domain_mgr () = test ~domain_mgr From_v3_c0_gced `minimal
 
 (** Product on indexing_strategy *)
-let test start_mode () =
-  test start_mode `minimal;
-  test start_mode `always
+let test ~fs ~domain_mgr start_mode () =
+  test ~fs ~domain_mgr start_mode `minimal;
+  test ~fs ~domain_mgr start_mode `always
 
 (** Product on start_mode *)
-let tests =
+let tests ~fs ~domain_mgr =
   [
-    Alcotest.test_case "upgrade From_v3" `Quick (test From_v3);
-    Alcotest.test_case "upgrade From_v2" `Quick (test From_v2);
-    Alcotest.test_case "upgrade From_scratch" `Quick (test From_scratch);
-    Alcotest.test_case "upgrade From_v3 after Gc" `Quick test_gced_store;
+    Alcotest.test_case "upgrade From_v3" `Quick (test ~fs ~domain_mgr From_v3);
+    Alcotest.test_case "upgrade From_v2" `Quick (test ~fs ~domain_mgr From_v2);
+    Alcotest.test_case "upgrade From_scratch" `Quick
+      (test ~fs ~domain_mgr From_scratch);
+    Alcotest.test_case "upgrade From_v3 after Gc" `Quick
+      (test_gced_store ~fs ~domain_mgr);
   ]
