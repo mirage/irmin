@@ -22,6 +22,8 @@ depends: [
   "uutf"
   "jsonm"   {>= "1.0.0"}
   "eio"     {>= "1.0"}
+  "kcas"    {= "dev"}
+  "kcas_data" {= "dev"}
   "lwt"     {>= "5.6.1"}
   "digestif" {>= "0.9.0"}
   "ocamlgraph"
@@ -41,6 +43,12 @@ depends: [
 ]
 
 pin-depends: [
+  # Fix segv in kcas
+  [ "kcas.dev" "git+https://git@github.com/ocaml-multicore/kcas#5f3a39dfc72189e2b83f96c3754d402d5e7d6bc5"]
+  [ "kcas_data.dev" "git+https://git@github.com/ocaml-multicore/kcas#5f3a39dfc72189e2b83f96c3754d402d5e7d6bc5"]
+  # Metrics may have been unnecessarily constrained in opam-repository
+  [ "metrics.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
+  [ "metrics-unix.dev" "git+https://github.com/mirage/metrics#995eb18d2837df02c8ead719c00fb156cf475ab5"]
   # Fix race in formatters
   [ "alcotest.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
 ]
