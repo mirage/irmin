@@ -87,7 +87,7 @@ type t = Spec.t * Univ.t M.t
 
 let spec = fst
 
-let key ?docs ?docv ?doc ?(allow_duplicate = false) ~spec name ty default =
+let key ?docs ?docv ?doc ~spec name ty default =
   let () =
     String.iter
       (function
@@ -96,8 +96,7 @@ let key ?docs ?docv ?doc ?(allow_duplicate = false) ~spec name ty default =
       name
   in
   match Spec.find_key spec name with
-  | Some _ when allow_duplicate = false ->
-      Fmt.invalid_arg "duplicate key: %s" name
+  | Some _ -> Fmt.invalid_arg "duplicate key: %s" name
   | _ ->
       let to_univ, of_univ = Univ.create () in
       let k = { name; ty; default; to_univ; of_univ; doc; docv; docs } in
@@ -166,9 +165,8 @@ let equal t1 t2 =
 
 (* ~root *)
 let root spec =
-  key ~allow_duplicate:true ~spec ~docv:"ROOT"
-    ~doc:"The location of the Irmin store on disk." ~docs:"COMMON OPTIONS"
-    "root"
+  key ~spec ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
+    ~docs:"COMMON OPTIONS" "root"
     Type.(string)
     "."
 
