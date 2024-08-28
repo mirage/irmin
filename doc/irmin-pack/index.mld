@@ -1,4 +1,4 @@
-{0 irmin-pack}
+{0 [irmin-pack]}
 
 The [irmin-pack] package provides a space-optimised, on-disk backend inspired by {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}.
 
