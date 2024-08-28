@@ -1,8 +1,8 @@
 {0 irmin-pack}
 
-The [irmin-pack] package provides a space-optimized, on-disk backend inspired by {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}.
+The [irmin-pack] package provides a space-optimised, on-disk backend inspired by {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}.
 
-[irmin-pack] is designed and developed for a specific use-case and requires more in-depth backend configuration from applications. It offers additional functionality through extensions to the core Irmin API, but users interested in a more general Irmin backend with simpler configuration are recommended to use other backend such as {!Irmin_fs} or {!Irmin_git}.
+[irmin-pack] is designed and developed for a specific use-case and requires more in-depth backend configuration from applications. It offers additional functionality through extensions to the core Irmin API, but users interested in a more general Irmin backend with simpler configuration are recommended to use other backends, such as {!Irmin_fs} or {!Irmin_git}.
 
 See [examples/irmin-pack] for examples of how to configure and use some of the additional functionality.
 
@@ -12,8 +12,8 @@ The entry point of this library is the module {!module:Irmin_pack}.
 
 {2 [irmin-pack.mem]}
 
-The entry point of this library is the module {!module:Irmin_pack_mem}.
+The module {!module:Irmin_pack_mem} is this library's entry point.
 
 {2 [irmin-pack.unix]}
 
-The entry point of this library is the module {!module:Irmin_pack_unix}.
+The module {!module:Irmin_pack_unix} is this library's entry point.
