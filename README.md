@@ -59,7 +59,7 @@ It defines algorithms for efficient synchronisation of those
 distributed low-level constructs. It also builds a collection of
 higher-level data structures that developers can use without knowing
 precisely how Irmin works underneath. Some of these components even
-have [formal semantics][], including [Conflict-Free Replicated
+have [formal semantics][], including [Conflict-free Replicated
 Data-Types (CRDT)][]. Since it's a part of MirageOS, Irmin does not
 make strong assumptions about the OS environment, which makes the system
 very portable. It works well for in-memory databases
