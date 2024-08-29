@@ -75,7 +75,7 @@ organisations. External maintainers and contributors are welcome.
 [formal semantics]: https://kcsrk.info/papers/banyan_aplas20.pdf
 [Conflict-free Replicated Data-Types (CRDT)]: https://arxiv.org/abs/2203.14518
 [Tarides]: https://tarides.com
-[Contributors]: https://github.com/mirage/irmin/graphs/contributors
+[contributors]: https://github.com/mirage/irmin/graphs/contributors
 
 <div class="toc">
 
