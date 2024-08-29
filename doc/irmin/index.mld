@@ -1,6 +1,6 @@
 {0 Irmin}
 
-[Irmin] is a distributed database built on the same principles as {{:https://git-scm.com} Git}. Specifically designed for [the MiragoOS ecosystem](https://mirage.io/), it can be used as an OCaml library that provides persistent stores with built-in snapshot, branching, merging, history trackig, and reverting mechanisms, similar to a version control system like Git, but for data rather than code.
+[Irmin] is a distributed database built on the same principles as {{:https://git-scm.com} Git}. It can be used as an OCaml library that provides persistent stores with built-in snapshot, branching, merging, history tracking, and reverting mechanisms, similar to a version control system like Git, but for data rather than code.
 
 {e Release %%VERSION%% - %%HOMEPAGE%%}
 
