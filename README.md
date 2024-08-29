@@ -72,8 +72,8 @@ organisations. External maintainers and contributors are welcome.
 
 [MirageOS]: https://mirage.io
 [CAP Theorem]: http://en.wikipedia.org/wiki/CAP_theorem
-[Formal Semantics]: https://kcsrk.info/papers/banyan_aplas20.pdf
-[Conflict-Free Replicated Data-Types (CRDT)]: https://arxiv.org/abs/2203.14518
+[formal semantics]: https://kcsrk.info/papers/banyan_aplas20.pdf
+[Conflict-free Replicated Data-Types (CRDT)]: https://arxiv.org/abs/2203.14518
 [Tarides]: https://tarides.com
 [Contributors]: https://github.com/mirage/irmin/graphs/contributors
 
