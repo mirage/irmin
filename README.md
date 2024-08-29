@@ -35,7 +35,7 @@ and includes similar functions to Git (clone, push, pull, branch,
 rebase). The Git workflow was initially designed for humans to manage
 changes within source code. Irmin scales this to handle automatic
 programs performing a very high number of operations per second, with
-fully-automated conflixt handling.
+fully-automated conflict handling.
 
 Irmin is highly customisable. Users can define their types to
 store application-specific values. They can also define custom storage layers (in
