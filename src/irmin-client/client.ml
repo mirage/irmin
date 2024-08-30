@@ -527,7 +527,6 @@ struct
 
   let clone ~src ~dst =
     let repo = repo src in
-    let* repo = dup repo in
     let* () =
       Head.find src >>= function
       | None -> Branch.remove repo dst

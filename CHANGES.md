@@ -1,3 +1,14 @@
+## Unreleased
+
+### Added
+
+### Fixed
+
+- **irmin-client**
+  - Fix a fd lead when using `clone` (#2322, @samoht)
+
+### Removed
+
 ## 3.9.0 (2023-10-05)
 
 ### Added
