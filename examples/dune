@@ -20,6 +20,7 @@
   irmin-graphql.unix
   irmin-pack.unix
   irmin-watcher
+  mirage-crypto-rng.unix
   websocket-lwt-unix
   conduit-lwt-unix
   lwt

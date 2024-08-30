@@ -16,6 +16,7 @@
 
 open Lwt.Syntax
 
+let () = Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna)
 let info = Irmin_git_unix.info
 
 let path =
