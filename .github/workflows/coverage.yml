@@ -1,33 +1,53 @@
 name: coverage
 
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - main
+  schedule:
+    # Prime the caches every Monday
+    - cron: 0 1 * * MON
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    if: github.repository_owner == 'mirage'
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 5.1.x
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout tree
-        uses: actions/checkout@v4
+      - name: Set git to use LF
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
 
-      - name: Set-up OCaml
-        uses: ocaml/setup-ocaml@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          ocaml-compiler: "4.14"
-          opam-local-packages: $${ matrix.opam-local-packages }}
+          fetch-depth: 0
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install Opam dependencies
-        run: |
-          opam install . --deps-only --with-test
-          opam install bisect_ppx
+        run: opam install . --with-test --deps-only
+
+      - name: Build
+        run: opam exec -- dune build
 
       - name: Run tests with coverage instrumentation
         run: opam exec -- dune runtest --instrument-with bisect_ppx
 
       - name: Send coverage report to Codecov
-        if: github.repository_owner == 'mirage'
-        run: opam exec -- bisect-ppx-report send-to Codecov
+        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
         env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}
