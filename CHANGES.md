@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Added
+
+- **irmin-git**
+  - Expose `Content_addressable` type (#2329, @art-w)
+
 ### Fixed
 
 - **irmin-client**
