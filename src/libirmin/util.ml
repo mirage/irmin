@@ -49,7 +49,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     match Lwt.poll x with
     | Some x -> x
     | None ->
-        let () = Lwt_engine.iter true in
+        let () = Lwt_engine.iter false in
         run x
 
   module Root = struct
