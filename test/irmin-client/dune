@@ -9,4 +9,6 @@
   conduit-lwt-unix
   alcotest-lwt
   irmin-test
-  irmin-watcher))
+  irmin-watcher)
+ (enabled_if
+  (<> %{system} "freebsd")))
