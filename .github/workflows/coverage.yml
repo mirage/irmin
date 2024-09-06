@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
   schedule:
     # Prime the caches every Monday
     - cron: 0 1 * * MON
@@ -17,9 +16,8 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-        packages: [ '.' ]
         ocaml-compiler:
-          - 4.13.x
+          - 5.1.x
 
     runs-on: ${{ matrix.os }}
 
@@ -30,38 +28,26 @@ jobs:
           git config --global core.eol lf
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Use OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          opam-local-packages: $${ matrix.opam-local-packages }}
-          opam-depext-flags: --with-test
-
-      - name: Pin local packages
-        run: |
-          # Pin all local opam files to avoid internal conflicts
-          # 
-          # TODO: replace with `opam pin --with-version` when Opam 2.1 is
-          # available via `setup-ocaml`.
-          find . -maxdepth 1 -name '*.opam' -printf '%P\n' |\
-              cut -d. -f1 |\
-              xargs -I{} -n 1 opam pin add {}.dev ./ -n
-
-      - name: Install depexts
-        run: |
-          find . -maxdepth 1 -name '*.opam' -printf '%P\n' |\
-             cut -d. -f1 |\
-             xargs opam depext --update -y
 
       - name: Install Opam dependencies
-        run: opam install ${{ matrix.packages }} --with-test --deps-only
+        run: opam install . --with-test --deps-only
+
+      - name: Build
+        run: opam exec -- dune build
 
       - name: Run tests with coverage instrumentation
         run: opam exec -- dune runtest --instrument-with bisect_ppx
 
       - name: Send coverage report to Codecov
-        run: opam exec -- bisect-ppx-report send-to Codecov
+        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
         env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           PULL_REQUEST_NUMBER: ${{ github.event.number }}

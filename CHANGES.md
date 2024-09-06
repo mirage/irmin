@@ -6,6 +6,8 @@
 
 - **irmin-client**
   - Fix a fd lead when using `clone` (#2322, @samoht)
+- **irmin**
+  - Fix CI, update dependencies (#2321, @smorimoto)
 
 ### Removed
 

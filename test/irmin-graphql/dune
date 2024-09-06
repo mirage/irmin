@@ -16,4 +16,6 @@
  (alias runtest)
  (package irmin-graphql)
  (action
-  (run ./test.exe -q --color=always)))
+  (run ./test.exe -q --color=always))
+ (enabled_if
+  (<> %{system} "freebsd")))
