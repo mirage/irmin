@@ -5,9 +5,12 @@
 ### Fixed
 
 - **irmin-client**
-  - Fix a fd lead when using `clone` (#2322, @samoht)
+  - Fix a fd leak when using `clone` (#2322, @samoht)
+- **irmin-git**
+  - Fix git sync example (#2327, @art-w)
 - **irmin**
   - Fix CI, update dependencies (#2321, @smorimoto)
+  - Update documentation (#2323, #2324, #2325, @christinerose)
 
 ### Removed
 
