@@ -11,6 +11,8 @@
 - **irmin**
   - Fix CI, update dependencies (#2321, @smorimoto)
   - Update documentation (#2323, #2324, #2325, @christinerose)
+- **irmin-cli**
+  - Fix uncaught exception (#2326, @art-w)
 
 ### Removed
 
