@@ -110,7 +110,8 @@ module Content_addressable (G : Git.S) = struct
     let v ?dotgit:_ _root = assert false
   end
 
-  module type S = Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
+  module type S =
+    Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
 
   module Maker = Maker_ext (G) (No_sync)
 

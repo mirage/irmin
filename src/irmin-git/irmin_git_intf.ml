@@ -116,7 +116,8 @@ module type Sigs = sig
     (** Use Git as a content-addressable store. Values will be stored into
         [.git/objects].*)
 
-    module type S = Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
+    module type S =
+      Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
 
     module Make (V : Irmin.Type.S) : S with type value = V.t
   end
