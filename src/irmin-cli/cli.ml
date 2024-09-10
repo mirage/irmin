@@ -976,8 +976,10 @@ let commands = List.map create_command commands
 
 let run ~default:x y =
   Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let cwd = Eio.Stdenv.cwd env in
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw cwd Irmin_watcher.hook;
   Eio.Switch.run @@ fun sw ->
   let env =
     object

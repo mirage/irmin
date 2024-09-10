@@ -17,8 +17,6 @@
 open Lwt.Syntax
 open Irmin_server
 
-let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
-
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;

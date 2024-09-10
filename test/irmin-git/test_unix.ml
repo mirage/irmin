@@ -14,10 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [ ("misc", Test_git.misc Test_git_unix.store) ]
-let suites = [ (`Quick, Test_git_unix.suite) ]
+let misc ~sw ~path =
+  [ ("misc", Test_git.misc @@ Test_git_unix.store ~sw ~path) ]
+
+let suites ~sw ~path = [ (`Quick, Test_git_unix.suite ~sw ~path) ]
 
 let () =
   Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let path = Eio.Stdenv.cwd env in
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  Irmin_test.Store.run "irmin-git.unix" ~misc ~sleep:Eio_unix.sleep suites
+  Irmin_test.Store.run "irmin-git.unix" ~misc:(misc ~sw ~path)
+    ~sleep:Eio_unix.sleep (suites ~sw ~path)

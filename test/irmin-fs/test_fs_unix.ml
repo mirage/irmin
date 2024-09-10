@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let stats () =
-  let stats = Irmin_watcher.stats () in
+let stats ~sw () =
+  let stats = Irmin_watcher.stats ~sw () in
   (stats.Irmin_watcher.watchdogs, Irmin.Backend.Watch.workers ())
 
 let test_db = Test_fs.test_db
@@ -30,14 +30,15 @@ let clean_dirs config =
     let _ = Sys.command cmd in
     ()
 
-let init ~config =
+let init ~sw ~path ~config =
   clean_dirs config;
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw path Irmin_watcher.hook
 
 let clean ~config =
   clean_dirs config;
   Irmin.Backend.Watch.(set_listen_dir_hook none)
 
-let suite ~path ~clock =
+let suite ~sw ~path ~clock =
   let config = Irmin_fs_unix.conf ~path ~clock in
-  Irmin_test.Suite.create ~name:"FS.UNIX" ~init ~store ~config ~clean ~stats ()
+  Irmin_test.Suite.create ~name:"FS.UNIX" ~init:(init ~sw ~path) ~store ~config
+    ~clean ~stats:(stats ~sw) ()

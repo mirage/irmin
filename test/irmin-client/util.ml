@@ -23,7 +23,7 @@ let test name f client _switch () =
   Logs.debug (fun l -> l "Running: %s" name);
   f client
 
-let run_server ~sw ~clock s =
+let run_server ~sw ~path ~clock s =
   let kind, uri =
     match s with
     | `Websocket -> ("Websocket", Uri.of_string "ws://localhost:90991")
@@ -36,7 +36,9 @@ let run_server ~sw ~clock s =
   let stop, set_stop = Lwt.wait () in
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
   Eio.Fiber.fork_daemon ~sw (fun () ->
-      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
+      let () =
+        Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw path Irmin_watcher.hook
+      in
       let key = Irmin.Backend.Conf.root Irmin_mem.Conf.spec in
       let conf = Irmin.Backend.Conf.singleton Irmin_mem.Conf.spec key kind in
       Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
