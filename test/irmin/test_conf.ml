@@ -50,9 +50,33 @@ let test_duplicate_key_names () =
   Alcotest.check_raises "Duplicate key" (Invalid_argument "duplicate key: name")
     (fun () -> ignore (key ~spec name Irmin.Type.bool false))
 
+let test_subsequent_root_paths () =
+  let spec = Spec.v "roots1" in
+  let module K = struct
+    let root = root spec
+  end in
+  let r1 = "_build/test-roots-1" in
+  let r2 = "_build/test-roots-2" in
+  let c1 = add (empty spec) K.root r1 in
+  let c2 = add (empty spec) K.root r2 in
+  Alcotest.(check string) "same string" (find_root c1 |> Option.get) r1;
+  Alcotest.(check string) "same string" (find_root c2 |> Option.get) r2
+
+let test_subsequent_root_paths_duplicate () =
+  let spec = Spec.v "roots2" in
+  let r1 = "_build/test-roots-duplicate-1" in
+  let root_key = root spec in
+  let _ = add (empty spec) root_key r1 in
+  Alcotest.check_raises "Duplicate key" (Invalid_argument "duplicate key: root")
+    (fun () -> ignore (root spec))
+
 let suite =
   [
     Alcotest_lwt.test_case_sync "conf" `Quick test_conf;
     Alcotest_lwt.test_case_sync "duplicate key names" `Quick
       test_duplicate_key_names;
+    Alcotest_lwt.test_case_sync "subsequent root paths" `Quick
+      test_subsequent_root_paths;
+    Alcotest_lwt.test_case_sync "subsequent root paths duplicate" `Quick
+      test_subsequent_root_paths_duplicate;
   ]

@@ -1,18 +1,23 @@
 ## Unreleased
 
-### Added
-
 ### Fixed
 
 - **irmin-client**
   - Fix a fd leak when using `clone` (#2322, @samoht)
 - **irmin-git**
   - Fix git sync example (#2327, @art-w)
+  - Fixed issue with two subsequent `Irmin-git` repos, where one
+    repo would lose the ability to find its root path (#2326, @zazedd)
 - **irmin**
   - Fix CI, update dependencies (#2321, @smorimoto)
   - Update documentation (#2323, #2324, #2325, @christinerose)
+- **irmin-cli**
+  - Fix uncaught exception (#2326, @art-w)
 
 ### Removed
+
+- **irmin**
+  - Removed `?allow_duplicate` parameter from the `Conf.key` function (#2326, @zazedd)
 
 ## 3.9.0 (2023-10-05)
 

@@ -59,7 +59,6 @@ val key :
   ?docs:string ->
   ?docv:string ->
   ?doc:string ->
-  ?allow_duplicate:bool ->
   spec:Spec.t ->
   string ->
   'a Type.t ->
