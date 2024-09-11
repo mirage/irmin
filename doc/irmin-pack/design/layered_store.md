@@ -1,23 +1,23 @@
-﻿# Irmin-pack layered-store/GC design document
+﻿# Irmin-Pack Layered Store/GC Design Document
 
 Date: 2022-02-03
 
 ## Introduction
 
 This is a short document to describe the design of a garbage
-collection mechanism for irmin-pack (the variant of Irmin currently
+collection mechanism for `irmin-pack` (the variant of Irmin currently
 used by Tezos).
 
 **TL;DR**
 
-The irmin pack file stores objects. References from one object to
+The `irmin-pack` file stores objects. References from one object to
 another are stored using the position of the referred-to object in the
 pack file. Currently, objects are never deleted, so disk usage grows
-indefinitely; this is the problem we want to solve. In order to delete
+indefinitely. This is the problem we want to solve. In order to delete
 old objects and reclaim disk space, whilst still referencing objects
-by their "position in the pack file", we replace an initial segment of
+by their "position in the pack file," we replace an initial segment of
 the pack file -- up to a particular "garbage collection root commit"
--- with an "object store", which essentially stores the live objects
+-- with an "object store." This essentially stores the live objects
 from the initial segment, indexed by their original position in the
 pack file. Every so often, we choose a new GC root commit and
 reconstruct the object store from scratch. In this way, disk usage is
@@ -26,10 +26,10 @@ root commit.
 
 ## Background
 
-The Tezos blockchain uses irmin-pack as the main storage
-component. Roughly speaking, irmin-pack is a git-like object store,
-optimized for the Tezos usecase. Irmin-pack has several components
-(including an "index", and a "dictionary"), but we focus on the main
+The Tezos blockchain uses `irmin-pack` as the main storage
+component. Roughly speaking, `irmin-pack` is a Git-like object store,
+optimised for the Tezos usecase. `irmin-pack` has several components
+(including an "index" and a "dictionary"), but we focus on the main
 file used to store object data: the store pack file.
 
 **Pack file:** The pack file stores marshalled objects one after the
@@ -50,39 +50,39 @@ addressing objects by their offset. Now, most objects are referenced
 using the offset in the pack file.
 
 **Commit objects:** Some of the objects in the pack file are "commit
-  objects"; a commit, together with the objects reachable from that
+  objects." A commit, together with the objects reachable from that
   commit, represents "the state of the tezos node at a point in
-  time". (It is possible for the state to split in two temporarily,
+  time." (It is possible for the state to split in two temporarily,
   but we will ignore this for the time being.) The Tezos node only
   needs the "latest" commits in order to process new blocks. Thus, any
   objects not reachable from the latest commits can be considered
-  "garbage".
+  "garbage."
 
 **Archive nodes and rolling nodes:** There are different types of
-  Tezos node. An "archive node" stores the complete history of the
-  blockchain from the genesis block. Currently this is over 2 million
+  Tezos nodes. An "archive node" stores the complete blockchain history
+  from the genesis block. Currently this is over 2 million
   blocks. Roughly speaking, a block corresponds to a commit. A
-  "rolling node" stores only the last blocks (where is chosen to keep
-  the total disk usage within some bound - _n_ may be as small as 5 or
-  even less, or as large as 40,000 or more). Another type of node is
-  the "full node", which is somewhere between an archive node and a
+  "rolling node" stores only the last blocks (where it is chosen to keep
+  the total disk usage within some bound, so _n_ may be as small as 5 or
+  less, or it could be as large as 40,000 or more). Another type of node is
+  the "full node," which is somewhere between an archive node and a
   rolling node.
 
-**Rolling nodes, disk space usage:** The purpose of the rolling node
-  is to keep resource usage, particularly of disk space, bounded by
+**Rolling nodes, disk space usage:** The rolling node's purpose
+  is to keep resource usage, particularly of disk space, bound by
   only storing the last blocks. However, the current implementation
-  does not achieve this aim: as rolling nodes execute, the pack file
+  does not achieve this aim. As rolling nodes execute, the pack file
   grows larger and larger, and no old data is discarded. To get around
   this problem, node owners periodically "snapshot export" the current
-  state of the blockchain from the node, delete the old data, and then
-  "snapshot import" the state back again, in a form of manual garbage
+  blockchain state from the node, delete the old data, and then
+  "snapshot import" the state back again, like manual garbage
   collection.
 
 **Problem summary:** The main problem we want to avoid is Tezos users
   having to periodically export and import the blockchain state in
   order to keep the disk usage of the Tezos node bounded. Instead, we
   want to perform garbage collection of unreachable objects
-  automatically: Periodically, a commit should be chosen as the GC
+  automatically. Periodically, a commit should be chosen as the GC
   root, and objects constructed before the commit that are not
   reachable from the commit should be considered garbage, removed from
   the pack store, and the disk space reclaimed. The problem is that
@@ -90,7 +90,7 @@ using the offset in the pack file.
   ordinary file, it is not possible to "delete" regions corresponding
   to dead objects, and "reclaim" the space.
 
-## Proposed solution
+## Proposed Solution
 
 Consider the following pack file, where the commit object has been
 selected as the GC root:
@@ -100,10 +100,10 @@ Pack file: [obj1][obj2]...[obj3][obj4][obj5][commit]...
 ```
 
 Objects that precede the commit are either reachable from the commit
-(by following object references from the commit), or not. For the
+(by following object references from the commit) or not. For the
 unreachable objects, we want to reclaim the disk space. For reachable
 objects, we need to be able to continue to access them via their
-"offset in the pack file".
+"offset in the pack file."
 
 The straightforward solution is to implement the pack file using two
 other data-structures:
@@ -129,45 +129,45 @@ Suffix file       :                                  [commit]...
 ```
 
 Attempting to read from the pack file is then simulated in the obvious
-way: if the offset is for the commit, or later, we read from the
-suffix file, and otherwise we lookup the offset in the object store
+way. If the offset is for the commit, or later, we read from the
+suffix file. Otherwise, we lookup the offset in the object store
 and return the appropriate object. It is assumed that we only ever
-access the reachable objects in the object store, and that we do so
+access the reachable objects in the object store, and we do so
 via their offset.
 
 ![](./imgs/suffix.png)
 
-We replace the irmin pack file with these two datastructures. Every
+We replace the `irmin-pack` file with these two datastructures. Every
 time we perform garbage collection from a given commit, we create the
-next versions of the object store and suffix file, and switch from the
+next versions of the object store and suffix file. Then we switch from the
 current version to the next version, deleting the old suffix file and
 object store to reclaim disk space. Creating the next versions of the
 object store and suffix file is potentially expensive, so we implement
 these steps in a separate process with minimal impact on the running
 Tezos node.
 
-Aside: Following git, a commit will typically reference its parent
+Aside: Following Git, a commit will typically reference its parent
 commit, which will then reference its parent, and so on. Clearly, if
 we used these references to calculate object reachability, all objects
 would remain reachable forever. This is not what we want, so when
 calculating the set of reachable objects for a given commit, we ignore
 the references from a commit to its parent commit.
 
-### Object store
+### Object Store
 
 The object store is a persistent datastructure that implements a map
 from key (offset in pack file) to data (the marshalled bytes
 representing an object). In our scenario, the worker creates the
-object store, which is then read-only for the main process: objects
-are never mutated, or deleted from the object store. In this setting,
-a very simple implementation of an object store suffices: we store
-live objects in a data file, and maintain a persistent (int → int) map
+object store, which is then read-only for the main process. Objects
+are never mutated or deleted from the object store. In this setting,
+a very simple implementation of an object store suffices. We store
+live objects in a data file and maintain a persistent `(int → int)` map
 from "offset in the original pack file" to "offset in the object store
-data file".
+data file."
 
 **Terminology:** We introduce the term "virtual offset" for "offset in
-  the original pack file", and the term "real offset" for "offset in
-  the object store data file". Thus, the object store map is from
+  the original pack file," and the term "real offset" for "offset in
+  the object store data file." Thus, the object store map is from
   virtual offset to real offset.
 
 **Example:** Consider the following, where the pack file contains
@@ -189,42 +189,42 @@ for the other objects) to relate the virtual offset in the pack file
 with the real offset in the data file.
 
 To read from "virtual offset v3" (say), we use the map to retrieve the
-real offset _r3_ in the object store data file, and then read the object
+real offset _r3_ in the object store data file and then read the object
 data from that position.
 
-### Asynchronous implementation
+### Asynchronous Implementation
 
 Garbage collection is performed periodically. We want each round of
-garbage collection to take place asynchronously, with minimal impact
+garbage collection to take place asynchronously with minimal impact
 on the main Tezos node. For this reason, when a commit is chosen as
 the GC root, we fork a worker process to construct the next
 object-store and next suffix-file. When the worker terminates, the
-main process "handles worker termination": it switches from the
-current object-store+suffix-file to the next, and continues
+main process "handles worker termination." It switches from the
+current object-store+suffix-file to the next and continues
 operation. This switch takes place almost instantaneously. The hard
 work is done in the worker process.
 
 **Read-only Tezos nodes:** In addition to the main Tezos read/write
   node that accesses the pack store, there are a number of read-only
-  nodes, which also access the pack store (and other irmin data files)
+  nodes, which also access the pack store (and other Irmin data files)
   in read-only mode. It is important that these are synchronised when
   the switch is made from the current object-store+suffix to the next
   object-store+suffix. This synchronisation makes use of a "control
-  file".
+  file."
 
 **Control file:** In order to coordinate between the main process and
   the worker process (and also any read-only processes), we introduce
   a control file. The control file is a single file which includes the
   following fields:
 
-- generation: an integer which is bumped every time a switch occurs;
-  processes can detect that a switch has occurred by observing changes
-  in the generation number
-- object-store: a pointer to the object store (actually, the name of
+- Generation: an integer which is bumped every time a switch occurs.
+  Processes can detect that a switch has occurred by observing changes
+  in the generation number.
+- Object-store: a pointer to the object store (actually, the name of
   the directory containing the object store)
-- suffix-file: a pointer to the suffix file (actually, the name of the
+- Suffix-file: a pointer to the suffix file (actually, the name of the
   directory containing the suffix file)
-- other metadata (not relevant for this document)
+- Other metadata (not relevant for this document)
 
 The current control file has filename `control`. In order to switch
 state from one object-store+suffix to the next, we can create a new
@@ -251,16 +251,16 @@ visit locations in the file twice.
   main process detects the worker has terminated, it does the
   following:
 
-- Read the next control file `control.nnnn` to find the next
+- Reads the next control file `control.nnnn` to find the next
   object-store and next suffix file.
-- Copy any further data that has been added to the current suffix to
+- Copies any further data that has been added to the current suffix to
   the end of next suffix.
-- Rename `control.nnnn` over `control` ; read-only processes detect that
+- Renames `control.nnnn` over `control`. Read-only processes detect that
   the generation number has changed, and synchronise with the new
   state.
 - Delete the old object-store and suffix file to reclaim disk space.
 
-## Worker efficiency concerns
+## Worker Efficiency Concerns
 
 We want the worker process to execute with minimal impact on the main
 Tezos node. For this reason, we take the following steps:
@@ -270,27 +270,27 @@ Tezos node. For this reason, we take the following steps:
   single core.
 - The worker uses `fadvise` to inform the operating system that it
   should preferentially **not** devote resources to caching **worker**
-  disk IO.  The OS caches should instead remain allocated to the main
+  disk I/O. The OS caches should instead remain allocated to the main
   Tezos node. In particular, the worker should not disturb the caches
-  for the main process, when the worker calculates the reachable
+  for the main process when the worker calculates the reachable
   objects for the given commit.
 - With the exception of the calculation of the reachable objects from
   a commit, the worker is **simply copying bytes between files.** This
-  makes the worker very simple, and hopefully makes it easy to
-  optimize performance and ensure correctness of operation.
+  makes the worker very simple and hopefully makes it easy to
+  optimise performance and ensure correctness of operation.
 
-### Crash correctness
+### Crash Correctness
 
 We now describe what happens in the event of a system crash. The
-interesting cases are when the worker is active, or has just
+interesting cases are when the worker is active or has just
 terminated.
 
 If the worker process is active, then it may have created part or all
 of the next object-store and next suffix. However, the control file
 will still point to the current object store and suffix. On restart,
-the main process opens the control file, at which point it knows which
+the main process opens the control file. At this point it knows which
 files are the "real" object-store and suffix (those listed in the
-control file), and can delete any other files it finds (which will be
+control file). The main process can delete any other files it finds (which will be
 the partial files the worker was creating).
 
 If the worker process has just terminated and a crash occurs, then the
@@ -301,13 +301,13 @@ disk or not. If it was, then the main process restarts, reads
 `control` (which was successfully renamed from `control.nnnn` ), and
 starts operating with the next object-store and suffix file (and
 deletes the old versions). If not, the main process reads the old
-`control` file (the rename of `control.nnnn` was not successful), and
+`control` file (the rename of `control.nnnn` was not successful), and it
 starts with the old object-store and suffix file (and deletes the new
 ones that the worker created). In either case, the system restarts in
 a correct state.
 
 This correctness argument uses the "atomic rename" property of
-filesystems: when renaming a file within a directory, and a crash
+filesystems. When renaming a file within a directory and a crash
 occurs, on restart the file is found either under the old name or
 under the new name.
 
@@ -325,20 +325,20 @@ the design. They can be skipped on first reading.
 
 It is worth noting that several computations (finding the set of
 reachable objects; constructing the object store) scale as "the number
-of reachable objects per commit". However, we might want to scale as
-"the number of actively changed objects per commit". In this case, a
+of reachable objects per commit." However, we might want to scale as
+"the number of actively changed objects per commit." In this case, a
 completely different design would be required (see the Alternative
 design section below).
 
-### Object store overhead
+### Object Store Overhead
 
 **Object store overhead and the number of reachable objects:** The
-  object store consists of a data file, and a persistent map. The use
+  object store consists of a data file and a persistent map. The use
   of a persistent map introduces overhead compared to the space needed
   to store the raw objects. For each object, we need at least two
   integers (or 16 bytes) for each map entry. Thus, 1M reachable
   objects requires at least 16MB of overhead for the map, 10M requires
-  160MB and 100M requires 1.6GB.
+  160MB, and 100M requires 1.6GB.
 
 A snapshot of the current Tezos state contains 30M objects, which
 corresponds to an overhead of 480MB for the map. This is significant,
@@ -363,9 +363,9 @@ virtual offset, but hopefully a map based on extents would have
 significantly fewer entries.
 
 Thus, the proposal would be to work with a map from "virtual extent
-offset" to "real extent offset".
+offset" to "real extent offset."
 
-**Summary:** The prototype implementation of the object store will use
+**Summary:** The object store's prototype implementation will use
   a map with an entry for each object. For production, we will replace
   this implementation with one based on extents. The sequence of
   operations for the worker, when calculating reachablility using
@@ -377,43 +377,43 @@ offset" to "real extent offset".
 - Calculate (off,len) extents corresponding to adjacent objects and
   store on disk (size unknown)
 
-Whether extents reduce the size of the map is currently unknown. The
+Whether extents reduce the map size is currently unknown. The
 worst case is if each reachable object is separated from all others,
 so the number of extents is the same as the number of objects, and the
 map remains the same size. If there are many adjacent reachable
 objects (the expected case), then using extents should result in a
-much reduced size for the persistent map.
+much-reduced size for the persistent map.
 
 We hope the use of extents will make the persistent map sufficently
-small. If the extent-based map file is still "too large", we will then
+small. If the extent-based map file is still "too large," we will then
 consider further ways to reduce its size.
 
-### Possible optimisations
+### Possible Optimisations
 
 We expect the above design will perform well. However, it is possible
-to make further efficiency improvements, at the cost of increased
+to make further efficiency improvements at the cost of increased
 complexity in the implementation. We now describe some potential
-optimisations.
+optimisations:
 
 **Reduce persistent map size further:** The persistent map, from
   virtual extent offset to real offset, is far from arbitrary (it is
   monotonic, for example). This should make it easy to compress, if
-  the size of the map is considered too large.
+  the map's size is considered too large.
 
 **Reuse object ancestor information:** When we select a commit as the
   GC root, we calculate the objects reachable from that commit. This
   requires that for each object, we (implicitly or explicitly)
-  calculate the reachable ancestors of that object. When it comes to
+  calculate that object's reachable ancestors. When it comes to
   the next GC iteration, we select a later commit. However, if one of
-  the objects reachable before, is still reachable, we know that all
+  the objects reachable before is still reachable, we know that all
   that object's ancestors are also reachable. Rather than repeatedly
-  traverse those ancestors on each GC, we could remember the (offsets
-  of ) ancestors of each object, and reuse this information for the
+  traversing those ancestors on each GC, we could remember the (offsets
+  of) each object's ancestors and reuse this information for the
   next GC cycle.
 
 **Prefer sequential object traversal:** Traversing the object graph
   during GC involves accessing earlier objects, typically in "random
-  access" fashion. We might want to be smarter about this, so that
+  access" fashion. We might want to be smarter about this so that
   objects are visited (as far as possible) in order of increasing
   offset on disk. This takes advantage of the fact that sequential
   file access is often much quicker than accessing the file randomly.
@@ -432,7 +432,7 @@ already noted that we can reuse ancestor information from the earlier
 commit. In addition, when calculating reachability information, we can
 process the objects between the two commits in the order they appear
 in the pack file. With these two optimisations, we only ever access
-the pack file sequentially, from the previous GC commit to the next.
+the pack file sequentially from the previous GC commit to the next.
 
 One possible downside is that by processing each of the objects
 between the two commits, we potentially do extra work when very few of
@@ -467,7 +467,7 @@ let run\_worker ~dir ~commit\_offset =
 This code matches exactly the informal description of the steps taken
 by the worker, described earlier.
 
-### Retaining older objects for archive nodes
+### Retaining Older Objects for Archive Nodes
 
 Archive nodes contain the complete blockchain history, starting from
 the genesis block. This results in a huge store pack file, many times
@@ -492,7 +492,7 @@ denser than the full pack file), which improves
 
 OS disk caching, thereby improving performance of snapshot export for
 recent commits. In addition, the OS can preferentially cache the
-object store, which improves general archive node performance compared
+object store. This improves general archive node performance compared
 with trying to cache the huge pack file, providing we mostly access
 objects in the object store+suffix rather than the lower
 layer. However, some uses of the archive node, such as responding to
@@ -500,36 +500,36 @@ RPC requests concerning arbitrary blocks, would still use the lower
 layer, and no performance improvement can be expected in these cases.
 
 The goal of improving archive node performance for arbitrary blocks
-(not just those corresponding to recent commits) still remains, and is
+(not just those corresponding to recent commits) still remains, and it is
 not addressed by this proposal.
 
-### Alternative design
+### Alternative Design
 
 The design proposed above scales with "the number of objects reachable
-from a commit". If this grows increasingly large over time, the
+from a commit." If this grows increasingly larger over time, the
 proposed design may become unsuitable. An alternative is to use a
-fully-fledged object store as the storage layer, and implement GC in
+fully-fledged object store as the storage layer and implement GC in
 that layer. This would avoid having to recreate the
 object-store+suffix file each time. This approach would scale as "the
-number of objects mutated on each commit".
+number of objects mutated on each commit."
 
-The pack file stores objects, which reference each other via their
+The pack file stores objects that reference each other via their
 position in the pack file. Clearly there is nothing particularly
-special about the position of an object in a pack file - it is just a
+special about the position of an object in a pack file. It is just a
 way of uniquely identifying the objects.
 
 In the design proposed above, when we build the object store, we
 construct a map from key (offset in pack file) to object, and we
 construct a new object store each time we perform garbage collection.
 
-One alternative design would be to replace the pack file completely,
+One alternative design would be to replace the pack file completely
 and instead use a "real" object store (with no suffix file) to store
 objects. This "real" object store would be far more sophisticated than
 the object store outlined above. For example, the real object store
-should also support a "delete" operation, with asynchronous garbage
+should also support a "delete" operation with asynchronous garbage
 collection, so we can delete unreachable objects and reclaim the disk
 space. This would provide a clean interface for the bottom-most
-storage layer, based on the notions of object and object id, rather
+storage layer, based on the notions of object and object ID, rather
 than file offsets and byte strings we currently manipulate. Garbage
 collection could be implemented cleanly in this layer. With such an
 approach, and using the "ancestor optimisation" above, GC could scale
@@ -540,6 +540,6 @@ The problem is that existing databases and object stores do not
 provide the performance needed for the Tezos usecase. This is partly
 the reason Tezos uses Irmin (the other main reason is that Irmin
 provides efficient tree-like operations). However, we have developed a
-prototype object store "kv-hash", as part of work on optimising
-another part of Irmin, that could potentially be used as an object
+prototype object store "kv-hash," as part of work on optimising
+another part of Irmin. This could potentially be used as an object
 store if this alternative design were pursued.
