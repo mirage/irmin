@@ -1153,9 +1153,9 @@ module Make (B : Backend.S) = struct
         let current, current_depth = Heap.pop_minimum heap in
         let parents = Commit.parents current in
         let tree = Commit.tree current in
-        let* current_value = Tree.find tree key in
+        let* current_tree = Tree.find_tree tree key in
         if List.length parents = 0 then
-          if current_value <> None then Lwt.return (current :: acc)
+          if current_tree <> None then Lwt.return (current :: acc)
           else Lwt.return acc
         else
           let max_depth =
@@ -1173,9 +1173,9 @@ module Make (B : Backend.S) = struct
                         Heap.add heap (commit, current_depth + 1)
                     in
                     let tree = Commit.tree commit in
-                    let+ e = Tree.find tree key in
-                    match (e, current_value) with
-                    | Some x, Some y -> not (equal_contents x y)
+                    let+ e = Tree.find_tree tree key in
+                    match (e, current_tree) with
+                    | Some x, Some y -> Tree.hash x <> Tree.hash y
                     | Some _, None -> true
                     | None, Some _ -> true
                     | _, _ -> false)
