@@ -25,8 +25,9 @@ let info ~user message () =
   Store.Info.v ~author ~message date
 
 (* 1. Cloning the gold image. *)
-let provision repo =
-  Config.init ();
+let provision env repo =
+  Eio.Switch.run @@ fun sw ->
+  Config.init ~sw ~path:(Eio.Stdenv.cwd env) ();
   let provision = info ~user:"Automatic VM provisioning" in
   let t = Store.of_branch repo "upstream" in
   let v =
@@ -80,7 +81,7 @@ let revert repo =
     Eio_unix.sleep 2.;
     Store.Head.set prod h2)
 
-let main () =
+let main env =
   let cmd = Sys.argv.(0) in
   let help () =
     Printf.eprintf
@@ -106,7 +107,7 @@ let main () =
     match Sys.argv.(1) with
     | "provision" ->
         (let repo = Store.Repo.v config in
-         provision repo);
+         provision env repo);
         Printf.printf
           "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
            configuration.\n"
@@ -133,4 +134,4 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

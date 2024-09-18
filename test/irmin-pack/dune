@@ -48,12 +48,7 @@
  ;; Attached to `irmin-tezos` to avoid a cyclic dependency with `irmin-pack`
  (package irmin-tezos)
  (action
-  (run ./test.exe -q --color=always))
- ; TODO: Fix unix waitpid error in irmin-pack GC
- (enabled_if
-  (and
-   (<> %{system} macosx)
-   (<> %{system} freebsd))))
+  (run ./test.exe -q --color=always)))
 
 (library
  (name common)
@@ -67,7 +62,6 @@
   irmin-pack.unix
   irmin-tezos
   logs
-  lwt
   hex
   fpath)
  (preprocess

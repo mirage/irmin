@@ -854,9 +854,11 @@ let rec loop t c =
       loop t c
   | _ -> loop t c
 
-let main store_path info_last_path info_next_path index_path =
-  let conf = Irmin_pack.Conf.init store_path in
-  let fm = Files.File_manager.open_ro conf |> Files.Errs.raise_if_error in
+let main ~sw ~fs store_path info_last_path info_next_path index_path =
+  let conf = Irmin_pack.Conf.init ~sw ~fs Eio.Path.(fs / store_path) in
+  let fm =
+    Files.File_manager.open_ro ~sw ~fs conf |> Files.Errs.raise_if_error
+  in
   let dispatcher = Files.Dispatcher.v fm |> Files.Errs.raise_if_error in
   let max_offset = Files.Dispatcher.end_offset dispatcher in
   let dict = Files.File_manager.dict fm in

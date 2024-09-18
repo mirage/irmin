@@ -60,8 +60,9 @@ let misc client = [ ("misc", misc client) ]
 
 let unix_suite ~env () =
   Eio.Switch.run @@ fun sw ->
+  let path = Eio.Stdenv.cwd env in
   let clock = Eio.Stdenv.clock env in
-  let kind, uri = run_server ~sw ~clock `Unix_domain in
+  let kind, uri = run_server ~sw ~path ~clock `Unix_domain in
   let module Unix_socket = Make (struct
     let uri = uri
     let kind = kind
@@ -76,9 +77,10 @@ let unix_suite ~env () =
 
 let tcp_suite ~env () =
   Eio.Switch.run @@ fun sw ->
+  let path = Eio.Stdenv.cwd env in
   let clock = Eio.Stdenv.clock env in
   let module Tcp_socket = Make (struct
-    let kind, uri = run_server ~sw ~clock `Tcp
+    let kind, uri = run_server ~sw ~path ~clock `Tcp
   end) in
   let tests = Tcp_socket.suite () in
   Irmin_test.Store.run "irmin-server.tcp" ~and_exit:false ~sleep:Eio_unix.sleep
@@ -87,9 +89,10 @@ let tcp_suite ~env () =
 
 let websocket_suite ~env () =
   Eio.Switch.run @@ fun sw ->
+  let path = Eio.Stdenv.cwd env in
   let clock = Eio.Stdenv.clock env in
   let module Websocket = Make (struct
-    let kind, uri = run_server ~sw ~clock `Websocket
+    let kind, uri = run_server ~sw ~path ~clock `Websocket
   end) in
   let tests = Websocket.suite () in
   Irmin_test.Store.run "irmin-server.ws" ~and_exit:false ~sleep:Eio_unix.sleep

@@ -16,7 +16,7 @@
 
 let root = "/tmp/irmin/test"
 
-let init () =
+let init ~sw ~path () =
   let _ = Sys.command (Printf.sprintf "rm -rf %s" root) in
   let _ = Sys.command (Printf.sprintf "mkdir -p %s" root) in
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw path Irmin_watcher.hook

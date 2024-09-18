@@ -16,8 +16,9 @@
 
 let () =
   Eio_main.run @@ fun env ->
-  Irmin_fs.run env#fs @@ fun () ->
-  Irmin_watcher.run @@ fun () ->
+  Eio.Switch.run @@ fun sw ->
+  let path = Eio.Stdenv.cwd env in
+  let clock = Eio.Stdenv.clock env in
   Irmin_test.Store.run "irmin-fs.unix" ~slow:false ~sleep:Eio_unix.sleep
     ~misc:[]
-    [ (`Quick, Test_fs_unix.suite) ]
+    [ (`Quick, Test_fs_unix.suite ~sw ~path ~clock) ]

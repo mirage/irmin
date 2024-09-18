@@ -108,8 +108,9 @@ let info image message () =
 
 let main = branch images.(0)
 
-let init () =
-  Config.init ();
+let init env =
+  Eio.Switch.run @@ fun sw ->
+  Config.init ~sw ~path:(Eio.Stdenv.cwd env) ();
   let repo = Store.Repo.v config in
   let t = Store.of_branch repo main in
   Store.set_exn t ~info:(info images.(0) "init") [ "0" ] "0";
@@ -162,10 +163,10 @@ let rec watchdog () =
   Eio_unix.sleep 1.;
   watchdog ()
 
-let main () =
-  init ();
+let main env =
+  init env;
   Eio.Fiber.any (watchdog :: List.map (protect process) (Array.to_list images))
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main env

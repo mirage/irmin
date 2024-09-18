@@ -1,7 +1,7 @@
 (library
  (public_name irmin-fs.unix)
  (name irmin_fs_unix)
- (libraries irmin-fs irmin.unix lwt eio eio.unix)
+ (libraries irmin-fs irmin.unix eio eio.unix)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

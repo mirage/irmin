@@ -44,10 +44,16 @@ module type Sigs = sig
     module Export : sig
       type t
 
-      val v : Irmin.config -> read Contents_pack.t -> read Inode.Pack.t -> t
+      val v :
+        sw:Eio.Switch.t ->
+        fs:Eio.Fs.dir_ty Eio.Path.t ->
+        Irmin.config ->
+        read Contents_pack.t ->
+        read Inode.Pack.t ->
+        t
 
       val run :
-        ?on_disk:[ `Path of string ] ->
+        ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t ] ->
         t ->
         (Contents_pack.value -> unit) ->
         (Inode.Snapshot.inode -> unit) ->
@@ -69,7 +75,7 @@ module type Sigs = sig
       type t
 
       val v :
-        ?on_disk:[ `Path of string | `Reuse ] ->
+        ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t | `Reuse ] ->
         int ->
         read Contents_pack.t ->
         read Inode.Pack.t ->

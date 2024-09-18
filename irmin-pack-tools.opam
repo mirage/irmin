@@ -31,6 +31,7 @@ depends: [
   "hex"
   "irmin-test"  {with-test & = version}
   "alcotest"    {with-test}
+  "eio_main" {>= "1.1"}
 ]
 
 synopsis: "Utils for Irmin-pack"

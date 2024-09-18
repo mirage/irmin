@@ -19,6 +19,8 @@ open Cmdliner
 open Resolver
 module Graphql = Irmin_graphql_unix
 
+type eio = Import.eio
+
 let deprecated_info = (Term.info [@alert "-deprecated"])
 let deprecated_man_format = (Term.man_format [@alert "-deprecated"])
 let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
@@ -53,7 +55,7 @@ let term_info title ~doc ~man =
   deprecated_info ~sdocs:global_option_section ~docs:global_option_section ~doc
     ~man title
 
-type command = (unit Term.t * Term.info[@alert "-deprecated"])
+type command = env:eio -> (unit Term.t * Term.info[@alert "-deprecated"])
 
 type sub = {
   name : string;
@@ -62,7 +64,8 @@ type sub = {
   term : unit Term.t;
 }
 
-let create_command c =
+let create_command c ~env =
+  let c = c ~env in
   let man = [ `S "DESCRIPTION"; `P c.doc ] @ c.man in
   (c.term, term_info c.name ~doc:c.doc ~man)
 
@@ -113,14 +116,14 @@ let run t = try t () with err -> print_exc err
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
-let init =
+let init ~env =
   {
     name = "init";
     doc = "Initialize a store.";
     man = [];
     term =
       (let init (S (_, _store, _)) = () in
-       Term.(mk init $ store ()));
+       Term.(mk init $ store ~env));
   }
 
 let print fmt = Fmt.kstr print_endline fmt
@@ -136,7 +139,7 @@ let branch f x = get "branch" f x
 let commit f x = get "commit" f x
 
 (* GET *)
-let get =
+let get ~env =
   {
     name = "get";
     doc = "Read the value associated with a key.";
@@ -152,11 +155,11 @@ let get =
              exit 1
          | Some v -> print "%a" (Irmin.Type.pp S.Contents.t) v
        in
-       Term.(mk get $ store () $ path));
+       Term.(mk get $ store ~env $ path));
   }
 
 (* LIST *)
-let list =
+let list ~env =
   {
     name = "list";
     doc = "List subdirectories.";
@@ -180,11 +183,11 @@ let list =
          in
          List.iter (print "%a" pp) paths
        in
-       Term.(mk list $ store () $ path_or_empty));
+       Term.(mk list $ store ~env $ path_or_empty));
   }
 
 (* TREE *)
-let tree =
+let tree ~env =
   {
     name = "tree";
     doc = "List the store contents.";
@@ -236,7 +239,7 @@ let tree =
              print "%s%s%s" k dots v)
            all
        in
-       Term.(mk tree $ store ()));
+       Term.(mk tree $ store ~env));
   }
 
 let author =
@@ -248,7 +251,7 @@ let message =
   Arg.(value & opt (some string) None & doc)
 
 (* SET *)
-let set =
+let set ~env =
   {
     name = "set";
     doc = "Update the value associated with a key.";
@@ -267,11 +270,11 @@ let set =
          let value = value S.Contents.t v in
          S.set_exn t ~info:(info (module S) ?author "%s" message) path value
        in
-       Term.(mk set $ store () $ author $ message $ path $ v));
+       Term.(mk set $ store ~env $ author $ message $ path $ v));
   }
 
 (* REMOVE *)
-let remove =
+let remove ~env =
   {
     name = "remove";
     doc = "Delete a key.";
@@ -288,7 +291,7 @@ let remove =
            ~info:(info (module S) ?author "%s" message)
            (key S.Path.t path)
        in
-       Term.(mk remove $ store () $ author $ message $ path));
+       Term.(mk remove $ store ~env $ author $ message $ path));
   }
 
 let apply e f =
@@ -298,7 +301,7 @@ let apply e f =
   | r, _ -> r
 
 (* CLONE *)
-let clone =
+let clone ~env =
   {
     name = "clone";
     doc = "Copy a remote respository to a local store";
@@ -316,11 +319,11 @@ let clone =
          | Ok `Empty -> ()
          | Error (`Msg e) -> failwith e
        in
-       Term.(mk clone $ Resolver.remote () $ depth));
+       Term.(mk clone $ Resolver.remote ~env $ depth));
   }
 
 (* FETCH *)
-let fetch =
+let fetch ~env =
   {
     name = "fetch";
     doc = "Download objects and refs from another repository.";
@@ -338,11 +341,11 @@ let fetch =
          let _ = Sync.pull_exn t x `Set in
          ()
        in
-       Term.(mk fetch $ Resolver.remote ()));
+       Term.(mk fetch $ Resolver.remote ~env));
   }
 
 (* MERGE *)
-let merge =
+let merge ~env =
   {
     name = "merge";
     doc = "Merge branches.";
@@ -371,11 +374,11 @@ let merge =
          let doc = Arg.info ~docv:"BRANCH" ~doc:"Branch to merge from." [] in
          Arg.(required & pos 0 (some string) None & doc)
        in
-       Term.(mk merge $ store () $ author $ message $ branch_name));
+       Term.(mk merge $ store ~env $ author $ message $ branch_name));
   }
 
 (* PULL *)
-let pull =
+let pull ~env =
   {
     name = "pull";
     doc = "Fetch and merge with another repository.";
@@ -394,11 +397,11 @@ let pull =
          in
          ()
        in
-       Term.(mk pull $ remote () $ author $ message));
+       Term.(mk pull $ remote ~env $ author $ message));
   }
 
 (* PUSH *)
-let push =
+let push ~env =
   {
     name = "push";
     doc = "Update remote references along with associated objects.";
@@ -414,11 +417,11 @@ let push =
          let _ = Sync.push_exn t x in
          ()
        in
-       Term.(mk push $ remote ()));
+       Term.(mk push $ remote ~env));
   }
 
 (* SNAPSHOT *)
-let snapshot =
+let snapshot ~env =
   {
     name = "snapshot";
     doc = "Return a snapshot for the current state of the database.";
@@ -432,11 +435,11 @@ let snapshot =
          print "%a" S.Commit.pp_hash k;
          ()
        in
-       Term.(mk snapshot $ store ()));
+       Term.(mk snapshot $ store ~env));
   }
 
 (* REVERT *)
-let revert =
+let revert ~env =
   {
     name = "revert";
     doc = "Revert the contents of the store to a previous state.";
@@ -457,7 +460,7 @@ let revert =
          | Some s -> S.Head.set t s
          | None -> failwith "invalid commit"
        in
-       Term.(mk revert $ store () $ snapshot));
+       Term.(mk revert $ store ~env $ snapshot));
   }
 
 (* WATCH *)
@@ -543,7 +546,7 @@ let handle_diff (type a b)
        and type Schema.Metadata.t = S.metadata)
     diff command proc
 
-let watch =
+let watch ~env =
   {
     name = "watch";
     doc = "Get notifications when values change.";
@@ -573,11 +576,11 @@ let watch =
          let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
          Arg.(value & pos_right 0 string [] & doc)
        in
-       Term.(mk watch $ store () $ path $ command));
+       Term.(mk watch $ store ~env $ path $ command));
   }
 
 (* DOT *)
-let dot =
+let dot ~env =
   {
     name = "dot";
     doc = "Dump the contents of the store as a Graphviz file.";
@@ -639,7 +642,7 @@ let dot =
            in
            if i <> 0 then [%logs.err "The %s.dot is corrupted" basename])
        in
-       Term.(mk dot $ store () $ basename $ depth $ no_dot_call $ full));
+       Term.(mk dot $ store ~env $ basename $ depth $ no_dot_call $ full));
   }
 
 let config_man =
@@ -676,7 +679,7 @@ let config_man =
     @ help_sections )
 
 (* HELP *)
-let help =
+let help ~env:_ =
   {
     name = "help";
     doc = "Display help about Irmin and Irmin commands.";
@@ -710,7 +713,7 @@ let help =
   }
 
 (* GRAPHQL *)
-let graphql =
+let graphql ~env =
   {
     name = "graphql";
     doc = "Run a graphql server.";
@@ -748,19 +751,19 @@ let graphql =
            ~mode:(`TCP (`Port port))
            server
        in
-       Term.(mk graphql $ store () $ port $ addr));
+       Term.(mk graphql $ store ~env $ port $ addr));
   }
 
 (* SERVER *)
-let server =
+let server ~env =
   {
     name = "server";
     doc = "Run irmin-server.";
     man = [];
-    term = Server.main_term;
+    term = Server.main_term ~env;
   }
 
-let options =
+let options ~env =
   {
     name = "options";
     doc = "Get information about backend specific configuration options.";
@@ -768,26 +771,22 @@ let options =
     term =
       (let options (store, hash, contents) =
          let module Conf = Irmin.Backend.Conf in
-         let store, _ = Resolver.load_config ?store ?hash ?contents () in
+         let store, _ = Resolver.load_config ~env ?store ?hash ?contents () in
          let spec = Store.spec store in
          Seq.iter
            (fun (Conf.K k) ->
              let name = Conf.name k in
              if name = "root" || name = "uri" then ()
              else
-               let ty = Conf.ty k in
+               let ty = Conf.typename k in
                let doc = Conf.doc k |> Option.value ~default:"" in
-               let ty =
-                 Fmt.str "%a" Irmin.Type.pp_ty ty
-                 |> Astring.String.filter (fun c -> c <> '\n')
-               in
                Fmt.pr "%s: %s\n\t%s\n" name ty doc)
            (Conf.Spec.keys spec)
        in
        Term.(mk options $ Store.term ()));
   }
 
-let branches =
+let branches ~env =
   {
     name = "branches";
     doc = "List branches";
@@ -800,7 +799,7 @@ let branches =
          let branches = S.Branch.list (S.repo t) in
          List.iter (Fmt.pr "%a\n" (Irmin.Type.pp S.branch_t)) branches
        in
-       Term.(mk branches $ store ()));
+       Term.(mk branches $ store ~env));
   }
 
 let weekday Unix.{ tm_wday; _ } =
@@ -830,7 +829,7 @@ let month Unix.{ tm_mon; _ } =
   | 11 -> "Dec"
   | _ -> assert false
 
-let log =
+let log ~env =
   {
     name = "log";
     doc = "List commits";
@@ -911,10 +910,36 @@ let log =
              ()
            with Sys_error s when String.equal s "Broken pipe" -> ()
        in
-       Term.(mk commits $ store () $ plain $ pager $ num $ skip $ reverse));
+       Term.(mk commits $ store ~env $ plain $ pager $ num $ skip $ reverse));
   }
 
-let default =
+let common_commands =
+  [
+    init;
+    get;
+    set;
+    remove;
+    list;
+    tree;
+    clone;
+    fetch;
+    merge;
+    pull;
+    push;
+    snapshot;
+    revert;
+    watch;
+    dot;
+    graphql;
+    server;
+    options;
+    branches;
+    log;
+  ]
+
+let commands = help :: common_commands
+
+let default ~env =
   let doc = "Irmin, the database that never forgets." in
   let man =
     [
@@ -933,66 +958,37 @@ let default =
       "usage: irmin [--version]\n\
       \             [--help]\n\
       \             <command> [<args>]\n\n\
-       The most commonly used subcommands are:\n\
-      \    init        %s\n\
-      \    get         %s\n\
-      \    set         %s\n\
-      \    remove      %s\n\
-      \    list        %s\n\
-      \    tree        %s\n\
-      \    clone       %s\n\
-      \    fetch       %s\n\
-      \    merge       %s\n\
-      \    pull        %s\n\
-      \    push        %s\n\
-      \    snapshot    %s\n\
-      \    revert      %s\n\
-      \    watch       %s\n\
-      \    dot         %s\n\
-      \    graphql     %s\n\
-      \    server      %s\n\
-      \    options     %s\n\
-      \    branches    %s\n\
-      \    log         %s\n\n\
-       See `irmin help <command>` for more information on a specific command.\n\
-       %!"
-      init.doc get.doc set.doc remove.doc list.doc tree.doc clone.doc fetch.doc
-      merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
-      graphql.doc server.doc options.doc branches.doc log.doc
+       The most commonly used subcommands are:\n";
+    List.iter
+      (fun cmd ->
+        let cmd = cmd ~env in
+        Fmt.pr "    %-11s %s\n" cmd.name cmd.doc)
+      common_commands;
+    Fmt.pr
+      "\n\
+       See `irmin help <command>` for more information on a specific command.@."
   in
   ( Term.(mk usage $ const ()),
     deprecated_info "irmin" ~version:Irmin.version ~sdocs:global_option_section
       ~doc ~man )
 
-let commands =
-  List.map create_command
-    [
-      help;
-      init;
-      get;
-      set;
-      remove;
-      list;
-      tree;
-      clone;
-      fetch;
-      merge;
-      pull;
-      push;
-      snapshot;
-      revert;
-      watch;
-      dot;
-      graphql;
-      server;
-      options;
-      branches;
-      log;
-    ]
+let commands = List.map create_command commands
 
 let run ~default:x y =
   Eio_main.run @@ fun env ->
-  Irmin_fs.run env#fs @@ fun () ->
+  Eio.Switch.run @@ fun sw ->
+  let cwd = Eio.Stdenv.cwd env in
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
-  match deprecated_eval_choice x y with `Error _ -> exit 1 | _ -> ()
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw cwd Irmin_watcher.hook;
+  Eio.Switch.run @@ fun sw ->
+  let env =
+    object
+      method cwd = Eio.Stdenv.cwd env
+      method clock = Eio.Stdenv.clock env
+      method sw = sw
+    end
+  in
+  let run cmd = cmd ~env in
+  match deprecated_eval_choice (run x) (List.map run y) with
+  | `Error _ -> exit 1
+  | _ -> ()

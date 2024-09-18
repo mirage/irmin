@@ -25,18 +25,23 @@ module type S = sig
   val index : t -> string -> int option
 
   val create_rw :
-    overwrite:bool -> path:string -> (t, [> Io.create_error ]) result
+    sw:Eio.Switch.t ->
+    overwrite:bool ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
+    (t, [> Io.create_error ]) result
 
   val open_rw :
+    sw:Eio.Switch.t ->
     size:int63 ->
     dead_header_size:int ->
-    string ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     (t, [> Io.open_error | Io.read_error | `Inconsistent_store ]) result
 
   val open_ro :
+    sw:Eio.Switch.t ->
     size:int63 ->
     dead_header_size:int ->
-    string ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     (t, [> Io.open_error | Io.read_error | `Inconsistent_store ]) result
 
   val refresh_end_poff :

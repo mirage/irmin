@@ -89,6 +89,19 @@ module type Sigs = sig
       a function to stop watching. It is probably best to use
       {!Irmin_watcher.hook} there. By default, it uses {!none}. *)
 
+  val set_listen_dir_eio_hook :
+    sw:Eio.Switch.t ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    (sw:Eio.Switch.t ->
+    int ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    (Eio.Fs.dir_ty Eio.Path.t -> unit) ->
+    unit ->
+    unit) ->
+    unit
+  (** Same as {!set_listen_dir_hook}, however uses {!Eio.Path} instead of
+      regular {!string} for compatibility with the eio version of Irmin-watcher. *)
+
   (** [Make] builds an implementation of watch helpers. *)
   module Make (K : Type.S) (V : Type.S) :
     S with type key = K.t and type value = V.t
