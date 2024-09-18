@@ -24,6 +24,7 @@ depends: [
   "irmin-test" {= version & with-test}
   "alcotest-lwt" {with-test & >= "1.8.0"}
   "irmin-watcher" {with-test & >= "0.5.0"}
+  "mirage-crypto-rng-lwt" {with-test & >= "1.1.0"}
 ]
 build: [
   ["dune" "subst"] {pinned}

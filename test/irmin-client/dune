@@ -8,6 +8,7 @@
   websocket-lwt-unix
   conduit-lwt-unix
   alcotest-lwt
+  mirage-crypto-rng-lwt
   irmin-test
   irmin-watcher)
  (enabled_if
