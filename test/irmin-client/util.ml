@@ -15,6 +15,9 @@
  *)
 
 open Lwt.Infix
+
+let () = Mirage_crypto_rng_lwt.initialize (module Mirage_crypto_rng.Fortuna)
+
 module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
 module Client = Irmin_client_unix.Make (Store)
 module Server = Irmin_server_unix.Make (Store)
