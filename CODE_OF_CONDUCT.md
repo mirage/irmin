@@ -9,6 +9,5 @@ This project follows the OCaml Code of Conduct [enforcement policy](https://gith
 To report any violations, please contact:
 - Thomas Gazagnaire <thomas [at] tarides [dot] com>
 - Arthur Wendling <arthur [at] tarides [dot] com>
-- Kevin Smith <kevin [at] tarides [dot] com>
 - Gwenaëlle Lecat <gwenaelle [at] tarides [dot] com>
 - Vincent Balat <vincent.balat [at] tarides [dot] com>
