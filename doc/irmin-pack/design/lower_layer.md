@@ -71,7 +71,7 @@ A volume is a self-contained area of contiguous commit history.
 
 It is self-contained in so far as all the data needed to read a commit and its tree is in the volume. This is achieved through the usage of a prefix-like area that contains all the data that is needed for reading any commit in the volume.
 
-Since it contains a contiguous commit history, there are no gaps of commits from its beginning commit to its ending commit.
+Since it contains a contiguous commit history, there are no commit gaps between its first and last commit.
 
 From this definition, it can be seen that the upper layer can also be considered a volume, but for the current discussion, we are only considering volumes in the lower layer.
 
