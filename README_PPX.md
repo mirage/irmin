@@ -1,4 +1,4 @@
-## ppx_irmin
+## `ppx_irmin`
 
 PPX extension for automatically generating Irmin type representations.
 
@@ -32,7 +32,7 @@ let tree_t leaf_t =
 Type representations can also be derived inline using the `[%typ: <core-type>]`
 extension point.
 
-### Installation and usage
+### Installation and Usage
 
 `ppx_irmin` may be installed via [opam](https://opam.ocaml.org/):
 
@@ -40,8 +40,8 @@ extension point.
 opam install ppx_irmin
 ```
 
-If you're using the [dune](https://github.com/ocaml/dune) build system, add the
-following field to your `library`, `executable` or `test` stanza:
+If you're using the [Dune](https://github.com/ocaml/dune) build system, add the
+following field to your `library`, `executable`, or `test` stanza:
 
 ```
 (preprocess (pps ppx_irmin))
@@ -54,8 +54,8 @@ automatically derive an Irmin type representation with the same name.
 
 `ppx_irmin` supports all of the type combinators exposed in the
 [Irmin.Type](https://docs.mirage.io/irmin/Irmin/Type/index.html) module (basic
-types, records, variants (plain and closed polymorphic), recursive types etc.).
-Types with parameters will result in parameterised representations (i.e. type
+types, records, variants (plain and closed polymorphic), recursive types, etc.).
+Types with parameters will result in parameterised representations (i.e., type
 `'a t` is generated a representation of type `'a Type.t -> 'a t Type.t`).
 
 To supply base representations from a module other than `Irmin.Type` (such as
@@ -69,10 +69,10 @@ type foo = unit [@@deriving irmin { lib = Some "Mylib.Types" }]
 val foo_t = Mylib.Types.unit
 ```
 
-This argument can also be passed as a command-line option (i.e. `--lib
+This argument can also be passed as a command-line option (i.e., `--lib
 Mylib.Types`, with `--lib ''` interpreted as the current module).
 
-#### Naming scheme
+#### Naming Scheme
 
 The generated type representation will be called `<type-name>_t`, unless the
 type-name is `t`, in which case the representation is simply `t`. This
@@ -107,7 +107,7 @@ type t = unit [@nobuiltin] [@@deriving irmin]
 let t = unit_t (* not [Irmin.Type.unit] *)
 ```
 
-#### Signature type definitions
+#### Signature Type Definitions
 
 The `ppx_irmin` deriver can also be used in signatures to expose the
 auto-generated value:
