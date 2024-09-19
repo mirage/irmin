@@ -413,7 +413,7 @@ Only the read-write instance can perform write operations for volumes. More prec
 
 A control file is used as a mechanism to update readers of new data, in both the appendable volume and the upper layer. 
 
-When the appendable volume's control file is renamed from `volume.gen.control` to `volume.control`, readers see the new end bounds of a volume at the last readable offset of `end_offset`, and the mapping file is extended to contain all entries to the new `mapping_end_poff`. Until this happens, readers read the data as it was before GC.
+When the appendable volume's control file is renamed from `volume.gen.control` to `volume.control`, readers see a volume's new end bounds at `end_offset`'s last readable offset, and the mapping file is extended to contain all the new `mapping_end_poff` entries. Until this happens, readers read the data as it was before GC.
 
 The volume's control file is renamed after the upper layer's control file is written to maintain consistency between upper and lower layers. This ordering allows for consistency recovery during crashes, and it maintains the authority of the upper layer's control file in coordinating the overall store.
 
