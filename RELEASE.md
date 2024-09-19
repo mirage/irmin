@@ -1,17 +1,17 @@
-# Release process
+# Release Process
 
 This file documents the necessary steps for releasing Irmin to its various users
-(via GitHub, `opam-repository` and Tezos).
+(via GitHub, `opam-repository`, and Tezos).
 
 At a high level, releasing Irmin consists of publishing the following artefacts:
 
-- a Git [commit tag][git-tags];
-- a set of documentation on GitHub pages (e.g. [`mirage.github.io/irmin`][pages-docs]);
-- a release archive (`.tbz` file containing the project source) on GitHub;
-- a set of `.opam` files in [`opam-repository`][opam-repo] that point to this
-  release archive;
-- (optionally) a copy of these `.opam` files in the Tezos
-  [`opam-repository`][tezos-opam-repo].
+- Git [commit tag][git-tags]
+- Set of documentation on GitHub pages (e.g., [`mirage.github.io/irmin`][pages-docs]);
+- Release archive (`.tbz` file containing the project source) on GitHub
+- Set of `.opam` files in [`opam-repository`][opam-repo] that point to this
+  release archive
+- (Optionally) a copy of these `.opam` files in the Tezos
+  [`opam-repository`][tezos-opam-repo]
 
 Most of this can be handled automatically by [`dune-release`][dune-release], as
 described in the instructions below.
@@ -22,13 +22,13 @@ described in the instructions below.
 [opam-repo]: https://github.com/ocaml/opam-repository
 
 
-## Manual benchmarking
+## Manual Benchmarking
 
 Before releasing, it is important to make sure that the new version doesn't
 induce performance regressions. The trace replay benchmarks should be used
 for that purpose.
 
-The performances of individual releases of irmin are saved inside the
+The performances of individual releases of Irmin are saved inside the
 benchmarking server at `/bench/releases/`:
 ```
 .
@@ -57,19 +57,19 @@ benchmarking server at `/bench/releases/`:
 ```
 
 To test a new release, setup an `c3-small-x86-01` Equinix instance, fetch a large
-enough replay trace and setup the right versions of the right libraries
+enough replay trace, and setup the right versions of the right libraries
 before running the benchmarks.
 
-The benchmark should be run at least twice (to give insights about the noise), 
-the two resulting `stat_trace.repr` files should be copied to 
-`/bench/releases/` using the same naming convention as above. Also set the file
+Run the benchmark at least twice (to give insights about the noise). 
+The two resulting `stat_trace.repr` files should be copied to 
+`/bench/releases/` using the same naming convention as above. Also, set the file
 permissions to read-only using `chmod 444 stat_trace.repr`.
 
 A run of the benchmark is expected to last \~35min.
 
 See [this script](https://github.com/tarides/irmin-tezos/blob/master/bench.sh) for an example of a setup and a bench run.
 
-### Visualising the results
+### Visualising the Results
 
 A `stat_summary.json` can be computed from a `stat_trace.repr`. 
 
@@ -81,8 +81,8 @@ dune exec -- bench/irmin-pack/trace_stats.exe summarise stat_trace.repr >stat_su
 
 A conversion is expected to last \~4 min.
 
-One or more summaries can be pretty printed together. The following command 
-will pretty print both runs of 2 releases side by side:
+One or more summaries can be pretty-printed together. The following command 
+will pretty-print both runs of 2 releases side by side:
 ```sh
 ; export ROOT='/bench/releases/ncommits_200k/irmin2.7.0_index1.4.0_repr0.4.0/'
 ; export ROOT_OLD='/bench/releases/ncommits_200k/irmin2.2.0_index1.2.1/'
@@ -95,7 +95,7 @@ will pretty print both runs of 2 releases side by side:
 
 See [this script](https://github.com/tarides/irmin-tezos/blob/master/summarise.sh) for an example of a batch conversion to JSON.
 
-## Releasing to opam-repository and GitHub
+## Releasing to `opam-repository` and GitHub
 
 - Check that no `.opam` files contain `pin-depends` fields. If so, release those
   packages first.
@@ -104,7 +104,7 @@ See [this script](https://github.com/tarides/irmin-tezos/blob/master/summarise.s
 ; git grep -A 10 "pin-depends" *.opam
 ```
 
-- Make a pull-request to this repository containing pre-release changes (drop
+- Make a pull request (PR) to this repository containing pre-release changes (drop
   `pin-depends`, add release number to `CHANGES.md`, any new constraints) and an
   empty commit to host the release tag.
 
@@ -134,14 +134,14 @@ See [this script](https://github.com/tarides/irmin-tezos/blob/master/summarise.s
   the development repository. If any changes to `.opam` files were necessary in
   the `opam-repository` PR, add those to the release PR before merging.
 
-### Re-cutting a failed Opam release
+### Recutting a Failed opam Release
 
-It may be necessary to re-cut an attempted release, for instance if the
+It may be necessary to recut an attempted release, for instance if the
 `opam-repository` CI raised issues that couldn't be fixed via if the
 `opam-repository`.
 
 First delete the release distribution via the GitHub UI, then cleanup the Git
-tags and re-perform the required release steps:
+tags and reperform the required release steps:
 
 ```sh
 ; git tag -d X.Y.Z                        #  Erase git tag locally
@@ -157,7 +157,7 @@ tags and re-perform the required release steps:
 ; git push -u origin --force              #  Add new `.opam` files to PR
 ```
 
-## Releasing to Tezos' opam-repository
+## Releasing to Tezos' `opam-repository`
 
 The Tezos project uses [its own `opam-repository`][tezos-opam-repo] to source
 its dependencies, so upgrading its dependencies requires making a separate
@@ -176,7 +176,7 @@ done
 
 (The above process is somewhat automated by [this
 script][tezos-downstream-script].) Once this is done, make an MR to the Tezos
-opam-repository and – if necessary – a corresponding MR to Tezos to adjust to
+`opam-repository` and, if necessary, a corresponding MR to Tezos to adjust to
 any API changes.
 
 [tezos-opam-repo]: https://gitlab.com/tezos/opam-repository
