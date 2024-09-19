@@ -58,7 +58,7 @@ Currenlty, an `irmin-pack` store uses a configuration value named `root` to know
 
 ## Lower Layer
 
-The lower layer is the archive area for an unlimited history store. It stores the commit history that the GC process discared from the upper layer.
+The lower layer is the archive area for an unlimited history store. It stores the commit history that the GC process discarded from the upper layer.
 
 ### On-Disk Layout
 
