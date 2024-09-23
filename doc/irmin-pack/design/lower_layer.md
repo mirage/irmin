@@ -150,7 +150,7 @@ If a store is opened with a `lower_layer` configured and its upper layer control
 1. Create empty `store.1.suffix` in upper layer
 1. Create empty prefix and mapping in upper layer
 1. Update upper layer control file
-    - `status` is GC'd
+    - `status` is `Gced`
         - `suffix_start_offset` is length of `volume.data`
         - `generation` is 1
         - `latest_gc_target_offset` is `suffix_start_offset`
