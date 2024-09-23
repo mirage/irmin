@@ -312,7 +312,7 @@ To successfully go from commit hash to data, we need to answer the following que
 
 **Upper Layer**
 
-The starting point for finding a commit in `irmin-pack` is to lookup its key in the index. Assuming the store has a record in its commit hash's index, the key will provide a global offset for finding the commit. Lets call this simply `offset`.
+The starting point for finding a commit in `irmin-pack` is to lookup its key in the index. Assuming the store has a record in its index of the commit hash, the key will provide a global offset for finding the commit. Lets call this simply `offset`.
 
 In Irmin 3.5, the control file value `suffix_start_offset` is used to determine whether the offset should be looked up in the prefix (`offset < suffix_start_offset`) or the suffix (`offset >= suffix_start_offset`). We only need to consider the prefix case when considering how to route reads to the lower layer.
 
