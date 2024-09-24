@@ -294,14 +294,13 @@ control file). The main process can delete any other files it finds (which will 
 the partial files the worker was creating).
 
 If the worker process has just terminated and a crash occurs, then the
-critical point is whether the rename of the next
-
-`control.nnnn` over the current `control` was recorded persistently on
-disk or not. If it was, then the main process restarts, reads
+critical point is whether the renaming of the next `control.nnnn` file 
+to replace the current `control` was successfully recorded on disk. 
+If it was, then the main process restarts, reads
 `control` (which was successfully renamed from `control.nnnn` ), and
 starts operating with the next object-store and suffix file (and
 deletes the old versions). If not, the main process reads the old
-`control` file (the rename of `control.nnnn` was not successful), and it
+`control` file (since the rename of `control.nnnn` was not successful), and it
 starts with the old object-store and suffix file (and deletes the new
 ones that the worker created). In either case, the system restarts in
 a correct state.
