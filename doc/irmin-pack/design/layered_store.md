@@ -10,7 +10,7 @@ used by Tezos).
 
 **TL;DR**
 
-The `irmin-pack` file stores objects. References from one object to
+A pack file stores Irmin's objects. References from one object to
 another are stored using the position of the referred-to object in the
 pack file. Currently, objects are never deleted, so disk usage grows
 indefinitely. This is the problem we want to solve. In order to delete
