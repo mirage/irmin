@@ -1131,9 +1131,17 @@ module Make (B : Backend.S) = struct
   module Heap = Binary_heap.Make (struct
     type t = commit * int * tree option
 
-    let compare (c1, _, _) (c2, _, _) =
+    let compare (c1, d1, _) (c2, d2, _) =
       (* [bheap] operates on miminums, we need to invert the comparison. *)
-      Int64.compare (Info.date (Commit.info c2)) (Info.date (Commit.info c1))
+      match
+        Int64.compare (Info.date (Commit.info c2)) (Info.date (Commit.info c1))
+      with
+      | 0 -> (
+          (* if the same commit was inserted multiple times, group them together to deduplicate *)
+          match compare_hash (Commit.hash c1) (Commit.hash c2) with
+          | 0 -> Int.compare d1 d2 (* smallest depth first *)
+          | c -> c)
+      | c -> c
   end)
 
   let last_modified ?depth ?(n = 1) t key =
@@ -1146,10 +1154,22 @@ module Make (B : Backend.S) = struct
     let* commit_tree = Tree.find_tree (Commit.tree commit) key in
     let heap = Heap.create ~dummy:(commit, 0, commit_tree) 0 in
     let () = Heap.add heap (commit, 0, commit_tree) in
+    let pop_minimum () =
+      let ((current, _, _) as elt) = Heap.pop_minimum heap in
+      let rec remove_duplicates () =
+        match Heap.minimum heap with
+        | duplicate, _, _ when Commit.equal current duplicate ->
+            Heap.remove heap;
+            remove_duplicates ()
+        | _ | (exception Binary_heap.Empty) -> ()
+      in
+      remove_duplicates ();
+      elt
+    in
     let rec search acc =
       if Heap.is_empty heap || List.length acc = n then Lwt.return acc
       else
-        let current, current_depth, current_tree = Heap.pop_minimum heap in
+        let current, current_depth, current_tree = pop_minimum () in
         let parents = Commit.parents current in
         if List.length parents = 0 then
           if current_tree <> None then Lwt.return (current :: acc)
