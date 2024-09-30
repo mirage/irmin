@@ -62,7 +62,8 @@ let random_key () = random_string 5
 
 let default_artefacts_dir =
   let ( / ) = Filename.concat in
-  Unix.getcwd () / "_artefacts" / Uuidm.to_string (Uuidm.v `V4)
+  let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
+  Unix.getcwd () / "_artefacts" / Uuidm.to_string uuid
 
 let prepare_artefacts_dir path =
   let rec mkdir_p path =
