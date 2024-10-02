@@ -209,6 +209,53 @@ module type Sigs = sig
     val export : stat -> t
   end
 
+  module Io : sig
+    (** IO statistics *)
+
+    module Activity : sig
+      (** IO activity *)
+
+      type t = {
+        bytes_read : int;
+        nb_reads : int;
+        bytes_written : int;
+        nb_writes : int;
+      }
+      [@@deriving irmin]
+
+      val zero : t
+      (** [zero] is an activity record with all fields set to 0. *)
+
+      val read : ?nb:int -> int -> t
+      (** [read b] returns the activity for a read of [b] bytes with [nb] system
+          calls. If [nb] is not provided it will default to 1 (a single system
+          call). *)
+
+      val write : ?nb:int -> int -> t
+      (** [write b] returns the activity for a single write of [b] bytes with
+          [nb] system calls. If [nb] is not provided it will default to 1 (a
+          single system call). *)
+
+      val sum : t Seq.t -> t
+      (** [sum ts] returns the sum of IO activity for all stats in the sequence
+          [ts]. *)
+
+      val diff : t -> t -> t
+      (** [diff a b] returns the difference between IO activity, i.e. a - b. *)
+    end
+
+    type path = string
+
+    module PathMap : Map.S with type key = path
+
+    type t = Activity.t PathMap.t
+    (** Map from file path to IO activity. *)
+
+    type stat
+
+    val export : stat -> t
+  end
+
   module Latest_gc : sig
     include
       module type of Latest_gc
@@ -246,6 +293,7 @@ module type Sigs = sig
     index : Index.stat;
     file_manager : File_manager.stat;
     latest_gc : Latest_gc.stat;
+    io : Io.stat;
   }
   (** Record type for all statistics that will be collected. There is a single
       instance (which we refer to as "the instance" below) which is returned by
@@ -297,6 +345,10 @@ module type Sigs = sig
   val incr_fm_field : File_manager.field -> unit
   (** [incr_fm_field field] increments the chosen stats field for the
       {!File_manager} *)
+
+  val incr_io : Io.path -> Io.Activity.t -> unit
+  (** [incr_io path io activity] increments the IO activity counters for [path]
+      by [activity]. *)
 
   val report_latest_gc : Latest_gc.stats -> unit
   (** [report_latest_gc gc_stats] sets [(get ()).latest_gc] to the stats of the
