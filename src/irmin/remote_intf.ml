@@ -42,6 +42,15 @@ module type S = sig
       same name, which is now in the local store. [No_head] means no such branch
       exists. *)
 
+  val fetch_all :
+    t ->
+    ?depth:int ->
+    endpoint ->
+    (commit option, [> `Msg of string ]) result list Lwt.t
+  (** [fetch_all t] is like [fetch] but fetches every remote reference, not just
+      the one associated with a particular branch. It returns list of all
+      reference heads, which are all now in the local store. *)
+
   val push :
     t ->
     ?depth:int ->
