@@ -5,6 +5,11 @@
 - **irmin-git**
   - Expose `Content_addressable` type (#2329, @art-w)
 
+### Changed
+
+- **irmin**
+  - Rename `Node.S.effect` to `read_effect` for OCaml 5.3 compatibility (#2347, @art-w)
+
 ### Fixed
 
 - **irmin-client**
