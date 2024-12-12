@@ -1129,13 +1129,19 @@ module Make (B : Backend.S) = struct
       g
 
   module Heap = Binary_heap.Make (struct
-    type t = commit * int
+    type t = commit * int * tree option
 
-    let compare c1 c2 =
+    let compare (c1, d1, _) (c2, d2, _) =
       (* [bheap] operates on miminums, we need to invert the comparison. *)
-      -Int64.compare
-         (Info.date (Commit.info (fst c1)))
-         (Info.date (Commit.info (fst c2)))
+      match
+        Int64.compare (Info.date (Commit.info c2)) (Info.date (Commit.info c1))
+      with
+      | 0 -> (
+          (* if the same commit was inserted multiple times, group them together to deduplicate *)
+          match compare_hash (Commit.hash c1) (Commit.hash c2) with
+          | 0 -> Int.compare d1 d2 (* smallest depth first *)
+          | c -> c)
+      | c -> c
   end)
 
   let last_modified ?depth ?(n = 1) t key =
@@ -1145,17 +1151,28 @@ module Make (B : Backend.S) = struct
         depth n pp_path key];
     let repo = repo t in
     let* commit = Head.get t in
-    let heap = Heap.create ~dummy:(commit, 0) 0 in
-    let () = Heap.add heap (commit, 0) in
+    let* commit_tree = Tree.find_tree (Commit.tree commit) key in
+    let heap = Heap.create ~dummy:(commit, 0, commit_tree) 0 in
+    let () = Heap.add heap (commit, 0, commit_tree) in
+    let pop_minimum () =
+      let ((current, _, _) as elt) = Heap.pop_minimum heap in
+      let rec remove_duplicates () =
+        match Heap.minimum heap with
+        | duplicate, _, _ when Commit.equal current duplicate ->
+            Heap.remove heap;
+            remove_duplicates ()
+        | _ | (exception Binary_heap.Empty) -> ()
+      in
+      remove_duplicates ();
+      elt
+    in
     let rec search acc =
       if Heap.is_empty heap || List.length acc = n then Lwt.return acc
       else
-        let current, current_depth = Heap.pop_minimum heap in
+        let current, current_depth, current_tree = pop_minimum () in
         let parents = Commit.parents current in
-        let tree = Commit.tree current in
-        let* current_value = Tree.find tree key in
         if List.length parents = 0 then
-          if current_value <> None then Lwt.return (current :: acc)
+          if current_tree <> None then Lwt.return (current :: acc)
           else Lwt.return acc
         else
           let max_depth =
@@ -1168,14 +1185,14 @@ module Make (B : Backend.S) = struct
               (fun hash ->
                 Commit.of_key repo hash >>= function
                 | Some commit -> (
+                    let+ e = Tree.find_tree (Commit.tree commit) key in
                     let () =
                       if not max_depth then
-                        Heap.add heap (commit, current_depth + 1)
+                        Heap.add heap (commit, current_depth + 1, e)
                     in
-                    let tree = Commit.tree commit in
-                    let+ e = Tree.find tree key in
-                    match (e, current_value) with
-                    | Some x, Some y -> not (equal_contents x y)
+                    match (e, current_tree) with
+                    | Some x, Some y ->
+                        not (equal_hash (Tree.hash x) (Tree.hash y))
                     | Some _, None -> true
                     | None, Some _ -> true
                     | _, _ -> false)
