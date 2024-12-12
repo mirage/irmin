@@ -1,4 +1,4 @@
 comment:
-   layout: diff
-   behaviour: default
-   require_changes: true
+  layout: diff
+  behavior: default
+  require_changes: true
