@@ -25,3 +25,4 @@ depends: [
 ]
 
 synopsis: "MirageOS-compatible Irmin stores"
+x-maintenance-intent: [ "(latest)" ]

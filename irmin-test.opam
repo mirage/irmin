@@ -39,3 +39,4 @@ description: """
 `irmin-test` provides access to the Irmin test suite for testing storage backend
 implementations.
 """
+x-maintenance-intent: [ "(latest)" ]

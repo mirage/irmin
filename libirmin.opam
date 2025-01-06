@@ -23,3 +23,4 @@ dev-repo: "git+https://github.com/mirage/irmin.git"
 # Disabled on arm64 linux and s390x because of a SEGFAULT in tests
 # Disabled on macOS because of https://github.com/mirage/ca-certs/issues/20
 available: [ arch != "arm64" & arch != "s390x" & os != "macos" ]
+x-maintenance-intent: [ "(latest)" ]

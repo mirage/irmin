@@ -56,3 +56,4 @@ synopsis: "CLI for Irmin"
 description: """
 A simple CLI tool (called `irmin`) to manipulate and inspect Irmin stores.
 """
+x-maintenance-intent: [ "(latest)" ]

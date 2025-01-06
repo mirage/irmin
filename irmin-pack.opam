@@ -33,3 +33,4 @@ depends: [
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"
+x-maintenance-intent: [ "(latest)" ]

@@ -48,3 +48,4 @@ description: """
 `irmin-bench` provides access to the Irmin suite for benchmarking storage backend
 implementations.
 """
+x-maintenance-intent: [ "(latest)" ]

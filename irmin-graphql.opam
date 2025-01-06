@@ -34,3 +34,4 @@ depends: [
 ]
 
 synopsis: "GraphQL server for Irmin"
+x-maintenance-intent: [ "(latest)" ]
