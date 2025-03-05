@@ -53,3 +53,4 @@ variety of backends. Irmin is written in pure OCaml and does not
 depend on external C stubs; it aims to run everywhere, from Linux,
 to browsers and Xen unikernels.
 """
+x-maintenance-intent: [ "(latest)" ]

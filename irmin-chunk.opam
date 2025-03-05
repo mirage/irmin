@@ -24,3 +24,4 @@ depends: [
 ]
 
 synopsis: "Irmin backend which allow to store values into chunks"
+x-maintenance-intent: [ "(latest)" ]

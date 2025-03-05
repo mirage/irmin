@@ -31,3 +31,4 @@ A collection of simple, ready-to-use mergeable data structures built using
 Irmin. Each data structure works with an arbitrary Irmin backend and is
 customisable in a variety of ways.
 """
+x-maintenance-intent: [ "(latest)" ]

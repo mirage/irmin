@@ -38,3 +38,4 @@ description: """
 an internal use of irmin-pack, like dumping control files in
 a readable json format and such.
 """
+x-maintenance-intent: [ "(latest)" ]

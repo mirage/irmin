@@ -26,3 +26,4 @@ depends: [
 ]
 
 synopsis: "Generic file-system backend for Irmin"
+x-maintenance-intent: [ "(latest)" ]
