@@ -304,52 +304,63 @@ let help =
   let help () =
     Printf.printf "See output of `%s --help` for usage\n" Sys.argv.(0)
   in
-  ( Term.(const help $ Term.const ()),
-    (Term.info "irmin-client" [@alert "-deprecated"]) )
+  Term.(const help $ const ())
 
-let[@alert "-deprecated"] () =
-  Term.exit
-  @@ Term.eval_choice help
+let () =
+  Stdlib.exit
+  @@ Cmd.eval
+  @@ Cmd.group ~default:help (Cmd.info "irmin-client")
        [
-         ( Term.(const list_server_commands $ pure ()),
-           Term.info ~doc:"List all commands available on server"
-             "list-commands" );
-         ( Term.(const ping $ config $ time $ iterations),
-           Term.info ~doc:"Ping the server" "ping" );
-         ( Term.(const find $ config $ path 0 $ time $ iterations),
-           Term.info ~doc:"Get the path associated with a value" "get" );
-         ( Term.(const find $ config $ path 0 $ time $ iterations),
-           Term.info ~doc:"Alias for 'get' command" "find" );
-         Term.
-           ( const set
+         Cmd.v
+           (Cmd.info ~doc:"List all commands available on server"
+              "list-commands")
+           Term.(const list_server_commands $ const ());
+         Cmd.v
+           (Cmd.info ~doc:"Ping the server" "ping")
+           Term.(const ping $ config $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Get the path associated with a value" "get")
+           Term.(const find $ config $ path 0 $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Alias for 'get' command" "find")
+           Term.(const find $ config $ path 0 $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Set path/value" "set")
+           Term.(
+             const set
              $ config
              $ path 0
              $ author
              $ message
              $ value 1
              $ time
-             $ iterations,
-             Term.info ~doc:"Set path/value" "set" );
-         Term.
-           ( const remove
+             $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Remove value associated with the given path" "remove")
+           Term.(
+             const remove
              $ config
              $ path 0
              $ author
              $ message
              $ time
-             $ iterations,
-             Term.info ~doc:"Remove value associated with the given path"
-               "remove" );
-         ( Term.(const import $ config $ filename 0 $ time $ iterations),
-           Term.info ~doc:"Import from dump file" "import" );
-         ( Term.(const export $ config $ filename 0 $ time $ iterations),
-           Term.info ~doc:"Export to dump file" "export" );
-         ( Term.(const mem $ config $ path 0 $ time $ iterations),
-           Term.info ~doc:"Check if path is set" "mem" );
-         ( Term.(const mem_tree $ config $ path 0 $ time $ iterations),
-           Term.info ~doc:"Check if path is set to a tree value" "mem_tree" );
-         ( Term.(const watch $ config),
-           Term.info ~doc:"Watch for updates" "watch" );
-         ( Term.(const replicate $ config $ author $ message $ prefix),
-           Term.info ~doc:"Replicate changes from irmin CLI" "replicate" );
+             $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Import from dump file" "import")
+           Term.(const import $ config $ filename 0 $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Export to dump file" "export")
+           Term.(const export $ config $ filename 0 $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Check if path is set" "mem")
+           Term.(const mem $ config $ path 0 $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Check if path is set to a tree value" "mem_tree")
+           Term.(const mem_tree $ config $ path 0 $ time $ iterations);
+         Cmd.v
+           (Cmd.info ~doc:"Watch for updates" "watch")
+           Term.(const watch $ config);
+         Cmd.v
+           (Cmd.info ~doc:"Replicate changes from irmin CLI" "replicate")
+           Term.(const replicate $ config $ author $ message $ prefix);
        ]
