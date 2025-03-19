@@ -9,6 +9,9 @@ More specifically, for Irmin, a Merkle proof is the subset of a tree stored in a
 ```ocaml
 # #require "digestif.ocaml";;
 # #require "checkseum.ocaml";;
+# #require "mirage-mtime.unix";;
+# #require "mirage-ptime.unix";;
+# #require "mirage-sleep.unix";;
 # #require "irmin";;
 # #require "irmin-git.unix";;
 # #require "ppx_irmin";;
