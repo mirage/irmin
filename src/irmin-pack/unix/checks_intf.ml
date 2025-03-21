@@ -26,7 +26,7 @@ module type Subcommand = sig
   val term_internal : (unit -> unit) Cmdliner.Term.t
   (** A pre-packaged [Cmdliner] term for executing {!run}. *)
 
-  val term : (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+  val term : unit Cmdliner.Cmd.t
   (** [term] is {!term_internal} plus documentation and logs initialisation *)
 end
 
@@ -105,11 +105,7 @@ module type S = sig
           unit Lwt.t
   end
 
-  val cli :
-    ?terms:
-      ((unit Cmdliner.Term.t * Cmdliner.Term.info)[@alert "-deprecated"]) list ->
-    unit ->
-    empty
+  val cli : ?terms:unit Cmdliner.Cmd.t list -> unit -> empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.
       [terms] defaults to the set of checks in this module. *)
 end

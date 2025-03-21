@@ -16,16 +16,13 @@
 
 (** CLI commands. *)
 
-type command = (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+type command = unit Cmdliner.Cmd.t
 (** [Cmdliner] commands. *)
-
-val default : command
-(** The default command: show a summary of the commands. *)
 
 val commands : command list
 (** List of available sub-commands. *)
 
-val run : default:command -> command list -> unit
+val run : command list -> unit
 (** Create a command-line tool with the given subcommands. *)
 
 (** {2 Command-builder helper} *)
