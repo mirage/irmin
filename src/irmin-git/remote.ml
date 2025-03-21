@@ -77,6 +77,44 @@ struct
         >>? fun () -> Lwt.return (Ok (Some hash))
     | _ -> assert false
 
+  let fetch_all t ?depth (ctx, e) =
+    [%log.debug "fetch_all %a" Smart_git.Endpoint.pp e];
+    let push_stdout msg = Gitlog.info (fun f -> f "%s" msg)
+    and push_stderr msg = Gitlog.warn (fun f -> f "%s" msg)
+    and deepen =
+      match depth with Some depth -> Some (`Depth depth) | None -> None
+    and capabilities =
+      [
+        `Side_band_64k;
+        `Multi_ack_detailed;
+        `Ofs_delta;
+        `Thin_pack;
+        `Report_status;
+      ]
+    in
+    S.fetch ~push_stdout ~push_stderr ~capabilities ~ctx e t ?deepen `All
+    >>= function
+    | Error `Not_found -> Lwt.return [ Error (`Msg "not found") ]
+    | Error (`Msg err) -> Lwt.return [ Error (`Msg err) ]
+    | Error (`Exn err) -> Lwt.return [ Error (`Msg (Printexc.to_string err)) ]
+    | Error err ->
+        Fmt.kstr (fun e -> Lwt.return [ Error (`Msg e) ]) "%a" S.pp_error err
+    | Ok None -> Lwt.return [ Ok None ]
+    | Ok (Some (_, refs)) ->
+        Lwt_list.map_p
+          (fun (reference, hash) ->
+            let value = Git.Reference.uid hash in
+            let br =
+              Git.Reference.v
+                ("refs/remotes/origin/" ^ Git.Reference.to_string reference)
+            in
+            G.Ref.write t br value >|= reword_error (msgf "%a" G.pp_error)
+            >>? fun () ->
+            G.Ref.write t reference value
+            >|= reword_error (msgf "%a" G.pp_error)
+            >>? fun () -> Lwt.return (Ok (Some hash)))
+          refs
+
   let push t ?depth:_ (ctx, e) br =
     [%log.debug "push %a" Smart_git.Endpoint.pp e];
     let reference = git_of_branch br in
