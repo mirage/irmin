@@ -50,6 +50,8 @@ depends: [
   "irmin-test"    {with-test & = version}
   "alcotest"      {with-test}
   "mdx" {>= "2.0.0" & with-test}
+  "mirage-mtime" {with-test}
+  "mirage-ptime" {with-test}
 ]
 
 synopsis: "CLI for Irmin"
