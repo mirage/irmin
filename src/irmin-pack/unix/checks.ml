@@ -48,8 +48,6 @@ let path =
   @@ pos 0 (some string) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-let deprecated_info = (Cmdliner.Term.info [@alert "-deprecated"])
-
 let ppf_or_null ppf =
   let null =
     match Sys.os_type with
@@ -114,7 +112,9 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Print high-level statistics about the store." in
-      Cmdliner.Term.(term_internal $ setup_log, deprecated_info ~doc "stat")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "stat")
+        Cmdliner.Term.(term_internal $ setup_log)
   end
 
   module Reconstruct_index = struct
@@ -150,8 +150,9 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Reconstruct index from an existing pack file." in
-      Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "reconstruct-index")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "reconstruct-index")
+        Cmdliner.Term.(term_internal $ setup_log)
   end
 
   module Integrity_check_index = struct
@@ -187,8 +188,9 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Check index integrity." in
-      Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "integrity-check-index")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "integrity-check-index")
+        Cmdliner.Term.(term_internal $ setup_log)
   end
 
   module Integrity_check = struct
@@ -256,8 +258,9 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Check integrity of an existing store." in
-      Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "integrity-check")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "integrity-check")
+        Cmdliner.Term.(term_internal $ setup_log)
   end
 
   module Integrity_check_inodes = struct
@@ -298,9 +301,9 @@ module Make (Store : Store) = struct
 
     let term =
       let doc = "Check integrity of inodes in an existing store." in
-      Cmdliner.Term.
-        ( term_internal $ setup_log,
-          deprecated_info ~doc "integrity-check-inodes" )
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "integrity-check-inodes")
+        Cmdliner.Term.(term_internal $ setup_log)
   end
 
   module Stats_commit = struct
@@ -360,8 +363,9 @@ module Make (Store : Store) = struct
         "Traverse one commit, specified with the --commit argument, in the \
          store for stats. If no commit is specified the current head is used."
       in
-      Cmdliner.Term.
-        (term_internal $ setup_log, deprecated_info ~doc "stat-store")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "stat-store")
+        Cmdliner.Term.(term_internal $ setup_log)
   end
 
   module Cli = struct
@@ -377,17 +381,13 @@ module Make (Store : Store) = struct
             Integrity_check_index.term;
             Stats_commit.term;
           ]) () : empty =
-      let default =
-        let default_info =
-          let doc = "Check Irmin data-stores." in
-          deprecated_info ~doc "irmin-fsck"
-        in
-        Term.(ret (const (`Help (`Auto, None))), default_info)
+      let default_info =
+        let doc = "Check Irmin data-stores." in
+        Cmdliner.Cmd.info ~doc "irmin-fsck"
       in
-      let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"]) in
-      let deprecated_exit = (Term.exit [@alert "-deprecated"]) in
-      deprecated_eval_choice default terms |> deprecated_exit;
-      assert false
+      let default = Term.(ret (const (`Help (`Auto, None)))) in
+      let cmd = Cmd.group ~default default_info terms in
+      Cmd.eval cmd |> Stdlib.exit
   end
 
   let cli = Cli.main

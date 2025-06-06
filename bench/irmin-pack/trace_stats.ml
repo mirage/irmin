@@ -162,15 +162,11 @@ let term_cb =
   in
   Term.(const summary_to_cb $ summary_file)
 
-let deprecated_info = (Term.info [@alert "-deprecated"])
-let deprecated_exit = (Term.exit [@alert "-deprecated"])
-let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
-
 let () =
   let man = [] in
   let i =
-    deprecated_info ~man
-      ~doc:"Processing of stat traces and stat trace summaries." "trace_stats"
+    Cmd.info ~man ~doc:"Processing of stat traces and stat trace summaries."
+      "trace_stats"
   in
 
   let man =
@@ -180,7 +176,7 @@ let () =
       `P "trace_stats.exe summarise run0.repr > run0.json";
     ]
   in
-  let j = deprecated_info ~man ~doc:"Stat Trace to Summary" "summarise" in
+  let j = Cmd.info ~man ~doc:"Stat Trace to Summary" "summarise" in
 
   let man =
     [
@@ -204,10 +200,9 @@ let () =
       `P "trace_stats.exe pp -f r0,run0.json -f r1,run1.repr";
     ]
   in
-  let k = deprecated_info ~man ~doc:"Comparative Pretty Printing" "pp" in
-  let l =
-    deprecated_info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb"
-  in
-  deprecated_exit
-  @@ deprecated_eval_choice (term_summarise, i)
-       [ (term_summarise, j); (term_pp, k); (term_cb, l) ]
+  let k = Cmd.info ~man ~doc:"Comparative Pretty Printing" "pp" in
+  let l = Cmd.info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb" in
+  Stdlib.exit
+  @@ Cmd.eval
+  @@ Cmd.group ~default:term_summarise i
+       [ Cmd.v j term_summarise; Cmd.v k term_pp; Cmd.v l term_cb ]
