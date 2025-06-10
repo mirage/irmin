@@ -46,10 +46,6 @@ let src =
 
 open Cmdliner
 
-let deprecated_info = (Term.info [@alert "-deprecated"])
-let deprecated_exit = (Term.exit [@alert "-deprecated"])
-let deprecated_eval = (Term.eval [@alert "-deprecated"])
-
 let log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
@@ -181,8 +177,8 @@ struct
         Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
   let run ~config ~size =
-    let info = deprecated_info "Simple benchmark for trees" in
-    deprecated_exit @@ deprecated_eval (main_term config size, info)
+    let info = Cmd.info "Simple benchmark for trees" in
+    Stdlib.exit @@ Cmd.eval @@ Cmd.v info (main_term config size)
 end
 
 let () =

@@ -644,10 +644,6 @@ let main_term =
     $ gc_wait_after
     $ add_volume_every)
 
-let deprecated_info = (Term.info [@alert "-deprecated"])
-let deprecated_exit = (Term.exit [@alert "-deprecated"])
-let deprecated_eval = (Term.eval [@alert "-deprecated"])
-
 let () =
   let man =
     [
@@ -666,7 +662,5 @@ let () =
          http://data.tarides.com/irmin/data_1343496commits.repr";
     ]
   in
-  let info =
-    deprecated_info ~man ~doc:"Benchmarks for tree operations" "tree"
-  in
-  deprecated_exit @@ deprecated_eval (main_term, info)
+  let info = Cmd.info ~man ~doc:"Benchmarks for tree operations" "tree" in
+  Stdlib.exit @@ Cmd.eval @@ Cmd.v info main_term

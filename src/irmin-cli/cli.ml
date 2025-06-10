@@ -19,9 +19,6 @@ open Cmdliner
 open Resolver
 module Graphql = Irmin_graphql_unix
 
-let deprecated_info = (Term.info [@alert "-deprecated"])
-let deprecated_man_format = (Term.man_format [@alert "-deprecated"])
-let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
 let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
 
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
@@ -51,10 +48,10 @@ let setup_log =
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
-  deprecated_info ~sdocs:global_option_section ~docs:global_option_section ~doc
-    ~man title
+  Cmd.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man
+    title
 
-type command = (unit Term.t * Term.info[@alert "-deprecated"])
+type command = unit Cmd.t
 
 type sub = {
   name : string;
@@ -65,7 +62,7 @@ type sub = {
 
 let create_command c =
   let man = [ `S "DESCRIPTION"; `P c.doc ] @ c.man in
-  (c.term, term_info c.name ~doc:c.doc ~man)
+  Cmd.v (term_info c.name ~doc:c.doc ~man) c.term
 
 (* Converters *)
 
@@ -715,7 +712,7 @@ let help =
                       config_man)
              | `Ok t -> `Help (man_format, Some t))
        in
-       Term.(ret (mk help $ deprecated_man_format $ Term.choice_names $ topic)));
+       Term.(ret (mk help $ Arg.man_format $ Term.choice_names $ topic)));
   }
 
 (* GRAPHQL *)
@@ -924,7 +921,7 @@ let log =
        Term.(mk commits $ store () $ plain $ pager $ num $ skip $ reverse));
   }
 
-let default =
+let default_help =
   let doc = "Irmin, the database that never forgets." in
   let man =
     [
@@ -938,6 +935,9 @@ let default =
          more information on a specific command.";
     ]
   in
+  Cmd.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc ~man
+
+let default_term =
   let usage () =
     Fmt.pr
       "usage: irmin [--version]\n\
@@ -970,9 +970,7 @@ let default =
       merge.doc pull.doc push.doc snapshot.doc revert.doc watch.doc dot.doc
       graphql.doc server.doc options.doc branches.doc log.doc
   in
-  ( Term.(mk usage $ const ()),
-    deprecated_info "irmin" ~version:Irmin.version ~sdocs:global_option_section
-      ~doc ~man )
+  Term.(mk usage $ const ())
 
 let commands =
   List.map create_command
@@ -1000,5 +998,7 @@ let commands =
       log;
     ]
 
-let run ~default:x y =
-  match deprecated_eval_choice x y with `Error _ -> exit 1 | _ -> ()
+let run y =
+  match Cmd.eval (Cmd.group ~default:default_term default_help y) with
+  | 0 -> ()
+  | _ -> exit 1
