@@ -1,3 +1,25 @@
+## 3.11.0 (2025-06-19)
+
+### Added
+
+- **irmin**
+  - Add x-maintenance-intent to opam files (#2353, @art-w)
+
+### Changed
+
+- **irmin**
+  -  Update Cmdliner usage for 2.0 (#2356, @art-w)
+
+### Fixed
+
+- **irmin**
+  - Fix CI issues (#2358, #2359, @clecat)
+- **irmin-client**
+  - Fix dubious use of dune subst (#2350, @samoht)
+  - Upgrade to mirage-crypto-rng and relay on use_default (#2354, @xvw)
+- **irmin-pack**
+  - Improve parts of the documentation for readability (#2332, #2333, @christinerose)
+
 ## 3.10.0 (2024-12-11)
 
 ### Added
