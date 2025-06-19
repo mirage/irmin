@@ -10,7 +10,6 @@
 <br />
 
 [![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmain&logo=ocaml&style=flat-square)](https://ci.ocamllabs.io/github/mirage/irmin)
-[![codecov](https://codecov.io/gh/mirage/irmin/branch/main/graph/badge.svg?token=n4mWfgURqT)](https://codecov.io/gh/mirage/irmin)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/mirage/irmin?style=flat-square&color=09aa89)](https://github.com/mirage/irmin/releases/latest)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg?style=flat-square)](https://mirage.github.io/irmin/)
 
@@ -28,7 +27,7 @@
 <hr />
 
 Irmin is based on distributed version-control systems (DVCs),
-extensively used in software development to track data 
+extensively used in software development to track data
 provenance and show modifications in the source
 code. Irmin applies DVC's principles to large-scale distributed data
 and includes similar functions to Git (clone, push, pull, branch,
@@ -53,8 +52,8 @@ challenges raised by the [CAP Theorem][]. Each application
 can select the right combination of libraries to solve its particular
 distributed problem.
 
-Irmin is built on a core of well-defined, low-level data structures that 
-dictate how data should be persisted and shared across nodes. 
+Irmin is built on a core of well-defined, low-level data structures that
+dictate how data should be persisted and shared across nodes.
 It defines algorithms for efficient synchronisation of those
 distributed low-level constructs. It also builds a collection of
 higher-level data structures that developers can use without knowing
@@ -268,10 +267,10 @@ Irmin's initial design is directly inspired from
   after a crash), while making system debugging easy and go really
   fast, thanks to efficient merging strategy.
 
-In 2014, the first release of [Irmin was announced](https://mirage.io/blog/introducing-irmin) 
+In 2014, the first release of [Irmin was announced](https://mirage.io/blog/introducing-irmin)
 as part of the MirageOS 2.0 release. Since
 then, several projects started using and improving Irmin. These can
-roughly be split into three categories: 
+roughly be split into three categories:
 1. Use Irmin as a portable,
 structured key-value store (with expressive, mergeable types)
 2. Use Irmin as distributed database (with a customisable consistency
