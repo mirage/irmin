@@ -49,7 +49,8 @@ module Repo_config = struct
 
   (** Location on disk to save the repository
 
-      Note: irmin-pack will not create the entire path, only the final directory *)
+      Note: irmin-pack will not create the entire path, only the final directory
+  *)
   let root = "./irmin-pack-example"
 
   (** See {!Irmin_pack.Conf} for more keys that can be used when initialising

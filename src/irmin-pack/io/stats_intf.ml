@@ -155,7 +155,8 @@ module Latest_gc = struct
 
       [suffix_transfers] contains an int for each transfer loop to the new
       suffix. That integer corresponds to the number of bytes copied during that
-      loop. The sum of these integers is equal to the "suffix" step in [files]. *)
+      loop. The sum of these integers is equal to the "suffix" step in [files].
+  *)
 
   type stats = {
     generation : int;

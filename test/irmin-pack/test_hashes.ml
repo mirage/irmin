@@ -47,13 +47,14 @@ let check_iter iter_type (iter : 'a -> (string -> unit) -> unit) v checks =
 
 module Test
     (Conf : Irmin_pack.Conf.S)
-    (Schema : Irmin.Schema.Extended
-                with type Contents.t = bytes
-                 and type Metadata.t = unit
-                 and type Path.t = string list
-                 and type Path.step = string
-                 and type Branch.t = string
-                 and module Info = Irmin.Info.Default) =
+    (Schema :
+      Irmin.Schema.Extended
+        with type Contents.t = bytes
+         and type Metadata.t = unit
+         and type Path.t = string list
+         and type Path.step = string
+         and type Branch.t = string
+         and module Info = Irmin.Info.Default) =
 struct
   module Store = struct
     module Maker = Irmin_pack_unix.Maker (Conf)

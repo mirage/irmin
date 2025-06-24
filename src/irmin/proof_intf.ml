@@ -60,7 +60,8 @@ module type S = sig
 
       {e For [irmin-pack]}: [proofs] have a length of at most [Conf.entries]
       entries. For binary trees, this boolean index is a step of the left-right
-      sequence / decision proof corresponding to the path in that binary tree. *)
+      sequence / decision proof corresponding to the path in that binary tree.
+  *)
 
   type 'a inode_extender = { length : int; segments : int list; proof : 'a }
   [@@deriving irmin]
@@ -262,11 +263,12 @@ module type Proof = sig
 
   module Env
       (B : Backend.S)
-      (P : S
-             with type contents := B.Contents.Val.t
-              and type hash := B.Hash.t
-              and type step := B.Node.Val.step
-              and type metadata := B.Node.Val.metadata) :
+      (P :
+        S
+          with type contents := B.Contents.Val.t
+           and type hash := B.Hash.t
+           and type step := B.Node.Val.step
+           and type metadata := B.Node.Val.metadata) :
     Env
       with type hash := B.Hash.t
        and type contents := B.Contents.Val.t

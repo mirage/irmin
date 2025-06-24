@@ -21,7 +21,8 @@ module Pool : sig
   (** Reference-counted pool of values with corresponding keys. *)
 
   val create : alloc:('k -> 'v) -> ('k, 'v) t
-  (** Get an empty pool, given a function for allocating new instances from IDs. *)
+  (** Get an empty pool, given a function for allocating new instances from IDs.
+  *)
 
   val take : ('k, 'v) t -> 'k -> 'v
   (** Get an instance from the pool by its key, allocating it if necessary. *)

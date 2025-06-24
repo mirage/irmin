@@ -23,7 +23,8 @@ module Payload = struct
       (** [entry_offset_at_upgrade_to_v3] is the offset of the first entry that
           is known to have been created using [irmin_pack_version = `V2] or
           more. The entries before that point may be v1 entries. V1 entries need
-          an entry in index because it is the only place their lenght is stored. *)
+          an entry in index because it is the only place their lenght is stored.
+      *)
 
       type from_v3_gced = { suffix_start_offset : int63; generation : int }
       [@@deriving irmin]
@@ -326,7 +327,8 @@ module type S = sig
     (t, [> open_error ]) result
   (** Create a rw instance of [t] by reading an existing file at [path].
       [tmp_path] will be used by RW instances when updating it's content, it is
-      not required for RO instances or RW instances which will never be updated. *)
+      not required for RO instances or RW instances which will never be updated.
+  *)
 
   val close : t -> (unit, [> Io.close_error ]) result
 

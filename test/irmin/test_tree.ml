@@ -115,13 +115,13 @@ let test_paginated_bindings () =
   let tree =
     Tree.of_concrete
       (`Tree
-        [
-          ("aa", c "0");
-          ("a", c "1");
-          ("bbb", c "3");
-          ("b", c "3");
-          ("aaa", c "2");
-        ])
+         [
+           ("aa", c "0");
+           ("a", c "1");
+           ("bbb", c "3");
+           ("b", c "3");
+           ("aaa", c "2");
+         ])
   in
   let check_sorted expected =
     Alcotest.(check (list string))
@@ -404,10 +404,11 @@ let test_update () =
       "Updating at a non-existent contents path adds a new directory entry."
       ~expected:
         (`Tree
-          [
-            ("a", `Tree [ ("b", `Tree [ ("c", c "1"); ("c'", c "new_value") ]) ]);
-            unrelated_binding;
-          ])
+           [
+             ( "a",
+               `Tree [ ("b", `Tree [ ("c", c "1"); ("c'", c "new_value") ]) ] );
+             unrelated_binding;
+           ])
       (Tree.update abc1 [ "a"; "b"; "c'" ] (None --> Some "new_value"))
   in
 
@@ -572,11 +573,11 @@ let test_fold_force () =
   let create_sample_tree () =
     Tree.of_concrete
       (`Tree
-        [
-          ("a", `Tree [ ("aa", c "v-aa"); ("ab", c "v-ab"); ("ac", c "v-ac") ]);
-          ("b", c "v-b");
-          ("c", c "v-c");
-        ])
+         [
+           ("a", `Tree [ ("aa", c "v-aa"); ("ab", c "v-ab"); ("ac", c "v-ac") ]);
+           ("b", c "v-b");
+           ("c", c "v-c");
+         ])
   in
   let eager_stats =
     Tree.{ nodes = 2; leafs = 5; skips = 0; depth = 2; width = 3 }

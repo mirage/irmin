@@ -73,8 +73,8 @@ val config :
   Irmin.config ->
   Irmin.config
 (** [config ?config ?size ?min_size ()] is the configuration value extending the
-    optional [config] with bindings associating {{!Conf.Key.chunk_size}
-    chunk_size} to [size].
+    optional [config] with bindings associating
+    {{!Conf.Key.chunk_size} chunk_size} to [size].
 
     If [chunking] is [Best_fit] (the default), the size of new chunks will be of
     maximum [max_size] but could be smaller if they don't need to be chunked. If
@@ -83,7 +83,8 @@ val config :
     Fail with [Invalid_argument] if [size] is smaller than [min_size].
     [min_size] is, by default, set to 4000 (to avoid hash collisions on smaller
     sizes) but can be tweaked for testing purposes. {i Notes:} the smaller
-    [size] is, the bigger the risk of hash collisions, so use reasonable values. *)
+    [size] is, the bigger the risk of hash collisions, so use reasonable values.
+*)
 
 (** [Content_addressable(X)] is a content-addressable store which store values
     cut into chunks into the underlying store [X]. *)

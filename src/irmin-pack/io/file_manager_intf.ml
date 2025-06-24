@@ -285,7 +285,8 @@ module type S = sig
       the presence of a lower layer. *)
 
   val gc_destination : t -> [ `Delete | `Archive of Lower.t ]
-  (** Returns where data discarded by the GC will end up. (see {!gc_behaviour}). *)
+  (** Returns where data discarded by the GC will end up. (see {!gc_behaviour}).
+  *)
 
   val create_one_commit_store :
     t ->

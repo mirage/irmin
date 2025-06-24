@@ -26,12 +26,12 @@ module type S_generic_key = sig
       without having to rely on a global state. In a way very similar to version
       control systems, Irmin local states are called {i branches}.
 
-      There are two kinds of store in Irmin: the ones based on {{!of_branch}
-      persistent} named branches and the ones based {{!of_commit} temporary}
-      detached heads. These exist relative to a local, larger (and shared)
-      store, and have some (shared) contents. This is exactly the same as usual
-      version control systems, that the informed user can see as an implicit
-      purely functional data-structure. *)
+      There are two kinds of store in Irmin: the ones based on
+      {{!of_branch} persistent} named branches and the ones based
+      {{!of_commit} temporary} detached heads. These exist relative to a local,
+      larger (and shared) store, and have some (shared) contents. This is
+      exactly the same as usual version control systems, that the informed user
+      can see as an implicit purely functional data-structure. *)
 
   module Schema : Schema.S
 
@@ -273,7 +273,8 @@ module type S_generic_key = sig
   end
 
   val status : t -> Status.t
-  (** [status t] is [t]'s status. It can either be a branch, a commit or empty. *)
+  (** [status t] is [t]'s status. It can either be a branch, a commit or empty.
+  *)
 
   (** Managing the store's heads. *)
   module Head : sig
@@ -364,7 +365,8 @@ module type S_generic_key = sig
         - [tree c = t]
 
         When [clear] is set (the default), the tree cache is emptied upon the
-        function's completion, mirroring the effect of invoking {!Tree.clear}. *)
+        function's completion, mirroring the effect of invoking {!Tree.clear}.
+    *)
 
     val tree : commit -> tree
     (** [tree c] is [c]'s root tree. *)
@@ -999,8 +1001,8 @@ module type S_generic_key = sig
   module Branch : sig
     (** {1 Branch Store}
 
-        Manipulate relations between {{!branch} branches} and {{!commit}
-        commits}. *)
+        Manipulate relations between {{!branch} branches} and
+        {{!commit} commits}. *)
 
     val mem : repo -> branch -> bool
     (** [mem r b] is true iff [b] is present in [r]. *)
@@ -1094,7 +1096,7 @@ module type S_generic_key = sig
       When [clear] is set (the default), the tree cache is emptied upon the
       function's completion, mirroring the effect of invoking {!Tree.clear}. *)
 
-  (** {Deprecated} *)
+  (** {!Deprecated} *)
 
   val master : repo -> t
   [@@ocaml.deprecated "Use `main` instead."]

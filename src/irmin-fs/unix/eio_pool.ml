@@ -95,8 +95,10 @@ let validate_and_return p c =
 (* Acquire a pool member. *)
 let acquire p =
   if Queue.is_empty p.list then (
-    if (* No more available member. *)
-       p.count < p.max then
+    if
+      (* No more available member. *)
+      p.count < p.max
+    then
       (* Limit not reached: create a new one. *)
       create_member p
     else

@@ -257,8 +257,8 @@ module Make (K : Key) (G : Git.S) = struct
 
   let test_and_set t r ~test ~set =
     [%log.debug fun f ->
-      let pp = Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp Val.t) in
-      f "test_and_set %a: %a => %a" pp_branch r pp test pp set]
+       let pp = Fmt.option ~none:(Fmt.any "<none>") (Irmin.Type.pp Val.t) in
+       f "test_and_set %a: %a => %a" pp_branch r pp test pp set]
     ;
     let gr = git_of_branch r in
     let c = function None -> None | Some h -> Some (Git.Reference.Uid h) in

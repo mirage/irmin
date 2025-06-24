@@ -54,10 +54,11 @@ module type Maker = sig
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Make
-      (Schema : Schema.S
-                  with type Hash.t = G.hash
-                   and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) :
+      (Schema :
+        Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) :
     S
       with module Git = G
        and module Schema := Schema

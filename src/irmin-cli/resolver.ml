@@ -184,8 +184,9 @@ module Hash = struct
     | Fixed _, Some size ->
         Error
           (`Msg
-            (Fmt.str "Cannot specify a size for hash function `%s' (%d passed)."
-               hashname size))
+             (Fmt.str
+                "Cannot specify a size for hash function `%s' (%d passed)."
+                hashname size))
 
   let find h =
     of_specifier h |> function Ok h -> h | Error (`Msg e) -> failwith e

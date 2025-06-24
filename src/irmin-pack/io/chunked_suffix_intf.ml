@@ -87,7 +87,8 @@ module type S = sig
       {3 RO mode}
 
       This information originates from the latest reload of the control file.
-      Calling [refresh_appendable_chunk_poff t] updates [appendable_chunk_poff]. *)
+      Calling [refresh_appendable_chunk_poff t] updates [appendable_chunk_poff].
+  *)
 
   val refresh_appendable_chunk_poff :
     t -> int63 -> (unit, [> `Rw_not_allowed ]) result

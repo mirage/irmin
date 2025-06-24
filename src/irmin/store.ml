@@ -129,7 +129,9 @@ module Make (B : Backend.S) = struct
   let write_error_t =
     let open Type in
     variant "write-error" (fun c m e -> function
-      | `Conflict x -> c x | `Too_many_retries x -> m x | `Test_was x -> e x)
+      | `Conflict x -> c x
+      | `Too_many_retries x -> m x
+      | `Test_was x -> e x)
     |~ case1 "conflict" string (fun x -> `Conflict x)
     |~ case1 "too-many-retries" int (fun x -> `Too_many_retries x)
     |~ case1 "test-got" (option tree_t) (fun x -> `Test_was x)
@@ -1193,7 +1195,9 @@ module Make (B : Backend.S) = struct
     let t r =
       let open Type in
       variant "status" (fun empty branch commit -> function
-        | `Empty -> empty | `Branch b -> branch b | `Commit c -> commit c)
+        | `Empty -> empty
+        | `Branch b -> branch b
+        | `Commit c -> commit c)
       |~ case0 "empty" `Empty
       |~ case1 "branch" Branch.t (fun b -> `Branch b)
       |~ case1 "commit" (Commit.t r) (fun c -> `Commit c)

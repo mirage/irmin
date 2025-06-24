@@ -27,7 +27,8 @@ module type Sigs = sig
   (** The internal state of a key (read with {!inspect}).
 
       Invariant: keys of the form {!Indexed} always reference values that have
-      entries in the index (as otherwise these keys could not be dereferenced). *)
+      entries in the index (as otherwise these keys could not be dereferenced).
+  *)
   type ('hash, _) unsafe_state = private
     | Direct : {
         hash : 'hash;

@@ -73,10 +73,8 @@ let test_subsequent_root_paths_duplicate () =
 let suite =
   [
     Alcotest.test_case "conf" `Quick test_conf;
-    Alcotest.test_case "duplicate key names" `Quick
-      test_duplicate_key_names;
-    Alcotest.test_case "subsequent root paths" `Quick
-      test_subsequent_root_paths;
+    Alcotest.test_case "duplicate key names" `Quick test_duplicate_key_names;
+    Alcotest.test_case "subsequent root paths" `Quick test_subsequent_root_paths;
     Alcotest.test_case "subsequent root paths duplicate" `Quick
       test_subsequent_root_paths_duplicate;
   ]

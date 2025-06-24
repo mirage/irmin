@@ -244,8 +244,7 @@ struct
                 match Commit.CA.index_direct_with_kind t.commit h with
                 | None ->
                     Error
-                      (`Commit_key_is_dangling
-                        (Irmin.Type.to_string XKey.t key))
+                      (`Commit_key_is_dangling (Irmin.Type.to_string XKey.t key))
                 | Some (k, _kind) -> Ok k)
 
           let start ~unlink ~use_auto_finalisation ~output t commit_key =

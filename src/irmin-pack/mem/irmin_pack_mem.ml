@@ -26,9 +26,8 @@ end
 
 module Indexable_mem
     (Hash : Irmin.Hash.S)
-    (Value : Irmin_pack.Pack_value.S
-               with type hash := Hash.t
-                and type key = Hash.t) =
+    (Value :
+      Irmin_pack.Pack_value.S with type hash := Hash.t and type key = Hash.t) =
 struct
   module Pack = Indexable.Maker (Hash)
   module Indexable_mem = Pack.Make (Value)

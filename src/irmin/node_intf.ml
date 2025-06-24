@@ -378,11 +378,12 @@ module type Sigs = sig
         (C : Contents.Store)
         (S : Indexable.S)
         (H : Hash.S with type t = S.hash)
-        (V : S
-               with type t = S.value
-                and type hash = H.t
-                and type contents_key = C.key
-                and type node_key = S.key)
+        (V :
+          S
+            with type t = S.value
+             and type hash = H.t
+             and type contents_key = C.key
+             and type node_key = S.key)
         (M : Metadata.S with type t = V.metadata)
         (P : Path.S with type step = V.step) :
       Store

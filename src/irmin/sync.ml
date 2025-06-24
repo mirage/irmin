@@ -90,7 +90,8 @@ module Make (S : Store.Generic_key.S) = struct
   let status_t t =
     let open Type in
     variant "status" (fun empty head -> function
-      | `Empty -> empty | `Head c -> head c)
+      | `Empty -> empty
+      | `Head c -> head c)
     |~ case0 "empty" `Empty
     |~ case1 "head" S.(commit_t @@ repo t) (fun c -> `Head c)
     |> sealv

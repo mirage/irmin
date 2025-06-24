@@ -38,7 +38,8 @@ val map : ('a -> 'c) -> ('a, 'b) result -> ('c, 'b) result
 
 type 'a promise = unit -> ('a option, conflict) result
 (** An ['a] promise is a function which, when called, will eventually return a
-    value type of ['a]. A promise is an optional, lazy and non-blocking value. *)
+    value type of ['a]. A promise is an optional, lazy and non-blocking value.
+*)
 
 val promise : 'a -> 'a promise
 (** [promise a] is the promise containing [a]. *)
@@ -79,7 +80,8 @@ val like : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
     functions raise any exception the merge is a conflict. *)
 
 val with_conflict : (string -> string) -> 'a t -> 'a t
-(** [with_conflict f m] is [m] with the conflict error message modified by [f]. *)
+(** [with_conflict f m] is [m] with the conflict error message modified by [f].
+*)
 
 val like_lwt : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
 (** Same as {{!Merge.biject} biject} but with blocking domain converting
@@ -171,8 +173,8 @@ end
 
     {b Note:} We only consider sets of bindings, instead of multisets.
     Application developers should take care of concurrent addition and removal
-    of similar bindings themselves, by using the appropriate {{!Merge.MSet}
-    multi-sets}. *)
+    of similar bindings themselves, by using the appropriate
+    {{!Merge.MSet} multi-sets}. *)
 
 (** Lift merge functions to sets. *)
 module Set (E : sig

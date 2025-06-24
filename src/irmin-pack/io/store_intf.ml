@@ -178,7 +178,8 @@ module type S = sig
 
         All exceptions that [Irmin_pack] knows how to handle are caught and
         returned as pretty-print error messages; others are re-raised. The error
-        messages should be used only for informational purposes, like logging. *)
+        messages should be used only for informational purposes, like logging.
+    *)
 
     val wait : repo -> (Stats.Latest_gc.stats option, msg) result
     (** [wait repo] blocks until GC is finished or is idle.
@@ -187,7 +188,8 @@ module type S = sig
 
         All exceptions that [Irmin_pack] knows how to handle are caught and
         returned as pretty-print error messages; others are re-raised. The error
-        messages should be used only for informational purposes, like logging. *)
+        messages should be used only for informational purposes, like logging.
+    *)
 
     val cancel : repo -> bool
     (** [cancel repo] aborts the current GC and returns [true], or returns
