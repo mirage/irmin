@@ -13,7 +13,7 @@ depends: [
   "ppx_irmin" {= version}
   "tezos-base58"
   "digestif" {>= "0.7"}
-  "cmdliner"
+  "cmdliner" {>= "1.3.0"}
   "fmt"
   "yojson"
   "alcotest" {with-test}
