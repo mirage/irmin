@@ -33,16 +33,11 @@ depends: [
   "ppx_irmin" {= version}
   "eio_main" {>= "1.0" & with-test}
   "hex"      {with-test}
-  "alcotest" {= "dev" & with-test}
+  "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {with-test}
   "vector" {with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
   "bisect_ppx" {dev & >= "2.5.0"}
-]
-
-pin-depends: [
-  # Fix race in formatters
-  [ "alcotest.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
 ]
 
 conflicts: [

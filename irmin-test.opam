@@ -25,7 +25,7 @@ depends: [
   "lwt"          {>= "5.3.0"}
   "eio"          {>= "1.0"}
   "eio_main"     {>= "0.15"}
-  "alcotest"     {>= "dev"}
+  "alcotest"     {>= "1.8.0"}
   "qcheck-alcotest" {with-test & >= "0.21.1"}
   "metrics"      {>= "0.4.1"}
   "metrics-unix" {>= "0.4.1"}
@@ -36,11 +36,6 @@ depends: [
   "vector" {with-test & >= "1.0.0"}
   "alcotest" {>= "1.7.0" & with-test}
   "qcheck-alcotest" {>= "0.21.1" & with-test}
-]
-
-pin-depends: [
-  # Fix race in formatters
-  [ "alcotest.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
 ]
 
 synopsis: "Irmin test suite"
