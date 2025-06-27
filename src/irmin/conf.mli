@@ -77,10 +77,7 @@ val key :
 
     @raise Invalid_argument
       if the key name is not made of a sequence of ASCII lowercase letter,
-      digit, dash or underscore.
-    @raise Invalid_argument
-      if [allow_duplicate] is [false] (the default) and [name] has already been
-      used to create a key *)
+      digit, dash or underscore. *)
 
 val name : 'a key -> string
 (** The key name. *)

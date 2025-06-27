@@ -40,8 +40,9 @@ let run_server ~sw ~clock s =
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-      let key = Irmin.Backend.Conf.root Irmin_mem.Conf.spec in
-      let conf = Irmin.Backend.Conf.singleton Irmin_mem.Conf.spec key kind in
+      let spec = Irmin.Backend.Conf.Spec.v kind in
+      let key = Irmin.Backend.Conf.root spec in
+      let conf = Irmin.Backend.Conf.singleton spec key kind in
       Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
       `Stop_daemon);
   Eio.Time.sleep clock 0.1;
