@@ -21,8 +21,7 @@
 
     A module [Make_replayable] has yet to be implemented. *)
 
-open Lwt.Syntax
-module Mtime = Import.Mtime
+module Mtime = Bench_common.Mtime
 
 (** Make state trace collector. *)
 module Make_stat (Store : Irmin.Generic_key.KV) = struct
@@ -201,8 +200,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
 
   let short_op_end { t0; writer; _ } short_op =
     let duration =
-      Mtime_clock.count t0 |> fun span ->
-      Mtime.span_to_s span |> Int32.bits_of_float
+      Mtime_clock.count t0 |> Mtime.span_to_s |> Int32.bits_of_float
     in
     let op =
       match short_op with
@@ -217,18 +215,18 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
     Def.append_row writer op
 
   let create_store_before tree =
-    let+ Store.Tree.{ nodes; leafs; skips; depth; width } =
+    let Store.Tree.{ nodes; leafs; skips; depth; width } =
       Store.Tree.stats ~force:false tree
     in
     Def.{ nodes; leafs; skips; depth; width }
 
   let create_store_after tree =
-    let* watched_nodes_length =
-      Lwt_list.map_s
+    let watched_nodes_length =
+      List.map
         (fun (_, steps) -> Store.Tree.length tree steps)
         Def.step_list_per_watched_node
     in
-    Lwt.return Def.{ watched_nodes_length }
+    Def.{ watched_nodes_length }
 
   let commit_begin t tree =
     short_op_begin t;
@@ -236,7 +234,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
       Bag_of_stats.create t.store_path t.prev_merge_durations
     in
     t.prev_merge_durations <- Index.Stats.((get ()).merge_durations);
-    let+ store_before = create_store_before tree in
+    let store_before = create_store_before tree in
     t.commit_before <- (stats_before, store_before)
 
   let commit_end t tree =
@@ -244,7 +242,7 @@ module Make_stat (Store : Irmin.Generic_key.KV) = struct
     let duration = duration |> Int32.bits_of_float in
     let stats_after = Bag_of_stats.create t.store_path t.prev_merge_durations in
     t.prev_merge_durations <- Index.Stats.((get ()).merge_durations);
-    let+ store_after = create_store_after tree in
+    let store_after = create_store_after tree in
     let op =
       `Commit
         Def.

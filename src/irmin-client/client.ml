@@ -109,7 +109,7 @@ struct
         [%log.debug "Completed request: command=%s" name];
         x
 
-  let request (t : t) (type x y)
+  let request_lwt (t : t) (type x y)
       (module Cmd : C.CMD with type res = x and type req = y) (a : y) =
     if t.closed then raise Irmin.Closed
     else
@@ -120,6 +120,8 @@ struct
           let* () = Conn.write t.conn Cmd.req_t a in
           let* () = IO.flush t.conn.oc in
           recv t name Cmd.res_t)
+
+  let request t cmd a = Lwt_eio.run_lwt @@ fun () -> request_lwt t cmd a
 
   let recv_branch_diff (t : t) =
     let* _status = Conn.Response.read_header t.conn in
@@ -140,6 +142,7 @@ struct
   module Conn = Command.Conn
   module Commands = Command.Commands
 
+  let request_lwt = Client.request_lwt
   let request = Client.request
 
   let rec connect ?ctx config =
@@ -185,32 +188,32 @@ struct
       type value = Val.t
       type hash = Hash.t
 
-      let mem t key = request t (module Mem) key >|= Error.unwrap "Contents.mem"
+      let mem t key = request t (module Mem) key |> Error.unwrap "Contents.mem"
 
       let find t key =
-        request t (module Find) key >|= Error.unwrap "Contents.find"
+        request t (module Find) key |> Error.unwrap "Contents.find"
 
       let add t value =
-        request t (module Add) value >|= Error.unwrap "Contents.add"
+        request t (module Add) value |> Error.unwrap "Contents.add"
 
       let unsafe_add t key value =
         request t (module Unsafe_add) (key, value)
-        >|= Error.unwrap "Contents.unsafe_add"
+        |> Error.unwrap "Contents.unsafe_add"
 
       let index t hash =
-        request t (module Index) hash >|= Error.unwrap "Contents.index"
+        request t (module Index) hash |> Error.unwrap "Contents.index"
 
       let batch t f = f t
-      let close t = Client.close t
+      let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
 
       let merge t =
         let f ~old a b =
-          let* old = old () in
+          let old = old () in
           match old with
           | Ok old ->
               request t (module Merge) (old, a, b)
-              >|= Error.unwrap "Contents.merge"
-          | Error e -> Lwt.return_error e
+              |> Error.unwrap "Contents.merge"
+          | Error e -> Error e
         in
         Irmin.Merge.v Irmin.Type.(option Key.t) f
     end
@@ -230,27 +233,27 @@ struct
       type value = Val.t
       type hash = Hash.t
 
-      let mem t key = request t (module Mem) key >|= Error.unwrap "Node.mem"
-      let find t key = request t (module Find) key >|= Error.unwrap "Node.find"
-      let add t value = request t (module Add) value >|= Error.unwrap "Node.add"
+      let mem t key = request t (module Mem) key |> Error.unwrap "Node.mem"
+      let find t key = request t (module Find) key |> Error.unwrap "Node.find"
+      let add t value = request t (module Add) value |> Error.unwrap "Node.add"
 
       let unsafe_add t key value =
         request t (module Unsafe_add) (key, value)
-        >|= Error.unwrap "Node.unsafe_add"
+        |> Error.unwrap "Node.unsafe_add"
 
       let index t hash =
-        request t (module Index) hash >|= Error.unwrap "Node.index"
+        request t (module Index) hash |> Error.unwrap "Node.index"
 
       let batch t f = f t
-      let close t = Client.close t
+      let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
 
       let merge t =
         let f ~old a b =
-          let* old = old () in
+          let old = old () in
           match old with
           | Ok old ->
-              request t (module Merge) (old, a, b) >|= Error.unwrap "Node.merge"
-          | Error e -> Lwt.return_error e
+              request t (module Merge) (old, a, b) |> Error.unwrap "Node.merge"
+          | Error e -> Error e
         in
         Irmin.Merge.v Irmin.Type.(option Key.t) f
     end
@@ -271,32 +274,30 @@ struct
       type value = Val.t
       type hash = Hash.t
 
-      let mem t key = request t (module Mem) key >|= Error.unwrap "Commit.mem"
-
-      let find t key =
-        request t (module Find) key >|= Error.unwrap "Commit.find"
+      let mem t key = request t (module Mem) key |> Error.unwrap "Commit.mem"
+      let find t key = request t (module Find) key |> Error.unwrap "Commit.find"
 
       let add t value =
-        request t (module Add) value >|= Error.unwrap "Commit.add"
+        request t (module Add) value |> Error.unwrap "Commit.add"
 
       let unsafe_add t key value =
         request t (module Unsafe_add) (key, value)
-        >|= Error.unwrap "Commit.unsafe_add"
+        |> Error.unwrap "Commit.unsafe_add"
 
       let index t hash =
-        request t (module Index) hash >|= Error.unwrap "Commit.index"
+        request t (module Index) hash |> Error.unwrap "Commit.index"
 
       let batch t f = f t
-      let close t = Client.close t
+      let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
 
       let merge t ~info =
         let f ~old a b =
-          let* old = old () in
+          let old = old () in
           match old with
           | Ok old ->
               request t (module Merge) (info (), (old, a, b))
-              >|= Error.unwrap "Node.merge"
-          | Error e -> Lwt.return_error e
+              |> Error.unwrap "Node.merge"
+          | Error e -> Error e
         in
         Irmin.Merge.v Irmin.Type.(option Key.t) f
     end
@@ -313,29 +314,29 @@ struct
       type key = Key.t
       type value = Val.t
 
-      let mem t key = request t (module Mem) key >|= Error.unwrap "Branch.mem"
-
-      let find t key =
-        request t (module Find) key >|= Error.unwrap "Branch.find"
+      let mem t key = request t (module Mem) key |> Error.unwrap "Branch.mem"
+      let find t key = request t (module Find) key |> Error.unwrap "Branch.find"
 
       let set t key value =
-        request t (module Set) (key, value) >|= Error.unwrap "Branch.set"
+        request t (module Set) (key, value) |> Error.unwrap "Branch.set"
 
       let test_and_set t key ~test ~set =
         request t (module Test_and_set) (key, test, set)
-        >|= Error.unwrap "Branch.test_and_set"
+        |> Error.unwrap "Branch.test_and_set"
 
       let remove t key =
-        request t (module Remove) key >|= Error.unwrap "Branch.remove"
+        request t (module Remove) key |> Error.unwrap "Branch.remove"
 
-      let list t = request t (module List) () >|= Error.unwrap "Branch.list"
+      let list t = request t (module List) () |> Error.unwrap "Branch.list"
 
       type watch = t
 
       let watch t ?init f =
+        Lwt_eio.run_lwt @@ fun () ->
+        let f key diff = Lwt_eio.run_eio @@ fun () -> f key diff in
         let* t = dup t in
         let* () =
-          request t (module Watch) init >|= Error.unwrap "Branch.watch"
+          request_lwt t (module Watch) init >|= Error.unwrap "Branch.watch"
         in
         let rec loop () =
           if t.closed || Conn.is_closed t.conn then Lwt.return_unit
@@ -352,9 +353,11 @@ struct
         Lwt.return t
 
       let watch_key t key ?init f =
+        Lwt_eio.run_lwt @@ fun () ->
+        let f x = Lwt_eio.run_eio @@ fun () -> f x in
         let* t = dup t in
         let* () =
-          request t (module Watch_key) (init, key)
+          request_lwt t (module Watch_key) (init, key)
           >|= Error.unwrap "Branch.watch_key"
         in
         let rec loop () =
@@ -373,11 +376,12 @@ struct
         Lwt.return t
 
       let unwatch _t watch =
+        Lwt_eio.run_lwt @@ fun () ->
         let* () = Conn.write watch.Client.conn Unwatch.req_t () in
         Client.close watch
 
-      let clear t = request t (module Clear) () >|= Error.unwrap "Branch.clear"
-      let close t = Client.close t
+      let clear t = request t (module Clear) () |> Error.unwrap "Branch.clear"
+      let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
     end
 
     module Slice = Store.Backend.Slice
@@ -385,14 +389,14 @@ struct
     module Repo = struct
       type nonrec t = Client.t
 
-      let v config = connect config
+      let v config = Lwt_eio.run_lwt @@ fun () -> connect config
       let config (t : t) = t.Client.config
-      let close (t : t) = Client.close t
+      let close (t : t) = Lwt_eio.run_lwt @@ fun () -> Client.close t
       let contents_t (t : t) = t
       let node_t (t : t) = t
       let commit_t (t : t) = t
       let branch_t (t : t) = t
-      let batch (t : t) f = f t t t
+      let batch ?lock:_ (t : t) f = f t t t
     end
 
     module Remote = Irmin.Backend.Remote.None (Commit.Key) (Store.Branch)
@@ -403,12 +407,12 @@ struct
   let ping t = request t (module Commands.Ping) ()
 
   let export ?depth t =
-    request t (module Commands.Export) depth >|= Error.unwrap "export"
+    request t (module Commands.Export) depth |> Error.unwrap "export"
 
   let import t slice =
-    request t (module Commands.Import) slice >|= Error.unwrap "import"
+    request t (module Commands.Import) slice |> Error.unwrap "import"
 
-  let close t = Client.close t
+  let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
 
   let connect ?tls ?hostname uri =
     let conf = config ?tls ?hostname uri in
@@ -445,12 +449,12 @@ struct
       (path, `Contents (`Hash hash, metadata)) :: t
 
     let add_tree path tree t =
-      let+ tree =
+      let tree =
         match Tree.key tree with
         | None ->
-            let+ concrete_tree = Tree.to_concrete tree in
+            let concrete_tree = Tree.to_concrete tree in
             Request_tree.Concrete concrete_tree
-        | Some key -> Request_tree.Key key |> Lwt.return
+        | Some key -> Request_tree.Key key
       in
       (path, `Tree tree) :: t
 
@@ -458,7 +462,7 @@ struct
       let repo = repo store in
       let store = request_store store in
       request repo (module Commands.Batch.Apply) ((store, path), info (), t)
-      >|= Error.unwrap "Batch.apply"
+      |> Error.unwrap "Batch.apply"
   end
 
   (* Overrides *)
@@ -486,18 +490,17 @@ struct
     end
 
     let of_key repo key =
-      if Cache.Key.mem Cache.key key then
-        Lwt.return_some (Cache.Key.find Cache.key key)
+      if Cache.Key.mem Cache.key key then Some (Cache.Key.find Cache.key key)
       else
-        let+ x = of_key repo key in
+        let x = of_key repo key in
         Option.iter (Cache.Key.add Cache.key key) x;
         x
 
     let of_hash repo hash =
       if Cache.Hash.mem Cache.hash hash then
-        Lwt.return_some (Cache.Hash.find Cache.hash hash)
+        Some (Cache.Hash.find Cache.hash hash)
       else
-        let+ x = of_hash repo hash in
+        let x = of_hash repo hash in
         Option.iter (Cache.Hash.add Cache.hash hash) x;
         x
   end
@@ -518,17 +521,18 @@ struct
 
     let of_hash repo hash =
       if Cache.Hash.mem Cache.hash hash then
-        Lwt.return_some (Cache.Hash.find Cache.hash hash)
+        Some (Cache.Hash.find Cache.hash hash)
       else
-        let+ x = of_hash repo hash in
+        let x = of_hash repo hash in
         Option.iter (Cache.Hash.add Cache.hash hash) x;
         x
   end
 
   let clone ~src ~dst =
     let repo = repo src in
-    let* () =
-      Head.find src >>= function
+    let repo = Lwt_eio.run_lwt @@ fun () -> dup repo in
+    let () =
+      match Head.find src with
       | None -> Branch.remove repo dst
       | Some h -> Branch.set repo dst h
     in
@@ -543,17 +547,17 @@ struct
   let mem store path =
     let repo = repo store in
     request repo (module Commands.Store.Mem) (request_store store, path)
-    >|= Error.unwrap "mem"
+    |> Error.unwrap "mem"
 
   let mem_tree store path =
     let repo = repo store in
     request repo (module Commands.Store.Mem_tree) (request_store store, path)
-    >|= Error.unwrap "mem_tree"
+    |> Error.unwrap "mem_tree"
 
   let find store path =
     let repo = repo store in
     request repo (module Commands.Store.Find) (request_store store, path)
-    >|= Error.unwrap "find"
+    |> Error.unwrap "find"
 
   let remove_exn ?clear ?retries ?allow_empty ?parents ~info store path =
     let parents = Option.map (List.map (fun c -> Commit.hash c)) parents in
@@ -563,19 +567,17 @@ struct
       ( ((clear, retries), (allow_empty, parents)),
         (request_store store, path),
         info () )
-    >|= Error.unwrap "remove"
+    |> Error.unwrap "remove"
 
   let remove ?clear ?retries ?allow_empty ?parents ~info store path =
-    let* x =
-      remove_exn ?clear ?retries ?allow_empty ?parents ~info store path
-    in
-    Lwt.return_ok x
+    let x = remove_exn ?clear ?retries ?allow_empty ?parents ~info store path in
+    Ok x
 
   let find_tree store path =
     let repo = repo store in
-    let+ concrete =
+    let concrete =
       request repo (module Commands.Store.Find_tree) (request_store store, path)
-      >|= Error.unwrap "find_tree"
+      |> Error.unwrap "find_tree"
     in
     Option.map Tree.of_concrete concrete
 end

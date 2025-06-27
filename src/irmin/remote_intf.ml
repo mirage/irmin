@@ -36,7 +36,7 @@ module type S = sig
     ?depth:int ->
     endpoint ->
     branch ->
-    (commit option, [ `Msg of string ]) result Lwt.t
+    (commit option, [ `Msg of string ]) result
   (** [fetch t uri] fetches the contents of the remote store located at [uri]
       into the local store [t]. Return the head of the remote branch with the
       same name, which is now in the local store. [No_head] means no such branch
@@ -47,7 +47,7 @@ module type S = sig
     ?depth:int ->
     endpoint ->
     branch ->
-    (unit, [ `Msg of string | `Detached_head ]) result Lwt.t
+    (unit, [ `Msg of string | `Detached_head ]) result
   (** [push t uri] pushes the contents of the local store [t] into the remote
       store located at [uri]. *)
 end
@@ -63,7 +63,7 @@ module type Sigs = sig
     include
       S with type commit = H.t and type branch = R.t and type endpoint = unit
 
-    val v : 'a -> t Lwt.t
+    val v : 'a -> t
     (** Create a remote store handle. *)
   end
 end

@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open! Import
-open Io_intf
+open! Irmin_pack_io.Import
+module Errors = Irmin_pack_io.Errors
 module Syscalls = Index_unix.Syscalls
 
 (* File utils, taken from index.unix package.
@@ -47,8 +47,6 @@ module Util = struct
     in
     aux fd_offset 0 length
 end
-
-module type S = S
 
 module Unix = struct
   type misc_error = Unix.error * string * string
@@ -102,6 +100,7 @@ module Unix = struct
         | _ -> `Other
       with _ -> `No_such_file_or_directory)
 
+  let readdir p = Sys.readdir p |> Array.to_list
   let default_create_perm = 0o644
   let default_open_perm = 0o644
   let default_mkdir_perm = 0o755
@@ -168,7 +167,8 @@ module Unix = struct
            usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
         let () = Util.really_write t.fd off buf 0 len in
-        Index.Stats.add_write len;
+        (* TODO: Index.Stats is not domain-safe
+           Index.Stats.add_write len; *)
         ()
 
   let write_string t ~off s =
@@ -194,7 +194,8 @@ module Unix = struct
     | true -> raise Errors.Closed
     | false ->
         let nread = Util.really_read t.fd off len buf in
-        Index.Stats.add_read nread;
+        (* TODO: Index.Stats is not domain-safe
+           Index.Stats.add_read nread; *)
         if nread <> len then
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
@@ -230,7 +231,8 @@ module Unix = struct
           ~length:len
       in
       if nread > 0 then (
-        Index.Stats.add_read nread;
+        (* TODO: Index.Stats is not domain-safe
+           Index.Stats.add_read nread; *)
         Buffer.add_subbytes buf bytes 0 nread;
         if nread = len then aux ~off:Int63.(add off (of_int nread)))
     in
@@ -287,6 +289,8 @@ module Unix = struct
         Error (`No_such_file_or_directory path)
     | _ -> Error `Invalid_parent_directory
 
+  let rmdir path = Sys.rmdir path
+
   let unlink path =
     try
       Sys.remove path;
@@ -294,5 +298,36 @@ module Unix = struct
     with Sys_error msg -> Error (`Sys_error msg)
 
   let unlink_dont_wait ~on_exn path =
-    Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn
+    (* TODO: Lwt.dont_wait (fun () -> Lwt_unix.unlink path) on_exn *)
+    try Sys.remove path with err -> on_exn err
+
+  module Stats = struct
+    let is_darwin =
+      lazy
+        (try
+           match Unix.open_process_in "uname" |> input_line with
+           | "Darwin" -> true
+           | _ -> false
+         with Unix.Unix_error _ -> false)
+
+    let get_wtime () =
+      (Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float) /. 1e9
+
+    let get_stime () = Rusage.((get Self).stime)
+    let get_utime () = Rusage.((get Self).utime)
+
+    let get_rusage () =
+      let Rusage.{ maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw; _ }
+          =
+        Rusage.(get Self)
+      in
+      let maxrss =
+        if Lazy.force is_darwin then Int64.div maxrss 1000L else maxrss
+      in
+      Irmin_pack_io.Stats_intf.Latest_gc.
+        { maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw }
+  end
+
+  module Clock = Mtime_clock
+  module Progress = Progress
 end
