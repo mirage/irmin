@@ -1,0 +1,43 @@
+direction: down
+
+irmin-client -> irmin-watcher
+irmin-server -> irmin-watcher
+irmin-git -> irmin-watcher
+irmin-fs -> irmin-watcher
+
+# Dependencies
+irmin-git -> ppx_irmin
+irmin-server -> ppx_irmin
+irmin-pack -> ppx_irmin
+
+# Core Dependencies
+irmin -> ppx_irmin
+
+
+
+# Backend Dependencies
+irmin-fs -> irmin
+irmin-git -> irmin
+irmin-pack -> irmin
+
+# Networking Dependencies
+irmin-graphql -> irmin
+irmin-server -> irmin
+irmin-server -> irmin-pack
+irmin-client -> irmin-server
+irmin-client -> irmin-cli
+
+# Tooling Dependencies
+irmin-cli -> irmin; irmin-git; irmin-fs; irmin-pack; irmin-graphql; irmin-tezos; irmin-server; irmin-watcher
+libirmin -> irmin; irmin-cli
+irmin-pack-tools -> irmin-tezos; irmin-pack
+
+# Mirage Dependencies
+irmin-mirage -> irmin
+irmin-mirage-git -> irmin-mirage; irmin-git
+irmin-mirage-graphql -> irmin-mirage; irmin-graphql
+
+# Specialized Dependencies
+irmin-tezos -> irmin; irmin-pack; ppx_irmin
+irmin-containers -> irmin; irmin-fs; ppx_irmin
+
