@@ -25,7 +25,6 @@ irmin-cli -> irmin-watcher
 
 irmin-server -> irmin-pack
 irmin-cli -> irmin-pack
-irmin-pack-tools -> irmin-pack
 irmin-tezos -> irmin-pack
 
 irmin-containers -> irmin-fs
@@ -34,16 +33,15 @@ irmin-cli -> irmin-fs
 irmin-cli -> irmin-git
 irmin-mirage-git -> irmin-git
 
-irmin-cli -> irmin-graphql
-irmin-mirage-graphql -> irmin-graphql
-
 irmin-mirage-graphql -> irmin-mirage
 irmin-mirage-git -> irmin-mirage
+
+irmin-cli -> irmin-graphql
+irmin-mirage-graphql -> irmin-graphql
 
 irmin-cli -> irmin-server
 
 libirmin -> irmin-cli
 
-irmin-pack-tools -> irmin-tezos
 irmin-cli -> irmin-tezos
 
