@@ -264,7 +264,7 @@ module Store_tc = struct
     let () =
       Alcotest.check_raises "add volume during gc"
         (Irmin_pack_unix.Errors.Pack_error `Add_volume_forbidden_during_gc)
-        (fun () -> Store.add_volume repo |> Lwt.return)
+        (fun () -> Store.add_volume repo)
     in
     Store.Repo.close repo
 
@@ -273,7 +273,7 @@ module Store_tc = struct
     let () =
       Alcotest.check_raises "add volume w/o lower"
         (Irmin_pack_unix.Errors.Pack_error `Add_volume_requires_lower)
-        (fun () -> Store.add_volume repo |> Lwt.return)
+        (fun () -> Store.add_volume repo)
     in
     Store.Repo.close repo
 

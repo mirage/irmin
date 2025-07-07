@@ -20,9 +20,7 @@ depends: [
   "dune"        {>= "3.5.0"}
   "irmin-tezos" {= version}
   "irmin-pack"  {= version}
-  "irmin-pack"  {= version}
   "index"       {>= "1.6.2"}
-  "cmdliner"    {>= "1.1.0"}
   "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
   "index"       {>= "dev"}

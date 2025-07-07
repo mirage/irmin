@@ -1,6 +1,6 @@
 (library
  (name irmin_mem)
  (public_name irmin.mem)
- (libraries irmin logs lwt)
+ (libraries irmin logs)
  (preprocess
   (pps ppx_irmin.internal)))

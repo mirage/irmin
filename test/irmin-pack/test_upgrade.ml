@@ -365,18 +365,18 @@ module Store = struct
     S.Backend.Repo.batch repo (fun bstore nstore cstore ->
         let _ = put_borphan bstore in
         let _ = put_c0 bstore nstore cstore in
-        Lwt.return_unit)
+        ())
 
   let write1 repo =
     S.Backend.Repo.batch repo (fun bstore nstore cstore ->
         let _ = put_c1 bstore nstore cstore in
         let _ = put_borphan' bstore in
-        Lwt.return_unit)
+        ())
 
   let write2 repo =
     S.Backend.Repo.batch repo (fun bstore nstore cstore ->
         let _ = put_c2 bstore nstore cstore in
-        Lwt.return_unit)
+        ())
 end
 
 exception Skip_the_rest_of_that_test

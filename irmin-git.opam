@@ -28,7 +28,6 @@ depends: [
   "cohttp-lwt-unix"
   "fpath"
   "logs"
-  "lwt"        {>= "5.3.0"}
   "lwt_eio"    {>= "0.5"}
   "uri"
   "mimic"

@@ -15,7 +15,6 @@ depends: [
   "ipaddr"
   "websocket-lwt-unix"
   "conduit-lwt-unix" {>= "6.0.0"}
-  "lwt-dllist"
   "js_of_ocaml-lwt"
   "brr" {>= "0.0.4"}
   "fmt" {>= "0.9.0"}
