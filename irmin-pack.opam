@@ -26,15 +26,13 @@ depends: [
   "optint"       {>= "0.1.0"}
   "checkseum"
   "rusage"
-  "progress"     {= "dev"}
+  "progress"     {>= "0.4.0"}
   "irmin-test"   {with-test & = version}
   "astring"      {with-test}
   "alcotest"     {with-test}
 ]
 
 pin-depends: [
-  [ "terminal.dev" "git+https://github.com/craigfe/progress#ac53cd48cd82500f51faf67f9555a9454d5f5504" ]
-  [ "progress.dev" "git+https://github.com/craigfe/progress#ac53cd48cd82500f51faf67f9555a9454d5f5504" ]
   [ "index.dev"    "git+https://github.com/mirage/index#09ab315dcfe6c1affbbb01c737f1b8e235b04eca"     ]
 ]
 
