@@ -24,7 +24,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 type fuzzy_bool = False | True | Maybe
 type ('a, 'r) cont = ('a -> 'r) -> 'r
-type ('a, 'r) cont_lwt = ('a, 'r) cont
 
 let ok x = Ok x
 
@@ -50,7 +49,7 @@ let alist_iter2 compare_k f l1 l2 =
   aux l1 l2
 
 (* assume l1 and l2 are key-sorted *)
-let alist_iter2_lwt compare_k f l1 l2 =
+let alist_iter2 compare_k f l1 l2 =
   let l3 = ref [] in
   alist_iter2 compare_k (fun left right -> l3 := f left right :: !l3) l1 l2;
   Eio.Fiber.all (List.rev !l3)
@@ -1407,7 +1406,7 @@ module Make (P : Backend.S) = struct
         Seq.append value_bindings updates
 
     type ('v, 'acc, 'r) cps_folder =
-      path:Path.t -> 'acc -> int -> 'v -> ('acc, 'r) cont_lwt
+      path:Path.t -> 'acc -> int -> 'v -> ('acc, 'r) cont
     (** A ('val, 'acc, 'r) cps_folder is a CPS, threaded fold function over
         values of type ['v] producing an accumulator of type ['acc]. *)
 
@@ -1987,7 +1986,7 @@ module Make (P : Backend.S) = struct
             | `Contents c when contents_equal c c' -> root_tree
             | _ -> new_root))
     | Some (path, file) -> (
-        let rec aux : type r. path -> node -> (node updated, r) cont_lwt =
+        let rec aux : type r. path -> node -> (node updated, r) cont =
          fun path parent_node k ->
           let changed n = k (Changed n) in
           match Path.decons path with
@@ -2213,7 +2212,7 @@ module Make (P : Backend.S) = struct
       add_node n node k
     in
 
-    let rec on_node : type r. [ `Node of node ] -> (node_key, r) cont_lwt =
+    let rec on_node : type r. [ `Node of node ] -> (node_key, r) cont =
      fun (`Node n) k ->
       let k key =
         (* All the nodes in the exported tree should be cleaned using
@@ -2331,7 +2330,7 @@ module Make (P : Backend.S) = struct
                       assert false)))
     and on_contents : type r.
         [ `Contents of Contents.t * metadata ] ->
-        ([ `Content_exported ], r) cont_lwt =
+        ([ `Content_exported ], r) cont =
      fun (`Contents (c, _)) k ->
       match Atomic.get c.Contents.v with
       | Contents.Key (_, key) ->
@@ -2357,7 +2356,7 @@ module Make (P : Backend.S) = struct
           k `Content_exported
       | Contents.Pruned h -> pruned_hash_exn "export" h
     and on_node_seq : type r.
-        Node.elt Seq.t -> ([ `Node_children_exported ], r) cont_lwt =
+        Node.elt Seq.t -> ([ `Node_children_exported ], r) cont =
      fun seq k ->
       match seq () with
       | Seq.Nil ->
@@ -2435,7 +2434,7 @@ module Make (P : Backend.S) = struct
       let acc = ref acc in
       let todo = ref todo in
       let () =
-        alist_iter2_lwt compare_step
+        alist_iter2 compare_step
           (fun key v () ->
             let path = Path.rcons path key in
             match v with
@@ -2550,7 +2549,7 @@ module Make (P : Backend.S) = struct
     (concrete [@tailcall]) c (function Empty -> empty () | Non_empty x -> x)
 
   let to_concrete t =
-    let rec tree : type r. t -> (concrete, r) cont_lwt =
+    let rec tree : type r. t -> (concrete, r) cont =
      fun t k ->
       match t with
       | `Contents c -> contents c k
@@ -2560,14 +2559,14 @@ module Make (P : Backend.S) = struct
           (node [@tailcall]) [] bindings (fun n ->
               let n = List.sort (fun (s, _) (s', _) -> compare_step s s') n in
               k (`Tree n))
-    and contents : type r. Contents.t * metadata -> (concrete, r) cont_lwt =
+    and contents : type r. Contents.t * metadata -> (concrete, r) cont =
      fun (c, m) k ->
       let c = Contents.to_value ~cache:true c |> get_ok "to_concrete" in
       k (`Contents (c, m))
     and node : type r.
         (step * concrete) list ->
         (step * Node.elt) list ->
-        ((step * concrete) list, r) cont_lwt =
+        ((step * concrete) list, r) cont =
      fun childs x k ->
       match x with
       | [] -> k childs

@@ -54,7 +54,7 @@ module Alcotest = struct
   let diffs = gtestable diffs_t
   let assert_ msg b = check bool msg true b
 
-  let check_tree_lwt =
+  let check_tree =
     let concrete_tree = gtestable Tree.concrete_t in
     fun ?__POS__:pos msg ~expected b_lwt ->
       b_lwt
@@ -73,7 +73,7 @@ module Alcotest = struct
       ( = )
 end
 
-let check_exn_lwt ~exn_type pos f =
+let check_exn ~exn_type pos f =
   try
     let _ = f () in
     Alcotest.failf ~pos
@@ -179,7 +179,7 @@ let test_diff () =
 
 let test_empty () =
   let () =
-    Alcotest.check_tree_lwt "The empty tree is empty" ~expected:(`Tree [])
+    Alcotest.check_tree "The empty tree is empty" ~expected:(`Tree [])
       (Tree.empty ())
   in
 
@@ -212,22 +212,21 @@ let test_add () =
   in
 
   let () =
-    Alcotest.check_tree_lwt "Adding a root value to an empty tree"
-      ~expected:(c "1")
+    Alcotest.check_tree "Adding a root value to an empty tree" ~expected:(c "1")
       (Tree.add (Tree.empty ()) [] "1")
   in
 
   let () =
     let t = Tree.of_concrete (sample_tree ()) in
     let expected = sample_tree ~ab:"new_value" () in
-    Alcotest.check_tree_lwt "Replacing an existing value in a tree" ~expected
+    Alcotest.check_tree "Replacing an existing value in a tree" ~expected
       (Tree.add t [ "a"; "ab" ] "new_value")
   in
 
   let () =
     let t = Tree.of_concrete (sample_tree ()) in
     let expected = sample_tree ~ac:(`Tree [ ("aca", c "new_value") ]) () in
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Adding at a non-existent path in a tree creates necessary intermediate \
        nodes"
       ~expected
@@ -281,7 +280,7 @@ let test_remove () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Removing a root contents value results in an empty root node."
       ~expected:(`Tree [])
       (Tree.remove (Tree.of_concrete (c "1")) [])
@@ -313,7 +312,7 @@ let test_update () =
   let ( --> ) = transform_once [%typ: string option] in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Changing the value of a root contents node results in a new contents \
        node."
       ~expected:(c "2")
@@ -321,14 +320,14 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Removing a root contents node results in an empty root node."
       ~expected:(`Tree [])
       (Tree.update (Tree.of_concrete (c "1")) [] (Some "1" --> None))
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Updating a root node to a contents value removes all bindings and sets \
        the correct metadata."
       ~expected:(c ~info:Metadata.Right "2")
@@ -346,7 +345,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Updating at an existing contents path changes the contents value \
        appropriately."
       ~expected:(abc "2")
@@ -375,7 +374,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Changing the metadata of an existing contents value updates the tree."
       ~expected:(abc ~info:Metadata.Left "1")
       (Tree.update ~metadata:Metadata.Left abc1 [ "a"; "b"; "c" ]
@@ -383,7 +382,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Removing a siblingless contents value causes newly-empty directories to \
        be pruned."
       ~expected:(`Tree [ unrelated_binding ])
@@ -391,7 +390,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Removing a siblingless node causes newly-empty directories to be pruned"
       ~expected:(`Tree [ unrelated_binding ])
       (Tree.update_tree abc1 [ "a"; "b" ] (function
@@ -400,7 +399,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Updating at a non-existent contents path adds a new directory entry."
       ~expected:
         (`Tree
@@ -413,7 +412,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Updating at an existing node path replaces the subtree with the given \
        element."
       ~expected:
@@ -422,7 +421,7 @@ let test_update () =
   in
 
   let () =
-    Alcotest.check_tree_lwt
+    Alcotest.check_tree
       "Updating at a path in an empty tree creates the necessary intermediate \
        nodes with the new contents."
       ~expected:(`Tree [ ("a", `Tree [ ("b", `Tree [ ("c", c "1") ]) ]) ])
@@ -710,7 +709,7 @@ module Broken = struct
         let&* broken = [ broken_leaf; broken_node ]
         and&* add = add_blob_or_node path in
         let expected = add (Tree.empty ()) |> Tree.to_concrete in
-        Alcotest.check_tree_lwt ~__POS__ "" ~expected (add broken)
+        Alcotest.check_tree ~__POS__ "" ~expected (add broken)
       in
 
       (* [add] _beneath_ a broken contents value also works fine, but on broken
@@ -719,22 +718,21 @@ module Broken = struct
       let () =
         let&* add_beneath = add_blob_or_node beneath in
         let expected = add_beneath (Tree.empty ()) |> Tree.to_concrete in
-        Alcotest.check_tree_lwt ~__POS__ "" ~expected (add_beneath broken_leaf)
+        Alcotest.check_tree ~__POS__ "" ~expected (add_beneath broken_leaf)
       in
       let () =
         let&* add_beneath = add_blob_or_node beneath in
-        check_exn_lwt ~exn_type __POS__ (fun () -> add_beneath broken_node)
+        check_exn ~exn_type __POS__ (fun () -> add_beneath broken_node)
       in
 
       (* [find] on broken contents raises an exception (can't recover contents),
          but _beneath_ broken contents it returns [None] (mismatched type). (The
          behaviour is reversed for broken nodes.) *)
       let () =
-        check_exn_lwt ~exn_type __POS__ (fun () -> Tree.find broken_leaf path)
+        check_exn ~exn_type __POS__ (fun () -> Tree.find broken_leaf path)
       in
       let () =
-        check_exn_lwt ~exn_type __POS__ (fun () ->
-            Tree.find broken_node beneath)
+        check_exn ~exn_type __POS__ (fun () -> Tree.find broken_node beneath)
       in
       let () =
         Tree.find broken_leaf beneath
@@ -754,7 +752,7 @@ module Broken = struct
       in
       let () =
         let&* path = [ path; beneath ] in
-        check_exn_lwt ~exn_type __POS__ (fun () -> Tree.list broken_node path)
+        check_exn ~exn_type __POS__ (fun () -> Tree.list broken_node path)
       in
       ()
     in
@@ -773,7 +771,7 @@ module Broken = struct
 
     (* Folding over a pruned tree with [force:`True] should fail: *)
     let () =
-      check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
+      check_exn ~exn_type:`Pruned_hash __POS__ (fun () ->
           Tree.fold ~force:`True tree ())
     in
 
@@ -782,7 +780,7 @@ module Broken = struct
 
     (* Similarly, attempting to export a pruned tree should fail: *)
     let repo = Store.Repo.v (Irmin_mem.config ()) in
-    check_exn_lwt ~exn_type:`Pruned_hash __POS__ (fun () ->
+    check_exn ~exn_type:`Pruned_hash __POS__ (fun () ->
         Store.Backend.Repo.batch repo (fun c n _ ->
             Store.save_tree repo c n tree |> ignore))
 end
@@ -843,7 +841,7 @@ let test_of_concrete () =
     let ac = ("ac", c "ac-v") in
     let input = tree [ ("a", `Tree [ aa; ("ab", `Tree []); ac ]) ] in
     let pruned = `Tree [ ("a", `Tree [ aa; ac ]) ] in
-    Alcotest.check_tree_lwt "Empty subtrees are pruned" ~expected:pruned
+    Alcotest.check_tree "Empty subtrees are pruned" ~expected:pruned
       (Tree.to_concrete input |> Tree.of_concrete)
   in
 

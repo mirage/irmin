@@ -486,7 +486,7 @@ struct
       | Some k -> ( match find t k with None -> Val.empty () | Some v -> v)
     in
     let add v = if Val.is_empty v then None else Some (add t v) in
-    Merge.like_lwt [%typ: Key.t option] merge read add
+    Merge.like_blocking [%typ: Key.t option] merge read add
 end
 
 module Generic_key = struct

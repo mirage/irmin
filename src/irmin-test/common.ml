@@ -310,7 +310,7 @@ let checks t =
   Alcotest.check t
 
 (* also in test/irmin-pack/common.ml *)
-let check_raises_lwt msg exn (type a) (f : unit -> a) =
+let check_raises msg exn (type a) (f : unit -> a) =
   try
     let (_ : a) = f () in
     Alcotest.failf

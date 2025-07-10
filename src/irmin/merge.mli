@@ -83,7 +83,7 @@ val with_conflict : (string -> string) -> 'a t -> 'a t
 (** [with_conflict f m] is [m] with the conflict error message modified by [f].
 *)
 
-val like_lwt : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
+val like_blocking : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
 (** Same as {{!Merge.biject} biject} but with blocking domain converting
     functions. *)
 
