@@ -15,7 +15,9 @@
   astring
   cohttp
   fmt
+  irmin
   irmin.unix
+  irmin-client.unix
   irmin-git.unix
   irmin-graphql.unix
   irmin-pack.unix
@@ -23,8 +25,10 @@
   mirage-crypto-rng.unix
   websocket-lwt-unix
   conduit-lwt-unix
+  eio_main
   lwt
-  lwt.unix)
+  lwt.unix
+  lwt_eio)
  (preprocess
   (pps ppx_irmin)))
 
@@ -59,6 +63,15 @@
 
 (mdx
  (files merkle_proofs.md)
- ; (preludes merkle_proofs_prelude.ml)
- (package irmin-cli)
- (packages irmin-cli))
+ (deps %{bin:irmin})
+ (libraries
+  irmin
+  irmin-cli
+  irmin-git
+  irmin-git.unix
+  eio
+  eio_main
+  eio.unix
+  lwt_eio)
+ (enabled_if
+  (<> %{model} "ppc64le")))

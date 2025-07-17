@@ -166,7 +166,7 @@ struct
     let lru = Irmin_pack_unix.Lru.create config in
     let pack = Pack.v ~config ~fm ~dict ~dispatcher ~lru in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
-    { name; index; pack; dict; fm } |> Lwt.return
+    { name; index; pack; dict; fm }
 
   let get_rw_pack () =
     let name = fresh_name "" in
@@ -176,10 +176,8 @@ struct
   let reopen_rw name = create ~readonly:false ~fresh:false name
 
   let close_pack t =
-    Index.close_exn t.index;
-    File_manager.close t.fm |> Errs.raise_if_error;
-    (* closes pack and dict *)
-    Lwt.return_unit
+    let _ = File_manager.flush t.fm in
+    File_manager.close t.fm |> Errs.raise_if_error
 end
 
 module Alcotest = struct
@@ -188,38 +186,38 @@ module Alcotest = struct
   let int63 = testable Int63.pp Int63.equal
 
   let check_raises_pack_error msg pass f =
-    Lwt.try_bind f
-      (fun _ ->
+    match f () with
+    | _ ->
         Alcotest.failf
-          "Fail %s: expected function to raise, but it returned instead." msg)
-      (function
-        | Irmin_pack_unix.Errors.Pack_error e as exn -> (
+          "Fail %s: expected function to raise, but it returned instead." msg
+    | exception exn -> (
+        match exn with
+        | Irmin_pack_unix.Errors.Pack_error e -> (
             match pass e with
-            | true -> Lwt.return_unit
+            | true -> ()
             | false ->
                 Alcotest.failf
                   "Fail %s: function raised unexpected exception %s" msg
                   (Printexc.to_string exn))
-        | exn ->
+        | _ ->
             Alcotest.failf
               "Fail %s: expected function to raise Pack_error, but it raised \
                %s instead"
               msg (Printexc.to_string exn))
 
   (** TODO: upstream this to Alcotest *)
-  let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
-    Lwt.try_bind f
-      (fun _ ->
+  let check_raises msg exn (type a) (f : unit -> a) =
+    try
+      let (_ : a) = f () in
+      Alcotest.failf
+        "Fail %s: expected function to raise %s, but it returned instead." msg
+        (Printexc.to_string exn)
+    with
+    | e when e = exn -> ()
+    | e ->
         Alcotest.failf
-          "Fail %s: expected function to raise %s, but it returned instead." msg
-          (Printexc.to_string exn))
-      (function
-        | e when e = exn -> Lwt.return_unit
-        | e ->
-            Alcotest.failf
-              "Fail %s: expected function to raise %s, but it raised %s \
-               instead."
-              msg (Printexc.to_string exn) (Printexc.to_string e))
+          "Fail %s: expected function to raise %s, but it raised %s instead."
+          msg (Printexc.to_string exn) (Printexc.to_string e)
 
   let testable_repr t =
     Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
@@ -227,12 +225,7 @@ module Alcotest = struct
   let check_repr ?pos t = Alcotest.check ?pos (testable_repr t)
   let kind = testable_repr Irmin_pack.Pack_value.Kind.t
   let hash = testable_repr Schema.Hash.t
-end
-
-module Alcotest_lwt = struct
-  include Alcotest_lwt
-
-  let quick_tc name f = test_case name `Quick (fun _switch () -> f ())
+  let quick_tc name f = test_case name `Quick f
 end
 
 module Filename = struct

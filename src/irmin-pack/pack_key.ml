@@ -25,5 +25,6 @@ module type S = sig
   (** [unfindable_of_hash h] is a key [k] such that [to_hash k = h], with an
       unspecified internal representation. This function enables an efficient
       implmentation of "portable" inodes, but is otherwise unused. Attempting to
-      dereference a key constructed in this way results in undefined behaviour. *)
+      dereference a key constructed in this way results in undefined behaviour.
+  *)
 end

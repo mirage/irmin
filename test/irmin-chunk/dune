@@ -1,12 +1,12 @@
 (library
  (name test_chunk)
  (modules test_chunk)
- (libraries fmt irmin irmin-test irmin-chunk irmin.mem lwt))
+ (libraries fmt irmin irmin-test irmin-chunk irmin.mem))
 
 (executable
  (name test)
  (modules test)
- (libraries alcotest fmt irmin irmin-test lwt lwt.unix test_chunk))
+ (libraries alcotest fmt irmin irmin-test eio_main test_chunk))
 
 (rule
  (alias runtest)

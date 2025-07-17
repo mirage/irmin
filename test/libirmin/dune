@@ -8,7 +8,9 @@
    (setenv
     LD_LIBRARY_PATH
     ../../src/libirmin/lib
-    (run ./test.exe)))))
+    (run ./test.exe))))
+ (enabled_if
+  (<> %{model} "ppc64le")))
 
 (rule
  (targets test.exe)

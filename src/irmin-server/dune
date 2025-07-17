@@ -1,6 +1,6 @@
 (library
  (name irmin_server)
  (public_name irmin-server)
- (libraries logs fmt irmin lwt cmdliner)
+ (libraries logs fmt irmin lwt lwt_eio eio_main cmdliner)
  (preprocess
   (pps ppx_irmin.internal)))

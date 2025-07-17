@@ -27,10 +27,11 @@ module Make_internal
 
       val unfindable_of_hash : hash -> t
     end)
-    (Node : Irmin.Node.Generic_key.S
-              with type hash = H.t
-               and type contents_key = Key.t
-               and type node_key = Key.t) =
+    (Node :
+      Irmin.Node.Generic_key.S
+        with type hash = H.t
+         and type contents_key = Key.t
+         and type node_key = Key.t) =
 struct
   (** If [should_be_stable ~length ~root] is true for an inode [i], then [i]
       hashes the same way as a [Node.t] containing the same entries. *)
@@ -620,7 +621,7 @@ struct
               e.g. through the [add] or [to_concrete] functions. It shouldn't be
               collected on [clear] because it will be needed for [save]. *)
 
-    and partial_ptr = { mutable target : partial_ptr_target }
+    and partial_ptr = { target : partial_ptr_target Atomic.t } [@@unboxed]
     and total_ptr = Total_ptr of total_ptr t [@@unboxed]
 
     and truncated_ptr =
@@ -646,7 +647,7 @@ struct
         | Total -> fun (Total_ptr ptr) -> ptr.v_ref
         | Partial _ -> (
             fun { target } ->
-              match target with
+              match Atomic.get target with
               | Lazy key -> Val_ref.of_key key
               | Lazy_loaded { v_ref; _ } | Dirty { v_ref; _ } -> v_ref)
         | Truncated -> ( function Broken v -> v | Intact ptr -> ptr.v_ref)
@@ -655,7 +656,7 @@ struct
         | Total -> fun (Total_ptr ptr) -> Val_ref.to_key_exn ptr.v_ref
         | Partial _ -> (
             fun { target } ->
-              match target with
+              match Atomic.get target with
               | Lazy key -> key
               | Lazy_loaded { v_ref; _ } | Dirty { v_ref; _ } ->
                   Val_ref.to_key_exn v_ref)
@@ -666,9 +667,9 @@ struct
 
       (** [force = false] will cause [target] to raise an exception when
           encountering a tag [Lazy] inside a [Partial] inode. This feature is
-          used by [to_concrete] to make shallow the non-loaded inode branches. *)
-      let target :
-          type ptr.
+          used by [to_concrete] to make shallow the non-loaded inode branches.
+      *)
+      let target : type ptr.
           expected_depth:int ->
           cache:bool ->
           force:bool ->
@@ -680,20 +681,23 @@ struct
         match layout with
         | Total -> fun (Total_ptr t) -> t
         | Partial find -> (
-            function
-            | { target = Dirty entry } | { target = Lazy_loaded entry } ->
-                (* [target] is already cached. [cache] is only concerned with
-                   new cache entries, not the older ones for which the irmin
-                   users can discard using [clear]. *)
-                entry
-            | { target = Lazy key } as t -> (
-                if not force then raise_dangling_hash context (Key.to_hash key);
-                match find ~expected_depth key with
-                | None ->
-                    Fmt.failwith "%a: unknown inode key (%s)" pp_key key context
-                | Some x ->
-                    if cache then t.target <- Lazy_loaded x;
-                    x))
+            fun { target } ->
+              match Atomic.get target with
+              | Dirty entry | Lazy_loaded entry ->
+                  (* [target] is already cached. [cache] is only concerned with
+                     new cache entries, not the older ones for which the irmin
+                     users can discard using [clear]. *)
+                  entry
+              | Lazy key -> (
+                  if not force then
+                    raise_dangling_hash context (Key.to_hash key);
+                  match find ~expected_depth key with
+                  | None ->
+                      Fmt.failwith "%a: unknown inode key (%s)" pp_key key
+                        context
+                  | Some x ->
+                      if cache then Atomic.set target (Lazy_loaded x);
+                      x))
         | Truncated -> (
             function
             | Intact entry -> entry
@@ -703,19 +707,18 @@ struct
 
       let of_target : type ptr. ptr layout -> ptr t -> ptr = function
         | Total -> fun target -> Total_ptr target
-        | Partial _ -> fun target -> { target = Dirty target }
+        | Partial _ -> fun target -> { target = Atomic.make (Dirty target) }
         | Truncated -> fun target -> Intact target
 
       let of_key : type ptr. ptr layout -> key -> ptr = function
         | Total -> assert false
-        | Partial _ -> fun key -> { target = Lazy key }
+        | Partial _ -> fun key -> { target = Atomic.make (Lazy key) }
         | Truncated -> fun key -> Broken (Val_ref.of_key key)
 
       type ('input, 'output) cps = { f : 'r. 'input -> ('output -> 'r) -> 'r }
       [@@ocaml.unboxed]
 
-      let save :
-          type ptr.
+      let save : type ptr.
           broken:(hash, key) cps ->
           save_dirty:(ptr t, key) cps ->
           clear:bool ->
@@ -732,23 +735,24 @@ struct
               save_dirty.f entry (fun key ->
                   Val_ref.promote_exn entry.v_ref key)
         | Partial _ -> (
-            function
-            | { target = Dirty entry } as box ->
-                save_dirty.f entry (fun key ->
-                    if clear then box.target <- Lazy key
-                    else (
-                      box.target <- Lazy_loaded entry;
-                      Val_ref.promote_exn entry.v_ref key))
-            | { target = Lazy_loaded entry } as box ->
-                (* In this case, [entry.v_ref] is a [Hash h] such that [mem t
-                   (index t h) = true]. We "save" the entry in order to trigger
-                   the [index] lookup and recover the key, in order to meet the
-                   return invariant above.
+            fun { target } ->
+              match Atomic.get target with
+              | Dirty entry ->
+                  save_dirty.f entry (fun key ->
+                      if clear then Atomic.set target (Lazy key)
+                      else (
+                        Atomic.set target (Lazy_loaded entry);
+                        Val_ref.promote_exn entry.v_ref key))
+              | Lazy_loaded entry ->
+                  (* In this case, [entry.v_ref] is a [Hash h] such that [mem t
+                     (index t h) = true]. We "save" the entry in order to trigger
+                     the [index] lookup and recover the key, in order to meet the
+                     return invariant above.
 
-                   TODO: refactor this case to be more precise. *)
-                save_dirty.f entry (fun key ->
-                    if clear then box.target <- Lazy key)
-            | { target = Lazy _ } -> ())
+                     TODO: refactor this case to be more precise. *)
+                  save_dirty.f entry (fun key ->
+                      if clear then Atomic.set target (Lazy key))
+              | Lazy _ -> ())
         | Truncated -> (
             function
             (* TODO: this branch is currently untested: we never attempt to
@@ -761,21 +765,21 @@ struct
                   broken.f (Val_ref.to_hash vref) (fun key ->
                       Val_ref.promote_exn vref key))
 
-      let clear :
-          type ptr.
+      let clear : type ptr.
           iter_dirty:(ptr layout -> ptr t -> unit) -> ptr layout -> ptr -> unit
           =
-       fun ~iter_dirty layout ptr ->
+       fun ~iter_dirty layout target ->
         match layout with
         | Partial _ -> (
-            match ptr with
-            | { target = Lazy _ } -> ()
-            | { target = Dirty ptr } -> iter_dirty layout ptr
-            | { target = Lazy_loaded ptr } as box ->
+            let target = target.target in
+            match Atomic.get target with
+            | Lazy _ -> ()
+            | Dirty ptr -> iter_dirty layout ptr
+            | Lazy_loaded ptr ->
                 (* Since a [Lazy_loaded] used to be a [Lazy], the key is always
                    available. *)
                 let key = Val_ref.to_key_exn ptr.v_ref in
-                box.target <- Lazy key)
+                Atomic.set target (Lazy key))
         | Total | Truncated -> ()
     end
 
@@ -785,8 +789,7 @@ struct
           let key_of_ptr = Ptr.key_exn layout in
           Array.fold_left
             (fun acc -> function
-              | None -> acc
-              | Some ptr -> (None, `Inode (key_of_ptr ptr)) :: acc)
+              | None -> acc | Some ptr -> (None, `Inode (key_of_ptr ptr)) :: acc)
             [] i.entries
       | Values l ->
           StepMap.fold
@@ -917,8 +920,8 @@ struct
       let len = Int.max_int in
       fun () -> seq_v layout v ~cache empty_continuation ~off ~len
 
-    let to_bin_v :
-        type ptr vref. ptr layout -> vref Bin.mode -> ptr v -> vref Bin.v =
+    let to_bin_v : type ptr vref.
+        ptr layout -> vref Bin.mode -> ptr v -> vref Bin.v =
      fun layout mode node ->
       Stats.incr_inode_to_binv ();
       match node with
@@ -1577,8 +1580,8 @@ struct
            unsafe function is safe. *)
         (step, unsafe_keyvalue_of_hashvalue v)
 
-      let rec proof_of_concrete :
-          type a. hash Lazy.t -> Concrete.t -> (t -> a) -> a =
+      let rec proof_of_concrete : type a.
+          hash Lazy.t -> Concrete.t -> (t -> a) -> a =
        fun h concrete k ->
         match concrete with
         | Blinded -> k (`Blinded (Lazy.force h))
@@ -1611,8 +1614,8 @@ struct
         let v : truncated_ptr v = Tree { depth; length; entries } in
         Bin.V.hash (to_bin_v Truncated Bin.Ptr_any v)
 
-      let rec concrete_of_proof :
-          type a. depth:int -> t -> (hash -> Concrete.t -> a) -> a =
+      let rec concrete_of_proof : type a.
+          depth:int -> t -> (hash -> Concrete.t -> a) -> a =
        fun ~depth proof k ->
         match proof with
         | `Blinded h -> k h Concrete.Blinded
@@ -1624,8 +1627,7 @@ struct
             k hash c
         | `Inode (length, proofs) -> concrete_of_inode ~length ~depth proofs k
 
-      and concrete_of_inode :
-          type a.
+      and concrete_of_inode : type a.
           length:int ->
           depth:int ->
           (int * t) list ->
@@ -2319,19 +2321,22 @@ end
 module Make
     (H : Irmin.Hash.S)
     (Key : Irmin.Key.S with type hash = H.t)
-    (Node : Irmin.Node.Generic_key.S
-              with type hash = H.t
-               and type contents_key = Key.t
-               and type node_key = Key.t)
-    (Inter : Internal
-               with type hash = H.t
-                and type key = Key.t
-                and type Snapshot.metadata = Node.metadata
-                and type Val.step = Node.step)
-    (Pack : Indexable.S
-              with type hash = H.t
-               and type key = Key.t
-               and type value = Inter.Raw.t) =
+    (Node :
+      Irmin.Node.Generic_key.S
+        with type hash = H.t
+         and type contents_key = Key.t
+         and type node_key = Key.t)
+    (Inter :
+      Internal
+        with type hash = H.t
+         and type key = Key.t
+         and type Snapshot.metadata = Node.metadata
+         and type Val.step = Node.step)
+    (Pack :
+      Indexable.S
+        with type hash = H.t
+         and type key = Key.t
+         and type value = Inter.Raw.t) =
 struct
   module Hash = H
   module Key = Key
@@ -2373,7 +2378,7 @@ struct
         let v = Val.of_raw find v in
         Some v
 
-  let find t k = unsafe_find ~check_integrity:true t k |> Lwt.return
+  let find t k = unsafe_find ~check_integrity:true t k
 
   let save ?allow_non_root t v =
     let add k v =
@@ -2383,7 +2388,7 @@ struct
       ~mem:(Pack.unsafe_mem t) v
 
   let hash_exn = Val.hash_exn
-  let add t v = Lwt.return (save t v)
+  let add t v = save t v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =
@@ -2394,22 +2399,22 @@ struct
 
   let unsafe_add t k v =
     check_hash k (hash_exn v);
-    Lwt.return (save t v)
+    save t v
 
   let batch = Pack.batch
   let close = Pack.close
   let decode_bin_length = Inter.Raw.decode_bin_length
 
   let protect_from_invalid_depth_exn f =
-    Lwt.catch f (function
-      | Invalid_depth { expected; got; v } ->
-          let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
-          Lwt.return (Error msg)
-      | e -> Lwt.fail e)
+    try f () with
+    | Invalid_depth { expected; got; v } ->
+        let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
+        Error msg
+    | e -> raise e
 
   let integrity_check_inodes t k =
     protect_from_invalid_depth_exn @@ fun () ->
-    find t k >|= function
+    match find t k with
     | None ->
         (* we are traversing the node graph, should find all values *)
         assert false

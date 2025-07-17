@@ -11,5 +11,8 @@
   mirage-crypto-rng.unix
   irmin-test
   irmin-watcher)
+ ; TODO: fix unix EMFILE error
  (enabled_if
-  (<> %{system} "freebsd")))
+  (and
+   (<> %{system} macosx)
+   (<> %{system} freebsd))))

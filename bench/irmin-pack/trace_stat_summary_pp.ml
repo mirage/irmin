@@ -431,7 +431,8 @@ module Table2 = struct
 
   let matrix_of_data_floor
       (`Data
-        ((scalar_format_a, scalar_format_b), floor_name, names_and_variables)) =
+         ((scalar_format_a, scalar_format_b), floor_name, names_and_variables))
+      =
     let only_one_summary = List.length names_and_variables = 1 in
     let _, variables = List.split names_and_variables in
     let min0, max0, avg0, avg_ps0 = List.hd variables in
@@ -560,7 +561,8 @@ module Table3 = struct
 
   let matrix_of_data_floor
       (`Data
-        ((scalar_format_a, scalar_format_b), floor_name, names_and_variables)) =
+         ((scalar_format_a, scalar_format_b), floor_name, names_and_variables))
+      =
     let only_one_summary = List.length names_and_variables = 1 in
     let _, variables = List.split names_and_variables in
     let min0, max0, avg0 = List.hd variables in

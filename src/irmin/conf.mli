@@ -77,10 +77,7 @@ val key :
 
     @raise Invalid_argument
       if the key name is not made of a sequence of ASCII lowercase letter,
-      digit, dash or underscore.
-    @raise Invalid_argument
-      if [allow_duplicate] is [false] (the default) and [name] has already been
-      used to create a key *)
+      digit, dash or underscore. *)
 
 val name : 'a key -> string
 (** The key name. *)
@@ -165,3 +162,12 @@ val uri : Uri.t Type.t
 
 val find_root : t -> string option
 (** [find_root c] is [root]'s mapping in [c], if any. *)
+
+module Env : sig
+  type _ Effect.t +=
+    | Fs : Eio.Fs.dir_ty Eio.Path.t Effect.t
+    | Net : _ Eio.Net.t Effect.t
+
+  val fs : unit -> Eio.Fs.dir_ty Eio.Path.t
+  val net : unit -> _ Eio.Net.t
+end

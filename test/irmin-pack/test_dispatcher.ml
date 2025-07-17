@@ -27,16 +27,16 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let setup_store () =
   rm_dir root;
   let config = S.config root in
-  let* t = S.init_with_config config in
-  let* _ = S.commit_1 t in
-  let* t, c2 = S.commit_2 t in
-  let* t = S.checkout_exn t c2 in
-  let* t, _c3 = S.commit_3 t in
+  let t = S.init_with_config config in
+  let _ = S.commit_1 t in
+  let t, c2 = S.commit_2 t in
+  let t = S.checkout_exn t c2 in
+  let t, _c3 = S.commit_3 t in
   [%log.debug "Gc c1, keep c2, c3"];
-  let* () = S.start_gc t c2 in
-  let* () = S.finalise_gc t in
-  let* () = S.close t in
-  Lwt.return config
+  let () = S.start_gc t c2 in
+  let () = S.finalise_gc t in
+  let () = S.close t in
+  config
 
 type t = { off : Int63.t; len : int; hex : string }
 
@@ -76,7 +76,7 @@ let check_hex msg buf expected =
     (Bytes.to_string buf |> Hex.of_string |> Hex.show)
 
 let test_read () =
-  let* config = setup_store () in
+  let config = setup_store () in
   let fm = File_manager.open_ro config |> Errs.raise_if_error in
   let dsp = Dispatcher.v fm |> Errs.raise_if_error in
   let _ =
@@ -97,7 +97,6 @@ let test_read () =
   test_accessor "commit_2" commit_2;
   test_accessor "node_3" node_3;
 
-  File_manager.close fm |> Errs.raise_if_error;
-  Lwt.return_unit
+  File_manager.close fm |> Errs.raise_if_error
 
-let tests = [ Alcotest_lwt.test_case "read" `Quick (fun _switch -> test_read) ]
+let tests = [ Alcotest.test_case "read" `Quick test_read ]

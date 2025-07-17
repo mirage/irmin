@@ -10,7 +10,7 @@
   jsonm
   logs
   logs.fmt
-  lwt
+  eio
   mtime
   ocamlgraph
   uri

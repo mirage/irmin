@@ -34,10 +34,10 @@ let config ~indexing_strategy ?(readonly = false) ?(fresh = false) () =
 let test_unique_when_switched () =
   let value = "Welt" in
   let get_contents_key store path =
-    let* k = Store.key store path in
+    let k = Store.key store path in
     match Option.get k with
     | `Node _ -> assert false
-    | `Contents contents_key -> Lwt.return contents_key
+    | `Contents contents_key -> contents_key
   in
   let get_direct_key key =
     match Irmin_pack_unix.Pack_key.inspect key with
@@ -55,22 +55,22 @@ let test_unique_when_switched () =
   in
 
   (* 1. open store with always indexing, verify same offsets *)
-  let* repo =
+  let repo =
     Store.Repo.v
     @@ config ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~fresh:true
          ()
   in
-  let* store = Store.main repo in
-  let* first_key =
+  let store = Store.main repo in
+  let first_key =
     let first_path = [ "hello" ] in
-    let* () =
+    let () =
       Store.set_exn ~info:(fun () -> Store.Info.empty) store first_path value
     in
     get_contents_key store first_path
   in
-  let* second_key =
+  let second_key =
     let second_path = [ "salut" ] in
-    let* () =
+    let () =
       Store.set_exn ~info:(fun () -> Store.Info.empty) store second_path value
     in
     get_contents_key store second_path
@@ -80,20 +80,18 @@ let test_unique_when_switched () =
     (get_key_offset first_key)
     (get_key_offset second_key);
 
-  let* () = Store.Repo.close repo in
+  Store.Repo.close repo;
 
   (* 2. re-open store with minimal indexing, verify new offset *)
-  let* repo =
+  let repo =
     Store.Repo.v
     @@ config ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
          ~fresh:false ()
   in
-  let* store = Store.main repo in
-  let* third_key =
+  let store = Store.main repo in
+  let third_key =
     let third_path = [ "hola" ] in
-    let* () =
-      Store.set_exn ~info:(fun () -> Store.Info.empty) store third_path value
-    in
+    Store.set_exn ~info:(fun () -> Store.Info.empty) store third_path value;
     get_contents_key store third_path
   in
   Alcotest.(check bool)
@@ -111,6 +109,6 @@ let test_unique_when_switched () =
 
 let tests =
   [
-    Alcotest_lwt.test_case "test unique when switching strategies" `Quick
-      (fun _switch () -> test_unique_when_switched ());
+    Alcotest.test_case "test unique when switching strategies" `Quick
+      test_unique_when_switched;
   ]

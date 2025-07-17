@@ -32,11 +32,10 @@ module Conf = struct
       "Spec name" "pack"
       (Irmin.Backend.Conf.Spec.name spec);
     Alcotest.(check int) "index-log-size" 1234 index_log_size;
-    Alcotest.(check bool) "fresh" true fresh;
-    Lwt.return_unit
+    Alcotest.(check bool) "fresh" true fresh
 
   let misc : unit Alcotest.test_case list =
-    [ ("config", `Quick, fun () -> Lwt_main.run (test_config ())) ]
+    [ ("config", `Quick, fun () -> test_config ()) ]
 end
 
 let () = Alcotest.run "irmin-cli" [ ("conf", Conf.misc) ]

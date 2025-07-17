@@ -22,7 +22,8 @@
 
     Computed using:
 
-    https://api.tzstats.com/series/block.json?collapse=1w&columns=n_tx,n_ops,count *)
+    https://api.tzstats.com/series/block.json?collapse=1w&columns=n_tx,n_ops,count
+*)
 let weekly_stats =
   [
     (1529884800000, 497, 16396, 1814);

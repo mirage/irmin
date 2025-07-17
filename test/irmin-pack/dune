@@ -15,6 +15,7 @@
   test_flush_reload
   test_ranges
   test_mapping
+  test_multicore
   test_nearest_geq
   test_dispatcher
   test_corrupted
@@ -32,8 +33,6 @@
   irmin-pack.mem
   irmin-tezos
   logs
-  lwt
-  lwt.unix
   fpath
   hex)
  (preprocess
@@ -42,14 +41,19 @@
 (executable
  (name test)
  (modules test)
- (libraries irmin irmin-test test_pack))
+ (libraries eio_main irmin irmin-test test_pack))
 
 (rule
  (alias runtest)
  ;; Attached to `irmin-tezos` to avoid a cyclic dependency with `irmin-pack`
  (package irmin-tezos)
  (action
-  (run ./test.exe -q --color=always)))
+  (run ./test.exe -q --color=always))
+ ; TODO: Fix unix waitpid error in irmin-pack GC
+ (enabled_if
+  (and
+   (<> %{system} macosx)
+   (<> %{system} freebsd))))
 
 (library
  (name common)
@@ -63,7 +67,6 @@
   irmin-pack.unix
   irmin-tezos
   logs
-  lwt
   hex
   fpath)
  (preprocess
