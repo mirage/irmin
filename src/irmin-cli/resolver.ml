@@ -243,6 +243,7 @@ module Hash = struct
 end
 
 type hash = Hash.t
+type eio = Import.eio
 
 (* Store *)
 

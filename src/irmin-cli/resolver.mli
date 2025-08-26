@@ -43,7 +43,7 @@ type contents = Contents.t
 
 (** {1 Global Configuration} *)
 
-type eio := Import.eio
+type eio = Import.eio
 
 module Store : sig
   module Impl : sig
