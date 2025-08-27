@@ -34,4 +34,4 @@ let test_short_hash () =
   in
   ()
 
-let suite = [ Alcotest_lwt.test_case_sync "short_hash" `Quick test_short_hash ]
+let suite = [ Alcotest.test_case "short_hash" `Quick test_short_hash ]

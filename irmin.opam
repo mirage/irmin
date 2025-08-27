@@ -14,14 +14,14 @@ build: [
 ]
 
 depends: [
-  "ocaml"   {>= "4.08.0"}
-  "dune"    {>= "2.9.0"}
+  "ocaml"   {>= "5.1.0"}
+  "dune"    {>= "3.5.0"}
   "repr"    {>= "0.6.0"}
   "fmt"     {>= "0.8.5"}
   "uri"     {>= "1.3.12"}
   "uutf"
   "jsonm"   {>= "1.0.0"}
-  "lwt"     {>= "5.3.0"}
+  "eio"     {>= "1.0"}
   "digestif" {>= "0.9.0"}
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
@@ -30,9 +30,9 @@ depends: [
   "mtime" {>= "2.0.0"}
   "bigstringaf" { >= "0.2.0" }
   "ppx_irmin" {= version}
+  "eio_main" {>= "1.0" & with-test}
   "hex"      {with-test}
-  "alcotest" {>= "1.1.0" & with-test}
-  "alcotest-lwt" {with-test}
+  "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {with-test}
   "vector" {with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793

@@ -23,7 +23,7 @@ end
 module type Persistent = sig
   include S
 
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t Lwt.t
+  val v : ?fresh:bool -> ?readonly:bool -> string -> t
 end
 
 module type Value = sig

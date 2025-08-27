@@ -31,6 +31,7 @@ end
 module Store_tz = Irmin_pack_unix.Checks.Make (Maker_tz)
 
 let () =
+  Eio_main.run @@ fun _ ->
   try
     let store_type = Sys.getenv "STORE" in
     if store_type = "PACK" then match Store.cli () with _ -> .

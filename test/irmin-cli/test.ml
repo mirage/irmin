@@ -17,10 +17,10 @@
 include Irmin.Export_for_backends
 
 module Conf = struct
-  let test_config () =
+  let test_config ~env =
     let hash = Irmin_cli.Resolver.Hash.find "blake2b" in
     let _, cfg =
-      Irmin_cli.Resolver.load_config ~config_path:"test/irmin-cli/test.yml"
+      Irmin_cli.Resolver.load_config ~env ~config_path:"test/irmin-cli/test.yml"
         ~store:"pack" ~contents:"string" ~hash ()
     in
     let spec = Irmin.Backend.Conf.spec cfg in
@@ -32,11 +32,13 @@ module Conf = struct
       "Spec name" "pack"
       (Irmin.Backend.Conf.Spec.name spec);
     Alcotest.(check int) "index-log-size" 1234 index_log_size;
-    Alcotest.(check bool) "fresh" true fresh;
-    Lwt.return_unit
+    Alcotest.(check bool) "fresh" true fresh
 
-  let misc : unit Alcotest.test_case list =
-    [ ("config", `Quick, fun () -> Lwt_main.run (test_config ())) ]
+  let misc ~env : unit Alcotest.test_case list =
+    [ ("config", `Quick, fun () -> test_config ~env) ]
 end
 
-let () = Alcotest.run "irmin-cli" [ ("conf", Conf.misc) ]
+let () =
+  Eio_main.run @@ fun env ->
+  let env = (env :> Irmin_cli.eio) in
+  Alcotest.run "irmin-cli" [ ("conf", Conf.misc ~env) ]

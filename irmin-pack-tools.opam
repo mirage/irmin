@@ -16,15 +16,14 @@ build: [
 available: arch != "arm32" & arch != "x86_32"
 
 depends: [
-  "ocaml"       {>= "4.01.0"}
-  "dune"        {>= "2.9.0"}
+  "ocaml"       {>= "5.1.0"}
+  "dune"        {>= "3.5.0"}
   "irmin-tezos" {= version}
-  "irmin-pack"  {= version}
   "irmin-pack"  {= version}
   "index"       {>= "1.6.2"}
   "cmdliner"    {>= "1.1.0"}
-  "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
+  "index"       {>= "dev"}
   "ppx_repr"    {>= "0.7.0"}
   "ptime"
   "hex"

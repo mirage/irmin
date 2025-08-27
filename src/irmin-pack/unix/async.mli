@@ -14,5 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Async_intf.Sigs
-(** @inline *)
+module Unix : Irmin_pack_io.Async_intf.S

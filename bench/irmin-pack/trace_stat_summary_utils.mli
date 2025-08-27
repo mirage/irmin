@@ -184,7 +184,8 @@ end
     vec1: |       |       |        |  (len1:4)
     v}
 
-    The first and last point of the input and output sequences are always equal. *)
+    The first and last point of the input and output sequences are always equal.
+*)
 module Resample : sig
   val should_sample :
     i0:int ->

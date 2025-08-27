@@ -85,8 +85,7 @@ let pp name_per_path paths cols_opt =
   let summaries =
     List.map2
       (fun path -> function
-        | `Summary s -> s
-        | `Trace _ -> Summary.summarise ~block_count path)
+        | `Summary s -> s | `Trace _ -> Summary.summarise ~block_count path)
       paths class_per_path
   in
   let col_count =

@@ -16,9 +16,6 @@
 
 (* A minimal example of instantiating a `irmin-pack.unix` key-value store. *)
 
-open Lwt
-open Lwt.Syntax
-
 let src =
   Logs.Src.create "irmin-pack.unix/examples/kv"
     ~doc:"irmin-pack.unix/examples/kv"
@@ -52,7 +49,8 @@ module Repo_config = struct
 
   (** Location on disk to save the repository
 
-      Note: irmin-pack will not create the entire path, only the final directory *)
+      Note: irmin-pack will not create the entire path, only the final directory
+  *)
   let root = "./irmin-pack-example"
 
   (** See {!Irmin_pack.Conf} for more keys that can be used when initialising
@@ -73,24 +71,22 @@ module Store = StoreMaker.Make (Irmin.Contents.String)
 
 let main () =
   (* Instantiate a repository *)
-  let* repo = Store.Repo.v Repo_config.config in
+  let repo = Store.Repo.v Repo_config.config in
 
   (* Get the store from the main branch. *)
-  let* store = Store.main repo in
+  let store = Store.main repo in
 
   (* Set a value. *)
-  let* () =
+  let () =
     Store.set_exn
       ~info:(fun () -> Store.Info.empty)
       store [ "hello" ] "irmin-pack.unix!"
   in
 
   (* Get the value *)
-  let* content = Store.get store [ "hello" ] in
+  let content = Store.get store [ "hello" ] in
 
-  Log.app (fun m -> m "hello: %s" content);
-
-  return ()
+  Log.app (fun m -> m "hello: %s" content)
 
 let setup_logs () =
   Fmt_tty.setup_std_outputs ();
@@ -98,5 +94,6 @@ let setup_logs () =
   Logs.(set_level @@ Some Debug)
 
 let () =
+  Eio_main.run @@ fun _env ->
   setup_logs ();
-  Lwt_main.run @@ main ()
+  main ()

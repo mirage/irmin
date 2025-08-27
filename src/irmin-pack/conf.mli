@@ -142,4 +142,5 @@ val init :
   string ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default
-    configuration parameters and stored at [root]. Flags are documented above. *)
+    configuration parameters and stored at [root]. Flags are documented above.
+*)

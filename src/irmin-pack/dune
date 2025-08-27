@@ -1,7 +1,7 @@
 (library
  (public_name irmin-pack)
  (name irmin_pack)
- (libraries fmt irmin irmin.data logs lwt optint)
+ (libraries fmt irmin irmin.data logs optint)
  (preprocess
   (pps ppx_irmin.internal))
  (instrumentation

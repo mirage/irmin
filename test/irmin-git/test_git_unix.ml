@@ -11,12 +11,13 @@ let init ~config =
     Irmin.Backend.Conf.find_root config |> Option.value ~default:test_db
   in
   assert (test_db <> ".git");
-  let+ () =
+  let () =
     if Sys.file_exists test_db then
+      Lwt_eio.run_lwt @@ fun () ->
+      let open Lwt.Infix in
       Git_unix.Store.v (Fpath.v test_db) >>= function
       | Ok t -> Git_unix.Store.reset t >|= fun _ -> ()
       | Error _ -> Lwt.return_unit
-    else Lwt.return_unit
   in
   Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
 
@@ -28,10 +29,7 @@ module S = struct
 end
 
 let store = (module S : Test_git.G)
-
-let clean ~config:_ =
-  Irmin.Backend.Watch.(set_listen_dir_hook none);
-  Lwt.return_unit
+let clean ~config:_ = Irmin.Backend.Watch.(set_listen_dir_hook none)
 
 let config =
   let head = Git.Reference.v "refs/heads/test" in
@@ -43,13 +41,13 @@ let suite =
 
 let test_non_bare () =
   let config = Irmin_git.config ~bare:false test_db in
-  init ~config >>= fun () ->
+  init ~config;
   let info = Irmin_git_unix.info in
-  let* repo = S.Repo.v config in
-  let* t = S.main repo in
-  S.set_exn t ~info:(info "fst one") [ "fst" ] "ok" >>= fun () ->
-  S.set_exn t ~info:(info "snd one") [ "fst"; "snd" ] "maybe?" >>= fun () ->
+  let repo = S.Repo.v config in
+  let t = S.main repo in
+  S.set_exn t ~info:(info "fst one") [ "fst" ] "ok";
+  S.set_exn t ~info:(info "snd one") [ "fst"; "snd" ] "maybe?";
   S.set_exn t ~info:(info "fst one") [ "fst" ] "hoho"
 
 let misc : unit Alcotest.test_case list =
-  [ ("non-bare", `Quick, fun () -> Lwt_main.run (test_non_bare ())) ]
+  [ ("non-bare", `Quick, fun () -> test_non_bare ()) ]
