@@ -41,16 +41,16 @@ let spec ~path:fs ~clock =
       | Ok str -> Ok Eio.Path.(fs / str)
       | Error e -> Error e
     in
-    Conf.key' ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string ~of_string
-      ~of_json_string "fs" fs
+    Conf.serialized_key ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string
+      ~of_string ~of_json_string "fs" fs
   in
   let clock = (clock :> clock) in
   let _clock_key =
     let to_string _ = "Eio.Time.clock" in
     let of_string _ = Ok clock in
     let of_json_string _ = Ok clock in
-    Conf.key' ~typ:clock_typ ~spec ~typename:"_ Eio.Time.clock" ~to_string
-      ~of_string ~of_json_string "clock" clock
+    Conf.serialized_key ~typ:clock_typ ~spec ~typename:"_ Eio.Time.clock"
+      ~to_string ~of_string ~of_json_string "clock" clock
   in
   spec
 

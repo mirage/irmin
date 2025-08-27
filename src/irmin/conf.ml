@@ -99,7 +99,7 @@ type t = Spec.t * Univ.t M.t
 
 let spec = fst
 
-let key' ?docs ?docv ?doc ?typ ~spec ~typename ~to_string ~of_string
+let serialized_key ?docs ?docv ?doc ?typ ~spec ~typename ~to_string ~of_string
     ~of_json_string name default =
   let () =
     String.iter
@@ -139,8 +139,8 @@ let key ?docs ?docv ?doc ?typ ~spec name ty default =
   in
   let of_string = Type.of_string ty in
   let of_json_string = Type.of_json_string ty in
-  key' ?docs ?docv ?doc ?typ ~spec ~typename ~to_string ~of_json_string
-    ~of_string name default
+  serialized_key ?docs ?docv ?doc ?typ ~spec ~typename ~to_string
+    ~of_json_string ~of_string name default
 
 let name t = t.name
 let doc t = t.doc

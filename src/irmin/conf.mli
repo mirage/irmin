@@ -80,7 +80,7 @@ val key :
       if the key name is not made of a sequence of ASCII lowercase letter,
       digit, dash or underscore. *)
 
-val key' :
+val serialized_key :
   ?docs:string ->
   ?docv:string ->
   ?doc:string ->
