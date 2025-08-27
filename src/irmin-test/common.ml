@@ -221,6 +221,8 @@ module Make_helpers (S : Generic_key) = struct
       let module Conf = Irmin.Backend.Conf in
       let generate_random_root config =
         let sp = Conf.spec config in
+        (* let sp = Conf.Spec.v "irmin-test" config in *)
+        (* let spec = Irmin.Backend.Conf.Spec.v kind in *)
         match Conf.Spec.find_key sp "root" with
         | None -> config
         | Some (K k) ->
@@ -230,9 +232,7 @@ module Make_helpers (S : Generic_key) = struct
               | None -> "test_" ^ id
               | Some v -> v ^ "_" ^ id
             in
-            let v =
-              Irmin.Type.of_string (Conf.ty k) root_value |> Result.get_ok
-            in
+            let v = Conf.of_string k root_value |> Result.get_ok in
             Conf.add config k v
       in
       let config = generate_random_root x.config in

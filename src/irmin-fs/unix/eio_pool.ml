@@ -105,8 +105,7 @@ let acquire p =
       (* Limit reached: wait for a free one. *)
       let promise, resolver = Promise.create () in
       Stream.add p.waiters resolver;
-      validate_and_return p (Promise.await_exn promise)
-      (* (Lwt.add_task_r [@ocaml.warning "-3"]) p.waiters >>= validate_and_return p *))
+      validate_and_return p (Promise.await_exn promise))
   else
     (* Take the first free member and validate it. *)
     let c = Queue.take p.list in

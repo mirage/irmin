@@ -28,12 +28,6 @@ let test_conf () =
       (Invalid_argument "invalid config key: x") (fun () ->
         ignore (add (empty spec_b) x 1))
   in
-  let specs =
-    Spec.list () |> Seq.map Spec.name |> List.of_seq |> List.sort String.compare
-  in
-  let () =
-    Alcotest.(check (list string)) "Spec list" [ "a"; "b"; "mem" ] specs
-  in
   let keys =
     Spec.keys spec_a
     |> Seq.map (fun (K k) -> name k)

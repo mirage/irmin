@@ -36,12 +36,6 @@ module Spec : sig
   val name : t -> string
   (** [name spec] is the name associated with a config spec *)
 
-  val list : unit -> t Seq.t
-  (** [list ()] is a sequence containing all available config specs *)
-
-  val find : string -> t option
-  (** [find name] is the config spec associated with [name] if available *)
-
   val find_key : t -> string -> k option
   (** [find_key spec k] is the key associated with the name [k] in [spec] *)
 
@@ -55,10 +49,17 @@ module Spec : sig
       the specs in [b] joined by hyphens. *)
 end
 
+module Typ : sig
+  type 'a t
+
+  val create : unit -> 'a t
+end
+
 val key :
   ?docs:string ->
   ?docv:string ->
   ?doc:string ->
+  ?typ:'a Typ.t ->
   spec:Spec.t ->
   string ->
   'a Type.t ->
@@ -79,11 +80,35 @@ val key :
       if the key name is not made of a sequence of ASCII lowercase letter,
       digit, dash or underscore. *)
 
+val serialized_key :
+  ?docs:string ->
+  ?docv:string ->
+  ?doc:string ->
+  ?typ:'a Typ.t ->
+  spec:Spec.t ->
+  typename:string ->
+  to_string:('a -> string) ->
+  of_string:(string -> ('a, [ `Msg of string ]) result) ->
+  of_json_string:(string -> ('a, [ `Msg of string ]) result) ->
+  string ->
+  'a ->
+  'a key
+(** Same as {!key} for types that don't implement [Type.t] but can be serialized
+    with [to_string], and deserialized with either [of_string] or
+    [of_json_string]. The [typename] is the user-readable description of the
+    type, in case of dynamic type errors. *)
+
 val name : 'a key -> string
 (** The key name. *)
 
-val ty : 'a key -> 'a Type.t
-(** [tc k] is [k]'s converter. *)
+val typename : 'a key -> string
+(** [typename k] is the type name of [k]'s values. *)
+
+val of_string : 'a key -> string -> ('a, [ `Msg of string ]) result
+(** [of_string k] is the parser of [k]'s values. *)
+
+val of_json_string : 'a key -> string -> ('a, [ `Msg of string ]) result
+(** [of_json_string k] is the json parser of [k]'s values. *)
 
 val default : 'a key -> 'a
 (** [default k] is [k]'s default value. *)
@@ -150,6 +175,10 @@ val keys : t -> k Seq.t
 val with_spec : t -> Spec.t -> t
 (** [with_spec t s] is the config [t] with spec [s] *)
 
+val find_key : t -> string -> 'a Typ.t -> 'a
+(** [find_key t name typ] returns the value associated with [name] in the config
+    [t]. *)
+
 val verify : t -> t
 (** [verify t] is an identity function that ensures all keys match the spec
 
@@ -162,12 +191,3 @@ val uri : Uri.t Type.t
 
 val find_root : t -> string option
 (** [find_root c] is [root]'s mapping in [c], if any. *)
-
-module Env : sig
-  type _ Effect.t +=
-    | Fs : Eio.Fs.dir_ty Eio.Path.t Effect.t
-    | Net : _ Eio.Net.t Effect.t
-
-  val fs : unit -> Eio.Fs.dir_ty Eio.Path.t
-  val net : unit -> _ Eio.Net.t
-end
