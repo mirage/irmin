@@ -30,26 +30,26 @@ module type Config = sig
 end
 
 module type IO = sig
-  type io
+  type t
 
-  val io_of_config : Irmin.config -> io
+  val of_config : Irmin.config -> t
 
   type path = string
 
-  val rec_files : io:io -> path -> path list
-  val file_exists : io:io -> path -> bool
-  val read_file : io:io -> path -> string option
-  val mkdir : io:io -> path -> unit
+  val rec_files : io:t -> path -> path list
+  val file_exists : io:t -> path -> bool
+  val read_file : io:t -> path -> string option
+  val mkdir : io:t -> path -> unit
 
   type lock
 
-  val lock_file : io:io -> path -> lock
+  val lock_file : io:t -> path -> lock
 
   val write_file :
-    io:io -> temp_dir:path -> ?lock:lock -> path -> string -> unit
+    io:t -> temp_dir:path -> ?lock:lock -> path -> string -> unit
 
   val test_and_set_file :
-    io:io ->
+    io:t ->
     temp_dir:path ->
     lock:lock ->
     path ->
@@ -57,7 +57,7 @@ module type IO = sig
     set:string option ->
     bool
 
-  val remove_file : io:io -> ?lock:lock -> path -> unit
+  val remove_file : io:t -> ?lock:lock -> path -> unit
 end
 
 (* ~path *)
@@ -82,12 +82,12 @@ module Read_only_ext
 struct
   type key = K.t
   type value = V.t
-  type 'a t = { path : string; io : IO.io }
+  type 'a t = { path : string; io : IO.t }
 
   let get_path config = Option.value Conf.(find_root config) ~default:"."
 
   let v config =
-    let io = IO.io_of_config config in
+    let io = IO.of_config config in
     let path = get_path config in
     IO.mkdir ~io path;
     { path; io }
@@ -338,13 +338,13 @@ module KV (IO : IO) = struct
 end
 
 module IO_mem = struct
-  type io = unit
+  type t = unit
 
-  let io_of_config _ = ()
+  let of_config _ = ()
 
   type path = string
 
-  type t = {
+  type mem = {
     watches : (string, string -> unit) Hashtbl.t;
     files : (path, string) Hashtbl.t;
   }

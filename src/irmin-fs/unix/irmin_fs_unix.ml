@@ -24,7 +24,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 type fs = Eio.Fs.dir_ty Eio.Path.t
 type clock = float Eio.Time.clock_ty Eio.Time.clock
-type io = { fs : fs; clock : clock }
 
 let fs_typ : fs Conf.Typ.t = Conf.Typ.create ()
 let clock_typ : clock Conf.Typ.t = Conf.Typ.create ()
@@ -57,9 +56,9 @@ let spec ~path:fs ~clock =
 let conf ~path ~clock = Conf.empty (spec ~path ~clock)
 
 module IO = struct
-  type nonrec io = io
+  type t = { fs : fs; clock : clock }
 
-  let io_of_config conf =
+  let of_config conf =
     {
       fs = Conf.find_key conf "fs" fs_typ;
       clock = Conf.find_key conf "clock" clock_typ;

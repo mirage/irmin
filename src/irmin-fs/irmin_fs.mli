@@ -33,42 +33,42 @@ val config : string -> Irmin.config
 module type IO = sig
   (** {1 File-system abstractions} *)
 
-  type io
+  type t
 
-  val io_of_config : Irmin.config -> io
+  val of_config : Irmin.config -> t
 
   type path = string
   (** The type for paths. *)
 
   (** {2 Read operations} *)
 
-  val rec_files : io:io -> path -> path list
+  val rec_files : io:t -> path -> path list
   (** [rec_files dir] is the list of files recursively present in [dir] and all
       of its sub-directories. Return filenames prefixed by [dir]. *)
 
-  val file_exists : io:io -> path -> bool
+  val file_exists : io:t -> path -> bool
   (** [file_exist f] is true if [f] exists. *)
 
-  val read_file : io:io -> path -> string option
+  val read_file : io:t -> path -> string option
   (** Read the contents of a file using mmap. *)
 
   (** {2 Write Operations} *)
 
-  val mkdir : io:io -> path -> unit
+  val mkdir : io:t -> path -> unit
   (** Create a directory. *)
 
   type lock
   (** The type for file locks. *)
 
-  val lock_file : io:io -> path -> lock
+  val lock_file : io:t -> path -> lock
   (** [lock_file f] is the lock associated to the file [f]. *)
 
   val write_file :
-    io:io -> temp_dir:path -> ?lock:lock -> path -> string -> unit
+    io:t -> temp_dir:path -> ?lock:lock -> path -> string -> unit
   (** Atomic writes. *)
 
   val test_and_set_file :
-    io:io ->
+    io:t ->
     temp_dir:path ->
     lock:lock ->
     path ->
@@ -77,7 +77,7 @@ module type IO = sig
     bool
   (** Test and set. *)
 
-  val remove_file : io:io -> ?lock:lock -> path -> unit
+  val remove_file : io:t -> ?lock:lock -> path -> unit
   (** Remove a file or directory (even if non-empty). *)
 end
 
