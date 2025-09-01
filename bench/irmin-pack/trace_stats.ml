@@ -220,7 +220,9 @@ let () =
   in
   let k = Cmd.info ~man ~doc:"Comparative Pretty Printing" "pp" in
   let l = Cmd.info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb" in
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
   Stdlib.exit
   @@ Cmd.eval
-  @@ Cmd.group ~default:term_summarise i
-       [ Cmd.v j term_summarise; Cmd.v k term_pp; Cmd.v l term_cb ]
+  @@ Cmd.group ~default:(term_summarise fs) i
+       [ Cmd.v j (term_summarise fs); Cmd.v k (term_pp fs); Cmd.v l term_cb ]

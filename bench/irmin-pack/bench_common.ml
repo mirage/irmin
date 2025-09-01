@@ -61,7 +61,8 @@ let random_blob () = random_string 10 |> Bytes.of_string
 let random_key () = random_string 5
 
 let default_artefacts_dir cwd =
-  Eio.Path.(cwd / "_artefacts" / Uuidm.to_string (Uuidm.v `V4))
+  let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
+  Eio.Path.(cwd / "_artefacts" / Uuidm.to_string uuid)
 
 let prepare_artefacts_dir path =
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o755 path

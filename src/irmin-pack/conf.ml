@@ -134,8 +134,8 @@ let spec ~sw ~fs =
     let to_string _ = "Eio.Switch.t" in
     let of_string _ = Ok sw in
     let of_json_string _ = Ok sw in
-    key' ~typ:sw_typ ~spec ~typename:"Eio.Switch.t" ~to_string ~of_string
-      ~of_json_string "sw" sw
+    serialized_key ~typ:sw_typ ~spec ~typename:"Eio.Switch.t" ~to_string
+      ~of_string ~of_json_string "sw" sw
   in
   let fs = (fs :> fs) in
   let _fs_key =
@@ -146,8 +146,8 @@ let spec ~sw ~fs =
       | Ok str -> Ok Eio.Path.(fs / str)
       | Error e -> Error e
     in
-    key' ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string ~of_string
-      ~of_json_string "fs" fs
+    serialized_key ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string
+      ~of_string ~of_json_string "fs" fs
   in
   spec
 

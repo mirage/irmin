@@ -37,11 +37,6 @@ depends: [
   "qcheck-alcotest" {>= "0.21.1" & with-test}
 ]
 
-pin-depends: [
-  # Fix race in formatters
-  [ "alcotest.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
-]
-
 synopsis: "Irmin test suite"
 description: """
 `irmin-test` provides access to the Irmin test suite for testing storage backend

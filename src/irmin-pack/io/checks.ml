@@ -52,14 +52,7 @@ let path fs =
   @@ pos 0 (some (eio_path fs)) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-let ppf_or_null ppf =
-  let null =
-    match Sys.os_type with
-    | "Unix" | "Cygwin" -> "/dev/null"
-    | "Win32" -> "NUL"
-    | _ -> invalid_arg "invalid os type"
-  in
-  match ppf with
+let ppf_or_null = function
   | Some p -> p
   | None -> Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
 
@@ -376,8 +369,9 @@ struct
         "Traverse one commit, specified with the --commit argument, in the \
          store for stats. If no commit is specified the current head is used."
       in
-      Cmdliner.Term.
-        (term_internal ~fs $ setup_log, deprecated_info ~doc "stat-store")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "stat-store")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Cli = struct

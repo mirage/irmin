@@ -465,8 +465,7 @@ module Make (Store : Store) = struct
     in
     aux commit_seq 0
 
-  let run :
-      type a.
+  let run : type a.
       fs:Eio.Fs.dir_ty Eio.Path.t ->
       domain_mgr:_ Eio.Domain_manager.t ->
       _ ->

@@ -685,4 +685,7 @@ let () =
     ]
   in
   let info = Cmd.info ~man ~doc:"Benchmarks for tree operations" "tree" in
-  Stdlib.exit @@ Cmd.eval @@ Cmd.v info main_term
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  let cwd = Eio.Stdenv.cwd env in
+  Stdlib.exit @@ Cmd.eval @@ Cmd.v info (main_term fs cwd)

@@ -14,10 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-include Irmin.Export_for_backends
-
 module Conf = struct
-  let test_config ~env =
+  let test_config ~env () =
     let hash = Irmin_cli.Resolver.Hash.find "blake2b" in
     let _, cfg =
       Irmin_cli.Resolver.load_config ~env ~config_path:"test/irmin-cli/test.yml"
@@ -35,7 +33,7 @@ module Conf = struct
     Alcotest.(check bool) "fresh" true fresh
 
   let misc ~env : unit Alcotest.test_case list =
-    [ ("config", `Quick, fun () -> test_config ~env) ]
+    [ ("config", `Quick, fun () -> test_config ~env ()) ]
 end
 
 let () =
