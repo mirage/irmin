@@ -137,8 +137,7 @@ module Make (H : Hashtbl.HashedType) = struct
       | Some v ->
           promote ~xt t v;
           snd v.value
-      | None ->
-          raise Not_found
+      | None -> raise Not_found
     in
     Xt.commit { tx }
 
@@ -160,6 +159,5 @@ module Make (H : Hashtbl.HashedType) = struct
     in
     Xt.commit { tx }
 
-  let iter t f =
-    HT.iter (fun k q -> f k (snd q.Q.value)) t.ht
+  let iter t f = HT.iter (fun k q -> f k (snd q.Q.value)) t.ht
 end
