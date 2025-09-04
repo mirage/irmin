@@ -2,14 +2,14 @@ open Import
 include Irmin_pack.Atomic_write
 
 module Table (K : Irmin.Type.S) = struct
-  module K = (struct
+  module K = struct
     include K
 
     type t = K.t [@@deriving irmin ~short_hash ~equal]
 
     let hash = short_hash ?seed:None
     let equal = Irmin.Type.(unstage (equal K.t))
-  end)
+  end
 
   include Kcas_data.Hashtbl
 
