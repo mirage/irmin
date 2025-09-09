@@ -29,6 +29,7 @@ depends: [
   "hex"
   "irmin-test"  {with-test & = version}
   "alcotest"    {with-test}
+  "eio_main" {>= "1.3"}
 ]
 
 pin-depends: [

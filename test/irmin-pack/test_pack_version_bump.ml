@@ -44,7 +44,7 @@ module Util = struct
       (* TODO: remove [sr] *)
       Eio.Flow.read_exact sr cs;
       let i = Cstruct.LE.get_uint16 cs 0 in
-      let tmp = Eio.Path.(fs / "tmp") in
+      let tmp = Eio.Path.(fs / "/tmp") in
       Eio.Path.mkdirs ~exists_ok:true ~perm:0o700 tmp;
       let path = Eio.Path.(tmp / (prefix ^ Int.to_string i)) in
       match Eio.Path.kind ~follow:false path with

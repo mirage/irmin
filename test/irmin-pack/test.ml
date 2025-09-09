@@ -17,7 +17,7 @@
 let () =
   Eio_main.run @@ fun env ->
   let sr = Eio.Stdenv.secure_random env in
-  let fs = Eio.Stdenv.cwd env in
+  let fs = Eio.Stdenv.fs env in
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   (* **/** *)
   Eio.Switch.run @@ fun sw ->

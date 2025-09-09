@@ -26,8 +26,8 @@ module Unix = struct
   type t = Eio.Switch.t * outcome Eio.Promise.or_exn
 
   let async ~sw ~domain_mgr f =
+    Logs_threaded.enable ();
     let run f () =
-      Logs.set_level None;
       match f () with
       | () -> `Success
       | exception _ -> `Failure "Unhandled exception"
