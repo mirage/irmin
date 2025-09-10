@@ -15,6 +15,7 @@
  *)
 
 let () =
+  Logs_threaded.enable ();
   Eio_main.run @@ fun env ->
   let sr = Eio.Stdenv.secure_random env in
   let fs = Eio.Stdenv.fs env in
