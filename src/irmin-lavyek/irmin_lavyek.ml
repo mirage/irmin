@@ -6,6 +6,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Conf = Conf
 
 let config = Conf.init
+let config = Conf.config
 
 module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   type key = K.t
