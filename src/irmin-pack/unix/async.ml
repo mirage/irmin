@@ -26,7 +26,6 @@ module Unix = struct
   type t = Eio.Switch.t * outcome Eio.Promise.or_exn
 
   let async ~sw ~domain_mgr f =
-    Logs_threaded.enable ();
     let run f () =
       match f () with
       | () -> `Success

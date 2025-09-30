@@ -725,14 +725,12 @@ module Gc_common (B : Gc_backend) = struct
     let () = check_2 t c2 in
     let () = check_3 t c3 in
     (* GC *)
-    (* TODO: Now that the GC is not in another process, it cleans every stats.
-       Make the stats domain dependant ? *)
-    (* let count_before_gc = lru_hits () in *)
+    let count_before_gc = lru_hits () in
     let () = start_gc ~fs ~domain_mgr t c2 in
     let () = finalise_gc t in
     (* Read data again *)
     let () = check_3 t c3 in
-    Alcotest.(check int) "GC does clear LRU" 0 (lru_hits ());
+    Alcotest.(check int) "GC does clear LRU" count_before_gc (lru_hits ());
     S.Repo.close t.repo
 
   let tests ~fs ~domain_mgr =
@@ -1072,14 +1070,14 @@ module Concurrent_gc = struct
       "reload does not clear LRU" true
       (count_before_reload < lru_hits ());
     (* GC *)
-    (* let count_before_gc = lru_hits () in *)
+    let count_before_gc = lru_hits () in
     let () = start_gc ~fs ~domain_mgr rw_t c2 in
     let () = finalise_gc rw_t in
     (* Reload RO to get changes and clear LRU, and read some data *)
     S.reload ro_t.repo;
     let () = check_3 ro_t c3 in
     (* TODO: GC resets the stats now that it is not another process *)
-    Alcotest.(check int) "reload does clear LRU" 0 (lru_hits ());
+    Alcotest.(check int) "reload does clear LRU" count_before_gc (lru_hits ());
     let () = S.Repo.close rw_t.repo in
     S.Repo.close ro_t.repo
 

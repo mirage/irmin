@@ -23,7 +23,9 @@ let () =
   (* **/** *)
   Eio.Switch.run @@ fun sw ->
   let test_suite = Test_pack.suite ~sw ~fs in
-  Irmin_test.Store.run "irmin-pack"
+  let stdout = Alcotest_engine.Formatters.make_stdout () in
+  let stderr = Alcotest_engine.Formatters.make_stderr () in
+  Irmin_test.Store.run "irmin-pack" ~stdout ~stderr
     ~misc:(Test_pack.misc ~sr ~fs ~domain_mgr)
     ~sleep:Eio_unix.sleep
     (List.map (fun s -> (`Quick, s)) test_suite)
