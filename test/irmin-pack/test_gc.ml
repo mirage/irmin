@@ -1076,7 +1076,6 @@ module Concurrent_gc = struct
     (* Reload RO to get changes and clear LRU, and read some data *)
     S.reload ro_t.repo;
     let () = check_3 ro_t c3 in
-    (* TODO: GC resets the stats now that it is not another process *)
     Alcotest.(check int) "reload does clear LRU" count_before_gc (lru_hits ());
     let () = S.Repo.close rw_t.repo in
     S.Repo.close ro_t.repo

@@ -42,10 +42,8 @@ end
 
 open Irmin.Backend.Conf
 
-type fs = Eio.Fs.dir_ty Eio.Path.t
-
 let sw_typ : Eio.Switch.t Typ.t = Typ.create ()
-let fs_typ : fs Typ.t = Typ.create ()
+let fs_typ : Eio.Fs.dir_ty Eio.Path.t Typ.t = Typ.create ()
 let spec = Spec.v "pack"
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
@@ -137,7 +135,7 @@ let spec ~sw ~fs =
     serialized_key ~typ:sw_typ ~spec ~typename:"Eio.Switch.t" ~to_string
       ~of_string ~of_json_string "sw" sw
   in
-  let fs = (fs :> fs) in
+  let fs = (fs :> Eio.Fs.dir_ty Eio.Path.t) in
   let _fs_key =
     let to_string fs = Eio.Path.native_exn fs in
     let of_string str = Ok Eio.Path.(fs / str) in

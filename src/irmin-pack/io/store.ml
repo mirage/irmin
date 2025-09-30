@@ -388,7 +388,6 @@ struct
                   Gc.finalise_without_swap gc
             in
             let config =
-              (* TODO: why native_exn? *)
               Irmin.Backend.Conf.add t.config Conf.Key.root
                 (Eio.Path.native_exn path)
             in

@@ -497,7 +497,6 @@ let test_commit_v ~fs ~domain_mgr =
   domains_spawn ~domain_mgr do_commit_v;
   Store.Repo.close repo
 
-(* TODO: Eio has to be fixed first to allow a switch to be used from different domains *)
 let tests ~fs ~domain_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn ~domain_mgr) in
   [

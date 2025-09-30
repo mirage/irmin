@@ -251,14 +251,12 @@ module Make (Args : Args) = struct
     module Index =
       Index.Make (Pack_index.Key) (Value) (Io_index) (Index.Cache.Unbounded)
 
-    type path = Eio.Fs.dir_ty Eio.Path.t
-
     type t = {
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
       visited : Hash.t -> Hash.t Pack_key.t;
       set_visit : Hash.t -> Hash.t Pack_key.t -> unit;
-      index : (path * Index.t) option;
+      index : (Eio.Fs.dir_ty Eio.Path.t * Index.t) option;
     }
 
     let save_contents t b : Hash.t Pack_key.t =

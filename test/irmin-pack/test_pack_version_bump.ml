@@ -41,7 +41,6 @@ module Util = struct
   let tmp_dir ~sr ~fs prefix =
     let cs = Cstruct.create 4 in
     let rec f () =
-      (* TODO: remove [sr] *)
       Eio.Flow.read_exact sr cs;
       let i = Cstruct.LE.get_uint16 cs 0 in
       let tmp = Eio.Path.(fs / "/tmp") in

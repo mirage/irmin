@@ -25,7 +25,6 @@ module Errors = Irmin_pack_io.Errors
    implementation will not read/write more than a constant called
    [UNIX_BUFFER_SIZE]. *)
 
-(** TODO *)
 module Util = struct
   let really_write fd file_offset buffer buffer_offset length =
     let cs = Cstruct.of_bytes ~off:buffer_offset ~len:length buffer in
@@ -39,48 +38,36 @@ end
 
 module Unix = struct
   type misc_error = Unix.error * string * string
-  (** TODO *)
 
-  (** TODO *)
   let unix_error_t =
     Irmin.Type.(map string (fun _str -> assert false) Unix.error_message)
 
-  (** TODO *)
   let misc_error_t = Irmin.Type.(triple unix_error_t string string)
 
   type create_error = [ `Io_misc of misc_error | `File_exists of string ]
-  (** TODO *)
 
   type open_error =
     [ `Io_misc of misc_error
     | `No_such_file_or_directory of string
     | `Not_a_file ]
-  (** TODO *)
 
   type read_error =
     [ `Io_misc of misc_error
     | `Read_out_of_bounds
     | `Closed
     | `Invalid_argument ]
-  (** TODO *)
 
   type write_error = [ `Io_misc of misc_error | `Ro_not_allowed | `Closed ]
-  (** TODO *)
-
   type close_error = [ `Io_misc of misc_error | `Double_close ]
-  (** TODO *)
 
   type mkdir_error =
     [ `Io_misc of misc_error
     | `File_exists of string
     | `No_such_file_or_directory of string
     | `Invalid_parent_directory ]
-  (** TODO *)
 
-  (** TODO *)
   let raise_misc_error (x, y, z) = raise (Unix.Unix_error (x, y, z))
 
-  (** TODO *)
   let catch_misc_error f =
     try Ok (f ())
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
@@ -106,16 +93,10 @@ module Unix = struct
     | `Not_found -> `No_such_file_or_directory
     | _ -> `Other
 
-  (** TODO *)
   let readdir p = Eio.Path.read_dir p
-
   let default_create_perm = 0o644
-  (* let default_open_perm = 0o644 *)
-  (* CHECK *)
-
   let default_mkdir_perm = 0o755
 
-  (** TODO *)
   let create ~sw ~path ~overwrite =
     try
       match Eio.Path.kind ~follow:false path with
@@ -140,7 +121,7 @@ module Unix = struct
           | false -> Error (`File_exists (Eio.Path.native_exn path)))
       | _ -> assert false
     with
-    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)) (* TODO *)
+    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
     | Sys_error _ -> assert false
 
   let open_ ~sw ~path ~readonly =
@@ -153,14 +134,12 @@ module Unix = struct
             try
               let file = RO (Eio.Path.open_in ~sw path) in
               Ok { file; closed = false; path }
-            with Unix.Unix_error (e, s1, s2) ->
-              Error (`Io_misc (e, s1, s2)) (* TODO *))
+            with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
         | false -> (
             try
               let file = RW (Eio.Path.open_out ~sw ~create:`Never path) in
               Ok { file; closed = false; path }
-            with Unix.Unix_error (e, s1, s2) ->
-              Error (`Io_misc (e, s1, s2)) (* TODO *)))
+            with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))))
     | _ -> Error `Not_a_file
 
   let close t =
@@ -175,9 +154,7 @@ module Unix = struct
           Eio.Resource.close file;
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-  (* TODO *)
 
-  (** TODO *)
   let write_exn t ~off ~len s =
     if String.length s < len then raise (Errors.Pack_error `Invalid_argument);
     match (t.closed, t.file) with
@@ -189,11 +166,9 @@ module Unix = struct
            usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
         let () = Util.really_write file off buf 0 len in
-        (* TODO: Index.Stats is not domain-safe
-           Index.Stats.add_write len; *)
+        Index.Stats.add_write len;
         ()
 
-  (** TODO *)
   let write_string t ~off s =
     let len = String.length s in
     try Ok (write_exn t ~off ~len s) with
@@ -201,7 +176,6 @@ module Unix = struct
     | Errors.RO_not_allowed -> Error `Ro_not_allowed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  (** TODO *)
   let fsync t =
     match (t.closed, t.file) with
     | true, _ -> Error `Closed
@@ -212,7 +186,6 @@ module Unix = struct
           Ok ()
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  (** TODO *)
   let read_exn t ~off ~len buf =
     if len > Bytes.length buf then raise (Errors.Pack_error `Invalid_argument);
     match t.closed with
@@ -220,20 +193,12 @@ module Unix = struct
     | false -> (
         try
           let file = get_file_as_ro t.file in
-          Util.really_read file off len buf
+          Util.really_read file off len buf;
+          Index.Stats.add_read len
         with exn ->
           Printexc.print_backtrace stderr;
           raise exn)
-  (* TODO: Index.Stats is not domain-safe
-     Index.Stats.add_read nread; *)
-  (* if nread <> len then  *)
-  (* TODO: vérifier que c'est bon *)
-  (* didn't manage to read the desired amount; in this case the interface seems to
-     require we return `Read_out_of_bounds FIXME check this, because it is unusual
-     - the normal API allows return of a short string *)
-  (* raise (Errors.Pack_error `Read_out_of_bounds) *)
 
-  (** TODO *)
   let read_to_string t ~off ~len =
     let buf = Bytes.create len in
     try
@@ -249,10 +214,8 @@ module Unix = struct
     | Errors.Closed -> Error `Closed
     | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  (** TODO *)
   let page_size = 4096
 
-  (** TODO *)
   let read_all_to_string t =
     let open Result_syntax in
     let* () = if t.closed then Error `Closed else Ok () in
@@ -263,8 +226,7 @@ module Unix = struct
       let file = get_file_as_ro t.file in
       let nread = Eio.File.pread file ~file_offset:off [ cs ] in
       if nread > 0 then (
-        (* TODO: Index.Stats is not domain-safe
-           Index.Stats.add_read nread; *)
+        Index.Stats.add_read nread;
         Buffer.add_subbytes buf (Cstruct.to_bytes ~off:0 ~len:nread cs) 0 nread;
         if nread = len then aux ~off:Int63.(add off (of_int nread)))
     in
@@ -273,7 +235,6 @@ module Unix = struct
       Ok (Buffer.contents buf)
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
-  (** TODO *)
   let read_size t =
     match t.closed with
     | true -> Error `Closed
@@ -283,7 +244,6 @@ module Unix = struct
           Ok Eio.File.(stat file).size
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
-  (** TODO *)
   let size_of_path s =
     let open Result_syntax in
     Eio.Switch.run @@ fun sw ->
@@ -319,7 +279,6 @@ module Unix = struct
     with Eio.Io (err, _context) ->
       Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
-  (** TODO *)
   let mkdir path =
     let dirname, _ = Option.get @@ Eio.Path.split path in
     match
@@ -348,9 +307,7 @@ module Unix = struct
     Eio.Fiber.fork ~sw (fun () ->
         try Eio.Path.unlink path with err -> on_exn err)
 
-  (** TODO *)
   module Stats = struct
-    (** TODO *)
     let is_darwin =
       lazy
         (try
@@ -359,17 +316,12 @@ module Unix = struct
            | _ -> false
          with Unix.Unix_error _ -> false)
 
-    (** TODO *)
     let get_wtime () =
       (Mtime_clock.now () |> Mtime.to_uint64_ns |> Int64.to_float) /. 1e9
 
-    (** TODO *)
     let get_stime () = Rusage.((get Self).stime)
-
-    (** TODO *)
     let get_utime () = Rusage.((get Self).utime)
 
-    (** TODO *)
     let get_rusage () =
       let Rusage.{ maxrss; minflt; majflt; inblock; oublock; nvcsw; nivcsw; _ }
           =
@@ -383,8 +335,5 @@ module Unix = struct
   end
 
   module Clock = Mtime_clock
-  (** TODO *)
-
   module Progress = Progress
-  (** TODO *)
 end

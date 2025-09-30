@@ -33,8 +33,6 @@ depends: [
 ]
 
 pin-depends: [
-  [ "terminal.dev" "git+https://github.com/craigfe/progress#ac53cd48cd82500f51faf67f9555a9454d5f5504" ]
-  [ "progress.dev" "git+https://github.com/craigfe/progress#ac53cd48cd82500f51faf67f9555a9454d5f5504" ]
   [ "index.dev"    "git+https://github.com/mirage/index#6e84bed48db8ab53a09926b45d899815c30f2b39"     ]
 ]
 
