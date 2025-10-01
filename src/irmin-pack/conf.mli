@@ -58,7 +58,7 @@ module type S = sig
       See https://github.com/mirage/irmin/issues/1304 *)
 end
 
-val spec : Irmin.Backend.Conf.Spec.t
+val spec : sw:Eio.Switch.t -> fs:_ Eio.Path.t -> Irmin.Backend.Conf.Spec.t
 
 type merge_throttle = [ `Block_writes | `Overcommit_memory ] [@@deriving irmin]
 (** Strategy for when attempting to write when the index log is full and waiting
@@ -128,7 +128,15 @@ val use_fsync : Irmin.Backend.Conf.t -> bool
 val no_migrate : Irmin.Backend.Conf.t -> bool
 (** Flag to prevent migration of data. Default [false]. *)
 
+val switch : Irmin.Backend.Conf.t -> Eio.Switch.t
+(** Eio switch *)
+
+val fs : Irmin.Backend.Conf.t -> Eio.Fs.dir_ty Eio.Path.t
+(** Eio filesystem *)
+
 val init :
+  sw:Eio.Switch.t ->
+  fs:_ Eio.Path.t ->
   ?fresh:bool ->
   ?readonly:bool ->
   ?lru_size:int ->
@@ -138,8 +146,8 @@ val init :
   ?indexing_strategy:Indexing_strategy.t ->
   ?use_fsync:bool ->
   ?no_migrate:bool ->
-  ?lower_root:string option ->
-  string ->
+  ?lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+  Eio.Fs.dir_ty Eio.Path.t ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default
     configuration parameters and stored at [root]. Flags are documented above.

@@ -24,6 +24,7 @@ depends: [
   "alcotest-lwt" {with-test & >= "1.8.0"}
   "irmin-watcher" {= "dev" & with-test}
   "mirage-crypto-rng" {with-test & >= "2.0.0"}
+  "lwt-dllist" {>= "1.0.1"}
 ]
 pin-depends: [
   [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]

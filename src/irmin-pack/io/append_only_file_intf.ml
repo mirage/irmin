@@ -31,11 +31,15 @@ module type S = sig
   type t
 
   val create_rw :
-    path:string -> overwrite:bool -> (t, [> Io.create_error ]) result
+    sw:Eio.Switch.t ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
+    overwrite:bool ->
+    (t, [> Io.create_error ]) result
   (** Create a rw instance of [t] by creating the file at [path]. *)
 
   val open_rw :
-    path:string ->
+    sw:Eio.Switch.t ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
     end_poff:int63 ->
     dead_header_size:int ->
     ( t,
@@ -67,7 +71,8 @@ module type S = sig
       stores with [`V3]. *)
 
   val open_ro :
-    path:string ->
+    sw:Eio.Switch.t ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
     end_poff:int63 ->
     dead_header_size:int ->
     ( t,
@@ -156,7 +161,7 @@ module type S = sig
 
   val readonly : t -> bool
   val empty_buffer : t -> bool
-  val path : t -> string
+  val path : t -> Eio.Fs.dir_ty Eio.Path.t
 end
 
 module type Sigs = sig

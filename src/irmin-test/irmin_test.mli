@@ -63,6 +63,8 @@ val checks : 'a Irmin.Type.t -> string -> 'a list -> 'a list -> unit
 module Store : sig
   val run :
     string ->
+    ?stdout:Alcotest_engine.Formatters.stdout ->
+    ?stderr:Alcotest_engine.Formatters.stderr ->
     ?and_exit:bool ->
     ?slow:bool ->
     ?random_seed:int ->

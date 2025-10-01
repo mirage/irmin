@@ -1099,6 +1099,7 @@ let summarise ?block_count trace_stat_path =
 (* Section 4/4 - Conversion from summary to json file *)
 
 let save_to_json v path =
+  let path = Eio.Path.native_exn path in
   let j = Fmt.str "%a\n" (Irmin.Type.pp_json t) v in
   let chan = open_out path in
   output_string chan j;

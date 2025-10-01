@@ -14,4 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val tests : unit Alcotest.test_case list
+val tests :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  domain_mgr:_ Eio.Domain_manager.t ->
+  unit Alcotest.test_case list

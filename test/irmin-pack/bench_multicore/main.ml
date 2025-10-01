@@ -120,11 +120,11 @@ let config =
 
 let bench_half config =
   Logs.set_level None;
-  Eio_main.run @@ fun env -> Bench.half ~d_mgr:env#domain_mgr ~config
+  Eio_main.run @@ fun env -> Bench.half ~fs:env#fs ~d_mgr:env#domain_mgr ~config
 
 let bench_full config =
   Logs.set_level None;
-  Eio_main.run @@ fun env -> Bench.full ~d_mgr:env#domain_mgr ~config
+  Eio_main.run @@ fun env -> Bench.full ~fs:env#fs ~d_mgr:env#domain_mgr ~config
 
 let cmd_half =
   let doc = "Half-diamond benchmark" in

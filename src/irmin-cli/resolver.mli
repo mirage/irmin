@@ -90,7 +90,7 @@ module Store : sig
   val mem : hash -> contents -> t
   val fs : eio -> hash -> contents -> t
   val git : contents -> t
-  val pack : hash -> contents -> t
+  val pack : eio -> hash -> contents -> t
   val find : string -> eio -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
   val spec : t -> Irmin.Backend.Conf.Spec.t

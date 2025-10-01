@@ -16,6 +16,8 @@
 
 val run :
   string ->
+  ?stdout:Alcotest_engine.Formatters.stdout ->
+  ?stderr:Alcotest_engine.Formatters.stderr ->
   ?and_exit:bool ->
   ?slow:bool ->
   ?random_seed:int ->

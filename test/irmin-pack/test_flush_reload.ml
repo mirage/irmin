@@ -100,9 +100,9 @@ let write1_no_flush bstore nstore cstore =
   ()
 
 (* These tests always open both RW and RO without any data in the model. *)
-let start t =
-  let () = start_rw t in
-  let () = open_ro t S2_before_write in
+let start ~sw ~fs t =
+  let () = start_rw ~sw ~fs t in
+  let () = open_ro ~sw ~fs t S2_before_write in
   let rw = Option.get t.rw |> snd in
   let ro = Option.get t.ro |> snd in
   (rw, ro)
@@ -110,13 +110,14 @@ let start t =
 (* Open both stores. RW writes but does not flush - we do this by running the
    rest of the test inside the [batch]. Then reload the RO at different phases
    during the flush. *)
-let test_one t ~(ro_reload_at : phase_flush) =
+let test_one ~fs t ~(ro_reload_at : phase_flush) =
+  Eio.Switch.run @@ fun sw ->
   let aux phase =
     let () = check_ro t in
     if ro_reload_at = phase then reload_ro t phase;
     check_ro t
   in
-  let rw, _ = start t in
+  let rw, _ = start ~sw ~fs t in
   Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
       let () = write1_no_flush bstore nstore cstore in
       let () = aux S1_before_flush in
@@ -130,9 +131,9 @@ let test_one t ~(ro_reload_at : phase_flush) =
       in
       aux S4_after_flush)
 
-let test_one_guarded setup ~ro_reload_at =
-  let t = create_test_env setup in
-  let () = test_one t ~ro_reload_at in
+let test_one_guarded ~fs setup ~ro_reload_at =
+  let t = create_test_env ~fs setup in
+  let () = test_one ~fs t ~ro_reload_at in
   close_everything t
 
 let setup =
@@ -140,8 +141,8 @@ let setup =
      for the flush/reload tests. *)
   { start_mode = From_scratch; indexing_strategy = `always; lru_size = 0 }
 
-let test_flush () =
-  let t = test_one_guarded setup in
+let test_flush ~fs () =
+  let t = test_one_guarded ~fs setup in
   let () = t ~ro_reload_at:S1_before_flush in
   let () = t ~ro_reload_at:S2_after_flush_dict in
   let () = t ~ro_reload_at:S3_after_flush_suffix in
@@ -191,9 +192,10 @@ let flush_rw t (current_phase : phase_reload) =
   in
   match t.rw with None -> assert false | Some (_, repo) -> Store.S.flush repo
 
-let test_one t ~(rw_flush_at : phase_reload) =
+let test_one ~fs t ~(rw_flush_at : phase_reload) =
+  Eio.Switch.run @@ fun sw ->
   let aux phase = if rw_flush_at = phase then flush_rw t phase in
-  let rw, ro = start t in
+  let rw, ro = start ~sw ~fs t in
   let reload_ro () =
     Store.S.Backend.Repo.batch rw (fun bstore nstore cstore ->
         let () = write1_no_flush bstore nstore cstore in
@@ -213,13 +215,13 @@ let test_one t ~(rw_flush_at : phase_reload) =
   let () = reload_ro () in
   check_ro t
 
-let test_one_guarded setup ~rw_flush_at =
-  let t = create_test_env setup in
-  let () = test_one t ~rw_flush_at in
+let test_one_guarded setup ~fs ~rw_flush_at =
+  let t = create_test_env ~fs setup in
+  let () = test_one ~fs t ~rw_flush_at in
   close_everything t
 
-let test_reload () =
-  let t = test_one_guarded setup in
+let test_reload ~fs () =
+  let t = test_one_guarded setup ~fs in
   let () = t ~rw_flush_at:S1_before_reload in
   let () = t ~rw_flush_at:S2_after_reload_index in
   let () = t ~rw_flush_at:S3_after_reload_control in
@@ -227,8 +229,8 @@ let test_reload () =
   let () = t ~rw_flush_at:S5_after_reload in
   ()
 
-let tests =
+let tests ~fs =
   [
-    Alcotest.test_case "Reload during flush stages" `Quick test_flush;
-    Alcotest.test_case "Flush during reload stages" `Quick test_reload;
+    Alcotest.test_case "Reload during flush stages" `Quick (test_flush ~fs);
+    Alcotest.test_case "Flush during reload stages" `Quick (test_reload ~fs);
   ]
