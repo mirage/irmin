@@ -122,7 +122,7 @@ end
 
 (** Demonstrate running GC on a previous commit aligned to the end of a chunk
     for ideal GC space reclamation. *)
-let run_gc fs domain_mgr config repo tracker =
+let run_gc domain_mgr config repo tracker =
   let () =
     match Tracker.(tracker.next_gc_commit) with
     | None -> ()
@@ -149,7 +149,7 @@ let run_gc fs domain_mgr config repo tracker =
         in
         (* Launch GC *)
         let commit_key = Store.Commit.key commit in
-        let launched = Store.Gc.run ~fs ~domain_mgr ~finished repo commit_key in
+        let launched = Store.Gc.run ~domain_mgr ~finished repo commit_key in
         match launched with
         | Ok false -> ()
         | Ok true ->
@@ -162,7 +162,6 @@ let run_gc fs domain_mgr config repo tracker =
   Tracker.mark_next_gc_commit tracker
 
 let run_experiment env config =
-  let fs = Eio.Stdenv.fs env in
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   let num_of_commits = 200_000 in
   let gc_every = 1_000 in
@@ -180,7 +179,7 @@ let run_experiment env config =
       in
       Tracker.update_latest_commit tracker commit;
       let _ =
-        if i mod gc_every = 0 then run_gc fs domain_mgr config repo tracker
+        if i mod gc_every = 0 then run_gc domain_mgr config repo tracker
       in
       if i >= n then () else loop (i + 1) n
     in

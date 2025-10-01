@@ -160,8 +160,6 @@ struct
           during_batch : bool Atomic.t;
           running_gc : running_gc option Atomic.t;
           lock : Eio.Mutex.t;
-          fs : Eio.Fs.dir_ty Eio.Path.t;
-          sw : Eio.Switch.t;
         }
 
         let pp_key = Irmin.Type.pp XKey.t
@@ -178,18 +176,17 @@ struct
           let fresh = Irmin_pack.Conf.fresh config in
           let fm =
             let readonly = Irmin_pack.Conf.readonly config in
-            if readonly then
-              File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error
+            if readonly then File_manager.open_ro config |> Errs.raise_if_error
             else
               match (Io.classify_path root, fresh) with
               | `No_such_file_or_directory, _ ->
-                  File_manager.create_rw ~sw ~fs ~overwrite:false config
+                  File_manager.create_rw ~overwrite:false config
                   |> Errs.raise_if_error
               | `Directory, true ->
-                  File_manager.create_rw ~sw ~fs ~overwrite:true config
+                  File_manager.create_rw ~overwrite:true config
                   |> Errs.raise_if_error
               | `Directory, false ->
-                  File_manager.open_rw ~sw ~fs config |> Errs.raise_if_error
+                  File_manager.open_rw config |> Errs.raise_if_error
               | (`File | `Other), _ ->
                   Errs.raise_error (`Not_a_directory (Eio.Path.native_exn root))
           in
@@ -221,8 +218,6 @@ struct
             running_gc;
             dispatcher;
             lock;
-            fs;
-            sw;
           }
 
         let flush t = File_manager.flush ?hook:None t.fm |> Errs.raise_if_error
@@ -255,16 +250,18 @@ struct
                       (`Commit_key_is_dangling (Irmin.Type.to_string XKey.t key))
                 | Some (k, _kind) -> Ok k)
 
-          let start ~fs ~domain_mgr ~unlink ~use_auto_finalisation ~output t
+          let start ~domain_mgr ~unlink ~use_auto_finalisation ~output t
               commit_key =
             let open Result_syntax in
+            let sw = Conf.switch t.config in
+            let fs = Conf.fs t.config in
             [%log.info "GC: Starting on %a" pp_key commit_key];
             let* () =
               if Atomic.get t.during_batch then Error `Gc_forbidden_during_batch
               else Ok ()
             in
             let* commit_key = direct_commit_key t commit_key in
-            let root = Eio.Path.(t.fs / Conf.root t.config) in
+            let root = Eio.Path.(fs / Conf.root t.config) in
             let* () =
               if not (is_allowed t) then
                 Error (`Gc_disallowed "Store does not support GC")
@@ -275,11 +272,11 @@ struct
             let next_generation = current_generation + 1 in
             let lower_root =
               Option.map
-                (fun path -> Eio.Path.(t.fs / path))
+                (fun path -> Eio.Path.(fs / path))
                 (Conf.lower_root t.config)
             in
             let* gc =
-              Gc.v ~sw:t.sw ~fs ~domain_mgr ~root ~lower_root
+              Gc.v ~sw ~fs ~domain_mgr ~root ~lower_root
                 ~generation:next_generation ~unlink ~dispatcher:t.dispatcher
                 ~fm:t.fm ~contents:t.contents ~node:t.node ~commit:t.commit
                 ~output commit_key
@@ -287,7 +284,7 @@ struct
             Atomic.set t.running_gc (Some { gc; use_auto_finalisation });
             Ok ()
 
-          let start_exn ~fs ~domain_mgr ?(unlink = true) ?(output = `Root)
+          let start_exn ~domain_mgr ?(unlink = true) ?(output = `Root)
               ~use_auto_finalisation t commit_key =
             match Atomic.get t.running_gc with
             | Some _ ->
@@ -295,19 +292,20 @@ struct
                 false
             | None -> (
                 let result =
-                  start ~fs ~domain_mgr ~unlink ~use_auto_finalisation ~output t
+                  start ~domain_mgr ~unlink ~use_auto_finalisation ~output t
                     commit_key
                 in
                 match result with Ok _ -> true | Error e -> Errs.raise_error e)
 
           let finalise_exn ?(wait = false) t =
+            let sw = Conf.switch t.config in
             let result =
               match Atomic.get t.running_gc with
               | None -> Ok `Idle
               | Some { gc; _ } ->
                   if Atomic.get t.during_batch then
                     Error `Gc_forbidden_during_batch
-                  else Gc.finalise ~sw:t.sw ~wait gc
+                  else Gc.finalise ~sw ~wait gc
             in
             match result with
             | Ok (`Finalised _ as x) ->
@@ -360,7 +358,8 @@ struct
                     let key = Pack_key.v_direct ~offset ~length entry.hash in
                     Some key)
 
-          let create_one_commit_store ~fs ~domain_mgr t commit_key path =
+          let create_one_commit_store ~domain_mgr t commit_key path =
+            let sw = Conf.switch t.config in
             let () =
               match Io.classify_path path with
               | `Directory -> ()
@@ -374,7 +373,7 @@ struct
             (* The GC action here does not matter, since we'll not fully
                finalise it *)
             let launched =
-              start_exn ~fs ~domain_mgr ~use_auto_finalisation:false
+              start_exn ~domain_mgr ~use_auto_finalisation:false
                 ~output:(`External path) t commit_key
             in
             let () =
@@ -392,13 +391,12 @@ struct
                 (Eio.Path.native_exn path)
             in
             let () =
-              File_manager.create_one_commit_store ~fs t.fm config gced
-                commit_key
+              File_manager.create_one_commit_store t.fm config gced commit_key
               |> Errs.raise_if_error
             in
             let branch_path = Irmin_pack.Layout.V4.branch ~root:path in
             let branch_store =
-              Branch.v ~sw:t.sw ~fresh:true ~readonly:false branch_path
+              Branch.v ~sw ~fresh:true ~readonly:false branch_path
             in
             Branch.close branch_store
         end
@@ -648,14 +646,13 @@ struct
 
       let finalise_exn = X.Repo.Gc.finalise_exn
 
-      let start_exn ~fs ~domain_mgr ?unlink t =
-        X.Repo.Gc.start_exn ~fs ~domain_mgr ?unlink ~use_auto_finalisation:false
-          t
+      let start_exn ~domain_mgr ?unlink t =
+        X.Repo.Gc.start_exn ~domain_mgr ?unlink ~use_auto_finalisation:false t
 
-      let start ~fs ~domain_mgr repo commit_key =
+      let start ~domain_mgr repo commit_key =
         try
           let started =
-            X.Repo.Gc.start_exn ~fs ~domain_mgr ~unlink:true
+            X.Repo.Gc.start_exn ~domain_mgr ~unlink:true
               ~use_auto_finalisation:true repo commit_key
           in
           Ok started
@@ -674,8 +671,8 @@ struct
           | `Finalised stats -> Ok (Some stats)
         with exn -> catch_errors "Wait for GC" exn
 
-      let run ~fs ~domain_mgr ?(finished = fun _ -> ()) repo commit_key =
-        let started = start ~fs ~domain_mgr repo commit_key in
+      let run ~domain_mgr ?(finished = fun _ -> ()) repo commit_key =
+        let started = start ~domain_mgr repo commit_key in
         match started with
         | Ok r ->
             if r then
@@ -729,9 +726,7 @@ struct
           [%log.debug "Iterate over a tree"];
           let contents = X.Repo.contents_t repo in
           let nodes = X.Repo.node_t repo |> snd in
-          let export =
-            S.Export.v ~sw:repo.sw ~fs:repo.fs repo.config contents nodes
-          in
+          let export = S.Export.v repo.config contents nodes in
           let f_contents x = f (Blob x) in
           let f_nodes x = f (Inode x) in
           match root_key with

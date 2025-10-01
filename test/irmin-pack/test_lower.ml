@@ -272,7 +272,7 @@ module Store_tc = struct
         main [ "a" ] "a"
     in
     let c = Store.Head.get main in
-    let _ = Store.Gc.start_exn ~fs ~domain_mgr repo (Store.Commit.key c) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c) in
     let () =
       Alcotest.check_raises "add volume during gc"
         (Irmin_pack_unix.Errors.Pack_error `Add_volume_forbidden_during_gc)
@@ -298,7 +298,7 @@ module Store_tc = struct
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
     let c1 = Store.Head.get main in
-    let _ = Store.Gc.start_exn ~fs ~domain_mgr repo (Store.Commit.key c1) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c1) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let () = Store.add_volume repo in
     Alcotest.(check int) "two volumes" 2 (count_volumes repo);
@@ -403,9 +403,7 @@ module Store_tc = struct
     let b_commit = Store.Head.get main in
     let () = Store.set_exn ~info main [ "c" ] "c" in
     (* GC at [b] requires reading [a] data from the lower volume *)
-    let _ =
-      Store.Gc.start_exn ~fs ~domain_mgr repo (Store.Commit.key b_commit)
-    in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key b_commit) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let _ = read_everything repo in
     Store.Repo.close repo
@@ -430,9 +428,7 @@ module Store_tc = struct
        Important: we call GC on a commit that is not the latest in
        the lower (ie [b]) to ensure its offset is not equal to the start
        offset of the upper. *)
-    let _ =
-      Store.Gc.start_exn ~fs repo ~domain_mgr (Store.Commit.key a_commit)
-    in
+    let _ = Store.Gc.start_exn repo ~domain_mgr (Store.Commit.key a_commit) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     Store.Repo.close repo
 
@@ -446,7 +442,7 @@ module Store_tc = struct
     let () = Store.set_exn ~info main [ "c1" ] "a" in
     let c1 = Store.Head.get main in
     [%log.debug "GC c1"];
-    let _ = Store.Gc.start_exn ~fs ~domain_mgr repo (Store.Commit.key c1) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c1) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let () = Store.add_volume repo in
     [%log.debug "add c2, c3, c4"];
@@ -457,7 +453,7 @@ module Store_tc = struct
     let () = Store.set_exn ~info main [ "c5" ] "e" in
     let c5 = Store.Head.get main in
     [%log.debug "GC c5"];
-    let _ = Store.Gc.start_exn ~fs ~domain_mgr repo (Store.Commit.key c5) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c5) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let get_direct_key key =
       match Irmin_pack_unix.Pack_key.inspect key with
@@ -509,7 +505,7 @@ module Store_tc = struct
     let info () = Store.Info.v ~author:"test" Int64.zero in
     let () = Store.set_exn ~info main [ "a" ] "a" in
     let c1 = Store.Head.get main in
-    let _ = Store.Gc.start_exn ~fs ~domain_mgr repo (Store.Commit.key c1) in
+    let _ = Store.Gc.start_exn ~domain_mgr repo (Store.Commit.key c1) in
     let _ = Store.Gc.finalise_exn ~wait:true repo in
     let volume_root = volume_path repo Int63.zero in
     let generation = generation repo in

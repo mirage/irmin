@@ -60,16 +60,11 @@ module Store : sig
     Eio.Fs.dir_ty Eio.Path.t ->
     Irmin.config
 
-  val init_with_config : fs:Eio.Fs.dir_ty Eio.Path.t -> Irmin.config -> t
+  val init_with_config : Irmin.config -> t
   val close : t -> unit
 
   val start_gc :
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
-    domain_mgr:_ Eio.Domain_manager.t ->
-    ?unlink:bool ->
-    t ->
-    S.commit ->
-    unit
+    domain_mgr:_ Eio.Domain_manager.t -> ?unlink:bool -> t -> S.commit -> unit
 
   val finalise_gc : t -> unit
   val commit_1 : t -> t * S.commit

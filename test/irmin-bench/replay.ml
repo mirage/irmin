@@ -9,19 +9,22 @@ let () =
 module Conf = Irmin_tezos.Conf
 
 module Store = struct
-  type store_config = unit
+  type store_config = { sw : Eio.Switch.t; fs : Eio.Fs.dir_ty Eio.Path.t }
 
   module Store = Irmin_tezos.Store
   include Store
 
   type key = commit_key
 
-  let create_repo ~sw ~fs ~root () =
+  let create_repo ~root config =
     (* make sure the parent dir exists *)
     let dirname, _ = Option.get (Eio.Path.split root) in
     if Eio.Path.kind ~follow:false dirname = `Not_found then
       Eio.Path.mkdir ~perm:0o755 dirname;
-    let conf = Irmin_pack.config ~sw ~fs ~readonly:false ~fresh:true root in
+    let conf =
+      Irmin_pack.config ~sw:config.sw ~fs:config.fs ~readonly:false ~fresh:true
+        root
+    in
     let repo = Store.Repo.v conf in
     let on_commit _ _ = () in
     let on_end () = () in
@@ -31,13 +34,13 @@ module Store = struct
     let r = Store.Gc.wait repo in
     match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ~fs ~domain_mgr ?(finished = fun _ -> ()) repo key =
+  let gc_run ~domain_mgr ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let launched = Store.Gc.run ~fs ~domain_mgr ~finished:f repo key in
+    let launched = Store.Gc.run ~domain_mgr ~finished:f repo key in
     match launched with
     | Ok true -> ()
     | Ok false -> [%logs.app "GC skipped"]
@@ -72,8 +75,9 @@ let setup_env ~fs =
     Eio.Path.rmtree test_dir;
   trace_path
 
-let replay_1_commit ~fs ~domain_mgr () =
+let replay_1_commit ~sw ~fs ~domain_mgr () =
   let trace_path = setup_env ~fs in
+  let store_config : Store.store_config = { sw; fs } in
   let replay_config : _ Replay.config =
     {
       number_of_commits_to_replay = 1;
@@ -92,7 +96,7 @@ let replay_1_commit ~fs ~domain_mgr () =
       add_volume_every = 0;
     }
   in
-  let summary = Replay.run ~fs ~domain_mgr () replay_config in
+  let summary = Replay.run ~domain_mgr store_config replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   let check name = Alcotest.(check int) ("Stats_counters" ^ name) in
@@ -120,7 +124,7 @@ let replay_1_commit ~fs ~domain_mgr () =
   check "inode_encode_bin" inode.inode_encode_bin 2
 
 module Store_mem = struct
-  type store_config = unit
+  type store_config = { sw : Eio.Switch.t; fs : Eio.Fs.dir_ty Eio.Path.t }
 
   module Maker = Irmin_pack_mem.Maker (Conf)
   module Store = Maker.Make (Irmin_tezos.Schema)
@@ -128,8 +132,11 @@ module Store_mem = struct
 
   type key = commit_key
 
-  let create_repo ~sw ~fs ~root () =
-    let conf = Irmin_pack.config ~sw ~fs ~readonly:false ~fresh:true root in
+  let create_repo ~root config =
+    let conf =
+      Irmin_pack.config ~sw:config.sw ~fs:config.fs ~readonly:false ~fresh:true
+        root
+    in
     let repo = Store.Repo.v conf in
     let on_commit _ _ = () in
     let on_end () = () in
@@ -138,13 +145,14 @@ module Store_mem = struct
   let split _repo = ()
   let add_volume _repo = ()
   let gc_wait _repo = ()
-  let gc_run ~fs:_ ~domain_mgr:_ ?finished:_ _repo _key = ()
+  let gc_run ~domain_mgr:_ ?finished:_ _repo _key = ()
 end
 
 module Replay_mem = Irmin_traces.Trace_replay.Make (Store_mem)
 
-let replay_1_commit_mem ~fs ~domain_mgr () =
+let replay_1_commit_mem ~sw ~fs ~domain_mgr () =
   let trace_path = setup_env ~fs in
+  let store_config : Store_mem.store_config = { sw; fs } in
   let replay_config : _ Irmin_traces.Trace_replay.config =
     {
       number_of_commits_to_replay = 1;
@@ -163,17 +171,17 @@ let replay_1_commit_mem ~fs ~domain_mgr () =
       add_volume_every = 0;
     }
   in
-  let summary = Replay_mem.run ~fs ~domain_mgr () replay_config in
+  let summary = Replay_mem.run ~domain_mgr store_config replay_config in
   [%logs.debug
     "%a" (Irmin_traces.Trace_stat_summary_pp.pp 5) ([ "" ], [ summary ])];
   ()
 
-let test_cases ~fs ~domain_mgr =
+let test_cases ~sw ~fs ~domain_mgr =
   let tc msg f = Alcotest.test_case msg `Quick f in
   [
     ( "replay",
       [
-        tc "replay_1_commit" (replay_1_commit ~fs ~domain_mgr);
-        tc "replay_1_commit_in_memory" (replay_1_commit_mem ~fs ~domain_mgr);
+        tc "replay_1_commit" (replay_1_commit ~sw ~fs ~domain_mgr);
+        tc "replay_1_commit_in_memory" (replay_1_commit_mem ~sw ~fs ~domain_mgr);
       ] );
   ]

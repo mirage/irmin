@@ -46,8 +46,6 @@ module type S = sig
     ([> `No_error ], [> `Cannot_fix of string ]) result
 
   val traverse_pack_file :
-    sw:Eio.Switch.t ->
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -55,8 +53,6 @@ module type S = sig
     unit
 
   val test_traverse_pack_file :
-    sw:Eio.Switch.t ->
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
     [ `Reconstruct_index of [ `In_place | `Output of string ]
     | `Check_index
     | `Check_and_fix_index ] ->
@@ -106,7 +102,6 @@ module type S = sig
       by a readonly instance.*)
 
   val create_one_commit_store :
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
     domain_mgr:_ Eio.Domain_manager.t ->
     repo ->
     commit_key ->
@@ -130,7 +125,6 @@ module type S = sig
     (** {1 Low-level API} *)
 
     val start_exn :
-      fs:Eio.Fs.dir_ty Eio.Path.t ->
       domain_mgr:_ Eio.Domain_manager.t ->
       ?unlink:bool ->
       repo ->
@@ -173,7 +167,6 @@ module type S = sig
         logging *)
 
     val run :
-      fs:Eio.Fs.dir_ty Eio.Path.t ->
       domain_mgr:_ Eio.Domain_manager.t ->
       ?finished:((Stats.Latest_gc.stats, msg) result -> unit) ->
       repo ->

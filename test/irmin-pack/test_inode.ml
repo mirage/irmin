@@ -112,11 +112,11 @@ struct
       Irmin_pack.Conf.init ~fresh ~readonly ~indexing_strategy ~lru_size:0 name
 
     (* TODO : remove duplication with irmin_pack/ext.ml *)
-    let get_fm ~sw ~fs config =
+    let get_fm config =
+      let fs = Irmin_pack.Conf.fs config in
       let readonly = Irmin_pack.Conf.readonly config in
 
-      if readonly then
-        File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error
+      if readonly then File_manager.open_ro config |> Errs.raise_if_error
       else
         let fresh = Irmin_pack.Conf.fresh config in
         let root = Irmin_pack.Conf.root config in
@@ -128,13 +128,12 @@ struct
         in
         match (Io.classify_path Eio.Path.(fs / root), fresh) with
         | `No_such_file_or_directory, _ ->
-            File_manager.create_rw ~sw ~fs ~overwrite:false config
+            File_manager.create_rw ~overwrite:false config
             |> Errs.raise_if_error
         | `Directory, true ->
-            File_manager.create_rw ~sw ~fs ~overwrite:true config
-            |> Errs.raise_if_error
+            File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error
         | `Directory, false ->
-            File_manager.open_rw ~sw ~fs config |> Errs.raise_if_error
+            File_manager.open_rw config |> Errs.raise_if_error
         | (`File | `Other), _ -> Errs.raise_error (`Not_a_directory root)
 
     let get_store ~sw ~fs ~indexing_strategy () =
@@ -144,7 +143,7 @@ struct
       let config =
         config ~sw ~fs ~indexing_strategy ~readonly:false ~fresh:true root
       in
-      let fm = get_fm ~sw ~fs config in
+      let fm = get_fm config in
       let dict = File_manager.dict fm in
       let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
       let lru = Irmin_pack_unix.Lru.create config in

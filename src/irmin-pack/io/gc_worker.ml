@@ -226,7 +226,7 @@ module Make (Args : Gc_args.S) = struct
       report_old_file_sizes ~root ~generation:(generation - 1) stats |> ignore
     in
 
-    let fm = Fm.open_ro ~sw ~fs config |> Errs.raise_if_error in
+    let fm = Fm.open_ro config |> Errs.raise_if_error in
     Errors.finalise_exn (fun _outcome ->
         Fm.close fm |> Errs.log_if_error "GC: Close File_manager")
     @@ fun () ->

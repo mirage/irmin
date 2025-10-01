@@ -28,13 +28,13 @@ let setup_store ~sw ~fs domain_mgr () =
   let root = root ~fs in
   rm_dir root;
   let config = S.config ~sw ~fs root in
-  let t = S.init_with_config ~fs config in
+  let t = S.init_with_config config in
   let _ = S.commit_1 t in
   let t, c2 = S.commit_2 t in
   let t = S.checkout_exn t c2 in
   let t, _c3 = S.commit_3 t in
   [%log.debug "Gc c1, keep c2, c3"];
-  let () = S.start_gc ~fs ~domain_mgr t c2 in
+  let () = S.start_gc ~domain_mgr t c2 in
   let () = S.finalise_gc t in
   let () = S.close t in
   config
@@ -79,7 +79,7 @@ let check_hex msg buf expected =
 let test_read ~fs ~domain_mgr () =
   Eio.Switch.run @@ fun sw ->
   let config = setup_store ~sw ~fs domain_mgr () in
-  let fm = File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error in
+  let fm = File_manager.open_ro config |> Errs.raise_if_error in
   let dsp = Dispatcher.v fm |> Errs.raise_if_error in
   let _ =
     Alcotest.check_raises "cannot read node_1"

@@ -251,9 +251,9 @@ module Store = struct
   let close = S.Repo.close
   let reload = S.reload
 
-  let gc ~fs ~domain_mgr repo =
+  let gc ~domain_mgr repo =
     let k = key_of_entry c1 in
-    let launched = S.Gc.start_exn ~fs ~domain_mgr ~unlink:true repo k in
+    let launched = S.Gc.start_exn ~domain_mgr ~unlink:true repo k in
     assert launched;
     let result = S.Gc.finalise_exn ~wait:true repo in
     match result with
@@ -530,7 +530,7 @@ let write1_rw t =
       ()
 
 (** One of the 4 rw mutations *)
-let gc_rw ~fs ~domain_mgr t =
+let gc_rw ~domain_mgr t =
   [%logs.app "*** gc_rw %a" pp_setup t.setup];
   match t.rw with
   | None -> assert false
@@ -543,11 +543,11 @@ let gc_rw ~fs ~domain_mgr t =
               Alcotest.check_raises "GC on V2/always"
                 (Irmin_pack_unix.Errors.Pack_error
                    (`Gc_disallowed "Store does not support GC"))
-                (fun () -> Store.gc ~fs ~domain_mgr repo)
+                (fun () -> Store.gc ~domain_mgr repo)
             in
             raise Skip_the_rest_of_that_test
         | (From_v3 | From_scratch | From_v3_c0_gced), `minimal ->
-            Store.gc ~fs ~domain_mgr repo
+            Store.gc ~domain_mgr repo
       in
       ()
 
@@ -650,7 +650,7 @@ let test_one ~domain_mgr ~fs t ~ro_open_at ~ro_sync_at =
   let () = aux S2_before_write in
   let () = write1_rw t in
   let () = aux S3_before_gc in
-  let () = gc_rw ~domain_mgr ~fs t in
+  let () = gc_rw ~domain_mgr t in
   let () = aux S4_before_write in
   let () = write2_rw t in
   aux S5_before_close

@@ -95,11 +95,7 @@ module type S = sig
     | `No_tmp_path_provided ]
 
   val create_rw :
-    sw:Eio.Switch.t ->
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
-    overwrite:bool ->
-    Irmin.Backend.Conf.t ->
-    (t, [> create_error ]) result
+    overwrite:bool -> Irmin.Backend.Conf.t -> (t, [> create_error ]) result
   (** Create a rw instance of [t] by creating the files.
 
       Note on SWMR consistency: It is undefined for a reader to attempt an
@@ -141,11 +137,7 @@ module type S = sig
     | `Invalid_parent_directory
     | `Pending_flush ]
 
-  val open_rw :
-    sw:Eio.Switch.t ->
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
-    Irmin.Backend.Conf.t ->
-    (t, [> open_rw_error ]) result
+  val open_rw : Irmin.Backend.Conf.t -> (t, [> open_rw_error ]) result
   (** Create a rw instance of [t] by opening existing files.
 
       If the pack store has already been garbage collected, opening with a
@@ -183,11 +175,7 @@ module type S = sig
     | `Invalid_layout
     | `Volume_missing of string ]
 
-  val open_ro :
-    sw:Eio.Switch.t ->
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
-    Irmin.Backend.Conf.t ->
-    (t, [> open_ro_error ]) result
+  val open_ro : Irmin.Backend.Conf.t -> (t, [> open_ro_error ]) result
   (** Create a ro instance of [t] by opening existing files.
 
       Note on SWMR consistency: [open_ro] is supposed to work whichever the
@@ -304,7 +292,6 @@ module type S = sig
   *)
 
   val create_one_commit_store :
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
     t ->
     Irmin.Backend.Conf.t ->
     Control_file.Payload.Upper.Latest.gced ->

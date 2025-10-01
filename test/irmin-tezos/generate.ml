@@ -67,7 +67,7 @@ module Generator = struct
 
   let create_gced_store ~sw ~fs ~domain_mgr path =
     let before_closing repo head =
-      let _ = Store.Gc.start_exn ~fs ~domain_mgr repo head in
+      let _ = Store.Gc.start_exn ~domain_mgr repo head in
       let _ = Store.Gc.wait repo in
       ()
     in
@@ -77,8 +77,7 @@ module Generator = struct
   let create_snapshot_store ~sw ~fs ~domain_mgr ~src ~dest =
     let before_closing repo head =
       rm_dir dest;
-      Store.create_one_commit_store ~fs ~domain_mgr repo head
-        Eio.Path.(fs / dest)
+      Store.create_one_commit_store ~domain_mgr repo head Eio.Path.(fs / dest)
     in
     create_store ~sw ~fs ~before_closing Irmin_pack.Indexing_strategy.minimal
       src

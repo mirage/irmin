@@ -138,10 +138,8 @@ struct
     let run ~sw ~fs ~root ~output ?index_log_size () =
       let conf = conf ~sw ~fs ~index_log_size root in
       match output with
-      | None ->
-          Store.traverse_pack_file ~sw ~fs (`Reconstruct_index `In_place) conf
-      | Some p ->
-          Store.traverse_pack_file ~sw ~fs (`Reconstruct_index (`Output p)) conf
+      | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
+      | Some p -> Store.traverse_pack_file (`Reconstruct_index (`Output p)) conf
 
     let term_internal ~fs =
       Cmdliner.Term.(
@@ -170,9 +168,8 @@ struct
 
     let run ~sw ~fs ~root ~auto_repair ~always () =
       let conf = conf ~sw ~fs root always in
-      if auto_repair then
-        Store.traverse_pack_file ~sw ~fs `Check_and_fix_index conf
-      else Store.traverse_pack_file ~sw ~fs `Check_index conf
+      if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
+      else Store.traverse_pack_file `Check_index conf
 
     let auto_repair =
       let open Cmdliner.Arg in
