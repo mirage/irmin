@@ -1,0 +1,9 @@
+(test
+ (name test_lru)
+ (modules test_lru)
+ (libraries
+  qcheck-core
+  qcheck-stm.stm
+  qcheck-stm.sequential
+  qcheck-stm.domain
+  irmin))
