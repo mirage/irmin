@@ -30,8 +30,6 @@ depends: [
   "irmin-test"   {with-test & = version}
   "astring"      {with-test}
   "alcotest"     {with-test}
-  "qcheck-core" {>= "0.21.3" & with-test}
-  "qcheck-stm" {>= "0.4" & with-test}
 ]
 
 pin-depends: [
