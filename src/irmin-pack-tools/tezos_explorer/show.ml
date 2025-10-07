@@ -2,7 +2,35 @@ open Notty
 open Notty_unix
 open Import
 open Files
-module Files = Make (Irmin_tezos.Conf) (Irmin_tezos.Schema)
+
+module Conf = struct
+  let entries = 32
+  let stable_hash = 256
+  let contents_length_header = None
+  let inode_child_order = `Seeded_hash
+  let forbid_empty_dir_persistence = true
+end
+
+module Content = Irmin.Contents.String
+module Schema = Irmin.Schema.KV (Content)
+module Files = Make (Conf) (Schema)
+
+(*
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Make (Hash)
+  module Info = Info.Default *)
+
+(* module Schema = struct
+  open Irmin
+  module Hash = Hash.SHA1
+  module Info = Info.Default
+  module Branch = Branch.String
+  module Path = Path.String_list
+  module Metadata = Metadata.None
+  module Contents = Content
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Generic_key.Make (Hash)
+end *)
 
 type entry_content = {
   hash : string;
@@ -160,16 +188,16 @@ module Menu = struct
 
   let back_str =
     [|
-      ("◂──", "Go back by 1000 ");
-      ("◂─", "Go back by 10 ");
+      ("◂◂◂", "Go back by 1000 ");
+      ("◂◂", "Go back by 10 ");
       ("◂", "Go back by 1 ");
     |]
 
   let forth_str =
     [|
       ("▸", "Go forth by 1 ");
-      ("─▸", "Go forth by 10 ");
-      ("──▸", "Go forth by 1000 ");
+      ("▸▸", "Go forth by 10 ");
+      ("▸▸▸", "Go forth by 1000 ");
     |]
 
   let gen_entry_buttons r c str =
