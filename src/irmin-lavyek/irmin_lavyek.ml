@@ -85,9 +85,10 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   let watch t = W.watch t.w
   let unwatch t = W.unwatch t.w
 
-  let list _ =
+  let list t =
     [%log.debug "list"];
-    failwith "not implemented list"
+    let keys, _ = List.split @@ Lavyek.list t.t.t in
+    List.map (fun k -> Result.get_ok @@ Repr.of_string K.t k) keys
 
   let set t key value =
     [%log.debug "update %a" RO.pp_key key];
