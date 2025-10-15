@@ -38,12 +38,13 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let cast t = (t :> read_write t)
   let batch t f = f (cast t)
+  let of_bin_string = Irmin.Type.(unstage (of_bin_string V.t))
   let pp_key = Irmin.Type.pp K.t
 
   let find t key =
     [%log.debug "find %a" pp_key key];
     Option.map
-      (fun v -> Result.get_ok (Repr.of_string V.t v))
+      (fun v -> Result.get_ok (of_bin_string v))
       (Lavyek.find t.t ~key:(Repr.to_string K.t key))
 
   let mem t key =
@@ -54,10 +55,12 @@ end
 module Append_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
   include Read_only (K) (V)
 
+  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
+
   let add t key value =
     [%log.debug "add %a" pp_key key];
     let sync = Conf.sync t.config in
-    Lavyek.put t.t ~sync (Repr.to_string K.t key) (Repr.to_string V.t value)
+    Lavyek.put t.t ~sync (Repr.to_string K.t key) (to_bin_string value)
 end
 
 module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
@@ -90,11 +93,13 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
     let keys, _ = List.split @@ Lavyek.list t.t.t in
     List.map (fun k -> Result.get_ok @@ Repr.of_string K.t k) keys
 
+  let to_bin_string = Irmin.Type.(unstage (to_bin_string V.t))
+
   let set t key value =
     [%log.debug "update %a" RO.pp_key key];
     let sync = Conf.sync t.t.config in
 
-    Lavyek.put ~sync t.t.t (Repr.to_string K.t key) (Repr.to_string V.t value)
+    Lavyek.put ~sync t.t.t (Repr.to_string K.t key) (to_bin_string value)
 
   let remove t key =
     [%log.debug "remove %a" RO.pp_key key];
