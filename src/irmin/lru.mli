@@ -15,14 +15,37 @@
 
 (* Extracted from https://github.com/pqwy/lru *)
 
+(** LRU cache implementation *)
 module Make (H : Hashtbl.HashedType) : sig
   type 'a t
 
   val create : int -> 'a t
+  (** [create n] returns a new LRU cache with the maximum size of [n]. If [n] is
+      non-positive, the LRU cache is unbounded and is automatically internally
+      resized. *)
+
   val add : 'a t -> H.t -> 'a -> unit
+  (** [add t k v] adds the binding [k -> v] to the cache [t]. If the cache is
+      full, the least recently used element is evicted. If [k] was already
+      bound, its previous binding is replaced by [v] and it is marked as most
+      recently used. *)
+
   val find : 'a t -> H.t -> 'a
+  (** [find t k] returns the value associated with [k] in the cache [t], and
+      marks [k] as most recently used. Raises [Not_found] if [k] is not bound in
+      [t]. *)
+
   val mem : 'a t -> H.t -> bool
+  (** [mem t k] checks if [k] is bound in the cache [t], and marks [k] as most
+      recently used if it is. *)
+
   val clear : 'a t -> unit
+  (** [clear t] removes all bindings from the cache [t]. *)
+
   val iter : 'a t -> (H.t -> 'a -> unit) -> unit
+  (** [iter t f] calls [f k v] for all bindings in the cache [t]. *)
+
   val drop : 'a t -> 'a option
+  (** [drop t] removes the least recently used binding from the cache [t] and
+      returns its value, or [None] if the cache is empty. *)
 end
