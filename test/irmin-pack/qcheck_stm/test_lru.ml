@@ -6,7 +6,7 @@ module Lru = Irmin.Backend.Lru.Make (Int)
 module Model = struct
   type sut = int Lru.t
   type state = (int * int) list
-  type cmd = Add of int * int | Find of int | Mem of int | Drop
+  type cmd = Add of int * int | Find of int | Mem of int | Drop | Clear
 
   let show_cmd c =
     match c with
@@ -14,8 +14,11 @@ module Model = struct
     | Find k -> "Find " ^ string_of_int k
     | Mem k -> "Mem " ^ string_of_int k
     | Drop -> "Drop"
+    | Clear -> "Clear"
 
-  let init_sut () = Lru.create 42
+  let max_size = 12
+  let init_sut () = Lru.create max_size
+  let init_state = []
   let cleanup (_ : sut) = ()
 
   let arb_cmd (_ : state) =
@@ -27,16 +30,22 @@ module Model = struct
            Gen.map (fun k -> Find k) int;
            Gen.map (fun k -> Mem k) int;
            Gen.pure Drop;
+           Gen.pure Clear;
          ])
 
   let next_state (c : cmd) (s : state) =
+    let remove_last s = match List.rev s with [] -> [] | _ :: xs -> List.rev xs in
     match c with
-    | Add (k, v) -> (k, v) :: List.remove_assoc k s
-    | Drop -> ( match List.rev s with [] -> [] | _ :: xs -> List.rev xs)
+    | Add (k, v) ->
+      let s = 
+      if List.length s >= max_size then remove_last s else s in 
+       (k, v) :: List.remove_assoc k s
+    | Drop -> remove_last s
     | Find k | Mem k -> (
         match List.assoc_opt k s with
         | Some v -> (k, v) :: List.remove_assoc k s
         | None -> s)
+    | Clear -> []
 
   let run (c : cmd) (h : sut) =
     match c with
@@ -44,8 +53,8 @@ module Model = struct
     | Find k -> Res (result int exn, protect (Lru.find h) k)
     | Mem k -> Res (bool, Lru.mem h k)
     | Drop -> Res (option int, Lru.drop h)
+    | Clear -> Res (unit, Lru.clear h)
 
-  let init_state = []
   let precond (_ : cmd) (_ : state) = true
 
   let postcond (c : cmd) (s : state) (res : res) =
@@ -57,8 +66,9 @@ module Model = struct
     | Drop, Res ((Option Int, _), r) -> (
         match (r, List.rev s) with
         | None, [] -> true
-        | Some v, x :: _ -> v = snd x
+        | Some v, (_k, v') :: _ -> v = v'
         | _ -> false)
+    | Clear, Res ((Unit, _), _) -> true
     | _ -> false
 end
 
