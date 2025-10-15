@@ -126,8 +126,86 @@ module Atomic_write (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 end
 
 module Content_addressable = Irmin.Content_addressable.Make (Append_only)
-module Maker = Irmin.Maker (Content_addressable) (Atomic_write)
-module KV = Irmin.KV_maker (Content_addressable) (Atomic_write)
+
+module Make
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker) =
+struct
+  module type Config = sig
+    val suffix : string
+  end
+
+  module Indexable_store (S : Config) = struct
+    type 'h key = 'h
+
+    module Key = Irmin.Key.Of_hash
+
+    module Make (Hash : Irmin.Hash.S) (Value : Irmin.Type.S) = struct
+      module CA = Irmin.Content_addressable.Check_closed (CA) (Hash) (Value)
+      include Irmin.Indexable.Of_content_addressable (Hash) (CA)
+
+      let v config =
+        let root = Irmin.Backend.Conf.get config Conf.Key.root in
+        let suffix = S.suffix in
+        let config =
+          Irmin.Backend.Conf.add config Conf.Key.root (root ^ "/" ^ suffix)
+        in
+        CA.v config
+    end
+  end
+
+  module Atomic_write (S : Config) (Hash : Irmin.Type.S) (Value : Irmin.Type.S) =
+  struct
+    module AW = Irmin.Atomic_write.Check_closed (AW) (Hash) (Value)
+    include AW
+
+    let v config =
+      let root = Irmin.Backend.Conf.get config Conf.Key.root in
+      let suffix = S.suffix in
+      let config =
+        Irmin.Backend.Conf.add config Conf.Key.root (root ^ "/" ^ suffix)
+      in
+      AW.v config
+  end
+
+  module Maker_args = struct
+    module Contents_store =
+    Irmin.Indexable.Maker_concrete_key2_of_1 (Indexable_store (struct
+      let suffix = "contents"
+    end))
+
+    module Node_store = Indexable_store (struct
+      let suffix = "node"
+    end)
+
+    module Commit_store = Indexable_store (struct
+      let suffix = "commit"
+    end)
+
+    module Branch_store = Atomic_write (struct
+      let suffix = "branch"
+    end)
+  end
+
+  include Irmin.Generic_key.Maker (Maker_args)
+end
+
+module Maker = Make (Content_addressable) (Atomic_write)
+
+module KV_maker
+    (CA : Irmin.Content_addressable.Maker)
+    (AW : Irmin.Atomic_write.Maker) =
+struct
+  type metadata = unit
+  type hash = Irmin.Schema.default_hash
+  type info = Irmin.Info.default
+
+  module Maker = Maker
+  include Maker
+  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
+end
+
+module KV = KV_maker (Content_addressable) (Atomic_write)
 
 (* Enforce that {!S} is a sub-type of {!Irmin.Maker}. *)
 module Maker_is_a_maker : Irmin.Maker = Maker

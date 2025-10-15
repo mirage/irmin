@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Append_only : Irmin.Append_only.Maker
-module Atomic_write : Irmin.Atomic_write.Maker
 module Maker : Irmin.Maker
 module KV : Irmin.KV_maker with type info = Irmin.Info.default
 
