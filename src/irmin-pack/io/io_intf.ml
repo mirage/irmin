@@ -64,8 +64,18 @@ module type S = sig
 
       {2 Life Cycle} *)
 
-  val create : path:string -> overwrite:bool -> (t, [> create_error ]) result
-  val open_ : path:string -> readonly:bool -> (t, [> open_error ]) result
+  val create :
+    sw:Eio.Switch.t ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
+    overwrite:bool ->
+    (t, [> create_error ]) result
+
+  val open_ :
+    sw:Eio.Switch.t ->
+    path:Eio.Fs.dir_ty Eio.Path.t ->
+    readonly:bool ->
+    (t, [> open_error ]) result
+
   val close : t -> (unit, [> close_error ]) result
 
   (** {2 Write Functions} *)
@@ -78,16 +88,23 @@ module type S = sig
       write. *)
 
   val move_file :
-    src:string -> dst:string -> (unit, [> `Sys_error of string ]) result
+    src:Eio.Fs.dir_ty Eio.Path.t ->
+    dst:Eio.Fs.dir_ty Eio.Path.t ->
+    (unit, [> `Sys_error of string ]) result
 
   val copy_file :
-    src:string -> dst:string -> (unit, [> `Sys_error of string ]) result
+    src:Eio.Fs.dir_ty Eio.Path.t ->
+    dst:Eio.Fs.dir_ty Eio.Path.t ->
+    (unit, [> `Sys_error of string ]) result
 
-  val mkdir : string -> (unit, [> mkdir_error ]) result
-  val rmdir : string -> unit
-  val unlink : string -> (unit, [> `Sys_error of string ]) result
+  val mkdir : Eio.Fs.dir_ty Eio.Path.t -> (unit, [> mkdir_error ]) result
+  val rmdir : Eio.Fs.dir_ty Eio.Path.t -> unit
 
-  val unlink_dont_wait : on_exn:(exn -> unit) -> string -> unit
+  val unlink :
+    Eio.Fs.dir_ty Eio.Path.t -> (unit, [> `Sys_error of string ]) result
+
+  val unlink_dont_wait :
+    on_exn:(exn -> unit) -> sw:Eio.Switch.t -> Eio.Fs.dir_ty Eio.Path.t -> unit
   (** [unlink_dont_wait file] attempts to unlink the named file but doesn't wait
       for the completion of the unlink operation.
 
@@ -112,7 +129,7 @@ module type S = sig
       syscalls. *)
 
   val size_of_path :
-    string ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     ( int63,
       [> `Io_misc of misc_error
       | `No_such_file_or_directory of string
@@ -120,14 +137,15 @@ module type S = sig
     result
 
   val classify_path :
-    string -> [> `File | `Directory | `No_such_file_or_directory | `Other ]
+    Eio.Fs.dir_ty Eio.Path.t ->
+    [> `File | `Directory | `No_such_file_or_directory | `Other ]
 
-  val readdir : string -> string list
+  val readdir : Eio.Fs.dir_ty Eio.Path.t -> string list
 
   (** {1 MISC.} *)
 
   val readonly : t -> bool
-  val path : t -> string
+  val path : t -> Eio.Fs.dir_ty Eio.Path.t
   val page_size : int
 
   (** {1 Unsafe Functions}

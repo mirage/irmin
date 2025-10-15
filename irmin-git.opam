@@ -35,6 +35,7 @@ depends: [
   "mtime"      {with-test & >= "2.0.0"}
   "alcotest"   {with-test}
   "irmin-watcher" {= "dev"}
+  "lwt" {>= "5.9.1"}
 ]
 
 pin-depends: [

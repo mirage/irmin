@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let toplevel name ~root = Filename.(concat root name)
+open Eio.Path
+
+let toplevel name ~root : Eio.Fs.dir_ty t = root / name
 
 module V1_and_v2 = struct
   let pack = toplevel "store.pack"
@@ -53,6 +55,7 @@ end
 module V4 = struct
   let branch = toplevel "store.branches"
   let dict = toplevel "store.dict"
+  let dict_tmp = toplevel "store.dict.tmp"
   let control = toplevel "store.control"
   let control_tmp = toplevel "store.control.tmp"
 
@@ -110,6 +113,7 @@ module Classification = struct
       | `Control
       | `Control_tmp
       | `Dict
+      | `Dict_tmp
       | `Gc_result of int
       | `Mapping of int
       | `Prefix of int
@@ -127,6 +131,7 @@ module Classification = struct
       | [ "store"; "control" ] -> `Control
       | [ "store"; "control"; "tmp" ] -> `Control_tmp
       | [ "store"; "dict" ] -> `Dict
+      | [ "store"; "dict"; "tmp" ] -> `Dict_tmp
       | [ "store"; g; "out" ] when is_number g -> `Gc_result (int_of_string g)
       | [ "store"; g; "reachable" ] when is_number g ->
           `Reachable (int_of_string g)

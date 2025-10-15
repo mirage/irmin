@@ -93,6 +93,8 @@ module Spec = struct
         dest.keys src
     in
     { name = !name; keys }
+
+  let copy { name; keys } = { name; keys }
 end
 
 type t = Spec.t * Univ.t M.t

@@ -23,7 +23,12 @@ end
 module type Persistent = sig
   include S
 
-  val v : ?fresh:bool -> ?readonly:bool -> string -> t
+  val v :
+    sw:Eio.Switch.t ->
+    ?fresh:bool ->
+    ?readonly:bool ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    t
 end
 
 module type Value = sig

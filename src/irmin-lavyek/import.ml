@@ -1,5 +1,6 @@
 (*
- * Copyright (c) 2022-2022 Tarides <contact@tarides.com>
+ * Copyright (c) 2021 Craig Ferguson <craig@tarides.com>
+ * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,4 +15,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Unix : Irmin_pack_io.Async_intf.S
+include Irmin.Export_for_backends

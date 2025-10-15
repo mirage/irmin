@@ -53,6 +53,7 @@ let term_info title ~doc ~man =
   Cmd.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man
     title
 
+type term = env:eio -> unit Term.t
 type command = env:eio -> unit Cmd.t
 
 type sub = {
@@ -971,12 +972,19 @@ let default ~env =
 
 let commands = List.map create_command (help :: common_commands)
 
-let run y =
+let run ~default:x y =
   Eio_main.run @@ fun env ->
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
   Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
-  let env = (env :> eio) in
+  Eio.Switch.run @@ fun sw ->
+  let env =
+    object
+      method cwd = Eio.Stdenv.cwd env
+      method clock = Eio.Stdenv.clock env
+      method sw = sw
+    end
+  in
   let y = List.map (fun cmd -> cmd ~env) y in
-  match Cmd.eval (Cmd.group ~default:(default ~env) default_help y) with
+  match Cmd.eval (Cmd.group ~default:(x ~env) default_help y) with
   | 0 -> ()
   | _ -> exit 1
