@@ -51,7 +51,7 @@ module Repo_config = struct
 
       Note: irmin-pack will not create the entire path, only the final directory
   *)
-  let root = "./irmin-pack-example"
+  let root fs = Eio.Path.(fs / "./irmin-pack-example")
 
   (** See {!Irmin_pack.Conf} for more keys that can be used when initialising
       the repository config *)
@@ -61,17 +61,20 @@ module Repo_config = struct
   let fresh = true
 
   (** Create config for our repository *)
-  let config =
+  let config fs =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
-      root
+      (root fs)
 end
 
 module StoreMaker = Irmin_pack_unix.KV (Conf)
 module Store = StoreMaker.Make (Irmin.Contents.String)
 
-let main () =
+let main env =
+  (* Create a switch *)
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   (* Instantiate a repository *)
-  let repo = Store.Repo.v Repo_config.config in
+  let repo = Store.Repo.v (Repo_config.config ~sw ~fs fs) in
 
   (* Get the store from the main branch. *)
   let store = Store.main repo in
@@ -94,6 +97,6 @@ let setup_logs () =
   Logs.(set_level @@ Some Debug)
 
 let () =
-  Eio_main.run @@ fun _env ->
+  Eio_main.run @@ fun env ->
   setup_logs ();
-  main ()
+  main env

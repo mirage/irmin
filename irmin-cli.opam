@@ -55,6 +55,7 @@ depends: [
   "mirage-mtime" {with-test}
   "mirage-ptime" {with-test}
   "mirage-crypto-rng" {with-test & >= "2.0.0"}
+  "eio" {>= "1.3"}
 ]
 
 pin-depends: [

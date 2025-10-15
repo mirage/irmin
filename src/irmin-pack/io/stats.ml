@@ -261,7 +261,7 @@ type t = {
   latest_gc : Latest_gc.stat;
 }
 
-let s =
+let s () =
   {
     pack_store = Pack_store.init ();
     index = Index.init ();
@@ -269,22 +269,26 @@ let s =
     latest_gc = Latest_gc.init ();
   }
 
+let fresh_stats_dls () = Domain.DLS.new_key (fun () -> s ())
+let kstats = fresh_stats_dls ()
+let get () = Domain.DLS.get kstats
+
 let reset_stats () =
+  let s = get () in
   Pack_store.clear s.pack_store;
   Index.clear s.index;
   File_manager.clear s.file_manager;
   Latest_gc.clear s.latest_gc;
   ()
 
-let get () = s
-let report_pack_store ~field = Pack_store.update ~field s.pack_store
-let report_index () = Index.report s.index
+let report_pack_store ~field = Pack_store.update ~field (get ()).pack_store
+let report_index () = Index.report (get ()).index
 
 let incr_appended_hashes () =
-  Pack_store.update ~field:Pack_store.Appended_hashes s.pack_store
+  Pack_store.update ~field:Pack_store.Appended_hashes (get ()).pack_store
 
 let incr_appended_offsets () =
-  Pack_store.update ~field:Pack_store.Appended_offsets s.pack_store
+  Pack_store.update ~field:Pack_store.Appended_offsets (get ()).pack_store
 
 type cache_stats = { cache_misses : float }
 type offset_stats = { offset_ratio : float; offset_significance : int }
@@ -292,12 +296,12 @@ type offset_stats = { offset_ratio : float; offset_significance : int }
 let div_or_zero a b = if b = 0 then 0. else float_of_int a /. float_of_int b
 
 let get_cache_stats () =
-  let pack_store = Metrics.state s.pack_store in
+  let pack_store = Metrics.state (get ()).pack_store in
   let cache_misses = Pack_store.cache_misses pack_store in
   { cache_misses = div_or_zero cache_misses pack_store.total }
 
 let get_offset_stats () =
-  let pack_store = Metrics.state s.pack_store in
+  let pack_store = Metrics.state (get ()).pack_store in
   {
     offset_ratio =
       div_or_zero pack_store.appended_offsets
@@ -306,5 +310,5 @@ let get_offset_stats () =
       pack_store.appended_offsets + pack_store.appended_hashes;
   }
 
-let incr_fm_field field = File_manager.update ~field s.file_manager
-let report_latest_gc x = Latest_gc.update x s.latest_gc
+let incr_fm_field field = File_manager.update ~field (get ()).file_manager
+let report_latest_gc x = Latest_gc.update x (get ()).latest_gc

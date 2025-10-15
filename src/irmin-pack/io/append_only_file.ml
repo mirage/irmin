@@ -45,9 +45,9 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         buf_length = Atomic.make 0;
       }
 
-  let create_rw ~path ~overwrite =
+  let create_rw ~sw ~path ~overwrite =
     let open Result_syntax in
-    let+ io = Io.create ~path ~overwrite in
+    let+ io = Io.create ~sw ~path ~overwrite in
     let persisted_end_poff = Atomic.make Int63.zero in
     {
       io;
@@ -78,21 +78,22 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
       if real_offset_without_header > end_poff then
         [%log.warn
           "The end offset in the control file %a is smaller than the offset on \
-           disk %a for %s; the store was closed in a inconsistent state."
-          Int63.pp end_poff Int63.pp real_offset_without_header (Io.path io)];
+           disk %a for %a; the store was closed in a inconsistent state."
+          Int63.pp end_poff Int63.pp real_offset_without_header Eio.Path.pp
+            (Io.path io)];
       Ok ())
 
-  let open_rw ~path ~end_poff ~dead_header_size =
+  let open_rw ~sw ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
-    let* io = Io.open_ ~path ~readonly:false in
+    let* io = Io.open_ ~sw ~path ~readonly:false in
     let+ () = check_consistent_store ~end_poff ~dead_header_size io in
     let persisted_end_poff = Atomic.make end_poff in
     let dead_header_size = Int63.of_int dead_header_size in
     { io; persisted_end_poff; dead_header_size; rw_perm = create_rw_perm () }
 
-  let open_ro ~path ~end_poff ~dead_header_size =
+  let open_ro ~sw ~path ~end_poff ~dead_header_size =
     let open Result_syntax in
-    let* io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~sw ~path ~readonly:true in
     let+ () = check_consistent_store ~end_poff ~dead_header_size io in
     let persisted_end_poff = Atomic.make end_poff in
     let dead_header_size = Int63.of_int dead_header_size in
