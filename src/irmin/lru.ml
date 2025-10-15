@@ -92,39 +92,30 @@ module Make (H : Hashtbl.HashedType) = struct
     match tl with
     | None -> None
     | Some ({ Q.value = k, v; _ } as n) ->
-        Xt.modify ~xt t.w (fun tw -> tw - 1);
+        Xt.decr ~xt t.w;
         HT.Xt.remove ~xt t.ht k;
         Q.detach ~xt t.q n;
         Some v
 
-  let remove ~xt t k =
-    match HT.Xt.find_opt ~xt t.ht k with
-    | None -> ()
-    | Some n ->
-        Xt.modify ~xt t.w (fun tw -> tw - 1);
-        HT.Xt.remove ~xt t.ht k;
-        Q.detach ~xt t.q n
-
-  let add t k v =
-    let tx ~xt =
-      let add t k v =
-        remove ~xt t k;
-        let n = Q.node (k, v) in
-        Xt.modify ~xt t.w (fun tw -> tw + 1);
-        HT.Xt.replace ~xt t.ht k n;
-        Q.append ~xt t.q n
-      in
-      match t.cap with
-      | Capped c when c = 0 -> ()
-      | Uncapped -> add t k v
-      | Capped c ->
-          add t k v;
-          if weight ~xt t > c then
-            let _ = drop ~xt t in
-            ()
+  let add ~xt t k v =
+    let add t k v =
+      let n = Q.node (k, v) in
+      (match HT.Xt.find_opt ~xt t.ht k with
+      | Some old -> Q.detach ~xt t.q old
+      | None -> Xt.incr ~xt t.w);
+      Q.append ~xt t.q n;
+      HT.Xt.replace ~xt t.ht k n
     in
-    Xt.commit { tx }
+    match t.cap with
+    | Capped c when c = 0 -> ()
+    | Uncapped -> add t k v
+    | Capped c ->
+        add t k v;
+        if weight ~xt t > c then
+          let _ = drop ~xt t in
+          ()
 
+  let add t k v = Xt.commit { tx = add t k v }
   let drop t = Xt.commit { tx = drop t }
 
   let promote ~xt t n =
