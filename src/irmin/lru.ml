@@ -64,26 +64,26 @@ module Make (H : Hashtbl.HashedType) = struct
   end
 
   type key = H.t
+  type 'a value = { v : 'a; k : key; w : int }
 
   type 'a t = {
-    ht : (key, (key * 'a) Q.node) HT.t;
-    q : (key * 'a) Q.t;
-    cap : cap;
-    w : int Loc.t;
+    ht : (key, 'a value Q.node) HT.t;
+    q : 'a value Q.t;
+    weight_limit : int option;
+    weight : int Loc.t;
   }
 
-  and cap = Uncapped | Capped of int
+  let weight ~xt t = Xt.get ~xt t.weight
 
-  let weight ~xt t = Xt.get ~xt t.w
-
-  let create cap =
-    let cap, ht_cap =
-      if cap < 0 then (Uncapped, 65536) else (Capped cap, cap)
+  let create wl =
+    let weight_limit, default_weight_limit =
+      match wl with None -> (None, 65536) | Some wl -> (Some wl, wl)
     in
     {
-      cap;
-      w = Loc.make 0;
-      ht = HT.create ~hashed_type:(module H) ~min_buckets:ht_cap ();
+      weight_limit;
+      weight = Loc.make 0;
+      ht =
+        HT.create ~hashed_type:(module H) ~min_buckets:default_weight_limit ();
       q = Q.create ();
     }
 
@@ -91,31 +91,41 @@ module Make (H : Hashtbl.HashedType) = struct
     let tl = Xt.get ~xt t.q.tail in
     match tl with
     | None -> None
-    | Some ({ Q.value = k, v; _ } as n) ->
-        Xt.decr ~xt t.w;
-        HT.Xt.remove ~xt t.ht k;
+    | Some ({ Q.value = v; _ } as n) ->
+        Xt.fetch_and_add ~xt t.weight (-v.w) |> ignore;
+        HT.Xt.remove ~xt t.ht v.k;
         Q.detach ~xt t.q n;
-        Some v
+        Some v.v
 
-  let add ~xt t k v =
-    let add t k v =
-      let n = Q.node (k, v) in
-      (match HT.Xt.find_opt ~xt t.ht k with
-      | Some old -> Q.detach ~xt t.q old
-      | None -> Xt.incr ~xt t.w);
-      Q.append ~xt t.q n;
-      HT.Xt.replace ~xt t.ht k n
-    in
-    match t.cap with
-    | Capped c when c = 0 -> ()
-    | Uncapped -> add t k v
-    | Capped c ->
-        add t k v;
-        if weight ~xt t > c then
-          let _ = drop ~xt t in
-          ()
+  let lru_enabled t = match t.weight_limit with None -> true | Some x -> x > 0
 
-  let add t k v = Xt.commit { tx = add t k v }
+  let add ~xt t key w v =
+    if not (lru_enabled t) then ()
+    else
+      let add t k v =
+        let n = Q.node { v; k; w } in
+        (match HT.Xt.find_opt ~xt t.ht k with
+        | Some old ->
+            Q.detach ~xt t.q old;
+            Xt.fetch_and_add ~xt t.weight (w - old.value.w) |> ignore
+        | None -> Xt.fetch_and_add ~xt t.weight w |> ignore);
+        Q.append ~xt t.q n;
+        HT.Xt.replace ~xt t.ht key n
+      in
+      match t.weight_limit with
+      | Some wl when wl = 0 -> ()
+      | None -> add t key v
+      | Some weight_limit ->
+          add t key v;
+          let rec drop_until_weight_limit () =
+            if weight ~xt t > weight_limit then
+              match drop ~xt t with
+              | None -> ()
+              | Some _ -> drop_until_weight_limit ()
+          in
+          drop_until_weight_limit ()
+
+  let add t k ?(weight = 1) v = Xt.commit { tx = add t k weight v }
   let drop t = Xt.commit { tx = drop t }
 
   let promote ~xt t n =
@@ -127,7 +137,7 @@ module Make (H : Hashtbl.HashedType) = struct
       match HT.Xt.find_opt ~xt t.ht k with
       | Some v ->
           promote ~xt t v;
-          snd v.value
+          v.value.v
       | None -> raise Not_found
     in
     Xt.commit { tx }
@@ -144,11 +154,11 @@ module Make (H : Hashtbl.HashedType) = struct
 
   let clear t =
     let tx ~xt =
-      Xt.set ~xt t.w 0;
+      Xt.set ~xt t.weight 0;
       HT.Xt.clear ~xt t.ht;
       Q.clear ~xt t.q
     in
     Xt.commit { tx }
 
-  let iter t f = HT.iter (fun k q -> f k (snd q.Q.value)) t.ht
+  let iter t f = HT.iter (fun k q -> f k q.Q.value.v) t.ht
 end
