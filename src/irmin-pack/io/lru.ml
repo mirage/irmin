@@ -24,25 +24,16 @@ end)
 
 type key = int63
 type value = Irmin_pack.Pack_value.kinded
-type weighted_value = { v : value; weight : int }
-
-type t = {
-  lru : weighted_value Internal.t;
-  weight_limit : int option;
-  mutable total_weight : int;
-}
+type t = { weighted : bool; lru : value Internal.t }
 
 let create config =
   let lru_max_memory = Irmin_pack.Conf.lru_max_memory config in
-  let lru_size, weight_limit =
+  let weighted, weight_limit =
     match lru_max_memory with
-    | None -> (Irmin_pack.Conf.lru_size config, None)
-    | Some b -> (-42, Some b)
+    | None -> (false, Some (Irmin_pack.Conf.lru_size config))
+    | Some _ -> (true, lru_max_memory)
   in
-  let lru = Internal.create lru_size in
-  { lru; weight_limit; total_weight = 0 }
-
-let lru_enabled t = match t.weight_limit with None -> true | Some x -> x > 0
+  { weighted; lru = Internal.create weight_limit }
 
 (** [exceeds_entry_weight_limit] attempts to filter out entries that are "too
     large".
@@ -62,30 +53,13 @@ let resolve_weight = function
   | Deferred w -> w ()
 
 let add t k w v =
-  if lru_enabled t = false then ()
-  else if exceeds_entry_weight_limit w then ()
-  else
-    let add t k v w =
-      let n = { v; weight = w } in
-      t.total_weight <- t.total_weight + w;
-      Internal.add t.lru k n
-    in
-    match t.weight_limit with
-    | None -> add t k v 0
-    | Some limit ->
-        add t k v (resolve_weight w);
-        while t.total_weight > limit do
-          match Internal.drop t.lru with
-          | None -> t.total_weight <- 0
-          | Some n -> t.total_weight <- t.total_weight - n.weight
-        done
+  if t.weighted && exceeds_entry_weight_limit w then ()
+  else if t.weighted then
+    let w = resolve_weight w in
+    Internal.add t.lru k ~weight:w v
+  else Internal.add t.lru k v
 
-let v v = v.v
-let find { lru; _ } k = Internal.find lru k |> v
-let mem { lru; _ } k = Internal.mem lru k
-
-let clear t =
-  Internal.clear t.lru;
-  t.total_weight <- 0
-
-let iter { lru; _ } f = Internal.iter lru (fun k wv -> f k (v wv))
+let find lru = Internal.find lru.lru
+let mem lru = Internal.mem lru.lru
+let clear lru = Internal.clear lru.lru
+let iter lru = Internal.iter lru.lru

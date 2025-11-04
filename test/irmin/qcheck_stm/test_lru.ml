@@ -17,7 +17,7 @@ module Model = struct
     | Clear -> "Clear"
 
   let max_size = 12
-  let init_sut () = Lru.create max_size
+  let init_sut () = Lru.create (Some max_size)
   let init_state = []
   let cleanup (_ : sut) = ()
 
@@ -34,12 +34,13 @@ module Model = struct
          ])
 
   let next_state (c : cmd) (s : state) =
-    let remove_last s = match List.rev s with [] -> [] | _ :: xs -> List.rev xs in
+    let remove_last s =
+      match List.rev s with [] -> [] | _ :: xs -> List.rev xs
+    in
     match c with
     | Add (k, v) ->
-      let s = 
-      if List.length s >= max_size then remove_last s else s in 
-       (k, v) :: List.remove_assoc k s
+        let s = if List.length s >= max_size then remove_last s else s in
+        (k, v) :: List.remove_assoc k s
     | Drop -> remove_last s
     | Find k | Mem k -> (
         match List.assoc_opt k s with

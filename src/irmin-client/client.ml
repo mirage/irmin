@@ -485,8 +485,8 @@ struct
         let equal = Irmin.Type.(unstage (equal hash_t))
       end)
 
-      let key : commit Key.t = Key.create 32
-      let hash : commit Hash.t = Hash.create 32
+      let key : commit Key.t = Key.create (Some 32)
+      let hash : commit Hash.t = Hash.create (Some 32)
     end
 
     let of_key repo key =
@@ -516,7 +516,7 @@ struct
         let equal = Irmin.Type.(unstage (equal hash_t))
       end)
 
-      let hash : contents Hash.t = Hash.create 32
+      let hash : contents Hash.t = Hash.create (Some 32)
     end
 
     let of_hash repo hash =

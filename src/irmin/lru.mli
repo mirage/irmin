@@ -19,16 +19,19 @@
 module Make (H : Hashtbl.HashedType) : sig
   type 'a t
 
-  val create : int -> 'a t
+  val create : int option -> 'a t
   (** [create n] returns a new LRU cache with the maximum size of [n]. If [n] is
-      non-positive, the LRU cache is unbounded and is automatically internally
-      resized. *)
+      None, the LRU cache is unbounded and is automatically internally resized.
+  *)
 
-  val add : 'a t -> H.t -> 'a -> unit
-  (** [add t k v] adds the binding [k -> v] to the cache [t]. If the cache is
-      full, the least recently used element is evicted. If [k] was already
-      bound, its previous binding is replaced by [v] and it is marked as most
-      recently used. *)
+  val add : 'a t -> H.t -> ?weight:int -> 'a -> unit
+  (** [add t k ~weight v] adds the binding [k -> v] with weight [weight] to the
+      cache [t]. If the cache is full, the least recently used element(s) are
+      evicted until there is enough space to add the new element. If [k] was
+      already bound, its previous binding is replaced by [v] and it is marked as
+      most recently used.
+
+      Default value of [weight] is 1. *)
 
   val find : 'a t -> H.t -> 'a
   (** [find t k] returns the value associated with [k] in the cache [t], and
