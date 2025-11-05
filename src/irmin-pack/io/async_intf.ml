@@ -25,7 +25,8 @@ module type S = sig
 
   type status = [ outcome | `Running ] [@@deriving irmin]
 
-  val async : (unit -> unit) -> t
+  val async :
+    sw:Eio.Switch.t -> domain_mgr:_ Eio.Domain_manager.t -> (unit -> unit) -> t
   (** Start a task. *)
 
   val await : t -> [> outcome ]

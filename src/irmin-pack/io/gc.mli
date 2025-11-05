@@ -25,9 +25,12 @@ module Make
   (** A running GC process. *)
 
   val v :
-    root:string ->
-    lower_root:string option ->
-    output:[ `External of string | `Root ] ->
+    sw:Eio.Switch.t ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    root:Eio.Fs.dir_ty Eio.Path.t ->
+    lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+    output:[ `External of Eio.Fs.dir_ty Eio.Path.t | `Root ] ->
     generation:int ->
     unlink:bool ->
     dispatcher:Args.Dispatcher.t ->
@@ -40,6 +43,7 @@ module Make
   (** Creates and starts a new GC process. *)
 
   val finalise :
+    sw:Eio.Switch.t ->
     wait:bool ->
     t ->
     ([> `Running | `Finalised of Stats.Latest_gc.stats ], Args.Errs.t) result

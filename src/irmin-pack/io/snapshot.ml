@@ -25,10 +25,10 @@ module Make (Args : Args) = struct
   module Io = Fm.Io
 
   let rm_index path =
-    let path_index = Filename.concat path "index" in
+    let path_index = Eio.Path.(path / "index") in
     Io.readdir path_index
     |> List.iter (fun name ->
-           match Io.unlink (Filename.concat path_index name) with
+           match Io.unlink Eio.Path.(path_index / name) with
            | Ok () -> ()
            | Error (`Sys_error msg) -> failwith msg);
     Io.rmdir path_index;
@@ -202,7 +202,8 @@ module Make (Args : Args) = struct
     let run_on_disk path t f_contents f_inodes root_key =
       [%log.info "iter on disk"];
       let index =
-        Index.v ~fresh:true ~readonly:false ~log_size:t.log_size path
+        Index.v ~fresh:true ~readonly:false ~log_size:t.log_size
+          (Eio.Path.native_exn path)
       in
       let visited h = Index.mem index h in
       let set_visit h =
@@ -250,14 +251,12 @@ module Make (Args : Args) = struct
     module Index =
       Index.Make (Pack_index.Key) (Value) (Io_index) (Index.Cache.Unbounded)
 
-    type path = string
-
     type t = {
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
       visited : Hash.t -> Hash.t Pack_key.t;
       set_visit : Hash.t -> Hash.t Pack_key.t -> unit;
-      index : (path * Index.t) option;
+      index : (Eio.Fs.dir_ty Eio.Path.t * Index.t) option;
     }
 
     let save_contents t b : Hash.t Pack_key.t =
@@ -307,9 +306,12 @@ module Make (Args : Args) = struct
 
     let save_on_disk log_size path =
       (* Make sure we are not reusing the same index as irmin-pack. *)
-      let path = path ^ "_tmp" in
-      [%log.info "save on disk: %s" path];
-      let index = Index.v ~fresh:true ~readonly:false ~log_size path in
+      let path, basename = Option.get @@ Eio.Path.split path in
+      let path = Eio.Path.(path / (basename ^ "_tmp")) in
+      [%log.info "save on disk: %a" Eio.Path.pp path];
+      let index =
+        Index.v ~fresh:true ~readonly:false ~log_size (Eio.Path.native_exn path)
+      in
 
       let set_visit h k =
         let offset, length =

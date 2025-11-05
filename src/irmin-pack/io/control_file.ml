@@ -239,7 +239,7 @@ module Serde = struct
       | Valid (V4 payload) -> Ok (upgrade_from_v4 payload)
       | Valid (V5 payload) -> Ok payload
 
-    (* Similar yo [of_bin_string] but skips version upgrade *)
+    (* Similar to [of_bin_string] but skips version upgrade *)
     let raw_of_bin_string = Data.of_bin_string
     let to_bin_string payload = Data.(to_bin_string (Valid (V5 payload)))
   end
@@ -323,8 +323,8 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
   type t = {
     mutable io : Io.t;
     payload : payload Atomic.t;
-    path : string;
-    tmp_path : string option;
+    path : Eio.Fs.dir_ty Eio.Path.t;
+    tmp_path : Eio.Fs.dir_ty Eio.Path.t option;
     lock : Eio.Mutex.t;
   }
 
@@ -332,7 +332,7 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
     let s = Serde.to_bin_string payload in
     Io.write_string io ~off:Int63.zero s
 
-  let set_payload t payload =
+  let set_payload ~sw t payload =
     let open Result_syntax in
     Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     if Io.readonly t.io then Error `Ro_not_allowed
@@ -341,7 +341,7 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
       | None -> Error `No_tmp_path_provided
       | Some tmp_path ->
           let* () = Io.close t.io in
-          let* io_tmp = Io.create ~path:tmp_path ~overwrite:true in
+          let* io_tmp = Io.create ~sw ~path:tmp_path ~overwrite:true in
           t.io <- io_tmp;
           let* () = write io_tmp payload in
           let+ () = Io.move_file ~src:tmp_path ~dst:t.path in
@@ -350,19 +350,19 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
   let read io =
     let open Result_syntax in
     let* string = Io.read_all_to_string io in
-    Serde.of_bin_string (Io.path io) string
+    Serde.of_bin_string (Eio.Path.native_exn @@ Io.path io) string
 
-  let create_rw ~path ~tmp_path ~overwrite (payload : payload) =
+  let create_rw ~sw ~path ~tmp_path ~overwrite (payload : payload) =
     let open Result_syntax in
     let lock = Eio.Mutex.create () in
-    let* io = Io.create ~path ~overwrite in
+    let* io = Io.create ~sw ~path ~overwrite in
     let+ () = write io payload in
     { io; payload = Atomic.make payload; path; tmp_path; lock }
 
-  let open_ ~path ~tmp_path ~readonly =
+  let open_ ~sw ~path ~tmp_path ~readonly =
     let open Result_syntax in
     let lock = Eio.Mutex.create () in
-    let* io = Io.open_ ~path ~readonly in
+    let* io = Io.open_ ~sw ~path ~readonly in
     let+ payload = read io in
     { io; payload = Atomic.make payload; path; tmp_path; lock }
 
@@ -373,29 +373,29 @@ module Make (Serde : Serde.S) (Io : Io_intf.S) = struct
 
   let payload t = Atomic.get t.payload
 
-  let reload t =
+  let reload ~sw t =
     let open Result_syntax in
     Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
     if not @@ Io.readonly t.io then Error `Rw_not_allowed
     else
       let* () = Io.close t.io in
-      let* io = Io.open_ ~path:t.path ~readonly:true in
+      let* io = Io.open_ ~sw ~path:t.path ~readonly:true in
       t.io <- io;
       let+ payload = read io in
       Atomic.set t.payload payload
 
-  let read_payload ~path =
+  let read_payload ~sw ~path =
     let open Result_syntax in
-    let* io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~sw ~path ~readonly:true in
     let* payload = read io in
     let+ () = Io.close io in
     payload
 
-  let read_raw_payload ~path =
+  let read_raw_payload ~sw ~path =
     let open Result_syntax in
-    let* io = Io.open_ ~path ~readonly:true in
+    let* io = Io.open_ ~sw ~path ~readonly:true in
     let* string = Io.read_all_to_string io in
-    let* payload = Serde.raw_of_bin_string path string in
+    let* payload = Serde.raw_of_bin_string (Eio.Path.native_exn path) string in
     let+ () = Io.close io in
     payload
 

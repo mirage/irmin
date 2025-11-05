@@ -24,10 +24,11 @@ module Make
   module Args : Gc_args.S
 
   val run_and_output_result :
-    lower_root:string option ->
+    fs:Eio.Fs.dir_ty Eio.Path.t ->
+    lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
     generation:int ->
-    new_files_path:string ->
-    string ->
+    new_files_path:Eio.Fs.dir_ty Eio.Path.t ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     Args.key ->
     int63 ->
     unit

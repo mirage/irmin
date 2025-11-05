@@ -54,7 +54,6 @@ module Make (K : Type.S) = struct
   let unlock t key () =
     if KHashtbl.mem t.locks key then
       let lock = KHashtbl.find t.locks key in
-      (* TODO: is_empty not is_locked *)
       if Eio.Mutex.try_lock lock then KHashtbl.remove t.locks key
 
   let with_lock t k fn =

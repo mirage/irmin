@@ -14,7 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val suite : Irmin_test.Suite.t list
+val suite :
+  sw:Eio.Switch.t -> fs:Eio.Fs.dir_ty Eio.Path.t -> Irmin_test.Suite.t list
 
 val misc :
-  _ Eio.Domain_manager.t -> (string * unit Alcotest.test_case list) list
+  sr:Eio__Flow.source_ty Eio.Std.r ->
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  domain_mgr:_ Eio.Domain_manager.t ->
+  (string * unit Alcotest.test_case list) list

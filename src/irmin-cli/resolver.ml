@@ -322,15 +322,20 @@ module Store = struct
     end)
   end
 
-  let pack : hash -> contents -> t =
-   fun (module H) (module C) ->
+  let pack : eio -> hash -> contents -> t =
+   fun env (module H) (module C) ->
     let module Schema = struct
       include Irmin.Schema.KV (C)
       module Hash = H
     end in
-    v_generic Irmin_pack.Conf.spec (module Irmin_pack_maker.Make (Schema))
+    v_generic
+      (Irmin_pack.Conf.spec ~sw:env#sw ~fs:env#cwd)
+      (module Irmin_pack_maker.Make (Schema))
 
-  let tezos = v_generic Irmin_pack.Conf.spec (module Irmin_tezos.Store)
+  let tezos env =
+    v_generic
+      (Irmin_pack.Conf.spec ~sw:env#sw ~fs:env#cwd)
+      (module Irmin_tezos.Store)
 
   let all =
     ref
@@ -339,8 +344,8 @@ module Store = struct
         ("git-mem", fun _ -> Fixed_hash git_mem);
         ("fs", fun env -> Variable_hash (fs env));
         ("mem", fun _ -> Variable_hash mem);
-        ("pack", fun _ -> Variable_hash pack);
-        ("tezos", fun _ -> Fixed tezos);
+        ("pack", fun env -> Variable_hash (pack env));
+        ("tezos", fun env -> Fixed (tezos env));
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
@@ -673,7 +678,8 @@ let infer_remote ~env hash contents branch headers str =
   if Sys.file_exists str then
     let r =
       if Sys.file_exists (str / ".git") then Store.git contents
-      else if Sys.file_exists (str / "store.dict") then Store.pack hash contents
+      else if Sys.file_exists (str / "store.dict") then
+        Store.pack env hash contents
       else Store.fs env hash contents
     in
     match r with

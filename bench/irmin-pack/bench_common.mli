@@ -16,8 +16,8 @@
 
 module Mtime : module type of Import.Mtime
 
-val default_artefacts_dir : string
-val prepare_artefacts_dir : string -> unit
+val default_artefacts_dir : Eio.Fs.dir_ty Eio.Path.t -> Eio.Fs.dir_ty Eio.Path.t
+val prepare_artefacts_dir : Eio.Fs.dir_ty Eio.Path.t -> unit
 val reporter : ?prefix:string -> unit -> Logs.reporter
 val setup_log : Fmt.style_renderer option -> Logs.level option -> unit
 val reset_stats : unit -> unit
@@ -36,8 +36,8 @@ module Conf : Irmin_pack.Conf.S
 module Schema : Irmin.Schema.S
 
 module FSHelper : sig
-  val rm_dir : string -> unit
-  val get_size : string -> int
+  val rm_dir : Eio.Fs.dir_ty Eio.Path.t -> unit
+  val get_size : Eio.Fs.dir_ty Eio.Path.t -> int
 end
 
 module Generate_trees

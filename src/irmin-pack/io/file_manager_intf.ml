@@ -251,7 +251,10 @@ module type S = sig
     | `Not_a_directory of string
     | `Unknown_major_pack_version of string ]
 
-  val version : root:string -> (Import.Version.t, [> version_error ]) result
+  val version :
+    sw:Eio.Switch.t ->
+    root:Eio.Fs.dir_ty Eio.Path.t ->
+    (Import.Version.t, [> version_error ]) result
   (** [version ~root] is the version of the pack stores at [root]. *)
 
   val cleanup : t -> (unit, [> `Sys_error of string ]) result

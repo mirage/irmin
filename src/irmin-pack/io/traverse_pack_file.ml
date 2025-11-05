@@ -116,21 +116,26 @@ end = struct
 
   module Index_reconstructor = struct
     let create ~dest config =
+      let fs = Conf.fs config in
       let dest =
         match dest with
         | `Output path ->
+            let path = Eio.Path.(fs / path) in
             if Io.classify_path path <> `No_such_file_or_directory then
               Fmt.invalid_arg "Can't reconstruct index. File already exits.";
             path
         | `In_place ->
             if Conf.readonly config then raise Irmin_pack.RO_not_allowed;
-            Conf.root config
+            Eio.Path.(fs / Conf.root config)
       in
       let log_size = Conf.index_log_size config in
       [%log.app
         "Beginning index reconstruction with parameters: { log_size = %d }"
           log_size];
-      let index = Index.v_exn ~fresh:true ~readonly:false ~log_size dest in
+      let index =
+        Index.v_exn ~fresh:true ~readonly:false ~log_size
+          (Eio.Path.native_exn dest)
+      in
       index
 
     let iter_pack_entry ~always index key data =

@@ -14,11 +14,15 @@
   (language c)
   (names irmin))
  (flags
-  (:standard -w -unused-var-strict -ccopt "-Wl,-znow")))
+  (:standard -w -unused-var-strict -ccopt "-Wl,-znow"))
+ (enabled_if
+  (<> %{ocaml_version} 5.2.0~alpha1)))
 
 (install
  (package libirmin)
  (section lib)
  (files
   (irmin.h as include/irmin.h)
-  (libirmin%{ext_dll} as lib/libirm%{ext_dll})))
+  (libirmin%{ext_dll} as lib/libirm%{ext_dll}))
+ (enabled_if
+  (<> %{ocaml_version} 5.2.0~alpha1)))
