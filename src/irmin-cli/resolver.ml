@@ -23,21 +23,23 @@ let global_option_section = "COMMON OPTIONS"
 
 module Conf = Irmin.Backend.Conf
 
-let try_parse ty v =
-  match Irmin.Type.of_string ty v with
+let try_parse of_string v =
+  match of_string v with
   | Error e -> (
       let x = Format.sprintf "{\"some\": %s}" v in
-      match Irmin.Type.of_string ty x with
+      match of_string x with
       | Error _ ->
           let y = Format.sprintf "{\"some\": \"%s\"}" v in
-          Irmin.Type.of_string ty y |> Result.map_error (fun _ -> e)
+          of_string y |> Result.map_error (fun _ -> e)
       | v -> v)
   | v -> v
 
 let pconv t =
   let pp = Irmin.Type.pp t in
   let parse s =
-    match try_parse t s with Ok x -> `Ok x | Error (`Msg e) -> `Error e
+    match try_parse (Irmin.Type.of_string t) s with
+    | Ok x -> `Ok x
+    | Error (`Msg e) -> `Error e
   in
   (parse, pp)
 
@@ -184,8 +186,9 @@ module Hash = struct
     | Fixed _, Some size ->
         Error
           (`Msg
-            (Fmt.str "Cannot specify a size for hash function `%s' (%d passed)."
-               hashname size))
+             (Fmt.str
+                "Cannot specify a size for hash function `%s' (%d passed)."
+                hashname size))
 
   let find h =
     of_specifier h |> function Ok h -> h | Error (`Msg e) -> failwith e
@@ -240,6 +243,7 @@ module Hash = struct
 end
 
 type hash = Hash.t
+type eio = Import.eio
 
 (* Store *)
 
@@ -257,7 +261,7 @@ module Store = struct
   end
 
   type remote_fn =
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
   type t =
     | T : {
@@ -296,7 +300,14 @@ module Store = struct
     v spec (module S)
 
   let mem = create Irmin_mem.Conf.spec (module Irmin_mem)
-  let fs = create Irmin_fs.Conf.spec (module Irmin_fs_unix)
+
+  let fs env =
+    let spec =
+      Irmin_fs_unix.spec ~path:(Eio.Stdenv.cwd env)
+        ~clock:(Eio.Stdenv.clock env)
+    in
+    create spec (module Irmin_fs_unix)
+
   let git (module C : Irmin.Contents.S) = v_git (module Xgit.FS.KV (C))
   let git_mem (module C : Irmin.Contents.S) = v_git (module Xgit.Mem.KV (C))
 
@@ -311,36 +322,42 @@ module Store = struct
     end)
   end
 
-  let pack : hash -> contents -> t =
-   fun (module H) (module C) ->
+  let pack : eio -> hash -> contents -> t =
+   fun env (module H) (module C) ->
     let module Schema = struct
       include Irmin.Schema.KV (C)
       module Hash = H
     end in
-    v_generic Irmin_pack.Conf.spec (module Irmin_pack_maker.Make (Schema))
+    v_generic
+      (Irmin_pack.Conf.spec ~sw:env#sw ~fs:env#cwd)
+      (module Irmin_pack_maker.Make (Schema))
 
-  let tezos = v_generic Irmin_pack.Conf.spec (module Irmin_tezos.Store)
+  let tezos env =
+    v_generic
+      (Irmin_pack.Conf.spec ~sw:env#sw ~fs:env#cwd)
+      (module Irmin_tezos.Store)
 
   let all =
     ref
       [
-        ("git", Fixed_hash git);
-        ("git-mem", Fixed_hash git_mem);
-        ("fs", Variable_hash fs);
-        ("mem", Variable_hash mem);
-        ("pack", Variable_hash pack);
-        ("tezos", Fixed tezos);
+        ("git", fun _ -> Fixed_hash git);
+        ("git-mem", fun _ -> Fixed_hash git_mem);
+        ("fs", fun env -> Variable_hash (fs env));
+        ("mem", fun _ -> Variable_hash mem);
+        ("pack", fun env -> Variable_hash (pack env));
+        ("tezos", fun env -> Fixed (tezos env));
       ]
 
   let default = "git" |> fun n -> ref (n, List.assoc n !all)
 
   let add name ?default:(x = false) m =
+    let m (_ : eio) = m in
     all := (name, m) :: !all;
     if x then default := (name, m)
 
-  let find name =
+  let find name env =
     match List.assoc_opt (String.Ascii.lowercase name) !all with
-    | Some s -> s
+    | Some s -> s env
     | None ->
         let valid = String.concat ~sep:", " (List.split !all |> fst) in
         let msg =
@@ -409,7 +426,8 @@ let config_term =
     $ config_path_term
     $ Arg.(value @@ opt_all (list (pair ~sep:'=' string string)) [] opts))
 
-type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
+type store =
+  | S : 'a Store.Impl.t * (unit -> 'a) * Store.remote_fn option -> store
 
 let rec read_config_file path =
   let home = config_root () / global_config_path in
@@ -453,10 +471,10 @@ let parse_config ?root y spec =
         | Some (Irmin.Backend.Conf.K k), Some v ->
             let v = json_of_yaml v |> Yojson.Basic.to_string in
             let v =
-              match Irmin.Type.of_json_string (Conf.ty k) v with
+              match Conf.of_json_string k v with
               | Error _ ->
                   let v = Format.sprintf "{\"some\": %s}" v in
-                  Irmin.Type.of_json_string (Conf.ty k) v |> Result.get_ok
+                  Conf.of_json_string k v |> Result.get_ok
               | Ok v -> v
             in
             Conf.add config k v
@@ -472,7 +490,7 @@ let parse_config ?root y spec =
   let config =
     match (root, Conf.Spec.find_key spec "root") with
     | Some root, Some (K r) ->
-        let v = Irmin.Type.of_string (Conf.ty r) root |> Result.get_ok in
+        let v = Conf.of_string r root |> Result.get_ok in
         Conf.add config r v
     | _ -> config
   in
@@ -486,7 +504,7 @@ let load_plugin ?plugin config =
       | Ok (Some v) -> Dynlink.loadfile_private (Yaml.Util.to_string_exn v)
       | _ -> ())
 
-let get_store ?plugin config (store, hash, contents) =
+let get_store ~env ?plugin config (store, hash, contents) =
   let () = load_plugin ?plugin config in
   let store =
     match store with
@@ -497,6 +515,7 @@ let get_store ?plugin config (store, hash, contents) =
             match store with Some s -> Store.find s | None -> Store.find s)
         | _ -> snd !Store.default)
   in
+  let store = store env in
   let contents =
     match contents with
     | Some s -> Contents.find s
@@ -529,9 +548,9 @@ let get_store ?plugin config (store, hash, contents) =
       | _ ->
           Fmt.failwith "Cannot customize the hash function for the given store")
 
-let load_config ?plugin ?root ?config_path ?store ?hash ?contents () =
+let load_config ~env ?plugin ?root ?config_path ?store ?hash ?contents () =
   let y = read_config_file config_path in
-  let store = get_store ?plugin y (store, hash, contents) in
+  let store = get_store ~env ?plugin y (store, hash, contents) in
   let spec = Store.spec store in
   let config = parse_config ?root y spec in
   (store, config)
@@ -561,10 +580,10 @@ let get_commit (type a b)
   | None -> of_string (find_key config "commit")
   | Some t -> of_string (Some t)
 
-let build_irmin_config config root opts (store, hash, contents) branch commit
-    plugin : store =
+let build_irmin_config ~env config root opts (store, hash, contents) branch
+    commit plugin : store =
   let (T { impl; spec; remote }) =
-    get_store ?plugin config (store, hash, contents)
+    get_store ~env ?plugin config (store, hash, contents)
   in
   let (module S) = Store.Impl.generic_keyed impl in
   let branch = get_branch (module S) config branch in
@@ -583,22 +602,23 @@ let build_irmin_config config root opts (store, hash, contents) branch commit
             | Some x -> x
             | None -> invalid_arg ("opt: " ^ k)
         in
-        let ty = Conf.ty key in
-        let v = try_parse ty v |> Result.get_ok in
+        let v = try_parse (Conf.of_string key) v |> Result.get_ok in
         let config = Conf.add config key v in
         config)
       config (List.flatten opts)
   in
-  let spec =
+  let spec () =
     match (branch, commit) with
     | _, Some hash -> (
-        S.Repo.v config >>= fun repo ->
-        let* commit = S.Commit.of_hash repo hash in
+        let repo = S.Repo.v config in
+        let commit = S.Commit.of_hash repo hash in
         match commit with
         | None -> invalid_arg "unknown commit"
         | Some c -> S.of_commit c)
-    | None, None -> S.Repo.v config >>= S.main
-    | Some b, None -> S.Repo.v config >>= fun repo -> S.of_branch repo b
+    | None, None -> S.Repo.v config |> S.main
+    | Some b, None ->
+        let repo = S.Repo.v config in
+        S.of_branch repo b
   in
   S (impl, spec, remote)
 
@@ -621,10 +641,10 @@ let plugin =
   let doc = "Register new contents, store or hash types" in
   Arg.(value & opt (some string) None & info ~doc [ "plugin" ])
 
-let store () =
+let store ~env =
   let create plugin store (root, config_path, opts) branch commit =
     let y = read_config_file config_path in
-    build_irmin_config y root opts store branch commit plugin
+    build_irmin_config ~env y root opts store branch commit plugin
   in
   Term.(const create $ plugin $ Store.term () $ config_term $ branch $ commit)
 
@@ -648,7 +668,7 @@ type Irmin.remote += R of Cohttp.Header.t option * string
 (* FIXME: this is a very crude heuristic to choose the remote
    kind. Would be better to read the config file and look for remote
    alias. *)
-let infer_remote hash contents branch headers str =
+let infer_remote ~env hash contents branch headers str =
   let hash = match hash with None -> snd !Hash.default | Some c -> c in
   let contents =
     match contents with
@@ -658,8 +678,9 @@ let infer_remote hash contents branch headers str =
   if Sys.file_exists str then
     let r =
       if Sys.file_exists (str / ".git") then Store.git contents
-      else if Sys.file_exists (str / "store.dict") then Store.pack hash contents
-      else Store.fs hash contents
+      else if Sys.file_exists (str / "store.dict") then
+        Store.pack env hash contents
+      else Store.fs env hash contents
     in
     match r with
     | Store.T { impl; spec; _ } ->
@@ -668,25 +689,25 @@ let infer_remote hash contents branch headers str =
         let config =
           match Conf.Spec.find_key spec "root" with
           | Some (K r) ->
-              let v = Irmin.Type.of_string (Conf.ty r) str |> Result.get_ok in
+              let v = Conf.of_string r str |> Result.get_ok in
               Conf.add config r v
           | _ -> config
         in
-        let* repo = R.Repo.v config in
+        let repo = R.Repo.v config in
         let branch =
           match branch with
           | Some b -> Irmin.Type.of_string R.branch_t b |> Result.get_ok
           | None -> R.Branch.main
         in
-        let+ r = R.of_branch repo branch in
+        let r = R.of_branch repo branch in
         Irmin.remote_store (module R) r
   else
     let headers =
       match headers with [] -> None | h -> Some (Cohttp.Header.of_list h)
     in
-    Lwt.return (R (headers, str))
+    R (headers, str)
 
-let remote () =
+let remote ~env =
   let repo =
     let doc =
       Arg.info ~docv:"REMOTE"
@@ -698,9 +719,10 @@ let remote () =
       headers str =
     let y = read_config_file config_path in
     let store =
-      build_irmin_config y root opts (store, hash, contents) branch commit None
+      build_irmin_config ~env y root opts (store, hash, contents) branch commit
+        None
     in
-    let remote = infer_remote hash contents branch headers str in
+    let remote () = infer_remote ~env hash contents branch headers str in
     (store, remote)
   in
   Term.(

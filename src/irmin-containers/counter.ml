@@ -28,12 +28,12 @@ module type S = sig
   module Store : Irmin.KV
 
   val inc :
-    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit
 
   val dec :
-    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit
 
-  val read : path:Store.path -> Store.t -> int64 Lwt.t
+  val read : path:Store.path -> Store.t -> int64
 end
 
 module Make (Backend : Irmin.KV_maker) = struct
@@ -42,7 +42,7 @@ module Make (Backend : Irmin.KV_maker) = struct
   let empty_info = Store.Info.none
 
   let modify by info t path fn =
-    Store.find t path >>= function
+    match Store.find t path with
     | None -> Store.set_exn ~info t path (fn 0L by)
     | Some v -> Store.set_exn ~info t path (fn v by)
 
@@ -52,7 +52,7 @@ module Make (Backend : Irmin.KV_maker) = struct
   let dec ?(by = 1L) ?(info = empty_info) ~path t =
     modify by info t path (fun x by -> Int64.sub x by)
 
-  let read ~path t = Store.find t path >|= function None -> 0L | Some v -> v
+  let read ~path t = Store.find t path |> function None -> 0L | Some v -> v
 end
 
 module FS = Make (Irmin_fs_unix.KV)

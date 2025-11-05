@@ -8,7 +8,9 @@
    (setenv
     LD_LIBRARY_PATH
     ../../src/libirmin/lib
-    (run ./test.exe)))))
+    (run ./test.exe))))
+ (enabled_if
+  (<> %{ocaml_version} 5.2.0~alpha1)))
 
 (rule
  (targets test.exe)

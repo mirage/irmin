@@ -25,10 +25,11 @@ end
 module Make
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (Schema : Schema.S
-                with type Hash.t = G.hash
-                 and type Node.t = G.Value.Tree.t
-                 and type Commit.t = G.Value.Commit.t) =
+    (Schema :
+      Schema.S
+        with type Hash.t = G.hash
+         and type Node.t = G.Value.Tree.t
+         and type Commit.t = G.Value.Commit.t) =
 struct
   module Hash = Irmin.Hash.Make (G.Hash)
   module Schema = Schema
@@ -63,15 +64,15 @@ struct
     module S = Atomic_write.Make (Schema.Branch) (G)
     include Atomic_write.Check_closed (S)
 
-    let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
+    let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t |> v
   end
 
   module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
 
   module Repo = struct
     let handle_git_err = function
-      | Ok x -> Lwt.return x
-      | Error e -> Fmt.kstr Lwt.fail_with "%a" G.pp_error e
+      | Ok x -> x
+      | Error e -> Fmt.kstr failwith "%a" G.pp_error e
 
     type t = { config : Irmin.config; closed : bool ref; g : G.t; b : Branch.t }
 
@@ -79,13 +80,11 @@ struct
     let contents_t t : 'a Contents.t = (t.closed, t.g)
     let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
     let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
-    let batch t f = f (contents_t t) (node_t t) (commit_t t)
+    let batch ?lock:_ t f = f (contents_t t) (node_t t) (commit_t t)
 
     type config = {
       root : string;
       dot_git : string option;
-      level : int option;
-      buffers : int option;
       head : G.Reference.t option;
       bare : bool;
     }
@@ -94,11 +93,9 @@ struct
       let module C = Irmin.Backend.Conf in
       let root = C.find_root c |> Option.value ~default:"." in
       let dot_git = C.get c Conf.Key.dot_git in
-      let level = C.get c Conf.Key.level in
       let head = C.get c Conf.Key.head in
       let bare = C.get c Conf.Key.bare in
-      let buffers = C.get c Conf.Key.buffers in
-      { root; dot_git; level; head; buffers; bare }
+      { root; dot_git; head; bare }
 
     let fopt f = function None -> None | Some x -> Some (f x)
 
@@ -106,24 +103,28 @@ struct
       let { root; dot_git; head; bare; _ } = config conf in
       let dotgit = fopt Fpath.v dot_git in
       let root = Fpath.v root in
-      let* g = G.v ?dotgit root >>= handle_git_err in
-      let+ b = Branch.v ~head ~bare g in
+      let g = Lwt_eio.run_lwt @@ fun () -> G.v ?dotgit root in
+      let g = handle_git_err g in
+      let b = Branch.v ~head ~bare g in
       { g; b; closed = ref false; config = (conf :> Irmin.config) }
 
     let config t = t.config
-    let close t = Branch.close t.b >|= fun () -> t.closed := true
+
+    let close t =
+      Branch.close t.b;
+      t.closed := true
   end
 
   module Remote = struct
     include Remote.Make (G) (S) (Schema.Branch)
 
-    let v repo = Lwt.return repo.Repo.g
+    let v repo = repo.Repo.g
   end
 
   let git_of_repo r = r.Repo.g
 
   let repo_of_git ?head ?(bare = true) ?lock g =
-    let+ b = Branch.v ?lock ~head ~bare g in
+    let b = Branch.v ?lock ~head ~bare g in
     {
       Repo.config = Irmin.Backend.Conf.empty Conf.spec;
       closed = ref false;
