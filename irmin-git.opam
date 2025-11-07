@@ -28,7 +28,6 @@ depends: [
   "cohttp-lwt-unix"
   "fpath"
   "logs"
-  "lwt"        {>= "5.3.0"}
   "lwt_eio"    {>= "0.5"}
   "uri"
   "mimic"
@@ -36,6 +35,7 @@ depends: [
   "mtime"      {with-test & >= "2.0.0"}
   "alcotest"   {with-test}
   "irmin-watcher" {= "dev"}
+  "lwt" {>= "5.9.1"}
 ]
 
 pin-depends: [
@@ -47,3 +47,4 @@ description: """
 `Irmin_git` expose a bi-directional bridge between Git repositories and
 Irmin stores.
 """
+x-maintenance-intent: [ "(latest)" ]

@@ -150,4 +150,5 @@ val init :
   Eio.Fs.dir_ty Eio.Path.t ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default
-    configuration parameters and stored at [root]. Flags are documented above. *)
+    configuration parameters and stored at [root]. Flags are documented above.
+*)

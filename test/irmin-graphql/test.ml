@@ -91,7 +91,9 @@ let test_get_tree_list : test_case =
   let data =
     strees [ "a"; "b"; "c" ]
       (`Tree
-        [ ("leaf", contents "data1"); ("branch", stree "f" (contents "data2")) ])
+         [
+           ("leaf", contents "data1"); ("branch", stree "f" (contents "data2"));
+         ])
   and query =
     query
     @@ func "main"

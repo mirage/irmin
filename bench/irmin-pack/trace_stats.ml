@@ -86,8 +86,7 @@ let pp name_per_path paths cols_opt =
   let summaries =
     List.map2
       (fun path -> function
-        | `Summary s -> s
-        | `Trace _ -> Summary.summarise ~block_count path)
+        | `Summary s -> s | `Trace _ -> Summary.summarise ~block_count path)
       paths class_per_path
   in
   let col_count =
@@ -181,15 +180,11 @@ let term_cb =
   in
   Term.(const summary_to_cb $ summary_file)
 
-let deprecated_info = (Term.info [@alert "-deprecated"])
-let deprecated_exit = (Term.exit [@alert "-deprecated"])
-let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
-
 let () =
   let man = [] in
   let i =
-    deprecated_info ~man
-      ~doc:"Processing of stat traces and stat trace summaries." "trace_stats"
+    Cmd.info ~man ~doc:"Processing of stat traces and stat trace summaries."
+      "trace_stats"
   in
 
   let man =
@@ -199,7 +194,7 @@ let () =
       `P "trace_stats.exe summarise run0.repr > run0.json";
     ]
   in
-  let j = deprecated_info ~man ~doc:"Stat Trace to Summary" "summarise" in
+  let j = Cmd.info ~man ~doc:"Stat Trace to Summary" "summarise" in
 
   let man =
     [
@@ -223,13 +218,11 @@ let () =
       `P "trace_stats.exe pp -f r0,run0.json -f r1,run1.repr";
     ]
   in
-  let k = deprecated_info ~man ~doc:"Comparative Pretty Printing" "pp" in
-  let l =
-    deprecated_info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb"
-  in
+  let k = Cmd.info ~man ~doc:"Comparative Pretty Printing" "pp" in
+  let l = Cmd.info ~man ~doc:"Summary JSON to Continous Benchmarks JSON" "cb" in
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  deprecated_exit
-  @@ deprecated_eval_choice
-       (term_summarise fs, i)
-       [ (term_summarise fs, j); (term_pp fs, k); (term_cb, l) ]
+  Stdlib.exit
+  @@ Cmd.eval
+  @@ Cmd.group ~default:(term_summarise fs) i
+       [ Cmd.v j (term_summarise fs); Cmd.v k (term_pp fs); Cmd.v l term_cb ]

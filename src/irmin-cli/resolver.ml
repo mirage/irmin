@@ -186,8 +186,9 @@ module Hash = struct
     | Fixed _, Some size ->
         Error
           (`Msg
-            (Fmt.str "Cannot specify a size for hash function `%s' (%d passed)."
-               hashname size))
+             (Fmt.str
+                "Cannot specify a size for hash function `%s' (%d passed)."
+                hashname size))
 
   let find h =
     of_specifier h |> function Ok h -> h | Error (`Msg e) -> failwith e
@@ -242,6 +243,7 @@ module Hash = struct
 end
 
 type hash = Hash.t
+type eio = Import.eio
 
 (* Store *)
 
@@ -462,8 +464,6 @@ let rec json_of_yaml : Yaml.value -> Yojson.Basic.t = function
 
 let parse_config ?root y spec =
   let config = Conf.empty spec in
-  (* Initialise root for the examples in README to pass. *)
-  let config = Conf.add config (Conf.root spec) "." in
   let config =
     List.fold_left
       (fun config k ->

@@ -100,11 +100,7 @@ module type Store = sig
   type on_end := unit -> unit
 
   val create_repo :
-    sw:Eio.Switch.t ->
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
-    root:Eio.Fs.dir_ty Eio.Path.t ->
-    store_config ->
-    Repo.t * on_commit * on_end
+    root:Eio.Fs.dir_ty Eio.Path.t -> store_config -> Repo.t * on_commit * on_end
 
   val split : repo -> unit
   val add_volume : repo -> unit
@@ -113,7 +109,6 @@ module type Store = sig
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
   val gc_run :
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
     domain_mgr:_ Eio.Domain_manager.t ->
     ?finished:((stats, string) result -> unit) ->
     repo ->
@@ -136,10 +131,6 @@ module type Sigs = sig
          and type 'a config = 'a config
 
     val run :
-      fs:Eio.Fs.dir_ty Eio.Path.t ->
-      domain_mgr:_ Eio.Domain_manager.t ->
-      Store.store_config ->
-      'a config ->
-      'a
+      domain_mgr:_ Eio.Domain_manager.t -> Store.store_config -> 'a config -> 'a
   end
 end

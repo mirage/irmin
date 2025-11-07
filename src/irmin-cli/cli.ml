@@ -21,9 +21,7 @@ module Graphql = Irmin_graphql_unix
 
 type eio = Import.eio
 
-let deprecated_info = (Term.info [@alert "-deprecated"])
-let deprecated_man_format = (Term.man_format [@alert "-deprecated"])
-let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"])
+let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
 
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
     ?(author = "irmin") fmt =
@@ -52,10 +50,11 @@ let setup_log =
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
-  deprecated_info ~sdocs:global_option_section ~docs:global_option_section ~doc
-    ~man title
+  Cmd.info ~sdocs:global_option_section ~docs:global_option_section ~doc ~man
+    title
 
-type command = env:eio -> (unit Term.t * Term.info[@alert "-deprecated"])
+type term = env:eio -> unit Term.t
+type command = env:eio -> unit Cmd.t
 
 type sub = {
   name : string;
@@ -67,7 +66,7 @@ type sub = {
 let create_command c ~env =
   let c = c ~env in
   let man = [ `S "DESCRIPTION"; `P c.doc ] @ c.man in
-  (c.term, term_info c.name ~doc:c.doc ~man)
+  Cmd.v (term_info c.name ~doc:c.doc ~man) c.term
 
 (* Converters *)
 
@@ -709,7 +708,7 @@ let help ~env:_ =
                       config_man)
              | `Ok t -> `Help (man_format, Some t))
        in
-       Term.(ret (mk help $ deprecated_man_format $ Term.choice_names $ topic)));
+       Term.(ret (mk help $ Arg.man_format $ Term.choice_names $ topic)));
   }
 
 (* GRAPHQL *)
@@ -913,6 +912,22 @@ let log ~env =
        Term.(mk commits $ store ~env $ plain $ pager $ num $ skip $ reverse));
   }
 
+let default_help =
+  let doc = "Irmin, the database that never forgets." in
+  let man =
+    [
+      `S "DESCRIPTION";
+      `P
+        "Irmin is a distributed database used primarily for application data. \
+         It is designed to work with a large variety of backends and has \
+         built-in snapshotting, reverting and branching mechanisms.";
+      `P
+        "Use either $(mname) <command> --help or $(mname) help <command> for \
+         more information on a specific command.";
+    ]
+  in
+  Cmd.info "irmin" ~version:Irmin.version ~sdocs:global_option_section ~doc ~man
+
 let common_commands =
   [
     init;
@@ -937,22 +952,7 @@ let common_commands =
     log;
   ]
 
-let commands = help :: common_commands
-
 let default ~env =
-  let doc = "Irmin, the database that never forgets." in
-  let man =
-    [
-      `S "DESCRIPTION";
-      `P
-        "Irmin is a distributed database used primarily for application data. \
-         It is designed to work with a large variety of backends and has \
-         built-in snapshotting, reverting and branching mechanisms.";
-      `P
-        "Use either $(mname) <command> --help or $(mname) help <command> for \
-         more information on a specific command.";
-    ]
-  in
   let usage () =
     Fmt.pr
       "usage: irmin [--version]\n\
@@ -968,11 +968,9 @@ let default ~env =
       "\n\
        See `irmin help <command>` for more information on a specific command.@."
   in
-  ( Term.(mk usage $ const ()),
-    deprecated_info "irmin" ~version:Irmin.version ~sdocs:global_option_section
-      ~doc ~man )
+  Term.(mk usage $ const ())
 
-let commands = List.map create_command commands
+let commands = List.map create_command (help :: common_commands)
 
 let run ~default:x y =
   Eio_main.run @@ fun env ->
@@ -986,7 +984,7 @@ let run ~default:x y =
       method sw = sw
     end
   in
-  let run cmd = cmd ~env in
-  match deprecated_eval_choice (run x) (List.map run y) with
-  | `Error _ -> exit 1
-  | _ -> ()
+  let y = List.map (fun cmd -> cmd ~env) y in
+  match Cmd.eval (Cmd.group ~default:(x ~env) default_help y) with
+  | 0 -> ()
+  | _ -> exit 1

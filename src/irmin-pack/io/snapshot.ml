@@ -60,11 +60,11 @@ module Make (Args : Args) = struct
       contents_pack : read Contents_pack.t;
     }
 
-    let v ~sw ~fs config contents_pack inode_pack =
+    let v config contents_pack inode_pack =
       (* In order to read from the pack files, we need to open at least two
          files: suffix and control. We just open the file manager for
          simplicity. *)
-      let fm = Fm.open_ro ~sw ~fs config |> Fm.Errs.raise_if_error in
+      let fm = Fm.open_ro config |> Fm.Errs.raise_if_error in
       let dispatcher = Dispatcher.v fm |> Fm.Errs.raise_if_error in
       let log_size = Conf.index_log_size config in
       { fm; dispatcher; log_size; inode_pack; contents_pack }
@@ -251,14 +251,12 @@ module Make (Args : Args) = struct
     module Index =
       Index.Make (Pack_index.Key) (Value) (Io_index) (Index.Cache.Unbounded)
 
-    type path = Eio.Fs.dir_ty Eio.Path.t
-
     type t = {
       inode_pack : read Inode_pack.t;
       contents_pack : read Contents_pack.t;
       visited : Hash.t -> Hash.t Pack_key.t;
       set_visit : Hash.t -> Hash.t Pack_key.t -> unit;
-      index : (path * Index.t) option;
+      index : (Eio.Fs.dir_ty Eio.Path.t * Index.t) option;
     }
 
     let save_contents t b : Hash.t Pack_key.t =

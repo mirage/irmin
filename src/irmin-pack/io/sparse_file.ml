@@ -90,7 +90,8 @@ module Make (Io : Io_intf.S) = struct
           else
             Error
               (`Corrupted_mapping_file
-                (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
+                 (__FILE__
+                 ^ ": mapping mmap size did not meet size requirements"))
       | _ -> Error (`No_such_file_or_directory (Eio.Path.native_exn path))
 
     let close = Int64_mmap.close

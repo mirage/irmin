@@ -206,7 +206,7 @@ let alist_iter2 compare_k f l1 l2 =
   aux l1 l2
 
 (* assume l1 and l2 are key-sorted *)
-let alist_iter2_lwt compare_k f l1 l2 =
+let alist_iter2 compare_k f l1 l2 =
   let l3 = ref [] in
   alist_iter2 compare_k
     (fun left right -> l3 := (fun () -> f left right) :: !l3)
@@ -214,7 +214,7 @@ let alist_iter2_lwt compare_k f l1 l2 =
   Eio.Fiber.all (List.rev !l3)
 
 (* DO NOT assume l1 and l2 are key-sorted *)
-let alist_merge_lwt compare_k f l1 l2 =
+let alist_merge compare_k f l1 l2 =
   let l3 = ref [] in
   let sort l = List.sort (fun (x, _) (y, _) -> compare_k x y) l in
   let l1 = sort l1 in
@@ -222,7 +222,7 @@ let alist_merge_lwt compare_k f l1 l2 =
   let f key data =
     match f key data with None -> () | Some v -> l3 := (key, v) :: !l3
   in
-  alist_iter2_lwt compare_k f l1 l2;
+  alist_iter2 compare_k f l1 l2;
   !l3
 
 let alist dx dy merge_v =
@@ -246,7 +246,7 @@ let alist dx dy merge_v =
             Some old
       in
       let merge_v k = f (merge_v k) in
-      try ok @@ alist_merge_lwt compare_dx (merge_elt merge_v old) x y with
+      try ok @@ alist_merge compare_dx (merge_elt merge_v old) x y with
       | C msg -> conflict "%s" msg
       | e -> raise e )
 
@@ -363,7 +363,8 @@ let like da t a_to_b b_to_a =
   in
   seq [ default da; (da, merge) ]
 
-let like_lwt (type a b) da (t : b t) (a_to_b : a -> b) (b_to_a : b -> a) : a t =
+let like_blocking (type a b) da (t : b t) (a_to_b : a -> b) (b_to_a : b -> a) :
+    a t =
   let pp = Type.pp da in
   let merge ~old a1 a2 =
     [%log.debug "biject' %a | %a" pp a1 pp a2];

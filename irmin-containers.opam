@@ -19,7 +19,6 @@ depends: [
   "irmin"        {= version}
   "irmin-fs"     {= version}
   "ppx_irmin"    {= version}
-  "lwt"          {>= "5.3.0"}
   "mtime"        {>= "2.0.0"}
   "alcotest"     {with-test}
 ]
@@ -30,3 +29,4 @@ A collection of simple, ready-to-use mergeable data structures built using
 Irmin. Each data structure works with an arbitrary Irmin backend and is
 customisable in a variety of ways.
 """
+x-maintenance-intent: [ "(latest)" ]

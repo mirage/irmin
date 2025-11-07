@@ -7,9 +7,10 @@
   irmin-client.unix
   websocket-lwt-unix
   conduit-lwt-unix
+  alcotest-lwt
+  mirage-crypto-rng.unix
   irmin-test
   irmin-watcher)
- ; TODO: fix unix EMFILE error
  (enabled_if
   (and
    (<> %{system} macosx)

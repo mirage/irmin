@@ -180,9 +180,9 @@ let test_on_disk_minimal =
 let test_on_disk_always =
   test_on_disk ~indexing_strategy:Irmin_pack.Indexing_strategy.always
 
-let start_gc ~fs ~domain_mgr repo commit =
+let start_gc ~domain_mgr repo commit =
   let commit_key = S.Commit.key commit in
-  let launched = S.Gc.start_exn ~fs ~domain_mgr ~unlink:false repo commit_key in
+  let launched = S.Gc.start_exn ~domain_mgr ~unlink:false repo commit_key in
   assert launched
 
 let finalise_gc repo =
@@ -191,8 +191,7 @@ let finalise_gc repo =
   | `Idle | `Running -> Alcotest.fail "expected finalised gc"
   | `Finalised _ -> ()
 
-let test_gc ~fs ~domain_mgr ~repo_export ~repo_import ?on_disk expected_visited
-    =
+let test_gc ~domain_mgr ~repo_export ~repo_import ?on_disk expected_visited =
   (* create the store *)
   let tree1 =
     let t = S.Tree.singleton [ "b"; "a" ] "x0" in
@@ -208,7 +207,7 @@ let test_gc ~fs ~domain_mgr ~repo_export ~repo_import ?on_disk expected_visited
   in
   let c3 = S.Commit.v repo_export ~parents:[ k1 ] ~info tree3 in
   (* call gc on last commit *)
-  let () = start_gc ~fs ~domain_mgr repo_export c3 in
+  let () = start_gc ~domain_mgr repo_export c3 in
   let () = finalise_gc repo_export in
   let tree = S.Commit.tree c3 in
   let root_key = S.Tree.key tree |> Option.get in
@@ -244,7 +243,7 @@ let test_gced_store_in_memory ~fs ~domain_mgr () =
     S.Repo.v
       (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
-  let () = test_gc ~fs ~domain_mgr ~repo_export ~repo_import 5 in
+  let () = test_gc ~domain_mgr ~repo_export ~repo_import 5 in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
 
@@ -264,8 +263,8 @@ let test_gced_store_on_disk ~fs ~domain_mgr () =
       (config ~sw ~fs ~readonly:false ~fresh:true ~indexing_strategy root_import)
   in
   let () =
-    test_gc ~fs ~domain_mgr ~repo_export ~repo_import
-      ~on_disk:(`Path index_on_disk) 5
+    test_gc ~domain_mgr ~repo_export ~repo_import ~on_disk:(`Path index_on_disk)
+      5
   in
   let () = S.Repo.close repo_export in
   S.Repo.close repo_import
@@ -308,7 +307,7 @@ let test_export_import_reexport ~fs ~domain_mgr () =
   let commit_hash = S.Commit.hash commit in
   (* export the gc-based snapshot in a clean root_export. *)
   let () =
-    S.create_one_commit_store ~fs ~domain_mgr repo_import commit_key root_export
+    S.create_one_commit_store ~domain_mgr repo_import commit_key root_export
   in
   let () = S.Repo.close repo_import in
   (* open the new store and check that everything is readable. *)

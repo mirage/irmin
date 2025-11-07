@@ -57,7 +57,8 @@ module type CUSTOM_TYPE = sig
   val arg_typ : t option Schema.Arg.arg_typ
 end
 
-(** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch). *)
+(** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch).
+*)
 module type CUSTOM_TYPES = sig
   type path
   type metadata
@@ -105,15 +106,16 @@ module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
     (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info)
-    (Types : CUSTOM_TYPES
-               with type path := Store.path
-                and type metadata := Store.metadata
-                and type contents := Store.contents
-                and type hash := Store.hash
-                and type branch := Store.branch
-                and type commit_key := Store.commit_key
-                and type contents_key := Store.contents_key
-                and type node_key := Store.node_key) :
+    (Types :
+      CUSTOM_TYPES
+        with type path := Store.path
+         and type metadata := Store.metadata
+         and type contents := Store.contents
+         and type hash := Store.hash
+         and type branch := Store.branch
+         and type commit_key := Store.commit_key
+         and type contents_key := Store.contents_key
+         and type node_key := Store.node_key) :
   S
     with type repo = Store.repo
      and type server = Server.t

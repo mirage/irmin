@@ -220,14 +220,20 @@ module Make_helpers (S : Generic_key) = struct
     try
       let module Conf = Irmin.Backend.Conf in
       let generate_random_root config =
-        let id = Random.int 100 |> string_of_int in
-        let root_value =
-          match Conf.find_root config with
-          | None -> "test_" ^ id
-          | Some v -> v ^ "_" ^ id
-        in
-        let root_key = Conf.(root (spec config)) in
-        Conf.add config root_key root_value
+        let sp = Conf.spec config in
+        (* let sp = Conf.Spec.v "irmin-test" config in *)
+        (* let spec = Irmin.Backend.Conf.Spec.v kind in *)
+        match Conf.Spec.find_key sp "root" with
+        | None -> config
+        | Some (K k) ->
+            let id = Random.int 100 |> string_of_int in
+            let root_value =
+              match Conf.find_root config with
+              | None -> "test_" ^ id
+              | Some v -> v ^ "_" ^ id
+            in
+            let v = Conf.of_string k root_value |> Result.get_ok in
+            Conf.add config k v
       in
       let config = generate_random_root x.config in
       config_ptr := Some config;
@@ -304,7 +310,7 @@ let checks t =
   Alcotest.check t
 
 (* also in test/irmin-pack/common.ml *)
-let check_raises_lwt msg exn (type a) (f : unit -> a) =
+let check_raises msg exn (type a) (f : unit -> a) =
   try
     let (_ : a) = f () in
     Alcotest.failf

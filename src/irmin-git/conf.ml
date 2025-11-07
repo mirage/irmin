@@ -49,15 +49,14 @@ module Key = struct
       "dot-git"
       Irmin.Type.(option string)
       None
+
+  let root = root spec
 end
 
 let init ?head ?bare ?level ?dot_git ?buffers root =
   let module C = Irmin.Backend.Conf in
   let config = C.empty spec in
-  (* Initialise an fresh root_key, otherwise [C.add config root_key root] has no
-     effect on current config. *)
-  let root_key = C.root spec in
-  let config = C.add config root_key root in
+  let config = C.add config Key.root root in
   let config =
     match bare with
     | None -> C.add config Key.bare (C.default Key.bare)

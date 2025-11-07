@@ -23,3 +23,4 @@ depends: [
 ]
 
 synopsis: "PPX deriver for Irmin type representations"
+x-maintenance-intent: [ "(latest)" ]

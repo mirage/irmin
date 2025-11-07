@@ -69,7 +69,8 @@ module Chunk (H : Irmin.Hash.S) = struct
   let v_t =
     let open Irmin.Type in
     variant "chunk" (fun d i -> function
-      | Data data -> d data | Index index -> i index)
+      | Data data -> d data
+      | Index index -> i index)
     |~ case1 "Data" string (fun d -> Data d)
     |~ case1 "Index" (list ~len:`Int16 H.t) (fun i -> Index i)
     |> sealv

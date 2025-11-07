@@ -439,10 +439,11 @@ module Store_generic_key
     (C : Contents.Store)
     (S : Indexable.S)
     (H : Hash.S with type t = S.hash)
-    (V : S_generic_key
-           with type t = S.value
-            and type contents_key = C.Key.t
-            and type node_key = S.Key.t)
+    (V :
+      S_generic_key
+        with type t = S.value
+         and type contents_key = C.Key.t
+         and type node_key = S.Key.t)
     (M : Metadata.S with type t = V.metadata)
     (P : Path.S with type step = V.step) =
 struct
@@ -485,7 +486,7 @@ struct
       | Some k -> ( match find t k with None -> Val.empty () | Some v -> v)
     in
     let add v = if Val.is_empty v then None else Some (add t v) in
-    Merge.like_lwt [%typ: Key.t option] merge read add
+    Merge.like_blocking [%typ: Key.t option] merge read add
 end
 
 module Generic_key = struct

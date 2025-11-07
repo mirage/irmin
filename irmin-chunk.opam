@@ -18,9 +18,9 @@ depends: [
   "irmin"      {= version}
   "fmt"
   "logs"
-  "lwt"        {>= "5.3.0"}
   "irmin-test" {with-test & = version}
   "alcotest"   {with-test}
 ]
 
 synopsis: "Irmin backend which allow to store values into chunks"
+x-maintenance-intent: [ "(latest)" ]

@@ -101,8 +101,8 @@ type t = Spec.t * Univ.t M.t
 
 let spec = fst
 
-let key' ?docs ?docv ?doc ?(allow_duplicate = false) ?typ ~spec ~typename
-    ~to_string ~of_string ~of_json_string name default =
+let serialized_key ?docs ?docv ?doc ?typ ~spec ~typename ~to_string ~of_string
+    ~of_json_string name default =
   let () =
     String.iter
       (function
@@ -111,8 +111,7 @@ let key' ?docs ?docv ?doc ?(allow_duplicate = false) ?typ ~spec ~typename
       name
   in
   match Spec.find_key spec name with
-  | Some _ when allow_duplicate = false ->
-      Fmt.invalid_arg "duplicate key: %s" name
+  | Some _ -> Fmt.invalid_arg "duplicate key: %s" name
   | _ ->
       let typ = match typ with Some typ -> typ | None -> Typ.create () in
       let to_univ, of_univ = Univ.create () in
@@ -135,14 +134,14 @@ let key' ?docs ?docv ?doc ?(allow_duplicate = false) ?typ ~spec ~typename
       Spec.update spec name (K k);
       k
 
-let key ?docs ?docv ?doc ?allow_duplicate ?typ ~spec name ty default =
+let key ?docs ?docv ?doc ?typ ~spec name ty default =
   let to_string = Type.to_string ty in
   let typename =
     Fmt.str "%a" Type.pp_ty ty |> Astring.String.filter (fun c -> c <> '\n')
   in
   let of_string = Type.of_string ty in
   let of_json_string = Type.of_json_string ty in
-  key' ?docs ?docv ?doc ?allow_duplicate ?typ ~spec ~typename ~to_string
+  serialized_key ?docs ?docv ?doc ?typ ~spec ~typename ~to_string
     ~of_json_string ~of_string name default
 
 let name t = t.name
@@ -218,9 +217,8 @@ let equal t1 t2 =
 
 (* ~root *)
 let root spec =
-  key ~allow_duplicate:true ~spec ~docv:"ROOT"
-    ~doc:"The location of the Irmin store on disk." ~docs:"COMMON OPTIONS"
-    "root"
+  key ~spec ~docv:"ROOT" ~doc:"The location of the Irmin store on disk."
+    ~docs:"COMMON OPTIONS" "root"
     Type.(string)
     "."
 

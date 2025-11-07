@@ -1,6 +1,6 @@
-# libirmin
+# `libirmin`
 
-`libirmin` provides C bindings to the irmin API.
+`libirmin` provides C bindings to the Irmin API.
 
 ## Installation
 
@@ -10,8 +10,8 @@ To install from the root of this repo:
 $ opam pin add libirmin .
 ```
 
-After installing `libirmin.so` can be found in `$OPAM_SWITCH_PREFIX/libirmin/lib`
-and `irmin.h` will be in `$OPAM_SWITCH_PREFIX/libirmin/include`
+After installing, `libirmin.so` can be found in `$OPAM_SWITCH_PREFIX/libirmin/lib`,
+and `irmin.h` will be in `$OPAM_SWITCH_PREFIX/libirmin/include`.
 
 This means when compiling programs that use `libirmin` you will need to include those
 directories:
@@ -22,9 +22,9 @@ $ export IRMIN_LDFLAGS=-L$OPAM_SWITCH_PREFIX/libirmin/lib -lirmin
 $ cc $IRMIN_CFLAGS my-program.c -o my-program $IRMIN_LDFLAGS
 ```
 
-## Usage examples
+## Usage Examples
 
-### Opening a store
+### Opening a Store
 
 The first thing you will need to do is configure a backend:
 
@@ -40,7 +40,7 @@ if (config == NULL){
 }
 ```
 
-When using `irmin-mem`, `irmin-fs` or `irmin-pack` you can specify the hash type
+When using `irmin-mem`, `irmin-fs`, or `irmin-pack`, you can specify the hash type
 in addition to the content type:
 
 ```c
@@ -50,8 +50,8 @@ IrminConfig *config = irmin_config_mem("sha256", "string");
 Available backends: `irmin_config_mem`, `irmin_config_git`, `irmin_config_git_mem`, `irmin_config_fs`,
 `irmin_config_pack`, `irmin_config_tezos`
 
-If `NULL` is passed for the content parameter then `string` will be used by default and
-when `NULL` is passed for the hash argument `blake2b` is used.
+If `NULL` is passed for the content parameter, then `string` will be used by default; and
+when `NULL` is passed for the hash argument, `blake2b` is used.
 
 Available content types: `string`, `json` (JSON objects), `json-value` (any JSON value)
 Available hash types: `blake2b`, `blake2s`, `rmd160`, `sha1`, `sha224`, `sha256`, `sha384`,
@@ -65,7 +65,7 @@ When using a backend that stores information on disk, you will probably want to 
 assert(irmin_config_set_root(config, "path/to/store"));
 ```
 
-Next you can initialize the repo:
+Next you can initialise the repo:
 
 ```c
 IrminRepo *repo = irmin_repo_new(config);
@@ -96,7 +96,7 @@ irmin_repo_free(repo);
 irmin_config_free(config);
 ```
 
-### Setting values
+### Setting Values
 
 Setting a value when using string contents:
 
@@ -111,8 +111,8 @@ irmin_string_free(value);
 ```
 
 The `-1` argument to `irmin_string_new` is used to pass the length of
-the string. If it ends with a NULL byte then passing `-1` will auto-
-matically detect the string length. This also shows that `IrminString`
+the string. If it ends with a `NULL` byte, then passing `-1` will automatically 
+detect the string length. This also shows that `IrminString`
 can be cast to `IrminContents` safely when using `string` contents.
 
 When using `json` contents:
@@ -129,7 +129,7 @@ irmin_contents_free(value);
 irmin_type_free(t);
 ```
 
-### Getting values
+### Getting Values
 
 The following will get the value associated with a path and print its string
 representation to stdout:

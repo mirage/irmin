@@ -20,7 +20,8 @@ module type S = sig
   type value
 
   val v : Conf.t -> t
-  (** [v config] initialises a storage layer, with the configuration [config]. *)
+  (** [v config] initialises a storage layer, with the configuration [config].
+  *)
 
   val mem : t -> key -> bool
   (** [mem t k] is true iff [k] is present in [t]. *)
@@ -58,5 +59,6 @@ module type Sigs = sig
 
   module type Make = Make
   (** [Make] parameterizes a storage layer over a key [Key] and a value [Value].
-      This is the signature to implement when building custom storage for Irmin. *)
+      This is the signature to implement when building custom storage for Irmin.
+  *)
 end

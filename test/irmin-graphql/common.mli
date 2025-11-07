@@ -30,7 +30,8 @@ type server = {
 }
 
 val spawn_graphql_server : unit -> server
-(** Initialise a GraphQL server. At most one server may be running concurrently. *)
+(** Initialise a GraphQL server. At most one server may be running concurrently.
+*)
 
 type param
 (** Parameter to GraphQL function *)
@@ -124,7 +125,8 @@ val send_query :
   ?vars:(string * Yojson.Safe.t) list ->
   string ->
   (string, [ `Msg of string ]) result Lwt.t
-(** Send a GraphQL query string to the currently running test GraphQL instance. *)
+(** Send a GraphQL query string to the currently running test GraphQL instance.
+*)
 
 val members : string list -> Yojson.Safe.t -> Yojson.Safe.t
 (** Get key from JSON object *)

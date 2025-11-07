@@ -297,9 +297,11 @@ struct
     [%log.debug "add_volume: update control_file volume_num:%d" pl.volume_num];
     Control.set_payload ~sw control pl
 
-  let finish_constructing_rw ~sw ~fs config control ~make_dict ~make_suffix
-      ~make_index ~make_lower =
+  let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
+      ~make_lower =
     let open Result_syntax in
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let use_fsync = Irmin_pack.Conf.use_fsync config in
     let indexing_strategy = Conf.indexing_strategy config in
@@ -380,11 +382,13 @@ struct
     instance := Some t;
     Ok t
 
-  let create_control_file ~fs ~overwrite config pl =
+  let create_control_file ~overwrite config pl =
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let path = Layout.control ~root in
     let tmp_path = Layout.control_tmp ~root in
-    Control.create_rw ~path ~tmp_path:(Some tmp_path) ~overwrite pl
+    Control.create_rw ~sw ~path ~tmp_path:(Some tmp_path) ~overwrite pl
 
   (* Reload ***************************************************************** *)
 
@@ -456,8 +460,10 @@ struct
         | (`File | `Other), _ ->
             Errs.raise_error (`Not_a_directory (Eio.Path.native_exn path)))
 
-  let create_rw ~sw ~fs ~overwrite config =
+  let create_rw ~overwrite config =
     let open Result_syntax in
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let lower_root = Irmin_pack.Conf.lower_root config in
     let* () =
@@ -485,7 +491,7 @@ struct
           volume_num = 0;
         }
       in
-      create_control_file ~sw ~fs ~overwrite config pl
+      create_control_file ~overwrite config pl
     in
     let make_dict = Dict.create_rw ~sw ~overwrite in
     let make_suffix () = Suffix.create_rw ~sw ~root ~overwrite ~start_idx:0 in
@@ -504,8 +510,8 @@ struct
           let+ _ = add_volume_and_update_control ~sw l control in
           Some l
     in
-    finish_constructing_rw ~sw ~fs config control ~make_dict ~make_suffix
-      ~make_index ~make_lower
+    finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
+      ~make_lower
 
   (* Open rw **************************************************************** *)
 
@@ -600,7 +606,9 @@ struct
     let* () = after_payload_write () in
     Ok payload
 
-  let load_payload ~sw ~fs ~config ~root ~lower_root ~control =
+  let load_payload ~config ~root ~lower_root ~control =
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let payload = Control.payload control in
     match lower_root with
     | Some lower_root when payload.volume_num = 0 ->
@@ -612,8 +620,10 @@ struct
           migrate_to_lower ~sw ~root ~lower_root ~control payload
     | _ -> Ok payload
 
-  let open_rw_with_control_file ~sw ~fs config =
+  let open_rw_with_control_file config =
     let open Result_syntax in
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let lower_root = Irmin_pack.Conf.lower_root config in
     let* () = create_lower_if_needed ~fs ~lower_root ~overwrite:false in
@@ -632,7 +642,7 @@ struct
              volume_num;
              _;
            } =
-      load_payload ~sw ~fs ~config ~root ~lower_root ~control
+      load_payload ~config ~root ~lower_root ~control
     in
     let* dead_header_size =
       match status with
@@ -666,8 +676,8 @@ struct
           let+ l = Lower.v ~sw ~readonly:false ~volume_num lower_root in
           Some l
     in
-    finish_constructing_rw ~sw ~fs config control ~make_dict ~make_suffix
-      ~make_index ~make_lower
+    finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
+      ~make_lower
 
   let read_offset_from_legacy_file ~sw path =
     let open Result_syntax in
@@ -693,8 +703,10 @@ struct
     | Some x -> Ok x
     | None -> Error `Corrupted_legacy_file
 
-  let open_rw_migrate_from_v1_v2 ~sw ~fs config =
+  let open_rw_migrate_from_v1_v2 config =
     let open Result_syntax in
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let chunk_start_idx = 0 in
@@ -723,19 +735,21 @@ struct
           volume_num = 0;
         }
       in
-      create_control_file ~sw ~fs ~overwrite:false config pl
+      create_control_file ~overwrite:false config pl
     in
     let* () = Control.close control in
-    open_rw_with_control_file ~sw ~fs config
+    open_rw_with_control_file config
 
-  let open_rw_no_control_file ~sw ~fs config =
+  let open_rw_no_control_file config =
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let suffix_path = Irmin_pack.Layout.V1_and_v2.pack ~root in
     match Io.classify_path suffix_path with
     | `Directory | `No_such_file_or_directory | `Other -> Error `Invalid_layout
-    | `File -> open_rw_migrate_from_v1_v2 ~sw ~fs config
+    | `File -> open_rw_migrate_from_v1_v2 config
 
-  let open_rw ~sw ~fs config =
+  let open_rw config =
+    let fs = Irmin_pack.Conf.fs config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let no_migrate = Irmin_pack.Conf.no_migrate config in
     match Io.classify_path root with
@@ -745,16 +759,18 @@ struct
     | `Directory -> (
         let path = Layout.control ~root in
         match Io.classify_path path with
-        | `File -> open_rw_with_control_file ~sw ~fs config
+        | `File -> open_rw_with_control_file config
         | `No_such_file_or_directory ->
             if no_migrate then Error `Migration_needed
-            else open_rw_no_control_file ~sw ~fs config
+            else open_rw_no_control_file config
         | `Directory | `Other -> Error `Invalid_layout)
 
   (* Open ro **************************************************************** *)
 
-  let open_ro ~sw ~fs config =
+  let open_ro config =
     let open Result_syntax in
+    let sw = Irmin_pack.Conf.switch config in
+    let fs = Irmin_pack.Conf.fs config in
     let indexing_strategy = Conf.indexing_strategy config in
     let root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     let lower_root = Irmin_pack.Conf.lower_root config in
@@ -998,9 +1014,10 @@ struct
     let lower = t.lower in
     cleanup ~root ~generation ~chunk_start_idx ~chunk_num ~lower
 
-  let create_one_commit_store ~fs t config gced commit_key =
+  let create_one_commit_store t config gced commit_key =
     let open Result_syntax in
     let src_root = t.root in
+    let fs = Irmin_pack.Conf.fs config in
     let dst_root = Eio.Path.(fs / Irmin_pack.Conf.root config) in
     (* Step 1. Copy the dict *)
     let src_dict = Layout.dict ~root:src_root in

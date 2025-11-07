@@ -52,8 +52,6 @@ let path fs =
   @@ pos 0 (some (eio_path fs)) None
   @@ info ~doc:"Path to the Irmin store on disk" ~docv:"PATH" []
 
-let deprecated_info = (Cmdliner.Term.info [@alert "-deprecated"])
-
 let ppf_or_null = function
   | Some p -> p
   | None -> Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
@@ -115,7 +113,9 @@ struct
 
     let term ~fs =
       let doc = "Print high-level statistics about the store." in
-      Cmdliner.Term.(term_internal ~fs $ setup_log, deprecated_info ~doc "stat")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "stat")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Reconstruct_index = struct
@@ -138,10 +138,8 @@ struct
     let run ~sw ~fs ~root ~output ?index_log_size () =
       let conf = conf ~sw ~fs ~index_log_size root in
       match output with
-      | None ->
-          Store.traverse_pack_file ~sw ~fs (`Reconstruct_index `In_place) conf
-      | Some p ->
-          Store.traverse_pack_file ~sw ~fs (`Reconstruct_index (`Output p)) conf
+      | None -> Store.traverse_pack_file (`Reconstruct_index `In_place) conf
+      | Some p -> Store.traverse_pack_file (`Reconstruct_index (`Output p)) conf
 
     let term_internal ~fs =
       Cmdliner.Term.(
@@ -154,8 +152,9 @@ struct
 
     let term ~fs =
       let doc = "Reconstruct index from an existing pack file." in
-      Cmdliner.Term.
-        (term_internal ~fs $ setup_log, deprecated_info ~doc "reconstruct-index")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "reconstruct-index")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Integrity_check_index = struct
@@ -169,9 +168,8 @@ struct
 
     let run ~sw ~fs ~root ~auto_repair ~always () =
       let conf = conf ~sw ~fs root always in
-      if auto_repair then
-        Store.traverse_pack_file ~sw ~fs `Check_and_fix_index conf
-      else Store.traverse_pack_file ~sw ~fs `Check_index conf
+      if auto_repair then Store.traverse_pack_file `Check_and_fix_index conf
+      else Store.traverse_pack_file `Check_index conf
 
     let auto_repair =
       let open Cmdliner.Arg in
@@ -192,9 +190,9 @@ struct
 
     let term ~fs =
       let doc = "Check index integrity." in
-      Cmdliner.Term.
-        ( term_internal ~fs $ setup_log,
-          deprecated_info ~doc "integrity-check-index" )
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "integrity-check-index")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Integrity_check = struct
@@ -262,8 +260,9 @@ struct
 
     let term ~fs =
       let doc = "Check integrity of an existing store." in
-      Cmdliner.Term.
-        (term_internal ~fs $ setup_log, deprecated_info ~doc "integrity-check")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "integrity-check")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Integrity_check_inodes = struct
@@ -305,9 +304,9 @@ struct
 
     let term ~fs =
       let doc = "Check integrity of inodes in an existing store." in
-      Cmdliner.Term.
-        ( term_internal ~fs $ setup_log,
-          deprecated_info ~doc "integrity-check-inodes" )
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "integrity-check-inodes")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Stats_commit = struct
@@ -367,8 +366,9 @@ struct
         "Traverse one commit, specified with the --commit argument, in the \
          store for stats. If no commit is specified the current head is used."
       in
-      Cmdliner.Term.
-        (term_internal ~fs $ setup_log, deprecated_info ~doc "stat-store")
+      Cmdliner.Cmd.v
+        (Cmdliner.Cmd.info ~doc "stat-store")
+        Cmdliner.Term.(term_internal ~fs $ setup_log)
   end
 
   module Cli = struct
@@ -385,17 +385,13 @@ struct
             Stats_commit.term;
           ]) () : empty =
       let terms = List.map (fun f -> f ~fs) terms in
-      let default =
-        let default_info =
-          let doc = "Check Irmin data-stores." in
-          deprecated_info ~doc "irmin-~fsck"
-        in
-        Term.(ret (const (`Help (`Auto, None))), default_info)
+      let default_info =
+        let doc = "Check Irmin data-stores." in
+        Cmdliner.Cmd.info ~doc "irmin-fsck"
       in
-      let deprecated_eval_choice = (Term.eval_choice [@alert "-deprecated"]) in
-      let deprecated_exit = (Term.exit [@alert "-deprecated"]) in
-      deprecated_eval_choice default terms |> deprecated_exit;
-      assert false
+      let default = Term.(ret (const (`Help (`Auto, None)))) in
+      let cmd = Cmd.group ~default default_info terms in
+      Cmd.eval cmd |> Stdlib.exit
   end
 
   let cli = Cli.main
@@ -404,10 +400,11 @@ end
 module Integrity_checks
     (Io : Io_intf.S)
     (XKey : Pack_key.S)
-    (X : Irmin.Backend.S
-           with type Commit.key = XKey.t
-            and type Node.key = XKey.t
-            and type Schema.Hash.t = XKey.hash)
+    (X :
+      Irmin.Backend.S
+        with type Commit.key = XKey.t
+         and type Node.key = XKey.t
+         and type Schema.Hash.t = XKey.hash)
     (Index : Pack_index.S) =
 struct
   module Object_counter = Utils.Object_counter (Io.Progress)

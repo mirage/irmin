@@ -15,14 +15,17 @@
  *)
 
 let () =
+  Logs_threaded.enable ();
   Eio_main.run @@ fun env ->
   let sr = Eio.Stdenv.secure_random env in
-  let fs = Eio.Stdenv.cwd env in
+  let fs = Eio.Stdenv.fs env in
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   (* **/** *)
   Eio.Switch.run @@ fun sw ->
   let test_suite = Test_pack.suite ~sw ~fs in
-  Irmin_test.Store.run "irmin-pack"
+  let stdout = Alcotest_engine.Formatters.make_stdout () in
+  let stderr = Alcotest_engine.Formatters.make_stderr () in
+  Irmin_test.Store.run "irmin-pack" ~stdout ~stderr
     ~misc:(Test_pack.misc ~sr ~fs ~domain_mgr)
     ~sleep:Eio_unix.sleep
     (List.map (fun s -> (`Quick, s)) test_suite)

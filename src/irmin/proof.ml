@@ -78,11 +78,12 @@ let bad_proof_exn context = raise (Bad_proof { context })
 
 module Env
     (B : Backend.S)
-    (P : S
-           with type contents := B.Contents.Val.t
-            and type hash := B.Hash.t
-            and type step := B.Node.Val.step
-            and type metadata := B.Node.Val.metadata) =
+    (P :
+      S
+        with type contents := B.Contents.Val.t
+         and type hash := B.Hash.t
+         and type step := B.Node.Val.step
+         and type metadata := B.Node.Val.metadata) =
 struct
   module H = B.Hash
 

@@ -70,7 +70,7 @@ let get_values r = List.filter_map (Ring.get r) [ 1; 10; 1000 ]
 
 let main ~sw ~fs store_path info_last_path info_next_path idx_path =
   let conf = Irmin_pack.Conf.init ~sw ~fs Eio.Path.(fs / store_path) in
-  match Files.File_manager.open_ro ~sw ~fs conf with
+  match Files.File_manager.open_ro conf with
   | Error exn -> Fmt.pr "%a\n%!" (Irmin.Type.pp Files.Errs.t) exn
   | Ok fm ->
       let info_fd =

@@ -22,7 +22,6 @@ depends: [
   "uutf"
   "jsonm"   {>= "1.0.0"}
   "eio"     {>= "1.0"}
-  "lwt"     {>= "5.6.1"}
   "digestif" {>= "0.9.0"}
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
@@ -33,7 +32,7 @@ depends: [
   "ppx_irmin" {= version}
   "eio_main" {>= "1.0" & with-test}
   "hex"      {with-test}
-  "alcotest" {= "dev" & with-test}
+  "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {with-test}
   "vector" {with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
@@ -59,3 +58,4 @@ variety of backends. Irmin is written in pure OCaml and does not
 depend on external C stubs; it aims to run everywhere, from Linux,
 to browsers and Xen unikernels.
 """
+x-maintenance-intent: [ "(latest)" ]

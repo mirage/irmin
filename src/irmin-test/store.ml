@@ -1222,13 +1222,13 @@ module Make (S : Generic_key) = struct
         let c ?(info = S.Metadata.default) blob = `Contents (blob, info) in
         S.Tree.of_concrete
           (`Tree
-            [
-              ("aa", c "0");
-              ("a", c "1");
-              ("bbb", c "3");
-              ("b", c "3");
-              ("aaa", c "1");
-            ])
+             [
+               ("aa", c "0");
+               ("a", c "1");
+               ("bbb", c "3");
+               ("b", c "3");
+               ("aaa", c "1");
+             ])
       in
       let _ = S.set_tree_exn t ~info:(infof "add tree") [] tree in
       let e = S.Tree.get_tree tree [ "a" ] in
@@ -2327,7 +2327,7 @@ module Make (S : Generic_key) = struct
 
       let node_b =
         S.Tree.destruct tree
-        |> (function `Contents _ -> assert false | `Node n -> n)
+        |> ( function `Contents _ -> assert false | `Node n -> n )
         |> S.to_backend_node
       in
       let node_ph = pre_hash_of S.Backend.Node.Val.t node_b in
@@ -2450,7 +2450,8 @@ let slow_suite (speed, x) =
     ]
     (speed, x)
 
-let run name ?and_exit ?(slow = false) ?random_seed ~sleep ~misc tl =
+let run name ?stdout ?stderr ?and_exit ?(slow = false) ?random_seed ~sleep ~misc
+    tl =
   let () =
     match random_seed with
     | Some x -> Random.init x
@@ -2460,4 +2461,4 @@ let run name ?and_exit ?(slow = false) ?random_seed ~sleep ~misc tl =
   (* Ensure that failures occuring in async lwt threads are raised. *)
   let tl1 = List.map (suite sleep) tl in
   let tl1 = if slow then tl1 @ List.map slow_suite tl else tl1 in
-  Alcotest.run ?and_exit ~bail:true name (misc @ tl1)
+  Alcotest.run ?stdout ?stderr ?and_exit ~bail:true name (misc @ tl1)

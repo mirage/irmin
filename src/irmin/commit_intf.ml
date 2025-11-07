@@ -235,11 +235,12 @@ module type Sigs = sig
         (N : Node.Store)
         (S : Indexable.S)
         (H : Hash.S with type t = S.hash)
-        (V : S
-               with type node_key = N.key
-                and type commit_key = S.key
-                and type t = S.value
-                and module Info := I) :
+        (V :
+          S
+            with type node_key = N.key
+             and type commit_key = S.key
+             and type t = S.value
+             and module Info := I) :
       Store
         with type 'a t = 'a N.t * 'a S.t
          and type key = S.key

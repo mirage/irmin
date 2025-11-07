@@ -62,9 +62,9 @@ module Make (Args : Gc_args.S) = struct
                previous.latest_gc_target_offset >= latest_gc_target_offset) ->
           Error
             (`Gc_disallowed
-              (Fmt.str "%a is less than or equal to previous GC offset of %a"
-                 Int63.pp latest_gc_target_offset Int63.pp
-                 previous.latest_gc_target_offset))
+               (Fmt.str "%a is less than or equal to previous GC offset of %a"
+                  Int63.pp latest_gc_target_offset Int63.pp
+                  previous.latest_gc_target_offset))
       | _ -> Ok ()
     in
     let new_files_path =

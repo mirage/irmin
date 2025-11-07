@@ -27,9 +27,7 @@ module type Subcommand = sig
     fs:Eio.Fs.dir_ty Eio.Path.t -> (unit -> unit) Cmdliner.Term.t
   (** A pre-packaged [Cmdliner] term for executing {!run}. *)
 
-  val term :
-    fs:Eio.Fs.dir_ty Eio.Path.t ->
-    (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
+  val term : fs:Eio.Fs.dir_ty Eio.Path.t -> unit Cmdliner.Cmd.t
   (** [term] is {!term_internal} plus documentation and logs initialisation *)
 end
 
@@ -130,11 +128,7 @@ module type S = sig
 
   val cli :
     fs:Eio.Fs.dir_ty Eio.Path.t ->
-    ?terms:
-      ((fs:Eio.Fs.dir_ty Eio.Path.t ->
-       unit Cmdliner.Term.t * Cmdliner.Term.info)
-      [@alert "-deprecated"])
-      list ->
+    ?terms:(fs:Eio.Fs.dir_ty Eio.Path.t -> unit Cmdliner.Cmd.t) list ->
     unit ->
     empty
   (** Run a [Cmdliner] binary containing tools for running offline checks.
@@ -165,10 +159,11 @@ module type Sigs = sig
   module Integrity_checks
       (Io : Io_intf.S)
       (XKey : Pack_key.S)
-      (X : Irmin.Backend.S
-             with type Commit.key = XKey.t
-              and type Node.key = XKey.t
-              and type Schema.Hash.t = XKey.hash)
+      (X :
+        Irmin.Backend.S
+          with type Commit.key = XKey.t
+           and type Node.key = XKey.t
+           and type Schema.Hash.t = XKey.hash)
       (Index : Pack_index.S) : sig
     val check_always :
       ?ppf:Format.formatter ->

@@ -225,7 +225,7 @@ struct
   let add_opt t = function None -> None | Some v -> Some (add t v)
 
   let merge t =
-    Merge.like_lwt Type.(option Key.t) Val.merge (read_opt t) (add_opt t)
+    Merge.like_blocking Type.(option Key.t) Val.merge (read_opt t) (add_opt t)
 end
 
 module Store

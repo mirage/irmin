@@ -162,15 +162,16 @@ module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
     (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info)
-    (Types : CUSTOM_TYPES
-               with type path := Store.path
-                and type metadata := Store.metadata
-                and type contents := Store.contents
-                and type hash := Store.hash
-                and type branch := Store.branch
-                and type commit_key := Store.commit_key
-                and type node_key := Store.node_key
-                and type contents_key := Store.contents_key) =
+    (Types :
+      CUSTOM_TYPES
+        with type path := Store.path
+         and type metadata := Store.metadata
+         and type contents := Store.contents
+         and type hash := Store.hash
+         and type branch := Store.branch
+         and type commit_key := Store.commit_key
+         and type node_key := Store.node_key
+         and type contents_key := Store.contents_key) =
 struct
   module IO = Server.IO
   module Sync = Irmin.Sync.Make (Store)

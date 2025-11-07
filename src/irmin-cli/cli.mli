@@ -18,17 +18,19 @@
 
 type eio = Import.eio
 
-type command =
-  env:eio -> (unit Cmdliner.Term.t * Cmdliner.Term.info[@alert "-deprecated"])
-(** [Cmdliner] commands. *)
+type term = env:eio -> unit Cmdliner.Term.t
+(** [Cmdliner] term that uses the given eio env. *)
 
-val default : command
+type command = env:eio -> unit Cmdliner.Cmd.t
+(** [Cmdliner] commands that uses the given eio env. *)
+
+val default : term
 (** The default command: show a summary of the commands. *)
 
 val commands : command list
 (** List of available sub-commands. *)
 
-val run : default:command -> command list -> unit
+val run : default:term -> command list -> unit
 (** Create a command-line tool with the given subcommands. *)
 
 (** {2 Command-builder helper} *)

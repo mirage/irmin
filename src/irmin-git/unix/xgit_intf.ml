@@ -37,10 +37,11 @@ module type Backend = sig
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Make
-      (Schema : Irmin_git.Schema.S
-                  with type Hash.t = G.hash
-                   and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) :
+      (Schema :
+        Irmin_git.Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) :
     S
       with module Git = G
        and type Backend.Remote.endpoint = endpoint

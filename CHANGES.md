@@ -4,6 +4,59 @@
 
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
 
+## 3.11.0 (2025-06-19)
+
+### Added
+
+- **irmin**
+  - Add x-maintenance-intent to opam files (#2353, @art-w)
+
+### Changed
+
+- **irmin**
+  -  Update Cmdliner usage for 2.0 (#2356, @art-w)
+
+### Fixed
+
+- **irmin**
+  - Fix CI issues (#2358, #2359, @clecat)
+- **irmin-client**
+  - Fix dubious use of dune subst (#2350, @samoht)
+  - Upgrade to mirage-crypto-rng and relay on use_default (#2354, @xvw)
+- **irmin-pack**
+  - Improve parts of the documentation for readability (#2332, #2333, @christinerose)
+
+## 3.10.0 (2024-12-11)
+
+### Added
+
+- **irmin-git**
+  - Expose `Content_addressable` type (#2329, @art-w)
+
+### Changed
+
+- **irmin**
+  - Rename `Node.S.effect` to `read_effect` for OCaml 5.3 compatibility (#2347, @art-w)
+
+### Fixed
+
+- **irmin-client**
+  - Fix a fd leak when using `clone` (#2322, @samoht)
+- **irmin-git**
+  - Fix git sync example (#2327, @art-w)
+  - Fixed issue with two subsequent `Irmin-git` repos, where one
+    repo would lose the ability to find its root path (#2326, @zazedd)
+- **irmin**
+  - Fix CI, update dependencies (#2321, @smorimoto)
+  - Update documentation (#2323, #2324, #2325, @christinerose)
+- **irmin-cli**
+  - Fix uncaught exception (#2326, @art-w)
+
+### Removed
+
+- **irmin**
+  - Removed `?allow_duplicate` parameter from the `Conf.key` function (#2326, @zazedd)
+
 ## 3.9.0 (2023-10-05)
 
 ### Added

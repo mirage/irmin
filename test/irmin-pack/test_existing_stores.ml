@@ -132,7 +132,7 @@ module Test_reconstruct = struct
     let repo = S.Repo.v conf in
     let () = S.Repo.close repo in
     (* Test on a V3 store. *)
-    S.test_traverse_pack_file ~sw ~fs (`Reconstruct_index `In_place) conf;
+    S.test_traverse_pack_file (`Reconstruct_index `In_place) conf;
     let index_old =
       Index.v_exn ~fresh:false ~readonly:false ~log_size:500_000
         (Eio.Path.native_exn @@ tmp ~fs)
@@ -331,7 +331,7 @@ module Test_traverse_gced = struct
     let tree = S.Tree.add tree [ "abba"; "baba" ] "x" in
     let commit = S.Commit.v repo ~info:S.Info.empty ~parents:[] tree in
     let commit_key = S.Commit.key commit in
-    let _ = S.Gc.start_exn ~fs ~domain_mgr ~unlink:false repo commit_key in
+    let _ = S.Gc.start_exn ~domain_mgr ~unlink:false repo commit_key in
     let result = S.Gc.finalise_exn ~wait:true repo in
     let () =
       match result with
@@ -351,7 +351,7 @@ module Test_traverse_gced = struct
         (root_local_build ~fs)
     in
     let () = commit_and_gc ~fs ~domain_mgr conf in
-    S.test_traverse_pack_file ~sw ~fs `Check_index (conf ~sw ~fs)
+    S.test_traverse_pack_file `Check_index (conf ~sw ~fs)
 end
 
 let tests ~fs ~domain_mgr =

@@ -257,8 +257,15 @@ let check_patch_was_applied patch tree =
   List.iter
     (function
       | `Add (name, contents) ->
-          assert (Store.Tree.find tree name = Some contents)
-      | `Remove name -> assert (not (Store.Tree.mem tree name)))
+          if not (Store.Tree.find tree name = Some contents) then
+            failwith
+              (Printf.sprintf "Add %S failed"
+                 (Repr.to_string Store.path_t name))
+      | `Remove name ->
+          if Store.Tree.mem tree name then
+            failwith
+              (Printf.sprintf "Remove %S failed"
+                 (Repr.to_string Store.path_t name)))
     patch
 
 let test_commit ~fs ~domain_mgr =
@@ -275,9 +282,9 @@ let test_commit ~fs ~domain_mgr =
   let do_commit patch () =
     List.iter
       (fun op ->
-        let tree = Store.Head.get store |> Store.Commit.tree in
-        let tree = apply_op tree op in
-        Store.set_tree_exn ~info store [] tree)
+        Store.with_tree_exn ~strategy:`Merge ~info store [] (function
+          | None -> assert false
+          | Some tree -> Some (apply_op tree op)))
       patch;
     let tree = Store.main repo |> Store.Head.get |> Store.Commit.tree in
     check_patch_was_applied patch tree
@@ -490,7 +497,6 @@ let test_commit_v ~fs ~domain_mgr =
   domains_spawn ~domain_mgr do_commit_v;
   Store.Repo.close repo
 
-(* TODO: Eio has to be fixed first to allow a switch to be used from different domains *)
 let tests ~fs ~domain_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn ~domain_mgr) in
   [

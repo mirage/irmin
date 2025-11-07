@@ -119,8 +119,7 @@ struct
     let min =
       List.fold_left
         (fun acc -> function
-          | `Branch _ as x -> (x :: pred x) @ acc
-          | x -> x :: acc)
+          | `Branch _ as x -> (x :: pred x) @ acc | x -> x :: acc)
         [] min
     in
     let min = Set.of_list min in

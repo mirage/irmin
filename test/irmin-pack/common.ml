@@ -126,22 +126,21 @@ struct
       ~indexing_strategy:Irmin_pack.Indexing_strategy.always ~lru_size:0 name
 
   (* TODO : remove duplication with irmin_pack/ext.ml *)
-  let get_fm ~sw ~fs config =
+  let get_fm config =
     let readonly = Irmin_pack.Conf.readonly config in
-    if readonly then File_manager.open_ro ~sw ~fs config |> Errs.raise_if_error
+    if readonly then File_manager.open_ro config |> Errs.raise_if_error
     else
       let fresh = Irmin_pack.Conf.fresh config in
       if fresh then (
         let root = Irmin_pack.Conf.root config in
         mkdir_dash_p root;
-        File_manager.create_rw ~sw ~fs ~overwrite:true config
-        |> Errs.raise_if_error)
-      else File_manager.open_rw ~sw ~fs config |> Errs.raise_if_error
+        File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error)
+      else File_manager.open_rw config |> Errs.raise_if_error
 
   let get_dict ~sw ~fs ?name ~readonly ~fresh () =
     let name = Option.value name ~default:(fresh_name ~fs "dict") in
     let config = config ~sw ~fs ~readonly ~fresh name in
-    let fm = get_fm ~sw ~fs config in
+    let fm = get_fm config in
     let dict = File_manager.dict fm in
     { name; dict; fm }
 
@@ -158,7 +157,7 @@ struct
   let create ~sw ~fs ~readonly ~fresh name =
     let f = ref (fun () -> ()) in
     let config = config ~sw ~fs ~readonly ~fresh name in
-    let fm = get_fm ~sw ~fs config in
+    let fm = get_fm config in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
     let index = File_manager.index fm in

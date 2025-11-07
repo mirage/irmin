@@ -55,7 +55,8 @@ module Span = struct
     type atom_seen =
       [ `Add | `Remove | `Find | `Mem | `Mem_tree | `Checkout | `Copy | `Commit ]
     [@@deriving repr, enum]
-    (** The unitary operations played. We recorded the length of all of these. *)
+    (** The unitary operations played. We recorded the length of all of these.
+    *)
 
     type atom = [ atom_seen | `Unseen ]
     (** [atom_seen] plus the time between operations. The sum of these is the

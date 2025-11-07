@@ -27,7 +27,6 @@ module Unix = struct
 
   let async ~sw ~domain_mgr f =
     let run f () =
-      Logs.set_level None;
       match f () with
       | () -> `Success
       | exception _ -> `Failure "Unhandled exception"

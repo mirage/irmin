@@ -23,10 +23,11 @@ end
 module Make
     (G : G)
     (S : Git.Sync.S with type hash := G.hash and type store := G.t)
-    (Schema : Schema.S
-                with type Hash.t = G.hash
-                 and type Node.t = G.Value.Tree.t
-                 and type Commit.t = G.Value.Commit.t) : sig
+    (Schema :
+      Schema.S
+        with type Hash.t = G.hash
+         and type Node.t = G.Value.Tree.t
+         and type Commit.t = G.Value.Commit.t) : sig
   type t := bool ref * G.t
 
   include

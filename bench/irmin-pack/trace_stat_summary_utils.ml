@@ -588,8 +588,7 @@ module Parallel_folders = struct
   let open_ : 'f -> ('res, 'row, 'f, 'f) open_t =
    fun constructor folders -> (constructor, folders)
 
-  let app :
-      type res f v rest acc row.
+  let app : type res f v rest acc row.
       (res, row, f, v -> rest) open_t ->
       (row, acc, v) folder ->
       (res, row, f, rest) open_t =

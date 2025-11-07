@@ -70,19 +70,22 @@ module type Sigs = sig
 
   module Make_persistent
       (H : Irmin.Hash.S)
-      (Node : Irmin.Node.Generic_key.S
-                with type hash = H.t
-                 and type contents_key = H.t Pack_key.t
-                 and type node_key = H.t Pack_key.t)
-      (Inter : Internal
-                 with type hash = H.t
-                  and type key = H.t Pack_key.t
-                  and type Snapshot.metadata = Node.metadata
-                  and type Val.step = Node.step)
-      (Pack : Pack_store.S
-                with type hash = H.t
-                 and type key = H.t Pack_key.t
-                 and type value = Inter.Raw.t) :
+      (Node :
+        Irmin.Node.Generic_key.S
+          with type hash = H.t
+           and type contents_key = H.t Pack_key.t
+           and type node_key = H.t Pack_key.t)
+      (Inter :
+        Internal
+          with type hash = H.t
+           and type key = H.t Pack_key.t
+           and type Snapshot.metadata = Node.metadata
+           and type Val.step = Node.step)
+      (Pack :
+        Pack_store.S
+          with type hash = H.t
+           and type key = H.t Pack_key.t
+           and type value = Inter.Raw.t) :
     Persistent
       with type key = H.t Pack_key.t
        and type hash = H.t

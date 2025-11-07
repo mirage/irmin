@@ -34,10 +34,11 @@ module Maker (G : Irmin_git.G) = struct
   module Maker = Irmin_git.Maker (G) (Git.Mem.Sync (G))
 
   module Make
-      (S : Irmin_git.Schema.S
-             with type Hash.t = G.hash
-              and type Node.t = G.Value.Tree.t
-              and type Commit.t = G.Value.Commit.t) =
+      (S :
+        Irmin_git.Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) =
   struct
     include Maker.Make (S)
 

@@ -33,10 +33,11 @@ struct
   type endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
   module Make
-      (Schema : Schema.S
-                  with type Hash.t = G.hash
-                   and type Node.t = G.Value.Tree.t
-                   and type Commit.t = G.Value.Commit.t) =
+      (Schema :
+        Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) =
   struct
     module B = Backend.Make (G) (S) (Schema)
     include Irmin.Of_backend (B)
@@ -85,10 +86,11 @@ struct
   type endpoint = Maker.endpoint
 
   module Make
-      (Sc : Schema.S
-              with type Hash.t = G.hash
-               and type Node.t = G.Value.Tree.t
-               and type Commit.t = G.Value.Commit.t) =
+      (Sc :
+        Schema.S
+          with type Hash.t = G.hash
+           and type Node.t = G.Value.Tree.t
+           and type Commit.t = G.Value.Commit.t) =
     Maker.Make (Sc)
 end
 
@@ -112,7 +114,8 @@ module Content_addressable (G : Git.S) = struct
     let v ?dotgit:_ _root = assert false
   end
 
-  module type S = Irmin.Content_addressable.S with type key = G.Hash.t
+  module type S =
+    Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
 
   module Maker = Maker_ext (G) (No_sync)
 
@@ -127,11 +130,12 @@ module Content_addressable (G : Git.S) = struct
     module M = Maker.Make (Schema)
     module X = M.Backend.Contents
 
+    type 'a t = G.t
+
     let state t =
-      let r = M.repo_of_git (snd t) in
+      let r = M.repo_of_git t in
       M.Backend.Repo.contents_t r
 
-    type 'a t = bool ref * G.t
     type key = X.key
     type value = X.value
 
