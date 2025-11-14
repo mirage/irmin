@@ -39,6 +39,11 @@ depends: [
   "bisect_ppx" {dev & >= "2.5.0"}
 ]
 
+pin-depends: [
+  # Fix race in formatters
+  [ "alcotest.dev" "git+https://github.com/haesbaert/alcotest#99030be1df12a17fc2a0f3d00b181cd31cf6b0d4" ]
+]
+
 conflicts: [
   "result" {< "1.5"} # Requires `Result = Stdlib.Result`
 ]

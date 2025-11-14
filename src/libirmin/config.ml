@@ -93,7 +93,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         try
           let hash = Option.map Irmin_cli.Resolver.Hash.find hash in
           let c =
-            Irmin_cli.Resolver.load_config ~env ~store:"irf" ?hash ?contents ()
+            Irmin_cli.Resolver.load_config ~env ~store:"fs" ?hash ?contents ()
           in
           Root.create_config c
         with _ -> null config)

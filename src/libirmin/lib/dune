@@ -14,7 +14,8 @@
   (language c)
   (names irmin))
  (flags
-  (:standard -w -unused-var-strict -ccopt "-Wl,-znow"))
+  (:standard -w -unused-var-strict))
+ ; -ccopt "-Wl,-znow"
  (enabled_if
   (<> %{ocaml_version} 5.2.0~alpha1)))
 
