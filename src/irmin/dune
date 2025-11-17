@@ -11,6 +11,8 @@
   logs
   logs.fmt
   eio
+  kcas
+  kcas_data
   mtime
   ocamlgraph
   uri

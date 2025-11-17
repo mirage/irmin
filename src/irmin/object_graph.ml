@@ -80,7 +80,7 @@ struct
 
     let create = function
       | None -> T (Tbl.create 1024)
-      | Some n -> L (Lru.create n)
+      | Some n -> L (Lru.create (Some n))
 
     let add t k v = match t with L t -> Lru.add t k v | T t -> Tbl.add t k v
     let mem t k = match t with L t -> Lru.mem t k | T t -> Tbl.mem t k

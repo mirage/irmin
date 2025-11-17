@@ -22,6 +22,8 @@ depends: [
   "uutf"
   "jsonm"   {>= "1.0.0"}
   "eio"     {>= "1.0"}
+  "kcas"    {= "0.7.0"}
+  "kcas_data" {= "0.7.0"}
   "digestif" {>= "0.9.0"}
   "ocamlgraph"
   "logs"    {>= "0.5.0"}
@@ -35,6 +37,8 @@ depends: [
   "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {with-test}
   "vector" {with-test}
+  "qcheck-core" {>= "0.21.3" & with-test}
+  "qcheck-stm" {>= "0.4" & with-test}
   "odoc" {(< "2.0.1" | > "2.0.2") & with-doc} # See https://github.com/ocaml/odoc/issues/793
   "bisect_ppx" {dev & >= "2.5.0"}
 ]
