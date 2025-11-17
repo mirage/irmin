@@ -44,7 +44,8 @@ module Server = struct
 
         let remote =
           Some
-            (fun ?headers uri ->
+            (fun ?headers uri () ->
+              Lwt_eio.run_lwt @@ fun () ->
               let ( ! ) f a b = f b a in
               let headers = Option.map Cohttp.Header.to_list headers in
               match Smart_git.Endpoint.of_string uri with

@@ -1,0 +1,3 @@
+(executable
+ (name main)
+ (libraries irmin irmin-test eio_main test_pack cmdliner))

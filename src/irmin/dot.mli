@@ -28,7 +28,7 @@ module type S = sig
     ?full:bool ->
     date:(int64 -> string) ->
     Buffer.t ->
-    unit Lwt.t
+    unit
   (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
       representation of [t] in the buffer [buf].
 

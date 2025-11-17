@@ -65,7 +65,7 @@ let run_aux create apply t =
   aux t;
   state
 
-let run = run_aux (fun () -> M.create 100) apply
+let run = run_aux (fun () -> M.create (Some 100)) apply
 let run' = run_aux (fun () -> M'.create 100) apply'
 let eq m m' = M.bindings m = M'.bindings m'
 let arbitrary_action = QCheck.make gen_action ~print:print_action
