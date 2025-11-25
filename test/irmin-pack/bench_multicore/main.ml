@@ -102,7 +102,7 @@ let config warm elements max_depth branching balance contents_length name_length
     nb_runs;
   }
 
-let config =
+let config_term =
   Cmdliner.Term.(
     const config
     $ warm
@@ -130,15 +130,65 @@ let cmd_half =
   let doc = "Half-diamond benchmark" in
   Cmdliner.Cmd.v
     (Cmdliner.Cmd.info "half" ~doc)
-    Cmdliner.Term.(const bench_half $ config)
+    Cmdliner.Term.(const bench_half $ config_term)
 
 let cmd_full =
   let doc = "Full-diamond benchmark" in
   Cmdliner.Cmd.v
     (Cmdliner.Cmd.info "full" ~doc)
-    Cmdliner.Term.(const bench_full $ config)
+    Cmdliner.Term.(const bench_full $ config_term)
 
-let cmds = [ cmd_half; cmd_full ]
+let nb_adds_cold =
+  Cmdliner.Arg.(
+    value
+    & opt int 0
+    & info [ "adds" ] ~docv:"ADDS" ~doc:"Number of Tree.add operations per task")
+
+let nb_rems_cold =
+  Cmdliner.Arg.(
+    value
+    & opt int 0
+    & info [ "rems" ] ~docv:"REMS"
+        ~doc:"Number of Tree.remove operations per task")
+
+let nb_runs_cold =
+  Cmdliner.Arg.(
+    value
+    & opt int 1
+    & info [ "runs" ] ~docv:"RUNS" ~doc:"Repeat benchmark N times")
+
+let warm_cold =
+  Cmdliner.Arg.(
+    value
+    & vflag true
+        [
+          (true, info [ "warm" ] ~doc:"Warm up the tree in memory");
+          (false, info [ "no-warm" ] ~doc:"Do not warm up the tree");
+        ])
+
+let config_cold =
+  Cmdliner.Term.(
+    const config
+    $ warm_cold
+    $ elements
+    $ max_depth
+    $ branching
+    $ balance
+    $ contents_length
+    $ name_length
+    $ nb_tasks
+    $ nb_finds
+    $ nb_adds_cold
+    $ nb_rems_cold
+    $ nb_runs_cold)
+
+let cmd_cold =
+  let doc = "Cold half-diamond benchmark" in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "cold" ~doc)
+    Cmdliner.Term.(const bench_half $ config_cold)
+
+let cmds = [ cmd_half; cmd_full; cmd_cold ]
 
 let default_cmd =
   let doc = "Irmin multicore benchmarks" in
