@@ -35,7 +35,12 @@ depends: [
   "vector" {with-test & >= "1.0.0"}
   "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {>= "0.21.1" & with-test}
+  "qcheck-core" {>= "0.21.1" & with-test}
+  "qcheck-stm" {>= "0.10" & with-test}
 ]
+
+pin-depends: [
+  [ "qcheck-stm.10" "git+https://github.com/lyrm/multicoretests#eio" ]]
 
 synopsis: "Irmin test suite"
 description: """

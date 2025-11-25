@@ -1,0 +1,47 @@
+(test
+ (name test_stm)
+ (package irmin-test)
+ (modules test_stm tree_model common_model)
+ (libraries
+  common
+  qcheck-core
+  qcheck-stm.stm
+  qcheck-stm.sequential
+  qcheck-stm.domain_eio
+  eio
+  eio_main
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.mem
+  irmin.mem
+  irmin-tezos))
+
+(test
+ (name test_stm_irmin_pack)
+ (package irmin-test)
+ (modules test_stm_irmin_pack tree_model common_model)
+ (libraries
+  common
+  qcheck-core
+  qcheck-stm.stm
+  qcheck-stm.sequential
+  qcheck-stm.domain_eio
+  eio
+  eio_main
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.mem
+  irmin.mem
+  irmin-tezos))
+
+(executable
+ (name test_bin)
+ (modules test_bin)
+ (libraries common irmin irmin.mem eio_main))
+
+(executable
+ (name test_bin2)
+ (modules test_bin2)
+ (libraries common irmin irmin.mem eio_main))
