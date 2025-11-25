@@ -71,8 +71,8 @@ let rec make_paths ~config ~depth ~quantity ~path acc =
       (make_balanced config quantity)
 
 let array_shuffle arr =
-  for i = 0 to Array.length arr - 1 do
-    let j = Random.int (Array.length arr - i) in
+  for i = 0 to Array.length arr - 2 do
+    let j = i + Random.int (Array.length arr - i) in
     let tmp = arr.(i) in
     arr.(i) <- arr.(j);
     arr.(j) <- tmp
