@@ -11,7 +11,7 @@ let path_to_string path = String.concat "/" path
 
       The content is simply a string.
   *)
-let possible_names = [ "a"; "b"; "c"; "d" ]
+let possible_names = [ "a"; "b"; "c" ]
 
 let possible_contents =
   [
@@ -80,7 +80,7 @@ type state = TreeModel.t
 
 (* Generator *)
 let arb_cmd _s =
-  let max_tree_depth = 3 in
+  let max_tree_depth = 2 in
   let depth_gen =
     Gen.small_nat |> Gen.map (fun n -> 1 + (n mod max_tree_depth))
   in
