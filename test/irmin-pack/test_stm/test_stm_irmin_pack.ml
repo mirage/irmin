@@ -7,15 +7,15 @@ module Conf = struct
   let stable_hash = 256
   let contents_length_header = Some `Varint
   let inode_child_order = `Seeded_hash
-  let forbid_empty_dir_persistence = true
+  let forbid_empty_dir_persistence = false
 end
 
 module Store = struct
   module Maker = Irmin_pack_unix.Maker (Conf)
   include Maker.Make (Schema)
 
-  let config ?(readonly = false) ?(fresh = true) root =
-    Irmin_pack.config ~readonly ?index_log_size ~fresh root
+  let config ?(fresh = true) root =
+    Irmin_pack.config ~readonly:false ?index_log_size ~fresh root
 
   let info : Info.f = fun () -> Info.empty
   let add_and_commit main path contents = set_exn ~info main path contents
@@ -37,6 +37,7 @@ let with_tree_function_irmin =
 
 module type ENV = sig
   val fs : Eio.Fs.dir_ty Eio.Path.t
+  val sw : Eio.Switch.t
 end
 
 (* *****************************************)
@@ -48,24 +49,21 @@ module Model (Env : ENV) = struct
   let init_state = TreeModel.add TreeModel.empty [ "e" ] "not empty"
   let root ~fs = Eio.Path.(fs / "test-irmin-pack-stm-bin")
 
-  let make_store ~fs =
-    Eio.Switch.run @@ fun sw ->
+  let make_store ~fs ~sw =
     let root = root ~fs in
     rm_dir root;
     let repo = Store.Repo.v (Store.config ~sw ~fs ~fresh:true root) in
-    let main = Store.main repo in
-    Store.add_and_commit main [ "e" ] "not empty";
-
     Store.Repo.close repo
 
   let init_sut () =
-    Eio.Switch.run @@ fun sw ->
     let repo =
       Store.Repo.v
-        (Store.config ~sw ~fs:Env.fs ~readonly:true ~fresh:false
-           (root ~fs:Env.fs))
+        (Store.config ~sw:Env.sw ~fs:Env.fs ~fresh:false (root ~fs:Env.fs))
     in
-    Store.main repo
+    let tree = Store.(Tree.add (Tree.empty ()) [ "e" ] "not empty") in
+    let main = Store.main repo in
+    Store.with_tree main [] (fun _ -> Some tree);
+    main
 
   let cleanup c = Store.Repo.close (Store.repo c)
   let precond _ _ = true
@@ -96,18 +94,31 @@ module Model (Env : ENV) = struct
     | _, _ -> false
 end
 
-let agree_test_eio ~count ~domain_mgr ~fs =
+let agree_test_seq ~count ~fs ~sw =
   let module Env : ENV = struct
     let fs = fs
+    let sw = sw
   end in
   let module Model = Model (Env) in
-  Model.make_store ~fs;
+  Model.make_store ~fs ~sw;
+  let module TT = STM_sequential.Make (Model) in
+  TT.agree_test ~count ~name:"Irmin test parallel"
+
+let agree_test_eio ~count ~domain_mgr ~fs ~sw =
+  let module Env : ENV = struct
+    let fs = fs
+    let sw = sw
+  end in
+  let module Model = Model (Env) in
+  Model.make_store ~fs ~sw;
   let module TT = STM_domain_eio.Make (Model) in
   TT.agree_test_par ~domain_mgr ~count ~name:"Irmin test parallel"
 
 let () =
-  let count = 50 in
+  let count = 100 in
   Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   let fs = Eio.Stdenv.fs env in
-  QCheck_base_runner.run_tests_main [ agree_test_eio ~count ~domain_mgr ~fs ]
+  QCheck_base_runner.run_tests_main
+    [ agree_test_seq ~count ~fs ~sw; agree_test_eio ~count ~domain_mgr ~fs ~sw ]
