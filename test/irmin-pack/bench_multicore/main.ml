@@ -85,8 +85,14 @@ let warm =
     & flag
     & info [ "warm" ] ~docv:"WARM" ~doc:"Warm up the tree in memory")
 
+let domains =
+  Cmdliner.Arg.(
+    value
+    & opt range (1, Domain.recommended_domain_count ())
+    & info [ "domains" ] ~docv:"DOMAINS" ~doc:"Number of domains")
+
 let config warm elements max_depth branching balance contents_length name_length
-    nb_tasks nb_finds nb_adds nb_rems nb_runs =
+    nb_tasks nb_finds nb_adds nb_rems nb_runs domains =
   {
     Gen.warm;
     elements;
@@ -100,6 +106,7 @@ let config warm elements max_depth branching balance contents_length name_length
     nb_adds;
     nb_rems;
     nb_runs;
+    domains;
   }
 
 let config_term =
@@ -116,7 +123,8 @@ let config_term =
     $ nb_finds
     $ nb_adds 33
     $ nb_rems 33
-    $ nb_runs)
+    $ nb_runs
+    $ domains)
 
 let bench_half config =
   Logs.set_level None;
@@ -152,7 +160,8 @@ let config_cold =
     $ nb_finds
     $ nb_adds 0
     $ nb_rems 0
-    $ nb_runs)
+    $ nb_runs
+    $ domains)
 
 let cmd_cold =
   let doc = "Cold half-diamond benchmark" in

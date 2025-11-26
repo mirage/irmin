@@ -113,7 +113,8 @@ let load ~fs ~d_mgr ~(config : Gen.config) ~commit ~load_task ~make ~readonly =
     commit repo tree_at ()
   in
 
-  for nb_domains = 1 to Domain.recommended_domain_count () do
+  let min_d, max_d = config.domains in
+  for nb_domains = min_d to max_d do
     let elapsed = ref [] in
     for _ = 1 to config.nb_runs do
       let tree = get_tree () in
