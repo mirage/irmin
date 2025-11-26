@@ -94,6 +94,12 @@ let setup_tree ~sw ~fs ~readonly paths =
     "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
   repo
 
+let commit repo tree_at () =
+  let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
+  let new_tree = Atomic.get tree_at in
+  let _ = S.Commit.v repo ~parents ~info:S.Info.empty new_tree in
+  ()
+
 let half ~fs ~d_mgr ~(config : Gen.config) =
   Eio.Switch.run @@ fun sw ->
   let paths, tasks = Gen.make ~config in
@@ -126,19 +132,12 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
   let paths, tasks = Gen.make_full ~config in
   let repo = setup_tree ~sw ~fs ~readonly:false paths in
   let get_tree = get_tree ~config repo tasks in
-  let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
-
-  let commit tree_at () =
-    let new_tree = Atomic.get tree_at in
-    let _ = S.Commit.v repo ~parents ~info:S.Info.empty new_tree in
-    ()
-  in
 
   let _, sequential, _ =
     bench ~samples:config.nb_runs @@ fun () ->
     let tree_at = Atomic.make (get_tree ()) in
     Array.iteri (fun i task -> full_task i tree_at task) tasks;
-    commit tree_at ()
+    commit repo tree_at ()
   in
 
   for nb_domains = 1 to Domain.recommended_domain_count () do
@@ -150,7 +149,7 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
         Array.mapi (fun i task () -> full_task i tree_at task) tasks
       in
       let dt =
-        Workers.run ~d_mgr ~nb:nb_domains ~finally:(commit tree_at) tasks
+        Workers.run ~d_mgr ~nb:nb_domains ~finally:(commit repo tree_at) tasks
       in
       elapsed := dt :: !elapsed
     done;
