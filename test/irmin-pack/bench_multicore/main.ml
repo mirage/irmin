@@ -30,16 +30,16 @@ let nb_finds =
     & opt int 33
     & info [ "finds" ] ~docv:"FINDS" ~doc:"Number of Tree.find queries per task")
 
-let nb_adds =
+let nb_adds default =
   Cmdliner.Arg.(
     value
-    & opt int 33
+    & opt int default
     & info [ "adds" ] ~docv:"ADDS" ~doc:"Number of Tree.add operations per task")
 
-let nb_rems =
+let nb_rems default =
   Cmdliner.Arg.(
     value
-    & opt int 33
+    & opt int default
     & info [ "rems" ] ~docv:"REMS"
         ~doc:"Number of Tree.remove operations per task")
 
@@ -114,8 +114,8 @@ let config_term =
     $ name_length
     $ nb_tasks
     $ nb_finds
-    $ nb_adds
-    $ nb_rems
+    $ nb_adds 33
+    $ nb_rems 33
     $ nb_runs)
 
 let bench_half config =
@@ -138,38 +138,10 @@ let cmd_full =
     (Cmdliner.Cmd.info "full" ~doc)
     Cmdliner.Term.(const bench_full $ config_term)
 
-let nb_adds_cold =
-  Cmdliner.Arg.(
-    value
-    & opt int 0
-    & info [ "adds" ] ~docv:"ADDS" ~doc:"Number of Tree.add operations per task")
-
-let nb_rems_cold =
-  Cmdliner.Arg.(
-    value
-    & opt int 0
-    & info [ "rems" ] ~docv:"REMS"
-        ~doc:"Number of Tree.remove operations per task")
-
-let nb_runs_cold =
-  Cmdliner.Arg.(
-    value
-    & opt int 1
-    & info [ "runs" ] ~docv:"RUNS" ~doc:"Repeat benchmark N times")
-
-let warm_cold =
-  Cmdliner.Arg.(
-    value
-    & vflag true
-        [
-          (true, info [ "warm" ] ~doc:"Warm up the tree in memory");
-          (false, info [ "no-warm" ] ~doc:"Do not warm up the tree");
-        ])
-
 let config_cold =
   Cmdliner.Term.(
     const config
-    $ warm_cold
+    $ warm
     $ elements
     $ max_depth
     $ branching
@@ -178,9 +150,9 @@ let config_cold =
     $ name_length
     $ nb_tasks
     $ nb_finds
-    $ nb_adds_cold
-    $ nb_rems_cold
-    $ nb_runs_cold)
+    $ nb_adds 0
+    $ nb_rems 0
+    $ nb_runs)
 
 let cmd_cold =
   let doc = "Cold half-diamond benchmark" in
