@@ -109,7 +109,7 @@ let half ~fs ~d_mgr ~(config : Gen.config) =
   let _, sequential, _ =
     bench ~samples:config.nb_runs @@ fun () ->
     let tree_at = Atomic.make (get_tree ()) in
-    Array.iter (half_task tree_at) tasks
+    Array.iteri (fun _ -> half_task tree_at) tasks
   in
 
   for nb_domains = 1 to Domain.recommended_domain_count () do
@@ -117,7 +117,7 @@ let half ~fs ~d_mgr ~(config : Gen.config) =
     for _ = 1 to config.nb_runs do
       let tree = get_tree () in
       let tree_at = Atomic.make tree in
-      let tasks = Array.map (fun task () -> half_task tree_at task) tasks in
+      let tasks = Array.mapi (fun _ task () -> half_task tree_at task) tasks in
       let dt = Workers.run ~d_mgr ~nb:nb_domains tasks in
       elapsed := dt :: !elapsed
     done;
