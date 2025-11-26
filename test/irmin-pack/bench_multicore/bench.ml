@@ -33,7 +33,8 @@ let apply_op tree = function
   | Add (path, contents) -> Tree.add tree path contents
   | Rem path -> Tree.remove tree path
 
-let half_task tree task =
+let half_task tree_at task =
+  let tree = Atomic.get tree_at in
   let _ = Array.fold_left apply_op tree task in
   ()
 
@@ -101,15 +102,16 @@ let half ~fs ~d_mgr ~(config : Gen.config) =
 
   let _, sequential, _ =
     bench ~samples:config.nb_runs @@ fun () ->
-    let tree = get_tree () in
-    Array.iter (half_task tree) tasks
+    let tree_at = Atomic.make (get_tree ()) in
+    Array.iter (half_task tree_at) tasks
   in
 
   for nb_domains = 1 to Domain.recommended_domain_count () do
     let elapsed = ref [] in
     for _ = 1 to config.nb_runs do
       let tree = get_tree () in
-      let tasks = Array.map (fun task () -> half_task tree task) tasks in
+      let tree_at = Atomic.make tree in
+      let tasks = Array.map (fun task () -> half_task tree_at task) tasks in
       let dt = Workers.run ~d_mgr ~nb:nb_domains tasks in
       elapsed := dt :: !elapsed
     done;
