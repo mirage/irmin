@@ -100,43 +100,16 @@ let commit repo tree_at () =
   let _ = S.Commit.v repo ~parents ~info:S.Info.empty new_tree in
   ()
 
-let half ~fs ~d_mgr ~(config : Gen.config) =
+let load ~fs ~d_mgr ~(config : Gen.config) ~commit ~load_task ~make ~readonly =
   Eio.Switch.run @@ fun sw ->
-  let paths, tasks = Gen.make ~config in
-  let repo = setup_tree ~sw ~fs ~readonly:true paths in
+  let paths, tasks = make ~config in
+  let repo = setup_tree ~sw ~fs ~readonly paths in
   let get_tree = get_tree ~config repo tasks in
 
   let _, sequential, _ =
     bench ~samples:config.nb_runs @@ fun () ->
     let tree_at = Atomic.make (get_tree ()) in
-    Array.iteri (fun _ -> half_task tree_at) tasks
-  in
-
-  for nb_domains = 1 to Domain.recommended_domain_count () do
-    let elapsed = ref [] in
-    for _ = 1 to config.nb_runs do
-      let tree = get_tree () in
-      let tree_at = Atomic.make tree in
-      let tasks = Array.mapi (fun _ task () -> half_task tree_at task) tasks in
-      let dt = Workers.run ~d_mgr ~nb:nb_domains tasks in
-      elapsed := dt :: !elapsed
-    done;
-    let min, median, max = analyze_bench @@ Array.of_list !elapsed in
-    Format.printf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
-      (sequential /. max) (sequential /. median) (sequential /. min)
-  done;
-  S.Repo.close repo
-
-let full ~fs ~d_mgr ~(config : Gen.config) =
-  Eio.Switch.run @@ fun sw ->
-  let paths, tasks = Gen.make_full ~config in
-  let repo = setup_tree ~sw ~fs ~readonly:false paths in
-  let get_tree = get_tree ~config repo tasks in
-
-  let _, sequential, _ =
-    bench ~samples:config.nb_runs @@ fun () ->
-    let tree_at = Atomic.make (get_tree ()) in
-    Array.iteri (fun i task -> full_task i tree_at task) tasks;
+    Array.iteri (fun i task -> load_task i tree_at task) tasks;
     commit repo tree_at ()
   in
 
@@ -146,7 +119,7 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
       let tree = get_tree () in
       let tree_at = Atomic.make tree in
       let tasks =
-        Array.mapi (fun i task () -> full_task i tree_at task) tasks
+        Array.mapi (fun i task () -> load_task i tree_at task) tasks
       in
       let dt =
         Workers.run ~d_mgr ~nb:nb_domains ~finally:(commit repo tree_at) tasks
@@ -158,3 +131,13 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
       (sequential /. max) (sequential /. median) (sequential /. min)
   done;
   S.Repo.close repo
+
+let half ~fs ~d_mgr ~(config : Gen.config) =
+  load ~fs ~d_mgr ~config
+    ~commit:(fun _ _ () -> ())
+    ~load_task:(fun _ -> half_task)
+    ~make:Gen.make ~readonly:true
+
+let full ~fs ~d_mgr ~(config : Gen.config) =
+  load ~fs ~d_mgr ~config ~commit ~load_task:full_task ~make:Gen.make_full
+    ~readonly:false
