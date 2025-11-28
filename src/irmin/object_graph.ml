@@ -40,7 +40,8 @@ struct
   module X = struct
     type t =
       [ `Contents of Contents_key.t
-      | `Node of Node_key.t
+      | `Contents_inlined_2 of Contents_key.t
+      | `Node of Node_key.t * Contents_key.t list
       | `Commit of Commit_key.t
       | `Branch of Branch.t ]
     [@@deriving irmin]
@@ -57,7 +58,9 @@ struct
     let hash (t : t) : int =
       match t with
       | `Contents c -> hash_contents c
-      | `Node n -> hash_node n
+      | `Contents_inlined_2 c -> hash_contents c
+      | `Node (n, _) -> hash_node n
+      (* TODO inline *)
       | `Commit c -> hash_commit c
       | `Branch b -> hash_branch b
   end
@@ -241,9 +244,10 @@ struct
     let vertex_name k =
       let str t v = "\"" ^ Type.to_string t v ^ "\"" in
       match k with
-      | `Node n -> str Node_key.t n
+      | `Node (n, _) -> str Node_key.t n
       | `Commit c -> str Commit_key.t c
       | `Contents c -> str Contents_key.t c
+      | `Contents_inlined_2 c -> str Contents_key.t c
       | `Branch b -> str Branch.t b
 
     let vertex_attributes k = !vertex_attributes k
