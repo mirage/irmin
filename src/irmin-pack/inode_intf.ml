@@ -28,7 +28,7 @@ module type Snapshot = sig
   type hash
   type metadata
 
-  type kinded_hash = Contents of hash * metadata | Node of hash
+  type kinded_hash = Contents of hash * metadata | Node of hash * hash list
   [@@deriving irmin]
 
   type entry = { step : string; hash : kinded_hash } [@@deriving irmin]
@@ -53,7 +53,9 @@ module type Value = sig
   val pred :
     t ->
     (step option
-    * [ `Node of node_key | `Inode of node_key | `Contents of contents_key ])
+    * [ `Node of node_key * contents_key list
+      | `Inode of node_key
+      | `Contents of contents_key ])
     list
 
   module Portable :
@@ -168,7 +170,7 @@ module type Internal = sig
       type kinded_key =
         | Contents of contents_key
         | Contents_x of metadata * contents_key
-        | Node of node_key
+        | Node of node_key * contents_key list
       [@@deriving irmin]
 
       type entry = { name : step; key : kinded_key } [@@deriving irmin]

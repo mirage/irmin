@@ -121,7 +121,7 @@ module Make (S : Generic_key) = struct
       let check_list = checks [%typ: S.step * B.Node.Val.value] in
       let check_node msg v =
         let h' = B.Node.Hash.hash v in
-        let key = with_node repo (fun n -> B.Node.add n v) in
+        let key = with_node repo (fun n () -> B.Node.add n v) in
         check_hash (msg ^ ": hash(v) = add(v)") (B.Node.Key.to_hash key) h'
       in
       let v = B.Node.Val.empty () in
@@ -165,13 +165,17 @@ module Make (S : Generic_key) = struct
       let u = B.Node.Val.add u "b" k in
       check_node "node: x+y+z+a+b" u;
       let h = B.Node.Hash.hash u in
-      let k = with_node repo (fun n -> B.Node.add n u) in
+      let k = with_node repo (fun n () -> B.Node.add n u) in
       check_hash "hash(v) = add(v)" h (B.Node.Key.to_hash k);
       let w = B.Node.find n k in
       check_values (get w);
       let kv1 = kv1 ~repo in
-      let k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
-      let k1' = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
+      let k1 =
+        with_node repo (fun g () -> Graph.v g [ ("x", normal kv1) ] [])
+      in
+      let k1' =
+        with_node repo (fun g () -> Graph.v g [ ("x", normal kv1) ] [])
+      in
       check_key "k1.1" k1 k1';
       let t1 = B.Node.find n k1 in
       let k' = B.Node.Val.find (get t1) "x" in
@@ -180,28 +184,36 @@ module Make (S : Generic_key) = struct
         "find x"
         (Some (normal kv1))
         k';
-      let k1'' = with_node repo (fun n -> B.Node.add n (get t1)) in
+      let k1'' = with_node repo (fun n () -> B.Node.add n (get t1)) in
       check_key "k1.2" k1 k1'';
-      let k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
-      let k2' = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
+      let k2 =
+        with_node repo (fun g () -> Graph.v g [ ("b", `Node (k1, [])) ] [])
+      in
+      let k2' =
+        with_node repo (fun g () -> Graph.v g [ ("b", `Node (k1, [])) ] [])
+      in
       check_key "k2.1" k2 k2';
       let t2 = B.Node.find n k2 in
-      let k2'' = with_node repo (fun n -> B.Node.add n (get t2)) in
+      let k2'' = with_node repo (fun n () -> B.Node.add n (get t2)) in
       check_key "k2.2" k2 k2'';
       let k1''' = Graph.find g k2 [ "b" ] in
-      check_val "k1.3" (Some (`Node k1)) k1''';
-      let k3 = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
-      let k3' = with_node repo (fun g -> Graph.v g [ ("a", `Node k2) ]) in
+      check_val "k1.3" (Some (`Node (k1, []))) k1''';
+      let k3 =
+        with_node repo (fun g () -> Graph.v g [ ("a", `Node (k2, [])) ] [])
+      in
+      let k3' =
+        with_node repo (fun g () -> Graph.v g [ ("a", `Node (k2, [])) ] [])
+      in
       check_key "k3.1" k3 k3';
       let t3 = B.Node.find n k3 in
-      let k3'' = with_node repo (fun n -> B.Node.add n (get t3)) in
+      let k3'' = with_node repo (fun n () -> B.Node.add n (get t3)) in
       check_key "k3.2" k3 k3'';
       let k2'' = Graph.find g k3 [ "a" ] in
-      check_val "k2.3" (Some (`Node k2)) k2'';
+      check_val "k2.3" (Some (`Node (k2, []))) k2'';
       let k1'''' = Graph.find g k2' [ "b" ] in
-      check_val "t1.2" (Some (`Node k1)) k1'''';
+      check_val "t1.2" (Some (`Node (k1, []))) k1'''';
       let k1''''' = Graph.find g k3 [ "a"; "b" ] in
-      check_val "t1.3" (Some (`Node k1)) k1''''';
+      check_val "t1.3" (Some (`Node (k1, []))) k1''''';
       let kv11 = Graph.find g k1 [ "x" ] in
       check_val "v1.1" (Some (normal kv1)) kv11;
       let kv12 = Graph.find g k2 [ "b"; "x" ] in
@@ -209,13 +221,19 @@ module Make (S : Generic_key) = struct
       let kv13 = Graph.find g k3 [ "a"; "b"; "x" ] in
       check_val "v1" (Some (normal kv1)) kv13;
       let kv2 = kv2 ~repo in
-      let k4 = with_node repo (fun g -> Graph.v g [ ("x", normal kv2) ]) in
-      let k5 =
-        with_node repo (fun g -> Graph.v g [ ("b", `Node k1); ("c", `Node k4) ])
+      let k4 =
+        with_node repo (fun g () -> Graph.v g [ ("x", normal kv2) ] [])
       in
-      let k6 = with_node repo (fun g -> Graph.v g [ ("a", `Node k5) ]) in
+      let k5 =
+        with_node repo (fun g () ->
+            Graph.v g [ ("b", `Node (k1, [])); ("c", `Node (k4, [])) ] [])
+      in
+      let k6 =
+        with_node repo (fun g () -> Graph.v g [ ("a", `Node (k5, [])) ] [])
+      in
       let k6' =
-        with_node repo (fun g -> Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
+        with_node repo (fun g () ->
+            Graph.add g k3 [ "a"; "c"; "x" ] (normal kv2))
       in
       check_key "node k6" k6 k6';
       let n6' = B.Node.find n k6' in
@@ -231,27 +249,53 @@ module Make (S : Generic_key) = struct
             else names := s :: !names)
           all
       in
-      let n0 = with_node repo (fun g -> Graph.v g []) in
-      let n1 = with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) in
-      let n2 = with_node repo (fun g -> Graph.add g n1 [ "a" ] (`Node n0)) in
-      let n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) in
+      let n0 = with_node repo (fun g () -> Graph.v g [] []) in
+      let n1 =
+        with_node repo (fun g () -> Graph.add g n0 [ "b" ] (`Node (n0, [])))
+      in
+      let n2 =
+        with_node repo (fun g () -> Graph.add g n1 [ "a" ] (`Node (n0, [])))
+      in
+      let n3 =
+        with_node repo (fun g () -> Graph.add g n2 [ "a" ] (`Node (n0, [])))
+      in
       assert_no_duplicates "1" n3;
-      let n1 = with_node repo (fun g -> Graph.add g n0 [ "a" ] (`Node n0)) in
-      let n2 = with_node repo (fun g -> Graph.add g n1 [ "b" ] (`Node n0)) in
-      let n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (`Node n0)) in
+      let n1 =
+        with_node repo (fun g () -> Graph.add g n0 [ "a" ] (`Node (n0, [])))
+      in
+      let n2 =
+        with_node repo (fun g () -> Graph.add g n1 [ "b" ] (`Node (n0, [])))
+      in
+      let n3 =
+        with_node repo (fun g () -> Graph.add g n2 [ "a" ] (`Node (n0, [])))
+      in
       assert_no_duplicates "2" n3;
-      let n1 = with_node repo (fun g -> Graph.add g n0 [ "b" ] (normal kv1)) in
-      let n2 = with_node repo (fun g -> Graph.add g n1 [ "a" ] (normal kv1)) in
-      let n3 = with_node repo (fun g -> Graph.add g n2 [ "a" ] (normal kv1)) in
+      let n1 =
+        with_node repo (fun g () -> Graph.add g n0 [ "b" ] (normal kv1))
+      in
+      let n2 =
+        with_node repo (fun g () -> Graph.add g n1 [ "a" ] (normal kv1))
+      in
+      let n3 =
+        with_node repo (fun g () -> Graph.add g n2 [ "a" ] (normal kv1))
+      in
       assert_no_duplicates "3" n3;
-      let n1 = with_node repo (fun g -> Graph.add g n0 [ "a" ] (normal kv1)) in
-      let n2 = with_node repo (fun g -> Graph.add g n1 [ "b" ] (normal kv1)) in
-      let n3 = with_node repo (fun g -> Graph.add g n2 [ "b" ] (normal kv1)) in
+      let n1 =
+        with_node repo (fun g () -> Graph.add g n0 [ "a" ] (normal kv1))
+      in
+      let n2 =
+        with_node repo (fun g () -> Graph.add g n1 [ "b" ] (normal kv1))
+      in
+      let n3 =
+        with_node repo (fun g () -> Graph.add g n2 [ "b" ] (normal kv1))
+      in
       assert_no_duplicates "4" n3;
       S.Repo.close repo;
       try
-        let n0 = with_node repo (fun g -> Graph.v g []) in
-        let _ = with_node repo (fun g -> Graph.add g n0 [ "b" ] (`Node n0)) in
+        let n0 = with_node repo (fun g () -> Graph.v g [] []) in
+        let _ =
+          with_node repo (fun g () -> Graph.add g n0 [ "b" ] (`Node (n0, [])))
+        in
         Alcotest.fail "Add after close should not be allowed"
       with
       | Irmin.Closed -> ()
@@ -271,9 +315,15 @@ module Make (S : Generic_key) = struct
       let check_key = check B.Commit.Key.t in
       let check_keys = checks B.Commit.Key.t in
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      let kt1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
-      let kt2 = with_node repo (fun g -> Graph.v g [ ("a", `Node kt1) ]) in
-      let kt3 = with_node repo (fun g -> Graph.v g [ ("b", `Node kt2) ]) in
+      let kt1 =
+        with_node repo (fun g () -> Graph.v g [ ("x", normal kv1) ] [])
+      in
+      let kt2 =
+        with_node repo (fun g () -> Graph.v g [ ("a", `Node (kt1, [])) ] [])
+      in
+      let kt3 =
+        with_node repo (fun g () -> Graph.v g [ ("b", `Node (kt2, [])) ] [])
+      in
       (* r1 : t2 *)
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
       let kr1, _ = with_info 3 (History.v ~node:kt2 ~parents:[]) in
@@ -324,7 +374,8 @@ module Make (S : Generic_key) = struct
             let kv =
               with_contents repo (fun t -> B.Contents.add t (string_of_int i))
             in
-            with_node repo (fun g -> Graph.v g [ (string_of_int i, normal kv) ]))
+            with_node repo (fun g () ->
+                Graph.v g [ (string_of_int i, normal kv) ] []))
           [ 0; 1; 2; 3; 4; 5; 6; 7; 8 ]
       in
       let with_info n fn = with_commit repo (fun h -> fn h ~info:(info n)) in
@@ -466,7 +517,7 @@ module Make (S : Generic_key) = struct
   let test_tree_hashes x () =
     let test repo =
       let node bindings =
-        with_node repo (fun g ->
+        with_node repo (fun g () ->
             let empty = Graph.empty g in
             List.fold_left
               (fun t (k, v) ->
@@ -544,27 +595,35 @@ module Make (S : Generic_key) = struct
       (* merge nodes *)
       let g = g repo in
       (* The empty node *)
-      let k0 = with_node repo (fun g -> Graph.v g []) in
+      let k0 = with_node repo (fun g () -> Graph.v g [] []) in
       (* Create the node t1 -x-> (v1) *)
-      let k1 = with_node repo (fun g -> Graph.v g [ ("x", normal kv1) ]) in
+      let k1 =
+        with_node repo (fun g () -> Graph.v g [ ("x", normal kv1) ] [])
+      in
       (* Create the node t2 -b-> t1 -x-> (v1) *)
-      let k2 = with_node repo (fun g -> Graph.v g [ ("b", `Node k1) ]) in
+      let k2 =
+        with_node repo (fun g () -> Graph.v g [ ("b", `Node (k1, [])) ] [])
+      in
       (* Create the node t3 -c-> t1 -x-> (v1) *)
-      let k3 = with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) in
+      let k3 =
+        with_node repo (fun g () -> Graph.v g [ ("c", `Node (k1, [])) ] [])
+      in
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
       let k4 =
-        with_node repo (fun g ->
+        with_node repo (fun g () ->
             Irmin.Merge.(f @@ B.Node.merge g)
-              ~old:(old (Some k0)) (Some k2) (Some k3))
+              ~old:(old (Some (k0, [])))
+              (Some (k2, []))
+              (Some (k3, [])))
       in
       let k4 = merge_exn "k4" k4 in
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
       let _ = k4 in
       let succ_t = [%typ: string * Graph.value] in
-      let succ = Graph.list g k4 in
-      checks succ_t "k4" [ ("b", `Node k1); ("c", `Node k1) ] succ;
+      let succ = Graph.list g (fst k4) in
+      checks succ_t "k4" [ ("b", `Node (k1, [])); ("c", `Node (k1, [])) ] succ;
       let info date =
         let i = Int64.of_int date in
         S.Info.v ~author:"test" ~message:"Test commit" i
@@ -600,7 +659,9 @@ module Make (S : Generic_key) = struct
       in
       let kr3_key = merge_exn "kr3_key" kr3_key in
       check_key "kr3 key with old parent" kr3 kr3_key;
-      let kr3', _ = with_info 3 @@ History.v ~node:k4 ~parents:[ kr1; kr2 ] in
+      let kr3', _ =
+        with_info 3 @@ History.v ~node:(fst k4) ~parents:[ kr1; kr2 ]
+      in
       let r3 = B.Commit.find c kr3 in
       let r3' = B.Commit.find c kr3' in
       check T.(option B.Commit.Val.t) "r3" r3 r3';
@@ -1032,6 +1093,7 @@ module Make (S : Generic_key) = struct
     Alcotest.testable
       (fun ppf -> function
         | `Contents -> Fmt.string ppf "contents"
+        | `Contents_inlined__2 -> Fmt.string ppf "contents_inlined"
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value"
@@ -1596,8 +1658,9 @@ module Make (S : Generic_key) = struct
         let trigger_node_to_backend_portable t =
           match S.Tree.destruct t with
           | `Contents _ -> assert false
+          | `Contents_inlined_3 _ -> assert false
           | `Node n ->
-              let _ = S.to_backend_portable_node n in
+              let _ = S.to_backend_portable_node (fst n) in
               ()
         in
         let () = trigger_node_to_backend_portable portable_dirty in
@@ -1704,7 +1767,7 @@ module Make (S : Generic_key) = struct
         S.Tree.Proof.v ~before ~after state
       in
       let wrong_hash = B.Contents.Hash.hash "not the right hash!" in
-      let wrong_kinded_hash = `Node wrong_hash in
+      let wrong_kinded_hash = `Node (wrong_hash, []) in
       let () = check_bad_proof (proof ~before:wrong_kinded_hash ()) in
       let () = check_bad_proof (proof ~after:wrong_kinded_hash ()) in
       let _ = S.Tree.verify_proof (proof ()) f0 in
@@ -1761,8 +1824,10 @@ module Make (S : Generic_key) = struct
       in
       (match S.Tree.destruct c1 with
       | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
+      | `Contents_inlined_3 _ ->
+          Alcotest.fail "got `Contents_inlined_3, expected `Node"
       | `Node node -> (
-          let v = S.to_backend_node node in
+          let v = S.to_backend_node (fst node) in
           let () =
             let ls = B.Node.Val.list v in
             Alcotest.(check int) "list wide node" size (List.length ls)
@@ -1772,7 +1837,7 @@ module Make (S : Generic_key) = struct
           let v1 = B.Node.Val.add v "x" k in
           let () =
             let h' = B.Node.Hash.hash v1 in
-            let h = with_node repo (fun n -> B.Node.add n v1) in
+            let h = with_node repo (fun n () -> B.Node.add n v1) in
             check B.Node.Hash.t "wide node + x: hash(v) = add(v)"
               (B.Node.Key.to_hash h) h'
           in
@@ -1787,7 +1852,7 @@ module Make (S : Generic_key) = struct
           let () =
             let v3 = B.Node.Val.remove v "1" in
             let h' = B.Node.Hash.hash v3 in
-            with_node repo (fun n -> B.Node.add n v3) |> fun h ->
+            with_node repo (fun n () -> B.Node.add n v3) |> fun h ->
             check B.Node.Hash.t "wide node - 1 : hash(v) = add(v)"
               (B.Node.Key.to_hash h) h'
           in
@@ -2261,7 +2326,7 @@ module Make (S : Generic_key) = struct
         with_node repo (fun n ->
             let contents = contents s in
             let node = B.Node.Val.(add (empty ())) s (normal contents) in
-            B.Node.add n node)
+            fun () -> B.Node.add n node)
       in
       let commit (s : string) : S.commit_key =
         with_commit repo (fun c ->
@@ -2271,15 +2336,16 @@ module Make (S : Generic_key) = struct
       in
       let foo_k = node "foo" in
       let bar_k = node "bar" in
-      let tree_1 = S.Tree.shallow repo (`Node foo_k) in
-      let tree_2 = S.Tree.shallow repo (`Node bar_k) in
+      let tree_1 = S.Tree.shallow repo (`Node (foo_k, [])) in
+      let tree_2 = S.Tree.shallow repo (`Node (bar_k, [])) in
       let node_3 =
         let contents_foo = contents "foo" in
         S.Backend.Node.Val.of_list
           [
             ("foo", `Contents (contents_foo, S.Metadata.default));
-            ("bar", `Node bar_k);
+            ("bar", `Node (bar_k, []));
           ]
+          []
       in
       let tree_3 = S.Tree.of_node (S.of_backend_node repo node_3) in
       let _ =
@@ -2293,7 +2359,7 @@ module Make (S : Generic_key) = struct
       let h = S.Head.get t in
       let commit_v =
         let commit_foo = commit "foo" in
-        S.Backend.Commit.Val.v ~info:(info ()) ~node:key_3
+        S.Backend.Commit.Val.v ~info:(info ()) ~node:(fst key_3)
           ~parents:[ S.Commit.key h; commit_foo ]
       in
       let commit_key = with_commit repo (fun c -> B.Commit.add c commit_v) in
@@ -2327,7 +2393,10 @@ module Make (S : Generic_key) = struct
 
       let node_b =
         S.Tree.destruct tree
-        |> ( function `Contents _ -> assert false | `Node n -> n )
+        |> ( function
+        | `Contents _ -> assert false
+        | `Contents_inlined_3 _ -> assert false
+        | `Node (n, _il) -> n )
         |> S.to_backend_node
       in
       let node_ph = pre_hash_of S.Backend.Node.Val.t node_b in
