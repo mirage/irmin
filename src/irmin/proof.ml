@@ -30,7 +30,7 @@ struct
   type step = S.step [@@deriving irmin]
   type metadata = M.t [@@deriving irmin]
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash * hash list ]
   [@@deriving irmin]
 
   type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]

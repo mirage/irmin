@@ -55,13 +55,16 @@ module type S = sig
   val of_node : node -> t
   (** [of_node n] is the subtree built from the node [n]. *)
 
-  type elt = [ `Node of node | `Contents of contents * metadata ]
+  type elt =
+    [ `Node of node * contents list
+    | `Contents of contents * metadata
+    | `Contents_inlined_3 of contents * metadata ]
   (** The type for tree elements. *)
 
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash * hash list ]
   [@@deriving irmin]
 
   val pruned : kinded_hash -> t
@@ -74,7 +77,7 @@ module type S = sig
       {!Pruned_hash} exception. Attempting to export a tree containing pruned
       sub-trees to a repository will fail similarly. *)
 
-  val kind : t -> path -> [ `Contents | `Node ] option
+  val kind : t -> path -> [ `Contents | `Contents_inlined__1 | `Node ] option
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
@@ -106,6 +109,16 @@ module type S = sig
 
   type 'a or_error = ('a, error) result
 
+  module Private : sig
+    module Env : sig
+      type t [@@deriving irmin]
+
+      val is_empty : t -> bool
+    end
+
+    val get_env : t -> Env.t
+  end
+
   (** Operations on lazy tree contents. *)
   module Contents : sig
     type t
@@ -130,6 +143,8 @@ module type S = sig
 
     val clear : t -> unit
     (** [clear t] clears [t]'s cache. *)
+
+    val of_value : contents -> env:Private.Env.t -> t
 
     (** {2:caching caching}
 
@@ -233,7 +248,11 @@ module type S = sig
 
   (** {1 Folds} *)
 
-  val destruct : t -> [ `Node of node | `Contents of Contents.t * metadata ]
+  val destruct :
+    t ->
+    [ `Node of node * Contents.t list
+    | `Contents of Contents.t * metadata
+    | `Contents_inlined_3 of Contents.t * metadata ]
   (** General-purpose destructor for trees. *)
 
   type marks
@@ -398,7 +417,9 @@ module type S = sig
 
   val inspect :
     t ->
-    [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+    [ `Contents
+    | `Contents_inlined__2
+    | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
   (** [inspect t] is similar to {!kind}, with additional state information for
       nodes. It is primarily useful for debugging and testing.
 
@@ -411,16 +432,6 @@ module type S = sig
         {!Node.Portable}. Currently only used with {!Proof}.
       - [`Pruned], if [t] is from {!pruned}.
       - Otherwise [`Key], the default state for a node loaded from a store. *)
-
-  module Private : sig
-    module Env : sig
-      type t [@@deriving irmin]
-
-      val is_empty : t -> bool
-    end
-
-    val get_env : t -> Env.t
-  end
 end
 
 module type Sigs = sig
@@ -440,7 +451,8 @@ module type Sigs = sig
          and type hash = B.Hash.t
 
     type kinded_key =
-      [ `Contents of B.Contents.Key.t * metadata | `Node of B.Node.Key.t ]
+      [ `Contents of B.Contents.Key.t * metadata
+      | `Node of B.Node.Key.t * B.Contents.Key.t list ]
     [@@deriving irmin]
 
     val import : B.Repo.t -> kinded_key -> t option

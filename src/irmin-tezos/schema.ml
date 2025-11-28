@@ -95,7 +95,7 @@ struct
 
     let hash_of_entry (_, t) =
       match t with
-      | `Node h -> Node_key.to_hash h
+      | `Node (h, _) -> Node_key.to_hash h
       | `Contents (h, _) -> Contents_key.to_hash h
 
     (* Irmin 1.4 uses int64 to store list lengths *)

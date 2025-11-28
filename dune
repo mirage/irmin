@@ -2,17 +2,10 @@
 
 (env
  (dev
-  (flags :standard -w -unused-functor-parameter)))
+  (flags :standard -w -unused-functor-parameter -warn-error -A)))
 
 (mdx
  (files README.md)
  (deps %{bin:irmin})
- (libraries
-  irmin
-  irmin-cli
-  irmin-git
-  irmin-git.unix
-  eio
-  eio_main
-  eio.unix
+ (libraries irmin irmin-cli irmin-git irmin-git.unix eio eio_main eio.unix
   lwt_eio))

@@ -169,7 +169,7 @@ module type Sigs = sig
       ?ppf:Format.formatter ->
       auto_repair:bool ->
       check:
-        (kind:[> `Commit | `Contents | `Node ] ->
+        (kind:[> `Commit | `Contents | `Contents_inlined__3 | `Node ] ->
         offset:int63 ->
         length:int ->
         Index.key ->
@@ -184,16 +184,22 @@ module type Sigs = sig
       pred:
         (X.Node.value ->
         (X.Node.Path.step option
-        * [< `Contents of XKey.t | `Inode of XKey.t | `Node of XKey.t ])
+        * [< `Contents of XKey.t
+          | `Inode of XKey.t
+          | `Node of XKey.t * XKey.t list ])
         list) ->
       iter:
         (contents:(XKey.hash Pack_key.t -> unit) ->
-        node:(XKey.t -> unit) ->
+        node:(XKey.t * XKey.t list -> unit) ->
         pred_node:
           (X.Repo.t ->
-          XKey.t ->
-          [> `Contents of XKey.t | `Node of XKey.t ] list) ->
-        pred_commit:(X.Repo.t -> XKey.t -> [> `Node of XKey.t ] list) ->
+          XKey.t * XKey.t list ->
+          [> `Contents of XKey.t
+          | `Contents_inlined_2 of XKey.t
+          | `Node of XKey.t * XKey.t list ]
+          list) ->
+        pred_commit:
+          (X.Repo.t -> XKey.t -> [> `Node of XKey.t * XKey.t list ] list) ->
         X.Repo.t ->
         unit) ->
       check:
@@ -210,13 +216,13 @@ module type Sigs = sig
       iter:
         (pred_node:
            (X.Repo.t ->
-           XKey.t ->
-           ([> `Contents of XKey.t | `Node of XKey.t ] as 'a) list) ->
-        node:(XKey.t -> unit) ->
+           XKey.t * XKey.t list ->
+           ([> `Contents of XKey.t | `Node of XKey.t * XKey.t list ] as 'a) list) ->
+        node:(XKey.t * XKey.t list -> unit) ->
         commit:(XKey.t -> unit) ->
         X.Repo.t ->
         unit) ->
-      pred:(X.Repo.t -> XKey.t -> 'a list) ->
+      pred:(X.Repo.t -> XKey.t * XKey.t list -> 'a list) ->
       check:(XKey.t -> (unit, string) result) ->
       X.Repo.t ->
       ([> `No_error ], [> `Cannot_fix of string ]) result
@@ -239,7 +245,10 @@ module type Sigs = sig
       t ->
       S.Hash.t ->
       (S.step option
-      * [ `Contents of S.Hash.t | `Inode of S.Hash.t | `Node of S.Hash.t ])
+      * [ `Contents of S.Hash.t
+        | `Contents_inlined_7 of S.Hash.t
+        | `Inode of S.Hash.t
+        | `Node of S.Hash.t ])
       list ->
       nb_children:int ->
       width:int ->

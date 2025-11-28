@@ -149,15 +149,17 @@ module type S_generic_key = sig
 
     type elt =
       [ `Commit of commit_key
-      | `Node of node_key
+      | `Node of node_key * contents_key list
       | `Contents of contents_key
+      | `Contents_inlined_2 of contents_key
       | `Branch of branch ]
     [@@deriving irmin]
     (** The type for elements iterated over by {!iter}. *)
 
     val default_pred_commit : t -> commit_key -> elt list
-    val default_pred_node : t -> node_key -> elt list
+    val default_pred_node : t -> node_key * contents_key list -> elt list
     val default_pred_contents : t -> contents_key -> elt list
+    val default_pred_contents_inlined : t -> contents_key -> elt list
 
     val iter :
       ?cache_size:int ->
@@ -166,15 +168,15 @@ module type S_generic_key = sig
       ?edge:(elt -> elt -> unit) ->
       ?branch:(branch -> unit) ->
       ?commit:(commit_key -> unit) ->
-      ?node:(node_key -> unit) ->
+      ?node:(node_key * contents_key list -> unit) ->
       ?contents:(contents_key -> unit) ->
       ?skip_branch:(branch -> bool) ->
       ?skip_commit:(commit_key -> bool) ->
-      ?skip_node:(node_key -> bool) ->
+      ?skip_node:(node_key * contents_key list -> bool) ->
       ?skip_contents:(contents_key -> bool) ->
       ?pred_branch:(t -> branch -> elt list) ->
       ?pred_commit:(t -> commit_key -> elt list) ->
-      ?pred_node:(t -> node_key -> elt list) ->
+      ?pred_node:(t -> node_key * contents_key list -> elt list) ->
       ?pred_contents:(t -> contents_key -> elt list) ->
       ?rev:bool ->
       t ->
@@ -221,11 +223,11 @@ module type S_generic_key = sig
       max:elt list ->
       ?branch:(branch -> unit) ->
       ?commit:(commit_key -> unit) ->
-      ?node:(node_key -> unit) ->
+      ?node:(node_key * contents_key list -> unit) ->
       ?contents:(contents_key -> unit) ->
       ?pred_branch:(t -> branch -> elt list) ->
       ?pred_commit:(t -> commit_key -> elt list) ->
-      ?pred_node:(t -> node_key -> elt list) ->
+      ?pred_node:(t -> node_key * contents_key list -> elt list) ->
       ?pred_contents:(t -> contents_key -> elt list) ->
       t ->
       unit
@@ -438,7 +440,8 @@ module type S_generic_key = sig
     (** {1 Import/Export} *)
 
     type kinded_key =
-      [ `Contents of contents_key * metadata | `Node of node_key ]
+      [ `Contents of contents_key * metadata
+      | `Node of node_key * contents_key list ]
     [@@deriving irmin]
     (** Keys in the Irmin store are tagged with the type of the value they
         reference (either {!contents} or {!node}). In the [contents] case, the
@@ -465,7 +468,8 @@ module type S_generic_key = sig
     val hash : ?cache:bool -> tree -> hash
     (** [hash t] is the hash of tree [t]. *)
 
-    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+    type kinded_hash =
+      [ `Contents of hash * metadata | `Node of hash * hash list ]
     (** Like {!kinded_key}, but with hashes as value references rather than
         keys. *)
 
@@ -541,7 +545,7 @@ module type S_generic_key = sig
 
   (** {1 Reads} *)
 
-  val kind : t -> path -> [ `Contents | `Node ] option
+  val kind : t -> path -> [ `Contents | `Contents_inlined__1 | `Node ] option
   (** [kind] is {!Tree.kind} applied to [t]'s root tree. *)
 
   val list : t -> path -> (step * tree) list
@@ -571,7 +575,10 @@ module type S_generic_key = sig
   val get_tree : t -> path -> tree
   (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root tree. *)
 
-  type kinded_key := [ `Contents of contents_key | `Node of node_key ]
+  type kinded_key :=
+    [ `Contents of contents_key
+    | `Contents_inlined_5 of contents_key
+    | `Node of node_key ]
 
   val key : t -> path -> kinded_key option
   (** [id t k] *)
