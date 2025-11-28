@@ -58,5 +58,6 @@ module type Sigs = sig
   (** [Store] specifies the signature for branch stores.
 
       A {i branch store} is a mutable and reactive key / value store, where keys
-      are branch names created by users and values are keys are head commmits. *)
+      are branch names created by users and values are keys are head commmits.
+  *)
 end

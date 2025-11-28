@@ -15,8 +15,8 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.02.3"}
-  "dune"       {>= "2.9.0"}
+  "ocaml"      {>= "5.1.0"}
+  "dune"       {>= "3.5.0"}
   "irmin"      {= version}
   "ppx_irmin"  {= version}
   "git"        {>= "3.14.0"}
@@ -28,13 +28,18 @@ depends: [
   "cohttp-lwt-unix"
   "fpath"
   "logs"
-  "lwt"        {>= "5.3.0"}
+  "lwt_eio"    {>= "0.5"}
   "uri"
   "mimic"
   "irmin-test" {with-test & = version}
   "mtime"      {with-test & >= "2.0.0"}
   "alcotest"   {with-test}
-  "irmin-watcher" {>= "0.2.0"}
+  "irmin-watcher" {= "dev"}
+  "lwt" {>= "5.9.1"}
+]
+
+pin-depends: [
+  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#d0e92b4ba5631b5f4dc0f3c00d97e79542dba45d" ]
 ]
 
 synopsis: "Git backend for Irmin"

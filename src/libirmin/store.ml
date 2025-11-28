@@ -31,7 +31,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                 repo = r;
                 store_mod =
                   (module Store : Irmin.Generic_key.S with type t = Store.t);
-                store = run (Store.main repo);
+                store = run (fun () -> Store.main repo);
               }))
 
   let () =
@@ -51,7 +51,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                     repo = r;
                     store_mod =
                       (module Store : Irmin.Generic_key.S with type t = Store.t);
-                    store = run (Store.of_branch repo branch);
+                    store = run (fun () -> Store.of_branch repo branch);
                   }))
 
   let () =
@@ -68,7 +68,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                 repo = r;
                 store_mod =
                   (module Store : Irmin.Generic_key.S with type t = Store.t);
-                store = run (Store.of_commit commit);
+                store = run (fun () -> Store.of_commit commit);
               }))
 
   let () =
@@ -77,7 +77,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
       (fun (type t) store ->
         with_store' store commit
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
-            let c = run (Store.Head.find store) in
+            let c = run (fun () -> Store.Head.find store) in
             match c with
             | None -> null commit
             | Some x -> Root.create_commit (module Store) x))
@@ -89,7 +89,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store store ()
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let commit : Store.commit = Root.get_commit (module Store) commit in
-            run (Store.Head.set store commit)))
+            run (fun () -> Store.Head.set store commit)))
 
   let () =
     fn "fast_forward"
@@ -98,7 +98,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store store false
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let commit : Store.commit = Root.get_commit (module Store) commit in
-            let res = run (Store.Head.fast_forward store commit) in
+            let res = run (fun () -> Store.Head.fast_forward store commit) in
             match res with
             | Ok () -> true
             | Error e -> failwith (Irmin.Type.to_string Store.ff_error_t e)))
@@ -114,7 +114,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               Irmin.Type.of_string Store.branch_t branch |> Result.get_ok
             in
             let res =
-              run (Store.merge_with_branch store branch ~info:(fun () -> info))
+              run (fun () ->
+                  Store.merge_with_branch store branch ~info:(fun () -> info))
             in
             match res with
             | Ok () -> true
@@ -131,7 +132,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let info = Root.get_info (module Store) info in
             let commit = Root.get_commit (module Store) commit in
             let res =
-              run (Store.merge_with_commit store commit ~info:(fun () -> info))
+              run (fun () ->
+                  Store.merge_with_commit store commit ~info:(fun () -> info))
             in
             match res with
             | Ok () -> true
@@ -148,9 +150,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let store1 = Root.get_store store1 in
             let info = Root.get_info (module Store) info in
             let res =
-              run
-                (Store.merge_into ~into:store store1.store ~info:(fun () ->
-                     info))
+              run @@ fun () ->
+              Store.merge_into ~into:store store1.store ~info:(fun () -> info)
             in
             match res with
             | Ok () -> true
@@ -169,7 +170,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let value : Store.contents =
               Root.get_contents (module Store) value
             in
-            let x = run (Store.set store path value ~info:(fun () -> info)) in
+            let x =
+              run @@ fun () -> Store.set store path value ~info:(fun () -> info)
+            in
             match x with
             | Ok () -> true
             | Error e ->
@@ -193,8 +196,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               else Some (Root.get_contents (module Store) set)
             in
             let x =
-              run
-                (Store.test_and_set store path ~test ~set ~info:(fun () -> info))
+              run @@ fun () ->
+              Store.test_and_set store path ~test ~set ~info:(fun () -> info)
             in
             match x with
             | Ok () -> true
@@ -219,9 +222,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               else Some (Root.get_tree (module Store) set)
             in
             let x =
-              run
-                (Store.test_and_set_tree store path ~test ~set ~info:(fun () ->
-                     info))
+              run @@ fun () ->
+              Store.test_and_set_tree store path ~test ~set ~info:(fun () ->
+                  info)
             in
             match x with
             | Ok () -> true
@@ -239,7 +242,8 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let path : Store.path = Root.get_path (module Store) path in
             let tree' : Store.tree = Root.get_tree (module Store) tree in
             let x =
-              run (Store.set_tree store path tree' ~info:(fun () -> info))
+              run @@ fun () ->
+              Store.set_tree store path tree' ~info:(fun () -> info)
             in
             match x with
             | Ok () -> true
@@ -254,7 +258,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store' store contents
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let path : Store.path = Root.get_path (module Store) path in
-            let x = run (Store.find store path) in
+            let x = run (fun () -> Store.find store path) in
             match x with
             | Some x -> Root.create_contents (module Store) x
             | None -> null contents))
@@ -266,7 +270,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store' store metadata
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let path : Store.path = Root.get_path (module Store) path in
-            let x = run (Store.find_all store path) in
+            let x = run (fun () -> Store.find_all store path) in
             match x with
             | Some (_, m) -> Root.create_metadata (module Store) m
             | None -> null metadata))
@@ -278,7 +282,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store' store tree
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let path : Store.path = Root.get_path (module Store) path in
-            let x : Store.tree option = run (Store.find_tree store path) in
+            let x : Store.tree option =
+              run (fun () -> Store.find_tree store path)
+            in
             match x with
             | Some x -> Root.create_tree (module Store) x
             | None -> null tree))
@@ -292,7 +298,9 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             let module Info = Irmin_unix.Info (Store.Info) in
             let info = Root.get_info (module Store) info in
             let path : Store.path = Root.get_path (module Store) path in
-            match run (Store.remove store path ~info:(fun () -> info)) with
+            match
+              run (fun () -> Store.remove store path ~info:(fun () -> info))
+            with
             | Ok () -> true
             | Error e ->
                 let s = Irmin.Type.to_string Store.write_error_t e in
@@ -305,7 +313,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store store false
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let path : Store.path = Root.get_path (module Store) path in
-            run (Store.mem store path)))
+            run (fun () -> Store.mem store path)))
 
   let () =
     fn "mem_tree"
@@ -314,7 +322,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store store false
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let path : Store.path = Root.get_path (module Store) path in
-            run (Store.mem_tree store path)))
+            run (fun () -> Store.mem_tree store path)))
 
   let () =
     fn "list"
@@ -323,7 +331,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
         with_store' store path_array
           (fun (module Store : Irmin.Generic_key.S with type t = t) store ->
             let path : Store.path = Root.get_path (module Store) path in
-            let items = run (Store.list store path) in
+            let items = run (fun () -> Store.list store path) in
             let items = List.map (fun (k, _v) -> Store.Path.v [ k ]) items in
             Root.create_path_array (module Store) items))
 
@@ -368,7 +376,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             match remote_fn with
             | None ->
                 failwith "sync is not implemented for the selected backend"
-            | Some f -> Root.create_remote (run (f url))))
+            | Some f -> Root.create_remote (run (fun () -> f url ()))))
 
   let () =
     fn "remote_with_auth"
@@ -390,7 +398,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                         (`Basic (user, token))
                   | _ -> Cohttp.Header.add_authorization headers (`Other user)
                 in
-                Root.create_remote (run (f ~headers url))))
+                Root.create_remote (run (fun () -> f ~headers url ()))))
 
   let () =
     fn "fetch"
@@ -404,7 +412,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               else Root.get_remote remote
             in
             let depth = if depth <= 0 then None else Some depth in
-            match run (Sync.fetch_exn ?depth store remote) with
+            match run (fun () -> Sync.fetch_exn ?depth store remote) with
             | `Empty -> null commit
             | `Head head -> Root.create_commit (module Store) head))
 
@@ -424,7 +432,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               else `Merge (fun () -> Root.get_info (module Store) info)
             in
             let depth = if depth <= 0 then None else Some depth in
-            match run (Sync.pull_exn ?depth store remote x) with
+            match run (fun () -> Sync.pull_exn ?depth store remote x) with
             | `Empty -> null commit
             | `Head head -> Root.create_commit (module Store) head))
 
@@ -440,7 +448,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
               else Root.get_remote remote
             in
             let depth = if depth <= 0 then None else Some depth in
-            match run (Sync.push_exn ?depth store remote) with
+            match run (fun () -> Sync.push_exn ?depth store remote) with
             | `Empty -> null commit
             | `Head head -> Root.create_commit (module Store) head))
 

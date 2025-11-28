@@ -117,9 +117,10 @@ module type Sigs = sig
   module Of_commit
       (Hash : Irmin.Hash.S)
       (Key : Irmin.Key.S with type hash = Hash.t)
-      (Commit : Irmin.Commit.Generic_key.S
-                  with type node_key = Key.t
-                   and type commit_key = Key.t) : sig
+      (Commit :
+        Irmin.Commit.Generic_key.S
+          with type node_key = Key.t
+           and type commit_key = Key.t) : sig
     include S with type t = Commit.t and type hash = Hash.t and type key = Key.t
 
     module Commit_direct : sig

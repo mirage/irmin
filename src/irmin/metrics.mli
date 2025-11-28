@@ -17,7 +17,8 @@
 (** [Metrics] defines primitives to handle metrics inside of Irmin. Its purpose
     is to decouple the metrics type definition from the data manipulation.
 
-    A {!t} can be modified in different ways, depending on the {!update_mode}. *)
+    A {!t} can be modified in different ways, depending on the {!update_mode}.
+*)
 
 type origin = ..
 (** An extensible type to get the location of the definition. *)
