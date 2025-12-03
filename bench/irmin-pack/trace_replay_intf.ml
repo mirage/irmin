@@ -24,8 +24,8 @@ module Config = struct
     path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
     inode_config : int * int;
     store_type : [ `Pack | `Pack_layered | `Pack_mem ];
-    replay_trace_path : string;
-    artefacts_path : string;
+    replay_trace_path : Eio.Fs.dir_ty Eio.Path.t;
+    artefacts_path : Eio.Fs.dir_ty Eio.Path.t;
     keep_store : bool;
     keep_stat_trace : bool;
     empty_blobs : bool;
@@ -96,23 +96,24 @@ module type Store = sig
        and type node_key = key
        and type contents_key = key
 
-  type on_commit := int -> Hash.t -> unit Lwt.t
-  type on_end := unit -> unit Lwt.t
+  type on_commit := int -> Hash.t -> unit
+  type on_end := unit -> unit
 
   val create_repo :
-    root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+    root:Eio.Fs.dir_ty Eio.Path.t -> store_config -> Repo.t * on_commit * on_end
 
   val split : repo -> unit
   val add_volume : repo -> unit
-  val gc_wait : repo -> unit Lwt.t
+  val gc_wait : repo -> unit
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
   val gc_run :
-    ?finished:((stats, string) result -> unit Lwt.t) ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    ?finished:((stats, string) result -> unit) ->
     repo ->
     commit_key ->
-    unit Lwt.t
+    unit
 end
 
 module type Sigs = sig
@@ -129,6 +130,7 @@ module type Sigs = sig
         with type 'a return_type = 'a return_type
          and type 'a config = 'a config
 
-    val run : Store.store_config -> 'a config -> 'a Lwt.t
+    val run :
+      domain_mgr:_ Eio.Domain_manager.t -> Store.store_config -> 'a config -> 'a
   end
 end

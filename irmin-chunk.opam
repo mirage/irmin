@@ -13,12 +13,11 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.02.3"}
-  "dune"       {>= "2.9.0"}
+  "ocaml"      {>= "5.1.0"}
+  "dune"       {>= "3.5.0"}
   "irmin"      {= version}
   "fmt"
   "logs"
-  "lwt"        {>= "5.3.0"}
   "irmin-test" {with-test & = version}
   "alcotest"   {with-test}
 ]

@@ -16,8 +16,6 @@
 
 (* Simple example of reading and writing in a Git repository *)
 
-open Lwt.Syntax
-
 let info = Irmin_git_unix.info
 
 module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
@@ -35,31 +33,35 @@ let read_exn t k =
 let main () =
   Config.init ();
   let config = Irmin_git.config ~bare:true Config.root in
-  let* repo = Store.Repo.v config in
-  let* t = Store.main repo in
-  let* () = update t [ "root"; "misc"; "1.txt" ] "Hello world!" in
-  let* () = update t [ "root"; "misc"; "2.txt" ] "Hi!" in
-  let* () = update t [ "root"; "misc"; "3.txt" ] "How are you ?" in
-  let* _ = read_exn t [ "root"; "misc"; "2.txt" ] in
-  let* x = Store.clone ~src:t ~dst:"test" in
+  let repo = Store.Repo.v config in
+  let t = Store.main repo in
+  update t [ "root"; "misc"; "1.txt" ] "Hello world!";
+  update t [ "root"; "misc"; "2.txt" ] "Hi!";
+  update t [ "root"; "misc"; "3.txt" ] "How are you ?";
+  let _ = read_exn t [ "root"; "misc"; "2.txt" ] in
+  let x = Store.clone ~src:t ~dst:"test" in
   print_endline "cloning ...";
-  let* () = update t [ "root"; "misc"; "3.txt" ] "Hohoho" in
-  let* () = update x [ "root"; "misc"; "2.txt" ] "Cool!" in
-  let* r = Store.merge_into ~info:(info "t: Merge with 'x'") x ~into:t in
+  update t [ "root"; "misc"; "3.txt" ] "Hohoho";
+  update x [ "root"; "misc"; "2.txt" ] "Cool!";
+  let r = Store.merge_into ~info:(info "t: Merge with 'x'") x ~into:t in
   match r with
   | Error _ -> failwith "conflict!"
   | Ok () ->
       print_endline "merging ...";
-      let* _ = read_exn t [ "root"; "misc"; "2.txt" ] in
-      let+ _ = read_exn t [ "root"; "misc"; "3.txt" ] in
+      let _ = read_exn t [ "root"; "misc"; "2.txt" ] in
+      let _ = read_exn t [ "root"; "misc"; "3.txt" ] in
       ()
 
-let () =
+let main () =
   Printf.printf
     "This example creates a Git repository in %s and use it to read \n\
      and write data:\n"
     Config.root;
   let _ = Sys.command (Printf.sprintf "rm -rf %s" Config.root) in
-  Lwt_main.run (main ());
+  main ();
   Printf.printf "You can now run `cd %s && tig` to inspect the store.\n"
     Config.root
+
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

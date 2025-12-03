@@ -15,22 +15,25 @@ build: [
 depends: [
   "irmin"        {= version}
   "ppx_irmin"    {= version}
-  "ocaml"        {>= "4.02.3"}
-  "dune"         {>= "2.9.0"}
-  "alcotest-lwt" {>= "1.5.0"}
+  "ocaml"        {>= "5.1.0"}
+  "dune"         {>= "3.5.0"}
   "mtime"        {>= "2.0.0"}
   "astring"
   "fmt"
   "jsonm"
   "logs"
-  "lwt"          {>= "5.3.0"}
-  "metrics-unix"
+  "eio"          {>= "1.0"}
+  "eio_main"     {>= "0.15"}
+  "alcotest"     {>= "1.8.0"}
+  "qcheck-alcotest" {with-test & >= "0.21.1"}
+  "metrics"      {>= "0.4.1"}
+  "metrics-unix" {>= "0.4.1"}
   "ocaml-syntax-shims"
   "cmdliner"     {>= "1.3.0"}
   "metrics" {>= "0.2.0"}
   "hex" {with-test & >= "1.4.0"}
   "vector" {with-test & >= "1.0.0"}
-  "alcotest" {>= "1.7.0" & with-test}
+  "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {>= "0.21.1" & with-test}
 ]
 

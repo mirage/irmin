@@ -15,7 +15,7 @@
  *)
 
 type remote_fn =
-  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+  ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
 module Server : sig
   module Remote : sig
@@ -32,24 +32,23 @@ module Server : sig
     Irmin_graphql.Server.S
       with type repo = S.repo
        and type server = Cohttp_lwt_unix.Server.t
-       and module IO = Cohttp_lwt_unix.IO
 
   module Make_ext
       (S : Irmin.Generic_key.S)
       (Remote : sig
         val remote : remote_fn option
       end)
-      (T : Irmin_graphql.Server.CUSTOM_TYPES
-             with type path := S.path
-              and type metadata := S.metadata
-              and type contents := S.contents
-              and type hash := S.hash
-              and type branch := S.branch
-              and type commit_key := S.commit_key
-              and type contents_key := S.contents_key
-              and type node_key := S.node_key) :
+      (T :
+        Irmin_graphql.Server.CUSTOM_TYPES
+          with type path := S.path
+           and type metadata := S.metadata
+           and type contents := S.contents
+           and type hash := S.hash
+           and type branch := S.branch
+           and type commit_key := S.commit_key
+           and type contents_key := S.contents_key
+           and type node_key := S.node_key) :
     Irmin_graphql.Server.S
       with type repo = S.repo
        and type server = Cohttp_lwt_unix.Server.t
-       and module IO = Cohttp_lwt_unix.IO
 end

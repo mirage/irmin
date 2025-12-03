@@ -12,7 +12,9 @@
   git
   git-unix
   lwt
-  lwt.unix)
+  lwt.unix
+  lwt_eio
+  eio_main)
  (preprocess
   (pps ppx_irmin ppx_irmin.internal)))
 

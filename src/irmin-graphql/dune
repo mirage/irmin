@@ -10,6 +10,7 @@
   graphql-lwt
   graphql_parser
   irmin
-  lwt)
+  lwt
+  lwt_eio)
  (instrumentation
   (backend bisect_ppx)))

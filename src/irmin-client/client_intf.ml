@@ -35,24 +35,24 @@ end
 module type S = sig
   include Irmin.Generic_key.S
 
-  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo Lwt.t
+  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo
   val reconnect : repo -> unit Lwt.t
 
   val uri : repo -> Uri.t
   (** Get the URI the client is connected to *)
 
-  val close : repo -> unit Lwt.t
+  val close : repo -> unit
   (** Close connection to the server *)
 
   val dup : repo -> repo Lwt.t
   (** Duplicate a client. This will create a new connection with the same
       configuration *)
 
-  val ping : repo -> unit Error.result Lwt.t
+  val ping : repo -> unit Error.result
   (** Ping the server *)
 
-  val export : ?depth:int -> repo -> slice Lwt.t
-  val import : repo -> slice -> unit Lwt.t
+  val export : ?depth:int -> repo -> slice
+  val import : repo -> slice -> unit
 
   (** The batch API is used to have better control of when data is sent between
       the client and server when manipulating trees. *)
@@ -70,7 +70,7 @@ module type S = sig
     (** A batch is list of updates and their associated paths *)
 
     val v : unit -> t
-    (** [val ()] creates a new batch *)
+    (** [v ()] creates a new batch *)
 
     val add_value : path -> ?metadata:metadata -> contents -> t -> t
     (** [add_value path ~metadata value batch] will add [value] at [path] with
@@ -80,7 +80,7 @@ module type S = sig
     (** [add_hash path ~metadata hash batch] will add [hash] at [path] with
         associated [metadata] when [batch] is {!apply}'d *)
 
-    val add_tree : path -> tree -> t -> t Lwt.t
+    val add_tree : path -> tree -> t -> t
     (** [add_tree path batch] will add [tree] at [path] when [batch] is
         {!apply}'d
 
@@ -90,7 +90,7 @@ module type S = sig
     val remove : path -> t -> t
     (** [remove path batch] will remove [path] when [batch] is {!apply}'d *)
 
-    val apply : info:Info.f -> ?path:path -> store -> t -> commit_key Lwt.t
+    val apply : info:Info.f -> ?path:path -> store -> t -> commit_key
     (** [apply ~info ~path store batch] applies [batch] to the subtree at [path]
         (defaults to the root) in [store]. The key of the commit is returned. *)
   end

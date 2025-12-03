@@ -2,6 +2,7 @@
  (name test)
  (libraries
   alcotest
+  eio_main
   irmin_traces
   fpath
   irmin-tezos

@@ -16,7 +16,6 @@
 
 open Cmdliner
 open Lwt.Syntax
-open Lwt.Infix
 open Import
 open Irmin_server
 
@@ -36,9 +35,9 @@ let with_timer f =
   let t1 = Sys.time () -. t0 in
   (t1, a)
 
-let init ~uri ~branch ~tls (module Client : Irmin_client.S) : client Lwt.t =
-  let* x = Client.Repo.v (Irmin_client.config ~tls uri) in
-  let+ x =
+let init ~uri ~branch ~tls (module Client : Irmin_client.S) () : client =
+  let x = Client.Repo.v (Irmin_client.config ~tls uri) in
+  let x =
     match branch with
     | Some b ->
         Client.of_branch x
@@ -47,21 +46,23 @@ let init ~uri ~branch ~tls (module Client : Irmin_client.S) : client Lwt.t =
   in
   S ((module Client : Irmin_client.S with type t = Client.t), x)
 
-let run f time iterations =
+let run f time iterations : unit =
   let rec eval iterations =
     if iterations = 0 then Lwt.return_unit
     else
-      let* () = f () in
+      let* () = Lwt_eio.run_eio f in
       eval (iterations - 1)
   in
-  let x =
+  let main () =
     if time then (
+      Lwt_eio.run_lwt @@ fun () ->
       let+ n, x = with_timer (fun () -> eval iterations) in
       Logs.app (fun l -> l "Time: %fs" (n /. float_of_int iterations));
       x)
     else f ()
   in
-  Lwt_main.run x
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
 
 let list_server_commands () =
   let module Store = Irmin_mem.KV.Make (Irmin.Contents.String) in
@@ -79,150 +80,143 @@ let list_server_commands () =
     Cmd.commands
 
 let ping client =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let repo = Client.repo client in
-      let+ result = Client.ping repo in
-      let () = Error.unwrap "ping" result in
-      Logs.app (fun l -> l "OK"))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let repo = Client.repo client in
+  let result = Client.ping repo in
+  let () = Error.unwrap "ping" result in
+  Logs.app (fun l -> l "OK")
 
 let find client path =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let path =
-        Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path"
-      in
-      let* result = Client.find client path in
-      match result with
-      | Some data ->
-          let* () =
-            Lwt_io.printl (Irmin.Type.to_string Client.Contents.t data)
-          in
-          Lwt_io.flush Lwt_io.stdout
-      | None ->
-          Logs.err (fun l ->
-              l "Not found: %a" (Irmin.Type.pp Client.Path.t) path);
-          Lwt.return_unit)
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let path = Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path" in
+  let result = Client.find client path in
+  Lwt_eio.run_lwt @@ fun () ->
+  match result with
+  | Some data ->
+      let* () = Lwt_io.printl (Irmin.Type.to_string Client.Contents.t data) in
+      Lwt_io.flush Lwt_io.stdout
+  | None ->
+      Logs.err (fun l -> l "Not found: %a" (Irmin.Type.pp Client.Path.t) path);
+      Lwt.return_unit
 
 let mem client path =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let path =
-        Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path"
-      in
-      let* result = Client.mem client path in
-      Lwt_io.printl (if result then "true" else "false"))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let path = Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path" in
+  let result = Client.mem client path in
+  Lwt_eio.run_lwt @@ fun () ->
+  Lwt_io.printl (if result then "true" else "false")
 
 let mem_tree client path =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let path =
-        Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path"
-      in
-      let* result = Client.mem_tree client path in
-      Lwt_io.printl (if result then "true" else "false"))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let path = Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path" in
+  let result = Client.mem_tree client path in
+  Lwt_eio.run_lwt @@ fun () ->
+  Lwt_io.printl (if result then "true" else "false")
 
 let set client path author message contents =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let module Info = Irmin_client_unix.Info (Client.Info) in
-      let path =
-        Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path"
-      in
-      let contents =
-        Irmin.Type.of_string Client.Contents.t contents
-        |> Error.unwrap "contents"
-      in
-      let info = Info.v ~author "%s" message in
-      let+ () = Client.set_exn client path ~info contents in
-      Logs.app (fun l -> l "OK"))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let module Info = Irmin_client_unix.Info (Client.Info) in
+  let path = Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path" in
+  let contents =
+    Irmin.Type.of_string Client.Contents.t contents |> Error.unwrap "contents"
+  in
+  let info = Info.v ~author "%s" message in
+  Client.set_exn client path ~info contents;
+  Logs.app (fun l -> l "OK")
 
 let remove client path author message =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let module Info = Irmin_client_unix.Info (Client.Info) in
-      let path =
-        Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path"
-      in
-      let info = Info.v ~author "%s" message in
-      let+ () = Client.remove_exn client path ~info in
-      Logs.app (fun l -> l "OK"))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let module Info = Irmin_client_unix.Info (Client.Info) in
+  let path = Irmin.Type.of_string Client.Path.t path |> Error.unwrap "path" in
+  let info = Info.v ~author "%s" message in
+  Client.remove_exn client path ~info;
+  Logs.app (fun l -> l "OK")
 
 let export client filename =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let* slice = Client.export (Client.repo client) in
-      let s = Irmin.Type.(unstage (to_bin_string Client.slice_t) slice) in
-      Lwt_io.chars_to_file filename (Lwt_stream.of_string s))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let slice = Client.export (Client.repo client) in
+  let s = Irmin.Type.(unstage (to_bin_string Client.slice_t) slice) in
+  Lwt_eio.run_lwt @@ fun () ->
+  Lwt_io.chars_to_file filename (Lwt_stream.of_string s)
 
 let import client filename =
-  run (fun () ->
-      client >>= fun (S ((module Client), client)) ->
-      let* slice = Lwt_io.chars_of_file filename |> Lwt_stream.to_string in
-      let slice =
-        Irmin.Type.(unstage (of_bin_string Client.slice_t) slice)
-        |> Error.unwrap "slice"
-      in
-      let+ () = Client.import (Client.repo client) slice in
-      Logs.app (fun l -> l "OK"))
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let slice =
+    Lwt_eio.run_lwt @@ fun () ->
+    Lwt_io.chars_of_file filename |> Lwt_stream.to_string
+  in
+  let slice =
+    Irmin.Type.(unstage (of_bin_string Client.slice_t) slice)
+    |> Error.unwrap "slice"
+  in
+  Client.import (Client.repo client) slice;
+  Logs.app (fun l -> l "OK")
 
 let replicate client author message prefix =
-  Lwt_main.run
-    ( client >>= fun (S ((module Client), client)) ->
-      let module Info = Irmin_client_unix.Info (Client.Info) in
-      let diff input =
-        Irmin.Type.(
-          of_json_string
-            (list
-               (pair Client.Path.t
-                  (Irmin.Diff.t (pair Client.Contents.t Client.Metadata.t)))))
-          input
-        |> Result.get_ok
-      in
-      let rec loop () =
-        let* input = Lwt_io.read_line Lwt_io.stdin in
-        let batch : Client.Batch.t =
-          List.fold_left
-            (fun acc (k, diff) ->
-              match diff with
-              | `Updated (_, (value, metadata)) | `Added (value, metadata) ->
-                  Client.Batch.add_value ~metadata k value acc
-              | `Removed _ -> Client.Batch.remove k acc)
-            (Client.Batch.v ()) (diff input)
-        in
-        let info = Info.v ~author "%s" message in
-        let prefix =
-          match prefix with
-          | Some p -> Irmin.Type.of_string Client.Path.t p |> Result.get_ok
-          | None -> Client.Path.empty
-        in
-        let* _ = Client.Batch.apply ~info client ~path:prefix batch in
-        loop ()
-      in
-      loop () )
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let module Info = Irmin_client_unix.Info (Client.Info) in
+  let diff input =
+    Irmin.Type.(
+      of_json_string
+        (list
+           (pair Client.Path.t
+              (Irmin.Diff.t (pair Client.Contents.t Client.Metadata.t)))))
+      input
+    |> Result.get_ok
+  in
+  let rec loop () =
+    let input = Lwt_eio.run_lwt @@ fun () -> Lwt_io.read_line Lwt_io.stdin in
+    let batch : Client.Batch.t =
+      List.fold_left
+        (fun acc (k, diff) ->
+          match diff with
+          | `Updated (_, (value, metadata)) | `Added (value, metadata) ->
+              Client.Batch.add_value ~metadata k value acc
+          | `Removed _ -> Client.Batch.remove k acc)
+        (Client.Batch.v ()) (diff input)
+    in
+    let info = Info.v ~author "%s" message in
+    let prefix =
+      match prefix with
+      | Some p -> Irmin.Type.of_string Client.Path.t p |> Result.get_ok
+      | None -> Client.Path.empty
+    in
+    let (_ : Client.commit_key) =
+      Client.Batch.apply ~info client ~path:prefix batch
+    in
+    loop ()
+  in
+  loop ()
+
+let replicate client author message prefix =
+  replicate client author message prefix false 1
 
 let watch client =
-  Lwt_main.run
-    ( client >>= fun (S ((module Client), client)) ->
-      let repo = Client.repo client in
-      let pp = Irmin.Type.pp (Client.Commit.t repo) in
-      let* _w =
-        Client.watch client (fun x ->
-            match x with
-            | `Updated (a, b) ->
-                Logs.app (fun l -> l "Updated (%a, %a)" pp a pp b);
-                Lwt.return_unit
-            | `Added a ->
-                Logs.app (fun l -> l "Added %a" pp a);
-                Lwt.return_unit
-            | `Removed a ->
-                Logs.app (fun l -> l "Removed %a" pp a);
-                Lwt.return_unit)
-      in
-      let x, _ = Lwt.wait () in
-      x )
+  run @@ fun () ->
+  let (S ((module Client), client)) = client () in
+  let repo = Client.repo client in
+  let pp = Irmin.Type.pp (Client.Commit.t repo) in
+  let _w =
+    Client.watch client (fun x ->
+        match x with
+        | `Updated (a, b) -> Logs.app (fun l -> l "Updated (%a, %a)" pp a pp b)
+        | `Added a -> Logs.app (fun l -> l "Added %a" pp a)
+        | `Removed a -> Logs.app (fun l -> l "Removed %a" pp a))
+  in
+  Lwt_eio.run_lwt @@ fun () ->
+  let x, _ = Lwt.wait () in
+  x
 
-let pr_str = Format.pp_print_string
+let watch client = watch client false 0
 
 let path index =
   let doc = Arg.info ~docv:"PATH" ~doc:"Path to lookup or modify" [] in
@@ -266,11 +260,7 @@ let iterations =
   in
   Arg.(value @@ opt int 1 doc)
 
-let freq =
-  let doc = Arg.info ~doc:"Update frequency" [ "f"; "freq" ] in
-  Arg.(value @@ opt float 5. doc)
-
-let config =
+let config ~env =
   let create uri (branch : string option) tls (store, hash, contents) codec
       config_path () =
     let codec =
@@ -280,7 +270,7 @@ let config =
     in
     let (module Codec) = codec in
     let store, config =
-      Irmin_cli.Resolver.load_config ?config_path ?store ?hash ?contents ()
+      Irmin_cli.Resolver.load_config ~env ?config_path ?store ?hash ?contents ()
     in
     let config = Irmin_server.Cli.Conf.v config uri in
     let (module Store : Irmin.Generic_key.S) =
@@ -307,6 +297,16 @@ let help =
   Term.(const help $ const ())
 
 let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let env =
+    object
+      method cwd = Eio.Stdenv.cwd env
+      method clock = Eio.Stdenv.clock env
+      method sw = sw
+    end
+  in
+  let config = config ~env:(env :> Irmin_cli.eio) in
   Stdlib.exit
   @@ Cmd.eval
   @@ Cmd.group ~default:help (Cmd.info "irmin-client")

@@ -16,7 +16,6 @@
 
 (* example of using tree fold *)
 
-open Lwt.Syntax
 module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
 module Tree = Store.Tree
 
@@ -43,58 +42,52 @@ end = struct
     let format : ('a, Format.formatter, unit) format =
       "Visit [%s]" ^^ if newline then "\n" else ""
     in
-    Fmt.(pf stdout format (String.concat ";" path)) |> Lwt.return
+    Fmt.(pf stdout format (String.concat ";" path))
 
   let pre = print_path true
   let post = print_path true
   let node = print_path true
 
   let contents path c acc =
-    let* () = print_path false path c acc in
-    Fmt.(pf stdout " = '%s'\n" c) |> Lwt.return
+    print_path false path c acc;
+    Fmt.(pf stdout " = '%s'\n" c)
 
   let tree path t acc =
-    let* () = print_path false path t acc in
-    let* k = Tree.kind t [] in
-    match k with
-    | Some k' ->
-        (match k' with
+    print_path false path t acc;
+    match Tree.kind t [] with
+    | Some k' -> (
+        match k' with
         | `Node -> Fmt.(string stdout ", with `Node kind\n")
         | `Contents -> Fmt.(string stdout ", with `Contents kind\n"))
-        |> Lwt.return
     | None -> failwith "no kind"
 end
 
-let main =
+let main () =
   let ps name = Fmt.(pf stdout "\n%s\n" name) in
   ps "Demo of how tree folders visit nodes.";
-  let* repo = Store.Repo.v config in
-  let* main_b = Store.main repo in
-  let* () = Store.set_exn ~info:(info "add c1") main_b [ "c1" ] "c1" in
-  let* () = Store.set_exn ~info:(info "add c2") main_b [ "c2" ] "c2" in
-  let* () =
-    Store.set_exn ~info:(info "add n1/c1") main_b [ "n1"; "c1" ] "n1/c1"
-  in
-  let* () =
-    Store.set_exn ~info:(info "add n1/n1/c1") main_b [ "n1"; "n1"; "c1" ]
-      "n1/n1/c1"
-  in
-  let* () =
-    Store.set_exn ~info:(info "add n2/c1") main_b [ "n2"; "c1" ] "n2/c1"
-  in
-  let* t = Store.tree main_b in
+  let repo = Store.Repo.v config in
+  let main_b = Store.main repo in
+  Store.set_exn ~info:(info "add c1") main_b [ "c1" ] "c1";
+  Store.set_exn ~info:(info "add c2") main_b [ "c2" ] "c2";
+
+  Store.set_exn ~info:(info "add n1/c1") main_b [ "n1"; "c1" ] "n1/c1";
+  Store.set_exn ~info:(info "add n1/n1/c1") main_b [ "n1"; "n1"; "c1" ]
+    "n1/n1/c1";
+  Store.set_exn ~info:(info "add n2/c1") main_b [ "n2"; "c1" ] "n2/c1";
+  let t = Store.tree main_b in
   (* let order = `Random (Random.State.make_self_init ()) in *)
   let order = `Sorted in
   ps "pre folder: preorder traversal of `Node kinds";
-  let* () = Tree.fold ~order ~pre:Folder.pre t () in
+  Tree.fold ~order ~pre:Folder.pre t ();
   ps "post folder: postorder traversal of `Node kinds";
-  let* () = Tree.fold ~order ~post:Folder.post t () in
+  Tree.fold ~order ~post:Folder.post t ();
   ps "node folder: visit all `Node kinds";
-  let* () = Tree.fold ~order ~node:Folder.node t () in
+  Tree.fold ~order ~node:Folder.node t ();
   ps "contents folder: visit all `Contents kinds";
-  let* () = Tree.fold ~order ~contents:Folder.contents t () in
+  Tree.fold ~order ~contents:Folder.contents t ();
   ps "tree folder: visit both `Node and `Contents kinds";
-  let* () = Tree.fold ~order ~tree:Folder.tree t () in
-  Lwt.return_unit
+  Tree.fold ~order ~tree:Folder.tree t ()
 
-let () = Lwt_main.run main
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

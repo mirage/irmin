@@ -16,9 +16,6 @@
 
 (* A minimal example of instantiating a `irmin-pack.unix` key-value store. *)
 
-open Lwt
-open Lwt.Syntax
-
 let src =
   Logs.Src.create "irmin-pack.unix/examples/kv"
     ~doc:"irmin-pack.unix/examples/kv"
@@ -52,8 +49,9 @@ module Repo_config = struct
 
   (** Location on disk to save the repository
 
-      Note: irmin-pack will not create the entire path, only the final directory *)
-  let root = "./irmin-pack-example"
+      Note: irmin-pack will not create the entire path, only the final directory
+  *)
+  let root fs = Eio.Path.(fs / "./irmin-pack-example")
 
   (** See {!Irmin_pack.Conf} for more keys that can be used when initialising
       the repository config *)
@@ -63,34 +61,35 @@ module Repo_config = struct
   let fresh = true
 
   (** Create config for our repository *)
-  let config =
+  let config fs =
     Irmin_pack.config ~fresh ~index_log_size ~merge_throttle ~indexing_strategy
-      root
+      (root fs)
 end
 
 module StoreMaker = Irmin_pack_unix.KV (Conf)
 module Store = StoreMaker.Make (Irmin.Contents.String)
 
-let main () =
+let main env =
+  (* Create a switch *)
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
   (* Instantiate a repository *)
-  let* repo = Store.Repo.v Repo_config.config in
+  let repo = Store.Repo.v (Repo_config.config ~sw ~fs fs) in
 
   (* Get the store from the main branch. *)
-  let* store = Store.main repo in
+  let store = Store.main repo in
 
   (* Set a value. *)
-  let* () =
+  let () =
     Store.set_exn
       ~info:(fun () -> Store.Info.empty)
       store [ "hello" ] "irmin-pack.unix!"
   in
 
   (* Get the value *)
-  let* content = Store.get store [ "hello" ] in
+  let content = Store.get store [ "hello" ] in
 
-  Log.app (fun m -> m "hello: %s" content);
-
-  return ()
+  Log.app (fun m -> m "hello: %s" content)
 
 let setup_logs () =
   Fmt_tty.setup_std_outputs ();
@@ -98,5 +97,6 @@ let setup_logs () =
   Logs.(set_level @@ Some Debug)
 
 let () =
+  Eio_main.run @@ fun env ->
   setup_logs ();
-  Lwt_main.run @@ main ()
+  main env

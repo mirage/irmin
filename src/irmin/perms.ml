@@ -63,4 +63,5 @@ type write = Write.t
 (** The type parameter of a handle with [write] permissions. *)
 
 type read_write = Read_write.t
-(** The type parameter of a handle with both {!read} and {!write} permissions. *)
+(** The type parameter of a handle with both {!read} and {!write} permissions.
+*)

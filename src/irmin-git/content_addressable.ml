@@ -15,6 +15,8 @@
  *)
 
 open Import
+open Lwt.Infix
+open Lwt.Syntax
 include Content_addressable_intf
 
 module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
@@ -29,6 +31,7 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
   type value = V.t
 
   let mem t key =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "mem %a" pp_key key];
     G.mem t key >>= function
     | false -> Lwt.return_false
@@ -39,6 +42,7 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
         | Ok v -> Lwt.return (V.type_eq (G.Value.kind v)))
 
   let find t key =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "find %a" pp_key key];
     G.read t key >>= function
     | Error (`Reference_not_found _ | `Not_found _) -> Lwt.return_none
@@ -46,13 +50,14 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
     | Ok v -> Lwt.return (V.of_git v)
 
   let add t v =
+    Lwt_eio.run_lwt @@ fun () ->
     let v = V.to_git v in
     let* k, _ = G.write t v >>= handle_git_err in
     [%log.debug "add %a" pp_key k];
     Lwt.return k
 
   let unsafe_add t k v =
-    let+ k' = add t v in
+    let k' = add t v in
     if equal_key k k' then ()
     else
       Fmt.failwith
@@ -60,7 +65,7 @@ module Make (G : Git.S) (V : Value.S with type value := G.Value.t) = struct
         pp_key k pp_key k'
 
   let batch t f = f t
-  let close _ = Lwt.return ()
+  let close _ = ()
 end
 
 module Check_closed (S : Irmin.Content_addressable.S) = struct
@@ -90,7 +95,5 @@ module Check_closed (S : Irmin.Content_addressable.S) = struct
     check_not_closed t;
     S.batch (snd t) (fun x -> f (fst t, x))
 
-  let close (c, _) =
-    c := true;
-    Lwt.return ()
+  let close (c, _) = c := true
 end

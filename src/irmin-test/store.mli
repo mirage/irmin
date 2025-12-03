@@ -16,9 +16,12 @@
 
 val run :
   string ->
+  ?stdout:Alcotest_engine.Formatters.stdout ->
+  ?stderr:Alcotest_engine.Formatters.stderr ->
+  ?and_exit:bool ->
   ?slow:bool ->
   ?random_seed:int ->
-  sleep:(float -> unit Lwt.t) ->
-  misc:unit Alcotest_lwt.test list ->
+  sleep:(float -> unit) ->
+  misc:unit Alcotest.test list ->
   (Alcotest.speed_level * Common.t) list ->
-  unit Lwt.t
+  unit

@@ -56,7 +56,7 @@ module Type = Repr
     {{:https://github.com/mirage/repr} [Repr]}. These values can be derived from
     type definitions via [[@@deriving irmin]] (see the
     {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
-      for [ppx_irmin]})*)
+     for [ppx_irmin]})*)
 
 module Hash = Hash
 (** Hashing functions.
@@ -66,7 +66,8 @@ module Hash = Hash
     others might work with a fixed one (for instance, the Git format uses only
     {{!Hash.SHA1} SHA1}).
 
-    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
+    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends.
+*)
 
 module Branch = Branch
 
@@ -175,8 +176,9 @@ type config = Conf.t
 (** {2 Low-level Stores} *)
 
 (** An Irmin backend is built from a number of lower-level stores, each
-    implementing fewer operations, such as {{!Content_addressable.Store}
-    content-addressable} and {{!Atomic_write.Store} atomic-write} stores. *)
+    implementing fewer operations, such as
+    {{!Content_addressable.Store} content-addressable} and
+    {{!Atomic_write.Store} atomic-write} stores. *)
 
 module Read_only = Read_only
 (** Read-only backend backends. *)
@@ -457,9 +459,9 @@ type remote = Remote.t = ..
 
 val remote_store : (module Generic_key.S with type t = 'a) -> 'a -> remote
 (** [remote_store t] is the remote corresponding to the local store [t].
-    Synchronization is done by importing and exporting store {{!BC.slice}
-    slices}, so this is usually much slower than native synchronization using
-    {!Store.remote} but it works for all backends. *)
+    Synchronization is done by importing and exporting store
+    {{!BC.slice} slices}, so this is usually much slower than native
+    synchronization using {!Store.remote} but it works for all backends. *)
 
 module Sync = Sync
 (** Remote synchronisation. *)

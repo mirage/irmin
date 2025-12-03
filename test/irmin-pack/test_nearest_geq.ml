@@ -18,10 +18,6 @@ let test_nearest_geq () =
   Alcotest.(check geq) "6" (nearest_geq 6) (Some 3);
   Alcotest.(check geq) "7" (nearest_geq 7) (Some 3);
   Alcotest.(check geq) "8" (nearest_geq 8) None;
-  Lwt.return_unit
+  ()
 
-let tests =
-  [
-    Alcotest_lwt.test_case "test_nearest_geq" `Quick (fun _switch () ->
-        test_nearest_geq ());
-  ]
+let tests = [ Alcotest.test_case "test_nearest_geq" `Quick test_nearest_geq ]

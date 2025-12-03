@@ -22,10 +22,12 @@
 
 (** {1 Store} *)
 
-module type S = Store.S
+open Irmin_pack_io
 
-module Maker (Config : Irmin_pack.Conf.S) : Store.Maker
-module KV (Config : Irmin_pack.Conf.S) : Store.KV
+module type S = Irmin_pack_io.S
+
+module Maker (Config : Irmin_pack.Conf.S) : Store_intf.Maker
+module KV (Config : Irmin_pack.Conf.S) : Store_intf.KV
 
 (** {1 Key and Values} *)
 
@@ -35,7 +37,9 @@ module Pack_value = Pack_value
 
 (** {1 Integrity Checks} *)
 
-module Checks = Checks
+module Checks : sig
+  module Make (_ : Checks_intf.Store) : Checks_intf.S
+end
 
 (** {1 Statistics} *)
 
@@ -46,7 +50,13 @@ module Stats = Stats
 (** Following functors and modules are instantiated automatically or used
     internally when creating a store with {!Maker} or {!KV}.*)
 
-module Index = Pack_index
+module Index : sig
+  module type S = Index.S
+
+  module Make (K : Irmin.Hash.S) :
+      module type of Index.Make_io (Io.Unix) (Index_unix.Private.Platform) (K)
+end
+
 module Inode = Inode
 module Pack_store = Pack_store
 module Atomic_write = Atomic_write
@@ -57,6 +67,7 @@ module Async = Async
 module Errors = Errors
 module Io_errors = Io_errors
 module Control_file = Control_file
+module Control_file_intf = Control_file_intf
 module Append_only_file = Append_only_file
 module Chunked_suffix = Chunked_suffix
 module Ranges = Ranges
@@ -65,3 +76,6 @@ module File_manager = File_manager
 module Lower = Lower
 module Utils = Utils
 module Lru = Lru
+module Gc_raw = Gc
+module Traverse_pack_file = Traverse_pack_file
+module Snapshot = Snapshot

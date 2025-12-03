@@ -19,19 +19,20 @@ open Irmin.Export_for_backends
 open Irmin_traces
 
 type config = {
+  sw : Eio.Switch.t;
+  fs : Eio.Fs.dir_ty Eio.Path.t;
   ncommits : int;
   number_of_commits_to_replay : int;
   depth : int;
   nchain_trees : int;
   width : int;
   nlarge_trees : int;
-  store_dir : string;
+  store_dir : Eio.Fs.dir_ty Eio.Path.t;
   path_conversion : [ `None | `V1 | `V0_and_v1 | `V0 ];
   inode_config : int * int;
   store_type : [ `Pack | `Pack_mem ];
-  freeze_commit : int;
-  replay_trace_path : string;
-  artefacts_path : string;
+  replay_trace_path : Eio.Fs.dir_ty Eio.Path.t;
+  artefacts_path : Eio.Fs.dir_ty Eio.Path.t;
   keep_store : bool;
   keep_stat_trace : bool;
   no_summary : bool;
@@ -53,11 +54,11 @@ module type Store = sig
        and type node_key = key
        and type contents_key = key
 
-  type on_commit := int -> Hash.t -> unit Lwt.t
-  type on_end := unit -> unit Lwt.t
+  type on_commit := int -> Hash.t -> unit
+  type on_end := unit -> unit
 
   val create_repo :
-    root:string -> store_config -> (Repo.t * on_commit * on_end) Lwt.t
+    root:Eio.Fs.dir_ty Eio.Path.t -> store_config -> Repo.t * on_commit * on_end
 
   type stats := Irmin_pack_unix.Stats.Latest_gc.stats
 
@@ -65,12 +66,13 @@ module type Store = sig
   val add_volume : repo -> unit
 
   val gc_run :
-    ?finished:((stats, string) result -> unit Lwt.t) ->
+    domain_mgr:_ Eio.Domain_manager.t ->
+    ?finished:((stats, string) result -> unit) ->
     repo ->
     commit_key ->
-    unit Lwt.t
+    unit
 
-  val gc_wait : repo -> unit Lwt.t
+  val gc_wait : repo -> unit
 end
 
 let pp_inode_config ppf (entries, stable_hash) =
@@ -84,7 +86,7 @@ module Benchmark = struct
   type result = { time : float; size : int }
 
   let run config f =
-    let+ time, res = with_timer f in
+    let time, res = with_timer f in
     let size = FSHelper.get_size config.store_dir in
     ({ time; size }, res)
 
@@ -103,15 +105,15 @@ module Bench_suite (Store : Store) = struct
     match prev_commit with
     | None ->
         let tree = Store.Tree.empty () in
-        let* tree = f tree in
+        let tree = f tree in
         Store.Commit.v repo ~info:(Info.f ()) ~parents:[] tree
     | Some prev_commit -> (
         let prev_commit = Store.Commit.key prev_commit in
-        Store.Commit.of_key repo prev_commit >>= function
-        | None -> Lwt.fail_with "commit not found"
+        match Store.Commit.of_key repo prev_commit with
+        | None -> failwith "commit not found"
         | Some commit ->
             let tree = Store.Commit.tree commit in
-            let* tree = f tree in
+            let tree = f tree in
             Store.Commit.v repo ~info:(Info.f ()) ~parents:[ prev_commit ] tree)
 
   let add_commits ~message repo ncommits on_commit on_end f () =
@@ -119,8 +121,8 @@ module Bench_suite (Store : Store) = struct
     let rec aux c i =
       if i >= ncommits then on_end ()
       else
-        let* c' = checkout_and_commit repo c f in
-        let* () = on_commit i (Store.Commit.hash c') in
+        let c' = checkout_and_commit repo c f in
+        let () = on_commit i (Store.Commit.hash c') in
         prog 1;
         aux (Some c') (i + 1)
     in
@@ -129,14 +131,14 @@ module Bench_suite (Store : Store) = struct
   let run_large config =
     reset_stats ();
     let root = config.store_dir in
-    let* repo, on_commit, on_end = Store.create_repo ~root config in
-    let* result, () =
+    let repo, on_commit, on_end = Store.create_repo ~root config in
+    let result, () =
       Trees.add_large_trees config.width config.nlarge_trees
       |> add_commits ~message:"Playing large mode" repo config.ncommits
            on_commit on_end
       |> Benchmark.run config
     in
-    let+ () = Store.Repo.close repo in
+    let () = Store.Repo.close repo in
     fun ppf ->
       Format.fprintf ppf
         "Large trees mode on inode config %a, %a: %d commits, each consisting \
@@ -149,14 +151,14 @@ module Bench_suite (Store : Store) = struct
   let run_chains config =
     reset_stats ();
     let root = config.store_dir in
-    let* repo, on_commit, on_end = Store.create_repo ~root config in
-    let* result, () =
+    let repo, on_commit, on_end = Store.create_repo ~root config in
+    let result, () =
       Trees.add_chain_trees config.depth config.nchain_trees
       |> add_commits ~message:"Playing chain mode" repo config.ncommits
            on_commit on_end
       |> Benchmark.run config
     in
-    let+ () = Store.Repo.close repo in
+    let () = Store.Repo.close repo in
     fun ppf ->
       Format.fprintf ppf
         "Chain trees mode on inode config %a, %a: %d commits, each consisting \
@@ -166,7 +168,7 @@ module Bench_suite (Store : Store) = struct
         config.ncommits config.nchain_trees config.depth Benchmark.pp_results
         result
 
-  let run_read_trace config =
+  let run_read_trace ~domain_mgr config =
     let replay_config : _ Irmin_traces.Trace_replay.config =
       {
         number_of_commits_to_replay = config.number_of_commits_to_replay;
@@ -187,15 +189,16 @@ module Bench_suite (Store : Store) = struct
       }
     in
     if config.no_summary then
-      let+ () =
-        Trace_replay.run config { replay_config with return_type = Unit }
+      let () =
+        Trace_replay.run ~domain_mgr config
+          { replay_config with return_type = Unit }
       in
       fun _ppf -> ()
     else
-      let+ summary = Trace_replay.run config replay_config in
+      let summary = Trace_replay.run ~domain_mgr config replay_config in
       fun ppf ->
         if not config.no_summary then (
-          let p = Filename.concat config.artefacts_path "stat_summary.json" in
+          let p = Eio.Path.(config.artefacts_path / "stat_summary.json") in
           Trace_stat_summary.save_to_json summary p;
           Format.fprintf ppf "%a"
             (Trace_stat_summary_pp.pp 5)
@@ -216,20 +219,21 @@ module Make_store_mem (Conf : Irmin_pack.Conf.S) = struct
 
   let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 
-  let create_repo ~root _config =
+  let create_repo ~root config =
     let conf =
-      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy root
+      Irmin_pack.config ~sw:config.sw ~fs:config.fs ~readonly:false ~fresh:true
+        ~indexing_strategy root
     in
     prepare_artefacts_dir root;
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    Lwt.return (repo, on_commit, on_end)
+    let repo = Store.Repo.v conf in
+    let on_commit _ _ = () in
+    let on_end () = () in
+    (repo, on_commit, on_end)
 
   let split _repo = ()
   let add_volume _repo = ()
-  let gc_wait _repo = Lwt.return_unit
-  let gc_run ?finished:_ _repo _key = Lwt.return_unit
+  let gc_wait _repo = ()
+  let gc_run ~domain_mgr:_ ?finished:_ _repo _key = ()
 end
 
 module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
@@ -248,43 +252,45 @@ module Make_store_pack (Conf : Irmin_pack.Conf.S) = struct
 
   let create_repo ~root (config : store_config) =
     let lower_root =
-      if config.add_volume_every > 0 then Some (Filename.concat root "lower")
+      if config.add_volume_every > 0 then Some Eio.Path.(root / "lower")
       else None
     in
     let conf =
-      Irmin_pack.config ~readonly:false ~fresh:true ~indexing_strategy
-        ~lower_root root
+      Irmin_pack.config ~sw:config.sw ~fs:config.fs ~readonly:false ~fresh:true
+        ~indexing_strategy ~lower_root root
     in
     prepare_artefacts_dir root;
-    let* repo = Store.Repo.v conf in
-    let on_commit _ _ = Lwt.return_unit in
-    let on_end () = Lwt.return_unit in
-    Lwt.return (repo, on_commit, on_end)
+    let repo = Store.Repo.v conf in
+    let on_commit _ _ = () in
+    let on_end () = () in
+    (repo, on_commit, on_end)
 
   let split = Store.split
   let add_volume = Store.add_volume
 
   let gc_wait repo =
-    let* r = Store.Gc.wait repo in
-    match r with Ok _ -> Lwt.return_unit | Error (`Msg err) -> failwith err
+    let r = Store.Gc.wait repo in
+    match r with Ok _ -> () | Error (`Msg err) -> failwith err
 
-  let gc_run ?(finished = fun _ -> Lwt.return_unit) repo key =
+  let gc_run ~domain_mgr ?(finished = fun _ -> ()) repo key =
     let f (result : (_, Store.Gc.msg) result) =
       match result with
       | Error (`Msg err) -> finished @@ Error err
       | Ok stats -> finished @@ Ok stats
     in
-    let* launched = Store.Gc.run ~finished:f repo key in
+    let launched = Store.Gc.run ~domain_mgr ~finished:f repo key in
     match launched with
-    | Ok true -> Lwt.return_unit
-    | Ok false -> [%logs.app "GC skipped"] |> Lwt.return
+    | Ok true -> ()
+    | Ok false -> [%logs.app "GC skipped"]
     | Error (`Msg err) -> failwith err
 end
 
 module type B = sig
-  val run_large : config -> (Format.formatter -> unit) Lwt.t
-  val run_chains : config -> (Format.formatter -> unit) Lwt.t
-  val run_read_trace : config -> (Format.formatter -> unit) Lwt.t
+  val run_large : config -> Format.formatter -> unit
+  val run_chains : config -> Format.formatter -> unit
+
+  val run_read_trace :
+    domain_mgr:_ Eio.Domain_manager.t -> config -> Format.formatter -> unit
 end
 
 let store_of_config config =
@@ -302,88 +308,89 @@ let store_of_config config =
 type suite_elt = {
   mode : [ `Read_trace | `Chains | `Large ];
   speed : [ `Quick | `Slow | `Custom ];
-  run : config -> (Format.formatter -> unit) Lwt.t;
+  run : config -> Format.formatter -> unit;
 }
 
-let suite : suite_elt list =
-  [
-    {
-      mode = `Read_trace;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-    {
-      mode = `Read_trace;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-    {
-      mode = `Chains;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_chains config);
-    };
-    {
-      mode = `Chains;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (2, 5); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_chains config);
-    };
-    {
-      mode = `Large;
-      speed = `Quick;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (32, 256); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_large config);
-    };
-    {
-      mode = `Large;
-      speed = `Slow;
-      run =
-        (fun config ->
-          let config =
-            { config with inode_config = (2, 5); store_type = `Pack }
-          in
-          let (module Store) = store_of_config config in
-          Store.run_large config);
-    };
-    {
-      mode = `Read_trace;
-      speed = `Custom;
-      run =
-        (fun config ->
-          let (module Store) = store_of_config config in
-          Store.run_read_trace config);
-    };
-  ]
+let suite ~domain_mgr : suite_elt list =
+  List.rev
+    [
+      {
+        mode = `Read_trace;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_read_trace ~domain_mgr config);
+      };
+      {
+        mode = `Read_trace;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_read_trace ~domain_mgr config);
+      };
+      {
+        mode = `Chains;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_chains config);
+      };
+      {
+        mode = `Chains;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (2, 5); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_chains config);
+      };
+      {
+        mode = `Large;
+        speed = `Quick;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (32, 256); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_large config);
+      };
+      {
+        mode = `Large;
+        speed = `Slow;
+        run =
+          (fun config ->
+            let config =
+              { config with inode_config = (2, 5); store_type = `Pack }
+            in
+            let (module Store) = store_of_config config in
+            Store.run_large config);
+      };
+      {
+        mode = `Read_trace;
+        speed = `Custom;
+        run =
+          (fun config ->
+            let (module Store) = store_of_config config in
+            Store.run_read_trace ~domain_mgr config);
+      };
+    ]
 
-let get_suite suite_filter =
+let get_suite ~domain_mgr suite_filter =
   List.filter
     (fun { mode; speed; _ } ->
       match (suite_filter, speed, mode) with
@@ -400,22 +407,24 @@ let get_suite suite_filter =
       | (`Slow | `Quick | `Custom_trace | `Custom_chains | `Custom_large), _, _
         ->
           false)
-    suite
+    (suite ~domain_mgr)
 
-let main () ncommits number_of_commits_to_replay suite_filter inode_config
-    store_type freeze_commit path_conversion depth width nchain_trees
-    nlarge_trees replay_trace_path artefacts_path keep_store keep_stat_trace
-    no_summary empty_blobs gc_every gc_distance_in_the_past gc_wait_after
-    add_volume_every =
+let main ~sw ~fs () ncommits number_of_commits_to_replay suite_filter
+    inode_config store_type _freeze_commit path_conversion depth width
+    nchain_trees nlarge_trees replay_trace_path artefacts_path keep_store
+    keep_stat_trace no_summary empty_blobs gc_every gc_distance_in_the_past
+    gc_wait_after add_volume_every =
   let default = match suite_filter with `Quick -> 10000 | _ -> 13315 in
   let number_of_commits_to_replay =
     Option.value ~default number_of_commits_to_replay
   in
   let config =
     {
+      sw;
+      fs;
       ncommits;
       number_of_commits_to_replay;
-      store_dir = Filename.concat artefacts_path "store";
+      store_dir = Eio.Path.(artefacts_path / "store");
       path_conversion;
       depth;
       width;
@@ -424,7 +433,6 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
       replay_trace_path;
       inode_config;
       store_type;
-      freeze_commit;
       artefacts_path;
       keep_store;
       keep_stat_trace;
@@ -442,23 +450,22 @@ let main () ncommits number_of_commits_to_replay suite_filter inode_config
      results. *)
   Gc.set { (Gc.get ()) with Gc.allocation_policy = 0 };
   FSHelper.rm_dir config.store_dir;
-  let suite = get_suite suite_filter in
-  let run_benchmarks () = Lwt_list.map_s (fun b -> b.run config) suite in
+  Eio_main.run @@ fun env ->
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  let suite = get_suite ~domain_mgr suite_filter in
+  let run_benchmarks () = List.map (fun b -> b.run config) suite in
   let results =
-    Lwt_main.run
-      (Lwt.finalize run_benchmarks (fun () ->
-           if keep_store then (
-             [%logs.app "Store kept at %s" config.store_dir];
-             let ( / ) = Filename.concat in
-             let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
-             ro (config.store_dir / "store.branches");
-             ro (config.store_dir / "store.dict");
-             ro (config.store_dir / "store.pack");
-             ro (config.store_dir / "index" / "data");
-             ro (config.store_dir / "index" / "log");
-             ro (config.store_dir / "index" / "log_async"))
-           else FSHelper.rm_dir config.store_dir;
-           Lwt.return_unit))
+    Fun.protect run_benchmarks ~finally:(fun () ->
+        if keep_store then (
+          [%logs.app "Store kept at %s" (Eio.Path.native_exn config.store_dir)];
+          let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
+          ro Eio.Path.(native_exn @@ (config.store_dir / "store.branches"));
+          ro Eio.Path.(native_exn @@ (config.store_dir / "store.dict"));
+          ro Eio.Path.(native_exn @@ (config.store_dir / "store.pack"));
+          ro Eio.Path.(native_exn @@ (config.store_dir / "index" / "data"));
+          ro Eio.Path.(native_exn @@ (config.store_dir / "index" / "log"));
+          ro Eio.Path.(native_exn @@ (config.store_dir / "index" / "log_async")))
+        else FSHelper.rm_dir config.store_dir)
   in
   [%logs.app "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results]
 
@@ -577,18 +584,23 @@ let nlarge_trees =
   in
   Arg.(value @@ opt int 1 doc)
 
-let replay_trace_path =
+let eio_path fs =
+  let parse s = Ok Eio.Path.(fs / s) in
+  let print = Eio.Path.pp in
+  Arg.conv ~docv:"PATH" (parse, print)
+
+let replay_trace_path fs =
   let doc =
     Arg.info ~docv:"PATH" ~doc:"Trace of Tezos operations to be replayed." []
   in
-  Arg.(required @@ pos 0 (some string) None doc)
+  Arg.(required @@ pos 0 (some (eio_path fs)) None doc)
 
-let artefacts_path =
+let artefacts_path fs cwd =
   let doc =
     Arg.info ~docv:"PATH" ~doc:"Destination of the bench artefacts."
       [ "artefacts" ]
   in
-  Arg.(value @@ opt string default_artefacts_dir doc)
+  Arg.(value @@ opt (eio_path fs) (default_artefacts_dir cwd) doc)
 
 let setup_log =
   Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
@@ -618,9 +630,9 @@ let add_volume_every =
   let doc = Arg.info ~doc:"Add volume ever N GCs" [ "add-volume-every" ] in
   Arg.(value @@ opt int 0 doc)
 
-let main_term =
+let main_term sw fs cwd =
   Term.(
-    const main
+    const (main ~sw ~fs)
     $ setup_log
     $ ncommits
     $ number_of_commits_to_replay
@@ -633,8 +645,8 @@ let main_term =
     $ width
     $ nchain_trees
     $ nlarge_trees
-    $ replay_trace_path
-    $ artefacts_path
+    $ replay_trace_path fs
+    $ artefacts_path fs cwd
     $ keep_store
     $ keep_stat_trace
     $ no_summary
@@ -663,4 +675,8 @@ let () =
     ]
   in
   let info = Cmd.info ~man ~doc:"Benchmarks for tree operations" "tree" in
-  Stdlib.exit @@ Cmd.eval @@ Cmd.v info main_term
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
+  let cwd = Eio.Stdenv.cwd env in
+  Stdlib.exit @@ Cmd.eval @@ Cmd.v info (main_term sw fs cwd)

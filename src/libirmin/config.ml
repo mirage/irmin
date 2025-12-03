@@ -40,10 +40,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_pack"
       (string_opt @-> string_opt @-> returning config)
       (fun hash contents ->
+        run_env @@ fun env ->
         try
           let hash = Option.map Irmin_cli.Resolver.Hash.find hash in
           let c : config =
-            Irmin_cli.Resolver.load_config ~store:"pack" ?hash ?contents ()
+            Irmin_cli.Resolver.load_config ~env ~store:"pack" ?hash ?contents ()
           in
           Root.create_config c
         with _ -> null config)
@@ -52,8 +53,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_tezos"
       (void @-> returning config)
       (fun () ->
+        run_env @@ fun env ->
         try
-          let c : config = Irmin_cli.Resolver.load_config ~store:"tezos" () in
+          let c : config =
+            Irmin_cli.Resolver.load_config ~env ~store:"tezos" ()
+          in
           Root.create_config c
         with _ -> null config)
 
@@ -61,8 +65,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_git"
       (string_opt @-> returning config)
       (fun contents ->
+        run_env @@ fun env ->
         try
-          let c = Irmin_cli.Resolver.load_config ~store:"git" ?contents () in
+          let c =
+            Irmin_cli.Resolver.load_config ~env ~store:"git" ?contents ()
+          in
           Root.create_config c
         with _ -> null config)
 
@@ -70,9 +77,10 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_git_mem"
       (string_opt @-> returning config)
       (fun contents ->
+        run_env @@ fun env ->
         try
           let c =
-            Irmin_cli.Resolver.load_config ~store:"git-mem" ?contents ()
+            Irmin_cli.Resolver.load_config ~env ~store:"git-mem" ?contents ()
           in
           Root.create_config c
         with _ -> null config)
@@ -81,10 +89,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_fs"
       (string_opt @-> string_opt @-> returning config)
       (fun hash contents ->
+        run_env @@ fun env ->
         try
           let hash = Option.map Irmin_cli.Resolver.Hash.find hash in
           let c =
-            Irmin_cli.Resolver.load_config ~store:"irf" ?hash ?contents ()
+            Irmin_cli.Resolver.load_config ~env ~store:"irf" ?hash ?contents ()
           in
           Root.create_config c
         with _ -> null config)
@@ -93,10 +102,11 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
     fn "config_mem"
       (string_opt @-> string_opt @-> returning config)
       (fun hash contents ->
+        run_env @@ fun env ->
         try
           let hash = Option.map Irmin_cli.Resolver.Hash.find hash in
           let c =
-            Irmin_cli.Resolver.load_config ~store:"mem" ?hash ?contents ()
+            Irmin_cli.Resolver.load_config ~env ~store:"mem" ?hash ?contents ()
           in
           Root.create_config c
         with _ -> null config)
@@ -116,7 +126,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             | None -> (false, config)
             | Some (Irmin.Backend.Conf.K k) ->
                 let t : a Irmin.Type.t = Root.get_ty ty in
-                if type_name t <> type_name (Irmin.Backend.Conf.ty k) then
+                if type_name t <> Irmin.Backend.Conf.typename k then
                   (false, config)
                 else
                   let value = Root.get_value value in
@@ -139,8 +149,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
             | None -> (false, config)
             | Some (Irmin.Backend.Conf.K k) ->
                 let path =
-                  Irmin.Type.of_string (Irmin.Backend.Conf.ty k) path
-                  |> Result.get_ok
+                  Irmin.Backend.Conf.of_string k path |> Result.get_ok
                 in
                 (true, Irmin.Backend.Conf.add config k path)
           in

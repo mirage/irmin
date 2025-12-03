@@ -1,0 +1,20 @@
+(library
+ (public_name irmin-pack.io)
+ (name irmin_pack_io)
+ (libraries
+  fmt
+  index
+  irmin
+  irmin-pack
+  logs
+  eio
+  mtime
+  progress.engine
+  cmdliner
+  optint
+  checkseum
+  checkseum.c)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

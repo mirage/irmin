@@ -17,16 +17,22 @@
 open! Import
 open Common
 
-let ( / ) = Filename.concat
-let archive_v2_minimal = "test" / "irmin-pack" / "data" / "version_2_minimal"
-let archive_v2_always = "test" / "irmin-pack" / "data" / "version_2_always"
-let archive_v3_minimal = "test" / "irmin-pack" / "data" / "version_3_minimal"
-let archive_v3_always = "test" / "irmin-pack" / "data" / "version_3_always"
+let archive_v2_minimal ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_2_minimal")
 
-let archive_v3_minimal_gced =
-  "test" / "irmin-pack" / "data" / "version_3_minimal_gced"
+let archive_v2_always ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_2_always")
 
-let root_local_build = "_build" / "test-upgrade"
+let archive_v3_minimal ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_minimal")
+
+let archive_v3_always ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_always")
+
+let archive_v3_minimal_gced ~fs =
+  Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_3_minimal_gced")
+
+let root_local_build ~fs = Eio.Path.(fs / "_build" / "test-upgrade")
 
 type pack_entry = {
   h : Schema.Hash.t;
@@ -239,20 +245,20 @@ module Store = struct
     let lru_size = setup.lru_size in
     Irmin_pack.config ~readonly ~indexing_strategy ~lru_size ~fresh root
 
-  let v setup ~readonly ~fresh root =
-    S.Repo.v (config setup ~readonly ~fresh root)
+  let v ~sw ~fs setup ~readonly ~fresh root =
+    S.Repo.v (config ~sw ~fs setup ~readonly ~fresh root)
 
   let close = S.Repo.close
   let reload = S.reload
 
-  let gc repo =
+  let gc ~domain_mgr repo =
     let k = key_of_entry c1 in
-    let* launched = S.Gc.start_exn ~unlink:true repo k in
+    let launched = S.Gc.start_exn ~domain_mgr ~unlink:true repo k in
     assert launched;
-    let* result = S.Gc.finalise_exn ~wait:true repo in
+    let result = S.Gc.finalise_exn ~wait:true repo in
     match result with
     | `Idle | `Running -> Alcotest.fail "expected finalised gc"
-    | `Finalised _ -> Lwt.return_unit
+    | `Finalised _ -> ()
 
   let dict_find_opt (repo : S.repo) step =
     S.Internal.(Dict.find (dict repo) step)
@@ -270,113 +276,113 @@ module Store = struct
     with Irmin_pack_unix.Pack_store.Invalid_read _ ->
       (* In RW mode, [mem] will raise an exception if the offset of the key is
          out of the bounds of the pack file *)
-      Lwt.return_false
+      false
 
   let put_borphan bstore =
-    let+ k = S.Backend.Contents.add bstore "borphan" in
+    let k = S.Backend.Contents.add bstore "borphan" in
     assert (k = key_of_entry borphan);
     k
 
   let put_b01 bstore =
-    let+ k = S.Backend.Contents.add bstore "b01" in
+    let k = S.Backend.Contents.add bstore "b01" in
     assert (k = key_of_entry b01);
     k
 
   let put_n01 bstore nstore =
-    let* k_b01 = put_b01 bstore in
+    let k_b01 = put_b01 bstore in
     let step = "step-b01" in
     let childs = [ (step, `Contents (k_b01, ())) ] in
     let n = S.Backend.Node.Val.of_list childs in
-    let+ k = S.Backend.Node.add nstore n in
+    let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n01);
     k
 
   let put_n0 bstore nstore =
-    let* k_n01 = put_n01 bstore nstore in
+    let k_n01 = put_n01 bstore nstore in
     let step = "step-n01" in
     let childs = [ (step, `Node k_n01) ] in
     let n = S.Backend.Node.Val.of_list childs in
-    let+ k = S.Backend.Node.add nstore n in
+    let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n0);
     k
 
   let put_c0 bstore nstore cstore =
-    let* k_n0 = put_n0 bstore nstore in
+    let k_n0 = put_n0 bstore nstore in
     let c = S.Backend.Commit.Val.v ~info:S.Info.empty ~node:k_n0 ~parents:[] in
-    let+ k = S.Backend.Commit.add cstore c in
+    let k = S.Backend.Commit.add cstore c in
     assert (k = key_of_entry c0);
     k
 
   let put_b1 bstore =
-    let+ k = S.Backend.Contents.add bstore "b1" in
+    let k = S.Backend.Contents.add bstore "b1" in
     k
 
   let put_n1 bstore nstore =
-    let* k_b1 = put_b1 bstore in
+    let k_b1 = put_b1 bstore in
     let k_n01 = key_of_entry n01 in
     let step = "step-b1" in
     let step' = "step-b01" in
     let childs = [ (step, `Contents (k_b1, ())); (step', `Node k_n01) ] in
     let n = S.Backend.Node.Val.of_list childs in
-    let+ k = S.Backend.Node.add nstore n in
+    let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n1);
     k
 
   let put_c1 bstore nstore cstore =
-    let* k_n1 = put_n1 bstore nstore in
+    let k_n1 = put_n1 bstore nstore in
     let k_c0 = key_of_entry c0 in
     let c =
       S.Backend.Commit.Val.v ~info:S.Info.empty ~node:k_n1 ~parents:[ k_c0 ]
     in
-    let+ k = S.Backend.Commit.add cstore c in
+    let k = S.Backend.Commit.add cstore c in
     assert (k = key_of_entry c1);
     k
 
   let put_borphan' bstore =
-    let+ k = S.Backend.Contents.add bstore "borphan'" in
+    let k = S.Backend.Contents.add bstore "borphan'" in
     assert (k = key_of_entry borphan');
     k
 
   let put_b2 bstore =
-    let+ k = S.Backend.Contents.add bstore "b2" in
+    let k = S.Backend.Contents.add bstore "b2" in
     assert (k = key_of_entry b2);
     k
 
   let put_n2 bstore nstore =
-    let* k_b2 = put_b2 bstore in
+    let k_b2 = put_b2 bstore in
     let step = "step-b2" in
     let childs = [ (step, `Contents (k_b2, ())) ] in
     let n = S.Backend.Node.Val.of_list childs in
-    let+ k = S.Backend.Node.add nstore n in
+    let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n2);
     k
 
   let put_c2 bstore nstore cstore =
-    let* k_n2 = put_n2 bstore nstore in
+    let k_n2 = put_n2 bstore nstore in
     let k_c1 = key_of_entry c1 in
     let c =
       S.Backend.Commit.Val.v ~info:S.Info.empty ~node:k_n2 ~parents:[ k_c1 ]
     in
-    let+ k = S.Backend.Commit.add cstore c in
+    let k = S.Backend.Commit.add cstore c in
     assert (k = key_of_entry c2);
     k
 
   let preload repo =
     S.Backend.Repo.batch repo (fun bstore nstore cstore ->
-        let* _ = put_borphan bstore in
-        let* _ = put_c0 bstore nstore cstore in
-        Lwt.return_unit)
+        let _ = put_borphan bstore in
+        let _ = put_c0 bstore nstore cstore in
+        ())
 
   let write1 repo =
     S.Backend.Repo.batch repo (fun bstore nstore cstore ->
-        let* _ = put_c1 bstore nstore cstore in
-        let* _ = put_borphan' bstore in
-        Lwt.return_unit)
+        let _ = put_c1 bstore nstore cstore in
+        let _ = put_borphan' bstore in
+        ())
 
   let write2 repo =
     S.Backend.Repo.batch repo (fun bstore nstore cstore ->
-        let* _ = put_c2 bstore nstore cstore in
-        Lwt.return_unit)
+        let _ = put_c2 bstore nstore cstore in
+        ())
 end
 
 exception Skip_the_rest_of_that_test
@@ -429,9 +435,9 @@ let check_index repo model =
     index_entries
 
 let check_suffix repo model =
-  Lwt_list.iter_s
+  List.iter
     (fun e ->
-      let+ got = Store.suffix_mem repo e in
+      let got = Store.suffix_mem repo e in
       let exp = Hashtbl.mem model.Model.suffix e.o in
       match (got, exp) with
       | false, false -> ()
@@ -445,33 +451,34 @@ let check_suffix repo model =
     pack_entries
 
 let check t =
-  Lwt_list.iter_s
+  List.iter
     (fun (model, repo) ->
       check_dict repo model;
       check_index repo model;
       check_suffix repo model)
     (Option.to_list t.ro @ Option.to_list t.rw)
 
-let create_test_env setup =
+let create_test_env ~fs setup =
+  let root_local_build = root_local_build ~fs in
   rm_dir root_local_build;
   let () =
     match setup.start_mode with
     | From_scratch -> ()
     | From_v2 ->
         let root_archive =
-          if setup.indexing_strategy = `always then archive_v2_always
-          else archive_v2_minimal
+          if setup.indexing_strategy = `always then archive_v2_always ~fs
+          else archive_v2_minimal ~fs
         in
         setup_test_env ~root_archive ~root_local_build
     | From_v3 ->
         let root_archive =
-          if setup.indexing_strategy = `always then archive_v3_always
-          else archive_v3_minimal
+          if setup.indexing_strategy = `always then archive_v3_always ~fs
+          else archive_v3_minimal ~fs
         in
         setup_test_env ~root_archive ~root_local_build
     | From_v3_c0_gced ->
         let root_archive =
-          if setup.indexing_strategy = `minimal then archive_v3_minimal_gced
+          if setup.indexing_strategy = `minimal then archive_v3_minimal_gced ~fs
           else assert false
         in
         setup_test_env ~root_archive ~root_local_build
@@ -480,9 +487,9 @@ let create_test_env setup =
   { setup; rw = None; ro = None }
 
 (** One of the 4 rw mutations *)
-let start_rw t =
+let start_rw ~sw ~fs t =
   [%logs.app "*** start_rw %a" pp_setup t.setup];
-  let+ rw =
+  let rw =
     match t.rw with
     | Some _ -> assert false
     | None ->
@@ -495,8 +502,9 @@ let start_rw t =
               m
           | From_scratch -> Model.v t.setup
         in
-        let+ repo =
-          Store.v t.setup ~readonly:false ~fresh:false root_local_build
+        let repo =
+          Store.v ~sw ~fs t.setup ~readonly:false ~fresh:false
+            (root_local_build ~fs)
         in
         (model, repo)
   in
@@ -509,38 +517,39 @@ let write1_rw t =
   | None -> assert false
   | Some (_, repo) ->
       t.rw <- Some (Model.create_after_write1 t.setup, repo);
-      let* () =
+      let () =
         (* If the preload commit is not yet in the store, add it. Note that
            adding the same commit twice is not idempotent in indexing strategy
            minimal, therefore we need to make this distinction. *)
         if t.setup.start_mode = From_scratch then
-          let* _ = Store.preload repo in
-          Lwt.return_unit
-        else Lwt.return_unit
+          let _ = Store.preload repo in
+          ()
+        else ()
       in
-      let* _ = Store.write1 repo in
-      Lwt.return_unit
+      let _ = Store.write1 repo in
+      ()
 
 (** One of the 4 rw mutations *)
-let gc_rw t =
+let gc_rw ~domain_mgr t =
   [%logs.app "*** gc_rw %a" pp_setup t.setup];
   match t.rw with
   | None -> assert false
   | Some (_, repo) ->
       t.rw <- Some (Model.create_after_gc t.setup, repo);
-      let* () =
+      let () =
         match (t.setup.start_mode, t.setup.indexing_strategy) with
         | From_v2, _ | _, `always ->
-            let* () =
-              Alcotest.check_raises_lwt "GC on V2/always"
+            let () =
+              Alcotest.check_raises "GC on V2/always"
                 (Irmin_pack_unix.Errors.Pack_error
                    (`Gc_disallowed "Store does not support GC"))
-                (fun () -> Store.gc repo)
+                (fun () -> Store.gc ~domain_mgr repo)
             in
             raise Skip_the_rest_of_that_test
-        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal -> Store.gc repo
+        | (From_v3 | From_scratch | From_v3_c0_gced), `minimal ->
+            Store.gc ~domain_mgr repo
       in
-      Lwt.return_unit
+      ()
 
 (** One of the 4 rw mutations *)
 let write2_rw t =
@@ -549,13 +558,13 @@ let write2_rw t =
   | None -> assert false
   | Some (_, repo) ->
       t.rw <- Some (Model.create_after_write2 t.setup, repo);
-      let* _ = Store.write2 repo in
-      Lwt.return_unit
+      let _ = Store.write2 repo in
+      ()
 
 (** One of the 2 ro mutations *)
-let open_ro t current_phase =
+let open_ro ~sw ~fs t current_phase =
   [%logs.app "*** open_ro %a, %a" pp_setup t.setup pp_phase current_phase];
-  let+ ro =
+  let ro =
     match t.ro with
     | Some _ -> assert false
     | None ->
@@ -577,26 +586,29 @@ let open_ro t current_phase =
               Model.create_after_write2 t.setup
         in
         let fail_and_skip error =
-          let* () =
-            Alcotest.check_raises_lwt "open empty/V2 store in RO"
+          let () =
+            Alcotest.check_raises "open empty/V2 store in RO"
               (Irmin_pack_unix.Errors.Pack_error error) (fun () ->
-                let* repo =
-                  Store.v t.setup ~readonly:true ~fresh:false root_local_build
+                let repo =
+                  Store.v ~sw ~fs t.setup ~readonly:true ~fresh:false
+                    (root_local_build ~fs)
                 in
                 Store.close repo)
           in
           raise Skip_the_rest_of_that_test
         in
-        let+ repo =
+        let repo =
           match (t.setup.start_mode, current_phase) with
           | From_scratch, S1_before_start ->
               let missing_path =
-                Irmin_pack.Layout.V1_and_v2.pack ~root:root_local_build
+                Irmin_pack.Layout.V1_and_v2.pack ~root:(root_local_build ~fs)
               in
-              fail_and_skip (`No_such_file_or_directory missing_path)
+              fail_and_skip
+                (`No_such_file_or_directory (Eio.Path.native_exn missing_path))
           | From_v2, S1_before_start -> fail_and_skip `Migration_needed
           | (From_v2 | From_v3 | From_v3_c0_gced | From_scratch), _ ->
-              Store.v t.setup ~readonly:true ~fresh:false root_local_build
+              Store.v ~sw ~fs t.setup ~readonly:true ~fresh:false
+                (root_local_build ~fs)
         in
         (model, repo)
   in
@@ -619,95 +631,87 @@ let sync_ro t current_phase =
       Store.reload repo
 
 let close_everything t =
-  Lwt_list.iter_s
+  List.iter
     (fun (_, repo) -> Store.close repo)
     (Option.to_list t.ro @ Option.to_list t.rw)
 
-let test_one t ~ro_open_at ~ro_sync_at =
+let test_one ~domain_mgr ~fs t ~ro_open_at ~ro_sync_at =
+  Eio.Switch.run @@ fun sw ->
   let aux phase =
-    let* () = check t in
-    let* () = if ro_open_at = phase then open_ro t phase else Lwt.return_unit in
-    let* () = check t in
+    let () = check t in
+    let () = if ro_open_at = phase then open_ro ~sw ~fs t phase else () in
+    let () = check t in
     if ro_sync_at = phase then sync_ro t phase;
-    let* () = check t in
-    Lwt.return_unit
+    check t
   in
 
-  let* () = aux S1_before_start in
-  let* () = start_rw t in
-  let* () = aux S2_before_write in
-  let* () = write1_rw t in
-  let* () = aux S3_before_gc in
-  let* () = gc_rw t in
-  let* () = aux S4_before_write in
-  let* () = write2_rw t in
-  let* () = aux S5_before_close in
-  Lwt.return_unit
+  let () = aux S1_before_start in
+  let () = start_rw ~sw ~fs t in
+  let () = aux S2_before_write in
+  let () = write1_rw t in
+  let () = aux S3_before_gc in
+  let () = gc_rw ~domain_mgr t in
+  let () = aux S4_before_write in
+  let () = write2_rw t in
+  aux S5_before_close
 
-let test_one_guarded setup ~ro_open_at ~ro_sync_at =
-  let t = create_test_env setup in
-  Lwt.catch
-    (fun () ->
-      let* () = test_one t ~ro_open_at ~ro_sync_at in
-      close_everything t)
-    (function
-      | Skip_the_rest_of_that_test ->
-          [%logs.app "*** skip rest of %a" pp_setup setup];
-          close_everything t
-      | exn -> Lwt.fail exn)
+let test_one_guarded ~domain_mgr ~fs setup ~ro_open_at ~ro_sync_at =
+  let t = create_test_env ~fs setup in
+  try
+    let () = test_one ~domain_mgr ~fs t ~ro_open_at ~ro_sync_at in
+    close_everything t
+  with
+  | Skip_the_rest_of_that_test ->
+      [%logs.app "*** skip rest of %a" pp_setup setup];
+      close_everything t
+  | exn -> raise exn
 
 (** All possible interleaving of the ro calls (open and sync) with the rw calls
     (open, write1, gc and write2). *)
-let test start_mode indexing_strategy lru_size =
+let test ~domain_mgr ~fs start_mode indexing_strategy lru_size =
   let setup = { start_mode; indexing_strategy; lru_size } in
-  let t = test_one_guarded setup in
+  let t = test_one_guarded ~domain_mgr ~fs setup in
 
-  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S1_before_start in
-  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S2_before_write in
-  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S3_before_gc in
-  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S4_before_write in
-  let* () = t ~ro_open_at:S1_before_start ~ro_sync_at:S5_before_close in
+  let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S1_before_start in
+  let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S2_before_write in
+  let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S3_before_gc in
+  let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S4_before_write in
+  let () = t ~ro_open_at:S1_before_start ~ro_sync_at:S5_before_close in
 
-  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S2_before_write in
-  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S3_before_gc in
-  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S4_before_write in
-  let* () = t ~ro_open_at:S2_before_write ~ro_sync_at:S5_before_close in
+  let () = t ~ro_open_at:S2_before_write ~ro_sync_at:S2_before_write in
+  let () = t ~ro_open_at:S2_before_write ~ro_sync_at:S3_before_gc in
+  let () = t ~ro_open_at:S2_before_write ~ro_sync_at:S4_before_write in
+  let () = t ~ro_open_at:S2_before_write ~ro_sync_at:S5_before_close in
 
-  let* () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S3_before_gc in
-  let* () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S4_before_write in
-  let* () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S5_before_close in
+  let () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S3_before_gc in
+  let () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S4_before_write in
+  let () = t ~ro_open_at:S3_before_gc ~ro_sync_at:S5_before_close in
 
-  let* () = t ~ro_open_at:S4_before_write ~ro_sync_at:S4_before_write in
-  let* () = t ~ro_open_at:S4_before_write ~ro_sync_at:S5_before_close in
+  let () = t ~ro_open_at:S4_before_write ~ro_sync_at:S4_before_write in
+  let () = t ~ro_open_at:S4_before_write ~ro_sync_at:S5_before_close in
 
-  let* () = t ~ro_open_at:S5_before_close ~ro_sync_at:S5_before_close in
-  Lwt.return_unit
+  let () = t ~ro_open_at:S5_before_close ~ro_sync_at:S5_before_close in
+  ()
 
 (** Product on lru_size *)
-let test start_mode indexing_strategy =
-  let* () = test start_mode indexing_strategy 0 in
-  let* () = test start_mode indexing_strategy 100 in
-  Lwt.return_unit
+let test ~domain_mgr ~fs start_mode indexing_strategy =
+  test ~domain_mgr ~fs start_mode indexing_strategy 0;
+  test ~domain_mgr ~fs start_mode indexing_strategy 100
 
-let test_gced_store () =
-  let* () = test From_v3_c0_gced `minimal in
-  Lwt.return_unit
+let test_gced_store ~domain_mgr () = test ~domain_mgr From_v3_c0_gced `minimal
 
 (** Product on indexing_strategy *)
-let test start_mode () =
-  let* () = test start_mode `minimal in
-  let* () = test start_mode `always in
-  Lwt.return_unit
+let test ~fs ~domain_mgr start_mode () =
+  test ~fs ~domain_mgr start_mode `minimal;
+  test ~fs ~domain_mgr start_mode `always
 
 (** Product on start_mode *)
-let tests =
+let tests ~fs ~domain_mgr =
   [
-    Alcotest_lwt.test_case "upgrade From_v3" `Quick (fun _switch () ->
-        test From_v3 ());
-    Alcotest_lwt.test_case "upgrade From_v2" `Quick (fun _switch () ->
-        test From_v2 ());
-    Alcotest_lwt.test_case "upgrade From_scratch" `Quick (fun _switch () ->
-        test From_scratch ());
-    Alcotest_lwt.test_case "upgrade From_v3 after Gc" `Quick (fun _switch () ->
-        test_gced_store ());
+    Alcotest.test_case "upgrade From_v3" `Quick (test ~fs ~domain_mgr From_v3);
+    Alcotest.test_case "upgrade From_v2" `Quick (test ~fs ~domain_mgr From_v2);
+    Alcotest.test_case "upgrade From_scratch" `Quick
+      (test ~fs ~domain_mgr From_scratch);
+    Alcotest.test_case "upgrade From_v3 after Gc" `Quick
+      (test_gced_store ~fs ~domain_mgr);
   ]
