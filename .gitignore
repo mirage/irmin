@@ -12,3 +12,4 @@ _opam
 **/.DS_Store
 examples/irmin_example
 irmin-pack-example
+dune.lock/

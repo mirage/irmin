@@ -1,0 +1,18 @@
+name: Build and test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        runs-on: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Use dune
+        uses: ocaml-dune/setup-dune@fd640f52b2a84d68cd4867cb5972247b70630d1a
+        with:
+          workspace: dune-workspace.for-ci
