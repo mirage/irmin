@@ -292,16 +292,24 @@ struct
           Schema.(
             recursive.obj "Commit" ~doc:"Commit" ~fields:(fun t ->
                 [
-                  field "tree" ~doc:"commit tree" ~typ:(non_null t.tree)
-                    ~args:[] ~resolve:(fun _ c ->
+                  field "tree"
+                    ~doc:
+                      "commit tree, this is where the contents of the store \
+                       can be accessed"
+                    ~typ:(non_null t.tree) ~args:[] ~resolve:(fun _ c ->
                       (Store.Commit.tree c, Store.Path.empty));
-                  field "parents" ~doc:"commit parents"
+                  field "parents"
+                    ~doc:"a history of commits leading up to this one"
                     ~typ:
                       (non_null (list (non_null Types.Commit_key.schema_typ)))
                     ~args:[]
                     ~resolve:(fun _ c -> Store.Commit.parents c);
-                  field "info" ~doc:"commit info" ~typ:(non_null t.info)
-                    ~args:[] ~resolve:(fun _ c -> Store.Commit.info c);
+                  field "info"
+                    ~doc:
+                      "information about a commit like author, message and \
+                       timestamp"
+                    ~typ:(non_null t.info) ~args:[] ~resolve:(fun _ c ->
+                      Store.Commit.info c);
                   field "hash" ~doc:"commit hash"
                     ~typ:(non_null Types.Hash.schema_typ) ~args:[]
                     ~resolve:(fun _ c -> Store.Commit.hash c);
@@ -315,7 +323,7 @@ struct
             obj "Info" ~doc:"information about commits"
               ~fields:
                 [
-                  field "date" ~doc:"commit date" ~typ:(non_null string)
+                  field "date" ~doc:"commit timestamp" ~typ:(non_null string)
                     ~args:[] ~resolve:(fun _ i ->
                       Info.date i |> Int64.to_string);
                   field "author" ~doc:"commit author name"
