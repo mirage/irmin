@@ -244,26 +244,29 @@ struct
 
     let info =
       Schema.Arg.(
-        obj "InfoInput"
+        obj "InfoInput" ~doc:"Information/configuration for a commit"
           ~fields:
             [
-              arg "author" ~typ:string;
-              arg "message" ~typ:string;
-              arg "retries" ~typ:int;
-              arg "allow_empty" ~typ:bool;
-              arg "parents" ~typ:(list (non_null commit_key));
+              arg "author" ~doc:"commit author name" ~typ:string;
+              arg "message" ~doc:"commit message" ~typ:string;
+              arg "retries"
+                ~doc:"configure the number of retries when updating the store"
+                ~typ:int;
+              arg "allow_empty" ~doc:"allow empty values" ~typ:bool;
+              arg "parents" ~doc:"commit parents"
+                ~typ:(list (non_null commit_key));
             ]
           ~coerce:(fun author message retries allow_empty parents ->
             { author; message; retries; allow_empty; parents }))
 
     let item =
       Schema.Arg.(
-        obj "TreeItem"
+        obj "TreeItem" ~doc:"A key/value pair of (path * value)"
           ~fields:
             [
-              arg "path" ~typ:(non_null path);
-              arg "value" ~typ:value;
-              arg "metadata" ~typ:metadata;
+              arg "path" ~doc:"path in store" ~typ:(non_null path);
+              arg "value" ~doc:"value from store" ~typ:value;
+              arg "metadata" ~doc:"associated metadata" ~typ:metadata;
             ]
           ~coerce:(fun path value metadata -> { path; value; metadata }))
 
@@ -287,50 +290,57 @@ struct
       ( Schema.fix @@ fun recursive ->
         let commit =
           Schema.(
-            recursive.obj "Commit" ~fields:(fun t ->
+            recursive.obj "Commit" ~doc:"Commit" ~fields:(fun t ->
                 [
-                  field "tree" ~typ:(non_null t.tree) ~args:[]
-                    ~resolve:(fun _ c ->
+                  field "tree" ~doc:"commit tree" ~typ:(non_null t.tree)
+                    ~args:[] ~resolve:(fun _ c ->
                       (Store.Commit.tree c, Store.Path.empty));
-                  field "parents"
+                  field "parents" ~doc:"commit parents"
                     ~typ:
                       (non_null (list (non_null Types.Commit_key.schema_typ)))
                     ~args:[]
                     ~resolve:(fun _ c -> Store.Commit.parents c);
-                  field "info" ~typ:(non_null t.info) ~args:[]
-                    ~resolve:(fun _ c -> Store.Commit.info c);
-                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                  field "info" ~doc:"commit info" ~typ:(non_null t.info)
+                    ~args:[] ~resolve:(fun _ c -> Store.Commit.info c);
+                  field "hash" ~doc:"commit hash"
+                    ~typ:(non_null Types.Hash.schema_typ) ~args:[]
                     ~resolve:(fun _ c -> Store.Commit.hash c);
-                  field "key" ~typ:(non_null Types.Commit_key.schema_typ)
-                    ~args:[] ~resolve:(fun _ c -> Store.Commit.key c);
+                  field "key" ~doc:"commit key"
+                    ~typ:(non_null Types.Commit_key.schema_typ) ~args:[]
+                    ~resolve:(fun _ c -> Store.Commit.key c);
                 ]))
         in
         let info =
           Schema.(
-            obj "Info"
+            obj "Info" ~doc:"information about commits"
               ~fields:
                 [
-                  field "date" ~typ:(non_null string) ~args:[]
-                    ~resolve:(fun _ i -> Info.date i |> Int64.to_string);
-                  field "author" ~typ:(non_null string) ~args:[]
-                    ~resolve:(fun _ i -> Info.author i);
-                  field "message" ~typ:(non_null string) ~args:[]
-                    ~resolve:(fun _ i -> Info.message i);
+                  field "date" ~doc:"commit date" ~typ:(non_null string)
+                    ~args:[] ~resolve:(fun _ i ->
+                      Info.date i |> Int64.to_string);
+                  field "author" ~doc:"commit author name"
+                    ~typ:(non_null string) ~args:[] ~resolve:(fun _ i ->
+                      Info.author i);
+                  field "message" ~doc:"commit message" ~typ:(non_null string)
+                    ~args:[] ~resolve:(fun _ i -> Info.message i);
                 ])
         in
         let tree =
           Schema.(
-            recursive.obj "Tree" ~fields:(fun t ->
+            recursive.obj "Tree" ~doc:"access the data in an irmin store"
+              ~fields:(fun t ->
                 [
-                  field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+                  field "path" ~doc:"the path of the tree in the irmin store"
+                    ~typ:(non_null Types.Path.schema_typ) ~args:[]
                     ~resolve:(fun _ (_, path) -> path);
-                  field "get"
+                  field "get" ~doc:"get a value from the tree at the given path"
                     ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
                     ~typ:Types.Contents.schema_typ
                     ~resolve:(fun _ (tree, _) path -> Store.Tree.find tree path);
                   field "get_contents"
                     ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
                     ~typ:t.contents
+                    ~doc:"get a value from the tree at the given path"
                     ~resolve:(fun _ (tree, tree_path) path ->
                       Store.Tree.find_all tree path
                       |> Option.map (fun (c, m) ->
@@ -339,12 +349,14 @@ struct
                   field "get_tree"
                     ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
                     ~typ:t.tree
+                    ~doc:"get a sub-tree from the tree at the given path"
                     ~resolve:(fun _ (tree, tree_path) path ->
                       Store.Tree.find_tree tree path
                       |> Option.map (fun tree ->
                              let tree_path' = concat_path tree_path path in
                              (tree, tree_path')));
                   field "list_contents_recursively" ~args:[]
+                    ~doc:"recursively find all contents at the given path"
                     ~typ:(non_null (list (non_null t.contents)))
                     ~resolve:(fun _ (tree, path) ->
                       let rec tree_list ?(acc = []) tree path =
@@ -362,9 +374,10 @@ struct
                             |> List.rev
                       in
                       tree_list tree path);
-                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
-                    ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
-                  field "key" ~typ:kinded_key ~args:[]
+                  field "hash" ~typ:(non_null Types.Hash.schema_typ)
+                    ~doc:"tree hash" ~args:[] ~resolve:(fun _ (tree, _) ->
+                      Store.Tree.hash tree);
+                  field "key" ~doc:"tree key" ~typ:kinded_key ~args:[]
                     ~resolve:(fun _ (tree, _) ->
                       match Store.Tree.key tree with
                       | Some (`Contents (k, m)) ->
@@ -374,7 +387,7 @@ struct
                           let f = Lazy.force node_key_as_kinded_key in
                           Some (f k)
                       | None -> None);
-                  field "list"
+                  field "list" ~doc:"list nodes"
                     ~typ:(non_null (list (non_null node)))
                     ~args:[]
                     ~resolve:(fun _ (tree, tree_path) ->
@@ -395,17 +408,19 @@ struct
         in
         let branch =
           Schema.(
-            recursive.obj "Branch" ~fields:(fun t ->
+            recursive.obj "Branch" ~doc:"store branches" ~fields:(fun t ->
                 [
-                  field "name" ~typ:(non_null Types.Branch.schema_typ) ~args:[]
+                  field "name" ~doc:"branch name"
+                    ~typ:(non_null Types.Branch.schema_typ) ~args:[]
                     ~resolve:(fun _ (_, b) -> b);
-                  field "head" ~args:[] ~typ:t.commit ~resolve:(fun _ (t, _) ->
-                      Store.Head.find t);
-                  field "tree" ~args:[] ~typ:(non_null t.tree)
-                    ~resolve:(fun _ (t, _) ->
+                  field "head" ~doc:"the current commit for a branch" ~args:[]
+                    ~typ:t.commit ~resolve:(fun _ (t, _) -> Store.Head.find t);
+                  field "tree"
+                    ~doc:"access the tree for the head commit of a branch"
+                    ~args:[] ~typ:(non_null t.tree) ~resolve:(fun _ (t, _) ->
                       let tree = Store.tree t in
                       (tree, Store.Path.empty));
-                  field "last_modified"
+                  field "last_modified" ~doc:"get last commit"
                     ~typ:(non_null (list (non_null t.commit)))
                     ~args:
                       Arg.
@@ -417,6 +432,7 @@ struct
                     ~resolve:(fun _ (t, _) path depth n ->
                       Store.last_modified ?depth ?n t path);
                   io_field "lcas"
+                    ~doc:"lowest common ancestor between two commits"
                     ~typ:(non_null (list (non_null t.commit)))
                     ~args:Arg.[ arg "commit" ~typ:(non_null Input.hash) ]
                     ~resolve:(fun _ (t, _) commit ->
@@ -435,16 +451,20 @@ struct
         in
         let contents =
           Schema.(
-            obj "Contents"
+            obj "Contents" ~doc:"a value stored in an irmin store"
               ~fields:
                 [
-                  field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+                  field "path" ~doc:"path to the value"
+                    ~typ:(non_null Types.Path.schema_typ) ~args:[]
                     ~resolve:(fun _ (_, _, path) -> path);
-                  field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
-                    ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
-                  field "value" ~typ:(non_null Types.Contents.schema_typ)
-                    ~args:[] ~resolve:(fun _ (contents, _, _) -> contents);
-                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                  field "metadata" ~doc:"metadata associated with a value"
+                    ~typ:(non_null Types.Metadata.schema_typ) ~args:[]
+                    ~resolve:(fun _ (_, metadata, _) -> metadata);
+                  field "value" ~doc:"content value"
+                    ~typ:(non_null Types.Contents.schema_typ) ~args:[]
+                    ~resolve:(fun _ (contents, _, _) -> contents);
+                  field "hash" ~doc:"content hash"
+                    ~typ:(non_null Types.Hash.schema_typ) ~args:[]
                     ~resolve:(fun _ (contents, _, _) ->
                       Store.Contents.hash contents);
                 ])
