@@ -1,0 +1,144 @@
+module S = Irmin_tezos.Store
+module Tree = S.Tree
+
+let make_tree_of_paths paths =
+  Array.fold_left
+    (fun tree (path, contents) -> Tree.add tree path contents)
+    (Tree.empty ()) paths
+
+let goto_project_root () =
+  let cwd = Fpath.v (Sys.getcwd ()) in
+  match cwd |> Fpath.segs |> List.rev with
+  | "bench_multicore" :: "irmin-pack" :: "test" :: "default" :: root
+  | "bench_multicore" :: "irmin-pack" :: "test" :: root ->
+      Unix.chdir @@ String.concat Fpath.dir_sep @@ List.rev root
+  | _ -> ()
+
+let root fs = Eio.Path.(fs / "bench-multicore")
+
+let reset_test_env ~fs () =
+  goto_project_root ();
+  Common.rm_dir (root fs)
+
+let info () = S.Info.empty
+
+let open_repo ~sw ~fs ~fresh ~readonly () =
+  let conf = Irmin_pack.Conf.init ~sw ~fs ~fresh ~readonly (root fs) in
+  S.Repo.v conf
+
+let apply_op tree = function
+  | Gen.Find path ->
+      let _ = Tree.find tree path in
+      tree
+  | Add (path, contents) -> Tree.add tree path contents
+  | Rem path -> Tree.remove tree path
+
+let half_task tree_at task =
+  let tree = Atomic.get tree_at in
+  let _ = Array.fold_left apply_op tree task in
+  ()
+
+let full_task i tree_at task =
+  let path = [ string_of_int i ] in
+  let tree = Atomic.get tree_at in
+  let new_tree = Array.fold_left apply_op tree task in
+  let new_subtree = Option.get @@ Tree.find_tree new_tree path in
+  let rec update () =
+    let current_tree = Atomic.get tree_at in
+    let new_tree = Tree.add_tree current_tree path new_subtree in
+    if not (Atomic.compare_and_set tree_at current_tree new_tree) then update ()
+  in
+  update ()
+
+let warmup_task tree task =
+  Array.iter
+    (function
+      | Gen.Find path | Add (path, _) | Rem path ->
+          ignore @@ Tree.find tree path)
+    task
+
+let analyze_bench timers =
+  let n = Array.length timers in
+  Array.sort Float.compare timers;
+  let mean = timers.(n / 2) in
+  (timers.(0), mean, timers.(n - 1))
+
+let bench ?(samples = 5) fn =
+  let timers =
+    Array.init samples (fun _ ->
+        let t0 = Unix.gettimeofday () in
+        fn ();
+        let t1 = Unix.gettimeofday () in
+        let sequential = 1000.0 *. (t1 -. t0) in
+        sequential)
+  in
+  analyze_bench timers
+
+let get_tree repo = S.main repo |> S.Head.get |> S.Commit.tree
+
+let get_tree ~config repo tasks =
+  if not config.Gen.warm then fun () -> get_tree repo
+  else
+    let tree = get_tree repo in
+    Array.iter (warmup_task tree) tasks;
+    fun () -> tree
+
+let setup_tree ~sw ~fs ~readonly paths =
+  let tree = make_tree_of_paths paths in
+  reset_test_env ~fs ();
+  let repo = open_repo ~sw ~fs ~fresh:true ~readonly:false () in
+  let () = S.set_tree_exn ~info (S.main repo) [] tree in
+  S.Repo.close repo;
+  let repo = open_repo ~sw ~fs ~fresh:false ~readonly () in
+  Format.printf
+    "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
+  repo
+
+let commit repo tree_at () =
+  let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
+  let new_tree = Atomic.get tree_at in
+  let _ = S.Commit.v repo ~parents ~info:S.Info.empty new_tree in
+  ()
+
+let load ~fs ~d_mgr ~(config : Gen.config) ~commit ~load_task ~make ~readonly =
+  Eio.Switch.run @@ fun sw ->
+  let paths, tasks = make ~config in
+  let repo = setup_tree ~sw ~fs ~readonly paths in
+  let get_tree = get_tree ~config repo tasks in
+
+  let _, sequential, _ =
+    bench ~samples:config.nb_runs @@ fun () ->
+    let tree_at = Atomic.make (get_tree ()) in
+    Array.iteri (fun i task -> load_task i tree_at task) tasks;
+    commit repo tree_at ()
+  in
+
+  let min_d, max_d = config.domains in
+  for nb_domains = min_d to max_d do
+    let elapsed = ref [] in
+    for _ = 1 to config.nb_runs do
+      let tree = get_tree () in
+      let tree_at = Atomic.make tree in
+      let tasks =
+        Array.mapi (fun i task () -> load_task i tree_at task) tasks
+      in
+      let dt =
+        Workers.run ~d_mgr ~nb:nb_domains ~finally:(commit repo tree_at) tasks
+      in
+      elapsed := dt :: !elapsed
+    done;
+    let min, median, max = analyze_bench @@ Array.of_list !elapsed in
+    Format.printf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
+      (sequential /. max) (sequential /. median) (sequential /. min)
+  done;
+  S.Repo.close repo
+
+let half ~fs ~d_mgr ~(config : Gen.config) =
+  load ~fs ~d_mgr ~config
+    ~commit:(fun _ _ () -> ())
+    ~load_task:(fun _ -> half_task)
+    ~make:Gen.make ~readonly:true
+
+let full ~fs ~d_mgr ~(config : Gen.config) =
+  load ~fs ~d_mgr ~config ~commit ~load_task:full_task ~make:Gen.make_full
+    ~readonly:false

@@ -1,0 +1,68 @@
+(library
+ (name test_pack)
+ (modules
+  test_pack
+  test_readonly
+  test_existing_stores
+  test_inode
+  test_tree
+  test_hashes
+  import
+  test_pack_version_bump
+  test_snapshot
+  test_upgrade
+  test_gc
+  test_flush_reload
+  test_ranges
+  test_mapping
+  test_multicore
+  test_nearest_geq
+  test_dispatcher
+  test_corrupted
+  test_async
+  test_indexing_strategy
+  test_lower)
+ (libraries
+  alcotest
+  fmt
+  common
+  index
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.mem
+  irmin-tezos
+  logs
+  fpath
+  hex)
+ (preprocess
+  (pps ppx_irmin.internal)))
+
+(executable
+ (name test)
+ (modules test)
+ (libraries eio_main irmin irmin-test test_pack))
+
+(rule
+ (alias runtest)
+ ;; Attached to `irmin-tezos` to avoid a cyclic dependency with `irmin-pack`
+ (package irmin-tezos)
+ (action
+  (run ./test.exe -q --color=always)))
+
+(library
+ (name common)
+ (modules common)
+ (libraries
+  alcotest
+  index
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.unix
+  irmin-tezos
+  logs
+  hex
+  fpath)
+ (preprocess
+  (pps ppx_irmin.internal)))

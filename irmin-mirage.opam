@@ -1,0 +1,25 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      "Thomas Gazagnaire"
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+]
+
+depends: [
+  "dune"       {>= "3.5.0"}
+  "irmin"      {= version}
+  "fmt"
+  "ptime"
+  "mirage-clock" {>= "3.0.0"}
+  "lwt_eio"    {>= "0.5"}
+]
+
+synopsis: "MirageOS-compatible Irmin stores"
+x-maintenance-intent: [ "(latest)" ]

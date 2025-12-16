@@ -1,0 +1,28 @@
+opam-version: "2.0"
+synopsis: "C bindings for irmin"
+description: "C bindings for irmin using Ctypes inverted stubs"
+maintainer: ["zachshipko@gmail.com"]
+authors: ["Zach Shipko"]
+license: "ISC"
+homepage: "https://github.com/mirage/irmin"
+bug-reports: "https://github.com/mirage/irmin/issues"
+depends: [
+  "dune" {>= "3.5.0"}
+  "ctypes" {>= "0.19"}
+  "ctypes-foreign" {>= "0.18"}
+  "irmin" {= version}
+  "irmin-cli" {= version}
+  "eio_main" {>= "1.0"}
+  "lwt_eio" {>= "0.5"}
+]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/mirage/irmin.git"
+
+# Disabled on arm64 linux and s390x because of a SEGFAULT in tests
+# Disabled on macOS because of https://github.com/mirage/ca-certs/issues/20
+available: [ arch != "arm64" & arch != "s390x" & os != "macos" ]
+x-maintenance-intent: [ "(latest)" ]

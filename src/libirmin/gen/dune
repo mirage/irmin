@@ -1,0 +1,4 @@
+(executable
+ (name generate)
+ (modules generate)
+ (libraries libirmin_bindings))

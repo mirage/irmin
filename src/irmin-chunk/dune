@@ -1,0 +1,8 @@
+(library
+ (name irmin_chunk)
+ (public_name irmin-chunk)
+ (libraries irmin fmt logs)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

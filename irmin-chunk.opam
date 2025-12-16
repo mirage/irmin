@@ -1,0 +1,26 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Mounir Nasr Allah" "Thomas Gazagnaire"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "ocaml"      {>= "5.1.0"}
+  "dune"       {>= "3.5.0"}
+  "irmin"      {= version}
+  "fmt"
+  "logs"
+  "irmin-test" {with-test & = version}
+  "alcotest"   {with-test}
+]
+
+synopsis: "Irmin backend which allow to store values into chunks"
+x-maintenance-intent: [ "(latest)" ]

@@ -1,0 +1,15 @@
+(library
+ (name test_chunk)
+ (modules test_chunk)
+ (libraries fmt irmin irmin-test irmin-chunk irmin.mem))
+
+(executable
+ (name test)
+ (modules test)
+ (libraries alcotest fmt irmin irmin-test eio_main test_chunk))
+
+(rule
+ (alias runtest)
+ (package irmin-chunk)
+ (action
+  (run ./test.exe -q --color=always)))

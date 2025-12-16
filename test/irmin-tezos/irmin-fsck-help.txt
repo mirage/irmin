@@ -1,0 +1,33 @@
+NAME
+       irmin-fsck - Check Irmin data-stores.
+
+SYNOPSIS
+       irmin-fsck COMMAND ...
+
+COMMANDS
+       integrity-check
+           Check integrity of an existing store.
+
+       integrity-check-index
+           Check index integrity.
+
+       integrity-check-inodes
+           Check integrity of inodes in an existing store.
+
+       reconstruct-index
+           Reconstruct index from an existing pack file.
+
+       stat
+           Print high-level statistics about the store.
+
+       stat-store
+           Traverse one commit, specified with the --commit argument, in the
+           store for stats. If no commit is specified the current head is
+           used.
+
+OPTIONS
+       --help[=FMT] (default=auto)
+           Show this help in format FMT. The value FMT must be one of `auto',
+           `pager', `groff' or `plain'. With `auto', the format is `pager` or
+           `plain' whenever the TERM env var is `dumb' or undefined.
+

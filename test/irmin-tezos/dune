@@ -1,0 +1,37 @@
+(executable
+ (name irmin_fsck)
+ (modules irmin_fsck)
+ (libraries irmin-pack irmin-pack.unix irmin-tezos eio_main))
+
+(executable
+ (name generate)
+ (modules generate)
+ (libraries eio_main irmin-tezos irmin-pack irmin-pack.unix))
+
+(rule
+ (alias generate-cli-test-data)
+ (targets data)
+ (action
+  (run %{exe:generate.exe})))
+
+(cram
+ (package irmin-tezos)
+ (deps
+  (file irmin_fsck.exe)
+  (file data)
+  (alias generate-cli-test-data))
+ (enabled_if
+  (and
+   (<> %{system} macosx)
+   (<> %{system} freebsd))))
+
+;FIXME: we should not depend on the version of cmdliner
+;(rule
+; (alias runtest)
+; (package irmin-tezos)
+; (action
+;  (progn
+;   (with-stdout-to
+;    irmin-fsck-help.txt.gen
+;    (run %{exe:irmin_fsck.exe} --help=plain))
+;   (diff? irmin-fsck-help.txt irmin-fsck-help.txt.gen))))

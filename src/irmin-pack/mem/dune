@@ -1,0 +1,8 @@
+(library
+ (public_name irmin-pack.mem)
+ (name irmin_pack_mem)
+ (libraries irmin-pack irmin.mem)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (instrumentation
+  (backend bisect_ppx)))

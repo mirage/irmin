@@ -1,0 +1,3 @@
+(documentation
+ (package irmin-pack)
+ (mld_files index))

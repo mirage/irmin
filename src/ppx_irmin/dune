@@ -1,0 +1,9 @@
+;; The publicly-available PPX for consumers of the Irmin API
+
+(library
+ (public_name ppx_irmin)
+ (modules ppx_irmin)
+ (kind ppx_deriver)
+ (libraries ppx_repr.lib)
+ (instrumentation
+  (backend bisect_ppx)))

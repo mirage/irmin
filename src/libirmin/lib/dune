@@ -1,0 +1,42 @@
+(rule
+ (targets irmin_bindings.ml irmin.c irmin.h)
+ (deps
+  (:gen ../gen/generate.exe))
+ (action
+  (run %{gen} .)))
+
+(executable
+ (name libirmin)
+ (libraries libirmin_bindings)
+ (modes shared_object)
+ (modules libirmin irmin_bindings)
+ (foreign_stubs
+  (language c)
+  (names irmin)
+  (flags -Wno-unused-variable))
+ (flags
+  (:standard
+   -w
+   -unused-var-strict
+   (:include link_flags.sexp)))
+ (enabled_if
+  (<> %{ocaml_version} 5.2.0~alpha1)))
+
+(install
+ (package libirmin)
+ (section lib)
+ (files
+  (irmin.h as include/irmin.h)
+  (libirmin%{ext_dll} as lib/libirm%{ext_dll}))
+ (enabled_if
+  (<> %{ocaml_version} 5.2.0~alpha1)))
+
+(executable
+ (name discover)
+ (modules discover)
+ (libraries unix))
+
+(rule
+ (targets link_flags.sexp)
+ (action
+  (run ./discover.exe)))

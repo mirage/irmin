@@ -1,0 +1,62 @@
+let test () =
+  Logs.app
+    (fun f ->
+       f "Simple log entry"
+         ~tags:(Logs.Tag.add Ppx_irmin_internal_lib.Source_code_position.tag
+                  __POS__ Logs.Tag.empty));
+  Logs.err
+    (fun f ->
+       f "Log entry on Line %d" __LINE__
+         ~tags:(Logs.Tag.add Ppx_irmin_internal_lib.Source_code_position.tag
+                  __POS__ Logs.Tag.empty));
+  Logs.warn
+    (fun f ->
+       f "Infix @@ operator: %d" (1 + 2)
+         ~tags:(Logs.Tag.add Ppx_irmin_internal_lib.Source_code_position.tag
+                  __POS__ Logs.Tag.empty));
+  Logs.info
+    (fun f ->
+       (fun f -> f "Log entry in CPS form: Line %d, %f" __LINE__ 3.14 : 
+         (?header:string -> (_, _, _, _) format4 -> _) -> _)
+         (f
+            ~tags:(Logs.Tag.add
+                     Ppx_irmin_internal_lib.Source_code_position.tag __POS__
+                     Logs.Tag.empty)));
+  Logs.debug
+    (fun f ->
+       (fun f ->
+          if true
+          then f "Everything's OK on line %d" __LINE__
+          else f "Something's gone terribly wrong on line %d" __LINE__ : 
+         (?header:string -> (_, _, _, _) format4 -> _) -> _)
+         (f
+            ~tags:(Logs.Tag.add
+                     Ppx_irmin_internal_lib.Source_code_position.tag __POS__
+                     Logs.Tag.empty)));
+  ()
+let () =
+  let pp_source_pos ppf (_file, lnum, cnum, enum) =
+    Fmt.pf ppf "Line %d, characters %d-%d" lnum cnum enum in
+  let pp_level =
+    Fmt.of_to_string
+      (function
+       | Logs.App -> "App"
+       | Logs.Error -> "Error"
+       | Logs.Warning -> "Warning"
+       | Logs.Info -> "Info"
+       | Logs.Debug -> "Debug") in
+  let report _src level ~over  k msgf =
+    let k _ = over (); k () in
+    msgf @@
+      (fun ?header:_ ->
+         fun ?(tags= Logs.Tag.empty) ->
+           fun fmt ->
+             let source_pos =
+               Logs.Tag.find Ppx_irmin_internal_lib.Source_code_position.tag
+                 tags in
+             (let open Fmt in kpf k stdout)
+               ("[%a] [%a] @[" ^^ (fmt ^^ "@]@.")) (Fmt.option pp_source_pos)
+               source_pos pp_level level) in
+  Logs.set_reporter { Logs.report = report };
+  Logs.set_level (Some Debug);
+  test ()

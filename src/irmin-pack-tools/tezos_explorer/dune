@@ -1,0 +1,18 @@
+(executable
+ (public_name irmin-tezos-explorer)
+ (package irmin-pack-tools)
+ (name main)
+ (modules main parse show files ring import)
+ (libraries
+  irmin-pack
+  irmin-pack.unix
+  irmin-tezos
+  notty
+  notty.unix
+  index.unix
+  hex
+  ptime
+  cmdliner
+  eio_main)
+ (preprocess
+  (pps ppx_repr)))

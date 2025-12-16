@@ -1,0 +1,77 @@
+(executables
+ (names
+  readme
+  trees
+  sync
+  process
+  deploy
+  irmin_git_store
+  custom_merge
+  push
+  custom_graphql
+  custom_storage
+  fold)
+ (libraries
+  astring
+  cohttp
+  fmt
+  irmin
+  irmin.unix
+  irmin-client.unix
+  irmin-git.unix
+  irmin-graphql.unix
+  irmin-pack.unix
+  irmin-watcher
+  mirage-crypto-rng.unix
+  websocket-lwt-unix
+  conduit-lwt-unix
+  eio_main
+  lwt
+  lwt.unix
+  lwt_eio)
+ (preprocess
+  (pps ppx_irmin)))
+
+(alias
+ (name examples)
+ (deps
+  readme.exe
+  trees.exe
+  sync.exe
+  process.exe
+  deploy.exe
+  push.exe
+  irmin_git_store.exe
+  custom_merge.exe
+  custom_graphql.exe
+  fold.exe
+  custom_storage.exe))
+
+(alias
+ (name runtest)
+ (package irmin-cli)
+ (deps
+  readme.exe
+  trees.exe
+  sync.exe
+  process.exe
+  deploy.exe
+  push.exe
+  irmin_git_store.exe
+  custom_merge.exe
+  fold.exe))
+
+(mdx
+ (files merkle_proofs.md)
+ (deps %{bin:irmin})
+ (libraries
+  irmin
+  irmin-cli
+  irmin-git
+  irmin-git.unix
+  eio
+  eio_main
+  eio.unix
+  lwt_eio)
+ (enabled_if
+  (<> %{model} "ppc64le")))

@@ -1,0 +1,9 @@
+(executable
+ (name test)
+ (libraries alcotest eio_main irmin-containers))
+
+(rule
+ (alias runtest)
+ (package irmin-containers)
+ (action
+  (run ./test.exe -q --color=always)))

@@ -1,0 +1,235 @@
+<div align="center">
+  <a href="https://irmin.org">
+    <img src="./logo.svg" alt="Irmin logo"/>
+  </a>
+  <br />
+  <strong>A Distributed Database Built on the Same Principles as Git</strong>
+</div>
+
+<div align="center">
+<br />
+
+[![OCaml-CI Build Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fci.ocamllabs.io%2Fbadge%2Fmirage%2Firmin%2Fmain&logo=ocaml&style=flat-square)](https://ci.ocamllabs.io/github/mirage/irmin)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/mirage/irmin?style=flat-square&color=09aa89)](https://github.com/mirage/irmin/releases/latest)
+[![docs](https://img.shields.io/badge/doc-online-blue.svg?style=flat-square)](https://mirage.github.io/irmin/)
+
+</div>
+
+<hr />
+
+<div align="center">
+  <em>
+    Irmin is an OCaml library for building versioned, mergeable, branchable distributed
+    data stores.
+  </em>
+</div>
+
+<hr />
+
+Irmin builds on principles from [distributed version-control systems][], which are
+used in software development to track data provenance and show modifications in
+the source code. Irmin applies this approach to large-scale distributed data,
+including Git-like functions (clone, push, pull, branch, and rebase). Git
+enables humans to manage changes within source code. Irmin scales this to handle
+automatic programs performing a very high number of operations per second, with
+fully automated conflict handling.
+
+Irmin is highly customisable. Users can define their types to store
+application-specific values. They can also define custom storage layers (in
+memory, on disk, in a remote Redis database, in the browser, etc.). Finally,
+Irmin contains an event-driven API that allows for the definition of
+programmable, dynamic behaviours and the programming of distributed dataflow
+pipelines.
+
+Irmin is built on a core of well-defined, low-level data structures that dictate
+how data should be persisted and shared across nodes. It defines algorithms for
+efficient synchronisation of those distributed low-level constructs. It also
+builds a collection of higher-level data structures that developers can use
+without needing to known precisely how Irmin works underneath. Some of these
+components even have [formal semantics][], including [Conflict-free Replicated
+Data-Types (CRDT)][]. Since it's a part of MirageOS, Irmin does not make strong
+assumptions about the OS environment, which makes the system very portable. It
+works well for in-memory databases and slower persistent serialisation, such as
+SSDs, hard drives, web browser local storage, or even the Git file format.
+
+Irmin is primarily developed and maintained by [Tarides][], with involvement by
+[contributors][] from various organisations. External maintainers and
+contributors are welcome.
+
+[distributed version-control systems]: https://en.wikipedia.org/wiki/Distributed_version_control
+[MirageOS]: https://mirage.io
+[CAP Theorem]: http://en.wikipedia.org/wiki/CAP_theorem
+[formal semantics]: https://kcsrk.info/papers/banyan_aplas20.pdf
+[Conflict-free Replicated Data-Types (CRDT)]: https://arxiv.org/abs/2203.14518
+[Tarides]: https://tarides.com
+[contributors]: https://github.com/mirage/irmin/graphs/contributors
+
+<div class="toc">
+
+* [Features](#Features)
+* [Documentation](#Documentation)
+* [Installation](#Installation)
+  * [Prerequisites](#Prerequisites)
+  * [Development Version](#Development-Version)
+* [Usage](#Usage)
+  * [Example](#Example)
+  * [Command Line](#Commandline)
+* [Issues](#Issues)
+* [License](#License)
+
+</div>
+
+## Features
+
+- **Built-In Snapshotting** - backup and restore
+- **Storage Agnostic** - use Irmin on top of your own storage layer
+- **Custom Datatypes** - (de)serialisation for custom data types, derivable via
+  [`ppx_irmin`][ppx_irmin-readme]
+- **Git Compatibility** - `irmin-git` uses an on-disk format that can be
+  inspected and modified using Git
+- **Dynamic Behavior** - allows the users to define custom merge functions,
+  use in-memory transactions (to keep track of reads as well as writes), and
+  to define event-driven workflows using a notification mechanism
+
+## Documentation
+
+API documentation can be found online at [https://mirage.github.io/irmin](https://mirage.github.io/irmin)
+
+## Installation
+
+### Prerequisites
+
+Please ensure to install the minimum `opam` and `ocaml` versions. Find the latest
+version and install instructions on [ocaml.org](https://ocaml.org/docs/install.html).
+
+To install Irmin with the command-line tool and all Unix backends using `opam`:
+
+<!-- $MDX skip -->
+```bash
+  opam install irmin-cli
+```
+
+A minimal installation containing the reference in-memory backend can be
+installed by running:
+
+<!-- $MDX skip -->
+```bash
+  opam install irmin
+```
+
+The following packages are available on `opam`:
+
+- `irmin` - the base package, plus an in-memory storage implementation
+- `irmin-chunk` - chunked storage
+- `irmin-cli` - a simple command-line tool
+- `irmin-fs` - filesystem-based storage using `bin_prot`
+- `irmin-git` - Git compatible storage
+- `irmin-graphql` - GraphQL server
+- `irmin-mirage` - MirageOS compatibility
+- `irmin-mirage-git` - Git compatible storage for MirageOS
+- `irmin-mirage-graphql` - MirageOS compatible GraphQL server
+- `irmin-pack` - compressed, on-disk, POSIX backend
+- `ppx_irmin` - PPX deriver for Irmin content types (see [README_PPX.md][ppx_irmin-readme])
+- `irmin-containers` - collection of simple, ready-to-use mergeable data structures
+
+To install a specific package, simply run:
+
+<!-- $MDX skip -->
+```bash
+  opam install <package-name>
+```
+
+### Development Version
+
+To install the development version of Irmin in your current `opam switch`, clone
+this repository and `opam install` the packages inside:
+
+<!-- $MDX skip -->
+```bash
+  git clone https://github.com/mirage/irmin
+  cd irmin/
+  opam install .
+```
+
+## Usage
+
+### Example
+
+Below is a simple example of setting a key and getting the value out of a
+Git-based, filesystem-backed store.
+
+<!-- $MDX file=examples/readme.ml -->
+```ocaml
+(* Irmin store with string contents *)
+module Store = Irmin_git_unix.FS.KV (Irmin.Contents.String)
+
+(* Database configuration *)
+let config = Irmin_git.config ~bare:true "/tmp/irmin/test"
+
+(* Commit author *)
+let author = "Example <example@example.com>"
+
+(* Commit information *)
+let info fmt = Irmin_git_unix.info ~author fmt
+
+let main () =
+  (* Open the repo *)
+  let repo = Store.Repo.v config in
+
+  (* Load the main branch *)
+  let t = Store.main repo in
+
+  (* Set key "foo/bar" to "testing 123" *)
+  Store.set_exn t ~info:(info "Updating foo/bar") [ "foo"; "bar" ] "testing 123";
+
+  (* Get key "foo/bar" and print it to stdout *)
+  let x = Store.get t [ "foo"; "bar" ] in
+  Printf.printf "foo/bar => '%s'\n" x
+
+(* Run the program *)
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+```
+
+The example is contained in [examples/readme.ml](./examples/readme.ml) It can
+be compiled and executed with Dune:
+
+<!-- $MDX skip -->
+```bash
+$ dune build examples/readme.exe
+$ dune exec examples/readme.exe
+foo/bar => 'testing 123'
+```
+
+The [examples](./examples/) directory also contains more advanced examples,
+which can be executed in the same way.
+
+### Command Line
+
+The same thing can also be accomplished using `irmin`, the command-line
+application installed with `irmin-cli`, by running:
+
+```bash
+$ echo "root: ." > irmin.yml
+$ irmin init
+$ irmin set foo/bar "testing 123"
+$ irmin get foo/bar
+testing 123
+```
+
+`irmin.yml` allows for `irmin` flags to be set on a per-directory basis. You
+can also set flags globally using `$HOME/.irmin/config.yml`. Run
+`irmin help irmin.yml` for further details.
+
+Also see `irmin --help` for a list of all commands and either
+`irmin <command> --help` or `irmin help <command>` for more help with a
+specific command.
+
+## Issues
+
+Feel free to report any issues using the [GitHub bugtracker](https://github.com/mirage/irmin/issues).
+
+## License
+
+See the [LICENSE file](./LICENSE.md).

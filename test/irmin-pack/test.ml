@@ -1,0 +1,31 @@
+(*
+ * Copyright (c) 2018-2022 Tarides <contact@tarides.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+let () =
+  Logs_threaded.enable ();
+  Eio_main.run @@ fun env ->
+  let sr = Eio.Stdenv.secure_random env in
+  let fs = Eio.Stdenv.fs env in
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
+  (* **/** *)
+  Eio.Switch.run @@ fun sw ->
+  let test_suite = Test_pack.suite ~sw ~fs in
+  let stdout = Alcotest_engine.Formatters.make_stdout () in
+  let stderr = Alcotest_engine.Formatters.make_stderr () in
+  Irmin_test.Store.run "irmin-pack" ~stdout ~stderr
+    ~misc:(Test_pack.misc ~sr ~fs ~domain_mgr)
+    ~sleep:Eio_unix.sleep
+    (List.map (fun s -> (`Quick, s)) test_suite)

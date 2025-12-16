@@ -1,0 +1,55 @@
+;; The PPX-dependent executable under test
+
+(executable
+ (name test_logs)
+ (modules test_logs)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (libraries fmt))
+
+;; Run the PPX on the `.ml` file
+
+(rule
+ (targets pp.ml)
+ (action
+  (write-file %{targets} "let () = Ppxlib.Driver.standalone ()")))
+
+(executable
+ (name pp)
+ (modules pp)
+ (libraries ppx_irmin.internal ppxlib))
+
+(rule
+ (targets test_logs-processed.actual)
+ (deps
+  (:pp pp.exe)
+  (:input test_logs.ml))
+ (action
+  (run ./%{pp} -deriving-keep-w32 both --impl %{input} -o %{targets})))
+
+;; Compare the post-processed output to the .expected file
+
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (diff test_logs-processed.expected test_logs-processed.actual)))
+
+;; Ensure that the post-processed executable runs correctly
+
+(rule
+ (alias runtest)
+ (targets test_logs-output.actual)
+ (package ppx_irmin)
+ (action
+  (with-outputs-to
+   %{targets}
+   (run ./test_logs.exe))))
+
+;; Compare the output logs of the executable run to the .expected file
+
+(rule
+ (alias runtest)
+ (package ppx_irmin)
+ (action
+  (diff test_logs-output.expected test_logs-output.actual)))
