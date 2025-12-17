@@ -29,6 +29,13 @@ module type Config = sig
   val key_of_file : string -> string
 end
 
+let string_chop_prefix ~prefix str =
+  let len = String.length prefix in
+  if String.length str <= len then str
+  else
+    let s = String.with_range ~len str in
+    if String.equal s prefix then String.with_range str ~first:len else str
+
 module type IO = sig
   type io
 
@@ -126,16 +133,13 @@ struct
 
   let list { path; io } =
     [%log.debug "list"];
-    let files = IO.rec_files ~io (S.dir path) in
+    let dir = S.dir path in
+    let files = IO.rec_files ~io dir in
     let files =
-      let p = String.length path in
       List.fold_left
         (fun acc file ->
-          let n = String.length file in
-          if n <= p + 1 then acc
-          else
-            let file = String.with_range file ~first:(p + 1) in
-            file :: acc)
+          let file = string_chop_prefix ~prefix:(Filename.concat dir "") file in
+          file :: acc)
         [] files
     in
     List.fold_left
@@ -285,10 +289,6 @@ module Maker_ext (IO : IO) (Obj : Config) (Ref : Config) = struct
   module CA = Irmin.Content_addressable.Make (AO)
   include Irmin.Maker (CA) (AW)
 end
-
-let string_chop_prefix ~prefix str =
-  let len = String.length prefix in
-  if String.length str <= len then "" else String.with_range str ~first:len
 
 module Ref = struct
   let dir p = p / "refs"

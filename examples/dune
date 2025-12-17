@@ -1,5 +1,6 @@
 (executables
  (names
+  fs_branches
   readme
   trees
   sync
@@ -19,6 +20,7 @@
   irmin.unix
   irmin-client.unix
   irmin-git.unix
+  irmin-fs.unix
   irmin-graphql.unix
   irmin-pack.unix
   irmin-watcher
@@ -35,6 +37,7 @@
 (alias
  (name examples)
  (deps
+  fs_branches.exe
   readme.exe
   trees.exe
   sync.exe
@@ -51,6 +54,7 @@
  (name runtest)
  (package irmin-cli)
  (deps
+  fs_branches.exe
   readme.exe
   trees.exe
   sync.exe

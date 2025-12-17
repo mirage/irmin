@@ -34,4 +34,4 @@ include module type of Irmin_unix
 val spec :
   path:_ Eio.Path.t -> clock:_ Eio.Time.clock -> Irmin.Backend.Conf.Spec.t
 
-val conf : path:_ Eio.Path.t -> clock:_ Eio.Time.clock -> Irmin.Backend.Conf.t
+val config : root:_ Eio.Path.t -> clock:_ Eio.Time.clock -> Irmin.Backend.Conf.t

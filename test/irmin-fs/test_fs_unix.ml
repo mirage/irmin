@@ -39,5 +39,5 @@ let clean ~config =
   Irmin.Backend.Watch.(set_listen_dir_hook none)
 
 let suite ~path ~clock =
-  let config = Irmin_fs_unix.conf ~path ~clock in
+  let config = Irmin_fs_unix.config ~root:path ~clock in
   Irmin_test.Suite.create ~name:"FS.UNIX" ~init ~store ~config ~clean ~stats ()
