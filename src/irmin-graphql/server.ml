@@ -244,7 +244,7 @@ struct
 
     let info =
       Schema.Arg.(
-        obj "InfoInput" ~doc:"configuration when creating a commit"
+        obj "InfoInput" ~doc:"Commit configuration options"
           ~fields:
             [
               arg "author" ~doc:"commit author name" ~typ:string;
@@ -395,7 +395,7 @@ struct
                           let f = Lazy.force node_key_as_kinded_key in
                           Some (f k)
                       | None -> None);
-                  field "list" ~doc:"list nodes"
+                  field "list" ~doc:"list nodes contained in this tree"
                     ~typ:(non_null (list (non_null node)))
                     ~args:[]
                     ~resolve:(fun _ (tree, tree_path) ->
@@ -954,23 +954,35 @@ struct
               Store.Commit.of_hash s hash |> Result.ok);
           io_field "contents" ~doc:"find contents by hash"
             ~typ:Types.Contents.schema_typ
-            ~args:Arg.[ arg "hash" ~typ:(non_null Input.hash) ]
+            ~args:
+              Arg.[ arg "hash" ~doc:"content hash" ~typ:(non_null Input.hash) ]
             ~resolve:(fun _ _src k ->
               Lwt_eio.run_eio @@ fun () ->
               Store.Contents.of_hash s k |> Result.ok);
           io_field "contents_hash" ~doc:"get the hash of some contents"
             ~typ:(non_null Types.Hash.schema_typ)
-            ~args:Arg.[ arg "value" ~typ:(non_null Input.value) ]
+            ~args:
+              Arg.
+                [ arg "value" ~doc:"content hash" ~typ:(non_null Input.value) ]
             ~resolve:(fun _ _src c ->
               Lwt_eio.run_eio @@ fun () -> Store.Contents.hash c |> Result.ok);
           io_field "commit_of_key" ~doc:"find commit by key"
             ~typ:store_schema.commit
-            ~args:Arg.[ arg "key" ~typ:(non_null Input.commit_key) ]
+            ~args:
+              Arg.
+                [
+                  arg "key" ~doc:"content key" ~typ:(non_null Input.commit_key);
+                ]
             ~resolve:(fun _ _src k ->
               Lwt_eio.run_eio @@ fun () -> Store.Commit.of_key s k |> Result.ok);
           io_field "contents_of_key" ~doc:"find contents by key"
             ~typ:Types.Contents.schema_typ
-            ~args:Arg.[ arg "key" ~typ:(non_null Input.contents_key) ]
+            ~args:
+              Arg.
+                [
+                  arg "key" ~doc:"content key"
+                    ~typ:(non_null Input.contents_key);
+                ]
             ~resolve:(fun _ _src k ->
               Lwt_eio.run_eio @@ fun () ->
               Store.Contents.of_key s k |> Result.ok);
@@ -990,7 +1002,12 @@ struct
               let t = Store.main s in
               Ok (Some (t, Store.Branch.main)));
           io_field "branch" ~doc:"get branch by name" ~typ:store_schema.branch
-            ~args:Arg.[ arg "name" ~typ:(non_null Input.branch) ]
+            ~args:
+              Arg.
+                [
+                  arg "name" ~doc:"branch identifier"
+                    ~typ:(non_null Input.branch);
+                ]
             ~resolve:(fun _ _ branch ->
               Lwt_eio.run_eio @@ fun () ->
               let t = Store.of_branch s branch in
