@@ -35,10 +35,15 @@ let spec ~path:fs ~clock =
   let fs = (fs :> fs) in
   let _fs_key =
     let to_string fs = Eio.Path.native_exn fs in
-    let of_string _str = Ok fs in
+    let of_string str =
+      assert (str = Eio.Path.native_exn fs);
+      Ok fs
+    in
     let of_json_string str =
       match Irmin.Type.(of_json_string string) str with
-      | Ok _str -> Ok fs
+      | Ok str ->
+          assert (str = Eio.Path.native_exn fs);
+          Ok fs
       | Error e -> Error e
     in
     Conf.serialized_key ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string
