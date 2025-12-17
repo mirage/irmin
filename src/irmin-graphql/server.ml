@@ -509,7 +509,10 @@ struct
         } )
 
   and kinded_key = Schema.union "KindedKey"
-  and node = Schema.union "Node"
+
+  and node =
+    Schema.union ~doc:"node of an irmin tree, either a tree or contents" "Node"
+
   and tree_as_node = lazy (Schema.add_type node (Lazy.force store_schema).tree)
 
   and contents_as_node =
@@ -536,12 +539,13 @@ struct
     | Some _ ->
         Schema.
           [
-            io_field "clone" ~typ:store_schema.commit
+            io_field "clone" ~doc:"clone a remote repository"
+              ~typ:store_schema.commit
               ~args:
                 Arg.
                   [
-                    arg "branch" ~typ:Input.branch;
-                    arg "remote" ~typ:(non_null Input.remote);
+                    arg "branch" ~doc:"remote branch name" ~typ:Input.branch;
+                    arg "remote" ~doc:"remote URI" ~typ:(non_null Input.remote);
                   ]
               ~resolve:(fun _ _src branch remote ->
                 Lwt_eio.run_eio @@ fun () ->
@@ -551,13 +555,14 @@ struct
                 | Ok (`Head d) -> Store.Head.set t d |> fun () -> Ok (Some d)
                 | Ok `Empty -> Ok None
                 | Error (`Msg e) -> Error e);
-            io_field "push" ~typ:store_schema.commit
+            io_field "push" ~doc:"push to a remote repository"
+              ~typ:store_schema.commit
               ~args:
                 Arg.
                   [
-                    arg "branch" ~typ:Input.branch;
-                    arg "remote" ~typ:(non_null Input.remote);
-                    arg "depth" ~typ:int;
+                    arg "branch" ~doc:"branch to push" ~typ:Input.branch;
+                    arg "remote" ~doc:"remote URI" ~typ:(non_null Input.remote);
+                    arg "depth" ~doc:"the number of commits to push" ~typ:int;
                   ]
               ~resolve:(fun _ _src branch remote depth ->
                 Lwt_eio.run_eio @@ fun () ->
@@ -569,14 +574,16 @@ struct
                 | Error e ->
                     let s = Fmt.to_to_string Sync.pp_push_error e in
                     Error s);
-            io_field "pull" ~typ:store_schema.commit
+            io_field "pull" ~doc:"update a branch from a remote respotory"
+              ~typ:store_schema.commit
               ~args:
                 Arg.
                   [
-                    arg "branch" ~typ:Input.branch;
-                    arg "remote" ~typ:(non_null Input.remote);
-                    arg "info" ~typ:Input.info;
-                    arg "depth" ~typ:int;
+                    arg "branch" ~doc:"branch to update" ~typ:Input.branch;
+                    arg "remote" ~doc:"remote URI" ~typ:(non_null Input.remote);
+                    arg "info" ~doc:"commit info for a merge commit"
+                      ~typ:Input.info;
+                    arg "depth" ~doc:"the number of commits to push" ~typ:int;
                   ]
               ~resolve:(fun _ _src branch remote info depth ->
                 Lwt_eio.run_eio @@ fun () ->
@@ -613,10 +620,11 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:(non_null Input.value);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"path where contents will be stored"
+                  ~typ:(non_null Input.path);
+                arg "value" ~doc:"contents" ~typ:(non_null Input.value);
+                arg "info" ~doc:"commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k v i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -630,10 +638,11 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "tree" ~typ:(non_null Input.tree);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"path where contents will be stored"
+                  ~typ:(non_null Input.path);
+                arg "tree" ~doc:"tree" ~typ:(non_null Input.tree);
+                arg "info" ~doc:"commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k items i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -681,11 +690,12 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:(non_null Input.value);
-                arg "metadata" ~typ:Input.metadata;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"name of branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"path to update" ~typ:(non_null Input.path);
+                arg "value" ~doc:"content to store" ~typ:(non_null Input.value);
+                arg "metadata" ~doc:"metadata for this value"
+                  ~typ:Input.metadata;
+                arg "info" ~doc:"commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k v m i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -756,9 +766,15 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:(non_null Input.branch);
-                arg "test" ~typ:Input.commit_key;
-                arg "set" ~typ:Input.commit_key;
+                arg "branch" ~doc:"name of branch to update"
+                  ~typ:(non_null Input.branch);
+                arg "test"
+                  ~doc:
+                    "value to check for, this should be HEAD commit key for \
+                     the specified branch"
+                  ~typ:Input.commit_key;
+                arg "set" ~doc:"value to store if check is successful"
+                  ~typ:Input.commit_key;
               ]
           ~resolve:(fun _ _src branch test set ->
             Lwt_eio.run_eio @@ fun () ->
@@ -769,9 +785,9 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"name of branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"path to remove" ~typ:(non_null Input.path);
+                arg "info" ~doc:"commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -785,11 +801,13 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:Input.value;
-                arg "old" ~typ:Input.value;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "path" ~doc:"path to contents to be merged"
+                  ~typ:(non_null Input.path);
+                arg "value" ~doc:"new contents" ~typ:Input.value;
+                arg "old" ~doc:"old contents" ~typ:Input.value;
+                arg "info" ~doc:"commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key value old info ->
             Lwt_eio.run_eio @@ fun () ->
@@ -805,11 +823,13 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:Input.tree;
-                arg "old" ~typ:Input.tree;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "path" ~doc:"path to merge tree" ~typ:(non_null Input.path);
+                arg "value" ~doc:"the new tree to be merged at \"path\""
+                  ~typ:Input.tree;
+                arg "old" ~doc:"the old tree from \"path\"" ~typ:Input.tree;
+                arg "info" ~doc:"commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key value old info ->
             Lwt_eio.run_eio @@ fun () ->
@@ -840,9 +860,11 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "from" ~typ:(non_null Input.branch);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "from" ~doc:"name of branch to merge from"
+                  ~typ:(non_null Input.branch);
+                arg "info" ~doc:"commit info" ~typ:Input.info;
                 arg "max_depth" ~typ:int;
                 arg "n" ~typ:int;
               ]
@@ -857,9 +879,11 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "from" ~typ:(non_null Input.hash);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "from" ~doc:"hash of commit to merge from"
+                  ~typ:(non_null Input.hash);
+                arg "info" ~doc:"commit info" ~typ:Input.info;
                 arg "max_depth" ~typ:int;
                 arg "n" ~typ:int;
               ]
@@ -879,8 +903,9 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "commit" ~typ:(non_null Input.hash);
+                arg "branch" ~doc:"name of branch to revert" ~typ:Input.branch;
+                arg "commit" ~doc:"commit hash to revert to"
+                  ~typ:(non_null Input.hash);
               ]
           ~resolve:(fun _ _src branch commit ->
             Lwt_eio.run_eio @@ fun () ->
@@ -914,7 +939,11 @@ struct
         subscription_field "watch" ~typ:(non_null diff)
           ~doc:"watch for changes to a branch"
           ~args:
-            Arg.[ arg "branch" ~typ:Input.branch; arg "path" ~typ:Input.path ]
+            Arg.
+              [
+                arg "branch" ~doc:"name of branch to watch" ~typ:Input.branch;
+                arg "path" ~typ:Input.path;
+              ]
           ~resolve:(fun _ctx branch path ->
             Lwt_eio.run_eio @@ fun () ->
             let t = mk_branch s branch in
@@ -963,7 +992,7 @@ struct
             ~typ:(non_null Types.Hash.schema_typ)
             ~args:
               Arg.
-                [ arg "value" ~doc:"content hash" ~typ:(non_null Input.value) ]
+                [ arg "value" ~doc:"content value" ~typ:(non_null Input.value) ]
             ~resolve:(fun _ _src c ->
               Lwt_eio.run_eio @@ fun () -> Store.Contents.hash c |> Result.ok);
           io_field "commit_of_key" ~doc:"find commit by key"
