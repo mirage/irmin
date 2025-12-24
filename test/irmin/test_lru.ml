@@ -44,8 +44,8 @@ type action = Add of key * int | Clear
 let add k v = Add (k, v)
 let clear = Clear
 
-let gen_action =
-  QCheck.Gen.(oneof_weighted [ (5, map2 add nat_small nat); (1, pure clear) ])
+let[@alert "-deprecated"] gen_action =
+  QCheck.Gen.(frequency [ (5, map2 add int_small nat); (1, pure clear) ])
 
 let print_action = function
   | Add (k, v) -> Fmt.str "add %d %d" k v

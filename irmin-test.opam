@@ -25,7 +25,6 @@ depends: [
   "eio"          {>= "1.0"}
   "eio_main"     {>= "0.15"}
   "alcotest"     {>= "1.8.0"}
-  "qcheck-alcotest" {with-test & >= "0.21.1"}
   "metrics"      {>= "0.4.1"}
   "metrics-unix" {>= "0.4.1"}
   "ocaml-syntax-shims"
