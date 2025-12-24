@@ -45,7 +45,7 @@ let add k v = Add (k, v)
 let clear = Clear
 
 let[@alert "-deprecated"] gen_action =
-  QCheck.Gen.(frequency [ (5, map2 add int_small nat); (1, pure clear) ])
+  QCheck.Gen.(frequency [ (5, map2 add small_int nat); (1, pure clear) ])
 
 let print_action = function
   | Add (k, v) -> Fmt.str "add %d %d" k v
