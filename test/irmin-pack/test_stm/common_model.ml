@@ -82,7 +82,7 @@ type state = TreeModel.t
 let arb_cmd _s =
   let max_tree_depth = 2 in
   let depth_gen =
-    Gen.small_nat |> Gen.map (fun n -> 1 + (n mod max_tree_depth))
+    Gen.nat_small |> Gen.map (fun n -> 1 + (n mod max_tree_depth))
   in
 
   let path_gen =
@@ -98,9 +98,11 @@ let arb_cmd _s =
     build_path d []
   in
 
-  let contents_gen = Gen.oneofl possible_contents in
+  let contents_gen = Gen.oneof_list possible_contents in
 
-  let with_tree_function_gen = Gen.oneofl (List.map fst with_tree_function) in
+  let with_tree_function_gen =
+    Gen.oneof_list (List.map fst with_tree_function)
+  in
 
   QCheck.make ~print:show_cmd
     (Gen.oneof
