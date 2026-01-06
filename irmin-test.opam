@@ -39,7 +39,7 @@ depends: [
 ]
 
 pin-depends: [
-  [ "qcheck-stm.10" "git+https://github.com/lyrm/multicoretests#eio" ]]
+  [ "qcheck-stm.0.10" "git+https://github.com/lyrm/multicoretests#eio" ]]
 
 synopsis: "Irmin test suite"
 description: """

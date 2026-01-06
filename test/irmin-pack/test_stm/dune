@@ -35,13 +35,3 @@
   irmin-pack.mem
   irmin.mem
   irmin-tezos))
-
-(executable
- (name test_bin)
- (modules test_bin)
- (libraries common irmin irmin.mem eio_main))
-
-(executable
- (name test_bin2)
- (modules test_bin2)
- (libraries common irmin irmin.mem eio_main))

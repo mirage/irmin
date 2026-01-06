@@ -43,6 +43,9 @@ depends: [
   "bisect_ppx" {dev & >= "2.5.0"}
 ]
 
+pin-depends: [
+  [ "qcheck-stm.0.10" "git+https://github.com/lyrm/multicoretests#eio" ]]
+  
 conflicts: [
   "result" {< "1.5"} # Requires `Result = Stdlib.Result`
 ]
