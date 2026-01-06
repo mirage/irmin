@@ -44,8 +44,8 @@ depends: [
 ]
 
 pin-depends: [
-  [ "qcheck-stm.0.10" "git+https://github.com/lyrm/multicoretests#eio" ]]
-  
+  [ "qcheck-stm.0.10" "git+https://github.com/lyrm/multicoretests#6dc52b7b51215888f57147e7954cc90736ca4f3b" ]]
+
 conflicts: [
   "result" {< "1.5"} # Requires `Result = Stdlib.Result`
 ]
