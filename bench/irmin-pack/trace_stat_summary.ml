@@ -802,25 +802,25 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       open_ construct
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds.total)
       |+ bs_folder_of_bag_getter (fun bag ->
-             ofi bag.Def.pack.finds.from_staging)
+          ofi bag.Def.pack.finds.from_staging)
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.pack.finds.from_lru)
       |+ bs_folder_of_bag_getter (fun bag ->
-             ofi bag.Def.pack.finds.from_pack_direct)
+          ofi bag.Def.pack.finds.from_pack_direct)
       |+ bs_folder_of_bag_getter (fun bag ->
-             ofi bag.Def.pack.finds.from_pack_indexed)
+          ofi bag.Def.pack.finds.from_pack_indexed)
       |+ bs_folder_of_bag_getter (fun bag ->
-             let open Def in
-             let v = bag.pack.finds in
-             v.total
-             - v.from_staging
-             - v.from_lru
-             - v.from_pack_direct
-             - v.from_pack_indexed
-             |> ofi)
+          let open Def in
+          let v = bag.pack.finds in
+          v.total
+          - v.from_staging
+          - v.from_lru
+          - v.from_pack_direct
+          - v.from_pack_indexed
+          |> ofi)
       |+ bs_folder_of_bag_getter (fun bag ->
-             let open Def in
-             let v = bag.pack.finds in
-             v.total - v.from_staging - v.from_lru |> ofi)
+          let open Def in
+          let v = bag.pack.finds in
+          v.total - v.from_staging - v.from_lru |> ofi)
       |> seal
     in
     Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate
@@ -928,20 +928,20 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.bytes_written)
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_writes)
       |+ bs_folder_of_bag_getter (fun bag ->
-             ofi (bag.Def.index.bytes_read + bag.Def.index.bytes_written))
+          ofi (bag.Def.index.bytes_read + bag.Def.index.bytes_written))
       |+ bs_folder_of_bag_getter (fun bag ->
-             ofi (bag.Def.index.nb_reads + bag.Def.index.nb_writes))
+          ofi (bag.Def.index.nb_reads + bag.Def.index.nb_writes))
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
       |+ bs_folder_of_bag_getter ~should_cumulate_value:true (fun bag ->
-             (* When 1 merge occured, [data_size] bytes were written.
+          (* When 1 merge occured, [data_size] bytes were written.
 
                 When 2 merge occured, [data_size * 2 - log_size] bytes were
                 written. But here we just count [data_size * 2]. *)
-             let merge_count =
-               List.length bag.Def.index.new_merge_durations |> Int64.of_int
-             in
-             let data_size = bag.Def.disk.index_data in
-             Int64.to_float (Int64.mul merge_count data_size))
+          let merge_count =
+            List.length bag.Def.index.new_merge_durations |> Int64.of_int
+          in
+          let data_size = bag.Def.disk.index_data in
+          Int64.to_float (Int64.mul merge_count data_size))
       |+ merge_durations_folder
       |> seal
     in
@@ -975,7 +975,7 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.major_collections)
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.gc.compactions)
       |+ bs_folder_of_bag_getter ~is_linearly_increasing:false (fun bag ->
-             ofi bag.Def.gc.heap_words *. ws)
+          ofi bag.Def.gc.heap_words *. ws)
       |+ major_heap_top_bytes_folder header block_count
       |> seal
     in
@@ -993,13 +993,13 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
       open_ construct
       |+ bs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.index_data)
       |+ bs_folder_of_bag_getter ~is_linearly_increasing:false (fun bag ->
-             ofi64 bag.Def.disk.index_log)
+          ofi64 bag.Def.disk.index_log)
       |+ bs_folder_of_bag_getter ~is_linearly_increasing:false (fun bag ->
-             ofi64 bag.Def.disk.index_log_async)
+          ofi64 bag.Def.disk.index_log_async)
       |+ bs_folder_of_bag_getter (fun bag -> ofi64 bag.Def.disk.store_dict)
       |+ bs_folder_of_bag_getter (fun bag ->
-             (* This would not be linearly increasing with irmin layers *)
-             ofi64 bag.Def.disk.store_pack)
+          (* This would not be linearly increasing with irmin layers *)
+          ofi64 bag.Def.disk.store_pack)
       |> seal
     in
     Utils.Parallel_folders.folder acc0 Utils.Parallel_folders.accumulate

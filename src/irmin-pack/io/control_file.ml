@@ -142,14 +142,14 @@ module Serde = struct
           | `V4 ->
               Plv4.of_bin_string payload >>= fun payload ->
               (match Plv4.is_checksum_valid payload with
-              | false -> Invalid (V4 payload)
-              | true -> Valid (V4 payload))
+                | false -> Invalid (V4 payload)
+                | true -> Valid (V4 payload))
               |> Result.ok
           | `V5 ->
               Plv5.of_bin_string payload >>= fun payload ->
               (match Plv5.is_checksum_valid payload with
-              | false -> Invalid (V5 payload)
-              | true -> Valid (V5 payload))
+                | false -> Invalid (V5 payload)
+                | true -> Valid (V5 payload))
               |> Result.ok
         in
         match route_version () with
@@ -289,8 +289,8 @@ module Serde = struct
           | `V5 ->
               Plv5.of_bin_string payload >>= fun payload ->
               (match Plv5.is_checksum_valid payload with
-              | false -> Invalid (V5 payload)
-              | true -> Valid (V5 payload))
+                | false -> Invalid (V5 payload)
+                | true -> Valid (V5 payload))
               |> Result.ok
         in
         match route_version () with

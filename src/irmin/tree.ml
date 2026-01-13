@@ -560,7 +560,7 @@ module Make (P : Backend.S) = struct
       |~ case1 "value" (pair P.Node.Val.t (option um)) (fun _ -> assert false)
       |~ case1 "pruned" hash_t (fun h -> Pruned h)
       |~ case1 "portable_dirty" (pair portable_t um) (fun (v, m) ->
-             Portable_dirty (v, m))
+          Portable_dirty (v, m))
       |> sealv
 
     let of_v ?length ?findv_cache ~env v =
@@ -970,17 +970,17 @@ module Make (P : Backend.S) = struct
       let must_build_portable_node =
         bindings
         |> Seq.exists (fun (_, v) ->
-               match v with
-               | `Node n -> Option.is_none (cached_key n)
-               | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
+            match v with
+            | `Node n -> Option.is_none (cached_key n)
+            | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
       in
       if must_build_portable_node then
         let pnode =
           bindings
           |> Seq.map (fun (step, v) ->
-                 match v with
-                 | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
-                 | `Node n -> hash ~cache n (fun k -> (step, `Node k)))
+              match v with
+              | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
+              | `Node n -> hash ~cache n (fun k -> (step, `Node k)))
           |> Portable.of_seq
         in
         k (Pnode pnode)
@@ -988,19 +988,19 @@ module Make (P : Backend.S) = struct
         let node =
           bindings
           |> Seq.map (fun (step, v) ->
-                 match v with
-                 | `Contents (c, m) -> (
-                     match Contents.cached_key c with
-                     | Some k -> (step, `Contents (k, m))
-                     | None ->
-                         (* We checked that all child keys are cached above *)
-                         assert false)
-                 | `Node n -> (
-                     match cached_key n with
-                     | Some k -> (step, `Node k)
-                     | None ->
-                         (* We checked that all child keys are cached above *)
-                         assert false))
+              match v with
+              | `Contents (c, m) -> (
+                  match Contents.cached_key c with
+                  | Some k -> (step, `Contents (k, m))
+                  | None ->
+                      (* We checked that all child keys are cached above *)
+                      assert false)
+              | `Node n -> (
+                  match cached_key n with
+                  | Some k -> (step, `Node k)
+                  | None ->
+                      (* We checked that all child keys are cached above *)
+                      assert false))
           |> P.Node.Val.of_seq
         in
         if cache then Atomic.set t.info.value (Some node);
@@ -1401,7 +1401,7 @@ module Make (P : Backend.S) = struct
         let updates =
           StepMap.to_seq updates
           |> Seq.filter_map (fun (s, elt) ->
-                 match elt with Remove -> None | Add e -> Some (s, e))
+              match elt with Remove -> None | Add e -> Some (s, e))
         in
         Seq.append value_bindings updates
 
@@ -2159,25 +2159,25 @@ module Make (P : Backend.S) = struct
         Atomic.incr cnt.node_val_v;
         StepMap.to_seq x
         |> Seq.map (fun (step, v) ->
-               match v with
-               | `Node n -> (
-                   match Node.cached_key n with
-                   | Some k -> (step, `Node k)
-                   | None ->
-                       assertion_failure
-                         "Encountered child node value with uncached key \
-                          during export:@,\
-                          @ @[%a@]"
-                         dump v)
-               | `Contents (c, m) -> (
-                   match Contents.cached_key c with
-                   | Some k -> (step, `Contents (k, m))
-                   | None ->
-                       assertion_failure
-                         "Encountered child contents value with uncached key \
-                          during export:@,\
-                          @ @[%a@]"
-                         dump v))
+            match v with
+            | `Node n -> (
+                match Node.cached_key n with
+                | Some k -> (step, `Node k)
+                | None ->
+                    assertion_failure
+                      "Encountered child node value with uncached key during \
+                       export:@,\
+                       @ @[%a@]"
+                      dump v)
+            | `Contents (c, m) -> (
+                match Contents.cached_key c with
+                | Some k -> (step, `Contents (k, m))
+                | None ->
+                    assertion_failure
+                      "Encountered child contents value with uncached key \
+                       during export:@,\
+                       @ @[%a@]"
+                      dump v))
         |> P.Node.Val.of_seq
       in
       add_node n node k
@@ -2308,8 +2308,8 @@ module Make (P : Backend.S) = struct
                       | Value (_, _, Some m) ->
                           StepMap.to_seq m
                           |> Seq.filter_map (function
-                               | step, Node.Add v -> Some (step, v)
-                               | _, Remove -> None)
+                            | step, Node.Add v -> Some (step, v)
+                            | _, Remove -> None)
                       | Map m -> StepMap.to_seq m
                       | Value (_, _, None) -> Seq.empty
                       | Key _ | Portable_dirty _ | Pruned _ ->

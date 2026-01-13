@@ -48,12 +48,12 @@ struct
         let tree = S.Commit.tree commit in
         bindings
         |> List.iter (fun (key, value) ->
-               S.Tree.find tree key
-               |> Alcotest.(check (option string))
-                    (Fmt.str "Expected binding [%a ↦ %s]"
-                       Fmt.(Dump.list string)
-                       key value)
-                    (Some value))
+            S.Tree.find tree key
+            |> Alcotest.(check (option string))
+                 (Fmt.str "Expected binding [%a ↦ %s]"
+                    Fmt.(Dump.list string)
+                    key value)
+                 (Some value))
 
   let check_repo repo structure =
     structure

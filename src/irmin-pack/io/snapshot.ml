@@ -28,9 +28,9 @@ module Make (Args : Args) = struct
     let path_index = Eio.Path.(path / "index") in
     Io.readdir path_index
     |> List.iter (fun name ->
-           match Io.unlink Eio.Path.(path_index / name) with
-           | Ok () -> ()
-           | Error (`Sys_error msg) -> failwith msg);
+        match Io.unlink Eio.Path.(path_index / name) with
+        | Ok () -> ()
+        | Error (`Sys_error msg) -> failwith msg);
     Io.rmdir path_index;
     Io.rmdir path
 

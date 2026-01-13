@@ -1661,7 +1661,7 @@ struct
               |> Seq.map Concrete.to_entry
               |> List.of_seq
               |> List.fast_sort (fun x y ->
-                     compare_step x.Concrete.name y.Concrete.name)
+                  compare_step x.Concrete.name y.Concrete.name)
             in
             Concrete.Values bindings
           else to_concrete ~force:false la t

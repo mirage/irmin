@@ -775,7 +775,7 @@ module Table4 = struct
       zip (fun s ->
           Summary.Span.Key.((all_atoms_seen :> t list))
           |> List.map (fun op ->
-                 Summary.(Span.Map.find op s.span).cumu_count.evolution)
+              Summary.(Span.Map.find op s.span).cumu_count.evolution)
           |> sum_curves)
     in
 
@@ -789,9 +789,8 @@ module Table4 = struct
                 /. float_of_int (s.curves_sample_count - 1)
                 *. float_of_int s.block_count)
             |> List.map (fun v ->
-                   Utils.approx_transaction_count_of_block_count
-                     (int_of_float v)
-                   |> float_of_int)
+                Utils.approx_transaction_count_of_block_count (int_of_float v)
+                |> float_of_int)
           in
           played_count_curve)
     in
@@ -805,8 +804,8 @@ module Table4 = struct
                 /. float_of_int (s.curves_sample_count - 1)
                 *. float_of_int s.block_count)
             |> List.map (fun v ->
-                   Utils.approx_operation_count_of_block_count (int_of_float v)
-                   |> float_of_int)
+                Utils.approx_operation_count_of_block_count (int_of_float v)
+                |> float_of_int)
           in
           played_count_curve)
     in

@@ -158,13 +158,13 @@ module Make (Args : Gc_args.S) = struct
     let () =
       removable_chunk_idxs
       |> List.iter (fun chunk_idx ->
-             let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
-             Io.unlink_dont_wait ~sw
-               ~on_exn:(fun exn ->
-                 [%log.warn
-                   "Unlinking chunk_idxs files after gc, failed with error %s"
-                     (Printexc.to_string exn)])
-               path)
+          let path = Irmin_pack.Layout.V4.suffix_chunk ~root ~chunk_idx in
+          Io.unlink_dont_wait ~sw
+            ~on_exn:(fun exn ->
+              [%log.warn
+                "Unlinking chunk_idxs files after gc, failed with error %s"
+                  (Printexc.to_string exn)])
+            path)
     in
     if generation >= 2 then (
       (* Unlink previous prefix. *)

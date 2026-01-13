@@ -44,7 +44,7 @@ let reporter :
             let text =
               Logs.Tag.find Source_code_position.tag tags
               |> Option.fold ~none:"" ~some:(fun (fname, lnum, _, _) ->
-                     Fmt.str "%s:%d" fname lnum)
+                  Fmt.str "%s:%d" fname lnum)
             in
             (text, `Faint)
       in

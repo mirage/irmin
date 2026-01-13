@@ -136,9 +136,9 @@ struct
           if equal_metadata m Metadata.default then c h else x (h, m))
     |~ case1 "node" node_key_t (fun k -> `Node k)
     |~ case1 "contents" contents_key_t (fun h ->
-           `Contents (h, Metadata.default))
+        `Contents (h, Metadata.default))
     |~ case1 "contents-x" (pair contents_key_t Metadata.t) (fun (h, m) ->
-           `Contents (h, m))
+        `Contents (h, m))
     |> sealv
 
   let to_entry (k, (v : value)) =
@@ -249,21 +249,19 @@ struct
     let entries : Hash_preimage.t =
       StepMap.to_seq t
       |> Seq.map (fun (_, v) ->
-             match v with
-             (* Weaken keys to hashes *)
-             | Node { name; node } ->
-                 Hash_preimage.Node_hash { name; node = Node_key.to_hash node }
-             | Contents { name; contents } ->
-                 Contents_hash
-                   { name; contents = Contents_key.to_hash contents }
-             | Contents_m { metadata; name; contents } ->
-                 Contents_m_hash
-                   { metadata; name; contents = Contents_key.to_hash contents }
-             | Node_hash { name; node } -> Node_hash { name; node }
-             | Contents_hash { name; contents } ->
-                 Contents_hash { name; contents }
-             | Contents_m_hash { metadata; name; contents } ->
-                 Contents_m_hash { metadata; name; contents })
+          match v with
+          (* Weaken keys to hashes *)
+          | Node { name; node } ->
+              Hash_preimage.Node_hash { name; node = Node_key.to_hash node }
+          | Contents { name; contents } ->
+              Contents_hash { name; contents = Contents_key.to_hash contents }
+          | Contents_m { metadata; name; contents } ->
+              Contents_m_hash
+                { metadata; name; contents = Contents_key.to_hash contents }
+          | Node_hash { name; node } -> Node_hash { name; node }
+          | Contents_hash { name; contents } -> Contents_hash { name; contents }
+          | Contents_m_hash { metadata; name; contents } ->
+              Contents_m_hash { metadata; name; contents })
       |> Seq.fold_left (fun xs x -> x :: xs) []
     in
     pre_hash entries f
@@ -756,14 +754,14 @@ module V1 (N : Generic_key.S with type step = string) = struct
         | None, None, Some n -> `Node n
         | _ -> failwith "invalid node")
     |+ field "contents" (option Contents_key.t) (function
-         | `Contents (x, _) -> Some x
-         | _ -> None)
+      | `Contents (x, _) -> Some x
+      | _ -> None)
     |+ field "metadata" (option metadata_t) (function
-         | `Contents (_, x) when not (is_default x) -> Some x
-         | _ -> None)
+      | `Contents (_, x) when not (is_default x) -> Some x
+      | _ -> None)
     |+ field "node" (option Node_key.t) (function
-         | `Node n -> Some n
-         | _ -> None)
+      | `Node n -> Some n
+      | _ -> None)
     |> sealr
 
   let t : t Type.t =

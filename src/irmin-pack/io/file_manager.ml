@@ -265,25 +265,24 @@ struct
     let () =
       Io.readdir root
       |> List.filter (fun filename ->
-             match Irmin_pack.Layout.Classification.Upper.v filename with
-             | `Unknown | `Branch | `Control | `Dict | `V1_or_v2_pack -> false
-             | `Prefix g | `Mapping g -> g <> generation
-             | `Suffix idx ->
-                 idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
-             | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp
-             | `Dict_tmp ->
-                 true)
+          match Irmin_pack.Layout.Classification.Upper.v filename with
+          | `Unknown | `Branch | `Control | `Dict | `V1_or_v2_pack -> false
+          | `Prefix g | `Mapping g -> g <> generation
+          | `Suffix idx ->
+              idx < chunk_start_idx || idx > chunk_start_idx + chunk_num
+          | `Reachable _ | `Sorted _ | `Gc_result _ | `Control_tmp | `Dict_tmp
+            ->
+              true)
       |> List.iter (fun residual ->
-             let filename = Eio.Path.(root / residual) in
-             [%log.debug
-               "Remove residual file %s" (Eio.Path.native_exn filename)];
-             match Io.unlink filename with
-             | Ok () -> ()
-             | Error (`Sys_error error) ->
-                 [%log.warn
-                   "Could not remove residual file %s: %s"
-                     (Eio.Path.native_exn filename)
-                     error])
+          let filename = Eio.Path.(root / residual) in
+          [%log.debug "Remove residual file %s" (Eio.Path.native_exn filename)];
+          match Io.unlink filename with
+          | Ok () -> ()
+          | Error (`Sys_error error) ->
+              [%log.warn
+                "Could not remove residual file %s: %s"
+                  (Eio.Path.native_exn filename)
+                  error])
     in
     Option.might (Lower.cleanup ~generation) lower
 
@@ -781,14 +780,14 @@ struct
       Control.open_ ~sw ~readonly:true ~path ~tmp_path:None
       (* If no control file, then check whether the store is in v1 or v2. *)
       |> Result.map_error (function
-           | `No_such_file_or_directory _ -> (
-               let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
-               match Io.classify_path pack with
-               | `File -> `Migration_needed
-               | `No_such_file_or_directory ->
-                   `No_such_file_or_directory (Eio.Path.native_exn pack)
-               | `Directory | `Other -> `Invalid_layout)
-           | error -> error)
+        | `No_such_file_or_directory _ -> (
+            let pack = Irmin_pack.Layout.V1_and_v2.pack ~root in
+            match Io.classify_path pack with
+            | `File -> `Migration_needed
+            | `No_such_file_or_directory ->
+                `No_such_file_or_directory (Eio.Path.native_exn pack)
+            | `Directory | `Other -> `Invalid_layout)
+        | error -> error)
     in
     let Payload.
           {

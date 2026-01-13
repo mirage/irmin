@@ -17,12 +17,12 @@ let run ~d_mgr ~nb ?(finally = Fun.id) tasks =
   let fibers =
     worker
     :: List.init (nb - 1) (fun _ ->
-           let mut = Eio.Semaphore.make 0 in
-           ( Eio.Fiber.fork ~sw @@ fun () ->
-             Eio.Domain_manager.run d_mgr @@ fun () ->
-             worker ();
-             Eio.Semaphore.release mut );
-           fun () -> Eio.Semaphore.acquire mut)
+        let mut = Eio.Semaphore.make 0 in
+        ( Eio.Fiber.fork ~sw @@ fun () ->
+          Eio.Domain_manager.run d_mgr @@ fun () ->
+          worker ();
+          Eio.Semaphore.release mut );
+        fun () -> Eio.Semaphore.acquire mut)
   in
   let t0 = Unix.gettimeofday () in
   for _ = 1 to nb do

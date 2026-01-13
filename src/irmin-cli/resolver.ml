@@ -174,11 +174,12 @@ module Hash = struct
   let of_specifier hashname =
     let ( >>= ) x f = match x with Ok x -> f x | Error _ as e -> e in
     (match String.cut ~rev:true ~sep:"/" hashname with
-    | Some (hashname, size) -> (
-        match int_of_string_opt size with
-        | Some size -> Ok (hashname, Some size)
-        | None -> Error (`Msg (Fmt.str "Non-numeric hash size %s passed" size)))
-    | None -> Ok (hashname, None))
+      | Some (hashname, size) -> (
+          match int_of_string_opt size with
+          | Some size -> Ok (hashname, Some size)
+          | None ->
+              Error (`Msg (Fmt.str "Non-numeric hash size %s passed" size)))
+      | None -> Ok (hashname, None))
     >>= fun (hashname, size_opt) ->
     match (find_hashfn hashname, size_opt) with
     | Variable_size hashfn, size_opt -> Ok (hashfn size_opt)
@@ -202,8 +203,8 @@ module Hash = struct
       let variable_size_types =
         !all
         |> List.filter (function
-             | _, Variable_size _ -> true
-             | _, Fixed _ -> false)
+          | _, Variable_size _ -> true
+          | _, Fixed _ -> false)
         |> List.map fst
       in
       let pp_prose_list =

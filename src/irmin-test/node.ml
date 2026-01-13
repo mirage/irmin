@@ -68,8 +68,8 @@ module Suite (Map : Map) = struct
     let node = map_of_bindings bindings in
     bindings
     |> List.iter (fun (k, v) ->
-           check __POS__ [%typ: Map.data option] ~expected:(Some v)
-             (Map.find node k))
+        check __POS__ [%typ: Map.data option] ~expected:(Some v)
+          (Map.find node k))
 
   let test_equal () =
     let module Map = struct

@@ -566,9 +566,9 @@ struct
               let () =
                 preds
                 |> List.map (function
-                     | s, `Contents h -> (s, `Contents (XKey.to_hash h))
-                     | s, `Inode h -> (s, `Inode (XKey.to_hash h))
-                     | s, `Node h -> (s, `Node (XKey.to_hash h)))
+                  | s, `Contents h -> (s, `Contents (XKey.to_hash h))
+                  | s, `Inode h -> (s, `Inode (XKey.to_hash h))
+                  | s, `Node h -> (s, `Node (XKey.to_hash h)))
                 |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
               in
               List.rev_map

@@ -258,7 +258,7 @@ module IO = struct
     in
     aux [] dir
     |> List.map (fun x ->
-           string_chop_prefix ~prefix:(Filename.concat (snd dir) "") @@ snd x)
+        string_chop_prefix ~prefix:(Filename.concat (snd dir) "") @@ snd x)
 
   let mkdir ~io:{ fs; _ } dirname = mkdir Path.(fs / dirname)
 end

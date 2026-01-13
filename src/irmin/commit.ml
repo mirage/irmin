@@ -581,7 +581,7 @@ module History (S : Store) = struct
       let merge =
         merge t ~info
         |> Merge.with_conflict (fun msg ->
-               Fmt.str "Recursive merging of common ancestors: %s" msg)
+            Fmt.str "Recursive merging of common ancestors: %s" msg)
         |> Merge.f
       in
       merge ~old c1 c2

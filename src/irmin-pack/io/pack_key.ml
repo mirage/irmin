@@ -89,14 +89,14 @@ let t : type h. h Irmin.Type.t -> h t Irmin.Type.t =
       | Direct { hash; offset; length; _ } -> direct (hash, offset, length)
       | Indexed x1 -> indexed x1)
   |~ case1 "Direct" [%typ: hash * int63 * int] (fun (hash, offset, length) ->
-         State
-           {
-             state =
-               Atomic.make
-                 (Direct { hash; offset; length; volume_identifier = None });
-           })
+      State
+        {
+          state =
+            Atomic.make
+              (Direct { hash; offset; length; volume_identifier = None });
+        })
   |~ case1 "Indexed" [%typ: hash] (fun x1 ->
-         State { state = Atomic.make (Indexed x1) })
+      State { state = Atomic.make (Indexed x1) })
   |> sealv
 
 let t (type hash) (hash_t : hash Irmin.Type.t) =

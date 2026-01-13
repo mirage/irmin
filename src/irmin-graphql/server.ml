@@ -371,15 +371,15 @@ struct
                        path" ~resolve:(fun _ (tree, tree_path) path ->
                       Store.Tree.find_all tree path
                       |> Option.map (fun (c, m) ->
-                             let path' = concat_path tree_path path in
-                             (c, m, path')));
+                          let path' = concat_path tree_path path in
+                          (c, m, path')));
                   field "get_tree" ~args:[ path_arg ] ~typ:t.tree
                     ~doc:"Get a sub-tree from the tree at the given path"
                     ~resolve:(fun _ (tree, tree_path) path ->
                       Store.Tree.find_tree tree path
                       |> Option.map (fun tree ->
-                             let tree_path' = concat_path tree_path path in
-                             (tree, tree_path')));
+                          let tree_path' = concat_path tree_path path in
+                          (tree, tree_path')));
                   field "list_contents_recursively" ~args:[]
                     ~doc:
                       "List all contents and their metadata recursively under \
@@ -423,17 +423,15 @@ struct
                     ~resolve:(fun _ (tree, tree_path) ->
                       Store.Tree.list tree Store.Path.empty
                       |> List.map (fun (step, tree) ->
-                             let absolute_path =
-                               Store.Path.rcons tree_path step
-                             in
-                             match Store.Tree.destruct tree with
-                             | `Contents (c, m) ->
-                                 let c = Store.Tree.Contents.force_exn c in
-                                 let f = Lazy.force contents_as_node in
-                                 f (c, m, absolute_path)
-                             | _ ->
-                                 let f = Lazy.force tree_as_node in
-                                 f (tree, absolute_path)));
+                          let absolute_path = Store.Path.rcons tree_path step in
+                          match Store.Tree.destruct tree with
+                          | `Contents (c, m) ->
+                              let c = Store.Tree.Contents.force_exn c in
+                              let f = Lazy.force contents_as_node in
+                              f (c, m, absolute_path)
+                          | _ ->
+                              let f = Lazy.force tree_as_node in
+                              f (tree, absolute_path)));
                 ]))
         in
         let branch =
@@ -1064,8 +1062,8 @@ struct
               Lwt_eio.run_eio @@ fun () ->
               Store.Branch.list s
               |> List.map (fun branch ->
-                     let store = Store.of_branch s branch in
-                     (store, branch))
+                  let store = Store.of_branch s branch in
+                  (store, branch))
               |> Result.ok);
           io_field "main" ~doc:"Get main branch" ~typ:store_schema.branch
             ~args:[] ~resolve:(fun _ _ ->
