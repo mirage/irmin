@@ -16,7 +16,7 @@ depends: [
   "ocaml" {>= "4.10.0"}
   "dune" {>= "3.5.0"}
   "ppx_repr" {>= "0.2.0"}
-  "ppxlib" {>= "0.12.0"}
+  "ppxlib" {>= "0.37.0"}
   "logs" {>= "0.5.0"}
   "fmt" {with-test & >= "0.8.0"}
   "bisect_ppx" {dev & >= "2.5.0"}
