@@ -2482,18 +2482,23 @@ module Make (P : Backend.S) = struct
                           during export:@,\
                           @ @[%a@]"
                          dump v)
-               | `Contents_inlined_3 (_c, _m) ->
-                   Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                     __FILE__ __FUNCTION__ __LINE__;
-                   None
-               | `Contents (c, m) -> (
-                   Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                     __FILE__ __FUNCTION__ __LINE__;
+               | `Contents_inlined_3 (c, m) -> (
+                   (* Inlined contents are saved to the store like regular
+                      contents. The key was cached by on_contents_inlined. *)
                    match Contents.cached_key c with
                    | Some k -> Some (step, `Contents (k, m))
                    | None ->
                        assertion_failure
-                         "Encountered child contents value 2 with uncached key \
+                         "Encountered inlined contents with uncached key \
+                          during export:@,\
+                          @ @[%a@]"
+                         dump v)
+               | `Contents (c, m) -> (
+                   match Contents.cached_key c with
+                   | Some k -> Some (step, `Contents (k, m))
+                   | None ->
+                       assertion_failure
+                         "Encountered child contents value with uncached key \
                           during export:@,\
                           @ @[%a@]"
                          dump v))
@@ -2705,8 +2710,7 @@ module Make (P : Backend.S) = struct
      fun (`Contents_inlined_3 (c, _)) k ->
       match Atomic.get c.Contents.v with
       | Contents.Key (_, key) ->
-          Contents.clear c;
-          (* TODO inlined *)
+          Contents.export ?clear repo c key;
           k (`Content_to_inline (c, key))
       | Contents.Value _ ->
           let v = Contents.to_value ~cache c in
@@ -2724,7 +2728,7 @@ module Make (P : Backend.S) = struct
                  computed hash: %a@]"
                 pp_contents_key key pp_contents v pp_hash h'
           in
-          Contents.clear c;
+          Contents.export ?clear repo c key;
           k (`Content_to_inline (c, key))
       | Contents.Pruned h -> pruned_hash_exn "export" h
     and on_node_seq : type r.
