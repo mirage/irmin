@@ -80,6 +80,7 @@ module Key : sig
   val indexing_strategy : Indexing_strategy.t Irmin.Backend.Conf.key
   val use_fsync : bool Irmin.Backend.Conf.key
   val no_migrate : bool Irmin.Backend.Conf.key
+  val inline_contents : bool Irmin.Backend.Conf.key
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
@@ -128,6 +129,10 @@ val use_fsync : Irmin.Backend.Conf.t -> bool
 val no_migrate : Irmin.Backend.Conf.t -> bool
 (** Flag to prevent migration of data. Default [false]. *)
 
+val inline_contents : Irmin.Backend.Conf.t -> bool
+(** Flag to enable inlining of small contents values directly inside nodes.
+    Default [false]. *)
+
 val switch : Irmin.Backend.Conf.t -> Eio.Switch.t
 (** Eio switch *)
 
@@ -147,6 +152,7 @@ val init :
   ?use_fsync:bool ->
   ?no_migrate:bool ->
   ?lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+  ?inline_contents:bool ->
   Eio.Fs.dir_ty Eio.Path.t ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default

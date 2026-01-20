@@ -486,7 +486,7 @@ module Store_tc = struct
             match kinded_key with
             | None -> assert false
             | Some (`Contents (k, _)) -> get_volume_identifier k
-            | Some (`Node k) -> get_volume_identifier k
+            | Some (`Node (k, _inlined)) -> get_volume_identifier k
           in
           [%log.debug "identifier: %s" key_identifier];
           Alcotest.(check string)

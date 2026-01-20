@@ -239,7 +239,8 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
           let path = Store.Path.rcons prefix path in
           let kind = Store.Tree.kind tree Store.Path.empty in
           match kind with
-          | Some `Contents -> Some (path, "contents", Store.Tree.hash tree)
+          | Some `Contents | Some `Contents_inlined__1 ->
+              Some (path, "contents", Store.Tree.hash tree)
           | Some `Node -> Some (path, "node", Store.Tree.hash tree)
           | None -> None)
         keys

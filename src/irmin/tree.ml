@@ -22,6 +22,20 @@ let src = Logs.Src.create "irmin.tree" ~doc:"Persistent lazy trees for Irmin"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+(* Global flag to control inlining of small contents.
+   This is set based on the store configuration at initialization time.
+   Default is false (no inlining).
+
+   TODO: This ref is a pragmatic shortcut. It's set once at repo creation and
+   never changes during the store's lifetime. A cleaner design would be to:
+   - Thread it through the repo (Backend.S / Repo.t carries config already), or
+   - Store it in the tree's Env.t which is already threaded through operations, or
+   - Use a functor parameter for compile-time configuration.
+   The current approach has the downside that opening two repos with different
+   settings would cause the second to overwrite the first's setting. *)
+let inline_contents_enabled = ref false
+let set_inline_contents_enabled v = inline_contents_enabled := v
+
 type fuzzy_bool = False | True | Maybe
 type ('a, 'r) cont = ('a -> 'r) -> 'r
 
@@ -1983,17 +1997,16 @@ module Make (P : Backend.S) = struct
   let of_contents ?(metadata = Metadata.default) c =
     let env = Env.empty () in
     let c = Contents.of_value ~env c in
-    Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-      __FUNCTION__ __LINE__;
-    Fmt.pr "%a@." (Repr.pp Contents.t) c;
-    let len =
-      match Repr.Size.of_value Contents.t with
-      | Dynamic f -> f c
-      | Static len -> len
-      | Unknown -> assert false
-    in
-    Fmt.pr "%d@." len;
-    if len < 16 then `Contents_inlined_3 (c, metadata)
+    if !inline_contents_enabled then (
+      let len =
+        match Repr.Size.of_value Contents.t with
+        | Dynamic f -> f c
+        | Static len -> len
+        | Unknown -> 0 (* Treat unknown size as "don't inline" *)
+      in
+      (* Inline small contents (< 16 bytes) when inlining is enabled *)
+      if len > 0 && len < 16 then `Contents_inlined_3 (c, metadata)
+      else `Contents (c, metadata))
     else `Contents (c, metadata)
 
   let of_contents_inlined ?(metadata = Metadata.default) c =

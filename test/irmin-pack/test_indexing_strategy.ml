@@ -41,6 +41,7 @@ let test_unique_when_switched ~fs () =
     match Option.get k with
     | `Node _ -> assert false
     | `Contents contents_key -> contents_key
+    | `Contents_inlined_5 contents_key -> contents_key
   in
   let get_direct_key key =
     match Irmin_pack_unix.Pack_key.inspect key with

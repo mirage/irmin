@@ -435,6 +435,12 @@ module type S = sig
 end
 
 module type Sigs = sig
+  val set_inline_contents_enabled : bool -> unit
+  (** [set_inline_contents_enabled b] controls whether small contents are
+      inlined directly in nodes. When [true], contents smaller than 16 bytes
+      will be inlined. Default is [false]. This is a global setting that should
+      be set before creating stores. *)
+
   module type S = sig
     include S
     (** @inline *)

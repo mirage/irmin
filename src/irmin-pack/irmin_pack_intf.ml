@@ -83,6 +83,7 @@ module type Sigs = sig
     ?use_fsync:bool ->
     ?no_migrate:bool ->
     ?lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+    ?inline_contents:bool ->
     Eio.Fs.dir_ty Eio.Path.t ->
     Irmin.config
   (** Configuration options for stores. See {!Irmin_pack.Conf} for more details.

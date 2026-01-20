@@ -300,7 +300,8 @@ struct
       ('ctx, (Store.contents * Store.metadata * Store.path) option) Schema.typ;
     contents_key_value :
       ('ctx, (Store.contents_key * Store.metadata) option) Schema.typ;
-    node_key_value : ('ctx, Store.node_key option) Schema.typ;
+    node_key_value :
+      ('ctx, (Store.node_key * Store.contents_key list) option) Schema.typ;
   }
 
   let rec store_schema =
@@ -388,7 +389,7 @@ struct
                     ~resolve:(fun _ (tree, path) ->
                       let rec tree_list ?(acc = []) tree path =
                         match Store.Tree.destruct tree with
-                        | `Contents (c, m) ->
+                        | `Contents (c, m) | `Contents_inlined_3 (c, m) ->
                             let c = Store.Tree.Contents.force_exn c in
                             (c, m, path) :: acc
                         | `Node _ ->
@@ -423,15 +424,17 @@ struct
                     ~resolve:(fun _ (tree, tree_path) ->
                       Store.Tree.list tree Store.Path.empty
                       |> List.map (fun (step, tree) ->
-                          let absolute_path = Store.Path.rcons tree_path step in
-                          match Store.Tree.destruct tree with
-                          | `Contents (c, m) ->
-                              let c = Store.Tree.Contents.force_exn c in
-                              let f = Lazy.force contents_as_node in
-                              f (c, m, absolute_path)
-                          | _ ->
-                              let f = Lazy.force tree_as_node in
-                              f (tree, absolute_path)));
+                             let absolute_path =
+                               Store.Path.rcons tree_path step
+                             in
+                             match Store.Tree.destruct tree with
+                             | `Contents (c, m) | `Contents_inlined_3 (c, m) ->
+                                 let c = Store.Tree.Contents.force_exn c in
+                                 let f = Lazy.force contents_as_node in
+                                 f (c, m, absolute_path)
+                             | `Node _ ->
+                                 let f = Lazy.force tree_as_node in
+                                 f (tree, absolute_path)));
                 ]))
         in
         let branch =
@@ -525,7 +528,7 @@ struct
                 [
                   field "node" ~doc:"The key of the node"
                     ~typ:(non_null Types.Node_key.schema_typ) ~args:[]
-                    ~resolve:(fun _ x -> x);
+                    ~resolve:(fun _ (x, _inlined) -> x);
                 ])
         in
         {

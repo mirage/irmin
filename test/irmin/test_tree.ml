@@ -65,6 +65,7 @@ module Alcotest = struct
     Alcotest.testable
       (fun ppf -> function
         | `Contents -> Fmt.string ppf "contents"
+        | `Contents_inlined__2 -> Fmt.string ppf "contents_inlined"
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value"
@@ -97,7 +98,7 @@ let c ?(info = Metadata.default) blob = `Contents (blob, info)
 let invalid_tree () =
   let repo = Store.Repo.v (Irmin_mem.config ()) in
   let hash = Store.Hash.hash (fun f -> f "") in
-  Tree.shallow repo (`Node hash)
+  Tree.shallow repo (`Node (hash, []))
 
 let test_bindings () =
   let tree =
@@ -552,7 +553,7 @@ let test_fold_force () =
   let invalid_tree =
     let repo = Store.Repo.v (Irmin_mem.config ()) in
     let hash = Store.Hash.hash (fun f -> f "") in
-    Tree.shallow repo (`Node hash)
+    Tree.shallow repo (`Node (hash, []))
   in
 
   (* Ensure that [fold] doesn't force a lazy tree when [~force:(`False f)],
@@ -666,7 +667,7 @@ module Broken = struct
 
   let random_node () =
     let value = tree [ ("k", c (random_string32 ())) ] in
-    let value_ptr = `Node (Tree.hash value) in
+    let value_ptr = `Node (Tree.hash value, []) in
     (value, value_ptr)
 
   let test_hashes () =
@@ -786,6 +787,17 @@ module Broken = struct
 end
 
 let test_kind_empty_path () =
+  let kind_t : [ `Contents | `Contents_inlined__1 | `Node ] Irmin.Type.t =
+    let open Irmin.Type in
+    variant "kind" (fun contents contents_inlined node -> function
+      | `Contents -> contents
+      | `Contents_inlined__1 -> contents_inlined
+      | `Node -> node)
+    |~ case0 "contents" `Contents
+    |~ case0 "contents_inlined" `Contents_inlined__1
+    |~ case0 "node" `Node
+    |> sealv
+  in
   let cont = c "c" |> Tree.of_concrete in
   let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
   let k = Tree.kind cont [] in
@@ -825,11 +837,11 @@ let test_is_empty () =
   in
   let repo = Store.Repo.v (Irmin_mem.config ()) in
   let () =
-    let shallow_empty = Tree.(shallow repo (`Node (hash (empty ())))) in
+    let shallow_empty = Tree.(shallow repo (`Node (hash (empty ()), []))) in
     Alcotest.(check bool) "shallow empty tree" true (is_empty shallow_empty)
   in
   let () =
-    let shallow_empty = Tree.(shallow repo (`Node (hash kv))) in
+    let shallow_empty = Tree.(shallow repo (`Node (hash kv, []))) in
     Alcotest.(check bool)
       "shallow non-empty tree" false (is_empty shallow_empty)
   in

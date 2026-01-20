@@ -58,7 +58,8 @@ end = struct
     | Some k' -> (
         match k' with
         | `Node -> Fmt.(string stdout ", with `Node kind\n")
-        | `Contents -> Fmt.(string stdout ", with `Contents kind\n"))
+        | `Contents | `Contents_inlined__1 ->
+            Fmt.(string stdout ", with `Contents kind\n"))
     | None -> failwith "no kind"
 end
 

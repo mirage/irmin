@@ -21,6 +21,7 @@
   test_corrupted
   test_async
   test_indexing_strategy
+  test_inline_contents
   test_lower)
  (libraries
   alcotest

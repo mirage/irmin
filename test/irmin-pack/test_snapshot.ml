@@ -114,7 +114,7 @@ let test ~repo_export ~repo_import ?on_disk tree expected_visited =
   let () =
     match (root_key, key) with
     | _, None -> Alcotest.fail "No key imported"
-    | `Node key, Some key' -> check_key "snapshot key" key key'
+    | `Node (key, _inlined), Some key' -> check_key "snapshot key" key key'
     | `Contents _, _ -> Alcotest.fail "Root key should not be contents"
   in
   ()
@@ -224,7 +224,7 @@ let test_gc ~domain_mgr ~repo_export ~repo_import ?on_disk expected_visited =
     "total visited during import" expected_visited total_visited;
   match (root_key, key) with
   | _, None -> Alcotest.fail "No key imported"
-  | `Node key, Some key' -> check_key "snapshot key" key key'
+  | `Node (key, _inlined), Some key' -> check_key "snapshot key" key key'
   | `Contents _, _ -> Alcotest.fail "Root key should not be contents"
 
 let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
@@ -300,7 +300,7 @@ let test_export_import_reexport ~fs ~domain_mgr () =
   in
   let _, key = Buffer.contents buf |> restore repo_import in
   let key = Option.get key in
-  let tree = S.Tree.of_key repo_import (`Node key) in
+  let tree = S.Tree.of_key repo_import (`Node (key, [])) in
   let tree = Option.get tree in
   let commit = S.Commit.v repo_import ~info ~parents:[ parent_key ] tree in
   let commit_key = S.Commit.key commit in

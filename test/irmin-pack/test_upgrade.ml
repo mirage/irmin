@@ -292,7 +292,7 @@ module Store = struct
     let k_b01 = put_b01 bstore in
     let step = "step-b01" in
     let childs = [ (step, `Contents (k_b01, ())) ] in
-    let n = S.Backend.Node.Val.of_list childs in
+    let n = S.Backend.Node.Val.of_list childs [] in
     let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n01);
     k
@@ -300,8 +300,8 @@ module Store = struct
   let put_n0 bstore nstore =
     let k_n01 = put_n01 bstore nstore in
     let step = "step-n01" in
-    let childs = [ (step, `Node k_n01) ] in
-    let n = S.Backend.Node.Val.of_list childs in
+    let childs = [ (step, `Node (k_n01, [])) ] in
+    let n = S.Backend.Node.Val.of_list childs [] in
     let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n0);
     k
@@ -322,8 +322,8 @@ module Store = struct
     let k_n01 = key_of_entry n01 in
     let step = "step-b1" in
     let step' = "step-b01" in
-    let childs = [ (step, `Contents (k_b1, ())); (step', `Node k_n01) ] in
-    let n = S.Backend.Node.Val.of_list childs in
+    let childs = [ (step, `Contents (k_b1, ())); (step', `Node (k_n01, [])) ] in
+    let n = S.Backend.Node.Val.of_list childs [] in
     let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n1);
     k
@@ -352,7 +352,7 @@ module Store = struct
     let k_b2 = put_b2 bstore in
     let step = "step-b2" in
     let childs = [ (step, `Contents (k_b2, ())) ] in
-    let n = S.Backend.Node.Val.of_list childs in
+    let n = S.Backend.Node.Val.of_list childs [] in
     let k = S.Backend.Node.add nstore n in
     assert (k = key_of_entry n2);
     k
