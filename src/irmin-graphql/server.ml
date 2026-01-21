@@ -389,7 +389,7 @@ struct
                     ~resolve:(fun _ (tree, path) ->
                       let rec tree_list ?(acc = []) tree path =
                         match Store.Tree.destruct tree with
-                        | `Contents (c, m) | `Contents_inlined_3 (c, m) ->
+                        | `Contents (c, m) | `Contents_inlined (c, m) ->
                             let c = Store.Tree.Contents.force_exn c in
                             (c, m, path) :: acc
                         | `Node _ ->
@@ -431,7 +431,7 @@ struct
                                Store.Path.rcons tree_path step
                              in
                              match Store.Tree.destruct tree with
-                             | `Contents (c, m) | `Contents_inlined_3 (c, m) ->
+                             | `Contents (c, m) | `Contents_inlined (c, m) ->
                                  let c = Store.Tree.Contents.force_exn c in
                                  let f = Lazy.force contents_as_node in
                                  f (c, m, absolute_path)

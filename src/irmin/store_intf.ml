@@ -151,7 +151,7 @@ module type S_generic_key = sig
       [ `Commit of commit_key
       | `Node of node_key * contents_key list
       | `Contents of contents_key
-      | `Contents_inlined_2 of contents_key
+      | `Contents_inlined of contents_key
       | `Branch of branch ]
     [@@deriving irmin]
     (** The type for elements iterated over by {!iter}. *)
@@ -549,7 +549,7 @@ module type S_generic_key = sig
 
   (** {1 Reads} *)
 
-  val kind : t -> path -> [ `Contents | `Contents_inlined__1 | `Node ] option
+  val kind : t -> path -> [ `Contents | `Contents_inlined | `Node ] option
   (** [kind] is {!Tree.kind} applied to [t]'s root tree. *)
 
   val list : t -> path -> (step * tree) list
@@ -581,7 +581,7 @@ module type S_generic_key = sig
 
   type kinded_key :=
     [ `Contents of contents_key
-    | `Contents_inlined_5 of contents_key
+    | `Contents_inlined of contents_key
     | `Node of node_key ]
 
   val key : t -> path -> kinded_key option

@@ -93,7 +93,7 @@ let of_contents ?(metadata = Metadata.default) c =
   if inline_contents_enabled then
     let len = Repr.Size.of_value Contents.t c in
     if len > 0 && len < 16 then
-      `Contents_inlined_3 (c, metadata)
+      `Contents_inlined (c, metadata)
     else
       `Contents (c, metadata)
   else

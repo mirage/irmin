@@ -517,7 +517,7 @@ struct
       let check ~kind ~offset ~length k =
         match kind with
         | `Contents -> X.Contents.CA.integrity_check ~offset ~length k contents
-        | `Contents_inlined__3 ->
+        | `Contents_inlined ->
             X.Contents.CA.integrity_check ~offset ~length k contents
         | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits

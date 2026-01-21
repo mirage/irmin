@@ -123,7 +123,7 @@ module KV_RO (G : Git.S) = struct
             ( Mirage_kv.Key.v s,
               match S.Tree.destruct k with
               | `Contents _ -> `Value
-              | `Contents_inlined_3 _ -> `Value
+              | `Contents_inlined _ -> `Value
               | `Node _ -> `Dictionary ))
           l
       in
@@ -132,7 +132,7 @@ module KV_RO (G : Git.S) = struct
     let exists t key =
       match S.Tree.kind t.tree (path key) with
       | Some `Contents -> Ok (Some `Value)
-      | Some `Contents_inlined__1 -> Ok (Some `Value)
+      | Some `Contents_inlined -> Ok (Some `Value)
       | Some `Node -> Ok (Some `Dictionary)
       | None -> Ok None
 

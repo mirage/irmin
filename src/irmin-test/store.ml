@@ -1093,7 +1093,7 @@ module Make (S : Generic_key) = struct
     Alcotest.testable
       (fun ppf -> function
         | `Contents -> Fmt.string ppf "contents"
-        | `Contents_inlined__2 -> Fmt.string ppf "contents_inlined"
+        | `Contents_inlined -> Fmt.string ppf "contents_inlined"
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value"
@@ -1658,7 +1658,7 @@ module Make (S : Generic_key) = struct
         let trigger_node_to_backend_portable t =
           match S.Tree.destruct t with
           | `Contents _ -> assert false
-          | `Contents_inlined_3 _ -> assert false
+          | `Contents_inlined _ -> assert false
           | `Node n ->
               let _ = S.to_backend_portable_node (fst n) in
               ()
@@ -1824,8 +1824,8 @@ module Make (S : Generic_key) = struct
       in
       (match S.Tree.destruct c1 with
       | `Contents _ -> Alcotest.fail "got `Contents, expected `Node"
-      | `Contents_inlined_3 _ ->
-          Alcotest.fail "got `Contents_inlined_3, expected `Node"
+      | `Contents_inlined _ ->
+          Alcotest.fail "got `Contents_inlined, expected `Node"
       | `Node node -> (
           let v = S.to_backend_node (fst node) in
           let () =
@@ -2396,7 +2396,7 @@ module Make (S : Generic_key) = struct
         S.Tree.destruct tree
         |> ( function
         | `Contents _ -> assert false
-        | `Contents_inlined_3 _ -> assert false
+        | `Contents_inlined _ -> assert false
         | `Node (n, _il) -> n )
         |> S.to_backend_node
       in

@@ -506,7 +506,7 @@ module Make (P : Backend.S) = struct
     type elt =
       [ `Node of t * Contents.t list
       | `Contents of Contents.t * Metadata.t
-      | `Contents_inlined_3 of Contents.t * Metadata.t ]
+      | `Contents_inlined of Contents.t * Metadata.t ]
 
     and update = Add of elt | Remove
     and updatemap = update StepMap.t
@@ -537,7 +537,7 @@ module Make (P : Backend.S) = struct
       let open Type in
       let _f node contents contents_m = function
         | `Node (x, il) -> node (x, il)
-        | `Contents (c, m) | `Contents_inlined_3 (c, m) ->
+        | `Contents (c, m) | `Contents_inlined (c, m) ->
             Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
               __FUNCTION__ __LINE__;
             if equal_metadata m Metadata.default then contents c
@@ -546,7 +546,7 @@ module Make (P : Backend.S) = struct
       let _g = case1 "Node" (pair t Contents.t) (fun x -> `Node x) in
       variant "Node.value" (fun node contents contents_m -> function
         | `Node (x, il) -> node (x, il)
-        | `Contents (c, m) | `Contents_inlined_3 (c, m) ->
+        | `Contents (c, m) | `Contents_inlined (c, m) ->
             Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
               __FUNCTION__ __LINE__;
             if equal_metadata m Metadata.default then contents c
@@ -648,7 +648,7 @@ module Make (P : Backend.S) = struct
     let rec clear_elt ~max_depth depth v =
       match v with
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
-      | `Contents_inlined_3 (c, _) ->
+      | `Contents_inlined (c, _) ->
           if depth + 1 > max_depth then Contents.clear c
       | `Node (t, il) ->
           clear ~max_depth (depth + 1) t;
@@ -1031,7 +1031,7 @@ module Make (P : Backend.S) = struct
                match v with
                | `Node (n, _il) -> Option.is_none (cached_key n)
                | `Contents (c, _) -> Option.is_none (Contents.cached_key c)
-               | `Contents_inlined_3 (c, _) ->
+               | `Contents_inlined (c, _) ->
                    Option.is_none (Contents.cached_key c))
       in
       if must_build_portable_node then
@@ -1044,7 +1044,7 @@ module Make (P : Backend.S) = struct
                        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
                          __FILE__ __FUNCTION__ __LINE__;
                        (step, `Contents (Contents.hash c, m))
-                   | `Contents_inlined_3 (c, m) ->
+                   | `Contents_inlined (c, m) ->
                        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
                          __FILE__ __FUNCTION__ __LINE__;
                        (step, `Contents (Contents.hash c, m))
@@ -1068,7 +1068,7 @@ module Make (P : Backend.S) = struct
                        | None ->
                            (* We checked that all child keys are cached above *)
                            assert false)
-                   | `Contents_inlined_3 (c, m) -> (
+                   | `Contents_inlined (c, m) -> (
                        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
                          __FILE__ __FUNCTION__ __LINE__;
                        match Contents.cached_key c with
@@ -1098,7 +1098,7 @@ module Make (P : Backend.S) = struct
           match Contents.key c with
           | Some key -> k (Node_value (`Contents (key, m)))
           | None -> k (Pnode_value (`Contents (Contents.hash c, m))))
-      | `Contents_inlined_3 (c, m) -> (
+      | `Contents_inlined (c, m) -> (
           Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
             __FUNCTION__ __LINE__;
           match Contents.key c with
@@ -1284,7 +1284,7 @@ module Make (P : Backend.S) = struct
       ||
       match (x, y) with
       | `Contents x, `Contents y -> contents_equal x y
-      | `Contents_inlined_3 x, `Contents_inlined_3 y -> contents_equal x y
+      | `Contents_inlined x, `Contents_inlined y -> contents_equal x y
       | `Node (x, _il), `Node (y, _il') -> equal x y
       | _ -> false
 
@@ -1662,7 +1662,7 @@ module Make (P : Backend.S) = struct
             | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
             | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
             | Some (`Gt depth) -> if d >= depth then apply () else k acc)
-        | `Contents_inlined_3 c -> (
+        | `Contents_inlined c -> (
             let apply () =
               let tree path = tree path (`Contents c) in
               Contents.fold ~force ~cache ~path contents tree (fst c) acc |> k
@@ -1760,7 +1760,7 @@ module Make (P : Backend.S) = struct
                       let p1, p2 =
                         StepMap.partition
                           (fun _ -> function
-                            | `Contents_inlined_3 _ -> true | _ -> false)
+                            | `Contents_inlined _ -> true | _ -> false)
                           map
                       in
                       let print =
@@ -1771,7 +1771,7 @@ module Make (P : Backend.S) = struct
                             | `Contents _ ->
                                 Fmt.pr "Contents / step: %a@." (Repr.pp step_t)
                                   step
-                            | `Contents_inlined_3 _ ->
+                            | `Contents_inlined _ ->
                                 Fmt.pr "Contents_inlined / step: %a@."
                                   (Repr.pp step_t) step)
                       in
@@ -1784,8 +1784,8 @@ module Make (P : Backend.S) = struct
                   | Portable_dirty _ -> Fmt.pr "Portable_dirty@."
                   | Pruned _ -> Fmt.pr "Pruned@."); *)
                   StepMap.add step v m
-              | `Contents_inlined_3 _ ->
-                  (* Fmt.pr "Contents_inlined_3@."; *)
+              | `Contents_inlined _ ->
+                  (* Fmt.pr "Contents_inlined@."; *)
                   let m = StepMap.update step update_ m in
                   StepMap.add step v m
               | _ -> StepMap.add step v m)
@@ -1913,7 +1913,7 @@ module Make (P : Backend.S) = struct
               Merge.bind_promise old (fun old () ->
                   match old with
                   | `Contents (_, m) -> ok (Some m)
-                  | `Contents_inlined_3 (_, m) -> ok (Some m)
+                  | `Contents_inlined (_, m) -> ok (Some m)
                   | `Node _ -> ok None)
             in
             Merge.(f Metadata.merge) ~old:mold cx cy >>=* fun m ->
@@ -1921,7 +1921,7 @@ module Make (P : Backend.S) = struct
               Merge.bind_promise old (fun old () ->
                   match old with
                   | `Contents (c, _) -> ok (Some c)
-                  | `Contents_inlined_3 (c, _) -> ok (Some c)
+                  | `Contents_inlined (c, _) -> ok (Some c)
                   | `Node _ -> ok None)
             in
             Merge.(f Contents.merge) ~old x y >>=* fun c ->
@@ -1933,7 +1933,7 @@ module Make (P : Backend.S) = struct
                   Merge.bind_promise old (fun old () ->
                       match old with
                       | `Contents _ -> ok None
-                      | `Contents_inlined_3 _ -> ok None
+                      | `Contents_inlined _ -> ok None
                       | `Node (n, _il) -> ok (Some n))
                 in
                 Merge.(f m ~old x y) >>=* fun n -> Merge.ok (`Node (n, [])))
@@ -1963,7 +1963,7 @@ module Make (P : Backend.S) = struct
   type t =
     [ `Node of node * Contents.t list
     | `Contents of Contents.t * Metadata.t
-    | `Contents_inlined_3 of Contents.t * metadata ]
+    | `Contents_inlined of Contents.t * metadata ]
   [@@deriving irmin]
 
   let to_backend_node n =
@@ -1983,7 +1983,7 @@ module Make (P : Backend.S) = struct
           Fmt.Dump.(list (Type.pp Contents.t))
           il
     | `Contents (c, _) -> Fmt.pf ppf "contents: %a" (Type.pp Contents.t) c
-    | `Contents_inlined_3 (c, _) ->
+    | `Contents_inlined (c, _) ->
         Fmt.pf ppf "inlined contents: %a" (Type.pp Contents.t) c
 
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
@@ -1998,24 +1998,24 @@ module Make (P : Backend.S) = struct
     | `Node (x, _xi), `Node (y, _yi) -> Node.equal x y
     (* TODO inline *)
     | `Contents x, `Contents y -> contents_equal x y
-    | `Contents_inlined_3 x, `Contents_inlined_3 y -> contents_equal x y
+    | `Contents_inlined x, `Contents_inlined y -> contents_equal x y
     | `Node _, `Contents _
-    | `Node _, `Contents_inlined_3 _
+    | `Node _, `Contents_inlined _
     | `Contents _, `Node _
-    | `Contents _, `Contents_inlined_3 _
-    | `Contents_inlined_3 _, `Node _
-    | `Contents_inlined_3 _, `Contents _ ->
+    | `Contents _, `Contents_inlined _
+    | `Contents_inlined _, `Node _
+    | `Contents_inlined _, `Contents _ ->
         false
 
   let is_empty = function
     | `Node (n, _il) -> Node.is_empty ~cache:true n
     | `Contents _ -> false
-    | `Contents_inlined_3 _ -> false
+    | `Contents_inlined _ -> false
 
   type elt =
     [ `Node of node * contents list
     | `Contents of contents * metadata
-    | `Contents_inlined_3 of contents * metadata ]
+    | `Contents_inlined of contents * metadata ]
 
   let of_node n = `Node (n, [])
 
@@ -2030,17 +2030,17 @@ module Make (P : Backend.S) = struct
         | Unknown -> 0 (* Treat unknown size as "don't inline" *)
       in
       (* Inline small contents (< 16 bytes) when inlining is enabled *)
-      if len > 0 && len < 16 then `Contents_inlined_3 (c, metadata)
+      if len > 0 && len < 16 then `Contents_inlined (c, metadata)
       else `Contents (c, metadata))
     else `Contents (c, metadata)
 
   let of_contents_inlined ?(metadata = Metadata.default) c =
     let env = Env.empty () in
     let c = Contents.of_value ~env c in
-    `Contents_inlined_3 (c, metadata)
+    `Contents_inlined (c, metadata)
 
   let v : elt -> t = function
-    | `Contents_inlined_3 (c, metadata) -> of_contents_inlined ~metadata c
+    | `Contents_inlined (c, metadata) -> of_contents_inlined ~metadata c
     | `Contents (c, metadata) -> of_contents ~metadata c
     | `Node (n, il) ->
         `Node (n, List.map (Contents.of_value ~env:(Env.empty ())) il)
@@ -2069,7 +2069,7 @@ module Make (P : Backend.S) = struct
   let clear ?(depth = 0) = function
     | `Node (n, _il) -> Node.clear ~max_depth:depth 0 n
     | `Contents _ -> ()
-    | `Contents_inlined_3 _ -> ()
+    | `Contents_inlined _ -> ()
 
   let sub ~cache ctx t path =
     let rec aux node path =
@@ -2077,13 +2077,13 @@ module Make (P : Backend.S) = struct
       | None -> Some node
       | Some (h, p) -> (
           Node.findv ~cache ctx node h |> function
-          | None | Some (`Contents _) | Some (`Contents_inlined_3 _) -> None
+          | None | Some (`Contents _) | Some (`Contents_inlined _) -> None
           | Some (`Node (n, _il)) -> (aux [@tailcall]) n p)
     in
     match t with
     | `Node (n, _il) -> (aux [@tailcall]) n path
     | `Contents _ -> None
-    | `Contents_inlined_3 _ -> None
+    | `Contents_inlined _ -> None
 
   let find_tree (t : t) path =
     let cache = true in
@@ -2103,7 +2103,7 @@ module Make (P : Backend.S) = struct
     | `Contents (c, _) as c' ->
         let tree path = tree path c' in
         Contents.fold ~force ~cache ~path:Path.empty contents tree c acc
-    | `Contents_inlined_3 (c, _) as c' ->
+    | `Contents_inlined (c, _) as c' ->
         let tree path = tree path c' in
         Contents.fold ~force ~cache ~path:Path.empty contents tree c acc
     | `Node (n, _il) ->
@@ -2147,7 +2147,7 @@ module Make (P : Backend.S) = struct
     | Some (`Contents (c, m)) ->
         let c = Contents.to_value ~cache:true c in
         Some (get_ok "find_all" c, m)
-    | Some (`Contents_inlined_3 (c, m)) ->
+    | Some (`Contents_inlined (c, m)) ->
         let c = Contents.to_value ~cache:true c in
         Some (get_ok "find_all" c, m)
 
@@ -2165,7 +2165,7 @@ module Make (P : Backend.S) = struct
     [%log.debug "Tree.kind %a" pp_path path];
     match (t, Path.rdecons path) with
     | `Contents _, None -> Some `Contents
-    | `Contents_inlined_3 _, None -> Some `Contents_inlined__1
+    | `Contents_inlined _, None -> Some `Contents_inlined
     (* TODO inlined *)
     | `Node _, None -> Some `Node
     | _, Some (dir, file) -> (
@@ -2175,7 +2175,7 @@ module Make (P : Backend.S) = struct
             Node.findv ~cache "kind.findv" m file |> function
             | None -> None
             | Some (`Contents _) -> Some `Contents
-            | Some (`Contents_inlined_3 _) -> Some `Contents_inlined__1
+            | Some (`Contents_inlined _) -> Some `Contents_inlined
             | Some (`Node _) -> Some `Node))
 
   let length t ?(cache = true) path =
@@ -2221,7 +2221,7 @@ module Make (P : Backend.S) = struct
   let get_env = function
     | `Node (n, _il) -> n.Node.info.env
     | `Contents (c, _) -> c.Contents.info.env
-    | `Contents_inlined_3 (c, _) -> c.Contents.info.env
+    | `Contents_inlined (c, _) -> c.Contents.info.env
 
   let update_tree ~cache ~f_might_return_empty_node ~(f : t option -> t option)
       root_tree path =
@@ -2251,9 +2251,9 @@ module Make (P : Backend.S) = struct
             match root_tree with
             | `Contents c when contents_equal c c' -> root_tree
             | _ -> new_root)
-        | Some (`Contents_inlined_3 c' as new_root) -> (
+        | Some (`Contents_inlined c' as new_root) -> (
             match root_tree with
-            | `Contents_inlined_3 c when contents_equal c c' -> root_tree
+            | `Contents_inlined c when contents_equal c c' -> root_tree
             | _ -> new_root))
     | Some (path, file) -> (
         Fmt.pr "HERE %a %a@." (Repr.pp path_t) path (Repr.pp step_t) file;
@@ -2272,7 +2272,7 @@ module Make (P : Backend.S) = struct
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
               | None, Some (`Contents _ as t) -> with_new_child t
-              | None, Some (`Contents_inlined_3 _ as t) -> with_new_child t
+              | None, Some (`Contents_inlined _ as t) -> with_new_child t
               | None, Some (`Node (n, _il) as t) -> (
                   match prune_empty n with
                   | true -> k Unchanged
@@ -2289,29 +2289,29 @@ module Make (P : Backend.S) = struct
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t)
-              | Some (`Contents_inlined_3 c), Some (`Contents c' as t) -> (
+              | Some (`Contents_inlined c), Some (`Contents c' as t) -> (
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t)
-              | Some (`Contents c'), Some (`Contents_inlined_3 c as t) -> (
+              | Some (`Contents c'), Some (`Contents_inlined c as t) -> (
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t)
-              | Some (`Contents_inlined_3 c'), Some (`Contents_inlined_3 c as t)
+              | Some (`Contents_inlined c'), Some (`Contents_inlined c as t)
                 -> (
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t)
               | Some (`Node _), Some (`Contents _ as t) -> with_new_child t
-              | Some (`Node _), Some (`Contents_inlined_3 _ as t) ->
+              | Some (`Node _), Some (`Contents_inlined _ as t) ->
                   with_new_child t
-              (* | Some (`Contents_inlined_3 c), Some (`Contents_inlined_3 c') -> (
+              (* | Some (`Contents_inlined c), Some (`Contents_inlined c') -> (
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t
               | ) *)
-              (* | Some (`Contents_inlined_3 _), _ -> assert false
-              | _, Some (`Contents_inlined_3 _) -> assert false) *)
+              (* | Some (`Contents_inlined _), _ -> assert false
+              | _, Some (`Contents_inlined _) -> assert false) *)
               )
           | Some (step, key_suffix) ->
               let old_binding =
@@ -2320,7 +2320,7 @@ module Make (P : Backend.S) = struct
               let to_recurse =
                 match old_binding with
                 | Some (`Node (child, _il)) -> child
-                | None | Some (`Contents _) | Some (`Contents_inlined_3 _) ->
+                | None | Some (`Contents _) | Some (`Contents_inlined _) ->
                     Node.empty ()
               in
               (aux [@tailcall]) key_suffix to_recurse (function
@@ -2345,7 +2345,7 @@ module Make (P : Backend.S) = struct
           match root_tree with
           | `Node (n, _il) -> n
           | `Contents _ -> Node.empty ()
-          | `Contents_inlined_3 _ -> Node.empty ()
+          | `Contents_inlined _ -> Node.empty ()
         in
         aux path top_node @@ function
         | Unchanged -> root_tree
@@ -2363,7 +2363,7 @@ module Make (P : Backend.S) = struct
           | Some (`Contents (c, _)) ->
               let c = Contents.to_value ~cache c in
               Some (get_ok "update" c)
-          | Some (`Contents_inlined_3 (c, _)) ->
+          | Some (`Contents_inlined (c, _)) ->
               let c = Contents.to_value ~cache c in
               Some (get_ok "update" c)
         in
@@ -2501,7 +2501,7 @@ module Make (P : Backend.S) = struct
                           during export:@,\
                           @ @[%a@]"
                          dump v)
-               | `Contents_inlined_3 (c, m) ->
+               | `Contents_inlined (c, m) ->
                    (* Inline small contents: serialize to bytes and embed directly *)
                    let v = Contents.force_exn c in
                    let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
@@ -2549,7 +2549,7 @@ module Make (P : Backend.S) = struct
                        during export:@,\
                        @ @[%a@]"
                       dump v)
-            | Add (`Contents_inlined_3 (c, m)) ->
+            | Add (`Contents_inlined (c, m)) ->
                 (* Inline small contents: serialize to bytes and embed directly *)
                 let v = Contents.force_exn c in
                 let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
@@ -2713,11 +2713,11 @@ module Make (P : Backend.S) = struct
           k `Content_exported
       | Contents.Pruned h -> pruned_hash_exn "export" h
     and on_contents_inlined : type r.
-        [ `Contents_inlined_3 of Contents.t * metadata ] ->
+        [ `Contents_inlined of Contents.t * metadata ] ->
         ( [ `Content_exported | `Content_to_inline of Contents.t * contents_key ],
           r )
         cont =
-     fun (`Contents_inlined_3 (c, _)) k ->
+     fun (`Contents_inlined (c, _)) k ->
       match Atomic.get c.Contents.v with
       | Contents.Key (_, key) ->
           Contents.export ?clear repo c key;
@@ -2756,7 +2756,7 @@ module Make (P : Backend.S) = struct
           on_node n (fun _node_key -> on_node_seq rest to_inline k)
       | Seq.Cons ((`Contents _ as c), rest) ->
           on_contents c (fun `Content_exported -> on_node_seq rest to_inline k)
-      | Seq.Cons ((`Contents_inlined_3 _ as c), rest) ->
+      | Seq.Cons ((`Contents_inlined _ as c), rest) ->
           Fmt.pr "EXPORTING INLINED CONTENTS@.";
           on_contents_inlined c (function
             | `Content_exported -> on_node_seq rest to_inline k
@@ -2787,7 +2787,7 @@ module Make (P : Backend.S) = struct
                 match v with
                 | `Node (v, _il) -> (acc, (path, v) :: todo)
                 | `Contents c -> ((path, c) :: acc, todo)
-                | `Contents_inlined_3 c -> ((path, c) :: acc, todo))
+                | `Contents_inlined c -> ((path, c) :: acc, todo))
               (acc, todo) childs
           in
           (aux [@tailcall]) acc todo
@@ -2841,7 +2841,7 @@ module Make (P : Backend.S) = struct
             | `Left (`Contents x) ->
                 let x = removed !acc (path, x) in
                 acc := x
-            | `Left (`Contents_inlined_3 x) ->
+            | `Left (`Contents_inlined x) ->
                 let x = removed !acc (path, x) in
                 acc := x
             | `Left (`Node (x, _il)) ->
@@ -2852,7 +2852,7 @@ module Make (P : Backend.S) = struct
             | `Right (`Contents y) ->
                 let y = added !acc (path, y) in
                 acc := y
-            | `Right (`Contents_inlined_3 y) ->
+            | `Right (`Contents_inlined y) ->
                 let y = added !acc (path, y) in
                 acc := y
             | `Right (`Node (y, _il)) ->
@@ -2863,13 +2863,13 @@ module Make (P : Backend.S) = struct
             | `Both (`Node (x, _il), `Node (y, _il')) ->
                 todo := (path, x, y) :: !todo
             | `Both (`Contents x, `Node (y, _il))
-            | `Both (`Contents_inlined_3 x, `Node (y, _il)) ->
+            | `Both (`Contents_inlined x, `Node (y, _il)) ->
                 let ys = entries path y in
                 let x = removed !acc (path, x) in
                 let ys = List.fold_left added x ys in
                 acc := ys
             | `Both (`Node (x, _il), `Contents y)
-            | `Both (`Node (x, _il), `Contents_inlined_3 y) ->
+            | `Both (`Node (x, _il), `Contents_inlined y) ->
                 let xs = entries path x in
                 let y = added !acc (path, y) in
                 let ys = List.fold_left removed y xs in
@@ -2879,9 +2879,9 @@ module Make (P : Backend.S) = struct
                   diff_contents x y |> List.map (fun d -> (path, d))
                 in
                 acc := content_diffs @ !acc
-            | `Both (`Contents x, `Contents_inlined_3 y)
-            | `Both (`Contents_inlined_3 x, `Contents y)
-            | `Both (`Contents_inlined_3 x, `Contents_inlined_3 y) ->
+            | `Both (`Contents x, `Contents_inlined y)
+            | `Both (`Contents_inlined x, `Contents y)
+            | `Both (`Contents_inlined x, `Contents_inlined y) ->
                 let content_diffs =
                   diff_contents x y |> List.map (fun d -> (path, d))
                 in
@@ -2973,7 +2973,7 @@ module Make (P : Backend.S) = struct
      fun t k ->
       match t with
       | `Contents c -> contents c k
-      | `Contents_inlined_3 c -> contents c k
+      | `Contents_inlined c -> contents c k
       | `Node (n, _il) ->
           let m = Node.to_map ~cache:true n in
           let bindings = m |> get_ok "to_concrete" |> StepMap.bindings in
@@ -2998,7 +2998,7 @@ module Make (P : Backend.S) = struct
           | `Contents c ->
               (contents [@tailcall]) c (fun c ->
                   (node [@tailcall]) ((s, c) :: childs) t k)
-          | `Contents_inlined_3 c ->
+          | `Contents_inlined c ->
               (contents [@tailcall]) c (fun c ->
                   (node [@tailcall]) ((s, c) :: childs) t k))
     in
@@ -3017,7 +3017,7 @@ module Make (P : Backend.S) = struct
         match Contents.key c with
         | Some key -> Some (`Contents (key, m))
         | None -> None)
-    | `Contents_inlined_3 (c, m) -> (
+    | `Contents_inlined (c, m) -> (
         Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
           __FUNCTION__ __LINE__;
         match Contents.key c with
@@ -3033,7 +3033,7 @@ module Make (P : Backend.S) = struct
         Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
           __FUNCTION__ __LINE__;
         `Contents (Contents.hash ~cache c, m)
-    | `Contents_inlined_3 (c, m) ->
+    | `Contents_inlined (c, m) ->
         Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
           __FUNCTION__ __LINE__;
         `Contents (Contents.hash ~cache c, m)
@@ -3052,7 +3052,7 @@ module Make (P : Backend.S) = struct
 
   let inspect = function
     | `Contents _ -> `Contents
-    | `Contents_inlined_3 _ -> `Contents_inlined__2
+    | `Contents_inlined _ -> `Contents_inlined
     | `Node (n, _il) ->
         `Node
           (match Atomic.get n.Node.v with
@@ -3080,7 +3080,7 @@ module Make (P : Backend.S) = struct
     let rec proof_of_tree : type a. irmin_tree -> (proof_tree -> a) -> a =
      fun tree k ->
       match tree with
-      | `Contents_inlined_3 (c, h) -> proof_of_contents c h k
+      | `Contents_inlined (c, h) -> proof_of_contents c h k
       | `Contents (c, h) -> proof_of_contents c h k
       | `Node (node, _il) -> proof_of_node node k
 

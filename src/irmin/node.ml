@@ -647,7 +647,7 @@ module Graph (S : Store) = struct
     let node = function
       | `Node x -> node x
       | `Contents c -> contents c
-      | `Contents_inlined_2 c -> contents c
+      | `Contents_inlined c -> contents c
       | `Branch _ | `Commit _ -> ()
     in
     let edge =

@@ -169,7 +169,7 @@ module type Sigs = sig
       ?ppf:Format.formatter ->
       auto_repair:bool ->
       check:
-        (kind:[> `Commit | `Contents | `Contents_inlined__3 | `Node ] ->
+        (kind:[> `Commit | `Contents | `Contents_inlined | `Node ] ->
         offset:int63 ->
         length:int ->
         Index.key ->
@@ -196,7 +196,7 @@ module type Sigs = sig
           (X.Repo.t ->
           XKey.t * XKey.t list ->
           [> `Contents of XKey.t
-          | `Contents_inlined_2 of XKey.t
+          | `Contents_inlined of XKey.t
           | `Node of XKey.t * XKey.t list ]
           list) ->
         pred_commit:
@@ -247,7 +247,7 @@ module type Sigs = sig
       S.Hash.t ->
       (S.step option
       * [ `Contents of S.Hash.t
-        | `Contents_inlined_7 of S.Hash.t
+        | `Contents_inlined of S.Hash.t
         | `Inode of S.Hash.t
         | `Node of S.Hash.t ])
       list ->

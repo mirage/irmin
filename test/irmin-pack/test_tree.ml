@@ -595,7 +595,7 @@ let test_reexport_node ~fs () =
   in
   let () =
     match Store.Tree.destruct c1 with
-    | `Contents _ | `Contents_inlined_3 _ ->
+    | `Contents _ | `Contents_inlined _ ->
         Alcotest.fail "got `Contents, expected `Node"
     | `Node (node, _inlined) ->
         let _v = Store.to_backend_node node in

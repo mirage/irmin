@@ -207,7 +207,7 @@ let test_blobs (module S : S) =
     with
     | `Node k -> k
     | `Contents k -> k
-    | `Contents_inlined_5 k -> k
+    | `Contents_inlined k -> k
   in
   let hash = Irmin_test.testable X.Hash.t in
   Alcotest.(check hash) "blob" k1 k2;

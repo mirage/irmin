@@ -172,10 +172,10 @@ module Make (B : Backend.S) = struct
         let c = Tree.Contents.force_exn c in
         let k = save_contents x c in
         `Contents k
-    | `Contents_inlined_3 (c, _) ->
+    | `Contents_inlined (c, _) ->
         let c = Tree.Contents.force_exn c in
         let k = save_contents x c in
-        `Contents_inlined_5 k
+        `Contents_inlined k
     | `Node (n, _il) ->
         Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
           __FUNCTION__ __LINE__;
@@ -201,7 +201,7 @@ module Make (B : Backend.S) = struct
         B.Repo.batch ~lock:true r @@ fun contents_t node_t commit_t ->
         match Tree.destruct tree with
         | `Contents _ -> Error "cannot add contents at the root"
-        | `Contents_inlined_3 _ -> Error "cannot add contents at the root"
+        | `Contents_inlined _ -> Error "cannot add contents at the root"
         | `Node (t, _il) ->
             Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
               __FUNCTION__ __LINE__;
@@ -397,7 +397,7 @@ module Make (B : Backend.S) = struct
       [ `Commit of commit_key
       | `Node of node_key * contents_key list
       | `Contents of contents_key
-      | `Contents_inlined_2 of contents_key
+      | `Contents_inlined of contents_key
       | `Branch of B.Branch.Key.t ]
     [@@deriving irmin]
 
@@ -443,21 +443,21 @@ module Make (B : Backend.S) = struct
         | `Commit x -> commit x
         | `Node x -> node x
         | `Contents x -> contents x
-        | `Contents_inlined_2 x -> contents x
+        | `Contents_inlined x -> contents x
         | `Branch x -> branch x
       in
       let skip = function
         | `Commit x -> skip_commit x
         | `Node x -> skip_node x
         | `Contents x -> skip_contents x
-        | `Contents_inlined_2 x -> skip_contents x
+        | `Contents_inlined x -> skip_contents x
         | `Branch x -> skip_branch x
       in
       let pred = function
         | `Commit x -> pred_commit t x
         | `Node x -> pred_node t x
         | `Contents x -> pred_contents t x
-        | `Contents_inlined_2 x -> pred_contents t x
+        | `Contents_inlined x -> pred_contents t x
         | `Branch x -> pred_branch t x
       in
       KGraph.iter ?cache_size ~pred ~min ~max ~node ?edge ~skip ~rev ()
@@ -471,14 +471,14 @@ module Make (B : Backend.S) = struct
         | `Commit x -> commit x
         | `Node x -> node x
         | `Contents x -> contents x
-        | `Contents_inlined_2 x -> contents x
+        | `Contents_inlined x -> contents x
         | `Branch x -> branch x
       in
       let pred = function
         | `Commit x -> pred_commit t x
         | `Node x -> pred_node t x
         | `Contents x -> pred_contents t x
-        | `Contents_inlined_2 x -> pred_contents t x
+        | `Contents_inlined x -> pred_contents t x
         | `Branch x -> pred_branch t x
       in
       KGraph.breadth_first_traversal ?cache_size ~pred ~max ~node ()
@@ -746,7 +746,7 @@ module Make (B : Backend.S) = struct
   let root_tree = function
     | `Node (n, _il) -> Tree.v (`Node (n, []))
     | `Contents _ -> assert false
-    | `Contents_inlined_3 _ -> assert false
+    | `Contents_inlined _ -> assert false
 
   let add_commit t old_head ((c, _) as tree) =
     match t.head_ref with

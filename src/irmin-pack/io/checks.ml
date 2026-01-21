@@ -751,7 +751,7 @@ struct
           | Inode, `Inode x -> visit Inode x
           | Node s, `Node x -> visit (Node s) x
           | Node s, `Contents x -> visit (Node s) x
-          | Node s, `Contents_inlined_7 x -> visit (Node s) x
+          | Node s, `Contents_inlined x -> visit (Node s) x
           | _ -> assert false)
         preds
     in

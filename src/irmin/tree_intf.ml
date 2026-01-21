@@ -58,7 +58,7 @@ module type S = sig
   type elt =
     [ `Node of node * contents list
     | `Contents of contents * metadata
-    | `Contents_inlined_3 of contents * metadata ]
+    | `Contents_inlined of contents * metadata ]
   (** The type for tree elements. *)
 
   val v : elt -> t
@@ -80,7 +80,7 @@ module type S = sig
       {!Pruned_hash} exception. Attempting to export a tree containing pruned
       sub-trees to a repository will fail similarly. *)
 
-  val kind : t -> path -> [ `Contents | `Contents_inlined__1 | `Node ] option
+  val kind : t -> path -> [ `Contents | `Contents_inlined | `Node ] option
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
@@ -255,7 +255,7 @@ module type S = sig
     t ->
     [ `Node of node * Contents.t list
     | `Contents of Contents.t * metadata
-    | `Contents_inlined_3 of Contents.t * metadata ]
+    | `Contents_inlined of Contents.t * metadata ]
   (** General-purpose destructor for trees. *)
 
   type marks
@@ -421,7 +421,7 @@ module type S = sig
   val inspect :
     t ->
     [ `Contents
-    | `Contents_inlined__2
+    | `Contents_inlined
     | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
   (** [inspect t] is similar to {!kind}, with additional state information for
       nodes. It is primarily useful for debugging and testing.
