@@ -137,10 +137,61 @@ let test_content_equivalence ~fs () =
   S.Repo.close repo1;
   S.Repo.close repo2
 
+(** Test that verifies small content is actually inlined in the node structure *)
+let test_inlining_structure ~fs () =
+  let root = Eio.Path.(fs / "_build" / "test-inline-structure") in
+  rm_dir root;
+  Eio.Switch.run @@ fun sw ->
+  let repo =
+    S.Repo.v (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true root)
+  in
+  (* Create a tree with small content that should be inlined *)
+  let tree = S.Tree.empty () in
+  (* Note: inlining threshold is 16 bytes *serialized*, which includes:
+     - 1-byte variant tag for the Contents.t encoding
+     - 1-byte varint length prefix for the string
+     So raw content must be < 14 bytes (13 or less) to be inlined. *)
+  let tree = S.Tree.add tree [ "tiny" ] "x" in (* 1 byte raw -> 3 bytes serialized -> inlined *)
+  let tree = S.Tree.add tree [ "small" ] "hello" in (* 5 bytes raw -> 7 bytes serialized -> inlined *)
+  let tree = S.Tree.add tree [ "medium" ] "0123456789abc" in (* 13 bytes raw -> 15 bytes serialized -> inlined *)
+  let tree = S.Tree.add tree [ "large" ] "0123456789abcd" in (* 14 bytes raw -> 16 bytes serialized -> NOT inlined *)
+  (* Commit to persist the tree *)
+  let commit = S.Commit.v repo ~parents:[] ~info tree in
+  let _hash = S.Commit.hash commit in
+  (* Access the node store to check the structure *)
+  let commit' = S.Commit.of_hash repo (S.Commit.hash commit) |> Option.get in
+  let tree' = S.Commit.tree commit' in
+  (* Get the root node using to_backend_node *)
+  let root_node = match S.Tree.destruct tree' with
+    | `Node (n, _inlined) -> S.to_backend_node n
+    | `Contents _ | `Contents_inlined_3 _ -> Alcotest.fail "Expected a node"
+  in
+  (* Check the node structure using list *)
+  let entries = S.Backend.Node.Val.list root_node in
+  (* Count inlined vs non-inlined contents *)
+  let inlined_count = ref 0 in
+  let non_inlined_count = ref 0 in
+  List.iter (fun (step, value) ->
+    match value with
+    | `Contents_inlined (bytes, _) ->
+        [%log.debug "Inlined content at %s: %S" step bytes];
+        incr inlined_count
+    | `Contents _ ->
+        [%log.debug "Non-inlined content at %s" step];
+        incr non_inlined_count
+    | `Node _ ->
+        [%log.debug "Node at %s" step]
+  ) entries;
+  (* Verify: 3 entries should be inlined (tiny, small, medium), 1 should not (large) *)
+  Alcotest.(check int) "inlined count" 3 !inlined_count;
+  Alcotest.(check int) "non-inlined count" 1 !non_inlined_count;
+  S.Repo.close repo
+
 let tests ~fs =
   let tc name f = Alcotest.test_case name `Quick f in
   [
     tc "without inlining" (test_without_inlining ~fs);
     tc "with inlining" (test_with_inlining ~fs);
     tc "content equivalence" (test_content_equivalence ~fs);
+    tc "inlining structure" (test_inlining_structure ~fs);
   ]
