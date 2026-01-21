@@ -414,6 +414,9 @@ struct
                       | Some (`Node k) ->
                           let f = Lazy.force node_key_as_kinded_key in
                           Some (f k)
+                      | Some (`Contents_inlined _) ->
+                          (* Inlined contents don't have their own key *)
+                          None
                       | None -> None);
                   field "list"
                     ~doc:

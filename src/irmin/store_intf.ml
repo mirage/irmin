@@ -441,11 +441,13 @@ module type S_generic_key = sig
 
     type kinded_key =
       [ `Contents of contents_key * metadata
+      | `Contents_inlined of string * metadata
       | `Node of node_key * contents_key list ]
     [@@deriving irmin]
     (** Keys in the Irmin store are tagged with the type of the value they
         reference (either {!contents} or {!node}). In the [contents] case, the
-        key is paired with corresponding {!metadata}. *)
+        key is paired with corresponding {!metadata}. [Contents_inlined] stores
+        small content bytes directly. *)
 
     val key : tree -> kinded_key option
     (** [key t] is the key of tree [t] in the underlying repository, if it
@@ -469,7 +471,9 @@ module type S_generic_key = sig
     (** [hash t] is the hash of tree [t]. *)
 
     type kinded_hash =
-      [ `Contents of hash * metadata | `Node of hash * hash list ]
+      [ `Contents of hash * metadata
+      | `Contents_inlined of string * metadata
+      | `Node of hash * hash list ]
     (** Like {!kinded_key}, but with hashes as value references rather than
         keys. *)
 

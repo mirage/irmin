@@ -37,10 +37,11 @@ module type Core = sig
 
   type value =
     [ `Node of node_key * contents_key list
-    | `Contents of contents_key * metadata ]
+    | `Contents of contents_key * metadata
+    | `Contents_inlined of string * metadata ]
   [@@deriving irmin]
   (** The type for either (node) keys or (contents) keys combined with their
-      metadata. *)
+      metadata. [`Contents_inlined] holds small content values directly. *)
 
   type hash [@@deriving irmin]
   (** The type of hashes of values. *)
@@ -290,7 +291,8 @@ module type Graph = sig
 
   type value =
     [ `Node of node_key * contents_key list
-    | `Contents of contents_key * metadata ]
+    | `Contents of contents_key * metadata
+    | `Contents_inlined of string * metadata ]
   [@@deriving irmin]
   (** The type for store values. *)
 

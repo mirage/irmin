@@ -30,7 +30,10 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
   type node_key = hash [@@deriving irmin]
   type contents_key = hash [@@deriving irmin]
 
-  type value = [ `Node of hash * hash list | `Contents of hash * metadata ]
+  type value =
+    [ `Node of hash * hash list
+    | `Contents of hash * metadata
+    | `Contents_inlined of string * metadata ]
   [@@deriving irmin]
 
   let of_step = Irmin.Type.to_string P.step_t
@@ -84,6 +87,9 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
       | `Node (node, _inlined) -> Git.Tree.entry ~name `Dir node
       | `Contents (node, perm) ->
           Git.Tree.entry ~name (perm :> Git.Tree.perm) node
+      | `Contents_inlined _ ->
+          (* Git backend does not support inlined contents *)
+          failwith "irmin-git: Contents_inlined not supported"
     in
     (* FIXME(samoht): issue in G.Value.Tree.add *)
     let entries = G.Value.Tree.to_list t in
@@ -111,12 +117,15 @@ module Make (G : Git.S) (P : Irmin.Path.S) = struct
 
   let v alist =
     let alist =
-      List.rev_map
+      List.filter_map
         (fun (l, x) ->
           let v k = (l, k) in
           match x with
-          | `Node (n, _inlined) -> to_git `Dir (v n)
-          | `Contents (c, perm) -> to_git (perm :> Git.Tree.perm) (v c))
+          | `Node (n, _inlined) -> Some (to_git `Dir (v n))
+          | `Contents (c, perm) -> Some (to_git (perm :> Git.Tree.perm) (v c))
+          | `Contents_inlined _ ->
+              (* Git backend does not support inlined contents *)
+              None)
         alist
     in
     (* Tree.of_list will sort the list in the right order *)

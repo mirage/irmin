@@ -346,7 +346,7 @@ let position_text c i =
         | Dangling_parent_commit -> (A.magenta, "Dangling commit")
         | Contents -> (A.lightblue, "Contents")
         | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root | Inode_v2_nonroot
-          ->
+        | Inode_v3_root | Inode_v3_nonroot ->
             (A.green, "Inode")
       in
       let arrow =
@@ -422,7 +422,7 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
                 | Dangling_parent_commit -> (A.magenta, "Dangling commit")
                 | Contents -> (A.lightblue, "Contents")
                 | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-                | Inode_v2_nonroot ->
+                | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
                     (A.green, "Inode")
               in
               let parent_img, parent_buttons = parent_commit ~parent c entry in
@@ -545,7 +545,7 @@ let show_inode c (inode : Files.Inode.compress) =
                 | Dangling_parent_commit -> (A.magenta, "Dangling commit")
                 | Contents -> (A.lightblue, "Contents")
                 | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-                | Inode_v2_nonroot ->
+                | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
                     (A.green, "Inode")
               in
               let parent_img, parent_buttons = parent_commit c entry in
@@ -592,6 +592,11 @@ let show_inode c (inode : Files.Inode.compress) =
             List.map
               (fun b -> Button.pad b 2 (I.height img1 + I.height img2))
               content_button )
+      | Contents_inlined_value (n, bytes, ()) ->
+          let img1 = string A.(fg lightred ++ st bold) "Contents (inlined):" in
+          let img2 = name n in
+          let content = strf ~attr:A.(fg lightwhite) "%d bytes" (String.length bytes) in
+          ( img1 <-> (void 2 0 <|> (img2 <-> content)), [] )
       | Node (n, addr) ->
           let node, node_button = addr_show addr in
           let img1 = string A.(fg lightred ++ st bold) "Node:" in
@@ -647,13 +652,16 @@ let show_inode c (inode : Files.Inode.compress) =
   | V1_unstable tv -> v tv "Unstable"
   | V2_root tv -> v tv.v "Root"
   | V2_nonroot tv -> v tv.v "Non root"
+  | V3_root tv -> v tv.v "Root (v3)"
+  | V3_nonroot tv -> v tv.v "Non root (v3)"
 
 let kind_color (kind : Kind.t) =
   match kind with
   | Commit_v1 | Commit_v2 -> A.red
   | Dangling_parent_commit -> A.magenta
   | Contents -> A.lightblue
-  | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root | Inode_v2_nonroot ->
+  | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root | Inode_v2_nonroot
+  | Inode_v3_root | Inode_v3_nonroot ->
       A.green
 
 let show_entry_content ~x_off ~y_off c =
@@ -670,7 +678,7 @@ let show_entry_content ~x_off ~y_off c =
               "%a" Kind.pp c.entry_content.kind)
   in
   match c.entry_content.kind with
-  | Inode_v2_root | Inode_v2_nonroot ->
+  | Inode_v2_root | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
       let decoded = I.string A.(fg lightred ++ st bold) "Decoded:" in
       let inode, inode_buttons =
         show_inode c
@@ -782,7 +790,7 @@ let show_history c =
           | Dangling_parent_commit -> (A.magenta, "Dangling commit")
           | Contents -> (A.lightblue, "Contents")
           | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-          | Inode_v2_nonroot ->
+          | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
               (A.green, "Inode")
         in
         let img =

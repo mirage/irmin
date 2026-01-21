@@ -115,7 +115,10 @@ end = struct
   type key = Key.t [@@deriving irmin]
 
   module Extras = struct
-    type data = [ `Node of Key.t * Key.t list | `Contents of Key.t * unit ]
+    type data =
+      [ `Node of Key.t * Key.t list
+      | `Contents of Key.t * unit
+      | `Contents_inlined of string * unit ]
     [@@deriving irmin]
 
     let random_data =

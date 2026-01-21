@@ -81,7 +81,10 @@ module Make (B : Backend.S) = struct
           | `Contents (h, m) -> (
               match B.Contents.index (B.Repo.contents_t r) h with
               | None -> None
-              | Some k -> Some (`Contents (k, m))))
+              | Some k -> Some (`Contents (k, m)))
+          | `Contents_inlined (bytes, m) ->
+              (* Inlined contents don't have a key, return None *)
+              Some (`Contents_inlined (bytes, m)))
 
     let of_key r k = import r k
 
@@ -96,13 +99,21 @@ module Make (B : Backend.S) = struct
           match B.Contents.index (B.Repo.contents_t r) h with
           | None -> None
           | Some k -> of_key r (`Contents (k, m)))
+      | `Contents_inlined (bytes, m) ->
+          (* Reconstruct tree from inlined bytes *)
+          Some (import_no_check r (`Contents_inlined (bytes, m)))
 
     let shallow r h = import_no_check r h
     let kinded_hash = hash
 
     let hash : ?cache:bool -> t -> hash =
      fun ?cache tr ->
-      match hash ?cache tr with `Node (h, _) -> h | `Contents (h, _) -> h
+      match hash ?cache tr with
+      | `Node (h, _) -> h
+      | `Contents (h, _) -> h
+      | `Contents_inlined (bytes, _) ->
+          (* For inlined contents, compute hash from bytes *)
+          B.Hash.hash (fun f -> f bytes)
 
     let pp = Type.pp t
   end
@@ -398,9 +409,11 @@ module Make (B : Backend.S) = struct
       match B.Node.find (node_t t) k with
       | None -> []
       | Some v ->
-          List.rev_map
+          List.filter_map
             (function
-              | _, `Node n -> `Node n | _, `Contents (c, _) -> `Contents c)
+              | _, `Node n -> Some (`Node n)
+              | _, `Contents (c, _) -> Some (`Contents c)
+              | _, `Contents_inlined _ -> None)
             (B.Node.Val.list v)
 
     let default_pred_commit t c =
@@ -959,6 +972,9 @@ module Make (B : Backend.S) = struct
         match Tree.key tree with
         | Some (`Contents (key, _)) -> Some (`Contents key)
         | Some (`Node (key, _)) -> Some (`Node key)
+        | Some (`Contents_inlined _) ->
+            (* Inlined contents don't have their own key *)
+            None
         | None -> None)
 
   let hash t k =

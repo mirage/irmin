@@ -570,19 +570,25 @@ struct
               let preds = X.Node.CA.Val.pred v in
               let () =
                 preds
-                |> List.map (function
-                     | s, `Contents h -> (s, `Contents (XKey.to_hash h))
-                     | s, `Inode h -> (s, `Inode (XKey.to_hash h))
-                     | s, `Node (h, _il) -> (s, `Node (XKey.to_hash h)))
+                |> List.filter_map (function
+                     | s, `Contents h -> Some (s, `Contents (XKey.to_hash h))
+                     | s, `Inode h -> Some (s, `Inode (XKey.to_hash h))
+                     | s, `Node (h, _il) -> Some (s, `Node (XKey.to_hash h))
+                     | _, `Contents_inlined _ ->
+                         (* Inlined contents don't have their own key *)
+                         None)
                 |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
               in
-              List.rev_map
+              List.filter_map
                 (function
                   | s, `Inode x ->
                       assert (s = None);
-                      `Node (x, [])
-                  | _, `Node x -> `Node x
-                  | _, `Contents x -> `Contents x)
+                      Some (`Node (x, []))
+                  | _, `Node x -> Some (`Node x)
+                  | _, `Contents x -> Some (`Contents x)
+                  | _, `Contents_inlined _ ->
+                      (* Inlined contents don't have their own pack entry *)
+                      None)
                 preds
         in
         (* We are traversing only one commit. *)
@@ -736,6 +742,8 @@ struct
           let f_nodes x = f (Inode x) in
           match root_key with
           | `Contents _ -> Fmt.failwith "[root_key] cannot be of type contents"
+          | `Contents_inlined _ ->
+              Fmt.failwith "[root_key] cannot be of type inlined contents"
           | `Node (key, _il) ->
               let total =
                 Export.run ?on_disk export f_contents f_nodes

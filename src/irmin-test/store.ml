@@ -1857,7 +1857,8 @@ module Make (S : Generic_key) = struct
               (B.Node.Key.to_hash h) h'
           in
           (match B.Node.Val.find v "499999" with
-          | None | Some (`Node _) -> Alcotest.fail "value 499999 not found"
+          | None | Some (`Node _) | Some (`Contents_inlined _) ->
+              Alcotest.fail "value 499999 not found"
           | Some (`Contents (x, _)) ->
               let x = B.Contents.Key.to_hash x in
               let x' = B.Contents.Hash.hash "499999" in

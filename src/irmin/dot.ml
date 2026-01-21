@@ -187,7 +187,10 @@ module Make (S : Store.Generic_key.S) = struct
                 add_edge
                   (`Node (k, []))
                   [ `Style `Solid; label_of_step l ]
-                  (`Node (n, [])))
+                  (`Node (n, []))
+            | `Contents_inlined _ ->
+                (* Inlined contents are embedded in the node, no edge to draw *)
+                ())
           (Node.Val.list t))
       !nodes;
     List.iter

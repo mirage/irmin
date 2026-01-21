@@ -185,6 +185,7 @@ module type Sigs = sig
         (X.Node.value ->
         (X.Node.Path.step option
         * [< `Contents of XKey.t
+          | `Contents_inlined of string * _
           | `Inode of XKey.t
           | `Node of XKey.t * XKey.t list ])
         list) ->

@@ -86,7 +86,7 @@ struct
         match kind with
         | Contents -> progress_contents ()
         | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
-          ->
+        | Inode_v3_root | Inode_v3_nonroot ->
             progress_nodes ()
         | Commit_v1 | Commit_v2 -> progress_commits ()
         | Dangling_parent_commit -> assert false
@@ -424,7 +424,7 @@ struct
           progress_contents ();
           check ~kind:`Contents ~offset ~length k (* TODO inlined ?*)
       | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
-        ->
+      | Inode_v3_root | Inode_v3_nonroot ->
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
       | Commit_v1 | Commit_v2 ->
@@ -501,13 +501,16 @@ struct
           Fmt.failwith "node with hash %a not found" pp_hash (XKey.to_hash key)
       | Some v ->
           let preds = pred v in
-          List.rev_map
+          List.filter_map
             (function
               | s, `Inode x ->
                   assert (s = None);
-                  `Node (x, [])
-              | _, `Node x -> `Node x
-              | _, `Contents x -> `Contents x)
+                  Some (`Node (x, []))
+              | _, `Node x -> Some (`Node x)
+              | _, `Contents x -> Some (`Contents x)
+              | _, `Contents_inlined _ ->
+                  (* Inlined contents don't have their own pack entry *)
+                  None)
             preds
       | exception _exn ->
           add_error `Wrong_hash (XKey.to_hash key);

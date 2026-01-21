@@ -25,12 +25,12 @@ let minimal : t =
          hashes. All {i internal} references to V1 commits are via offset
          (from other V1 commit objects). *)
       true
-  | Inode_v2_root ->
+  | Inode_v2_root | Inode_v3_root ->
       (* It's safe not to index V1 root inodes because they are never
          referenced by V0 commit objects (only V1 commit objects, which
          contain direct pointers rather than hashes).*)
       false
-  | Inode_v2_nonroot -> false
+  | Inode_v2_nonroot | Inode_v3_nonroot -> false
   | Contents -> false
   | Commit_v1 | Inode_v1_unstable | Inode_v1_stable ->
       (* We never append new V0 values, so this choice is irrelevant to the
@@ -43,8 +43,8 @@ let minimal : t =
 let minimal_with_contents : t =
  fun ~value_length:_ -> function
   | Commit_v2 -> true
-  | Inode_v2_root -> false
-  | Inode_v2_nonroot -> false
+  | Inode_v2_root | Inode_v3_root -> false
+  | Inode_v2_nonroot | Inode_v3_nonroot -> false
   | Contents -> true
   | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> true
   | Dangling_parent_commit -> assert false

@@ -91,12 +91,18 @@ struct
         (function Some _ -> some | None -> none)
 
     let metadata_of_entry (_, t) =
-      match t with `Node _ -> None | `Contents (_, m) -> Some m
+      match t with
+      | `Node _ -> None
+      | `Contents (_, m) -> Some m
+      | `Contents_inlined (_, m) -> Some m
 
     let hash_of_entry (_, t) =
       match t with
       | `Node (h, _) -> Node_key.to_hash h
       | `Contents (h, _) -> Contents_key.to_hash h
+      | `Contents_inlined (bytes, _) ->
+          (* For inlined contents, compute hash from the raw bytes *)
+          Hash.hash (fun f -> f bytes)
 
     (* Irmin 1.4 uses int64 to store list lengths *)
     let entry_t : entry Irmin.Type.t =

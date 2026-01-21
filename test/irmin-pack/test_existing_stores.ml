@@ -244,7 +244,7 @@ module Test_corrupted_stores = struct
     let rw = S.Repo.v config in
 
     let commit =
-      commit_of_string rw "22e159de13b427226e5901defd17f0c14e744205"
+      commit_of_string rw "8b7de2fafd78856555de2972062bfc069fc7cbf3"
     in
     let result = S.integrity_check ~heads:[ commit ] ~auto_repair:false rw in
     let () =
@@ -325,7 +325,7 @@ module Test_traverse_gced = struct
     let conf = conf ~sw ~fs in
     let repo = S.Repo.v conf in
     let commit =
-      commit_of_string repo "22e159de13b427226e5901defd17f0c14e744205"
+      commit_of_string repo "8b7de2fafd78856555de2972062bfc069fc7cbf3"
     in
     let tree = S.Commit.tree commit in
     let tree = S.Tree.add tree [ "abba"; "baba" ] "x" in
@@ -354,6 +354,119 @@ module Test_traverse_gced = struct
     S.test_traverse_pack_file `Check_index (conf ~sw ~fs)
 end
 
+(** Test that verifies mixed V2/V3 inode entries in a pack file.
+
+    This test opens an existing store with V2 inodes, adds new entries
+    (which will be V3), and verifies that both V2 and V3 entries coexist
+    and can be read correctly.
+
+    We use version_2_to_3_always store because it uses always indexing strategy
+    which indexes inodes (unlike minimal strategy used by version_3_minimal). *)
+module Test_mixed_v2_v3 = struct
+  let root_archive ~fs =
+    Eio.Path.(fs / "test" / "irmin-pack" / "data" / "version_2_to_3_always")
+
+  let root_local_build ~fs = Eio.Path.(fs / "_build" / "test_mixed_v2_v3")
+
+  let setup_test_env ~fs () =
+    setup_test_env ~root_archive:(root_archive ~fs)
+      ~root_local_build:(root_local_build ~fs)
+
+  module S = V2 ()
+  include Test (S)
+
+  (** Count inode entries by kind version in the index *)
+  let count_inode_versions index =
+    let v2_count = ref 0 in
+    let v3_count = ref 0 in
+    Index.iter
+      (fun _k (_offset, _length, kind) ->
+        match kind with
+        | Irmin_pack.Pack_value.Kind.Inode_v2_root
+        | Irmin_pack.Pack_value.Kind.Inode_v2_nonroot ->
+            incr v2_count
+        | Irmin_pack.Pack_value.Kind.Inode_v3_root
+        | Irmin_pack.Pack_value.Kind.Inode_v3_nonroot ->
+            incr v3_count
+        | _ -> ())
+      index;
+    (!v2_count, !v3_count)
+
+  (* The commit hash for version_2_to_3_always store *)
+  let original_commit_hash = "22e159de13b427226e5901defd17f0c14e744205"
+
+  let test_mixed_inodes ~fs () =
+    setup_test_env ~fs ();
+    Eio.Switch.run @@ fun sw ->
+    let root = root_local_build ~fs in
+
+    (* Open the store - it contains V2 inodes from the archived test data *)
+    let conf =
+      config ~sw ~fs ~readonly:false ~fresh:false
+        ~indexing_strategy:Irmin_pack.Indexing_strategy.always root
+    in
+    let repo = S.Repo.v conf in
+
+    (* Read the existing commit *)
+    let commit = commit_of_string repo original_commit_hash in
+
+    (* Count initial inode versions - should have V2 entries *)
+    let index =
+      Index.v_exn ~fresh:false ~readonly:true ~log_size:500_000
+        (Eio.Path.native_exn root)
+    in
+    let initial_v2, initial_v3 = count_inode_versions index in
+    Index.close_exn index;
+
+    [%log.app "Initial inode counts: V2=%d, V3=%d" initial_v2 initial_v3];
+
+    (* The archived store should have V2 inodes (created before V3 introduction) *)
+    Alcotest.(check bool)
+      "Initial store should have V2 inodes"
+      (initial_v2 > 0) true;
+
+    (* Add new content - this will create V3 inodes *)
+    let tree = S.Commit.tree commit in
+    let tree = S.Tree.add tree [ "new"; "path"; "to"; "content" ] "new_value" in
+    let tree = S.Tree.add tree [ "another"; "deep"; "path" ] "another_value" in
+    let _new_commit =
+      S.Commit.v repo ~info:S.Info.empty ~parents:[ S.Commit.key commit ] tree
+    in
+
+    S.Repo.close repo;
+
+    (* Reopen and count again *)
+    let index =
+      Index.v_exn ~fresh:false ~readonly:true ~log_size:500_000
+        (Eio.Path.native_exn root)
+    in
+    let final_v2, final_v3 = count_inode_versions index in
+    Index.close_exn index;
+
+    [%log.app "Final inode counts: V2=%d, V3=%d" final_v2 final_v3];
+
+    (* Verify we now have both V2 and V3 inodes *)
+    Alcotest.(check bool)
+      "Should still have V2 inodes (old entries preserved)"
+      (final_v2 >= initial_v2) true;
+    Alcotest.(check bool)
+      "Should have new V3 inodes (from new writes)"
+      (final_v3 > initial_v3) true;
+
+    (* Verify we can still read the original commit via its hash *)
+    let repo = S.Repo.v conf in
+    let commit = commit_of_string repo original_commit_hash in
+    (* If we got here without exception, the V2 inode was readable *)
+    let tree = S.Commit.tree commit in
+    (* Verify the tree is accessible - this exercises the V2 inode decoding *)
+    let _entries = S.Tree.list tree [] in
+    S.Repo.close repo;
+
+    [%log.app
+      "Mixed V2/V3 test passed: V2=%d V3=%d inodes coexist and are readable"
+      final_v2 final_v3]
+end
+
 let tests ~fs ~domain_mgr =
   [
     Alcotest.test_case "Test index reconstruction" `Quick
@@ -368,4 +481,6 @@ let tests ~fs ~domain_mgr =
       (Test_corrupted_inode.test ~fs);
     Alcotest.test_case "Test traverse pack on gced store" `Quick
       (Test_traverse_gced.test_traverse_pack ~fs ~domain_mgr);
+    Alcotest.test_case "Test mixed V2/V3 inodes" `Quick
+      (Test_mixed_v2_v3.test_mixed_inodes ~fs);
   ]

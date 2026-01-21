@@ -116,6 +116,8 @@ let test ~repo_export ~repo_import ?on_disk tree expected_visited =
     | _, None -> Alcotest.fail "No key imported"
     | `Node (key, _inlined), Some key' -> check_key "snapshot key" key key'
     | `Contents _, _ -> Alcotest.fail "Root key should not be contents"
+    | `Contents_inlined _, _ ->
+        Alcotest.fail "Root key should not be inlined contents"
   in
   ()
 
@@ -226,6 +228,8 @@ let test_gc ~domain_mgr ~repo_export ~repo_import ?on_disk expected_visited =
   | _, None -> Alcotest.fail "No key imported"
   | `Node (key, _inlined), Some key' -> check_key "snapshot key" key key'
   | `Contents _, _ -> Alcotest.fail "Root key should not be contents"
+  | `Contents_inlined _, _ ->
+      Alcotest.fail "Root key should not be inlined contents"
 
 let indexing_strategy = Irmin_pack.Indexing_strategy.minimal
 

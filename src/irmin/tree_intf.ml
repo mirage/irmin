@@ -64,7 +64,10 @@ module type S = sig
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash * hash list ]
+  type kinded_hash =
+    [ `Contents of hash * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of hash * hash list ]
   [@@deriving irmin]
 
   val pruned : kinded_hash -> t
@@ -458,6 +461,7 @@ module type Sigs = sig
 
     type kinded_key =
       [ `Contents of B.Contents.Key.t * metadata
+      | `Contents_inlined of string * metadata
       | `Node of B.Node.Key.t * B.Contents.Key.t list ]
     [@@deriving irmin]
 

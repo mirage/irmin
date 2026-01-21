@@ -761,6 +761,16 @@ module Make (P : Backend.S) = struct
                 `Node
                   (of_key ~env repo k, List.map (Contents.of_key ~env repo) il)
             | `Contents (k, m) -> `Contents (Contents.of_key ~env repo k, m)
+            | `Contents_inlined (bytes, m) ->
+                (* Deserialize the inlined bytes back to a content value *)
+                let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+                let contents_value =
+                  match of_bin bytes with
+                  | Ok v -> v
+                  | Error (`Msg e) ->
+                      failwith ("Failed to deserialize inlined contents: " ^ e)
+                in
+                `Contents (Contents.of_value ~env contents_value, m)
         end)
 
     module Portable_value =
@@ -773,6 +783,16 @@ module Make (P : Backend.S) = struct
             | `Node (h, il) ->
                 `Node (pruned ~env h, List.map (Contents.pruned ~env) il)
             | `Contents (h, m) -> `Contents (Contents.pruned ~env h, m)
+            | `Contents_inlined (bytes, m) ->
+                (* Deserialize the inlined bytes back to a content value *)
+                let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+                let contents_value =
+                  match of_bin bytes with
+                  | Ok v -> v
+                  | Error (`Msg e) ->
+                      failwith ("Failed to deserialize inlined contents: " ^ e)
+                in
+                `Contents (Contents.of_value ~env contents_value, m)
         end)
 
     (** This [Scan] module contains function that scan the content of [t.v] and
@@ -965,6 +985,7 @@ module Make (P : Backend.S) = struct
       | `Contents (key, m) -> `Contents (P.Contents.Key.to_hash key, m)
       | `Node (key, il) ->
           `Node (P.Node.Key.to_hash key, List.map P.Contents.Key.to_hash il)
+      | `Contents_inlined (bytes, m) -> `Contents_inlined (bytes, m)
 
     let set_hash_cache ~cache t hash =
       let (_ : bool) =
@@ -1929,10 +1950,14 @@ module Make (P : Backend.S) = struct
 
   type kinded_key =
     [ `Contents of Contents.key * metadata
+    | `Contents_inlined of string * metadata
     | `Node of Node.key * Contents.key list ]
   [@@deriving irmin]
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash * hash list ]
+  type kinded_hash =
+    [ `Contents of hash * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of hash * hash list ]
   [@@deriving irmin ~equal]
 
   type t =
@@ -2024,6 +2049,16 @@ module Make (P : Backend.S) = struct
     | `Contents (h, meta) -> `Contents (Contents.pruned ~env h, meta)
     | `Node (h, il) ->
         `Node (Node.pruned ~env h, List.map (Contents.pruned ~env) il)
+    | `Contents_inlined (bytes, meta) ->
+        (* Deserialize inlined bytes to content value *)
+        let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+        let value =
+          match of_bin bytes with
+          | Ok v -> v
+          | Error (`Msg e) ->
+              failwith ("Failed to deserialize pruned inlined contents: " ^ e)
+        in
+        `Contents (Contents.of_value ~env value, meta)
 
   let pruned h =
     let env = Env.empty () in
@@ -2336,45 +2371,8 @@ module Make (P : Backend.S) = struct
         | None -> None
         | Some c -> of_contents ~metadata c |> Option.some)
 
-  let rec inline_tree (t : t) =
-    match t with
-    | `Node ({ v; _ }, _il) -> (
-        match Atomic.get v with
-        | Map map ->
-            Fmt.pr "@[<v 2>Map@,";
-            StepMap.iter (fun _ t -> inline_tree t) map;
-            let p1, p2 =
-              StepMap.partition
-                (fun _ -> function `Contents_inlined_3 _ -> true | _ -> false)
-                map
-            in
-            let print =
-              StepMap.iter (fun step -> function
-                | `Node _ -> Fmt.pr "Node / step: %a@," (Repr.pp step_t) step
-                | `Contents _ ->
-                    Fmt.pr "Contents / step: %a@," (Repr.pp step_t) step
-                | `Contents_inlined_3 _ ->
-                    Fmt.pr "Contents_inlined / step: %a@," (Repr.pp step_t) step)
-            in
-            Fmt.pr "TO INLINE:@,";
-            print p1;
-            Fmt.pr "NOT TO INLINE:@,";
-            print p2;
-            Fmt.pr "@]@,"
-        | Key _ -> Fmt.pr "Key@,"
-        | Value _ -> Fmt.pr "Value@,"
-        | Portable_dirty _ -> Fmt.pr "Portable_dirty@,"
-        | Pruned _ -> Fmt.pr "Pruned@,")
-    | `Contents _ -> ()
-    | `Contents_inlined_3 _ -> ()
-  (* [ `Node of node
-    | `Contents of Contents.t * Metadata.t
-    | `Contents_inlined_3 of Contents.t * metadata ] *)
-
   let add t k ?(metadata = Metadata.default) c =
     [%log.debug "Tree.add %a" pp_path k];
-    ignore @@ inline_tree t;
-    (* update_tree ~cache:true (inline_tree t) k *)
     update_tree ~cache:true t k
       ~f:(fun _ -> Some (of_contents ~metadata c))
       ~f_might_return_empty_node:false
@@ -2411,11 +2409,32 @@ module Make (P : Backend.S) = struct
             (* TODO inline *)
             Some (`Node (Node.of_key ~env repo k, []))
         | false -> None)
+    | `Contents_inlined (bytes, m) ->
+        (* Deserialize inlined bytes to content value *)
+        let env = Env.empty () in
+        let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+        let value =
+          match of_bin bytes with
+          | Ok v -> v
+          | Error (`Msg e) ->
+              failwith ("Failed to deserialize inlined contents: " ^ e)
+        in
+        Some (`Contents (Contents.of_value ~env value, m))
 
   let import_with_env ~env repo = function
     | `Node (k, il) ->
         `Node (Node.of_key ~env repo k, List.map (Contents.of_key ~env repo) il)
     | `Contents (k, m) -> `Contents (Contents.of_key ~env repo k, m)
+    | `Contents_inlined (bytes, m) ->
+        (* Deserialize inlined bytes to content value *)
+        let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+        let value =
+          match of_bin bytes with
+          | Ok v -> v
+          | Error (`Msg e) ->
+              failwith ("Failed to deserialize inlined contents: " ^ e)
+        in
+        `Contents (Contents.of_value ~env value, m)
 
   let import_no_check repo f =
     let env = Env.empty () in
@@ -2482,17 +2501,12 @@ module Make (P : Backend.S) = struct
                           during export:@,\
                           @ @[%a@]"
                          dump v)
-               | `Contents_inlined_3 (c, m) -> (
-                   (* Inlined contents are saved to the store like regular
-                      contents. The key was cached by on_contents_inlined. *)
-                   match Contents.cached_key c with
-                   | Some k -> Some (step, `Contents (k, m))
-                   | None ->
-                       assertion_failure
-                         "Encountered inlined contents with uncached key \
-                          during export:@,\
-                          @ @[%a@]"
-                         dump v)
+               | `Contents_inlined_3 (c, m) ->
+                   (* Inline small contents: serialize to bytes and embed directly *)
+                   let v = Contents.force_exn c in
+                   let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
+                   let bytes = to_bin v in
+                   Some (step, `Contents_inlined (bytes, m))
                | `Contents (c, m) -> (
                    match Contents.cached_key c with
                    | Some k -> Some (step, `Contents (k, m))
@@ -2504,7 +2518,6 @@ module Make (P : Backend.S) = struct
                          dump v))
       in
       let _, to_inline = List.split to_inline in
-      Fmt.pr "1 LIST TO_INLINE: %d@." (List.length to_inline);
       let node = P.Node.Val.of_seq node_seq to_inline in
       let r = add_node n node to_inline k in
       (* assert false; *)
@@ -2536,15 +2549,12 @@ module Make (P : Backend.S) = struct
                        during export:@,\
                        @ @[%a@]"
                       dump v)
-            | Add (`Contents_inlined_3 (c, m) as v) -> (
-                match Contents.cached_key c with
-                | Some ptr -> P.Node.Val.add acc k (`Contents (ptr, m))
-                | None ->
-                    assertion_failure
-                      "Encountered child contents value 4 with uncached key \
-                       during export:@,\
-                       @ @[%a@]"
-                      dump v))
+            | Add (`Contents_inlined_3 (c, m)) ->
+                (* Inline small contents: serialize to bytes and embed directly *)
+                let v = Contents.force_exn c in
+                let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
+                let bytes = to_bin v in
+                P.Node.Val.add acc k (`Contents_inlined (bytes, m)))
           updates v
       in
       add_node n node_seq to_inline k
