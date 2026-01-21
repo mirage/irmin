@@ -67,3 +67,18 @@
   fpath)
  (preprocess
   (pps ppx_irmin.internal)))
+
+(executable
+ (name gen_minimal)
+ (modules gen_minimal)
+ (libraries eio_main irmin irmin-pack irmin-pack.unix irmin-tezos))
+
+(executable
+ (name gen_always)
+ (modules gen_always)
+ (libraries eio_main irmin irmin-pack irmin-pack.unix irmin-tezos))
+
+(executable
+ (name gen_gced)
+ (modules gen_gced)
+ (libraries eio_main irmin irmin-pack irmin-pack.unix irmin-tezos))
