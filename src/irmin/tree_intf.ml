@@ -413,7 +413,8 @@ module type S = sig
   val reset_counters : unit -> unit
 
   val inspect :
-    t -> [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+    t ->
+    [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
   (** [inspect t] is similar to {!kind}, with additional state information for
       nodes. It is primarily useful for debugging and testing.
 
@@ -432,8 +433,8 @@ module type Sigs = sig
   val set_inline_contents_enabled : bool -> unit
   (** [set_inline_contents_enabled b] controls whether small contents are
       inlined directly in nodes. When [true], contents smaller than the
-      configured threshold will be inlined. Default is [false]. This is a
-      global setting that should be set before creating stores. *)
+      configured threshold will be inlined. Default is [false]. This is a global
+      setting that should be set before creating stores. *)
 
   val set_inline_contents_max_bytes : int -> unit
   (** [set_inline_contents_max_bytes n] sets the maximum serialized size in

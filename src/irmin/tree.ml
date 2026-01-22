@@ -510,7 +510,8 @@ module Make (P : Backend.S) = struct
     type portable = Portable.t [@@deriving irmin ~equal ~pp]
 
     (* [elt] is a tree *)
-    type elt = [ `Node of t * Contents.t list | `Contents of Contents.t * Metadata.t ]
+    type elt =
+      [ `Node of t * Contents.t list | `Contents of Contents.t * Metadata.t ]
 
     and update = Add of elt | Remove
     and updatemap = update StepMap.t
@@ -1370,10 +1371,8 @@ module Make (P : Backend.S) = struct
               | `pruned ]
               Scan.t)
         with
-        | Map m ->
-            of_map m
-        | Repo_value (repo, v) ->
-            of_value repo v
+        | Map m -> of_map m
+        | Repo_value (repo, v) -> of_value repo v
         | Repo_key (repo, k) ->
             let v = value_of_key ~cache t repo k in
             let v = get_ok ctx v in
@@ -1383,15 +1382,13 @@ module Make (P : Backend.S) = struct
             | Some (Add v) -> Some v
             | Some Remove -> None
             | None -> of_value repo v)
-        | Portable p ->
-            of_portable p
+        | Portable p -> of_portable p
         | Portable_dirty (p, um) -> (
             match StepMap.find_opt step um with
             | Some (Add v) -> Some v
             | Some Remove -> None
             | None -> of_portable p)
-        | Pruned h ->
-            pruned_hash_exn ctx h
+        | Pruned h -> pruned_hash_exn ctx h
       in
       match Atomic.get t.info.findv_cache with
       | None -> of_t ()
@@ -1716,21 +1713,15 @@ module Make (P : Backend.S) = struct
             | `pruned ]
             Scan.t)
       with
-      | Map m ->
-          of_map m
-      | Repo_value (repo, v) ->
-          of_value repo v StepMap.empty
+      | Map m -> of_map m
+      | Repo_value (repo, v) -> of_value repo v StepMap.empty
       | Repo_key (repo, k) ->
           let v = value_of_key ~cache:true t repo k |> get_ok "update" in
           of_value repo v StepMap.empty
-      | Value_dirty (repo, v, um) ->
-          of_value repo v um
-      | Portable p ->
-          of_portable p StepMap.empty
-      | Portable_dirty (p, um) ->
-          of_portable p um
-      | Pruned h ->
-          pruned_hash_exn "update" h
+      | Value_dirty (repo, v, um) -> of_value repo v um
+      | Portable p -> of_portable p StepMap.empty
+      | Portable_dirty (p, um) -> of_portable p um
+      | Pruned h -> pruned_hash_exn "update" h
 
     let remove t step = update t step Remove
     let add t step v = update t step (Add v)
@@ -1832,8 +1823,7 @@ module Make (P : Backend.S) = struct
   [@@deriving irmin ~equal]
 
   type t =
-    [ `Node of node * Contents.t list
-    | `Contents of Contents.t * Metadata.t ]
+    [ `Node of node * Contents.t list | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin]
 
   let to_backend_node n =
@@ -2017,8 +2007,7 @@ module Make (P : Backend.S) = struct
     [%log.debug "Tree.seq %a" pp_path path];
     sub ~cache "seq.sub" t path |> function
     | None -> Seq.empty
-    | Some n ->
-        Node.seq ?offset ?length ~cache n |> get_ok "seq"
+    | Some n -> Node.seq ?offset ?length ~cache n |> get_ok "seq"
 
   let list t ?offset ?length ?(cache = true) path =
     seq t ?offset ?length ~cache path |> List.of_seq
@@ -2286,7 +2275,8 @@ module Make (P : Backend.S) = struct
             let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
             let bytes = to_bin v in
             (* Add 2 bytes for variant tag and length prefix overhead *)
-            if String.length bytes + 2 < !inline_contents_max_bytes then Some bytes
+            if String.length bytes + 2 < !inline_contents_max_bytes then
+              Some bytes
             else None
     in
 
@@ -2316,8 +2306,8 @@ module Make (P : Backend.S) = struct
                        | Some k -> Some (step, `Contents (k, m))
                        | None ->
                            assertion_failure
-                             "Encountered child contents value with uncached key \
-                              during export:@,\
+                             "Encountered child contents value with uncached \
+                              key during export:@,\
                               @ @[%a@]"
                              dump v)))
       in
@@ -2347,14 +2337,15 @@ module Make (P : Backend.S) = struct
             | Add (`Contents (c, m) as v) -> (
                 (* Check if contents should be inlined at export time *)
                 match should_inline_contents c with
-                | Some bytes -> P.Node.Val.add acc k (`Contents_inlined (bytes, m))
+                | Some bytes ->
+                    P.Node.Val.add acc k (`Contents_inlined (bytes, m))
                 | None -> (
                     match Contents.cached_key c with
                     | Some ptr -> P.Node.Val.add acc k (`Contents (ptr, m))
                     | None ->
                         assertion_failure
-                          "Encountered child contents value 3 with uncached key \
-                           during export:@,\
+                          "Encountered child contents value 3 with uncached \
+                           key during export:@,\
                            @ @[%a@]"
                           dump v)))
           updates v
@@ -2676,8 +2667,7 @@ module Make (P : Backend.S) = struct
     let rec concrete : type r. concrete -> (t or_empty, r) cont =
      fun t k ->
       match t with
-      | `Contents (c, m) ->
-          k (Non_empty (of_contents ~metadata:m c))
+      | `Contents (c, m) -> k (Non_empty (of_contents ~metadata:m c))
       | `Tree childs ->
           tree StepMap.empty childs (function
             | Empty -> k Empty
@@ -2758,8 +2748,7 @@ module Make (P : Backend.S) = struct
     match t with
     | `Node (n, il) ->
         `Node (Node.hash ~cache n, List.map (Contents.hash ~cache) il)
-    | `Contents (c, m) ->
-        `Contents (Contents.hash ~cache c, m)
+    | `Contents (c, m) -> `Contents (Contents.hash ~cache c, m)
 
   let stats ?(force = false) (t : t) =
     let cache = true in

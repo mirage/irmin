@@ -43,7 +43,7 @@ let info = Store.Info.empty
 let generate ~sw ~fs =
   let path = "version_3_minimal_new" in
   rm_dir path;
-  let rw = Store.Repo.v (config ~sw ~fs (Eio.Path.(fs / path))) in
+  let rw = Store.Repo.v (config ~sw ~fs Eio.Path.(fs / path)) in
 
   (* Create tree matching the original structure:
      borphan | b01 <- n01 <- n0 <- c0
@@ -61,11 +61,17 @@ let generate ~sw ~fs =
       let k_b01 = Store.Backend.Contents.add bstore "b01" in
 
       (* Create n01 node with step-b01 -> b01 *)
-      let n01 = Store.Backend.Node.Val.of_list [ ("step-b01", `Contents (k_b01, ())) ] [] in
+      let n01 =
+        Store.Backend.Node.Val.of_list
+          [ ("step-b01", `Contents (k_b01, ())) ]
+          []
+      in
       let k_n01 = Store.Backend.Node.add nstore n01 in
 
       (* Create n0 (root) node with step-n01 -> n01 *)
-      let n0 = Store.Backend.Node.Val.of_list [ ("step-n01", `Node (k_n01, [])) ] [] in
+      let n0 =
+        Store.Backend.Node.Val.of_list [ ("step-n01", `Node (k_n01, [])) ] []
+      in
       let k_n0 = Store.Backend.Node.add nstore n0 in
 
       (* Create commit *)
@@ -81,7 +87,8 @@ let generate ~sw ~fs =
       let hex =
         String.to_seq hash_bytes
         |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
-        |> List.of_seq |> String.concat ""
+        |> List.of_seq
+        |> String.concat ""
       in
       Printf.printf "Commit hash (hex): %s\n" hex);
 

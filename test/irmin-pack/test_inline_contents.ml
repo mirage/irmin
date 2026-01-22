@@ -42,18 +42,22 @@ let config ~sw ~fs ?(readonly = false) ?(fresh = true) ~inline_contents root =
 
 let info = S.Info.empty
 
-(** Test that data can be stored and retrieved correctly with inlining disabled *)
+(** Test that data can be stored and retrieved correctly with inlining disabled
+*)
 let test_without_inlining ~fs () =
   let root = root_no_inline ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    S.Repo.v (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:false root)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:false root)
   in
   (* Create a tree with small and large contents *)
   let tree = S.Tree.empty () in
-  let tree = S.Tree.add tree [ "small" ] "abc" in (* Small content, < 16 bytes *)
-  let tree = S.Tree.add tree [ "large" ] (String.make 100 'x') in (* Large content *)
+  let tree = S.Tree.add tree [ "small" ] "abc" in
+  (* Small content, < 16 bytes *)
+  let tree = S.Tree.add tree [ "large" ] (String.make 100 'x') in
+  (* Large content *)
   (* Create a commit *)
   let commit = S.Commit.v repo ~parents:[] ~info tree in
   let hash = S.Commit.hash commit in
@@ -63,21 +67,28 @@ let test_without_inlining ~fs () =
   let small = S.Tree.find tree' [ "small" ] in
   let large = S.Tree.find tree' [ "large" ] in
   Alcotest.(check (option string)) "small content" (Some "abc") small;
-  Alcotest.(check (option string)) "large content" (Some (String.make 100 'x')) large;
+  Alcotest.(check (option string))
+    "large content"
+    (Some (String.make 100 'x'))
+    large;
   S.Repo.close repo
 
-(** Test that data can be stored and retrieved correctly with inlining enabled *)
+(** Test that data can be stored and retrieved correctly with inlining enabled
+*)
 let test_with_inlining ~fs () =
   let root = root_with_inline ~fs in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    S.Repo.v (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true root)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true root)
   in
   (* Create a tree with small and large contents *)
   let tree = S.Tree.empty () in
-  let tree = S.Tree.add tree [ "small" ] "abc" in (* Small content, < 16 bytes *)
-  let tree = S.Tree.add tree [ "large" ] (String.make 100 'x') in (* Large content *)
+  let tree = S.Tree.add tree [ "small" ] "abc" in
+  (* Small content, < 16 bytes *)
+  let tree = S.Tree.add tree [ "large" ] (String.make 100 'x') in
+  (* Large content *)
   (* Create a commit *)
   let commit = S.Commit.v repo ~parents:[] ~info tree in
   let hash = S.Commit.hash commit in
@@ -87,10 +98,14 @@ let test_with_inlining ~fs () =
   let small = S.Tree.find tree' [ "small" ] in
   let large = S.Tree.find tree' [ "large" ] in
   Alcotest.(check (option string)) "small content" (Some "abc") small;
-  Alcotest.(check (option string)) "large content" (Some (String.make 100 'x')) large;
+  Alcotest.(check (option string))
+    "large content"
+    (Some (String.make 100 'x'))
+    large;
   S.Repo.close repo
 
-(** Test that the same data produces the same content hash regardless of inlining *)
+(** Test that the same data produces the same content hash regardless of
+    inlining *)
 let test_content_equivalence ~fs () =
   let root_no_inline = root_equiv_no ~fs in
   let root_inline = root_equiv_yes ~fs in
@@ -100,7 +115,8 @@ let test_content_equivalence ~fs () =
   (* Create store without inlining *)
   let repo1 =
     S.Repo.v
-      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:false root_no_inline)
+      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:false
+         root_no_inline)
   in
   let tree1 = S.Tree.empty () in
   let tree1 = S.Tree.add tree1 [ "a" ] "small" in
@@ -111,7 +127,8 @@ let test_content_equivalence ~fs () =
   (* Create store with inlining *)
   let repo2 =
     S.Repo.v
-      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true root_inline)
+      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true
+         root_inline)
   in
   let tree2 = S.Tree.empty () in
   let tree2 = S.Tree.add tree2 [ "a" ] "small" in
@@ -122,28 +139,49 @@ let test_content_equivalence ~fs () =
   (* Verify data is the same when read back *)
   let repo1 =
     S.Repo.v
-      (config ~sw ~fs ~readonly:true ~fresh:false ~inline_contents:false root_no_inline)
+      (config ~sw ~fs ~readonly:true ~fresh:false ~inline_contents:false
+         root_no_inline)
   in
   let repo2 =
     S.Repo.v
-      (config ~sw ~fs ~readonly:true ~fresh:false ~inline_contents:true root_inline)
+      (config ~sw ~fs ~readonly:true ~fresh:false ~inline_contents:true
+         root_inline)
   in
-  let tree1' = S.Commit.of_hash repo1 (S.Commit.hash commit1) |> Option.get |> S.Commit.tree in
-  let tree2' = S.Commit.of_hash repo2 (S.Commit.hash commit2) |> Option.get |> S.Commit.tree in
+  let tree1' =
+    S.Commit.of_hash repo1 (S.Commit.hash commit1)
+    |> Option.get
+    |> S.Commit.tree
+  in
+  let tree2' =
+    S.Commit.of_hash repo2 (S.Commit.hash commit2)
+    |> Option.get
+    |> S.Commit.tree
+  in
   (* Verify contents are identical *)
-  Alcotest.(check (option string)) "a" (S.Tree.find tree1' [ "a" ]) (S.Tree.find tree2' [ "a" ]);
-  Alcotest.(check (option string)) "b" (S.Tree.find tree1' [ "b" ]) (S.Tree.find tree2' [ "b" ]);
-  Alcotest.(check (option string)) "c/d" (S.Tree.find tree1' [ "c"; "d" ]) (S.Tree.find tree2' [ "c"; "d" ]);
+  Alcotest.(check (option string))
+    "a"
+    (S.Tree.find tree1' [ "a" ])
+    (S.Tree.find tree2' [ "a" ]);
+  Alcotest.(check (option string))
+    "b"
+    (S.Tree.find tree1' [ "b" ])
+    (S.Tree.find tree2' [ "b" ]);
+  Alcotest.(check (option string))
+    "c/d"
+    (S.Tree.find tree1' [ "c"; "d" ])
+    (S.Tree.find tree2' [ "c"; "d" ]);
   S.Repo.close repo1;
   S.Repo.close repo2
 
-(** Test that verifies small content is actually inlined in the node structure *)
+(** Test that verifies small content is actually inlined in the node structure
+*)
 let test_inlining_structure ~fs () =
   let root = Eio.Path.(fs / "_build" / "test-inline-structure") in
   rm_dir root;
   Eio.Switch.run @@ fun sw ->
   let repo =
-    S.Repo.v (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true root)
+    S.Repo.v
+      (config ~sw ~fs ~readonly:false ~fresh:true ~inline_contents:true root)
   in
   (* Create a tree with small content that should be inlined *)
   let tree = S.Tree.empty () in
@@ -151,10 +189,18 @@ let test_inlining_structure ~fs () =
      - 1-byte variant tag for the Contents.t encoding
      - 1-byte varint length prefix for the string
      So raw content must be < 46 bytes (45 or less) to be inlined. *)
-  let tree = S.Tree.add tree [ "tiny" ] "x" in (* 1 byte raw -> 3 bytes serialized -> inlined *)
-  let tree = S.Tree.add tree [ "small" ] "hello" in (* 5 bytes raw -> 7 bytes serialized -> inlined *)
-  let tree = S.Tree.add tree [ "medium" ] "0123456789abc0123456789abc0123456789abc012345" in (* 45 bytes raw -> 47 bytes serialized -> inlined *)
-  let tree = S.Tree.add tree [ "large" ] "0123456789abc0123456789abc0123456789abc0123456" in (* 46 bytes raw -> 48 bytes serialized -> NOT inlined *)
+  let tree = S.Tree.add tree [ "tiny" ] "x" in
+  (* 1 byte raw -> 3 bytes serialized -> inlined *)
+  let tree = S.Tree.add tree [ "small" ] "hello" in
+  (* 5 bytes raw -> 7 bytes serialized -> inlined *)
+  let tree =
+    S.Tree.add tree [ "medium" ] "0123456789abc0123456789abc0123456789abc012345"
+  in
+  (* 45 bytes raw -> 47 bytes serialized -> inlined *)
+  let tree =
+    S.Tree.add tree [ "large" ] "0123456789abc0123456789abc0123456789abc0123456"
+  in
+  (* 46 bytes raw -> 48 bytes serialized -> NOT inlined *)
   (* Commit to persist the tree *)
   let commit = S.Commit.v repo ~parents:[] ~info tree in
   let _hash = S.Commit.hash commit in
@@ -162,7 +208,8 @@ let test_inlining_structure ~fs () =
   let commit' = S.Commit.of_hash repo (S.Commit.hash commit) |> Option.get in
   let tree' = S.Commit.tree commit' in
   (* Get the root node using to_backend_node *)
-  let root_node = match S.Tree.destruct tree' with
+  let root_node =
+    match S.Tree.destruct tree' with
     | `Node (n, _inlined) -> S.to_backend_node n
     | `Contents _ -> Alcotest.fail "Expected a node"
   in
@@ -171,17 +218,17 @@ let test_inlining_structure ~fs () =
   (* Count inlined vs non-inlined contents *)
   let inlined_count = ref 0 in
   let non_inlined_count = ref 0 in
-  List.iter (fun (step, value) ->
-    match value with
-    | `Contents_inlined (bytes, _) ->
-        [%log.debug "Inlined content at %s: %S" step bytes];
-        incr inlined_count
-    | `Contents _ ->
-        [%log.debug "Non-inlined content at %s" step];
-        incr non_inlined_count
-    | `Node _ ->
-        [%log.debug "Node at %s" step]
-  ) entries;
+  List.iter
+    (fun (step, value) ->
+      match value with
+      | `Contents_inlined (bytes, _) ->
+          [%log.debug "Inlined content at %s: %S" step bytes];
+          incr inlined_count
+      | `Contents _ ->
+          [%log.debug "Non-inlined content at %s" step];
+          incr non_inlined_count
+      | `Node _ -> [%log.debug "Node at %s" step])
+    entries;
   (* Verify: 3 entries should be inlined (tiny, small, medium), 1 should not (large) *)
   Alcotest.(check int) "inlined count" 3 !inlined_count;
   Alcotest.(check int) "non-inlined count" 1 !non_inlined_count;

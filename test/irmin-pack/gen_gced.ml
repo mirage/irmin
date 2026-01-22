@@ -42,7 +42,7 @@ let info = Store.Info.empty
 let generate ~domain_mgr ~sw ~fs =
   let path = "version_3_minimal_gced_new" in
   rm_dir path;
-  let rw = Store.Repo.v (config ~sw ~fs (Eio.Path.(fs / path))) in
+  let rw = Store.Repo.v (config ~sw ~fs Eio.Path.(fs / path)) in
 
   (* Create tree matching the original structure:
      borphan | b01 <- n01 <- n0 <- c0
@@ -50,39 +50,49 @@ let generate ~domain_mgr ~sw ~fs =
 
      borphan is orphan content that is added to the content store but
      NOT part of the tree. The tree only has step-n01/step-b01 -> "b01" *)
+  let k_c0 =
+    Store.Backend.Repo.batch rw (fun bstore nstore cstore ->
+        (* First, add the orphan content directly to the content store *)
+        let _ = Store.Backend.Contents.add bstore "borphan" in
 
-  let k_c0 = Store.Backend.Repo.batch rw (fun bstore nstore cstore ->
-      (* First, add the orphan content directly to the content store *)
-      let _ = Store.Backend.Contents.add bstore "borphan" in
+        (* Add b01 content *)
+        let k_b01 = Store.Backend.Contents.add bstore "b01" in
 
-      (* Add b01 content *)
-      let k_b01 = Store.Backend.Contents.add bstore "b01" in
+        (* Create n01 node with step-b01 -> b01 *)
+        let n01 =
+          Store.Backend.Node.Val.of_list
+            [ ("step-b01", `Contents (k_b01, ())) ]
+            []
+        in
+        let k_n01 = Store.Backend.Node.add nstore n01 in
 
-      (* Create n01 node with step-b01 -> b01 *)
-      let n01 = Store.Backend.Node.Val.of_list [ ("step-b01", `Contents (k_b01, ())) ] [] in
-      let k_n01 = Store.Backend.Node.add nstore n01 in
+        (* Create n0 (root) node with step-n01 -> n01 *)
+        let n0 =
+          Store.Backend.Node.Val.of_list [ ("step-n01", `Node (k_n01, [])) ] []
+        in
+        let k_n0 = Store.Backend.Node.add nstore n0 in
 
-      (* Create n0 (root) node with step-n01 -> n01 *)
-      let n0 = Store.Backend.Node.Val.of_list [ ("step-n01", `Node (k_n01, [])) ] [] in
-      let k_n0 = Store.Backend.Node.add nstore n0 in
+        (* Create commit *)
+        let c0 = Store.Backend.Commit.Val.v ~parents:[] ~info ~node:k_n0 in
+        let k_c0 = Store.Backend.Commit.add cstore c0 in
 
-      (* Create commit *)
-      let c0 = Store.Backend.Commit.Val.v ~parents:[] ~info ~node:k_n0 in
-      let k_c0 = Store.Backend.Commit.add cstore c0 in
-
-      Printf.printf "Commit key type: %s\n"
-        (Irmin.Type.to_string Store.Backend.Commit.Key.t k_c0);
-      let hash = Store.Backend.Commit.Key.to_hash k_c0 in
-      Printf.printf "Commit hash (type): %s\n"
-        (Irmin.Type.to_string Store.Hash.t hash);
-      let hash_bytes = Irmin.Type.(unstage (to_bin_string Store.Hash.t)) hash in
-      let hex =
-        String.to_seq hash_bytes
-        |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
-        |> List.of_seq |> String.concat ""
-      in
-      Printf.printf "Commit hash (hex): %s\n" hex;
-      k_c0) in
+        Printf.printf "Commit key type: %s\n"
+          (Irmin.Type.to_string Store.Backend.Commit.Key.t k_c0);
+        let hash = Store.Backend.Commit.Key.to_hash k_c0 in
+        Printf.printf "Commit hash (type): %s\n"
+          (Irmin.Type.to_string Store.Hash.t hash);
+        let hash_bytes =
+          Irmin.Type.(unstage (to_bin_string Store.Hash.t)) hash
+        in
+        let hex =
+          String.to_seq hash_bytes
+          |> Seq.map (fun c -> Printf.sprintf "%02x" (Char.code c))
+          |> List.of_seq
+          |> String.concat ""
+        in
+        Printf.printf "Commit hash (hex): %s\n" hex;
+        k_c0)
+  in
 
   (* Run GC with c0 as target to remove borphan *)
   Printf.printf "Running GC with c0 as target...\n";

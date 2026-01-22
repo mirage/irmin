@@ -8,5 +8,12 @@
  (files README.md)
  (package irmin-cli)
  (deps %{bin:irmin})
- (libraries irmin irmin-cli irmin-git irmin-git.unix eio eio_main eio.unix
+ (libraries
+  irmin
+  irmin-cli
+  irmin-git
+  irmin-git.unix
+  eio
+  eio_main
+  eio.unix
   lwt_eio))

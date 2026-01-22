@@ -595,8 +595,10 @@ let show_inode c (inode : Files.Inode.compress) =
       | Contents_inlined_value (n, bytes, ()) ->
           let img1 = string A.(fg lightred ++ st bold) "Contents (inlined):" in
           let img2 = name n in
-          let content = strf ~attr:A.(fg lightwhite) "%d bytes" (String.length bytes) in
-          ( img1 <-> (void 2 0 <|> (img2 <-> content)), [] )
+          let content =
+            strf ~attr:A.(fg lightwhite) "%d bytes" (String.length bytes)
+          in
+          (img1 <-> (void 2 0 <|> (img2 <-> content)), [])
       | Node (n, addr) ->
           let node, node_button = addr_show addr in
           let img1 = string A.(fg lightred ++ st bold) "Node:" in

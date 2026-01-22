@@ -5,7 +5,7 @@ type t =
   | Bimodal of { small : int; large : int; small_ratio : float }
   | Log_normal of { mu : float; sigma : float; min : int; max : int }
   | Zipfian of { min : int; max : int; exponent : float; cdf : float array }
-  | Fixed of int list  (* Cycle through fixed sizes *)
+  | Fixed of int list (* Cycle through fixed sizes *)
 
 let uniform ~min ~max = Uniform { min; max }
 let bimodal ~small ~large ~small_ratio = Bimodal { small; large; small_ratio }
@@ -16,14 +16,14 @@ let fixed sizes = Fixed sizes
 let zipfian ~min ~max ~exponent =
   let n = max - min + 1 in
   (* Precompute CDF for efficient sampling *)
-  let weights = Array.init n (fun i ->
-    1.0 /. (float_of_int (i + 1) ** exponent)
-  ) in
+  let weights =
+    Array.init n (fun i -> 1.0 /. (float_of_int (i + 1) ** exponent))
+  in
   let total = Array.fold_left ( +. ) 0.0 weights in
   let cdf = Array.make n 0.0 in
   let acc = ref 0.0 in
   for i = 0 to n - 1 do
-    acc := !acc +. weights.(i) /. total;
+    acc := !acc +. (weights.(i) /. total);
     cdf.(i) <- !acc
   done;
   Zipfian { min; max; exponent; cdf }
@@ -41,8 +41,7 @@ let binary_search_cdf cdf u =
     if lo >= hi then lo
     else
       let mid = (lo + hi) / 2 in
-      if cdf.(mid) < u then go (mid + 1) hi
-      else go lo mid
+      if cdf.(mid) < u then go (mid + 1) hi else go lo mid
   in
   go 0 (Array.length cdf - 1)
 
@@ -53,7 +52,7 @@ let sample_one = function
       if Random.float 1.0 < small_ratio then small else large
   | Log_normal { mu; sigma; min; max } ->
       let z = random_normal () in
-      let x = exp (mu +. sigma *. z) in
+      let x = exp (mu +. (sigma *. z)) in
       let size = int_of_float x in
       Int.max min (Int.min max size)
   | Zipfian { min; cdf; _ } ->
@@ -64,8 +63,7 @@ let sample_one = function
       let n = List.length sizes in
       List.nth sizes (Random.int n)
 
-let sample ~n dist =
-  Array.init n (fun _ -> sample_one dist)
+let sample ~n dist = Array.init n (fun _ -> sample_one dist)
 
 (* Statistics *)
 let mean arr =
@@ -83,8 +81,7 @@ let describe arr =
   Array.sort Int.compare sorted;
   let n = Array.length sorted in
   {||}
-  ^ Printf.sprintf "n=%d, min=%d, p50=%d, p90=%d, p99=%d, max=%d, mean=%.1f"
-      n
+  ^ Printf.sprintf "n=%d, min=%d, p50=%d, p90=%d, p99=%d, max=%d, mean=%.1f" n
       sorted.(0)
       sorted.(n / 2)
       sorted.(n * 9 / 10)

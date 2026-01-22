@@ -82,8 +82,8 @@ module Tree : sig
   val set_inline_contents_enabled : bool -> unit
   (** [set_inline_contents_enabled b] controls whether small contents are
       inlined directly in nodes. When [true], contents smaller than the
-      configured threshold will be inlined. Default is [false]. This is a
-      global setting that should be set before creating stores. *)
+      configured threshold will be inlined. Default is [false]. This is a global
+      setting that should be set before creating stores. *)
 
   val set_inline_contents_max_bytes : int -> unit
   (** [set_inline_contents_max_bytes n] sets the maximum serialized size in
@@ -93,13 +93,14 @@ module Tree : sig
   val get_inline_contents_max_bytes : unit -> int
   (** [get_inline_contents_max_bytes ()] returns the current threshold. *)
 
-  module Make (B : Backend.S) : Tree_intf.S
-    with type path = B.Node.Path.t
-     and type step = B.Node.Path.step
-     and type metadata = B.Node.Metadata.t
-     and type contents = B.Contents.value
-     and type contents_key = B.Contents.Key.t
-     and type hash = B.Hash.t
+  module Make (B : Backend.S) :
+    Tree_intf.S
+      with type path = B.Node.Path.t
+       and type step = B.Node.Path.step
+       and type metadata = B.Node.Metadata.t
+       and type contents = B.Contents.value
+       and type contents_key = B.Contents.Key.t
+       and type hash = B.Hash.t
 end
 
 module Metadata = Metadata

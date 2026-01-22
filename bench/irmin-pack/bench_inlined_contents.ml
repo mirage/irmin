@@ -36,9 +36,15 @@ let time_it name f =
   (ms, result)
 
 (* Content generators *)
-let small_content i = Bytes.of_string (Printf.sprintf "v%d" (i mod 1000)) (* 2-4 bytes, will be inlined *)
-let medium_content i = Bytes.of_string (Printf.sprintf "value_%06d" i) (* 12 bytes, will be inlined *)
-let large_content i = Bytes.of_string (Printf.sprintf "large_content_value_%010d" i) (* 30 bytes, NOT inlined *)
+let small_content i = Bytes.of_string (Printf.sprintf "v%d" (i mod 1000))
+
+(* 2-4 bytes, will be inlined *)
+let medium_content i = Bytes.of_string (Printf.sprintf "value_%06d" i)
+(* 12 bytes, will be inlined *)
+
+let large_content i =
+  Bytes.of_string (Printf.sprintf "large_content_value_%010d" i)
+(* 30 bytes, NOT inlined *)
 
 type content_size = Small | Medium | Large
 
@@ -60,63 +66,65 @@ type config = {
   content_size : content_size;
 }
 
-let _default_config = {
-  num_entries = 1000;
-  num_commits = 10;
-  content_size = Small;
-}
+let _default_config =
+  { num_entries = 1000; num_commits = 10; content_size = Small }
 
 (* Run a single benchmark *)
 let run_benchmark ~sw ~fs ~inline_contents ~config root =
   Eio.Path.rmtree ~missing_ok:true root;
   let store_config =
     Irmin_pack.config ~sw ~fs ~fresh:true
-      ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal
-      ~inline_contents root
+      ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal ~inline_contents
+      root
   in
   let repo = Store.Repo.v store_config in
 
   (* Benchmark: Write phase *)
   let write_time, commits =
-    time_it (Printf.sprintf "Write (%d commits x %d entries)"
-               config.num_commits config.num_entries)
-      (fun () ->
-         let commits = ref [] in
-         for commit_idx = 0 to config.num_commits - 1 do
-           let tree = Store.Tree.empty () in
-           let tree =
-             let rec add_entries tree i =
-               if i >= config.num_entries then tree
-               else
-                 let key = [ Printf.sprintf "dir%d" (i / 100);
-                             Printf.sprintf "file%d" i ] in
-                 let value = content_of_size config.content_size
-                               (commit_idx * config.num_entries + i) in
-                 let tree = Store.Tree.add tree key value in
-                 add_entries tree (i + 1)
-             in
-             add_entries tree 0
-           in
-           let commit = Store.Commit.v repo ~parents:[] ~info tree in
-           commits := commit :: !commits
-         done;
-         !commits)
+    time_it
+      (Printf.sprintf "Write (%d commits x %d entries)" config.num_commits
+         config.num_entries) (fun () ->
+        let commits = ref [] in
+        for commit_idx = 0 to config.num_commits - 1 do
+          let tree = Store.Tree.empty () in
+          let tree =
+            let rec add_entries tree i =
+              if i >= config.num_entries then tree
+              else
+                let key =
+                  [
+                    Printf.sprintf "dir%d" (i / 100); Printf.sprintf "file%d" i;
+                  ]
+                in
+                let value =
+                  content_of_size config.content_size
+                    ((commit_idx * config.num_entries) + i)
+                in
+                let tree = Store.Tree.add tree key value in
+                add_entries tree (i + 1)
+            in
+            add_entries tree 0
+          in
+          let commit = Store.Commit.v repo ~parents:[] ~info tree in
+          commits := commit :: !commits
+        done;
+        !commits)
   in
 
   (* Benchmark: Read phase - read all contents from last commit *)
   let read_time, () =
-    time_it (Printf.sprintf "Read (%d entries)" config.num_entries)
-      (fun () ->
-         match commits with
-         | [] -> ()
-         | commit :: _ ->
-           let tree = Store.Commit.tree commit in
-           for i = 0 to config.num_entries - 1 do
-             let key = [ Printf.sprintf "dir%d" (i / 100);
-                         Printf.sprintf "file%d" i ] in
-             let _ = Store.Tree.find tree key in
-             ()
-           done)
+    time_it (Printf.sprintf "Read (%d entries)" config.num_entries) (fun () ->
+        match commits with
+        | [] -> ()
+        | commit :: _ ->
+            let tree = Store.Commit.tree commit in
+            for i = 0 to config.num_entries - 1 do
+              let key =
+                [ Printf.sprintf "dir%d" (i / 100); Printf.sprintf "file%d" i ]
+              in
+              let _ = Store.Tree.find tree key in
+              ()
+            done)
   in
 
   (* Get storage size *)
@@ -131,7 +139,8 @@ let run ~sw ~fs ~config =
   let root_with_inline = Eio.Path.(fs / "_bench" / "inline-yes") in
 
   Fmt.pr "@.=== Benchmark: %s contents, %d commits x %d entries ===@.@."
-    (string_of_size config.content_size) config.num_commits config.num_entries;
+    (string_of_size config.content_size)
+    config.num_commits config.num_entries;
 
   Fmt.pr "--- Without inlining ---@.";
   let no_inline_write, no_inline_read, no_inline_size =
@@ -153,8 +162,9 @@ let run ~sw ~fs ~config =
     ((with_inline_read -. no_inline_read) /. no_inline_read *. 100.0);
   Fmt.pr "Store size: %d MB (no inline) vs %d MB (inline) [%.1f%%]@."
     no_inline_size with_inline_size
-    (Float.of_int (with_inline_size - no_inline_size) /.
-     Float.of_int (max 1 no_inline_size) *. 100.0);
+    (Float.of_int (with_inline_size - no_inline_size)
+    /. Float.of_int (max 1 no_inline_size)
+    *. 100.0);
   ()
 
 (* Command line interface *)
@@ -169,7 +179,9 @@ let num_commits =
   Arg.(value & opt int 10 & info [ "c"; "num-commits" ] ~doc)
 
 let content_size =
-  let doc = "Content size: small (2-4 bytes), medium (12 bytes), or large (30 bytes)" in
+  let doc =
+    "Content size: small (2-4 bytes), medium (12 bytes), or large (30 bytes)"
+  in
   let sizes = [ ("small", Small); ("medium", Medium); ("large", Large) ] in
   Arg.(value & opt (enum sizes) Small & info [ "s"; "size" ] ~doc)
 
@@ -186,6 +198,7 @@ let main () num_entries num_commits content_size =
 let cmd =
   let doc = "Benchmark inline contents performance" in
   let info = Cmd.info "bench-inlined-contents" ~doc in
-  Cmd.v info Term.(const main $ const () $ num_entries $ num_commits $ content_size)
+  Cmd.v info
+    Term.(const main $ const () $ num_entries $ num_commits $ content_size)
 
 let () = exit (Cmd.eval cmd)

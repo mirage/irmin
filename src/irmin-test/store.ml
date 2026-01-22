@@ -2390,9 +2390,7 @@ module Make (S : Generic_key) = struct
 
       let node_b =
         S.Tree.destruct tree
-        |> ( function
-        | `Contents _ -> assert false
-        | `Node (n, _il) -> n )
+        |> ( function `Contents _ -> assert false | `Node (n, _il) -> n )
         |> S.to_backend_node
       in
       let node_ph = pre_hash_of S.Backend.Node.Val.t node_b in

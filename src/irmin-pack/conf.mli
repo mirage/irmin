@@ -135,14 +135,16 @@ val inline_contents : Irmin.Backend.Conf.t -> bool
 
     When enabled, content values smaller than 16 bytes (serialized) are stored
     directly within the parent node entry rather than as separate pack entries.
-    This reduces storage overhead and improves read performance for small values.
+    This reduces storage overhead and improves read performance for small
+    values.
 
     Note: Enabling this option changes the hash computation of nodes, making
     stores incompatible with stores created with inlining disabled for
     hash-based comparisons.
 
-    See the {{:./doc/irmin-pack/design/inline_contents.md}inline contents design
-    doc} for more details. *)
+    See the
+    {{:./doc/irmin-pack/design/inline_contents.md}inline contents design doc}
+    for more details. *)
 
 val switch : Irmin.Backend.Conf.t -> Eio.Switch.t
 (** Eio switch *)

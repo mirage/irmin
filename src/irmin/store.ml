@@ -939,10 +939,7 @@ module Make (B : Backend.S) = struct
   let mem_tree t k = tree t |> fun tree -> Tree.mem_tree tree k
   let find_all t k = tree t |> fun tree -> Tree.find_all tree k
   let find t k = tree t |> fun tree -> Tree.find tree k
-
-  let get t k =
-    tree t |> fun tree -> Tree.get tree k
-
+  let get t k = tree t |> fun tree -> Tree.get tree k
   let find_tree t k = tree t |> fun tree -> Tree.find_tree tree k
   let get_tree t k = tree t |> fun tree -> Tree.get_tree tree k
 

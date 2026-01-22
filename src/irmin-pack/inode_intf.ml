@@ -118,10 +118,12 @@ module type Compress = sig
   type address = Offset of pack_offset | Hash of hash
   type ptr = { index : dict_key; hash : address }
   type tree = { depth : dict_key; length : dict_key; entries : ptr list }
+
   type value =
     | Contents of name * address * metadata
     | Contents_inlined_value of name * string * metadata
     | Node of name * address
+
   type v = Values of value list | Tree of tree
   type v1 = { mutable length : int; v : v }
 

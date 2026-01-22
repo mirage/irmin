@@ -356,9 +356,9 @@ end
 
 (** Test that verifies mixed V2/V3 inode entries in a pack file.
 
-    This test opens an existing store with V2 inodes, adds new entries
-    (which will be V3), and verifies that both V2 and V3 entries coexist
-    and can be read correctly.
+    This test opens an existing store with V2 inodes, adds new entries (which
+    will be V3), and verifies that both V2 and V3 entries coexist and can be
+    read correctly.
 
     We use version_2_to_3_always store because it uses always indexing strategy
     which indexes inodes (unlike minimal strategy used by version_3_minimal). *)
@@ -422,8 +422,7 @@ module Test_mixed_v2_v3 = struct
 
     (* The archived store should have V2 inodes (created before V3 introduction) *)
     Alcotest.(check bool)
-      "Initial store should have V2 inodes"
-      (initial_v2 > 0) true;
+      "Initial store should have V2 inodes" (initial_v2 > 0) true;
 
     (* Add new content - this will create V3 inodes *)
     let tree = S.Commit.tree commit in
@@ -450,8 +449,7 @@ module Test_mixed_v2_v3 = struct
       "Should still have V2 inodes (old entries preserved)"
       (final_v2 >= initial_v2) true;
     Alcotest.(check bool)
-      "Should have new V3 inodes (from new writes)"
-      (final_v3 > initial_v3) true;
+      "Should have new V3 inodes (from new writes)" (final_v3 > initial_v3) true;
 
     (* Verify we can still read the original commit via its hash *)
     let repo = S.Repo.v conf in
@@ -464,7 +462,7 @@ module Test_mixed_v2_v3 = struct
 
     [%log.app
       "Mixed V2/V3 test passed: V2=%d V3=%d inodes coexist and are readable"
-      final_v2 final_v3]
+        final_v2 final_v3]
 end
 
 let tests ~fs ~domain_mgr =

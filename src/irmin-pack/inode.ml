@@ -2459,10 +2459,7 @@ struct
       ~mem:(Pack.unsafe_mem t) v
 
   let hash_exn = Val.hash_exn
-
-  let add t v =
-    save t v
-
+  let add t v = save t v
   let equal_hash = Irmin.Type.(unstage (equal H.t))
 
   let check_hash expected got =

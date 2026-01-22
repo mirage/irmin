@@ -182,7 +182,8 @@ struct
     | Node n -> (n.name, `Node (n.node, n.inlined))
     | Contents c -> (c.name, `Contents (c.contents, Metadata.default))
     | Contents_m c -> (c.name, `Contents (c.contents, c.metadata))
-    | Contents_inlined_value c -> (c.name, `Contents_inlined (c.value, c.metadata))
+    | Contents_inlined_value c ->
+        (c.name, `Contents_inlined (c.value, c.metadata))
     | Node_hash _ | Contents_hash _ | Contents_m_hash _
     | Contents_inlined_hash _ ->
         (* Not reachable after [Portable.of_node]. See invariant on {!entry}. *)
@@ -214,7 +215,8 @@ struct
         (c.name, `Contents (Contents_key.to_hash c.contents, c.metadata))
     | Contents_hash c -> (c.name, `Contents (c.contents, Metadata.default))
     | Contents_m_hash c -> (c.name, `Contents (c.contents, c.metadata))
-    | Contents_inlined_value c -> (c.name, `Contents_inlined (c.value, c.metadata))
+    | Contents_inlined_value c ->
+        (c.name, `Contents_inlined (c.value, c.metadata))
     | Contents_inlined _c -> assert false
     | Contents_inlined_hash _c -> assert false
 
