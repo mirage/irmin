@@ -2267,16 +2267,22 @@ module Make (P : Backend.S) = struct
       k key
     in
 
-    (* Helper to check if contents should be inlined at export time *)
+    (* Helper to check if contents should be inlined at export time.
+       Note: the serialized size includes only the raw content bytes.
+       When stored in a node, there's additional overhead:
+       - 1-byte variant tag for the Contents.t encoding
+       - 1-byte varint length prefix for the string
+       So we add 2 bytes to the size check. *)
     let should_inline_contents c =
       if not !inline_contents_enabled then None
       else
-        match Contents.cached_value c with
-        | None -> None
-        | Some v ->
+        match Contents.to_value ~cache:true c with
+        | Error _ -> None
+        | Ok v ->
             let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
             let bytes = to_bin v in
-            if String.length bytes <= inline_contents_max_bytes then Some bytes
+            (* Add 2 bytes for variant tag and length prefix overhead *)
+            if String.length bytes + 2 < inline_contents_max_bytes then Some bytes
             else None
     in
 
