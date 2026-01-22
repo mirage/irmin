@@ -147,14 +147,14 @@ let test_inlining_structure ~fs () =
   in
   (* Create a tree with small content that should be inlined *)
   let tree = S.Tree.empty () in
-  (* Note: inlining threshold is 16 bytes *serialized*, which includes:
+  (* Note: inlining threshold is 48 bytes *serialized*, which includes:
      - 1-byte variant tag for the Contents.t encoding
      - 1-byte varint length prefix for the string
-     So raw content must be < 14 bytes (13 or less) to be inlined. *)
+     So raw content must be < 46 bytes (45 or less) to be inlined. *)
   let tree = S.Tree.add tree [ "tiny" ] "x" in (* 1 byte raw -> 3 bytes serialized -> inlined *)
   let tree = S.Tree.add tree [ "small" ] "hello" in (* 5 bytes raw -> 7 bytes serialized -> inlined *)
-  let tree = S.Tree.add tree [ "medium" ] "0123456789abc" in (* 13 bytes raw -> 15 bytes serialized -> inlined *)
-  let tree = S.Tree.add tree [ "large" ] "0123456789abcd" in (* 14 bytes raw -> 16 bytes serialized -> NOT inlined *)
+  let tree = S.Tree.add tree [ "medium" ] "0123456789abc0123456789abc0123456789abc012345" in (* 45 bytes raw -> 47 bytes serialized -> inlined *)
+  let tree = S.Tree.add tree [ "large" ] "0123456789abc0123456789abc0123456789abc0123456" in (* 46 bytes raw -> 48 bytes serialized -> NOT inlined *)
   (* Commit to persist the tree *)
   let commit = S.Commit.v repo ~parents:[] ~info tree in
   let _hash = S.Commit.hash commit in

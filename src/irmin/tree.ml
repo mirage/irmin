@@ -36,8 +36,12 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let inline_contents_enabled = ref false
 let set_inline_contents_enabled v = inline_contents_enabled := v
 
-(* Maximum size in bytes for contents to be inlined directly in nodes *)
-let inline_contents_max_bytes = 16
+(* Maximum size in bytes for contents to be inlined directly in nodes.
+   Note: this is the threshold for the *serialized* size including 2 bytes
+   overhead (variant tag + length prefix). *)
+let inline_contents_max_bytes = ref 48
+let set_inline_contents_max_bytes v = inline_contents_max_bytes := v
+let get_inline_contents_max_bytes () = !inline_contents_max_bytes
 
 type fuzzy_bool = False | True | Maybe
 type ('a, 'r) cont = ('a -> 'r) -> 'r
@@ -2282,7 +2286,7 @@ module Make (P : Backend.S) = struct
             let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
             let bytes = to_bin v in
             (* Add 2 bytes for variant tag and length prefix overhead *)
-            if String.length bytes + 2 < inline_contents_max_bytes then Some bytes
+            if String.length bytes + 2 < !inline_contents_max_bytes then Some bytes
             else None
     in
 

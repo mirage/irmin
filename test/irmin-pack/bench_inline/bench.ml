@@ -6,6 +6,7 @@ type config = {
   n_contents : int;  (* Number of contents to create *)
   distribution : Distribution.t;
   inline_contents : bool;
+  inline_threshold : int;  (* Max serialized bytes for inlining *)
   n_reads : int;  (* Number of read operations for latency measurement *)
   runs : int;  (* Number of benchmark runs *)
 }
@@ -23,6 +24,7 @@ let default_config = {
   n_contents = 10_000;
   distribution = Distribution.around_threshold;
   inline_contents = false;
+  inline_threshold = 48;
   n_reads = 1_000;
   runs = 5;
 }
@@ -88,6 +90,9 @@ let run_one ~sw ~fs ~config =
   reset_env ~fs ();
   let contents = generate ~config in
   let content_sizes = Array.map (fun (_, _, size) -> size) contents in
+
+  (* Set the inlining threshold before opening repo *)
+  Irmin.Tree.set_inline_contents_max_bytes config.inline_threshold;
 
   (* Write phase *)
   let repo = open_repo ~sw ~fs ~fresh:true ~readonly:false
@@ -180,12 +185,13 @@ let run ~fs ~config =
 
 (* Print results as CSV row *)
 let print_csv_header () =
-  Printf.printf "distribution,inline,n_contents,store_bytes,write_ms,read_p50_us,read_p99_us,read_p999_us,inlined,non_inlined,size_stats\n"
+  Printf.printf "distribution,threshold,n_contents,store_bytes,write_ms,read_p50_us,read_p99_us,read_p999_us,inlined,non_inlined,size_stats\n"
 
 let print_csv_row ~dist_name ~config (store_size, write_time, p50, p99, p999, inlined, non_inlined, sizes) =
-  Printf.printf "%s,%b,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,\"%s\"\n"
+  let threshold_str = if config.inline_contents then string_of_int config.inline_threshold else "off" in
+  Printf.printf "%s,%s,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,\"%s\"\n"
     dist_name
-    config.inline_contents
+    threshold_str
     config.n_contents
     store_size
     write_time
