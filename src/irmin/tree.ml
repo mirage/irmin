@@ -36,6 +36,9 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let inline_contents_enabled = ref false
 let set_inline_contents_enabled v = inline_contents_enabled := v
 
+(* Maximum size in bytes for contents to be inlined directly in nodes *)
+let inline_contents_max_bytes = 16
+
 type fuzzy_bool = False | True | Maybe
 type ('a, 'r) cont = ('a -> 'r) -> 'r
 
@@ -503,10 +506,7 @@ module Make (P : Backend.S) = struct
     type portable = Portable.t [@@deriving irmin ~equal ~pp]
 
     (* [elt] is a tree *)
-    type elt =
-      [ `Node of t * Contents.t list
-      | `Contents of Contents.t * Metadata.t
-      | `Contents_inlined of Contents.t * Metadata.t ]
+    type elt = [ `Node of t * Contents.t list | `Contents of Contents.t * Metadata.t ]
 
     and update = Add of elt | Remove
     and updatemap = update StepMap.t
@@ -535,20 +535,9 @@ module Make (P : Backend.S) = struct
 
     let elt_t (t : t Type.t) : elt Type.t =
       let open Type in
-      let _f node contents contents_m = function
-        | `Node (x, il) -> node (x, il)
-        | `Contents (c, m) | `Contents_inlined (c, m) ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
-            if equal_metadata m Metadata.default then contents c
-            else contents_m (c, m)
-      in
-      let _g = case1 "Node" (pair t Contents.t) (fun x -> `Node x) in
       variant "Node.value" (fun node contents contents_m -> function
         | `Node (x, il) -> node (x, il)
-        | `Contents (c, m) | `Contents_inlined (c, m) ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
+        | `Contents (c, m) ->
             if equal_metadata m Metadata.default then contents c
             else contents_m (c, m))
       |~ case1 "Node" (pair t (list Contents.t)) (fun x -> `Node x)
@@ -648,8 +637,6 @@ module Make (P : Backend.S) = struct
     let rec clear_elt ~max_depth depth v =
       match v with
       | `Contents (c, _) -> if depth + 1 > max_depth then Contents.clear c
-      | `Contents_inlined (c, _) ->
-          if depth + 1 > max_depth then Contents.clear c
       | `Node (t, il) ->
           clear ~max_depth (depth + 1) t;
           List.iter Contents.clear il
@@ -1030,9 +1017,7 @@ module Make (P : Backend.S) = struct
         |> Seq.exists (fun (_, v) ->
                match v with
                | `Node (n, _il) -> Option.is_none (cached_key n)
-               | `Contents (c, _) -> Option.is_none (Contents.cached_key c)
-               | `Contents_inlined (c, _) ->
-                   Option.is_none (Contents.cached_key c))
+               | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
       in
       if must_build_portable_node then
         let pnode =
@@ -1040,14 +1025,7 @@ module Make (P : Backend.S) = struct
             bindings
             |> Seq.map (fun (step, v) ->
                    match v with
-                   | `Contents (c, m) ->
-                       Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                         __FILE__ __FUNCTION__ __LINE__;
-                       (step, `Contents (Contents.hash c, m))
-                   | `Contents_inlined (c, m) ->
-                       Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                         __FILE__ __FUNCTION__ __LINE__;
-                       (step, `Contents (Contents.hash c, m))
+                   | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
                    | `Node (n, _il) ->
                        hash ~cache n (fun k -> (step, `Node (k, []))))
           in
@@ -1061,16 +1039,6 @@ module Make (P : Backend.S) = struct
             |> Seq.map (fun (step, v) ->
                    match v with
                    | `Contents (c, m) -> (
-                       Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                         __FILE__ __FUNCTION__ __LINE__;
-                       match Contents.cached_key c with
-                       | Some k -> (step, `Contents (k, m))
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false)
-                   | `Contents_inlined (c, m) -> (
-                       Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                         __FILE__ __FUNCTION__ __LINE__;
                        match Contents.cached_key c with
                        | Some k -> (step, `Contents (k, m))
                        | None ->
@@ -1093,14 +1061,6 @@ module Make (P : Backend.S) = struct
      fun ~cache e k ->
       match e with
       | `Contents (c, m) -> (
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
-          match Contents.key c with
-          | Some key -> k (Node_value (`Contents (key, m)))
-          | None -> k (Pnode_value (`Contents (Contents.hash c, m))))
-      | `Contents_inlined (c, m) -> (
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           match Contents.key c with
           | Some key -> k (Node_value (`Contents (key, m)))
           | None -> k (Pnode_value (`Contents (Contents.hash c, m))))
@@ -1147,8 +1107,6 @@ module Make (P : Backend.S) = struct
     let hash ~cache k = hash ~cache k (fun x -> x)
 
     let value_of_key ~cache t repo k =
-      Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-        __FUNCTION__ __LINE__;
       match cached_value t with
       | Some v -> ok v
       | None -> (
@@ -1284,9 +1242,8 @@ module Make (P : Backend.S) = struct
       ||
       match (x, y) with
       | `Contents x, `Contents y -> contents_equal x y
-      | `Contents_inlined x, `Contents_inlined y -> contents_equal x y
       | `Node (x, _il), `Node (y, _il') -> equal x y
-      | _ -> false
+      | `Contents _, `Node _ | `Node _, `Contents _ -> false
 
     and map_equal (x : map) (y : map) = StepMap.equal elt_equal x y
 
@@ -1385,14 +1342,10 @@ module Make (P : Backend.S) = struct
           Portable_value.is_empty_after_updates ~cache p um
 
     let findv_aux ~cache ~value_of_key ctx t step =
-      Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-        __FUNCTION__ __LINE__;
       let of_map m = try Some (StepMap.find step m) with Not_found -> None in
       let of_value = Regular_value.findv ~cache ~env:t.info.env step t in
       let of_portable = Portable_value.findv ~cache ~env:t.info.env step t () in
       let of_t () =
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
         match
           (Scan.cascade t
              [
@@ -1414,40 +1367,26 @@ module Make (P : Backend.S) = struct
               Scan.t)
         with
         | Map m ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             of_map m
         | Repo_value (repo, v) ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             of_value repo v
         | Repo_key (repo, k) ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             let v = value_of_key ~cache t repo k in
             let v = get_ok ctx v in
             of_value repo v
         | Value_dirty (repo, v, um) -> (
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             match StepMap.find_opt step um with
             | Some (Add v) -> Some v
             | Some Remove -> None
             | None -> of_value repo v)
         | Portable p ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             of_portable p
         | Portable_dirty (p, um) -> (
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             match StepMap.find_opt step um with
             | Some (Add v) -> Some v
             | Some Remove -> None
             | None -> of_portable p)
         | Pruned h ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             pruned_hash_exn ctx h
       in
       match Atomic.get t.info.findv_cache with
@@ -1662,18 +1601,6 @@ module Make (P : Backend.S) = struct
             | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
             | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
             | Some (`Gt depth) -> if d >= depth then apply () else k acc)
-        | `Contents_inlined c -> (
-            let apply () =
-              let tree path = tree path (`Contents c) in
-              Contents.fold ~force ~cache ~path contents tree (fst c) acc |> k
-            in
-            match depth with
-            | None -> apply ()
-            | Some (`Eq depth) -> if d = depth - 1 then apply () else k acc
-            | Some (`Le depth) -> if d < depth then apply () else k acc
-            | Some (`Lt depth) -> if d < depth - 1 then apply () else k acc
-            | Some (`Ge depth) -> if d >= depth - 1 then apply () else k acc
-            | Some (`Gt depth) -> if d >= depth then apply () else k acc)
       and steps : type r. ((step * elt) Seq.t, acc, r) cps_folder =
        fun ~path acc d s k ->
         match s () with
@@ -1741,54 +1668,12 @@ module Make (P : Backend.S) = struct
       | Some m -> Some (StepMap.remove step m)
 
     let update t step up =
-      Fmt.pr "update %a@." (Repr.pp step_t) step;
       let env = t.info.env in
       let of_map m =
         let m' =
           match up with
           | Remove -> StepMap.remove step m
-          | Add v -> (
-              let update_ t =
-                match t with None -> t | Some _ -> assert false
-              in
-              match v with
-              | `Node ({ v = _node; _ }, _) ->
-                  (* Fmt.pr "Node:@.";
-                  (match Atomic.get node with
-                  | Map map ->
-                      Fmt.pr "Map@.";
-                      let p1, p2 =
-                        StepMap.partition
-                          (fun _ -> function
-                            | `Contents_inlined _ -> true | _ -> false)
-                          map
-                      in
-                      let print =
-                        StepMap.iter (fun step (elt : elt) ->
-                            match elt with
-                            | `Node _ ->
-                                Fmt.pr "Node / step: %a@." (Repr.pp step_t) step
-                            | `Contents _ ->
-                                Fmt.pr "Contents / step: %a@." (Repr.pp step_t)
-                                  step
-                            | `Contents_inlined _ ->
-                                Fmt.pr "Contents_inlined / step: %a@."
-                                  (Repr.pp step_t) step)
-                      in
-                      Fmt.pr "TO INLINE:@.";
-                      print p1;
-                      Fmt.pr "NOT TO INLINE:@.";
-                      print p2
-                  | Key _ -> Fmt.pr "Key@."
-                  | Value _ -> Fmt.pr "Value@."
-                  | Portable_dirty _ -> Fmt.pr "Portable_dirty@."
-                  | Pruned _ -> Fmt.pr "Pruned@."); *)
-                  StepMap.add step v m
-              | `Contents_inlined _ ->
-                  (* Fmt.pr "Contents_inlined@."; *)
-                  let m = StepMap.update step update_ m in
-                  StepMap.add step v m
-              | _ -> StepMap.add step v m)
+          | Add v -> StepMap.add step v m
         in
         if m == m' then t else of_map ~env m'
       in
@@ -1828,33 +1713,19 @@ module Make (P : Backend.S) = struct
             Scan.t)
       with
       | Map m ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           of_map m
       | Repo_value (repo, v) ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           of_value repo v StepMap.empty
       | Repo_key (repo, k) ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           let v = value_of_key ~cache:true t repo k |> get_ok "update" in
           of_value repo v StepMap.empty
       | Value_dirty (repo, v, um) ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           of_value repo v um
       | Portable p ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           of_portable p StepMap.empty
       | Portable_dirty (p, um) ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           of_portable p um
       | Pruned h ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           pruned_hash_exn "update" h
 
     let remove t step = update t step Remove
@@ -1913,7 +1784,6 @@ module Make (P : Backend.S) = struct
               Merge.bind_promise old (fun old () ->
                   match old with
                   | `Contents (_, m) -> ok (Some m)
-                  | `Contents_inlined (_, m) -> ok (Some m)
                   | `Node _ -> ok None)
             in
             Merge.(f Metadata.merge) ~old:mold cx cy >>=* fun m ->
@@ -1921,19 +1791,16 @@ module Make (P : Backend.S) = struct
               Merge.bind_promise old (fun old () ->
                   match old with
                   | `Contents (c, _) -> ok (Some c)
-                  | `Contents_inlined (c, _) -> ok (Some c)
                   | `Node _ -> ok None)
             in
             Merge.(f Contents.merge) ~old x y >>=* fun c ->
             Merge.ok (`Contents (c, m))
-            (* TODO inlined *)
         | `Node (x, _il), `Node (y, _il') ->
             (merge [@tailcall]) (fun m ->
                 let old =
                   Merge.bind_promise old (fun old () ->
                       match old with
                       | `Contents _ -> ok None
-                      | `Contents_inlined _ -> ok None
                       | `Node (n, _il) -> ok (Some n))
                 in
                 Merge.(f m ~old x y) >>=* fun n -> Merge.ok (`Node (n, [])))
@@ -1962,8 +1829,7 @@ module Make (P : Backend.S) = struct
 
   type t =
     [ `Node of node * Contents.t list
-    | `Contents of Contents.t * Metadata.t
-    | `Contents_inlined of Contents.t * metadata ]
+    | `Contents of Contents.t * Metadata.t ]
   [@@deriving irmin]
 
   let to_backend_node n =
@@ -1983,8 +1849,6 @@ module Make (P : Backend.S) = struct
           Fmt.Dump.(list (Type.pp Contents.t))
           il
     | `Contents (c, _) -> Fmt.pf ppf "contents: %a" (Type.pp Contents.t) c
-    | `Contents_inlined (c, _) ->
-        Fmt.pf ppf "inlined contents: %a" (Type.pp Contents.t) c
 
   let contents_equal ((c1, m1) as x1) ((c2, m2) as x2) =
     x1 == x2
@@ -1996,51 +1860,23 @@ module Make (P : Backend.S) = struct
     ||
     match (x, y) with
     | `Node (x, _xi), `Node (y, _yi) -> Node.equal x y
-    (* TODO inline *)
     | `Contents x, `Contents y -> contents_equal x y
-    | `Contents_inlined x, `Contents_inlined y -> contents_equal x y
-    | `Node _, `Contents _
-    | `Node _, `Contents_inlined _
-    | `Contents _, `Node _
-    | `Contents _, `Contents_inlined _
-    | `Contents_inlined _, `Node _
-    | `Contents_inlined _, `Contents _ ->
-        false
+    | `Node _, `Contents _ | `Contents _, `Node _ -> false
 
   let is_empty = function
     | `Node (n, _il) -> Node.is_empty ~cache:true n
     | `Contents _ -> false
-    | `Contents_inlined _ -> false
 
-  type elt =
-    [ `Node of node * contents list
-    | `Contents of contents * metadata
-    | `Contents_inlined of contents * metadata ]
+  type elt = [ `Node of node * contents list | `Contents of contents * metadata ]
 
   let of_node n = `Node (n, [])
 
   let of_contents ?(metadata = Metadata.default) c =
     let env = Env.empty () in
     let c = Contents.of_value ~env c in
-    if !inline_contents_enabled then (
-      let len =
-        match Repr.Size.of_value Contents.t with
-        | Dynamic f -> f c
-        | Static len -> len
-        | Unknown -> 0 (* Treat unknown size as "don't inline" *)
-      in
-      (* Inline small contents (< 16 bytes) when inlining is enabled *)
-      if len > 0 && len < 16 then `Contents_inlined (c, metadata)
-      else `Contents (c, metadata))
-    else `Contents (c, metadata)
-
-  let of_contents_inlined ?(metadata = Metadata.default) c =
-    let env = Env.empty () in
-    let c = Contents.of_value ~env c in
-    `Contents_inlined (c, metadata)
+    `Contents (c, metadata)
 
   let v : elt -> t = function
-    | `Contents_inlined (c, metadata) -> of_contents_inlined ~metadata c
     | `Contents (c, metadata) -> of_contents ~metadata c
     | `Node (n, il) ->
         `Node (n, List.map (Contents.of_value ~env:(Env.empty ())) il)
@@ -2069,7 +1905,6 @@ module Make (P : Backend.S) = struct
   let clear ?(depth = 0) = function
     | `Node (n, _il) -> Node.clear ~max_depth:depth 0 n
     | `Contents _ -> ()
-    | `Contents_inlined _ -> ()
 
   let sub ~cache ctx t path =
     let rec aux node path =
@@ -2077,13 +1912,12 @@ module Make (P : Backend.S) = struct
       | None -> Some node
       | Some (h, p) -> (
           Node.findv ~cache ctx node h |> function
-          | None | Some (`Contents _) | Some (`Contents_inlined _) -> None
+          | None | Some (`Contents _) -> None
           | Some (`Node (n, _il)) -> (aux [@tailcall]) n p)
     in
     match t with
     | `Node (n, _il) -> (aux [@tailcall]) n path
     | `Contents _ -> None
-    | `Contents_inlined _ -> None
 
   let find_tree (t : t) path =
     let cache = true in
@@ -2101,9 +1935,6 @@ module Make (P : Backend.S) = struct
       ?pre ?post ?depth ?(contents = id) ?(node = id) ?(tree = id) (t : t) acc =
     match t with
     | `Contents (c, _) as c' ->
-        let tree path = tree path c' in
-        Contents.fold ~force ~cache ~path:Path.empty contents tree c acc
-    | `Contents_inlined (c, _) as c' ->
         let tree path = tree path c' in
         Contents.fold ~force ~cache ~path:Path.empty contents tree c acc
     | `Node (n, _il) ->
@@ -2147,9 +1978,6 @@ module Make (P : Backend.S) = struct
     | Some (`Contents (c, m)) ->
         let c = Contents.to_value ~cache:true c in
         Some (get_ok "find_all" c, m)
-    | Some (`Contents_inlined (c, m)) ->
-        let c = Contents.to_value ~cache:true c in
-        Some (get_ok "find_all" c, m)
 
   let find t k = find_all t k |> function None -> None | Some (c, _) -> Some c
 
@@ -2165,8 +1993,6 @@ module Make (P : Backend.S) = struct
     [%log.debug "Tree.kind %a" pp_path path];
     match (t, Path.rdecons path) with
     | `Contents _, None -> Some `Contents
-    | `Contents_inlined _, None -> Some `Contents_inlined
-    (* TODO inlined *)
     | `Node _, None -> Some `Node
     | _, Some (dir, file) -> (
         sub ~cache "kind.sub" t dir |> function
@@ -2175,7 +2001,6 @@ module Make (P : Backend.S) = struct
             Node.findv ~cache "kind.findv" m file |> function
             | None -> None
             | Some (`Contents _) -> Some `Contents
-            | Some (`Contents_inlined _) -> Some `Contents_inlined
             | Some (`Node _) -> Some `Node))
 
   let length t ?(cache = true) path =
@@ -2189,8 +2014,6 @@ module Make (P : Backend.S) = struct
     sub ~cache "seq.sub" t path |> function
     | None -> Seq.empty
     | Some n ->
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
         Node.seq ?offset ?length ~cache n |> get_ok "seq"
 
   let list t ?offset ?length ?(cache = true) path =
@@ -2221,7 +2044,6 @@ module Make (P : Backend.S) = struct
   let get_env = function
     | `Node (n, _il) -> n.Node.info.env
     | `Contents (c, _) -> c.Contents.info.env
-    | `Contents_inlined (c, _) -> c.Contents.info.env
 
   let update_tree ~cache ~f_might_return_empty_node ~(f : t option -> t option)
       root_tree path =
@@ -2250,20 +2072,13 @@ module Make (P : Backend.S) = struct
         | Some (`Contents c' as new_root) -> (
             match root_tree with
             | `Contents c when contents_equal c c' -> root_tree
-            | _ -> new_root)
-        | Some (`Contents_inlined c' as new_root) -> (
-            match root_tree with
-            | `Contents_inlined c when contents_equal c c' -> root_tree
             | _ -> new_root))
     | Some (path, file) -> (
-        Fmt.pr "HERE %a %a@." (Repr.pp path_t) path (Repr.pp step_t) file;
         let rec aux : type r. path -> node -> (node updated, r) cont =
          fun path parent_node k ->
           let changed n = k (Changed n) in
           match Path.decons path with
           | None -> (
-              Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-                __FUNCTION__ __LINE__;
               let with_new_child t = Node.add parent_node file t |> changed in
               let old_binding =
                 Node.findv ~cache "update_tree.findv" parent_node file
@@ -2272,7 +2087,6 @@ module Make (P : Backend.S) = struct
               match (old_binding, new_binding) with
               | None, None -> k Unchanged
               | None, Some (`Contents _ as t) -> with_new_child t
-              | None, Some (`Contents_inlined _ as t) -> with_new_child t
               | None, Some (`Node (n, _il) as t) -> (
                   match prune_empty n with
                   | true -> k Unchanged
@@ -2289,30 +2103,7 @@ module Make (P : Backend.S) = struct
                   match contents_equal c c' with
                   | true -> k Unchanged
                   | false -> with_new_child t)
-              | Some (`Contents_inlined c), Some (`Contents c' as t) -> (
-                  match contents_equal c c' with
-                  | true -> k Unchanged
-                  | false -> with_new_child t)
-              | Some (`Contents c'), Some (`Contents_inlined c as t) -> (
-                  match contents_equal c c' with
-                  | true -> k Unchanged
-                  | false -> with_new_child t)
-              | Some (`Contents_inlined c'), Some (`Contents_inlined c as t)
-                -> (
-                  match contents_equal c c' with
-                  | true -> k Unchanged
-                  | false -> with_new_child t)
-              | Some (`Node _), Some (`Contents _ as t) -> with_new_child t
-              | Some (`Node _), Some (`Contents_inlined _ as t) ->
-                  with_new_child t
-              (* | Some (`Contents_inlined c), Some (`Contents_inlined c') -> (
-                  match contents_equal c c' with
-                  | true -> k Unchanged
-                  | false -> with_new_child t
-              | ) *)
-              (* | Some (`Contents_inlined _), _ -> assert false
-              | _, Some (`Contents_inlined _) -> assert false) *)
-              )
+              | Some (`Node _), Some (`Contents _ as t) -> with_new_child t)
           | Some (step, key_suffix) ->
               let old_binding =
                 Node.findv ~cache "update_tree.findv" parent_node step
@@ -2320,8 +2111,7 @@ module Make (P : Backend.S) = struct
               let to_recurse =
                 match old_binding with
                 | Some (`Node (child, _il)) -> child
-                | None | Some (`Contents _) | Some (`Contents_inlined _) ->
-                    Node.empty ()
+                | None | Some (`Contents _) -> Node.empty ()
               in
               (aux [@tailcall]) key_suffix to_recurse (function
                 | Unchanged ->
@@ -2335,9 +2125,6 @@ module Make (P : Backend.S) = struct
                            binding [h], so we remove the binding. *)
                         Node.remove parent_node step |> changed
                     | false ->
-                        Fmt.pr
-                          "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@."
-                          __FILE__ __FUNCTION__ __LINE__;
                         Node.add parent_node step (`Node (child, [])) |> changed
                     ))
         in
@@ -2345,7 +2132,6 @@ module Make (P : Backend.S) = struct
           match root_tree with
           | `Node (n, _il) -> n
           | `Contents _ -> Node.empty ()
-          | `Contents_inlined _ -> Node.empty ()
         in
         aux path top_node @@ function
         | Unchanged -> root_tree
@@ -2361,9 +2147,6 @@ module Make (P : Backend.S) = struct
           match t with
           | Some (`Node _) | None -> None
           | Some (`Contents (c, _)) ->
-              let c = Contents.to_value ~cache c in
-              Some (get_ok "update" c)
-          | Some (`Contents_inlined (c, _)) ->
               let c = Contents.to_value ~cache c in
               Some (get_ok "update" c)
         in
@@ -2484,6 +2267,19 @@ module Make (P : Backend.S) = struct
       k key
     in
 
+    (* Helper to check if contents should be inlined at export time *)
+    let should_inline_contents c =
+      if not !inline_contents_enabled then None
+      else
+        match Contents.cached_value c with
+        | None -> None
+        | Some v ->
+            let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
+            let bytes = to_bin v in
+            if String.length bytes <= inline_contents_max_bytes then Some bytes
+            else None
+    in
+
     let add_node_map n (x : Node.map) to_inline k =
       let node_seq =
         (* Since we traverse in post-order, all children of [x] have already
@@ -2501,21 +2297,19 @@ module Make (P : Backend.S) = struct
                           during export:@,\
                           @ @[%a@]"
                          dump v)
-               | `Contents_inlined (c, m) ->
-                   (* Inline small contents: serialize to bytes and embed directly *)
-                   let v = Contents.force_exn c in
-                   let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
-                   let bytes = to_bin v in
-                   Some (step, `Contents_inlined (bytes, m))
                | `Contents (c, m) -> (
-                   match Contents.cached_key c with
-                   | Some k -> Some (step, `Contents (k, m))
-                   | None ->
-                       assertion_failure
-                         "Encountered child contents value with uncached key \
-                          during export:@,\
-                          @ @[%a@]"
-                         dump v))
+                   (* Check if contents should be inlined at export time *)
+                   match should_inline_contents c with
+                   | Some bytes -> Some (step, `Contents_inlined (bytes, m))
+                   | None -> (
+                       match Contents.cached_key c with
+                       | Some k -> Some (step, `Contents (k, m))
+                       | None ->
+                           assertion_failure
+                             "Encountered child contents value with uncached key \
+                              during export:@,\
+                              @ @[%a@]"
+                             dump v)))
       in
       let _, to_inline = List.split to_inline in
       let node = P.Node.Val.of_seq node_seq to_inline in
@@ -2541,20 +2335,18 @@ module Make (P : Backend.S) = struct
                        @ @[%a@]"
                       dump v)
             | Add (`Contents (c, m) as v) -> (
-                match Contents.cached_key c with
-                | Some ptr -> P.Node.Val.add acc k (`Contents (ptr, m))
-                | None ->
-                    assertion_failure
-                      "Encountered child contents value 3 with uncached key \
-                       during export:@,\
-                       @ @[%a@]"
-                      dump v)
-            | Add (`Contents_inlined (c, m)) ->
-                (* Inline small contents: serialize to bytes and embed directly *)
-                let v = Contents.force_exn c in
-                let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
-                let bytes = to_bin v in
-                P.Node.Val.add acc k (`Contents_inlined (bytes, m)))
+                (* Check if contents should be inlined at export time *)
+                match should_inline_contents c with
+                | Some bytes -> P.Node.Val.add acc k (`Contents_inlined (bytes, m))
+                | None -> (
+                    match Contents.cached_key c with
+                    | Some ptr -> P.Node.Val.add acc k (`Contents (ptr, m))
+                    | None ->
+                        assertion_failure
+                          "Encountered child contents value 3 with uncached key \
+                           during export:@,\
+                           @ @[%a@]"
+                          dump v)))
           updates v
       in
       add_node n node_seq to_inline k
@@ -2670,16 +2462,11 @@ module Make (P : Backend.S) = struct
                   in
                   on_node_seq new_children_seq []
                   @@ fun (`Node_children_exported to_inline) ->
-                  Fmt.pr "I EXPORTED MY CHILDREN@.";
                   match (Atomic.get n.Node.v, Node.cached_value n) with
-                  | Map x, _ ->
-                      Fmt.pr "NOW TURN OF MAP@.";
-                      add_node_map n x to_inline k
+                  | Map x, _ -> add_node_map n x to_inline k
                   | Value (_, v, None), None | _, Some v ->
-                      Fmt.pr "NOW TURN OF VALUE@.";
                       add_node n v to_inline k
                   | Value (_, v, Some um), _ ->
-                      Fmt.pr "NOW TURN OF VALUE UPDATED NODE@.";
                       add_updated_node n v um to_inline k
                   | (Key _ | Portable_dirty _ | Pruned _), _ ->
                       (* [n.v = (Key _ | Portable_dirty _ | Pruned _)] is
@@ -2712,35 +2499,6 @@ module Make (P : Backend.S) = struct
           Contents.export ?clear repo c key;
           k `Content_exported
       | Contents.Pruned h -> pruned_hash_exn "export" h
-    and on_contents_inlined : type r.
-        [ `Contents_inlined of Contents.t * metadata ] ->
-        ( [ `Content_exported | `Content_to_inline of Contents.t * contents_key ],
-          r )
-        cont =
-     fun (`Contents_inlined (c, _)) k ->
-      match Atomic.get c.Contents.v with
-      | Contents.Key (_, key) ->
-          Contents.export ?clear repo c key;
-          k (`Content_to_inline (c, key))
-      | Contents.Value _ ->
-          let v = Contents.to_value ~cache c in
-          let v = get_ok "export" v in
-          Atomic.incr cnt.contents_add;
-          let key = P.Contents.add contents_t v in
-          let () =
-            let h = P.Contents.Key.to_hash key in
-            let h' = Contents.hash ~cache c in
-            if not (equal_hash h h') then
-              backend_invariant_violation
-                "@[<v 2>Tree.export: added inconsistent contents binding@,\
-                 key: %a@,\
-                 value: %a@,\
-                 computed hash: %a@]"
-                pp_contents_key key pp_contents v pp_hash h'
-          in
-          Contents.export ?clear repo c key;
-          k (`Content_to_inline (c, key))
-      | Contents.Pruned h -> pruned_hash_exn "export" h
     and on_node_seq : type r.
         Node.elt Seq.t ->
         (Contents.t * contents_key) List.t ->
@@ -2756,15 +2514,8 @@ module Make (P : Backend.S) = struct
           on_node n (fun _node_key -> on_node_seq rest to_inline k)
       | Seq.Cons ((`Contents _ as c), rest) ->
           on_contents c (fun `Content_exported -> on_node_seq rest to_inline k)
-      | Seq.Cons ((`Contents_inlined _ as c), rest) ->
-          Fmt.pr "EXPORTING INLINED CONTENTS@.";
-          on_contents_inlined c (function
-            | `Content_exported -> on_node_seq rest to_inline k
-            | `Content_to_inline c -> on_node_seq rest (c :: to_inline) k)
     in
     let r = on_node (`Node n) (fun key -> key) in
-    Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-      __FUNCTION__ __LINE__;
     r
 
   let merge : t Merge.t =
@@ -2786,8 +2537,7 @@ module Make (P : Backend.S) = struct
                 let path = Path.rcons path k in
                 match v with
                 | `Node (v, _il) -> (acc, (path, v) :: todo)
-                | `Contents c -> ((path, c) :: acc, todo)
-                | `Contents_inlined c -> ((path, c) :: acc, todo))
+                | `Contents c -> ((path, c) :: acc, todo))
               (acc, todo) childs
           in
           (aux [@tailcall]) acc todo
@@ -2841,18 +2591,12 @@ module Make (P : Backend.S) = struct
             | `Left (`Contents x) ->
                 let x = removed !acc (path, x) in
                 acc := x
-            | `Left (`Contents_inlined x) ->
-                let x = removed !acc (path, x) in
-                acc := x
             | `Left (`Node (x, _il)) ->
                 let xs = entries path x in
                 let xs = List.fold_left removed !acc xs in
                 acc := xs
             (* Right *)
             | `Right (`Contents y) ->
-                let y = added !acc (path, y) in
-                acc := y
-            | `Right (`Contents_inlined y) ->
                 let y = added !acc (path, y) in
                 acc := y
             | `Right (`Node (y, _il)) ->
@@ -2862,26 +2606,17 @@ module Make (P : Backend.S) = struct
             (* Both *)
             | `Both (`Node (x, _il), `Node (y, _il')) ->
                 todo := (path, x, y) :: !todo
-            | `Both (`Contents x, `Node (y, _il))
-            | `Both (`Contents_inlined x, `Node (y, _il)) ->
+            | `Both (`Contents x, `Node (y, _il)) ->
                 let ys = entries path y in
                 let x = removed !acc (path, x) in
                 let ys = List.fold_left added x ys in
                 acc := ys
-            | `Both (`Node (x, _il), `Contents y)
-            | `Both (`Node (x, _il), `Contents_inlined y) ->
+            | `Both (`Node (x, _il), `Contents y) ->
                 let xs = entries path x in
                 let y = added !acc (path, y) in
                 let ys = List.fold_left removed y xs in
                 acc := ys
             | `Both (`Contents x, `Contents y) ->
-                let content_diffs =
-                  diff_contents x y |> List.map (fun d -> (path, d))
-                in
-                acc := content_diffs @ !acc
-            | `Both (`Contents x, `Contents_inlined y)
-            | `Both (`Contents_inlined x, `Contents y)
-            | `Both (`Contents_inlined x, `Contents_inlined y) ->
                 let content_diffs =
                   diff_contents x y |> List.map (fun d -> (path, d))
                 in
@@ -2919,8 +2654,6 @@ module Make (P : Backend.S) = struct
         let diff = diff_node x (Node.empty ()) in
         let y = Contents.to_value ~cache:true y |> get_ok "diff" in
         (Path.empty, `Added (y, m)) :: diff
-        (* TODO inlined *)
-    | _ -> assert false
 
   type concrete =
     [ `Tree of (Path.step * concrete) list
@@ -2934,8 +2667,6 @@ module Make (P : Backend.S) = struct
      fun t k ->
       match t with
       | `Contents (c, m) ->
-          Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-            __FUNCTION__ __LINE__;
           k (Non_empty (of_contents ~metadata:m c))
       | `Tree childs ->
           tree StepMap.empty childs (function
@@ -2973,7 +2704,6 @@ module Make (P : Backend.S) = struct
      fun t k ->
       match t with
       | `Contents c -> contents c k
-      | `Contents_inlined c -> contents c k
       | `Node (n, _il) ->
           let m = Node.to_map ~cache:true n in
           let bindings = m |> get_ok "to_concrete" |> StepMap.bindings in
@@ -2997,9 +2727,6 @@ module Make (P : Backend.S) = struct
               (tree [@tailcall]) n (fun tree -> node ((s, tree) :: childs) t k)
           | `Contents c ->
               (contents [@tailcall]) c (fun c ->
-                  (node [@tailcall]) ((s, c) :: childs) t k)
-          | `Contents_inlined c ->
-              (contents [@tailcall]) c (fun c ->
                   (node [@tailcall]) ((s, c) :: childs) t k))
     in
     tree t (fun x -> x)
@@ -3012,14 +2739,6 @@ module Make (P : Backend.S) = struct
         | Some key -> Some (`Node (key, []))
         | None -> None)
     | `Contents (c, m) -> (
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
-        match Contents.key c with
-        | Some key -> Some (`Contents (key, m))
-        | None -> None)
-    | `Contents_inlined (c, m) -> (
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
         match Contents.key c with
         | Some key -> Some (`Contents (key, m))
         | None -> None)
@@ -3030,12 +2749,6 @@ module Make (P : Backend.S) = struct
     | `Node (n, il) ->
         `Node (Node.hash ~cache n, List.map (Contents.hash ~cache) il)
     | `Contents (c, m) ->
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
-        `Contents (Contents.hash ~cache c, m)
-    | `Contents_inlined (c, m) ->
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
         `Contents (Contents.hash ~cache c, m)
 
   let stats ?(force = false) (t : t) =
@@ -3052,7 +2765,6 @@ module Make (P : Backend.S) = struct
 
   let inspect = function
     | `Contents _ -> `Contents
-    | `Contents_inlined _ -> `Contents_inlined
     | `Node (n, _il) ->
         `Node
           (match Atomic.get n.Node.v with
@@ -3080,7 +2792,6 @@ module Make (P : Backend.S) = struct
     let rec proof_of_tree : type a. irmin_tree -> (proof_tree -> a) -> a =
      fun tree k ->
       match tree with
-      | `Contents_inlined (c, h) -> proof_of_contents c h k
       | `Contents (c, h) -> proof_of_contents c h k
       | `Node (node, _il) -> proof_of_node node k
 

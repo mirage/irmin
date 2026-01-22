@@ -152,8 +152,7 @@ module Test_tezos_conf = struct
     let repo, tree, _ = Store.persist_tree ~sw ~fs tree in
     let root_node =
       match Store.Tree.destruct tree with
-      | `Contents _ | `Contents_inlined _ ->
-          Alcotest.fail "Expected root to be node"
+      | `Contents _ -> Alcotest.fail "Expected root to be node"
       | `Node (x, _inlined) -> Store.to_backend_node x
     in
     let h = Node.Hash.hash root_node in
@@ -250,8 +249,7 @@ module Test_small_conf = struct
     let repo, tree, _ = Store.persist_tree ~sw ~fs tree in
     let root_node =
       match Store.Tree.destruct tree with
-      | `Contents _ | `Contents_inlined _ ->
-          Alcotest.fail "Expected root to be node"
+      | `Contents _ -> Alcotest.fail "Expected root to be node"
       | `Node (x, _inlined) -> Store.to_backend_node x
     in
     let h = Node.Hash.hash root_node in

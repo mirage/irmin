@@ -549,7 +549,7 @@ module type S_generic_key = sig
 
   (** {1 Reads} *)
 
-  val kind : t -> path -> [ `Contents | `Contents_inlined | `Node ] option
+  val kind : t -> path -> [ `Contents | `Node ] option
   (** [kind] is {!Tree.kind} applied to [t]'s root tree. *)
 
   val list : t -> path -> (step * tree) list

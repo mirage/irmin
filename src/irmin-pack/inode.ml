@@ -826,8 +826,6 @@ struct
       | Values l ->
           StepMap.fold
             (fun s v acc ->
-              Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-                __FUNCTION__ __LINE__;
               let v =
                 match v with
                 | `Node _ as k -> (Some s, k)
@@ -2454,8 +2452,6 @@ struct
   let find t k = unsafe_find ~check_integrity:true t k
 
   let save ?allow_non_root t v =
-    Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-      __FUNCTION__ __LINE__;
     let add k v =
       Pack.unsafe_append ~ensure_unique:true ~overcommit:false t k v
     in
@@ -2465,8 +2461,6 @@ struct
   let hash_exn = Val.hash_exn
 
   let add t v =
-    Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-      __FUNCTION__ __LINE__;
     save t v
 
   let equal_hash = Irmin.Type.(unstage (equal H.t))

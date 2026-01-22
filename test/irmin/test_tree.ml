@@ -65,7 +65,6 @@ module Alcotest = struct
     Alcotest.testable
       (fun ppf -> function
         | `Contents -> Fmt.string ppf "contents"
-        | `Contents_inlined -> Fmt.string ppf "contents_inlined"
         | `Node `Key -> Fmt.string ppf "key"
         | `Node `Map -> Fmt.string ppf "map"
         | `Node `Value -> Fmt.string ppf "value"
@@ -787,14 +786,12 @@ module Broken = struct
 end
 
 let test_kind_empty_path () =
-  let kind_t : [ `Contents | `Contents_inlined | `Node ] Irmin.Type.t =
+  let kind_t : [ `Contents | `Node ] Irmin.Type.t =
     let open Irmin.Type in
-    variant "kind" (fun contents contents_inlined node -> function
+    variant "kind" (fun contents node -> function
       | `Contents -> contents
-      | `Contents_inlined -> contents_inlined
       | `Node -> node)
     |~ case0 "contents" `Contents
-    |~ case0 "contents_inlined" `Contents_inlined
     |~ case0 "node" `Node
     |> sealv
   in

@@ -169,9 +169,6 @@ struct
     |> sealv
 
   let to_entry (k, (v : value)) =
-    Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-      __FUNCTION__ __LINE__;
-    Fmt.pr "v: %a@." (Repr.pp value_t) v;
     match v with
     | `Node (h, ic) -> Node { name = k; node = h; inlined = ic }
     | `Contents (h, m) ->

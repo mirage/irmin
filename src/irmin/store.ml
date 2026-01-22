@@ -172,13 +172,7 @@ module Make (B : Backend.S) = struct
         let c = Tree.Contents.force_exn c in
         let k = save_contents x c in
         `Contents k
-    | `Contents_inlined (c, _) ->
-        let c = Tree.Contents.force_exn c in
-        let k = save_contents x c in
-        `Contents_inlined k
     | `Node (n, _il) ->
-        Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-          __FUNCTION__ __LINE__;
         let k = Tree.export ~clear r x y n in
         `Node k
 
@@ -201,21 +195,12 @@ module Make (B : Backend.S) = struct
         B.Repo.batch ~lock:true r @@ fun contents_t node_t commit_t ->
         match Tree.destruct tree with
         | `Contents _ -> Error "cannot add contents at the root"
-        | `Contents_inlined _ -> Error "cannot add contents at the root"
         | `Node (t, _il) ->
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             (* assert false; *)
             let node = Tree.export ~clear r contents_t node_t t in
             (* assert false; *)
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             let v = B.Commit.Val.v ~info ~node ~parents in
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             let key = B.Commit.add commit_t v in
-            Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-              __FUNCTION__ __LINE__;
             Ok { r; key; v }
       in
       match result with Ok t -> t | Error e -> invalid_arg e
@@ -373,8 +358,6 @@ module Make (B : Backend.S) = struct
       let contents = ref [] in
       let nodes = ref [] in
       let commits = ref [] in
-      Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-        __FUNCTION__ __LINE__;
       B.Slice.iter s (function
         | `Contents c -> contents := c :: !contents
         | `Node n -> nodes := n :: !nodes
@@ -958,8 +941,6 @@ module Make (B : Backend.S) = struct
   let find t k = tree t |> fun tree -> Tree.find tree k
 
   let get t k =
-    Fmt.pr "\x1b[31;1m%s\x1b[0;m: \x1b[32;1m%s\x1b[0;m: %d@." __FILE__
-      __FUNCTION__ __LINE__;
     tree t |> fun tree -> Tree.get tree k
 
   let find_tree t k = tree t |> fun tree -> Tree.find_tree tree k

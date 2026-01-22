@@ -55,10 +55,7 @@ module type S = sig
   val of_node : node -> t
   (** [of_node n] is the subtree built from the node [n]. *)
 
-  type elt =
-    [ `Node of node * contents list
-    | `Contents of contents * metadata
-    | `Contents_inlined of contents * metadata ]
+  type elt = [ `Node of node * contents list | `Contents of contents * metadata ]
   (** The type for tree elements. *)
 
   val v : elt -> t
@@ -80,7 +77,7 @@ module type S = sig
       {!Pruned_hash} exception. Attempting to export a tree containing pruned
       sub-trees to a repository will fail similarly. *)
 
-  val kind : t -> path -> [ `Contents | `Contents_inlined | `Node ] option
+  val kind : t -> path -> [ `Contents | `Node ] option
   (** [kind t k] is the type of [s] in [t]. It could either be a tree node or
       some file contents. It is [None] if [k] is not present in [t]. *)
 
@@ -252,10 +249,7 @@ module type S = sig
   (** {1 Folds} *)
 
   val destruct :
-    t ->
-    [ `Node of node * Contents.t list
-    | `Contents of Contents.t * metadata
-    | `Contents_inlined of Contents.t * metadata ]
+    t -> [ `Node of node * Contents.t list | `Contents of Contents.t * metadata ]
   (** General-purpose destructor for trees. *)
 
   type marks
@@ -419,10 +413,7 @@ module type S = sig
   val reset_counters : unit -> unit
 
   val inspect :
-    t ->
-    [ `Contents
-    | `Contents_inlined
-    | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+    t -> [ `Contents | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
   (** [inspect t] is similar to {!kind}, with additional state information for
       nodes. It is primarily useful for debugging and testing.
 

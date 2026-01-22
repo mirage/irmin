@@ -177,7 +177,7 @@ let list ~env =
          let pp_step = Irmin.Type.pp S.Path.step_t in
          let pp ppf (s, k) =
            match S.Tree.destruct k with
-           | `Contents _ | `Contents_inlined _ -> Fmt.pf ppf "FILE %a" pp_step s
+           | `Contents _ -> Fmt.pf ppf "FILE %a" pp_step s
            | `Node _ -> Fmt.pf ppf "DIR %a" pp_step s
          in
          List.iter (print "%a" pp) paths
@@ -209,7 +209,7 @@ let tree ~env =
                    let k = S.Path.rcons k s in
                    match S.Tree.destruct c with
                    | `Node _ -> todo := k :: !todo
-                   | `Contents _ | `Contents_inlined _ ->
+                   | `Contents _ ->
                        let v = S.get t k in
                        all := (k, v) :: !all)
                  childs;
