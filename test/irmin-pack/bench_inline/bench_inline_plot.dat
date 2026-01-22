@@ -1,0 +1,11 @@
+# Distribution    No-Inline    Inline-48    Improvement%
+uniform-small     144.96       53.88        62.8
+uniform-large     144.96       148.06       -2.1
+around-threshold  154.02       102.04       33.7
+mostly-small      188.11       85.12        54.7
+mostly-large      149.01       118.02       20.8
+log-normal-small  138.04       108.96       21.1
+log-normal-medium 163.08       154.02       5.6
+zipfian-small     177.86       91.08        48.8
+zipfian-medium    175.00       110.86       36.7
+zipfian-steep     145.91       74.86        48.7
