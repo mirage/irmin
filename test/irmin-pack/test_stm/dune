@@ -1,6 +1,6 @@
-(test
+; Use posix backend to avoid io_uring resource exhaustion on Linux
+(executable
  (name test_stm)
- (package irmin-test)
  (modules test_stm tree_model common_model)
  (libraries
   common
@@ -16,6 +16,11 @@
   irmin-pack.mem
   irmin.mem
   irmin-tezos))
+
+(rule
+ (alias runtest)
+ (package irmin-test)
+ (action (setenv EIO_BACKEND posix (run ./test_stm.exe))))
 
 (test
  (name test_stm_irmin_pack)
