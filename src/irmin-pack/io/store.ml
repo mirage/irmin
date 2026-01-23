@@ -484,10 +484,15 @@ struct
         let close t =
           (* Step 1 - Kill the gc process if it is running *)
           let _ = Gc.unsafe_cancel t in
-          (* Step 2 - Close the files *)
+          (* Step 2 - Flush any pending data (only for read-write stores) *)
+          let () =
+            if not (File_manager.readonly t.fm) then
+              File_manager.flush t.fm |> Errs.raise_if_error
+          in
+          (* Step 3 - Close the files *)
           let () = File_manager.close t.fm |> Errs.raise_if_error in
           Branch.close t.branch;
-          (* Step 3 - Close the in-memory abstractions *)
+          (* Step 4 - Close the in-memory abstractions *)
           (* Dict.close t.dict; *)
           Contents.CA.close (contents_t t);
           Node.CA.close (snd (node_t t));
