@@ -4,6 +4,22 @@ This benchmark measures the effectiveness of inlining small contents directly
 in nodes, comparing read latency and storage size across different content
 size distributions.
 
+## Quick Start
+
+Run the complete benchmark suite and generate all plots with a single command:
+
+```bash
+make bench-inline
+```
+
+This will:
+1. Build the benchmark
+2. Run all distributions with and without inlining
+3. Generate data files for gnuplot
+4. Create three plots: latency comparison, latency improvement, and storage impact
+
+Results are saved in `test/irmin-pack/bench_inline/`.
+
 ## Building
 
 ```bash
@@ -108,33 +124,44 @@ The benchmark outputs CSV with the following columns:
 
 ## Generating Plots
 
-After running benchmarks, update the data file and generate plots:
+After running benchmarks, generate data files and plots:
 
 ```bash
 cd test/irmin-pack/bench_inline
 
 # Run benchmark and save results
-dune exec ./main.exe -- run --all -n 1000 --reads 200 --runs 3 > results.csv
+dune exec ./main.exe -- run --all -n 5000 --reads 500 --runs 3 > results.csv
 
-# Update data file (manually extract p99 values from results.csv)
-# Format: Distribution  No-Inline  Inline-48  Improvement%
+# Generate data files from CSV
+bash generate_data.sh results.csv
 
-# Generate comparison plot
+# Generate all plots
 gnuplot bench_inline_plot.gp
-
-# Generate improvement plot
 gnuplot bench_inline_improvement.gp
+gnuplot bench_inline_storage.gp
+```
+
+Or use the Makefile target which does all of this:
+
+```bash
+make bench-inline
 ```
 
 ### Plot Files
 
 - `bench_inline_comparison.png` - Side-by-side latency comparison (no-inline vs inline)
 - `bench_inline_improvement.png` - Percentage improvement chart
+- `bench_inline_storage.png` - Storage consumption impact chart
 - `bench_inline_plot.gp` - Gnuplot script for comparison chart
 - `bench_inline_improvement.gp` - Gnuplot script for improvement chart
-- `bench_inline_plot.dat` - Data file for plots
+- `bench_inline_storage.gp` - Gnuplot script for storage impact chart
+- `bench_inline_plot.dat` - Data file for latency plots
+- `bench_inline_storage.dat` - Data file for storage plots
+- `generate_data.sh` - Script to generate data files from CSV output
 
 ## Example Results
+
+### Read Latency Improvement
 
 With threshold=48 bytes, typical improvements in read p99 latency:
 
@@ -150,3 +177,31 @@ With threshold=48 bytes, typical improvements in read p99 latency:
 | log-normal-small | 21% |
 | log-normal-medium | 6% |
 | uniform-large | -2% (no small values) |
+
+### Storage Impact
+
+Storage consumption change with threshold=48 bytes:
+
+| Distribution | Storage Change | Inlined % |
+|--------------|----------------|-----------|
+| uniform-small | -1.4% | 100% |
+| uniform-large | +0.1% | 0% |
+| around-threshold | +7.4% | 100% |
+| mostly-small | +1.0% | 80% |
+| mostly-large | +0.5% | 19% |
+| log-normal-small | +5.1% | 79% |
+| log-normal-medium | -0.2% | 13% |
+| zipfian-small | +1.8% | 85% |
+| zipfian-medium | +0.4% | 59% |
+| zipfian-steep | -1.3% | 96% |
+
+**Key observations:**
+- Very small content (zipfian-steep, uniform-small): slight storage **reduction** (-1% to -1.4%)
+- Content around threshold (around-threshold, log-normal-small): storage **increase** (+5% to +7%)
+- Large content (uniform-large, log-normal-medium): negligible impact
+
+The storage trade-off is explained by:
+1. Inlining avoids separate content entries (saves hash reference overhead)
+2. But inlined content loses content-addressable deduplication
+3. When content is very small, entry overhead dominates → inlining saves space
+4. When content is near threshold, duplication overhead dominates → inlining costs space
