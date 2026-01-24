@@ -40,8 +40,10 @@ let test_unique_when_switched ~fs () =
     let k = Store.key store path in
     match Option.get k with
     | `Node _ -> assert false
-    | `Contents contents_key -> contents_key
-    | `Contents_inlined contents_key -> contents_key
+    | `Contents (contents_key, _) -> contents_key
+    | `Contents_inlined _ ->
+        (* Inlined contents don't have their own key *)
+        assert false
   in
   let get_direct_key key =
     match Irmin_pack_unix.Pack_key.inspect key with

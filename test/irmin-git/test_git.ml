@@ -205,9 +205,11 @@ let test_blobs (module S : S) =
       X.Backend.Repo.batch repo (fun x y _ ->
           X.save_tree ~clear:false repo x y t)
     with
-    | `Node k -> k
-    | `Contents k -> k
-    | `Contents_inlined k -> k
+    | `Node (k, _) -> X.Backend.Node.Key.to_hash k
+    | `Contents (k, _) -> X.Backend.Contents.Key.to_hash k
+    | `Contents_inlined _ ->
+        (* irmin-git doesn't support inlined contents *)
+        assert false
   in
   let hash = Irmin_test.testable X.Hash.t in
   Alcotest.(check hash) "blob" k1 k2;

@@ -580,9 +580,9 @@ module type S_generic_key = sig
   (** [get_tree t k] is {!Tree.get_tree} applied to [t]'s root tree. *)
 
   type kinded_key :=
-    [ `Contents of contents_key
-    | `Contents_inlined of contents_key
-    | `Node of node_key ]
+    [ `Contents of contents_key * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of node_key * contents_key list ]
 
   val key : t -> path -> kinded_key option
   (** [id t k] *)

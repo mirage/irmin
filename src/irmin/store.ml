@@ -168,13 +168,13 @@ module Make (B : Backend.S) = struct
 
   let save_tree ?(clear = true) r x y (tr : Tree.t) =
     match Tree.destruct tr with
-    | `Contents (c, _) ->
+    | `Contents (c, m) ->
         let c = Tree.Contents.force_exn c in
         let k = save_contents x c in
-        `Contents k
+        `Contents (k, m)
     | `Node (n, _il) ->
         let k = Tree.export ~clear r x y n in
-        `Node k
+        `Node (k, [])
 
   module Contents_keys = Set.Make (struct
     type t = Contents_key.t [@@deriving irmin ~compare]
@@ -946,14 +946,7 @@ module Make (B : Backend.S) = struct
   let key t k =
     match find_tree t k with
     | None -> None
-    | Some tree -> (
-        match Tree.key tree with
-        | Some (`Contents (key, _)) -> Some (`Contents key)
-        | Some (`Node (key, _)) -> Some (`Node key)
-        | Some (`Contents_inlined _) ->
-            (* Inlined contents don't have their own key *)
-            None
-        | None -> None)
+    | Some tree -> Tree.key tree
 
   let hash t k =
     match find_tree t k with None -> None | Some tree -> Some (Tree.hash tree)
