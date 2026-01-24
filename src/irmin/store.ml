@@ -944,9 +944,7 @@ module Make (B : Backend.S) = struct
   let get_tree t k = tree t |> fun tree -> Tree.get_tree tree k
 
   let key t k =
-    match find_tree t k with
-    | None -> None
-    | Some tree -> Tree.key tree
+    match find_tree t k with None -> None | Some tree -> Tree.key tree
 
   let hash t k =
     match find_tree t k with None -> None | Some tree -> Some (Tree.hash tree)
