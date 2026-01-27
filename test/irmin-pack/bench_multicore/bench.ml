@@ -14,7 +14,43 @@ let goto_project_root () =
       Unix.chdir @@ String.concat Fpath.dir_sep @@ List.rev root
   | _ -> ()
 
-let root fs = Eio.Path.(fs / "_build" / "bench-multicore")
+let mkdir_p dir =
+  let rec aux dir =
+    if Sys.file_exists dir then ()
+    else (
+      aux (Filename.dirname dir);
+      try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+  in
+  aux dir
+
+let get_root () =
+  let path =
+    match Sys.getenv_opt "IRMIN_BENCH_ROOT" with
+    | Some r -> r
+    | None -> "_build/bench-multicore"
+  in
+  (* Normalize path to absolute for consistent output *)
+  if Sys.file_exists path then Unix.realpath path
+  else (
+    mkdir_p path;
+    Unix.realpath path)
+
+let root fs =
+  (* Store goes in "store" subdirectory for consistency with other benchmarks *)
+  let path = Filename.concat (get_root ()) "store" in
+  (* Normalize path to absolute without .. components for Eio compatibility *)
+  let path =
+    if Sys.file_exists path then Unix.realpath path
+    else (
+      mkdir_p path;
+      Unix.realpath path)
+  in
+  Eio.Path.(fs / path)
+
+let metrics_dir () =
+  let path = Filename.concat (get_root ()) "metrics" in
+  mkdir_p path;
+  path
 
 let reset_test_env ~fs () =
   goto_project_root ();
@@ -88,16 +124,19 @@ let setup_tree ~sw ~fs ~readonly paths =
   let repo = open_repo ~sw ~fs ~fresh:true ~readonly:false () in
   let () = S.set_tree_exn ~info (S.main repo) [] tree in
   S.Repo.close repo;
-  let repo = open_repo ~sw ~fs ~fresh:false ~readonly () in
-  Format.printf
-    "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
-  repo
+  open_repo ~sw ~fs ~fresh:false ~readonly ()
 
 let half ~fs ~d_mgr ~(config : Gen.config) =
   Eio.Switch.run @@ fun sw ->
   let paths, tasks = Gen.make ~config in
   let repo = setup_tree ~sw ~fs ~readonly:true paths in
   let get_tree = get_tree ~config repo tasks in
+  let csv_file = Filename.concat (metrics_dir ()) "half_diamond.csv" in
+  let oc = open_out csv_file in
+  let ppf = Format.formatter_of_out_channel oc in
+
+  Format.fprintf ppf
+    "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
 
   let _, sequential, _ =
     bench ~samples:config.nb_runs @@ fun () ->
@@ -114,10 +153,12 @@ let half ~fs ~d_mgr ~(config : Gen.config) =
       elapsed := dt :: !elapsed
     done;
     let min, median, max = analyze_bench @@ Array.of_list !elapsed in
-    Format.printf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
+    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
       (sequential /. max) (sequential /. median) (sequential /. min)
   done;
-  S.Repo.close repo
+  close_out oc;
+  S.Repo.close repo;
+  Printf.printf "Results: %s\n%!" (get_root ())
 
 let full ~fs ~d_mgr ~(config : Gen.config) =
   Eio.Switch.run @@ fun sw ->
@@ -125,6 +166,12 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
   let repo = setup_tree ~sw ~fs ~readonly:false paths in
   let get_tree = get_tree ~config repo tasks in
   let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
+  let csv_file = Filename.concat (metrics_dir ()) "full_diamond.csv" in
+  let oc = open_out csv_file in
+  let ppf = Format.formatter_of_out_channel oc in
+
+  Format.fprintf ppf
+    "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
 
   let commit tree_at () =
     let new_tree = Atomic.get tree_at in
@@ -153,7 +200,9 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
       elapsed := dt :: !elapsed
     done;
     let min, median, max = analyze_bench @@ Array.of_list !elapsed in
-    Format.printf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
+    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
       (sequential /. max) (sequential /. median) (sequential /. min)
   done;
-  S.Repo.close repo
+  close_out oc;
+  S.Repo.close repo;
+  Printf.printf "Results: %s\n%!" (get_root ())

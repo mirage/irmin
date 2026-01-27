@@ -457,7 +457,6 @@ let main ~sw ~fs () ncommits number_of_commits_to_replay suite_filter
   let results =
     Fun.protect run_benchmarks ~finally:(fun () ->
         if keep_store then (
-          [%logs.app "Store kept at %s" (Eio.Path.native_exn config.store_dir)];
           let ro p = if Sys.file_exists p then Unix.chmod p 0o444 in
           ro Eio.Path.(native_exn @@ (config.store_dir / "store.branches"));
           ro Eio.Path.(native_exn @@ (config.store_dir / "store.dict"));
@@ -467,7 +466,11 @@ let main ~sw ~fs () ncommits number_of_commits_to_replay suite_filter
           ro Eio.Path.(native_exn @@ (config.store_dir / "index" / "log_async")))
         else FSHelper.rm_dir config.store_dir)
   in
-  [%logs.app "%a@." Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results]
+  (* Write results to file in artefacts directory *)
+  let results_file = Eio.Path.(config.artefacts_path / "results.txt") in
+  Eio.Path.save ~create:(`Or_truncate 0o644) results_file
+    (Format.asprintf "%a" Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results);
+  Printf.printf "Results: %s\n%!" (Unix.realpath (Eio.Path.native_exn config.artefacts_path))
 
 open Cmdliner
 

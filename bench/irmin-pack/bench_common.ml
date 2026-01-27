@@ -47,9 +47,15 @@ let reporter ?(prefix = "") () =
 
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level level;
-  Logs.set_reporter (reporter ());
-  ()
+  (* Suppress verbose log output during benchmarks unless explicitly requested.
+     Logs_cli.level() may return None or Some Warning by default. *)
+  match level with
+  | None | Some Logs.Warning ->
+      Logs.set_level (Some Logs.Error);
+      Logs.set_reporter Logs.nop_reporter
+  | Some level ->
+      Logs.set_level (Some level);
+      Logs.set_reporter (reporter ())
 
 let reset_stats () =
   Index.Stats.reset_stats ();

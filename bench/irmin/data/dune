@@ -1,3 +1,22 @@
 (executable
  (name bench_fixed_size_string_set)
- (libraries irmin.data mtime mtime.clock.os))
+ (libraries irmin.data mtime mtime.clock.os unix))
+
+;; Benchmark aliases
+;; Note: Results go to project root _metrics/ which persists across dune clean
+
+(rule
+ (alias bench-fast)
+ (package irmin)
+ (deps bench_fixed_size_string_set.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/hashset-fast && IRMIN_BENCH_ROOT=../../_metrics/hashset-fast %{exe:bench_fixed_size_string_set.exe}"))))
+
+(rule
+ (alias bench-full)
+ (package irmin)
+ (deps bench_fixed_size_string_set.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/hashset-full && IRMIN_BENCH_ROOT=../../_metrics/hashset-full %{exe:bench_fixed_size_string_set.exe}"))))

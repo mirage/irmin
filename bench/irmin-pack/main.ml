@@ -57,9 +57,9 @@ let size ~root =
 let () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  let fs = Eio.Stdenv.cwd env in
+  let fs = Eio.Stdenv.fs env in
   let config ~root =
-    Irmin_pack.config ~sw ~fs ~fresh:false Eio.Path.(fs / root)
+    Irmin_pack.config ~sw ~fs ~fresh:true Eio.Path.(fs / root)
   in
   let size ~root = size ~root:Eio.Path.(fs / root) in
   Bench.run ~config ~size

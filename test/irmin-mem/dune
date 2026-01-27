@@ -18,3 +18,22 @@
  (name bench)
  (modules bench)
  (libraries irmin.mem irmin-test.bench))
+
+;; Benchmark aliases
+;; Note: Results go to project root _metrics/ which persists across dune clean
+
+(rule
+ (alias bench-fast)
+ (package irmin-test)
+ (deps bench.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/irmin-mem-fast && IRMIN_BENCH_ROOT=../../_metrics/irmin-mem-fast %{exe:bench.exe} -n 100 -d 10 -a 100"))))
+
+(rule
+ (alias bench-full)
+ (package irmin-test)
+ (deps bench.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/irmin-mem-full && IRMIN_BENCH_ROOT=../../_metrics/irmin-mem-full %{exe:bench.exe} -n 1000 -d 30 -a 1000"))))

@@ -1,3 +1,39 @@
 (executable
  (name main)
  (libraries irmin irmin-test eio_main test_pack cmdliner))
+
+;; Benchmark aliases
+;; Runs both half-diamond and full-diamond benchmarks
+;; Note: Results go to project root _metrics/ which persists across dune clean
+
+(rule
+ (alias bench-fast)
+ (package irmin-tezos)
+ (deps main.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/multicore-half-fast && IRMIN_BENCH_ROOT=../../_metrics/multicore-half-fast %{exe:main.exe} half --elements 1000 --tasks 100 --runs 2"))))
+
+(rule
+ (alias bench-fast)
+ (package irmin-tezos)
+ (deps main.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/multicore-full-fast && IRMIN_BENCH_ROOT=../../_metrics/multicore-full-fast %{exe:main.exe} full --elements 1000 --tasks 100 --runs 2"))))
+
+(rule
+ (alias bench-full)
+ (package irmin-tezos)
+ (deps main.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/multicore-half-full && IRMIN_BENCH_ROOT=../../_metrics/multicore-half-full %{exe:main.exe} half --elements 100000 --tasks 5000 --runs 5"))))
+
+(rule
+ (alias bench-full)
+ (package irmin-tezos)
+ (deps main.exe)
+ (action
+  (chdir %{workspace_root}
+   (system "mkdir -p ../../_metrics/multicore-full-full && IRMIN_BENCH_ROOT=../../_metrics/multicore-full-full %{exe:main.exe} full --elements 100000 --tasks 5000 --runs 5"))))

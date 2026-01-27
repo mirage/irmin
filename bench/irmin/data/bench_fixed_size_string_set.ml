@@ -13,13 +13,34 @@ let allocated_words () =
   let s = Gc.quick_stat () in
   s.minor_words +. s.major_words -. s.promoted_words
 
-let open_stat_file name =
-  let stat_file =
-    let rnd = Random.bits () land 0xFFFFFF in
-    let ( / ) = Filename.concat in
-    "_build" / Printf.sprintf "%s-%06x.csv" name rnd
+let mkdir_p dir =
+  let rec aux dir =
+    if Sys.file_exists dir then ()
+    else (
+      aux (Filename.dirname dir);
+      try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
   in
-  Printf.printf "Sending stats to '%s'\n%!" stat_file;
+  aux dir
+
+let get_root () =
+  let path =
+    match Sys.getenv_opt "IRMIN_BENCH_ROOT" with
+    | Some r -> r
+    | None -> "_build"
+  in
+  (* Normalize path to absolute for consistent output *)
+  if Sys.file_exists path then Unix.realpath path
+  else (
+    mkdir_p path;
+    Unix.realpath path)
+
+let open_stat_file root name =
+  let stat_file =
+    let ( / ) = Filename.concat in
+    let metrics_dir = root / "metrics" in
+    mkdir_p metrics_dir;
+    metrics_dir / Printf.sprintf "%s.csv" name
+  in
   let out = open_out stat_file in
   Printf.fprintf out
     "entries,implementation,reachable_words,allocated_words,time(ns)\n";
@@ -102,23 +123,21 @@ let run_loop ~random_state ~out (module Hashset : S) =
       let time = Mtime_clock.count start_time in
       let diff = Mtime.Span.abs_diff time !last in
       let reachable_words = Hashset.reachable_words t in
-      Printf.eprintf "\r%s : %#d / %#d%!" Hashset.implementation_name i
-        iterations;
       Printf.fprintf out "%d,%s,%d,%f,%Ld\n%!" i Hashset.implementation_name
         reachable_words
         (allocated_words () -. initial_allocations)
         (Int64.div (Mtime.Span.to_uint64_ns diff) 1_000L);
       last := Mtime_clock.count start_time)
-  done;
-  Printf.eprintf "\r%s : done\x1b[K\n%!" Hashset.implementation_name
+  done
 
 let () =
   Random.self_init ();
   let seed = Random.int 0x3fff_ffff in
   let random_state = Random.State.make [| seed |] in
-  Printf.eprintf "Random seed: %d\n%!" seed;
-  let out = open_stat_file "hashset-memory-usage" in
+  let root = get_root () in
+  let out = open_stat_file root "hashset-memory-usage" in
   List.iter
     (run_loop ~random_state ~out)
     [ (module Stringset_irmin); (module Stringset_stdlib) ];
-  Printf.printf "\nDone\n"
+  close_out out;
+  Printf.printf "Results: %s\n%!" root

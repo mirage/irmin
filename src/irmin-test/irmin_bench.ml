@@ -45,10 +45,11 @@ let src =
 
 open Cmdliner
 
-let log style_renderer level =
+let log style_renderer _level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level level;
-  Logs.set_reporter (Irmin_test.reporter ());
+  (* Suppress all log output during benchmarks *)
+  Logs.set_level (Some Logs.Error);
+  Logs.set_reporter (Logs.nop_reporter);
   ()
 
 let log = Term.(const log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
@@ -126,8 +127,6 @@ struct
     let size = size () in
     Metrics.add src no_tags (fun f -> f { size; commits; maxrss })
 
-  let plot_progress n t = Fmt.epr "\rcommits: %4d/%d%!" n t
-
   (* init: create a tree with [t.depth] levels and each levels has
      [t.tree_add] files + one directory going to the next levele. *)
   let init t config =
@@ -139,8 +138,7 @@ struct
           times ~n:t.tree_add ~init:tree (fun n tree ->
               Store.Tree.add tree paths.(n) "init"))
     in
-    Store.set_tree_exn v ~info [] tree;
-    Fmt.epr "[init done]\n%!"
+    Store.set_tree_exn v ~info [] tree
 
   let run t config size =
     let r = Store.Repo.v config in
@@ -151,9 +149,7 @@ struct
       times ~n:t.ncommits ~init:() (fun i () ->
           let tree = Store.get_tree v [] in
           if i mod t.gc = 0 then Gc.full_major ();
-          if i mod t.display = 0 then (
-            plot_progress i t.ncommits;
-            print_stats ~size ~commits:i);
+          if i mod t.display = 0 then print_stats ~size ~commits:i;
           let tree =
             times ~n:t.tree_add ~init:tree (fun n tree ->
                 Store.Tree.add tree paths.(n) (string_of_int i))
@@ -161,28 +157,76 @@ struct
           Store.set_tree_exn v ~info [] tree;
           if t.clear then Store.Tree.clear tree)
     in
-    Store.Repo.close r;
-    Fmt.epr "\n[run done]\n%!"
+    Store.Repo.close r
+
+  let mkdir_p dir =
+    let rec aux dir =
+      if Sys.file_exists dir then ()
+      else (
+        aux (Filename.dirname dir);
+        try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+    in
+    aux dir
+
+  let get_root () =
+    let path =
+      match Sys.getenv_opt "IRMIN_BENCH_ROOT" with
+      | Some r -> r
+      | None -> "_build/_bench"
+    in
+    (* Normalize path to absolute without .. components for Eio compatibility *)
+    if Sys.file_exists path then Unix.realpath path
+    else (
+      mkdir_p path;
+      Unix.realpath path)
+
+  let write_tree_counters metrics_dir =
+    let file = Filename.concat metrics_dir "tree_counters.json" in
+    let oc = open_out file in
+    let ppf = Format.formatter_of_out_channel oc in
+    Store.Tree.dump_counters ppf ();
+    Format.pp_print_flush ppf ();
+    close_out oc
+
+  (* Redirect stdout/stderr to /dev/null to suppress verbose output.
+     This is done once at startup and restored only for our summary message. *)
+  let dev_null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0
+  let saved_stdout = Unix.dup Unix.stdout
+  let saved_stderr = Unix.dup Unix.stderr
+  let suppress_output () =
+    Unix.dup2 dev_null Unix.stdout;
+    Unix.dup2 dev_null Unix.stderr
+  let restore_output () =
+    Unix.dup2 saved_stdout Unix.stdout;
+    Unix.dup2 saved_stderr Unix.stderr
 
   let main t config size =
-    let root = "_build/_bench" in
-    let config = config ~root in
-    let size () = size ~root in
+    let root = get_root () in
+    (* Set up metrics reporter with predictable output directory *)
+    let metrics_dir = Filename.concat root "metrics" in
+    mkdir_p metrics_dir;
+    (* Only enable our specific metrics source, not all sources *)
+    Metrics.Src.enable (Metrics.Src.Src src);
+    (* Suppress verbose output (printed at exit by Metrics_gnuplot) *)
+    suppress_output ();
+    Metrics_gnuplot.set_reporter ~dir:metrics_dir ();
+    (* Store goes in "store" subdirectory *)
+    let store_root = Filename.concat root "store" in
+    mkdir_p store_root;
+    let config = config ~root:store_root in
+    let size () = size ~root:store_root in
     Eio_main.run @@ fun _ ->
     init t config;
-    run t config size
+    run t config size;
+    write_tree_counters metrics_dir;
+    restore_output ();
+    Printf.printf "Results: %s\n%!" root;
+    suppress_output ()
 
   let main_term config size = Term.(const main $ t $ const config $ const size)
-
-  let () =
-    at_exit (fun () ->
-        Fmt.epr "tree counters:\n%a\n%!" Store.Tree.dump_counters ())
 
   let run ~config ~size =
     let info = Cmd.info "Simple benchmark for trees" in
     Stdlib.exit @@ Cmd.eval @@ Cmd.v info (main_term config size)
 end
 
-let () =
-  Metrics.enable_all ();
-  Metrics_gnuplot.set_reporter ()
