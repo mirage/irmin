@@ -49,7 +49,7 @@ let log style_renderer _level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   (* Suppress all log output during benchmarks *)
   Logs.set_level (Some Logs.Error);
-  Logs.set_reporter (Logs.nop_reporter);
+  Logs.set_reporter Logs.nop_reporter;
   ()
 
 let log = Term.(const log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
@@ -164,7 +164,8 @@ struct
       if Sys.file_exists dir then ()
       else (
         aux (Filename.dirname dir);
-        try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+        try Unix.mkdir dir 0o755
+        with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
     in
     aux dir
 
@@ -193,9 +194,11 @@ struct
   let dev_null = Unix.openfile "/dev/null" [ Unix.O_WRONLY ] 0
   let saved_stdout = Unix.dup Unix.stdout
   let saved_stderr = Unix.dup Unix.stderr
+
   let suppress_output () =
     Unix.dup2 dev_null Unix.stdout;
     Unix.dup2 dev_null Unix.stderr
+
   let restore_output () =
     Unix.dup2 saved_stdout Unix.stdout;
     Unix.dup2 saved_stderr Unix.stderr
@@ -229,4 +232,3 @@ struct
     let info = Cmd.info "Simple benchmark for trees" in
     Stdlib.exit @@ Cmd.eval @@ Cmd.v info (main_term config size)
 end
-

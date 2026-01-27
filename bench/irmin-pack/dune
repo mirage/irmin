@@ -98,16 +98,20 @@
  (package irmin-bench)
  (deps tree.exe)
  (action
-  (chdir %{workspace_root}
-   (system "mkdir -p ../../_metrics/tree-fast && %{exe:tree.exe} --mode chains --ncommits 2 --depth 10 --nchain 1 --artefacts ../../_metrics/tree-fast /dev/null"))))
+  (chdir
+   %{workspace_root}
+   (system
+    "mkdir -p ../../_metrics/tree-fast && %{exe:tree.exe} --mode chains --ncommits 2 --depth 10 --nchain 1 --artefacts ../../_metrics/tree-fast /dev/null"))))
 
 (rule
  (alias bench-full)
  (package irmin-bench)
  (deps tree.exe)
  (action
-  (chdir %{workspace_root}
-   (system "mkdir -p ../../_metrics/tree-full && %{exe:tree.exe} --mode slow --artefacts ../../_metrics/tree-full /dev/null"))))
+  (chdir
+   %{workspace_root}
+   (system
+    "mkdir -p ../../_metrics/tree-full && %{exe:tree.exe} --mode slow --artefacts ../../_metrics/tree-full /dev/null"))))
 
 ;; Benchmark aliases - main.exe (bench-pack)
 ;; Note: Uses EIO_BACKEND=posix to avoid io_uring sandbox restrictions
@@ -117,13 +121,17 @@
  (package irmin-bench)
  (deps main.exe)
  (action
-  (chdir %{workspace_root}
-   (system "mkdir -p ../../_metrics/bench-pack-fast && EIO_BACKEND=posix IRMIN_BENCH_ROOT=../../_metrics/bench-pack-fast %{exe:main.exe} -n 10 -d 5 -a 100"))))
+  (chdir
+   %{workspace_root}
+   (system
+    "mkdir -p ../../_metrics/bench-pack-fast && EIO_BACKEND=posix IRMIN_BENCH_ROOT=../../_metrics/bench-pack-fast %{exe:main.exe} -n 10 -d 5 -a 100"))))
 
 (rule
  (alias bench-full)
  (package irmin-bench)
  (deps main.exe)
  (action
-  (chdir %{workspace_root}
-   (system "mkdir -p ../../_metrics/bench-pack-full && EIO_BACKEND=posix IRMIN_BENCH_ROOT=../../_metrics/bench-pack-full %{exe:main.exe} -n 1000 -d 30 -a 1000"))))
+  (chdir
+   %{workspace_root}
+   (system
+    "mkdir -p ../../_metrics/bench-pack-full && EIO_BACKEND=posix IRMIN_BENCH_ROOT=../../_metrics/bench-pack-full %{exe:main.exe} -n 1000 -d 30 -a 1000"))))

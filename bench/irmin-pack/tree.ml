@@ -469,8 +469,11 @@ let main ~sw ~fs () ncommits number_of_commits_to_replay suite_filter
   (* Write results to file in artefacts directory *)
   let results_file = Eio.Path.(config.artefacts_path / "results.txt") in
   Eio.Path.save ~create:(`Or_truncate 0o644) results_file
-    (Format.asprintf "%a" Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf)) results);
-  Printf.printf "Results: %s\n%!" (Unix.realpath (Eio.Path.native_exn config.artefacts_path))
+    (Format.asprintf "%a"
+       Fmt.(list ~sep:(any "@\n@\n") (fun ppf f -> f ppf))
+       results);
+  Printf.printf "Results: %s\n%!"
+    (Unix.realpath (Eio.Path.native_exn config.artefacts_path))
 
 open Cmdliner
 

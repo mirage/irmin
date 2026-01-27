@@ -153,8 +153,8 @@ let half ~fs ~d_mgr ~(config : Gen.config) =
       elapsed := dt :: !elapsed
     done;
     let min, median, max = analyze_bench @@ Array.of_list !elapsed in
-    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
-      (sequential /. max) (sequential /. median) (sequential /. min)
+    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min
+      median max (sequential /. max) (sequential /. median) (sequential /. min)
   done;
   close_out oc;
   S.Repo.close repo;
@@ -200,8 +200,8 @@ let full ~fs ~d_mgr ~(config : Gen.config) =
       elapsed := dt :: !elapsed
     done;
     let min, median, max = analyze_bench @@ Array.of_list !elapsed in
-    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
-      (sequential /. max) (sequential /. median) (sequential /. min)
+    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min
+      median max (sequential /. max) (sequential /. median) (sequential /. min)
   done;
   close_out oc;
   S.Repo.close repo;
