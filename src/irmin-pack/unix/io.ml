@@ -201,10 +201,9 @@ module Unix = struct
           let cs =
             if Cstruct.length t.read_buf >= len then
               Cstruct.sub t.read_buf 0 len
-            else begin
+            else (
               t.read_buf <- Cstruct.create len;
-              t.read_buf
-            end
+              t.read_buf)
           in
           Eio.File.pread_exact file ~file_offset:off [ cs ];
           Cstruct.blit_to_bytes cs 0 buf 0 len;
