@@ -8,7 +8,7 @@
 
 (rule
  (alias bench-fast)
- (package irmin-tezos)
+ (package irmin-test)
  (deps main.exe)
  (action
   (chdir
@@ -18,7 +18,7 @@
 
 (rule
  (alias bench-fast)
- (package irmin-tezos)
+ (package irmin-test)
  (deps main.exe)
  (action
   (chdir
@@ -28,7 +28,7 @@
 
 (rule
  (alias bench-full)
- (package irmin-tezos)
+ (package irmin-test)
  (deps main.exe)
  (action
   (chdir
@@ -38,7 +38,7 @@
 
 (rule
  (alias bench-full)
- (package irmin-tezos)
+ (package irmin-test)
  (deps main.exe)
  (action
   (chdir
