@@ -1,6 +1,4 @@
-_build
-_coverage
-_metrics
+_*
 *~
 *.install
 *.merlin
