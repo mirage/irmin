@@ -75,16 +75,10 @@ module Unix = struct
     | RO file -> file
     | RW file -> (file :> Eio.File.ro_ty Eio.Resource.t)
 
-  (** Initial size for the reusable read buffer. *)
-  let default_read_buf_size = 4096
-
   type t = {
     file : file;
     mutable closed : bool;
     path : Eio.Fs.dir_ty Eio.Path.t;
-    mutable read_buf : Cstruct.t;
-        (** Reusable buffer for read operations to avoid allocating a new
-            Cstruct on every read. Grown as needed. *)
   }
 
   let classify_path path =
@@ -107,8 +101,7 @@ module Unix = struct
               (Eio.Path.open_out ~sw ~create:(`Exclusive default_create_perm)
                  path)
           in
-          let read_buf = Cstruct.create default_read_buf_size in
-          Ok { file; closed = false; path; read_buf }
+          Ok { file; closed = false; path }
       | `Regular_file -> (
           match overwrite with
           | true ->
@@ -119,8 +112,7 @@ module Unix = struct
                   (Eio.Path.open_out ~sw
                      ~create:(`Or_truncate default_create_perm) path)
               in
-              let read_buf = Cstruct.create default_read_buf_size in
-              Ok { file; closed = false; path; read_buf }
+              Ok { file; closed = false; path }
           | false -> Error (`File_exists (Eio.Path.native_exn path)))
       | _ -> assert false
     with
@@ -132,17 +124,16 @@ module Unix = struct
     | `Not_found ->
         Error (`No_such_file_or_directory (Eio.Path.native_exn path))
     | `Regular_file -> (
-        let read_buf = Cstruct.create default_read_buf_size in
         match readonly with
         | true -> (
             try
               let file = RO (Eio.Path.open_in ~sw path) in
-              Ok { file; closed = false; path; read_buf }
+              Ok { file; closed = false; path }
             with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
         | false -> (
             try
               let file = RW (Eio.Path.open_out ~sw ~create:`Never path) in
-              Ok { file; closed = false; path; read_buf }
+              Ok { file; closed = false; path }
             with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))))
     | _ -> Error `Not_a_file
 
@@ -197,14 +188,9 @@ module Unix = struct
     | false -> (
         try
           let file = get_file_as_ro t.file in
-          (* Reuse the read buffer, growing it if necessary *)
-          let cs =
-            if Cstruct.length t.read_buf >= len then
-              Cstruct.sub t.read_buf 0 len
-            else (
-              t.read_buf <- Cstruct.create len;
-              t.read_buf)
-          in
+          (* Allocate fresh buffer for each read - buffer reuse is not safe
+             for concurrent access in multicore scenarios *)
+          let cs = Cstruct.create len in
           Eio.File.pread_exact file ~file_offset:off [ cs ];
           Cstruct.blit_to_bytes cs 0 buf 0 len;
           Index.Stats.add_read len
