@@ -1,0 +1,12 @@
+(executable
+ (public_name irmin-inlined)
+ (name main)
+ (package irmin-pack)
+ (libraries unix eio eio_main irmin irmin-pack irmin-pack.unix lavyek)
+ (preprocess
+  (pps ppx_irmin.internal)))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))

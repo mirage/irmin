@@ -38,7 +38,7 @@ module type S = sig
   type step
   type metadata
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type kinded_hash = [ `Contents of hash * metadata | `Node of hash * hash list ]
   [@@deriving irmin]
 
   type 'a inode = { length : int; proofs : (int * 'a) list } [@@deriving irmin]

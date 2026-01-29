@@ -514,6 +514,8 @@ struct
       let check ~kind ~offset ~length k =
         match kind with
         | `Contents -> X.Contents.CA.integrity_check ~offset ~length k contents
+        | `Contents_inlined__3 ->
+            X.Contents.CA.integrity_check ~offset ~length k contents
         | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
@@ -556,7 +558,7 @@ struct
           module Hash = Hash
         end) in
         let t = Stats.v () in
-        let pred_node repo k =
+        let pred_node repo (k, _il) =
           match X.Node.find (X.Repo.node_t repo) k with
           | None -> Fmt.failwith "key %a not found" pp_key k
           | Some v ->
@@ -568,14 +570,14 @@ struct
                 |> List.map (function
                      | s, `Contents h -> (s, `Contents (XKey.to_hash h))
                      | s, `Inode h -> (s, `Inode (XKey.to_hash h))
-                     | s, `Node h -> (s, `Node (XKey.to_hash h)))
+                     | s, `Node (h, _il) -> (s, `Node (XKey.to_hash h)))
                 |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
               in
               List.rev_map
                 (function
                   | s, `Inode x ->
                       assert (s = None);
-                      `Node x
+                      `Node (x, [])
                   | _, `Node x -> `Node x
                   | _, `Contents x -> `Contents x)
                 preds
@@ -587,7 +589,7 @@ struct
           | Some c ->
               let node = X.Commit.Val.node c in
               Stats.visit_commit t (XKey.to_hash node);
-              [ `Node node ]
+              [ `Node (node, []) ]
         in
         let pred_contents _repo k =
           Stats.visit_contents t (XKey.to_hash k);
@@ -731,7 +733,7 @@ struct
           let f_nodes x = f (Inode x) in
           match root_key with
           | `Contents _ -> Fmt.failwith "[root_key] cannot be of type contents"
-          | `Node key ->
+          | `Node (key, _il) ->
               let total =
                 Export.run ?on_disk export f_contents f_nodes
                   (key, Pack_value.Kind.Inode_v2_root)

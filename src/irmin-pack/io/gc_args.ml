@@ -41,7 +41,9 @@ module type S = sig
 
     val pred :
       t ->
-      (step option * [ `Contents of key | `Inode of key | `Node of key ]) list
+      (step option
+      * [ `Contents of key | `Inode of key | `Node of key * key list ])
+      list
   end
 
   module Node_store : sig

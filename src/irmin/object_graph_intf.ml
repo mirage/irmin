@@ -133,7 +133,8 @@ module type Sigs = sig
     S
       with type V.t =
         [ `Contents of Contents_key.t
-        | `Node of Node_key.t
+        | `Contents_inlined_2 of Contents_key.t
+        | `Node of Node_key.t * Contents_key.t list
         | `Commit of Commit_key.t
         | `Branch of Branch.t ]
 end

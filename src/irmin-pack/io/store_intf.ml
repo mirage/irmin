@@ -229,7 +229,7 @@ module type S = sig
   (** {1 Snapshots} *)
 
   module Snapshot : sig
-    type kinded_hash = Contents of hash * metadata | Node of hash
+    type kinded_hash = Contents of hash * metadata | Node of hash * hash list
     [@@deriving irmin]
 
     type entry = { step : string; hash : kinded_hash } [@@deriving irmin]

@@ -171,7 +171,7 @@ struct
 
   let empty_if_none (n, _) = function
     | None -> N.add n (N.Val.empty ())
-    | Some node -> node
+    | Some (node, _) -> node
 
   let equal_key = Type.(unstage (equal Key.t))
   let equal_opt_keys = Type.(unstage (equal (option Key.t)))
@@ -202,9 +202,9 @@ struct
           | None -> Merge.ok None
           | Some old ->
               let vold = get t old in
-              Merge.ok (Some (Some (Val.node vold)))
+              Merge.ok (Some (Some (Val.node vold, [])))
         in
-        merge_node t ~old (Some (Val.node v1)) (Some (Val.node v2))
+        merge_node t ~old (Some (Val.node v1, [])) (Some (Val.node v2, []))
         >>=* fun node ->
         let node = empty_if_none t node in
         let parents = [ k1; k2 ] in
@@ -287,7 +287,8 @@ module History (S : Store) = struct
 
   let edges t =
     [%log.debug "edges"];
-    [ `Node (S.Val.node t) ] @ List.map (fun k -> `Commit k) (S.Val.parents t)
+    [ `Node (S.Val.node t, []) ]
+    @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
     [%log.debug "closure"];
