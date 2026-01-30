@@ -29,11 +29,6 @@ module Util = struct
   let really_write fd file_offset buffer buffer_offset length =
     let cs = Cstruct.of_bytes ~off:buffer_offset ~len:length buffer in
     Eio.File.pwrite_all fd ~file_offset [ cs ]
-
-  let really_read fd file_offset length buffer =
-    let cs = Cstruct.create length in
-    Eio.File.pread_exact fd ~file_offset [ cs ];
-    Cstruct.blit_to_bytes cs 0 buffer 0 length
 end
 
 module Unix = struct
@@ -193,7 +188,11 @@ module Unix = struct
     | false -> (
         try
           let file = get_file_as_ro t.file in
-          Util.really_read file off len buf;
+          (* Allocate fresh buffer for each read - buffer reuse is not safe
+             for concurrent access in multicore scenarios *)
+          let cs = Cstruct.create len in
+          Eio.File.pread_exact file ~file_offset:off [ cs ];
+          Cstruct.blit_to_bytes cs 0 buf 0 len;
           Index.Stats.add_read len
         with exn ->
           Printexc.print_backtrace stderr;

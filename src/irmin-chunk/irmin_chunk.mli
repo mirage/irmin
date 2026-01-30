@@ -23,7 +23,7 @@
 (** {1 Managing Chunks}
 
     This module exposes functors to store raw contents into append-only stores
-    as chunks of same size. It exposes the {{!AO} AO} functor which split the
+    as chunks of same size. It exposes the [AO] functor which split the
     raw contents into [Data] blocks, addressed by [Node] blocks. That's the
     usual rope-like representation of strings, but chunk trees are always built
     as perfectly well-balanced and blocks are addressed by their hash (or by the
@@ -45,10 +45,10 @@
     [length] is the payload length. Otherwise it is the number of children that
     the node has.
 
-    It also exposes {{!AO_stable} AO_stable} which -- as {{!AO} AO} does --
+    It also exposes [AO_stable] which -- as [AO] does --
     stores raw contents into chunks of same size. But it also preserves the nice
     property that values are addressed by their hash, instead of by the hash of
-    the root chunk node as is the case for {{!AO} AO}. *)
+    the root chunk node as is the case for [AO]. *)
 
 module Conf : sig
   open Irmin.Backend.Conf

@@ -7,7 +7,7 @@ license: "ISC"
 homepage: "https://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
-  "dune" {>= "3.5.0"}
+  "dune" {>= "3.19.0"}
   "ctypes" {>= "0.19"}
   "ctypes-foreign" {>= "0.18"}
   "irmin" {= version}
@@ -22,7 +22,4 @@ build: [
 ]
 dev-repo: "git+https://github.com/mirage/irmin.git"
 
-# Disabled on arm64 linux and s390x because of a SEGFAULT in tests
-# Disabled on macOS because of https://github.com/mirage/ca-certs/issues/20
-available: [ arch != "arm64" & arch != "s390x" & os != "macos" ]
 x-maintenance-intent: [ "(latest)" ]

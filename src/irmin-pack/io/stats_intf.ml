@@ -266,11 +266,11 @@ module type Sigs = sig
   val report_pack_store : field:Pack_store.field -> unit
   (** [report_pack_store ~field] increments the [field] value in the
       [pack_store] stats. It also increments the [total] field in
-      {!Pack_store.t} when the field is related to [finds]. *)
+      [Pack_store.t] when the field is related to [finds]. *)
 
   val report_index : unit -> unit
-  (** [report_index ()] fills the [stats] with value from the {!Index.Stats}
-      module. This essentially copies the "current" values from {!Index.Stats}
+  (** [report_index ()] fills the [stats] with value from the [Index.Stats]
+      module. This essentially copies the "current" values from [Index.Stats]
       to the [get()] instance [index] field. *)
 
   val incr_appended_hashes : unit -> unit

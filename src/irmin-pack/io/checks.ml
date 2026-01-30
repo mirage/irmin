@@ -86,7 +86,7 @@ struct
         match kind with
         | Contents -> progress_contents ()
         | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
-          ->
+        | Inode_v3_root | Inode_v3_nonroot ->
             progress_nodes ()
         | Commit_v1 | Commit_v2 -> progress_commits ()
         | Dangling_parent_commit -> assert false
@@ -422,9 +422,9 @@ struct
       match kind with
       | Contents ->
           progress_contents ();
-          check ~kind:`Contents ~offset ~length k
+          check ~kind:`Contents ~offset ~length k (* TODO inlined ?*)
       | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
-        ->
+      | Inode_v3_root | Inode_v3_nonroot ->
           progress_nodes ();
           check ~kind:`Node ~offset ~length k
       | Commit_v1 | Commit_v2 ->
@@ -495,25 +495,28 @@ struct
       progress_contents ();
       check_contents key
     in
-    let pred_node repo key =
+    let pred_node repo (key, _il) =
       match X.Node.find (X.Repo.node_t repo) key with
       | None ->
           Fmt.failwith "node with hash %a not found" pp_hash (XKey.to_hash key)
       | Some v ->
           let preds = pred v in
-          List.rev_map
+          List.filter_map
             (function
               | s, `Inode x ->
                   assert (s = None);
-                  `Node x
-              | _, `Node x -> `Node x
-              | _, `Contents x -> `Contents x)
+                  Some (`Node (x, []))
+              | _, `Node x -> Some (`Node x)
+              | _, `Contents x -> Some (`Contents x)
+              | _, `Contents_inlined _ ->
+                  (* Inlined contents don't have their own pack entry *)
+                  None)
             preds
       | exception _exn ->
           add_error `Wrong_hash (XKey.to_hash key);
           []
     in
-    let check_nodes key =
+    let check_nodes (key, _il) =
       match X.Node.find (X.Repo.node_t t) key with
       | None ->
           Fmt.failwith "node with hash %a not found" pp_hash (XKey.to_hash key)
@@ -534,7 +537,8 @@ struct
         | None -> []
         | Some c ->
             let node = X.Commit.Val.node c in
-            [ `Node node ]
+            (* TODO inline *)
+            [ `Node (node, []) ]
       with _exn ->
         add_error `Wrong_hash (XKey.to_hash k);
         []
@@ -557,13 +561,13 @@ struct
       Object_counter.start ppf
     in
     let errors = ref [] in
-    let pred_node repo key =
-      try pred repo key
+    let pred_node repo (key, il) =
+      try pred repo (key, il)
       with _ ->
         errors := "Error in repo iter" :: !errors;
         []
     in
-    let node k =
+    let node (k, _il) =
       progress_nodes ();
       match check k with Ok () -> () | Error msg -> errors := msg :: !errors
     in
@@ -747,6 +751,7 @@ struct
           | Inode, `Inode x -> visit Inode x
           | Node s, `Node x -> visit (Node s) x
           | Node s, `Contents x -> visit (Node s) x
+          | Node s, `Contents_inlined x -> visit (Node s) x
           | _ -> assert false)
         preds
     in

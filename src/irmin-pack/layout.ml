@@ -94,7 +94,8 @@ module V5 = struct
 end
 
 (** [is_number] is a less generic than [Stdlib.int_of_string_opt]. It matches
-    this equivalent regex: {v "([1-9][0-9]*|0)" v}. *)
+    this equivalent regex:
+    {v "([1-9][0-9]*|0)" v} *)
 let is_number s =
   match String.to_seq s |> List.of_seq with
   | [] -> false

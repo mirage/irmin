@@ -9,12 +9,48 @@ let make_tree_of_paths paths =
 let goto_project_root () =
   let cwd = Fpath.v (Sys.getcwd ()) in
   match cwd |> Fpath.segs |> List.rev with
-  | "bench_multicore" :: "irmin-pack" :: "test" :: "default" :: root
+  | "bench_multicore" :: "irmin-pack" :: "test" :: "default" :: "_build" :: root
   | "bench_multicore" :: "irmin-pack" :: "test" :: root ->
       Unix.chdir @@ String.concat Fpath.dir_sep @@ List.rev root
   | _ -> ()
 
-let root fs = Eio.Path.(fs / "bench-multicore")
+let mkdir_p dir =
+  let rec aux dir =
+    if Sys.file_exists dir then ()
+    else (
+      aux (Filename.dirname dir);
+      try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+  in
+  aux dir
+
+let get_root () =
+  let path =
+    match Sys.getenv_opt "IRMIN_BENCH_ROOT" with
+    | Some r -> r
+    | None -> "_build/bench-multicore"
+  in
+  (* Normalize path to absolute for consistent output *)
+  if Sys.file_exists path then Unix.realpath path
+  else (
+    mkdir_p path;
+    Unix.realpath path)
+
+let root fs =
+  (* Store goes in "store" subdirectory for consistency with other benchmarks *)
+  let path = Filename.concat (get_root ()) "store" in
+  (* Normalize path to absolute without .. components for Eio compatibility *)
+  let path =
+    if Sys.file_exists path then Unix.realpath path
+    else (
+      mkdir_p path;
+      Unix.realpath path)
+  in
+  Eio.Path.(fs / path)
+
+let metrics_dir () =
+  let path = Filename.concat (get_root ()) "metrics" in
+  mkdir_p path;
+  path
 
 let reset_test_env ~fs () =
   goto_project_root ();
@@ -89,10 +125,7 @@ let setup_tree ~sw ~fs ~readonly paths =
   let repo = open_repo ~sw ~fs ~fresh:true ~readonly:false () in
   let () = S.set_tree_exn ~info (S.main repo) [] tree in
   S.Repo.close repo;
-  let repo = open_repo ~sw ~fs ~fresh:false ~readonly () in
-  Format.printf
-    "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
-  repo
+  open_repo ~sw ~fs ~fresh:false ~readonly ()
 
 let commit repo tree_at () =
   let parents = [ S.Commit.key @@ S.Head.get @@ S.main repo ] in
@@ -100,11 +133,18 @@ let commit repo tree_at () =
   let _ = S.Commit.v repo ~parents ~info:S.Info.empty new_tree in
   ()
 
-let load ~fs ~d_mgr ~(config : Gen.config) ~commit ~load_task ~make ~readonly =
+let load ~fs ~d_mgr ~(config : Gen.config) ~csv_name ~commit ~load_task ~make
+    ~readonly =
   Eio.Switch.run @@ fun sw ->
   let paths, tasks = make ~config in
   let repo = setup_tree ~sw ~fs ~readonly paths in
   let get_tree = get_tree ~config repo tasks in
+  let csv_file = Filename.concat (metrics_dir ()) csv_name in
+  let oc = open_out csv_file in
+  let ppf = Format.formatter_of_out_channel oc in
+
+  Format.fprintf ppf
+    "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio@.";
 
   let _, sequential, _ =
     bench ~samples:config.nb_runs @@ fun () ->
@@ -128,17 +168,19 @@ let load ~fs ~d_mgr ~(config : Gen.config) ~commit ~load_task ~make ~readonly =
       elapsed := dt :: !elapsed
     done;
     let min, median, max = analyze_bench @@ Array.of_list !elapsed in
-    Format.printf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min median max
-      (sequential /. max) (sequential /. median) (sequential /. min)
+    Format.fprintf ppf "%i,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f@." nb_domains min
+      median max (sequential /. max) (sequential /. median) (sequential /. min)
   done;
-  S.Repo.close repo
+  close_out oc;
+  S.Repo.close repo;
+  Printf.printf "Results: %s\n%!" (get_root ())
 
 let half ~fs ~d_mgr ~(config : Gen.config) =
-  load ~fs ~d_mgr ~config
+  load ~fs ~d_mgr ~config ~csv_name:"half_diamond.csv"
     ~commit:(fun _ _ () -> ())
     ~load_task:(fun _ -> half_task)
     ~make:Gen.make ~readonly:true
 
 let full ~fs ~d_mgr ~(config : Gen.config) =
-  load ~fs ~d_mgr ~config ~commit ~load_task:full_task ~make:Gen.make_full
-    ~readonly:false
+  load ~fs ~d_mgr ~config ~csv_name:"full_diamond.csv" ~commit
+    ~load_task:full_task ~make:Gen.make_full ~readonly:false

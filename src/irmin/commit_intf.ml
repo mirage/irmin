@@ -277,7 +277,7 @@ module type Sigs = sig
         [Commit.Portable.t] is a [Commit.t] in which all internal keys have been
         replaced with the hashes of the values they point to.
 
-        As with {!Node.Portable}, computations over portable values must commute
+        As with [Node.Portable], computations over portable values must commute
         with those over [t]s. *)
 
     (** A node implementation with hashes for keys is trivially portable: *)

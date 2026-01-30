@@ -52,7 +52,7 @@ module type S = sig
   val decode_bin_length : string -> int -> int
 
   val to_kinded : t -> kinded
-  (** [to_kinded t] returns a {!kinded} version of [t]. *)
+  (** [to_kinded t] returns a [kinded] version of [t]. *)
 
   val of_kinded : kinded -> t
   (** [of_kinded k] is the inverse of [to_kinded t].
@@ -81,6 +81,8 @@ module type Sigs = sig
       | Inode_v1_stable
       | Inode_v2_root
       | Inode_v2_nonroot
+      | Inode_v3_root
+      | Inode_v3_nonroot
       | Dangling_parent_commit
     [@@deriving irmin]
 

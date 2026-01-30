@@ -13,13 +13,31 @@ let allocated_words () =
   let s = Gc.quick_stat () in
   s.minor_words +. s.major_words -. s.promoted_words
 
-let open_stat_file name =
-  let stat_file =
-    let rnd = Random.bits () land 0xFFFFFF in
-    let ( / ) = Filename.concat in
-    "." / Printf.sprintf "%s-%06x.csv" name rnd
+let mkdir_p dir =
+  let rec aux dir =
+    if Sys.file_exists dir then ()
+    else (
+      aux (Filename.dirname dir);
+      try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
   in
-  Printf.printf "Sending stats to '%s'\n%!" stat_file;
+  aux dir
+
+let get_root output_dir =
+  let path =
+    match Sys.getenv_opt "IRMIN_BENCH_ROOT" with
+    | Some r -> r
+    | None -> output_dir
+  in
+  mkdir_p path;
+  Unix.realpath path
+
+let open_stat_file root name =
+  let stat_file =
+    let ( / ) = Filename.concat in
+    let metrics_dir = root / "metrics" in
+    mkdir_p metrics_dir;
+    metrics_dir / Printf.sprintf "%s.csv" name
+  in
   let out = open_out stat_file in
   Printf.fprintf out
     "entries,implementation,reachable_words,allocated_words,time(ns)\n";
@@ -89,9 +107,8 @@ let random_string state =
   done;
   Bytes.unsafe_to_string b
 
-let run_loop ~random_state ~out (module Hashset : S) =
+let run_loop ~iterations ~random_state ~out (module Hashset : S) =
   let t = Hashset.create ()
-  and iterations = 300_000
   and start_time = Mtime_clock.counter ()
   and last = ref Mtime.Span.zero
   and initial_allocations = allocated_words () in
@@ -102,23 +119,45 @@ let run_loop ~random_state ~out (module Hashset : S) =
       let time = Mtime_clock.count start_time in
       let diff = Mtime.Span.abs_diff time !last in
       let reachable_words = Hashset.reachable_words t in
-      Printf.eprintf "\r%s : %#d / %#d%!" Hashset.implementation_name i
-        iterations;
       Printf.fprintf out "%d,%s,%d,%f,%Ld\n%!" i Hashset.implementation_name
         reachable_words
         (allocated_words () -. initial_allocations)
         (Int64.div (Mtime.Span.to_uint64_ns diff) 1_000L);
       last := Mtime_clock.count start_time)
-  done;
-  Printf.eprintf "\r%s : done\x1b[K\n%!" Hashset.implementation_name
+  done
+
+type mode = Fast | Full
+
+let iterations_for_mode = function Fast -> 30_000 | Full -> 300_000
+
+let parse_mode = function
+  | "fast" -> Fast
+  | "full" -> Full
+  | s ->
+      failwith (Printf.sprintf "Unknown mode: %s (expected 'fast' or 'full')" s)
 
 let () =
+  (* Filter out "--" which dune passes through *)
+  let args =
+    Array.to_list Sys.argv |> List.filter (( <> ) "--") |> Array.of_list
+  in
+  let mode, output_dir =
+    match args with
+    | [| _ |] -> (Fast, "_metrics")
+    | [| _; mode |] -> (parse_mode mode, "_metrics")
+    | [| _; mode; output_dir |] -> (parse_mode mode, output_dir)
+    | _ ->
+        Printf.eprintf "Usage: %s [fast|full] [output_dir]\n" Sys.argv.(0);
+        exit 1
+  in
+  let iterations = iterations_for_mode mode in
   Random.self_init ();
   let seed = Random.int 0x3fff_ffff in
   let random_state = Random.State.make [| seed |] in
-  Printf.eprintf "Random seed: %d\n%!" seed;
-  let out = open_stat_file "hashset-memory-usage" in
+  let root = get_root output_dir in
+  let out = open_stat_file root "hashset-memory-usage" in
   List.iter
-    (run_loop ~random_state ~out)
+    (run_loop ~iterations ~random_state ~out)
     [ (module Stringset_irmin); (module Stringset_stdlib) ];
-  Printf.printf "\nDone\n"
+  close_out out;
+  Printf.printf "Results: %s\n%!" root

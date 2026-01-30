@@ -55,13 +55,16 @@ module type S = sig
   val of_node : node -> t
   (** [of_node n] is the subtree built from the node [n]. *)
 
-  type elt = [ `Node of node | `Contents of contents * metadata ]
+  type elt = [ `Node of node * contents list | `Contents of contents * metadata ]
   (** The type for tree elements. *)
 
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type kinded_hash =
+    [ `Contents of hash * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of hash * hash list ]
   [@@deriving irmin]
 
   val pruned : kinded_hash -> t
@@ -106,6 +109,16 @@ module type S = sig
 
   type 'a or_error = ('a, error) result
 
+  module Private : sig
+    module Env : sig
+      type t [@@deriving irmin]
+
+      val is_empty : t -> bool
+    end
+
+    val get_env : t -> Env.t
+  end
+
   (** Operations on lazy tree contents. *)
   module Contents : sig
     type t
@@ -113,8 +126,7 @@ module type S = sig
 
     val hash : ?cache:bool -> t -> hash
     (** [hash t] is the hash of the {!contents} value returned when [t] is
-        {!val-force}d successfully. See {!caching} for an explanation of the
-        [cache] parameter. *)
+        {!val-force}d successfully. [cache] controls caching of lazily-loaded data (see {b caching} section). *)
 
     val key : t -> contents_key option
     (** [key t] is the key of the {!contents} value returned when [t] is
@@ -130,6 +142,8 @@ module type S = sig
 
     val clear : t -> unit
     (** [clear t] clears [t]'s cache. *)
+
+    val of_value : contents -> env:Private.Env.t -> t
 
     (** {2:caching caching}
 
@@ -157,8 +171,7 @@ module type S = sig
       It is equivalent to [List.length (list t k)] but backends might optimise
       this call: for instance it's a constant time operation in [irmin-pack].
 
-      [cache] defaults to [true], see {!caching} for an explanation of the
-      parameter.*)
+      [cache] defaults to [true], [cache] controls caching of lazily-loaded data.*)
 
   val find : t -> path -> contents option
   (** [find] is similar to {!find_all} but it discards metadata. *)
@@ -174,8 +187,7 @@ module type S = sig
 
       [offset] and [length] are used for pagination.
 
-      [cache] defaults to [true], see {!Contents.caching} for an explanation of
-      the parameter. *)
+      [cache] defaults to [true] and controls caching of lazily-loaded data. *)
 
   val seq :
     t -> ?offset:int -> ?length:int -> ?cache:bool -> path -> (step * t) Seq.t
@@ -233,7 +245,8 @@ module type S = sig
 
   (** {1 Folds} *)
 
-  val destruct : t -> [ `Node of node | `Contents of Contents.t * metadata ]
+  val destruct :
+    t -> [ `Node of node * Contents.t list | `Contents of Contents.t * metadata ]
   (** General-purpose destructor for trees. *)
 
   type marks
@@ -307,8 +320,7 @@ module type S = sig
 
       The fold depth is controlled by the [depth] parameter.
 
-      [cache] defaults to [false], see {!Contents.caching} for an explanation of
-      the parameter.
+      [cache] defaults to [false] and controls caching of lazily-loaded data.
 
       If [order] is [`Sorted] (the default), the elements are traversed in
       lexicographic order of their keys. If [`Random state], they are traversed
@@ -341,8 +353,8 @@ module type S = sig
   val of_concrete : concrete -> t
   (** [of_concrete c] is the subtree equivalent of the concrete tree [c].
 
-      @raise Invalid_argument
-        if [c] contains duplicate bindings for a given path. *)
+      Raises [Invalid_argument] if [c] contains duplicate bindings for a given
+      path. *)
 
   val to_concrete : t -> concrete
   (** [to_concrete t] is the concrete tree equivalent of the subtree [t]. *)
@@ -408,22 +420,26 @@ module type S = sig
       - [`Value], if [t]'s node has modifications that have not been persisted
         to a store.
       - [`Portable_dirty], if [t]'s node has modifications and is
-        {!Node.Portable}. Currently only used with {!Proof}.
+        [Node.Portable]. Currently only used with {!Proof}.
       - [`Pruned], if [t] is from {!pruned}.
       - Otherwise [`Key], the default state for a node loaded from a store. *)
-
-  module Private : sig
-    module Env : sig
-      type t [@@deriving irmin]
-
-      val is_empty : t -> bool
-    end
-
-    val get_env : t -> Env.t
-  end
 end
 
 module type Sigs = sig
+  val set_inline_contents_enabled : bool -> unit
+  (** [set_inline_contents_enabled b] controls whether small contents are
+      inlined directly in nodes. When [true], contents smaller than the
+      configured threshold will be inlined. Default is [false]. This is a global
+      setting that should be set before creating stores. *)
+
+  val set_inline_contents_max_bytes : int -> unit
+  (** [set_inline_contents_max_bytes n] sets the maximum serialized size in
+      bytes for contents to be inlined. Note: actual inlining threshold is
+      [n - 2] bytes due to encoding overhead. Default is [48]. *)
+
+  val get_inline_contents_max_bytes : unit -> int
+  (** [get_inline_contents_max_bytes ()] returns the current threshold. *)
+
   module type S = sig
     include S
     (** @inline *)
@@ -440,7 +456,9 @@ module type Sigs = sig
          and type hash = B.Hash.t
 
     type kinded_key =
-      [ `Contents of B.Contents.Key.t * metadata | `Node of B.Node.Key.t ]
+      [ `Contents of B.Contents.Key.t * metadata
+      | `Contents_inlined of string * metadata
+      | `Node of B.Node.Key.t * B.Contents.Key.t list ]
     [@@deriving irmin]
 
     val import : B.Repo.t -> kinded_key -> t option

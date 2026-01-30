@@ -39,8 +39,8 @@
 
     - [Value]: the data itself.
 
-    The length of the overall pack {i entry}, as referenced in the {!Pack_index}
-    or in a direct {!Pack_key.t}, is equal to [E = H + K + L + V]. *)
+    The length of the overall pack {i entry}, as referenced in the [Pack_index]
+    or in a direct [Pack_key.t], is equal to [E = H + K + L + V]. *)
 
 include Pack_value_intf.Sigs
 (** @inline *)

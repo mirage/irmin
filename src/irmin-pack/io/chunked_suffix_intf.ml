@@ -18,7 +18,7 @@ open Import
 
 module type S = sig
   (** Abstraction for a chunked suffix. It is functionally equivalent to
-      {!Append_only_file} but with a chunked implementation that is
+      [Append_only_file] but with a chunked implementation that is
       parameterized by
 
       - [start_idx] for {!create_rw} to know the starting file name, and

@@ -18,7 +18,7 @@ open Import
 open Errors
 
 (** Error manager for errors and exceptions defined in {!Errors} and
-    {!Io_intf.S.misc_error} *)
+    [Io_intf.S.misc_error] *)
 module type S = sig
   module Io : Io_intf.S
 

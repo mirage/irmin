@@ -1,0 +1,47 @@
+; Use posix backend to avoid io_uring resource exhaustion on Linux
+
+(executable
+ (name test_stm)
+ (modules test_stm tree_model common_model)
+ (libraries
+  common
+  qcheck-core
+  qcheck-stm.stm
+  qcheck-stm.sequential
+  qcheck-stm.domain_eio
+  eio
+  eio_main
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.mem
+  irmin.mem
+  irmin-tezos))
+
+(rule
+ (alias runtest)
+ (package irmin-test)
+ (action
+  (setenv
+   EIO_BACKEND
+   posix
+   (run ./test_stm.exe))))
+
+(test
+ (name test_stm_irmin_pack)
+ (package irmin-test)
+ (modules test_stm_irmin_pack tree_model common_model)
+ (libraries
+  common
+  qcheck-core
+  qcheck-stm.stm
+  qcheck-stm.sequential
+  qcheck-stm.domain_eio
+  eio
+  eio_main
+  irmin
+  irmin-test
+  irmin-pack
+  irmin-pack.mem
+  irmin.mem
+  irmin-tezos))

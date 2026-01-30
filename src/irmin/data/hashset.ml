@@ -26,7 +26,7 @@ module type S = sig
   val add_exn : t -> elt -> unit
   (** [add_exn t elt] adds [elt] to the set [t].
 
-      @raise Invalid_argument if [elt] is already a member of [t]. *)
+      Raises [Invalid_argument] if [elt] is already a member of [t]. *)
 
   val mem : t -> elt -> bool
   (** [mem t elt] is [true] iff [elt] has been added to the hashset. *)

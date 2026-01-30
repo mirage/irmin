@@ -22,8 +22,8 @@
     Additionally, [Irmin_containers] supplies instantiations of each of these
     data structures with two backends:
 
-    - the {{!Irmin_mem} in-memory backend} provided by {!Irmin_mem}
-    - the {{!Irmin_fs_unix} FS backend} provided by {!Irmin_fs_unix}. *)
+    - the [Irmin_mem] in-memory backend
+    - the [Irmin_fs_unix] FS backend *)
 
 (** {1 Data structures} *)
 

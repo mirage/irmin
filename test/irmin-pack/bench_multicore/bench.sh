@@ -52,14 +52,23 @@ else
   fi
 fi
 
+# Get absolute path to project root (more robust than relative path)
+project_root="$(cd ../../.. && pwd)"
+csv_file="$project_root/_build/bench-multicore/metrics/half_diamond.csv"
+
 echo "# domains,min_time,median_time,max_time,min_ratio,median_ratio,max_ratio,joules,milliseconds"
 
 for i in $(seq $seq_args); do
   # Use LC_ALL=C to ensure decimal points are dots and avoid locale issues
-  LC_ALL=C perf stat -e power/energy-psys/ dune exec -- ./main.exe cold --elements "$elements" --finds "$finds" --runs "$runs" --domains "$i" > bench.out 2> perf.out
+  # Run benchmark with perf to measure energy, suppress stdout (Results: line)
+  LC_ALL=C perf stat -e power/energy-psys/ dune exec -- ./main.exe cold --elements "$elements" --finds "$finds" --runs "$runs" --domains "$i" > /dev/null 2> perf.out
 
-  # Extract bench data (skip header)
-  bench_line=$(grep -v "^#" bench.out)
+  # Extract bench data from the generated CSV file (skip header line)
+  if [ -f "$csv_file" ]; then
+    bench_line=$(tail -1 "$csv_file")
+  else
+    bench_line="$i,N/A,N/A,N/A,N/A,N/A,N/A"
+  fi
 
   # Extract Joules (remove commas if any)
   joules=$(grep "Joules" perf.out | awk '{print $1}' | tr -d ',')
@@ -76,4 +85,4 @@ for i in $(seq $seq_args); do
   echo "$bench_line,$joules,$milliseconds"
 done
 
-rm -f bench.out perf.out
+rm -f perf.out

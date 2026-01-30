@@ -106,16 +106,23 @@ module Make (Args : Gc_args.S) = struct
               raise (Pack_error (`Dangling_key (string_of_key commit_key)))
           | Some commit ->
               List.iter schedule_commit (Commit_value.parents commit);
-              schedule_kinded (`Node (Commit_value.node commit)))
+              (* TODO inline *)
+              schedule_kinded (`Node (Commit_value.node commit, [])))
     and schedule_kinded kinded_key =
-      let key, kind =
+      let key_kind =
         match kinded_key with
-        | `Contents key -> (key, Contents)
-        | `Inode key | `Node key -> (key, Node)
+        | `Contents key -> Some (key, Contents) (* TODO inline *)
+        | `Contents_inlined _ ->
+            (* Inlined contents don't have their own pack entry *)
+            None
+        | `Inode key | `Node (key, _) -> Some (key, Node)
       in
-      match Node_store.get_offset node_store key with
-      | offset -> schedule ~offset kind
-      | exception Pack_store.Dangling_hash -> ()
+      match key_kind with
+      | None -> ()
+      | Some (key, kind) -> (
+          match Node_store.get_offset node_store key with
+          | offset -> schedule ~offset kind
+          | exception Pack_store.Dangling_hash -> ())
     and schedule_commit key =
       match Commit_store.get_offset commit_store key with
       | offset ->

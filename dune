@@ -2,10 +2,11 @@
 
 (env
  (dev
-  (flags :standard -w -unused-functor-parameter)))
+  (flags :standard -w -unused-functor-parameter -warn-error -A)))
 
 (mdx
  (files README.md)
+ (package irmin-cli)
  (deps %{bin:irmin})
  (libraries
   irmin
@@ -16,113 +17,3 @@
   eio_main
   eio.unix
   lwt_eio))
-
-(rule
- (alias bench-mem)
- (action
-  (run test/irmin-mem/bench.exe)))
-
-(rule
- (alias bench-hashset)
- (action
-  (run bench/irmin/data/bench_fixed_size_string_set.exe)))
-
-(rule
- (alias bench-pack)
- (action
-  (run bench/irmin-pack/main.exe)))
-
-(rule
- (target stat_summary.json)
- (deps
-  (:trace test/irmin-bench/data/tezos_actions_1commit.repr))
- (action
-  (run
-   bench/irmin-pack/tree.exe
-   --mode
-   trace
-   %{trace}
-   --ncommits-trace
-   12000
-   --artefacts
-   .)))
-
-(rule
- (alias bench-pack-stats)
- (deps stat_summary.json)
- (action
-  (run bench/irmin-pack/trace_stats.exe cb %{deps})))
-
-(rule
- (alias bench-cold)
- (action
-  (run test/irmin-pack/bench_multicore/main.exe cold)))
-
-(rule
- (alias bench-half)
- (action
-  (run test/irmin-pack/bench_multicore/main.exe half)))
-
-(rule
- (alias bench-full)
- (action
-  (run test/irmin-pack/bench_multicore/main.exe full)))
-
-(rule
- (alias bench-mirage)
- (deps bench/mirage/hello.qemu)
- (action
-  (run
-   qemu-system-x86_64
-   -m
-   2048
-   -nodefaults
-   -nographic
-   -kernel
-   bench/mirage/hello.qemu
-   -machine
-   virt
-   -serial
-   stdio
-   -net
-   nic
-   -net
-   user))
- (enabled_if
-  (= %{architecture} x86-64)))
-
-(rule
- (alias bench-mirage)
- (deps bench/mirage/hello.qemu)
- (action
-  (run
-   qemu-system-aarch64
-   -M
-   2048
-   -nodefaults
-   -nographic
-   -kernel
-   bench/mirage/hello.qemu
-   -machine
-   virt
-   -serial
-   stdio
-   -cpu
-   cortex-a53
-   -net
-   nic
-   -net
-   user))
- (enabled_if
-  (= %{architecture} arm64)))
-
-(alias
- (name bench)
- (deps
-  (alias bench-mem)
-  (alias bench-hashset)
-  (alias bench-pack)
-  (alias bench-pack-stats)
-  (alias bench-cold)
-  (alias bench-half)
-  (alias bench-full)))

@@ -9,8 +9,8 @@ let rec json_to_string = function
 | `A u -> "[" ^ String.concat "; " (List.map json_to_string u) ^ "]"
 
 let get_tau env =
-  let path = Eio.Path.(env#fs / "math") in
-  let conf = Irmin_fs_unix.conf ~path ~clock:env#clock in
+  let root = Eio.Path.(env#fs / "math") in
+  let conf = Irmin_fs_unix.config ~root ~clock:env#clock in
   let repo = Fs_store.Repo.v conf in
   let main = Fs_store.main repo in
   let tau = Fs_store.get main [ "tau" ] in

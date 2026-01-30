@@ -28,7 +28,10 @@ module type Snapshot = sig
   type hash
   type metadata
 
-  type kinded_hash = Contents of hash * metadata | Node of hash
+  type kinded_hash =
+    | Contents of hash * metadata
+    | Contents_inlined of string * metadata
+    | Node of hash * hash list
   [@@deriving irmin]
 
   type entry = { step : string; hash : kinded_hash } [@@deriving irmin]
@@ -53,7 +56,10 @@ module type Value = sig
   val pred :
     t ->
     (step option
-    * [ `Node of node_key | `Inode of node_key | `Contents of contents_key ])
+    * [ `Node of node_key * contents_key list
+      | `Inode of node_key
+      | `Contents of contents_key
+      | `Contents_inlined of string * metadata ])
     list
 
   module Portable :
@@ -112,7 +118,12 @@ module type Compress = sig
   type address = Offset of pack_offset | Hash of hash
   type ptr = { index : dict_key; hash : address }
   type tree = { depth : dict_key; length : dict_key; entries : ptr list }
-  type value = Contents of name * address * metadata | Node of name * address
+
+  type value =
+    | Contents of name * address * metadata
+    | Contents_inlined_value of name * string * metadata
+    | Node of name * address
+
   type v = Values of value list | Tree of tree
   type v1 = { mutable length : int; v : v }
 
@@ -121,6 +132,8 @@ module type Compress = sig
     | V1_unstable of v
     | V2_root of v1
     | V2_nonroot of v1
+    | V3_root of v1
+    | V3_nonroot of v1
 
   type t = { hash : hash; tv : tagged_v } [@@deriving irmin]
 end
@@ -168,7 +181,8 @@ module type Internal = sig
       type kinded_key =
         | Contents of contents_key
         | Contents_x of metadata * contents_key
-        | Node of node_key
+        | Contents_inlined_value of string * metadata
+        | Node of node_key * contents_key list
       [@@deriving irmin]
 
       type entry = { name : step; key : kinded_key } [@@deriving irmin]
@@ -176,7 +190,7 @@ module type Internal = sig
 
       type 'a pointer = { index : int; pointer : hash; tree : 'a }
       [@@deriving irmin]
-      (** The type for internal pointers between concrete {!tree}s. *)
+      (** The type for internal pointers between concrete [tree]s. *)
 
       type 'a tree = { depth : int; length : int; pointers : 'a pointer list }
       [@@deriving irmin]

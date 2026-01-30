@@ -1,0 +1,70 @@
+# Benchmark Run Summary
+
+## Run Information
+Date: 2026-01-29T22:34:53+01:00
+User: cuihtlauac
+Hostname: sigma
+Working directory: /home/cuihtlauac/caml/irmin-eio
+Git branch: cold-v2
+Git commit: fc0b218d0a
+
+## CPU Information
+Model: 12th Gen Intel(R) Core(TM) i7-1260P
+Cores: 16
+Architecture: x86_64
+
+## Memory Information
+               total        used        free      shared  buff/cache   available
+Mem:            15Gi       2,1Gi       8,2Gi       185Mi       5,5Gi        13Gi
+
+## Benchmarks Executed
+- bench-mem-full
+- bench-hashset-full
+- bench-pack-full
+- bench-trace-replay-full
+- bench-multicore-half-full
+- bench-multicore-full-full
+- bench-inline-full
+- bench-energy-full
+
+## Generated Files
+
+- bench_inline.csv (4.0K)
+- bench_inline_comparison.png (48K)
+- bench_inline_improvement.png (40K)
+- bench_inline_plot.dat (4.0K)
+- bench_inline_storage.dat (4.0K)
+- bench_inline_storage.png (92K)
+- energy.csv (4.0K)
+- energy.png (36K)
+- metrics/bench.data (4.0K)
+- metrics/commits-1116.d.gp (0)
+- metrics/commits-1116.gp (4.0K)
+- metrics/commits-1822.d.gp (0)
+- metrics/commits-1822.gp (4.0K)
+- metrics/full_diamond.csv (4.0K)
+- metrics/half_diamond.csv (4.0K)
+- metrics/hashset-memory-usage.csv (24K)
+- metrics/maxrss-1118.d.gp (0)
+- metrics/maxrss-1118.gp (4.0K)
+- metrics/maxrss-1824.d.gp (0)
+- metrics/maxrss-1824.gp (4.0K)
+- metrics/out/commits-1116.png (20K)
+- metrics/out/commits-1822.png (20K)
+- metrics/out/maxrss-1118.png (16K)
+- metrics/out/maxrss-1824.png (16K)
+- metrics/out/size-1117.png (12K)
+- metrics/out/size-1823.png (12K)
+- metrics/size-1117.d.gp (0)
+- metrics/size-1117.gp (4.0K)
+- metrics/size-1823.d.gp (0)
+- metrics/size-1823.gp (4.0K)
+- metrics/tree_counters.json (4.0K)
+- store/index/lock (4.0K)
+- store/index/log (53M)
+- store/store.0.suffix (516M)
+- store/store.branches (4.0K)
+- store/store.control (4.0K)
+- store/store.dict (14M)
+- trace_replay.json (4.0K)
+

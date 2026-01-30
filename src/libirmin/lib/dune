@@ -5,22 +5,38 @@
  (action
   (run %{gen} .)))
 
-(executable
- (name libirmin)
+(library
+ (name irmin_c)
+ (modules)
  (libraries libirmin_bindings)
- (modes shared_object)
- (modules libirmin irmin_bindings)
  (foreign_stubs
   (language c)
   (names irmin)
-  (flags -Wno-unused-variable))
+  (flags -Wno-unused-variable)))
+
+(executable
+ (name libirmin)
+ (libraries irmin_c)
+ (modes shared_object)
+ (modules libirmin irmin_bindings)
  (flags
-  (:standard
-   -w
-   -unused-var-strict
-   (:include link_flags.sexp)))
+  (:standard -w -unused-var-strict))
  (enabled_if
-  (<> %{ocaml_version} 5.2.0~alpha1)))
+  (and
+   (<> %{ocaml_version} 5.2.0~alpha1)
+   (<> %{system} "linux"))))
+
+(executable
+ (name libirmin)
+ (libraries irmin_c)
+ (modes shared_object)
+ (modules libirmin irmin_bindings)
+ (flags
+  (:standard -w -unused-var-strict -ccopt "-Wl,-znow"))
+ (enabled_if
+  (and
+   (<> %{ocaml_version} 5.2.0~alpha1)
+   (= %{system} "linux"))))
 
 (install
  (package libirmin)
@@ -30,13 +46,3 @@
   (libirmin%{ext_dll} as lib/libirm%{ext_dll}))
  (enabled_if
   (<> %{ocaml_version} 5.2.0~alpha1)))
-
-(executable
- (name discover)
- (modules discover)
- (libraries unix))
-
-(rule
- (targets link_flags.sexp)
- (action
-  (run ./discover.exe)))

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** The [irmin-pack-unix] package provides an implementation of {!Irmin_pack}
+(** The [irmin-pack-unix] package provides an implementation of [Irmin_pack]
     for Unix systems.
 
     [irmin-pack-unix] provides advanced features such as garbage collection,
@@ -57,7 +57,7 @@ module Stats_intf = Stats_intf
 (** {1 Internal Functors and Utilities} *)
 
 (** Following functors and modules are instantiated automatically or used
-    internally when creating a store with {!Maker} or {!KV}.*)
+    internally when creating a store with [Maker] or [KV].*)
 
 module Index = Pack_index
 module Inode = Inode

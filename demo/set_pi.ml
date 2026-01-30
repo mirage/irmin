@@ -4,8 +4,8 @@ let commit branch message path contents =
   Fs_store.set ~info branch path contents
 
 let set_pi env =
-  let path = Eio.Path.(env#fs / "math") in
-  let conf = Irmin_fs_unix.conf ~path ~clock:env#clock in
+  let root = Eio.Path.(env#fs / "math") in
+  let conf = Irmin_fs_unix.config ~root ~clock:env#clock in
   let repo = Fs_store.Repo.v conf in
   let main = Fs_store.main repo in
   let pi = `O ["val", `Float 3.1416] in

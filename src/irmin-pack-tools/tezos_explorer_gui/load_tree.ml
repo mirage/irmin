@@ -1,15 +1,24 @@
 open Optint
 module Kind = Irmin_pack.Pack_value.Kind
-module Conf = Irmin_tezos.Conf
-module Schema = Irmin_tezos.Schema
+
+module Conf = struct
+  let entries = 32
+  let stable_hash = 256
+  let contents_length_header = Some `Varint
+  let inode_child_order = `Seeded_hash
+  let forbid_empty_dir_persistence = true
+end
+
+module Content = Irmin.Contents.String
+module Schema = Irmin.Schema.KV (Content)
 module Maker = Irmin_pack_unix.Maker (Conf)
 module Store = Maker.Make (Schema)
 module Hash = Store.Hash
 module Key = Irmin_pack_unix.Pack_key.Make (Hash)
 module Io = Irmin_pack_unix.Io.Unix
 module Errs = Irmin_pack_unix.Io_errors.Make (Io)
-module Index = Irmin_pack_unix.Index.Make (Hash)
-module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Index) (Errs)
+module Pack_index = Irmin_pack_unix.Index.Make (Hash)
+module File_manager = Irmin_pack_unix.File_manager.Make (Io) (Pack_index) (Errs)
 module Dispatcher = Irmin_pack_unix.Dispatcher.Make (File_manager)
 
 module Inode = struct
@@ -33,6 +42,8 @@ end
 module Varint = struct
   type t = int [@@deriving repr ~decode_bin ~encode_bin]
 
+  (** LEB128 stores 7 bits per byte. An OCaml [int] has at most 63 bits.
+      [63 / 7] equals [9]. *)
   let max_encoded_size = 9
 end
 
@@ -159,9 +170,9 @@ let get_tree_from_commit (loading : Loading.t) dispatcher dict max_depth
   in
   get_commit_tree 0
 
-let load_tree loading store_path ~max_depth (hash, off) last_commit_off =
+let load_tree sw fs loading store_path ~max_depth (hash, off) last_commit_off =
   Loading.set_state loading Load_tree;
-  let conf = Irmin_pack.Conf.init store_path in
+  let conf = Irmin_pack.Conf.init ~sw ~fs store_path in
   let fm = Errs.raise_if_error @@ File_manager.open_ro conf in
   let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
   let dict = File_manager.dict fm in
@@ -171,10 +182,12 @@ let load_tree loading store_path ~max_depth (hash, off) last_commit_off =
     commit
 
 let load_index store_path =
-  let index = Index.v_exn ~readonly:true ~log_size:500_000 store_path in
+  let index = Pack_index.v_exn ~readonly:true ~log_size:500_000 store_path in
   let l = ref [] in
-  Index.iter
-    (fun h (off, _, _) -> l := (string_of_int @@ Hash.short_hash h, off) :: !l)
+  Pack_index.iter
+    (fun h (off, _, k) ->
+      if k = Commit_v1 || k = Commit_v2 then
+        l := (string_of_int @@ Hash.short_hash h, off) :: !l)
     index;
   let cmp (_, off1) (_, off2) = Int63.(to_int @@ sub off1 off2) in
   List.sort cmp !l

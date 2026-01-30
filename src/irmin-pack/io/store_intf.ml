@@ -229,7 +229,10 @@ module type S = sig
   (** {1 Snapshots} *)
 
   module Snapshot : sig
-    type kinded_hash = Contents of hash * metadata | Node of hash
+    type kinded_hash =
+      | Contents of hash * metadata
+      | Contents_inlined of string * metadata
+      | Node of hash * hash list
     [@@deriving irmin]
 
     type entry = { step : string; hash : kinded_hash } [@@deriving irmin]
@@ -264,7 +267,7 @@ module type S = sig
         - if [on_disk] is [`Path path], a temporary index is created at path.
 
         The traversal order is stable. In [Inode_tree], it is lexicographic on
-        the [index] function (see {!Conf.inode_child_order}). In [Inode_value],
+        the [index] function (see [Conf.inode_child_order]). In [Inode_value],
         it is lexicographic on the steps.
 
         [f] is called in post-order, that is [f] is first called on the leaves,

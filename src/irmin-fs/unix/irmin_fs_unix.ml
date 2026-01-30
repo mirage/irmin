@@ -35,10 +35,15 @@ let spec ~path:fs ~clock =
   let fs = (fs :> fs) in
   let _fs_key =
     let to_string fs = Eio.Path.native_exn fs in
-    let of_string str = Ok Eio.Path.(fs / str) in
+    let of_string str =
+      assert (str = Eio.Path.native_exn fs);
+      Ok fs
+    in
     let of_json_string str =
       match Irmin.Type.(of_json_string string) str with
-      | Ok str -> Ok Eio.Path.(fs / str)
+      | Ok str ->
+          assert (str = Eio.Path.native_exn fs);
+          Ok fs
       | Error e -> Error e
     in
     Conf.serialized_key ~typ:fs_typ ~spec ~typename:"_ Eio.Path.t" ~to_string
@@ -54,7 +59,7 @@ let spec ~path:fs ~clock =
   in
   spec
 
-let conf ~path ~clock = Conf.empty (spec ~path ~clock)
+let config ~root ~clock = Conf.empty (spec ~path:root ~clock)
 
 module IO = struct
   type nonrec io = io
@@ -236,6 +241,14 @@ module IO = struct
           in
           true)
 
+  let string_chop_prefix ~prefix str =
+    let open Astring in
+    let len = String.length prefix in
+    if String.length str <= len then str
+    else
+      let s = String.with_range ~len str in
+      if String.equal s prefix then String.with_range str ~first:len else str
+
   let rec_files ~io:{ fs; _ } dir : path list =
     let dir = Path.(fs / dir) in
     let rec aux accu dir =
@@ -243,7 +256,9 @@ module IO = struct
       let fs = files dir in
       List.fold_left aux (fs @ accu) ds
     in
-    aux [] dir |> List.map snd
+    aux [] dir
+    |> List.map (fun x ->
+           string_chop_prefix ~prefix:(Filename.concat (snd dir) "") @@ snd x)
 
   let mkdir ~io:{ fs; _ } dirname = mkdir Path.(fs / dirname)
 end

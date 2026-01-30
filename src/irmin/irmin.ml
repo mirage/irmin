@@ -181,6 +181,7 @@ struct
 end
 
 module Of_backend = Store.Make
+module Tree = Tree
 
 module type Tree = Tree.S
 module type S = Store.S

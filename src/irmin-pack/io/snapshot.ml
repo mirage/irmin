@@ -153,7 +153,7 @@ module Make (Args : Args) = struct
                       let snapshot_blob = value in
                       f_contents snapshot_blob)
               | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-              | Inode_v2_nonroot -> (
+              | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot -> (
                   let children =
                     decode_children_offsets ~off:offset ~len:length t
                   in

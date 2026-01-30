@@ -79,9 +79,8 @@ val key :
     with a dot. [docv] is a meta-variable for representing the values of the key
     (e.g. ["BOOL"] for a boolean).
 
-    @raise Invalid_argument
-      if the key name is not made of a sequence of ASCII lowercase letter,
-      digit, dash or underscore. *)
+    Raises [Invalid_argument] if the key name is not made of a sequence of
+    ASCII lowercase letter, digit, dash or underscore. *)
 
 val serialized_key :
   ?docs:string ->
@@ -96,7 +95,7 @@ val serialized_key :
   string ->
   'a ->
   'a key
-(** Same as {!key} for types that don't implement [Type.t] but can be serialized
+(** Same as {!val-key} for types that don't implement [Type.t] but can be serialized
     with [to_string], and deserialized with either [of_string] or
     [of_json_string]. The [typename] is the user-readable description of the
     type, in case of dynamic type errors. *)
@@ -190,7 +189,7 @@ val verify : t -> t
 (** {1:builtin_converters Built-in value converters} *)
 
 val uri : Uri.t Type.t
-(** [uri] converts values with {!Uri.of_string}. *)
+(** [uri] converts values with [Uri.of_string]. *)
 
 val find_root : t -> string option
 (** [find_root c] is [root]'s mapping in [c], if any. *)

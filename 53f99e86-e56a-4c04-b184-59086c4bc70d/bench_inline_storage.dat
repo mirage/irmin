@@ -1,0 +1,11 @@
+# idx  distribution  no_inline_bytes  inline_bytes  change%  inlined_ratio%
+0  zipfian-medium       2377887 2398380 0.9 58.5
+1  mostly-large         1993990 1994071 0.0 20.6
+2  uniform-small        1112207 1097283 -1.3 100.0
+3  log-normal-medium    3617901 3666724 1.3 12.3
+4  zipfian-steep        855017 837705 -2.0 96.1
+5  around-threshold     1351190 1457210 7.8 100.0
+6  uniform-large        2433028 2431755 -0.1 0.0
+7  zipfian-small        1179744 1207501 2.4 85.1
+8  mostly-small         1442542 1454641 0.8 80.4
+9  log-normal-small     1492634 1583219 6.1 79.9

@@ -176,7 +176,7 @@ module Payload = struct
         status : status; (* must be last to allow extensions *)
       }
       [@@deriving irmin]
-      (** The same as {!V3.t}, with the following modifications:
+      (** The same as [V3.t], with the following modifications:
 
           New fields
 
@@ -236,7 +236,7 @@ module Payload = struct
         status : status; (* must be last to allow extensions *)
       }
       [@@deriving irmin]
-      (** The same as {!V4.t}, with the following modifications:
+      (** The same as [V4.t], with the following modifications:
 
           New fields
 
@@ -339,8 +339,7 @@ module type S = sig
     path:Eio.Fs.dir_ty Eio.Path.t ->
     (payload, [> open_error | Io.close_error ]) result
   (** [read_payload ~path] reads the payload at [path]. It is a convenient way
-      to read the payload without needing to call {!open_}, {!payload},
-      {!close}. *)
+      to read the payload without needing to call [open_], [payload], [close]. *)
 
   val read_raw_payload :
     sw:Eio.Switch.t ->

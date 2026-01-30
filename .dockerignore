@@ -1,2 +1,19 @@
-_opam
-_build
+# Build artifacts
+_build/
+_opam/
+
+# Metrics and benchmark outputs
+_metrics/
+
+# Editor files
+*.swp
+*~
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -87,7 +87,7 @@ module type Sigs = sig
   val set_listen_dir_hook : hook -> unit
   (** Register a function which looks for file changes in a directory and return
       a function to stop watching. It is probably best to use
-      {!Irmin_watcher.hook} there. By default, it uses {!none}. *)
+      [Irmin_watcher.hook] there. By default, it uses {!none}. *)
 
   (** [Make] builds an implementation of watch helpers. *)
   module Make (K : Type.S) (V : Type.S) :

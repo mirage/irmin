@@ -36,7 +36,7 @@ module type Value = sig
 
   val null : t
   (** A special value that is reserved for use by the implementation of
-      {!Make_persistent} (and must never be passed by the user). *)
+      [Make_persistent] (and must never be passed by the user). *)
 end
 
 module type Sigs = sig

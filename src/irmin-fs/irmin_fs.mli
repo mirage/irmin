@@ -27,8 +27,8 @@ module Conf : sig
 end
 
 val config : string -> Irmin.config
-(** [config root] is the a configuration with the key {!Irmin.Config.root} set
-    to [root]. **)
+(** [config root] is a configuration with the key {!Conf.Key.root} set
+    to [root]. *)
 
 module type IO = sig
   (** {1 File-system abstractions} *)

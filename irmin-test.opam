@@ -25,7 +25,6 @@ depends: [
   "eio"          {>= "1.0"}
   "eio_main"     {>= "0.15"}
   "alcotest"     {>= "1.8.0"}
-  "qcheck-alcotest" {with-test & >= "0.21.1"}
   "metrics"      {>= "0.4.1"}
   "metrics-unix" {>= "0.4.1"}
   "ocaml-syntax-shims"
@@ -35,7 +34,12 @@ depends: [
   "vector" {with-test & >= "1.0.0"}
   "alcotest" {>= "1.8.0" & with-test}
   "qcheck-alcotest" {>= "0.21.1" & with-test}
+  "qcheck-core" {>= "0.21.1" & with-test}
+  "qcheck-stm" {>= "0.10" & with-test}
 ]
+
+pin-depends: [
+  [ "qcheck-stm.0.10" "git+https://github.com/lyrm/multicoretests#6dc52b7b51215888f57147e7954cc90736ca4f3b" ]]
 
 synopsis: "Irmin test suite"
 description: """

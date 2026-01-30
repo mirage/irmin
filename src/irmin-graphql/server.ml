@@ -95,14 +95,14 @@ end) =
 struct
   let schema_typ =
     let coerce t = `String (Irmin.Type.to_string T.t t) in
-    Schema.scalar T.name ~coerce
+    Schema.scalar T.name ~doc:T.name ~coerce
 
   let arg_typ =
     let coerce = function
       | `String s -> of_irmin_result (Irmin.Type.of_string T.t s)
       | _ -> Error "Invalid input value"
     in
-    Schema.Arg.scalar T.name ~coerce
+    Schema.Arg.scalar T.name ~doc:T.name ~coerce
 end
 
 module Default_types (S : Irmin.Generic_key.S) = struct
@@ -233,7 +233,11 @@ struct
           | None -> Error "sync is not available")
       | _ -> Error "Invalid input value"
 
-    let remote = Schema.Arg.(scalar "Remote" ~coerce:coerce_remote)
+    let remote =
+      Schema.Arg.(
+        scalar "Remote" ~doc:"The URI of a remote git repository"
+          ~coerce:coerce_remote)
+
     let path = Types.Path.arg_typ
     let hash = Types.Hash.arg_typ
     let commit_key = Types.Commit_key.arg_typ
@@ -244,26 +248,43 @@ struct
 
     let info =
       Schema.Arg.(
-        obj "InfoInput"
+        obj "InfoInput" ~doc:"Commit configuration options"
           ~fields:
             [
-              arg "author" ~typ:string;
-              arg "message" ~typ:string;
-              arg "retries" ~typ:int;
-              arg "allow_empty" ~typ:bool;
-              arg "parents" ~typ:(list (non_null commit_key));
+              arg "author" ~doc:"Commit author name" ~typ:string;
+              arg "message" ~doc:"Commit message" ~typ:string;
+              arg "retries"
+                ~doc:
+                  "Number of retries when commiting a transaction. Defaults to \
+                   Irmin.Backend.Conf.default_retries"
+                ~typ:int;
+              arg "allow_empty"
+                ~doc:
+                  "Allow empty commits (commits that do not change the store's \
+                   contents)"
+                ~typ:bool;
+              arg "parents"
+                ~doc:
+                  "Explicitly set the parents of the commit. If unset, the \
+                   current head of the branch will be used"
+                ~typ:(list (non_null commit_key));
             ]
           ~coerce:(fun author message retries allow_empty parents ->
             { author; message; retries; allow_empty; parents }))
 
     let item =
       Schema.Arg.(
-        obj "TreeItem"
+        obj "TreeItem" ~doc:"A key/value pair of (path * value)"
           ~fields:
             [
-              arg "path" ~typ:(non_null path);
-              arg "value" ~typ:value;
-              arg "metadata" ~typ:metadata;
+              arg "path" ~doc:"Path for this tree item" ~typ:(non_null path);
+              arg "value"
+                ~doc:
+                  "Contents to store at the given path. If this is unset in a \
+                   mutation, the path will be removed from the tree"
+                ~typ:value;
+              arg "metadata" ~doc:"Metadata to associate with the contents"
+                ~typ:metadata;
             ]
           ~coerce:(fun path value metadata -> { path; value; metadata }))
 
@@ -279,7 +300,8 @@ struct
       ('ctx, (Store.contents * Store.metadata * Store.path) option) Schema.typ;
     contents_key_value :
       ('ctx, (Store.contents_key * Store.metadata) option) Schema.typ;
-    node_key_value : ('ctx, Store.node_key option) Schema.typ;
+    node_key_value :
+      ('ctx, (Store.node_key * Store.contents_key list) option) Schema.typ;
   }
 
   let rec store_schema =
@@ -287,64 +309,82 @@ struct
       ( Schema.fix @@ fun recursive ->
         let commit =
           Schema.(
-            recursive.obj "Commit" ~fields:(fun t ->
+            recursive.obj "Commit" ~doc:"Commit" ~fields:(fun t ->
                 [
-                  field "tree" ~typ:(non_null t.tree) ~args:[]
-                    ~resolve:(fun _ c ->
+                  field "tree"
+                    ~doc:
+                      "Commit tree, this is where the contents of the store \
+                       can be accessed"
+                    ~typ:(non_null t.tree) ~args:[] ~resolve:(fun _ c ->
                       (Store.Commit.tree c, Store.Path.empty));
-                  field "parents"
+                  field "parents" ~doc:"The parent(s) of this commit"
                     ~typ:
                       (non_null (list (non_null Types.Commit_key.schema_typ)))
                     ~args:[]
                     ~resolve:(fun _ c -> Store.Commit.parents c);
-                  field "info" ~typ:(non_null t.info) ~args:[]
-                    ~resolve:(fun _ c -> Store.Commit.info c);
-                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                  field "info"
+                    ~doc:
+                      "Information about a commit like author, message and \
+                       timestamp"
+                    ~typ:(non_null t.info) ~args:[] ~resolve:(fun _ c ->
+                      Store.Commit.info c);
+                  field "hash" ~doc:"Commit hash"
+                    ~typ:(non_null Types.Hash.schema_typ) ~args:[]
                     ~resolve:(fun _ c -> Store.Commit.hash c);
-                  field "key" ~typ:(non_null Types.Commit_key.schema_typ)
-                    ~args:[] ~resolve:(fun _ c -> Store.Commit.key c);
+                  field "key" ~doc:"Commit key"
+                    ~typ:(non_null Types.Commit_key.schema_typ) ~args:[]
+                    ~resolve:(fun _ c -> Store.Commit.key c);
                 ]))
         in
         let info =
           Schema.(
-            obj "Info"
+            obj "Info" ~doc:"Information about commits"
               ~fields:
                 [
-                  field "date" ~typ:(non_null string) ~args:[]
-                    ~resolve:(fun _ i -> Info.date i |> Int64.to_string);
-                  field "author" ~typ:(non_null string) ~args:[]
-                    ~resolve:(fun _ i -> Info.author i);
-                  field "message" ~typ:(non_null string) ~args:[]
-                    ~resolve:(fun _ i -> Info.message i);
+                  field "date" ~doc:"Commit timestamp" ~typ:(non_null string)
+                    ~args:[] ~resolve:(fun _ i ->
+                      Info.date i |> Int64.to_string);
+                  field "author" ~doc:"Commit author name"
+                    ~typ:(non_null string) ~args:[] ~resolve:(fun _ i ->
+                      Info.author i);
+                  field "message" ~doc:"Commit message" ~typ:(non_null string)
+                    ~args:[] ~resolve:(fun _ i -> Info.message i);
                 ])
         in
         let tree =
           Schema.(
-            recursive.obj "Tree" ~fields:(fun t ->
+            recursive.obj "Tree" ~doc:"Access the data in an irmin store"
+              ~fields:(fun t ->
+                let path_arg =
+                  Arg.(
+                    arg ~doc:"Path to find" "path" ~typ:(non_null Input.path))
+                in
                 [
-                  field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+                  field "path" ~doc:"The path of the tree in the irmin store"
+                    ~typ:(non_null Types.Path.schema_typ) ~args:[]
                     ~resolve:(fun _ (_, path) -> path);
-                  field "get"
-                    ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
-                    ~typ:Types.Contents.schema_typ
+                  field "get" ~doc:"Get a value from the tree at the given path"
+                    ~args:[ path_arg ] ~typ:Types.Contents.schema_typ
                     ~resolve:(fun _ (tree, _) path -> Store.Tree.find tree path);
-                  field "get_contents"
-                    ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
-                    ~typ:t.contents
-                    ~resolve:(fun _ (tree, tree_path) path ->
+                  field "get_contents" ~args:[ path_arg ] ~typ:t.contents
+                    ~doc:
+                      "Get the contents and metadata for a value at the given \
+                       path" ~resolve:(fun _ (tree, tree_path) path ->
                       Store.Tree.find_all tree path
                       |> Option.map (fun (c, m) ->
                              let path' = concat_path tree_path path in
                              (c, m, path')));
-                  field "get_tree"
-                    ~args:Arg.[ arg "path" ~typ:(non_null Input.path) ]
-                    ~typ:t.tree
+                  field "get_tree" ~args:[ path_arg ] ~typ:t.tree
+                    ~doc:"Get a sub-tree from the tree at the given path"
                     ~resolve:(fun _ (tree, tree_path) path ->
                       Store.Tree.find_tree tree path
                       |> Option.map (fun tree ->
                              let tree_path' = concat_path tree_path path in
                              (tree, tree_path')));
                   field "list_contents_recursively" ~args:[]
+                    ~doc:
+                      "List all contents and their metadata recursively under \
+                       this tree"
                     ~typ:(non_null (list (non_null t.contents)))
                     ~resolve:(fun _ (tree, path) ->
                       let rec tree_list ?(acc = []) tree path =
@@ -362,9 +402,10 @@ struct
                             |> List.rev
                       in
                       tree_list tree path);
-                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                  field "hash" ~typ:(non_null Types.Hash.schema_typ)
+                    ~doc:"Hash of the tree" ~args:[]
                     ~resolve:(fun _ (tree, _) -> Store.Tree.hash tree);
-                  field "key" ~typ:kinded_key ~args:[]
+                  field "key" ~doc:"Tree key" ~typ:kinded_key ~args:[]
                     ~resolve:(fun _ (tree, _) ->
                       match Store.Tree.key tree with
                       | Some (`Contents (k, m)) ->
@@ -373,8 +414,14 @@ struct
                       | Some (`Node k) ->
                           let f = Lazy.force node_key_as_kinded_key in
                           Some (f k)
+                      | Some (`Contents_inlined _) ->
+                          (* Inlined contents don't have their own key *)
+                          None
                       | None -> None);
                   field "list"
+                    ~doc:
+                      "List the immediate children (contents or sub-trees) of \
+                       this tree"
                     ~typ:(non_null (list (non_null node)))
                     ~args:[]
                     ~resolve:(fun _ (tree, tree_path) ->
@@ -388,37 +435,47 @@ struct
                                  let c = Store.Tree.Contents.force_exn c in
                                  let f = Lazy.force contents_as_node in
                                  f (c, m, absolute_path)
-                             | _ ->
+                             | `Node _ ->
                                  let f = Lazy.force tree_as_node in
                                  f (tree, absolute_path)));
                 ]))
         in
         let branch =
           Schema.(
-            recursive.obj "Branch" ~fields:(fun t ->
+            recursive.obj "Branch" ~doc:"Store branches" ~fields:(fun t ->
                 [
-                  field "name" ~typ:(non_null Types.Branch.schema_typ) ~args:[]
+                  field "name" ~doc:"Branch name"
+                    ~typ:(non_null Types.Branch.schema_typ) ~args:[]
                     ~resolve:(fun _ (_, b) -> b);
-                  field "head" ~args:[] ~typ:t.commit ~resolve:(fun _ (t, _) ->
-                      Store.Head.find t);
-                  field "tree" ~args:[] ~typ:(non_null t.tree)
-                    ~resolve:(fun _ (t, _) ->
+                  field "head" ~doc:"the current commit for a branch" ~args:[]
+                    ~typ:t.commit ~resolve:(fun _ (t, _) -> Store.Head.find t);
+                  field "tree"
+                    ~doc:"Access the tree for the head commit of a branch"
+                    ~args:[] ~typ:(non_null t.tree) ~resolve:(fun _ (t, _) ->
                       let tree = Store.tree t in
                       (tree, Store.Path.empty));
-                  field "last_modified"
+                  field "last_modified" ~doc:"Get last commit"
                     ~typ:(non_null (list (non_null t.commit)))
                     ~args:
                       Arg.
                         [
                           arg "path" ~typ:(non_null Input.path);
-                          arg "depth" ~typ:int;
-                          arg "n" ~typ:int;
+                          arg "depth" ~doc:"The depth to search for commits"
+                            ~typ:int;
+                          arg "n" ~doc:"The number of commits to return"
+                            ~typ:int;
                         ]
                     ~resolve:(fun _ (t, _) path depth n ->
                       Store.last_modified ?depth ?n t path);
                   io_field "lcas"
+                    ~doc:"Lowest common ancestor between two commits"
                     ~typ:(non_null (list (non_null t.commit)))
-                    ~args:Arg.[ arg "commit" ~typ:(non_null Input.hash) ]
+                    ~args:
+                      Arg.
+                        [
+                          arg "commit" ~doc:"The commit to compare with"
+                            ~typ:(non_null Input.hash);
+                        ]
                     ~resolve:(fun _ (t, _) commit ->
                       Lwt_eio.run_eio @@ fun () ->
                       match Store.Commit.of_hash (Store.repo t) commit with
@@ -435,16 +492,20 @@ struct
         in
         let contents =
           Schema.(
-            obj "Contents"
+            obj "Contents" ~doc:"A value stored in an irmin store"
               ~fields:
                 [
-                  field "path" ~typ:(non_null Types.Path.schema_typ) ~args:[]
+                  field "path" ~doc:"Path to the value"
+                    ~typ:(non_null Types.Path.schema_typ) ~args:[]
                     ~resolve:(fun _ (_, _, path) -> path);
-                  field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
-                    ~args:[] ~resolve:(fun _ (_, metadata, _) -> metadata);
-                  field "value" ~typ:(non_null Types.Contents.schema_typ)
-                    ~args:[] ~resolve:(fun _ (contents, _, _) -> contents);
-                  field "hash" ~typ:(non_null Types.Hash.schema_typ) ~args:[]
+                  field "metadata" ~doc:"Metadata associated with a value"
+                    ~typ:(non_null Types.Metadata.schema_typ) ~args:[]
+                    ~resolve:(fun _ (_, metadata, _) -> metadata);
+                  field "value" ~doc:"Content value"
+                    ~typ:(non_null Types.Contents.schema_typ) ~args:[]
+                    ~resolve:(fun _ (contents, _, _) -> contents);
+                  field "hash" ~doc:"Content hash"
+                    ~typ:(non_null Types.Hash.schema_typ) ~args:[]
                     ~resolve:(fun _ (contents, _, _) ->
                       Store.Contents.hash contents);
                 ])
@@ -455,10 +516,12 @@ struct
             obj "ContentsKeyValue"
               ~fields:
                 [
-                  field "metadata" ~typ:(non_null Types.Metadata.schema_typ)
-                    ~args:[] ~resolve:(fun _ (_, metadata) -> metadata);
-                  field "contents" ~typ:(non_null Types.Contents_key.schema_typ)
-                    ~args:[] ~resolve:(fun _ (key, _) -> key);
+                  field "metadata" ~doc:"Metadata associated with the contents"
+                    ~typ:(non_null Types.Metadata.schema_typ) ~args:[]
+                    ~resolve:(fun _ (_, metadata) -> metadata);
+                  field "contents" ~doc:"The key of the contents"
+                    ~typ:(non_null Types.Contents_key.schema_typ) ~args:[]
+                    ~resolve:(fun _ (key, _) -> key);
                 ])
         in
         let node_key_value =
@@ -466,8 +529,9 @@ struct
             obj "NodeKeyValue"
               ~fields:
                 [
-                  field "node" ~typ:(non_null Types.Node_key.schema_typ)
-                    ~args:[] ~resolve:(fun _ x -> x);
+                  field "node" ~doc:"The key of the node"
+                    ~typ:(non_null Types.Node_key.schema_typ) ~args:[]
+                    ~resolve:(fun _ (x, _inlined) -> x);
                 ])
         in
         {
@@ -480,8 +544,12 @@ struct
           node_key_value;
         } )
 
-  and kinded_key = Schema.union "KindedKey"
-  and node = Schema.union "Node"
+  and kinded_key =
+    Schema.union "KindedKey" ~doc:"A key for a tree, node or contents"
+
+  and node =
+    Schema.union ~doc:"Node of an irmin tree, either a tree or contents" "Node"
+
   and tree_as_node = lazy (Schema.add_type node (Lazy.force store_schema).tree)
 
   and contents_as_node =
@@ -508,12 +576,13 @@ struct
     | Some _ ->
         Schema.
           [
-            io_field "clone" ~typ:store_schema.commit
+            io_field "clone" ~doc:"Clone a remote repository"
+              ~typ:store_schema.commit
               ~args:
                 Arg.
                   [
-                    arg "branch" ~typ:Input.branch;
-                    arg "remote" ~typ:(non_null Input.remote);
+                    arg "branch" ~doc:"Remote branch name" ~typ:Input.branch;
+                    arg "remote" ~doc:"Remote URI" ~typ:(non_null Input.remote);
                   ]
               ~resolve:(fun _ _src branch remote ->
                 Lwt_eio.run_eio @@ fun () ->
@@ -523,13 +592,14 @@ struct
                 | Ok (`Head d) -> Store.Head.set t d |> fun () -> Ok (Some d)
                 | Ok `Empty -> Ok None
                 | Error (`Msg e) -> Error e);
-            io_field "push" ~typ:store_schema.commit
+            io_field "push" ~doc:"Push to a remote repository"
+              ~typ:store_schema.commit
               ~args:
                 Arg.
                   [
-                    arg "branch" ~typ:Input.branch;
-                    arg "remote" ~typ:(non_null Input.remote);
-                    arg "depth" ~typ:int;
+                    arg "branch" ~doc:"Branch to push" ~typ:Input.branch;
+                    arg "remote" ~doc:"Remote URI" ~typ:(non_null Input.remote);
+                    arg "depth" ~doc:"The number of commits to push" ~typ:int;
                   ]
               ~resolve:(fun _ _src branch remote depth ->
                 Lwt_eio.run_eio @@ fun () ->
@@ -541,14 +611,16 @@ struct
                 | Error e ->
                     let s = Fmt.to_to_string Sync.pp_push_error e in
                     Error s);
-            io_field "pull" ~typ:store_schema.commit
+            io_field "pull" ~doc:"Update a branch from a remote respotory"
+              ~typ:store_schema.commit
               ~args:
                 Arg.
                   [
-                    arg "branch" ~typ:Input.branch;
-                    arg "remote" ~typ:(non_null Input.remote);
-                    arg "info" ~typ:Input.info;
-                    arg "depth" ~typ:int;
+                    arg "branch" ~doc:"Branch to update" ~typ:Input.branch;
+                    arg "remote" ~doc:"Remote URI" ~typ:(non_null Input.remote);
+                    arg "info" ~doc:"Commit info for a merge commit"
+                      ~typ:Input.info;
+                    arg "depth" ~doc:"The number of commits to push" ~typ:int;
                   ]
               ~resolve:(fun _ _src branch remote info depth ->
                 Lwt_eio.run_eio @@ fun () ->
@@ -581,14 +653,15 @@ struct
     Schema.
       [
         io_field "set" ~typ:store_schema.commit
-          ~doc:"Associate contents with the given path"
+          ~doc:"associate contents with the given path"
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:(non_null Input.value);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"Branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"Path where contents will be stored"
+                  ~typ:(non_null Input.path);
+                arg "value" ~doc:"Contents" ~typ:(non_null Input.value);
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k v i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -598,14 +671,17 @@ struct
             | Ok () -> Store.Head.find t |> Result.ok
             | Error e -> err_write e);
         io_field "set_tree" ~typ:store_schema.commit
-          ~doc:"Set the tree at \"path\""
+          ~doc:
+            "Set a new tree at the given path. This will replace any existing \
+             tree or value at that path."
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "tree" ~typ:(non_null Input.tree);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"Branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"Path where contents will be stored"
+                  ~typ:(non_null Input.path);
+                arg "tree" ~doc:"Tree" ~typ:(non_null Input.tree);
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k items i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -625,10 +701,12 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "tree" ~typ:(non_null Input.tree);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"The branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"The path of the tree to update"
+                  ~typ:(non_null Input.path);
+                arg "tree" ~doc:"The new tree contents"
+                  ~typ:(non_null Input.tree);
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k items i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -653,11 +731,12 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:(non_null Input.value);
-                arg "metadata" ~typ:Input.metadata;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"Name of branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"Path to update" ~typ:(non_null Input.path);
+                arg "value" ~doc:"Content to store" ~typ:(non_null Input.value);
+                arg "metadata" ~doc:"Metadata for this value"
+                  ~typ:Input.metadata;
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k v m i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -681,11 +760,12 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "test" ~typ:Input.value;
-                arg "set" ~typ:Input.value;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"The branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"The path of the value to test and set"
+                  ~typ:(non_null Input.path);
+                arg "test" ~doc:"The value to test against" ~typ:Input.value;
+                arg "set" ~doc:"The new value to set" ~typ:Input.value;
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k test set i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -700,16 +780,17 @@ struct
         io_field "test_set_and_get" ~typ:store_schema.commit
           ~doc:
             "Update a value with \"set\" argument if \"test\" matches the \
-             current value. The commit returned is gauranteed to be that of a \
+             current value. The commit returned is guaranteed to be that of a \
              successful update to the store."
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "test" ~typ:Input.value;
-                arg "set" ~typ:Input.value;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"The branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"The path of the value to test and set"
+                  ~typ:(non_null Input.path);
+                arg "test" ~doc:"The value to test against" ~typ:Input.value;
+                arg "set" ~doc:"The new value to set" ~typ:Input.value;
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch k test set i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -728,9 +809,15 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:(non_null Input.branch);
-                arg "test" ~typ:Input.commit_key;
-                arg "set" ~typ:Input.commit_key;
+                arg "branch" ~doc:"Name of branch to update"
+                  ~typ:(non_null Input.branch);
+                arg "test"
+                  ~doc:
+                    "Value to check for, this should be HEAD commit key for \
+                     the specified branch"
+                  ~typ:Input.commit_key;
+                arg "set" ~doc:"Value to store if check is successful"
+                  ~typ:Input.commit_key;
               ]
           ~resolve:(fun _ _src branch test set ->
             Lwt_eio.run_eio @@ fun () ->
@@ -741,9 +828,9 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"Name of branch to update" ~typ:Input.branch;
+                arg "path" ~doc:"Path to remove" ~typ:(non_null Input.path);
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key i ->
             Lwt_eio.run_eio @@ fun () ->
@@ -753,15 +840,17 @@ struct
             | Ok () -> Store.Head.find t |> Result.ok
             | Error e -> err_write e);
         io_field "merge" ~typ:Types.Hash.schema_typ
-          ~doc:"Merge the current value at the given path with another value"
+          ~doc:"Merge contents at a given path"
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:Input.value;
-                arg "old" ~typ:Input.value;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"Name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "path" ~doc:"Path to contents to be merged"
+                  ~typ:(non_null Input.path);
+                arg "value" ~doc:"New contents" ~typ:Input.value;
+                arg "old" ~doc:"Old contents" ~typ:Input.value;
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key value old info ->
             Lwt_eio.run_eio @@ fun () ->
@@ -773,15 +862,17 @@ struct
             | Ok _ -> Store.hash t key |> Result.ok
             | Error e -> err_write e);
         io_field "merge_tree" ~typ:store_schema.commit
-          ~doc:"Merge a branch with a tree"
+          ~doc:"Merge a tree at a given path"
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "path" ~typ:(non_null Input.path);
-                arg "value" ~typ:Input.tree;
-                arg "old" ~typ:Input.tree;
-                arg "info" ~typ:Input.info;
+                arg "branch" ~doc:"Name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "path" ~doc:"Path to merge tree" ~typ:(non_null Input.path);
+                arg "value" ~doc:"The new tree to be merged at \"path\""
+                  ~typ:Input.tree;
+                arg "old" ~doc:"The old tree from \"path\"" ~typ:Input.tree;
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
               ]
           ~resolve:(fun _ _src branch key value old info ->
             Lwt_eio.run_eio @@ fun () ->
@@ -812,11 +903,14 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "from" ~typ:(non_null Input.branch);
-                arg "info" ~typ:Input.info;
-                arg "max_depth" ~typ:int;
-                arg "n" ~typ:int;
+                arg "branch" ~doc:"Name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "from" ~doc:"Name of branch to merge from"
+                  ~typ:(non_null Input.branch);
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
+                arg "max_depth" ~doc:"The maximum depth of the merge" ~typ:int;
+                arg "n" ~doc:"The number of commits to consider in the merge"
+                  ~typ:int;
               ]
           ~resolve:(fun _ _src into from i max_depth n ->
             Lwt_eio.run_eio @@ fun () ->
@@ -829,11 +923,14 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "from" ~typ:(non_null Input.hash);
-                arg "info" ~typ:Input.info;
-                arg "max_depth" ~typ:int;
-                arg "n" ~typ:int;
+                arg "branch" ~doc:"Name of branch to merge into"
+                  ~typ:Input.branch;
+                arg "from" ~doc:"Hash of commit to merge from"
+                  ~typ:(non_null Input.hash);
+                arg "info" ~doc:"Commit info" ~typ:Input.info;
+                arg "max_depth" ~doc:"The maximum depth of the merge" ~typ:int;
+                arg "n" ~doc:"The number of commits to consider in the merge"
+                  ~typ:int;
               ]
           ~resolve:(fun _ _src into from i max_depth n ->
             Lwt_eio.run_eio @@ fun () ->
@@ -851,8 +948,9 @@ struct
           ~args:
             Arg.
               [
-                arg "branch" ~typ:Input.branch;
-                arg "commit" ~typ:(non_null Input.hash);
+                arg "branch" ~doc:"Name of branch to revert" ~typ:Input.branch;
+                arg "commit" ~doc:"Commit hash to revert to"
+                  ~typ:(non_null Input.hash);
               ]
           ~resolve:(fun _ _src branch commit ->
             Lwt_eio.run_eio @@ fun () ->
@@ -869,7 +967,8 @@ struct
       obj "Diff"
         ~fields:
           [
-            field "commit" ~typ:(non_null store_schema.commit) ~args:[]
+            field "commit" ~doc:"The commit associated with the change"
+              ~typ:(non_null store_schema.commit) ~args:[]
               ~resolve:(fun _ctx -> function
               | `Added c | `Removed c | `Updated (_, c) -> c);
           ])
@@ -886,7 +985,11 @@ struct
         subscription_field "watch" ~typ:(non_null diff)
           ~doc:"Watch for changes to a branch"
           ~args:
-            Arg.[ arg "branch" ~typ:Input.branch; arg "path" ~typ:Input.path ]
+            Arg.
+              [
+                arg "branch" ~doc:"Name of branch to watch" ~typ:Input.branch;
+                arg "path" ~doc:"The path to watch for changes" ~typ:Input.path;
+              ]
           ~resolve:(fun _ctx branch path ->
             Lwt_eio.run_eio @@ fun () ->
             let t = mk_branch s branch in
@@ -926,23 +1029,35 @@ struct
               Store.Commit.of_hash s hash |> Result.ok);
           io_field "contents" ~doc:"Find contents by hash"
             ~typ:Types.Contents.schema_typ
-            ~args:Arg.[ arg "hash" ~typ:(non_null Input.hash) ]
+            ~args:
+              Arg.[ arg "hash" ~doc:"Content hash" ~typ:(non_null Input.hash) ]
             ~resolve:(fun _ _src k ->
               Lwt_eio.run_eio @@ fun () ->
               Store.Contents.of_hash s k |> Result.ok);
           io_field "contents_hash" ~doc:"Get the hash of some contents"
             ~typ:(non_null Types.Hash.schema_typ)
-            ~args:Arg.[ arg "value" ~typ:(non_null Input.value) ]
+            ~args:
+              Arg.
+                [ arg "value" ~doc:"Content value" ~typ:(non_null Input.value) ]
             ~resolve:(fun _ _src c ->
               Lwt_eio.run_eio @@ fun () -> Store.Contents.hash c |> Result.ok);
           io_field "commit_of_key" ~doc:"Find commit by key"
             ~typ:store_schema.commit
-            ~args:Arg.[ arg "key" ~typ:(non_null Input.commit_key) ]
+            ~args:
+              Arg.
+                [
+                  arg "key" ~doc:"Content key" ~typ:(non_null Input.commit_key);
+                ]
             ~resolve:(fun _ _src k ->
               Lwt_eio.run_eio @@ fun () -> Store.Commit.of_key s k |> Result.ok);
           io_field "contents_of_key" ~doc:"Find contents by key"
             ~typ:Types.Contents.schema_typ
-            ~args:Arg.[ arg "key" ~typ:(non_null Input.contents_key) ]
+            ~args:
+              Arg.
+                [
+                  arg "key" ~doc:"Content key"
+                    ~typ:(non_null Input.contents_key);
+                ]
             ~resolve:(fun _ _src k ->
               Lwt_eio.run_eio @@ fun () ->
               Store.Contents.of_key s k |> Result.ok);
@@ -962,7 +1077,12 @@ struct
               let t = Store.main s in
               Ok (Some (t, Store.Branch.main)));
           io_field "branch" ~doc:"Get branch by name" ~typ:store_schema.branch
-            ~args:Arg.[ arg "name" ~typ:(non_null Input.branch) ]
+            ~args:
+              Arg.
+                [
+                  arg "name" ~doc:"Branch identifier"
+                    ~typ:(non_null Input.branch);
+                ]
             ~resolve:(fun _ _ branch ->
               Lwt_eio.run_eio @@ fun () ->
               let t = Store.of_branch s branch in

@@ -25,7 +25,7 @@ module type S = sig
       modifications of the files.
 
       These functions are essentially invoking the underlying functions from
-      {!Unix} directly; there is no buffering for example. *)
+      [Unix] directly; there is no buffering for example. *)
 
   type t
 
