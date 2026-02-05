@@ -61,10 +61,10 @@ module TreeModel = struct
                 if name <> p then (name, subtree) else (name, aux subtree ps))
               subtrees
             |> List.filter (fun (_, subtree) ->
-                   match subtree with
-                   | Contents _ -> true
-                   | Node [] -> false
-                   | Node _ -> true)
+                match subtree with
+                | Contents _ -> true
+                | Node [] -> false
+                | Node _ -> true)
           in
           Node nsubtrees
     in
