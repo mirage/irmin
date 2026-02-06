@@ -60,17 +60,34 @@ module Of_core (S : Core) = struct
   let merge_node merge_key =
     Merge.alist S.step_t S.node_key_t (fun _step -> merge_key)
 
-  (* FIXME: this is very broken; do the same thing as [Tree.merge]
-     instead. *)
   let merge ~contents ~node =
-    let explode t = (all_contents t, all_succ t) in
-    let implode (contents, succ) =
-      let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
-      let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
-      S.of_list (xs @ ys)
+    (* Check for type conflicts: same step has contents on one side, node on other *)
+    let check_conflicts x y =
+      let x_list = S.list x in
+      let y_list = S.list y in
+      List.exists
+        (fun (xstep, xval) ->
+          List.exists
+            (fun (ystep, yval) ->
+              xstep = ystep
+              &&
+              match (xval, yval) with
+              | `Contents _, `Node _ | `Node _, `Contents _ -> true
+              | _ -> false)
+            y_list)
+        x_list
     in
-    let merge = Merge.pair (merge_contents contents) (merge_node node) in
-    Merge.like S.t merge explode implode
+    Merge.v S.t (fun ~old x y ->
+        if check_conflicts x y then Merge.conflict "contents/node type conflict"
+        else
+          let explode t = (all_contents t, all_succ t) in
+          let implode (contents, succ) =
+            let xs = List.rev_map (fun (s, c) -> (s, `Contents c)) contents in
+            let ys = List.rev_map (fun (s, n) -> (s, `Node n)) succ in
+            S.of_list (xs @ ys)
+          in
+          let merge = Merge.pair (merge_contents contents) (merge_node node) in
+          Merge.(f (like S.t merge explode implode)) ~old x y)
 end
 
 module Irmin_hash = Hash
@@ -635,7 +652,9 @@ module Graph (S : Store) = struct
     match Path.rdecons path with
     | Some (path, file) -> map t node path (fun node -> S.Val.add node file n)
     | None -> (
-        match n with `Node n -> n | `Contents _ -> failwith "TODO: Node.add")
+        match n with
+        | `Node n -> n
+        | `Contents _ -> invalid_arg "Irmin.node: cannot add contents at root")
 
   let rdecons_exn path =
     match Path.rdecons path with

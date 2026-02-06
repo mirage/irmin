@@ -592,7 +592,7 @@ module Make (B : Backend.S) = struct
 
   let watch t ?init fn =
     match branch t with
-    | None -> failwith "watch a detached head: TODO"
+    | None -> fun () -> () (* no-op *)
     | Some name0 ->
         let init =
           match init with
