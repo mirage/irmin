@@ -259,10 +259,6 @@ struct
             let sw = Conf.switch t.config in
             let fs = Conf.fs t.config in
             [%log.info "GC: Starting on %a" pp_key commit_key];
-            let* () =
-              if Atomic.get t.during_batch then Error `Gc_forbidden_during_batch
-              else Ok ()
-            in
             let* commit_key = direct_commit_key t commit_key in
             let root = Eio.Path.(fs / Conf.root t.config) in
             let* () =
@@ -271,6 +267,15 @@ struct
               else Ok ()
             in
             Eio.Mutex.use_rw ~protect:false t.lock @@ fun () ->
+            let* () =
+              if Atomic.get t.during_batch then Error `Gc_forbidden_during_batch
+              else Ok ()
+            in
+            let* () =
+              match Atomic.get t.running_gc with
+              | Some _ -> Error (`Gc_disallowed "GC is already running")
+              | None -> Ok ()
+            in
             let current_generation = File_manager.generation t.fm in
             let next_generation = current_generation + 1 in
             let lower_root =
@@ -413,12 +418,12 @@ struct
             if not (is_split_allowed t) then Error `Split_disallowed else Ok ()
           in
           let* () = if readonly then Error `Ro_not_allowed else Ok () in
+          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           let* () =
             if Atomic.get t.during_batch then
               Error `Split_forbidden_during_batch
             else Ok ()
           in
-          Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           File_manager.split t.fm
 
         let split_exn repo = split repo |> Errs.raise_if_error
