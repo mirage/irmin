@@ -240,6 +240,8 @@ struct
             | None -> false
 
           let cancel t =
+            if Atomic.get t.during_batch then
+              raise (Errors.Pack_error `Gc_forbidden_during_batch);
             Eio.Mutex.use_rw ~protect:true t.lock @@ fun () -> unsafe_cancel t
 
           let direct_commit_key t key =
@@ -264,6 +266,13 @@ struct
             let* () =
               if not (is_allowed t) then
                 Error (`Gc_disallowed "Store does not support GC")
+              else Ok ()
+            in
+            (* Early check before acquiring the lock to avoid deadlock when
+               called from a [batch ~lock:true] callback. The check is
+               repeated under the lock to close the TOCTOU window. *)
+            let* () =
+              if Atomic.get t.during_batch then Error `Gc_forbidden_during_batch
               else Ok ()
             in
             Eio.Mutex.use_rw ~protect:false t.lock @@ fun () ->
@@ -418,6 +427,14 @@ struct
             if not (is_split_allowed t) then Error `Split_disallowed else Ok ()
           in
           let* () = if readonly then Error `Ro_not_allowed else Ok () in
+          (* Early check before acquiring the lock to avoid deadlock when
+             called from a [batch ~lock:true] callback. The check is
+             repeated under the lock to close the TOCTOU window. *)
+          let* () =
+            if Atomic.get t.during_batch then
+              Error `Split_forbidden_during_batch
+            else Ok ()
+          in
           Eio.Mutex.use_rw ~protect:true t.lock @@ fun () ->
           let* () =
             if Atomic.get t.during_batch then
