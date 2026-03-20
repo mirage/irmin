@@ -427,17 +427,15 @@ struct
                     ~resolve:(fun _ (tree, tree_path) ->
                       Store.Tree.list tree Store.Path.empty
                       |> List.map (fun (step, tree) ->
-                             let absolute_path =
-                               Store.Path.rcons tree_path step
-                             in
-                             match Store.Tree.destruct tree with
-                             | `Contents (c, m) ->
-                                 let c = Store.Tree.Contents.force_exn c in
-                                 let f = Lazy.force contents_as_node in
-                                 f (c, m, absolute_path)
-                             | `Node _ ->
-                                 let f = Lazy.force tree_as_node in
-                                 f (tree, absolute_path)));
+                          let absolute_path = Store.Path.rcons tree_path step in
+                          match Store.Tree.destruct tree with
+                          | `Contents (c, m) ->
+                              let c = Store.Tree.Contents.force_exn c in
+                              let f = Lazy.force contents_as_node in
+                              f (c, m, absolute_path)
+                          | `Node _ ->
+                              let f = Lazy.force tree_as_node in
+                              f (tree, absolute_path)));
                 ]))
         in
         let branch =

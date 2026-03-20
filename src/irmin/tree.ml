@@ -1020,19 +1020,19 @@ module Make (P : Backend.S) = struct
       let must_build_portable_node =
         bindings
         |> Seq.exists (fun (_, v) ->
-               match v with
-               | `Node (n, _il) -> Option.is_none (cached_key n)
-               | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
+            match v with
+            | `Node (n, _il) -> Option.is_none (cached_key n)
+            | `Contents (c, _) -> Option.is_none (Contents.cached_key c))
       in
       if must_build_portable_node then
         let pnode =
           let seq =
             bindings
             |> Seq.map (fun (step, v) ->
-                   match v with
-                   | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
-                   | `Node (n, _il) ->
-                       hash ~cache n (fun k -> (step, `Node (k, []))))
+                match v with
+                | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
+                | `Node (n, _il) ->
+                    hash ~cache n (fun k -> (step, `Node (k, []))))
           in
           Portable.of_seq seq []
         in
@@ -1042,19 +1042,19 @@ module Make (P : Backend.S) = struct
           let seq =
             bindings
             |> Seq.map (fun (step, v) ->
-                   match v with
-                   | `Contents (c, m) -> (
-                       match Contents.cached_key c with
-                       | Some k -> (step, `Contents (k, m))
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false)
-                   | `Node (n, _il) -> (
-                       match cached_key n with
-                       | Some k -> (step, `Node (k, []))
-                       | None ->
-                           (* We checked that all child keys are cached above *)
-                           assert false))
+                match v with
+                | `Contents (c, m) -> (
+                    match Contents.cached_key c with
+                    | Some k -> (step, `Contents (k, m))
+                    | None ->
+                        (* We checked that all child keys are cached above *)
+                        assert false)
+                | `Node (n, _il) -> (
+                    match cached_key n with
+                    | Some k -> (step, `Node (k, []))
+                    | None ->
+                        (* We checked that all child keys are cached above *)
+                        assert false))
           in
           P.Node.Val.of_seq seq []
         in
@@ -2287,29 +2287,29 @@ module Make (P : Backend.S) = struct
         Atomic.incr cnt.node_val_v;
         StepMap.to_seq x
         |> Seq.filter_map (fun (step, v) ->
-               match v with
-               | `Node (n, _il) -> (
-                   match Node.cached_key n with
-                   | Some k -> Some (step, `Node (k, []))
-                   | None ->
-                       assertion_failure
-                         "Encountered child node value with uncached key \
-                          during export:@,\
-                          @ @[%a@]"
-                         dump v)
-               | `Contents (c, m) -> (
-                   (* Check if contents should be inlined at export time *)
-                   match should_inline_contents c with
-                   | Some bytes -> Some (step, `Contents_inlined (bytes, m))
-                   | None -> (
-                       match Contents.cached_key c with
-                       | Some k -> Some (step, `Contents (k, m))
-                       | None ->
-                           assertion_failure
-                             "Encountered child contents value with uncached \
-                              key during export:@,\
-                              @ @[%a@]"
-                             dump v)))
+            match v with
+            | `Node (n, _il) -> (
+                match Node.cached_key n with
+                | Some k -> Some (step, `Node (k, []))
+                | None ->
+                    assertion_failure
+                      "Encountered child node value with uncached key during \
+                       export:@,\
+                       @ @[%a@]"
+                      dump v)
+            | `Contents (c, m) -> (
+                (* Check if contents should be inlined at export time *)
+                match should_inline_contents c with
+                | Some bytes -> Some (step, `Contents_inlined (bytes, m))
+                | None -> (
+                    match Contents.cached_key c with
+                    | Some k -> Some (step, `Contents (k, m))
+                    | None ->
+                        assertion_failure
+                          "Encountered child contents value with uncached key \
+                           during export:@,\
+                           @ @[%a@]"
+                          dump v)))
       in
       let _, to_inline = List.split to_inline in
       let node = P.Node.Val.of_seq node_seq to_inline in

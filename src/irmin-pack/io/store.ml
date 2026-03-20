@@ -581,12 +581,12 @@ struct
               let () =
                 preds
                 |> List.filter_map (function
-                     | s, `Contents h -> Some (s, `Contents (XKey.to_hash h))
-                     | s, `Inode h -> Some (s, `Inode (XKey.to_hash h))
-                     | s, `Node (h, _il) -> Some (s, `Node (XKey.to_hash h))
-                     | _, `Contents_inlined _ ->
-                         (* Inlined contents don't have their own key *)
-                         None)
+                  | s, `Contents h -> Some (s, `Contents (XKey.to_hash h))
+                  | s, `Inode h -> Some (s, `Inode (XKey.to_hash h))
+                  | s, `Node (h, _il) -> Some (s, `Node (XKey.to_hash h))
+                  | _, `Contents_inlined _ ->
+                      (* Inlined contents don't have their own key *)
+                      None)
                 |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
               in
               List.filter_map

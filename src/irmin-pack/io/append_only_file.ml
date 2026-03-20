@@ -29,9 +29,8 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     buf_length : int Atomic.t;
     lock : Eio.Mutex.t;
   }
-  (** [rw_perm] contains the data necessary to operate in readwrite mode.
-      [lock] serialises concurrent access to [buf] between [append_exn] and
-      [flush]. *)
+  (** [rw_perm] contains the data necessary to operate in readwrite mode. [lock]
+      serialises concurrent access to [buf] between [append_exn] and [flush]. *)
 
   type t = {
     io : Io.t;
@@ -52,8 +51,12 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   let with_rw_lock rw_perm f =
     Eio.Mutex.lock rw_perm.lock;
     match f () with
-    | x -> Eio.Mutex.unlock rw_perm.lock; x
-    | exception ex -> Eio.Mutex.unlock rw_perm.lock; raise ex
+    | x ->
+        Eio.Mutex.unlock rw_perm.lock;
+        x
+    | exception ex ->
+        Eio.Mutex.unlock rw_perm.lock;
+        raise ex
 
   let create_rw ~sw ~path ~overwrite =
     let open Result_syntax in
@@ -154,8 +157,7 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
   let flush t =
     match t.rw_perm with
     | None -> Error `Ro_not_allowed
-    | Some rw_perm ->
-        with_rw_lock rw_perm @@ fun () -> flush_locked t rw_perm
+    | Some rw_perm -> with_rw_lock rw_perm @@ fun () -> flush_locked t rw_perm
 
   let fsync t =
     match t.rw_perm with

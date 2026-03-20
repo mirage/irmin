@@ -143,7 +143,8 @@ struct
     let new_pl =
       {
         pl with
-        appendable_chunk_poff = Suffix.appendable_chunk_poff (Atomic.get t.suffix);
+        appendable_chunk_poff =
+          Suffix.appendable_chunk_poff (Atomic.get t.suffix);
         dict_end_poff = Dict.end_poff t.dict;
         status;
       }
@@ -434,7 +435,8 @@ struct
       in
       (* Step 4. Update end offsets *)
       let* () =
-        Suffix.refresh_appendable_chunk_poff (Atomic.get t.suffix) pl1.appendable_chunk_poff
+        Suffix.refresh_appendable_chunk_poff (Atomic.get t.suffix)
+          pl1.appendable_chunk_poff
       in
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in

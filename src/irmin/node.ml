@@ -163,9 +163,9 @@ struct
     |~ case1 "contents" contents_key_t (fun h ->
         `Contents (h, Metadata.default))
     |~ case1 "contents-x" (pair contents_key_t Metadata.t) (fun (h, m) ->
-           `Contents (h, m))
+        `Contents (h, m))
     |~ case1 "contents-inlined" (pair string Metadata.t) (fun (v, m) ->
-           `Contents_inlined (v, m))
+        `Contents_inlined (v, m))
     |> sealv
 
   let to_entry (k, (v : value)) =
@@ -295,34 +295,32 @@ struct
     let entries : Hash_preimage.t =
       StepMap.to_seq t
       |> Seq.map (fun (_, v) ->
-             match v with
-             (* Weaken keys to hashes *)
-             | Node { name; node; inlined } ->
-                 Hash_preimage.Node_hash
-                   {
-                     name;
-                     node = Node_key.to_hash node;
-                     inlined = List.map Contents_key.to_hash inlined;
-                   }
-             | Contents { name; contents } ->
-                 Contents_hash
-                   { name; contents = Contents_key.to_hash contents }
-             | Contents_m { metadata; name; contents } ->
-                 Contents_m_hash
-                   { metadata; name; contents = Contents_key.to_hash contents }
-             | Node_hash { name; node; inlined } ->
-                 Node_hash { name; node; inlined }
-             | Contents_hash { name; contents } ->
-                 Contents_hash { name; contents }
-             | Contents_m_hash { metadata; name; contents } ->
-                 Contents_m_hash { metadata; name; contents }
-             | Contents_inlined { name; contents } ->
-                 Contents_inlined_hash
-                   { name; contents = Contents_key.to_hash contents }
-             | Contents_inlined_hash { name; contents } ->
-                 Contents_inlined_hash { name; contents }
-             | Contents_inlined_value { name; value; metadata } ->
-                 Contents_inlined_value { name; value; metadata })
+          match v with
+          (* Weaken keys to hashes *)
+          | Node { name; node; inlined } ->
+              Hash_preimage.Node_hash
+                {
+                  name;
+                  node = Node_key.to_hash node;
+                  inlined = List.map Contents_key.to_hash inlined;
+                }
+          | Contents { name; contents } ->
+              Contents_hash { name; contents = Contents_key.to_hash contents }
+          | Contents_m { metadata; name; contents } ->
+              Contents_m_hash
+                { metadata; name; contents = Contents_key.to_hash contents }
+          | Node_hash { name; node; inlined } ->
+              Node_hash { name; node; inlined }
+          | Contents_hash { name; contents } -> Contents_hash { name; contents }
+          | Contents_m_hash { metadata; name; contents } ->
+              Contents_m_hash { metadata; name; contents }
+          | Contents_inlined { name; contents } ->
+              Contents_inlined_hash
+                { name; contents = Contents_key.to_hash contents }
+          | Contents_inlined_hash { name; contents } ->
+              Contents_inlined_hash { name; contents }
+          | Contents_inlined_value { name; value; metadata } ->
+              Contents_inlined_value { name; value; metadata })
       |> Seq.fold_left (fun xs x -> x :: xs) []
     in
     pre_hash entries f
@@ -844,8 +842,8 @@ module V1 (N : Generic_key.S with type step = string) = struct
       | `Contents (_, x) when not (is_default x) -> Some x
       | _ -> None)
     |+ field "node" (option Node_key.t) (function
-         | `Node (n, _) -> Some n
-         | _ -> None)
+      | `Node (n, _) -> Some n
+      | _ -> None)
     |> sealr
 
   let t : t Type.t =

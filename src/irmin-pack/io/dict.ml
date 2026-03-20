@@ -38,8 +38,12 @@ module Make (Io : Io_intf.S) = struct
   let with_lock t f =
     Eio.Mutex.lock t.lock;
     match f () with
-    | x -> Eio.Mutex.unlock t.lock; x
-    | exception ex -> Eio.Mutex.unlock t.lock; raise ex
+    | x ->
+        Eio.Mutex.unlock t.lock;
+        x
+    | exception ex ->
+        Eio.Mutex.unlock t.lock;
+        raise ex
 
   let empty_buffer t = Ao.empty_buffer t.ao
 
