@@ -28,7 +28,18 @@ module Make (Io : Io_intf.S) = struct
     index : (int, string) Hashtbl.t;
     ao : Ao.t;
     mutable last_refill_offset : int63;
+    lock : Eio.Mutex.t;
   }
+
+  (** [with_lock t f] runs [f ()] while holding [t.lock]. Unlike
+      {!Eio.Mutex.use_rw}, the mutex is not poisoned when [f] raises — the
+      hashtable state is always consistent because exceptions occur before any
+      mutation. *)
+  let with_lock t f =
+    Eio.Mutex.lock t.lock;
+    match f () with
+    | x -> Eio.Mutex.unlock t.lock; x
+    | exception ex -> Eio.Mutex.unlock t.lock; raise ex
 
   let empty_buffer t = Ao.empty_buffer t.ao
 
@@ -41,6 +52,7 @@ module Make (Io : Io_intf.S) = struct
 
   let refill t =
     let open Result_syntax in
+    with_lock t @@ fun () ->
     let from = t.last_refill_offset in
     let new_size = Ao.end_poff t.ao in
     let len = Int63.to_int Int63.Syntax.(new_size - from) in
@@ -67,6 +79,7 @@ module Make (Io : Io_intf.S) = struct
 
   let index t v =
     [%log.debug "[dict] index %S" v];
+    with_lock t @@ fun () ->
     try Some (Hashtbl.find t.cache v)
     with Not_found ->
       let id = Hashtbl.length t.cache in
@@ -79,8 +92,8 @@ module Make (Io : Io_intf.S) = struct
 
   let find t id =
     [%log.debug "[dict] find %d" id];
-    let v = try Some (Hashtbl.find t.index id) with Not_found -> None in
-    v
+    with_lock t @@ fun () ->
+    try Some (Hashtbl.find t.index id) with Not_found -> None
 
   let default_capacity = 100_000
 
@@ -88,7 +101,8 @@ module Make (Io : Io_intf.S) = struct
     let cache = Hashtbl.create 997 in
     let index = Hashtbl.create 997 in
     let last_refill_offset = Int63.zero in
-    { capacity = default_capacity; index; cache; ao; last_refill_offset }
+    let lock = Eio.Mutex.create () in
+    { capacity = default_capacity; index; cache; ao; last_refill_offset; lock }
 
   let create_rw ~sw ~overwrite ~path:filename =
     let open Result_syntax in
