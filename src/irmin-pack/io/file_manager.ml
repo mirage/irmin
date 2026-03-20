@@ -41,8 +41,8 @@ struct
   type t = {
     dict : Dict.t;
     control : Control.t;
-    mutable suffix : Suffix.t;
-    mutable prefix : Sparse.t option;
+    suffix : Suffix.t Atomic.t;
+    prefix : Sparse.t option Atomic.t;
     lower : Lower.t option;
     index : Index.t;
     mutable prefix_consumers : after_reload_consumer list;
@@ -55,17 +55,17 @@ struct
 
   let control t = t.control
   let dict t = t.dict
-  let suffix t = t.suffix
+  let suffix t = Atomic.get t.suffix
   let index t = t.index
-  let prefix t = t.prefix
+  let prefix t = Atomic.get t.prefix
   let lower t = t.lower
 
   let close t =
     let open Result_syntax in
     let* () = Dict.close t.dict in
     let* () = Control.close t.control in
-    let* () = Suffix.close t.suffix in
-    let* () = Option.might Sparse.close t.prefix in
+    let* () = Suffix.close (Atomic.get t.suffix) in
+    let* () = Option.might Sparse.close (Atomic.get t.prefix) in
     let+ () = Index.close t.index in
     ()
 
@@ -112,12 +112,13 @@ struct
   let flush_suffix t =
     let open Result_syntax in
     let* () =
-      if Suffix.empty_buffer t.suffix then Ok ()
+      let suffix = Atomic.get t.suffix in
+      if Suffix.empty_buffer suffix then Ok ()
       else (
         Stats.incr_fm_field Suffix_flushes;
-        Suffix.flush t.suffix)
+        Suffix.flush suffix)
     in
-    if t.use_fsync then Suffix.fsync t.suffix else Ok ()
+    if t.use_fsync then Suffix.fsync (Atomic.get t.suffix) else Ok ()
 
   let flush_control t =
     let pl : Payload.t = Control.payload t.control in
@@ -142,7 +143,7 @@ struct
     let new_pl =
       {
         pl with
-        appendable_chunk_poff = Suffix.appendable_chunk_poff t.suffix;
+        appendable_chunk_poff = Suffix.appendable_chunk_poff (Atomic.get t.suffix);
         dict_end_poff = Dict.end_poff t.dict;
         status;
       }
@@ -194,7 +195,7 @@ struct
   let fsync t =
     let open Result_syntax in
     let* () = Dict.fsync t.dict in
-    let* () = Suffix.fsync t.suffix in
+    let* () = Suffix.fsync (Atomic.get t.suffix) in
     let* () = Control.fsync t.control in
     Index.flush ~with_fsync:true t.index
 
@@ -225,8 +226,8 @@ struct
     match some_prefix with
     | None -> Ok ()
     | Some _ ->
-        let prev_prefix = t.prefix in
-        t.prefix <- some_prefix;
+        let prev_prefix = Atomic.get t.prefix in
+        Atomic.set t.prefix some_prefix;
         let* () = notify_reload_consumers t.prefix_consumers in
         Option.might Sparse.close prev_prefix
 
@@ -239,7 +240,8 @@ struct
       "reopen_suffix chunk_start_idx:%d chunk_num:%d appendable_chunk_poff:%d"
         chunk_start_idx chunk_num
         (Int63.to_int appendable_chunk_poff)];
-    let readonly = Suffix.readonly t.suffix in
+    let suffix0 = Atomic.get t.suffix in
+    let readonly = Suffix.readonly suffix0 in
     let* suffix1 =
       let root = t.root in
       let start_idx = chunk_start_idx in
@@ -252,8 +254,7 @@ struct
         Suffix.open_rw ~sw ~root ~appendable_chunk_poff ~dead_header_size
           ~start_idx ~chunk_num
     in
-    let suffix0 = t.suffix in
-    t.suffix <- suffix1;
+    Atomic.set t.suffix suffix1;
     Suffix.close suffix0
 
   let reload_lower t ~volume_num =
@@ -366,8 +367,8 @@ struct
       {
         dict;
         control;
-        suffix;
-        prefix;
+        suffix = Atomic.make suffix;
+        prefix = Atomic.make prefix;
         lower;
         use_fsync;
         index;
@@ -433,7 +434,7 @@ struct
       in
       (* Step 4. Update end offsets *)
       let* () =
-        Suffix.refresh_appendable_chunk_poff t.suffix pl1.appendable_chunk_poff
+        Suffix.refresh_appendable_chunk_poff (Atomic.get t.suffix) pl1.appendable_chunk_poff
       in
       (match hook with Some h -> h `After_suffix | None -> ());
       let* () = Dict.refresh_end_poff t.dict pl1.dict_end_poff in
@@ -835,8 +836,8 @@ struct
       {
         dict;
         control;
-        suffix;
-        prefix;
+        suffix = Atomic.make suffix;
+        prefix = Atomic.make prefix;
         lower;
         use_fsync;
         indexing_strategy;
@@ -944,7 +945,7 @@ struct
       "Gc reopen files, update control: %.0fus, %.0fus" span1 (span2 -. span1)];
     Ok ()
 
-  let readonly t = Suffix.readonly t.suffix
+  let readonly t = Suffix.readonly (Atomic.get t.suffix)
 
   let generation t =
     let pl = Control.payload t.control in
@@ -982,7 +983,7 @@ struct
   let split t =
     let open Result_syntax in
     (* Step 1. Create a new chunk file *)
-    let* () = Suffix.add_chunk t.suffix in
+    let* () = Suffix.add_chunk (Atomic.get t.suffix) in
 
     (* Step 2. Update the control file *)
     let pl = Control.payload t.control in
