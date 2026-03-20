@@ -27,8 +27,11 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     fsync_required : bool Atomic.t;
     buf : Buffer.t;
     buf_length : int Atomic.t;
+    lock : Eio.Mutex.t;
   }
-  (** [rw_perm] contains the data necessary to operate in readwrite mode. *)
+  (** [rw_perm] contains the data necessary to operate in readwrite mode.
+      [lock] serialises concurrent access to [buf] between [append_exn] and
+      [flush]. *)
 
   type t = {
     io : Io.t;
@@ -43,7 +46,14 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         fsync_required = Atomic.make false;
         buf = Buffer.create 0;
         buf_length = Atomic.make 0;
+        lock = Eio.Mutex.create ();
       }
+
+  let with_rw_lock rw_perm f =
+    Eio.Mutex.lock rw_perm.lock;
+    match f () with
+    | x -> Eio.Mutex.unlock rw_perm.lock; x
+    | exception ex -> Eio.Mutex.unlock rw_perm.lock; raise ex
 
   let create_rw ~sw ~path ~overwrite =
     let open Result_syntax in
@@ -124,24 +134,28 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         Atomic.set t.persisted_end_poff new_end_poff;
         Ok ()
 
+  (* [flush_locked] assumes the caller already holds [rw_perm.lock]. *)
+  let flush_locked t rw_perm =
+    let open Result_syntax in
+    let open Int63.Syntax in
+    let s = Buffer.contents rw_perm.buf in
+    let persisted_end_poff = Atomic.get t.persisted_end_poff in
+    let off = persisted_end_poff + t.dead_header_size in
+    let+ () = Io.write_string t.io ~off s in
+    Atomic.set rw_perm.buf_length 0;
+    Atomic.set t.persisted_end_poff
+      (persisted_end_poff + (String.length s |> Int63.of_int));
+    (* [truncate] is semantically identical to [clear], except that
+       [truncate] doesn't deallocate the internal buffer. We use
+       [clear] in legacy_io. *)
+    Buffer.truncate rw_perm.buf 0;
+    Atomic.set rw_perm.fsync_required true
+
   let flush t =
     match t.rw_perm with
     | None -> Error `Ro_not_allowed
     | Some rw_perm ->
-        let open Result_syntax in
-        let open Int63.Syntax in
-        let s = Buffer.contents rw_perm.buf in
-        let persisted_end_poff = Atomic.get t.persisted_end_poff in
-        let off = persisted_end_poff + t.dead_header_size in
-        let+ () = Io.write_string t.io ~off s in
-        Atomic.set rw_perm.buf_length 0;
-        Atomic.set t.persisted_end_poff
-          (persisted_end_poff + (String.length s |> Int63.of_int));
-        (* [truncate] is semantically identical to [clear], except that
-           [truncate] doesn't deallocate the internal buffer. We use
-           [clear] in legacy_io. *)
-        Buffer.truncate rw_perm.buf 0;
-        Atomic.set rw_perm.fsync_required true
+        with_rw_lock rw_perm @@ fun () -> flush_locked t rw_perm
 
   let fsync t =
     match t.rw_perm with
@@ -174,6 +188,7 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     match t.rw_perm with
     | None -> raise Errors.RO_not_allowed
     | Some rw_perm ->
+        with_rw_lock rw_perm @@ fun () ->
         assert (Atomic.get rw_perm.buf_length < auto_flush_threshold);
         Buffer.add_string rw_perm.buf s;
         let (_ : int) =
@@ -181,5 +196,5 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         in
         let buf_length = Atomic.get rw_perm.buf_length in
         if buf_length >= auto_flush_threshold then
-          flush t |> Errs.raise_if_error
+          flush_locked t rw_perm |> Errs.raise_if_error
 end
