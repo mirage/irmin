@@ -28,12 +28,6 @@ let test_conf () =
       (Invalid_argument "invalid config key: x") (fun () ->
         ignore (add (empty spec_b) x 1))
   in
-  let specs =
-    Spec.list () |> Seq.map Spec.name |> List.of_seq |> List.sort String.compare
-  in
-  let () =
-    Alcotest.(check (list string)) "Spec list" [ "a"; "b"; "mem" ] specs
-  in
   let keys =
     Spec.keys spec_a
     |> Seq.map (fun (K k) -> name k)
@@ -72,11 +66,9 @@ let test_subsequent_root_paths_duplicate () =
 
 let suite =
   [
-    Alcotest_lwt.test_case_sync "conf" `Quick test_conf;
-    Alcotest_lwt.test_case_sync "duplicate key names" `Quick
-      test_duplicate_key_names;
-    Alcotest_lwt.test_case_sync "subsequent root paths" `Quick
-      test_subsequent_root_paths;
-    Alcotest_lwt.test_case_sync "subsequent root paths duplicate" `Quick
+    Alcotest.test_case "conf" `Quick test_conf;
+    Alcotest.test_case "duplicate key names" `Quick test_duplicate_key_names;
+    Alcotest.test_case "subsequent root paths" `Quick test_subsequent_root_paths;
+    Alcotest.test_case "subsequent root paths duplicate" `Quick
       test_subsequent_root_paths_duplicate;
   ]

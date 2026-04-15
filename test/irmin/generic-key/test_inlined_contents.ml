@@ -38,28 +38,25 @@ module Keyed_by_value = struct
     let check_not_closed t =
       match !(t.instance) with None -> raise Closed | Some t -> t
 
-    let v _ = Lwt.return { instance = ref (Some ()) }
+    let v _ = { instance = ref (Some ()) }
 
     let mem t _ =
       let _ = check_not_closed t in
-      Lwt.return_true
+      true
 
     let unsafe_add t _ value =
       let _ = check_not_closed t in
-      Lwt.return { value }
+      { value }
 
     let add t v = unsafe_add t () v
 
     let find t k =
       let _ = check_not_closed t in
-      Lwt.return_some k.value
+      Some k.value
 
-    let index _ _ = Lwt.return_none
+    let index _ _ = None
     let batch t f = f (t :> Perms.read_write t)
-
-    let close t =
-      t.instance := None;
-      Lwt.return_unit
+    let close t = t.instance := None
   end
 end
 

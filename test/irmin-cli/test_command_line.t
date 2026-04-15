@@ -94,3 +94,33 @@ Clone a local repo
   irmin: [WARNING] Updating the control file to [Used_non_minimal_indexing_strategy]. It won't be possible to GC this irmin-pack store anymore.
   $ irmin get --root ./cloned a/b/c
   123
+
+Show documentation
+  $ irmin
+  usage: irmin [--version]
+               [--help]
+               <command> [<args>]
+  
+  The most commonly used subcommands are:
+      init        Initialize a store.
+      get         Read the value associated with a key.
+      set         Update the value associated with a key.
+      remove      Delete a key.
+      list        List subdirectories.
+      tree        List the store contents.
+      clone       Copy a remote respository to a local store
+      fetch       Download objects and refs from another repository.
+      merge       Merge branches.
+      pull        Fetch and merge with another repository.
+      push        Update remote references along with associated objects.
+      snapshot    Return a snapshot for the current state of the database.
+      revert      Revert the contents of the store to a previous state.
+      watch       Get notifications when values change.
+      dot         Dump the contents of the store as a Graphviz file.
+      graphql     Run a graphql server.
+      server      Run irmin-server.
+      options     Get information about backend specific configuration options.
+      branches    List branches
+      log         List commits
+  
+  See `irmin help <command>` for more information on a specific command.

@@ -44,7 +44,7 @@ type action = Add of key * int | Clear
 let add k v = Add (k, v)
 let clear = Clear
 
-let gen_action =
+let[@alert "-deprecated"] gen_action =
   QCheck.Gen.(frequency [ (5, map2 add small_int nat); (1, pure clear) ])
 
 let print_action = function
@@ -65,7 +65,7 @@ let run_aux create apply t =
   aux t;
   state
 
-let run = run_aux (fun () -> M.create 100) apply
+let run = run_aux (fun () -> M.create (Some 100)) apply
 let run' = run_aux (fun () -> M'.create 100) apply'
 let eq m m' = M.bindings m = M'.bindings m'
 let arbitrary_action = QCheck.make gen_action ~print:print_action

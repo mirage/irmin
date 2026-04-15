@@ -9,9 +9,7 @@
   irmin.mem
   irmin-test
   alcotest
-  alcotest-lwt
-  lwt
-  lwt.unix
+  eio_main
   hex
   logs
   logs.fmt

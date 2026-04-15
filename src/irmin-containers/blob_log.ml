@@ -53,8 +53,8 @@ module type S = sig
 
   type value
 
-  val append : path:Store.path -> Store.t -> value -> unit Lwt.t
-  val read_all : path:Store.path -> Store.t -> value list Lwt.t
+  val append : path:Store.path -> Store.t -> value -> unit
+  val read_all : path:Store.path -> Store.t -> value list
 end
 
 module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
@@ -67,12 +67,12 @@ module Make (Backend : Irmin.KV_maker) (T : Time.S) (V : Irmin.Type.S) = struct
   let create_entry v = (v, T.now ())
 
   let append ~path t v =
-    Store.find t path >>= function
+    match Store.find t path with
     | None -> Store.set_exn ~info:empty_info t path [ create_entry v ]
     | Some l -> Store.set_exn ~info:empty_info t path (create_entry v :: l)
 
   let read_all ~path t =
-    Store.find t path >|= function
+    match Store.find t path with
     | None -> []
     | Some l -> List.map (fun (v, _) -> v) l
 end

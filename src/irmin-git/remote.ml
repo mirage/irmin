@@ -15,6 +15,7 @@
  *)
 
 open Import
+open Lwt.Infix
 
 let ( >>? ) = Lwt_result.bind
 
@@ -42,6 +43,7 @@ struct
   let reword_error f = function Ok _ as v -> v | Error err -> Error (f err)
 
   let fetch t ?depth (ctx, e) br =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "fetch %a" Smart_git.Endpoint.pp e];
     let push_stdout msg = Gitlog.info (fun f -> f "%s" msg)
     and push_stderr msg = Gitlog.warn (fun f -> f "%s" msg)
@@ -78,6 +80,7 @@ struct
     | _ -> assert false
 
   let push t ?depth:_ (ctx, e) br =
+    Lwt_eio.run_lwt @@ fun () ->
     [%log.debug "push %a" Smart_git.Endpoint.pp e];
     let reference = git_of_branch br in
     let capabilities =

@@ -19,29 +19,27 @@
 type conflict = [ `Conflict of string ] [@@deriving irmin]
 (** The type for merge errors. *)
 
-val ok : 'a -> ('a, conflict) result Lwt.t
+val ok : 'a -> ('a, conflict) result
 (** Return [Ok x]. *)
 
-val conflict : ('a, unit, string, ('b, conflict) result Lwt.t) format4 -> 'a
+val conflict : ('a, unit, string, ('b, conflict) result) format4 -> 'a
 (** Return [Error (Conflict str)]. *)
 
-val bind :
-  ('a, 'b) result Lwt.t ->
-  ('a -> ('c, 'b) result Lwt.t) ->
-  ('c, 'b) result Lwt.t
+val bind : ('a, 'b) result -> ('a -> ('c, 'b) result) -> ('c, 'b) result
 (** [bind r f] is the merge result which behaves as of the application of the
     function [f] to the return value of [r]. If [r] fails, [bind r f] also
     fails, with the same conflict. *)
 
-val map : ('a -> 'c) -> ('a, 'b) result Lwt.t -> ('c, 'b) result Lwt.t
+val map : ('a -> 'c) -> ('a, 'b) result -> ('c, 'b) result
 (** [map f m] maps the result of a merge. This is the same as
     [bind m (fun x -> ok (f x))]. *)
 
 (** {1 Merge Combinators} *)
 
-type 'a promise = unit -> ('a option, conflict) result Lwt.t
+type 'a promise = unit -> ('a option, conflict) result
 (** An ['a] promise is a function which, when called, will eventually return a
-    value type of ['a]. A promise is an optional, lazy and non-blocking value. *)
+    value type of ['a]. A promise is an optional, lazy and non-blocking value.
+*)
 
 val promise : 'a -> 'a promise
 (** [promise a] is the promise containing [a]. *)
@@ -54,7 +52,7 @@ val bind_promise : 'a promise -> ('a -> 'b promise) -> 'b promise
 (** [bind_promise a f] is the promise returned by [f] applied to what is
     promised by [a]. *)
 
-type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
+type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result
 (** Signature of a merge function. [old] is the value of the least-common
     ancestor.
 
@@ -82,9 +80,10 @@ val like : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
     functions raise any exception the merge is a conflict. *)
 
 val with_conflict : (string -> string) -> 'a t -> 'a t
-(** [with_conflict f m] is [m] with the conflict error message modified by [f]. *)
+(** [with_conflict f m] is [m] with the conflict error message modified by [f].
+*)
 
-val like_lwt : 'a Type.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
+val like_blocking : 'a Type.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
 (** Same as {{!Merge.biject} biject} but with blocking domain converting
     functions. *)
 
@@ -174,8 +173,8 @@ end
 
     {b Note:} We only consider sets of bindings, instead of multisets.
     Application developers should take care of concurrent addition and removal
-    of similar bindings themselves, by using the appropriate {{!Merge.MSet}
-    multi-sets}. *)
+    of similar bindings themselves, by using the appropriate
+    {{!Merge.MSet} multi-sets}. *)
 
 (** Lift merge functions to sets. *)
 module Set (E : sig
@@ -206,13 +205,12 @@ module Infix : sig
   (** {1 Merge Result Combinators} *)
 
   val ( >>=* ) :
-    ('a, conflict) result Lwt.t ->
-    ('a -> ('b, conflict) result Lwt.t) ->
-    ('b, conflict) result Lwt.t
+    ('a, conflict) result ->
+    ('a -> ('b, conflict) result) ->
+    ('b, conflict) result
   (** [>>=*] is {!bind}. *)
 
-  val ( >|=* ) :
-    ('a, conflict) result Lwt.t -> ('a -> 'b) -> ('b, conflict) result Lwt.t
+  val ( >|=* ) : ('a, conflict) result -> ('a -> 'b) -> ('b, conflict) result
   (** [>|=*] is {!map}. *)
 
   (** {1 Promise Combinators}

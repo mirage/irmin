@@ -3,14 +3,15 @@
  (modules test common import)
  (libraries
   alcotest
-  alcotest-lwt
   yojson
   irmin
   irmin-graphql.unix
   irmin.mem
   cohttp-lwt-unix
   logs.fmt
-  logs))
+  logs
+  lwt_eio
+  eio_main))
 
 (rule
  (alias runtest)

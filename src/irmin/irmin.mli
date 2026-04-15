@@ -56,7 +56,7 @@ module Type = Repr
     {{:https://github.com/mirage/repr} [Repr]}. These values can be derived from
     type definitions via [[@@deriving irmin]] (see the
     {{:https://github.com/mirage/irmin/blob/main/README_PPX.md} documentation
-      for [ppx_irmin]})*)
+     for [ppx_irmin]})*)
 
 module Hash = Hash
 (** Hashing functions.
@@ -66,7 +66,8 @@ module Hash = Hash
     others might work with a fixed one (for instance, the Git format uses only
     {{!Hash.SHA1} SHA1}).
 
-    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends. *)
+    A {{!Hash.SHA1} SHA1} implementation is available to pass to the backends.
+*)
 
 module Branch = Branch
 
@@ -175,8 +176,9 @@ type config = Conf.t
 (** {2 Low-level Stores} *)
 
 (** An Irmin backend is built from a number of lower-level stores, each
-    implementing fewer operations, such as {{!Content_addressable.Store}
-    content-addressable} and {{!Atomic_write.Store} atomic-write} stores. *)
+    implementing fewer operations, such as
+    {{!Content_addressable.Store} content-addressable} and
+    {{!Atomic_write.Store} atomic-write} stores. *)
 
 module Read_only = Read_only
 (** Read-only backend backends. *)
@@ -288,41 +290,41 @@ type 'a diff = 'a Diff.t
     message, using the combinator exposed by {!Irmin.Type}:
 
     {[
-      open Lwt.Infix
-      open Astring
+    open Lwt.Infix
+    open Astring
 
-      let time = ref 0L
-      let failure fmt = Fmt.kstr failwith fmt
+    let time = ref 0L
+    let failure fmt = Fmt.kstr failwith fmt
 
-      (* A log entry *)
-      module Entry : sig
-        include Irmin.Type.S
+    (* A log entry *)
+    module Entry : sig
+      include Irmin.Type.S
 
-        val v : string -> t
-        val timestamp : t -> int64
-      end = struct
-        type t = { timestamp : int64; message : string } [@@deriving irmin]
+      val v : string -> t
+      val timestamp : t -> int64
+    end = struct
+      type t = { timestamp : int64; message : string } [@@deriving irmin]
 
-        let compare x y = Int64.compare x.timestamp y.timestamp
+      let compare x y = Int64.compare x.timestamp y.timestamp
 
-        let v message =
-          time := Int64.add 1L !time;
-          { timestamp = !time; message }
+      let v message =
+        time := Int64.add 1L !time;
+        { timestamp = !time; message }
 
-        let timestamp t = t.timestamp
+      let timestamp t = t.timestamp
 
-        let pp ppf { timestamp; message } =
-          Fmt.pf ppf "%04Ld: %s" timestamp message
+      let pp ppf { timestamp; message } =
+        Fmt.pf ppf "%04Ld: %s" timestamp message
 
-        let of_string str =
-          match String.cut ~sep:": " str with
-          | None -> Error (`Msg ("invalid entry: " ^ str))
-          | Some (x, message) -> (
-              try Ok { timestamp = Int64.of_string x; message }
-              with Failure e -> Error (`Msg e))
+      let of_string str =
+        match String.cut ~sep:": " str with
+        | None -> Error (`Msg ("invalid entry: " ^ str))
+        | Some (x, message) -> (
+            try Ok { timestamp = Int64.of_string x; message }
+            with Failure e -> Error (`Msg e))
 
-        let t = Irmin.Type.like ~pp ~of_string ~compare t
-      end
+      let t = Irmin.Type.like ~pp ~of_string ~compare t
+    end
     ]}
 
     A log file is a list of entries (one per line), ordered by decreasing order
@@ -330,57 +332,57 @@ type 'a diff = 'a Diff.t
     sorts the new entries and prepend them to the common ancestor's ones.
 
     {[
-      (* A log file *)
-      module Log : sig
-        include Irmin.Contents.S
+    (* A log file *)
+    module Log : sig
+      include Irmin.Contents.S
 
-        val add : t -> Entry.t -> t
-        val empty : t
-      end = struct
-        type t = Entry.t list [@@deriving irmin]
+      val add : t -> Entry.t -> t
+      val empty : t
+    end = struct
+      type t = Entry.t list [@@deriving irmin]
 
-        let empty = []
-        let pp_entry = Irmin.Type.pp Entry.t
-        let lines ppf l = List.iter (Fmt.pf ppf "%a\n" pp_entry) (List.rev l)
+      let empty = []
+      let pp_entry = Irmin.Type.pp Entry.t
+      let lines ppf l = List.iter (Fmt.pf ppf "%a\n" pp_entry) (List.rev l)
 
-        let of_string str =
-          let lines = String.cuts ~empty:false ~sep:"\n" str in
-          try
-            List.fold_left
-              (fun acc l ->
-                match Irmin.Type.of_string Entry.t l with
-                | Ok x -> x :: acc
-                | Error (`Msg e) -> failwith e)
-              [] lines
-            |> fun l -> Ok l
-          with Failure e -> Error (`Msg e)
+      let of_string str =
+        let lines = String.cuts ~empty:false ~sep:"\n" str in
+        try
+          List.fold_left
+            (fun acc l ->
+              match Irmin.Type.of_string Entry.t l with
+              | Ok x -> x :: acc
+              | Error (`Msg e) -> failwith e)
+            [] lines
+          |> fun l -> Ok l
+        with Failure e -> Error (`Msg e)
 
-        let t = Irmin.Type.like ~pp:lines ~of_string t
-        let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
+      let t = Irmin.Type.like ~pp:lines ~of_string t
+      let timestamp = function [] -> 0L | e :: _ -> Entry.timestamp e
 
-        let newer_than timestamp file =
-          let rec aux acc = function
-            | [] -> List.rev acc
-            | h :: _ when Entry.timestamp h <= timestamp -> List.rev acc
-            | h :: t -> aux (h :: acc) t
-          in
-          aux [] file
+      let newer_than timestamp file =
+        let rec aux acc = function
+          | [] -> List.rev acc
+          | h :: _ when Entry.timestamp h <= timestamp -> List.rev acc
+          | h :: t -> aux (h :: acc) t
+        in
+        aux [] file
 
-        let merge ~old t1 t2 =
-          let open Irmin.Merge.Infix in
-          old () >>=* fun old ->
-          let old = match old with None -> [] | Some o -> o in
-          let ts = timestamp old in
-          let t1 = newer_than ts t1 in
-          let t2 = newer_than ts t2 in
-          let t3 =
-            List.sort (Irmin.Type.compare Entry.t) (List.rev_append t1 t2)
-          in
-          Irmin.Merge.ok (List.rev_append t3 old)
+      let merge ~old t1 t2 =
+        let open Irmin.Merge.Infix in
+        old () >>=* fun old ->
+        let old = match old with None -> [] | Some o -> o in
+        let ts = timestamp old in
+        let t1 = newer_than ts t1 in
+        let t2 = newer_than ts t2 in
+        let t3 =
+          List.sort (Irmin.Type.compare Entry.t) (List.rev_append t1 t2)
+        in
+        Irmin.Merge.ok (List.rev_append t3 old)
 
-        let merge = Irmin.Merge.(option (v t merge))
-        let add t e = e :: t
-      end
+      let merge = Irmin.Merge.(option (v t merge))
+      let add t e = e :: t
+    end
     ]}
 
     {b Note:} The serialisation primitives used in that example are not very
@@ -391,63 +393,63 @@ type 'a diff = 'a Diff.t
     how to use the on-disk [Git] backend on Unix.
 
     {[
-      (* Build an Irmin store containing log files. *)
-      module Store = Irmin_unix.Git.FS.KV (Log)
+    (* Build an Irmin store containing log files. *)
+    module Store = Irmin_unix.Git.FS.KV (Log)
 
-      (* Set-up the local configuration of the Git repository. *)
-      let config = Irmin_git.config ~bare:true Config.root
+    (* Set-up the local configuration of the Git repository. *)
+    let config = Irmin_git.config ~bare:true Config.root
 
-      (* Convenient alias for the info function for commit messages *)
-      let info = Irmin_unix.info
+    (* Convenient alias for the info function for commit messages *)
+    let info = Irmin_unix.info
     ]}
 
     We can now define a toy example to use our mergeable log files.
 
     {[
-      let log_file = [ "local"; "debug" ]
+    let log_file = [ "local"; "debug" ]
 
-      let all_logs t =
-        Store.find t log_file >|= function None -> Log.empty | Some l -> l
+    let all_logs t =
+      Store.find t log_file >|= function None -> Log.empty | Some l -> l
 
-      (** Persist a new entry in the log. Pretty inefficient as it reads/writes
-          the whole file every time. *)
-      let log t fmt =
-        Printf.ksprintf
-          (fun message ->
-            all_logs t >>= fun logs ->
-            let logs = Log.add logs (Entry.v message) in
-            Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
-          fmt
+    (** Persist a new entry in the log. Pretty inefficient as it reads/writes
+        the whole file every time. *)
+    let log t fmt =
+      Printf.ksprintf
+        (fun message ->
+          all_logs t >>= fun logs ->
+          let logs = Log.add logs (Entry.v message) in
+          Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
+        fmt
 
-      let print_logs name t =
-        all_logs t >|= fun logs ->
-        Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t)
-          logs
+    let print_logs name t =
+      all_logs t >|= fun logs ->
+      Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t)
+        logs
 
-      let main () =
-        Config.init ();
-        Store.Repo.v config >>= fun repo ->
-        Store.main repo >>= fun t ->
-        (* populate the log with some random messages *)
-        Lwt_list.iter_s
-          (fun msg -> log t "This is my %s " msg)
-          [ "first"; "second"; "third" ]
-        >>= fun () ->
-        Printf.printf "%s\n\n" what;
-        print_logs "lca" t >>= fun () ->
-        Store.clone ~src:t ~dst:"test" >>= fun x ->
-        log x "Adding new stuff to x" >>= fun () ->
-        log x "Adding more stuff to x" >>= fun () ->
-        log x "More. Stuff. To x." >>= fun () ->
-        print_logs "branch 1" x >>= fun () ->
-        log t "I can add stuff on t also" >>= fun () ->
-        log t "Yes. On t!" >>= fun () ->
-        print_logs "branch 2" t >>= fun () ->
-        Store.merge_into ~info:(info "Merging x into t") x ~into:t >>= function
-        | Ok () -> print_logs "merge" t
-        | Error _ -> failwith "conflict!"
+    let main () =
+      Config.init ();
+      Store.Repo.v config >>= fun repo ->
+      Store.main repo >>= fun t ->
+      (* populate the log with some random messages *)
+      Lwt_list.iter_s
+        (fun msg -> log t "This is my %s " msg)
+        [ "first"; "second"; "third" ]
+      >>= fun () ->
+      Printf.printf "%s\n\n" what;
+      print_logs "lca" t >>= fun () ->
+      Store.clone ~src:t ~dst:"test" >>= fun x ->
+      log x "Adding new stuff to x" >>= fun () ->
+      log x "Adding more stuff to x" >>= fun () ->
+      log x "More. Stuff. To x." >>= fun () ->
+      print_logs "branch 1" x >>= fun () ->
+      log t "I can add stuff on t also" >>= fun () ->
+      log t "Yes. On t!" >>= fun () ->
+      print_logs "branch 2" t >>= fun () ->
+      Store.merge_into ~info:(info "Merging x into t") x ~into:t >>= function
+      | Ok () -> print_logs "merge" t
+      | Error _ -> failwith "conflict!"
 
-      let () = Lwt_main.run (main ())
+    let () = Lwt_main.run (main ())
     ]} *)
 
 (** {2 Synchronization} *)
@@ -457,9 +459,9 @@ type remote = Remote.t = ..
 
 val remote_store : (module Generic_key.S with type t = 'a) -> 'a -> remote
 (** [remote_store t] is the remote corresponding to the local store [t].
-    Synchronization is done by importing and exporting store {{!BC.slice}
-    slices}, so this is usually much slower than native synchronization using
-    {!Store.remote} but it works for all backends. *)
+    Synchronization is done by importing and exporting store
+    {{!BC.slice} slices}, so this is usually much slower than native
+    synchronization using {!Store.remote} but it works for all backends. *)
 
 module Sync = Sync
 (** Remote synchronisation. *)
@@ -474,25 +476,25 @@ module Sync = Sync
     The complete code for the following can be found in [examples/sync.ml].
 
     {[
-      open Lwt.Infix
-      module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
-      module Sync = Irmin.Sync (S)
+    open Lwt.Infix
+    module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
+    module Sync = Irmin.Sync (S)
 
-      let config = Irmin_git.config "/tmp/test"
+    let config = Irmin_git.config "/tmp/test"
 
-      let upstream =
-        if Array.length Sys.argv = 2 then
-          Uri.of_string (Store.remote Sys.argv.(1))
-        else (
-          Printf.eprintf "Usage: sync [uri]\n%!";
-          exit 1)
+    let upstream =
+      if Array.length Sys.argv = 2 then
+        Uri.of_string (Store.remote Sys.argv.(1))
+      else (
+        Printf.eprintf "Usage: sync [uri]\n%!";
+        exit 1)
 
-      let test () =
-        S.Repo.v config >>= S.main >>= fun t ->
-        Sync.pull_exn t upstream `Set >>= fun () ->
-        S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
+    let test () =
+      S.Repo.v config >>= S.main >>= fun t ->
+      Sync.pull_exn t upstream `Set >>= fun () ->
+      S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
 
-      let () = Lwt_main.run (test ())
+    let () = Lwt_main.run (test ())
     ]} *)
 
 (** {1 Helpers} *)

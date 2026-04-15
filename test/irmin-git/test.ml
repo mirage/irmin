@@ -17,6 +17,7 @@
 let misc = [ ("misc", Test_git.(misc mem)) ]
 
 let () =
-  Lwt_main.run
-  @@ Irmin_test.Store.run "irmin-git" ~slow:true ~misc ~sleep:Lwt_unix.sleep
-       [ (`Quick, Test_git.suite); (`Quick, Test_git.suite_generic) ]
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Irmin_test.Store.run "irmin-git" ~slow:true ~misc ~sleep:Eio_unix.sleep
+    [ (`Quick, Test_git.suite); (`Quick, Test_git.suite_generic) ]

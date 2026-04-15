@@ -40,8 +40,11 @@ struct
     let to_hash x = x
   end
 
-  let index _ h = Lwt.return_some h
-  let unsafe_add t h v = unsafe_add t h v >|= fun () -> h
+  let index _ h = Some h
+
+  let unsafe_add t h v =
+    unsafe_add t h v;
+    h
 end
 
 module Check_closed_store (CA : S) = struct
@@ -67,7 +70,7 @@ module Check_closed_store (CA : S) = struct
     (get_if_open_exn t |> CA.batch) (fun w -> f { t = w; closed = t.closed })
 
   let close t =
-    if !(t.closed) then Lwt.return_unit
+    if !(t.closed) then ()
     else (
       t.closed := true;
       CA.close t.t)
@@ -78,6 +81,6 @@ module Check_closed (M : Maker) (Hash : Hash.S) (Value : Type.S) = struct
   include Check_closed_store (CA)
 
   let v conf =
-    let+ t = CA.v conf in
+    let t = CA.v conf in
     { closed = ref false; t }
 end

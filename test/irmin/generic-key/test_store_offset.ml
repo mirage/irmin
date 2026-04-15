@@ -57,13 +57,13 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
          store constructor is memoised (modulo [close] semantics, which must be
          non-memoised), so we must use a singleton here. *)
       let singleton = { data = Vector.create ~dummy:None; id = object end } in
-      fun _ -> Lwt.return { instance = ref (Some singleton) }
+      fun _ -> { instance = ref (Some singleton) }
 
     type nonrec key = Hash.t key [@@deriving irmin]
     type value = Value.t
     type hash = Hash.t [@@deriving irmin ~equal]
 
-    let index _ _ = Lwt.return_none
+    let index _ _ = None
 
     module Key = struct
       type t = key [@@deriving irmin]
@@ -95,7 +95,7 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
       let t = check_not_closed t in
       Vector.push t.data (Some (hash, v));
       let key = { slot = Vector.length t.data - 1; hash; store_id = t.id } in
-      Lwt.return key
+      key
 
     let add t v = unsafe_add t (Hash.hash v) v
 
@@ -103,26 +103,24 @@ module Slot_keyed_vector : Indexable.Maker_concrete_key1 = struct
       let t = check_not_closed t in
       check_key_belongs_to_store __POS__ k t;
       match Vector.get t.data k.slot with
-      | exception Not_found -> Lwt.return_none
+      | exception Not_found -> None
       | None ->
           Alcotest.failf "Invalid key slot %d. No data contained here." k.slot
       | Some (recovered_hash, data) ->
           check_hash_is_consistent __POS__ k recovered_hash;
-          Lwt.return (Some data)
+          Some data
 
     let mem t k =
       let t = check_not_closed t in
       check_key_belongs_to_store __POS__ k t;
       assert (k.slot < Vector.length t.data);
-      Lwt.return_true
+      true
 
     let batch t f =
       let _ = check_not_closed t in
       f (t :> Perms.read_write t)
 
-    let close t =
-      t.instance := None;
-      Lwt.return_unit
+    let close t = t.instance := None
   end
 end
 

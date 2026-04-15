@@ -43,6 +43,8 @@ type contents = Contents.t
 
 (** {1 Global Configuration} *)
 
+type eio = Import.eio
+
 module Store : sig
   module Impl : sig
     (** The type of {i implementations} of an Irmin store.
@@ -60,7 +62,7 @@ module Store : sig
   end
 
   type remote_fn =
-    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t
+    ?ctx:Mimic.ctx -> ?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote
 
   type t
   (** The type for store configurations. A configuration value contains: the
@@ -86,10 +88,10 @@ module Store : sig
     t
 
   val mem : hash -> contents -> t
-  val fs : hash -> contents -> t
+  val fs : eio -> hash -> contents -> t
   val git : contents -> t
-  val pack : hash -> contents -> t
-  val find : string -> store_functor
+  val pack : eio -> hash -> contents -> t
+  val find : string -> eio -> store_functor
   val add : string -> ?default:bool -> store_functor -> unit
   val spec : t -> Irmin.Backend.Conf.Spec.t
   val generic_keyed : t -> (module Irmin.Generic_key.S)
@@ -103,6 +105,7 @@ end
 (** {1 Stores} *)
 
 val load_config :
+  env:eio ->
   ?plugin:string ->
   ?root:string ->
   ?config_path:string ->
@@ -123,12 +126,13 @@ val load_config :
     The values provided for [store], [hash] and [contents] will be used by
     default if no other value is found in the config file *)
 
-type store = S : 'a Store.Impl.t * 'a Lwt.t * Store.remote_fn option -> store
+type store =
+  | S : 'a Store.Impl.t * (unit -> 'a) * Store.remote_fn option -> store
 
-val store : unit -> store Cmdliner.Term.t
+val store : env:eio -> store Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)
 
 type Irmin.remote += R of Cohttp.Header.t option * string
 
-val remote : unit -> (store * Irmin.remote Lwt.t) Cmdliner.Term.t
+val remote : env:eio -> (store * (unit -> Irmin.remote)) Cmdliner.Term.t
 (** Parse a remote store location. *)

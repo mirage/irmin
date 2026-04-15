@@ -28,16 +28,16 @@ module type S = sig
       cloning, merging, etc are done through this module. *)
 
   val inc :
-    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit
   (** Increment the counter by the amount specified using [by]. If no value is
       specified, then [by] is assigned the value 1L. *)
 
   val dec :
-    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit Lwt.t
+    ?by:int64 -> ?info:Store.Info.f -> path:Store.path -> Store.t -> unit
   (** Decrement the counter by the amount specified using [by]. If no value is
       specified, then [by] is assigned the value 1L. *)
 
-  val read : path:Store.path -> Store.t -> int64 Lwt.t
+  val read : path:Store.path -> Store.t -> int64
   (** Read the value of the counter *)
 end
 

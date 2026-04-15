@@ -1,22 +1,22 @@
 (library
  (name test_fs)
  (modules test_fs)
- (libraries irmin-fs irmin-test lwt))
+ (libraries irmin-fs irmin-test))
 
 (library
  (name test_fs_unix)
  (modules test_fs_unix)
- (libraries test_fs irmin irmin-fs.unix irmin-test irmin-watcher lwt))
+ (libraries test_fs irmin irmin-fs.unix irmin-test irmin-watcher))
 
 (executable
  (name test)
  (modules test)
- (libraries alcotest lwt.unix irmin irmin-test test_fs))
+ (libraries alcotest eio_main irmin irmin-test test_fs))
 
 (executable
  (name test_unix)
  (modules test_unix)
- (libraries alcotest irmin irmin-test test_fs_unix))
+ (libraries alcotest eio_main irmin irmin-test test_fs_unix))
 
 (rule
  (alias runtest)

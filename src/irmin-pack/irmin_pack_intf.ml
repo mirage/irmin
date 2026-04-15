@@ -62,7 +62,8 @@ end
 
 module type Sigs = sig
   (** A space-optimiezed, on-disk store inspired by
-      {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}. *)
+      {{:https://git-scm.com/book/en/v2/Git-Internals-Packfiles} Git Packfiles}.
+  *)
 
   (** {1 Configuration} *)
 
@@ -70,6 +71,8 @@ module type Sigs = sig
   module Conf = Conf
 
   val config :
+    sw:Eio.Switch.t ->
+    fs:_ Eio.Path.t ->
     ?fresh:bool ->
     ?readonly:bool ->
     ?lru_size:int ->
@@ -79,10 +82,11 @@ module type Sigs = sig
     ?indexing_strategy:Indexing_strategy.t ->
     ?use_fsync:bool ->
     ?no_migrate:bool ->
-    ?lower_root:string option ->
-    string ->
+    ?lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+    Eio.Fs.dir_ty Eio.Path.t ->
     Irmin.config
-  (** Configuration options for stores. See {!Irmin_pack.Conf} for more details. *)
+  (** Configuration options for stores. See {!Irmin_pack.Conf} for more details.
+  *)
 
   (** {1 Inode} *)
 

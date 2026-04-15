@@ -27,15 +27,15 @@ module Inode : sig
     | Inode_encode_bin
 
   type t = private {
-    mutable inode_add : int;
-    mutable inode_remove : int;
-    mutable inode_of_seq : int;
-    mutable inode_of_raw : int;
-    mutable inode_rec_add : int;
-    mutable inode_rec_remove : int;
-    mutable inode_to_binv : int;
-    mutable inode_decode_bin : int;
-    mutable inode_encode_bin : int;
+    inode_add : int;
+    inode_remove : int;
+    inode_of_seq : int;
+    inode_of_raw : int;
+    inode_rec_add : int;
+    inode_rec_remove : int;
+    inode_to_binv : int;
+    inode_decode_bin : int;
+    inode_encode_bin : int;
   }
   [@@deriving irmin]
   (** The type for stats for a store S.

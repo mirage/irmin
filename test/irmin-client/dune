@@ -12,4 +12,6 @@
   irmin-test
   irmin-watcher)
  (enabled_if
-  (<> %{system} "freebsd")))
+  (and
+   (<> %{system} macosx)
+   (<> %{system} freebsd))))

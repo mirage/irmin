@@ -15,3 +15,14 @@
  *)
 
 include Irmin.Export_for_backends
+
+module Mtime = struct
+  include Mtime
+
+  module Span = struct
+    include Mtime.Span
+
+    let to_s span = Mtime.Span.to_float_ns span *. 1e-9
+    let to_us span = Mtime.Span.to_float_ns span *. 1e-3
+  end
+end

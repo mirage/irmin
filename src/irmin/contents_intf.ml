@@ -72,7 +72,8 @@ module type Sigs = sig
       with different values then the [merge] function conflicts. *)
 
   module Json_value : S with type t = json
-  (** [Json_value] allows any kind of json value to be stored, not only objects. *)
+  (** [Json_value] allows any kind of json value to be stored, not only objects.
+  *)
 
   module V1 : sig
     module String : S with type t = string

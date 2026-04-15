@@ -47,9 +47,9 @@ module type S = sig
       contained in [t] at offset [off]. It has behaviour equivalent to:
 
       {[
-        Bigstringaf.substring t ~off ~len:hash_size
-        |> unsafe_of_raw_string
-        |> short_hash
+      Bigstringaf.substring t ~off ~len:hash_size
+      |> unsafe_of_raw_string
+      |> short_hash
       ]}
 
       but may be more efficient due to not needing to allocate an intermediate

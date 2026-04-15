@@ -25,15 +25,15 @@ module type S_without_key_impl = sig
   type hash
   (** The type of hashes of [value]. *)
 
-  val add : [> write ] t -> value -> key Lwt.t
+  val add : [> write ] t -> value -> key
   (** Write the contents of a value to the store, and obtain its key. *)
 
-  val unsafe_add : [> write ] t -> hash -> value -> key Lwt.t
+  val unsafe_add : [> write ] t -> hash -> value -> key
   (** Same as {!add} but allows specifying the value's hash directly. The
       backend might choose to discard that hash and/or can be corrupt if the
       hash is not consistent. *)
 
-  val index : [> read ] t -> hash -> key option Lwt.t
+  val index : [> read ] t -> hash -> key option
   (** Indexing maps the hash of a value to a corresponding key of that value in
       the store. For stores that are addressed by hashes directly, this is
       typically [fun _t h -> Lwt.return (Key.of_hash h)]; for stores with more

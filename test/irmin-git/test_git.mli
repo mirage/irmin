@@ -21,7 +21,7 @@ val test_db : string
 module type S = sig
   include Irmin_test.S
 
-  val init : config:Irmin.config -> unit Lwt.t
+  val init : config:Irmin.config -> unit
 end
 
 module type G = sig
@@ -29,5 +29,5 @@ module type G = sig
   module Git : Irmin_git.G
 end
 
-val misc : (module G) -> unit Alcotest_lwt.test_case list
+val misc : (module G) -> unit Alcotest.test_case list
 val mem : (module G)

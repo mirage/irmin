@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Import
 include Storage_intf
 
 module Read_only (M : Make) =
@@ -48,14 +47,14 @@ functor
 
     let add t value =
       let key = H.hash value in
-      let+ () = S.set t key value in
+      let () = S.set t key value in
       key
 
     let equal_hash = Type.(equal H.t |> unstage)
     let pp_hash = Type.(pp H.t)
 
     let unsafe_add t k v =
-      let+ hash' = add t v in
+      let hash' = add t v in
       if equal_hash k hash' then ()
       else
         Fmt.failwith
@@ -94,19 +93,19 @@ functor
     let lock = L.v ()
 
     let v config =
-      let* t = S.v config in
-      Lwt.return { t; w = watches; l = lock }
+      let t = S.v config in
+      { t; w = watches; l = lock }
 
     let find { t; _ } = S.find t
     let mem { t; _ } = S.mem t
 
     module Internal = struct
       let set t w key value =
-        let* () = S.set t key value in
+        let () = S.set t key value in
         W.notify w key (Some value)
 
       let remove t w key =
-        let* () = S.remove t key in
+        let () = S.remove t key in
         W.notify w key None
     end
 
@@ -122,25 +121,25 @@ functor
       let value_equal = Type.(unstage (equal (option Value.t))) in
       fun { t; l; w } key ~test ~set:set_value ->
         L.with_lock l key @@ fun () ->
-        let* v = S.find t key in
+        let v = S.find t key in
         if value_equal v test then
-          let* () =
+          let () =
             match set_value with
             | Some set_value -> Internal.set t w key set_value
             | None -> Internal.remove t w key
           in
-          Lwt.return_true
-        else Lwt.return_false
+          true
+        else false
 
     let watch_key { w; _ } key = W.watch_key w key
     let watch { w; _ } = W.watch w
     let unwatch { w; _ } = W.unwatch w
 
     let clear { t; w; _ } =
-      let* () = W.clear w in
+      let () = W.clear w in
       S.clear t
 
     let close { t; w; _ } =
-      let* () = W.clear w in
+      let () = W.clear w in
       S.close t
   end

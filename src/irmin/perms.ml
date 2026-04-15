@@ -37,8 +37,8 @@
     operations – by upcasting:
 
     {[
-      let read_only t = (t :> (_, read) Ref.t)
-      let write_only t = (t :> (_, write) Ref.t)
+    let read_only t = (t :> (_, read) Ref.t)
+    let write_only t = (t :> (_, write) Ref.t)
     ]}
 
     Note that the ['perms] phantom type parameter should be contravariant: it's
@@ -63,4 +63,5 @@ type write = Write.t
 (** The type parameter of a handle with [write] permissions. *)
 
 type read_write = Read_write.t
-(** The type parameter of a handle with both {!read} and {!write} permissions. *)
+(** The type parameter of a handle with both {!read} and {!write} permissions.
+*)

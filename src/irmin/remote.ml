@@ -19,15 +19,12 @@ include Remote_intf
 module None (H : Type.S) (R : Type.S) = struct
   type t = unit
 
-  let v _ = Lwt.return_unit
+  let v _ = ()
 
   type endpoint = unit
   type commit = H.t
   type branch = R.t
 
-  let fetch () ?depth:_ _ _br =
-    Lwt.return (Error (`Msg "fetch operation is not available"))
-
-  let push () ?depth:_ _ _br =
-    Lwt.return (Error (`Msg "push operation is not available"))
+  let fetch () ?depth:_ _ _br = Error (`Msg "fetch operation is not available")
+  let push () ?depth:_ _ _br = Error (`Msg "push operation is not available")
 end

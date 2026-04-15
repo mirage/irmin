@@ -20,14 +20,7 @@ module Int63 = Optint.Int63
 let get = function Some x -> x | None -> Alcotest.fail "None"
 let sha1 x = Irmin.Hash.SHA1.hash (fun f -> f x)
 let sha1_contents x = sha1 ("B" ^ x)
-
-let rm_dir root =
-  if Sys.file_exists root then (
-    let cmd = Printf.sprintf "rm -rf %s" root in
-    [%logs.info "exec: %s\n%!" cmd];
-    let _ = Sys.command cmd in
-    ())
-
+let rm_dir root = Eio.Path.rmtree ~missing_ok:true root
 let index_log_size = Some 1_000
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
@@ -98,16 +91,17 @@ module Branch =
     (Irmin_pack.Atomic_write.Value.Of_hash (Schema.Hash))
 
 module Make_context (Config : sig
-  val root : string
+  val root : fs:Eio.Fs.dir_ty Eio.Path.t -> Eio.Fs.dir_ty Eio.Path.t
 end) =
 struct
   let fresh_name =
     let c = ref 0 in
-    fun object_type ->
+    fun ~fs object_type ->
       incr c;
-
-      let name = Filename.concat Config.root ("pack_" ^ string_of_int !c) in
-      [%logs.info "Constructing %s context object: %s" object_type name];
+      let name = Eio.Path.(Config.root ~fs / ("pack_" ^ string_of_int !c)) in
+      [%logs.info
+        "Constructing %s context object: %s" object_type
+          (Eio.Path.native_exn name)];
       name
 
   let mkdir_dash_p dirname =
@@ -120,7 +114,11 @@ struct
     in
     aux dirname
 
-  type d = { name : string; fm : File_manager.t; dict : Dict.t }
+  type d = {
+    name : Eio.Fs.dir_ty Eio.Path.t;
+    fm : File_manager.t;
+    dict : Dict.t;
+  }
 
   (* TODO : test the indexing_strategy minimal. *)
   let config ~readonly ~fresh name =
@@ -139,25 +137,26 @@ struct
         File_manager.create_rw ~overwrite:true config |> Errs.raise_if_error)
       else File_manager.open_rw config |> Errs.raise_if_error
 
-  let get_dict ?name ~readonly ~fresh () =
-    let name = Option.value name ~default:(fresh_name "dict") in
-    let fm = config ~readonly ~fresh name |> get_fm in
+  let get_dict ~sw ~fs ?name ~readonly ~fresh () =
+    let name = Option.value name ~default:(fresh_name ~fs "dict") in
+    let config = config ~sw ~fs ~readonly ~fresh name in
+    let fm = get_fm config in
     let dict = File_manager.dict fm in
     { name; dict; fm }
 
   let close_dict d = File_manager.close d.fm |> Errs.raise_if_error
 
   type t = {
-    name : string;
+    name : Eio.Fs.dir_ty Eio.Path.t;
     fm : File_manager.t;
     index : Index.t;
     pack : read Pack.t;
     dict : Pack.dict;
   }
 
-  let create ~readonly ~fresh name =
+  let create ~sw ~fs ~readonly ~fresh name =
     let f = ref (fun () -> ()) in
-    let config = config ~readonly ~fresh name in
+    let config = config ~sw ~fs ~readonly ~fresh name in
     let fm = get_fm config in
     let dispatcher = Dispatcher.v fm |> Errs.raise_if_error in
     (* open the index created by the fm. *)
@@ -166,20 +165,18 @@ struct
     let lru = Irmin_pack_unix.Lru.create config in
     let pack = Pack.v ~config ~fm ~dict ~dispatcher ~lru in
     (f := fun () -> File_manager.flush fm |> Errs.raise_if_error);
-    { name; index; pack; dict; fm } |> Lwt.return
+    { name; index; pack; dict; fm }
 
-  let get_rw_pack () =
-    let name = fresh_name "" in
-    create ~readonly:false ~fresh:true name
+  let get_rw_pack ~sw ~fs =
+    let name = fresh_name ~fs "" in
+    create ~sw ~fs ~readonly:false ~fresh:true name
 
-  let get_ro_pack name = create ~readonly:true ~fresh:false name
-  let reopen_rw name = create ~readonly:false ~fresh:false name
+  let get_ro_pack ~sw ~fs name = create ~sw ~fs ~readonly:true ~fresh:false name
+  let reopen_rw ~sw ~fs name = create ~sw ~fs ~readonly:false ~fresh:false name
 
   let close_pack t =
-    Index.close_exn t.index;
-    File_manager.close t.fm |> Errs.raise_if_error;
-    (* closes pack and dict *)
-    Lwt.return_unit
+    let _ = File_manager.flush t.fm in
+    File_manager.close t.fm |> Errs.raise_if_error
 end
 
 module Alcotest = struct
@@ -188,38 +185,38 @@ module Alcotest = struct
   let int63 = testable Int63.pp Int63.equal
 
   let check_raises_pack_error msg pass f =
-    Lwt.try_bind f
-      (fun _ ->
+    match f () with
+    | _ ->
         Alcotest.failf
-          "Fail %s: expected function to raise, but it returned instead." msg)
-      (function
-        | Irmin_pack_unix.Errors.Pack_error e as exn -> (
+          "Fail %s: expected function to raise, but it returned instead." msg
+    | exception exn -> (
+        match exn with
+        | Irmin_pack_unix.Errors.Pack_error e -> (
             match pass e with
-            | true -> Lwt.return_unit
+            | true -> ()
             | false ->
                 Alcotest.failf
                   "Fail %s: function raised unexpected exception %s" msg
                   (Printexc.to_string exn))
-        | exn ->
+        | _ ->
             Alcotest.failf
               "Fail %s: expected function to raise Pack_error, but it raised \
                %s instead"
               msg (Printexc.to_string exn))
 
   (** TODO: upstream this to Alcotest *)
-  let check_raises_lwt msg exn (type a) (f : unit -> a Lwt.t) =
-    Lwt.try_bind f
-      (fun _ ->
+  let check_raises msg exn (type a) (f : unit -> a) =
+    try
+      let (_ : a) = f () in
+      Alcotest.failf
+        "Fail %s: expected function to raise %s, but it returned instead." msg
+        (Printexc.to_string exn)
+    with
+    | e when e = exn -> ()
+    | e ->
         Alcotest.failf
-          "Fail %s: expected function to raise %s, but it returned instead." msg
-          (Printexc.to_string exn))
-      (function
-        | e when e = exn -> Lwt.return_unit
-        | e ->
-            Alcotest.failf
-              "Fail %s: expected function to raise %s, but it raised %s \
-               instead."
-              msg (Printexc.to_string exn) (Printexc.to_string e))
+          "Fail %s: expected function to raise %s, but it raised %s instead."
+          msg (Printexc.to_string exn) (Printexc.to_string e)
 
   let testable_repr t =
     Alcotest.testable (Irmin.Type.pp t) Irmin.Type.(unstage (equal t))
@@ -227,12 +224,7 @@ module Alcotest = struct
   let check_repr ?pos t = Alcotest.check ?pos (testable_repr t)
   let kind = testable_repr Irmin_pack.Pack_value.Kind.t
   let hash = testable_repr Schema.Hash.t
-end
-
-module Alcotest_lwt = struct
-  include Alcotest_lwt
-
-  let quick_tc name f = test_case name `Quick (fun _switch () -> f ())
+  let quick_tc name f = test_case name `Quick f
 end
 
 module Filename = struct
@@ -359,23 +351,15 @@ let goto_project_root () =
       Unix.chdir (Fpath.to_string root)
   | _ -> ()
 
-let rec unlink_path path =
-  match Irmin_pack_unix.Io.Unix.classify_path path with
-  | `No_such_file_or_directory -> ()
-  | `Directory ->
-      Sys.readdir path
-      |> Array.map (fun p -> Filename.concat path p)
-      |> Array.iter unlink_path;
-      Unix.rmdir path
-  | _ -> Unix.unlink path
+let unlink_path path = Eio.Path.rmtree ~missing_ok:true path
 
-let create_lower_root =
+let create_lower_root ~fs =
   let counter = ref 0 in
   let ( let$ ) res f = f @@ Result.get_ok res in
   fun ?(mkdir = true) () ->
     let lower_root = "test_lower_" ^ string_of_int !counter in
     incr counter;
-    let lower_path = Filename.concat "_build" lower_root in
+    let lower_path = Eio.Path.(fs / "_build" / lower_root) in
     unlink_path lower_path;
     let$ _ =
       if mkdir then Irmin_pack_unix.Io.Unix.mkdir lower_path else Result.ok ()
@@ -385,6 +369,8 @@ let create_lower_root =
 let setup_test_env ~root_archive ~root_local_build =
   goto_project_root ();
   rm_dir root_local_build;
+  let root_archive = Eio.Path.native_exn root_archive in
+  let root_local_build = Eio.Path.native_exn root_local_build in
   let cmd =
     Filename.quote_command "cp" [ "-R"; "-p"; root_archive; root_local_build ]
   in

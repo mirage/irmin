@@ -16,21 +16,16 @@
 
 (** {1 Store} *)
 
-module type S = Store_intf.S
+module type S = Irmin_pack_io.Store_intf.S
 
-module Maker = Store.Maker
+module Maker (Config : Irmin_pack.Conf.S) =
+  Irmin_pack_io.Maker_io (Io.Unix) (Index_unix.Private.Platform) (Async.Unix)
+    (Config)
 
-module KV (Config : Irmin_pack.Conf.S) = struct
-  type endpoint = unit
-  type hash = Irmin.Schema.default_hash
+module KV (Config : Irmin_pack.Conf.S) =
+  Irmin_pack_io.KV (Io.Unix) (Index_unix.Private.Platform) (Async.Unix) (Config)
 
-  include Pack_key.Store_spec
-  module Maker = Maker (Config)
-
-  type metadata = Irmin.Metadata.None.t
-
-  module Make (C : Irmin.Contents.S) = Maker.Make (Irmin.Schema.KV (C))
-end
+open Irmin_pack_io
 
 (** {1 Key and Values} *)
 
@@ -40,10 +35,20 @@ module Pack_value = Pack_value
 (** {1 Internal} *)
 
 module Stats = Stats
-module Index = Pack_index
+
+module Index = struct
+  module type S = Index.S
+
+  module Make (K : Irmin.Hash.S) =
+    Index.Make_io (Io.Unix) (Index_unix.Private.Platform) (K)
+end
+
+module Checks = struct
+  module Make = Checks.Make (Io.Unix) (Index_unix.Private.Platform)
+end
+
 module Inode = Inode
 module Pack_store = Pack_store
-module Checks = Checks
 module Atomic_write = Atomic_write
 module Dict = Dict
 module Dispatcher = Dispatcher
@@ -52,6 +57,7 @@ module Async = Async
 module Errors = Errors
 module Io_errors = Io_errors
 module Control_file = Control_file
+module Control_file_intf = Control_file_intf
 module Append_only_file = Append_only_file
 module Chunked_suffix = Chunked_suffix
 module Ranges = Ranges
@@ -60,3 +66,6 @@ module File_manager = File_manager
 module Lower = Lower
 module Utils = Utils
 module Lru = Lru
+module Gc_raw = Gc
+module Traverse_pack_file = Traverse_pack_file
+module Snapshot = Snapshot

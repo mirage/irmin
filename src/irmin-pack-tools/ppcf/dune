@@ -3,6 +3,6 @@
  (package irmin-pack-tools)
  (name ppcf)
  (modules ppcf)
- (libraries irmin-pack irmin-pack.unix cmdliner)
+ (libraries irmin-pack irmin-pack.unix cmdliner eio_main)
  (preprocess
   (pps ppx_repr)))

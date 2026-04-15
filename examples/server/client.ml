@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt.Syntax
-
 module Client =
   Irmin_client_unix.Make_codec (Irmin_server.Conn.Codec.Bin) (Config.Store)
 
@@ -24,15 +22,11 @@ module Info = Irmin_client_unix.Info (Client.Info)
 let info msg = Info.v ~author:"tester" msg
 
 let main () =
-  let* client = Client.connect Config.uri in
-  let* main = Client.main client in
-  let* () =
-    Client.set_exn ~info:(info "set testing") main [ "testing" ] "testing"
-  in
-  let* () =
-    Client.set_exn ~info:(info "set remove") main [ "remove" ] "remove"
-  in
-  let* () = Client.remove_exn ~info:(info "remove remove") main [ "remove" ] in
+  let client = Client.connect Config.uri in
+  let main = Client.main client in
+  Client.set_exn ~info:(info "set testing") main [ "testing" ] "testing";
+  Client.set_exn ~info:(info "set remove") main [ "remove" ] "remove";
+  Client.remove_exn ~info:(info "remove remove") main [ "remove" ];
   let batch =
     Client.Batch.(
       v ()
@@ -40,33 +34,32 @@ let main () =
       |> add_value [ "foo" ] "bar"
       |> remove [ "testing" ])
   in
-  let* c = Client.Batch.apply ~info:(info "apply batch") ~path:[] main batch in
+  let c = Client.Batch.apply ~info:(info "apply batch") ~path:[] main batch in
   Logs.info (fun l ->
       l "Applied batch -> commit %a" Irmin.Type.(pp Client.commit_key_t) c);
 
-  let* abc = Client.get main [ "a"; "b"; "c" ] in
+  let abc = Client.get main [ "a"; "b"; "c" ] in
   assert (String.equal abc "123");
 
-  let* foo = Client.get main [ "foo" ] in
+  let foo = Client.get main [ "foo" ] in
   assert (foo = "bar");
 
-  let* testing = Client.find main [ "testing" ] in
+  let testing = Client.find main [ "testing" ] in
   assert (Option.is_none testing);
 
-  let* remove = Client.mem main [ "remove" ] in
+  let remove = Client.mem main [ "remove" ] in
   assert (remove = false);
 
-  let* commit = Client.Commit.of_key client c in
+  let commit = Client.Commit.of_key client c in
   let tree = Client.Commit.tree (Option.get commit) in
-  let* concrete = Client.Tree.to_concrete tree in
+  let concrete = Client.Tree.to_concrete tree in
 
-  Logs.info (fun l -> l "%a" Irmin.Type.(pp Client.Tree.concrete_t) concrete);
-
-  Lwt.return_unit
+  Logs.info (fun l -> l "%a" Irmin.Type.(pp Client.Tree.concrete_t) concrete)
 
 let () =
   Fmt_tty.setup_std_outputs ();
   Logs.(set_level @@ Some Debug);
   Irmin.Export_for_backends.Logging.reporter (module Mtime_clock)
   |> Logs.set_reporter;
-  Lwt_main.run @@ main ()
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

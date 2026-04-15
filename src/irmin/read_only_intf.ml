@@ -33,10 +33,10 @@ module type S = sig
   type value
   (** The type for raw values. *)
 
-  val mem : [> read ] t -> key -> bool Lwt.t
+  val mem : [> read ] t -> key -> bool
   (** [mem t k] is true iff [k] is present in [t]. *)
 
-  val find : [> read ] t -> key -> value option Lwt.t
+  val find : [> read ] t -> key -> value option
   (** [find t k] is [Some v] if [k] is associated to [v] in [t] and [None] is
       [k] is not present in [t]. *)
 

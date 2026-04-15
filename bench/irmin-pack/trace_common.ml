@@ -33,68 +33,68 @@
     {3 Example}
 
     {[
-      module Example = struct
-        module V2 = struct
-          let version = 2
+    module Example = struct
+      module V2 = struct
+        let version = 2
 
-          type header = unit [@@deriving repr]
-          type row = [ `A | `B | `C ] [@@deriving repr]
-        end
-
-        module V1 = struct
-          let version = 1
-
-          type header = unit [@@deriving repr]
-          type row = [ `A | `B ] [@@deriving repr]
-
-          let to_v2 x = (x :> V2.row)
-        end
-
-        module V0 = struct
-          let version = 0
-
-          type header = unit [@@deriving repr]
-          type row = [ `A of int | `B of int ] [@@deriving repr]
-
-          let to_v1 = function `A _ -> `A | `B _ -> `B
-        end
-
-        module Latest = V2
-        include Latest
-
-        include Trace_common.Io (struct
-          module Latest = Latest
-
-          let magic = Trace_common.Magic.of_string "Magique_"
-
-          let get_version_converter = function
-            | 2 ->
-                Trace_common.Version_converter
-                  {
-                    header_t = V2.header_t;
-                    row_t = V2.row_t;
-                    upgrade_header = Fun.id;
-                    upgrade_row = Fun.id;
-                  }
-            | 1 ->
-                Version_converter
-                  {
-                    header_t = V1.header_t;
-                    row_t = V1.row_t;
-                    upgrade_header = Fun.id;
-                    upgrade_row = V1.to_v2;
-                  }
-            | 0 ->
-                Version_converter
-                  {
-                    header_t = V0.header_t;
-                    row_t = V0.row_t;
-                    upgrade_header = Fun.id;
-                    upgrade_row = (fun x -> V0.to_v1 x |> V1.to_v2);
-                  }
-            | i -> Fmt.invalid_arg "Unknown Example version %d" i
-        end)
+        type header = unit [@@deriving repr]
+        type row = [ `A | `B | `C ] [@@deriving repr]
       end
+
+      module V1 = struct
+        let version = 1
+
+        type header = unit [@@deriving repr]
+        type row = [ `A | `B ] [@@deriving repr]
+
+        let to_v2 x = (x :> V2.row)
+      end
+
+      module V0 = struct
+        let version = 0
+
+        type header = unit [@@deriving repr]
+        type row = [ `A of int | `B of int ] [@@deriving repr]
+
+        let to_v1 = function `A _ -> `A | `B _ -> `B
+      end
+
+      module Latest = V2
+      include Latest
+
+      include Trace_common.Io (struct
+        module Latest = Latest
+
+        let magic = Trace_common.Magic.of_string "Magique_"
+
+        let get_version_converter = function
+          | 2 ->
+              Trace_common.Version_converter
+                {
+                  header_t = V2.header_t;
+                  row_t = V2.row_t;
+                  upgrade_header = Fun.id;
+                  upgrade_row = Fun.id;
+                }
+          | 1 ->
+              Version_converter
+                {
+                  header_t = V1.header_t;
+                  row_t = V1.row_t;
+                  upgrade_header = Fun.id;
+                  upgrade_row = V1.to_v2;
+                }
+          | 0 ->
+              Version_converter
+                {
+                  header_t = V0.header_t;
+                  row_t = V0.row_t;
+                  upgrade_header = Fun.id;
+                  upgrade_row = (fun x -> V0.to_v1 x |> V1.to_v2);
+                }
+          | i -> Fmt.invalid_arg "Unknown Example version %d" i
+      end)
+    end
     ]} *)
 
 module Seq = struct
@@ -228,8 +228,10 @@ module Io (Ff : File_format) = struct
     in
     Seq.unfold produce_row ()
 
-  let open_reader : string -> Ff.Latest.header * Ff.Latest.row Seq.t =
+  let open_reader :
+      Eio.Fs.dir_ty Eio.Path.t -> Ff.Latest.header * Ff.Latest.row Seq.t =
    fun path ->
+    let path = Eio.Path.native_exn path in
     let chan = open_in_bin path in
     let len = LargeFile.in_channel_length chan in
     if len < 12L then
@@ -260,6 +262,7 @@ module Io (Ff : File_format) = struct
   type writer = { path : string; channel : out_channel; buffer : Buffer.t }
 
   let create_file path header =
+    let path = Eio.Path.native_exn path in
     let channel = open_out path in
     let buffer = Buffer.create 0 in
     output_string channel (Magic.to_string Ff.magic);

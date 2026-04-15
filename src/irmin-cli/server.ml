@@ -29,10 +29,11 @@ let setup_log =
   Cmdliner.Term.(
     const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
-let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
+let main ~env ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
     ~config_path (module Codec : Conn.Codec.S) fingerprint =
+  Lwt_eio.run_lwt @@ fun () ->
   let store, config =
-    Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
+    Resolver.load_config ~env ?root ?config_path ?store ?hash ?contents ()
   in
   let config = Irmin_server.Cli.Conf.v config uri in
   let (module Store : Irmin.Generic_key.S) =
@@ -61,16 +62,15 @@ let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
     Logs.app (fun l -> l "Listening on %a, store: %s" Uri.pp_hum uri root);
     Server.serve server
 
-let main readonly root uri tls (store, hash, contents) codec config_path
+let main ~env readonly root uri tls (store, hash, contents) codec config_path
     dashboard fingerprint () =
   let codec =
     match codec with
     | `Bin -> (module Conn.Codec.Bin : Conn.Codec.S)
     | `Json -> (module Conn.Codec.Json)
   in
-  Lwt_main.run
-  @@ main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
-       ~dashboard codec fingerprint
+  main ~env ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
+    ~dashboard codec fingerprint
 
 open Cmdliner
 
@@ -107,9 +107,9 @@ let dashboard =
   in
   Arg.(value @@ opt (some int) None doc)
 
-let main_term =
+let main_term ~env =
   Term.(
-    const main
+    const (main ~env)
     $ readonly
     $ root
     $ Irmin_server.Cli.uri

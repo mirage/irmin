@@ -15,6 +15,8 @@
  *)
 
 open! Import
+open Lwt.Syntax
+open Lwt.Infix
 module Store = Irmin_mem.KV.Make (Irmin.Contents.String)
 
 let ( / ) = Filename.concat
@@ -62,8 +64,8 @@ type server = { event_loop : 'a. 'a Lwt.t; store : Store.t }
 
 let spawn_graphql_server () =
   let config = Irmin_mem.config () in
-  let* repo = Store.Repo.v config in
-  let+ main = Store.main repo in
+  let repo = Store.Repo.v config in
+  let main = Store.main repo in
   let event_loop = server_of_repo repo in
   { event_loop; store = main }
 
@@ -167,7 +169,7 @@ let send_query :
         Cohttp_lwt_unix.Client.post ~headers ~body ~ctx
           (Uri.make ~scheme:"http" ~host ~path:"graphql" ()))
   in
-  let status = Cohttp_lwt.Response.status response in
+  let status = Cohttp.Response.status response in
   let+ body = Cohttp_lwt.Body.to_string body in
   match Cohttp.Code.(status |> code_of_status |> is_success) with
   | true -> Ok body
@@ -187,11 +189,13 @@ let parse_result k f res = f (members k res)
 (** Issue a query to the localhost server, parse the response object and convert
     it using [f] *)
 let exec ?vars query f =
-  let* res = send_query ?vars (string_of_query query) in
+  let res =
+    Lwt_eio.run_lwt @@ fun () -> send_query ?vars (string_of_query query)
+  in
   match res with
   | Error (`Msg e) -> Alcotest.fail e
   | Ok res ->
       let res = Yojson.Safe.from_string res in
       let value = find_result res query in
       print_endline (Yojson.Safe.to_string value);
-      Lwt.return (f value)
+      f value

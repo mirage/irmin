@@ -14,15 +14,19 @@ build: [
 ]
 
 depends: [
-  "ocaml"      {>= "4.03.0"}
-  "dune"       {>= "2.9.0"}
+  "ocaml"      {>= "5.1.0"}
+  "dune"       {>= "3.5.0"}
   "irmin"      {= version}
   "astring"
   "logs"
-  "lwt"        {>= "5.3.0"}
+  "eio"        {>= "1.0"}
   "alcotest"   {with-test}
   "irmin-test" {with-test & = version}
-  "irmin-watcher" {with-test & >= "0.2.0"}
+  "irmin-watcher" {with-test & = "dev"}
+]
+
+pin-depends: [
+  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#675125d9e95cd09ef0c18ab1d9d6d69a26856b9f" ]
 ]
 
 synopsis: "Generic file-system backend for Irmin"

@@ -26,15 +26,14 @@ end
 
 module Indexable_mem
     (Hash : Irmin.Hash.S)
-    (Value : Irmin_pack.Pack_value.S
-               with type hash := Hash.t
-                and type key = Hash.t) =
+    (Value :
+      Irmin_pack.Pack_value.S with type hash := Hash.t and type key = Hash.t) =
 struct
   module Pack = Indexable.Maker (Hash)
   module Indexable_mem = Pack.Make (Value)
   include Irmin_pack.Indexable.Closeable (Indexable_mem)
 
-  let v x = Indexable_mem.v x >|= make_closeable
+  let v x = Indexable_mem.v x |> make_closeable
 end
 
 module Maker (Config : Irmin_pack.Conf.S) = struct
@@ -119,7 +118,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         module AW = Atomic_write (Key) (Val)
         include Irmin_pack.Atomic_write.Closeable (AW)
 
-        let v () = AW.v () >|= make_closeable
+        let v () = AW.v () |> make_closeable
       end
 
       module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
@@ -140,7 +139,7 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         let branch_t t = t.branch
         let config t = t.config
 
-        let batch t f =
+        let batch ?lock:_ t f =
           Commit.Indexable.batch t.commit (fun commit ->
               Node.Indexable.batch t.node (fun node ->
                   Contents.Indexable.batch t.contents (fun contents ->
@@ -151,16 +150,16 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
 
         let v config =
           let root = Irmin_pack.Conf.root config in
-          let* contents = Contents.Indexable.v root in
-          let* node = Node.Indexable.v root in
-          let* commit = Commit.Indexable.v root in
-          let+ branch = Branch.v () in
+          let contents = Contents.Indexable.v root in
+          let node = Node.Indexable.v root in
+          let commit = Commit.Indexable.v root in
+          let branch = Branch.v () in
           { contents; node; commit; branch; config }
 
         let close t =
-          Contents.Indexable.close (contents_t t) >>= fun () ->
-          Node.Indexable.close (snd (node_t t)) >>= fun () ->
-          Commit.Indexable.close (snd (commit_t t)) >>= fun () ->
+          Contents.Indexable.close (contents_t t);
+          Node.Indexable.close (snd (node_t t));
+          Commit.Indexable.close (snd (commit_t t));
           Branch.close t.branch
       end
     end

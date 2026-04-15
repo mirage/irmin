@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Import
 include Atomic_write_intf
 
 module Check_closed_store (AW : S) = struct
@@ -42,7 +41,7 @@ module Check_closed_store (AW : S) = struct
   let unwatch t w = (get_if_open_exn t |> AW.unwatch) w
 
   let close t =
-    if !(t.closed) then Lwt.return_unit
+    if !(t.closed) then ()
     else (
       t.closed := true;
       AW.close t.t)
@@ -56,6 +55,6 @@ struct
   include Check_closed_store (AW)
 
   let v conf =
-    let+ t = AW.v conf in
+    let t = AW.v conf in
     { closed = ref false; t }
 end

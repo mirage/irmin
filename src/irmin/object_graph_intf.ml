@@ -34,11 +34,11 @@ module type S = sig
 
   val closure :
     ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> vertex list) ->
     min:vertex list ->
     max:vertex list ->
     unit ->
-    t Lwt.t
+    t
   (** [closure depth pred min max ()] creates the transitive closure graph of
       [max] using the predecessor relation [pred]. The graph is bounded by the
       [min] nodes and by [depth].
@@ -48,15 +48,15 @@ module type S = sig
   val iter :
     ?cache_size:int ->
     ?depth:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> vertex list) ->
     min:vertex list ->
     max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
-    ?edge:(vertex -> vertex -> unit Lwt.t) ->
-    skip:(vertex -> bool Lwt.t) ->
+    node:(vertex -> unit) ->
+    ?edge:(vertex -> vertex -> unit) ->
+    skip:(vertex -> bool) ->
     rev:bool ->
     unit ->
-    unit Lwt.t
+    unit
   (** [iter depth min max node edge skip rev ()] iterates in topological order
       over the closure graph starting with the [max] nodes and bounded by the
       [min] nodes and by [depth].
@@ -76,11 +76,11 @@ module type S = sig
 
   val breadth_first_traversal :
     ?cache_size:int ->
-    pred:(vertex -> vertex list Lwt.t) ->
+    pred:(vertex -> vertex list) ->
     max:vertex list ->
-    node:(vertex -> unit Lwt.t) ->
+    node:(vertex -> unit) ->
     unit ->
-    unit Lwt.t
+    unit
   (** [breadth_first_traversal ?cache_size pred max node ()] traverses the
       closure graph in breadth-first order starting with the [max] nodes. It
       applies [node] on the nodes of the graph while traversing it. *)
