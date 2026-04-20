@@ -30,16 +30,16 @@ let nb_finds =
     & opt int 33
     & info [ "finds" ] ~docv:"FINDS" ~doc:"Number of Tree.find queries per task")
 
-let nb_adds =
+let nb_adds default =
   Cmdliner.Arg.(
     value
-    & opt int 33
+    & opt int default
     & info [ "adds" ] ~docv:"ADDS" ~doc:"Number of Tree.add operations per task")
 
-let nb_rems =
+let nb_rems default =
   Cmdliner.Arg.(
     value
-    & opt int 33
+    & opt int default
     & info [ "rems" ] ~docv:"REMS"
         ~doc:"Number of Tree.remove operations per task")
 
@@ -85,8 +85,14 @@ let warm =
     & flag
     & info [ "warm" ] ~docv:"WARM" ~doc:"Warm up the tree in memory")
 
+let domains =
+  Cmdliner.Arg.(
+    value
+    & opt range (1, Domain.recommended_domain_count ())
+    & info [ "domains" ] ~docv:"DOMAINS" ~doc:"Number of domains")
+
 let config warm elements max_depth branching balance contents_length name_length
-    nb_tasks nb_finds nb_adds nb_rems nb_runs =
+    nb_tasks nb_finds nb_adds nb_rems nb_runs domains =
   {
     Gen.warm;
     elements;
@@ -100,9 +106,10 @@ let config warm elements max_depth branching balance contents_length name_length
     nb_adds;
     nb_rems;
     nb_runs;
+    domains;
   }
 
-let config =
+let config_term =
   Cmdliner.Term.(
     const config
     $ warm
@@ -114,9 +121,10 @@ let config =
     $ name_length
     $ nb_tasks
     $ nb_finds
-    $ nb_adds
-    $ nb_rems
-    $ nb_runs)
+    $ nb_adds 33
+    $ nb_rems 33
+    $ nb_runs
+    $ domains)
 
 let bench_half config =
   Logs.set_level None;
@@ -130,15 +138,38 @@ let cmd_half =
   let doc = "Half-diamond benchmark" in
   Cmdliner.Cmd.v
     (Cmdliner.Cmd.info "half" ~doc)
-    Cmdliner.Term.(const bench_half $ config)
+    Cmdliner.Term.(const bench_half $ config_term)
 
 let cmd_full =
   let doc = "Full-diamond benchmark" in
   Cmdliner.Cmd.v
     (Cmdliner.Cmd.info "full" ~doc)
-    Cmdliner.Term.(const bench_full $ config)
+    Cmdliner.Term.(const bench_full $ config_term)
 
-let cmds = [ cmd_half; cmd_full ]
+let config_cold =
+  Cmdliner.Term.(
+    const config
+    $ warm
+    $ elements
+    $ max_depth
+    $ branching
+    $ balance
+    $ contents_length
+    $ name_length
+    $ nb_tasks
+    $ nb_finds
+    $ nb_adds 0
+    $ nb_rems 0
+    $ nb_runs
+    $ domains)
+
+let cmd_cold =
+  let doc = "Cold half-diamond benchmark" in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "cold" ~doc)
+    Cmdliner.Term.(const bench_half $ config_cold)
+
+let cmds = [ cmd_half; cmd_full; cmd_cold ]
 
 let default_cmd =
   let doc = "Irmin multicore benchmarks" in
