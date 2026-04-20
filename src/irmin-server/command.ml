@@ -211,6 +211,7 @@ struct
       let value_t = Node.Val.t
 
       type hash = Hash.t
+      type node_with_inlined = key * Contents.key list [@@deriving irmin]
 
       module Mem = struct
         let name = "node.mem"
@@ -286,10 +287,13 @@ struct
       module Merge = struct
         let name = "node.merge"
 
-        type req = key option option * key option * key option
+        type req =
+          node_with_inlined option option
+          * node_with_inlined option
+          * node_with_inlined option
         [@@deriving irmin]
 
-        type res = (key option, Irmin.Merge.conflict) Result.t
+        type res = (node_with_inlined option, Irmin.Merge.conflict) Result.t
         [@@deriving irmin]
 
         let run conn ctx _ (old, a, b) =

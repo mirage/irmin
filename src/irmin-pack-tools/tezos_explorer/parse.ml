@@ -1,6 +1,17 @@
 open Import
 open Files
-module Files = Make (Irmin_tezos.Conf) (Irmin_tezos.Schema)
+
+module Conf = struct
+  let entries = 32
+  let stable_hash = 256
+  let contents_length_header = None
+  let inode_child_order = `Seeded_hash
+  let forbid_empty_dir_persistence = true
+end
+
+module Content = Irmin.Contents.String
+module Schema = Irmin.Schema.KV (Content)
+module Files = Make (Conf) (Schema)
 
 type ctx = { off : Int63.t; info : info }
 and info = { commits : int list; contents : int list; inodes : int list }

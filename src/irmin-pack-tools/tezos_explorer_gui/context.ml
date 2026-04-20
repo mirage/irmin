@@ -4,12 +4,14 @@ open Optint
 open Sdl_util
 
 type ctx = {
+  sw : Eio.Switch.t;
+  fs : Eio.Fs.dir_ty Eio.Path.t;
   r : Sdl.renderer;
   w : Sdl.window;
   wr : Sdl.rect;
   f : Ttf.font;
   indexes : (string * Int63.t) list;
-  store_path : string;
+  store_path : Eio.Fs.dir_ty Eio.Path.t;
   mutable drag : (int * int) option;
   mutable current : int;
   mutable last_refresh : float;
@@ -24,7 +26,7 @@ let get_window_rect () =
   let uh = h usable_bounds in
   create ~x:(w bounds - uw) ~y:(Sdl.Rect.h bounds - uh) ~w:uw ~h:uh
 
-let init_context store_path font_path i =
+let init_context ~sw ~fs store_path font_path i =
   let wr = get_window_rect () in
   let w =
     let open Sdl.Rect in
@@ -37,9 +39,11 @@ let init_context store_path font_path i =
   in
   let f = get @@ Ttf.open_font font_path 12 in
   let last_refresh = Unix.gettimeofday () in
-  let indexes = Load_tree.load_index store_path in
+  let indexes = Load_tree.load_index (Eio.Path.native_exn store_path) in
   let current = i in
   {
+    sw;
+    fs;
     r;
     w;
     wr;

@@ -2,7 +2,35 @@ open Notty
 open Notty_unix
 open Import
 open Files
-module Files = Make (Irmin_tezos.Conf) (Irmin_tezos.Schema)
+
+module Conf = struct
+  let entries = 32
+  let stable_hash = 256
+  let contents_length_header = None
+  let inode_child_order = `Seeded_hash
+  let forbid_empty_dir_persistence = true
+end
+
+module Content = Irmin.Contents.String
+module Schema = Irmin.Schema.KV (Content)
+module Files = Make (Conf) (Schema)
+
+(*
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Make (Hash)
+  module Info = Info.Default *)
+
+(* module Schema = struct
+  open Irmin
+  module Hash = Hash.SHA1
+  module Info = Info.Default
+  module Branch = Branch.String
+  module Path = Path.String_list
+  module Metadata = Metadata.None
+  module Contents = Content
+  module Node = Node.Make (Hash) (Path) (Metadata)
+  module Commit = Commit.Generic_key.Make (Hash)
+end *)
 
 type entry_content = {
   hash : string;
@@ -160,16 +188,16 @@ module Menu = struct
 
   let back_str =
     [|
-      ("◂──", "Go back by 1000 ");
-      ("◂─", "Go back by 10 ");
+      ("◂◂◂", "Go back by 1000 ");
+      ("◂◂", "Go back by 10 ");
       ("◂", "Go back by 1 ");
     |]
 
   let forth_str =
     [|
       ("▸", "Go forth by 1 ");
-      ("─▸", "Go forth by 10 ");
-      ("──▸", "Go forth by 1000 ");
+      ("▸▸", "Go forth by 10 ");
+      ("▸▸▸", "Go forth by 1000 ");
     |]
 
   let gen_entry_buttons r c str =
@@ -318,7 +346,7 @@ let position_text c i =
         | Dangling_parent_commit -> (A.magenta, "Dangling commit")
         | Contents -> (A.lightblue, "Contents")
         | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root | Inode_v2_nonroot
-          ->
+        | Inode_v3_root | Inode_v3_nonroot ->
             (A.green, "Inode")
       in
       let arrow =
@@ -394,7 +422,7 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
                 | Dangling_parent_commit -> (A.magenta, "Dangling commit")
                 | Contents -> (A.lightblue, "Contents")
                 | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-                | Inode_v2_nonroot ->
+                | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
                     (A.green, "Inode")
               in
               let parent_img, parent_buttons = parent_commit ~parent c entry in
@@ -517,7 +545,7 @@ let show_inode c (inode : Files.Inode.compress) =
                 | Dangling_parent_commit -> (A.magenta, "Dangling commit")
                 | Contents -> (A.lightblue, "Contents")
                 | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-                | Inode_v2_nonroot ->
+                | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
                     (A.green, "Inode")
               in
               let parent_img, parent_buttons = parent_commit c entry in
@@ -564,6 +592,13 @@ let show_inode c (inode : Files.Inode.compress) =
             List.map
               (fun b -> Button.pad b 2 (I.height img1 + I.height img2))
               content_button )
+      | Contents_inlined_value (n, bytes, ()) ->
+          let img1 = string A.(fg lightred ++ st bold) "Contents (inlined):" in
+          let img2 = name n in
+          let content =
+            strf ~attr:A.(fg lightwhite) "%d bytes" (String.length bytes)
+          in
+          (img1 <-> (void 2 0 <|> (img2 <-> content)), [])
       | Node (n, addr) ->
           let node, node_button = addr_show addr in
           let img1 = string A.(fg lightred ++ st bold) "Node:" in
@@ -619,13 +654,16 @@ let show_inode c (inode : Files.Inode.compress) =
   | V1_unstable tv -> v tv "Unstable"
   | V2_root tv -> v tv.v "Root"
   | V2_nonroot tv -> v tv.v "Non root"
+  | V3_root tv -> v tv.v "Root (v3)"
+  | V3_nonroot tv -> v tv.v "Non root (v3)"
 
 let kind_color (kind : Kind.t) =
   match kind with
   | Commit_v1 | Commit_v2 -> A.red
   | Dangling_parent_commit -> A.magenta
   | Contents -> A.lightblue
-  | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root | Inode_v2_nonroot ->
+  | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root | Inode_v2_nonroot
+  | Inode_v3_root | Inode_v3_nonroot ->
       A.green
 
 let show_entry_content ~x_off ~y_off c =
@@ -642,7 +680,7 @@ let show_entry_content ~x_off ~y_off c =
               "%a" Kind.pp c.entry_content.kind)
   in
   match c.entry_content.kind with
-  | Inode_v2_root | Inode_v2_nonroot ->
+  | Inode_v2_root | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
       let decoded = I.string A.(fg lightred ++ st bold) "Decoded:" in
       let inode, inode_buttons =
         show_inode c
@@ -754,7 +792,7 @@ let show_history c =
           | Dangling_parent_commit -> (A.magenta, "Dangling commit")
           | Contents -> (A.lightblue, "Contents")
           | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-          | Inode_v2_nonroot ->
+          | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
               (A.green, "Inode")
         in
         let img =

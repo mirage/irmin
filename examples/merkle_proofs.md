@@ -71,8 +71,8 @@ In order to produce a Merkle proof, Irmin requires that the tree on which the pr
     in
     (* As the root of [tree] is a node, refining the type is safe *)
     match kinded_key with
-    | `Node key -> key
-    | `Contents _ -> assert false
+    | `Node (key, _) -> key
+    | `Contents _ | `Contents_inlined _ -> assert false
   ;;
 val tree_key : Store.node_key = <abstr>
 ```
@@ -94,7 +94,7 @@ let visit_tree tree =
   (Store.Tree.empty (), `Success)
 
 let proof, `Success = eio_run @@ fun _ ->
-  Store.Tree.produce_proof repo (`Node tree_key) visit_tree
+  Store.Tree.produce_proof repo (`Node (tree_key, [])) visit_tree
 
 let pp_merkle_proof = Irmin.Type.pp Store.Tree.Proof.tree_t
 ```
@@ -122,8 +122,8 @@ let pp_hash = Irmin.Type.pp Store.hash_t
   let () =
     let proof_hash =
       match Store.Tree.(Proof.state proof |> hash_of_proof_state) with
-      | `Node h -> h
-      | `Contents _ -> assert false
+      | `Node (h, _) -> h
+      | `Contents _ | `Contents_inlined _ -> assert false
     in
     Fmt.pr "proof hash: %a\n" pp_hash proof_hash
   ;;

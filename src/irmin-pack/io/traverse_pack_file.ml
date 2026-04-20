@@ -111,7 +111,8 @@ end = struct
   let to_index = function
     | Pack_value.Kind.Commit_v2 | Commit_v1 -> true
     | Contents | Inode_v1_unstable | Inode_v1_stable | Inode_v2_root
-    | Inode_v2_nonroot | Dangling_parent_commit ->
+    | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot
+    | Dangling_parent_commit ->
         false
 
   module Index_reconstructor = struct
@@ -211,7 +212,8 @@ end = struct
   let decode_entry_length = function
     | Pack_value.Kind.Contents -> Contents.decode_bin_length
     | Commit_v1 | Commit_v2 | Dangling_parent_commit -> Commit.decode_bin_length
-    | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot ->
+    | Inode_v1_stable | Inode_v1_unstable | Inode_v2_root | Inode_v2_nonroot
+    | Inode_v3_root | Inode_v3_nonroot ->
         Inode.decode_bin_length
 
   let decode_entry_exn ~off ~buffer ~buffer_off =
