@@ -200,7 +200,16 @@ module Make (S : Irmin.Generic_key.S) = struct
           p f)
 
   let clone ~src ~dst = run_eio (fun () -> S.clone ~src ~dst)
-  let merge_into ~into ~info t = run_eio (fun () -> S.merge_into ~into ~info t)
+
+  type 'a merge =
+    info:S.Info.f ->
+    ?max_depth:int ->
+    ?n:int ->
+    'a ->
+    (unit, Irmin.Merge.conflict) result Lwt.t
+
+  let merge_into ~into ~info ?max_depth ?n t =
+    run_eio (fun () -> S.merge_into ~into ~info ?max_depth ?n t)
 
   let merge_with_branch t ~info ?max_depth ?n b =
     run_eio (fun () -> S.merge_with_branch t ~info ?max_depth ?n b)
@@ -228,6 +237,11 @@ module Make (S : Irmin.Generic_key.S) = struct
   let to_backend_portable_node = S.to_backend_portable_node
   let to_backend_commit = S.to_backend_commit
   let of_backend_commit = S.of_backend_commit
+
+  (* Extend the top-level [Irmin.remote] the same way [S] does, so the
+     identifiers in [Irmin_lwt.Make(S).E] and [S.E] refer to remotes carrying
+     the same [endpoint] type. *)
+  type Irmin.remote += E of Backend.Remote.endpoint
 
   (* Saves. These do I/O. *)
   let save_contents c v = run_eio (fun () -> S.save_contents c v)

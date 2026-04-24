@@ -395,8 +395,21 @@ module Make (S : Irmin.Generic_key.S) : sig
 
   val clone : src:t -> dst:branch -> t Lwt.t
 
-  val merge_into :
-    into:t -> info:S.Info.f -> t -> (unit, Irmin.Merge.conflict) result Lwt.t
+  type 'a merge =
+    info:S.Info.f ->
+    ?max_depth:int ->
+    ?n:int ->
+    'a ->
+    (unit, Irmin.Merge.conflict) result Lwt.t
+  (** Abbreviation for the Lwt-wrapped merge signature used by {!merge_into},
+      {!merge_with_branch} and {!merge_with_commit}. *)
+
+  type Irmin.remote +=
+    | E of Backend.Remote.endpoint
+          (** Extends the top-level [Irmin.remote] with the endpoint type of
+              [S]'s backend, matching the extension in [S]. *)
+
+  val merge_into : into:t -> t merge
 
   val merge_with_branch :
     t ->
