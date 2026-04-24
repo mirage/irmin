@@ -74,6 +74,60 @@ let test_branch_merge_workflow _switch () =
   let* () = Store.Repo.close repo in
   Lwt.return_unit
 
+(* Level-3: interactions between the Lwt monad and the lwt_eio bridge.
+   These are the subtle cases that can break real applications if the
+   wrapper does not forward Lwt's scheduling semantics correctly. *)
+
+let test_exception_caught_by_lwt _switch () =
+  (* [Store.get] raises [Invalid_argument] on a missing path. The
+     exception must propagate as a failed Lwt promise so that [Lwt.catch]
+     can handle it. *)
+  let open Lwt.Syntax in
+  let* repo = Store.Repo.v (Irmin_mem.config ()) in
+  let* t = Store.main repo in
+  let* caught =
+    Lwt.catch
+      (fun () ->
+        let* _ = Store.get t [ "nope" ] in
+        Lwt.return_false)
+      (fun _exn -> Lwt.return_true)
+  in
+  Alcotest.(check bool) "Lwt.catch caught the exception" true caught;
+  let* () = Store.Repo.close repo in
+  Lwt.return_unit
+
+let test_pause_interleaved _switch () =
+  (* [Lwt.pause] between two irmin-lwt calls must not break anything: the
+     scheduler ceding control and resuming should leave the store in the
+     expected state. *)
+  let open Lwt.Syntax in
+  let* repo = Store.Repo.v (Irmin_mem.config ()) in
+  let* t = Store.main repo in
+  let* () = Store.set_exn t ~info:(info "a") [ "x" ] "first" in
+  let* () = Lwt.pause () in
+  let* () = Store.set_exn t ~info:(info "b") [ "x" ] "second" in
+  let* v = Store.find t [ "x" ] in
+  Alcotest.check contents "last write wins" (Some "second") v;
+  let* () = Store.Repo.close repo in
+  Lwt.return_unit
+
+let test_many_concurrent_reads _switch () =
+  (* Dispatch several reads in parallel via [Lwt.all] and check they all
+     complete with the expected value. This exercises the lwt_eio bridge
+     under concurrent pressure from the Lwt side. *)
+  let open Lwt.Syntax in
+  let* repo = Store.Repo.v (Irmin_mem.config ()) in
+  let* t = Store.main repo in
+  let* () = Store.set_exn t ~info:(info "seed") [ "k" ] "v" in
+  let n = 50 in
+  let* results = Lwt.all (List.init n (fun _ -> Store.find t [ "k" ])) in
+  Alcotest.(check int) "all reads completed" n (List.length results);
+  Alcotest.(check bool)
+    "all reads returned the same value" true
+    (List.for_all (( = ) (Some "v")) results);
+  let* () = Store.Repo.close repo in
+  Lwt.return_unit
+
 let () =
   Irmin_lwt.run @@ fun () ->
   Alcotest_lwt.run "irmin-lwt"
@@ -88,5 +142,14 @@ let () =
         [
           Alcotest_lwt.test_case "branch + merge + history" `Quick
             test_branch_merge_workflow;
+        ] );
+      ( "lwt-interaction",
+        [
+          Alcotest_lwt.test_case "Lwt.catch catches an Irmin exception" `Quick
+            test_exception_caught_by_lwt;
+          Alcotest_lwt.test_case "Lwt.pause interleaves with Irmin ops" `Quick
+            test_pause_interleaved;
+          Alcotest_lwt.test_case "many concurrent reads via Lwt.all" `Quick
+            test_many_concurrent_reads;
         ] );
     ]
