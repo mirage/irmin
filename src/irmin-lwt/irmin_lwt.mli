@@ -6,6 +6,19 @@
 
     See [doc/migration-from-irmin-3.md] for a migration walkthrough. *)
 
+val run : (unit -> 'a Lwt.t) -> 'a
+(** [run f] sets up the Eio runtime and the [lwt_eio] bridge, runs [f ()] to
+    completion, and returns its result. This is the drop-in replacement for
+    [Lwt_main.run] in Irmin 3 client code.
+
+    Intended for top-level [let () = Irmin_lwt.run main] style usage in Irmin
+    3-era programs being migrated to Irmin 4. *)
+
+val run_with_env : < clock : _ Eio.Time.clock ; .. > -> (unit -> 'a Lwt.t) -> 'a
+(** [run_with_env env f] is like {!run} but reuses an existing Eio environment
+    instead of calling [Eio_main.run] internally. Useful when the client is
+    already inside an Eio event loop. *)
+
 module Make (S : Irmin.Generic_key.S) : sig
   (** [Make(S)] wraps every I/O-performing operation of [S] so that it returns
       an ['a Lwt.t] value. The wrappers thread each call through

@@ -20,7 +20,7 @@ depends: [
   "lwt"      {>= "5.7.0"}
   "lwt_eio"
   "eio"      {>= "1.0"}
-  "eio_main" {>= "1.0" & with-test}
+  "eio_main" {>= "1.0"}
   "alcotest-lwt" {with-test & >= "1.8.0"}
 ]
 

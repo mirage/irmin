@@ -6,6 +6,15 @@
 
 let run_eio f = Lwt_eio.run_eio f
 
+let run f =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Lwt_eio.Promise.await_lwt (f ())
+
+let run_with_env env f =
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Lwt_eio.Promise.await_lwt (f ())
+
 module Make (S : Irmin.Generic_key.S) = struct
   type repo = S.repo
   type t = S.t
