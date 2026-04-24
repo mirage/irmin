@@ -1,0 +1,96 @@
+name: TSan
+
+# ThreadSanitizer nightly race-hunting workflow.
+# Requires bare ubuntu-latest runners (for writable /proc/sys); cannot run
+# inside a container: job, Codespaces, or ocaml-ci.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+  pull_request:
+    types: [labeled, synchronize]
+
+concurrency:
+  group: tsan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tsan:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'tsan')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      EIO_BACKEND: posix
+      TSAN_OPTIONS: "halt_on_error=0 history_size=7 second_deadlock_stack=1 exitcode=66 log_path=tsan-report suppressions=${{ github.workspace }}/test/irmin-pack/tsan_suppressions.txt"
+      IRMIN_STM_ITER: "5000"
+      IRMIN_STM_PACK_ITER: "2000"
+      IRMIN_MULTICORE_DOMAINS: "8"
+      IRMIN_MULTICORE_ITER: "50"
+      IRMIN_TSAN_STRESS_ITER: "500"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reduce ASLR entropy for TSan shadow memory
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Install libunwind
+        run: sudo apt-get update -y && sudo apt-get install -y libunwind-dev
+
+      - name: Cache opam root
+        uses: actions/cache@v4
+        with:
+          path: ~/.opam
+          key: tsan-opam-${{ runner.os }}-5.3.0-${{ hashFiles('*.opam') }}
+          restore-keys: |
+            tsan-opam-${{ runner.os }}-5.3.0-
+
+      - name: Set up OCaml with TSan
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "ocaml-variants.5.3.0+options,ocaml-option-tsan"
+          dune-cache: true
+
+      - name: Install dune
+        run: opam install -y dune
+
+      - name: Install dependencies
+        run: opam install -y --deps-only --with-test .
+
+      - name: Build
+        run: opam exec -- dune build @install
+
+      - name: Run tests and stress suite under TSan
+        run: |
+          set -o pipefail
+          opam exec -- dune build @runtest @tsan-stress --force --no-buffer 2>&1 | tee tsan-run.log
+
+      - name: Summarize findings
+        if: always()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(tsan-report.*)
+          n=0
+          if [ ${#files[@]} -gt 0 ] || [ -f tsan-run.log ]; then
+            n=$(grep -ch "WARNING: ThreadSanitizer" "${files[@]}" tsan-run.log 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          fi
+          {
+            echo "### TSan findings: $n"
+            if [ "$n" = "0" ]; then
+              echo "No races detected."
+            else
+              echo "See artifact \`tsan-reports-${{ github.run_id }}\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload TSan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsan-reports-${{ github.run_id }}
+          path: |
+            tsan-report.*
+            tsan-run.log
+          if-no-files-found: ignore
