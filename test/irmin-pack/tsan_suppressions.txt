@@ -1,0 +1,11 @@
+# ThreadSanitizer suppressions for Irmin nightly CI.
+#
+# Rule: suppress runtime/FFI noise only. Every finding in an Irmin module is
+# a real race — do NOT add entries for src/ here.
+
+# OCaml runtime internals (minor heap / major heap bookkeeping).
+race:caml_modify
+race:caml_alloc_shr
+
+# index uses mmap + its own atomics that TSan doesn't instrument.
+called_from_lib:index
