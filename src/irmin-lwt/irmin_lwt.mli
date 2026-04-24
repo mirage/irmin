@@ -47,18 +47,50 @@ module Make (S : Irmin.Generic_key.S) : sig
   type ff_error = S.ff_error
   type write_error = S.write_error
 
-  module Schema : module type of S.Schema
   (** Type-level modules of [S], forwarded as-is. They carry no I/O and do not
-      need Lwt wrapping. *)
+      need Lwt wrapping.
 
-  module Info : module type of S.Info
-  module Hash : module type of S.Hash
-  module Path : module type of S.Path
-  module Metadata : module type of S.Metadata
-  module Backend : module type of S.Backend
-  module Contents : module type of S.Contents
-  module History : module type of S.History
-  module Status : module type of S.Status
+      The [module type of struct include S.X end] idiom is used instead of the
+      shorter [module type of S.X] because the latter produces fresh abstract
+      types: [Backend.Contents.t] would not be definitionally equal to
+      [S.Backend.Contents.t], which breaks downstream functors (e.g. Tezos'
+      [Tezos_context_helpers.Context.Make_tree]) that receive values of both
+      types. *)
+  module Schema : module type of struct
+    include S.Schema
+  end
+
+  module Info : module type of struct
+    include S.Info
+  end
+
+  module Hash : module type of struct
+    include S.Hash
+  end
+
+  module Path : module type of struct
+    include S.Path
+  end
+
+  module Metadata : module type of struct
+    include S.Metadata
+  end
+
+  module Backend : module type of struct
+    include S.Backend
+  end
+
+  module Contents : module type of struct
+    include S.Contents
+  end
+
+  module History : module type of struct
+    include S.History
+  end
+
+  module Status : module type of struct
+    include S.Status
+  end
 
   module Repo : sig
     type nonrec t = repo
