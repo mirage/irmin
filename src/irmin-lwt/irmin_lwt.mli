@@ -194,6 +194,26 @@ module Make (S : Irmin.Generic_key.S) : sig
     path ->
     unit Lwt.t
 
+  (** {2 [Irmin.Type.t] descriptors}
+
+      Forwarded from [S] — pure, no I/O. *)
+
+  val step_t : step Irmin.Type.t
+  val path_t : path Irmin.Type.t
+  val metadata_t : metadata Irmin.Type.t
+  val contents_t : contents Irmin.Type.t
+  val node_t : node Irmin.Type.t
+  val tree_t : tree Irmin.Type.t
+  val hash_t : hash Irmin.Type.t
+  val branch_t : branch Irmin.Type.t
+  val slice_t : slice Irmin.Type.t
+  val info_t : info Irmin.Type.t
+  val lca_error_t : lca_error Irmin.Type.t
+  val ff_error_t : ff_error Irmin.Type.t
+  val contents_key_t : contents_key Irmin.Type.t
+  val node_key_t : node_key Irmin.Type.t
+  val commit_key_t : commit_key Irmin.Type.t
+  val write_error_t : write_error Irmin.Type.t
   val commit_t : repo -> commit Irmin.Type.t
 
   val test_and_set :

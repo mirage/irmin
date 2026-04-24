@@ -101,6 +101,23 @@ module Make (S : Irmin.Generic_key.S) = struct
     run_eio (fun () ->
         S.remove_exn ?clear ?retries ?allow_empty ?parents ~info t p)
 
+  (* Irmin.Type.t descriptors derived by [@@deriving irmin] on [S]. *)
+  let step_t = S.step_t
+  let path_t = S.path_t
+  let metadata_t = S.metadata_t
+  let contents_t = S.contents_t
+  let node_t = S.node_t
+  let tree_t = S.tree_t
+  let hash_t = S.hash_t
+  let branch_t = S.branch_t
+  let slice_t = S.slice_t
+  let info_t = S.info_t
+  let lca_error_t = S.lca_error_t
+  let ff_error_t = S.ff_error_t
+  let contents_key_t = S.contents_key_t
+  let node_key_t = S.node_key_t
+  let commit_key_t = S.commit_key_t
+  let write_error_t = S.write_error_t
   let commit_t = S.commit_t
 
   let test_and_set ?clear ?retries ?allow_empty ?parents ~info t p ~test ~set =
