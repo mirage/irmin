@@ -1,0 +1,4 @@
+(test
+ (name test)
+ (package irmin-lwt)
+ (libraries alcotest alcotest-lwt irmin irmin.mem irmin-lwt))
