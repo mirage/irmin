@@ -1,5 +1,13 @@
 ## 4.0.0
 
+### Added
+
+- **irmin-lwt**
+  - New package providing a thin Lwt compatibility layer over Irmin 4's
+    direct-style API, so Irmin 3 consumers can migrate progressively.
+    Built on top of `lwt_eio`. See `doc/migration-from-irmin-3.md` for
+    the two-step migration path.
+
 ### Changed
 
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
