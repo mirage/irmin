@@ -128,6 +128,89 @@ let test_many_concurrent_reads _switch () =
   let* () = Store.Repo.close repo in
   Lwt.return_unit
 
+(* Submodule tests: exercise the Tree, Commit, Branch and Head wrappers
+   that the MVP did not cover. These are the submodules a typical Irmin 3
+   consumer (e.g. Tezos' context) uses heavily. *)
+
+let test_tree_build_and_read _switch () =
+  let open Lwt.Syntax in
+  let empty = Store.Tree.empty () in
+  let* tree = Store.Tree.add empty [ "a" ] "1" in
+  let* tree = Store.Tree.add tree [ "b"; "c" ] "2" in
+  let* v1 = Store.Tree.find tree [ "a" ] in
+  let* v2 = Store.Tree.find tree [ "b"; "c" ] in
+  let* missing = Store.Tree.find tree [ "nope" ] in
+  Alcotest.check contents "tree a" (Some "1") v1;
+  Alcotest.check contents "tree b/c" (Some "2") v2;
+  Alcotest.check contents "tree missing" None missing;
+  Alcotest.(check bool) "non-empty" false (Store.Tree.is_empty tree);
+  Lwt.return_unit
+
+let test_tree_fold _switch () =
+  (* Traverse a small tree with a Lwt-returning contents folder and
+     collect the encountered contents into a list. *)
+  let open Lwt.Syntax in
+  let empty = Store.Tree.empty () in
+  let* tree = Store.Tree.add empty [ "a" ] "1" in
+  let* tree = Store.Tree.add tree [ "b" ] "2" in
+  let* tree = Store.Tree.add tree [ "c" ] "3" in
+  let collect _path c acc = Lwt.return (c :: acc) in
+  let* seen = Store.Tree.fold ~contents:collect tree [] in
+  let sorted = List.sort compare seen in
+  Alcotest.(check (list string))
+    "fold collected all contents" [ "1"; "2"; "3" ] sorted;
+  Lwt.return_unit
+
+let hash_to_string h = Irmin.Type.to_string Backend.Hash.t h
+
+let test_commit_and_branch _switch () =
+  (* Build a tree, commit it explicitly through [Commit.v], set a branch
+     to it through [Branch.set], then read it back via [Branch.find]. *)
+  let open Lwt.Syntax in
+  let* repo = Store.Repo.v (Irmin_mem.config ()) in
+  let tree = Store.Tree.empty () in
+  let* tree = Store.Tree.add tree [ "k" ] "v" in
+  let* c =
+    Store.Commit.v repo ~info:(info "explicit commit" ()) ~parents:[] tree
+  in
+  let* () = Store.Branch.set repo "topic" c in
+  let* c' = Store.Branch.find repo "topic" in
+  let* () =
+    match c' with
+    | None -> Alcotest.fail "branch lookup returned None"
+    | Some c' ->
+        Alcotest.(check string)
+          "same commit hash"
+          (hash_to_string (Store.Commit.hash c))
+          (hash_to_string (Store.Commit.hash c'));
+        Lwt.return_unit
+  in
+  let* () = Store.Repo.close repo in
+  Lwt.return_unit
+
+let test_head_follows_writes _switch () =
+  (* After a write, [Head.find] should see a commit, and the returned
+     commit's tree should contain the new entry. Use a unique branch
+     name so other tests don't pollute the in-memory backend's shared
+     state. *)
+  let open Lwt.Syntax in
+  let* repo = Store.Repo.v (Irmin_mem.config ()) in
+  let* t = Store.of_branch repo "head-follows-writes" in
+  let* head0 = Store.Head.find t in
+  Alcotest.(check bool) "empty head initially" true (Option.is_none head0);
+  let* () = Store.set_exn t ~info:(info "create head") [ "k" ] "v" in
+  let* head1 = Store.Head.find t in
+  let* () =
+    match head1 with
+    | None -> Alcotest.fail "expected a head after a write"
+    | Some c ->
+        let* v = Store.Tree.find (Store.Commit.tree c) [ "k" ] in
+        Alcotest.check contents "head tree contains write" (Some "v") v;
+        Lwt.return_unit
+  in
+  let* () = Store.Repo.close repo in
+  Lwt.return_unit
+
 let () =
   Irmin_lwt.run @@ fun () ->
   Alcotest_lwt.run "irmin-lwt"
@@ -151,5 +234,18 @@ let () =
             test_pause_interleaved;
           Alcotest_lwt.test_case "many concurrent reads via Lwt.all" `Quick
             test_many_concurrent_reads;
+        ] );
+      ( "tree",
+        [
+          Alcotest_lwt.test_case "build and read" `Quick
+            test_tree_build_and_read;
+          Alcotest_lwt.test_case "fold with Lwt callback" `Quick test_tree_fold;
+        ] );
+      ( "commit-branch-head",
+        [
+          Alcotest_lwt.test_case "commit + branch round-trip" `Quick
+            test_commit_and_branch;
+          Alcotest_lwt.test_case "head follows writes" `Quick
+            test_head_follows_writes;
         ] );
     ]
