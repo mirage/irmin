@@ -71,16 +71,24 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          files=(tsan-report.*)
-          n=0
+          files=(tsan-report.* _build/default/test/irmin-pack/test_tsan_stress/tsan-report.*)
+          warnings=0
+          errors=0
           if [ ${#files[@]} -gt 0 ] || [ -f tsan-run.log ]; then
-            n=$(grep -ch "WARNING: ThreadSanitizer" "${files[@]}" tsan-run.log 2>/dev/null | awk '{s+=$1} END {print s+0}')
+            warnings=$(grep -ch "WARNING: ThreadSanitizer" "${files[@]}" tsan-run.log 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
+            errors=$(grep -ch "ERROR: ThreadSanitizer" "${files[@]}" tsan-run.log 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')
           fi
+          total=$((warnings + errors))
           {
-            echo "### TSan findings: $n"
-            if [ "$n" = "0" ]; then
+            echo "### TSan findings: $total"
+            echo ""
+            echo "- data-race warnings: $warnings"
+            echo "- signal/SEGV-on-race errors: $errors"
+            if [ "$total" = "0" ]; then
+              echo ""
               echo "No races detected."
             else
+              echo ""
               echo "See artifact \`tsan-reports-${{ github.run_id }}\`."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -92,5 +100,6 @@ jobs:
           name: tsan-reports-${{ github.run_id }}
           path: |
             tsan-report.*
+            _build/default/test/irmin-pack/test_tsan_stress/tsan-report.*
             tsan-run.log
           if-no-files-found: ignore
