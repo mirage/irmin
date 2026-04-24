@@ -216,6 +216,40 @@ module Make (S : Irmin.Generic_key.S) : sig
     val find_key : Repo.t -> t -> kinded_key option Lwt.t
     val of_key : Repo.t -> kinded_key -> t option Lwt.t
     val of_hash : Repo.t -> kinded_hash -> t option Lwt.t
+
+    (** {2 Fold} *)
+
+    type marks = S.Tree.marks
+
+    val empty_marks : unit -> marks
+
+    type 'a force_lwt = [ `True | `False of path -> 'a -> 'a Lwt.t ]
+    (** Like {!S.Tree.force} but the [`False] callback returns an Lwt promise.
+    *)
+
+    type uniq = [ `False | `True | `Marks of marks ]
+    type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
+    type depth = S.Tree.depth
+
+    val fold :
+      ?order:[ `Sorted | `Undefined | `Random of Random.State.t ] ->
+      ?force:'a force_lwt ->
+      ?cache:bool ->
+      ?uniq:uniq ->
+      ?pre:('a, step list) folder_lwt ->
+      ?post:('a, step list) folder_lwt ->
+      ?depth:depth ->
+      ?contents:('a, contents) folder_lwt ->
+      ?node:('a, node) folder_lwt ->
+      ?tree:('a, t) folder_lwt ->
+      t ->
+      'a ->
+      'a Lwt.t
+    (** [fold] is the Lwt-wrapped counterpart of [S.Tree.fold]. Every callback
+        ([pre], [post], [contents], [node], [tree], and the [`False] branch of
+        [force]) is expected to return an [Lwt.t] promise; the wrapper awaits
+        each promise on the lwt_eio bridge before resuming the underlying
+        traversal. *)
   end
 
   (** Lwt-wrapped commit operations. Pure accessors ([tree], [parents], [info],

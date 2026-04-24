@@ -142,6 +142,41 @@ module Make (S : Irmin.Generic_key.S) = struct
     let find_key r t = run_eio (fun () -> S.Tree.find_key r t)
     let of_key r k = run_eio (fun () -> S.Tree.of_key r k)
     let of_hash r h = run_eio (fun () -> S.Tree.of_hash r h)
+
+    (* [fold] accepts Lwt-returning folders as Irmin 3 did; each folder is
+       bridged to direct style via [Lwt_eio.Promise.await_lwt] before being
+       handed to the underlying Irmin 4 [S.Tree.fold]. *)
+    type marks = S.Tree.marks
+
+    let empty_marks = S.Tree.empty_marks
+
+    type 'a force_lwt = [ `True | `False of path -> 'a -> 'a Lwt.t ]
+    type uniq = [ `False | `True | `Marks of marks ]
+    type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
+    type depth = S.Tree.depth
+
+    let lift_folder = function
+      | None -> None
+      | Some (f : _ folder_lwt) ->
+          Some (fun path b acc -> Lwt_eio.Promise.await_lwt (f path b acc))
+
+    let lift_force = function
+      | None -> None
+      | Some `True -> Some `True
+      | Some (`False f) ->
+          Some (`False (fun path acc -> Lwt_eio.Promise.await_lwt (f path acc)))
+
+    let fold ?order ?force ?cache ?uniq ?pre ?post ?depth ?contents ?node ?tree
+        t acc =
+      let force = lift_force force in
+      let pre = lift_folder pre in
+      let post = lift_folder post in
+      let contents = lift_folder contents in
+      let node = lift_folder node in
+      let tree = lift_folder tree in
+      run_eio (fun () ->
+          S.Tree.fold ?order ?force ?cache ?uniq ?pre ?post ?depth ?contents
+            ?node ?tree t acc)
   end
 
   module Commit = struct
