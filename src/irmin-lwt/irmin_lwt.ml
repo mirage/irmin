@@ -83,4 +83,64 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   let last_modified ?depth ?n t p =
     run_eio (fun () -> S.last_modified ?depth ?n t p)
+
+  module Tree = struct
+    type nonrec t = tree
+    type metadata = S.metadata
+    type node = S.node
+    type step = S.step
+    type kinded_hash = S.Tree.kinded_hash
+    type kinded_key = S.Tree.kinded_key
+    type elt = S.Tree.elt
+
+    (* Pure constructors and inspectors. *)
+    let empty = S.Tree.empty
+    let singleton = S.Tree.singleton
+    let of_contents = S.Tree.of_contents
+    let of_node = S.Tree.of_node
+    let v = S.Tree.v
+    let pruned = S.Tree.pruned
+    let is_empty = S.Tree.is_empty
+    let destruct = S.Tree.destruct
+    let hash = S.Tree.hash
+    let kinded_hash = S.Tree.kinded_hash
+    let key = S.Tree.key
+    let shallow = S.Tree.shallow
+    let clear = S.Tree.clear
+    let of_concrete = S.Tree.of_concrete
+    let pp = S.Tree.pp
+
+    (* I/O-performing ops, wrapped. *)
+    let kind t p = run_eio (fun () -> S.Tree.kind t p)
+    let diff x y = run_eio (fun () -> S.Tree.diff x y)
+    let mem t p = run_eio (fun () -> S.Tree.mem t p)
+    let find_all t p = run_eio (fun () -> S.Tree.find_all t p)
+    let length t ?cache p = run_eio (fun () -> S.Tree.length t ?cache p)
+    let find t p = run_eio (fun () -> S.Tree.find t p)
+    let get_all t p = run_eio (fun () -> S.Tree.get_all t p)
+    let get t p = run_eio (fun () -> S.Tree.get t p)
+
+    let list t ?offset ?length ?cache p =
+      run_eio (fun () -> S.Tree.list t ?offset ?length ?cache p)
+
+    let seq t ?offset ?length ?cache p =
+      run_eio (fun () -> S.Tree.seq t ?offset ?length ?cache p)
+
+    let add t p ?metadata c = run_eio (fun () -> S.Tree.add t p ?metadata c)
+
+    let update t p ?metadata f =
+      run_eio (fun () -> S.Tree.update t p ?metadata f)
+
+    let remove t p = run_eio (fun () -> S.Tree.remove t p)
+    let mem_tree t p = run_eio (fun () -> S.Tree.mem_tree t p)
+    let find_tree t p = run_eio (fun () -> S.Tree.find_tree t p)
+    let get_tree t p = run_eio (fun () -> S.Tree.get_tree t p)
+    let add_tree t p sub = run_eio (fun () -> S.Tree.add_tree t p sub)
+    let update_tree t p f = run_eio (fun () -> S.Tree.update_tree t p f)
+    let stats ?force t = run_eio (fun () -> S.Tree.stats ?force t)
+    let to_concrete t = run_eio (fun () -> S.Tree.to_concrete t)
+    let find_key r t = run_eio (fun () -> S.Tree.find_key r t)
+    let of_key r k = run_eio (fun () -> S.Tree.of_key r k)
+    let of_hash r h = run_eio (fun () -> S.Tree.of_hash r h)
+  end
 end

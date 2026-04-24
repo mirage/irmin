@@ -139,4 +139,82 @@ module Make (S : Irmin.Generic_key.S) : sig
     into:t -> info:S.Info.f -> t -> (unit, Irmin.Merge.conflict) result Lwt.t
 
   val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list Lwt.t
+
+  (** Lwt-wrapped tree operations. Pure constructors and inspectors (e.g.
+      {!empty}, {!is_empty}, {!hash}) are forwarded as-is; operations that might
+      trigger lazy loading from the backend are threaded through
+      [Lwt_eio.run_eio]. *)
+  module Tree : sig
+    type nonrec t = tree
+    type metadata = S.metadata
+    type node = S.node
+    type step = S.step
+    type kinded_hash = S.Tree.kinded_hash
+    type kinded_key = S.Tree.kinded_key
+    type elt = S.Tree.elt
+
+    val empty : unit -> t
+    val singleton : path -> ?metadata:metadata -> contents -> t
+    val of_contents : ?metadata:metadata -> contents -> t
+    val of_node : node -> t
+    val v : elt -> t
+    val pruned : kinded_hash -> t
+    val is_empty : t -> bool
+
+    val destruct :
+      t -> [ `Node of node | `Contents of S.Tree.Contents.t * metadata ]
+
+    val hash : ?cache:bool -> t -> hash
+    val kinded_hash : ?cache:bool -> t -> kinded_hash
+    val key : t -> kinded_key option
+    val shallow : Repo.t -> kinded_key -> t
+    val clear : ?depth:int -> t -> unit
+    val of_concrete : S.Tree.concrete -> t
+    val pp : t Irmin.Type.pp
+    val kind : t -> path -> [ `Contents | `Node ] option Lwt.t
+    val diff : t -> t -> (path * (contents * metadata) Irmin.Diff.t) list Lwt.t
+    val mem : t -> path -> bool Lwt.t
+    val find_all : t -> path -> (contents * metadata) option Lwt.t
+    val length : t -> ?cache:bool -> path -> int Lwt.t
+    val find : t -> path -> contents option Lwt.t
+    val get_all : t -> path -> (contents * metadata) Lwt.t
+    val get : t -> path -> contents Lwt.t
+
+    val list :
+      t ->
+      ?offset:int ->
+      ?length:int ->
+      ?cache:bool ->
+      path ->
+      (step * t) list Lwt.t
+
+    val seq :
+      t ->
+      ?offset:int ->
+      ?length:int ->
+      ?cache:bool ->
+      path ->
+      (step * t) Seq.t Lwt.t
+
+    val add : t -> path -> ?metadata:metadata -> contents -> t Lwt.t
+
+    val update :
+      t ->
+      path ->
+      ?metadata:metadata ->
+      (contents option -> contents option) ->
+      t Lwt.t
+
+    val remove : t -> path -> t Lwt.t
+    val mem_tree : t -> path -> bool Lwt.t
+    val find_tree : t -> path -> t option Lwt.t
+    val get_tree : t -> path -> t Lwt.t
+    val add_tree : t -> path -> t -> t Lwt.t
+    val update_tree : t -> path -> (t option -> t option) -> t Lwt.t
+    val stats : ?force:bool -> t -> S.Tree.stats Lwt.t
+    val to_concrete : t -> S.Tree.concrete Lwt.t
+    val find_key : Repo.t -> t -> kinded_key option Lwt.t
+    val of_key : Repo.t -> kinded_key -> t option Lwt.t
+    val of_hash : Repo.t -> kinded_hash -> t option Lwt.t
+  end
 end
