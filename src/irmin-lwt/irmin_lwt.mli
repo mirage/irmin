@@ -79,6 +79,11 @@ module Make (S : Irmin.Generic_key.S) : sig
   end
 
   val main : repo -> t Lwt.t
+
+  val master : repo -> t Lwt.t
+  [@@ocaml.deprecated "Use `main` instead."]
+  (** Deprecated alias kept for Irmin 3 compatibility. Use {!main}. *)
+
   val of_branch : repo -> branch -> t Lwt.t
   val of_commit : commit -> t Lwt.t
   val empty : repo -> t Lwt.t
@@ -161,6 +166,36 @@ module Make (S : Irmin.Generic_key.S) : sig
     into:t -> info:S.Info.f -> t -> (unit, Irmin.Merge.conflict) result Lwt.t
 
   val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list Lwt.t
+
+  (** {2 Backend converters}
+
+      These translate between frontend and backend representations. They are
+      pure — no I/O, no scheduler round-trip. *)
+
+  val of_backend_node : repo -> S.Backend.Node.value -> node
+  val to_backend_node : node -> S.Backend.Node.value
+  val to_backend_portable_node : node -> S.Backend.Node_portable.t
+  val to_backend_commit : commit -> S.Backend.Commit.value
+
+  val of_backend_commit :
+    repo -> S.Backend.Commit.Key.t -> S.Backend.Commit.value -> commit
+
+  (** {2 Saving raw contents and trees}
+
+      Lwt-wrapped because they persist to the backend store. *)
+
+  val save_contents :
+    [> Irmin.Perms.write ] S.Backend.Contents.t ->
+    contents ->
+    contents_key Lwt.t
+
+  val save_tree :
+    ?clear:bool ->
+    repo ->
+    [> Irmin.Perms.write ] S.Backend.Contents.t ->
+    [> Irmin.Perms.read_write ] S.Backend.Node.t ->
+    tree ->
+    [ `Contents of contents_key | `Node of node_key ] Lwt.t
 
   (** Lwt-wrapped tree operations. Pure constructors and inspectors (e.g.
       {!empty}, {!is_empty}, {!hash}) are forwarded as-is; operations that might

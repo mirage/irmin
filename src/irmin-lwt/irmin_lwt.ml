@@ -62,6 +62,7 @@ module Make (S : Irmin.Generic_key.S) = struct
   end
 
   let main r = run_eio (fun () -> S.main r)
+  let master r = run_eio (fun () -> S.main r)
   let of_branch r b = run_eio (fun () -> S.of_branch r b)
   let of_commit c = run_eio (fun () -> S.of_commit c)
   let empty r = run_eio (fun () -> S.empty r)
@@ -104,6 +105,17 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   let last_modified ?depth ?n t p =
     run_eio (fun () -> S.last_modified ?depth ?n t p)
+
+  (* Backend converters. These are pure. *)
+  let of_backend_node = S.of_backend_node
+  let to_backend_node = S.to_backend_node
+  let to_backend_portable_node = S.to_backend_portable_node
+  let to_backend_commit = S.to_backend_commit
+  let of_backend_commit = S.of_backend_commit
+
+  (* Saves. These do I/O. *)
+  let save_contents c v = run_eio (fun () -> S.save_contents c v)
+  let save_tree ?clear r c n t = run_eio (fun () -> S.save_tree ?clear r c n t)
 
   module Tree = struct
     type nonrec t = tree
