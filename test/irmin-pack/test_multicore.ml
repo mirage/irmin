@@ -23,9 +23,7 @@ let src = Logs.Src.create "tests.multicore" ~doc:"Tests"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let int_env name default =
-  match Sys.getenv_opt name with
-  | Some s -> int_of_string s
-  | None -> default
+  match Sys.getenv_opt name with Some s -> int_of_string s | None -> default
 
 let default_domains = int_env "IRMIN_MULTICORE_DOMAINS" 2
 let test_iter = int_env "IRMIN_MULTICORE_ITER" 1

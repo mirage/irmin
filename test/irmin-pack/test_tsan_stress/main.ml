@@ -21,9 +21,7 @@ let run_all () =
     scenarios
 
 let () =
-  let which =
-    if Array.length Sys.argv >= 2 then Sys.argv.(1) else "all"
-  in
+  let which = if Array.length Sys.argv >= 2 then Sys.argv.(1) else "all" in
   match which with
   | "all" -> run_all ()
   | name -> (
