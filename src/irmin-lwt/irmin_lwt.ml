@@ -164,4 +164,53 @@ module Make (S : Irmin.Generic_key.S) = struct
     let of_key r k = run_eio (fun () -> S.Commit.of_key r k)
     let of_hash r h = run_eio (fun () -> S.Commit.of_hash r h)
   end
+
+  module Branch = struct
+    type nonrec t = branch
+
+    let mem r b = run_eio (fun () -> S.Branch.mem r b)
+    let find r b = run_eio (fun () -> S.Branch.find r b)
+    let get r b = run_eio (fun () -> S.Branch.get r b)
+    let set r b c = run_eio (fun () -> S.Branch.set r b c)
+    let remove r b = run_eio (fun () -> S.Branch.remove r b)
+    let list r = run_eio (fun () -> S.Branch.list r)
+    let pp = S.Branch.pp
+
+    let watch r b ?init lwt_cb =
+      let cb diff = Lwt_eio.Promise.await_lwt (lwt_cb diff) in
+      run_eio (fun () -> S.Branch.watch r b ?init cb)
+
+    let watch_all r ?init lwt_cb =
+      let cb br diff = Lwt_eio.Promise.await_lwt (lwt_cb br diff) in
+      run_eio (fun () -> S.Branch.watch_all r ?init cb)
+  end
+
+  module Head = struct
+    let list r = run_eio (fun () -> S.Head.list r)
+    let find t = run_eio (fun () -> S.Head.find t)
+    let get t = run_eio (fun () -> S.Head.get t)
+    let set t c = run_eio (fun () -> S.Head.set t c)
+
+    let fast_forward t ?max_depth ?n c =
+      run_eio (fun () -> S.Head.fast_forward t ?max_depth ?n c)
+
+    let test_and_set t ~test ~set =
+      run_eio (fun () -> S.Head.test_and_set t ~test ~set)
+
+    let merge ~into ~info ?max_depth ?n c =
+      run_eio (fun () -> S.Head.merge ~into ~info ?max_depth ?n c)
+  end
+
+  type watch = S.watch
+  (** Top-level watches. *)
+
+  let watch t ?init lwt_cb =
+    let cb diff = Lwt_eio.Promise.await_lwt (lwt_cb diff) in
+    run_eio (fun () -> S.watch t ?init cb)
+
+  let watch_key t path ?init lwt_cb =
+    let cb diff = Lwt_eio.Promise.await_lwt (lwt_cb diff) in
+    run_eio (fun () -> S.watch_key t path ?init cb)
+
+  let unwatch w = run_eio (fun () -> S.unwatch w)
 end

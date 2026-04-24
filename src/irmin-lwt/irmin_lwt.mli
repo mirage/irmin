@@ -244,4 +244,75 @@ module Make (S : Irmin.Generic_key.S) : sig
     val of_key : Repo.t -> commit_key -> t option Lwt.t
     val of_hash : Repo.t -> hash -> t option Lwt.t
   end
+
+  type watch = S.watch
+  (** Top-level watch type, used by {!watch}, {!watch_key} and the watch
+      operations on {!module-Branch}. *)
+
+  (** Lwt-wrapped branch operations. *)
+  module Branch : sig
+    type nonrec t = branch
+
+    val mem : Repo.t -> t -> bool Lwt.t
+    val find : Repo.t -> t -> commit option Lwt.t
+    val get : Repo.t -> t -> commit Lwt.t
+    val set : Repo.t -> t -> commit -> unit Lwt.t
+    val remove : Repo.t -> t -> unit Lwt.t
+    val list : Repo.t -> t list Lwt.t
+    val pp : t Fmt.t
+
+    val watch :
+      Repo.t ->
+      t ->
+      ?init:commit ->
+      (commit Irmin.Diff.t -> unit Lwt.t) ->
+      watch Lwt.t
+
+    val watch_all :
+      Repo.t ->
+      ?init:(t * commit) list ->
+      (t -> commit Irmin.Diff.t -> unit Lwt.t) ->
+      watch Lwt.t
+  end
+
+  (** Lwt-wrapped head operations. *)
+  module Head : sig
+    val list : Repo.t -> commit list Lwt.t
+    val find : t -> commit option Lwt.t
+    val get : t -> commit Lwt.t
+    val set : t -> commit -> unit Lwt.t
+
+    val fast_forward :
+      t ->
+      ?max_depth:int ->
+      ?n:int ->
+      commit ->
+      ( unit,
+        [ `No_change | `Rejected | `Max_depth_reached | `Too_many_lcas ] )
+      result
+      Lwt.t
+
+    val test_and_set :
+      t -> test:commit option -> set:commit option -> bool Lwt.t
+
+    val merge :
+      into:t ->
+      info:S.Info.f ->
+      ?max_depth:int ->
+      ?n:int ->
+      commit ->
+      (unit, Irmin.Merge.conflict) result Lwt.t
+  end
+
+  val watch :
+    t -> ?init:commit -> (commit Irmin.Diff.t -> unit Lwt.t) -> watch Lwt.t
+
+  val watch_key :
+    t ->
+    path ->
+    ?init:commit ->
+    ((commit * tree) Irmin.Diff.t -> unit Lwt.t) ->
+    watch Lwt.t
+
+  val unwatch : watch -> unit Lwt.t
 end
