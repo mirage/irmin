@@ -158,18 +158,45 @@ dependency and switch the entry point back to `Eio_main.run`.
 
 ## Scope of `irmin-lwt`
 
-The initial release wraps the top-level `Store` operations (`Repo`,
-`main`, `of_branch`, `of_commit`, `find`, `get`, `mem`, `find_tree`,
-`get_tree`, the `set`/`set_tree`/`remove` families, `merge_into`,
-`last_modified`). It is enough for the most common Irmin 3 client code.
+The current release wraps:
 
-Submodules like `Tree`, `Commit`, `Branch`, `Head`, `Sync` are **not
-wrapped yet**: if your code calls e.g. `Tree.add` in Lwt context, you
-will need to wrap the call yourself:
+- Top-level `Store` operations: `Repo.v`/`close`/`heads`/`branches`/
+  `config`/`export`, `main`, `of_branch`, `of_commit`, `empty`, `find`,
+  `find_all`, `mem`, `get`, `find_tree`, `get_tree`, `hash`, the
+  `set`/`set_tree`/`remove` families, `merge_into`, `last_modified`.
+- `Tree` submodule: constructors and pure inspectors (`empty`,
+  `singleton`, `of_contents`, `of_node`, `v`, `pruned`, `is_empty`,
+  `destruct`, `hash`, `kinded_hash`, `key`, `shallow`, `clear`,
+  `of_concrete`, `pp`) are forwarded as-is; I/O-triggering operations
+  (`kind`, `diff`, `mem`, `find`, `find_all`, `find_tree`, `get`,
+  `get_all`, `get_tree`, `list`, `seq`, `length`, `add`, `add_tree`,
+  `update`, `update_tree`, `remove`, `mem_tree`, `stats`, `to_concrete`,
+  `find_key`, `of_key`, `of_hash`) and `fold` are Lwt-wrapped. `fold`
+  accepts Lwt-returning folders, same as in Irmin 3.
+- `Commit` submodule: `v`, `of_key`, `of_hash` are Lwt-wrapped. Pure
+  accessors (`tree`, `parents`, `info`, `hash`, `key`, `pp`,
+  `pp_hash`) are forwarded.
+- `Branch` submodule: all operations (`mem`, `find`, `get`, `set`,
+  `remove`, `list`, `watch`, `watch_all`). Watch callbacks are
+  Lwt-returning as in Irmin 3.
+- `Head` submodule: `list`, `find`, `get`, `set`, `fast_forward`,
+  `test_and_set`, `merge`.
+- Top-level `watch`, `watch_key`, `unwatch`.
+
+### Not wrapped yet
+
+- The `Sync` functor (remote git fetch/push/pull). If your code uses
+  `Irmin.Sync (S)`, call through `Lwt_eio.run_eio` manually for now.
+- A few rarely-used helpers on `Repo` (`iter`, `breadth_first_traversal`,
+  `default_pred_*`).
+
+If you need something that is not wrapped, you can always drop into
+Irmin 4 via `Lwt_eio.run_eio`:
 
 ```ocaml
-let tree' = Lwt_eio.run_eio (fun () -> Store4.Tree.add tree path v)
+let tree' =
+  Lwt_eio.run_eio (fun () -> Store4.Some_unwrapped_op ... )
 ```
 
-These submodule wrappers will be added in follow-up releases based on
-concrete migration feedback.
+File an issue with a concrete call site and we will extend the wrapper
+accordingly.
