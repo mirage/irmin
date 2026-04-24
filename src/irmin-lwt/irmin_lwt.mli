@@ -122,13 +122,22 @@ module Make (S : Irmin.Generic_key.S) : sig
   val repo : t -> repo
   val tree : t -> tree
   val status : t -> [ `Empty | `Branch of branch | `Commit of commit ]
+
+  type kinded_key = [ `Contents of contents_key | `Node of node_key ]
+  (** The type of keys as returned by {!val-key} and {!save_tree}. *)
+
   val find : t -> path -> contents option Lwt.t
-  val find_all : t -> path -> (contents * S.metadata) option Lwt.t
+  val find_all : t -> path -> (contents * metadata) option Lwt.t
   val mem : t -> path -> bool Lwt.t
+  val mem_tree : t -> path -> bool Lwt.t
   val get : t -> path -> contents Lwt.t
+  val get_all : t -> path -> (contents * metadata) Lwt.t
   val find_tree : t -> path -> tree option Lwt.t
   val get_tree : t -> path -> tree Lwt.t
   val hash : t -> path -> hash option Lwt.t
+  val kind : t -> path -> [ `Contents | `Node ] option Lwt.t
+  val list : t -> path -> (step * tree) list Lwt.t
+  val key : t -> path -> kinded_key option Lwt.t
 
   val set :
     ?clear:bool ->
@@ -455,7 +464,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     [> Irmin.Perms.write ] S.Backend.Contents.t ->
     [> Irmin.Perms.read_write ] S.Backend.Node.t ->
     tree ->
-    [ `Contents of contents_key | `Node of node_key ] Lwt.t
+    kinded_key Lwt.t
 
   (** Lwt-wrapped tree operations. Pure constructors and inspectors (e.g.
       {!empty}, {!is_empty}, {!hash}) are forwarded as-is; operations that might

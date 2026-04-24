@@ -35,6 +35,7 @@ module Make (S : Irmin.Generic_key.S) = struct
   type lca_error = S.lca_error
   type ff_error = S.ff_error
   type write_error = S.write_error
+  type kinded_key = [ `Contents of contents_key | `Node of node_key ]
 
   (* Re-exports of the type-level modules of [S]. These are pure,
      forwarded as-is. *)
@@ -74,10 +75,15 @@ module Make (S : Irmin.Generic_key.S) = struct
   let find t p = run_eio (fun () -> S.find t p)
   let find_all t p = run_eio (fun () -> S.find_all t p)
   let mem t p = run_eio (fun () -> S.mem t p)
+  let mem_tree t p = run_eio (fun () -> S.mem_tree t p)
   let get t p = run_eio (fun () -> S.get t p)
+  let get_all t p = run_eio (fun () -> S.get_all t p)
   let find_tree t p = run_eio (fun () -> S.find_tree t p)
   let get_tree t p = run_eio (fun () -> S.get_tree t p)
   let hash t p = run_eio (fun () -> S.hash t p)
+  let kind t p = run_eio (fun () -> S.kind t p)
+  let list t p = run_eio (fun () -> S.list t p)
+  let key t p = run_eio (fun () -> S.key t p)
 
   let set ?clear ?retries ?allow_empty ?parents ~info t p v =
     run_eio (fun () -> S.set ?clear ?retries ?allow_empty ?parents ~info t p v)
