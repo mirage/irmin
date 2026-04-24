@@ -19,78 +19,78 @@ val run_with_env : < clock : _ Eio.Time.clock ; .. > -> (unit -> 'a Lwt.t) -> 'a
     instead of calling [Eio_main.run] internally. Useful when the client is
     already inside an Eio event loop. *)
 
-module Make (S : Irmin.Generic_key.S) : sig
-  (** [Make(S)] wraps every I/O-performing operation of [S] so that it returns
-      an ['a Lwt.t] value. The wrappers thread each call through
-      [Lwt_eio.run_eio], which runs the direct-style body on the current Eio
-      scheduler. The caller must therefore be running inside an Eio event loop
-      with an active [lwt_eio] bridge — see [Irmin_lwt.run] for a convenience
-      entry point that sets both up. *)
+(** The Lwt-flavoured counterpart of [Irmin.Generic_key.S].
 
-  type repo = S.repo
-  type t = S.t
-  type step = S.step
-  type path = S.path
-  type metadata = S.metadata
-  type contents = S.contents
-  type node = S.node
-  type tree = S.tree
-  type commit = S.commit
-  type branch = S.branch
-  type slice = S.slice
-  type info = S.info
-  type hash = S.hash
-  type contents_key = S.contents_key
-  type node_key = S.node_key
-  type commit_key = S.commit_key
-  type lca_error = S.lca_error
-  type ff_error = S.ff_error
-  type write_error = S.write_error
+    Every I/O-triggering operation of [Irmin.Generic_key.S] is replaced by a
+    version returning ['_ Lwt.t]; type-level submodules (Schema, Info, Hash,
+    Path, Metadata, Backend, Contents, History, Status) are kept so downstream
+    consumers can write [Irmin_lwt.S with module Schema = …] the same way they
+    would write [Irmin.Generic_key.S with module Schema = …].
 
-  (** Type-level modules of [S], forwarded as-is. They carry no I/O and do not
-      need Lwt wrapping.
+    See {!Make} for the functor that produces a module conforming to [S] from an
+    arbitrary [Irmin.Generic_key.S]. *)
+module type S = sig
+  type repo
+  type t
+  type step
+  type path
+  type metadata
+  type contents
+  type node
+  type tree
+  type commit
+  type branch
+  type slice
+  type info
+  type hash
+  type contents_key
+  type node_key
+  type commit_key
+  type lca_error
+  type ff_error
+  type write_error
+  type kinded_key = [ `Contents of contents_key | `Node of node_key ]
+  type watch
 
-      The [module type of struct include S.X end] idiom is used instead of the
-      shorter [module type of S.X] because the latter produces fresh abstract
-      types: [Backend.Contents.t] would not be definitionally equal to
-      [S.Backend.Contents.t], which breaks downstream functors (e.g. Tezos'
-      [Tezos_context_helpers.Context.Make_tree]) that receive values of both
-      types. *)
-  module Schema : module type of struct
-    include S.Schema
+  (** {1 Type-level submodules} *)
+
+  module Schema : Irmin.Schema.S
+  module Info : Irmin.Info.S with type t = info
+  module Hash : Irmin.Hash.S with type t = hash
+  module Path : Irmin.Path.S with type t = path and type step = step
+  module Metadata : Irmin.Metadata.S with type t = metadata
+
+  module Backend :
+    Irmin.Backend.S
+      with module Schema = Schema
+      with type Slice.t = slice
+       and type Repo.t = repo
+       and type Contents.key = contents_key
+       and type Node.key = node_key
+       and type Commit.key = commit_key
+
+  module Contents : sig
+    include Irmin.Contents.S with type t = contents
+
+    val hash : contents -> hash
+    val of_key : repo -> contents_key -> contents option Lwt.t
+    val of_hash : repo -> hash -> contents option Lwt.t
   end
 
-  module Info : module type of struct
-    include S.Info
+  module History : Graph.Sig.P with type V.t = commit
+
+  module Status : sig
+    type t = [ `Empty | `Branch of branch | `Commit of commit ]
+
+    val t : repo -> t Irmin.Type.t
+    val pp : t Fmt.t
   end
 
-  module Hash : module type of struct
-    include S.Hash
-  end
+  type Irmin.remote +=
+    | E of Backend.Remote.endpoint
+          (** Extends [Irmin.remote] with the endpoint type of [Backend]. *)
 
-  module Path : module type of struct
-    include S.Path
-  end
-
-  module Metadata : module type of struct
-    include S.Metadata
-  end
-
-  module Backend : module type of struct
-    include S.Backend
-  end
-
-  module Contents : module type of struct
-    include S.Contents
-  end
-
-  module History : module type of struct
-    include S.History
-  end
-
-  module Status : module type of struct
-    include S.Status
-  end
+  (** {1 Repositories} *)
 
   module Repo : sig
     type nonrec t = repo
@@ -100,7 +100,6 @@ module Make (S : Irmin.Generic_key.S) : sig
       | `Node of node_key
       | `Contents of contents_key
       | `Branch of branch ]
-    (** The type for elements iterated over by {!iter}. *)
 
     val elt_t : elt Irmin.Type.t
     val v : Irmin.Backend.Conf.t -> t Lwt.t
@@ -115,17 +114,12 @@ module Make (S : Irmin.Generic_key.S) : sig
       ?min:commit list ->
       ?max:[ `Head | `Max of commit list ] ->
       t ->
-      S.slice Lwt.t
+      slice Lwt.t
 
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
-
-    (** {2 Default predecessor walks} *)
-
     val default_pred_commit : t -> commit_key -> elt list
     val default_pred_node : t -> node_key -> elt list
     val default_pred_contents : t -> contents_key -> elt list
-
-    (** {2 Topological traversals} *)
 
     val iter :
       ?cache_size:int ->
@@ -147,9 +141,6 @@ module Make (S : Irmin.Generic_key.S) : sig
       ?rev:bool ->
       t ->
       unit Lwt.t
-    (** Lwt-wrapped counterpart of [S.Repo.iter]. Every callback is bridged to
-        the direct-style call expected by the underlying traversal through
-        [Lwt_eio.Promise.await_lwt]. *)
 
     val breadth_first_traversal :
       ?cache_size:int ->
@@ -166,6 +157,8 @@ module Make (S : Irmin.Generic_key.S) : sig
       unit Lwt.t
   end
 
+  (** {1 Stores} *)
+
   val main : repo -> t Lwt.t
 
   val master : repo -> t Lwt.t
@@ -179,8 +172,7 @@ module Make (S : Irmin.Generic_key.S) : sig
   val tree : t -> tree
   val status : t -> [ `Empty | `Branch of branch | `Commit of commit ]
 
-  type kinded_key = [ `Contents of contents_key | `Node of node_key ]
-  (** The type of keys as returned by {!val-key} and {!save_tree}. *)
+  (** {2 Reads} *)
 
   val find : t -> path -> contents option Lwt.t
   val find_all : t -> path -> (contents * metadata) option Lwt.t
@@ -195,12 +187,14 @@ module Make (S : Irmin.Generic_key.S) : sig
   val list : t -> path -> (step * tree) list Lwt.t
   val key : t -> path -> kinded_key option Lwt.t
 
+  (** {2 Writes} *)
+
   val set :
     ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     contents ->
@@ -211,7 +205,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     contents ->
@@ -222,7 +216,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     tree ->
@@ -233,7 +227,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     tree ->
@@ -244,7 +238,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     (unit, write_error) result Lwt.t
@@ -254,39 +248,17 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     unit Lwt.t
-
-  (** {2 [Irmin.Type.t] descriptors}
-
-      Forwarded from [S] — pure, no I/O. *)
-
-  val step_t : step Irmin.Type.t
-  val path_t : path Irmin.Type.t
-  val metadata_t : metadata Irmin.Type.t
-  val contents_t : contents Irmin.Type.t
-  val node_t : node Irmin.Type.t
-  val tree_t : tree Irmin.Type.t
-  val hash_t : hash Irmin.Type.t
-  val branch_t : branch Irmin.Type.t
-  val slice_t : slice Irmin.Type.t
-  val info_t : info Irmin.Type.t
-  val lca_error_t : lca_error Irmin.Type.t
-  val ff_error_t : ff_error Irmin.Type.t
-  val contents_key_t : contents_key Irmin.Type.t
-  val node_key_t : node_key Irmin.Type.t
-  val commit_key_t : commit_key Irmin.Type.t
-  val write_error_t : write_error Irmin.Type.t
-  val commit_t : repo -> commit Irmin.Type.t
 
   val test_and_set :
     ?clear:bool ->
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:contents option ->
@@ -298,7 +270,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:contents option ->
@@ -310,7 +282,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:tree option ->
@@ -322,7 +294,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:tree option ->
@@ -334,7 +306,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:contents option ->
@@ -346,7 +318,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:contents option ->
@@ -358,7 +330,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:tree option ->
@@ -370,7 +342,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     test:tree option ->
@@ -382,7 +354,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     old:contents option ->
     t ->
     path ->
@@ -394,7 +366,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     old:contents option ->
     t ->
     path ->
@@ -406,7 +378,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     old:tree option ->
     t ->
     path ->
@@ -418,7 +390,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?retries:int ->
     ?allow_empty:bool ->
     ?parents:commit list ->
-    info:S.Info.f ->
+    info:Info.f ->
     old:tree option ->
     t ->
     path ->
@@ -431,7 +403,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     ?strategy:[ `Set | `Test_and_set | `Merge ] ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     (tree option -> tree option) ->
@@ -443,7 +415,7 @@ module Make (S : Irmin.Generic_key.S) : sig
     ?allow_empty:bool ->
     ?parents:commit list ->
     ?strategy:[ `Set | `Test_and_set | `Merge ] ->
-    info:S.Info.f ->
+    info:Info.f ->
     t ->
     path ->
     (tree option -> tree option) ->
@@ -451,37 +423,19 @@ module Make (S : Irmin.Generic_key.S) : sig
 
   val clone : src:t -> dst:branch -> t Lwt.t
 
+  (** {2 Merges and ancestors} *)
+
   type 'a merge =
-    info:S.Info.f ->
+    info:Info.f ->
     ?max_depth:int ->
     ?n:int ->
     'a ->
     (unit, Irmin.Merge.conflict) result Lwt.t
-  (** Abbreviation for the Lwt-wrapped merge signature used by {!merge_into},
-      {!merge_with_branch} and {!merge_with_commit}. *)
-
-  type Irmin.remote +=
-    | E of Backend.Remote.endpoint
-          (** Extends the top-level [Irmin.remote] with the endpoint type of
-              [S]'s backend, matching the extension in [S]. *)
+  (** Lwt-wrapped abbreviation for merge-into-something functions. *)
 
   val merge_into : into:t -> t merge
-
-  val merge_with_branch :
-    t ->
-    info:S.Info.f ->
-    ?max_depth:int ->
-    ?n:int ->
-    branch ->
-    (unit, Irmin.Merge.conflict) result Lwt.t
-
-  val merge_with_commit :
-    t ->
-    info:S.Info.f ->
-    ?max_depth:int ->
-    ?n:int ->
-    commit ->
-    (unit, Irmin.Merge.conflict) result Lwt.t
+  val merge_with_branch : t -> branch merge
+  val merge_with_commit : t -> commit merge
 
   val lcas :
     ?max_depth:int -> ?n:int -> t -> t -> (commit list, lca_error) result Lwt.t
@@ -505,48 +459,49 @@ module Make (S : Irmin.Generic_key.S) : sig
 
   val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list Lwt.t
 
-  (** {2 Backend converters}
+  (** {2 Backend converters} *)
 
-      These translate between frontend and backend representations. They are
-      pure — no I/O, no scheduler round-trip. *)
-
-  val of_backend_node : repo -> S.Backend.Node.value -> node
-  val to_backend_node : node -> S.Backend.Node.value
-  val to_backend_portable_node : node -> S.Backend.Node_portable.t
-  val to_backend_commit : commit -> S.Backend.Commit.value
+  val of_backend_node : repo -> Backend.Node.value -> node
+  val to_backend_node : node -> Backend.Node.value
+  val to_backend_portable_node : node -> Backend.Node_portable.t
+  val to_backend_commit : commit -> Backend.Commit.value
 
   val of_backend_commit :
-    repo -> S.Backend.Commit.Key.t -> S.Backend.Commit.value -> commit
-
-  (** {2 Saving raw contents and trees}
-
-      Lwt-wrapped because they persist to the backend store. *)
+    repo -> Backend.Commit.Key.t -> Backend.Commit.value -> commit
 
   val save_contents :
-    [> Irmin.Perms.write ] S.Backend.Contents.t ->
-    contents ->
-    contents_key Lwt.t
+    [> Irmin.Perms.write ] Backend.Contents.t -> contents -> contents_key Lwt.t
 
   val save_tree :
     ?clear:bool ->
     repo ->
-    [> Irmin.Perms.write ] S.Backend.Contents.t ->
-    [> Irmin.Perms.read_write ] S.Backend.Node.t ->
+    [> Irmin.Perms.write ] Backend.Contents.t ->
+    [> Irmin.Perms.read_write ] Backend.Node.t ->
     tree ->
     kinded_key Lwt.t
 
-  (** Lwt-wrapped tree operations. Pure constructors and inspectors (e.g.
-      {!empty}, {!is_empty}, {!hash}) are forwarded as-is; operations that might
-      trigger lazy loading from the backend are threaded through
-      [Lwt_eio.run_eio]. *)
+  (** {1 Trees} *)
+
   module Tree : sig
     type nonrec t = tree
-    type metadata = S.metadata
-    type node = S.node
-    type step = S.step
-    type kinded_hash = S.Tree.kinded_hash
-    type kinded_key = S.Tree.kinded_key
-    type elt = S.Tree.elt
+    type kinded_hash
+    type kinded_key
+    type elt
+    type marks
+    type depth
+    type stats
+    type concrete
+    type 'a force_lwt = [ `True | `False of path -> 'a -> 'a Lwt.t ]
+    type uniq = [ `False | `True | `Marks of marks ]
+    type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
+
+    (** Operations on lazy tree contents. *)
+    module Contents : sig
+      type nonrec t
+
+      val hash : ?cache:bool -> t -> hash
+      val key : t -> contents_key option
+    end
 
     val empty : unit -> t
     val singleton : path -> ?metadata:metadata -> contents -> t
@@ -555,16 +510,12 @@ module Make (S : Irmin.Generic_key.S) : sig
     val v : elt -> t
     val pruned : kinded_hash -> t
     val is_empty : t -> bool
-
-    val destruct :
-      t -> [ `Node of node | `Contents of S.Tree.Contents.t * metadata ]
-
+    val destruct : t -> [ `Node of node | `Contents of Contents.t * metadata ]
     val hash : ?cache:bool -> t -> hash
     val kinded_hash : ?cache:bool -> t -> kinded_hash
     val key : t -> kinded_key option
     val shallow : Repo.t -> kinded_key -> t
     val clear : ?depth:int -> t -> unit
-    val of_concrete : S.Tree.concrete -> t
     val pp : t Irmin.Type.pp
     val kind : t -> path -> [ `Contents | `Node ] option Lwt.t
     val diff : t -> t -> (path * (contents * metadata) Irmin.Diff.t) list Lwt.t
@@ -606,25 +557,16 @@ module Make (S : Irmin.Generic_key.S) : sig
     val get_tree : t -> path -> t Lwt.t
     val add_tree : t -> path -> t -> t Lwt.t
     val update_tree : t -> path -> (t option -> t option) -> t Lwt.t
-    val stats : ?force:bool -> t -> S.Tree.stats Lwt.t
-    val to_concrete : t -> S.Tree.concrete Lwt.t
+    val of_concrete : concrete -> t
+    val stats : ?force:bool -> t -> stats Lwt.t
+    val to_concrete : t -> concrete Lwt.t
     val find_key : Repo.t -> t -> kinded_key option Lwt.t
     val of_key : Repo.t -> kinded_key -> t option Lwt.t
     val of_hash : Repo.t -> kinded_hash -> t option Lwt.t
 
     (** {2 Fold} *)
 
-    type marks = S.Tree.marks
-
     val empty_marks : unit -> marks
-
-    type 'a force_lwt = [ `True | `False of path -> 'a -> 'a Lwt.t ]
-    (** Like {!S.Tree.force} but the [`False] callback returns an Lwt promise.
-    *)
-
-    type uniq = [ `False | `True | `Marks of marks ]
-    type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
-    type depth = S.Tree.depth
 
     val fold :
       ?order:[ `Sorted | `Undefined | `Random of Random.State.t ] ->
@@ -640,19 +582,13 @@ module Make (S : Irmin.Generic_key.S) : sig
       t ->
       'a ->
       'a Lwt.t
-    (** [fold] is the Lwt-wrapped counterpart of [S.Tree.fold]. Every callback
-        ([pre], [post], [contents], [node], [tree], and the [`False] branch of
-        [force]) is expected to return an [Lwt.t] promise; the wrapper awaits
-        each promise on the lwt_eio bridge before resuming the underlying
-        traversal. *)
   end
 
-  (** Lwt-wrapped commit operations. Pure accessors ([tree], [parents], [info],
-      [hash], [key], [pp]) are forwarded as-is; constructors and lookups that
-      might load from the backend are wrapped. *)
+  (** {1 Commits} *)
+
   module Commit : sig
     type nonrec t = commit
-    type commit_key = S.commit_key
+    type nonrec commit_key = commit_key
 
     val tree : t -> tree
     val parents : t -> commit_key list
@@ -674,11 +610,8 @@ module Make (S : Irmin.Generic_key.S) : sig
     val of_hash : Repo.t -> hash -> t option Lwt.t
   end
 
-  type watch = S.watch
-  (** Top-level watch type, used by {!watch}, {!watch_key} and the watch
-      operations on {!module-Branch}. *)
+  (** {1 Branches} *)
 
-  (** Lwt-wrapped branch operations. *)
   module Branch : sig
     type nonrec t = branch
 
@@ -704,7 +637,8 @@ module Make (S : Irmin.Generic_key.S) : sig
       watch Lwt.t
   end
 
-  (** Lwt-wrapped head operations. *)
+  (** {1 Heads} *)
+
   module Head : sig
     val list : Repo.t -> commit list Lwt.t
     val find : t -> commit option Lwt.t
@@ -726,12 +660,14 @@ module Make (S : Irmin.Generic_key.S) : sig
 
     val merge :
       into:t ->
-      info:S.Info.f ->
+      info:Info.f ->
       ?max_depth:int ->
       ?n:int ->
       commit ->
       (unit, Irmin.Merge.conflict) result Lwt.t
   end
+
+  (** {1 Watches} *)
 
   val watch :
     t -> ?init:commit -> (commit Irmin.Diff.t -> unit Lwt.t) -> watch Lwt.t
@@ -744,7 +680,65 @@ module Make (S : Irmin.Generic_key.S) : sig
     watch Lwt.t
 
   val unwatch : watch -> unit Lwt.t
+
+  (** {1 Type descriptors} *)
+
+  val step_t : step Irmin.Type.t
+  val path_t : path Irmin.Type.t
+  val metadata_t : metadata Irmin.Type.t
+  val contents_t : contents Irmin.Type.t
+  val node_t : node Irmin.Type.t
+  val tree_t : tree Irmin.Type.t
+  val hash_t : hash Irmin.Type.t
+  val branch_t : branch Irmin.Type.t
+  val slice_t : slice Irmin.Type.t
+  val info_t : info Irmin.Type.t
+  val lca_error_t : lca_error Irmin.Type.t
+  val ff_error_t : ff_error Irmin.Type.t
+  val contents_key_t : contents_key Irmin.Type.t
+  val node_key_t : node_key Irmin.Type.t
+  val commit_key_t : commit_key Irmin.Type.t
+  val write_error_t : write_error Irmin.Type.t
+  val commit_t : repo -> commit Irmin.Type.t
 end
+
+module Make (S : Irmin.Generic_key.S) :
+  S
+    with type repo = S.repo
+     and type t = S.t
+     and type step = S.step
+     and type path = S.path
+     and type metadata = S.metadata
+     and type contents = S.contents
+     and type node = S.node
+     and type tree = S.tree
+     and type commit = S.commit
+     and type branch = S.branch
+     and type slice = S.slice
+     and type info = S.info
+     and type hash = S.hash
+     and type contents_key = S.contents_key
+     and type node_key = S.node_key
+     and type commit_key = S.commit_key
+     and type lca_error = S.lca_error
+     and type ff_error = S.ff_error
+     and type write_error = S.write_error
+     and type watch = S.watch
+     and module Schema = S.Schema
+     and module Info = S.Info
+     and module Hash = S.Hash
+     and module Path = S.Path
+     and module Metadata = S.Metadata
+     and module Backend = S.Backend
+     and module History = S.History
+     and type Repo.elt = S.Repo.elt
+     and type Tree.kinded_hash = S.Tree.kinded_hash
+     and type Tree.kinded_key = S.Tree.kinded_key
+     and type Tree.elt = S.Tree.elt
+     and type Tree.marks = S.Tree.marks
+     and type Tree.depth = S.Tree.depth
+     and type Tree.stats = S.Tree.stats
+     and type Tree.concrete = S.Tree.concrete
 
 (** Lwt wrappers for [irmin-pack-unix]-specific operations.
 
