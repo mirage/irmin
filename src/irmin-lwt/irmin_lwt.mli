@@ -95,6 +95,14 @@ module Make (S : Irmin.Generic_key.S) : sig
   module Repo : sig
     type nonrec t = repo
 
+    type elt =
+      [ `Commit of commit_key
+      | `Node of node_key
+      | `Contents of contents_key
+      | `Branch of branch ]
+    (** The type for elements iterated over by {!iter}. *)
+
+    val elt_t : elt Irmin.Type.t
     val v : Irmin.Backend.Conf.t -> t Lwt.t
     val close : t -> unit Lwt.t
     val heads : t -> commit list Lwt.t
@@ -108,6 +116,54 @@ module Make (S : Irmin.Generic_key.S) : sig
       ?max:[ `Head | `Max of commit list ] ->
       t ->
       S.slice Lwt.t
+
+    val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
+
+    (** {2 Default predecessor walks} *)
+
+    val default_pred_commit : t -> commit_key -> elt list
+    val default_pred_node : t -> node_key -> elt list
+    val default_pred_contents : t -> contents_key -> elt list
+
+    (** {2 Topological traversals} *)
+
+    val iter :
+      ?cache_size:int ->
+      min:elt list ->
+      max:elt list ->
+      ?edge:(elt -> elt -> unit Lwt.t) ->
+      ?branch:(branch -> unit Lwt.t) ->
+      ?commit:(commit_key -> unit Lwt.t) ->
+      ?node:(node_key -> unit Lwt.t) ->
+      ?contents:(contents_key -> unit Lwt.t) ->
+      ?skip_branch:(branch -> bool Lwt.t) ->
+      ?skip_commit:(commit_key -> bool Lwt.t) ->
+      ?skip_node:(node_key -> bool Lwt.t) ->
+      ?skip_contents:(contents_key -> bool Lwt.t) ->
+      ?pred_branch:(t -> branch -> elt list Lwt.t) ->
+      ?pred_commit:(t -> commit_key -> elt list Lwt.t) ->
+      ?pred_node:(t -> node_key -> elt list Lwt.t) ->
+      ?pred_contents:(t -> contents_key -> elt list Lwt.t) ->
+      ?rev:bool ->
+      t ->
+      unit Lwt.t
+    (** Lwt-wrapped counterpart of [S.Repo.iter]. Every callback is bridged to
+        the direct-style call expected by the underlying traversal through
+        [Lwt_eio.Promise.await_lwt]. *)
+
+    val breadth_first_traversal :
+      ?cache_size:int ->
+      max:elt list ->
+      ?branch:(branch -> unit Lwt.t) ->
+      ?commit:(commit_key -> unit Lwt.t) ->
+      ?node:(node_key -> unit Lwt.t) ->
+      ?contents:(contents_key -> unit Lwt.t) ->
+      ?pred_branch:(t -> branch -> elt list Lwt.t) ->
+      ?pred_commit:(t -> commit_key -> elt list Lwt.t) ->
+      ?pred_node:(t -> node_key -> elt list Lwt.t) ->
+      ?pred_contents:(t -> contents_key -> elt list Lwt.t) ->
+      t ->
+      unit Lwt.t
   end
 
   val main : repo -> t Lwt.t

@@ -51,7 +51,9 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   module Repo = struct
     type nonrec t = repo
+    type elt = S.Repo.elt
 
+    let elt_t = S.Repo.elt_t
     let v config = run_eio (fun () -> S.Repo.v config)
     let close r = run_eio (fun () -> S.Repo.close r)
     let heads r = run_eio (fun () -> S.Repo.heads r)
@@ -60,6 +62,59 @@ module Make (S : Irmin.Generic_key.S) = struct
 
     let export ?full ?depth ?min ?max r =
       run_eio (fun () -> S.Repo.export ?full ?depth ?min ?max r)
+
+    let import t s = run_eio (fun () -> S.Repo.import t s)
+
+    (* Pure: no lazy loading. *)
+    let default_pred_commit = S.Repo.default_pred_commit
+    let default_pred_node = S.Repo.default_pred_node
+    let default_pred_contents = S.Repo.default_pred_contents
+
+    (* Helpers to bridge the Lwt-returning callbacks of [iter] and
+       [breadth_first_traversal] to the direct-style callbacks that the
+       underlying Irmin 4 function expects. *)
+    let lift_cb1 = function
+      | None -> None
+      | Some f -> Some (fun x -> Lwt_eio.Promise.await_lwt (f x))
+
+    let lift_cb2 = function
+      | None -> None
+      | Some f -> Some (fun x y -> Lwt_eio.Promise.await_lwt (f x y))
+
+    let iter ?cache_size ~min ~max ?edge ?branch ?commit ?node ?contents
+        ?skip_branch ?skip_commit ?skip_node ?skip_contents ?pred_branch
+        ?pred_commit ?pred_node ?pred_contents ?rev t =
+      let edge = lift_cb2 edge in
+      let branch = lift_cb1 branch in
+      let commit = lift_cb1 commit in
+      let node = lift_cb1 node in
+      let contents = lift_cb1 contents in
+      let skip_branch = lift_cb1 skip_branch in
+      let skip_commit = lift_cb1 skip_commit in
+      let skip_node = lift_cb1 skip_node in
+      let skip_contents = lift_cb1 skip_contents in
+      let pred_branch = lift_cb2 pred_branch in
+      let pred_commit = lift_cb2 pred_commit in
+      let pred_node = lift_cb2 pred_node in
+      let pred_contents = lift_cb2 pred_contents in
+      run_eio (fun () ->
+          S.Repo.iter ?cache_size ~min ~max ?edge ?branch ?commit ?node
+            ?contents ?skip_branch ?skip_commit ?skip_node ?skip_contents
+            ?pred_branch ?pred_commit ?pred_node ?pred_contents ?rev t)
+
+    let breadth_first_traversal ?cache_size ~max ?branch ?commit ?node ?contents
+        ?pred_branch ?pred_commit ?pred_node ?pred_contents t =
+      let branch = lift_cb1 branch in
+      let commit = lift_cb1 commit in
+      let node = lift_cb1 node in
+      let contents = lift_cb1 contents in
+      let pred_branch = lift_cb2 pred_branch in
+      let pred_commit = lift_cb2 pred_commit in
+      let pred_node = lift_cb2 pred_node in
+      let pred_contents = lift_cb2 pred_contents in
+      run_eio (fun () ->
+          S.Repo.breadth_first_traversal ?cache_size ~max ?branch ?commit ?node
+            ?contents ?pred_branch ?pred_commit ?pred_node ?pred_contents t)
   end
 
   let main r = run_eio (fun () -> S.main r)
