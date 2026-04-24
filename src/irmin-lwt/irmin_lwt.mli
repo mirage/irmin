@@ -615,3 +615,99 @@ module Make (S : Irmin.Generic_key.S) : sig
 
   val unwatch : watch -> unit Lwt.t
 end
+
+(** Lwt wrappers for [irmin-pack-unix]-specific operations.
+
+    [Pack.Make] takes an [Irmin_pack_io.S] (the full pack-unix store signature)
+    and returns a module that includes the result of the generic [Make] functor
+    plus Lwt-wrapped versions of the pack-unix extensions: integrity check, GC,
+    snapshots, split/reload/flush, [create_one_commit_store]. *)
+module Pack : sig
+  module Make (S : Irmin_pack_io.S) : sig
+    include module type of Make (S)
+
+    val integrity_check :
+      ?ppf:Format.formatter ->
+      ?heads:commit list ->
+      auto_repair:bool ->
+      repo ->
+      ( [> `Fixed of int | `No_error ],
+        [> `Cannot_fix of string | `Corrupted of int ] )
+      result
+      Lwt.t
+
+    val integrity_check_inodes :
+      ?heads:commit list ->
+      repo ->
+      ([> `No_error ], [> `Cannot_fix of string ]) result Lwt.t
+
+    val traverse_pack_file :
+      [ `Reconstruct_index of [ `In_place | `Output of string ]
+      | `Check_index
+      | `Check_and_fix_index ] ->
+      Irmin.config ->
+      unit Lwt.t
+
+    val test_traverse_pack_file :
+      [ `Reconstruct_index of [ `In_place | `Output of string ]
+      | `Check_index
+      | `Check_and_fix_index ] ->
+      Irmin.config ->
+      unit Lwt.t
+
+    val split : repo -> unit Lwt.t
+    val is_split_allowed : repo -> bool
+    val add_volume : repo -> unit Lwt.t
+    val reload : repo -> unit Lwt.t
+    val flush : repo -> unit Lwt.t
+
+    val create_one_commit_store :
+      domain_mgr:_ Eio.Domain_manager.t ->
+      repo ->
+      commit_key ->
+      Eio.Fs.dir_ty Eio.Path.t ->
+      unit Lwt.t
+
+    module Gc : sig
+      type process_state = S.Gc.process_state
+      type msg = S.Gc.msg
+
+      val start_exn :
+        domain_mgr:_ Eio.Domain_manager.t ->
+        ?unlink:bool ->
+        repo ->
+        commit_key ->
+        bool Lwt.t
+
+      val finalise_exn : ?wait:bool -> repo -> process_state Lwt.t
+
+      val run :
+        domain_mgr:_ Eio.Domain_manager.t ->
+        ?finished:
+          ((Irmin_pack_io.Stats.Latest_gc.stats, msg) result -> unit Lwt.t) ->
+        repo ->
+        commit_key ->
+        (bool, msg) result Lwt.t
+
+      val wait :
+        repo -> (Irmin_pack_io.Stats.Latest_gc.stats option, msg) result Lwt.t
+
+      val cancel : repo -> bool Lwt.t
+      val is_finished : repo -> bool
+      val behaviour : repo -> [ `Archive | `Delete ]
+      val is_allowed : repo -> bool
+      val latest_gc_target : repo -> commit_key option
+    end
+
+    module Snapshot : sig
+      include module type of S.Snapshot
+
+      val export :
+        ?on_disk:[ `Path of Eio.Fs.dir_ty Eio.Path.t ] ->
+        repo ->
+        (t -> unit) ->
+        root_key:Tree.kinded_key ->
+        int Lwt.t
+    end
+  end
+end

@@ -14,13 +14,14 @@ build: [
 ]
 
 depends: [
-  "ocaml"    {>= "5.1.0"}
-  "dune"     {>= "3.5.0"}
-  "irmin"    {= version}
-  "lwt"      {>= "5.7.0"}
+  "ocaml"      {>= "5.1.0"}
+  "dune"       {>= "3.5.0"}
+  "irmin"      {= version}
+  "irmin-pack" {= version}
+  "lwt"        {>= "5.7.0"}
   "lwt_eio"
-  "eio"      {>= "1.0"}
-  "eio_main" {>= "1.0"}
+  "eio"        {>= "1.0"}
+  "eio_main"   {>= "1.0"}
   "alcotest-lwt" {with-test & >= "1.8.0"}
 ]
 

@@ -375,3 +375,71 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   let unwatch w = run_eio (fun () -> S.unwatch w)
 end
+
+(* Lwt wrappers for [irmin-pack-unix]-specific operations.
+
+   [Pack.Make] takes an [Irmin_pack_io.S] (the full pack-unix store
+   signature) and returns a module that:
+   - [include]s [Make (S)] — every generic-key Lwt-wrapped operation is
+     available;
+   - additionally exposes Lwt-wrapped versions of the pack-unix
+     extensions: integrity check, GC, snapshots, split/reload/flush,
+     [create_one_commit_store]. *)
+module Pack = struct
+  module Make (S : Irmin_pack_io.S) = struct
+    include Make (S)
+
+    let integrity_check ?ppf ?heads ~auto_repair r =
+      run_eio (fun () -> S.integrity_check ?ppf ?heads ~auto_repair r)
+
+    let integrity_check_inodes ?heads r =
+      run_eio (fun () -> S.integrity_check_inodes ?heads r)
+
+    let traverse_pack_file kind conf =
+      run_eio (fun () -> S.traverse_pack_file kind conf)
+
+    let test_traverse_pack_file kind conf =
+      run_eio (fun () -> S.test_traverse_pack_file kind conf)
+
+    let split r = run_eio (fun () -> S.split r)
+    let is_split_allowed r = S.is_split_allowed r
+    let add_volume r = run_eio (fun () -> S.add_volume r)
+    let reload r = run_eio (fun () -> S.reload r)
+    let flush r = run_eio (fun () -> S.flush r)
+
+    let create_one_commit_store ~domain_mgr r ck path =
+      run_eio (fun () -> S.create_one_commit_store ~domain_mgr r ck path)
+
+    module Gc = struct
+      type process_state = S.Gc.process_state
+      type msg = S.Gc.msg
+
+      let start_exn ~domain_mgr ?unlink r c =
+        run_eio (fun () -> S.Gc.start_exn ~domain_mgr ?unlink r c)
+
+      let finalise_exn ?wait r = run_eio (fun () -> S.Gc.finalise_exn ?wait r)
+
+      let run ~domain_mgr ?finished r c =
+        let finished =
+          Option.map
+            (fun lwt_f result -> Lwt_eio.Promise.await_lwt (lwt_f result))
+            finished
+        in
+        run_eio (fun () -> S.Gc.run ~domain_mgr ?finished r c)
+
+      let wait r = run_eio (fun () -> S.Gc.wait r)
+      let cancel r = run_eio (fun () -> S.Gc.cancel r)
+      let is_finished r = S.Gc.is_finished r
+      let behaviour r = S.Gc.behaviour r
+      let is_allowed r = S.Gc.is_allowed r
+      let latest_gc_target r = S.Gc.latest_gc_target r
+    end
+
+    module Snapshot = struct
+      include S.Snapshot
+
+      let export ?on_disk r f ~root_key =
+        run_eio (fun () -> S.Snapshot.export ?on_disk r f ~root_key)
+    end
+  end
+end
