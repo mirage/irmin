@@ -29,14 +29,36 @@ module Make (S : Irmin.Generic_key.S) : sig
 
   type repo = S.repo
   type t = S.t
+  type step = S.step
   type path = S.path
+  type metadata = S.metadata
   type contents = S.contents
+  type node = S.node
   type tree = S.tree
   type commit = S.commit
   type branch = S.branch
+  type slice = S.slice
   type info = S.info
   type hash = S.hash
+  type contents_key = S.contents_key
+  type node_key = S.node_key
+  type commit_key = S.commit_key
+  type lca_error = S.lca_error
+  type ff_error = S.ff_error
   type write_error = S.write_error
+
+  module Schema : module type of S.Schema
+  (** Type-level modules of [S], forwarded as-is. They carry no I/O and do not
+      need Lwt wrapping. *)
+
+  module Info : module type of S.Info
+  module Hash : module type of S.Hash
+  module Path : module type of S.Path
+  module Metadata : module type of S.Metadata
+  module Backend : module type of S.Backend
+  module Contents : module type of S.Contents
+  module History : module type of S.History
+  module Status : module type of S.Status
 
   module Repo : sig
     type nonrec t = repo

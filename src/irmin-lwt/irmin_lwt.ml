@@ -18,14 +18,35 @@ let run_with_env env f =
 module Make (S : Irmin.Generic_key.S) = struct
   type repo = S.repo
   type t = S.t
+  type step = S.step
   type path = S.path
+  type metadata = S.metadata
   type contents = S.contents
+  type node = S.node
   type tree = S.tree
   type commit = S.commit
   type branch = S.branch
+  type slice = S.slice
   type info = S.info
   type hash = S.hash
+  type contents_key = S.contents_key
+  type node_key = S.node_key
+  type commit_key = S.commit_key
+  type lca_error = S.lca_error
+  type ff_error = S.ff_error
   type write_error = S.write_error
+
+  (* Re-exports of the type-level modules of [S]. These are pure,
+     forwarded as-is. *)
+  module Schema = S.Schema
+  module Info = S.Info
+  module Hash = S.Hash
+  module Path = S.Path
+  module Metadata = S.Metadata
+  module Backend = S.Backend
+  module Contents = S.Contents
+  module History = S.History
+  module Status = S.Status
 
   module Repo = struct
     type nonrec t = repo
