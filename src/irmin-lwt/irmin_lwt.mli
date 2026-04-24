@@ -217,4 +217,31 @@ module Make (S : Irmin.Generic_key.S) : sig
     val of_key : Repo.t -> kinded_key -> t option Lwt.t
     val of_hash : Repo.t -> kinded_hash -> t option Lwt.t
   end
+
+  (** Lwt-wrapped commit operations. Pure accessors ([tree], [parents], [info],
+      [hash], [key], [pp]) are forwarded as-is; constructors and lookups that
+      might load from the backend are wrapped. *)
+  module Commit : sig
+    type nonrec t = commit
+    type commit_key = S.commit_key
+
+    val tree : t -> tree
+    val parents : t -> commit_key list
+    val info : t -> info
+    val hash : t -> hash
+    val key : t -> commit_key
+    val pp : t Fmt.t
+    val pp_hash : t Fmt.t
+
+    val v :
+      ?clear:bool ->
+      Repo.t ->
+      info:info ->
+      parents:commit_key list ->
+      tree ->
+      t Lwt.t
+
+    val of_key : Repo.t -> commit_key -> t option Lwt.t
+    val of_hash : Repo.t -> hash -> t option Lwt.t
+  end
 end

@@ -143,4 +143,25 @@ module Make (S : Irmin.Generic_key.S) = struct
     let of_key r k = run_eio (fun () -> S.Tree.of_key r k)
     let of_hash r h = run_eio (fun () -> S.Tree.of_hash r h)
   end
+
+  module Commit = struct
+    type nonrec t = commit
+    type commit_key = S.commit_key
+
+    (* Pure accessors. *)
+    let tree = S.Commit.tree
+    let parents = S.Commit.parents
+    let info = S.Commit.info
+    let hash = S.Commit.hash
+    let key = S.Commit.key
+    let pp = S.Commit.pp
+    let pp_hash = S.Commit.pp_hash
+
+    (* I/O-performing. *)
+    let v ?clear r ~info ~parents tree =
+      run_eio (fun () -> S.Commit.v ?clear r ~info ~parents tree)
+
+    let of_key r k = run_eio (fun () -> S.Commit.of_key r k)
+    let of_hash r h = run_eio (fun () -> S.Commit.of_hash r h)
+  end
 end
