@@ -101,7 +101,100 @@ module Make (S : Irmin.Generic_key.S) = struct
     run_eio (fun () ->
         S.remove_exn ?clear ?retries ?allow_empty ?parents ~info t p)
 
+  let commit_t = S.commit_t
+
+  let test_and_set ?clear ?retries ?allow_empty ?parents ~info t p ~test ~set =
+    run_eio (fun () ->
+        S.test_and_set ?clear ?retries ?allow_empty ?parents ~info t p ~test
+          ~set)
+
+  let test_and_set_exn ?clear ?retries ?allow_empty ?parents ~info t p ~test
+      ~set =
+    run_eio (fun () ->
+        S.test_and_set_exn ?clear ?retries ?allow_empty ?parents ~info t p ~test
+          ~set)
+
+  let test_and_set_tree ?clear ?retries ?allow_empty ?parents ~info t p ~test
+      ~set =
+    run_eio (fun () ->
+        S.test_and_set_tree ?clear ?retries ?allow_empty ?parents ~info t p
+          ~test ~set)
+
+  let test_and_set_tree_exn ?clear ?retries ?allow_empty ?parents ~info t p
+      ~test ~set =
+    run_eio (fun () ->
+        S.test_and_set_tree_exn ?clear ?retries ?allow_empty ?parents ~info t p
+          ~test ~set)
+
+  let test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t p ~test
+      ~set =
+    run_eio (fun () ->
+        S.test_set_and_get ?clear ?retries ?allow_empty ?parents ~info t p ~test
+          ~set)
+
+  let test_set_and_get_exn ?clear ?retries ?allow_empty ?parents ~info t p ~test
+      ~set =
+    run_eio (fun () ->
+        S.test_set_and_get_exn ?clear ?retries ?allow_empty ?parents ~info t p
+          ~test ~set)
+
+  let test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t p
+      ~test ~set =
+    run_eio (fun () ->
+        S.test_set_and_get_tree ?clear ?retries ?allow_empty ?parents ~info t p
+          ~test ~set)
+
+  let test_set_and_get_tree_exn ?clear ?retries ?allow_empty ?parents ~info t p
+      ~test ~set =
+    run_eio (fun () ->
+        S.test_set_and_get_tree_exn ?clear ?retries ?allow_empty ?parents ~info
+          t p ~test ~set)
+
+  let merge ?clear ?retries ?allow_empty ?parents ~info ~old t p v =
+    run_eio (fun () ->
+        S.merge ?clear ?retries ?allow_empty ?parents ~info ~old t p v)
+
+  let merge_exn ?clear ?retries ?allow_empty ?parents ~info ~old t p v =
+    run_eio (fun () ->
+        S.merge_exn ?clear ?retries ?allow_empty ?parents ~info ~old t p v)
+
+  let merge_tree ?clear ?retries ?allow_empty ?parents ~info ~old t p v =
+    run_eio (fun () ->
+        S.merge_tree ?clear ?retries ?allow_empty ?parents ~info ~old t p v)
+
+  let merge_tree_exn ?clear ?retries ?allow_empty ?parents ~info ~old t p v =
+    run_eio (fun () ->
+        S.merge_tree_exn ?clear ?retries ?allow_empty ?parents ~info ~old t p v)
+
+  let with_tree ?clear ?retries ?allow_empty ?parents ?strategy ~info t p f =
+    run_eio (fun () ->
+        S.with_tree ?clear ?retries ?allow_empty ?parents ?strategy ~info t p f)
+
+  let with_tree_exn ?clear ?retries ?allow_empty ?parents ?strategy ~info t p f
+      =
+    run_eio (fun () ->
+        S.with_tree_exn ?clear ?retries ?allow_empty ?parents ?strategy ~info t
+          p f)
+
+  let clone ~src ~dst = run_eio (fun () -> S.clone ~src ~dst)
   let merge_into ~into ~info t = run_eio (fun () -> S.merge_into ~into ~info t)
+
+  let merge_with_branch t ~info ?max_depth ?n b =
+    run_eio (fun () -> S.merge_with_branch t ~info ?max_depth ?n b)
+
+  let merge_with_commit t ~info ?max_depth ?n c =
+    run_eio (fun () -> S.merge_with_commit t ~info ?max_depth ?n c)
+
+  let lcas ?max_depth ?n t1 t2 = run_eio (fun () -> S.lcas ?max_depth ?n t1 t2)
+
+  let lcas_with_branch t ?max_depth ?n b =
+    run_eio (fun () -> S.lcas_with_branch t ?max_depth ?n b)
+
+  let lcas_with_commit t ?max_depth ?n c =
+    run_eio (fun () -> S.lcas_with_commit t ?max_depth ?n c)
+
+  let history ?depth ?min ?max t =
+    run_eio (fun () -> S.history ?depth ?min ?max t)
 
   let last_modified ?depth ?n t p =
     run_eio (fun () -> S.last_modified ?depth ?n t p)

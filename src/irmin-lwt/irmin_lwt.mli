@@ -162,8 +162,216 @@ module Make (S : Irmin.Generic_key.S) : sig
     path ->
     unit Lwt.t
 
+  val commit_t : repo -> commit Irmin.Type.t
+
+  val test_and_set :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:contents option ->
+    set:contents option ->
+    (unit, write_error) result Lwt.t
+
+  val test_and_set_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:contents option ->
+    set:contents option ->
+    unit Lwt.t
+
+  val test_and_set_tree :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:tree option ->
+    set:tree option ->
+    (unit, write_error) result Lwt.t
+
+  val test_and_set_tree_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:tree option ->
+    set:tree option ->
+    unit Lwt.t
+
+  val test_set_and_get :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:contents option ->
+    set:contents option ->
+    (commit option, write_error) result Lwt.t
+
+  val test_set_and_get_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:contents option ->
+    set:contents option ->
+    commit option Lwt.t
+
+  val test_set_and_get_tree :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:tree option ->
+    set:tree option ->
+    (commit option, write_error) result Lwt.t
+
+  val test_set_and_get_tree_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    test:tree option ->
+    set:tree option ->
+    commit option Lwt.t
+
+  val merge :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    old:contents option ->
+    t ->
+    path ->
+    contents option ->
+    (unit, write_error) result Lwt.t
+
+  val merge_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    old:contents option ->
+    t ->
+    path ->
+    contents option ->
+    unit Lwt.t
+
+  val merge_tree :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    old:tree option ->
+    t ->
+    path ->
+    tree option ->
+    (unit, write_error) result Lwt.t
+
+  val merge_tree_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    info:S.Info.f ->
+    old:tree option ->
+    t ->
+    path ->
+    tree option ->
+    unit Lwt.t
+
+  val with_tree :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    ?strategy:[ `Set | `Test_and_set | `Merge ] ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    (tree option -> tree option) ->
+    (unit, write_error) result Lwt.t
+
+  val with_tree_exn :
+    ?clear:bool ->
+    ?retries:int ->
+    ?allow_empty:bool ->
+    ?parents:commit list ->
+    ?strategy:[ `Set | `Test_and_set | `Merge ] ->
+    info:S.Info.f ->
+    t ->
+    path ->
+    (tree option -> tree option) ->
+    unit Lwt.t
+
+  val clone : src:t -> dst:branch -> t Lwt.t
+
   val merge_into :
     into:t -> info:S.Info.f -> t -> (unit, Irmin.Merge.conflict) result Lwt.t
+
+  val merge_with_branch :
+    t ->
+    info:S.Info.f ->
+    ?max_depth:int ->
+    ?n:int ->
+    branch ->
+    (unit, Irmin.Merge.conflict) result Lwt.t
+
+  val merge_with_commit :
+    t ->
+    info:S.Info.f ->
+    ?max_depth:int ->
+    ?n:int ->
+    commit ->
+    (unit, Irmin.Merge.conflict) result Lwt.t
+
+  val lcas :
+    ?max_depth:int -> ?n:int -> t -> t -> (commit list, lca_error) result Lwt.t
+
+  val lcas_with_branch :
+    t ->
+    ?max_depth:int ->
+    ?n:int ->
+    branch ->
+    (commit list, lca_error) result Lwt.t
+
+  val lcas_with_commit :
+    t ->
+    ?max_depth:int ->
+    ?n:int ->
+    commit ->
+    (commit list, lca_error) result Lwt.t
+
+  val history :
+    ?depth:int -> ?min:commit list -> ?max:commit list -> t -> History.t Lwt.t
 
   val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list Lwt.t
 
