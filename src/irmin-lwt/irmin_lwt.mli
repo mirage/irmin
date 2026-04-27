@@ -937,3 +937,61 @@ module Pack : sig
     end
   end
 end
+
+(** {1 Native Synchronisation}
+
+    Lwt wrappers for [Irmin.Sync]. Mirrors the Irmin 3 API exactly. *)
+module Sync : sig
+  module type S = sig
+    type db
+    type commit
+    type status = [ `Empty | `Head of commit ]
+    type info
+
+    val status_t : db -> status Irmin.Type.t
+    val pp_status : status Fmt.t
+
+    val fetch :
+      db ->
+      ?depth:int ->
+      Irmin.remote ->
+      (status, [ `Msg of string ]) result Lwt.t
+
+    val fetch_exn : db -> ?depth:int -> Irmin.remote -> status Lwt.t
+
+    type pull_error = [ `Msg of string | Irmin.Merge.conflict ]
+
+    val pp_pull_error : pull_error Fmt.t
+
+    val pull :
+      db ->
+      ?depth:int ->
+      Irmin.remote ->
+      [ `Merge of unit -> info | `Set ] ->
+      (status, pull_error) result Lwt.t
+
+    val pull_exn :
+      db ->
+      ?depth:int ->
+      Irmin.remote ->
+      [ `Merge of unit -> info | `Set ] ->
+      status Lwt.t
+
+    type push_error = [ `Msg of string | `Detached_head ]
+
+    val pp_push_error : push_error Fmt.t
+
+    val push :
+      db -> ?depth:int -> Irmin.remote -> (status, push_error) result Lwt.t
+
+    val push_exn : db -> ?depth:int -> Irmin.remote -> status Lwt.t
+  end
+
+  module Make (X : Irmin.Generic_key.S) :
+    S with type db = X.t and type commit = X.commit and type info = X.info
+end
+
+val remote_store :
+  (module Irmin.Generic_key.S with type t = 'a) -> 'a -> Irmin.remote
+(** [remote_store t] is the remote corresponding to the local store [t].
+    Forwarding from [Irmin.remote_store]; pure (no Lwt). *)

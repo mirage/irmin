@@ -1394,3 +1394,78 @@ module Pack = struct
     end
   end
 end
+
+module Sync = struct
+  module type S = sig
+    type db
+    type commit
+    type status = [ `Empty | `Head of commit ]
+    type info
+
+    val status_t : db -> status Irmin.Type.t
+    val pp_status : status Fmt.t
+
+    val fetch :
+      db ->
+      ?depth:int ->
+      Irmin.remote ->
+      (status, [ `Msg of string ]) result Lwt.t
+
+    val fetch_exn : db -> ?depth:int -> Irmin.remote -> status Lwt.t
+
+    type pull_error = [ `Msg of string | Irmin.Merge.conflict ]
+
+    val pp_pull_error : pull_error Fmt.t
+
+    val pull :
+      db ->
+      ?depth:int ->
+      Irmin.remote ->
+      [ `Merge of unit -> info | `Set ] ->
+      (status, pull_error) result Lwt.t
+
+    val pull_exn :
+      db ->
+      ?depth:int ->
+      Irmin.remote ->
+      [ `Merge of unit -> info | `Set ] ->
+      status Lwt.t
+
+    type push_error = [ `Msg of string | `Detached_head ]
+
+    val pp_push_error : push_error Fmt.t
+
+    val push :
+      db -> ?depth:int -> Irmin.remote -> (status, push_error) result Lwt.t
+
+    val push_exn : db -> ?depth:int -> Irmin.remote -> status Lwt.t
+  end
+
+  module Make (X : Irmin.Generic_key.S) = struct
+    module S = Irmin.Sync.Make (X)
+
+    type db = X.t
+    type commit = X.commit
+    type status = [ `Empty | `Head of commit ]
+    type info = X.info
+
+    let status_t = S.status_t
+    let pp_status = S.pp_status
+    let fetch db ?depth r = run_eio (fun () -> S.fetch db ?depth r)
+    let fetch_exn db ?depth r = run_eio (fun () -> S.fetch_exn db ?depth r)
+
+    type pull_error = S.pull_error
+
+    let pp_pull_error = S.pp_pull_error
+    let pull db ?depth r s = run_eio (fun () -> S.pull db ?depth r s)
+    let pull_exn db ?depth r s = run_eio (fun () -> S.pull_exn db ?depth r s)
+
+    type push_error = S.push_error
+
+    let pp_push_error = S.pp_push_error
+    let push db ?depth r = run_eio (fun () -> S.push db ?depth r)
+    let push_exn db ?depth r = run_eio (fun () -> S.push_exn db ?depth r)
+  end
+end
+
+let remote_store = Irmin.remote_store
