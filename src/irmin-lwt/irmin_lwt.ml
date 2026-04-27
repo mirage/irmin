@@ -38,9 +38,14 @@ module type S = sig
   type contents_key
   type node_key
   type commit_key
-  type lca_error
-  type ff_error
-  type write_error
+  type lca_error = [ `Max_depth_reached | `Too_many_lcas ]
+  type ff_error = [ `No_change | `Rejected | lca_error ]
+
+  type write_error =
+    [ Irmin.Merge.conflict
+    | `Too_many_retries of int
+    | `Test_was of tree option ]
+
   type kinded_key = [ `Contents of contents_key | `Node of node_key ]
   type watch
 
