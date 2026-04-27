@@ -179,7 +179,7 @@ module type S = sig
   val of_commit : commit -> t Lwt.t
   val empty : repo -> t Lwt.t
   val repo : t -> repo
-  val tree : t -> tree
+  val tree : t -> tree Lwt.t
   val status : t -> [ `Empty | `Branch of branch | `Commit of commit ]
 
   (** {2 Reads} *)
@@ -472,8 +472,8 @@ module type S = sig
   (** {2 Backend converters} *)
 
   val of_backend_node : repo -> Backend.Node.value -> node
-  val to_backend_node : node -> Backend.Node.value
-  val to_backend_portable_node : node -> Backend.Node_portable.t
+  val to_backend_node : node -> Backend.Node.value Lwt.t
+  val to_backend_portable_node : node -> Backend.Node_portable.t Lwt.t
   val to_backend_commit : commit -> Backend.Commit.value
 
   val of_backend_commit :

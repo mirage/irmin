@@ -165,7 +165,7 @@ module type S = sig
   val of_commit : commit -> t Lwt.t
   val empty : repo -> t Lwt.t
   val repo : t -> repo
-  val tree : t -> tree
+  val tree : t -> tree Lwt.t
   val status : t -> [ `Empty | `Branch of branch | `Commit of commit ]
 
   (** {2 Reads} *)
@@ -458,8 +458,8 @@ module type S = sig
   (** {2 Backend converters} *)
 
   val of_backend_node : repo -> Backend.Node.value -> node
-  val to_backend_node : node -> Backend.Node.value
-  val to_backend_portable_node : node -> Backend.Node_portable.t
+  val to_backend_node : node -> Backend.Node.value Lwt.t
+  val to_backend_portable_node : node -> Backend.Node_portable.t Lwt.t
   val to_backend_commit : commit -> Backend.Commit.value
 
   val of_backend_commit :
@@ -892,8 +892,10 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   (* Pure accessors — no I/O, no wrapping needed. *)
   let repo = S.repo
-  let tree = S.tree
   let status = S.status
+
+  (* [tree] reads from the store handle. Lwt-wrapped to match Irmin 3. *)
+  let tree t = run_eio (fun () -> S.tree t)
   let find t p = run_eio (fun () -> S.find t p)
   let find_all t p = run_eio (fun () -> S.find_all t p)
   let mem t p = run_eio (fun () -> S.mem t p)
@@ -1055,8 +1057,11 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   (* Backend converters. These are pure. *)
   let of_backend_node = S.of_backend_node
-  let to_backend_node = S.to_backend_node
-  let to_backend_portable_node = S.to_backend_portable_node
+  let to_backend_node n = run_eio (fun () -> S.to_backend_node n)
+
+  let to_backend_portable_node n =
+    run_eio (fun () -> S.to_backend_portable_node n)
+
   let to_backend_commit = S.to_backend_commit
   let of_backend_commit = S.of_backend_commit
 
