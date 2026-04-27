@@ -619,40 +619,42 @@ module type S = sig
       type 'a inode = { length : int; proofs : (int * 'a) list }
       type 'a inode_extender = { length : int; segments : int list; proof : 'a }
 
-      type proof_tree =
+      type tree =
         | Contents of contents * metadata
         | Blinded_contents of hash * metadata
-        | Node of (step * proof_tree) list
+        | Node of (step * tree) list
         | Blinded_node of hash
         | Inode of inode_tree inode
         | Extender of inode_tree inode_extender
 
       and inode_tree =
         | Blinded_inode of hash
-        | Inode_values of (step * proof_tree) list
+        | Inode_values of (step * tree) list
         | Inode_tree of inode_tree inode
         | Inode_extender of inode_tree inode_extender
 
-      type proof
+      type t
 
-      val v : before:kinded_hash -> after:kinded_hash -> proof_tree -> proof
-      val before : proof -> kinded_hash
-      val after : proof -> kinded_hash
-      val state : proof -> proof_tree
-      val to_tree : proof -> t
+      val v : before:kinded_hash -> after:kinded_hash -> tree -> t
+      val before : t -> kinded_hash
+      val after : t -> kinded_hash
+      val state : t -> tree
+
+      type irmin_tree
+
+      val to_tree : t -> irmin_tree
     end
+    with type irmin_tree := t
 
     type verifier_error = [ `Proof_mismatch of string ]
 
     val produce_proof :
-      Repo.t -> kinded_key -> (t -> (t * 'a) Lwt.t) -> (Proof.proof * 'a) Lwt.t
+      Repo.t -> kinded_key -> (t -> (t * 'a) Lwt.t) -> (Proof.t * 'a) Lwt.t
 
     val verify_proof :
-      Proof.proof ->
-      (t -> (t * 'a) Lwt.t) ->
-      (t * 'a, verifier_error) result Lwt.t
+      Proof.t -> (t -> (t * 'a) Lwt.t) -> (t * 'a, verifier_error) result Lwt.t
 
-    val hash_of_proof_state : Proof.proof_tree -> kinded_hash
+    val hash_of_proof_state : Proof.tree -> kinded_hash
   end
 
   (** {1 Commits} *)
@@ -1213,21 +1215,21 @@ module Make (S : Irmin.Generic_key.S) = struct
           with type tree := S.Tree.Proof.tree
            and type t := S.Tree.Proof.t)
 
-      type proof_tree = S.Tree.Proof.tree =
+      type tree = S.Tree.Proof.tree =
         | Contents of S.contents * S.metadata
         | Blinded_contents of S.hash * S.metadata
-        | Node of (S.step * proof_tree) list
+        | Node of (S.step * tree) list
         | Blinded_node of S.hash
         | Inode of inode_tree inode
         | Extender of inode_tree inode_extender
 
       and inode_tree = S.Tree.Proof.inode_tree =
         | Blinded_inode of S.hash
-        | Inode_values of (S.step * proof_tree) list
+        | Inode_values of (S.step * tree) list
         | Inode_tree of inode_tree inode
         | Inode_extender of inode_tree inode_extender
 
-      type proof = S.Tree.Proof.t
+      type t = S.Tree.Proof.t
 
       let v = S.Tree.Proof.v
       let before = S.Tree.Proof.before
