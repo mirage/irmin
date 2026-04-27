@@ -597,6 +597,19 @@ module type S = sig
       t ->
       'a ->
       'a Lwt.t
+
+    val merge : t Irmin.Merge.t
+
+    type counters
+
+    val counters : unit -> counters
+    val dump_counters : unit Fmt.t
+    val reset_counters : unit -> unit
+
+    val inspect :
+      t ->
+      [ `Contents
+      | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
   end
 
   (** {1 Commits} *)
@@ -1134,6 +1147,15 @@ module Make (S : Irmin.Generic_key.S) = struct
       run_eio (fun () ->
           S.Tree.fold ?order ?force ?cache ?uniq ?pre ?post ?depth ?contents
             ?node ?tree t acc)
+
+    let merge = S.Tree.merge
+
+    type counters = S.Tree.counters
+
+    let counters = S.Tree.counters
+    let dump_counters = S.Tree.dump_counters
+    let reset_counters = S.Tree.reset_counters
+    let inspect = S.Tree.inspect
   end
 
   module Commit = struct

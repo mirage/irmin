@@ -616,6 +616,25 @@ module type S = sig
       t ->
       'a ->
       'a Lwt.t
+
+    (** {2 Merge} *)
+
+    val merge : t Irmin.Merge.t
+
+    (** {2 Performance counters and inspection} *)
+
+    type counters
+
+    val counters : unit -> counters
+    val dump_counters : unit Fmt.t
+    val reset_counters : unit -> unit
+
+    val inspect :
+      t ->
+      [ `Contents
+      | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+    (** [inspect t] is similar to {!val-kind}, with extra state information
+        returned for nodes. Pure: no I/O. *)
   end
 
   (** {1 Commits} *)
