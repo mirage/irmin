@@ -614,6 +614,45 @@ module type S = sig
       t ->
       [ `Contents
       | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
+
+    module Proof : sig
+      type 'a inode = { length : int; proofs : (int * 'a) list }
+      type 'a inode_extender = { length : int; segments : int list; proof : 'a }
+
+      type proof_tree =
+        | Contents of contents * metadata
+        | Blinded_contents of hash * metadata
+        | Node of (step * proof_tree) list
+        | Blinded_node of hash
+        | Inode of inode_tree inode
+        | Extender of inode_tree inode_extender
+
+      and inode_tree =
+        | Blinded_inode of hash
+        | Inode_values of (step * proof_tree) list
+        | Inode_tree of inode_tree inode
+        | Inode_extender of inode_tree inode_extender
+
+      type proof
+
+      val v : before:kinded_hash -> after:kinded_hash -> proof_tree -> proof
+      val before : proof -> kinded_hash
+      val after : proof -> kinded_hash
+      val state : proof -> proof_tree
+      val to_tree : proof -> t
+    end
+
+    type verifier_error = [ `Proof_mismatch of string ]
+
+    val produce_proof :
+      Repo.t -> kinded_key -> (t -> (t * 'a) Lwt.t) -> (Proof.proof * 'a) Lwt.t
+
+    val verify_proof :
+      Proof.proof ->
+      (t -> (t * 'a) Lwt.t) ->
+      (t * 'a, verifier_error) result Lwt.t
+
+    val hash_of_proof_state : Proof.proof_tree -> kinded_hash
   end
 
   (** {1 Commits} *)
@@ -1164,6 +1203,50 @@ module Make (S : Irmin.Generic_key.S) = struct
     let dump_counters = S.Tree.dump_counters
     let reset_counters = S.Tree.reset_counters
     let inspect = S.Tree.inspect
+
+    module Proof = struct
+      include (
+        S.Tree.Proof :
+          module type of struct
+            include S.Tree.Proof
+          end
+          with type tree := S.Tree.Proof.tree
+           and type t := S.Tree.Proof.t)
+
+      type proof_tree = S.Tree.Proof.tree =
+        | Contents of S.contents * S.metadata
+        | Blinded_contents of S.hash * S.metadata
+        | Node of (S.step * proof_tree) list
+        | Blinded_node of S.hash
+        | Inode of inode_tree inode
+        | Extender of inode_tree inode_extender
+
+      and inode_tree = S.Tree.Proof.inode_tree =
+        | Blinded_inode of S.hash
+        | Inode_values of (S.step * proof_tree) list
+        | Inode_tree of inode_tree inode
+        | Inode_extender of inode_tree inode_extender
+
+      type proof = S.Tree.Proof.t
+
+      let v = S.Tree.Proof.v
+      let before = S.Tree.Proof.before
+      let after = S.Tree.Proof.after
+      let state = S.Tree.Proof.state
+      let to_tree = S.Tree.Proof.to_tree
+    end
+
+    type verifier_error = [ `Proof_mismatch of string ]
+
+    let produce_proof repo key f =
+      let f' tree = Lwt_eio.Promise.await_lwt (f tree) in
+      run_eio (fun () -> S.Tree.produce_proof repo key f')
+
+    let verify_proof proof f =
+      let f' tree = Lwt_eio.Promise.await_lwt (f tree) in
+      run_eio (fun () -> S.Tree.verify_proof proof f')
+
+    let hash_of_proof_state = S.Tree.hash_of_proof_state
   end
 
   module Commit = struct

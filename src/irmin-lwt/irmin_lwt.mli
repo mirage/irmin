@@ -645,6 +645,50 @@ module type S = sig
       | `Node of [ `Map | `Key | `Value | `Portable_dirty | `Pruned ] ]
     (** [inspect t] is similar to {!val-kind}, with extra state information
         returned for nodes. Pure: no I/O. *)
+
+    (** {2 Merkle proofs} *)
+
+    (** [Tree.Proof] mirrors [Irmin.Proof.S] for the store's [contents], [hash],
+        [step] and [metadata]. *)
+    module Proof : sig
+      type 'a inode = { length : int; proofs : (int * 'a) list }
+      type 'a inode_extender = { length : int; segments : int list; proof : 'a }
+
+      type proof_tree =
+        | Contents of contents * metadata
+        | Blinded_contents of hash * metadata
+        | Node of (step * proof_tree) list
+        | Blinded_node of hash
+        | Inode of inode_tree inode
+        | Extender of inode_tree inode_extender
+
+      and inode_tree =
+        | Blinded_inode of hash
+        | Inode_values of (step * proof_tree) list
+        | Inode_tree of inode_tree inode
+        | Inode_extender of inode_tree inode_extender
+
+      type proof
+      (** The type for Merkle proofs. *)
+
+      val v : before:kinded_hash -> after:kinded_hash -> proof_tree -> proof
+      val before : proof -> kinded_hash
+      val after : proof -> kinded_hash
+      val state : proof -> proof_tree
+      val to_tree : proof -> t
+    end
+
+    type verifier_error = [ `Proof_mismatch of string ]
+
+    val produce_proof :
+      Repo.t -> kinded_key -> (t -> (t * 'a) Lwt.t) -> (Proof.proof * 'a) Lwt.t
+
+    val verify_proof :
+      Proof.proof ->
+      (t -> (t * 'a) Lwt.t) ->
+      (t * 'a, verifier_error) result Lwt.t
+
+    val hash_of_proof_state : Proof.proof_tree -> kinded_hash
   end
 
   (** {1 Commits} *)
