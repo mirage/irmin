@@ -500,12 +500,21 @@ module type S = sig
     type uniq = [ `False | `True | `Marks of marks ]
     type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
 
+    type error =
+      [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
+    (** Errors that can be raised when forcing a lazy tree value. *)
+
+    type 'a or_error = ('a, error) result
+
     (** Operations on lazy tree contents. *)
     module Contents : sig
       type nonrec t
 
       val hash : ?cache:bool -> t -> hash
       val key : t -> contents_key option
+      val force : t -> contents or_error Lwt.t
+      val force_exn : t -> contents Lwt.t
+      val clear : t -> unit
     end
 
     val empty : unit -> t

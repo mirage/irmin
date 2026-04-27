@@ -486,12 +486,20 @@ module type S = sig
     type uniq = [ `False | `True | `Marks of marks ]
     type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
 
+    type error =
+      [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
+
+    type 'a or_error = ('a, error) result
+
     (** Operations on lazy tree contents. *)
     module Contents : sig
       type nonrec t
 
       val hash : ?cache:bool -> t -> hash
       val key : t -> contents_key option
+      val force : t -> contents or_error Lwt.t
+      val force_exn : t -> contents Lwt.t
+      val clear : t -> unit
     end
 
     val empty : unit -> t
@@ -994,8 +1002,20 @@ module Make (S : Irmin.Generic_key.S) = struct
     type elt = S.Tree.elt
     type stats = S.Tree.stats
     type concrete = S.Tree.concrete
+    type error = S.Tree.error
+    type 'a or_error = ('a, error) result
 
-    module Contents = S.Tree.Contents
+    module Contents = struct
+      include (
+        S.Tree.Contents :
+          module type of struct
+            include S.Tree.Contents
+          end
+          with type t = S.Tree.Contents.t)
+
+      let force c = run_eio (fun () -> S.Tree.Contents.force c)
+      let force_exn c = run_eio (fun () -> S.Tree.Contents.force_exn c)
+    end
 
     (* Pure constructors and inspectors. *)
     let empty = S.Tree.empty
