@@ -1469,3 +1469,26 @@ module Sync = struct
 end
 
 let remote_store = Irmin.remote_store
+
+module Json_tree
+    (Store : Irmin.S with type Schema.Contents.t = Irmin.Contents.json) =
+struct
+  module J = Irmin.Json_tree (Store)
+  include (J : Irmin.Contents.S with type t = Irmin.Contents.json)
+
+  let to_concrete_tree = J.to_concrete_tree
+  let of_concrete_tree = J.of_concrete_tree
+  let get_tree tree path = run_eio (fun () -> J.get_tree tree path)
+  let set_tree tree path v = run_eio (fun () -> J.set_tree tree path v)
+  let get t path = run_eio (fun () -> J.get t path)
+  let set t path v ~info = run_eio (fun () -> J.set t path v ~info)
+end
+
+module Dot (S : Irmin.Generic_key.S) = struct
+  module D = Irmin.Dot (S)
+
+  type db = S.t
+
+  let output_buffer db ?html ?depth ?full ~date buf =
+    run_eio (fun () -> D.output_buffer db ?html ?depth ?full ~date buf)
+end

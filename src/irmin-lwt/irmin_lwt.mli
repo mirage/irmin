@@ -995,3 +995,38 @@ val remote_store :
   (module Irmin.Generic_key.S with type t = 'a) -> 'a -> Irmin.remote
 (** [remote_store t] is the remote corresponding to the local store [t].
     Forwarding from [Irmin.remote_store]; pure (no Lwt). *)
+
+(** {1 JSON-as-tree projections}
+
+    Lwt wrapper for [Irmin.Json_tree]. Extracts and projects JSON values onto a
+    tree or store at a given path. *)
+module Json_tree : functor
+  (Store : Irmin.S with type Schema.Contents.t = Irmin.Contents.json)
+  -> sig
+  include Irmin.Contents.S with type t = Irmin.Contents.json
+
+  val to_concrete_tree : t -> Store.Tree.concrete
+  val of_concrete_tree : Store.Tree.concrete -> t
+  val get_tree : Store.tree -> Store.path -> t Lwt.t
+  val set_tree : Store.tree -> Store.path -> t -> Store.tree Lwt.t
+  val get : Store.t -> Store.path -> t Lwt.t
+
+  val set :
+    Store.t -> Store.path -> t -> info:(unit -> Store.info) -> unit Lwt.t
+end
+
+(** {1 Graphviz output}
+
+    Lwt wrapper for [Irmin.Dot]. *)
+module Dot : functor (S : Irmin.Generic_key.S) -> sig
+  type db = S.t
+
+  val output_buffer :
+    db ->
+    ?html:bool ->
+    ?depth:int ->
+    ?full:bool ->
+    date:(int64 -> string) ->
+    Buffer.t ->
+    unit Lwt.t
+end
