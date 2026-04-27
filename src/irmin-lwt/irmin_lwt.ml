@@ -507,6 +507,10 @@ module type S = sig
 
     type 'a or_error = ('a, error) result
 
+    exception Dangling_hash of { context : string; hash : hash }
+    exception Pruned_hash of { context : string; hash : hash }
+    exception Portable_value of { context : string }
+
     (** Operations on lazy tree contents. *)
     module Contents : sig
       type nonrec t
@@ -1050,6 +1054,10 @@ module Make (S : Irmin.Generic_key.S) = struct
 
     type error = S.Tree.error
     type 'a or_error = ('a, error) result
+
+    exception Dangling_hash = S.Tree.Dangling_hash
+    exception Pruned_hash = S.Tree.Pruned_hash
+    exception Portable_value = S.Tree.Portable_value
 
     module Contents = struct
       include (

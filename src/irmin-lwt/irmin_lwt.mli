@@ -526,6 +526,16 @@ module type S = sig
 
     type 'a or_error = ('a, error) result
 
+    exception Dangling_hash of { context : string; hash : hash }
+    (** Raised by functions that can force lazy tree nodes but do not return an
+        explicit {!or_error}. *)
+
+    exception Pruned_hash of { context : string; hash : hash }
+    (** Raised by functions that attempt to load {!pruned} tree nodes. *)
+
+    exception Portable_value of { context : string }
+    (** Raised by functions that attempt to perform IO on a portable tree. *)
+
     (** Operations on lazy tree contents. *)
     module Contents : sig
       type nonrec t
