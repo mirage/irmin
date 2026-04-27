@@ -516,9 +516,9 @@ module type S = sig
     type concrete =
       [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
 
-    type 'a force_lwt = [ `True | `False of path -> 'a -> 'a Lwt.t ]
+    type 'a force = [ `True | `False of path -> 'a -> 'a Lwt.t ]
     type uniq = [ `False | `True | `Marks of marks ]
-    type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
+    type ('a, 'b) folder = path -> 'b -> 'a -> 'a Lwt.t
 
     type error =
       [ `Dangling_hash of hash | `Pruned_hash of hash | `Portable_value ]
@@ -614,15 +614,15 @@ module type S = sig
 
     val fold :
       ?order:[ `Sorted | `Undefined | `Random of Random.State.t ] ->
-      ?force:'a force_lwt ->
+      ?force:'a force ->
       ?cache:bool ->
       ?uniq:uniq ->
-      ?pre:('a, step list) folder_lwt ->
-      ?post:('a, step list) folder_lwt ->
+      ?pre:('a, step list) folder ->
+      ?post:('a, step list) folder ->
       ?depth:depth ->
-      ?contents:('a, contents) folder_lwt ->
-      ?node:('a, node) folder_lwt ->
-      ?tree:('a, t) folder_lwt ->
+      ?contents:('a, contents) folder ->
+      ?node:('a, node) folder ->
+      ?tree:('a, t) folder ->
       t ->
       'a ->
       'a Lwt.t
