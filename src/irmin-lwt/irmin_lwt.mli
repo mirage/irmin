@@ -30,19 +30,25 @@ val run_with_env : < clock : _ Eio.Time.clock ; .. > -> (unit -> 'a Lwt.t) -> 'a
     See {!Make} for the functor that produces a module conforming to [S] from an
     arbitrary [Irmin.Generic_key.S]. *)
 module type S = sig
+  (** {1 Schema} *)
+
+  module Schema : Irmin.Schema.S
+
+  (** {1 Types} *)
+
   type repo
   type t
-  type step
-  type path
-  type metadata
-  type contents
+  type step = Schema.Path.step
+  type path = Schema.Path.t
+  type metadata = Schema.Metadata.t
+  type contents = Schema.Contents.t
   type node
   type tree
   type commit
-  type branch
+  type branch = Schema.Branch.t
   type slice
-  type info
-  type hash
+  type info = Schema.Info.t
+  type hash = Schema.Hash.t
   type contents_key
   type node_key
   type commit_key
@@ -54,7 +60,6 @@ module type S = sig
 
   (** {1 Type-level submodules} *)
 
-  module Schema : Irmin.Schema.S
   module Info : Irmin.Info.S with type t = info
   module Hash : Irmin.Hash.S with type t = hash
   module Path : Irmin.Path.S with type t = path and type step = step
@@ -704,19 +709,13 @@ end
 
 module Make (S : Irmin.Generic_key.S) :
   S
-    with type repo = S.repo
+    with module Schema = S.Schema
+     and type repo = S.repo
      and type t = S.t
-     and type step = S.step
-     and type path = S.path
-     and type metadata = S.metadata
-     and type contents = S.contents
      and type node = S.node
      and type tree = S.tree
      and type commit = S.commit
-     and type branch = S.branch
      and type slice = S.slice
-     and type info = S.info
-     and type hash = S.hash
      and type contents_key = S.contents_key
      and type node_key = S.node_key
      and type commit_key = S.commit_key
@@ -724,7 +723,6 @@ module Make (S : Irmin.Generic_key.S) :
      and type ff_error = S.ff_error
      and type write_error = S.write_error
      and type watch = S.watch
-     and module Schema = S.Schema
      and module Info = S.Info
      and module Hash = S.Hash
      and module Path = S.Path

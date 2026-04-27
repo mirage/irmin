@@ -16,19 +16,25 @@ let run_with_env env f =
   Lwt_eio.Promise.await_lwt (f ())
 
 module type S = sig
+  (** {1 Schema} *)
+
+  module Schema : Irmin.Schema.S
+
+  (** {1 Types} *)
+
   type repo
   type t
-  type step
-  type path
-  type metadata
-  type contents
+  type step = Schema.Path.step
+  type path = Schema.Path.t
+  type metadata = Schema.Metadata.t
+  type contents = Schema.Contents.t
   type node
   type tree
   type commit
-  type branch
+  type branch = Schema.Branch.t
   type slice
-  type info
-  type hash
+  type info = Schema.Info.t
+  type hash = Schema.Hash.t
   type contents_key
   type node_key
   type commit_key
@@ -40,7 +46,6 @@ module type S = sig
 
   (** {1 Type-level submodules} *)
 
-  module Schema : Irmin.Schema.S
   module Info : Irmin.Info.S with type t = info
   module Hash : Irmin.Hash.S with type t = hash
   module Path : Irmin.Path.S with type t = path and type step = step
