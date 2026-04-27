@@ -475,13 +475,24 @@ module type S = sig
 
   module Tree : sig
     type nonrec t = tree
-    type kinded_hash
-    type kinded_key
-    type elt
+    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+
+    type kinded_key =
+      [ `Contents of contents_key * metadata | `Node of node_key ]
+
+    type elt = [ `Node of node | `Contents of contents * metadata ]
     type marks
-    type depth
+
+    type depth =
+      [ `Eq of int | `Le of int | `Lt of int | `Ge of int | `Gt of int ]
+
     type stats
-    type concrete
+
+    val stats_t : stats Irmin.Type.t
+
+    type concrete =
+      [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
+
     type 'a force_lwt = [ `True | `False of path -> 'a -> 'a Lwt.t ]
     type uniq = [ `False | `True | `Marks of marks ]
     type ('a, 'b) folder_lwt = path -> 'b -> 'a -> 'a Lwt.t
@@ -997,11 +1008,28 @@ module Make (S : Irmin.Generic_key.S) = struct
 
   module Tree = struct
     type nonrec t = tree
-    type kinded_hash = S.Tree.kinded_hash
-    type kinded_key = S.Tree.kinded_key
-    type elt = S.Tree.elt
+
+    (* Polymorphic variants: declared transparently here. They are
+       structurally identical to the upstream [S.Tree.X] versions, so
+       values flow through without coercion thanks to polymorphic-variant
+       subtyping. *)
+    type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+
+    type kinded_key =
+      [ `Contents of contents_key * metadata | `Node of node_key ]
+
+    type elt = [ `Node of node | `Contents of contents * metadata ]
+
+    type concrete =
+      [ `Tree of (step * concrete) list | `Contents of contents * metadata ]
+
+    (* [stats] is a record. We keep it as an alias of [S.Tree.stats] so
+       it remains nominally compatible. Field access is exposed through
+       [stats_t] / [Irmin.Type] introspection. *)
     type stats = S.Tree.stats
-    type concrete = S.Tree.concrete
+
+    let stats_t = S.Tree.stats_t
+
     type error = S.Tree.error
     type 'a or_error = ('a, error) result
 
