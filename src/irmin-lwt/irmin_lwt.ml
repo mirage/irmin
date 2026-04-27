@@ -775,6 +775,57 @@ module type S = sig
   val commit_t : repo -> commit Irmin.Type.t
 end
 
+module type S_simple = sig
+  type hash
+
+  include
+    S
+      with type Schema.Hash.t = hash
+       and type hash := hash
+       and type contents_key = hash
+       and type node_key = hash
+       and type commit_key = hash
+end
+
+module type KV =
+  S_simple
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Branch.t = string
+
+module type Maker = sig
+  type endpoint
+
+  module Make (Schema : Irmin.Schema.S) :
+    S
+      with module Schema = Schema
+       and type Backend.Remote.endpoint = endpoint
+       and type contents_key = Schema.Hash.t
+       and type node_key = Schema.Hash.t
+       and type commit_key = Schema.Hash.t
+end
+
+module type KV_maker = sig
+  type endpoint
+  type metadata
+  type info
+  type hash
+
+  module Make (C : Irmin.Contents.S) :
+    S
+      with module Schema.Contents = C
+       and type Schema.Metadata.t = metadata
+       and type Schema.Hash.t = hash
+       and type Schema.Info.t = info
+       and type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Branch.t = string
+       and type Backend.Remote.endpoint = endpoint
+       and type contents_key = hash
+       and type node_key = hash
+       and type commit_key = hash
+end
+
 module Make (S : Irmin.Generic_key.S) = struct
   type repo = S.repo
   type t = S.t

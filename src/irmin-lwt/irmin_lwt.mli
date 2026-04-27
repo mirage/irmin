@@ -811,6 +811,71 @@ module type S = sig
   val commit_t : repo -> commit Irmin.Type.t
 end
 
+(** {1 Convenience module types}
+
+    Lwt-flavoured counterparts of [Irmin.S], [Irmin.KV], [Irmin.Maker], and
+    [Irmin.KV_maker]. They let downstream code declare interfaces and functor
+    parameters in the same shape as Irmin 3. *)
+
+(** Counterpart of [Irmin.S]: a store whose contents, node, and commit keys are
+    all the schema's hash type. *)
+module type S_simple = sig
+  type hash
+
+  include
+    S
+      with type Schema.Hash.t = hash
+       and type hash := hash
+       and type contents_key = hash
+       and type node_key = hash
+       and type commit_key = hash
+end
+
+(** Counterpart of [Irmin.KV]: an [S_simple] with [string]-keyed paths and
+    branches. *)
+module type KV =
+  S_simple
+    with type Schema.Path.step = string
+     and type Schema.Path.t = string list
+     and type Schema.Branch.t = string
+
+(** Counterpart of [Irmin.Maker]: the type-level signature of a
+    hash-keyed-store-producing functor parametrised by a [Schema]. *)
+module type Maker = sig
+  type endpoint
+
+  module Make (Schema : Irmin.Schema.S) :
+    S
+      with module Schema = Schema
+       and type Backend.Remote.endpoint = endpoint
+       and type contents_key = Schema.Hash.t
+       and type node_key = Schema.Hash.t
+       and type commit_key = Schema.Hash.t
+end
+
+(** Counterpart of [Irmin.KV_maker]: the type-level signature of a hash-keyed
+    string-pathed-store-producing functor parametrised by [Contents]. *)
+module type KV_maker = sig
+  type endpoint
+  type metadata
+  type info
+  type hash
+
+  module Make (C : Irmin.Contents.S) :
+    S
+      with module Schema.Contents = C
+       and type Schema.Metadata.t = metadata
+       and type Schema.Hash.t = hash
+       and type Schema.Info.t = info
+       and type Schema.Path.step = string
+       and type Schema.Path.t = string list
+       and type Schema.Branch.t = string
+       and type Backend.Remote.endpoint = endpoint
+       and type contents_key = hash
+       and type node_key = hash
+       and type commit_key = hash
+end
+
 module Make (S : Irmin.Generic_key.S) :
   S
     with module Schema = S.Schema
