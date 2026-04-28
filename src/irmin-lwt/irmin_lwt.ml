@@ -15,6 +15,12 @@ let run_with_env env f =
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
   Lwt_eio.Promise.await_lwt (f ())
 
+module type Closeable = sig
+  type 'a t
+
+  val close : 'a t -> unit Lwt.t
+end
+
 module type S = sig
   (** {1 Schema} *)
 
@@ -99,7 +105,9 @@ module type S = sig
 
     val elt_t : elt Irmin.Type.t
     val v : Irmin.Backend.Conf.t -> t Lwt.t
-    val close : t -> unit Lwt.t
+
+    include Closeable with type _ t := t
+
     val heads : t -> commit list Lwt.t
     val branches : t -> branch list Lwt.t
     val config : t -> Irmin.Backend.Conf.t

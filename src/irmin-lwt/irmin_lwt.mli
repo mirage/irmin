@@ -19,6 +19,16 @@ val run_with_env : < clock : _ Eio.Time.clock ; .. > -> (unit -> 'a Lwt.t) -> 'a
     instead of calling [Eio_main.run] internally. Useful when the client is
     already inside an Eio event loop. *)
 
+(** Lwt-flavoured counterpart of the internal [Irmin.Closeable] trait: a single
+    [close] operation that releases the resources held by a handle. Used as
+    [include Closeable with type _ t := t] in [S.Repo] to mirror the Irmin 3
+    [Repo] signature. *)
+module type Closeable = sig
+  type 'a t
+
+  val close : 'a t -> unit Lwt.t
+end
+
 (** The Lwt-flavoured counterpart of [Irmin.Generic_key.S].
 
     Every I/O-triggering operation of [Irmin.Generic_key.S] is replaced by a
@@ -113,7 +123,10 @@ module type S = sig
 
     val elt_t : elt Irmin.Type.t
     val v : Irmin.Backend.Conf.t -> t Lwt.t
-    val close : t -> unit Lwt.t
+
+    include Closeable with type _ t := t
+    (** @inline *)
+
     val heads : t -> commit list Lwt.t
     val branches : t -> branch list Lwt.t
     val config : t -> Irmin.Backend.Conf.t
