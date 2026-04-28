@@ -716,6 +716,8 @@ module type S = sig
       ?init:(t * commit) list ->
       (t -> commit Irmin.Diff.t -> unit Lwt.t) ->
       watch Lwt.t
+
+    include Irmin.Branch.S with type t := branch
   end
 
   (** {1 Heads} *)
@@ -1358,6 +1360,10 @@ module Make (S : Irmin.Generic_key.S) = struct
     let watch_all r ?init lwt_cb =
       let cb br diff = Lwt_eio.Promise.await_lwt (lwt_cb br diff) in
       run_eio (fun () -> S.Branch.watch_all r ?init cb)
+
+    let main = S.Branch.main
+    let is_valid = S.Branch.is_valid
+    let t = S.Branch.t
   end
 
   module Head = struct

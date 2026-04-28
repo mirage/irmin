@@ -757,6 +757,9 @@ module type S = sig
       ?init:(t * commit) list ->
       (t -> commit Irmin.Diff.t -> unit Lwt.t) ->
       watch Lwt.t
+
+    include Irmin.Branch.S with type t := branch
+    (** @inline *)
   end
 
   (** {1 Heads} *)
