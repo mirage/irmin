@@ -113,9 +113,9 @@ module type S = sig
       slice Lwt.t
 
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
-    val default_pred_commit : t -> commit_key -> elt list
-    val default_pred_node : t -> node_key -> elt list
-    val default_pred_contents : t -> contents_key -> elt list
+    val default_pred_commit : t -> commit_key -> elt list Lwt.t
+    val default_pred_node : t -> node_key -> elt list Lwt.t
+    val default_pred_contents : t -> contents_key -> elt list Lwt.t
 
     val iter :
       ?cache_size:int ->
@@ -884,9 +884,13 @@ module Make (S : Irmin.Generic_key.S) = struct
     let import t s = run_eio (fun () -> S.Repo.import t s)
 
     (* Pure: no lazy loading. *)
-    let default_pred_commit = S.Repo.default_pred_commit
-    let default_pred_node = S.Repo.default_pred_node
-    let default_pred_contents = S.Repo.default_pred_contents
+    let default_pred_commit t k =
+      run_eio (fun () -> S.Repo.default_pred_commit t k)
+
+    let default_pred_node t k = run_eio (fun () -> S.Repo.default_pred_node t k)
+
+    let default_pred_contents t k =
+      run_eio (fun () -> S.Repo.default_pred_contents t k)
 
     (* Helpers to bridge the Lwt-returning callbacks of [iter] and
        [breadth_first_traversal] to the direct-style callbacks that the

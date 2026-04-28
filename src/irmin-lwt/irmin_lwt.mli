@@ -127,9 +127,9 @@ module type S = sig
       slice Lwt.t
 
     val import : t -> slice -> (unit, [ `Msg of string ]) result Lwt.t
-    val default_pred_commit : t -> commit_key -> elt list
-    val default_pred_node : t -> node_key -> elt list
-    val default_pred_contents : t -> contents_key -> elt list
+    val default_pred_commit : t -> commit_key -> elt list Lwt.t
+    val default_pred_node : t -> node_key -> elt list Lwt.t
+    val default_pred_contents : t -> contents_key -> elt list Lwt.t
 
     val iter :
       ?cache_size:int ->
