@@ -1,0 +1,38 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "ocaml"          {>= "5.1.0"}
+  "dune"          {>= "3.5.0"}
+  "irmin"         {= version}
+  "irmin-lwt"     {= version}
+  "irmin-lwt-mem" {= version}
+  "irmin-lwt-fs"  {= version}
+  "lwt"           {>= "5.7.0"}
+  "lwt_eio"       {>= "0.5.1"}
+  "mtime"         {>= "2.0.0"}
+]
+
+synopsis: """
+Mergeable data structures for irmin-lwt
+"""
+description: """
+Lwt-flavoured port of the irmin-containers data structures (Counter,
+Lww_register, Blob_log) on top of irmin-lwt. The merge logic is reused
+from Irmin (Eio) by bridging through Lwt_eio. Linked_log is not yet
+supported (its merge requires a Lwt-typed CAS handle that has not been
+wired through the shim).
+"""
+x-maintenance-intent: [ "(latest)" ]

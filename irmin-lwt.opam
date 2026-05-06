@@ -1,0 +1,34 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "ocaml"     {>= "5.1.0"}
+  "dune"      {>= "3.5.0"}
+  "irmin"     {= version}
+  "lwt"       {>= "5.7.0"}
+  "lwt_eio"   {>= "0.5.1"}
+  "eio"       {>= "1.0"}
+]
+
+synopsis: """
+Lwt-flavoured compatibility layer for Irmin 4 (Eio)
+"""
+description: """
+irmin-lwt is a thin compatibility layer that exposes the Irmin 3 (Lwt)
+public API on top of Irmin 4 (direct-style Eio). It allows consumers
+that still use Irmin 3 to upgrade to Irmin 4 without changing their
+application code, by running Eio operations through Lwt_eio.
+"""
+x-maintenance-intent: [ "(latest)" ]

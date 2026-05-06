@@ -1,0 +1,14 @@
+(library
+ (name irmin_lwt_containers)
+ (public_name irmin-lwt-containers)
+ (libraries
+  irmin
+  irmin-lwt
+  irmin-lwt-mem
+  irmin-lwt-fs
+  lwt
+  lwt_eio
+  mtime
+  mtime.clock.os)
+ (preprocess
+  (pps ppx_irmin)))

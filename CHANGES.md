@@ -1,5 +1,12 @@
 ## 4.0.0
 
+### Added
+
+- **irmin-lwt**
+  - New compatibility package exposing the Irmin 3 (Lwt) public API on top
+    of Irmin 4 (Eio), running operations through `Lwt_eio`. Lets consumers
+    of Irmin 3 upgrade to Irmin 4 without changing their application code.
+
 ### Changed
 
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)

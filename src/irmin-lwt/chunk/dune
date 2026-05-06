@@ -1,0 +1,4 @@
+(library
+ (name irmin_lwt_chunk)
+ (public_name irmin-lwt-chunk)
+ (libraries irmin irmin-chunk irmin-lwt lwt lwt_eio))

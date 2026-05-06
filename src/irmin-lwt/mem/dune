@@ -1,0 +1,4 @@
+(library
+ (name irmin_lwt_mem)
+ (public_name irmin-lwt-mem)
+ (libraries irmin irmin.mem irmin-lwt lwt lwt_eio))

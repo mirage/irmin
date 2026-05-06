@@ -1,0 +1,12 @@
+(test
+ (name test)
+ (libraries
+  irmin
+  irmin-lwt
+  irmin-lwt-fs
+  irmin-lwt-test
+  irmin-watcher
+  lwt
+  lwt_eio
+  eio_main
+  unix))

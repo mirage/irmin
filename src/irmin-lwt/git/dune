@@ -1,0 +1,4 @@
+(library
+ (name irmin_lwt_git)
+ (public_name irmin-lwt-git)
+ (libraries irmin irmin-git irmin-git.unix irmin-lwt lwt lwt_eio))

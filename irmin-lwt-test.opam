@@ -1,0 +1,37 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "ocaml"          {>= "5.1.0"}
+  "dune"           {>= "3.5.0"}
+  "irmin-lwt"      {= version}
+  "alcotest-lwt"   {>= "1.8.0"}
+  "astring"
+  "fmt"
+  "jsonm"          {>= "1.0.0"}
+  "logs"           {>= "0.5.0"}
+  "lwt"            {>= "5.7.0"}
+  "mtime"          {>= "2.0.0"}
+]
+
+synopsis: """
+Test harness for irmin-lwt
+"""
+description: """
+Generic test harness from Irmin 3 (Lwt), packaged on top of irmin-lwt
+so that backend implementations targeting the irmin-lwt API can run
+the same battery of tests.
+"""
+x-maintenance-intent: [ "(latest)" ]

@@ -1,0 +1,13 @@
+(test
+ (name test)
+ (libraries
+  irmin
+  irmin-lwt
+  irmin-lwt-mem
+  irmin-lwt-containers
+  lwt
+  lwt_eio
+  eio_main
+  unix)
+ (preprocess
+  (pps ppx_irmin)))

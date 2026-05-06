@@ -1,0 +1,11 @@
+(test
+ (name test)
+ (libraries
+  irmin
+  irmin-pack
+  irmin-lwt
+  irmin-lwt-pack
+  lwt
+  lwt_eio
+  eio_main
+  unix))

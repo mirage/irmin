@@ -1,0 +1,11 @@
+(library
+ (name irmin_lwt_pack)
+ (public_name irmin-lwt-pack)
+ (libraries
+  irmin
+  irmin-pack
+  irmin-pack.io
+  irmin-pack.unix
+  irmin-lwt
+  lwt
+  lwt_eio))

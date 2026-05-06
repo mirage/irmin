@@ -1,0 +1,16 @@
+(test
+ (name test)
+ (libraries
+  irmin
+  irmin.mem
+  irmin-lwt
+  irmin-lwt-client
+  irmin-server
+  irmin-server.unix
+  mirage-crypto-rng
+  mirage-crypto-rng.unix
+  lwt
+  lwt_eio
+  eio
+  eio_main
+  unix))

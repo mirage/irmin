@@ -1,0 +1,11 @@
+(library
+ (name irmin_lwt_client)
+ (public_name irmin-lwt-client)
+ (libraries
+  irmin
+  irmin.mem
+  irmin-lwt
+  irmin-client
+  irmin-client.unix
+  lwt
+  lwt_eio))

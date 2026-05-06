@@ -1,0 +1,251 @@
+{0 Migrating from Irmin 3 to Irmin 4 via [irmin-lwt]}
+
+This guide is for applications currently using {b Irmin 3} (the
+Lwt-flavoured release on the [main] branch, latest [3.11.x]) that want
+to upgrade to {b Irmin 4} {e without} migrating their own code to
+[Eio]. The [irmin-lwt] package family is the bridge.
+
+{1 Prerequisites}
+
+{b Read the {{!page-index.big_warning} top-level warning} first.} You
+{b must} restructure your application's main loop to be Eio-based,
+even though your business logic stays in Lwt. There is no escape: the
+Eio scheduler is required for [irmin-lwt] to function.
+
+If your main loop is controlled by a framework that has not been
+ported to Eio yet (some web servers, some Mirage-based applications,
+older Lwt scripts using [Lwt_main.run] without an Eio host), you
+cannot use [irmin-lwt] today. Either stay on Irmin 3 or migrate the
+host loop first.
+
+{1 Step 1 — restructure the main loop}
+
+Replace your top-level
+
+{[
+let () = Lwt_main.run (main ())
+]}
+
+with the standard [Eio_main.run] / [Lwt_eio.with_event_loop] /
+[Lwt_main.run] sandwich:
+
+{[
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_watch_switch sw;
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Lwt_main.run (main ())
+]}
+
+If your application uses framework-provided runners (cohttp-lwt-unix,
+ocsigenserver, etc.) you typically wrap them too:
+
+{[
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_watch_switch sw;
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Lwt_main.run @@ fun () ->
+  Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 8080)) my_server
+]}
+
+The [Eio.Stdenv.fs env] capability and [env#clock] are propagated
+through closures to wherever you need them (typically when constructing
+an [Irmin_lwt_fs] / [Irmin_lwt_pack] config).
+
+{1 Step 2 — change opam dependencies}
+
+In your [.opam] file (or [dune-project]'s [generate_opam_files]):
+
+{v
+- "irmin"      {>= "3.0" & < "4.0"}
+- "irmin-pack" {>= "3.0" & < "4.0"}
++ "irmin-lwt"      {>= "4.0"}
++ "irmin-lwt-pack" {>= "4.0"}
++ "lwt_eio"        {>= "0.5.1"}
++ "eio_main"       {>= "1.0"}
+v}
+
+Replace each [irmin-X] dependency with its [irmin-lwt-X] counterpart
+where one exists (see {{!page-index} the package overview}). For
+[irmin-graphql] and [irmin-mirage-git], no shim is needed -- their
+upstream versions are already Lwt-typed.
+
+{1 Step 3 — change module references}
+
+Replace [Irmin] with [Irmin_lwt] in your code:
+
+{[
+- module S = Irmin_mem.KV.Make (Irmin.Contents.String)
++ module S = Irmin_lwt_mem.KV.Make (Irmin_lwt.Contents.String)
+]}
+
+Both module hierarchies have {b the same shape}: same module names,
+same operation names, same record fields. The only differences are:
+
+- Effectful operations return [Lwt.t] in [irmin-lwt], same as
+  Irmin 3. (Irmin 4 native is direct-style.)
+- A few configurations require Eio types directly ([Eio.Path.t],
+  [Eio.Time.clock], [Eio.Domain_manager.t]). These appear in
+  [Irmin_lwt_fs.config] and the advanced [Irmin_lwt_pack] surface
+  (GC, snapshots).
+
+In most cases your existing code compiles unchanged after the
+[Irmin →  Irmin_lwt] rename.
+
+{1 Step 4 — adjust configurations that take Eio types}
+
+Three places in [irmin-lwt] expose Eio types directly. Each needs a
+small change in your config-building code.
+
+{2 [irmin-lwt-fs]}
+
+Irmin 3:
+
+{[
+let config = Irmin_fs.config "/path/to/store"
+]}
+
+Irmin 4 via [irmin-lwt]:
+
+{[
+let config =
+  Irmin_lwt_fs.config
+    ~root:Eio.Path.(env#fs / "path" / "to" / "store")
+    ~clock:env#clock
+]}
+
+You need access to [env]; pass it through your closures from
+[Eio_main.run].
+
+{2 [irmin-lwt-pack]}
+
+Irmin 3:
+
+{[
+let config = Irmin_pack.config ~fresh:true "/path/to/pack"
+]}
+
+Irmin 4 via [irmin-lwt]:
+
+{[
+let config =
+  Irmin_pack.Conf.init ~sw ~fs ~fresh:true Eio.Path.(fs / path)
+]}
+
+(Where [sw] is from [Eio.Switch.run] and [fs] is [Eio.Stdenv.fs env].)
+
+{2 [irmin-lwt-pack] advanced surface}
+
+Operations that explicitly take Eio capabilities:
+
+{[
+val Gc.start_exn :
+  domain_mgr:_ Eio.Domain_manager.t -> ...
+val Gc.run :
+  domain_mgr:_ Eio.Domain_manager.t -> ...
+val create_one_commit_store :
+  domain_mgr:_ Eio.Domain_manager.t ->
+  ... ->
+  Eio.Fs.dir_ty Eio.Path.t -> ...
+]}
+
+Pass [Eio.Stdenv.domain_mgr env] and [Eio.Path.t] values through.
+
+{1 Step 5 — wire up the watch switch (only if you use watches)}
+
+If your application uses [Store.Watch.*] / [Store.Branch.watch], you
+must call [Irmin.Backend.Watch.set_watch_switch] {b once} before any
+watch operation:
+
+{[
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_watch_switch sw;
+  (* ... rest of the runner ... *)
+]}
+
+This is an upstream wart in Irmin 4 (the comment in [src/irmin/watch.ml]
+literally reads "a terrible hack that will need fixed"). Until it is
+fixed upstream, you set the switch yourself. Forgetting it produces a
+[Failure "Big Yikes"] at the first watch.
+
+{1 Step 6 — replace dropped entry points}
+
+A few Irmin entry points have been intentionally not forwarded by
+[irmin-lwt] (see {{!page-index} package overview} for rationale). If
+you used them, here are the workarounds:
+
+{2 [Irmin.Of_backend]}
+
+If you had a hand-rolled [Backend.S] in Lwt:
+
+{[
+module M = Irmin.Of_backend (My_backend)
+]}
+
+Choices:
+
++ Port [My_backend] to Irmin 4's direct-style [Backend.S] (Eio-typed)
+  and apply [Irmin.Of_backend] there, then re-wrap to Lwt:
+{[
+module M_eio = Irmin.Of_backend (My_backend_eio)
+include Irmin_lwt.Wrap_store.Make
+  (My_lwt_schema) (My_eio_schema) (M_eio)
+]}
++ Use a higher-level entry point ([Maker], [Generic_key.Maker], or
+  [Storage.Make]) if your backend can be expressed in those terms.
+
+{2 [Generic_key.Maker (X)] functor}
+
+Same options as above. The {e signature} [Generic_key.Maker] stays
+exposed; backends like [Irmin_lwt_pack.Maker] satisfy it directly via
+[Wrap_store.Make] without instantiating the [Generic_key.Maker]
+functor. Mirror that pattern for your own keyed backend.
+
+{1 Step 7 — verify with the test harness}
+
+[irmin-lwt-test] (under [src/irmin-lwt/test]) is a port of [irmin-test]
+patched to consume Lwt-typed stores. Application code that built test
+suites on top of [Irmin_test.Suite.create] can usually keep them
+unchanged after replacing [Irmin_test] with [Irmin_lwt_test.Irmin_test].
+The [test/irmin-lwt-mem/test.ml] file in this repository shows the
+expected runner setup.
+
+{1 Performance and runtime cost}
+
+Each effectful Irmin call now goes through [Lwt_eio.run_eio] (Lwt →
+Eio → Lwt). The bridge is cheap (one event-loop hop) but {e not free}.
+For most applications it is invisible. For high-throughput inner loops
+(e.g. millions of [find] calls per second), benchmark before and
+after.
+
+The watch infrastructure pays an extra cost: each event is dispatched
+on a fiber forked from the Eio switch you supplied to
+[set_watch_switch]. If you have many watchers and high throughput,
+expect noticeable overhead compared to plain Lwt watches in Irmin 3.
+
+{1 Common pitfalls}
+
+- {b Forgetting [Lwt_eio.with_event_loop]}: [Irmin_lwt] calls compile
+  but raise at runtime ("Eio: no scheduler running"). The error is
+  unmistakable; check your runner.
+- {b Forgetting [set_watch_switch]}: see step 5.
+- {b Mixing Lwt-typed and Eio-typed Irmin stores in the same
+  application}: technically possible, but they are separate [Repo.t]
+  values backed by separate state -- they do not see each other's
+  writes. Use one or the other for any given store, not both.
+- {b Using [irmin-mirage-git] expecting it to be Eio-typed}: it is
+  still Lwt-typed in Irmin 4 (the [Mirage_kv] interface forces it).
+  No conversion needed.
+
+{1 What if you cannot adopt Eio at all?}
+
+Stay on Irmin 3.11.x. It is the last release of the Lwt-native series
+and continues to receive critical fixes. The [irmin-lwt] family is for
+applications that {e can} run an Eio scheduler at the top level even
+if they prefer to keep their business logic in Lwt; it is not for
+applications that must remain entirely Lwt-native.

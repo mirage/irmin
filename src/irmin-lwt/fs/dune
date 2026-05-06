@@ -1,0 +1,4 @@
+(library
+ (name irmin_lwt_fs)
+ (public_name irmin-lwt-fs)
+ (libraries irmin irmin-fs irmin-fs.unix irmin-lwt lwt lwt_eio eio))

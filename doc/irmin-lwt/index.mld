@@ -1,0 +1,242 @@
+{0 [irmin-lwt]}
+
+The [irmin-lwt] package family provides a {b Lwt-flavoured API} on top
+of Irmin 4. It is intended for applications that have not migrated from
+[Lwt] to [Eio] but want to use the latest Irmin release.
+
+{e Release %%VERSION%% - %%HOMEPAGE%%}
+
+{1:big_warning Important: the main loop must be Eio}
+
+{b This is the central limitation of [irmin-lwt]. Read this before
+adopting it.}
+
+[irmin-lwt] is not a self-contained Lwt library. Internally every
+operation is a thin Lwt wrapper around Irmin 4's direct-style Eio
+implementation, bridged through {{:https://github.com/ocaml-multicore/lwt_eio}
+[lwt_eio]}. To use [irmin-lwt] you {b must run your program inside
+[Eio_main.run]} and start a [lwt_eio] event loop:
+
+{[
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_watch_switch sw;
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Lwt_main.run @@ fun () ->
+  (* your Lwt application code, freely calling Irmin_lwt.* APIs *)
+  ...
+]}
+
+The structure is fixed:
+
+- {b [Eio_main.run]} is the outermost call. This sets up the Eio
+  scheduler.
+- {b [Eio.Switch.run]} provides a switch needed by the Watch
+  infrastructure (see below).
+- {b [Lwt_eio.with_event_loop]} runs a Lwt event loop {e inside} the
+  Eio scheduler, so Lwt promises and Eio fibers can interleave.
+- {b [Lwt_main.run]} (or any normal Lwt entry point) starts your
+  application.
+
+You {b cannot} call [Irmin_lwt.*] from a program whose main loop is
+plain [Lwt_main.run] without an enclosing Eio scheduler. There is no
+way around it: every effectful Irmin operation eventually performs an
+[Eio.*] call, and [Eio.*] requires an active scheduler.
+
+If your application cannot be restructured this way (for instance
+because a host framework such as Cohttp or Mirage controls the main
+loop, and that framework has not been adapted to Eio yet), [irmin-lwt]
+is not the right tool. Stay on [Irmin 3] for now or migrate to [Eio]
+end-to-end.
+
+{2 Why this constraint?}
+
+Irmin 4's body is direct-style: store reads, writes, GC, sync, watches
+all use Eio primitives (mutexes, fibers, switches, IO). [irmin-lwt]
+wraps the {e API} with [Lwt.t] return types, but the underlying calls
+still need a running Eio scheduler. [lwt_eio] provides the bridge:
+[Lwt_eio.run_eio] turns an Eio direct call into a [Lwt.t]; conversely
+[Lwt_eio.Promise.await_lwt] turns a Lwt promise into a direct Eio
+result. Both require a [Lwt_eio.with_event_loop] block to be active.
+
+The watch infrastructure has an additional requirement: [Irmin.Backend.
+Watch.set_watch_switch] {b must} be called once with a live Eio switch
+before any watch operation. If your application uses watches, do this
+right after [Eio.Switch.run] and before [Lwt_eio.with_event_loop]. If
+you forget, the first watch operation raises [Failure "Big Yikes"]
+(yes, really -- it is a known upstream wart).
+
+{1 Packages}
+
+The package family lives under [src/irmin-lwt/]. Each backend is a
+separate opam package; depend on the ones you need.
+
+{2 Core: [irmin-lwt]}
+
+The base shim. Exposes {!module:Irmin_lwt} as a Lwt-flavoured
+re-export of the [Irmin] API: same module structure, same entry points
+([Maker], [KV_maker], [Generic_key.S], [Schema], [Contents], [Hash],
+etc.), but every effectful operation returns a [Lwt.t].
+
+{[
+val Irmin_lwt.Repo.v : config -> Irmin_lwt.repo Lwt.t
+val Irmin_lwt.set_exn : t -> path -> contents -> info:Info.f -> unit Lwt.t
+(* etc. *)
+]}
+
+{2 In-memory: [irmin-lwt-mem]}
+
+A Lwt-flavoured shim over Irmin 4's in-memory backend. The module
+{!module:Irmin_lwt_mem} provides [Maker], [KV], and [config]:
+
+{[
+module S = Irmin_lwt_mem.KV.Make (Irmin_lwt.Contents.String)
+let* repo = S.Repo.v (Irmin_lwt_mem.config ()) in
+let* t = S.main repo in
+let* () = S.set_exn t [ "k" ] "v" ~info:(fun () -> ...) in
+...
+]}
+
+{2 On-disk: [irmin-lwt-fs]}
+
+A Lwt shim over [irmin-fs.unix]. Stores trees and commits as ordinary
+files in a directory.
+
+{[
+let config =
+  Irmin_lwt_fs.config
+    ~root:Eio.Path.(env#fs / "_build" / "data")
+    ~clock:env#clock
+in
+module S = Irmin_lwt_fs.KV.Make (Irmin_lwt.Contents.String)
+let* repo = S.Repo.v config in
+...
+]}
+
+Note that the configuration takes Eio types ([Eio.Path.t],
+[Eio.Time.clock]) directly. This is unavoidable -- the shim does not
+hide Eio entirely. You obtain them from your [Eio_main.run] runner
+(typically [Eio.Stdenv.fs env] and [env#clock]).
+
+{2 Pack: [irmin-lwt-pack]}
+
+A Lwt shim over [irmin-pack-unix], the high-performance on-disk
+backend. Exposes the full surface: standard [Store.S] operations plus
+[integrity_check], [Gc.run], [Snapshot.export], [stats], etc., all
+[Lwt.t]-typed.
+
+{[
+module Conf = struct
+  let entries = 32
+  let stable_hash = 256
+  let contents_length_header = Some `Varint
+  let inode_child_order = `Seeded_hash
+  let forbid_empty_dir_persistence = true
+end
+
+module Maker = Irmin_lwt_pack.Maker (Conf)
+module S = Maker.Make (Irmin_lwt.Schema.KV (Irmin_lwt.Contents.String))
+]}
+
+{2 Chunk: [irmin-lwt-chunk]}
+
+A meta-backend that takes a Lwt-typed [Append_only.Maker] and produces
+a Lwt-typed [Content_addressable.Maker] storing values cut into
+fixed-size chunks. Useful for very large blobs.
+
+{[
+module CA = Irmin_lwt_chunk.Content_addressable (Irmin_lwt_mem.Append_only)
+module S =
+  Irmin_lwt.KV_maker (CA) (Irmin_lwt_mem.Atomic_write).Make
+    (Irmin_lwt.Contents.String)
+]}
+
+{2 Mergeable data structures: [irmin-lwt-containers]}
+
+Counter, Lww_register, Blob_log -- ready-to-use Lwt-typed CRDT-like
+data structures, parameterised over an [Irmin_lwt.KV_maker]. Linked_log
+is not yet ported.
+
+{[
+module C = Irmin_lwt_containers.Counter.Mem
+let* repo = C.Store.Repo.v (Irmin_lwt_mem.config ()) in
+let* t = C.Store.main repo in
+let* () = C.inc ~by:5L ~path:[ "n" ] t in
+let* v = C.read ~path:[ "n" ] t in (* v = 5L *)
+]}
+
+{2 Git: [irmin-lwt-git]}
+
+A Lwt shim over [irmin-git.unix]. Provides [Mem] and [FS] backends
+with [KV] / [Ref] convenience instantiations. Bidirectional
+compatibility with on-disk Git repositories is preserved.
+
+{[
+module S = Irmin_lwt_git.Mem.KV (Irmin_lwt.Contents.String)
+let* repo = S.Repo.v (Irmin_lwt_git.config "/some/path") in
+...
+let* git_commit_obj = S.git_commit repo head in
+]}
+
+{2 Tezos: [irmin-lwt-tezos]}
+
+A Lwt shim providing the Tezos-specific Irmin schema (BLAKE2B+Base58
+hash, V1 pre-hashing for Node / Commit / Contents) on top of
+[irmin-pack-unix]. {b On-disk data is wire-compatible with regular
+[irmin-tezos] data.}
+
+{[
+let* repo =
+  Irmin_lwt_tezos.Repo.v
+    (Irmin_pack.Conf.init ~sw ~fs ~fresh:true Eio.Path.(fs / "tezos-data"))
+in
+...
+]}
+
+{2 RPC client: [irmin-lwt-client]}
+
+A Lwt shim over [irmin-client.unix]. Connects to a running
+[irmin-server] over TCP/TLS/Unix-socket/WebSocket and exposes a
+Lwt-typed Store API. Useful when an Lwt application (e.g. an Ocsigen
+service) needs to access an Irmin repository hosted on another
+process.
+
+{[
+module Client = Irmin_lwt_client.Make (Irmin_lwt.Contents.String)
+let* repo = Client.connect (Uri.of_string "tcp://localhost:9181") in
+let* t = Client.main repo in
+let* () = Client.set_exn t [ "k" ] "v" ~info:(fun () -> ...) in
+...
+]}
+
+{1 What is {b not} supported}
+
+[irmin-lwt] does not cover the full Irmin sister-package family. See
+[src/irmin-lwt/LIMITATIONS.md] in the source tree for the canonical
+list, but the headline items are:
+
+- {b [Of_backend]}: not exposed. Routing a hand-rolled Lwt-typed
+  [Backend.S] through Irmin 4 would force a per-operation
+  Lwt → Eio → Lwt round-trip and add ~400 lines of glue code for no
+  user we know of. Backend authors who need this entry point can
+  build their backend against [Irmin]'s direct-style [Backend.S] and
+  re-wrap with [Irmin_lwt.Wrap_store.Make].
+- {b [Generic_key.Maker] (functor)}: same rationale as [Of_backend].
+  The {e module type} is exposed (so backends like [irmin-lwt-pack]
+  can declare their public signature against it); only the functor
+  implementation is gone.
+- {b [irmin-graphql]}: the upstream package is already Lwt-typed and
+  bridges to an Eio store internally. A [irmin-lwt-graphql] would
+  duplicate the bridging.
+- {b [irmin-mirage-git]}: the upstream package is {e already}
+  Lwt-typed in its public API ([Mirage_kv.RO] / [Mirage_kv.RW] are
+  Lwt). Lwt users should use it directly -- no shim needed.
+- {b [irmin-cli]}: a binary, not a library.
+- {b [irmin-server]}: standalone. Lwt apps consume it via
+  [irmin-lwt-client]; there is no need for a Lwt-typed server.
+
+{1 Migration guide}
+
+For applications moving from Irmin 3 (Lwt) to Irmin 4 via this shim,
+see {{!page-migration} the migration guide}.

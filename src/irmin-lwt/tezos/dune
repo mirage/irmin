@@ -1,0 +1,13 @@
+(library
+ (name irmin_lwt_tezos)
+ (public_name irmin-lwt-tezos)
+ (libraries
+  irmin
+  irmin-pack
+  irmin-pack.io
+  irmin-pack.unix
+  irmin-tezos
+  irmin-lwt
+  irmin-lwt-pack
+  lwt
+  lwt_eio))

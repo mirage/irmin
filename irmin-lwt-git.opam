@@ -1,0 +1,35 @@
+opam-version: "2.0"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "git+https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: [
+ ["dune" "subst"] {dev}
+ ["dune" "build" "-p" name "-j" jobs]
+ ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+depends: [
+  "ocaml"      {>= "5.1.0"}
+  "dune"       {>= "3.5.0"}
+  "irmin-git"  {= version}
+  "irmin-lwt"  {= version}
+  "lwt"        {>= "5.7.0"}
+  "lwt_eio"    {>= "0.5.1"}
+]
+
+synopsis: """
+Lwt-flavoured Git backend for irmin-lwt
+"""
+description: """
+A Lwt-flavoured shim over Irmin 4's irmin-git backend (Unix
+implementation). Exposes [Mem] and [FS] backends with [KV] / [Ref]
+convenience instantiations producing Lwt-typed Irmin stores. Useful for
+applications that want bi-directional Git compatibility while staying
+on a Lwt scheduler.
+"""
+x-maintenance-intent: [ "(latest)" ]
