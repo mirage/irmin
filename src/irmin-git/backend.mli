@@ -27,19 +27,20 @@ module Make
                 with type Hash.t = G.hash
                  and type Node.t = G.Value.Tree.t
                  and type Commit.t = G.Value.Commit.t) : sig
-  type t := bool ref * G.t
-
   include
     Irmin.Backend.S
       with module Schema = Schema
-      with type 'a Contents.t = t
-       and type 'a Node.t = t * t
-       and type 'a Commit.t = (t * t) * t
-       and type Contents.key = G.hash
+      with type Contents.key = G.hash
        and type Node.key = G.hash
        and type Commit.key = G.hash
        and type Remote.endpoint = Mimic.ctx * Smart_git.Endpoint.t
 
+  val contents_t : Repo.t -> 'a Contents.t
+  (** Like [Repo.contents_t] but returning a store handle usable for reads and
+      writes. *)
+
+  val node_t : Repo.t -> 'a Node.t
+  val commit_t : Repo.t -> 'a Commit.t
   val git_of_repo : Repo.t -> G.t
 
   val repo_of_git :

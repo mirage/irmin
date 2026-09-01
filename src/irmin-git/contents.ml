@@ -38,7 +38,7 @@ module Make (G : Git.S) (C : Irmin.Contents.S) = struct
       G.Value.blob (G.Value.Blob.of_string str)
   end
 
-  include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
+  include Content_addressable.Make (G) (V)
 
   module Val = struct
     include C
