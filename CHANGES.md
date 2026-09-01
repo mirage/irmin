@@ -13,6 +13,9 @@
   - Use the closeable-store functors from irmin instead of local copies:
     removed `Atomic_write.Check_closed` and `Content_addressable.Check_closed`
     (#1937, @kgkoutis)
+  - **Breaking**: `Backend.Make` no longer exposes the concrete store types for
+    `Contents.t`, `Node.t` and `Commit.t`; use the new `contents_t`, `node_t`
+    and `commit_t` accessors instead (#1937, @kgkoutis)
 
 ## 3.11.0 (2025-06-19)
 
