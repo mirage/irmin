@@ -1,3 +1,19 @@
+## Unreleased
+
+### Added
+
+- **irmin**
+  - Add `Content_addressable.Check_closed_store`, the canonical closeable-store
+    functor, with `make_closeable`, `make_closeable_with` and
+    `get_if_open_exn` (#1937, @kgkoutis)
+
+### Changed
+
+- **irmin-git**
+  - Use the closeable-store functors from irmin instead of local copies:
+    removed `Atomic_write.Check_closed` and `Content_addressable.Check_closed`
+    (#1937, @kgkoutis)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

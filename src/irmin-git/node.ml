@@ -200,5 +200,5 @@ module Store (G : Git.S) (P : Irmin.Path.S) = struct
     let of_git = function Git.Value.Tree t -> Some t | _ -> None
   end
 
-  include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
+  include Content_addressable.Make (G) (V)
 end
