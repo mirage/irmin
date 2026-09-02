@@ -786,6 +786,15 @@ module Broken = struct
 end
 
 let test_kind_empty_path () =
+  let kind_t : [ `Contents | `Node ] Irmin.Type.t =
+    let open Irmin.Type in
+    variant "kind" (fun contents node -> function
+      | `Contents -> contents
+      | `Node -> node)
+    |~ case0 "contents" `Contents
+    |~ case0 "node" `Node
+    |> sealv
+  in
   let cont = c "c" |> Tree.of_concrete in
   let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
   let k = Tree.kind cont [] in

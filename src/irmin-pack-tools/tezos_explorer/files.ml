@@ -116,7 +116,8 @@ module Make (Conf : Irmin_pack.Conf.S) (Schema : Irmin.Schema.Extended) = struct
         | Inode_v1_unstable | Inode_v1_stable | Commit_v1 -> assert false
         | Dangling_parent_commit | Commit_v2 -> `Commit
         | Contents -> `Contents
-        | Inode_v2_root | Inode_v2_nonroot -> `Inode
+        | Inode_v2_root | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
+            `Inode
       in
       on_entry off entry
     in

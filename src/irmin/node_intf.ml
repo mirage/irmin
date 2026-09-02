@@ -35,10 +35,13 @@ module type Core = sig
   type step [@@deriving irmin]
   (** The type for steps between nodes. *)
 
-  type value = [ `Node of node_key | `Contents of contents_key * metadata ]
+  type value =
+    [ `Node of node_key
+    | `Contents of contents_key * metadata
+    | `Contents_inlined of string * metadata ]
   [@@deriving irmin]
   (** The type for either (node) keys or (contents) keys combined with their
-      metadata. *)
+      metadata. [`Contents_inlined] holds small content values directly. *)
 
   type hash [@@deriving irmin]
   (** The type of hashes of values. *)
@@ -244,9 +247,6 @@ module type Store = sig
   module Path : Path.S
   (** [Path] provides base functions on node paths. *)
 
-  val merge : [> read_write ] t -> key option Merge.t
-  (** [merge] is the 3-way merge function for nodes keys. *)
-
   module Metadata : Metadata.S
   (** [Metadata] provides base functions for node metadata. *)
 
@@ -263,6 +263,9 @@ module type Store = sig
 
   module Contents : Contents.Store with type key = Val.contents_key
   (** [Contents] is the underlying contents store. *)
+
+  val merge : [> read_write ] t -> key option Merge.t
+  (** [merge] is the 3-way merge function for nodes keys. *)
 end
 
 module type Graph = sig
@@ -286,7 +289,10 @@ module type Graph = sig
   type path [@@deriving irmin]
   (** The type of store paths. A path is composed of {{!step} steps}. *)
 
-  type value = [ `Node of node_key | `Contents of contents_key * metadata ]
+  type value =
+    [ `Node of node_key
+    | `Contents of contents_key * metadata
+    | `Contents_inlined of string * metadata ]
   [@@deriving irmin]
   (** The type for store values. *)
 

@@ -110,9 +110,9 @@ module Make (S : Generic_key) = struct
       let test1 () =
         let foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
-        let k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
-        let k2 = with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) in
-        let k3 = with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) in
+        let k1 = with_node repo (fun g () -> Graph.v g [ ("b", normal foo) ]) in
+        let k2 = with_node repo (fun g () -> Graph.v g [ ("a", `Node k1) ]) in
+        let k3 = with_node repo (fun g () -> Graph.v g [ ("c", `Node k1) ]) in
         let nodes = [ `Contents foo_k; `Node k1; `Node k2; `Node k3 ] in
         visited := [];
         test_rev_order ~nodes ~max:[ k2; k3 ];
@@ -135,7 +135,7 @@ module Make (S : Generic_key) = struct
            contents. *)
         let foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
-        let k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
+        let k1 = with_node repo (fun g () -> Graph.v g [ ("b", normal foo) ]) in
         visited := [];
         test_rev_order ~nodes:[ `Contents foo_k; `Node k1 ] ~max:[ k1 ];
         visited := [];
@@ -147,12 +147,20 @@ module Make (S : Generic_key) = struct
       let test3 () =
         let foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
-        let kb1 = with_node repo (fun g -> Graph.v g [ ("b1", normal foo) ]) in
-        let ka1 = with_node repo (fun g -> Graph.v g [ ("a1", `Node kb1) ]) in
-        let ka2 = with_node repo (fun g -> Graph.v g [ ("a2", `Node kb1) ]) in
-        let kb2 = with_node repo (fun g -> Graph.v g [ ("b2", normal foo) ]) in
+        let kb1 =
+          with_node repo (fun g () -> Graph.v g [ ("b1", normal foo) ])
+        in
+        let ka1 =
+          with_node repo (fun g () -> Graph.v g [ ("a1", `Node kb1) ])
+        in
+        let ka2 =
+          with_node repo (fun g () -> Graph.v g [ ("a2", `Node kb1) ])
+        in
+        let kb2 =
+          with_node repo (fun g () -> Graph.v g [ ("b2", normal foo) ])
+        in
         let kc =
-          with_node repo (fun g ->
+          with_node repo (fun g () ->
               Graph.v g
                 [ ("c1", `Node ka1); ("c2", `Node ka2); ("c3", `Node kb2) ])
         in

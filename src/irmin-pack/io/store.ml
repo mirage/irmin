@@ -169,6 +169,12 @@ struct
         let branch_t t = t.branch
         let config t = t.config
 
+        let inline_contents_max_bytes t =
+          let c = config t in
+          if Irmin_pack.Conf.inline_contents c then
+            Irmin_pack.Conf.inline_contents_max_bytes c
+          else 0
+
         let v config =
           let sw = Conf.switch config in
           let fs = Conf.fs config in
@@ -481,10 +487,15 @@ struct
         let close t =
           (* Step 1 - Kill the gc process if it is running *)
           let _ = Gc.unsafe_cancel t in
-          (* Step 2 - Close the files *)
+          (* Step 2 - Flush any pending data (only for read-write stores) *)
+          let () =
+            if not (File_manager.readonly t.fm) then
+              File_manager.flush t.fm |> Errs.raise_if_error
+          in
+          (* Step 3 - Close the files *)
           let () = File_manager.close t.fm |> Errs.raise_if_error in
           Branch.close t.branch;
-          (* Step 3 - Close the in-memory abstractions *)
+          (* Step 4 - Close the in-memory abstractions *)
           (* Dict.close t.dict; *)
           Contents.CA.close (contents_t t);
           Node.CA.close (snd (node_t t));
@@ -514,6 +525,8 @@ struct
       let check ~kind ~offset ~length k =
         match kind with
         | `Contents -> X.Contents.CA.integrity_check ~offset ~length k contents
+        | `Contents_inlined ->
+            X.Contents.CA.integrity_check ~offset ~length k contents
         | `Node -> X.Node.CA.integrity_check ~offset ~length k nodes
         | `Commit -> X.Commit.CA.integrity_check ~offset ~length k commits
       in
@@ -565,19 +578,25 @@ struct
               let preds = X.Node.CA.Val.pred v in
               let () =
                 preds
-                |> List.map (function
-                  | s, `Contents h -> (s, `Contents (XKey.to_hash h))
-                  | s, `Inode h -> (s, `Inode (XKey.to_hash h))
-                  | s, `Node h -> (s, `Node (XKey.to_hash h)))
+                |> List.filter_map (function
+                  | s, `Contents h -> Some (s, `Contents (XKey.to_hash h))
+                  | s, `Inode h -> Some (s, `Inode (XKey.to_hash h))
+                  | s, `Node h -> Some (s, `Node (XKey.to_hash h))
+                  | _, `Contents_inlined _ ->
+                      (* Inlined contents don't have their own key *)
+                      None)
                 |> Stats.visit_node t (XKey.to_hash k) ~width ~nb_children
               in
-              List.rev_map
+              List.filter_map
                 (function
                   | s, `Inode x ->
                       assert (s = None);
-                      `Node x
-                  | _, `Node x -> `Node x
-                  | _, `Contents x -> `Contents x)
+                      Some (`Node x)
+                  | _, `Node x -> Some (`Node x)
+                  | _, `Contents x -> Some (`Contents x)
+                  | _, `Contents_inlined _ ->
+                      (* Inlined contents don't have their own pack entry *)
+                      None)
                 preds
         in
         (* We are traversing only one commit. *)
@@ -731,6 +750,8 @@ struct
           let f_nodes x = f (Inode x) in
           match root_key with
           | `Contents _ -> Fmt.failwith "[root_key] cannot be of type contents"
+          | `Contents_inlined _ ->
+              Fmt.failwith "[root_key] cannot be of type inlined contents"
           | `Node key ->
               let total =
                 Export.run ?on_disk export f_contents f_nodes

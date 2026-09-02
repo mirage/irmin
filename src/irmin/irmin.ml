@@ -114,6 +114,7 @@ module Maker_generic_key (Backend : Maker_generic_key_args) = struct
         let commit_t t = t.commits
         let branch_t t = t.branch
         let config t = t.config
+        let inline_contents_max_bytes _ = 0
 
         let batch ?lock:_ t f =
           Contents.Backend.batch t.contents @@ fun c ->
@@ -181,6 +182,7 @@ struct
 end
 
 module Of_backend = Store.Make
+module Tree = Tree
 
 module type Tree = Tree.S
 module type S = Store.S

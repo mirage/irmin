@@ -97,6 +97,12 @@ module type S = sig
     val commit_t : t -> read Commit.t
     val config : t -> Conf.t
 
+    val inline_contents_max_bytes : t -> int
+    (** Maximum serialized size (in bytes) for content values to be inlined
+        directly within node entries. Returns [0] if inlining is disabled.
+        Backends that support inlining should read this from their
+        configuration. *)
+
     val batch :
       ?lock:bool ->
       t ->

@@ -1454,6 +1454,7 @@ module Split = struct
     let root = create_from_v2_always_test_env ~fs () in
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~fs ~readonly:false ~fresh:false ~root () in
+    (* This test uses version_2_to_3_always store which has the original commit hash *)
     let _c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
     let t, _c1 = commit_1 t in
     let f () = S.split t.repo in
