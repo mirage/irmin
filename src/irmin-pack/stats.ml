@@ -96,8 +96,7 @@ module Inode = struct
       | Inode_encode_bin ->
           { v with inode_encode_bin = succ v.inode_encode_bin }
     in
-    let mut = Metrics.Replace f in
-    Metrics.update pack mut
+    Metrics.update pack f
 end
 
 type t = { inode : Inode.stat }

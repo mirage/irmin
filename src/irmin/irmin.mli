@@ -290,7 +290,6 @@ type 'a diff = 'a Diff.t
     message, using the combinator exposed by {!Irmin.Type}:
 
     {[
-    open Lwt.Infix
     open Astring
 
     let time = ref 0L
@@ -409,47 +408,44 @@ type 'a diff = 'a Diff.t
     let log_file = [ "local"; "debug" ]
 
     let all_logs t =
-      Store.find t log_file >|= function None -> Log.empty | Some l -> l
+      match Store.find t log_file with None -> Log.empty | Some l -> l
 
     (** Persist a new entry in the log. Pretty inefficient as it reads/writes
         the whole file every time. *)
     let log t fmt =
       Printf.ksprintf
         (fun message ->
-          all_logs t >>= fun logs ->
+          let logs = all_logs t in
           let logs = Log.add logs (Entry.v message) in
           Store.set_exn t ~info:(info "Adding a new entry") log_file logs)
         fmt
 
     let print_logs name t =
-      all_logs t >|= fun logs ->
+      let logs = all_logs t in
       Fmt.pr "-----------\n%s:\n-----------\n%a%!" name (Irmin.Type.pp Log.t)
         logs
 
     let main () =
       Config.init ();
-      Store.Repo.v config >>= fun repo ->
-      Store.main repo >>= fun t ->
+      let repo = Store.Repo.v config in
+      let t = Store.main repo in
       (* populate the log with some random messages *)
-      Lwt_list.iter_s
+      List.iter
         (fun msg -> log t "This is my %s " msg)
-        [ "first"; "second"; "third" ]
-      >>= fun () ->
+        [ "first"; "second"; "third" ];
       Printf.printf "%s\n\n" what;
-      print_logs "lca" t >>= fun () ->
-      Store.clone ~src:t ~dst:"test" >>= fun x ->
-      log x "Adding new stuff to x" >>= fun () ->
-      log x "Adding more stuff to x" >>= fun () ->
-      log x "More. Stuff. To x." >>= fun () ->
-      print_logs "branch 1" x >>= fun () ->
-      log t "I can add stuff on t also" >>= fun () ->
-      log t "Yes. On t!" >>= fun () ->
-      print_logs "branch 2" t >>= fun () ->
-      Store.merge_into ~info:(info "Merging x into t") x ~into:t >>= function
+      print_logs "lca" t;
+      let x = Store.clone ~src:t ~dst:"test" in
+      log x "Adding new stuff to x";
+      log x "Adding more stuff to x";
+      log x "More. Stuff. To x.";
+      print_logs "branch 1" x;
+      log t "I can add stuff on t also";
+      log t "Yes. On t!";
+      print_logs "branch 2" t;
+      match Store.merge_into ~info:(info "Merging x into t") x ~into:t with
       | Ok () -> print_logs "merge" t
       | Error _ -> failwith "conflict!"
-
-    let () = Lwt_main.run (main ())
     ]} *)
 
 (** {2 Synchronization} *)
@@ -476,7 +472,6 @@ module Sync = Sync
     The complete code for the following can be found in [examples/sync.ml].
 
     {[
-    open Lwt.Infix
     module S = Irmin_unix.Git.FS.KV (Irmin.Contents.String)
     module Sync = Irmin.Sync (S)
 
@@ -490,11 +485,11 @@ module Sync = Sync
         exit 1)
 
     let test () =
-      S.Repo.v config >>= S.main >>= fun t ->
-      Sync.pull_exn t upstream `Set >>= fun () ->
-      S.get t [ "README.md" ] >|= fun r -> Printf.printf "%s\n%!" r
-
-    let () = Lwt_main.run (test ())
+      let repo = S.Repo.v config in
+      let t = S.main repo in
+      Sync.pull_exn t upstream `Set;
+      let r = S.get t [ "README.md" ] in
+      Printf.printf "%s\n%!" r
     ]} *)
 
 (** {1 Helpers} *)

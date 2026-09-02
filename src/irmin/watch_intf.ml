@@ -82,7 +82,9 @@ module type Sigs = sig
   (** [none] is the hooks which asserts false. *)
 
   val set_watch_switch : Eio.Switch.t -> unit
-  (** A terrible hack that will need fixed... *)
+  (** Set the Eio switch used to fork watch notification fibers. Must be called
+      before any watch operation. This global state is a workaround until the
+      switch can be threaded through the store API (e.g. via [Repo.v]). *)
 
   val set_listen_dir_hook : hook -> unit
   (** Register a function which looks for file changes in a directory and return
