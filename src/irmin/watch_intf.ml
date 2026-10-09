@@ -76,7 +76,9 @@ module type Sigs = sig
       notification currently active. *)
 
   type hook = int -> string -> (string -> unit) -> unit -> unit
-  (** The type for watch hooks. *)
+  (** The type for watch hooks. [h id dir f] starts watching the directory
+      [dir], calls [f] with the path of every changed file relative to [dir],
+      and returns a function to stop watching. *)
 
   val none : hook
   (** [none] is the hooks which asserts false. *)
@@ -87,7 +89,23 @@ module type Sigs = sig
   val set_listen_dir_hook : hook -> unit
   (** Register a function which looks for file changes in a directory and return
       a function to stop watching. It is probably best to use
-      {!Irmin_watcher.hook} there. By default, it uses {!none}. *)
+      {!set_listen_dir_eio_hook} with [Irmin_watcher.hook] there. By default, it
+      uses {!none}. *)
+
+  type eio_hook =
+    int -> Eio.Fs.dir_ty Eio.Path.t -> (string -> unit) -> unit -> unit
+  (** The type for watch hooks on Eio paths. Like {!hook}, the callback receives
+      paths relative to the watched directory. *)
+
+  val set_listen_dir_eio_hook :
+    sw:Eio.Switch.t -> Eio.Fs.dir_ty Eio.Path.t -> eio_hook -> unit
+  (** [set_listen_dir_eio_hook ~sw fs h] is {!set_listen_dir_hook} for the hook
+      [h] on Eio paths, such as [Irmin_watcher.hook w], and also sets
+      {!set_watch_switch} to [sw]. The directories to watch are resolved
+      relative to [fs], usually [Eio.Stdenv.fs env]: a capability restricted to
+      a directory, such as [Eio.Stdenv.cwd env], may refuse absolute paths. [sw]
+      is usually the switch of the watcher behind [h]. [sw] and that watcher
+      must outlive the watches. *)
 
   (** [Make] builds an implementation of watch helpers. *)
   module Make (K : Type.S) (V : Type.S) :

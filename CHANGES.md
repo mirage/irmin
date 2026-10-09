@@ -9,6 +9,11 @@
   - `notty` is now optional, as it does not support OCaml 5.4 yet. Without
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
+- Use irmin-watcher 0.6, whose watchers are values created with
+  `Irmin_watcher.v ~sw ()`. Register them with the new
+  `Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw`, which also sets the
+  switch of watch notifications. `Irmin_cli` installs its watcher in
+  `Irmin_cli.run` instead of when it is loaded (@balat)
 
 ## 3.11.0 (2025-06-19)
 

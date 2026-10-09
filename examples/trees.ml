@@ -67,6 +67,4 @@ let main () =
   let vv = tree_of_t tt in
   Store.set_tree_exn t ~info:(info "merge tree into a/b") [ "a"; "b" ] vv
 
-let () =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+let () = Config.run main

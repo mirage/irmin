@@ -21,8 +21,6 @@ module Graphql = Irmin_graphql_unix
 
 type eio = Import.eio
 
-let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
-
 let info (type a) (module S : Irmin.Generic_key.S with type Schema.Info.t = a)
     ?(author = "irmin") fmt =
   let module Info = Info.Make (S.Info) in
@@ -974,8 +972,9 @@ let commands = List.map create_command (help :: common_commands)
 let run ~default:x y =
   Eio_main.run @@ fun env ->
   Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook;
   Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw (Eio.Stdenv.fs env)
+    (Irmin_watcher.hook (Irmin_watcher.v ~sw ()));
   let env =
     object
       method cwd = Eio.Stdenv.cwd env
