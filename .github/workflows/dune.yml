@@ -15,5 +15,9 @@ jobs:
       - name: Use dune
         uses: ocaml-dune/setup-dune@fd640f52b2a84d68cd4867cb5972247b70630d1a
         with:
-          version: latest
+          # setup-dune's `latest` is the latest dune-bin release (3.21.0),
+          # which lags behind opam: it cannot read dune-workspace.for-ci
+          # (dune 3.22) nor handle our pin-depends. Pin a release here once
+          # one can.
+          version: nightly
           workspace: dune-workspace.for-ci
