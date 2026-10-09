@@ -6,6 +6,7 @@ More specifically, for Irmin, a Merkle proof is the subset of a tree stored in a
 
 ### Setting up a Bank
 
+<!-- $MDX skip -->
 ```ocaml
 # #require "eio_main";;
 # #require "digestif.ocaml";;
@@ -15,14 +16,15 @@ More specifically, for Irmin, a Merkle proof is the subset of a tree stored in a
 # #require "mirage-sleep.unix";;
 # #require "irmin";;
 # #require "irmin-git.unix";;
-# #require "ppx_irmin";;
 ```
 
 First, create an irmin-unix store module which uses `int` as contents.
 
 ```ocaml
 module Contents = struct
-  type t = int [@@deriving irmin]
+  type t = int
+
+  let t = Irmin.Type.int
 
   let merge = Irmin.(Merge.idempotent Type.(option int))
 end
