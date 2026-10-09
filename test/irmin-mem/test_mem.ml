@@ -16,5 +16,5 @@
 
 let store = Irmin_test.store (module Irmin_mem) (module Irmin.Metadata.None)
 let config = Irmin_mem.config ()
-let init ~config:_ = Lwt.return_unit
+let init ~config:_ = ()
 let suite = Irmin_test.Suite.create ~name:"MEM" ~init ~store ~config ()

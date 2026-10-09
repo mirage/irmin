@@ -33,13 +33,13 @@ module type S = sig
   [@@deriving irmin]
   (** The type for exported values. *)
 
-  val empty : unit -> t Lwt.t
+  val empty : unit -> t
   (** Create a new empty slice. *)
 
-  val add : t -> value -> unit Lwt.t
+  val add : t -> value -> unit
   (** [add t v] adds [v] to [t]. *)
 
-  val iter : t -> (value -> unit Lwt.t) -> unit Lwt.t
+  val iter : t -> (value -> unit) -> unit
   (** [iter t f] calls [f] on all values of [t]. *)
 end
 

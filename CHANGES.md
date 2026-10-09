@@ -1,3 +1,9 @@
+## 4.0.0
+
+### Changed
+
+- Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

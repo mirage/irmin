@@ -21,13 +21,6 @@ type read = Perms.read
 type write = Perms.write
 type read_write = Perms.read_write
 
-(** {2 Lwt syntax} *)
-
-include Lwt.Syntax
-
-let ( >>= ) = Lwt.Infix.( >>= )
-let ( >|= ) = Lwt.Infix.( >|= )
-
 (** {2 Dependency extensions} *)
 
 module Option = struct

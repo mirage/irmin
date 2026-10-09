@@ -19,10 +19,10 @@ open! Import
 module type S = sig
   include Irmin.Indexable.S
 
-  val add : 'a t -> value -> key Lwt.t
+  val add : 'a t -> value -> key
   (** Overwrite [add] to work with a read-only database handler. *)
 
-  val unsafe_add : 'a t -> hash -> value -> key Lwt.t
+  val unsafe_add : 'a t -> hash -> value -> key
   (** Overwrite [unsafe_add] to work with a read-only database handler. *)
 
   val index_direct : _ t -> hash -> key option

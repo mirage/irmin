@@ -17,10 +17,7 @@ TEST test_irmin_value_json(void) {
   PASS();
 }
 
-TEST test_irmin_store(void) {
-  // Setup config
-  AUTO IrminConfig *config = irmin_config_git_mem(NULL);
-
+TEST test_irmin_store(IrminConfig *config) {
   // Initialize repo and store
   AUTO IrminRepo *repo = irmin_repo_new(config);
   AUTO Irmin *store = irmin_main(repo);
@@ -104,6 +101,16 @@ TEST test_irmin_store(void) {
   PASS();
 }
 
+TEST test_irmin_store_git(void) {
+  AUTO IrminConfig *config = irmin_config_git_mem(NULL);
+  return test_irmin_store(config);
+}
+
+TEST test_irmin_store_fs(void) {
+  AUTO IrminConfig *config = irmin_config_fs("sha1", "string");
+  return test_irmin_store(config);
+}
+
 TEST test_irmin_tree(void) {
   // Setup config
   AUTO IrminConfig *config = irmin_config_mem(NULL, NULL);
@@ -158,7 +165,9 @@ int main(int argc, char *argv[]) {
   GREATEST_MAIN_BEGIN();
   irmin_log_level("error");
   RUN_TEST(test_irmin_value_json);
-  RUN_TEST(test_irmin_store);
+  RUN_TEST(test_irmin_store_git);
+  RUN_TEST(test_irmin_store_fs);
   RUN_TEST(test_irmin_tree);
+  caml_shutdown();
   GREATEST_MAIN_END();
 }

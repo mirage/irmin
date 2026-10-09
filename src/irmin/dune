@@ -10,7 +10,9 @@
   jsonm
   logs
   logs.fmt
-  lwt
+  eio
+  kcas
+  kcas_data
   mtime
   ocamlgraph
   uri

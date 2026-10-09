@@ -38,8 +38,7 @@ module Make (S : Generic_key) = struct
       let node k =
         if mem (`Node k) !visited then
           Alcotest.failf "node %a visited twice" (Irmin.Type.pp B.Node.Key.t) k;
-        visited := `Node k :: !visited;
-        Lwt.return_unit
+        visited := `Node k :: !visited
       in
       let contents ?order k =
         let e = `Contents (k, S.Metadata.default) in
@@ -48,13 +47,12 @@ module Make (S : Generic_key) = struct
             (Irmin.Type.pp B.Contents.Key.t)
             k;
         (match order with None -> () | Some f -> f e);
-        visited := e :: !visited;
-        Lwt.return_unit
+        visited := e :: !visited
       in
       let test_rev_order ~nodes ~max =
         let oldest = List.hd nodes in
         let contents = contents ~order:(rev_order oldest) in
-        let+ () =
+        let () =
           Graph.iter (g repo) ~min:[] ~max ~node ~contents ~rev:true ()
         in
         List.iter
@@ -68,7 +66,7 @@ module Make (S : Generic_key) = struct
       let test_in_order ~nodes ~max =
         let oldest = List.hd nodes in
         let contents = contents ~order:(in_order oldest) in
-        let+ () =
+        let () =
           Graph.iter (g repo) ~min:[] ~max ~node ~contents ~rev:false ()
         in
         List.iter
@@ -81,10 +79,10 @@ module Make (S : Generic_key) = struct
         let skip_node k =
           if mem (`Node k) to_skip then (
             skipped := `Node k :: !skipped;
-            Lwt.return_true)
-          else Lwt.return_false
+            true)
+          else false
         in
-        let+ () =
+        let () =
           Graph.iter (g repo) ~min:[] ~max ~node ~contents ~skip_node ~rev:false
             ()
         in
@@ -100,8 +98,7 @@ module Make (S : Generic_key) = struct
           not_visited
       in
       let test_min_max ~nodes ~min ~max ~not_visited =
-        Graph.iter (g repo) ~min ~max ~node ~contents ~rev:false ()
-        >|= fun () ->
+        Graph.iter (g repo) ~min ~max ~node ~contents ~rev:false () |> fun () ->
         List.iter
           (fun k ->
             if mem k not_visited && mem k !visited then
@@ -111,22 +108,21 @@ module Make (S : Generic_key) = struct
           nodes
       in
       let test1 () =
-        let* foo = with_contents repo (fun c -> B.Contents.add c "foo") in
+        let foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
-        let* k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
-        let* k2 = with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) in
-        let* k3 = with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) in
+        let k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
+        let k2 = with_node repo (fun g -> Graph.v g [ ("a", `Node k1) ]) in
+        let k3 = with_node repo (fun g -> Graph.v g [ ("c", `Node k1) ]) in
         let nodes = [ `Contents foo_k; `Node k1; `Node k2; `Node k3 ] in
         visited := [];
-        test_rev_order ~nodes ~max:[ k2; k3 ] >>= fun () ->
+        test_rev_order ~nodes ~max:[ k2; k3 ];
         visited := [];
-        test_in_order ~nodes ~max:[ k2; k3 ] >>= fun () ->
+        test_in_order ~nodes ~max:[ k2; k3 ];
         visited := [];
         skipped := [];
-        test_skip ~max:[ k2; k3 ] ~to_skip:[ `Node k1 ] ~not_visited:[]
-        >>= fun () ->
+        test_skip ~max:[ k2; k3 ] ~to_skip:[ `Node k1 ] ~not_visited:[];
         visited := [];
-        let* () =
+        let () =
           test_min_max ~nodes ~min:[ k1 ] ~max:[ k2 ]
             ~not_visited:[ `Contents foo_k; `Node k3 ]
         in
@@ -137,12 +133,11 @@ module Make (S : Generic_key) = struct
       let test2 () =
         (* Graph.iter requires a node as max, we cannot test a graph with only
            contents. *)
-        let* foo = with_contents repo (fun c -> B.Contents.add c "foo") in
+        let foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
-        let* k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
+        let k1 = with_node repo (fun g -> Graph.v g [ ("b", normal foo) ]) in
         visited := [];
-        test_rev_order ~nodes:[ `Contents foo_k; `Node k1 ] ~max:[ k1 ]
-        >>= fun () ->
+        test_rev_order ~nodes:[ `Contents foo_k; `Node k1 ] ~max:[ k1 ];
         visited := [];
         skipped := [];
         test_skip ~max:[ k1 ]
@@ -150,13 +145,13 @@ module Make (S : Generic_key) = struct
           ~not_visited:[ `Contents foo_k ]
       in
       let test3 () =
-        let* foo = with_contents repo (fun c -> B.Contents.add c "foo") in
+        let foo = with_contents repo (fun c -> B.Contents.add c "foo") in
         let foo_k = (foo, S.Metadata.default) in
-        let* kb1 = with_node repo (fun g -> Graph.v g [ ("b1", normal foo) ]) in
-        let* ka1 = with_node repo (fun g -> Graph.v g [ ("a1", `Node kb1) ]) in
-        let* ka2 = with_node repo (fun g -> Graph.v g [ ("a2", `Node kb1) ]) in
-        let* kb2 = with_node repo (fun g -> Graph.v g [ ("b2", normal foo) ]) in
-        let* kc =
+        let kb1 = with_node repo (fun g -> Graph.v g [ ("b1", normal foo) ]) in
+        let ka1 = with_node repo (fun g -> Graph.v g [ ("a1", `Node kb1) ]) in
+        let ka2 = with_node repo (fun g -> Graph.v g [ ("a2", `Node kb1) ]) in
+        let kb2 = with_node repo (fun g -> Graph.v g [ ("b2", normal foo) ]) in
+        let kc =
           with_node repo (fun g ->
               Graph.v g
                 [ ("c1", `Node ka1); ("c2", `Node ka2); ("c3", `Node kb2) ])
@@ -172,25 +167,25 @@ module Make (S : Generic_key) = struct
           ]
         in
         visited := [];
-        test_rev_order ~nodes ~max:[ kc ] >>= fun () ->
+        test_rev_order ~nodes ~max:[ kc ];
         visited := [];
-        test_in_order ~nodes ~max:[ kc ] >>= fun () ->
+        test_in_order ~nodes ~max:[ kc ];
         visited := [];
         skipped := [];
-        let* () =
+        let () =
           test_skip ~max:[ kc ]
             ~to_skip:[ `Node ka1; `Node ka2 ]
             ~not_visited:[ `Node kb1 ]
         in
         visited := [];
         skipped := [];
-        let* () =
+        let () =
           test_skip ~max:[ kc ]
             ~to_skip:[ `Node ka1; `Node ka2; `Node kb2 ]
             ~not_visited:[ `Node kb1; `Contents foo_k ]
         in
         visited := [];
-        let* () =
+        let () =
           test_min_max ~nodes ~min:[ kb1 ] ~max:[ ka1 ]
             ~not_visited:[ `Contents foo_k; `Node ka2; `Node kb2; `Node kc ]
         in
@@ -199,9 +194,10 @@ module Make (S : Generic_key) = struct
           ~not_visited:
             [ `Contents foo_k; `Node kb1; `Node ka1; `Node ka2; `Node kb2 ]
       in
-      test1 () >>= fun () ->
-      test2 () >>= fun () ->
-      test3 () >>= fun () -> B.Repo.close repo
+      test1 ();
+      test2 ();
+      test3 ();
+      B.Repo.close repo
     in
     run x test
 

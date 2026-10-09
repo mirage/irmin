@@ -28,11 +28,7 @@ module type Sigs = sig
     include Irmin.Atomic_write.S with type key = K.t and type value = G.Hash.t
 
     val v :
-      ?lock:Lwt_mutex.t ->
-      head:G.Reference.t option ->
-      bare:bool ->
-      G.t ->
-      t Lwt.t
+      ?lock:Eio.Mutex.t -> head:G.Reference.t option -> bare:bool -> G.t -> t
   end
 
   module Check_closed (S : Irmin.Atomic_write.S) : sig

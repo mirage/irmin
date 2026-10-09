@@ -26,6 +26,6 @@ module Maker (K : Irmin.Hash.S) : sig
          and type key = K.t
          and type value = Val.t
 
-    val v : string -> read t Lwt.t
+    val v : string -> read t
   end
 end

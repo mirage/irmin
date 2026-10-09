@@ -10,3 +10,6 @@ _opam
 .#*
 .*.swp
 **/.DS_Store
+examples/irmin_example
+irmin-pack-example
+dune.lock/

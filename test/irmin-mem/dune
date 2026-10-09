@@ -1,12 +1,12 @@
 (library
  (name test_mem)
  (modules test_mem)
- (libraries irmin irmin-test irmin.mem lwt))
+ (libraries irmin irmin-test irmin.mem))
 
 (executable
  (name test)
  (modules test)
- (libraries alcotest lwt.unix irmin-test test_mem))
+ (libraries alcotest eio_main irmin-test test_mem))
 
 (rule
  (alias runtest)

@@ -36,13 +36,13 @@ module type S = sig
   (** [pp_status] pretty-prints return statuses. *)
 
   val fetch :
-    db -> ?depth:int -> Remote.t -> (status, [ `Msg of string ]) result Lwt.t
+    db -> ?depth:int -> Remote.t -> (status, [ `Msg of string ]) result
   (** [fetch t ?depth r] populate the local store [t] with objects from the
       remote store [r], using [t]'s current branch. The [depth] parameter limits
       the history depth. Return [`Empty] if either the local or remote store do
       not have a valid head. *)
 
-  val fetch_exn : db -> ?depth:int -> Remote.t -> status Lwt.t
+  val fetch_exn : db -> ?depth:int -> Remote.t -> status
   (** Same as {!fetch} but raise [Invalid_argument] if either the local or
       remote store do not have a valid head. *)
 
@@ -57,7 +57,7 @@ module type S = sig
     ?depth:int ->
     Remote.t ->
     [ `Merge of unit -> info | `Set ] ->
-    (status, pull_error) result Lwt.t
+    (status, pull_error) result
   (** [pull t ?depth r s] is similar to {{!Sync.fetch} fetch} but it also
       updates [t]'s current branch. [s] is the update strategy:
 
@@ -65,11 +65,7 @@ module type S = sig
       - [`Set] uses [S.Head.set]. *)
 
   val pull_exn :
-    db ->
-    ?depth:int ->
-    Remote.t ->
-    [ `Merge of unit -> info | `Set ] ->
-    status Lwt.t
+    db -> ?depth:int -> Remote.t -> [ `Merge of unit -> info | `Set ] -> status
   (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
 
   type push_error = [ `Msg of string | `Detached_head ]
@@ -78,7 +74,7 @@ module type S = sig
   val pp_push_error : push_error Fmt.t
   (** [pp_push_error] pretty-prints push errors. *)
 
-  val push : db -> ?depth:int -> Remote.t -> (status, push_error) result Lwt.t
+  val push : db -> ?depth:int -> Remote.t -> (status, push_error) result
   (** [push t ?depth r] populates the remote store [r] with objects from the
       current store [t], using [t]'s current branch. If [b] is [t]'s current
       branch, [push] also updates the head of [b] in [r] to be the same as in
@@ -87,7 +83,7 @@ module type S = sig
       {b Note:} {e Git} semantics is to update [b] only if the new head if more
       recent. This is not the case in {e Irmin}. *)
 
-  val push_exn : db -> ?depth:int -> Remote.t -> status Lwt.t
+  val push_exn : db -> ?depth:int -> Remote.t -> status
   (** Same as {!push} but raise [Invalid_argument] if an error happens. *)
 end
 

@@ -109,14 +109,17 @@ module Server =
 let main () =
   Config.init ();
   let config = Irmin_git.config Config.root in
-  let* repo = Store.Repo.v config in
+  let repo = Store.Repo.v config in
   let server = Server.v repo in
   let src = "localhost" in
   let port = 9876 in
+  Lwt_eio.run_lwt @@ fun () ->
   let* ctx = Conduit_lwt_unix.init ~src () in
   let ctx = Cohttp_lwt_unix.Net.init ~ctx () in
   let on_exn exn = Printf.printf "on_exn: %s" (Printexc.to_string exn) in
   Printf.printf "Visit GraphiQL @ http://%s:%d/graphql\n%!" src port;
   Cohttp_lwt_unix.Server.create ~on_exn ~ctx ~mode:(`TCP (`Port port)) server
 
-let () = Lwt_main.run (main ())
+let () =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()

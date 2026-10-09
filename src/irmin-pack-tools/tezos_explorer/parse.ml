@@ -68,8 +68,8 @@ let dump_idxs fd n is is2 =
 
 let get_values r = List.filter_map (Ring.get r) [ 1; 10; 1000 ]
 
-let main store_path info_last_path info_next_path idx_path =
-  let conf = Irmin_pack.Conf.init store_path in
+let main ~sw ~fs store_path info_last_path info_next_path idx_path =
+  let conf = Irmin_pack.Conf.init ~sw ~fs Eio.Path.(fs / store_path) in
   match Files.File_manager.open_ro conf with
   | Error exn -> Fmt.pr "%a\n%!" (Irmin.Type.pp Files.Errs.t) exn
   | Ok fm ->
@@ -136,6 +136,3 @@ let main store_path info_last_path info_next_path idx_path =
       in
       dump_idxs idx_fd entries (List.rev !idxs) !idxs2;
       Unix.close idx_fd
-
-let main store_path info_last_path info_next_path index_path =
-  main store_path info_last_path info_next_path index_path

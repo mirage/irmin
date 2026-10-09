@@ -42,7 +42,7 @@ module type S = sig
   include
     Irmin.Content_addressable.S with type key = Key.t and type value = Value.t
 
-  val v : unit -> read t Lwt.t
+  val v : unit -> read t
 end
 
 module Append_only = Irmin_mem.Append_only

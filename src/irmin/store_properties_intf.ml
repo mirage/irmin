@@ -19,7 +19,7 @@ open Import
 module type Batch = sig
   type 'a t
 
-  val batch : read t -> ([ read | write ] t -> 'a Lwt.t) -> 'a Lwt.t
+  val batch : read t -> ([ read | write ] t -> 'a) -> 'a
   (** [batch t f] applies the writes in [f] in a separate batch. The exact
       guarantees depend on the implementation. *)
 end
@@ -27,7 +27,7 @@ end
 module type Closeable = sig
   type 'a t
 
-  val close : 'a t -> unit Lwt.t
+  val close : 'a t -> unit
   (** [close t] frees up all the resources associated with [t]. Any operations
       run on a closed handle will raise [Closed]. *)
 end
@@ -35,7 +35,7 @@ end
 module type Of_config = sig
   type 'a t
 
-  val v : Conf.t -> read t Lwt.t
+  val v : Conf.t -> read t
   (** [v config] is a function returning fresh store handles, with the
       configuration [config], which is provided by the backend. *)
 end
@@ -43,7 +43,7 @@ end
 module type Clearable = sig
   type 'a t
 
-  val clear : 'a t -> unit Lwt.t
+  val clear : 'a t -> unit
   (** Clear the store. This operation is expected to be slow. *)
 end
 

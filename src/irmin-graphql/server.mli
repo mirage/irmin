@@ -31,7 +31,7 @@ module type S = sig
 
   val execute_request :
     unit Schema.schema ->
-    Cohttp_lwt.Request.t ->
+    Cohttp.Request.t ->
     Cohttp_lwt.Body.t ->
     response_action Lwt.t
 
@@ -42,7 +42,8 @@ end
 module type CONFIG = sig
   type info
 
-  val remote : (?headers:Cohttp.Header.t -> string -> Irmin.remote Lwt.t) option
+  val remote :
+    (?headers:Cohttp.Header.t -> string -> unit -> Irmin.remote) option
 
   val info :
     ?author:string -> ('a, Format.formatter, unit, unit -> info) format4 -> 'a
@@ -56,7 +57,8 @@ module type CUSTOM_TYPE = sig
   val arg_typ : t option Schema.Arg.arg_typ
 end
 
-(** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch). *)
+(** GraphQL types for Irmin concepts (key, metadata, contents, hash and branch).
+*)
 module type CUSTOM_TYPES = sig
   type path
   type metadata
@@ -104,15 +106,16 @@ module Make_ext
     (Server : Cohttp_lwt.S.Server)
     (Config : CONFIG)
     (Store : Irmin.Generic_key.S with type Schema.Info.t = Config.info)
-    (Types : CUSTOM_TYPES
-               with type path := Store.path
-                and type metadata := Store.metadata
-                and type contents := Store.contents
-                and type hash := Store.hash
-                and type branch := Store.branch
-                and type commit_key := Store.commit_key
-                and type contents_key := Store.contents_key
-                and type node_key := Store.node_key) :
+    (Types :
+      CUSTOM_TYPES
+        with type path := Store.path
+         and type metadata := Store.metadata
+         and type contents := Store.contents
+         and type hash := Store.hash
+         and type branch := Store.branch
+         and type commit_key := Store.commit_key
+         and type contents_key := Store.contents_key
+         and type node_key := Store.node_key) :
   S
     with type repo = Store.repo
      and type server = Server.t

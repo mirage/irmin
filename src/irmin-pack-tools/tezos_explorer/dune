@@ -12,6 +12,7 @@
   index.unix
   hex
   ptime
-  cmdliner)
+  cmdliner
+  eio_main)
  (preprocess
   (pps ppx_repr)))

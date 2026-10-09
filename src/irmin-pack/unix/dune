@@ -1,20 +1,22 @@
 (library
  (public_name irmin-pack.unix)
  (name irmin_pack_unix)
+ (optional)
  (libraries
   fmt
   index
   index.unix
   irmin
-  irmin-pack
+  irmin-pack.io
   logs
-  lwt
-  lwt.unix
+  eio
   mtime
+  mtime.clock.os
+  progress
   cmdliner
   optint
   checkseum
-  checkseum.ocaml
+  checkseum.c
   rusage)
  (preprocess
   (pps ppx_irmin.internal))

@@ -14,4 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () = Irmin_cli.(run commands)
+let () = Irmin_cli.(run ~default commands)

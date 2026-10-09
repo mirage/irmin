@@ -31,15 +31,15 @@ module Inode = struct
     | Inode_encode_bin
 
   type t = {
-    mutable inode_add : int;
-    mutable inode_remove : int;
-    mutable inode_of_seq : int;
-    mutable inode_of_raw : int;
-    mutable inode_rec_add : int;
-    mutable inode_rec_remove : int;
-    mutable inode_to_binv : int;
-    mutable inode_decode_bin : int;
-    mutable inode_encode_bin : int;
+    inode_add : int;
+    inode_remove : int;
+    inode_of_seq : int;
+    inode_of_raw : int;
+    inode_rec_add : int;
+    inode_rec_remove : int;
+    inode_to_binv : int;
+    inode_decode_bin : int;
+    inode_encode_bin : int;
   }
   [@@deriving irmin]
 
@@ -59,16 +59,20 @@ module Inode = struct
     }
 
   let clear m =
-    let v = Metrics.state m in
-    v.inode_add <- 0;
-    v.inode_remove <- 0;
-    v.inode_of_seq <- 0;
-    v.inode_of_raw <- 0;
-    v.inode_rec_add <- 0;
-    v.inode_rec_remove <- 0;
-    v.inode_to_binv <- 0;
-    v.inode_decode_bin <- 0;
-    v.inode_encode_bin <- 0
+    let v =
+      {
+        inode_add = 0;
+        inode_remove = 0;
+        inode_of_seq = 0;
+        inode_of_raw = 0;
+        inode_rec_add = 0;
+        inode_rec_remove = 0;
+        inode_to_binv = 0;
+        inode_decode_bin = 0;
+        inode_encode_bin = 0;
+      }
+    in
+    Metrics.set_state m v
 
   let init () =
     let initial_state = create_inode () in
@@ -79,17 +83,20 @@ module Inode = struct
   let update ~field pack =
     let f v =
       match field with
-      | Inode_add -> v.inode_add <- succ v.inode_add
-      | Inode_remove -> v.inode_remove <- succ v.inode_remove
-      | Inode_of_seq -> v.inode_of_seq <- succ v.inode_of_seq
-      | Inode_of_raw -> v.inode_of_raw <- succ v.inode_of_raw
-      | Inode_rec_add -> v.inode_rec_add <- succ v.inode_rec_add
-      | Inode_rec_remove -> v.inode_rec_remove <- succ v.inode_rec_remove
-      | Inode_to_binv -> v.inode_to_binv <- succ v.inode_to_binv
-      | Inode_decode_bin -> v.inode_decode_bin <- succ v.inode_decode_bin
-      | Inode_encode_bin -> v.inode_encode_bin <- succ v.inode_encode_bin
+      | Inode_add -> { v with inode_add = succ v.inode_add }
+      | Inode_remove -> { v with inode_remove = succ v.inode_remove }
+      | Inode_of_seq -> { v with inode_of_seq = succ v.inode_of_seq }
+      | Inode_of_raw -> { v with inode_of_raw = succ v.inode_of_raw }
+      | Inode_rec_add -> { v with inode_rec_add = succ v.inode_rec_add }
+      | Inode_rec_remove ->
+          { v with inode_rec_remove = succ v.inode_rec_remove }
+      | Inode_to_binv -> { v with inode_to_binv = succ v.inode_to_binv }
+      | Inode_decode_bin ->
+          { v with inode_decode_bin = succ v.inode_decode_bin }
+      | Inode_encode_bin ->
+          { v with inode_encode_bin = succ v.inode_encode_bin }
     in
-    let mut = Metrics.Mutate f in
+    let mut = Metrics.Replace f in
     Metrics.update pack mut
 end
 

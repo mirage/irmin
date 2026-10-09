@@ -14,12 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-val default_artefacts_dir : string
-val prepare_artefacts_dir : string -> unit
+module Mtime : module type of Import.Mtime
+
+val default_artefacts_dir : Eio.Fs.dir_ty Eio.Path.t -> Eio.Fs.dir_ty Eio.Path.t
+val prepare_artefacts_dir : Eio.Fs.dir_ty Eio.Path.t -> unit
 val reporter : ?prefix:string -> unit -> Logs.reporter
 val setup_log : Fmt.style_renderer option -> Logs.level option -> unit
 val reset_stats : unit -> unit
-val with_timer : (unit -> 'a Lwt.t) -> (float * 'a) Lwt.t
+val with_timer : (unit -> 'a) -> float * 'a
 
 val with_progress_bar :
   message:string -> n:int -> unit:string -> ((int -> unit) -> 'a) -> 'a
@@ -34,17 +36,17 @@ module Conf : Irmin_pack.Conf.S
 module Schema : Irmin.Schema.S
 
 module FSHelper : sig
-  val rm_dir : string -> unit
-  val get_size : string -> int
+  val rm_dir : Eio.Fs.dir_ty Eio.Path.t -> unit
+  val get_size : Eio.Fs.dir_ty Eio.Path.t -> int
 end
 
 module Generate_trees
     (Store : Irmin.Generic_key.KV with type Schema.Contents.t = bytes) : sig
-  val add_chain_trees : int -> int -> Store.tree -> Store.tree Lwt.t
+  val add_chain_trees : int -> int -> Store.tree -> Store.tree
   (** [add_chain_trees depth nb tree] adds [nb] random contents to [tree],
       depthwise. *)
 
-  val add_large_trees : int -> int -> Store.tree -> Store.tree Lwt.t
+  val add_large_trees : int -> int -> Store.tree -> Store.tree
   (** [add_large_trees width nb tree] adds [nb] random contents to [tree],
       breadthwise. *)
 end

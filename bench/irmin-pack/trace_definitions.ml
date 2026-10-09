@@ -226,7 +226,8 @@ module Stat_trace = struct
       store_pack : int64;
     }
     [@@deriving repr]
-    (** Stats extracted from filesystem. Requires the path to the irmin store. *)
+    (** Stats extracted from filesystem. Requires the path to the irmin store.
+    *)
 
     type 'pack_stats bag_of_stats_base = {
       pack : 'pack_stats;

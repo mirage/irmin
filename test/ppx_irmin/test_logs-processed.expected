@@ -45,18 +45,14 @@ let () =
        | Logs.Warning -> "Warning"
        | Logs.Info -> "Info"
        | Logs.Debug -> "Debug") in
-  let report _src level ~over  k msgf =
+  let report _src level ~over k msgf =
     let k _ = over (); k () in
     msgf @@
-      (fun ?header:_ ->
-         fun ?(tags= Logs.Tag.empty) ->
-           fun fmt ->
-             let source_pos =
-               Logs.Tag.find Ppx_irmin_internal_lib.Source_code_position.tag
-                 tags in
-             (let open Fmt in kpf k stdout)
-               ("[%a] [%a] @[" ^^ (fmt ^^ "@]@.")) (Fmt.option pp_source_pos)
-               source_pos pp_level level) in
+      (fun ?header:_ ?(tags= Logs.Tag.empty) fmt ->
+         let source_pos =
+           Logs.Tag.find Ppx_irmin_internal_lib.Source_code_position.tag tags in
+         (let open Fmt in kpf k stdout) ("[%a] [%a] @[" ^^ (fmt ^^ "@]@."))
+           (Fmt.option pp_source_pos) source_pos pp_level level) in
   Logs.set_reporter { Logs.report = report };
   Logs.set_level (Some Debug);
   test ()
