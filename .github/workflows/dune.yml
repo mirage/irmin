@@ -15,4 +15,5 @@ jobs:
       - name: Use dune
         uses: ocaml-dune/setup-dune@fd640f52b2a84d68cd4867cb5972247b70630d1a
         with:
+          version: latest
           workspace: dune-workspace.for-ci
