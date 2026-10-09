@@ -19,4 +19,12 @@ let root = "/tmp/irmin/test"
 let init () =
   let _ = Sys.command (Printf.sprintf "rm -rf %s" root) in
   let _ = Sys.command (Printf.sprintf "mkdir -p %s" root) in
-  Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook
+  ()
+
+let run main =
+  Eio_main.run @@ fun env ->
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw (Eio.Stdenv.fs env)
+    (Irmin_watcher.hook (Irmin_watcher.v ~sw ()));
+  main ()

@@ -31,7 +31,9 @@ val commands : command list
 (** List of available sub-commands. *)
 
 val run : default:term -> command list -> unit
-(** Create a command-line tool with the given subcommands. *)
+(** Create a command-line tool with the given subcommands. It runs the Eio and
+    Lwt_eio event loops, and sets up irmin-watcher to notify watches of the
+    changes made by other processes. *)
 
 (** {2 Command-builder helper} *)
 

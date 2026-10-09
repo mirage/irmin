@@ -31,7 +31,15 @@ let watch_switch = ref None
 type hook = int -> string -> (string -> unit) -> unit -> unit
 
 let set_listen_dir_hook (h : hook) = listen_dir_hook := h
+
+type eio_hook =
+  int -> Eio.Fs.dir_ty Eio.Path.t -> (string -> unit) -> unit -> unit
+
 let set_watch_switch sw = watch_switch := Some sw
+
+let set_listen_dir_eio_hook ~sw fs (h : eio_hook) =
+  set_watch_switch sw;
+  set_listen_dir_hook (fun id dir f -> h id Eio.Path.(fs / dir) f)
 
 let id () =
   let c = ref 0 in
