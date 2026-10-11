@@ -117,7 +117,11 @@ let agree_test_eio ~count ~domain_mgr ~fs ~sw =
   TT.agree_test_par ~domain_mgr ~count ~name:"Irmin test parallel"
 
 let () =
-  let count = 100 in
+  let count =
+    match Sys.getenv_opt "IRMIN_STM_PACK_ITER" with
+    | Some s -> int_of_string s
+    | None -> 100
+  in
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let domain_mgr = Eio.Stdenv.domain_mgr env in
