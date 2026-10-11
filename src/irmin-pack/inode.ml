@@ -2406,11 +2406,10 @@ struct
   let decode_bin_length = Inter.Raw.decode_bin_length
 
   let protect_from_invalid_depth_exn f =
-    try f () with
-    | Invalid_depth { expected; got; v } ->
-        let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
-        Error msg
-    | e -> raise e
+    try f ()
+    with Invalid_depth { expected; got; v } ->
+      let msg = Fmt.to_to_string pp_invalid_depth (expected, got, v) in
+      Error msg
 
   let integrity_check_inodes t k =
     protect_from_invalid_depth_exn @@ fun () ->

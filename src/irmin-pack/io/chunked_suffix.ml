@@ -85,22 +85,26 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     val count : t -> int
     (** [count t] is the number of chunks *)
   end = struct
-    type t = { mutable chunks : chunk Array.t }
+    type t = { chunks : chunk Array.t Atomic.t }
 
     exception OpenInventoryError of open_error
 
-    let v num create = { chunks = Array.init num create }
-    let appendable t = Array.get t.chunks (Array.length t.chunks - 1)
+    let v num create = { chunks = Atomic.make (Array.init num create) }
+
+    let appendable t =
+      let chunks = Atomic.get t.chunks in
+      Array.get chunks (Array.length chunks - 1)
 
     let find ~off t =
       let open Int63.Syntax in
+      let chunks = Atomic.get t.chunks in
       let suffix_off_to_chunk_poff c = off - c.suffix_off in
       let find c =
         let end_poff = Ao.end_poff c.ao in
         let poff = suffix_off_to_chunk_poff c in
         Int63.zero <= poff && poff < end_poff
       in
-      match Array.find_opt find t.chunks with
+      match Array.find_opt find chunks with
       | None -> raise (Errors.Pack_error `Read_out_of_bounds)
       | Some c -> (c, suffix_off_to_chunk_poff c)
 
@@ -111,12 +115,13 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     let is_legacy chunk_idx = chunk_idx = 0
 
     let fold f acc t =
+      let chunks = Atomic.get t.chunks in
       let appendable_idx = (appendable t).idx in
       Array.fold_left
         (fun acc chunk ->
           let is_appendable = chunk.idx = appendable_idx in
           f ~acc ~is_appendable ~chunk)
-        acc t.chunks
+        acc chunks
 
     let open_ ~start_idx ~chunk_num ~open_chunk =
       let off_acc = ref Int63.zero in
@@ -137,9 +142,10 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
         Error (err : open_error :> [> open_error ])
 
     let close t =
+      let chunks = Atomic.get t.chunks in
       (* Close immutable chunks, ignoring errors. *)
       let _ =
-        Array.sub t.chunks 0 (Array.length t.chunks - 1)
+        Array.sub chunks 0 (Array.length chunks - 1)
         |> Array.iter @@ fun chunk ->
            let _ = Ao.close chunk.ao in
            ()
@@ -164,8 +170,9 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
       let* ao =
         open_chunk ~chunk_idx:idx ~is_legacy ~is_appendable:false |> wrap_error
       in
-      let pos = Array.length t.chunks - 1 in
-      t.chunks.(pos) <- { last_chunk with ao };
+      let chunks = Atomic.get t.chunks in
+      let pos = Array.length chunks - 1 in
+      chunks.(pos) <- { last_chunk with ao };
       Ok length
 
     let create_appendable_chunk ~open_chunk t suffix_off =
@@ -182,15 +189,17 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
       let* chunk =
         create_appendable_chunk ~open_chunk t next_suffix_off |> wrap_error
       in
-      t.chunks <- Array.append t.chunks [| chunk |];
+      Atomic.set t.chunks (Array.append (Atomic.get t.chunks) [| chunk |]);
       Ok ()
 
     let length t =
       let open Int63.Syntax in
-      Array.fold_left (fun sum c -> sum + Ao.end_poff c.ao) Int63.zero t.chunks
+      Array.fold_left
+        (fun sum c -> sum + Ao.end_poff c.ao)
+        Int63.zero (Atomic.get t.chunks)
 
-    let count t = Array.length t.chunks
-    let start_idx t = t.chunks.(0).idx
+    let count t = Array.length (Atomic.get t.chunks)
+    let start_idx t = (Atomic.get t.chunks).(0).idx
   end
 
   type t = {

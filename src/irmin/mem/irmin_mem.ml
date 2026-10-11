@@ -42,7 +42,9 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
 
   let v =
     let cache : (string, 'a t) Hashtbl.t = Hashtbl.create 0 in
+    let lock = Eio.Mutex.create () in
     fun config ->
+      Eio.Mutex.lock lock;
       let root = Conf.root config in
       let t =
         match Hashtbl.find_opt cache root with
@@ -52,6 +54,7 @@ module Read_only (K : Irmin.Type.S) (V : Irmin.Type.S) = struct
             t
         | Some t -> t
       in
+      Eio.Mutex.unlock lock;
       t
 
   let clear t =

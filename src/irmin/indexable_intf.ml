@@ -36,9 +36,8 @@ module type S_without_key_impl = sig
   val index : [> read ] t -> hash -> key option
   (** Indexing maps the hash of a value to a corresponding key of that value in
       the store. For stores that are addressed by hashes directly, this is
-      typically [fun _t h -> Lwt.return (Key.of_hash h)]; for stores with more
-      complex addressing schemes, [index] may attempt a lookup operation in the
-      store.
+      typically [fun _t h -> Key.of_hash h]; for stores with more complex
+      addressing schemes, [index] may attempt a lookup operation in the store.
 
       In general, indexing is best-effort and reveals no information about the
       membership of the value in the store. In particular:

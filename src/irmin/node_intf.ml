@@ -120,9 +120,8 @@ module type Core = sig
   (** Some [Node] implementations (like [irmin-pack]'s inodes) can represent a
       node as a set of nodes. One operation on such "high-level" node
       corresponds to a sequence of recursive calls to the underlying
-      "lower-level" nodes. Note: theses [effects] are not in the Lwt monad on
-      purpose (so [Tree.hash] and [Tree.equal] are not in the Lwt monad as
-      well). *)
+      "lower-level" nodes. Note: these [effects] are direct-style (not in any
+      monad), so [Tree.hash] and [Tree.equal] are also direct-style. *)
 
   type read_effect := expected_depth:int -> node_key -> t option
   (** The type for read effects. *)

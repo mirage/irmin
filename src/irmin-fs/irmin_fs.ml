@@ -354,13 +354,19 @@ module IO_mem = struct
   type lock = Eio.Mutex.t
 
   let locks = Hashtbl.create 10
+  let global_lock = Eio.Mutex.create ()
 
   let lock_file ~io:() file =
-    try Hashtbl.find locks file
-    with Not_found ->
-      let l = Eio.Mutex.create () in
-      Hashtbl.add locks file l;
-      l
+    Eio.Mutex.lock global_lock;
+    let l =
+      try Hashtbl.find locks file
+      with Not_found ->
+        let l = Eio.Mutex.create () in
+        Hashtbl.add locks file l;
+        l
+    in
+    Eio.Mutex.unlock global_lock;
+    l
 
   let with_lock ~io:() l f =
     match l with None -> f () | Some l -> Eio.Mutex.use_rw ~protect:false l f

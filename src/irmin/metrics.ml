@@ -34,16 +34,11 @@ type 'a t = {
 let state m = Atomic.get m.state
 let set_state m v = Atomic.set m.state v
 
-type 'a update_mode = Mutate of ('a -> unit) | Replace of ('a -> 'a)
-
 let v : type a.
     ?origin:origin -> name:string -> initial_state:a -> a Repr.ty -> a t =
  fun ?origin ~name ~initial_state repr ->
   { uid = uid (); origin; name; repr; state = Atomic.make initial_state }
 
-let rec update m kind =
+let rec update m f =
   let old = Atomic.get m.state in
-  match kind with
-  | Mutate f -> f old
-  | Replace f ->
-      if not @@ Atomic.compare_and_set m.state old (f old) then update m kind
+  if not @@ Atomic.compare_and_set m.state old (f old) then update m f
