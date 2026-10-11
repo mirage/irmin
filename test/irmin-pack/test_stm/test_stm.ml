@@ -70,7 +70,11 @@ let agree_test_eio ~count ~domain_mgr =
   TT.agree_test_par ~domain_mgr ~count ~name:"Irmin test parallel"
 
 let () =
-  let count = 500 in
+  let count =
+    match Sys.getenv_opt "IRMIN_STM_ITER" with
+    | Some s -> int_of_string s
+    | None -> 500
+  in
   Eio_main.run @@ fun env ->
   let domain_mgr = Eio.Stdenv.domain_mgr env in
   QCheck_base_runner.run_tests_main [ agree_test_eio ~count ~domain_mgr ]

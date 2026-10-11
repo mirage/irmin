@@ -1,0 +1,29 @@
+(executable
+ (name main)
+ (modules
+  main
+  stress_common
+  stress_ao_buf
+  stress_dict
+  stress_mem_cache
+  stress_watch
+  stress_fs_pool)
+ (libraries
+  eio_main
+  irmin
+  irmin.mem
+  irmin-pack.io
+  irmin-pack.unix
+  irmin-fs.unix))
+
+; Run each scenario in a fresh process so a race that corrupts memory
+; and triggers a SEGV in one scenario does not prevent the others from
+; running. Each scenario writes TSan reports to tsan-report.<pid>, and
+; the outer workflow aggregates all of them.
+
+(rule
+ (alias tsan-stress)
+ (deps main.exe)
+ (action
+  (bash
+   "./main.exe mem || true; ./main.exe watch || true; ./main.exe ao || true; ./main.exe dict || true; ./main.exe fs || true")))

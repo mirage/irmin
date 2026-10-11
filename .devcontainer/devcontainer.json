@@ -1,0 +1,21 @@
+{
+  "name": "Irmin TSan development",
+  "image": "ghcr.io/tarides/ocaml-devcontainer-tsan:latest",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+  },
+  "postStartCommand": "bash /home/vscode/.fix-tsan-aslr.sh || true",
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=dune-cache,target=/home/vscode/.cache/dune,type=volume"
+  ],
+  "remoteEnv": {
+    "DUNE_CACHE_ROOT": "/home/vscode/.cache/dune",
+    "EIO_BACKEND": "posix"
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  }
+}
