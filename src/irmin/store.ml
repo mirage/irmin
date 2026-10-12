@@ -79,7 +79,10 @@ module Make (B : Backend.S) = struct
           | `Contents (h, m) -> (
               match B.Contents.index (B.Repo.contents_t r) h with
               | None -> None
-              | Some k -> Some (`Contents (k, m))))
+              | Some k -> Some (`Contents (k, m)))
+          | `Contents_inlined (bytes, m) ->
+              (* Inlined contents don't have a key, return None *)
+              Some (`Contents_inlined (bytes, m)))
 
     let of_key r k = import r k
 
@@ -92,13 +95,21 @@ module Make (B : Backend.S) = struct
           match B.Contents.index (B.Repo.contents_t r) h with
           | None -> None
           | Some k -> of_key r (`Contents (k, m)))
+      | `Contents_inlined (bytes, m) ->
+          (* Reconstruct tree from inlined bytes *)
+          Some (import_no_check r (`Contents_inlined (bytes, m)))
 
     let shallow r h = import_no_check r h
     let kinded_hash = hash
 
     let hash : ?cache:bool -> t -> hash =
      fun ?cache tr ->
-      match hash ?cache tr with `Node h -> h | `Contents (h, _) -> h
+      match hash ?cache tr with
+      | `Node h -> h
+      | `Contents (h, _) -> h
+      | `Contents_inlined (bytes, _) ->
+          (* For inlined contents, compute hash from bytes *)
+          B.Hash.hash (fun f -> f bytes)
 
     let pp = Type.pp t
   end
@@ -111,7 +122,7 @@ module Make (B : Backend.S) = struct
   type commit = { r : repo; key : commit_key; v : B.Commit.value }
   type hash = Hash.t [@@deriving irmin ~equal ~pp ~compare]
   type node = Tree.node [@@deriving irmin]
-  type contents = Contents.t [@@deriving irmin ~equal]
+  type contents = Tree.contents [@@deriving irmin ~equal]
   type metadata = Metadata.t [@@deriving irmin]
   type tree = Tree.t [@@deriving irmin ~pp]
   type path = Path.t [@@deriving irmin ~pp]
@@ -153,10 +164,10 @@ module Make (B : Backend.S) = struct
 
   let save_tree ?(clear = true) r x y (tr : Tree.t) =
     match Tree.destruct tr with
-    | `Contents (c, _) ->
+    | `Contents (c, m) ->
         let c = Tree.Contents.force_exn c in
         let k = save_contents x c in
-        `Contents k
+        `Contents (k, m)
     | `Node n ->
         let k = Tree.export ~clear r x y n in
         `Node k
@@ -362,19 +373,23 @@ module Make (B : Backend.S) = struct
       [ `Commit of commit_key
       | `Node of node_key
       | `Contents of contents_key
+      | `Contents_inlined of contents_key
       | `Branch of B.Branch.Key.t ]
     [@@deriving irmin]
 
     let return_false _ = false
     let default_pred_contents _ _ = []
+    let default_pred_contents_inlined _ _ = []
 
     let default_pred_node t k =
       match B.Node.find (node_t t) k with
       | None -> []
       | Some v ->
-          List.rev_map
+          List.filter_map
             (function
-              | _, `Node n -> `Node n | _, `Contents (c, _) -> `Contents c)
+              | _, `Node n -> Some (`Node n)
+              | _, `Contents (c, _) -> Some (`Contents c)
+              | _, `Contents_inlined _ -> None)
             (B.Node.Val.list v)
 
     let default_pred_commit t c =
@@ -404,18 +419,21 @@ module Make (B : Backend.S) = struct
         | `Commit x -> commit x
         | `Node x -> node x
         | `Contents x -> contents x
+        | `Contents_inlined x -> contents x
         | `Branch x -> branch x
       in
       let skip = function
         | `Commit x -> skip_commit x
         | `Node x -> skip_node x
         | `Contents x -> skip_contents x
+        | `Contents_inlined x -> skip_contents x
         | `Branch x -> skip_branch x
       in
       let pred = function
         | `Commit x -> pred_commit t x
         | `Node x -> pred_node t x
         | `Contents x -> pred_contents t x
+        | `Contents_inlined x -> pred_contents t x
         | `Branch x -> pred_branch t x
       in
       KGraph.iter ?cache_size ~pred ~min ~max ~node ?edge ~skip ~rev ()
@@ -429,12 +447,14 @@ module Make (B : Backend.S) = struct
         | `Commit x -> commit x
         | `Node x -> node x
         | `Contents x -> contents x
+        | `Contents_inlined x -> contents x
         | `Branch x -> branch x
       in
       let pred = function
         | `Commit x -> pred_commit t x
         | `Node x -> pred_node t x
         | `Contents x -> pred_contents t x
+        | `Contents_inlined x -> pred_contents t x
         | `Branch x -> pred_branch t x
       in
       KGraph.breadth_first_traversal ?cache_size ~pred ~max ~node ()
@@ -699,8 +719,9 @@ module Make (B : Backend.S) = struct
     aux 0
 
   let root_tree = function
-    | `Node _ as n -> Tree.v n
+    | `Node n -> Tree.v (`Node n)
     | `Contents _ -> assert false
+    | `Contents_inlined _ -> assert false
 
   let add_commit t old_head ((c, _) as tree) =
     match t.head_ref with
@@ -915,13 +936,7 @@ module Make (B : Backend.S) = struct
   let get_tree t k = tree t |> fun tree -> Tree.get_tree tree k
 
   let key t k =
-    match find_tree t k with
-    | None -> None
-    | Some tree -> (
-        match Tree.key tree with
-        | Some (`Contents (key, _)) -> Some (`Contents key)
-        | Some (`Node key) -> Some (`Node key)
-        | None -> None)
+    match find_tree t k with None -> None | Some tree -> Tree.key tree
 
   let hash t k =
     match find_tree t k with None -> None | Some tree -> Some (Tree.hash tree)

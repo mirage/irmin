@@ -644,7 +644,7 @@ module Make (P : Backend.S) = struct
       in
       if depth >= max_depth then clear_info_fields i
 
-    and clear ~max_depth depth t =
+    and clear ~max_depth depth (t : t) =
       clear_info ~v:(Atomic.get t.v) ~max_depth depth t.info
 
     (* export t to the given repo and clear the cache *)
@@ -726,6 +726,16 @@ module Make (P : Backend.S) = struct
           let t ~env repo = function
             | `Node k -> `Node (of_key ~env repo k)
             | `Contents (k, m) -> `Contents (Contents.of_key ~env repo k, m)
+            | `Contents_inlined (bytes, m) ->
+                (* Deserialize the inlined bytes back to a content value *)
+                let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+                let contents_value =
+                  match of_bin bytes with
+                  | Ok v -> v
+                  | Error (`Msg e) ->
+                      failwith ("Failed to deserialize inlined contents: " ^ e)
+                in
+                `Contents (Contents.of_value ~env contents_value, m)
         end)
 
     module Portable_value =
@@ -737,6 +747,16 @@ module Make (P : Backend.S) = struct
           let t ~env () = function
             | `Node h -> `Node (pruned ~env h)
             | `Contents (h, m) -> `Contents (Contents.pruned ~env h, m)
+            | `Contents_inlined (bytes, m) ->
+                (* Deserialize the inlined bytes back to a content value *)
+                let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+                let contents_value =
+                  match of_bin bytes with
+                  | Ok v -> v
+                  | Error (`Msg e) ->
+                      failwith ("Failed to deserialize inlined contents: " ^ e)
+                in
+                `Contents (Contents.of_value ~env contents_value, m)
         end)
 
     (** This [Scan] module contains function that scan the content of [t.v] and
@@ -928,6 +948,7 @@ module Make (P : Backend.S) = struct
     let weaken_value : node_value -> pnode_value = function
       | `Contents (key, m) -> `Contents (P.Contents.Key.to_hash key, m)
       | `Node key -> `Node (P.Node.Key.to_hash key)
+      | `Contents_inlined (bytes, m) -> `Contents_inlined (bytes, m)
 
     let set_hash_cache ~cache t hash =
       let (_ : bool) =
@@ -976,32 +997,36 @@ module Make (P : Backend.S) = struct
       in
       if must_build_portable_node then
         let pnode =
-          bindings
-          |> Seq.map (fun (step, v) ->
-              match v with
-              | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
-              | `Node n -> hash ~cache n (fun k -> (step, `Node k)))
-          |> Portable.of_seq
+          let seq =
+            bindings
+            |> Seq.map (fun (step, v) ->
+                match v with
+                | `Contents (c, m) -> (step, `Contents (Contents.hash c, m))
+                | `Node n -> hash ~cache n (fun k -> (step, `Node k)))
+          in
+          Portable.of_seq seq
         in
         k (Pnode pnode)
       else
         let node =
-          bindings
-          |> Seq.map (fun (step, v) ->
-              match v with
-              | `Contents (c, m) -> (
-                  match Contents.cached_key c with
-                  | Some k -> (step, `Contents (k, m))
-                  | None ->
-                      (* We checked that all child keys are cached above *)
-                      assert false)
-              | `Node n -> (
-                  match cached_key n with
-                  | Some k -> (step, `Node k)
-                  | None ->
-                      (* We checked that all child keys are cached above *)
-                      assert false))
-          |> P.Node.Val.of_seq
+          let seq =
+            bindings
+            |> Seq.map (fun (step, v) ->
+                match v with
+                | `Contents (c, m) -> (
+                    match Contents.cached_key c with
+                    | Some k -> (step, `Contents (k, m))
+                    | None ->
+                        (* We checked that all child keys are cached above *)
+                        assert false)
+                | `Node n -> (
+                    match cached_key n with
+                    | Some k -> (step, `Node k)
+                    | None ->
+                        (* We checked that all child keys are cached above *)
+                        assert false))
+          in
+          P.Node.Val.of_seq seq
         in
         if cache then Atomic.set t.info.value (Some node);
         k (Node node)
@@ -1192,7 +1217,7 @@ module Make (P : Backend.S) = struct
       match (x, y) with
       | `Contents x, `Contents y -> contents_equal x y
       | `Node x, `Node y -> equal x y
-      | _ -> false
+      | `Contents _, `Node _ | `Node _, `Contents _ -> false
 
     and map_equal (x : map) (y : map) = StepMap.equal elt_equal x y
 
@@ -1754,10 +1779,16 @@ module Make (P : Backend.S) = struct
   type node_key = Node.key [@@deriving irmin ~pp]
   type contents_key = Contents.key [@@deriving irmin ~pp]
 
-  type kinded_key = [ `Contents of Contents.key * metadata | `Node of Node.key ]
+  type kinded_key =
+    [ `Contents of Contents.key * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of Node.key ]
   [@@deriving irmin]
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type kinded_hash =
+    [ `Contents of hash * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of hash ]
   [@@deriving irmin ~equal]
 
   type t = [ `Node of node | `Contents of Contents.t * Metadata.t ]
@@ -1811,6 +1842,16 @@ module Make (P : Backend.S) = struct
   let pruned_with_env ~env = function
     | `Contents (h, meta) -> `Contents (Contents.pruned ~env h, meta)
     | `Node h -> `Node (Node.pruned ~env h)
+    | `Contents_inlined (bytes, meta) ->
+        (* Deserialize inlined bytes to content value *)
+        let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+        let value =
+          match of_bin bytes with
+          | Ok v -> v
+          | Error (`Msg e) ->
+              failwith ("Failed to deserialize pruned inlined contents: " ^ e)
+        in
+        `Contents (Contents.of_value ~env value, meta)
 
   let pruned h =
     let env = Env.empty () in
@@ -1958,7 +1999,8 @@ module Make (P : Backend.S) = struct
     | `Node n -> n.Node.info.env
     | `Contents (c, _) -> c.Contents.info.env
 
-  let update_tree ~cache ~f_might_return_empty_node ~f root_tree path =
+  let update_tree ~cache ~f_might_return_empty_node ~(f : t option -> t option)
+      root_tree path =
     (* User-introduced empty nodes will be removed immediately if necessary. *)
     let prune_empty : node -> bool =
       if not f_might_return_empty_node then Fun.const false
@@ -2100,10 +2142,31 @@ module Make (P : Backend.S) = struct
             let env = Env.empty () in
             Some (`Node (Node.of_key ~env repo k))
         | false -> None)
+    | `Contents_inlined (bytes, m) ->
+        (* Deserialize inlined bytes to content value *)
+        let env = Env.empty () in
+        let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+        let value =
+          match of_bin bytes with
+          | Ok v -> v
+          | Error (`Msg e) ->
+              failwith ("Failed to deserialize inlined contents: " ^ e)
+        in
+        Some (`Contents (Contents.of_value ~env value, m))
 
   let import_with_env ~env repo = function
     | `Node k -> `Node (Node.of_key ~env repo k)
     | `Contents (k, m) -> `Contents (Contents.of_key ~env repo k, m)
+    | `Contents_inlined (bytes, m) ->
+        (* Deserialize inlined bytes to content value *)
+        let of_bin = Type.(unstage (of_bin_string P.Contents.Val.t)) in
+        let value =
+          match of_bin bytes with
+          | Ok v -> v
+          | Error (`Msg e) ->
+              failwith ("Failed to deserialize inlined contents: " ^ e)
+        in
+        `Contents (Contents.of_value ~env value, m)
 
   let import_no_check repo f =
     let env = Env.empty () in
@@ -2152,17 +2215,36 @@ module Make (P : Backend.S) = struct
       k key
     in
 
+    let inline_max = P.Repo.inline_contents_max_bytes repo in
+
+    (* Helper to check if contents should be inlined at export time.
+       Note: the serialized size includes only the raw content bytes.
+       When stored in a node, there's additional overhead:
+       - 1-byte variant tag for the Contents.t encoding
+       - 1-byte varint length prefix for the string
+       So we add 2 bytes to the size check. *)
+    let should_inline_contents c =
+      if inline_max <= 0 then None
+      else
+        match Contents.to_value ~cache:true c with
+        | Error _ -> None
+        | Ok v ->
+            let to_bin = Type.(unstage (to_bin_string P.Contents.Val.t)) in
+            let bytes = to_bin v in
+            if String.length bytes + 2 < inline_max then Some bytes else None
+    in
+
     let add_node_map n (x : Node.map) k =
-      let node =
+      let node_seq =
         (* Since we traverse in post-order, all children of [x] have already
            been added. Thus, their keys are cached and we can retrieve them. *)
         Atomic.incr cnt.node_val_v;
         StepMap.to_seq x
-        |> Seq.map (fun (step, v) ->
+        |> Seq.filter_map (fun (step, v) ->
             match v with
             | `Node n -> (
                 match Node.cached_key n with
-                | Some k -> (step, `Node k)
+                | Some k -> Some (step, `Node k)
                 | None ->
                     assertion_failure
                       "Encountered child node value with uncached key during \
@@ -2170,21 +2252,25 @@ module Make (P : Backend.S) = struct
                        @ @[%a@]"
                       dump v)
             | `Contents (c, m) -> (
-                match Contents.cached_key c with
-                | Some k -> (step, `Contents (k, m))
-                | None ->
-                    assertion_failure
-                      "Encountered child contents value with uncached key \
-                       during export:@,\
-                       @ @[%a@]"
-                      dump v))
-        |> P.Node.Val.of_seq
+                (* Check if contents should be inlined at export time *)
+                match should_inline_contents c with
+                | Some bytes -> Some (step, `Contents_inlined (bytes, m))
+                | None -> (
+                    match Contents.cached_key c with
+                    | Some k -> Some (step, `Contents (k, m))
+                    | None ->
+                        assertion_failure
+                          "Encountered child contents value with uncached key \
+                           during export:@,\
+                           @ @[%a@]"
+                          dump v)))
       in
+      let node = P.Node.Val.of_seq node_seq in
       add_node n node k
     in
 
     let add_updated_node n (v : Node.value) (updates : Node.updatemap) k =
-      let node =
+      let node_seq =
         StepMap.fold
           (fun k v acc ->
             match v with
@@ -2199,17 +2285,22 @@ module Make (P : Backend.S) = struct
                        @ @[%a@]"
                       dump v)
             | Add (`Contents (c, m) as v) -> (
-                match Contents.cached_key c with
-                | Some ptr -> P.Node.Val.add acc k (`Contents (ptr, m))
-                | None ->
-                    assertion_failure
-                      "Encountered child contents value with uncached key \
-                       during export:@,\
-                       @ @[%a@]"
-                      dump v))
+                (* Check if contents should be inlined at export time *)
+                match should_inline_contents c with
+                | Some bytes ->
+                    P.Node.Val.add acc k (`Contents_inlined (bytes, m))
+                | None -> (
+                    match Contents.cached_key c with
+                    | Some ptr -> P.Node.Val.add acc k (`Contents (ptr, m))
+                    | None ->
+                        assertion_failure
+                          "Encountered child contents value 3 with uncached \
+                           key during export:@,\
+                           @ @[%a@]"
+                          dump v)))
           updates v
       in
-      add_node n node k
+      add_node n node_seq k
     in
 
     let rec on_node : type r. [ `Node of node ] -> (node_key, r) cont =
@@ -2367,7 +2458,8 @@ module Make (P : Backend.S) = struct
       | Seq.Cons ((`Contents _ as c), rest) ->
           on_contents c (fun `Content_exported -> on_node_seq rest k)
     in
-    on_node (`Node n) (fun key -> key)
+    let r = on_node (`Node n) (fun key -> key) in
+    r
 
   let merge : t Merge.t =
     let f ~old (x : t) y =

@@ -80,6 +80,8 @@ module Key : sig
   val indexing_strategy : Indexing_strategy.t Irmin.Backend.Conf.key
   val use_fsync : bool Irmin.Backend.Conf.key
   val no_migrate : bool Irmin.Backend.Conf.key
+  val inline_contents : bool Irmin.Backend.Conf.key
+  val inline_contents_max_bytes : int Irmin.Backend.Conf.key
 end
 
 val fresh : Irmin.Backend.Conf.t -> bool
@@ -128,6 +130,28 @@ val use_fsync : Irmin.Backend.Conf.t -> bool
 val no_migrate : Irmin.Backend.Conf.t -> bool
 (** Flag to prevent migration of data. Default [false]. *)
 
+val inline_contents : Irmin.Backend.Conf.t -> bool
+(** Flag to enable inlining of small contents values directly inside nodes.
+    Default [false].
+
+    When enabled, content values smaller than [inline_contents_max_bytes]
+    (serialized, including 2 bytes encoding overhead) are stored directly within
+    the parent node entry rather than as separate pack entries. This reduces
+    storage overhead and improves read performance for small values.
+
+    Note: Enabling this option changes the hash computation of nodes, making
+    stores incompatible with stores created with inlining disabled for
+    hash-based comparisons.
+
+    See the
+    {{:./doc/irmin-pack/design/inline_contents.md}inline contents design doc}
+    for more details. *)
+
+val inline_contents_max_bytes : Irmin.Backend.Conf.t -> int
+(** Maximum serialized size in bytes for contents to be inlined. Includes 2
+    bytes of encoding overhead (variant tag + length prefix). Default [48]. Only
+    used when [inline_contents] is [true]. *)
+
 val switch : Irmin.Backend.Conf.t -> Eio.Switch.t
 (** Eio switch *)
 
@@ -147,6 +171,8 @@ val init :
   ?use_fsync:bool ->
   ?no_migrate:bool ->
   ?lower_root:Eio.Fs.dir_ty Eio.Path.t option ->
+  ?inline_contents:bool ->
+  ?inline_contents_max_bytes:int ->
   Eio.Fs.dir_ty Eio.Path.t ->
   Irmin.config
 (** [init root] creates a backend configuration for storing data with default

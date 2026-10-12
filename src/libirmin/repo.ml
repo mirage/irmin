@@ -113,7 +113,15 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                 match c with
                 | Some c -> Root.create_contents (module Store) c
                 | None -> null contents)
-            | `Node _ -> null contents))
+            | `Node _ -> null contents
+            | `Contents_inlined (bytes, _) -> (
+                let of_bin =
+                  Irmin.Type.(unstage (of_bin_string Store.contents_t))
+                in
+                match of_bin bytes with
+                | Ok c -> Root.create_contents (module Store) c
+                | Error (`Msg e) ->
+                    failwith ("Failed to deserialize inlined contents: " ^ e))))
 
   let () =
     fn "contents_to_string"

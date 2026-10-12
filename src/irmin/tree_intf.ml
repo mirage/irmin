@@ -61,7 +61,10 @@ module type S = sig
   val v : elt -> t
   (** General-purpose constructor for trees. *)
 
-  type kinded_hash = [ `Contents of hash * metadata | `Node of hash ]
+  type kinded_hash =
+    [ `Contents of hash * metadata
+    | `Contents_inlined of string * metadata
+    | `Node of hash ]
   [@@deriving irmin]
 
   val pruned : kinded_hash -> t
@@ -106,6 +109,16 @@ module type S = sig
 
   type 'a or_error = ('a, error) result
 
+  module Private : sig
+    module Env : sig
+      type t [@@deriving irmin]
+
+      val is_empty : t -> bool
+    end
+
+    val get_env : t -> Env.t
+  end
+
   (** Operations on lazy tree contents. *)
   module Contents : sig
     type t
@@ -130,6 +143,8 @@ module type S = sig
 
     val clear : t -> unit
     (** [clear t] clears [t]'s cache. *)
+
+    val of_value : contents -> env:Private.Env.t -> t
 
     (** {2:caching caching}
 
@@ -411,16 +426,6 @@ module type S = sig
         {!Node.Portable}. Currently only used with {!Proof}.
       - [`Pruned], if [t] is from {!pruned}.
       - Otherwise [`Key], the default state for a node loaded from a store. *)
-
-  module Private : sig
-    module Env : sig
-      type t [@@deriving irmin]
-
-      val is_empty : t -> bool
-    end
-
-    val get_env : t -> Env.t
-  end
 end
 
 module type Sigs = sig
@@ -440,7 +445,9 @@ module type Sigs = sig
          and type hash = B.Hash.t
 
     type kinded_key =
-      [ `Contents of B.Contents.Key.t * metadata | `Node of B.Node.Key.t ]
+      [ `Contents of B.Contents.Key.t * metadata
+      | `Contents_inlined of string * metadata
+      | `Node of B.Node.Key.t ]
     [@@deriving irmin]
 
     val import : B.Repo.t -> kinded_key -> t option

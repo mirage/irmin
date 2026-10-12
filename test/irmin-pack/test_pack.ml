@@ -593,6 +593,7 @@ let misc ~sr ~fs ~domain_mgr =
     ("snapshot_gc", Test_gc.Snapshot.tests ~fs ~domain_mgr);
     ("async tasks", Test_async.tests ~domain_mgr);
     ("indexing strategy", Test_indexing_strategy.tests ~fs);
+    ("inline contents", Test_inline_contents.tests ~fs);
     ("lower: direct", Test_lower.Direct.tests ~fs);
     ("lower: store", Test_lower.Store.tests ~fs ~domain_mgr);
     ("multicore", Test_multicore.tests ~fs ~domain_mgr);

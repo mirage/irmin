@@ -51,7 +51,7 @@ let node_2 =
     off = Int63.of_int 240;
     len = 35;
     hex =
-      "db1998ebe97d8ddffef5fcc7a235f16f33f3ccb6520d000108016100000000000000cd";
+      "db1998ebe97d8ddffef5fcc7a235f16f33f3ccb6530d000108016100000000000000cd";
   }
 
 let commit_2 =
@@ -68,7 +68,7 @@ let node_3 =
     off = Int63.of_int 346;
     len = 46;
     hex =
-      "2b5a114440d5fcef4b20b85171af8d140dfc7eca5218000206016400000000000000b3060166000000000000013d";
+      "2b5a114440d5fcef4b20b85171af8d140dfc7eca5318000206016400000000000000b3060166000000000000013d";
   }
 
 let check_hex msg buf expected =

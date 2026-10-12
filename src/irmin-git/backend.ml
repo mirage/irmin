@@ -109,6 +109,7 @@ struct
       { g; b; closed = ref false; config = (conf :> Irmin.config) }
 
     let config t = t.config
+    let inline_contents_max_bytes _ = 0
 
     let close t =
       Branch.close t.b;
