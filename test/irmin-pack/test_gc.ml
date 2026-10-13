@@ -1256,7 +1256,7 @@ module Split = struct
     | Some commit -> commit
 
   let check_preexisting_commit t =
-    let h = "22e159de13b427226e5901defd17f0c14e744205" in
+    let h = "8b7de2fafd78856555de2972062bfc069fc7cbf3" in
     let commit = load_commit t h in
     let tree = S.Commit.tree commit in
     let got = S.Tree.find tree [ "step-n01"; "step-b01" ] in
@@ -1266,7 +1266,7 @@ module Split = struct
     let root = create_test_env ~fs () in
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~fs ~readonly:false ~fresh:false ~root () in
-    let c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
+    let c0 = load_commit t "8b7de2fafd78856555de2972062bfc069fc7cbf3" in
     let t, c1 = commit_1 t in
     let () = S.split t.repo in
     let t = checkout_exn t c1 in
@@ -1454,6 +1454,7 @@ module Split = struct
     let root = create_from_v2_always_test_env ~fs () in
     Eio.Switch.run @@ fun sw ->
     let t = init ~sw ~fs ~readonly:false ~fresh:false ~root () in
+    (* This test uses version_2_to_3_always store which has the original commit hash *)
     let _c0 = load_commit t "22e159de13b427226e5901defd17f0c14e744205" in
     let t, _c1 = commit_1 t in
     let f () = S.split t.repo in

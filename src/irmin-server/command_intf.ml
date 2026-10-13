@@ -95,6 +95,7 @@ module type S = sig
       type key = Store.Backend.Node.key
       type value = Store.Backend.Node.value
       type hash = Store.Backend.Node.hash
+      type node_with_inlined = key * Store.Backend.Contents.key list
 
       module Mem : CMD with type req = key and type res = bool
       module Find : CMD with type req = key and type res = value option
@@ -104,8 +105,12 @@ module type S = sig
 
       module Merge :
         CMD
-          with type req = key option option * key option * key option
-           and type res = (key option, Irmin.Merge.conflict) Result.t
+          with type req =
+            node_with_inlined option option
+            * node_with_inlined option
+            * node_with_inlined option
+           and type res =
+            (node_with_inlined option, Irmin.Merge.conflict) Result.t
     end
 
     module Commit : sig

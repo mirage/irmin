@@ -255,7 +255,7 @@ struct
               request t (module Merge) (old, a, b) |> Error.unwrap "Node.merge"
           | Error e -> Error e
         in
-        Irmin.Merge.v Irmin.Type.(option Key.t) f
+        Irmin.Merge.v Irmin.Type.(option (pair Key.t (list Contents.Key.t))) f
     end
 
     module Node_portable = Store.Backend.Node_portable

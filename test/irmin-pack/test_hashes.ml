@@ -153,7 +153,7 @@ module Test_tezos_conf = struct
     let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
-      | `Node x -> Store.to_backend_node x
+      | `Node (x, _inlined) -> Store.to_backend_node x
     in
     let h = Node.Hash.hash root_node in
     let encode_bin_hash = Irmin.Type.(unstage (encode_bin Node.Hash.t)) in
@@ -250,7 +250,7 @@ module Test_small_conf = struct
     let root_node =
       match Store.Tree.destruct tree with
       | `Contents _ -> Alcotest.fail "Expected root to be node"
-      | `Node x -> Store.to_backend_node x
+      | `Node (x, _inlined) -> Store.to_backend_node x
     in
     let h = Node.Hash.hash root_node in
     let pre_hash_hash = Irmin.Type.(unstage (pre_hash Node.Hash.t)) in

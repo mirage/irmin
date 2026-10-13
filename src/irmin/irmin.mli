@@ -78,6 +78,31 @@ module Info = Info
 module Node = Node
 module Commit = Commit
 
+module Tree : sig
+  val set_inline_contents_enabled : bool -> unit
+  (** [set_inline_contents_enabled b] controls whether small contents are
+      inlined directly in nodes. When [true], contents smaller than the
+      configured threshold will be inlined. Default is [false]. This is a global
+      setting that should be set before creating stores. *)
+
+  val set_inline_contents_max_bytes : int -> unit
+  (** [set_inline_contents_max_bytes n] sets the maximum serialized size in
+      bytes for contents to be inlined. Note: actual inlining threshold is
+      [n - 2] bytes due to encoding overhead. Default is [48]. *)
+
+  val get_inline_contents_max_bytes : unit -> int
+  (** [get_inline_contents_max_bytes ()] returns the current threshold. *)
+
+  module Make (B : Backend.S) :
+    Tree_intf.S
+      with type path = B.Node.Path.t
+       and type step = B.Node.Path.step
+       and type metadata = B.Node.Metadata.t
+       and type contents = B.Contents.value
+       and type contents_key = B.Contents.Key.t
+       and type hash = B.Hash.t
+end
+
 module Metadata = Metadata
 (** [Metadata] defines metadata that is attached to contents but stored in
     nodes. For instance, the Git backend uses this to indicate the type of file

@@ -2,7 +2,7 @@
 
 (env
  (dev
-  (flags :standard -w -unused-functor-parameter)))
+  (flags :standard -w -unused-functor-parameter -warn-error -A)))
 
 (mdx
  (files README.md)

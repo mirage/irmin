@@ -25,8 +25,8 @@ let generate_tree ctx d =
     else snd @@ List.nth ctx.indexes (ctx.current - 1)
   in
   let tree =
-    Load_tree.load_tree loading ctx.store_path ~max_depth:d commit_info
-      last_commit_addr
+    Load_tree.load_tree ctx.sw ctx.fs loading ctx.store_path ~max_depth:d
+      commit_info last_commit_addr
   in
   (* layout *)
   let layout = layout ctx loading tree in
@@ -99,10 +99,11 @@ let set_texture t texture =
   Sdl.destroy_texture t.texture;
   t.texture <- texture
 
-let main store_path font_path i d =
+let main ~sw ~fs store_path font_path i d =
   let () = get @@ Sdl.init Sdl.Init.(video + events) in
   let () = get @@ Ttf.init () in
-  let ctx = init_context store_path font_path i in
+  let store_path = Eio.Path.(fs / store_path) in
+  let ctx = init_context ~sw ~fs store_path font_path i in
   (* wait for the window to be showned *)
   wait_shown ();
   try
@@ -220,9 +221,14 @@ let depth =
   Arg.(
     value & opt int (-1) & info [ "d"; "depth" ] ~docv:"depth" ~doc:"max depth")
 
-let main_cmd =
+let main_cmd ~sw ~fs =
   let doc = "a gui for tezos store exploration" in
   let info = Cmd.info "graphics" ~doc in
-  Cmd.v info Term.(const main $ store_path $ font_path $ commit $ depth)
+  Cmd.v info
+    Term.(const (main ~sw ~fs) $ store_path $ font_path $ commit $ depth)
 
-let () = exit (Cmd.eval ~catch:false main_cmd)
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let fs = Eio.Stdenv.fs env in
+  exit (Cmd.eval ~catch:false (main_cmd ~sw ~fs))

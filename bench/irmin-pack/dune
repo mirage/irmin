@@ -82,10 +82,25 @@
  (modules trace_stats)
  (libraries cmdliner irmin_traces eio_main))
 
+(executable
+ (name bench_inlined_contents)
+ (modules bench_inlined_contents)
+ (preprocess
+  (pps ppx_irmin.internal))
+ (libraries
+  irmin-pack
+  irmin-pack.unix
+  irmin-tezos
+  bench_common
+  cmdliner
+  eio_main
+  mtime
+  mtime.clock.os))
+
 ;; Require the executables to compile during tests
 
 (rule
  (alias runtest)
  (package irmin-bench)
- (deps main.exe tree.exe trace_stats.exe)
+ (deps main.exe tree.exe trace_stats.exe bench_inlined_contents.exe)
  (action (progn)))

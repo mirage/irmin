@@ -113,7 +113,10 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
                 match c with
                 | Some c -> Root.create_contents (module Store) c
                 | None -> null contents)
-            | `Node _ -> null contents))
+            | `Node _ -> null contents
+            | `Contents_inlined _ ->
+                (* TODO: handle inlined contents *)
+                null contents))
 
   let () =
     fn "contents_to_string"
