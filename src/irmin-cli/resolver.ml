@@ -36,10 +36,8 @@ let try_parse ty v =
 
 let pconv t =
   let pp = Irmin.Type.pp t in
-  let parse s =
-    match try_parse t s with Ok x -> `Ok x | Error (`Msg e) -> `Error e
-  in
-  (parse, pp)
+  let parse s = try_parse t s in
+  Arg.conv (parse, pp)
 
 let config_path_term =
   let name = "config" in
