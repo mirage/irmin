@@ -1,3 +1,12 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-git**
+  - `Content_addressable` uses the Git object store directly instead of
+    building a repository (which read, and could write, `HEAD`) on every
+    operation (#2412, @balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

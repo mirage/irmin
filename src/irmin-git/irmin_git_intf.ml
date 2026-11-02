@@ -114,7 +114,11 @@ module type Sigs = sig
 
   module Content_addressable (G : Git.S) : sig
     (** Use Git as a content-addressable store. Values will be stored into
-        [.git/objects].*)
+        [.git/objects] as blobs, encoded with [Irmin.Type.to_string].
+
+        The store handle is the Git store itself, which the caller owns: [close]
+        does nothing and, unlike other stores, the handle does not raise
+        [Irmin.Closed] afterwards. *)
 
     module type S =
       Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
