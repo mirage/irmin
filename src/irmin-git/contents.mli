@@ -16,6 +16,11 @@
 
 (** Backend module: turn a Git store into an Irmin backend for Git blobs. *)
 
+(** [Blob (G) (V)] stores values of type [V.t] as Git blobs, encoded with
+    [Irmin.Type.to_string V.t]. *)
+module Blob (G : Git.S) (V : Irmin.Type.S) :
+  Value.S with type t = V.t and type value := G.Value.t
+
 module Make (G : Git.S) (C : Irmin.Contents.S) : sig
   include
     Irmin.Content_addressable.S
