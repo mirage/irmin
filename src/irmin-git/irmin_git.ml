@@ -104,62 +104,11 @@ module No_sync = struct
 end
 
 module Content_addressable (G : Git.S) = struct
-  module G = struct
-    include G
-
-    let v ?dotgit:_ _root = assert false
-  end
-
   module type S =
     Irmin.Content_addressable.S with type _ t = G.t and type key = G.Hash.t
 
-  module Maker = Maker_ext (G) (No_sync)
-
-  module Make (V : Irmin.Type.S) = struct
-    module V = struct
-      include V
-
-      let merge = Irmin.Merge.default Irmin.Type.(option V.t)
-    end
-
-    module Schema = Schema.Make (G) (V) (Reference)
-    module M = Maker.Make (Schema)
-    module X = M.Backend.Contents
-
-    type 'a t = G.t
-
-    let state t =
-      let+ r = M.repo_of_git t in
-      M.Backend.Repo.contents_t r
-
-    type key = X.key
-    type value = X.value
-
-    let with_state0 f t =
-      let* t = state t in
-      f t
-
-    let with_state1 f t x =
-      let* t = state t in
-      f t x
-
-    let add = with_state1 X.add
-    let pp_key = Irmin.Type.pp X.Key.t
-    let equal_key = Irmin.Type.(unstage (equal X.Key.t))
-
-    let unsafe_add t k v =
-      let+ k' = with_state1 X.add t v in
-      if equal_key k k' then ()
-      else
-        Fmt.failwith
-          "[Git.unsafe_append] %a is not a valid key. Expecting %a instead.\n"
-          pp_key k pp_key k'
-
-    let find = with_state1 X.find
-    let mem = with_state1 X.mem
-    let close = with_state0 X.close
-    let batch t f = f t
-  end
+  module Make (V : Irmin.Type.S) =
+    Content_addressable.Make (G) (Contents.Blob (G) (V))
 end
 
 module Atomic_write (G : Git.S) = struct

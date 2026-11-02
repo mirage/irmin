@@ -16,28 +16,28 @@
 
 open Import
 
+module Blob (G : Git.S) (V : Irmin.Type.S) = struct
+  type t = V.t
+
+  let type_eq = function `Blob -> true | _ -> false
+
+  let of_git = function
+    | Git.Value.Blob b -> (
+        let str = G.Value.Blob.to_string b in
+        match Irmin.Type.of_string V.t str with
+        | Ok x -> Some x
+        | Error (`Msg e) -> Fmt.invalid_arg "error %s" e)
+    | _ -> None
+
+  let to_git b =
+    let str = Irmin.Type.to_string V.t b in
+    G.Value.blob (G.Value.Blob.of_string str)
+end
+
 module Make (G : Git.S) (C : Irmin.Contents.S) = struct
   module Raw = Git.Value.Make (G.Hash)
   module Hash = Irmin.Hash.Make (G.Hash)
-
-  module V = struct
-    type t = C.t
-
-    let type_eq = function `Blob -> true | _ -> false
-
-    let of_git = function
-      | Git.Value.Blob b -> (
-          let str = G.Value.Blob.to_string b in
-          match Irmin.Type.of_string C.t str with
-          | Ok x -> Some x
-          | Error (`Msg e) -> Fmt.invalid_arg "error %s" e)
-      | _ -> None
-
-    let to_git b =
-      let str = Irmin.Type.to_string C.t b in
-      G.Value.blob (G.Value.Blob.of_string str)
-  end
-
+  module V = Blob (G) (C)
   include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
 
   module Val = struct
