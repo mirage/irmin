@@ -13,6 +13,7 @@ type config = {
   nb_rems : int;
   nb_runs : int;
   warm : bool;
+  domains : range;
 }
 
 type path = string list
