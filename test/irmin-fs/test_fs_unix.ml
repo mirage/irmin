@@ -43,3 +43,54 @@ let suite ~sw ~fs ~watcher ~path ~clock =
   let config = Irmin_fs_unix.config ~root:path ~clock in
   Irmin_test.Suite.create ~name:"FS.UNIX" ~init:(init ~sw ~fs ~watcher) ~store
     ~config ~clean ~stats:(stats watcher) ()
+
+module W =
+  Irmin.Backend.Watch.Make
+    (struct
+      type t = string
+
+      let t = Irmin.Type.string
+    end)
+    (struct
+      type t = string
+
+      let t = Irmin.Type.string
+    end)
+
+(* A file written in a watched directory, outside of Irmin, is reported
+   through the listen hook, with its path relative to the directory. *)
+let test_listen_dir ~fs ~watcher ~clock () =
+  Eio.Switch.run @@ fun sw ->
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw fs
+    (Irmin_watcher.hook watcher);
+  let dir = Eio.Path.(fs / "test-listen-dir") in
+  Eio.Path.rmtree ~missing_ok:true dir;
+  Eio.Path.mkdir ~perm:0o700 dir;
+  Fun.protect ~finally:(fun () ->
+      Irmin.Backend.Watch.(set_listen_dir_hook none);
+      Eio.Path.rmtree ~missing_ok:true dir)
+  @@ fun () ->
+  let value key =
+    try Some (Eio.Path.load Eio.Path.(dir / key))
+    with Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) -> None
+  in
+  let w = W.v () in
+  let stop = W.listen_dir w "test-listen-dir" ~key:Option.some ~value in
+  let changes = Eio.Stream.create max_int in
+  let id = W.watch_key w "foo" (Eio.Stream.add changes) in
+  Fun.protect ~finally:(fun () ->
+      W.unwatch w id;
+      stop ())
+  @@ fun () ->
+  (* Write [foo] atomically, so that it is never read empty. *)
+  Eio.Path.save ~create:(`Exclusive 0o600) Eio.Path.(dir / "foo.tmp") "bar";
+  Eio.Path.rename Eio.Path.(dir / "foo.tmp") Eio.Path.(dir / "foo");
+  let change =
+    Eio.Time.with_timeout_exn clock 60. (fun () -> Eio.Stream.take changes)
+  in
+  match change with
+  | `Added "bar" -> ()
+  | _ -> Alcotest.fail "foo should be added with the value bar"
+
+let misc ~fs ~watcher ~clock =
+  [ ("listen hook", `Quick, test_listen_dir ~fs ~watcher ~clock) ]

@@ -22,6 +22,8 @@ let () =
   let watcher = Irmin_watcher.v ~sw () in
   let path = Eio.Stdenv.cwd env in
   let clock = Eio.Stdenv.clock env in
-  Irmin_test.Store.run "irmin-fs.unix" ~slow:false ~sleep:Eio_unix.sleep
-    ~misc:[]
-    [ (`Quick, Test_fs_unix.suite ~sw ~fs ~watcher ~path ~clock) ]
+  let sleep = Eio_unix.sleep in
+  let suite = Test_fs_unix.suite ~sw ~fs ~watcher ~path ~clock in
+  Irmin_test.Store.run "irmin-fs.unix" ~slow:false ~sleep
+    ~misc:[ ("watch", Test_fs_unix.misc ~fs ~watcher ~clock) ]
+    [ (`Quick, suite) ]
