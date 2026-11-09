@@ -101,15 +101,21 @@ let depth =
   in
   Arg.(value & opt (some int) None & doc)
 
+(* [print_exc exc] reports [exc], raised just before, and exits. *)
 let print_exc exc =
+  let bt = Printexc.get_raw_backtrace () in
   (match exc with
   | Failure f -> Fmt.epr "ERROR: %s\n%!" f
   | e -> Fmt.epr "ERROR: %a\n%!" Fmt.exn e);
+  if Printexc.backtrace_status () then
+    Fmt.epr "%s%!" (Printexc.raw_backtrace_to_string bt);
   exit 1
 
 open Lwt.Syntax
 
-let run t = try t () with err -> print_exc err
+let run t =
+  try t () with Eio.Cancel.Cancelled _ as e -> raise e | err -> print_exc err
+
 let mk (fn : 'a) : 'a Term.t = Term.(const (fun () -> fn) $ setup_log)
 
 (* INIT *)
@@ -567,7 +573,7 @@ let watch ~env =
                    and type commit = S.commit)
                 path command proc)
          in
-         ()
+         Eio.Fiber.await_cancel ()
        in
        let command =
          let doc = Arg.info ~docv:"COMMAND" ~doc:"Command to execute" [] in
@@ -970,19 +976,25 @@ let default ~env =
 let commands = List.map create_command (help :: common_commands)
 
 let run ~default:x y =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
-  Eio.Switch.run @@ fun sw ->
-  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw (Eio.Stdenv.fs env)
-    (Irmin_watcher.hook (Irmin_watcher.v ~sw ()));
-  let env =
-    object
-      method cwd = Eio.Stdenv.cwd env
-      method clock = Eio.Stdenv.clock env
-      method sw = sw
-    end
-  in
-  let y = List.map (fun cmd -> cmd ~env) y in
-  match Cmd.eval (Cmd.group ~default:(x ~env) default_help y) with
+  match
+    Eio_main.run @@ fun env ->
+    Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+    Eio.Switch.run @@ fun sw ->
+    Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw (Eio.Stdenv.fs env)
+      (Irmin_watcher.hook (Irmin_watcher.v ~sw ()));
+    let env =
+      object
+        method cwd = Eio.Stdenv.cwd env
+        method clock = Eio.Stdenv.clock env
+        method sw = sw
+      end
+    in
+    let y = List.map (fun cmd -> cmd ~env) y in
+    (* Cmdliner must not catch the cancellation of [sw]. *)
+    Cmd.eval ~catch:false (Cmd.group ~default:(x ~env) default_help y)
+  with
   | 0 -> ()
   | _ -> exit 1
+  (* An error that escaped the commands, such as the one that cancelled [sw]
+     when the watcher failed. *)
+  | exception e -> print_exc e
