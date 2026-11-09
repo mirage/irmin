@@ -59,8 +59,7 @@ module W =
 
 (* A file written in a watched directory, outside of Irmin, is reported
    through the listen hook, with its path relative to the directory. *)
-let test_listen_dir ~fs ~watcher ~clock () =
-  Eio.Switch.run @@ fun sw ->
+let test_listen_dir ~sw ~fs ~watcher ~clock () =
   Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw fs
     (Irmin_watcher.hook watcher);
   let dir = Eio.Path.(fs / "test-listen-dir") in
@@ -74,23 +73,34 @@ let test_listen_dir ~fs ~watcher ~clock () =
     try Some (Eio.Path.load Eio.Path.(dir / key))
     with Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) -> None
   in
+  let workers = Irmin.Backend.Watch.workers () in
   let w = W.v () in
   let stop = W.listen_dir w "test-listen-dir" ~key:Option.some ~value in
   let changes = Eio.Stream.create max_int in
   let id = W.watch_key w "foo" (Eio.Stream.add changes) in
-  Fun.protect ~finally:(fun () ->
-      W.unwatch w id;
-      stop ())
+  ( Fun.protect ~finally:(fun () ->
+        W.unwatch w id;
+        stop ())
   @@ fun () ->
-  (* Write [foo] atomically, so that it is never read empty. *)
-  Eio.Path.save ~create:(`Exclusive 0o600) Eio.Path.(dir / "foo.tmp") "bar";
-  Eio.Path.rename Eio.Path.(dir / "foo.tmp") Eio.Path.(dir / "foo");
-  let change =
-    Eio.Time.with_timeout_exn clock 60. (fun () -> Eio.Stream.take changes)
+    (* Write [foo] atomically, so that it is never read empty. *)
+    Eio.Path.save ~create:(`Exclusive 0o600) Eio.Path.(dir / "foo.tmp") "bar";
+    Eio.Path.rename Eio.Path.(dir / "foo.tmp") Eio.Path.(dir / "foo");
+    match
+      Eio.Time.with_timeout clock 60. (fun () -> Ok (Eio.Stream.take changes))
+    with
+    | Ok (`Added "bar") -> ()
+    | Ok _ -> Alcotest.fail "foo should be added with the value bar"
+    | Error `Timeout -> Alcotest.fail "no change reported for foo within 60s" );
+  (* The notification worker stops once the watch is removed. *)
+  let rec stopped () =
+    if Irmin.Backend.Watch.workers () <= workers then Ok ()
+    else (
+      Eio.Time.sleep clock 0.01;
+      stopped ())
   in
-  match change with
-  | `Added "bar" -> ()
-  | _ -> Alcotest.fail "foo should be added with the value bar"
+  match Eio.Time.with_timeout clock 10. stopped with
+  | Ok () -> ()
+  | Error `Timeout -> Alcotest.fail "the notification worker did not stop"
 
-let misc ~fs ~watcher ~clock =
-  [ ("listen hook", `Quick, test_listen_dir ~fs ~watcher ~clock) ]
+let misc ~sw ~fs ~watcher ~clock =
+  [ ("listen hook", `Quick, test_listen_dir ~sw ~fs ~watcher ~clock) ]
