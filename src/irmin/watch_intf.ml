@@ -46,12 +46,16 @@ module type S = sig
   (** Clear all register listeners in the given watch state. *)
 
   val watch_key : t -> key -> ?init:value -> (value Diff.t -> unit) -> watch
-  (** Watch a given key for changes. More efficient than {!watch}. *)
+  (** Watch a given key for changes. More efficient than {!watch}.
+
+      @raise Invalid_argument if [set_watch_switch] was not called. *)
 
   val watch :
     t -> ?init:(key * value) list -> (key -> value Diff.t -> unit) -> watch
   (** Add a watch handler. To watch a specific key, use {!watch_key} which is
-      more efficient. *)
+      more efficient.
+
+      @raise Invalid_argument if [set_watch_switch] was not called. *)
 
   val unwatch : t -> watch -> unit
   (** Remove a watch handler. *)
@@ -64,7 +68,9 @@ module type S = sig
     unit ->
     unit
   (** Register a thread looking for changes in the given directory and return a
-      function to stop watching and free up resources. *)
+      function to stop watching and free up resources.
+
+      @raise Invalid_argument if [set_watch_switch] was not called. *)
 end
 
 module type Sigs = sig
@@ -84,13 +90,23 @@ module type Sigs = sig
   (** [none] is the hooks which asserts false. *)
 
   val set_watch_switch : Eio.Switch.t -> unit
-  (** A terrible hack that will need fixed... *)
+  (** [set_watch_switch sw] sets the switch of the fibers that run the watch
+      callbacks. It must be set before adding a watch or listening to a
+      directory, which raise [Invalid_argument] until then. [sw] must outlive
+      the watches: once it is off, the notifications are dropped and logged. A
+      notification that would start a worker from another domain than the one of
+      [sw] is dropped and logged as an error. A running worker keeps its switch
+      until it is off or the watches are removed. The callbacks of a watch state
+      run one at a time and in order, so a callback that does not return delays
+      the next ones, even on a new switch. {!set_listen_dir_eio_hook} also sets
+      it. *)
 
   val set_listen_dir_hook : hook -> unit
   (** Register a function which looks for file changes in a directory and return
       a function to stop watching. It is probably best to use
       {!set_listen_dir_eio_hook} with [Irmin_watcher.hook] there. By default, it
-      uses {!none}. *)
+      uses {!none}. Unlike {!set_listen_dir_eio_hook}, it does not set
+      {!set_watch_switch}. *)
 
   type eio_hook =
     int -> Eio.Fs.dir_ty Eio.Path.t -> (string -> unit) -> unit -> unit
