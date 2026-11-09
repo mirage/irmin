@@ -184,7 +184,9 @@ struct
   module RO = Read_only_ext (IO) (S) (K) (V)
   module W = Irmin.Backend.Watch.Make (K) (V)
 
-  type t = { t : unit RO.t; w : W.t }
+  (* [state_key] keeps alive the key of [w] in [watches]: an ephemeron binding
+     is kept only while its key is. *)
+  type t = { t : unit RO.t; w : W.t; state_key : string }
   type key = RO.key
   type value = RO.value
   type watch = W.watch * (unit -> unit)
@@ -202,16 +204,16 @@ struct
 
   let v config =
     let t = RO.v config in
-    let w =
-      (* Stores with the same files share their watch state. *)
+    (* Stores with the same files share their watch state. *)
+    let state_key, w =
       let path = IO.watch_path ~io:t.RO.io t.RO.path in
       try E.find watches path
       with Not_found ->
-        let w = W.v () in
-        E.add watches path w;
-        w
+        let entry = (path, W.v ()) in
+        E.add watches path entry;
+        entry
     in
-    { t; w }
+    { t; w; state_key }
 
   let close t =
     W.clear t.w;
@@ -230,7 +232,19 @@ struct
           [%log.err "listen_dir: %s" e];
           None
     in
-    W.listen_dir t.w dir ~key ~value:(RO.find t.t)
+    (* The hook while it runs, and the stop function in the watch handles, keep
+       the key of the shared state alive, so that the state stays shared when
+       the store is dropped without being closed. *)
+    let state_key = t.state_key in
+    let keep_key () = ignore (Sys.opaque_identity state_key) in
+    let value k =
+      keep_key ();
+      RO.find t.t k
+    in
+    let stop = W.listen_dir t.w dir ~key ~value in
+    fun () ->
+      keep_key ();
+      stop ()
 
   let watch_key t key ?init f =
     let stop = listen_dir t in
