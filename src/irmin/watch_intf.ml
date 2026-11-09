@@ -43,7 +43,9 @@ module type S = sig
   (** Create a watch state. *)
 
   val clear : t -> unit
-  (** Clear all register listeners in the given watch state. *)
+  (** Clear all registered listeners in the given watch state, and stop the hook
+      started by {!listen_dir}. It is not cancelled, and may wait for a
+      concurrent {!listen_dir} to start the hook. *)
 
   val watch_key : t -> key -> ?init:value -> (value Diff.t -> unit) -> watch
   (** Watch a given key for changes. More efficient than {!watch}.
@@ -67,8 +69,13 @@ module type S = sig
     value:(key -> value option) ->
     unit ->
     unit
-  (** Register a thread looking for changes in the given directory and return a
-      function to stop watching and free up resources.
+  (** [listen_dir t dir ~key ~value] starts the listen hook on [dir], to notify
+      the watches of [t] of the changes made by other processes, and returns a
+      function to stop it. It may suspend until [dir] is read, and raises the
+      errors of the hook. The calls on the same watch state share the hook,
+      started with the [dir], [key] and [value] of the first one, which stops
+      once all of them are stopped, or on {!clear}. Like {!clear}, the returned
+      function is not cancelled. Calling it again does nothing.
 
       @raise Invalid_argument if [set_watch_switch] was not called. *)
 end

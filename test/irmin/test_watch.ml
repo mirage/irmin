@@ -283,6 +283,54 @@ let test_callback_cancelled ~sw () =
   W.unwatch w id;
   check_stopped workers "unwatch"
 
+(* A listen hook that only counts how often it is started and stopped. Like
+   the hook of irmin-watcher, it suspends before returning. *)
+let counting_hook () =
+  let starts = ref 0 and stops = ref 0 in
+  let hook _id _dir _f =
+    incr starts;
+    Eio.Fiber.yield ();
+    fun () -> incr stops
+  in
+  Watch.set_listen_dir_hook hook;
+  (starts, stops)
+
+let listen w = W.listen_dir w "dir" ~key:Option.some ~value:(fun _ -> None)
+
+let check_counts msg (starts, stops) (s, s') =
+  Alcotest.(check (pair int int)) msg (s, s') (!starts, !stops)
+
+let with_hook f =
+  Fun.protect ~finally:(fun () -> Watch.set_listen_dir_hook Watch.none)
+  @@ fun () -> f (counting_hook ())
+
+(* Two watches started at the same time share a single listen hook. *)
+let test_concurrent_listen () =
+  with_hook @@ fun counts ->
+  let w = W.v () in
+  let stop, stop' = Eio.Fiber.pair (fun () -> listen w) (fun () -> listen w) in
+  check_counts "one hook for two listeners" counts (1, 0);
+  stop ();
+  stop ();
+  check_counts "stopping twice counts once" counts (1, 0);
+  stop' ();
+  check_counts "the last listener stops the hook" counts (1, 1)
+
+(* [clear], which [close] calls, stops the listen hook, and the stop functions
+   returned before are then harmless. *)
+let test_clear_stops_listening () =
+  with_hook @@ fun counts ->
+  let w = W.v () in
+  let stop = listen w in
+  W.clear w;
+  check_counts "clear stops the hook" counts (1, 1);
+  stop ();
+  check_counts "a stale stop does nothing" counts (1, 1);
+  let stop = listen w in
+  check_counts "listening again starts a new hook" counts (2, 1);
+  stop ();
+  check_counts "and stops it" counts (2, 2)
+
 let suite ~sw =
   [
     Alcotest.test_case "clear stops the worker" `Quick
@@ -296,4 +344,6 @@ let suite ~sw =
     Alcotest.test_case "workers in order" `Quick (test_workers_in_order ~sw);
     Alcotest.test_case "cancelled twice" `Quick (test_cancelled_twice ~sw);
     Alcotest.test_case "callback cancelled" `Quick (test_callback_cancelled ~sw);
+    Alcotest.test_case "concurrent listen" `Quick test_concurrent_listen;
+    Alcotest.test_case "clear stops listening" `Quick test_clear_stops_listening;
   ]
