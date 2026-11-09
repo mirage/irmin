@@ -65,8 +65,11 @@ let global = id ()
 let workers_r = ref 0
 let workers () = !workers_r
 
-(* [stream_iter f s] calls [f] on the elements of [s] until [None]. *)
+(* [stream_iter f s] calls [f] on the elements of [s] until [None], or until
+   the fiber is cancelled: [Eio.Stream.take] does not check it when [s] is not
+   empty. *)
 let rec stream_iter f s =
+  Eio.Fiber.check ();
   match Eio.Stream.take s with
   | Some v ->
       f v;
@@ -264,10 +267,19 @@ struct
     | Some x, Some y -> `Updated (x, y)
 
   let protect f () =
-    try f ()
-    with e ->
+    let log e bt =
       [%log.err
-        "watch callback got: %a\n%s" Fmt.exn e (Printexc.get_backtrace ())]
+        "watch callback got: %a\n%s" Fmt.exn e
+          (Printexc.raw_backtrace_to_string bt)]
+    in
+    try f () with
+    | Eio.Cancel.Cancelled _ as e ->
+        let bt = Printexc.get_raw_backtrace () in
+        (* The cancellation of the worker ends it. The callback may also raise
+           [Cancelled] for a context of its own, which is an error. *)
+        Eio.Fiber.check ();
+        log e bt
+    | e -> log e (Printexc.get_raw_backtrace ())
 
   let pp_option = Fmt.option ~none:(Fmt.any "<none>")
   let pp_key = Type.pp K.t
