@@ -188,6 +188,12 @@ struct
   let equal_opt_values = Type.(unstage (equal (option V.t)))
   let equal_keys = Type.(unstage (equal K.t))
 
+  type listening = {
+    stop : unit -> unit;
+    (* remove the listen hook. *)
+    mutable users : int; (* number of [listen_dir] calls not stopped yet. *)
+  }
+
   type t = {
     id : int;
     (* unique watch manager id. *)
@@ -203,10 +209,11 @@ struct
     (* enqueue notifications. *)
     clean : unit -> unit;
     (* destroy the notification thread. *)
-    mutable listeners : int;
-    (* number of listeners. *)
-    mutable stop_listening : unit -> unit;
-    (* clean-up listen resources. *)
+    listen_lock : Eio.Mutex.t;
+    (* taken before [lock]: serialise the calls to the listen hook, which may
+       suspend, and protect [listening]. *)
+    mutable listening : listening option;
+    (* the listen hook, if any. *)
     mutable notifications : int; (* number of notifcations. *)
   }
 
@@ -214,7 +221,8 @@ struct
 
   let to_string t =
     let k, a = stats t in
-    Printf.sprintf "[%d: %dk/%dg|%d]" t.id k a t.listeners
+    let listeners = match t.listening with Some l -> l.users | None -> 0 in
+    Printf.sprintf "[%d: %dk/%dg|%d]" t.id k a listeners
 
   let next t =
     let id = t.next in
@@ -229,7 +237,25 @@ struct
     t.next <- 0;
     t.clean ()
 
-  let clear t = Eio.Mutex.use_rw ~protect:true t.lock (fun () -> clear_unsafe t)
+  (* [listening] is only changed before or after calling the hook, so it stays
+     consistent if the hook raises or is cancelled: the mutex need not be
+     poisoned. *)
+  let with_listen_lock t f = Eio.Mutex.use_ro t.listen_lock f
+
+  let stop_listening_unsafe t =
+    match t.listening with
+    | None -> ()
+    | Some l ->
+        t.listening <- None;
+        l.stop ()
+
+  (* [clear] and the stop functions clean up: they are not cancelled, even
+     while they wait for a hook to start. *)
+  let clear t =
+    Eio.Cancel.protect @@ fun () ->
+    with_listen_lock t @@ fun () ->
+    Eio.Mutex.use_rw ~protect:true t.lock (fun () -> clear_unsafe t);
+    stop_listening_unsafe t
 
   let v () =
     let lock = Eio.Mutex.create () in
@@ -242,8 +268,8 @@ struct
       next = 0;
       keys = IMap.empty;
       glob = IMap.empty;
-      listeners = 0;
-      stop_listening = (fun () -> ());
+      listen_lock = Eio.Mutex.create ();
+      listening = None;
       notifications = 0;
     }
 
@@ -389,34 +415,48 @@ struct
 
   let listen_dir t dir ~key ~value =
     check_watch_switch ();
-    let init () =
-      if t.listeners = 0 then (
-        [%log.debug "%s: start listening to %s" (to_string t) dir];
-        let f =
-          !listen_dir_hook t.id dir (fun file ->
-              match key file with
-              | None -> ()
-              | Some key ->
-                  let rec read n =
-                    let value = value key in
-                    let n' = t.notifications in
-                    if n = n' then notify t key value
-                    else (
-                      [%log.debug "Stale event, trying reading again"];
-                      read n')
-                  in
-                  read t.notifications)
-        in
-        t.stop_listening <- f)
-      else [%log.debug "%s: already listening on %s" (to_string t) dir]
+    let on_change file =
+      match key file with
+      | None -> ()
+      | Some key ->
+          let rec read n =
+            let value = value key in
+            let n' = t.notifications in
+            if n = n' then notify t key value
+            else (
+              [%log.debug "Stale event, trying reading again"];
+              read n')
+          in
+          read t.notifications
     in
-    init ();
-    t.listeners <- t.listeners + 1;
-    function
-    | () ->
-        if t.listeners > 0 then t.listeners <- t.listeners - 1;
-        if t.listeners <> 0 then ()
-        else (
-          [%log.debug "%s: stop listening to %s" (to_string t) dir];
-          t.stop_listening ())
+    let l =
+      with_listen_lock t @@ fun () ->
+      let l =
+        match t.listening with
+        | Some l ->
+            [%log.debug "%s: already listening on %s" (to_string t) dir];
+            l
+        | None ->
+            [%log.debug "%s: start listening to %s" (to_string t) dir];
+            let l = { stop = !listen_dir_hook t.id dir on_change; users = 0 } in
+            t.listening <- Some l;
+            l
+      in
+      l.users <- l.users + 1;
+      l
+    in
+    (* Each stop function counts once, and does nothing once [clear] removed
+       the hook it was counted in. *)
+    let stopped = ref false in
+    fun () ->
+      Eio.Cancel.protect @@ fun () ->
+      with_listen_lock t @@ fun () ->
+      if not !stopped then (
+        stopped := true;
+        l.users <- l.users - 1;
+        match t.listening with
+        | Some l' when l' == l && l.users = 0 ->
+            [%log.debug "%s: stop listening to %s" (to_string t) dir];
+            stop_listening_unsafe t
+        | Some _ | None -> ())
 end

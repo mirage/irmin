@@ -57,6 +57,18 @@ module W =
       let t = Irmin.Type.string
     end)
 
+(* [await ~clock msg cond] waits until [cond ()] holds, and fails with [msg]
+   after 10s. *)
+let await ~clock msg cond =
+  let rec loop () =
+    if not (cond ()) then (
+      Eio.Time.sleep clock 0.01;
+      loop ())
+  in
+  match Eio.Time.with_timeout clock 10. (fun () -> Ok (loop ())) with
+  | Ok () -> ()
+  | Error `Timeout -> Alcotest.fail msg
+
 (* A file written in a watched directory, outside of Irmin, is reported
    through the listen hook, with its path relative to the directory. *)
 let test_listen_dir ~sw ~fs ~watcher ~clock () =
@@ -92,15 +104,27 @@ let test_listen_dir ~sw ~fs ~watcher ~clock () =
     | Ok _ -> Alcotest.fail "foo should be added with the value bar"
     | Error `Timeout -> Alcotest.fail "no change reported for foo within 60s" );
   (* The notification worker stops once the watch is removed. *)
-  let rec stopped () =
-    if Irmin.Backend.Watch.workers () <= workers then Ok ()
-    else (
-      Eio.Time.sleep clock 0.01;
-      stopped ())
-  in
-  match Eio.Time.with_timeout clock 10. stopped with
-  | Ok () -> ()
-  | Error `Timeout -> Alcotest.fail "the notification worker did not stop"
+  await ~clock "the notification worker did not stop" (fun () ->
+      Irmin.Backend.Watch.workers () <= workers)
 
-let misc ~sw ~fs ~watcher ~clock =
-  [ ("listen hook", `Quick, test_listen_dir ~sw ~fs ~watcher ~clock) ]
+(* Closing a repository stops looking for changes in its directory, even if
+   its watches are not removed. *)
+let test_close ~sw ~fs ~watcher ~path ~clock () =
+  let config = Irmin_fs_unix.config ~root:path ~clock in
+  init ~sw ~fs ~watcher ~config;
+  Fun.protect ~finally:(fun () -> clean ~config) @@ fun () ->
+  let (module S : Irmin_test.S) = store in
+  let watchdogs, workers = stats watcher () in
+  let repo = S.Repo.v config in
+  let _ : S.watch = S.watch (S.main repo) (fun _ -> ()) in
+  Alcotest.(check int)
+    "a watchdog runs" (watchdogs + 1) (Irmin_watcher.stats watcher).watchdogs;
+  S.Repo.close repo;
+  await ~clock "the watchdog did not stop" (fun () ->
+      stats watcher () = (watchdogs, workers))
+
+let misc ~sw ~fs ~watcher ~path ~clock =
+  [
+    ("listen hook", `Quick, test_listen_dir ~sw ~fs ~watcher ~clock);
+    ("close", `Quick, test_close ~sw ~fs ~watcher ~path ~clock);
+  ]
