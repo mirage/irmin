@@ -65,6 +65,7 @@ module type IO = sig
     bool
 
   val remove_file : io:io -> ?lock:lock -> path -> unit
+  val watch_path : io:io -> path -> string
 end
 
 (* ~path *)
@@ -202,7 +203,8 @@ struct
   let v config =
     let t = RO.v config in
     let w =
-      let path = RO.get_path config in
+      (* Stores with the same files share their watch state. *)
+      let path = IO.watch_path ~io:t.RO.io t.RO.path in
       try E.find watches path
       with Not_found ->
         let w = W.v () in
@@ -220,7 +222,7 @@ struct
   let list t = RO.list t.t
 
   let listen_dir t =
-    let dir = S.dir t.t.RO.path in
+    let dir = IO.watch_path ~io:t.t.RO.io (S.dir t.t.RO.path) in
     let key file =
       match Irmin.Type.of_string K.t file with
       | Ok t -> Some t
@@ -381,6 +383,8 @@ module IO_mem = struct
 
   let remove_file ~io ?lock file =
     with_lock ~io lock (fun () -> Hashtbl.remove t.files file)
+
+  let watch_path ~io:() dir = dir
 
   let rec_files ~io:() dir =
     Hashtbl.fold

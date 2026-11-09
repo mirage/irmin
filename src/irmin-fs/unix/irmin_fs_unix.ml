@@ -175,6 +175,8 @@ module IO = struct
           try Path.unlink file
           with Eio.Io (Eio.Fs.E (Fs.Not_found _), _) -> ())
 
+  let watch_path ~io:{ fs; _ } dir = Eio.Path.native_exn Path.(fs / dir)
+
   let temp_file ~temp_dir file suffix =
     let basename =
       match Eio.Path.split file with

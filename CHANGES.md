@@ -10,6 +10,8 @@
   raises `Invalid_argument`. `Irmin_cli` installs its watcher in
   `Irmin_cli.run` instead of when it is loaded (#2336, #2413, @clecat,
   @balat)
+- irmin-fs: the implementations of `Irmin_fs.IO` must now provide
+  `watch_path` (#2414, @balat)
 
 ## 3.11.0 (2025-06-19)
 

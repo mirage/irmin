@@ -69,18 +69,34 @@ let await ~clock msg cond =
   | Ok () -> ()
   | Error `Timeout -> Alcotest.fail msg
 
+(* [take_within ~clock s] is [Some v] for the next element [v] of [s], or
+   [None] if there is none within 60s. *)
+let take_within ~clock s =
+  match Eio.Time.with_timeout clock 60. (fun () -> Ok (Eio.Stream.take s)) with
+  | Ok v -> Some v
+  | Error `Timeout -> None
+
+(* [with_hook ~sw ~fs hook f] is [f ()] with the listen hook [hook] on [fs] and
+   the watch notifications on [sw]. The hook is reset to [none] afterwards. *)
+let with_hook ~sw ~fs hook f =
+  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw fs hook;
+  Fun.protect f ~finally:(fun () ->
+      Irmin.Backend.Watch.(set_listen_dir_hook none))
+
+(* [with_dir ~fs name f] is [f dir] for a new empty directory [dir] named
+   [name], which is removed afterwards. *)
+let with_dir ~fs name f =
+  let dir = Eio.Path.(fs / name) in
+  Eio.Path.rmtree ~missing_ok:true dir;
+  Eio.Path.mkdir ~perm:0o700 dir;
+  Fun.protect ~finally:(fun () -> Eio.Path.rmtree ~missing_ok:true dir)
+  @@ fun () -> f dir
+
 (* A file written in a watched directory, outside of Irmin, is reported
    through the listen hook, with its path relative to the directory. *)
 let test_listen_dir ~sw ~fs ~watcher ~clock () =
-  Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw fs
-    (Irmin_watcher.hook watcher);
-  let dir = Eio.Path.(fs / "test-listen-dir") in
-  Eio.Path.rmtree ~missing_ok:true dir;
-  Eio.Path.mkdir ~perm:0o700 dir;
-  Fun.protect ~finally:(fun () ->
-      Irmin.Backend.Watch.(set_listen_dir_hook none);
-      Eio.Path.rmtree ~missing_ok:true dir)
-  @@ fun () ->
+  with_hook ~sw ~fs (Irmin_watcher.hook watcher) @@ fun () ->
+  with_dir ~fs "test-listen-dir" @@ fun dir ->
   let value key =
     try Some (Eio.Path.load Eio.Path.(dir / key))
     with Eio.Io (Eio.Fs.E (Eio.Fs.Not_found _), _) -> None
@@ -97,12 +113,10 @@ let test_listen_dir ~sw ~fs ~watcher ~clock () =
     (* Write [foo] atomically, so that it is never read empty. *)
     Eio.Path.save ~create:(`Exclusive 0o600) Eio.Path.(dir / "foo.tmp") "bar";
     Eio.Path.rename Eio.Path.(dir / "foo.tmp") Eio.Path.(dir / "foo");
-    match
-      Eio.Time.with_timeout clock 60. (fun () -> Ok (Eio.Stream.take changes))
-    with
-    | Ok (`Added "bar") -> ()
-    | Ok _ -> Alcotest.fail "foo should be added with the value bar"
-    | Error `Timeout -> Alcotest.fail "no change reported for foo within 60s" );
+    match take_within ~clock changes with
+    | Some (`Added "bar") -> ()
+    | Some _ -> Alcotest.fail "foo should be added with the value bar"
+    | None -> Alcotest.fail "no change reported for foo within 60s" );
   (* The notification worker stops once the watch is removed. *)
   await ~clock "the notification worker did not stop" (fun () ->
       Irmin.Backend.Watch.workers () <= workers)
@@ -123,8 +137,54 @@ let test_close ~sw ~fs ~watcher ~path ~clock () =
   await ~clock "the watchdog did not stop" (fun () ->
       stats watcher () = (watchdogs, workers))
 
+module Store = Irmin_fs_unix.KV.Make (Irmin.Contents.String)
+
+let info () = Store.Info.v ~author:"test" ~message:"test" 0L
+
+(* [with_store ~fs ~clock name f] is [f root repo] for a new store [repo] in the
+   directory [root] named [name]. *)
+let with_store ~fs ~clock name f =
+  with_dir ~fs name @@ fun root ->
+  let repo = Store.Repo.v (Irmin_fs_unix.config ~root ~clock) in
+  Fun.protect ~finally:(fun () -> Store.Repo.close repo) @@ fun () ->
+  f root repo
+
+(* Watches on stores whose root is not the current directory see the changes
+   made to their files outside of the process, each store watching its own
+   files. *)
+let test_store_root ~sw ~fs ~watcher ~clock () =
+  with_hook ~sw ~fs (Irmin_watcher.hook watcher) @@ fun () ->
+  with_store ~fs ~clock "test-store-other" @@ fun _ other ->
+  let other_main = Store.main other in
+  Store.set_exn other_main ~info [ "a" ] "0";
+  let other_watch =
+    Store.Branch.watch other "main" ~init:(Store.Head.get other_main) ignore
+  in
+  Fun.protect ~finally:(fun () -> Store.unwatch other_watch) @@ fun () ->
+  with_store ~fs ~clock "test-store-root" @@ fun root repo ->
+  let main = Store.main repo in
+  let ref_file = Eio.Path.(root / "refs" / "main") in
+  Store.set_exn main ~info [ "a" ] "1";
+  let first = Eio.Path.load ref_file in
+  Store.set_exn main ~info [ "a" ] "2";
+  let changes = Eio.Stream.create max_int in
+  let w =
+    Store.Branch.watch repo "main" ~init:(Store.Head.get main)
+      (Eio.Stream.add changes)
+  in
+  Fun.protect ~finally:(fun () -> Store.unwatch w) @@ fun () ->
+  (* Move [main] back to the first commit, as another process would. *)
+  let tmp = Eio.Path.(root / "main.tmp") in
+  Eio.Path.save ~create:(`Exclusive 0o600) tmp first;
+  Eio.Path.rename tmp ref_file;
+  match take_within ~clock changes with
+  | Some (`Updated _) -> ()
+  | Some _ -> Alcotest.fail "main should be updated"
+  | None -> Alcotest.fail "no change reported for main within 60s"
+
 let misc ~sw ~fs ~watcher ~path ~clock =
   [
     ("listen hook", `Quick, test_listen_dir ~sw ~fs ~watcher ~clock);
     ("close", `Quick, test_close ~sw ~fs ~watcher ~path ~clock);
+    ("store root", `Quick, test_store_root ~sw ~fs ~watcher ~clock);
   ]
