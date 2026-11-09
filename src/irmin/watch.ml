@@ -51,10 +51,13 @@ let global = id ()
 let workers_r = ref 0
 let workers () = !workers_r
 
-(* Not sure this is right *)
+(* [stream_iter f s] calls [f] on the elements of [s] until [None]. *)
 let rec stream_iter f s =
-  (match Eio.Stream.take s with Some v -> f v | None -> ());
-  stream_iter f s
+  match Eio.Stream.take s with
+  | Some v ->
+      f v;
+      stream_iter f s
+  | None -> ()
 
 let scheduler () =
   let p = ref None in
@@ -68,10 +71,10 @@ let scheduler () =
           let s = Eio.Stream.create max_int in
           (s, Eio.Stream.add s)
         in
-        incr workers_r;
         let sw =
           try Option.get !watch_switch with _ -> failwith "Big Yikes"
         in
+        incr workers_r;
         (Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream);
         (* Lwt.async (fun () ->
             (* FIXME: we would like to skip some updates if more recent ones
@@ -82,10 +85,13 @@ let scheduler () =
         push elt
   in
   let clean () =
-    !c ();
-    decr workers_r;
-    c := niet;
-    p := None
+    match !p with
+    | None -> ()
+    | Some _ ->
+        !c ();
+        decr workers_r;
+        c := niet;
+        p := None
   in
   let enqueue v = push (Some v) in
   (clean, enqueue)
@@ -161,7 +167,8 @@ struct
   let clear_unsafe t =
     t.keys <- IMap.empty;
     t.glob <- IMap.empty;
-    t.next <- 0
+    t.next <- 0;
+    t.clean ()
 
   let clear t = Eio.Mutex.use_rw ~protect:true t.lock (fun () -> clear_unsafe t)
 
