@@ -59,39 +59,75 @@ let rec stream_iter f s =
       stream_iter f s
   | None -> ()
 
+(* [drop_pending s n] is [n] plus the number of notifications removed from [s],
+   up to its end. *)
+let rec drop_pending s n =
+  match Eio.Stream.take_nonblocking s with
+  | Some (Some _) -> drop_pending s (n + 1)
+  | Some None | None -> n
+
 let scheduler () =
+  (* [p] is the function pushing to the running worker, and its switch. *)
   let p = ref None in
-  let niet () = () in
-  let c = ref niet in
+  (* [running] is held by the worker running the callbacks. The order of the
+     callbacks relies on [Eio.Mutex] handing the lock to its waiters in turn.
+     It is used with [use_ro], as [use_rw] would poison it when a worker is
+     cancelled. *)
+  let running = Eio.Mutex.create () in
+  (* FIXME: we would like to skip some updates if more recent ones are at the
+     back of the queue. *)
+  let start_worker sw =
+    let stream = Eio.Stream.create max_int in
+    let push = Eio.Stream.add stream in
+    let worker = Some (push, sw) in
+    (* [Eio.Fiber.fork] runs the worker at once, so it sets [p] before the next
+       notification. The worker counts itself while it runs. It can also end
+       because [sw] is cancelled: it then lets the next notification start a
+       new one, which waits for [running], so that the callbacks run one at a
+       time and in order. *)
+    Eio.Fiber.fork ~sw (fun () ->
+        p := worker;
+        incr workers_r;
+        Fun.protect
+          ~finally:(fun () ->
+            decr workers_r;
+            if !p == worker then p := None;
+            match drop_pending stream 0 with
+            | 0 -> ()
+            | n ->
+                [%log.warn
+                  "a cancelled watch worker dropped its pending notifications: \
+                   %d"
+                  n])
+          (fun () ->
+            Eio.Mutex.use_ro running (fun () ->
+                stream_iter (fun f -> f ()) stream)));
+    push
+  in
   let push elt =
     match !p with
-    | Some p -> p elt
-    | None ->
-        let stream, push =
-          let s = Eio.Stream.create max_int in
-          (s, Eio.Stream.add s)
-        in
+    | Some (push, sw) when Option.is_none (Eio.Switch.get_error sw) -> push elt
+    (* No worker, or its switch is off. *)
+    | Some _ | None -> (
         let sw =
           try Option.get !watch_switch with _ -> failwith "Big Yikes"
         in
-        incr workers_r;
-        (Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream);
-        (* Lwt.async (fun () ->
-            (* FIXME: we would like to skip some updates if more recent ones
-               are at the back of the queue. *)
-            Eio.Stream.take (fun f -> f ()) stream); *)
-        p := Some push;
-        (c := fun () -> push None);
-        push elt
+        (* [Eio.Fiber.fork] starts no fiber on a switch that is off. *)
+        match Eio.Switch.get_error sw with
+        | None ->
+            let push = start_worker sw in
+            push elt
+        | Some e ->
+            [%log.warn
+              "dropping a watch notification, as its switch is off: %a" Fmt.exn
+                e])
   in
   let clean () =
     match !p with
     | None -> ()
-    | Some _ ->
-        !c ();
-        decr workers_r;
-        c := niet;
-        p := None
+    | Some (push, _) ->
+        p := None;
+        push None
   in
   let enqueue v = push (Some v) in
   (clean, enqueue)
