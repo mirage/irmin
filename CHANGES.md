@@ -6,7 +6,8 @@
 - Use irmin-watcher 0.6, whose watchers are values created with
   `Irmin_watcher.v ~sw ()`. Register them with the new
   `Irmin.Backend.Watch.set_listen_dir_eio_hook ~sw`, which also sets the
-  switch of watch notifications. `Irmin_cli` installs its watcher in
+  switch of watch notifications. Adding a watch before this switch is set
+  raises `Invalid_argument`. `Irmin_cli` installs its watcher in
   `Irmin_cli.run` instead of when it is loaded (@balat)
 
 ## 3.11.0 (2025-06-19)

@@ -26,7 +26,7 @@ let none _ _ =
   assert false
 
 let listen_dir_hook = ref none
-let watch_switch = ref None
+let watch_switch = Atomic.make None
 
 type hook = int -> string -> (string -> unit) -> unit -> unit
 
@@ -35,7 +35,21 @@ let set_listen_dir_hook (h : hook) = listen_dir_hook := h
 type eio_hook =
   int -> Eio.Fs.dir_ty Eio.Path.t -> (string -> unit) -> unit -> unit
 
-let set_watch_switch sw = watch_switch := Some sw
+let set_watch_switch sw = Atomic.set watch_switch (Some sw)
+
+let get_watch_switch () =
+  match Atomic.get watch_switch with
+  | Some sw -> sw
+  | None ->
+      invalid_arg
+        "Irmin.Backend.Watch: set_watch_switch must be called before adding a \
+         watch"
+
+(* Adding a watch checks that the switch is set, so that a missing switch fails
+   at once rather than when the watch is notified. *)
+let check_watch_switch () =
+  let _ : Eio.Switch.t = get_watch_switch () in
+  ()
 
 let set_listen_dir_eio_hook ~sw fs (h : eio_hook) =
   set_watch_switch sw;
@@ -109,14 +123,20 @@ let scheduler () =
     | Some (push, sw) when Option.is_none (Eio.Switch.get_error sw) -> push elt
     (* No worker, or its switch is off. *)
     | Some _ | None -> (
-        let sw =
-          try Option.get !watch_switch with _ -> failwith "Big Yikes"
-        in
+        (* The errors are logged rather than raised: [push] runs under the lock
+           of the watch state, which an exception would poison.
+           [get_watch_switch] does not fail, as the switch was set before the
+           watches were added, and is never unset. *)
+        let sw = get_watch_switch () in
         (* [Eio.Fiber.fork] starts no fiber on a switch that is off. *)
         match Eio.Switch.get_error sw with
-        | None ->
-            let push = start_worker sw in
-            push elt
+        | None -> (
+            (* [Eio.Fiber.fork] raises [Invalid_argument] if [sw] belongs to
+               another domain. *)
+            match start_worker sw with
+            | push -> push elt
+            | exception Invalid_argument msg ->
+                [%log.err "dropping a watch notification: %s" msg])
         | Some e ->
             [%log.warn
               "dropping a watch notification, as its switch is off: %a" Fmt.exn
@@ -335,6 +355,7 @@ struct
     id
 
   let watch_key t key ?init f =
+    check_watch_switch ();
     Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
         let id = watch_key_unsafe t ?init key f in
         id)
@@ -349,11 +370,13 @@ struct
     id
 
   let watch t ?init f =
+    check_watch_switch ();
     Eio.Mutex.use_rw ~protect:true t.lock (fun () ->
         let id = watch_unsafe t ?init f in
         id)
 
   let listen_dir t dir ~key ~value =
+    check_watch_switch ();
     let init () =
       if t.listeners = 0 then (
         [%log.debug "%s: start listening to %s" (to_string t) dir];
