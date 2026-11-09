@@ -141,13 +141,20 @@ module Store = Irmin_fs_unix.KV.Make (Irmin.Contents.String)
 
 let info () = Store.Info.v ~author:"test" ~message:"test" 0L
 
+(* [with_repo ~clock root f] is [f repo] for the store [repo] in [root], which
+   is closed afterwards. *)
+let with_repo ~clock root f =
+  let repo = Store.Repo.v (Irmin_fs_unix.config ~root ~clock) in
+  Fun.protect ~finally:(fun () -> Store.Repo.close repo) @@ fun () -> f repo
+
 (* [with_store ~fs ~clock name f] is [f root repo] for a new store [repo] in the
    directory [root] named [name]. *)
 let with_store ~fs ~clock name f =
-  with_dir ~fs name @@ fun root ->
-  let repo = Store.Repo.v (Irmin_fs_unix.config ~root ~clock) in
-  Fun.protect ~finally:(fun () -> Store.Repo.close repo) @@ fun () ->
-  f root repo
+  with_dir ~fs name @@ fun root -> with_repo ~clock root (f root)
+
+(* [in_process_only ~sw ~fs f] is [f ()] with a listen hook that reports no
+   change, to test the notifications within the process only. *)
+let in_process_only ~sw ~fs f = with_hook ~sw ~fs (fun _ _ _ () -> ()) f
 
 (* Watches on stores whose root is not the current directory see the changes
    made to their files outside of the process, each store watching its own
@@ -157,8 +164,11 @@ let test_store_root ~sw ~fs ~watcher ~clock () =
   with_store ~fs ~clock "test-store-other" @@ fun _ other ->
   let other_main = Store.main other in
   Store.set_exn other_main ~info [ "a" ] "0";
+  let other_changes = Eio.Stream.create max_int in
   let other_watch =
-    Store.Branch.watch other "main" ~init:(Store.Head.get other_main) ignore
+    Store.Branch.watch other "main"
+      ~init:(Store.Head.get other_main)
+      (Eio.Stream.add other_changes)
   in
   Fun.protect ~finally:(fun () -> Store.unwatch other_watch) @@ fun () ->
   with_store ~fs ~clock "test-store-root" @@ fun root repo ->
@@ -178,13 +188,34 @@ let test_store_root ~sw ~fs ~watcher ~clock () =
   Eio.Path.save ~create:(`Exclusive 0o600) tmp first;
   Eio.Path.rename tmp ref_file;
   match take_within ~clock changes with
-  | Some (`Updated _) -> ()
+  | Some (`Updated _) ->
+      Alcotest.(check int)
+        "no change reported for the other store" 0
+        (Eio.Stream.length other_changes)
   | Some _ -> Alcotest.fail "main should be updated"
   | None -> Alcotest.fail "no change reported for main within 60s"
+
+(* Stores with the same root share their watch state, also after a garbage
+   collection. *)
+let test_shared_state ~sw ~fs ~clock () =
+  in_process_only ~sw ~fs @@ fun () ->
+  with_store ~fs ~clock "test-store-shared" @@ fun root repo ->
+  Gc.full_major ();
+  with_repo ~clock root @@ fun other ->
+  let changes = Eio.Stream.create max_int in
+  let w = Store.Branch.watch repo "main" (Eio.Stream.add changes) in
+  Fun.protect ~finally:(fun () -> Store.unwatch w) @@ fun () ->
+  Store.set_exn (Store.main other) ~info [ "a" ] "1";
+  match take_within ~clock changes with
+  | Some _ -> ()
+  | None ->
+      Alcotest.fail
+        "no change reported through another store with the same root"
 
 let misc ~sw ~fs ~watcher ~path ~clock =
   [
     ("listen hook", `Quick, test_listen_dir ~sw ~fs ~watcher ~clock);
     ("close", `Quick, test_close ~sw ~fs ~watcher ~path ~clock);
     ("store root", `Quick, test_store_root ~sw ~fs ~watcher ~clock);
+    ("shared state", `Quick, test_shared_state ~sw ~fs ~clock);
   ]

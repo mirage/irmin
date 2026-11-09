@@ -184,7 +184,9 @@ struct
   module RO = Read_only_ext (IO) (S) (K) (V)
   module W = Irmin.Backend.Watch.Make (K) (V)
 
-  type t = { t : unit RO.t; w : W.t }
+  (* [_watch_key] keeps alive the key of [w] in [watches]: an ephemeron binding
+     is kept only while its key is. *)
+  type t = { t : unit RO.t; w : W.t; _watch_key : string }
   type key = RO.key
   type value = RO.value
   type watch = W.watch * (unit -> unit)
@@ -202,16 +204,16 @@ struct
 
   let v config =
     let t = RO.v config in
-    let w =
-      (* Stores with the same files share their watch state. *)
+    (* Stores with the same files share their watch state. *)
+    let _watch_key, w =
       let path = IO.watch_path ~io:t.RO.io t.RO.path in
       try E.find watches path
       with Not_found ->
-        let w = W.v () in
-        E.add watches path w;
-        w
+        let entry = (path, W.v ()) in
+        E.add watches path entry;
+        entry
     in
-    { t; w }
+    { t; w; _watch_key }
 
   let close t =
     W.clear t.w;
