@@ -39,7 +39,7 @@ depends: [
 ]
 
 pin-depends: [
-  [ "irmin-watcher.dev" "git+https://github.com/mirage/irmin-watcher#0d506669feebf94eac8685985c905d4bf06834bd" ]
+  [ "irmin-watcher.dev" "git+https://github.com/mirage/irmin-watcher#b342af0f9f252af276686aa57059deb439f705d9" ]
 ]
 
 synopsis: "Git backend for Irmin"
