@@ -83,8 +83,17 @@ let rec drop_pending s n =
   | Some (Some _) -> drop_pending s (n + 1)
   | Some None | None -> n
 
+type worker = {
+  push : (unit -> unit) option -> unit;
+      (** queues a notification, or ends the worker with [None]. *)
+  sw : Eio.Switch.t;
+  finished : unit Eio.Promise.t;  (** resolved when the worker ends. *)
+  pending : int Atomic.t;
+      (** the notifications queued whose callbacks have not returned yet. *)
+}
+
 let scheduler () =
-  (* [p] is the function pushing to the running worker, and its switch. *)
+  (* [p] is the running worker. *)
   let p = ref None in
   (* [running] is held by the worker running the callbacks. The order of the
      callbacks relies on [Eio.Mutex] handing the lock to its waiters in turn.
@@ -95,20 +104,28 @@ let scheduler () =
      back of the queue. *)
   let start_worker sw =
     let stream = Eio.Stream.create max_int in
-    let push = Eio.Stream.add stream in
-    let worker = Some (push, sw) in
-    (* [Eio.Fiber.fork] runs the worker at once, so it sets [p] before the next
-       notification. The worker counts itself while it runs. It can also end
-       because [sw] is cancelled: it then lets the next notification start a
-       new one, which waits for [running], so that the callbacks run one at a
-       time and in order. *)
-    Eio.Fiber.fork ~sw (fun () ->
+    let pending = Atomic.make 0 in
+    let push elt =
+      if Option.is_some elt then Atomic.incr pending;
+      Eio.Stream.add stream elt
+    in
+    let finished, set_finished = Eio.Promise.create () in
+    let worker = Some { push; sw; finished; pending } in
+    (* [Eio.Fiber.fork_daemon] runs the worker at once, so it sets [p] before the
+       next notification. The worker counts itself while it runs. It is a
+       daemon, so that the watches left do not keep [sw] running: it is
+       cancelled once the other fibers of [sw] are done. It can also end because
+       [sw] is cancelled: it then lets the next notification start a new one,
+       which waits for [running], so that the callbacks run one at a time and in
+       order. *)
+    Eio.Fiber.fork_daemon ~sw (fun () ->
         p := worker;
         incr workers_r;
         Fun.protect
           ~finally:(fun () ->
             decr workers_r;
             if !p == worker then p := None;
+            Eio.Promise.resolve set_finished ();
             match drop_pending stream 0 with
             | 0 -> ()
             | n ->
@@ -118,12 +135,18 @@ let scheduler () =
                   n])
           (fun () ->
             Eio.Mutex.use_ro running (fun () ->
-                stream_iter (fun f -> f ()) stream)));
+                stream_iter
+                  (fun f ->
+                    f ();
+                    Atomic.decr pending)
+                  stream));
+        `Stop_daemon);
     push
   in
   let push elt =
     match !p with
-    | Some (push, sw) when Option.is_none (Eio.Switch.get_error sw) -> push elt
+    | Some { push; sw; _ } when Option.is_none (Eio.Switch.get_error sw) ->
+        push elt
     (* No worker, or its switch is off. *)
     | Some _ | None -> (
         (* The errors are logged rather than raised: [push] runs under the lock
@@ -131,11 +154,11 @@ let scheduler () =
            [get_watch_switch] does not fail, as the switch was set before the
            watches were added, and is never unset. *)
         let sw = get_watch_switch () in
-        (* [Eio.Fiber.fork] starts no fiber on a switch that is off. *)
+        (* [Eio.Fiber.fork_daemon] starts no fiber on a switch that is off. *)
         match Eio.Switch.get_error sw with
         | None -> (
-            (* [Eio.Fiber.fork] raises [Invalid_argument] if [sw] belongs to
-               another domain. *)
+            (* [Eio.Fiber.fork_daemon] raises [Invalid_argument] if [sw] belongs
+               to another domain. *)
             match start_worker sw with
             | push -> push elt
             | exception Invalid_argument msg ->
@@ -145,12 +168,30 @@ let scheduler () =
               "dropping a watch notification, as its switch is off: %a" Fmt.exn
                 e])
   in
+  (* [drain sw finished] keeps [sw] running until the worker has run the
+     callbacks queued when the last watch was removed: as a daemon, it would
+     drop them once the other fibers of [sw] are done. *)
+  let drain sw finished =
+    match Eio.Switch.get_error sw with
+    | Some _ -> ()
+    | None -> (
+        (* [Eio.Fiber.fork] raises [Invalid_argument] if [sw] belongs to another
+           domain. *)
+        match Eio.Fiber.fork ~sw (fun () -> Eio.Promise.await finished) with
+        | () -> ()
+        | exception Invalid_argument msg ->
+            [%log.err "the last watch notifications may be dropped: %s" msg])
+  in
   let clean () =
     match !p with
     | None -> ()
-    | Some (push, _) ->
+    | Some { push; sw; finished; pending } ->
         p := None;
-        push None
+        push None;
+        (* A worker that has run all its callbacks has nothing to drain. This
+           also spares a fiber, and an error when the last watch is removed
+           from another domain. *)
+        if Atomic.get pending > 0 then drain sw finished
   in
   let enqueue v = push (Some v) in
   (clean, enqueue)

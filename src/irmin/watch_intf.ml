@@ -99,14 +99,19 @@ module type Sigs = sig
   val set_watch_switch : Eio.Switch.t -> unit
   (** [set_watch_switch sw] sets the switch of the fibers that run the watch
       callbacks. It must be set before adding a watch or listening to a
-      directory, which raise [Invalid_argument] until then. [sw] must outlive
-      the watches: once it is off, the notifications are dropped and logged. A
-      notification that would start a worker from another domain than the one of
-      [sw] is dropped and logged as an error. A running worker keeps its switch
-      until it is off or the watches are removed. The callbacks of a watch state
-      run one at a time and in order, so a callback that does not return delays
-      the next ones, even on a new switch. {!set_listen_dir_eio_hook} also sets
-      it. *)
+      directory, which raise [Invalid_argument] until then. The watches left do
+      not keep [sw] running: once its other fibers are done, the callbacks not
+      run yet are dropped, their number is logged, and the running one is
+      cancelled. Removing the last watch, or clearing them, keeps [sw] running
+      until the callbacks queued until then have run, except from another domain
+      than the one of [sw], which logs an error. Once [sw] is off, the
+      notifications are dropped and logged. A notification that would start a
+      worker from another domain than the one of [sw] is dropped and logged as
+      an error. A running worker stays on its switch, even if another one is
+      set, until that switch is off or the watches are removed. The callbacks of
+      a watch state run one at a time and in order, so a callback that does not
+      return delays the next ones, even on a new switch.
+      {!set_listen_dir_eio_hook} also sets it. *)
 
   val set_listen_dir_hook : hook -> unit
   (** Register a function which looks for file changes in a directory and return
@@ -127,8 +132,9 @@ module type Sigs = sig
       {!set_watch_switch} to [sw]. The directories to watch are resolved
       relative to [fs], usually [Eio.Stdenv.fs env]: a capability restricted to
       a directory, such as [Eio.Stdenv.cwd env], may refuse absolute paths. [sw]
-      is usually the switch of the watcher behind [h]. [sw] and that watcher
-      must outlive the watches. *)
+      is usually the switch of the watcher behind [h]. As with
+      {!set_watch_switch}, the notifications are dropped once [sw] is off or its
+      other fibers are done, and that watcher must outlive the watches. *)
 
   (** [Make] builds an implementation of watch helpers. *)
   module Make (K : Type.S) (V : Type.S) :
