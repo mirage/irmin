@@ -166,6 +166,4 @@ let main () =
   init ();
   Eio.Fiber.any (watchdog :: List.map (protect process) (Array.to_list images))
 
-let () =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+let () = Config.run main

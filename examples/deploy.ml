@@ -131,6 +131,4 @@ let main () =
         revert repo
     | _ -> help ()
 
-let () =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+let () = Config.run main

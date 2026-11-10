@@ -38,6 +38,4 @@ let test () =
   Store.set_tree_exn t ~info:(info "merge") [] tree;
   Printf.printf "%s\n%!" readme
 
-let () =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> test ()
+let () = Config.run test

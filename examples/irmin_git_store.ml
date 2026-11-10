@@ -62,6 +62,4 @@ let main () =
   Printf.printf "You can now run `cd %s && tig` to inspect the store.\n"
     Config.root
 
-let () =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+let () = Config.run main

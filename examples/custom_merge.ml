@@ -158,6 +158,4 @@ let main () =
   let r = Store.merge_into ~info:(info "Merging x into t") x ~into:t in
   match r with Ok () -> print_logs "merge" t | Error _ -> failwith "conflict!"
 
-let () =
-  Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+let () = Config.run main
