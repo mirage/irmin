@@ -184,12 +184,20 @@ struct
   module RO = Read_only_ext (IO) (S) (K) (V)
   module W = Irmin.Backend.Watch.Make (K) (V)
 
-  (* [_watch_key] keeps alive the key of [w] in [watches]: an ephemeron binding
-     is kept only while its key is. *)
-  type t = { t : unit RO.t; w : W.t; _watch_key : string }
   type key = RO.key
   type value = RO.value
   type watch = W.watch * (unit -> unit)
+
+  (* [_watch_key] keeps alive the key of [w] in [watches]: an ephemeron binding
+     is kept only while its key is. [own] holds the watches added through this
+     store, as [w] is shared with the other stores with the same files, and is
+     [None] once the store is closed. *)
+  type t = {
+    t : unit RO.t;
+    w : W.t;
+    _watch_key : string;
+    own : watch list option Atomic.t;
+  }
 
   let temp_dir t = t.t.RO.path / "tmp"
 
@@ -213,10 +221,27 @@ struct
         E.add watches path entry;
         entry
     in
-    { t; w; _watch_key }
+    { t; w; _watch_key; own = Atomic.make (Some []) }
 
+  (* [update_own t f] applies [f] to the watches added through [t], and is
+     [false] if [t] is closed. *)
+  let rec update_own t f =
+    match Atomic.get t.own with
+    | None -> false
+    | Some own as old ->
+        Atomic.compare_and_set t.own old (Some (f own)) || update_own t f
+
+  (* Removing a watch cleans up, so it is not cancelled. The callback is
+     removed first, in case the hook fails to stop. *)
+  let remove_watch t (id, stop) =
+    Eio.Cancel.protect @@ fun () ->
+    W.unwatch t.w id;
+    stop ()
+
+  (* Closing a store removes its watches only. Only the last removal stops the
+     hook, so an error there leaves no watch behind. *)
   let close t =
-    W.clear t.w;
+    Atomic.exchange t.own None |> Option.iter (List.iter (remove_watch t));
     RO.close t.t
 
   let find t = RO.find t.t
@@ -232,21 +257,39 @@ struct
           [%log.err "listen_dir: %s" e];
           None
     in
+    (* The hook of the shared state reads the files through the store that
+       started it, also once it is closed: [RO.close] releases nothing. *)
     W.listen_dir t.w dir ~key ~value:(RO.find t.t)
 
+  (* [add_watch t register] starts the hook and adds the watch [register ()].
+     [t] may be closed while the hook starts. *)
+  let add_watch t register =
+    let stop = listen_dir t in
+    let id =
+      try register ()
+      with e ->
+        let bt = Printexc.get_raw_backtrace () in
+        stop ();
+        Printexc.raise_with_backtrace e bt
+    in
+    let watch = (id, stop) in
+    if update_own t (List.cons watch) then watch
+    else (
+      remove_watch t watch;
+      raise Irmin.Closed)
+
   let watch_key t key ?init f =
-    let stop = listen_dir t in
-    let w = W.watch_key t.w key ?init f in
-    (w, stop)
+    add_watch t (fun () -> W.watch_key t.w key ?init f)
 
-  let watch t ?init f =
-    let stop = listen_dir t in
-    let w = W.watch t.w ?init f in
-    (w, stop)
+  let watch t ?init f = add_watch t (fun () -> W.watch t.w ?init f)
 
-  let unwatch t (id, stop) =
-    stop ();
-    W.unwatch t.w id
+  (* The stop function of a watch identifies it: [W.listen_dir] returns a new
+     one at each call. *)
+  let unwatch t ((_, stop) as watch) =
+    let _ : bool =
+      update_own t (List.filter (fun (_, stop') -> stop' != stop))
+    in
+    remove_watch t watch
 
   let raw_value = Irmin.Type.(unstage (to_bin_string V.t))
 

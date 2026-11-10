@@ -212,10 +212,62 @@ let test_shared_state ~sw ~fs ~clock () =
       Alcotest.fail
         "no change reported through another store with the same root"
 
+(* Closing a store removes its watches, but not the ones of the other stores
+   with the same root. *)
+let test_close_shared ~sw ~fs ~clock () =
+  in_process_only ~sw ~fs @@ fun () ->
+  with_store ~fs ~clock "test-store-close-shared" @@ fun root repo ->
+  let changes = Eio.Stream.create max_int in
+  let w = Store.Branch.watch repo "main" (Eio.Stream.add changes) in
+  Fun.protect ~finally:(fun () -> Store.unwatch w) @@ fun () ->
+  let other_changes = Eio.Stream.create max_int in
+  ( with_repo ~clock root @@ fun other ->
+    (* A watch of the backend, as the callback of [Store.Branch.watch] fails
+       once its store is closed. *)
+    let _ : Store.Backend.Branch.watch =
+      Store.Backend.Branch.watch_key
+        (Store.Backend.Repo.branch_t other)
+        "main"
+        (Eio.Stream.add other_changes)
+    in
+    () );
+  Store.set_exn (Store.main repo) ~info [ "a" ] "1";
+  match take_within ~clock changes with
+  | Some _ ->
+      Alcotest.(check int)
+        "no change reported for the closed store" 0
+        (Eio.Stream.length other_changes)
+  | None -> Alcotest.fail "closing another store removed the watch"
+
+(* A watch whose store is closed while its hook starts fails, and is removed. *)
+let test_watch_while_closing ~sw ~fs ~clock () =
+  let started, start = Eio.Promise.create () in
+  let resumed, resume = Eio.Promise.create () in
+  let stopped = ref false in
+  let hook _ _ _ =
+    Eio.Promise.resolve start ();
+    Eio.Promise.await resumed;
+    fun () -> stopped := true
+  in
+  with_hook ~sw ~fs hook @@ fun () ->
+  with_store ~fs ~clock "test-store-watch-closing" @@ fun _ repo ->
+  Eio.Fiber.both
+    (fun () ->
+      match Store.Branch.watch repo "main" ignore with
+      | _ -> Alcotest.fail "the watch should fail"
+      | exception Irmin.Closed -> ())
+    (fun () ->
+      Eio.Promise.await started;
+      Store.Repo.close repo;
+      Eio.Promise.resolve resume ());
+  Alcotest.(check bool) "the hook is stopped" true !stopped
+
 let misc ~sw ~fs ~watcher ~path ~clock =
   [
     ("listen hook", `Quick, test_listen_dir ~sw ~fs ~watcher ~clock);
     ("close", `Quick, test_close ~sw ~fs ~watcher ~path ~clock);
     ("store root", `Quick, test_store_root ~sw ~fs ~watcher ~clock);
     ("shared state", `Quick, test_shared_state ~sw ~fs ~clock);
+    ("close shared", `Quick, test_close_shared ~sw ~fs ~clock);
+    ("watch while closing", `Quick, test_watch_while_closing ~sw ~fs ~clock);
   ]
