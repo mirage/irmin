@@ -331,6 +331,87 @@ let test_clear_stops_listening () =
   stop ();
   check_counts "and stops it" counts (2, 2)
 
+(* [switch_ends ~sw f] runs [f ()] in a new switch of the notifications, and
+   is [true] if the switch ends once [f] returns. If it is still running after
+   letting the other fibers run a few times, it is cancelled and
+   [switch_ends ~sw f] is [false]. The switch of the notifications is then set
+   back to [sw]. *)
+let switch_ends ~sw f =
+  Fun.protect ~finally:(fun () -> Watch.set_watch_switch sw) @@ fun () ->
+  Eio.Fiber.first
+    (fun () ->
+      Eio.Switch.run (fun sw' ->
+          Watch.set_watch_switch sw';
+          f ());
+      true)
+    (fun () ->
+      let _ : unit option = eventually (fun () -> None) in
+      false)
+
+(* A watch that is never removed does not keep the switch of the notifications
+   running. *)
+let test_watch_left ~sw () =
+  let workers = Watch.workers () in
+  let w = W.v () in
+  let changes = Eio.Stream.create max_int in
+  let ended =
+    switch_ends ~sw (fun () ->
+        let _ : W.watch = W.watch_key w "k" (Eio.Stream.add changes) in
+        W.notify w "k" (Some "v");
+        Alcotest.check diff "notified" (`Added "v") (take changes "k"))
+  in
+  Alcotest.(check bool) "the switch ended" true ended;
+  check_stopped workers "end of the switch"
+
+(* The callbacks queued when the last watch is removed run before the switch of
+   the notifications ends. *)
+let test_unwatch_drains ~sw () =
+  let workers = Watch.workers () in
+  let w = W.v () in
+  let calls = ref 0 in
+  let ended =
+    switch_ends ~sw (fun () ->
+        let id =
+          W.watch_key w "k" (fun _ ->
+              Eio.Fiber.yield ();
+              incr calls)
+        in
+        W.notify w "k" (Some "a");
+        W.notify w "k" (Some "b");
+        W.unwatch w id)
+  in
+  Alcotest.(check bool) "the switch ended" true ended;
+  Alcotest.(check int) "the queued callbacks ran" 2 !calls;
+  check_stopped workers "unwatch"
+
+(* A callback can remove the last watch: the callbacks queued after it still
+   run before the switch of the notifications ends. *)
+let test_unwatch_in_callback ~sw () =
+  let workers = Watch.workers () in
+  let w = W.v () in
+  let calls = ref 0 in
+  let first, first_done = Eio.Promise.create () in
+  let watch = ref None in
+  let ended =
+    switch_ends ~sw (fun () ->
+        let callback _ =
+          incr calls;
+          Option.iter (W.unwatch w) !watch;
+          watch := None;
+          if not (Eio.Promise.is_resolved first) then
+            Eio.Promise.resolve first_done ();
+          Eio.Fiber.yield ()
+        in
+        watch := Some (W.watch_key w "k" callback);
+        W.notify w "k" (Some "a");
+        W.notify w "k" (Some "b");
+        W.notify w "k" (Some "c");
+        Eio.Promise.await first)
+  in
+  Alcotest.(check bool) "the switch ended" true ended;
+  Alcotest.(check int) "the queued callbacks ran" 3 !calls;
+  check_stopped workers "unwatch"
+
 let suite ~sw =
   [
     Alcotest.test_case "clear stops the worker" `Quick
@@ -346,4 +427,8 @@ let suite ~sw =
     Alcotest.test_case "callback cancelled" `Quick (test_callback_cancelled ~sw);
     Alcotest.test_case "concurrent listen" `Quick test_concurrent_listen;
     Alcotest.test_case "clear stops listening" `Quick test_clear_stops_listening;
+    Alcotest.test_case "watch left" `Quick (test_watch_left ~sw);
+    Alcotest.test_case "unwatch drains" `Quick (test_unwatch_drains ~sw);
+    Alcotest.test_case "unwatch in a callback" `Quick
+      (test_unwatch_in_callback ~sw);
   ]
