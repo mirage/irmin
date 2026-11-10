@@ -1,5 +1,6 @@
 (test
  (name test)
+ (modules :standard \ test_watch_no_switch)
  ;; Attached to `irmin-test` to avoid a cyclic dependency with `irmin`
  (package irmin-test)
  (preprocess
@@ -14,3 +15,12 @@
   logs
   logs.fmt
   qcheck-alcotest))
+
+;; The watch switch cannot be unset, so the tests without it run in their own
+;; executable.
+
+(test
+ (name test_watch_no_switch)
+ (modules test_watch_no_switch)
+ (package irmin-test)
+ (libraries irmin alcotest eio_main))
