@@ -389,6 +389,20 @@ let websocket_origin () =
   check "prefix of an allowed origin" false
     (Some "https://allowed.example.evil")
 
+(* A frame which is not valid closes its connection, not the server. *)
+let websocket_bad_frame () =
+  let* () =
+    with_small_server @@ fun (ic, oc) ->
+    let* accepted = upgrade (ic, oc) in
+    Alcotest.(check bool) "upgrade" true accepted;
+    (* A control frame cannot be this long *)
+    let* () = Lwt_io.write oc "\x89\xfe\x00\x80" in
+    Lwt_io.flush oc
+  in
+  let* () = Lwt_unix.sleep 0.5 in
+  let+ accepted = with_small_server upgrade in
+  Alcotest.(check bool) "server still running" true accepted
+
 let misc =
   [
     ("ping", `Quick, ping);
@@ -399,6 +413,7 @@ let misc =
     ("unsafe_add and hash", `Quick, unsafe_add_hash);
     ("dashboard paths", `Quick, dashboard_paths);
     ("websocket origin", `Quick, websocket_origin);
+    ("websocket bad frame", `Quick, websocket_bad_frame);
   ]
 
 let misc = [ ("misc", misc) ]
