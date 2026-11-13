@@ -193,3 +193,54 @@ let upgrade ?origin ~port (ic, oc) =
 let with_connection ~port f =
   Lwt_eio.run_lwt @@ fun () ->
   Lwt_io.with_connection Unix.(ADDR_INET (inet_addr_loopback, port)) f
+
+(* The commands of the server, for their names and request types *)
+module Command =
+  Irmin_server.Command.Make (Lwt_io_channels) (Irmin_server.Conn.Codec.Bin)
+    (Store)
+
+module Watch = Command.Commands.Branch.Watch
+module Watch_key = Command.Commands.Branch.Watch_key
+
+(* Read the request of [Branch.watch] or [Branch.watch_key]: it must have no
+   [init]. *)
+let read_watch_request conn command =
+  if command = Watch.name then Conn.read conn Watch.req_t >|= ( = ) (Ok None)
+  else if command = Watch_key.name then
+    Conn.read conn Watch_key.req_t
+    >|= Result.fold ~ok:(fun (init, _) -> init = None) ~error:(fun _ -> false)
+  else Lwt.return_false
+
+(* Run [f] with a server on the Unix socket [name], in the event loop of the
+   tests. The server checks the handshake of each connection, and gives a
+   watch request without [init] to [answer]. It refuses any other request. *)
+let with_watch_server name answer f =
+  let uri = unix_uri name in
+  let path = Uri.path uri in
+  if Sys.file_exists path then Unix.unlink path;
+  let handler _ (ic, oc) =
+    let conn = Conn.v ic oc in
+    Lwt.catch
+      (fun () ->
+        Conn.Handshake.V1.check (module Store) conn >>= function
+        | false -> Lwt.return_unit
+        | true -> (
+            Conn.Request.read_header conn >>= fun { command } ->
+            read_watch_request conn command >>= function
+            | true -> answer conn
+            | false -> Conn.err conn "unexpected request"))
+      (function
+        | End_of_file -> Lwt.return_unit
+        | exn ->
+            (* The test fails on its own, without the answer *)
+            Logs.err (fun l -> l "Watch server: %a" Fmt.exn exn);
+            Lwt.return_unit)
+  in
+  let server =
+    Lwt_eio.run_lwt @@ fun () ->
+    Lwt_io.establish_server_with_client_address (Unix.ADDR_UNIX path) handler
+  in
+  Fun.protect
+    (fun () -> f uri)
+    ~finally:(fun () ->
+      Lwt_eio.run_lwt @@ fun () -> Lwt_io.shutdown_server server)

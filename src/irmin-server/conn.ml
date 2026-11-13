@@ -23,7 +23,16 @@ module Codec = struct
   module type S = Codec.S
 
   module Bin = struct
-    let decode t = Irmin.Type.(unstage (of_bin_string t)) [@@inline]
+    (* The message comes from the peer: bytes left after the value make it
+       invalid. [Irmin.Type.of_bin_string] only checks this with an
+       assertion, so the position is checked here. *)
+    let decode t s =
+      let pos = ref 0 in
+      match Irmin.Type.(unstage (Unboxed.decode_bin t)) s pos with
+      | v when !pos = String.length s -> Ok v
+      | _ -> Error (`Msg "unexpected bytes after the value")
+      | exception Invalid_argument msg -> Error (`Msg msg)
+
     let encode t = Irmin.Type.(unstage (to_bin_string t)) [@@inline]
   end
 
