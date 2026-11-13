@@ -7,6 +7,9 @@
     `Irmin_client.config` and `connect` (@balat)
 - **irmin-server**
   - Add an `allowed_origins` option to `Irmin_server_unix.Make(_).v` (@balat)
+- **irmin-cli**
+  - Add the `--max-message-size` and `--allowed-origin` options to
+    `irmin server` (@balat)
 
 ### Changed
 
