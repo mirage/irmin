@@ -433,6 +433,50 @@ let websocket_origin ~clock () =
             (mem_config "Origin")))
     [ "allowed.example"; "https://allowed.example/page"; "https://"; "" ]
 
+(* A frame which is not valid closes its connection, not the server. *)
+let websocket_bad_frame ~clock () =
+  let port = free_port () in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock "Frames" (websocket_uri port);
+  ( with_connection ~port @@ fun (ic, oc) ->
+    let open Lwt.Syntax in
+    let* accepted = upgrade ~port (ic, oc) in
+    Alcotest.(check bool) "upgrade" true accepted;
+    (* A control frame cannot be this long *)
+    let* () = Lwt_io.write oc "\x89\xfe\x00\x80" in
+    Lwt_io.flush oc );
+  Eio.Time.sleep clock 0.5;
+  Alcotest.(check bool)
+    "server still running" true
+    (with_connection ~port (upgrade ~port))
+
+(* Wait until [f ()] holds, for a few seconds. *)
+let rec eventually ~clock ?(tries = 50) f =
+  f ()
+  || tries > 0
+     &&
+     (Eio.Time.sleep clock 0.1;
+      eventually ~clock ~tries:(tries - 1) f)
+
+(* The server keeps nothing of a websocket which is closed. The file
+   descriptors are only counted where [/dev/fd] gives them. *)
+let websocket_closed ~clock () =
+  let dir = "/dev/fd" in
+  if Sys.file_exists dir then (
+    let port = free_port () in
+    Eio.Switch.run @@ fun sw ->
+    start_server ~sw ~clock "Closed" (websocket_uri port);
+    let count () = Array.length (Sys.readdir dir) in
+    let before = count () in
+    for _ = 1 to 10 do
+      Alcotest.(check bool)
+        "upgrade" true
+        (with_connection ~port (upgrade ~port))
+    done;
+    Alcotest.(check bool)
+      "file descriptors released" true
+      (eventually ~clock (fun () -> count () <= before)))
+
 let misc ~uri ~clock client =
   [
     ("ping", `Quick, ping client);
@@ -445,6 +489,8 @@ let misc ~uri ~clock client =
     ("unsafe_add and hash", `Quick, unsafe_add_hash ~uri);
     ("dashboard paths", `Quick, dashboard_paths client);
     ("websocket origin", `Quick, websocket_origin ~clock);
+    ("websocket bad frame", `Quick, websocket_bad_frame ~clock);
+    ("websocket closed", `Quick, websocket_closed ~clock);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]
