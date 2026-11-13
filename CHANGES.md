@@ -7,6 +7,13 @@
     `Irmin.Type`, which can then read their children from a store
     (#2425, @balat)
 
+### Fixed
+
+- **irmin-server**
+  - Refuse the `unsafe_add` commands whose hash is not the hash of the value.
+    A client could store a value under the hash of another object, which then
+    became unreadable (#2425, @balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

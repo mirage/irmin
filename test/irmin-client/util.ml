@@ -141,10 +141,12 @@ let wait_for_server ?server uri =
   in
   wait 400
 
-(* Fork a server and wait until it is listening. The processes are forked
-   before the first client is created: a child must not inherit the
-   connections of the tests. *)
-let fork_server uri =
+let serve_mem uri = Server.v ~uri (Irmin_mem.config ()) >>= Server.serve
+
+(* Fork a server, by default on a memory store, and wait until it is
+   listening. The processes are forked before the first client is created:
+   a child must not inherit the connections of the tests. *)
+let fork_server ?(serve = serve_mem) uri =
   (* The server of a run which was killed may still hold the Unix socket: it
      must not be taken for this one. *)
   (match Uri.scheme uri with
@@ -155,8 +157,7 @@ let fork_server uri =
   let server =
     fork @@ fun () ->
     let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-    let conf = Irmin_mem.config () in
-    Lwt_main.run (Server.v ~uri conf >>= Server.serve)
+    Lwt_main.run (serve uri)
   in
   wait_for_server ~server uri;
   server
