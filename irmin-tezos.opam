@@ -7,7 +7,7 @@ license: "ISC"
 homepage: "https://github.com/mirage/irmin"
 bug-reports: "https://github.com/mirage/irmin/issues"
 depends: [
-  "dune" {>= "3.5.0"}
+  "dune" {>= "3.15.2"}
   "irmin" {>= version}
   "irmin-pack" {= version}
   "ppx_irmin" {= version}

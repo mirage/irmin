@@ -2,3 +2,4 @@
 (name irmin)
 (cram enable)
 (using mdx 0.2)
+(using directory-targets 0.1)
