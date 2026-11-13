@@ -35,7 +35,10 @@ end
 module type S = sig
   include Irmin.Generic_key.S
 
-  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo
+  val connect :
+    ?tls:bool -> ?hostname:string -> ?max_message_size:int -> Uri.t -> repo
+  (** [connect uri] is [Repo.v (config uri)]. *)
+
   val reconnect : repo -> unit Lwt.t
 
   val uri : repo -> Uri.t
@@ -103,7 +106,17 @@ module type Client = sig
 
   module type IO = IO
 
-  val config : ?tls:bool -> ?hostname:string -> Uri.t -> Irmin.config
+  val config :
+    ?tls:bool ->
+    ?hostname:string ->
+    ?max_message_size:int ->
+    Uri.t ->
+    Irmin.config
+  (** [config uri] is the configuration of a client of the server at [uri]. The
+      client does not send nor accept the messages longer than
+      [max_message_size] bytes: the request fails with
+      {!Irmin_server.Conn.Message_too_large} and the client is closed. The
+      default is {!Irmin_server.Conn.default_max_message_size}. *)
 
   module Make (I : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) :
     S

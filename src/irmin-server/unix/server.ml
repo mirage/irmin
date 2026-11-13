@@ -33,6 +33,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     dashboard : Conduit_lwt_unix.server option;
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
+    max_message_size : int option;
     repo : Store.Repo.t;
     info : Command.Server_info.t;
   }
@@ -40,7 +41,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ?dashboard ~uri config =
+  let v ?tls_config ?dashboard ?max_message_size ~uri config =
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -73,28 +74,22 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let+ repo = Lwt_eio.run_eio @@ fun () -> Store.Repo.v config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; dashboard; config; repo; info }
+    { ctx; uri; server; dashboard; config; max_message_size; repo; info }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
   let invalid_arguments a = Error.unwrap "Invalid arguments" a [@@inline]
   let command_lock = Lwt_mutex.create ()
 
+  let unwatch client =
+    Lwt_eio.run_eio @@ fun () ->
+    Option.iter Store.unwatch client.Command.watch;
+    Option.iter
+      (Store.Backend.Branch.unwatch (Store.Backend.Repo.branch_t client.repo))
+      client.Command.branch_watch
+
   let[@tailrec] rec loop repo conn client info : unit Lwt.t =
-    if Conn.is_closed conn then
-      let* () =
-        Lwt_eio.run_eio @@ fun () ->
-        match client.Command.watch with Some w -> Store.unwatch w | None -> ()
-      in
-      let* () =
-        Lwt_eio.run_eio @@ fun () ->
-        match client.Command.branch_watch with
-        | Some w ->
-            let b = Store.Backend.Repo.branch_t client.repo in
-            Store.Backend.Branch.unwatch b w
-        | None -> ()
-      in
-      Lwt.return_unit
+    if Conn.is_closed conn then Lwt.return_unit
     else
       Lwt.catch
         (fun () ->
@@ -124,6 +119,17 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
               (* Client has disconnected *)
               let* () = Lwt_io.close conn.ic in
               Lwt.return_unit
+          | Irmin_server.Conn.Message_too_large len ->
+              (* The message has not been read: the stream is lost *)
+              [%log.err "Closing the connection: message of %Ld bytes" len];
+              let* () =
+                Lwt.catch
+                  (fun () -> Conn.err conn "message too large")
+                  (fun exn ->
+                    [%log.debug "Cannot send the error: %a" Fmt.exn exn];
+                    Lwt.return_unit)
+              in
+              Lwt_io.close conn.ic
           | exn ->
               if Conn.is_closed conn then Lwt.return_unit
               else
@@ -134,9 +140,9 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
                 Lwt_unix.sleep 0.01)
       >>= fun () -> loop repo conn client info
 
-  let callback { repo; info; config; _ } ic oc =
+  let callback { repo; info; config; max_message_size; _ } ic oc =
     (* Handshake check *)
-    let conn = Conn.v ic oc in
+    let conn = Conn.v ?max_message_size ic oc in
     let* check =
       Lwt.catch
         (fun () -> Conn.Handshake.V1.check (module Store) conn)
@@ -151,7 +157,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       let client =
         Command.{ conn; repo; watch = None; branch_watch = None; config }
       in
-      loop repo conn client info
+      (* The watches are removed however the connection ends *)
+      Lwt.finalize
+        (fun () -> loop repo conn client info)
+        (fun () -> unwatch client)
 
   (* The websocket protocol reads fully formed protocol packets off of
      one end of a pipe given to irmin-server-internal and converts the

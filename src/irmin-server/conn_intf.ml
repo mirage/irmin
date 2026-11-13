@@ -21,6 +21,10 @@ module Codec = struct
   end
 end
 
+exception Message_too_large of int64
+
+let default_max_message_size = min (64 * 1024 * 1024) Sys.max_string_length
+
 module type IO = sig
   type flow
   type ic
@@ -43,10 +47,13 @@ end
 module type S = sig
   module IO : IO
 
-  type t = { ic : IO.ic; oc : IO.oc; buffer : bytes }
+  type t = { ic : IO.ic; oc : IO.oc; buffer : bytes; max_message_size : int }
 
-  val v : ?buffer_size:int -> IO.ic -> IO.oc -> t
-  (** Create a new connection using [flow], [ic] and [oc] *)
+  val v : ?buffer_size:int -> ?max_message_size:int -> IO.ic -> IO.oc -> t
+  (** Create a new connection using [ic] and [oc]. Reading or writing a message
+      longer than [max_message_size] bytes fails with {!Message_too_large}. The
+      default is {!default_max_message_size}. The handshake needs about 150
+      bytes. *)
 
   val is_closed : t -> bool
   (** Check if the underlying channel is closed *)
@@ -108,6 +115,14 @@ module type S = sig
 end
 
 module type Sigs = sig
+  exception Message_too_large of int64
+  (** A message of this length, in bytes, is longer than the maximum of the
+      connection. It has not been read, or not been written: the connection
+      cannot be used any more. *)
+
+  val default_max_message_size : int
+  (** 64 MiB, or the longest string when it is shorter. *)
+
   module Codec : sig
     module type S = Codec.S
 
