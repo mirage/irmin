@@ -18,12 +18,21 @@
     full: its connection cannot be used any more (@balat)
   - The server does not send the notification of a watch when it is longer
     than `max_message_size` (@balat)
-  - A watch of the client stops when its connection is closed by the server,
-    or when a notification is longer than the `max_message_size` of the
-    client, as it cannot be skipped (@balat)
+  - A watch of the client stops when a notification is longer than the
+    `max_message_size` of the client, as it cannot be skipped (@balat)
 - **irmin-server**
   - Remove the `buffer` field of `Conn.t` and the `buffer_size` argument of
     `Conn.v`, which are not used any more (@balat)
+
+### Fixed
+
+- **irmin-client**
+  - Stop the watches of the Unix client when the connection to the server is
+    lost. They were looping for ever without yielding to the scheduler. Close
+    the connection of a watch which cannot be set (#2422, @balat)
+- **irmin-server**
+  - Return an error instead of raising `Assert_failure` when a binary message
+    has more bytes than its value (#2422, @balat)
 
 ## 3.11.0 (2025-06-19)
 

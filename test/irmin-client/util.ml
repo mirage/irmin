@@ -175,6 +175,42 @@ let free_port () =
 let loopback_uri scheme port =
   Uri.of_string (Fmt.str "%s://127.0.0.1:%d" scheme port)
 
+type watcher = {
+  server : int;
+  watcher : int;
+  ready : Lwt_unix.file_descr;
+  server_gone : Lwt_unix.file_descr;
+}
+
+(* A process watching a branch of its own server. It says when the watch is
+   set. Once told that the server is gone, it removes the watch and exits. *)
+let fork_watcher uri =
+  let server = fork_server uri in
+  let ready_r, ready_w = Unix.pipe () and gone_r, gone_w = Unix.pipe () in
+  let watcher =
+    fork @@ fun () ->
+    Unix.close ready_r;
+    Unix.close gone_w;
+    let ready = Lwt_unix.of_unix_file_descr ready_w
+    and gone = Lwt_unix.of_unix_file_descr gone_r in
+    Lwt_main.run
+      ( Client.Repo.v (Irmin_client_unix.config uri) >>= fun repo ->
+        Client.Branch.watch repo "main" (fun _ -> Lwt.return_unit)
+        >>= fun watch ->
+        Lwt_unix.write ready (Bytes.make 1 'r') 0 1 >>= fun (_ : int) ->
+        Lwt_unix.read gone (Bytes.create 1) 0 1 >>= fun (_ : int) ->
+        (* The end of the connection is seen before the watch is removed *)
+        Lwt_unix.sleep 0.2 >>= fun () -> Client.unwatch watch )
+  in
+  Unix.close ready_w;
+  Unix.close gone_r;
+  {
+    server;
+    watcher;
+    ready = Lwt_unix.of_unix_file_descr ready_r;
+    server_gone = Lwt_unix.of_unix_file_descr gone_w;
+  }
+
 let run_server s =
   let local scheme = loopback_uri scheme (free_port ()) in
   let kind, uri =
@@ -265,6 +301,52 @@ let upgrade ?origin port (ic, oc) =
 
 let with_local_connection port f =
   Lwt_io.with_connection Unix.(ADDR_INET (inet_addr_loopback, port)) f
+
+(* The commands of the server, for their names and request types *)
+module Command =
+  Irmin_server.Command.Make (Lwt_io_channels) (Irmin_server.Conn.Codec.Bin)
+    (Store)
+
+module Watch = Command.Commands.Branch.Watch
+module Watch_key = Command.Commands.Branch.Watch_key
+
+(* Read the request of [Branch.watch] or [Branch.watch_key]: it must have no
+   [init]. *)
+let read_watch_request conn command =
+  if command = Watch.name then Conn.read conn Watch.req_t >|= ( = ) (Ok None)
+  else if command = Watch_key.name then
+    Conn.read conn Watch_key.req_t
+    >|= Result.fold ~ok:(fun (init, _) -> init = None) ~error:(fun _ -> false)
+  else Lwt.return_false
+
+(* Run [f] with a server on the Unix socket [name], in the test process. The
+   server checks the handshake of each connection, and gives a watch request
+   without [init] to [answer]. It refuses any other request. *)
+let with_watch_server name answer f =
+  let uri = unix_uri name in
+  let path = Uri.path uri in
+  if Sys.file_exists path then Unix.unlink path;
+  let handler _ (ic, oc) =
+    let conn = Conn.v ic oc in
+    Lwt.catch
+      (fun () ->
+        Conn.Handshake.V1.check (module Store) conn >>= function
+        | false -> Lwt.return_unit
+        | true -> (
+            Conn.Request.read_header conn >>= fun { command } ->
+            read_watch_request conn command >>= function
+            | true -> answer conn
+            | false -> Conn.err conn "unexpected request"))
+      (function
+        | End_of_file -> Lwt.return_unit
+        | exn ->
+            (* The test fails on its own, without the answer *)
+            Logs.err (fun l -> l "Watch server: %a" Fmt.exn exn);
+            Lwt.return_unit)
+  in
+  Lwt_io.establish_server_with_client_address (Unix.ADDR_UNIX path) handler
+  >>= fun server ->
+  Lwt.finalize (fun () -> f uri) (fun () -> Lwt_io.shutdown_server server)
 
 let suite client all =
   List.map
