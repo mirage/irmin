@@ -26,15 +26,29 @@ let test name f client _switch () =
   Logs.debug (fun l -> l "Running: %s" name);
   f client
 
+(* A port which is free for now. *)
+let free_port () =
+  let socket = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  Fun.protect
+    ~finally:(fun () -> Unix.close socket)
+    (fun () ->
+      Unix.bind socket (Unix.ADDR_INET (Unix.inet_addr_loopback, 0));
+      match Unix.getsockname socket with
+      | Unix.ADDR_INET (_, port) -> port
+      | Unix.ADDR_UNIX _ -> failwith "free_port: not an internet address")
+
 let run_server ~sw ~clock s =
+  let uri scheme =
+    Uri.of_string (Fmt.str "%s://localhost:%d" scheme (free_port ()))
+  in
   let kind, uri =
     match s with
-    | `Websocket -> ("Websocket", Uri.of_string "ws://localhost:90991")
+    | `Websocket -> ("Websocket", uri "ws")
     | `Unix_domain ->
         let dir = Unix.getcwd () in
         let sock = Filename.concat dir "test.sock" in
         ("Unix_domain", Uri.of_string ("unix://" ^ sock))
-    | `Tcp -> ("Tcp", Uri.of_string "tcp://localhost:90992")
+    | `Tcp -> ("Tcp", uri "tcp")
   in
   let stop, set_stop = Lwt.wait () in
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
