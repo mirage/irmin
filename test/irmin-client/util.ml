@@ -37,6 +37,52 @@ let free_port () =
       | Unix.ADDR_INET (_, port) -> port
       | Unix.ADDR_UNIX _ -> failwith "free_port: not an internet address")
 
+(* Wait until a server accepts the connections. *)
+let wait_for_server ~clock uri =
+  let addr =
+    match (Uri.scheme uri, Uri.port uri) with
+    | Some "unix", _ -> Unix.ADDR_UNIX (Uri.path uri)
+    | _, Some port -> Unix.ADDR_INET (Unix.inet_addr_loopback, port)
+    | _, None -> Fmt.failwith "No port in %a" Uri.pp uri
+  in
+  let connect () =
+    let socket =
+      Unix.socket (Unix.domain_of_sockaddr addr) Unix.SOCK_STREAM 0
+    in
+    Fun.protect
+      ~finally:(fun () -> Unix.close socket)
+      (fun () ->
+        match Unix.connect socket addr with
+        | () -> true
+        | exception Unix.Unix_error ((Unix.ECONNREFUSED | Unix.ENOENT), _, _) ->
+            false)
+  in
+  let rec wait tries =
+    if not (connect ()) then
+      if tries = 0 then Fmt.failwith "No server on %a" Uri.pp uri
+      else (
+        Eio.Time.sleep clock 0.05;
+        wait (tries - 1))
+  in
+  wait 400
+
+let mem_config kind =
+  let spec = Irmin.Backend.Conf.Spec.v kind in
+  let key = Irmin.Backend.Conf.root spec in
+  Irmin.Backend.Conf.singleton spec key kind
+
+(* Run a server for as long as [sw] is on. *)
+let start_server ~sw ~clock ?max_message_size kind uri =
+  let stop, set_stop = Lwt.wait () in
+  Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
+  Eio.Fiber.fork_daemon ~sw (fun () ->
+      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
+      let conf = mem_config kind in
+      Lwt_eio.run_lwt (fun () ->
+          Server.v ?max_message_size ~uri conf >>= Server.serve ~stop);
+      `Stop_daemon);
+  wait_for_server ~clock uri
+
 let run_server ~sw ~clock s =
   let uri scheme =
     Uri.of_string (Fmt.str "%s://localhost:%d" scheme (free_port ()))
@@ -50,14 +96,5 @@ let run_server ~sw ~clock s =
         ("Unix_domain", Uri.of_string ("unix://" ^ sock))
     | `Tcp -> ("Tcp", uri "tcp")
   in
-  let stop, set_stop = Lwt.wait () in
-  Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
-  Eio.Fiber.fork_daemon ~sw (fun () ->
-      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-      let spec = Irmin.Backend.Conf.Spec.v kind in
-      let key = Irmin.Backend.Conf.root spec in
-      let conf = Irmin.Backend.Conf.singleton spec key kind in
-      Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
-      `Stop_daemon);
-  Eio.Time.sleep clock 0.1;
+  start_server ~sw ~clock kind uri;
   (kind, uri)

@@ -124,13 +124,210 @@ let watch_lost_server () =
   Client.unwatch watch;
   Lwt_eio.run_lwt @@ fun () -> Lwt_io.shutdown_server server
 
-let misc client =
+(* A test waiting for a peer must fail rather than hang. *)
+let timeout f = Lwt_unix.with_timeout 20. f
+
+let with_pipe ?max_message_size f =
+  let ic, oc = Lwt_io.pipe () in
+  Lwt.finalize
+    (fun () -> f (Conn.v ?max_message_size ic oc))
+    (fun () -> Lwt.join [ Lwt_io.close ic; Lwt_io.close oc ])
+
+let check_too_large len f =
+  Lwt.try_bind
+    (fun () -> timeout f)
+    (fun _ -> Alcotest.failf "a message of %Ld bytes was accepted" len)
+    (function
+      | Irmin_server.Conn.Message_too_large l ->
+          Alcotest.(check int64) "length" len l;
+          Lwt.return_unit
+      | exn -> Lwt.fail exn)
+
+(* The length of a message is chosen by the peer: it must be checked before
+   anything is allocated. *)
+let message_size () =
+  Lwt_eio.run_lwt @@ fun () ->
+  let open Lwt.Syntax in
+  let too_large ?max_message_size len =
+    with_pipe ?max_message_size @@ fun conn ->
+    let* () = Lwt_io.BE.write_int64 conn.oc len in
+    let* () = Lwt_io.flush conn.oc in
+    check_too_large len (fun () -> Conn.read conn Irmin.Type.string)
+  in
+  let* () = too_large 0x1_0000_0000L in
+  let* () = too_large Int64.max_int in
+  let* () = too_large ~max_message_size:16 17L in
+  (* The limit is the same in both directions *)
+  let* () =
+    with_pipe ~max_message_size:16 @@ fun conn ->
+    check_too_large 17L (fun () ->
+        Conn.write conn Irmin.Type.string (String.make 17 'x'))
+  in
+  (* Nothing is written of a message which is too long, not even its header *)
+  let* () =
+    with_pipe ~max_message_size:16 @@ fun conn ->
+    let request command = Conn.Request.v_header ~command in
+    let* () =
+      check_too_large 17L (fun () ->
+          Conn.Request.write conn (request "long") Irmin.Type.string
+            (String.make 17 'x'))
+    in
+    let* () = Conn.Request.write conn (request "short") Irmin.Type.string "x" in
+    let+ { command } = timeout (fun () -> Conn.Request.read_header conn) in
+    Alcotest.(check string) "command" "short" command
+  in
+  (* The same for a response, like the notification of a watch *)
+  let* () =
+    with_pipe ~max_message_size:16 @@ fun conn ->
+    let header = Conn.Response.v_header ~status:0 in
+    let* () =
+      check_too_large 17L (fun () ->
+          Conn.Response.write conn header Irmin.Type.string (String.make 17 'x'))
+    in
+    let* () = Conn.Response.write conn header Irmin.Type.string "x" in
+    let* (_ : Conn.Response.header) =
+      timeout (fun () -> Conn.Response.read_header conn)
+    in
+    let+ msg = timeout (fun () -> Conn.read conn Irmin.Type.string) in
+    Alcotest.(check (result string error)) "response" (Ok "x") msg
+  in
+  (* Long messages are read by pieces *)
+  with_pipe @@ fun conn ->
+  let msg = String.init 200_000 (fun i -> Char.chr (i mod 256)) in
+  let+ (), msg' =
+    timeout @@ fun () ->
+    Lwt.both
+      (Conn.write conn Irmin.Type.string msg)
+      (Conn.read conn Irmin.Type.string)
+  in
+  Alcotest.(check (result string error)) "long message" (Ok msg) msg'
+
+(* A client speaking the protocol by hand. *)
+let raw_connection uri =
+  let open Lwt.Syntax in
+  let* ic, oc = Lwt_io.open_connection (Unix.ADDR_UNIX (Uri.path uri)) in
+  let conn = Conn.v ic oc in
+  let+ ok = Conn.Handshake.V1.send (module Store) conn in
+  Alcotest.(check bool) "handshake" true ok;
+  conn
+
+let send_command conn command =
+  Conn.Request.write_header conn (Conn.Request.v_header ~command)
+
+(* The server closes the connection of a client announcing a message which is
+   too long, and goes on serving the other clients. *)
+let oversized_request ~uri client () =
+  ( Lwt_eio.run_lwt @@ fun () ->
+    let open Lwt.Syntax in
+    let* conn = raw_connection uri in
+    let ic = conn.ic and oc = conn.oc in
+    let* () = send_command conn "ping" in
+    let* () = Lwt_io.BE.write_int64 oc 0x1_0000_0000L in
+    let* () = Lwt_io.flush oc in
+    let* header = timeout (fun () -> Conn.Response.read_header conn) in
+    let* err = timeout (fun () -> Conn.Response.get_error conn header) in
+    Alcotest.(check (option string))
+      "error" (Some "ERROR message too large") err;
+    let* closed =
+      Lwt.try_bind
+        (fun () -> timeout (fun () -> Lwt_io.read_char ic))
+        (fun _ -> Lwt.return_false)
+        (function End_of_file -> Lwt.return_true | exn -> Lwt.fail exn)
+    in
+    Alcotest.(check bool) "connection closed" true closed;
+    Lwt_io.close ic );
+  ping client ()
+
+(* [f ()] must raise an exception accepted by [expected]. *)
+let check_raises msg expected f =
+  match f () with
+  | _ -> Alcotest.fail msg
+  | exception exn when expected exn -> ()
+
+let too_large = function
+  | Irmin_server.Conn.Message_too_large _ -> true
+  | _ -> false
+
+let closed = function Irmin.Closed -> true | _ -> false
+
+let check_ping msg repo =
+  Alcotest.(check (result unit error)) msg (Ok ()) (Client.ping repo)
+
+let small_size = 4096
+
+let unix_uri name =
+  Uri.of_string ("unix://" ^ Filename.concat (Unix.getcwd ()) name)
+
+(* [f uri] with a server at [uri] whose messages have a small limit. Each
+   test has its own socket: the server of another test may still be stopping. *)
+let with_small_server ~clock name f =
+  Eio.Switch.run @@ fun sw ->
+  let uri = unix_uri name in
+  start_server ~sw ~clock ~max_message_size:small_size "Sizes" uri;
+  f uri
+
+let client_message_size ~clock () =
+  with_small_server ~clock "client-size.sock" @@ fun small_uri ->
+  let repo = Client.Repo.v (Irmin_client_unix.config small_uri) in
+  let t = Client.of_branch repo "sizes" in
+  let value = String.make 1000 'x' in
+  let set t step = Client.set_exn t ~info:Client.Info.none [ step ] value in
+  set t "a";
+  let small =
+    Client.Repo.v (Irmin_client_unix.config ~max_message_size:256 small_uri)
+  in
+  let t' = Client.of_branch small "sizes" in
+  (* Nothing is sent of a request which is too long: the client goes on *)
+  check_raises "a long request was sent" too_large (fun () -> set t' "b");
+  check_ping "ping after a long request" small;
+  (* A client is closed when it cannot read an answer: what follows on the
+     connection would not make sense. *)
+  check_raises "a long answer was accepted" too_large (fun () ->
+      Client.get t' [ "a" ]);
+  check_raises "the client is still open" closed (fun () -> Client.ping small);
+  (* The server answers with an error instead of a response which is too
+     long for it, and the connection goes on. *)
+  List.iter (set t) [ "1"; "2"; "3"; "4"; "5"; "6" ];
+  check_raises "a long response was sent"
+    (function Error.Error _ -> true | _ -> false)
+    (fun () -> Client.export repo);
+  check_ping "ping after a long response" repo
+
+(* The server closes the connection when a request is too long for it. The
+   client cannot go on with this connection: it is closed. *)
+let server_message_size ~clock () =
+  with_small_server ~clock "server-size.sock" @@ fun small_uri ->
+  let repo = Client.Repo.v (Irmin_client_unix.config small_uri) in
+  let t = Client.of_branch repo "sizes" in
+  let any _ = true in
+  check_raises "a long request was accepted" any (fun () ->
+      Client.set_exn t ~info:Client.Info.none [ "a" ]
+        (String.make 1_000_000 'x'));
+  check_raises "the connection is still open" any (fun () -> Client.ping repo);
+  check_raises "the client is still open" closed (fun () -> Client.ping repo)
+
+(* A limit which is too short for the handshake is refused. *)
+let invalid_message_size () =
+  let invalid = function Invalid_argument _ -> true | _ -> false in
+  let small_uri = unix_uri "invalid-size.sock" in
+  check_raises "client" invalid (fun () ->
+      Client.Repo.v (Irmin_client_unix.config ~max_message_size:10 small_uri));
+  check_raises "server" invalid (fun () ->
+      Lwt_eio.run_lwt @@ fun () ->
+      Server.v ~max_message_size:10 ~uri:small_uri (mem_config "Sizes"))
+
+let misc ~uri ~clock client =
   [
     ("ping", `Quick, ping client);
     ("watch and lost server", `Quick, watch_lost_server);
+    ("message size", `Quick, message_size);
+    ("oversized request", `Quick, oversized_request ~uri client);
+    ("client message size", `Quick, client_message_size ~clock);
+    ("server message size", `Quick, server_message_size ~clock);
+    ("invalid message size", `Quick, invalid_message_size);
   ]
 
-let misc client = [ ("misc", misc client) ]
+let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]
 
 let unix_suite ~env () =
   Eio.Switch.run @@ fun sw ->
@@ -145,7 +342,7 @@ let unix_suite ~env () =
   let client = Client.Repo.v config in
   let client () = Lwt_eio.run_lwt @@ fun () -> Client.dup client in
   Irmin_test.Store.run "irmin-server.unix" ~and_exit:false ~sleep:Eio_unix.sleep
-    ~misc:(misc client)
+    ~misc:(misc ~uri ~clock client)
     [ (`Quick, tests) ]
 
 let tcp_suite ~env () =

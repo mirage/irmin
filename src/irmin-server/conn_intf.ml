@@ -21,6 +21,10 @@ module Codec = struct
   end
 end
 
+exception Message_too_large of int64
+
+let default_max_message_size = min (64 * 1024 * 1024) Sys.max_string_length
+
 module type IO = sig
   type flow
   type ic
@@ -43,10 +47,13 @@ end
 module type S = sig
   module IO : IO
 
-  type t = { ic : IO.ic; oc : IO.oc; buffer : bytes }
+  type t = { ic : IO.ic; oc : IO.oc; max_message_size : int }
 
-  val v : ?buffer_size:int -> IO.ic -> IO.oc -> t
-  (** Create a new connection using [flow], [ic] and [oc] *)
+  val v : ?max_message_size:int -> IO.ic -> IO.oc -> t
+  (** Create a new connection using [ic] and [oc]. Reading or writing a message
+      longer than [max_message_size] bytes fails with {!Message_too_large}. The
+      default is {!default_max_message_size}. See
+      {!Handshake.V1.check_max_message_size} for the minimum. *)
 
   val is_closed : t -> bool
   (** Check if the underlying channel is closed *)
@@ -55,7 +62,8 @@ module type S = sig
   (** Read the next message *)
 
   val write : t -> 'a Irmin.Type.t -> 'a -> unit Lwt.t
-  (** Write a message *)
+  (** Write a message. Nothing is written when it fails with
+      {!Message_too_large}. *)
 
   val ok : t -> unit Lwt.t
   (** Send "OK" message with [unit] response *)
@@ -69,6 +77,10 @@ module type S = sig
       val fingerprint : (module Irmin.Generic_key.S) -> string
       val send : (module Irmin.Generic_key.S) -> t -> bool Lwt.t
       val check : (module Irmin.Generic_key.S) -> t -> bool Lwt.t
+
+      val check_max_message_size : (module Irmin.Generic_key.S) -> int -> unit
+      (** Raise [Invalid_argument] when the handshake of the store does not fit
+          in a message of this size. *)
     end
   end
 
@@ -78,6 +90,10 @@ module type S = sig
     val v_header : command:string -> header
     val write_header : t -> header -> unit Lwt.t
     val read_header : t -> header Lwt.t
+
+    val write : t -> header -> 'a Irmin.Type.t -> 'a -> unit Lwt.t
+    (** Write a request: its header, then its message. Nothing is written when
+        it fails with {!Message_too_large}. *)
   end
 
   module Response : sig
@@ -86,6 +102,11 @@ module type S = sig
     val v_header : status:int -> header
     val write_header : t -> header -> unit Lwt.t
     val read_header : t -> header Lwt.t
+
+    val write : t -> header -> 'a Irmin.Type.t -> 'a -> unit Lwt.t
+    (** Write a response: its header, then its message. Nothing is written when
+        it fails with {!Message_too_large}. *)
+
     val is_error : header -> bool
     val get_error : t -> header -> string option Lwt.t
   end
@@ -108,6 +129,15 @@ module type S = sig
 end
 
 module type Sigs = sig
+  exception Message_too_large of int64
+  (** A message of this length, in bytes, is longer than the maximum of the
+      connection. Nothing has been written of a message which is too long to be
+      sent. A message which is too long to be received has not been read: the
+      connection cannot be used any more. *)
+
+  val default_max_message_size : int
+  (** 64 MiB, or the longest string when it is shorter. *)
+
   module Codec : sig
     module type S = Codec.S
 
