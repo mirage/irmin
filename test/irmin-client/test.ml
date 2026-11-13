@@ -55,8 +55,128 @@ let ping client () =
   Logs.debug (fun l -> l "AFTER PING");
   Alcotest.(check (result unit error)) "ping" (Ok ()) r
 
+let origin s =
+  match Irmin_server_unix.Origin.of_string s with
+  | Ok origin -> origin
+  | Error (`Msg msg) -> failwith msg
+
+(* A websocket opened by a web page is only accepted from the allowed
+   origins. Other clients do not send the header. *)
+let websocket_origin ~clock () =
+  let port = free_port () in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock
+    ~allowed_origins:[ origin "HTTPS://Allowed.Example:443/" ]
+    "Origin" (websocket_uri port);
+  let check_headers msg expected headers =
+    Alcotest.(check bool)
+      msg expected
+      (with_connection ~port (upgrade ~headers ~port))
+  in
+  let check ?(header = "Origin") msg expected origins =
+    check_headers msg expected
+      (List.map (fun origin -> header ^ ": " ^ origin) origins)
+  in
+  check "no origin" true [];
+  check "allowed origin" true [ "https://allowed.example" ];
+  check "case of the origin" true [ "HTTPS://Allowed.Example" ];
+  check "default port" true [ "https://allowed.example:443" ];
+  check "other port" false [ "https://allowed.example:8443" ];
+  check "other scheme" false [ "http://allowed.example" ];
+  check "other origin" false [ "https://evil.example" ];
+  check "not an origin" false [ "null" ];
+  check "prefix of an allowed origin" false [ "https://allowed.example.evil" ];
+  check "several origins" false
+    [ "https://evil.example"; "https://allowed.example" ];
+  check ~header:"Sec-WebSocket-Origin" "origin of the old drafts" false
+    [ "https://evil.example" ];
+  check ~header:"Sec-WebSocket-Origin" "allowed origin of the old drafts" true
+    [ "https://allowed.example" ];
+  check_headers "both origin headers" false
+    [
+      "Origin: https://allowed.example";
+      "Sec-WebSocket-Origin: https://allowed.example";
+    ]
+
+let origin_of_string () =
+  let normalised s expected =
+    Alcotest.(check (result string reject))
+      s (Ok expected)
+      (Result.map Irmin_server_unix.Origin.to_string
+         (Irmin_server_unix.Origin.of_string s))
+  in
+  normalised "https://example.org" "https://example.org";
+  normalised "HTTPS://Example.ORG:443/" "https://example.org";
+  normalised "http://example.org:80" "http://example.org";
+  normalised "http://example.org:443" "http://example.org:443";
+  normalised "http://localhost:8080" "http://localhost:8080";
+  normalised "http://127.0.0.1:65535" "http://127.0.0.1:65535";
+  normalised "http://[::1]:8080" "http://[::1]:8080";
+  normalised "https://xn--bcher-kva.example" "https://xn--bcher-kva.example";
+  normalised "https://example.org." "https://example.org.";
+  normalised "http://10.0.0.255" "http://10.0.0.255";
+  normalised "http://1.example" "http://1.example";
+  normalised "http://foo.0xg" "http://foo.0xg";
+  normalised "http://[2001:DB8::1]" "http://[2001:db8::1]";
+  normalised "http://[1:0:0:2::3]" "http://[1:0:0:2::3]";
+  normalised "http://[1::]" "http://[1::]";
+  List.iter
+    (fun s ->
+      match Irmin_server_unix.Origin.of_string s with
+      | Ok origin ->
+          Alcotest.failf "%S should not be an origin, got %a" s
+            Irmin_server_unix.Origin.pp origin
+      | Error _ -> ())
+    [
+      "";
+      "null";
+      "example.org";
+      "//example.org";
+      "https://";
+      "https:///";
+      "https://example.org/page";
+      "https://example.org//";
+      "https://example.org?";
+      "https://example.org#";
+      "https://user@example.org";
+      "https://example.org:";
+      "https://example.org:0";
+      "https://example.org:0443";
+      "https://example.org:65536";
+      "https://example.org:99999999999999999999";
+      "https://example%2Eorg";
+      " https://example.org";
+      "https://example.org ";
+      "https://exa mple.org";
+      "https://example.org, https://example.com";
+      "https://[::1";
+      "https://[]";
+      "https://[1.2.3.4]";
+      "http://127.1";
+      "http://0x7f.0.0.1";
+      "http://foo.0x1f";
+      "http://127.0.0.01";
+      "http://127.0.0.256";
+      "http://127.0.0.1.";
+      "http://[0:0::1]";
+      "http://[::0:1]";
+      "http://[0001::1]";
+      "http://[:::::]";
+      "http://[1::2::3]";
+      "http://[1::2:0:0:0:3]";
+      "http://[1:2:3:4:5:6:7::]";
+      "http://[1:2:3:4:5:6:7:8:9]";
+      "http://[::ffff:127.0.0.1]";
+      "https://example..org";
+      "https://.example.org";
+      "https://bücher.example";
+    ]
+
 let misc client = [ ("ping", `Quick, ping client) ]
 let misc client = [ ("misc", misc client) ]
+
+let websocket_misc ~clock =
+  [ ("misc", [ ("websocket origin", `Quick, websocket_origin ~clock) ]) ]
 
 let unix_suite ~env () =
   Eio.Switch.run @@ fun sw ->
@@ -93,12 +213,22 @@ let websocket_suite ~env () =
   end) in
   let tests = Websocket.suite () in
   Irmin_test.Store.run "irmin-server.ws" ~and_exit:false ~sleep:Eio_unix.sleep
-    ~misc:[]
+    ~misc:(websocket_misc ~clock)
     [ (`Quick, tests) ]
+
+(* The parser of the origins does not need a server *)
+let origin_suite ~env:_ () =
+  Alcotest.run "irmin-server.origin" ~and_exit:false
+    [ ("origin", [ Alcotest.test_case "of_string" `Quick origin_of_string ]) ]
 
 let main ~env () =
   let suites =
-    [ ("tcp", tcp_suite); ("unix", unix_suite); ("ws", websocket_suite) ]
+    [
+      ("tcp", tcp_suite);
+      ("unix", unix_suite);
+      ("ws", websocket_suite);
+      ("origin", origin_suite);
+    ]
   in
   match Sys.getenv_opt "ONLY" with
   | None -> List.iter (fun (_, suite) -> suite ~env ()) suites

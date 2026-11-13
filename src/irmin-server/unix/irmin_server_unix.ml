@@ -17,6 +17,7 @@
 open Irmin_server
 include Irmin_server_unix_intf
 module Error = Error
+module Origin = Origin
 
 module type S = Server.S
 

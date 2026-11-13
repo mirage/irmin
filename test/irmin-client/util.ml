@@ -77,13 +77,14 @@ let mem_config kind =
   Irmin.Backend.Conf.singleton spec key kind
 
 (* Run a server for as long as [sw] is on. *)
-let start_server ~sw ~clock kind uri =
+let start_server ~sw ~clock ?allowed_origins kind uri =
   let stop, set_stop = Lwt.wait () in
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = mem_config kind in
-      Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
+      Lwt_eio.run_lwt (fun () ->
+          Server.v ?allowed_origins ~uri conf >>= Server.serve ~stop);
       `Stop_daemon);
   wait_for_server ~clock uri
 
@@ -171,7 +172,7 @@ let send_command conn command =
   Conn.Request.write_header conn (Conn.Request.v_header ~command)
 
 (* Ask the websocket server on [port] to upgrade a connection. *)
-let upgrade ?origin ~port (ic, oc) =
+let upgrade ?(headers = []) ~port (ic, oc) =
   let headers =
     [
       Fmt.str "Host: 127.0.0.1:%d" port;
@@ -180,7 +181,7 @@ let upgrade ?origin ~port (ic, oc) =
       "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==";
       "Sec-WebSocket-Version: 13";
     ]
-    @ match origin with None -> [] | Some o -> [ "Origin: " ^ o ]
+    @ headers
   in
   let request =
     String.concat "\r\n" (("GET / HTTP/1.1" :: headers) @ [ ""; "" ])
