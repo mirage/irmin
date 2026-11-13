@@ -26,6 +26,24 @@ let test name f client _switch () =
   Logs.debug (fun l -> l "Running: %s" name);
   f client
 
+let dashboard_port = 9299
+
+(* Run a server for as long as [sw] is on. *)
+let start_server ~sw ~clock ?dashboard ?allowed_origins ?max_message_size kind
+    uri =
+  let stop, set_stop = Lwt.wait () in
+  Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
+  Eio.Fiber.fork_daemon ~sw (fun () ->
+      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
+      let spec = Irmin.Backend.Conf.Spec.v kind in
+      let key = Irmin.Backend.Conf.root spec in
+      let conf = Irmin.Backend.Conf.singleton spec key kind in
+      Lwt_eio.run_lwt (fun () ->
+          Server.v ?dashboard ?allowed_origins ?max_message_size ~uri conf
+          >>= Server.serve ~stop);
+      `Stop_daemon);
+  Eio.Time.sleep clock 0.1
+
 let run_server ~sw ~clock s =
   let kind, uri =
     match s with
@@ -36,14 +54,10 @@ let run_server ~sw ~clock s =
         ("Unix_domain", Uri.of_string ("unix://" ^ sock))
     | `Tcp -> ("Tcp", Uri.of_string "tcp://localhost:90992")
   in
-  let stop, set_stop = Lwt.wait () in
-  Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
-  Eio.Fiber.fork_daemon ~sw (fun () ->
-      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-      let spec = Irmin.Backend.Conf.Spec.v kind in
-      let key = Irmin.Backend.Conf.root spec in
-      let conf = Irmin.Backend.Conf.singleton spec key kind in
-      Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
-      `Stop_daemon);
-  Eio.Time.sleep clock 0.1;
+  let dashboard =
+    match s with
+    | `Unix_domain -> Some (`TCP (`Port dashboard_port))
+    | `Tcp | `Websocket -> None
+  in
+  start_server ~sw ~clock ?dashboard kind uri;
   (kind, uri)
