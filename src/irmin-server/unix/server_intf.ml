@@ -27,10 +27,20 @@ module type S = sig
   val v :
     ?tls_config:[ `Cert_file of string ] * [ `Key_file of string ] ->
     ?dashboard:Conduit_lwt_unix.server ->
+    ?allowed_origins:Origin.t list ->
     uri:Uri.t ->
     Irmin.config ->
     t Lwt.t
-  (** Create an instance of the server *)
+  (** Create an instance of the server.
+
+      With the [ws] and [wss] schemes, the server checks the [Origin] header
+      that the browsers send when a web page opens a websocket: the connection
+      is only accepted if the origin of the page is in [allowed_origins]. There
+      is no wildcard, and a request with several origins is refused. The default
+      is the empty list: no web page can connect. Most clients which are not
+      browsers do not send this header; a client which sends it needs its origin
+      in [allowed_origins] too. With the other schemes, [allowed_origins] is
+      ignored. *)
 
   val serve : ?stop:unit Lwt.t -> t -> unit Lwt.t
   (** Run the server *)

@@ -8,6 +8,7 @@
   irmin-server
   lwt.unix
   conduit-lwt-unix
+  websocket
   websocket-lwt-unix
   cohttp-lwt-unix
   digestif.ocaml
