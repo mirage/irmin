@@ -26,25 +26,41 @@ let test name f client _switch () =
   Logs.debug (fun l -> l "Running: %s" name);
   f client
 
+let unix_uri name =
+  Uri.of_string ("unix://" ^ Filename.concat (Unix.getcwd ()) name)
+
+(* A forked process must never come back to the code of the tests, nor run
+   their [at_exit] functions. *)
+let in_child f =
+  let code =
+    match f () with
+    | () -> 0
+    | exception exn ->
+        Fmt.epr "Child process: %a@." Fmt.exn exn;
+        1
+  in
+  Unix._exit code
+
+(* Fork a server and wait until it should be listening. *)
+let fork_server uri =
+  match Lwt_unix.fork () with
+  | 0 ->
+      in_child @@ fun () ->
+      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
+      let conf = Irmin_mem.config () in
+      Lwt_main.run (Server.v ~uri conf >>= Server.serve)
+  | pid ->
+      Unix.sleep 3;
+      pid
+
 let run_server s =
   let kind, uri =
     match s with
     | `Websocket -> ("Websocket", Uri.of_string "ws://localhost:90991")
-    | `Unix_domain ->
-        let dir = Unix.getcwd () in
-        let sock = Filename.concat dir "test.sock" in
-        ("Unix_domain", Uri.of_string ("unix://" ^ sock))
+    | `Unix_domain -> ("Unix_domain", unix_uri "test.sock")
     | `Tcp -> ("Tcp", Uri.of_string "tcp://localhost:90992")
   in
-  match Lwt_unix.fork () with
-  | 0 ->
-      let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-      let conf = Irmin_mem.config () in
-      Lwt_main.run (Server.v ~uri conf >>= Server.serve);
-      (kind, 0, uri)
-  | n ->
-      Unix.sleep 3;
-      (kind, n, uri)
+  (kind, fork_server uri, uri)
 
 let suite client all =
   List.map
