@@ -76,14 +76,19 @@ let mem_config kind =
   let key = Irmin.Backend.Conf.root spec in
   Irmin.Backend.Conf.singleton spec key kind
 
+(* Picked only when the server with a dashboard starts, so that no other
+   socket takes it in the meantime. *)
+let dashboard_port = lazy (free_port ())
+
 (* Run a server for as long as [sw] is on. *)
-let start_server ~sw ~clock kind uri =
+let start_server ~sw ~clock ?dashboard kind uri =
   let stop, set_stop = Lwt.wait () in
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = mem_config kind in
-      Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
+      Lwt_eio.run_lwt (fun () ->
+          Server.v ?dashboard ~uri conf >>= Server.serve ~stop);
       `Stop_daemon);
   wait_for_server ~clock uri
 
@@ -103,7 +108,19 @@ let run_server ~sw ~clock s =
     | `Unix_domain -> ("Unix_domain", unix_uri "test.sock")
     | `Tcp -> ("Tcp", local "tcp")
   in
-  start_server ~sw ~clock kind uri;
+  let dashboard =
+    match s with
+    | `Unix_domain -> Some (Lazy.force dashboard_port)
+    | `Tcp | `Websocket -> None
+  in
+  start_server ~sw ~clock
+    ?dashboard:(Option.map (fun p -> `TCP (`Port p)) dashboard)
+    kind uri;
+  Option.iter
+    (fun port ->
+      wait_for_server ~clock
+        (Uri.of_string (Fmt.str "http://127.0.0.1:%d" port)))
+    dashboard;
   (kind, uri)
 
 (* A test waiting for a peer must fail rather than hang. *)

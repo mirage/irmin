@@ -230,8 +230,13 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     callback server input_ic output_oc
 
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
+  let json_string = Irmin.Type.to_json_string Irmin.Type.string
 
-  let dashboard t mode =
+  let dashboard_headers content_type =
+    Cohttp.Header.of_list
+      [ ("content-type", content_type); ("x-content-type-options", "nosniff") ]
+
+  let dashboard ?stop t mode =
     let list store prefix =
       let keys = Store.list store prefix in
       List.filter_map
@@ -259,14 +264,19 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         Lwt_eio.run_eio @@ fun () ->
         match Store.kind store prefix with Some `Contents -> true | _ -> false
       in
-      let res = Cohttp_lwt_unix.Response.make ~status:`OK () in
+      let res =
+        Cohttp_lwt_unix.Response.make ~status:`OK
+          ~headers:(dashboard_headers "application/json")
+          ()
+      in
       if is_contents then
         let* contents = Lwt_eio.run_eio @@ fun () -> Store.get store prefix in
         let contents' = Irmin.Type.to_json_string Store.contents_t contents in
         let body =
           Printf.sprintf {|{"contents": %s, "hash": %s }|} contents'
-            (Irmin.Type.to_json_string Store.hash_t
-               (Store.Contents.hash contents))
+            (json_string
+               (Irmin.Type.to_string Store.hash_t
+                  (Store.Contents.hash contents)))
         in
         let body = Cohttp_lwt.Body.of_string body in
         Lwt.return (res, body)
@@ -275,10 +285,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         let keys =
           List.map
             (fun (path, kind, hash) ->
-              Format.sprintf {|{"path": "%s", "kind": "%s", "hash": "%s"}|}
-                (Irmin.Type.to_string Store.path_t path)
-                kind
-                (Irmin.Type.to_string Store.hash_t hash))
+              Format.sprintf {|{"path": %s, "kind": %s, "hash": %s}|}
+                (json_string (Irmin.Type.to_string Store.path_t path))
+                (json_string kind)
+                (json_string (Irmin.Type.to_string Store.hash_t hash)))
             keys
         in
         let keys = String.concat "," keys in
@@ -288,7 +298,8 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let callback _conn req body =
       let* () = Cohttp_lwt.Body.drain_body body in
       let uri = Cohttp_lwt_unix.Request.uri req in
-      let path = Uri.path uri in
+      (* The page percent-encodes the steps of the path *)
+      let path = Uri.pct_decode (Uri.path uri) in
       let branch_name =
         Uri.get_query_param uri "branch" |> Option.value ~default:"main"
       in
@@ -304,16 +315,24 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       match meth with
       | `POST -> data_callback prefix branch
       | `GET ->
-          let res = Cohttp_lwt_unix.Response.make () in
+          let res =
+            Cohttp_lwt_unix.Response.make
+              ~headers:(dashboard_headers "text/html; charset=utf-8")
+              ()
+          in
           let body = Cohttp_lwt.Body.of_string html in
           Lwt.return (res, body)
       | _ ->
-          let res = Cohttp_lwt_unix.Response.make ~status:`Not_found () in
+          let res =
+            Cohttp_lwt_unix.Response.make ~status:`Not_found
+              ~headers:(dashboard_headers "text/plain; charset=utf-8")
+              ()
+          in
           let body = Cohttp_lwt.Body.of_string "Not found" in
           Lwt.return (res, body)
     in
     let server = Cohttp_lwt_unix.Server.make ~callback () in
-    Cohttp_lwt_unix.Server.create ~mode server
+    Cohttp_lwt_unix.Server.create ?stop ~mode server
 
   let serve ?stop t =
     let unlink () =
@@ -333,7 +352,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     in
     let dashboard =
       match t.dashboard with
-      | Some server -> dashboard t server
+      | Some server -> dashboard ?stop t server
       | None -> Lwt.return_unit
     in
     let server =

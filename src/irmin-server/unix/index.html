@@ -157,27 +157,83 @@
       let list = document.getElementById("list");
       let pathInput = document.getElementById("path");
       let branchInput = document.getElementById("branch");
+
+      // A store path is kept as the text shown to the user and as the URL
+      // path sent to the server, where each step is percent-encoded. Empty
+      // steps are dropped, as the server does, so that the URL is always a
+      // path of this server. Steps "." and "..", or containing "/", cannot
+      // be requested: the browser and the server read them as separators.
+      let current = {text: "/", url: "/"};
+
+      function stepsOf(path) {
+        return path.split("/").filter(s => s !== "");
+      }
+
+      function urlPath(steps) {
+        return "/" + steps.filter(s => s !== "").join("/");
+      }
+
+      // [encodeURIComponent] throws on a lone surrogate, which can be
+      // pasted in a field
+      function encodeStep(s) {
+        return encodeURIComponent(s.replace(/[\uD800-\uDFFF]/gu, "�"));
+      }
+
+      function urlOfText(text) {
+        return urlPath(text.split("/").map(encodeStep));
+      }
+
+      // [bytes] is a binary string, as returned by [atob]
+      function urlOfBytes(bytes) {
+        return urlPath(bytes.split("/").map(s =>
+          s.replace(/[^A-Za-z0-9_.~-]/g, c =>
+            "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"))));
+      }
+
+      // Bytes which are not valid UTF-8 are shown with replacement
+      // characters
+      function textOfBytes(bytes) {
+        return new TextDecoder().decode(
+          Uint8Array.from(bytes, c => c.charCodeAt(0)));
+      }
+
+      // A path which is not valid UTF-8 is sent as {base64: ...}: it is
+      // requested with its bytes.
+      function pathOfData(path) {
+        if (typeof path === "string") return {text: path, url: urlOfText(path)};
+        let bytes = atob(path.base64);
+        return {text: textOfBytes(bytes), url: urlOfBytes(bytes)};
+      }
+
+      // The path in the input field, or the last path requested if the
+      // field was not edited (it may not be valid UTF-8)
+      function inputPath() {
+        let text = pathInput.value;
+        return text === current.text ? current : {text: text, url: urlOfText(text)};
+      }
+
       function makeElem(data){
         var elem = document.createElement("li");
         var path = document.createElement("span");
         var hash = document.createElement("span");
         var kind = document.createElement("span");
+        var p = pathOfData(data.path);
 
         path.classList.add("item-path");
-        path.innerHTML = data.path;
+        path.textContent = p.text;
 
         kind.classList.add("item-kind");
-        kind.innerHTML = data.kind;
+        kind.textContent = data.kind;
 
         hash.classList.add("item-hash");
-        hash.innerHTML = data.hash;
+        hash.textContent = data.hash;
 
         elem.appendChild(path);
         elem.appendChild(hash);
         elem.appendChild(kind);
 
         elem.onclick = function(){
-          update(this.firstChild.innerHTML, branchInput.value);
+          update(p, branchInput.value);
         }
         return elem;
       }
@@ -194,18 +250,17 @@
                   var code = ch.charCodeAt(0);
                   return " " + hex[(0xF0 & code) >> 4] + hex[0x0F & code];
               }).join("");
-              codes += "&nbsp;&nbsp;&nbsp;".repeat(blockSize - block.length);
+              codes += "   ".repeat(blockSize - block.length);
               var chars = block.replace(/[\x00-\x1F\x20]/g, '.');
               chars +=  " ".repeat(blockSize - block.length);
               lines.push(addr + " | " + codes + " | " + chars);
           }
-          return lines.join("<br>");
+          return lines.join("\n");
       }
- + "</pre>"
       function getContents(data) {
-        if (typeof data.contents === "string") return "<pre>" + data.contents + "</pre>";
+        if (typeof data.contents === "string") return data.contents;
 
-        if (data.contents.base64){
+        if (data.contents !== null && data.contents.base64){
           let b = atob(data.contents.base64);
           let s = hexdump(b);
           return s;
@@ -216,62 +271,82 @@
 
       function update(path, branch) {
         let state = history.state || {};
-        if (state.path !== path || state.branch !== branch){
-          history.pushState({path: path, branch: branch}, '');
+        if (state.url !== path.url || state.branch !== branch){
+          history.pushState({text: path.text, url: path.url, branch: branch}, '');
         }
 
-        pathInput.value = path;
+        current = path;
+        pathInput.value = path.text;
 
-        fetch(path + "?branch=" + branch, {method: 'POST'})
-        .then(r => r.json())
+        fetch(path.url + "?branch=" + encodeStep(branch), {method: 'POST'})
+        .then(r => {
+          if (!r.ok) throw new Error(r.status + " " + r.statusText);
+          return r.json();
+        })
         .then(data => {
           list.innerHTML = "";
           document.getElementById("contents").innerHTML = "";
-          if (data.contents){
-            let html = "<div class='content-hash'>" + data.hash + "</div>";
-            html += getContents(data);
-            document.getElementById("contents").innerHTML = html;
+          if ("contents" in data){
+            let contents = document.getElementById("contents");
+            let hash = document.createElement("div");
+            hash.classList.add("content-hash");
+            hash.textContent = data.hash;
+            let pre = document.createElement("pre");
+            pre.textContent = getContents(data);
+            contents.appendChild(hash);
+            contents.appendChild(pre);
             return;
           }
           for(var i = 0; i < data.length; i++){
             list.appendChild(makeElem(data[i]));
           }
+        })
+        .catch(e => {
+          list.innerHTML = "";
+          document.getElementById("contents").textContent = "Error: " + e.message;
         });
       }
 
 
       pathInput.onkeydown = function(e){
         if (e.keyCode == 13){
-          update(e.target.value, branchInput.value);
+          update(inputPath(), branchInput.value);
         }
       }
 
       branchInput.onkeydown = function(e){
         if (e.keyCode == 13){
-          update(pathInput.value, e.target.value);
+          update(inputPath(), e.target.value);
         }
       }
 
       document.getElementById("up").onclick = function() {
-        update(pathInput.value.substring(0, pathInput.value.lastIndexOf('/')), branchInput.value);
+        let p = inputPath();
+        update({text: "/" + stepsOf(p.text).slice(0, -1).join("/"),
+                url: urlPath(stepsOf(p.url).slice(0, -1))},
+               branchInput.value);
       }
 
       document.getElementById("refresh").onclick = function() {
         list.innerHTML = "";
-        update(pathInput.value, branchInput.value);
+        update(inputPath(), branchInput.value);
       }
 
       window.onpopstate = function(event){
-        if (event.state !== null){
-          update(event.state.path, event.state.branch);
+        let state = event.state;
+        if (state !== null && typeof state.url === "string"){
+          update({text: state.text, url: state.url}, state.branch);
         }
       }
 
       window.onload = function() {
         let params = new URLSearchParams(window.location.search);
-        pathInput.value = window.location.pathname;
+        let pathname = window.location.pathname;
+        let bytes = pathname.replace(/%([0-9A-Fa-f]{2})/g,
+          (_, h) => String.fromCharCode(parseInt(h, 16)));
         branchInput.value = params.get("branch") || "main";
-        update(pathInput.value, branchInput.value);
+        update({text: textOfBytes(bytes), url: urlPath(pathname.split("/"))},
+               branchInput.value);
       }
     </script>
   </body>
