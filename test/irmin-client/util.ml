@@ -74,14 +74,16 @@ let mem_config kind =
 let dashboard_port = free_port ()
 
 (* Run a server for as long as [sw] is on. *)
-let start_server ~sw ~clock ?dashboard ?max_message_size kind uri =
+let start_server ~sw ~clock ?dashboard ?allowed_origins ?max_message_size kind
+    uri =
   let stop, set_stop = Lwt.wait () in
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = mem_config kind in
       Lwt_eio.run_lwt (fun () ->
-          Server.v ?dashboard ?max_message_size ~uri conf >>= Server.serve ~stop);
+          Server.v ?dashboard ?allowed_origins ?max_message_size ~uri conf
+          >>= Server.serve ~stop);
       `Stop_daemon);
   wait_for_server ~clock uri
 

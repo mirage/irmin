@@ -22,6 +22,26 @@ include Server_intf
 
 let html = [%blob "src/irmin-server/unix/index.html"]
 
+(* An origin, as a browser sends it, without what does not matter when
+   comparing two of them: the case and the default port of the scheme. *)
+let origin_of_string s =
+  let uri = Uri.of_string s in
+  match (Uri.scheme uri, Uri.host uri, Uri.path uri) with
+  | Some scheme, Some host, ("" | "/")
+    when host <> ""
+         && Uri.userinfo uri = None
+         && Uri.verbatim_query uri = None
+         && Uri.fragment uri = None ->
+      let scheme = String.lowercase_ascii scheme in
+      let port =
+        match (scheme, Uri.port uri) with
+        | "http", Some 80 | "https", Some 443 -> None
+        | _, port -> port
+      in
+      let host = String.lowercase_ascii host in
+      Some (Uri.to_string (Uri.make ~scheme ~host ?port ()))
+  | _ -> None
+
 module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   module Command = Command.Make (IO) (Codec) (Store)
   module Store = Store
@@ -34,6 +54,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
     max_message_size : int option;
+    allowed_origins : string list;
     repo : Store.Repo.t;
     info : Command.Server_info.t;
   }
@@ -41,10 +62,22 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ?dashboard ?max_message_size ~uri config =
+  let v ?tls_config ?dashboard ?max_message_size ?(allowed_origins = []) ~uri
+      config =
     Option.iter
       (Conn.Handshake.V1.check_max_message_size (module Store))
       max_message_size;
+    let allowed_origins =
+      List.map
+        (fun origin ->
+          match origin_of_string origin with
+          | Some origin -> origin
+          | None ->
+              Fmt.invalid_arg
+                "allowed_origins: %S is not an origin, like https://example.org"
+                origin)
+        allowed_origins
+    in
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -77,7 +110,17 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let+ repo = Lwt_eio.run_eio @@ fun () -> Store.Repo.v config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; dashboard; config; max_message_size; repo; info }
+    {
+      ctx;
+      uri;
+      server;
+      dashboard;
+      config;
+      max_message_size;
+      allowed_origins;
+      repo;
+      info;
+    }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
@@ -241,6 +284,22 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     Lwt.async (fun () -> send_oc true output_ic output_oc client);
     callback server input_ic output_oc
 
+  (* A browser sends the origin of the page opening a websocket. Without this
+     check, any page visited by someone who can reach the server could use
+     it. Other clients do not send this header. *)
+  let check_origin t req =
+    match Cohttp.Header.get (Cohttp.Request.headers req) "origin" with
+    | None -> true
+    | Some origin ->
+        let allowed =
+          match origin_of_string origin with
+          | Some origin -> List.mem origin t.allowed_origins
+          | None -> false
+        in
+        if not allowed then
+          [%log.warn "Websocket refused: origin %S is not allowed" origin];
+        allowed
+
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
   let json_string = Irmin.Type.to_json_string Irmin.Type.string
 
@@ -353,9 +412,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       match Uri.scheme t.uri with
       | Some "ws" | Some "wss" ->
           Websocket_lwt_unix.establish_standard_server ~ctx:t.ctx ~mode:t.server
-            ~on_exn
-            ~check_request:(fun _ -> true)
-            (websocket_handler t)
+            ~on_exn ~check_request:(check_origin t) (websocket_handler t)
       | _ ->
           Conduit_lwt_unix.serve ?stop ~ctx:t.ctx ~on_exn ~mode:t.server
             (fun _ ic oc -> callback t ic oc)
