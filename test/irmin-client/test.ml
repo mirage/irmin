@@ -206,6 +206,29 @@ let raw_connection () =
 let send_command conn command =
   Conn.Request.write_header conn (Conn.Request.v_header ~command)
 
+(* The server must not store a value under a hash chosen by the client. *)
+let unsafe_add_hash () =
+  let hash v = Store.Backend.Contents.Hash.hash v in
+  let unsafe_add conn hash value =
+    let* () = send_command conn "contents.unsafe_add" in
+    let* () =
+      Conn.write conn
+        (Irmin.Type.pair Store.Hash.t Store.contents_t)
+        (hash, value)
+    in
+    let* header = Conn.Response.read_header conn in
+    Conn.Response.get_error conn header
+  in
+  let* conn = raw_connection () in
+  let* err = unsafe_add conn (hash "hello") "evil" in
+  Alcotest.(check (option string))
+    "wrong hash"
+    (Some "ERROR contents.unsafe_add: the hash is not the hash of the value")
+    err;
+  let* err = unsafe_add conn (hash "hello") "hello" in
+  Alcotest.(check (option string)) "right hash" None err;
+  Lwt_io.close conn.ic
+
 (* The server closes the connection of a client announcing a message which is
    too long, and goes on serving the other clients. *)
 let oversized_request () =
@@ -381,6 +404,7 @@ let misc =
     ("server message size", `Quick, server_message_size);
     ("watch message size", `Quick, watch_message_size);
     ("invalid message size", `Quick, invalid_message_size);
+    ("unsafe_add and hash", `Quick, unsafe_add_hash);
     ("dashboard paths", `Quick, dashboard_paths);
   ]
 
