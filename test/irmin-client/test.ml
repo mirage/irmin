@@ -316,6 +316,38 @@ let invalid_message_size () =
       Lwt_eio.run_lwt @@ fun () ->
       Server.v ~max_message_size:10 ~uri:small_uri (mem_config "Sizes"))
 
+(* The dashboard sends the paths of the store as JSON strings, whatever
+   they contain. *)
+let dashboard_paths client () =
+  let entry_t =
+    Irmin.Type.(
+      record "entry" (fun path kind hash -> (path, kind, hash))
+      |+ field "path" string (fun (path, _, _) -> path)
+      |+ field "kind" string (fun (_, kind, _) -> kind)
+      |+ field "hash" string (fun (_, _, hash) -> hash)
+      |> sealr)
+  in
+  let step = {|"<img src=x onerror=alert(1)>\|} in
+  let repo = client () in
+  let t = Client.of_branch repo "dashboard" in
+  Client.set_exn t ~info:Client.Info.none [ step ] "v";
+  let uri =
+    Uri.of_string
+      (Fmt.str "http://127.0.0.1:%d/?branch=dashboard" dashboard_port)
+  in
+  let body =
+    Lwt_eio.run_lwt @@ fun () ->
+    let open Lwt.Syntax in
+    let* _, body = Cohttp_lwt_unix.Client.post uri in
+    Cohttp_lwt.Body.to_string body
+  in
+  Client.Branch.remove repo "dashboard";
+  match Irmin.Type.(of_json_string (list entry_t)) body with
+  | Error (`Msg e) -> Alcotest.failf "invalid JSON %S: %s" body e
+  | Ok entries ->
+      let paths = List.map (fun (path, _, _) -> path) entries in
+      Alcotest.(check (list string)) "paths" [ "/" ^ step ] paths
+
 let misc ~uri ~clock client =
   [
     ("ping", `Quick, ping client);
@@ -325,6 +357,7 @@ let misc ~uri ~clock client =
     ("client message size", `Quick, client_message_size ~clock);
     ("server message size", `Quick, server_message_size ~clock);
     ("invalid message size", `Quick, invalid_message_size);
+    ("dashboard paths", `Quick, dashboard_paths client);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]
