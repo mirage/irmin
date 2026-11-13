@@ -20,8 +20,6 @@ open Lwt.Syntax
 open Lwt.Infix
 include Client_intf
 
-exception Continue
-
 module Conf = struct
   include Irmin.Backend.Conf
 
@@ -36,9 +34,13 @@ module Conf = struct
 
   let hostname =
     Irmin.Backend.Conf.key ~spec "hostname" Irmin.Type.string "127.0.0.1"
+
+  let max_message_size =
+    Irmin.Backend.Conf.key ~spec "max-message-size" Irmin.Type.int
+      Conn.default_max_message_size
 end
 
-let config ?(tls = false) ?hostname uri =
+let config ?(tls = false) ?hostname ?max_message_size uri =
   let default_host = Uri.host_with_default ~default:"127.0.0.1" uri in
   let config =
     Irmin.Backend.Conf.add (Irmin.Backend.Conf.empty Conf.spec) Conf.uri uri
@@ -47,7 +49,10 @@ let config ?(tls = false) ?hostname uri =
     Irmin.Backend.Conf.add config Conf.hostname
       (Option.value ~default:default_host hostname)
   in
-  Irmin.Backend.Conf.add config Conf.tls tls
+  let config = Irmin.Backend.Conf.add config Conf.tls tls in
+  match max_message_size with
+  | None -> config
+  | Some size -> Irmin.Backend.Conf.add config Conf.max_message_size size
 
 module Client (I : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
 struct
@@ -116,10 +121,19 @@ struct
       let name = Cmd.name in
       [%log.debug "Starting request: command=%s" name];
       lock t (fun () ->
-          let* () = send_command_header t (module Cmd) in
-          let* () = Conn.write t.conn Cmd.req_t a in
-          let* () = IO.flush t.conn.oc in
-          recv t name Cmd.res_t)
+          Lwt.catch
+            (fun () ->
+              let* () = send_command_header t (module Cmd) in
+              let* () = Conn.write t.conn Cmd.req_t a in
+              let* () = IO.flush t.conn.oc in
+              recv t name Cmd.res_t)
+            (function
+              | Irmin_server.Conn.Message_too_large _ as exn ->
+                  (* The request or its answer has only been sent in part:
+                     the connection cannot be used any more *)
+                  let* () = close t in
+                  Lwt.fail exn
+              | exn -> Lwt.fail exn))
 
   let recv_branch_diff (t : t) =
     let* _status = Conn.Response.read_header t.conn in
@@ -146,7 +160,8 @@ struct
     let ctx = Option.value ~default:(Lazy.force IO.default_ctx) ctx in
     let client = Client.mk_client config in
     let* ic, oc = IO.connect ~ctx client in
-    let conn = Conn.v ic oc in
+    let max_message_size = Conf.get config Conf.max_message_size in
+    let conn = Conn.v ~max_message_size ic oc in
     let+ ok = Conn.Handshake.V1.send (module Store) conn in
     if not ok then Error.raise_error "invalid handshake"
     else
@@ -332,45 +347,55 @@ struct
 
       type watch = t
 
-      let watch t ?init f =
-        let* t = dup t in
-        let* () =
-          request t (module Watch) init >|= Error.unwrap "Branch.watch"
+      (* [recv] fails when the connection is lost or when the stream cannot
+         be decoded. The watch cannot go on in both cases. *)
+      let watch_loop t recv f =
+        let stop exn =
+          (* Nothing to do when the watch has been closed by its owner *)
+          if t.Client.closed then Lwt.return_unit
+          else (
+            (match exn with
+            | End_of_file -> [%log.debug "watch: connection closed"]
+            | exn -> [%log.err "watch: stopping on %a" Fmt.exn exn]);
+            Lwt.catch
+              (fun () -> Client.close t)
+              (fun exn ->
+                [%log.err "watch: cannot close the connection: %a" Fmt.exn exn];
+                Lwt.return_unit))
+        in
+        let notify diff =
+          Lwt.catch
+            (fun () -> f diff)
+            (fun exn ->
+              [%log.err "watch: callback failed with %a" Fmt.exn exn];
+              Lwt.return_unit)
         in
         let rec loop () =
-          if t.closed || Conn.is_closed t.conn then Lwt.return_unit
+          if t.Client.closed || Conn.is_closed t.conn then Lwt.return_unit
           else
-            Lwt.catch
-              (fun () ->
-                Lwt.catch
-                  (fun () -> Client.recv_branch_diff t)
-                  (fun _ -> raise Continue)
-                >>= fun (key, diff) -> f key diff >>= loop)
-              (function _ -> loop ())
+            Lwt.try_bind
+              (fun () -> recv t)
+              (fun diff -> notify diff >>= loop)
+              stop
         in
-        Lwt.async loop;
-        Lwt.return t
+        Lwt.async loop
+
+      let watch t ?init f =
+        let* t = dup t in
+        let+ () =
+          request t (module Watch) init >|= Error.unwrap "Branch.watch"
+        in
+        watch_loop t Client.recv_branch_diff (fun (key, diff) -> f key diff);
+        t
 
       let watch_key t key ?init f =
         let* t = dup t in
-        let* () =
+        let+ () =
           request t (module Watch_key) (init, key)
           >|= Error.unwrap "Branch.watch_key"
         in
-        let rec loop () =
-          if t.closed || Conn.is_closed t.conn then Lwt.return_unit
-          else
-            Lwt.catch
-              (fun () ->
-                Lwt.catch
-                  (fun () -> Client.recv_branch_key_diff t)
-                  (fun _ -> raise Continue)
-                >>= f
-                >>= loop)
-              (function _ -> loop ())
-        in
-        Lwt.async loop;
-        Lwt.return t
+        watch_loop t Client.recv_branch_key_diff f;
+        t
 
       let unwatch _t watch =
         let* () = Conn.write watch.Client.conn Unwatch.req_t () in
@@ -410,8 +435,8 @@ struct
 
   let close t = Client.close t
 
-  let connect ?tls ?hostname uri =
-    let conf = config ?tls ?hostname uri in
+  let connect ?tls ?hostname ?max_message_size uri =
+    let conf = config ?tls ?hostname ?max_message_size uri in
     Repo.v conf
 
   let request_store store =

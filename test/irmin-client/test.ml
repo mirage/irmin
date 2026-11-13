@@ -85,7 +85,337 @@ let ping () =
   Logs.debug (fun l -> l "AFTER PING");
   Alcotest.(check (result unit error)) "ping" (Ok ()) r
 
-let misc = [ ("ping", `Quick, ping) ]
+let kill_quietly pid =
+  try Unix.kill pid Sys.sigkill with Unix.Unix_error (Unix.ESRCH, _, _) -> ()
+
+(* A test waiting for a peer must fail rather than hang. *)
+let timeout f = Lwt_unix.with_timeout 20. f
+
+(* A process watching a branch of its own server. It says when the watch is
+   set, then exits once told that the server is gone. *)
+let watch_server, watcher, watcher_ready, server_gone =
+  let uri = unix_uri "watch.sock" in
+  let server = fork_server uri in
+  let ready_r, ready_w = Unix.pipe () and gone_r, gone_w = Unix.pipe () in
+  match Lwt_unix.fork () with
+  | 0 ->
+      in_child @@ fun () ->
+      Unix.close ready_r;
+      Unix.close gone_w;
+      let ready = Lwt_unix.of_unix_file_descr ready_w
+      and gone = Lwt_unix.of_unix_file_descr gone_r in
+      Lwt_main.run
+        (let* repo = Client.Repo.v (Irmin_client_unix.config uri) in
+         let* (_ : Client.watch) =
+           Client.Branch.watch repo "main" (fun _ -> Lwt.return_unit)
+         in
+         let* (_ : int) = Lwt_unix.write ready (Bytes.make 1 'r') 0 1 in
+         let+ (_ : int) = Lwt_unix.read gone (Bytes.create 1) 0 1 in
+         ())
+  | watcher ->
+      Unix.close ready_w;
+      Unix.close gone_r;
+      at_exit (fun () ->
+          kill_quietly server;
+          kill_quietly watcher);
+      ( server,
+        watcher,
+        Lwt_unix.of_unix_file_descr ready_r,
+        Lwt_unix.of_unix_file_descr gone_w )
+
+(* A watch must stop when its server goes away. It was looping for ever,
+   without yielding to the scheduler: the watcher could not exit. *)
+let watch_lost_server () =
+  let* ready =
+    timeout (fun () -> Lwt_unix.read watcher_ready (Bytes.create 1) 0 1)
+  in
+  Alcotest.(check int) "watcher ready" 1 ready;
+  Unix.kill watch_server Sys.sigkill;
+  let* (_ : int * Unix.process_status) = Lwt_unix.waitpid [] watch_server in
+  let* (_ : int) = Lwt_unix.write server_gone (Bytes.make 1 'g') 0 1 in
+  Lwt.catch
+    (fun () ->
+      timeout @@ fun () ->
+      let+ _, status = Lwt_unix.waitpid [] watcher in
+      Alcotest.(check bool) "watcher exit" true (status = Unix.WEXITED 0))
+    (function
+      | Lwt_unix.Timeout ->
+          kill_quietly watcher;
+          Alcotest.fail "The watch keeps the scheduler busy without its server"
+      | exn -> Lwt.fail exn)
+
+(* Connections over the pipes of [Lwt_io]. *)
+module Pipe_io = struct
+  type flow = unit
+  type ic = Lwt_io.input_channel
+  type oc = Lwt_io.output_channel
+
+  exception Timeout = Lwt_unix.Timeout
+
+  let is_closed (ic : ic) = Lwt_io.is_closed ic
+  let write_int64_be = Lwt_io.BE.write_int64
+  let read_int64_be = Lwt_io.BE.read_int64
+  let flush = Lwt_io.flush
+  let write = Lwt_io.write
+  let read_into_exactly = Lwt_io.read_into_exactly
+  let write_char = Lwt_io.write_char
+  let read_char = Lwt_io.read_char
+  let with_timeout = Lwt_unix.with_timeout
+  let time = Unix.time
+end
+
+module Conn = Irmin_server.Conn.Make (Pipe_io) (Irmin_server.Conn.Codec.Bin)
+
+let with_pipe ?max_message_size f =
+  let ic, oc = Lwt_io.pipe () in
+  Lwt.finalize
+    (fun () -> f (Conn.v ?max_message_size ic oc))
+    (fun () -> Lwt.join [ Lwt_io.close ic; Lwt_io.close oc ])
+
+let check_too_large len f =
+  Lwt.try_bind
+    (fun () -> timeout f)
+    (fun _ -> Alcotest.failf "a message of %Ld bytes was accepted" len)
+    (function
+      | Irmin_server.Conn.Message_too_large l ->
+          Alcotest.(check int64) "length" len l;
+          Lwt.return_unit
+      | exn -> Lwt.fail exn)
+
+(* The length of a message is chosen by the peer: it must be checked before
+   anything is allocated. *)
+let message_size () =
+  let too_large ?max_message_size len =
+    with_pipe ?max_message_size @@ fun conn ->
+    let* () = Lwt_io.BE.write_int64 conn.oc len in
+    let* () = Lwt_io.flush conn.oc in
+    check_too_large len (fun () -> Conn.read conn Irmin.Type.string)
+  in
+  let* () = too_large 0x1_0000_0000L in
+  let* () = too_large Int64.max_int in
+  let* () = too_large ~max_message_size:16 17L in
+  (* The limit is the same in both directions *)
+  let* () =
+    with_pipe ~max_message_size:16 @@ fun conn ->
+    check_too_large 17L (fun () ->
+        Conn.write conn Irmin.Type.string (String.make 17 'x'))
+  in
+  (* Long messages are read by pieces *)
+  with_pipe @@ fun conn ->
+  let msg = String.init 200_000 (fun i -> Char.chr (i mod 256)) in
+  let+ (), msg' =
+    timeout @@ fun () ->
+    Lwt.both
+      (Conn.write conn Irmin.Type.string msg)
+      (Conn.read conn Irmin.Type.string)
+  in
+  Alcotest.(check (result string error)) "long message" (Ok msg) msg'
+
+(* A client speaking the protocol by hand. *)
+let raw_connection () =
+  let* ic, oc = Lwt_io.open_connection (Unix.ADDR_UNIX (Uri.path uri)) in
+  let conn = Conn.v ic oc in
+  let+ ok = Conn.Handshake.V1.send (module Store) conn in
+  Alcotest.(check bool) "handshake" true ok;
+  conn
+
+let send_command conn command =
+  Conn.Request.write_header conn (Conn.Request.v_header ~command)
+
+(* The server must not store a value under a hash chosen by the client. *)
+let unsafe_add_hash () =
+  let hash v = Store.Backend.Contents.Hash.hash v in
+  let unsafe_add conn hash value =
+    let* () = send_command conn "contents.unsafe_add" in
+    let* () =
+      Conn.write conn
+        (Irmin.Type.pair Store.Hash.t Store.contents_t)
+        (hash, value)
+    in
+    let* header = Conn.Response.read_header conn in
+    Conn.Response.get_error conn header
+  in
+  let* conn = raw_connection () in
+  let* err = unsafe_add conn (hash "hello") "evil" in
+  Alcotest.(check (option string))
+    "wrong hash"
+    (Some "ERROR contents.unsafe_add: the hash is not the hash of the value")
+    err;
+  let* err = unsafe_add conn (hash "hello") "hello" in
+  Alcotest.(check (option string)) "right hash" None err;
+  Lwt_io.close conn.ic
+
+(* The server closes the connection of a client announcing a message which is
+   too long, and goes on serving the other clients. *)
+let oversized_request () =
+  let* conn = raw_connection () in
+  let ic = conn.ic and oc = conn.oc in
+  let* () = send_command conn "ping" in
+  let* () = Lwt_io.BE.write_int64 oc 0x1_0000_0000L in
+  let* () = Lwt_io.flush oc in
+  let* header = timeout (fun () -> Conn.Response.read_header conn) in
+  let* err = timeout (fun () -> Conn.Response.get_error conn header) in
+  Alcotest.(check (option string)) "error" (Some "ERROR message too large") err;
+  let* closed =
+    Lwt.try_bind
+      (fun () -> timeout (fun () -> Lwt_io.read_char ic))
+      (fun _ -> Lwt.return_false)
+      (function End_of_file -> Lwt.return_true | exn -> Lwt.fail exn)
+  in
+  Alcotest.(check bool) "connection closed" true closed;
+  let* () = Lwt_io.close ic in
+  ping ()
+
+(* A websocket server with its own limits. *)
+let small_port = 9298
+let small_size = 4096
+let allowed_origin = "https://allowed.example"
+let small_uri = Uri.of_string (Fmt.str "ws://127.0.0.1:%d" small_port)
+
+let () =
+  let pid =
+    fork_server ~allowed_origins:[ allowed_origin ] ~max_message_size:small_size
+      small_uri
+  in
+  at_exit (fun () -> kill_quietly pid)
+
+let small_config = Irmin_client_unix.config small_uri
+
+(* A client is closed when it cannot read an answer: what follows on the
+   connection would not make sense. *)
+let client_message_size () =
+  let* repo = Client.Repo.v small_config in
+  let* t = Client.of_branch repo "sizes" in
+  let value = String.make 1000 'x' in
+  let* () = Client.set_exn t ~info:Client.Info.none [ "a" ] value in
+  let* small =
+    Client.Repo.v (Irmin_client_unix.config ~max_message_size:256 small_uri)
+  in
+  let* t' = Client.of_branch small "sizes" in
+  let* () =
+    Lwt.try_bind
+      (fun () -> timeout (fun () -> Client.get t' [ "a" ]))
+      (fun _ -> Alcotest.fail "a long answer was accepted")
+      (function
+        | Irmin_server.Conn.Message_too_large _ -> Lwt.return_unit
+        | exn -> Lwt.fail exn)
+  in
+  let* () =
+    Lwt.try_bind
+      (fun () -> timeout (fun () -> Client.ping small))
+      (fun _ -> Alcotest.fail "the client is still open")
+      (function Irmin.Closed -> Lwt.return_unit | exn -> Lwt.fail exn)
+  in
+  (* The server answers with an error instead of a response which is too
+     long for it, and the connection goes on. *)
+  let* () =
+    Lwt_list.iter_s
+      (fun i ->
+        Client.set_exn t ~info:Client.Info.none [ string_of_int i ] value)
+      [ 1; 2; 3; 4; 5; 6 ]
+  in
+  let* () =
+    Lwt.try_bind
+      (fun () -> timeout (fun () -> Client.export repo))
+      (fun _ -> Alcotest.fail "a long response was sent")
+      (function Error.Error _ -> Lwt.return_unit | exn -> Lwt.fail exn)
+  in
+  let* r = Client.ping repo in
+  Alcotest.(check (result unit error)) "ping" (Ok ()) r;
+  Client.Branch.remove repo "sizes"
+
+(* The dashboard sends the paths of the store as JSON strings, whatever
+   they contain. *)
+let dashboard_paths () =
+  let entry_t =
+    Irmin.Type.(
+      record "entry" (fun path kind hash -> (path, kind, hash))
+      |+ field "path" string (fun (path, _, _) -> path)
+      |+ field "kind" string (fun (_, kind, _) -> kind)
+      |+ field "hash" string (fun (_, _, hash) -> hash)
+      |> sealr)
+  in
+  let step = {|"<img src=x onerror=alert(1)>\|} in
+  let* repo = client () in
+  let* t = Client.of_branch repo "dashboard" in
+  let* () = Client.set_exn t ~info:Client.Info.none [ step ] "v" in
+  let uri =
+    Uri.of_string
+      (Fmt.str "http://127.0.0.1:%d/?branch=dashboard" dashboard_port)
+  in
+  let* _, body = Cohttp_lwt_unix.Client.post uri in
+  let* body = Cohttp_lwt.Body.to_string body in
+  let* () = Client.Branch.remove repo "dashboard" in
+  match Irmin.Type.(of_json_string (list entry_t)) body with
+  | Error (`Msg e) -> Alcotest.failf "invalid JSON %S: %s" body e
+  | Ok entries ->
+      let paths = List.map (fun (path, _, _) -> path) entries in
+      Alcotest.(check (list string)) "paths" [ "/" ^ step ] paths;
+      Lwt.return_unit
+
+(* Ask the server to upgrade a connection to a websocket. *)
+let upgrade ?origin (ic, oc) =
+  let headers =
+    [
+      Fmt.str "Host: 127.0.0.1:%d" small_port;
+      "Upgrade: websocket";
+      "Connection: Upgrade";
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==";
+      "Sec-WebSocket-Version: 13";
+    ]
+    @ match origin with None -> [] | Some o -> [ "Origin: " ^ o ]
+  in
+  let request =
+    String.concat "\r\n" (("GET / HTTP/1.1" :: headers) @ [ ""; "" ])
+  in
+  let* () = Lwt_io.write oc request in
+  let+ status = timeout (fun () -> Lwt_io.read_line ic) in
+  String.length status >= 12 && String.sub status 9 3 = "101"
+
+let with_small_server f =
+  Lwt_io.with_connection Unix.(ADDR_INET (inet_addr_loopback, small_port)) f
+
+(* A websocket opened by a web page is only accepted from the allowed
+   origins. Other clients do not send the header. *)
+let websocket_origin () =
+  let check msg expected origin =
+    let+ accepted = with_small_server (upgrade ?origin) in
+    Alcotest.(check bool) msg expected accepted
+  in
+  let* () = check "no origin" true None in
+  let* () = check "allowed origin" true (Some allowed_origin) in
+  let* () = check "case of the origin" true (Some "HTTPS://Allowed.Example") in
+  let* () = check "other origin" false (Some "https://evil.example") in
+  check "prefix of an allowed origin" false
+    (Some "https://allowed.example.evil")
+
+(* A frame which is not valid closes its connection, not the server. *)
+let websocket_bad_frame () =
+  let* () =
+    with_small_server @@ fun (ic, oc) ->
+    let* accepted = upgrade (ic, oc) in
+    Alcotest.(check bool) "upgrade" true accepted;
+    (* A control frame cannot be this long *)
+    let* () = Lwt_io.write oc "\x89\xfe\x00\x80" in
+    Lwt_io.flush oc
+  in
+  let* () = Lwt_unix.sleep 0.5 in
+  let+ accepted = with_small_server upgrade in
+  Alcotest.(check bool) "server still running" true accepted
+
+let misc =
+  [
+    ("ping", `Quick, ping);
+    ("watch and lost server", `Quick, watch_lost_server);
+    ("message size", `Quick, message_size);
+    ("oversized request", `Quick, oversized_request);
+    ("client message size", `Quick, client_message_size);
+    ("unsafe_add and hash", `Quick, unsafe_add_hash);
+    ("dashboard paths", `Quick, dashboard_paths);
+    ("websocket origin", `Quick, websocket_origin);
+    ("websocket bad frame", `Quick, websocket_bad_frame);
+  ]
+
 let misc = [ ("misc", misc) ]
 
 let () =

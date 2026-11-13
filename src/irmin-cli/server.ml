@@ -30,7 +30,8 @@ let setup_log =
     const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
 let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
-    ~config_path (module Codec : Conn.Codec.S) fingerprint =
+    ~max_message_size ~allowed_origins ~config_path
+    (module Codec : Conn.Codec.S) fingerprint =
   let store, config =
     Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
   in
@@ -56,13 +57,16 @@ let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
       | Some port -> Some (`TCP (`Port port))
       | None -> None
     in
-    let* server = Server.v ?tls_config ?dashboard ~uri config in
+    let* server =
+      Server.v ?tls_config ?dashboard ?max_message_size ~allowed_origins ~uri
+        config
+    in
     let root = match root with Some root -> root | None -> "" in
     Logs.app (fun l -> l "Listening on %a, store: %s" Uri.pp_hum uri root);
     Server.serve server
 
 let main readonly root uri tls (store, hash, contents) codec config_path
-    dashboard fingerprint () =
+    dashboard max_message_size allowed_origins fingerprint () =
   let codec =
     match codec with
     | `Bin -> (module Conn.Codec.Bin : Conn.Codec.S)
@@ -70,7 +74,7 @@ let main readonly root uri tls (store, hash, contents) codec config_path
   in
   Lwt_main.run
   @@ main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
-       ~dashboard codec fingerprint
+       ~dashboard ~max_message_size ~allowed_origins codec fingerprint
 
 open Cmdliner
 
@@ -107,6 +111,27 @@ let dashboard =
   in
   Arg.(value @@ opt (some int) None doc)
 
+let max_message_size =
+  let doc =
+    Arg.info ~docs:"" ~docv:"BYTES"
+      ~doc:
+        "Maximum size of a message. The connection of a client sending a \
+         longer one is closed. The default is 64 MiB."
+      [ "max-message-size" ]
+  in
+  Arg.(value @@ opt (some int) None doc)
+
+let allowed_origins =
+  let doc =
+    Arg.info ~docs:"" ~docv:"ORIGIN"
+      ~doc:
+        "Accept the websocket connections of the web pages of this origin, \
+         like https://example.org. Can be repeated. By default no web page can \
+         connect."
+      [ "allowed-origin" ]
+  in
+  Arg.(value @@ opt_all string [] doc)
+
 let main_term =
   Term.(
     const main
@@ -118,5 +143,7 @@ let main_term =
     $ Irmin_server.Cli.codec
     $ Irmin_server.Cli.config_path
     $ dashboard
+    $ max_message_size
+    $ allowed_origins
     $ fingerprint
     $ setup_log)

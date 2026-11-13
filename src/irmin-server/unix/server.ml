@@ -33,6 +33,8 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     dashboard : Conduit_lwt_unix.server option;
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
+    max_message_size : int option;
+    allowed_origins : string list;
     repo : Store.Repo.t;
     info : Command.Server_info.t;
   }
@@ -40,7 +42,8 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ?dashboard ~uri config =
+  let v ?tls_config ?dashboard ?max_message_size ?(allowed_origins = []) ~uri
+      config =
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -73,28 +76,38 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let+ repo = Store.Repo.v config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; dashboard; config; repo; info }
+    let allowed_origins = List.map String.lowercase_ascii allowed_origins in
+    {
+      ctx;
+      uri;
+      server;
+      dashboard;
+      config;
+      max_message_size;
+      allowed_origins;
+      repo;
+      info;
+    }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
   let invalid_arguments a = Error.unwrap "Invalid arguments" a [@@inline]
   let command_lock = Lwt_mutex.create ()
 
+  let unwatch client =
+    let* () =
+      match client.Command.watch with
+      | Some w -> Store.unwatch w
+      | None -> Lwt.return_unit
+    in
+    match client.Command.branch_watch with
+    | Some w ->
+        let b = Store.Backend.Repo.branch_t client.repo in
+        Store.Backend.Branch.unwatch b w
+    | None -> Lwt.return_unit
+
   let[@tailrec] rec loop repo conn client info : unit Lwt.t =
-    if Conn.is_closed conn then
-      let* () =
-        match client.Command.watch with
-        | Some w -> Store.unwatch w
-        | None -> Lwt.return_unit
-      in
-      let* () =
-        match client.Command.branch_watch with
-        | Some w ->
-            let b = Store.Backend.Repo.branch_t client.repo in
-            Store.Backend.Branch.unwatch b w
-        | None -> Lwt.return_unit
-      in
-      Lwt.return_unit
+    if Conn.is_closed conn then Lwt.return_unit
     else
       Lwt.catch
         (fun () ->
@@ -124,6 +137,17 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
               (* Client has disconnected *)
               let* () = Lwt_io.close conn.ic in
               Lwt.return_unit
+          | Irmin_server.Conn.Message_too_large len ->
+              (* The message has not been read: the stream is lost *)
+              [%log.err "Closing the connection: message of %Ld bytes" len];
+              let* () =
+                Lwt.catch
+                  (fun () -> Conn.err conn "message too large")
+                  (fun exn ->
+                    [%log.debug "Cannot send the error: %a" Fmt.exn exn];
+                    Lwt.return_unit)
+              in
+              Lwt_io.close conn.ic
           | exn ->
               if Conn.is_closed conn then Lwt.return_unit
               else
@@ -134,9 +158,9 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
                 Lwt_unix.sleep 0.01)
       >>= fun () -> loop repo conn client info
 
-  let callback { repo; info; config; _ } ic oc =
+  let callback { repo; info; config; max_message_size; _ } ic oc =
     (* Handshake check *)
-    let conn = Conn.v ic oc in
+    let conn = Conn.v ?max_message_size ic oc in
     let* check =
       Lwt.catch
         (fun () -> Conn.Handshake.V1.check (module Store) conn)
@@ -151,7 +175,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       let client =
         Command.{ conn; repo; watch = None; branch_watch = None; config }
       in
-      loop repo conn client info
+      (* The watches are removed however the connection ends *)
+      Lwt.finalize
+        (fun () -> loop repo conn client info)
+        (fun () -> unwatch client)
 
   (* The websocket protocol reads fully formed protocol packets off of
      one end of a pipe given to irmin-server-internal and converts the
@@ -189,6 +216,14 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   end
 
   let websocket_handler server client =
+    (* The loops below run under [Lwt.async]: an exception leaving them would
+       stop the whole server. [End_of_file] is the websocket being closed. *)
+    let lost exn channel other_channel =
+      (match exn with
+      | End_of_file -> ()
+      | exn -> [%log.err "Websocket: closing on %a" Fmt.exn exn]);
+      Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
+    in
     let rec fill_ic channel other_channel client =
       if Lwt_io.is_closed other_channel then Lwt_io.close channel
       else
@@ -200,11 +235,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
               [%log.debug "<<< Server received frame"];
               Lwt_io.write channel frame.content >>= fun () ->
               fill_ic channel other_channel client))
-          (function
-            | End_of_file ->
-                (* The websocket has been closed is the assumption here *)
-                Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
-            | exn -> Lwt.fail exn)
+          (fun exn -> lost exn channel other_channel)
     in
     let rec send_oc handshake channel other_channel client =
       if Lwt_io.is_closed other_channel then Lwt_io.close channel
@@ -218,10 +249,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             Websocket_lwt_unix.Connected_client.send client
               (Websocket.Frame.create ~opcode:Binary ~content ())
             >>= fun () -> send_oc false channel other_channel client)
-          (function
-            | End_of_file ->
-                Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
-            | exn -> Lwt.fail exn)
+          (fun exn -> lost exn channel other_channel)
     in
     let input_ic, input_oc = Lwt_io.pipe () in
     let output_ic, output_oc = Lwt_io.pipe () in
@@ -229,7 +257,22 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     Lwt.async (fun () -> send_oc true output_ic output_oc client);
     callback server input_ic output_oc
 
+  (* A browser sends the origin of the page opening a websocket. Without this
+     check, any page visited by someone who can reach the server could use
+     it. Other clients do not send this header. *)
+  let check_origin t req =
+    match Cohttp.Header.get (Cohttp.Request.headers req) "origin" with
+    | None -> true
+    | Some origin ->
+        let allowed =
+          List.mem (String.lowercase_ascii origin) t.allowed_origins
+        in
+        if not allowed then
+          [%log.warn "Websocket refused: origin %S is not allowed" origin];
+        allowed
+
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
+  let json_string = Irmin.Type.to_json_string Irmin.Type.string
 
   let dashboard t mode =
     let list store prefix =
@@ -279,10 +322,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         let* keys =
           Lwt_list.map_s
             (fun (path, kind, hash) ->
-              Format.sprintf {|{"path": "%s", "kind": "%s", "hash": "%s"}|}
-                (Irmin.Type.to_string Store.path_t path)
-                kind
-                (Irmin.Type.to_string Store.hash_t hash)
+              Format.sprintf {|{"path": %s, "kind": %s, "hash": %s}|}
+                (json_string (Irmin.Type.to_string Store.path_t path))
+                (json_string kind)
+                (json_string (Irmin.Type.to_string Store.hash_t hash))
               |> Lwt.return)
             keys
         in
@@ -346,9 +389,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       match Uri.scheme t.uri with
       | Some "ws" | Some "wss" ->
           Websocket_lwt_unix.establish_standard_server ~ctx:t.ctx ~mode:t.server
-            ~on_exn
-            ~check_request:(fun _ -> true)
-            (websocket_handler t)
+            ~on_exn ~check_request:(check_origin t) (websocket_handler t)
       | _ ->
           Conduit_lwt_unix.serve ?stop ~ctx:t.ctx ~on_exn ~mode:t.server
             (fun _ ic oc -> callback t ic oc)
