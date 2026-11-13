@@ -62,7 +62,7 @@ let (_ : int) = fork_server ~max_message_size:small_size small_uri
 let origin_port = free_port ()
 let origin_uri = Uri.of_string (Fmt.str "ws://127.0.0.1:%d" origin_port)
 
-let (_ : int) =
+let origin_server =
   fork_server ~allowed_origins:[ "HTTPS://Allowed.Example:443/" ] origin_uri
 
 module Unix_socket = Make (struct
@@ -452,6 +452,46 @@ let websocket_origin () =
             (Irmin_mem.config ())))
     [ "allowed.example"; "https://allowed.example/page"; "https://"; "" ]
 
+(* A frame which is not valid closes its connection, not the server. *)
+let websocket_bad_frame () =
+  let* () =
+    with_origin_server @@ fun (ic, oc) ->
+    let* accepted = upgrade (ic, oc) in
+    Alcotest.(check bool) "upgrade" true accepted;
+    (* A control frame cannot be this long *)
+    let* () = Lwt_io.write oc "\x89\xfe\x00\x80" in
+    Lwt_io.flush oc
+  in
+  let* () = Lwt_unix.sleep 0.5 in
+  let+ accepted = with_origin_server upgrade in
+  Alcotest.(check bool) "server still running" true accepted
+
+(* Wait until [f ()] holds, for a few seconds. *)
+let rec eventually ?(tries = 50) f =
+  if f () then Lwt.return_true
+  else if tries = 0 then Lwt.return_false
+  else
+    let* () = Lwt_unix.sleep 0.1 in
+    eventually ~tries:(tries - 1) f
+
+(* The server keeps nothing of a websocket which is closed. Its file
+   descriptors are only counted where [/proc] gives them. *)
+let websocket_closed () =
+  let dir = Fmt.str "/proc/%d/fd" origin_server in
+  if not (Sys.file_exists dir) then Lwt.return_unit
+  else
+    let count () = Array.length (Sys.readdir dir) in
+    let before = count () in
+    let* () =
+      Lwt_list.iter_s
+        (fun () ->
+          let+ accepted = with_origin_server upgrade in
+          Alcotest.(check bool) "upgrade" true accepted)
+        (List.init 10 (fun _ -> ()))
+    in
+    let+ released = eventually (fun () -> count () <= before) in
+    Alcotest.(check bool) "file descriptors released" true released
+
 let misc =
   [
     ("ping", `Quick, ping);
@@ -465,6 +505,8 @@ let misc =
     ("unsafe_add and hash", `Quick, unsafe_add_hash);
     ("dashboard paths", `Quick, dashboard_paths);
     ("websocket origin", `Quick, websocket_origin);
+    ("websocket bad frame", `Quick, websocket_bad_frame);
+    ("websocket closed", `Quick, websocket_closed);
   ]
 
 let misc = [ ("misc", misc) ]
