@@ -258,7 +258,122 @@ let invalid_message_size () =
   check_raises "connection" invalid (fun () ->
       Conn.v ~max_message_size:(-1) Lwt_io.stdin Lwt_io.stdout)
 
+(* [with_watchdog msg f] exits if [f] does not return: a scheduler which is
+   kept busy cannot report the failure itself. It waits longer than the
+   timeouts of the tests, which report the other failures. *)
+let with_watchdog msg f =
+  let finished = Atomic.make false in
+  let deadline = Unix.gettimeofday () +. (2. *. timeout_delay) in
+  let rec wait () =
+    if Atomic.get finished then ()
+    else if Unix.gettimeofday () > deadline then (
+      prerr_endline msg;
+      Unix._exit 1)
+    else (
+      Unix.sleepf 0.1;
+      wait ())
+  in
+  let watchdog = Domain.spawn wait in
+  Fun.protect f ~finally:(fun () ->
+      Atomic.set finished true;
+      Domain.join watchdog)
+
+(* A watch must stop when its server goes away. It was looping for ever,
+   without yielding to the scheduler. The server here accepts the watch, then
+   closes the connection. Removing the watch afterwards must not fail. *)
+let watch_lost_server () =
+  with_watchdog "The watch keeps the scheduler busy without its server"
+  @@ fun () ->
+  with_watch_server "watch.sock" Conn.ok @@ fun uri ->
+  let repo = Client.Repo.v (Irmin_client_unix.config uri) in
+  let watch = Client.Branch.watch repo "main" ignore in
+  Eio_unix.sleep 0.5;
+  Client.unwatch watch;
+  Client.Repo.close repo
+
+let notify conn write =
+  let open Lwt.Syntax in
+  let* () =
+    Conn.Response.write_header conn (Conn.Response.v_header ~status:0)
+  in
+  write conn
+
+let branches repo = Client.Backend.Repo.branch_t repo
+let commit name = Store.Hash.hash (fun f -> f name)
+
+(* The watches return their removal. *)
+let watch_branches repo f =
+  let watch =
+    Client.Backend.Branch.watch (branches repo) (fun key diff -> f (key, diff))
+  in
+  fun () -> Client.Backend.Branch.unwatch (branches repo) watch
+
+let watch_main repo f =
+  let watch = Client.Backend.Branch.watch_key (branches repo) "main" f in
+  fun () -> Client.Backend.Branch.unwatch (branches repo) watch
+
+(* A notification which cannot be decoded is skipped: the watch goes on.
+   [skipped] is sent followed by more bytes, then [expected] is sent. The
+   strings are sent as they are, without their length. *)
+let watch_invalid_notification ~watch diff_t ~skipped ~expected () =
+  with_watchdog "The watch keeps the scheduler busy" @@ fun () ->
+  let open Lwt.Syntax in
+  let encode = Irmin.Type.(unstage (to_bin_string diff_t)) in
+  let send_raw s conn = Conn.write conn Irmin.Type.string s in
+  let answer conn =
+    let* () = Conn.ok conn in
+    let* () = notify conn (send_raw "invalid") in
+    let* () = notify conn (send_raw (encode skipped ^ "more")) in
+    notify conn (fun conn -> Conn.write conn diff_t expected)
+  in
+  with_watch_server "invalid.sock" answer @@ fun uri ->
+  let repo = Client.Repo.v (Irmin_client_unix.config uri) in
+  let received, notified = Eio.Promise.create () in
+  let unwatch = watch repo (Eio.Promise.resolve notified) in
+  let diff =
+    Eio.Fiber.first
+      (fun () -> Eio.Promise.await received)
+      (fun () ->
+        Eio_unix.sleep timeout_delay;
+        Alcotest.fail "The watch stops on an invalid notification")
+  in
+  let diff_testable =
+    Alcotest.testable (Irmin.Type.pp diff_t) Irmin.Type.(unstage (equal diff_t))
+  in
+  Alcotest.check diff_testable "notification" expected diff;
+  unwatch ();
+  Client.Repo.close repo
+
+(* The connection of a watch which cannot be set is closed. *)
+let watch_refused () =
+  with_watchdog "The watch keeps the scheduler busy" @@ fun () ->
+  let closed, set_closed = Lwt.wait () in
+  let answer (conn : Conn.t) =
+    let open Lwt.Syntax in
+    let* () = Conn.err conn "refused" in
+    Lwt.catch
+      (fun () ->
+        let+ (_ : char) = Lwt_io.read_char conn.ic in
+        Lwt.wakeup_later set_closed false)
+      (function
+        | End_of_file ->
+            Lwt.wakeup_later set_closed true;
+            Lwt.return_unit
+        | exn -> Lwt.reraise exn)
+  in
+  with_watch_server "refused.sock" answer @@ fun uri ->
+  let repo = Client.Repo.v (Irmin_client_unix.config uri) in
+  check_raises "The watch is set"
+    (function Error.Error _ -> true | _ -> false)
+    (fun () -> Client.Backend.Branch.watch (branches repo) (fun _ _ -> ()));
+  let closed = Lwt_eio.run_lwt @@ fun () -> timeout (fun () -> closed) in
+  Alcotest.(check bool) "connection closed" true closed;
+  Client.Repo.close repo
+
 let misc ~uri ~clock client =
+  let branch_diff_t =
+    Irmin.Type.pair Store.Branch.t (Irmin.Diff.t Store.commit_key_t)
+  in
   [
     ("ping", `Quick, ping client);
     ("message size", `Quick, message_size);
@@ -267,6 +382,19 @@ let misc ~uri ~clock client =
     ("client message size", `Quick, client_message_size ~clock);
     ("server message size", `Quick, server_message_size ~clock);
     ("invalid message size", `Quick, invalid_message_size);
+    ("watch and lost server", `Quick, watch_lost_server);
+    ( "watch and invalid notification",
+      `Quick,
+      watch_invalid_notification ~watch:watch_branches branch_diff_t
+        ~skipped:("too long", `Removed (commit "a"))
+        ~expected:("main", `Removed (commit "a")) );
+    ( "watch_key and invalid notification",
+      `Quick,
+      watch_invalid_notification ~watch:watch_main
+        (Irmin.Diff.t Store.commit_key_t)
+        ~skipped:(`Removed (commit "a"))
+        ~expected:(`Added (commit "b")) );
+    ("watch refused", `Quick, watch_refused);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]
