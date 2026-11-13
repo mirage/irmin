@@ -1,3 +1,28 @@
+## Unreleased
+
+### Added
+
+- **irmin-server**, **irmin-client**
+  - Add a `max_message_size` option to `Irmin_server_unix.Make(_).v`,
+    `Irmin_client.config` and `connect` (@balat)
+
+### Changed
+
+- **irmin-server**, **irmin-client**
+  - A connection does not send nor accept the messages longer than
+    `max_message_size`, 64 MiB by default. This includes the slices of
+    `export` and `import`, which are sent as one message (@balat)
+  - A client is closed when a request fails before its response is read in
+    full: its connection cannot be used any more (@balat)
+  - The server does not send the notification of a watch when it is longer
+    than `max_message_size` (@balat)
+  - A watch of the client stops when its connection is closed by the server,
+    or when a notification is longer than the `max_message_size` of the
+    client, as it cannot be skipped (@balat)
+- **irmin-server**
+  - Remove the `buffer` field of `Conn.t` and the `buffer_size` argument of
+    `Conn.v`, which are not used any more (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added
