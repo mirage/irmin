@@ -50,4 +50,14 @@ module Make_json (Store : Irmin.Generic_key.S) :
      and type contents_key = Store.contents_key
      and type node_key = Store.node_key
 
-val config : ?tls:bool -> ?hostname:string -> Uri.t -> Irmin.config
+val config :
+  ?tls:bool ->
+  ?hostname:string ->
+  ?max_message_size:int ->
+  Uri.t ->
+  Irmin.config
+(** [config uri] is the configuration of a client of the server at [uri]. The
+    client does not send nor accept the messages longer than [max_message_size]
+    bytes: the request fails with {!Irmin_server.Conn.Message_too_large} and the
+    client is closed. The default is
+    {!Irmin_server.Conn.default_max_message_size}. *)
