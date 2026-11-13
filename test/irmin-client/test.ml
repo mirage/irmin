@@ -301,6 +301,51 @@ let dashboard_paths client () =
       let paths = List.map (fun (path, _, _) -> path) entries in
       Alcotest.(check (list string)) "paths" [ "/" ^ step ] paths
 
+(* Ask the server on [port] to upgrade a connection to a websocket. *)
+let upgrade ?origin ~port (ic, oc) =
+  let open Lwt.Syntax in
+  let headers =
+    [
+      Fmt.str "Host: 127.0.0.1:%d" port;
+      "Upgrade: websocket";
+      "Connection: Upgrade";
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==";
+      "Sec-WebSocket-Version: 13";
+    ]
+    @ match origin with None -> [] | Some o -> [ "Origin: " ^ o ]
+  in
+  let request =
+    String.concat "\r\n" (("GET / HTTP/1.1" :: headers) @ [ ""; "" ])
+  in
+  let* () = Lwt_io.write oc request in
+  let+ status = timeout (fun () -> Lwt_io.read_line ic) in
+  String.length status >= 12 && String.sub status 9 3 = "101"
+
+let with_connection ~port f =
+  Lwt_eio.run_lwt @@ fun () ->
+  Lwt_io.with_connection Unix.(ADDR_INET (inet_addr_loopback, port)) f
+
+let websocket_uri port = Uri.of_string (Fmt.str "ws://127.0.0.1:%d" port)
+
+(* A websocket opened by a web page is only accepted from the allowed
+   origins. Other clients do not send the header. *)
+let websocket_origin ~clock () =
+  let port = 9297 and allowed_origin = "https://allowed.example" in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock ~allowed_origins:[ allowed_origin ] "Origin"
+    (websocket_uri port);
+  let check msg expected origin =
+    Alcotest.(check bool)
+      msg expected
+      (with_connection ~port (upgrade ?origin ~port))
+  in
+  check "no origin" true None;
+  check "allowed origin" true (Some allowed_origin);
+  check "case of the origin" true (Some "HTTPS://Allowed.Example");
+  check "other origin" false (Some "https://evil.example");
+  check "prefix of an allowed origin" false
+    (Some "https://allowed.example.evil")
+
 let misc ~uri ~clock client =
   [
     ("ping", `Quick, ping client);
@@ -310,6 +355,7 @@ let misc ~uri ~clock client =
     ("client message size", `Quick, client_message_size ~clock);
     ("unsafe_add and hash", `Quick, unsafe_add_hash ~uri);
     ("dashboard paths", `Quick, dashboard_paths client);
+    ("websocket origin", `Quick, websocket_origin ~clock);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]
