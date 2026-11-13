@@ -58,6 +58,13 @@ let small_size = 4096
 let small_uri = unix_uri "small.sock"
 let (_ : int) = fork_server ~max_message_size:small_size small_uri
 
+(* A websocket server accepting the pages of one origin. *)
+let origin_port = free_port ()
+let origin_uri = Uri.of_string (Fmt.str "ws://127.0.0.1:%d" origin_port)
+
+let (_ : int) =
+  fork_server ~allowed_origins:[ "HTTPS://Allowed.Example:443/" ] origin_uri
+
 module Unix_socket = Make (struct
   let kind, pid, uri = unix_server
 end)
@@ -394,6 +401,57 @@ let dashboard_paths () =
       Alcotest.(check (list string)) "paths" [ "/" ^ step ] paths;
       Lwt.return_unit
 
+(* Ask the server to upgrade a connection to a websocket. *)
+let upgrade ?origin (ic, oc) =
+  let headers =
+    [
+      Fmt.str "Host: 127.0.0.1:%d" origin_port;
+      "Upgrade: websocket";
+      "Connection: Upgrade";
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==";
+      "Sec-WebSocket-Version: 13";
+    ]
+    @ match origin with None -> [] | Some o -> [ "Origin: " ^ o ]
+  in
+  let request =
+    String.concat "\r\n" (("GET / HTTP/1.1" :: headers) @ [ ""; "" ])
+  in
+  let* () = Lwt_io.write oc request in
+  let+ status = timeout (fun () -> Lwt_io.read_line ic) in
+  String.length status >= 12 && String.sub status 9 3 = "101"
+
+let with_origin_server f =
+  Lwt_io.with_connection Unix.(ADDR_INET (inet_addr_loopback, origin_port)) f
+
+(* A websocket opened by a web page is only accepted from the allowed
+   origins. Other clients do not send the header. *)
+let websocket_origin () =
+  let check msg expected origin =
+    let+ accepted = with_origin_server (upgrade ?origin) in
+    Alcotest.(check bool) msg expected accepted
+  in
+  let* () = check "no origin" true None in
+  let* () = check "allowed origin" true (Some "https://allowed.example") in
+  let* () = check "case of the origin" true (Some "HTTPS://Allowed.Example") in
+  let* () = check "other origin" false (Some "https://evil.example") in
+  let* () = check "default port" true (Some "https://allowed.example:443") in
+  let* () = check "other port" false (Some "https://allowed.example:8443") in
+  let* () = check "other scheme" false (Some "http://allowed.example") in
+  let* () = check "not an origin" false (Some "null") in
+  let* () =
+    check "prefix of an allowed origin" false
+      (Some "https://allowed.example.evil")
+  in
+  (* The server does not start with an origin which cannot be allowed *)
+  Lwt_list.iter_s
+    (fun origin ->
+      fails origin
+        (function Invalid_argument _ -> true | _ -> false)
+        (fun () ->
+          Server.v ~allowed_origins:[ origin ] ~uri:origin_uri
+            (Irmin_mem.config ())))
+    [ "allowed.example"; "https://allowed.example/page"; "https://"; "" ]
+
 let misc =
   [
     ("ping", `Quick, ping);
@@ -406,6 +464,7 @@ let misc =
     ("invalid message size", `Quick, invalid_message_size);
     ("unsafe_add and hash", `Quick, unsafe_add_hash);
     ("dashboard paths", `Quick, dashboard_paths);
+    ("websocket origin", `Quick, websocket_origin);
   ]
 
 let misc = [ ("misc", misc) ]

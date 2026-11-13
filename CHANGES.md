@@ -5,6 +5,8 @@
 - **irmin-server**, **irmin-client**
   - Add a `max_message_size` option to `Irmin_server_unix.Make(_).v`,
     `Irmin_client.config` and `connect` (@balat)
+- **irmin-server**
+  - Add an `allowed_origins` option to `Irmin_server_unix.Make(_).v` (@balat)
 
 ### Changed
 
@@ -19,6 +21,9 @@
 - **irmin-server**
   - Remove the `buffer` field of `Conn.t` and the `buffer_size` argument of
     `Conn.v`, which are not used any more (@balat)
+  - The websocket server refuses the connections coming from web pages,
+    unless the origin of the page is in `allowed_origins`. Any page visited
+    by someone who can reach the server could use it (@balat)
 
 ### Fixed
 
