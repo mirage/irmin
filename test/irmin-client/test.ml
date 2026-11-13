@@ -49,6 +49,7 @@ end
 let unix_server = run_server `Unix_domain
 let tcp_server = run_server `Tcp
 let websocket_server = run_server `Websocket
+let unix_watcher = fork_watcher (unix_uri "watch.sock")
 
 module Unix_socket = Make (struct
   let kind, _, uri = unix_server
@@ -84,7 +85,122 @@ let ping () =
   Logs.debug (fun l -> l "AFTER PING");
   Alcotest.(check (result unit error)) "ping" (Ok ()) r
 
-let misc = [ ("ping", `Quick, ping) ]
+(* A watch must stop when its server goes away. It was looping for ever,
+   without yielding to the scheduler: the watcher could not exit. Removing
+   the watch afterwards must not fail. *)
+let watch_lost_server { server; watcher; ready; server_gone } () =
+  let* ready = timeout (fun () -> Lwt_unix.read ready (Bytes.create 1) 0 1) in
+  Alcotest.(check int) "watcher ready" 1 ready;
+  terminate server;
+  let* (_ : Unix.process_status) = timeout (fun () -> wait_child server) in
+  let* (_ : int) = Lwt_unix.write server_gone (Bytes.make 1 'g') 0 1 in
+  Lwt.catch
+    (fun () ->
+      timeout @@ fun () ->
+      let+ status = wait_child watcher in
+      Alcotest.(check bool) "watcher exit" true (status = Unix.WEXITED 0))
+    (function
+      | Lwt_unix.Timeout ->
+          terminate watcher;
+          Alcotest.fail "The watch keeps the scheduler busy without its server"
+      | exn -> Lwt.reraise exn)
+
+let notify conn write =
+  let* () =
+    Conn.Response.write_header conn (Conn.Response.v_header ~status:0)
+  in
+  write conn
+
+let commit name = Store.Hash.hash (fun f -> f name)
+
+(* The watches return their removal. *)
+let watch_branches repo f =
+  let branches = Client.Backend.Repo.branch_t repo in
+  let+ watch =
+    Client.Backend.Branch.watch branches (fun key diff -> f (key, diff))
+  in
+  fun () -> Client.Backend.Branch.unwatch branches watch
+
+let watch_main repo f =
+  let branches = Client.Backend.Repo.branch_t repo in
+  let+ watch = Client.Backend.Branch.watch_key branches "main" f in
+  fun () -> Client.Backend.Branch.unwatch branches watch
+
+(* A notification which cannot be decoded is skipped: the watch goes on.
+   [skipped] is sent followed by more bytes, then [expected] is sent. The
+   strings are sent as they are, without their length. *)
+let watch_invalid_notification ~watch diff_t ~skipped ~expected () =
+  let encode = Irmin.Type.(unstage (to_bin_string diff_t)) in
+  let send_raw s conn = Conn.write conn Irmin.Type.string s in
+  let answer conn =
+    let* () = Conn.ok conn in
+    let* () = notify conn (send_raw "invalid") in
+    let* () = notify conn (send_raw (encode skipped ^ "more")) in
+    notify conn (fun conn -> Conn.write conn diff_t expected)
+  in
+  with_watch_server "invalid.sock" answer @@ fun uri ->
+  let* repo = Client.Repo.v (Irmin_client_unix.config uri) in
+  let received, notified = Lwt.wait () in
+  let* unwatch =
+    watch repo (fun diff ->
+        Lwt.wakeup_later notified diff;
+        Lwt.return_unit)
+  in
+  let* diff = timeout (fun () -> received) in
+  let diff_testable =
+    Alcotest.testable (Irmin.Type.pp diff_t) Irmin.Type.(unstage (equal diff_t))
+  in
+  Alcotest.check diff_testable "notification" expected diff;
+  let* () = unwatch () in
+  Client.Repo.close repo
+
+(* The connection of a watch which cannot be set is closed. *)
+let watch_refused () =
+  let closed, set_closed = Lwt.wait () in
+  let answer (conn : Conn.t) =
+    let* () = Conn.err conn "refused" in
+    Lwt.catch
+      (fun () ->
+        let+ (_ : char) = Lwt_io.read_char conn.ic in
+        Lwt.wakeup_later set_closed false)
+      (function
+        | End_of_file ->
+            Lwt.wakeup_later set_closed true;
+            Lwt.return_unit
+        | exn -> Lwt.reraise exn)
+  in
+  with_watch_server "refused.sock" answer @@ fun uri ->
+  let* repo = Client.Repo.v (Irmin_client_unix.config uri) in
+  let* () =
+    fails "The watch is set"
+      (function Error.Error _ -> true | _ -> false)
+      (fun () -> watch_branches repo (fun _ -> Lwt.return_unit))
+  in
+  let* closed = timeout (fun () -> closed) in
+  Alcotest.(check bool) "connection closed" true closed;
+  Client.Repo.close repo
+
+let misc =
+  let branch_diff_t =
+    Irmin.Type.pair Store.Branch.t (Irmin.Diff.t Store.commit_key_t)
+  in
+  [
+    ("ping", `Quick, ping);
+    ("watch and lost server", `Quick, watch_lost_server unix_watcher);
+    ( "watch and invalid notification",
+      `Quick,
+      watch_invalid_notification ~watch:watch_branches branch_diff_t
+        ~skipped:("too long", `Removed (commit "a"))
+        ~expected:("main", `Removed (commit "a")) );
+    ( "watch_key and invalid notification",
+      `Quick,
+      watch_invalid_notification ~watch:watch_main
+        (Irmin.Diff.t Store.commit_key_t)
+        ~skipped:(`Removed (commit "a"))
+        ~expected:(`Added (commit "b")) );
+    ("watch refused", `Quick, watch_refused);
+  ]
+
 let misc = [ ("misc", misc) ]
 
 let () =
