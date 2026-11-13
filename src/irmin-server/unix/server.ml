@@ -211,6 +211,14 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   end
 
   let websocket_handler server client =
+    (* The loops below run under [Lwt.async]: an exception leaving them would
+       stop the whole server. [End_of_file] is the websocket being closed. *)
+    let lost exn channel other_channel =
+      (match exn with
+      | End_of_file -> ()
+      | exn -> [%log.err "Websocket: closing on %a" Fmt.exn exn]);
+      Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
+    in
     let rec fill_ic channel other_channel client =
       if Lwt_io.is_closed other_channel then Lwt_io.close channel
       else
@@ -222,11 +230,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
               [%log.debug "<<< Server received frame"];
               Lwt_io.write channel frame.content >>= fun () ->
               fill_ic channel other_channel client))
-          (function
-            | End_of_file ->
-                (* The websocket has been closed is the assumption here *)
-                Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
-            | exn -> Lwt.fail exn)
+          (fun exn -> lost exn channel other_channel)
     in
     let rec send_oc handshake channel other_channel client =
       if Lwt_io.is_closed other_channel then Lwt_io.close channel
@@ -240,10 +244,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
             Websocket_lwt_unix.Connected_client.send client
               (Websocket.Frame.create ~opcode:Binary ~content ())
             >>= fun () -> send_oc false channel other_channel client)
-          (function
-            | End_of_file ->
-                Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
-            | exn -> Lwt.fail exn)
+          (fun exn -> lost exn channel other_channel)
     in
     let input_ic, input_oc = Lwt_io.pipe () in
     let output_ic, output_oc = Lwt_io.pipe () in

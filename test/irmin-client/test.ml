@@ -346,6 +346,23 @@ let websocket_origin ~clock () =
   check "prefix of an allowed origin" false
     (Some "https://allowed.example.evil")
 
+(* A frame which is not valid closes its connection, not the server. *)
+let websocket_bad_frame ~clock () =
+  let port = 9296 in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock "Frames" (websocket_uri port);
+  ( with_connection ~port @@ fun (ic, oc) ->
+    let open Lwt.Syntax in
+    let* accepted = upgrade ~port (ic, oc) in
+    Alcotest.(check bool) "upgrade" true accepted;
+    (* A control frame cannot be this long *)
+    let* () = Lwt_io.write oc "\x89\xfe\x00\x80" in
+    Lwt_io.flush oc );
+  Eio.Time.sleep clock 0.5;
+  Alcotest.(check bool)
+    "server still running" true
+    (with_connection ~port (upgrade ~port))
+
 let misc ~uri ~clock client =
   [
     ("ping", `Quick, ping client);
@@ -356,6 +373,7 @@ let misc ~uri ~clock client =
     ("unsafe_add and hash", `Quick, unsafe_add_hash ~uri);
     ("dashboard paths", `Quick, dashboard_paths client);
     ("websocket origin", `Quick, websocket_origin ~clock);
+    ("websocket bad frame", `Quick, websocket_bad_frame ~clock);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]

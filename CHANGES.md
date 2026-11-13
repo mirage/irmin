@@ -32,6 +32,7 @@
     HTML, and send the paths as JSON strings (@balat)
   - Refuse the `unsafe_add` commands whose hash is not the hash of the value:
     a client could make an object of the store unreadable (@balat)
+  - Do not stop the server on a websocket frame which is not valid (@balat)
 - **irmin-server**, **irmin-client**
   - Do not allocate the length announced by the peer before the message is
     received (@balat)
